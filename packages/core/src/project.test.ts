@@ -22,6 +22,7 @@ import {
   createProjectFromTrackLabels,
   createStackGuideLabel,
   defaultCspCellName,
+  deleteOverlayPaperTrack,
   digitalStandardSheetTemplate,
   eraseAnnotations,
   getSheetTemplateHiddenPaperTracks,
@@ -404,6 +405,28 @@ describe('core project commands', () => {
     expect(renamed.logicalSheet.events.find(event => event.keyId === created.key.keyId)?.paperTrack).toBe('K')
     expect(renamed.cspTrackSlots.filter(slot => slot.paperTrack === 'K').map(slot => slot.xdtsName)).toEqual(['K', 'K', 'K', 'K', 'K', 'K'])
     expect(renamed.bindings.find(binding => binding.keyId === created.key.keyId)?.slotId).toBe('slot_J')
+  })
+
+  it('deletes overlay paper tracks without deleting template tracks or stack guide labels', () => {
+    const added = addOverlayPaperTrack(createDefaultProject(), { paperTrack: 'J', insertAfterPaperTrack: 'C', snapIndex: 4 })
+    const overlayEvent = createOrSetEvent(added.project, 'J', 12, 'cell')
+    const templateEvent = createOrSetEvent(overlayEvent.project, 'A', 12, 'cell')
+    let project = upsertBinding(templateEvent.project, { slotId: 'slot_J', keyId: overlayEvent.key.keyId, cspCellName: 'J_01', materialState: 'missing-ok' })
+    project = upsertBinding(project, { slotId: 'slot_A', keyId: templateEvent.key.keyId, cspCellName: 'A_01', materialState: 'missing-ok' })
+    project = createStackGuideLabel(project, { label: 'BG', gapIndex: 1, insertAfterPaperTrack: 'J', displayRole: 'cell' }).project
+
+    const deleted = deleteOverlayPaperTrack(project, 'J')
+
+    expect(deleted.logicalSheet.paperTracks.some(track => track.paperTrack === 'J')).toBe(false)
+    expect(deleted.cspTrackSlots.some(slot => slot.paperTrack === 'J')).toBe(false)
+    expect(deleted.logicalSheet.keys.some(key => key.keyId === overlayEvent.key.keyId)).toBe(false)
+    expect(deleted.logicalSheet.events.some(event => event.paperTrack === 'J' || event.keyId === overlayEvent.key.keyId)).toBe(false)
+    expect(deleted.bindings.some(binding => binding.keyId === overlayEvent.key.keyId)).toBe(false)
+    expect(deleted.logicalSheet.keys.find(key => key.keyId === templateEvent.key.keyId)?.paperTrack).toBe('A')
+    expect(deleted.logicalSheet.events.find(event => event.keyId === templateEvent.key.keyId)?.paperTrack).toBe('A')
+    expect(deleted.bindings.find(binding => binding.keyId === templateEvent.key.keyId)?.slotId).toBe('slot_A')
+    expect(deleted.stackGuideLabels.map(label => label.label)).toEqual(['BG'])
+    expect(() => deleteOverlayPaperTrack(deleted, 'A')).toThrow(/not an overlay track/)
   })
 
   it('keeps the bundled template underlay separate from imported sheet sources', () => {

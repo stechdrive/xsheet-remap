@@ -175,6 +175,7 @@ export {
   defaultCspCellName,
   DEFAULT_CSP_CELL_NAME_POLICY,
   defaultTimelineSections,
+  deleteOverlayPaperTrack,
   deleteStackGuideLabel,
   ensureDefaultBindingsForKey,
   findTimingKeyByDisplayLabel,

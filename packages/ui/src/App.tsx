@@ -27,6 +27,7 @@ import {
   defaultCspCellName,
   defaultCorrectionLayerId,
   DEFAULT_PRE_ROLL_FRAMES,
+  deleteOverlayPaperTrack,
   deleteStackGuideLabel,
   eraseAnnotations,
   findTimingKeyByDisplayLabel,
@@ -371,6 +372,12 @@ interface PaperTrackHeaderMenuState {
   hit: SheetHit
   snapIndex?: number
   sheetRole: SheetTimingRole
+}
+
+interface OverlayPaperTrackMenuState {
+  x: number
+  y: number
+  paperTrack: string
 }
 
 interface StackGuideInsertTarget {
@@ -1971,6 +1978,27 @@ export function App() {
     }
   }
 
+  async function handleDeleteOverlayPaperTrack(paperTrack: string) {
+    const track = project.logicalSheet.paperTracks.find(item => item.paperTrack === paperTrack)
+    if (!track || track.source !== 'overlay') return
+    const keyIds = new Set(project.logicalSheet.keys.filter(key => key.paperTrack === paperTrack).map(key => key.keyId))
+    const eventCount = project.logicalSheet.events.filter(event => event.paperTrack === paperTrack || keyIds.has(event.keyId)).length
+    const bindingCount = project.bindings.filter(binding => keyIds.has(binding.keyId)).length
+    const confirmed = await confirmUserAction(uiText.actions.deleteOverlayPaperTrackConfirm(track.label || track.paperTrack, keyIds.size, eventCount, bindingCount), {
+      title: uiText.actions.deleteOverlayPaperTrack,
+      okLabel: uiText.actions.deleteOverlayPaperTrackConfirmOk,
+      cancelLabel: uiText.keys.deleteConfirmCancel,
+    })
+    if (!confirmed) return
+    try {
+      const next = deleteOverlayPaperTrack(project, paperTrack)
+      commitProject(next)
+      if (selection.hit?.paperTrack === paperTrack || (selection.keyId && keyIds.has(selection.keyId))) clearSelectionState()
+    } catch (error) {
+      window.alert(errorMessage(error))
+    }
+  }
+
   function handleUpdateCorrectionLayers(layers: CorrectionLayer[]): boolean {
     try {
       const nextProject = updateCorrectionLayers(project, layers)
@@ -2836,6 +2864,7 @@ export function App() {
             onAssignAssetToStackGuideLabel={handleAssignAssetToStackGuide}
             onAddOverlayPaperTrack={handleAddOverlayPaperTrack}
             onUpdatePaperTrack={handleUpdatePaperTrack}
+            onDeleteOverlayPaperTrack={handleDeleteOverlayPaperTrack}
             onApplyNameNormalization={handleApplyNameNormalization}
             onAssignAssetToKey={handleAssignAssetToKey}
           />
@@ -3088,6 +3117,7 @@ function SheetPanel(props: {
   onAssignAssetToStackGuideLabel: (labelId: string, assetId: string, correctionLayerId?: string) => void
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
+  onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   onApplyNameNormalization: (plan: NameNormalizationPlan) => Promise<void>
   onAssignAssetToKey: (assetId: string, keyId: string) => void
 }) {
@@ -3589,6 +3619,7 @@ function SheetPanel(props: {
           onMoveTimelineEvent={props.onMoveTimelineEvent}
           onAddOverlayPaperTrack={props.onAddOverlayPaperTrack}
           onUpdatePaperTrack={props.onUpdatePaperTrack}
+          onDeleteOverlayPaperTrack={props.onDeleteOverlayPaperTrack}
           stackGuideInsertTool={stackGuideInsertTool}
           onStackGuideInsertToolConsumed={() => setStackGuideInsertTool(null)}
         />
@@ -4201,6 +4232,7 @@ function SheetCanvas(props: {
   onAssignAssetToStackGuideLabel: (labelId: string, assetId: string, correctionLayerId?: string) => void
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
+  onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   stackGuideInsertTool: StackGuideInsertTool | null
   onStackGuideInsertToolConsumed: () => void
   onClearSelection: () => void
@@ -4221,6 +4253,7 @@ function SheetCanvas(props: {
   const [textCursorBadge, setTextCursorBadge] = useState<{ pageId: string; x: number; y: number } | null>(null)
   const [contextMenu, setContextMenu] = useState<SheetContextMenuState | null>(null)
   const [paperTrackHeaderMenu, setPaperTrackHeaderMenu] = useState<PaperTrackHeaderMenuState | null>(null)
+  const [overlayPaperTrackMenu, setOverlayPaperTrackMenu] = useState<OverlayPaperTrackMenuState | null>(null)
   const [stackGuideHeaderMenu, setStackGuideHeaderMenu] = useState<StackGuideHeaderMenuState | null>(null)
   const [stackGuideInsertRequest, setStackGuideInsertRequest] = useState<StackGuideInsertRequest | null>(null)
   const [stackGuideDropPreview, setStackGuideDropPreview] = useState<StackGuideDropPreviewState | null>(null)
@@ -4397,10 +4430,11 @@ function SheetCanvas(props: {
   }, [])
 
   useEffect(() => {
-    if (!contextMenu && !paperTrackHeaderMenu && !stackGuideHeaderMenu) return
+    if (!contextMenu && !paperTrackHeaderMenu && !overlayPaperTrackMenu && !stackGuideHeaderMenu) return
     const close = () => {
       setContextMenu(null)
       setPaperTrackHeaderMenu(null)
+      setOverlayPaperTrackMenu(null)
       setStackGuideHeaderMenu(null)
     }
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -4412,7 +4446,7 @@ function SheetCanvas(props: {
       window.removeEventListener('pointerdown', close)
       window.removeEventListener('keydown', closeOnEscape)
     }
-  }, [contextMenu, paperTrackHeaderMenu, stackGuideHeaderMenu])
+  }, [contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu])
 
   useEffect(() => () => {
     if (timelineEventLongPressTimerRef.current !== null) {
@@ -4884,6 +4918,7 @@ function SheetCanvas(props: {
     clearHover()
     setContextMenu(null)
     setPaperTrackHeaderMenu(null)
+    setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
     setTimelineEventDrag({
       pointerId,
@@ -4987,6 +5022,7 @@ function SheetCanvas(props: {
     event.preventDefault()
     setContextMenu(null)
     setPaperTrackHeaderMenu(null)
+    setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
     props.setActivePageIndex(page.pageIndex)
     const point = pointFromEvent(event)
@@ -5325,6 +5361,7 @@ function SheetCanvas(props: {
       clearHover()
       setContextMenu(null)
       setPaperTrackHeaderMenu(null)
+      setOverlayPaperTrackMenu(null)
       setStackGuideHeaderMenu({
         ...stackGuideTarget,
         x: event.clientX,
@@ -5336,6 +5373,7 @@ function SheetCanvas(props: {
     if (headerHit?.paperTrack) {
       clearHover()
       setContextMenu(null)
+      setOverlayPaperTrackMenu(null)
       setStackGuideHeaderMenu(null)
       const sheetRole = sheetRoleForHit(headerHit)
       setPaperTrackHeaderMenu({
@@ -5361,6 +5399,7 @@ function SheetCanvas(props: {
       insertAfterPaperTrack: hit?.paperTrack,
     })
     setPaperTrackHeaderMenu(null)
+    setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
   }
 
@@ -5372,6 +5411,11 @@ function SheetCanvas(props: {
   function runPaperTrackHeaderMenuAction(action: () => void) {
     action()
     setPaperTrackHeaderMenu(null)
+  }
+
+  function runOverlayPaperTrackMenuAction(action: () => void | Promise<void>) {
+    void action()
+    setOverlayPaperTrackMenu(null)
   }
 
   function runStackGuideHeaderMenuAction(action: () => void) {
@@ -5410,6 +5454,7 @@ function SheetCanvas(props: {
     })
     setContextMenu(null)
     setPaperTrackHeaderMenu(null)
+    setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
   }
 
@@ -5426,6 +5471,7 @@ function SheetCanvas(props: {
     })
     setContextMenu(null)
     setPaperTrackHeaderMenu(null)
+    setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
   }
 
@@ -5440,6 +5486,18 @@ function SheetCanvas(props: {
       snapIndex: track.viewPlacement?.snapIndex ?? 0,
       sheetRole: track.viewPlacement?.sheetRole ?? 'cell',
       exportAfterPaperTrack: exportPreviousPaperTrackName(props.project.logicalSheet.paperTracks, track.paperTrack),
+    })
+    setContextMenu(null)
+    setPaperTrackHeaderMenu(null)
+    setOverlayPaperTrackMenu(null)
+    setStackGuideHeaderMenu(null)
+  }
+
+  function openOverlayPaperTrackMenu(track: PaperTrack, position: { x: number; y: number }) {
+    setOverlayPaperTrackMenu({
+      x: position.x,
+      y: position.y,
+      paperTrack: track.paperTrack,
     })
     setContextMenu(null)
     setPaperTrackHeaderMenu(null)
@@ -5708,6 +5766,9 @@ function SheetCanvas(props: {
   const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack)
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
   const sheetContextMenuItemCount = 12 + contextProcessMoveItemCount
+  const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
+    ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
+    : null
   const hoverPreviewItems = !isCalibratingSheet && !props.suppressAssetPreview && hoveredHit ? cellAssetPreviewItemsForHit(props.project, hoveredHit) : []
   const hoverPreviewPosition = hoverPreviewAnchor && hoverPreviewItems.length > 0
     ? cellAssetPreviewPosition(hoverPreviewAnchor, hoverPreviewItems.length)
@@ -6017,7 +6078,7 @@ function SheetCanvas(props: {
                       setActiveOverlayPaperTrack(nextTrack)
                       if (!nextTrack || props.selectedHit?.paperTrack !== nextTrack) props.onClearSelection()
                     }}
-                    onEditPaperTrack={(track, position) => openOverlayPaperTrackEditor(track, position)}
+                    onOpenPaperTrackMenu={(track, position) => openOverlayPaperTrackMenu(track, position)}
                     onDragChange={setOverlayTrackDrag}
                     onUpdatePaperTrack={props.onUpdatePaperTrack}
                   />
@@ -6089,6 +6150,31 @@ function SheetCanvas(props: {
             }))}
           >
             {uiText.actions.renamePaperTrack}
+          </button>
+        </div>
+      )}
+      {overlayPaperTrackMenu && overlayPaperTrackMenuTrack && (
+        <div
+          className="sheetContextMenu"
+          style={sheetContextMenuStyle(overlayPaperTrackMenu.x, overlayPaperTrackMenu.y, 2)}
+          role="menu"
+          onPointerDown={event => event.stopPropagation()}
+          onContextMenu={event => event.preventDefault()}
+        >
+          <button
+            role="menuitem"
+            onClick={() => runOverlayPaperTrackMenuAction(() => openOverlayPaperTrackEditor(overlayPaperTrackMenuTrack, {
+              x: overlayPaperTrackMenu.x,
+              y: overlayPaperTrackMenu.y,
+            }))}
+          >
+            {uiText.actions.renamePaperTrack}
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => runOverlayPaperTrackMenuAction(() => props.onDeleteOverlayPaperTrack(overlayPaperTrackMenu.paperTrack))}
+          >
+            {uiText.actions.deleteOverlayPaperTrack}
           </button>
         </div>
       )}
@@ -8446,7 +8532,7 @@ function OverlayPaperTrackInteractionLayer({
   activePaperTrack,
   drag,
   onActivePaperTrackChange,
-  onEditPaperTrack,
+  onOpenPaperTrackMenu,
   onDragChange,
   onUpdatePaperTrack,
 }: {
@@ -8459,7 +8545,7 @@ function OverlayPaperTrackInteractionLayer({
   activePaperTrack: string | null
   drag: OverlayPaperTrackDrag | null
   onActivePaperTrackChange: (paperTrack: string | null) => void
-  onEditPaperTrack: (track: PaperTrack, position: { x: number; y: number }) => void
+  onOpenPaperTrackMenu: (track: PaperTrack, position: { x: number; y: number }) => void
   onDragChange: (drag: OverlayPaperTrackDrag | null) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
 }) {
@@ -8575,7 +8661,7 @@ function OverlayPaperTrackInteractionLayer({
                 onContextMenu={event => {
                   event.preventDefault()
                   event.stopPropagation()
-                  onEditPaperTrack(track, { x: event.clientX, y: event.clientY })
+                  onOpenPaperTrackMenu(track, { x: event.clientX, y: event.clientY })
                 }}
                 onPointerCancel={() => {
                   dragRef.current = null

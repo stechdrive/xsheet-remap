@@ -13,21 +13,14 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+. (Join-Path $repoRoot "tools\release\local-settings.ps1")
 $releaseRoot = if ($OutputDir) {
   [System.IO.Path]::GetFullPath($OutputDir)
 } else {
   [System.IO.Path]::GetFullPath((Join-Path $repoRoot "release-local"))
 }
 $releasePackageName = "xsheet-remap"
-$distributionCopyDirectory = if ([string]::IsNullOrWhiteSpace($DistributionCopyDir)) {
-  if ([string]::IsNullOrWhiteSpace($env:XSHEET_RELEASE_COPY_DIR)) {
-    ""
-  } else {
-    [System.IO.Path]::GetFullPath($env:XSHEET_RELEASE_COPY_DIR)
-  }
-} else {
-  [System.IO.Path]::GetFullPath($DistributionCopyDir)
-}
+$distributionCopyDirectory = Resolve-XsheetReleaseCopyDirectory -RepoRoot $repoRoot -ExplicitDirectory $DistributionCopyDir
 $hasDistributionCopyDirectory = -not [string]::IsNullOrWhiteSpace($distributionCopyDirectory)
 $shouldCopyDistributionZip = -not $SkipDistributionCopy -and (
   $hasDistributionCopyDirectory

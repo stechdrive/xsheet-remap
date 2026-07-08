@@ -433,6 +433,17 @@ export function updatePaperTrack(
   return next
 }
 
+export function deleteOverlayPaperTrack(project: CutProject, paperTrackName: PaperTrackName): CutProject {
+  const existing = project.logicalSheet.paperTracks.find(track => track.paperTrack === paperTrackName)
+  if (!existing) throw new Error(`paperTrack not found: ${paperTrackName}`)
+  if (existing.source !== 'overlay') throw new Error(`paperTrack is not an overlay track: ${paperTrackName}`)
+  const paperTracks = normalizeOverlayPaperTrackOrderInGaps(project.logicalSheet.paperTracks.filter(track => track.paperTrack !== paperTrackName))
+  return rebuildProjectPaperTrackSlots(project, paperTracks, {
+    filterRemovedTracks: true,
+    normalizeStackGuides: true,
+  })
+}
+
 function rebuildProjectPaperTrackSlots(
   project: CutProject,
   paperTracks: PaperTrack[],

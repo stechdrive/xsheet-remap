@@ -72,6 +72,10 @@ export const uiText = {
     overlayPaperTrackEdit: (label: string) => `${label}追加セル列: 右クリックで名前・XDTS挿入位置を編集`,
     selectPaperTrackColumn: 'セル列全体を選択',
     renamePaperTrack: 'セル列名を変更',
+    deleteOverlayPaperTrack: '追加セル列を削除',
+    deleteOverlayPaperTrackConfirm: (label: string, keyCount: number, eventCount: number, bindingCount: number) =>
+      `${label} の追加セル列を削除します。\n\nこの列の登録セル ${keyCount} 件、シート上のキー ${eventCount} 件、素材割り当て ${bindingCount} 件も削除されます。`,
+    deleteOverlayPaperTrackConfirmOk: '削除',
     setNullCell: 'カラセルを入力',
     deleteEvent: 'キーを削除',
     copyRange: 'コピー',

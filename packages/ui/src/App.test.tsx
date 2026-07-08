@@ -825,6 +825,16 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
 
     await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(true))
+    const overlayHandle = document.querySelector<HTMLButtonElement>('.overlayPaperTrackDragHandle')
+    if (!overlayHandle) throw new Error('overlay paper track handle not found')
+    fireEvent.contextMenu(overlayHandle, { clientX: 500, clientY: 80 })
+    expect(screen.getByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeTruthy()
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.deleteOverlayPaperTrack }))
+
+    await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(false))
+    expect(confirmSpy).toHaveBeenCalled()
   })
 
   it('adds a BG/BOOK label from the registered-cell plus menu and places it in the reserve slot before A', async () => {

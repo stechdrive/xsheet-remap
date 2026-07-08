@@ -6,15 +6,12 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+. (Join-Path $repoRoot "tools\release\local-settings.ps1")
 $releaseExeRelativePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
 $releaseExePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $releaseExeRelativePath))
 $sheetCorrectorReleaseExeRelativePath = "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe"
 $sheetCorrectorReleaseExePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $sheetCorrectorReleaseExeRelativePath))
-$developmentCopyDirectory = if ([string]::IsNullOrWhiteSpace($env:XSHEET_RELEASE_COPY_DIR)) {
-  ""
-} else {
-  [System.IO.Path]::GetFullPath($env:XSHEET_RELEASE_COPY_DIR)
-}
+$developmentCopyDirectory = Resolve-XsheetReleaseCopyDirectory -RepoRoot $repoRoot
 $hasDevelopmentCopyDirectory = -not [string]::IsNullOrWhiteSpace($developmentCopyDirectory)
 $developmentCopyExePath = if ($hasDevelopmentCopyDirectory) {
   [System.IO.Path]::GetFullPath((Join-Path $developmentCopyDirectory "xsheet-remap.exe"))

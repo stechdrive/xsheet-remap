@@ -7,8 +7,11 @@ from unittest.mock import patch
 
 from csp_import_helper.profile import DEFAULT_PROFILE, shortcut_to_display_text
 from csp_import_helper.web_gui import (
+    ALLOWED_EXTERNAL_URLS,
     HTML,
     CspImportHelperWebGui,
+    MULTIPLY_ACTION_ASSET_URL,
+    WORKSPACE_ASSET_URL,
     _gui_startup_error_message,
     launch_gui,
     select_dropped_import_files,
@@ -101,6 +104,21 @@ class WebGuiTests(unittest.TestCase):
             self.assertFalse(app.profile.set_imported_track_blend_mode_to_multiply)
             self.assertEqual(shortcut_to_display_text(DEFAULT_PROFILE.import_xdts_shortcut), "Ctrl+Alt+X")
 
+    def test_external_help_links_are_allowlisted(self) -> None:
+        app = CspImportHelperWebGui()
+
+        with patch("csp_import_helper.web_gui.webbrowser.open") as open_mock:
+            self.assertEqual(app.open_external_url(WORKSPACE_ASSET_URL), {"ok": True})
+            self.assertEqual(app.open_external_url(MULTIPLY_ACTION_ASSET_URL), {"ok": True})
+            blocked = app.open_external_url("https://example.com/")
+
+        self.assertEqual(ALLOWED_EXTERNAL_URLS, frozenset((WORKSPACE_ASSET_URL, MULTIPLY_ACTION_ASSET_URL)))
+        self.assertEqual(
+            [call.args[0] for call in open_mock.call_args_list],
+            [WORKSPACE_ASSET_URL, MULTIPLY_ACTION_ASSET_URL],
+        )
+        self.assertFalse(blocked["ok"])
+
     def test_web_ui_does_not_poll_backend_state(self) -> None:
         self.assertNotIn("setInterval", HTML)
         self.assertNotIn("安全停止", HTML)
@@ -119,8 +137,18 @@ class WebGuiTests(unittest.TestCase):
         self.assertIn("xsheet-remapの「タイムシート/CSP自動登録」で書き出した .xci", HTML)
         self.assertIn("既存のアニメーションフォルダーが全て非表示", HTML)
         self.assertIn("自動登録のフォルダ積み込みが崩れます", HTML)
-        self.assertIn("乗算化に使うクリスタ側のオートアクション", HTML)
+        self.assertIn("乗算オートアクションを読み込んだ後", HTML)
         self.assertIn("乗算オートアクション", HTML)
+        self.assertIn(WORKSPACE_ASSET_URL, HTML)
+        self.assertIn(MULTIPLY_ACTION_ASSET_URL, HTML)
+        self.assertIn("open_external_url", HTML)
+        self.assertIn("ワークスペースをAssetsで開く", HTML)
+        self.assertIn("乗算オートアクションをAssetsで開く", HTML)
+        self.assertIn("ファイル &gt; ショートカットキー設定", HTML)
+        self.assertIn("設定領域 &gt; オートアクション", HTML)
+        self.assertIn("Ctrl+Alt+L", HTML)
+        self.assertIn("ワークスペース読み込みだけではオートアクションのショートカットは自動設定されません", HTML)
+        self.assertIn("自分でレイヤー合成モードを乗算にするオートアクション", HTML)
         self.assertIn("white-space: pre-wrap", HTML)
         self.assertIn("white-space: pre-line", HTML)
         self.assertIn("親フォルダを非表示にしてから開始してください。\\n${emergency}", HTML)

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import replace
+import html
 import json
 from pathlib import Path
 import re
 import sys
 import threading
 from typing import Any
+import webbrowser
 
 from . import __version__
 from .automation import AutomationError, AutomationPaused, CspImportAutomation, default_output_clip_path
@@ -32,6 +34,9 @@ from .progress_plan import build_import_execution_plan
 EMERGENCY_HOTKEY_TEXT = "Ctrl+Alt+F12 / Ctrl+Alt+Pause"
 MANIFEST_DROP_HINT = ".xci をドロップ、または選択"
 CLIP_DROP_HINT = ".clip をドロップ、または選択"
+WORKSPACE_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285656"
+MULTIPLY_ACTION_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285681"
+ALLOWED_EXTERNAL_URLS = frozenset((WORKSPACE_ASSET_URL, MULTIPLY_ACTION_ASSET_URL))
 SPEED_DISPLAY_TO_MODE = {
     "標準": SPEED_MODE_STANDARD,
     "高速": SPEED_MODE_FAST,
@@ -495,6 +500,12 @@ class CspImportHelperWebGui:
                 pass
         return self.get_state()
 
+    def open_external_url(self, url: str) -> dict[str, Any]:
+        if url not in ALLOWED_EXTERNAL_URLS:
+            return {"ok": False, "error": "許可されていないURLです。"}
+        webbrowser.open(url)
+        return {"ok": True}
+
     def get_profile_settings(self) -> dict[str, Any]:
         with self.lock:
             return {
@@ -743,6 +754,9 @@ class CspImportHelperWebApi:
     def close_window(self) -> dict[str, Any]:
         return self._app.close_window()
 
+    def open_external_url(self, url: str) -> dict[str, Any]:
+        return self._app.open_external_url(url)
+
     def get_profile_settings(self) -> dict[str, Any]:
         return self._app.get_profile_settings()
 
@@ -876,6 +890,10 @@ HTML = r"""<!doctype html>
     .help-section li.critical, .help-section li.critical strong { color: #8a1f11; }
     .help-section li::marker { color: var(--blue); font-weight: 800; }
     .help-section strong { color: #172033; }
+    .help-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; }
+    .help-link { min-height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid #b8c9e4; border-radius: 6px; background: #f5f9ff; color: #174f9f; font-size: 12px; font-weight: 800; text-decoration: none; }
+    .help-link:hover { background: #edf4ff; }
+    .help-link::after { content: "↗"; font-size: 11px; line-height: 1; }
     .shortcut-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px 12px; align-items: center; }
     .shortcut-grid input { width: 180px; }
     .shortcut-grid input.capturing { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(29,95,209,.16); }
@@ -1021,10 +1039,16 @@ HTML = r"""<!doctype html>
         </section>
         <section class="help-section">
           <h3>実行前のクリスタ側チェック</h3>
+          <p>ヘルパー用のショートカット設定済みワークスペースと、乗算オートアクションを先にクリスタへ読み込んでください。</p>
+          <div class="help-links">
+            <a class="help-link external-link" href="__WORKSPACE_ASSET_URL__" data-external-url="__WORKSPACE_ASSET_URL__" target="_blank" rel="noopener noreferrer">ワークスペースをAssetsで開く</a>
+            <a class="help-link external-link" href="__MULTIPLY_ACTION_ASSET_URL__" data-external-url="__MULTIPLY_ACTION_ASSET_URL__" target="_blank" rel="noopener noreferrer">乗算オートアクションをAssetsで開く</a>
+          </div>
           <ul>
             <li class="critical"><strong>最重要: 読み込ませたCLIPファイル内の既存のアニメーションフォルダーが全て非表示になるようにしてください。</strong> 各アニメーションフォルダ、またはそれを含む親フォルダを非表示にした状態であることを開始前に必ず確認してください。表示されたままだと、自動登録のフォルダ積み込みが崩れます。</li>
-            <li>CLIP STUDIO PAINT（クリスタ）のワークスペースとショートカットが、ヘルパーの「設定」と合っていること。</li>
-            <li>乗算化に使うクリスタ側のオートアクションを作成し、ヘルパーの「設定」にある「乗算オートアクション」と同じショートカットを割り当てていること。</li>
+            <li>CLIP STUDIO PAINT（クリスタ）へ、xsheet-remap用ワークスペースを読み込み、ワークスペースとショートカットがヘルパーの「設定」と合っていること。</li>
+            <li>乗算オートアクションを読み込んだ後、ファイル &gt; ショートカットキー設定から、設定領域 &gt; オートアクションを選び、読み込んだxsheet-remapオートアクションの「乗算」にCtrl+Alt+Lを割り当てていること。ワークスペース読み込みだけではオートアクションのショートカットは自動設定されません。</li>
+            <li>自分でレイヤー合成モードを乗算にするオートアクションを作っている場合も、ヘルパーの「設定」にある「乗算オートアクション」と同じショートカットが割り当たっていれば使えます。</li>
             <li>タイムライン編集が有効な状態から始めること。ヘルパーはXDTS読み込み後に必要なタイミングで切り替えます。</li>
             <li>クリスタの確認ダイアログや保存ダイアログを残したまま開始しないこと。</li>
             <li>初回、NAS上のファイル、不安定な環境では速度を「標準」にすること。</li>
@@ -1231,6 +1255,17 @@ HTML = r"""<!doctype html>
       $("helpModal").classList.remove("show");
     }
 
+    async function openExternalLink(event) {
+      const url = event.currentTarget.dataset.externalUrl;
+      if (!url) return;
+      event.preventDefault();
+      try {
+        await window.pywebview.api.open_external_url(url);
+      } catch (_error) {
+        window.open(url, "_blank", "noopener");
+      }
+    }
+
     async function saveProfileModal() {
       const shortcuts = {};
       document.querySelectorAll("#shortcutGrid input").forEach((input) => {
@@ -1262,6 +1297,9 @@ HTML = r"""<!doctype html>
       $("closeButton").addEventListener("click", () => invoke("close_window"));
       $("helpButton").addEventListener("click", openHelpModal);
       $("helpClose").addEventListener("click", closeHelpModal);
+      document.querySelectorAll(".external-link").forEach((link) => {
+        link.addEventListener("click", openExternalLink);
+      });
       $("helpModal").addEventListener("click", (event) => {
         if (event.target === $("helpModal")) closeHelpModal();
       });
@@ -1313,4 +1351,8 @@ HTML = r"""<!doctype html>
 </html>
 """
 
-HTML = HTML.replace("/* __LINE_SEED_FONT_FACE_CSS__ */", _line_seed_font_face_css())
+HTML = (
+    HTML.replace("/* __LINE_SEED_FONT_FACE_CSS__ */", _line_seed_font_face_css())
+    .replace("__WORKSPACE_ASSET_URL__", html.escape(WORKSPACE_ASSET_URL, quote=True))
+    .replace("__MULTIPLY_ACTION_ASSET_URL__", html.escape(MULTIPLY_ACTION_ASSET_URL, quote=True))
+)

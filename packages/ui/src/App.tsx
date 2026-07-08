@@ -765,6 +765,7 @@ export function App() {
   const project = history.present
   const projectRef = useRef(project)
   const [template, setTemplate] = useState<SheetTemplate>(() => standardA3SheetTemplate)
+  const templatePanelKey = useMemo(() => JSON.stringify(template), [template])
   const [runtimeSourceImageUrls, setRuntimeSourceImageUrls] = useState<Record<string, string>>({})
   const [recognitionCandidates, setRecognitionCandidates] = useState<RecognitionCandidate[]>([])
   const [recognitionThreshold, setRecognitionThreshold] = useState(160)
@@ -2198,45 +2199,39 @@ export function App() {
     void alertMissingProjectNativePaths(loadedDocument)
   }
 
-  async function handleLoadTemplate(files: FileList | null) {
+  async function handleLoadTemplate(files: FileList | null): Promise<SheetTemplate | null> {
     const file = files?.[0]
-    if (!file) return
-    const loadedTemplate = await readJsonFile<SheetTemplate>(file)
-    setTemplate(loadedTemplate)
-    syncProjectToTemplateTracks(loadedTemplate, { studioPresetId: undefined })
+    if (!file) return null
+    return readJsonFile<SheetTemplate>(file)
   }
 
-  function applyTemplateDraft(nextTemplate: SheetTemplate) {
+  function handleApplyTemplateDraft(nextTemplate: SheetTemplate) {
     setTemplate(nextTemplate)
     syncProjectToTemplateTracks(nextTemplate, {
       studioPresetId: undefined,
-      resetSheetView: true,
     })
   }
 
-  function handleCreateTemplateDraft(kind: TemplateDraftKind): boolean {
-    const nextTemplate = createTemplateDraft(kind, template)
-    applyTemplateDraft(nextTemplate)
-    return true
+  function handleCreateTemplateDraft(kind: TemplateDraftKind): SheetTemplate {
+    return createTemplateDraft(kind, template)
   }
 
-  async function handleCreatePaperTemplateFromImage(files: FileList | null): Promise<boolean> {
+  async function handleCreatePaperTemplateFromImage(files: FileList | null): Promise<SheetTemplate | null> {
     const file = files?.[0]
-    if (!file) return false
+    if (!file) return null
     try {
       const dataUrl = await readFileAsDataUrl(file)
       const imageSize = await readImageDimensionsFromDataUrl(dataUrl)
-      applyTemplateDraft(createPaperTemplateDraftFromImage(file, dataUrl, imageSize))
-      return true
+      return createPaperTemplateDraftFromImage(file, dataUrl, imageSize)
     } catch (error) {
       window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))
-      return false
+      return null
     }
   }
 
-  async function handleSaveTemplateJson() {
+  async function handleSaveTemplateJson(templateToSave = template) {
     try {
-      await saveJsonFile(template, templateJsonFileName(template), {
+      await saveJsonFile(templateToSave, templateJsonFileName(templateToSave), {
         initialDirectory: fileDialogInitialDirectory(project),
       })
     } catch (error) {
@@ -3098,11 +3093,12 @@ export function App() {
         )}
         {panel === 'template' && (
           <TemplatePanel
+            key={templatePanelKey}
             project={project}
             template={template}
-            setTemplate={setTemplate}
             onLoadTemplate={handleLoadTemplate}
-            onSaveTemplate={() => void handleSaveTemplateJson()}
+            onSaveTemplate={draftTemplate => void handleSaveTemplateJson(draftTemplate)}
+            onApplyTemplate={handleApplyTemplateDraft}
             onCreateTemplateDraft={handleCreateTemplateDraft}
             onCreatePaperTemplateFromImage={handleCreatePaperTemplateFromImage}
             onUpdateCorrectionLayers={handleUpdateCorrectionLayers}
@@ -12003,23 +11999,33 @@ function paperTrackExportSortKeyForUi(track: PaperTrack, templateOrder: Map<stri
 
 function TemplatePanel({
   project,
-  template,
-  setTemplate,
+  template: appliedTemplate,
   onLoadTemplate,
   onSaveTemplate,
+  onApplyTemplate,
   onCreateTemplateDraft,
   onCreatePaperTemplateFromImage,
   onUpdateCorrectionLayers,
 }: {
   project: CutProject
   template: SheetTemplate
-  setTemplate: (template: SheetTemplate) => void
-  onLoadTemplate: (files: FileList | null) => void
-  onSaveTemplate: () => void
-  onCreateTemplateDraft: (kind: TemplateDraftKind) => boolean
-  onCreatePaperTemplateFromImage: (files: FileList | null) => Promise<boolean>
+  onLoadTemplate: (files: FileList | null) => Promise<SheetTemplate | null>
+  onSaveTemplate: (template: SheetTemplate) => void
+  onApplyTemplate: (template: SheetTemplate) => void
+  onCreateTemplateDraft: (kind: TemplateDraftKind) => SheetTemplate
+  onCreatePaperTemplateFromImage: (files: FileList | null) => Promise<SheetTemplate | null>
   onUpdateCorrectionLayers: (layers: CorrectionLayer[]) => boolean
 }) {
+  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(appliedTemplate))
+  const template = draftTemplate
+  const appliedTemplateJson = useMemo(() => JSON.stringify(appliedTemplate), [appliedTemplate])
+  const draftTemplateJson = useMemo(() => JSON.stringify(draftTemplate), [draftTemplate])
+  const hasTemplateDraftChanges = draftTemplateJson !== appliedTemplateJson
+  const templateDraftStatus = hasTemplateDraftChanges
+    ? uiText.template.draftChanged
+    : isBuiltInSheetTemplate(template)
+      ? uiText.template.builtInProtected
+      : uiText.template.draftApplied
   const editableRegions = template.regions
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => editableRegions[0]?.regionId ?? null)
   const [detailTab, setDetailTab] = useState<TemplateDetailTab>('region')
@@ -12029,6 +12035,8 @@ function TemplatePanel({
   const calibrationTargetRect = calibrationTargetRectForTemplate(template)
   const calibrationGridBounds = calibrationGridBoundsForTemplate(template)
   const hasExplicitCalibrationTarget = Boolean(template.calibration?.targetRect)
+  const standardCalibrationTargetRect = standardCalibrationTargetRectForTemplate(template)
+  const usesStandardCalibrationTarget = Boolean(hasExplicitCalibrationTarget && calibrationTargetRect && standardCalibrationTargetRect && sameNormalizedRect(calibrationTargetRect, standardCalibrationTargetRect))
   const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
   const selectedRegion = isCalibrationTargetSelected
     ? null
@@ -12049,6 +12057,36 @@ function TemplatePanel({
     setTemplateZoom(clampSheetZoom(value))
   }
 
+  function updateTemplateDraft(updater: (currentTemplate: SheetTemplate) => SheetTemplate) {
+    setDraftTemplate(currentTemplate => {
+      const nextTemplate = updater(ensureEditableTemplateDraft(currentTemplate))
+      return isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate
+    })
+  }
+
+  function replaceTemplateDraft(nextTemplate: SheetTemplate | null, nextTab: TemplateDetailTab) {
+    if (!nextTemplate) return
+    const clonedTemplate = cloneSheetTemplate(isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate)
+    setDraftTemplate(clonedTemplate)
+    setSelectedRegionId(clonedTemplate.regions[0]?.regionId ?? null)
+    setDetailTab(nextTab)
+    setClampedTemplateZoom(1)
+  }
+
+  function applyTemplateDraftChanges() {
+    if (!hasTemplateDraftChanges) return
+    const nextTemplate = finalizeTemplateDraftForApply(template)
+    onApplyTemplate(nextTemplate)
+    setDraftTemplate(cloneSheetTemplate(nextTemplate))
+  }
+
+  function cancelTemplateDraftChanges() {
+    if (!hasTemplateDraftChanges) return
+    const nextTemplate = cloneSheetTemplate(appliedTemplate)
+    setDraftTemplate(nextTemplate)
+    setSelectedRegionId(nextTemplate.regions[0]?.regionId ?? null)
+  }
+
   function fitTemplateToViewport() {
     const viewport = document.querySelector<HTMLElement>('.templateEditorViewport')
     if (!viewport) return
@@ -12057,72 +12095,76 @@ function TemplatePanel({
   }
 
   function updateTemplateMetadata(updates: Partial<Pick<SheetTemplate, 'templateId' | 'name'>>) {
-    setTemplate({
-      ...template,
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
       ...updates,
-    })
+    }))
   }
 
   function updateTemplatePage(updates: Partial<SheetTemplate['page']>) {
-    setTemplate({
-      ...template,
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
       page: {
-        ...template.page,
+        ...currentTemplate.page,
         ...updates,
       },
-    })
+    }))
   }
 
   function updateTemplateNaming(updates: Partial<NonNullable<SheetTemplate['naming']>>) {
-    const nextNaming = {
-      ...(template.naming ?? {}),
-      ...updates,
-    }
-    const cutNumberPrefix = nextNaming.cutNumberPrefix?.trim() ?? ''
-    const normalizedNaming: NonNullable<SheetTemplate['naming']> = {
-      ...(cutNumberPrefix ? { cutNumberPrefix } : {}),
-      ...(cutNumberPrefix && nextNaming.cutNumberPrefixMode === 'always' ? { cutNumberPrefixMode: 'always' as const } : {}),
-    }
-    setTemplate({
-      ...template,
-      naming: Object.keys(normalizedNaming).length > 0 ? normalizedNaming : undefined,
+    updateTemplateDraft(currentTemplate => {
+      const nextNaming = {
+        ...(currentTemplate.naming ?? {}),
+        ...updates,
+      }
+      const cutNumberPrefix = nextNaming.cutNumberPrefix?.trim() ?? ''
+      const normalizedNaming: NonNullable<SheetTemplate['naming']> = {
+        ...(cutNumberPrefix ? { cutNumberPrefix } : {}),
+        ...(cutNumberPrefix && nextNaming.cutNumberPrefixMode === 'always' ? { cutNumberPrefixMode: 'always' as const } : {}),
+      }
+      return {
+        ...currentTemplate,
+        naming: Object.keys(normalizedNaming).length > 0 ? normalizedNaming : undefined,
+      }
     })
   }
 
   function updateGridHeaderLabel(role: TemplateGridRole, value: string) {
-    const defaultLabel = gridRoleLabel(role)
-    const existingOverrides = template.style?.gridHeader?.labelOverrides ?? {}
-    const nextOverrides = { ...existingOverrides }
-    if (value === defaultLabel) {
-      delete nextOverrides[role]
-    } else {
-      nextOverrides[role] = value
-    }
-    const styleWithoutGridHeader = { ...(template.style ?? {}) }
-    delete styleWithoutGridHeader.gridHeader
-    const nextStyle = Object.keys(nextOverrides).length > 0
-      ? { ...styleWithoutGridHeader, gridHeader: { labelOverrides: nextOverrides } }
-      : Object.keys(styleWithoutGridHeader).length > 0
-        ? styleWithoutGridHeader
-        : undefined
-    setTemplate({
-      ...template,
-      style: nextStyle,
+    updateTemplateDraft(currentTemplate => {
+      const defaultLabel = gridRoleLabel(role)
+      const existingOverrides = currentTemplate.style?.gridHeader?.labelOverrides ?? {}
+      const nextOverrides = { ...existingOverrides }
+      if (value === defaultLabel) {
+        delete nextOverrides[role]
+      } else {
+        nextOverrides[role] = value
+      }
+      const styleWithoutGridHeader = { ...(currentTemplate.style ?? {}) }
+      delete styleWithoutGridHeader.gridHeader
+      const nextStyle = Object.keys(nextOverrides).length > 0
+        ? { ...styleWithoutGridHeader, gridHeader: { labelOverrides: nextOverrides } }
+        : Object.keys(styleWithoutGridHeader).length > 0
+          ? styleWithoutGridHeader
+          : undefined
+      return {
+        ...currentTemplate,
+        style: nextStyle,
+      }
     })
   }
 
   function updateRegion(regionId: string, updates: Partial<SheetTemplate['regions'][number]>) {
-    setTemplate({
-      ...template,
-      regions: template.regions.map(region => region.regionId === regionId ? { ...region, ...updates } : region),
-    })
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => region.regionId === regionId ? { ...region, ...updates } : region),
+    }))
   }
 
   function updateRegionRect(regionId: string, key: 'x' | 'y' | 'w' | 'h', value: number) {
-    setTemplate({
-      ...template,
-      regions: template.regions.map(region => region.regionId === regionId ? { ...region, rect: { ...region.rect, [key]: value } } : region),
-    })
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => region.regionId === regionId ? { ...region, rect: { ...region.rect, [key]: value } } : region),
+    }))
   }
 
   function selectCalibrationTarget() {
@@ -12131,18 +12173,26 @@ function TemplatePanel({
 
   function updateCalibrationTargetRect(key: 'x' | 'y' | 'w' | 'h', value: number) {
     if (!calibrationTargetRect) return
-    setTemplate(setTemplateCalibrationTargetRect(template, { ...calibrationTargetRect, [key]: value }))
+    updateTemplateDraft(currentTemplate => {
+      const currentCalibrationTargetRect = calibrationTargetRectForTemplate(currentTemplate)
+      return currentCalibrationTargetRect
+        ? setTemplateCalibrationTargetRect(currentTemplate, { ...currentCalibrationTargetRect, [key]: value })
+        : currentTemplate
+    })
     setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
   }
 
   function setCalibrationTargetFromGridBounds() {
     if (!calibrationGridBounds) return
-    setTemplate(setTemplateCalibrationTargetRect(template, calibrationGridBounds))
+    updateTemplateDraft(currentTemplate => {
+      const currentCalibrationGridBounds = calibrationGridBoundsForTemplate(currentTemplate)
+      return currentCalibrationGridBounds ? setTemplateCalibrationTargetRect(currentTemplate, currentCalibrationGridBounds) : currentTemplate
+    })
     setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
   }
 
   function clearCalibrationTarget() {
-    setTemplate(clearTemplateCalibrationTargetRect(template))
+    updateTemplateDraft(currentTemplate => clearTemplateCalibrationTargetRect(currentTemplate))
     if (calibrationGridBounds) {
       setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
     } else {
@@ -12150,35 +12200,42 @@ function TemplatePanel({
     }
   }
 
+  function resetCalibrationTargetToStandard() {
+    if (!standardCalibrationTargetRect) return
+    updateTemplateDraft(currentTemplate => setTemplateCalibrationTargetRect(currentTemplate, standardCalibrationTargetRect))
+    setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
+  }
+
   function updateRegionColumnCount(regionId: string, value: number) {
     const columnCount = clampNumber(Math.round(value), 1, 64)
-    setTemplate({
-      ...template,
-      regions: template.regions.map(region => {
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => {
         if (region.regionId !== regionId || !region.grid) return region
         return {
           ...region,
           grid: {
             ...region.grid,
-            columns: buildTemplateColumns(template, region.grid.role, columnCount, region.grid.columns),
+            columns: buildTemplateColumns(currentTemplate, region.grid.role, columnCount, region.grid.columns),
           },
         }
       }),
-    })
+    }))
   }
 
   function updateRegionGrid(regionId: string, updates: Partial<NonNullable<SheetTemplate['regions'][number]['grid']>>) {
-    setTemplate({
-      ...template,
-      regions: template.regions.map(region => region.regionId === regionId && region.grid ? { ...region, grid: { ...region.grid, ...updates } } : region),
-    })
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => region.regionId === regionId && region.grid ? { ...region, grid: { ...region.grid, ...updates } } : region),
+    }))
   }
 
   function addGridRegion(role: NonNullable<SheetTemplate['regions'][number]['grid']>['role']) {
-    const regionNumber = template.regions.filter(region => region.grid?.role === role).length + 1
-    const columnCount = defaultColumnCountForRole(template, role)
+    const editableTemplate = ensureEditableTemplateDraft(template)
+    const regionNumber = editableTemplate.regions.filter(region => region.grid?.role === role).length + 1
+    const columnCount = defaultColumnCountForRole(editableTemplate, role)
     const label = defaultRegionLabel(role, regionNumber)
-    const regionId = `custom_${role}_${template.regions.length + 1}`
+    const regionId = `custom_${role}_${editableTemplate.regions.length + 1}`
     const region: SheetTemplate['regions'][number] = {
       regionId,
       type: 'exposure-grid',
@@ -12189,17 +12246,17 @@ function TemplatePanel({
       grid: {
         role,
         frameStart: 1,
-        frameEnd: template.defaults.durationFrames,
-        rowCount: template.defaults.durationFrames,
+        frameEnd: editableTemplate.defaults.durationFrames,
+        rowCount: editableTemplate.defaults.durationFrames,
         majorLineEvery: 6,
         pageBreakEvery: 24,
         trackProjection: trackProjectionForRole(role),
-        columns: buildTemplateColumns(template, role, columnCount),
+        columns: buildTemplateColumns(editableTemplate, role, columnCount),
       },
     }
-    setTemplate({
-      ...template,
-      regions: [...template.regions, region],
+    setDraftTemplate({
+      ...editableTemplate,
+      regions: [...editableTemplate.regions, region],
     })
     setSelectedRegionId(regionId)
   }
@@ -12209,9 +12266,10 @@ function TemplatePanel({
     if (!file) return
     try {
       const dataUrl = await readFileAsDataUrl(file)
-      const sourceId = template.defaultUnderlay?.sourceId ?? `template_reference_${Date.now()}`
-      setTemplate({
-        ...template,
+      const editableTemplate = ensureEditableTemplateDraft(template)
+      const sourceId = editableTemplate.defaultUnderlay?.sourceId ?? `template_reference_${Date.now()}`
+      setDraftTemplate({
+        ...editableTemplate,
         defaultUnderlay: {
           sourceId,
           label: file.name,
@@ -12230,23 +12288,25 @@ function TemplatePanel({
   }
 
   function clearReferenceImage() {
-    setTemplate({ ...template, defaultUnderlay: undefined })
+    updateTemplateDraft(currentTemplate => ({ ...currentTemplate, defaultUnderlay: undefined }))
   }
 
-  function applyTemplateDraftUi(success: boolean, nextTab: TemplateDetailTab) {
-    if (!success) return
-    setSelectedRegionId(null)
-    setDetailTab(nextTab)
-    setClampedTemplateZoom(1)
+  async function handleLoadTemplateDraft(files: FileList | null) {
+    try {
+      const loaded = await onLoadTemplate(files)
+      replaceTemplateDraft(loaded, 'region')
+    } catch (error) {
+      window.alert(uiText.template.loadFailed(errorMessage(error)))
+    }
   }
 
   function handleCreateTemplateDraft(kind: TemplateDraftKind, nextTab: TemplateDetailTab = 'region') {
-    applyTemplateDraftUi(onCreateTemplateDraft(kind), nextTab)
+    replaceTemplateDraft(onCreateTemplateDraft(kind), nextTab)
   }
 
   async function handleCreatePaperTemplateDraft(files: FileList | null) {
     const created = await onCreatePaperTemplateFromImage(files)
-    applyTemplateDraftUi(created, 'reference')
+    replaceTemplateDraft(created, 'reference')
   }
 
   const detailTabs: Array<[TemplateDetailTab, string]> = [
@@ -12263,11 +12323,11 @@ function TemplatePanel({
     <dl className="templateMeta">
       <dt>{uiText.template.id}</dt>
       <dd>
-        <input value={template.templateId} onChange={event => updateTemplateMetadata({ templateId: event.currentTarget.value })} />
+        <input aria-label={uiText.template.id} value={template.templateId} onChange={event => updateTemplateMetadata({ templateId: event.currentTarget.value })} />
       </dd>
       <dt>{uiText.template.name}</dt>
       <dd>
-        <input value={template.name} onChange={event => updateTemplateMetadata({ name: event.currentTarget.value })} />
+        <input aria-label={uiText.template.name} value={template.name} onChange={event => updateTemplateMetadata({ name: event.currentTarget.value })} />
       </dd>
       <dt>{uiText.template.cutNumberPrefix}</dt>
       <dd>
@@ -12321,7 +12381,9 @@ function TemplatePanel({
             {uiText.template.selectCalibrationTarget}
           </button>
           <span className="muted">
-            {hasExplicitCalibrationTarget
+            {usesStandardCalibrationTarget
+              ? uiText.template.calibrationTargetStandard
+              : hasExplicitCalibrationTarget
               ? uiText.template.calibrationTargetExplicit
               : calibrationTargetRect ? uiText.template.calibrationTargetAuto : uiText.template.calibrationTargetNone}
           </span>
@@ -12338,6 +12400,7 @@ function TemplatePanel({
         )}
         <div className="toolRow dockToolRow">
           <button type="button" disabled={!calibrationGridBounds} onClick={setCalibrationTargetFromGridBounds}>{uiText.template.setCalibrationTargetFromGrid}</button>
+          <button type="button" disabled={!standardCalibrationTargetRect || usesStandardCalibrationTarget} onClick={resetCalibrationTargetToStandard}>{uiText.template.resetCalibrationTargetToStandard}</button>
           <button type="button" disabled={!hasExplicitCalibrationTarget} onClick={clearCalibrationTarget}>{uiText.template.clearCalibrationTarget}</button>
         </div>
         <p className="muted">{uiText.template.calibrationTargetHint}</p>
@@ -12462,6 +12525,15 @@ function TemplatePanel({
   return (
     <section className="panel templatePanel">
       <div className="toolRow templateToolbar">
+        <ToolbarGroup className="templateDraftToolbarGroup">
+          <span className={`templateDraftStatus ${hasTemplateDraftChanges ? 'dirty' : ''}`.trim()}>{templateDraftStatus}</span>
+          <Tooltip label={uiText.template.applyDraftTitle}>
+            <button type="button" disabled={!hasTemplateDraftChanges} onClick={applyTemplateDraftChanges}>{uiText.template.applyDraft}</button>
+          </Tooltip>
+          <Tooltip label={uiText.template.cancelDraftTitle}>
+            <button type="button" disabled={!hasTemplateDraftChanges} onClick={cancelTemplateDraftChanges}>{uiText.template.cancelDraft}</button>
+          </Tooltip>
+        </ToolbarGroup>
         <ToolbarGroup>
           <ActionMenu
             label={uiText.actions.newTemplate}
@@ -12510,12 +12582,19 @@ function TemplatePanel({
             {tooltipProps => (
               <label className="fileButton" {...tooltipProps}>
                 {uiText.actions.loadTemplateJson}
-                <input type="file" accept=".json,application/json" onChange={event => void onLoadTemplate(event.currentTarget.files)} />
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={event => {
+                    void handleLoadTemplateDraft(event.currentTarget.files)
+                    event.currentTarget.value = ''
+                  }}
+                />
               </label>
             )}
           </TooltipTarget>
           <Tooltip label={uiText.actions.downloadTemplateJsonTitle}>
-            <button onClick={onSaveTemplate}>{uiText.actions.downloadTemplateJson}</button>
+            <button type="button" onClick={() => onSaveTemplate(finalizeTemplateDraftForApply(template))}>{uiText.actions.downloadTemplateJson}</button>
           </Tooltip>
         </ToolbarGroup>
         <ToolbarGroup>
@@ -12574,7 +12653,7 @@ function TemplatePanel({
       <div className="templateWorkspace" style={{ '--template-dock-width': `${dockWidth}px` } as WorkspaceStyle}>
         <TemplateRegionEditor
           template={template}
-          setTemplate={setTemplate}
+          setTemplate={updateTemplateDraft}
           imageUrl={templateReferenceImageUrl}
           imageSettings={templateReferenceImageSettings}
           zoom={templateZoom}
@@ -12621,7 +12700,7 @@ function TemplateRegionEditor({
   onSelectRegion,
 }: {
   template: SheetTemplate
-  setTemplate: (template: SheetTemplate) => void
+  setTemplate: (updater: (currentTemplate: SheetTemplate) => SheetTemplate) => void
   imageUrl: string | null
   imageSettings: SheetImageSettings
   zoom: number
@@ -12684,12 +12763,16 @@ function TemplateRegionEditor({
 
   function updateEdge(edge: TemplateRegionEdge, point: NormalizedPoint) {
     if (isCalibrationTargetSelected) {
-      if (!calibrationTargetRect) return
-      setTemplate(updateTemplateCalibrationTargetRectEdge(template, calibrationTargetRect, edge, point))
+      setTemplate(currentTemplate => {
+        const currentCalibrationTargetRect = calibrationTargetRectForTemplate(currentTemplate)
+        return currentCalibrationTargetRect
+          ? updateTemplateCalibrationTargetRectEdge(currentTemplate, currentCalibrationTargetRect, edge, point)
+          : currentTemplate
+      })
       return
     }
     if (!selectedRegionId) return
-    setTemplate(updateTemplateRegionEdge(template, selectedRegionId, edge, point))
+    setTemplate(currentTemplate => updateTemplateRegionEdge(currentTemplate, selectedRegionId, edge, point))
   }
 
   function handleEdgePointerDown(edge: TemplateRegionEdge, event: PointerEvent<SVGElement>) {
@@ -13830,6 +13913,41 @@ function cloneSheetTemplate(template: SheetTemplate): SheetTemplate {
   return structuredClone(template)
 }
 
+function builtInSheetTemplateForId(templateId: string): SheetTemplate | null {
+  if (templateId === standardA3SheetTemplate.templateId) return standardA3SheetTemplate
+  if (templateId === digitalStandardSheetTemplate.templateId) return digitalStandardSheetTemplate
+  return null
+}
+
+function isBuiltInSheetTemplate(template: Pick<SheetTemplate, 'templateId'>): boolean {
+  return builtInSheetTemplateForId(template.templateId) !== null
+}
+
+function isModifiedBuiltInSheetTemplate(template: SheetTemplate): boolean {
+  const builtInTemplate = builtInSheetTemplateForId(template.templateId)
+  return Boolean(builtInTemplate && JSON.stringify(template) !== JSON.stringify(builtInTemplate))
+}
+
+function ensureEditableTemplateDraft(template: SheetTemplate): SheetTemplate {
+  if (!isBuiltInSheetTemplate(template)) return template
+  return createTemplateDraftFromBase(template, {
+    idBase: `${template.templateId}-custom`,
+    name: editableTemplateDraftName(template),
+  })
+}
+
+function finalizeTemplateDraftForApply(template: SheetTemplate): SheetTemplate {
+  return isModifiedBuiltInSheetTemplate(template)
+    ? ensureEditableTemplateDraft(template)
+    : cloneSheetTemplate(template)
+}
+
+function editableTemplateDraftName(template: SheetTemplate): string {
+  const builtInTemplate = builtInSheetTemplateForId(template.templateId)
+  if (builtInTemplate && template.name && template.name !== builtInTemplate.name) return template.name
+  return uiText.template.draftNames.editableCopy(template.name)
+}
+
 function safeTemplateIdSegment(value: string): string {
   const safe = safeFileName(value)
     .toLocaleLowerCase()
@@ -13900,6 +14018,20 @@ function cornersFromRect(rect: NormalizedRect): SheetImageAlignment['corners'] {
     br: { x: rect.x + rect.w, y: rect.y + rect.h },
     bl: { x: rect.x, y: rect.y + rect.h },
   }
+}
+
+function standardCalibrationTargetRectForTemplate(template: SheetTemplate): NormalizedRect | null {
+  if (template.templateKind !== standardA3SheetTemplate.templateKind || template.layoutMode !== standardA3SheetTemplate.layoutMode) return null
+  const rect = standardA3SheetTemplate.calibration?.targetRect
+  return rect ? { ...rect } : null
+}
+
+function sameNormalizedRect(a: NormalizedRect, b: NormalizedRect): boolean {
+  const epsilon = 0.000001
+  return Math.abs(a.x - b.x) <= epsilon
+    && Math.abs(a.y - b.y) <= epsilon
+    && Math.abs(a.w - b.w) <= epsilon
+    && Math.abs(a.h - b.h) <= epsilon
 }
 
 function templateJsonFileName(template: SheetTemplate): string {

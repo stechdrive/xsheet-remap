@@ -5740,6 +5740,22 @@ button.registeredCellFirstUse:focus-visible {
   flex: 0 1 auto;
 }
 
+.templateDraftToolbarGroup {
+  align-items: center;
+}
+
+.templateDraftStatus {
+  min-width: 112px;
+  color: #4c554e;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.templateDraftStatus.dirty {
+  color: #8b4c12;
+}
+
 .templateProcessToolbarGroup {
   align-items: center;
 }

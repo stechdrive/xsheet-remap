@@ -607,13 +607,17 @@ describe('App', () => {
     expect(document.querySelector('.gridOverlay-sound')).toBeNull()
   })
 
-  it('creates a digital template draft from the template workflow menu', () => {
+  it('keeps template creation as a draft until apply or cancel', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
+
+    expect(screen.getByText(uiText.template.builtInProtected)).toBeTruthy()
+    expect((screen.getByRole('button', { name: uiText.template.applyDraft }) as HTMLButtonElement).disabled).toBe(true)
 
     fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
     fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))
 
+    expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
@@ -624,6 +628,33 @@ describe('App', () => {
     expect(json?.value).toContain('"templateKind": "digital-native"')
     expect(json?.value).toContain(uiText.template.draftNames.digital)
     expect(json?.value).toMatch(/"templateId": "digital-template-[a-z0-9]+"/)
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.template.cancelDraft }))
+    expect(screen.getByText(uiText.template.builtInProtected)).toBeTruthy()
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
+    expect(document.querySelector('.gridOverlay-sound')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))
+    fireEvent.click(screen.getByRole('button', { name: uiText.template.applyDraft }))
+    expect(screen.getByText(uiText.template.draftApplied)).toBeTruthy()
+    expect((screen.getByRole('button', { name: uiText.template.applyDraft }) as HTMLButtonElement).disabled).toBe(true)
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
+  })
+
+  it('turns built-in standard template edits into a custom draft', () => {
+    render(<App />)
+    selectAppPanel(uiText.nav.template)
+
+    fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: 'A3標準 改' } })
+    expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.json }))
+    const json = document.querySelector('.jsonPreview') as HTMLTextAreaElement | null
+    expect(json?.value).toContain('"name": "A3標準 改"')
+    expect(json?.value).not.toContain('"templateId": "standard-a3-timesheet-v1"')
+    expect(json?.value).toMatch(/"templateId": "standard-a3-timesheet-v1-custom-[a-z0-9]+"/)
   })
 
   it('shows context operation hints in the bottom status bar', () => {

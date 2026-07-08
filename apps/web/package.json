@@ -1,0 +1,22 @@
+{
+  "name": "@xsheet-remap/web",
+  "version": "0.1.440",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync:version": "node ../../tools/version/sync-version.mjs",
+    "predev": "npm run sync:version",
+    "prebuild": "npm run sync:version",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@xsheet-remap/adapters": "*",
+    "@xsheet-remap/core": "*",
+    "@xsheet-remap/ui": "*",
+    "@xsheet-remap/xdts": "*"
+  },
+  "devDependencies": {},
+  "license": "MIT"
+}

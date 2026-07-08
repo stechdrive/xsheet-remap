@@ -1,0 +1,2 @@
+# The portable BAT helper build uses the standard-library venv/pip tooling.
+# Runtime dependencies are installed from runtime.txt into the portable bundle.

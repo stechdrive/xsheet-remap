@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "xsheet-corrector",
+  "version": "0.1.440",
+  "identifier": "local.xsheet-remap.sheet-corrector",
+  "build": {
+    "beforeDevCommand": "npm run dev -w @xsheet-remap/web",
+    "devUrl": "http://localhost:5173?app=sheet-corrector",
+    "beforeBuildCommand": "npm run build -w @xsheet-remap/web",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "シート画像補正",
+        "url": "index.html?app=sheet-corrector",
+        "width": 1180,
+        "height": 820,
+        "minWidth": 460,
+        "minHeight": 340,
+        "visible": false,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/icon.ico"
+    ]
+  }
+}

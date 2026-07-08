@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/xdts" },
+    { "path": "packages/adapters" },
+    { "path": "packages/ui" },
+    { "path": "apps/web" }
+  ]
+}

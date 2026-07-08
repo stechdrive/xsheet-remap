@@ -1,0 +1,315 @@
+exchangeDigitalTimeSheet Save Data
+{
+  "version": 5,
+  "header": {
+    "cut": "1",
+    "scene": "1"
+  },
+  "timeTables": [
+    {
+      "name": "タイムライン1",
+      "duration": 36,
+      "frameRate": 24,
+      "timeTableHeaders": [
+        {
+          "fieldId": 0,
+          "names": [
+            "===== XSHEET IMPORT START =====",
+            "===== 作画 =====",
+            "A",
+            "B",
+            "D",
+            "===== 演出 =====",
+            "A",
+            "D",
+            "===== 作監 =====",
+            "B",
+            "===== XSHEET IMPORT END ====="
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "fieldId": 0,
+          "tracks": [
+            {
+              "trackNo": 0,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 1,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 2,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "A_01"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 12,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "A_02"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 14,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 24,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "A_01"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 3,
+              "frames": [
+                {
+                  "frame": 6,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "B_01"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 18,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "B_02"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 22,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 30,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "B_01"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 4,
+              "frames": [
+                {
+                  "frame": 10,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "D_01"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 20,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 5,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 6,
+              "frames": [
+                {
+                  "frame": 14,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "A_03_e"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 24,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 7,
+              "frames": [
+                {
+                  "frame": 20,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "D_02_e"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 8,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 9,
+              "frames": [
+                {
+                  "frame": 22,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "B_03_s"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 30,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 10,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

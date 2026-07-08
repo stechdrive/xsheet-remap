@@ -1,0 +1,56 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Build / test output
+dist/
+dist-ts/
+build/
+target/
+coverage/
+.cache/
+.tmp/
+tmp/
+temp/
+
+# Tauri generated schemas.
+apps/desktop/src-tauri/gen/
+apps/sheet-corrector/src-tauri/gen/
+
+# Logs / local env
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.*
+!.env.example
+AGENTS.md
+apps/csp-import-helper/README.md
+apps/csp-import-helper/tests/fixtures/*/README.md
+
+# Local-only production materials and exports.
+# Keep only synthetic, public-safe fixtures trackable under fixtures/ when needed.
+reference-local/
+docs/
+local/
+private/
+scratch/
+exports/
+captures/
+release-local/
+data/raw/
+data/private/
+*.clip
+*.psd
+*.psb

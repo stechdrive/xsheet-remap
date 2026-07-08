@@ -1,0 +1,16 @@
+{
+  "name": "@xsheet-remap/xdts",
+  "version": "0.1.440",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@xsheet-remap/core": "*"
+  },
+  "license": "MIT"
+}

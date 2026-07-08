@@ -1,0 +1,301 @@
+exchangeDigitalTimeSheet Save Data
+{
+  "version": 5,
+  "header": {
+    "cut": "1",
+    "scene": "1"
+  },
+  "timeTables": [
+    {
+      "name": "タイムライン1",
+      "duration": 48,
+      "frameRate": 24,
+      "timeTableHeaders": [
+        {
+          "fieldId": 0,
+          "names": [
+            "===== XSHEET IMPORT START =====",
+            "===== 作画 =====",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "===== 演出 =====",
+            "A",
+            "D",
+            "E",
+            "===== 作監 =====",
+            "A",
+            "B",
+            "C",
+            "===== XSHEET IMPORT END ====="
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "fieldId": 0,
+          "tracks": [
+            {
+              "trackNo": 0,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 1,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 2,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 3,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 4,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 5,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 6,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 7,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 8,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 9,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 10,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 11,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 12,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 13,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 14,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 15,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

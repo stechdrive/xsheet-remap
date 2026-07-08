@@ -1,0 +1,528 @@
+{
+  "schemaVersion": 2,
+  "createdBy": {
+    "app": "xsheet-remap",
+    "version": "fixture-v2-shared-cuts"
+  },
+  "assetRoot": "..",
+  "setup": {
+    "xdts": "_setup.xdts",
+    "purpose": "create-union-animation-folders"
+  },
+  "cuts": [
+    {
+      "cutId": "cut_1",
+      "cutNumber": "C101A",
+      "displayName": "C101A",
+      "timelineName": "101A",
+      "cutNumbers": [
+        "C101A",
+        "C101B",
+        "C101C",
+        "101",
+        "cut_1"
+      ],
+      "durationFrames": 24,
+      "fps": 24,
+      "files": {
+        "xdts": "C101A.xdts",
+        "operationLog": "C101A-csp-import-log.json"
+      },
+      "importStack": {
+        "enabled": true,
+        "startSeparator": "===== XSHEET IMPORT START =====",
+        "endSeparator": "===== XSHEET IMPORT END ====="
+      },
+      "tracks": [
+        {
+          "trackId": "slot_A",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "A",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "A",
+          "stackOrder": 2,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "A_01",
+              "assetPath": "materials/A_01.png",
+              "firstFrame": 0
+            },
+            {
+              "cspCellName": "A_02",
+              "assetPath": "materials/A_02.png",
+              "firstFrame": 8
+            }
+          ]
+        },
+        {
+          "trackId": "slot_B",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "B",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "B",
+          "stackOrder": 3,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "B_01",
+              "assetPath": "materials/B_01.png",
+              "firstFrame": 4
+            },
+            {
+              "cspCellName": "B_02",
+              "assetPath": "materials/B_02.png",
+              "firstFrame": 16
+            }
+          ]
+        },
+        {
+          "trackId": "slot_C",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "C",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "C",
+          "stackOrder": 4,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "C_01",
+              "assetPath": "materials/C_01.png",
+              "firstFrame": 2
+            }
+          ]
+        },
+        {
+          "trackId": "slot_enshutsu_A",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "A",
+          "stageId": "stage_lo",
+          "stageLabel": "演出",
+          "xdtsTrackName": "A",
+          "stackOrder": 6,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "演出"
+          ],
+          "cels": [
+            {
+              "cspCellName": "A_03_e",
+              "assetPath": "materials/A_03_e.png",
+              "firstFrame": 12
+            }
+          ]
+        },
+        {
+          "trackId": "slot_sakkan_C",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "C",
+          "stageId": "stage_lo",
+          "stageLabel": "作監",
+          "xdtsTrackName": "C",
+          "stackOrder": 8,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作監"
+          ],
+          "cels": [
+            {
+              "cspCellName": "C_02_s",
+              "assetPath": "materials/C_02_s.png",
+              "firstFrame": 18
+            }
+          ]
+        }
+      ],
+      "validation": {
+        "expectedTrackCount": 5,
+        "expectedGeneratedFolders": [
+          "A",
+          "B",
+          "C",
+          "A",
+          "C"
+        ]
+      }
+    },
+    {
+      "cutId": "cut_2",
+      "cutNumber": "C101B",
+      "displayName": "C101B",
+      "timelineName": "101B",
+      "cutNumbers": [
+        "C101A",
+        "C101B",
+        "C101C",
+        "101",
+        "cut_2"
+      ],
+      "durationFrames": 36,
+      "fps": 24,
+      "files": {
+        "xdts": "C101B.xdts",
+        "operationLog": "C101B-csp-import-log.json"
+      },
+      "importStack": {
+        "enabled": true,
+        "startSeparator": "===== XSHEET IMPORT START =====",
+        "endSeparator": "===== XSHEET IMPORT END ====="
+      },
+      "tracks": [
+        {
+          "trackId": "slot_A",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "A",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "A",
+          "stackOrder": 2,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "A_01",
+              "assetPath": "materials/A_01.png",
+              "firstFrame": 0
+            },
+            {
+              "cspCellName": "A_02",
+              "assetPath": "materials/A_02.png",
+              "firstFrame": 12
+            }
+          ]
+        },
+        {
+          "trackId": "slot_B",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "B",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "B",
+          "stackOrder": 3,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "B_01",
+              "assetPath": "materials/B_01.png",
+              "firstFrame": 6
+            },
+            {
+              "cspCellName": "B_02",
+              "assetPath": "materials/B_02.png",
+              "firstFrame": 18
+            }
+          ]
+        },
+        {
+          "trackId": "slot_D",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "D",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "D",
+          "stackOrder": 4,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "D_01",
+              "assetPath": "materials/D_01.png",
+              "firstFrame": 10
+            }
+          ]
+        },
+        {
+          "trackId": "slot_enshutsu_A",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "A",
+          "stageId": "stage_lo",
+          "stageLabel": "演出",
+          "xdtsTrackName": "A",
+          "stackOrder": 6,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "演出"
+          ],
+          "cels": [
+            {
+              "cspCellName": "A_03_e",
+              "assetPath": "materials/A_03_e.png",
+              "firstFrame": 14
+            }
+          ]
+        },
+        {
+          "trackId": "slot_enshutsu_D",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "D",
+          "stageId": "stage_lo",
+          "stageLabel": "演出",
+          "xdtsTrackName": "D",
+          "stackOrder": 7,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "演出"
+          ],
+          "cels": [
+            {
+              "cspCellName": "D_02_e",
+              "assetPath": "materials/D_02_e.png",
+              "firstFrame": 20
+            }
+          ]
+        },
+        {
+          "trackId": "slot_sakkan_B",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "B",
+          "stageId": "stage_lo",
+          "stageLabel": "作監",
+          "xdtsTrackName": "B",
+          "stackOrder": 9,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作監"
+          ],
+          "cels": [
+            {
+              "cspCellName": "B_03_s",
+              "assetPath": "materials/B_03_s.png",
+              "firstFrame": 22
+            }
+          ]
+        }
+      ],
+      "validation": {
+        "expectedTrackCount": 6,
+        "expectedGeneratedFolders": [
+          "A",
+          "B",
+          "D",
+          "A",
+          "D",
+          "B"
+        ]
+      }
+    },
+    {
+      "cutId": "cut_3",
+      "cutNumber": "C101C",
+      "displayName": "C101C",
+      "timelineName": "101C",
+      "cutNumbers": [
+        "C101A",
+        "C101B",
+        "C101C",
+        "101",
+        "cut_3"
+      ],
+      "durationFrames": 48,
+      "fps": 24,
+      "files": {
+        "xdts": "C101C.xdts",
+        "operationLog": "C101C-csp-import-log.json"
+      },
+      "importStack": {
+        "enabled": true,
+        "startSeparator": "===== XSHEET IMPORT START =====",
+        "endSeparator": "===== XSHEET IMPORT END ====="
+      },
+      "tracks": [
+        {
+          "trackId": "slot_A",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "A",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "A",
+          "stackOrder": 2,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "A_02",
+              "assetPath": "materials/A_02.png",
+              "firstFrame": 0
+            },
+            {
+              "cspCellName": "A_01",
+              "assetPath": "materials/A_01.png",
+              "firstFrame": 16
+            }
+          ]
+        },
+        {
+          "trackId": "slot_B",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "B",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "B",
+          "stackOrder": 3,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "B_02",
+              "assetPath": "materials/B_02.png",
+              "firstFrame": 8
+            },
+            {
+              "cspCellName": "B_01",
+              "assetPath": "materials/B_01.png",
+              "firstFrame": 24
+            }
+          ]
+        },
+        {
+          "trackId": "slot_E",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "E",
+          "stageId": "stage_lo",
+          "stageLabel": "作画",
+          "xdtsTrackName": "E",
+          "stackOrder": 4,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作画"
+          ],
+          "cels": [
+            {
+              "cspCellName": "E_01",
+              "assetPath": "materials/E_01.png",
+              "firstFrame": 20
+            }
+          ]
+        },
+        {
+          "trackId": "slot_enshutsu_E",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "E",
+          "stageId": "stage_lo",
+          "stageLabel": "演出",
+          "xdtsTrackName": "E",
+          "stackOrder": 6,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "演出"
+          ],
+          "cels": [
+            {
+              "cspCellName": "E_02_e",
+              "assetPath": "materials/E_02_e.png",
+              "firstFrame": 26
+            }
+          ]
+        },
+        {
+          "trackId": "slot_sakkan_A",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "A",
+          "stageId": "stage_lo",
+          "stageLabel": "作監",
+          "xdtsTrackName": "A",
+          "stackOrder": 8,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作監"
+          ],
+          "cels": [
+            {
+              "cspCellName": "A_04_s",
+              "assetPath": "materials/A_04_s.png",
+              "firstFrame": 36
+            }
+          ]
+        },
+        {
+          "trackId": "slot_sakkan_B",
+          "kind": "cell",
+          "paperRegion": "action",
+          "paperTrackLabel": "B",
+          "stageId": "stage_lo",
+          "stageLabel": "作監",
+          "xdtsTrackName": "B",
+          "stackOrder": 9,
+          "stageOrder": 0,
+          "targetFolderPath": [
+            "LO",
+            "作監"
+          ],
+          "cels": [
+            {
+              "cspCellName": "B_03_s",
+              "assetPath": "materials/B_03_s.png",
+              "firstFrame": 44
+            }
+          ]
+        }
+      ],
+      "validation": {
+        "expectedTrackCount": 6,
+        "expectedGeneratedFolders": [
+          "A",
+          "B",
+          "E",
+          "E",
+          "A",
+          "B"
+        ]
+      }
+    }
+  ]
+}

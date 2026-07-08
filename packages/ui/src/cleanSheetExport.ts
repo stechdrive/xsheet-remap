@@ -1,0 +1,622 @@
+import {
+  getSheetViewLayout,
+  resolveSheetTemplateGridLayout,
+  sheetGridRowY,
+  type AnnotationStroke,
+  type AnnotationText,
+  type CutProject,
+  type SheetPage,
+  type SheetTemplate,
+} from '@xsheet-remap/core'
+import { alphaComposite, writeRgbPsd, type PsdLayer } from './psdWriter'
+import type { SheetPageImage } from './appTypes'
+import { defaultSheetImageSettings, loadImage, resolveImageRefUrl, warpSheetImageData } from './sheetImages'
+import { defaultLevelCorrectionSettings } from './levelCorrection'
+import {
+  createSheetRenderModelContext,
+  hasOverlayRenderContent,
+  inputTextRenderItemsForPage,
+  overlayPaperTrackRenderItems,
+  stackGuideFlagRenderItemsForPage,
+  type FlagLabelGeometry,
+  type SheetRenderModelContext,
+} from './sheetRenderModel'
+import { sheetImageFileName } from './outputFileNames'
+import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
+
+export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
+export type SheetTemplateExportMode = 'none' | 'template-image' | 'app-lines'
+
+export type SheetImageExportOptions = {
+  format: SheetImageExportFormat
+  includePaperSheet: boolean
+  templateMode: SheetTemplateExportMode
+}
+
+export type SheetImageExportResult = {
+  bytes: Uint8Array
+  fileName: string
+  mimeType: string
+  extension: SheetImageExportFormat
+  pageIndex: number
+}
+
+type SheetExportLayerId = 'white' | 'paperSheet' | 'template' | 'overlayTracks' | 'inputText' | 'annotations'
+
+type SheetExportLayer = {
+  id: SheetExportLayerId
+  name: string
+  imageData: ImageData
+  opacity?: number
+}
+
+type SheetExportLayerContext = SheetRenderModelContext & {
+  runtimeSourceImageUrls: Record<string, string>
+}
+
+const SHEET_CANVAS_FONT_FAMILY = '"LINE Seed JP", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif'
+const TEMPLATE_CANVAS_FONT_FAMILY = SHEET_CANVAS_FONT_FAMILY
+const SHEET_EVENT_FONT_WEIGHT = 800
+const SHEET_LABEL_FONT_WEIGHT = 700
+
+export function defaultSheetImageExportOptions(
+  project: CutProject,
+  format: SheetImageExportFormat,
+): SheetImageExportOptions {
+  const includePaperSheet = hasPaperSheetImages(project)
+  return {
+    format,
+    includePaperSheet,
+    templateMode: includePaperSheet ? 'none' : 'app-lines',
+  }
+}
+
+export function hasPaperSheetImages(project: CutProject): boolean {
+  return project.sheetView.pages.some(page => {
+    const source = page.sourceId ? project.sheetView.sources.find(item => item.sourceId === page.sourceId) : undefined
+    return source?.kind === 'sheet-scan'
+  })
+}
+
+export async function renderSheetImageExport(
+  project: CutProject,
+  template: SheetTemplate,
+  runtimeSourceImageUrls: Record<string, string>,
+  options: SheetImageExportOptions,
+): Promise<SheetImageExportResult> {
+  const results = await renderSheetImageExports(project, template, runtimeSourceImageUrls, options)
+  const first = results[0]
+  if (!first) throw new Error('No sheet pages to export')
+  return first
+}
+
+export async function renderSheetImageExports(
+  project: CutProject,
+  template: SheetTemplate,
+  runtimeSourceImageUrls: Record<string, string>,
+  options: SheetImageExportOptions,
+): Promise<SheetImageExportResult[]> {
+  await waitForSheetExportFonts()
+  const context = createLayerContext(project, template, runtimeSourceImageUrls)
+  const layers = await renderSheetExportLayers(context, normalizeExportOptions(project, options))
+  const extension = options.format
+  const mimeType = extension === 'jpg' ? 'image/jpeg' : 'image/png'
+  const totalPages = Math.max(1, context.pages.length)
+  const results: SheetImageExportResult[] = []
+  for (const page of context.pages) {
+    const pageLayers = layers.map(layer => ({
+      ...layer,
+      imageData: cropImageData(layer.imageData, 0, page.pageIndex * context.pageSize.heightPx, context.pageSize.widthPx, context.pageSize.heightPx),
+    }))
+    const composite = compositeLayers(pageLayers)
+    const fileName = sheetImageFileName(project, extension, page.pageIndex, totalPages)
+    if (extension === 'psd') {
+      const psdLayers: PsdLayer[] = pageLayers.map(layer => ({
+        name: layer.name,
+        imageData: layer.imageData,
+        opacity: layer.opacity,
+      }))
+      results.push({
+        bytes: writeRgbPsd({
+          width: context.pageSize.widthPx,
+          height: context.pageSize.heightPx,
+          dpi: context.pageSize.dpi ?? template.page.dpi ?? 72,
+          layers: psdLayers,
+          composite,
+        }),
+        fileName,
+        mimeType: 'image/vnd.adobe.photoshop',
+        extension,
+        pageIndex: page.pageIndex,
+      })
+      continue
+    }
+    results.push({
+      bytes: await imageDataToBytes(composite, mimeType, extension === 'jpg' ? 0.92 : undefined),
+      fileName,
+      mimeType,
+      extension,
+      pageIndex: page.pageIndex,
+    })
+  }
+  return results
+}
+
+function normalizeExportOptions(project: CutProject, options: SheetImageExportOptions): SheetImageExportOptions {
+  if (!options.includePaperSheet && options.templateMode === 'none') {
+    return { ...options, templateMode: 'app-lines' }
+  }
+  if (options.includePaperSheet && !hasPaperSheetImages(project)) {
+    return { ...options, includePaperSheet: false, templateMode: options.templateMode === 'none' ? 'app-lines' : options.templateMode }
+  }
+  return options
+}
+
+function createLayerContext(
+  project: CutProject,
+  template: SheetTemplate,
+  runtimeSourceImageUrls: Record<string, string>,
+): SheetExportLayerContext {
+  return {
+    ...createSheetRenderModelContext(project, template),
+    runtimeSourceImageUrls,
+  }
+}
+
+async function renderSheetExportLayers(
+  context: SheetExportLayerContext,
+  options: SheetImageExportOptions,
+): Promise<SheetExportLayer[]> {
+  const layers: SheetExportLayer[] = [
+    { id: 'white', name: '白地', imageData: solidWhiteImageData(context.width, context.height) },
+  ]
+  if (options.includePaperSheet) {
+    layers.push({ id: 'paperSheet', name: '紙シート画像', imageData: await renderPaperSheetLayer(context) })
+  }
+  if (options.templateMode === 'template-image') {
+    layers.push({ id: 'template', name: 'テンプレ画像', imageData: await renderTemplateImageLayer(context) })
+  } else if (options.templateMode === 'app-lines') {
+    layers.push({ id: 'template', name: '罫線', imageData: renderTemplateLineLayer(context) })
+  }
+  if (hasOverlayRenderContent(context)) {
+    layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル', imageData: renderOverlayTrackLayer(context) })
+  }
+  layers.push({ id: 'inputText', name: '入力文字', imageData: renderInputTextLayer(context) })
+  layers.push({ id: 'annotations', name: '注釈', imageData: renderAnnotationLayer(context) })
+  return layers
+}
+
+async function renderPaperSheetLayer(context: SheetExportLayerContext): Promise<ImageData> {
+  const canvas = createCanvas(context.width, context.height)
+  const canvasContext = canvas.getContext('2d', { willReadFrequently: true })
+  if (!canvasContext) return blankTransparentImageData(context.width, context.height)
+  for (const page of context.pages) {
+    const pageImage = sheetScanPageImage(context, page.pageId)
+    if (!pageImage.imageUrl) continue
+    const image = await loadImage(pageImage.imageUrl)
+    const imageData = warpSheetImageData(image, pageImage.settings, context.template, context.pageSize.widthPx)
+    if (!imageData) continue
+    canvasContext.putImageData(imageData, 0, page.pageIndex * context.pageSize.heightPx)
+  }
+  return canvasContext.getImageData(0, 0, context.width, context.height)
+}
+
+function sheetScanPageImage(context: SheetExportLayerContext, pageId: string): SheetPageImage {
+  const page = context.project.sheetView.pages.find(item => item.pageId === pageId)
+  const source = page?.sourceId
+    ? context.project.sheetView.sources.find(item => item.sourceId === page.sourceId && item.kind === 'sheet-scan')
+    : undefined
+  return {
+    imageUrl: source ? context.runtimeSourceImageUrls[source.sourceId] ?? resolveImageRefUrl(source.imageRef) : null,
+    sourceId: source?.sourceId,
+    imageRef: source?.imageRef,
+    settings: {
+      ...defaultSheetImageSettings(),
+      ...(page?.alignment ?? {}),
+      levelCorrection: page?.alignment?.levelCorrection ?? defaultLevelCorrectionSettings(),
+    },
+  }
+}
+
+async function renderTemplateImageLayer(context: SheetExportLayerContext): Promise<ImageData> {
+  const imageRef = context.template.defaultUnderlay
+    ? { ...context.template.defaultUnderlay.imageRef, assetPath: context.template.defaultUnderlay.assetPath }
+    : null
+  const imageUrl = imageRef ? resolveImageRefUrl(imageRef) : null
+  if (!imageUrl) return renderTemplateLineLayer(context)
+  const image = await loadImage(imageUrl)
+  const sourceCanvas = createCanvas(context.pageSize.widthPx, context.pageSize.heightPx)
+  const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true })
+  if (!sourceContext) return renderTemplateLineLayer(context)
+  sourceContext.drawImage(image, 0, 0, context.pageSize.widthPx, context.pageSize.heightPx)
+  const pageLayer = lineAlphaImageData(sourceContext.getImageData(0, 0, context.pageSize.widthPx, context.pageSize.heightPx))
+  return repeatPageLayer(context, pageLayer)
+}
+
+function renderTemplateLineLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  ctx.strokeStyle = '#60645f'
+  ctx.fillStyle = '#202421'
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const region of context.template.regions.filter(region => region.type === 'exposure-grid' && region.grid)) {
+      const grid = region.grid!
+      const viewLayout = getSheetViewLayout(context.template)
+      const frameOrigin = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
+        ? page.frameStart
+        : context.template.defaults.frameOrigin
+      const layout = resolveSheetTemplateGridLayout(context.template, region, {
+        paperTracks: context.paperTracks,
+        durationFrames: page.frameEnd - page.frameStart + 1,
+        frameOrigin,
+        layoutOverrides: context.project.sheetView.layoutOverrides,
+      })
+      if (!layout) continue
+      const rect = layout.rect
+      const columns = layout.columns
+      const frames = layout.frames
+      const x = rect.x * context.pageSize.widthPx
+      const y = offsetY + rect.y * context.pageSize.heightPx
+      const w = rect.w * context.pageSize.widthPx
+      const h = rect.h * context.pageSize.heightPx
+      for (let row = 0; row <= frames.rowCount; row += 1) {
+        ctx.lineWidth = row % (grid.majorLineEvery ?? 999) === 0 ? 2 : 1
+        const yy = offsetY + sheetGridRowY(layout, row) * context.pageSize.heightPx
+        ctx.beginPath()
+        ctx.moveTo(x, yy)
+        ctx.lineTo(x + w, yy)
+        ctx.stroke()
+      }
+      ctx.lineWidth = 1
+      const columnLines = [
+        ...columns.map(column => column.x),
+        columns.at(-1) ? columns.at(-1)!.x + columns.at(-1)!.w : rect.x + rect.w,
+      ]
+      for (const lineX of columnLines) {
+        const xx = lineX * context.pageSize.widthPx
+        ctx.beginPath()
+        ctx.moveTo(xx, y)
+        ctx.lineTo(xx, y + h)
+        ctx.stroke()
+      }
+      ctx.font = fontDeclaration(18, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      columns.forEach(column => {
+        const xx = (column.x + column.w / 2) * context.pageSize.widthPx
+        ctx.fillText(column.label, xx, y - 6)
+      })
+      drawInactiveRange(ctx, context, page, layout, frameOrigin, x, y, w)
+    }
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function drawInactiveRange(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  page: SheetPage,
+  layout: NonNullable<ReturnType<typeof resolveSheetTemplateGridLayout>>,
+  frameOrigin: number,
+  x: number,
+  y: number,
+  w: number,
+) {
+  ctx.fillStyle = 'rgba(90, 96, 104, 0.16)'
+  const inactiveRanges = [
+    { frameStart: page.frameStart, frameEnd: Math.min(page.frameEnd, context.project.logicalSheet.frameOrigin - 1) },
+    { frameStart: Math.max(page.frameStart, context.officialFrameEnd + 1), frameEnd: page.frameEnd },
+  ].filter(range => range.frameEnd >= range.frameStart)
+  for (const range of inactiveRanges) {
+    const localStart = frameOrigin === page.frameStart ? range.frameStart : range.frameStart - page.frameStart + context.template.defaults.frameOrigin
+    const localEnd = frameOrigin === page.frameStart ? range.frameEnd : range.frameEnd - page.frameStart + context.template.defaults.frameOrigin
+    const start = Math.max(layout.frames.frameStart, localStart)
+    const end = Math.min(layout.frames.frameEnd, localEnd)
+    if (end < start) continue
+    const rowIndex = start - layout.frames.frameStart
+    ctx.fillRect(x, y + layout.frames.rowHeightPx * rowIndex, w, layout.frames.rowHeightPx * (end - start + 1))
+  }
+  ctx.fillStyle = '#202421'
+}
+
+function renderInputTextLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const item of inputTextRenderItemsForPage(context, page)) {
+      const rect = item.rect
+      const x = rect.x * context.pageSize.widthPx
+      const y = offsetY + rect.y * context.pageSize.heightPx
+      const w = rect.w * context.pageSize.widthPx
+      const h = rect.h * context.pageSize.heightPx
+      ctx.fillStyle = 'rgba(238, 247, 242, 0.78)'
+      ctx.fillRect(x + 1, y + 1, w - 2, h - 2)
+      ctx.fillStyle = '#113c2d'
+      ctx.font = fontDeclaration(item.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_EVENT_FONT_WEIGHT)
+      ctx.fillText(item.text, x + w / 2, y + h / 2)
+    }
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function renderOverlayTrackLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    drawOverlayPaperTracks(ctx, context, page, offsetY)
+    drawStackGuideLabels(ctx, context, page, offsetY)
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function drawOverlayPaperTracks(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  page: SheetPage,
+  offsetY: number,
+) {
+  for (const item of overlayPaperTrackRenderItems(context, page)) {
+    const { track, column, label } = item
+    const x = column.rect.x * context.pageSize.widthPx
+    const y = offsetY + column.rect.y * context.pageSize.heightPx
+    const w = column.rect.w * context.pageSize.widthPx
+    const h = column.rect.h * context.pageSize.heightPx
+
+    ctx.fillStyle = 'rgba(235, 241, 239, 0.62)'
+    ctx.fillRect(x, y, w, h)
+    ctx.strokeStyle = 'rgba(47, 80, 70, 0.72)'
+    ctx.lineWidth = 1.2
+    ctx.strokeRect(x, y, w, h)
+    for (let row = 0; row <= column.frames.rowCount; row += 1) {
+      const yy = y + (h * row) / column.frames.rowCount
+      ctx.lineWidth = row % (column.majorLineEvery ?? 999) === 0 ? 1.4 : 0.75
+      ctx.beginPath()
+      ctx.moveTo(x, yy)
+      ctx.lineTo(x + w, yy)
+      ctx.stroke()
+    }
+
+    drawFlagLabel(ctx, context, offsetY, {
+      label: track.label,
+      geometry: {
+        anchorX: label.stemX,
+        anchorY: column.rect.y,
+        labelAttachX: label.labelAttachX,
+        labelBottomY: label.labelBottomY,
+        labelX: label.labelX,
+        labelY: label.labelY,
+        labelTextX: label.labelX + label.labelWidth / 2,
+        labelWidth: label.labelWidth,
+        labelHeight: label.labelHeight,
+        fontSize: label.fontSize,
+        radiusX: label.radiusX,
+        radiusY: label.radiusY,
+        connectorStrokeWidth: 3 / context.pageSize.heightPx,
+      },
+      color: '#2c6f54',
+      align: 'center',
+    })
+  }
+}
+
+function drawStackGuideLabels(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  page: SheetPage,
+  offsetY: number,
+) {
+  for (const item of stackGuideFlagRenderItemsForPage(context, page)) {
+    drawFlagLabel(ctx, context, offsetY, item)
+  }
+}
+
+function drawFlagLabel(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  offsetY: number,
+  input: {
+    label: string
+    geometry: FlagLabelGeometry
+    color: string
+    align: 'start' | 'center'
+  },
+) {
+  const geometry = input.geometry
+  const pageWidth = context.pageSize.widthPx
+  const pageHeight = context.pageSize.heightPx
+  const anchorX = geometry.anchorX * pageWidth
+  const anchorY = offsetY + geometry.anchorY * pageHeight
+  const labelBottomY = offsetY + geometry.labelBottomY * pageHeight
+  const labelAttachX = geometry.labelAttachX * pageWidth
+  const labelX = geometry.labelX * pageWidth
+  const labelY = offsetY + geometry.labelY * pageHeight
+  const labelW = geometry.labelWidth * pageWidth
+  const labelH = geometry.labelHeight * pageHeight
+  const radius = Math.max(1, geometry.radiusX * pageWidth)
+
+  ctx.strokeStyle = input.color
+  ctx.fillStyle = input.color
+  ctx.lineWidth = Math.max(1, geometry.connectorStrokeWidth * pageHeight)
+  ctx.beginPath()
+  ctx.moveTo(anchorX, anchorY)
+  ctx.lineTo(anchorX, labelBottomY)
+  ctx.lineTo(labelAttachX, labelBottomY)
+  ctx.stroke()
+
+  roundedRectPath(ctx, labelX, labelY, labelW, labelH, radius)
+  ctx.fill()
+  ctx.fillStyle = '#ffffff'
+  ctx.font = fontDeclaration(Math.max(8, geometry.fontSize * pageHeight), SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = input.align === 'center' ? 'center' : 'left'
+  const textX = input.align === 'center' ? labelX + labelW / 2 : geometry.labelTextX * pageWidth
+  ctx.fillText(input.label, textX, labelY + labelH / 2)
+}
+
+function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const radius = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + radius, y)
+  ctx.lineTo(x + w - radius, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius)
+  ctx.lineTo(x + w, y + h - radius)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
+  ctx.lineTo(x + radius, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius)
+  ctx.lineTo(x, y + radius)
+  ctx.quadraticCurveTo(x, y, x + radius, y)
+  ctx.closePath()
+}
+
+function renderAnnotationLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const stroke of context.project.annotations.filter((annotation): annotation is AnnotationStroke => annotation.kind !== 'text' && annotation.pageId === page.pageId && annotation.tool === 'pen')) {
+      const [first, ...rest] = stroke.points
+      if (!first) continue
+      ctx.beginPath()
+      ctx.moveTo(first.x * context.pageSize.widthPx, offsetY + first.y * context.pageSize.heightPx)
+      for (const point of rest) ctx.lineTo(point.x * context.pageSize.widthPx, offsetY + point.y * context.pageSize.heightPx)
+      ctx.strokeStyle = stroke.color
+      ctx.lineWidth = Math.max(1, stroke.width * context.pageSize.widthPx)
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.stroke()
+    }
+    for (const annotation of context.project.annotations.filter((item): item is AnnotationText => item.kind === 'text' && item.pageId === page.pageId)) {
+      const lines = annotationTextLines(annotation.text)
+      if (lines.length === 0) continue
+      const fontSize = resolveAnnotationTextFontSizePx(annotation, context.pageSize)
+      const x = annotation.x * context.pageSize.widthPx
+      const y = offsetY + annotation.y * context.pageSize.heightPx
+      ctx.fillStyle = annotation.color
+      ctx.font = fontDeclaration(fontSize, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+      ctx.textBaseline = 'top'
+      ctx.textAlign = 'left'
+      lines.forEach((line, index) => {
+        ctx.fillText(line, x, y + index * fontSize * 1.25)
+      })
+    }
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function repeatPageLayer(context: SheetExportLayerContext, pageLayer: ImageData): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  for (const page of context.pages) ctx.putImageData(pageLayer, 0, page.pageIndex * context.pageSize.heightPx)
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function lineAlphaImageData(imageData: ImageData): ImageData {
+  const output = new ImageData(imageData.width, imageData.height)
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    const sourceAlpha = imageData.data[index + 3] / 255
+    if (sourceAlpha <= 0.03) continue
+    const luminance = imageData.data[index] * 0.299 + imageData.data[index + 1] * 0.587 + imageData.data[index + 2] * 0.114
+    const darkness = Math.max(0, 246 - luminance)
+    const alpha = Math.max(0, Math.min(255, Math.round(darkness * 2.2 * sourceAlpha)))
+    output.data[index] = 0
+    output.data[index + 1] = 0
+    output.data[index + 2] = 0
+    output.data[index + 3] = alpha
+  }
+  return output
+}
+
+function compositeLayers(layers: SheetExportLayer[]): ImageData {
+  const [first, ...rest] = layers
+  if (!first) throw new Error('No export layers')
+  return rest.reduce((bottom, layer) => alphaComposite(bottom, layerImageDataForComposite(layer)), first.imageData)
+}
+
+function layerImageDataForComposite(layer: SheetExportLayer): ImageData {
+  return typeof layer.opacity === 'number' ? opacityImageData(layer.imageData, layer.opacity / 255) : layer.imageData
+}
+
+function opacityImageData(imageData: ImageData, opacity: number): ImageData {
+  if (opacity >= 0.999) return imageData
+  const output = new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height)
+  for (let index = 3; index < output.data.length; index += 4) {
+    output.data[index] = Math.round(output.data[index] * opacity)
+  }
+  return output
+}
+
+function cropImageData(imageData: ImageData, x: number, y: number, width: number, height: number): ImageData {
+  const canvas = createCanvas(width, height)
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) return blankTransparentImageData(width, height)
+  const sourceCanvas = createCanvas(imageData.width, imageData.height)
+  const sourceContext = sourceCanvas.getContext('2d')
+  if (!sourceContext) return blankTransparentImageData(width, height)
+  sourceContext.putImageData(imageData, 0, 0)
+  context.drawImage(sourceCanvas, x, y, width, height, 0, 0, width, height)
+  return context.getImageData(0, 0, width, height)
+}
+
+function solidWhiteImageData(width: number, height: number): ImageData {
+  const output = new ImageData(width, height)
+  for (let index = 0; index < output.data.length; index += 4) {
+    output.data[index] = 255
+    output.data[index + 1] = 255
+    output.data[index + 2] = 255
+    output.data[index + 3] = 255
+  }
+  return output
+}
+
+function blankTransparentImageData(width: number, height: number): ImageData {
+  const canvas = createCanvas(width, height)
+  const context = canvas.getContext('2d')
+  return context ? context.createImageData(width, height) : new ImageData(width, height)
+}
+
+function createCanvas(width: number, height: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(width))
+  canvas.height = Math.max(1, Math.round(height))
+  return canvas
+}
+
+async function imageDataToBytes(imageData: ImageData, mimeType: string, quality?: number): Promise<Uint8Array> {
+  const canvas = createCanvas(imageData.width, imageData.height)
+  const context = canvas.getContext('2d')
+  if (!context) return new Uint8Array()
+  context.putImageData(imageData, 0, 0)
+  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType, quality))
+  if (!blob) return new Uint8Array()
+  return new Uint8Array(await blob.arrayBuffer())
+}
+
+function fontDeclaration(sizePx: number, family: string, weight: number): string {
+  return `${weight} ${sizePx}px ${family}`
+}
+
+async function waitForSheetExportFonts(): Promise<void> {
+  const fonts = typeof document === 'undefined' ? undefined : document.fonts
+  if (!fonts) return
+  try {
+    const sampleText = '日本語ABC123'
+    await Promise.all([
+      fonts.load(`400 16px "LINE Seed JP"`, sampleText),
+      fonts.load(`700 16px "LINE Seed JP"`, sampleText),
+      fonts.load(`800 16px "LINE Seed JP"`, sampleText),
+    ])
+    await fonts.ready
+  } catch {
+    // Font fallback still produces an export; this only avoids racing self-hosted webfonts.
+  }
+}

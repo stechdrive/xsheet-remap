@@ -1,0 +1,74 @@
+exchangeDigitalTimeSheet Save Data
+{
+  "version": 5,
+  "header": {
+    "cut": "1",
+    "scene": "1"
+  },
+  "timeTables": [
+    {
+      "name": "timeline",
+      "duration": 24,
+      "frameRate": 24,
+      "timeTableHeaders": [
+        {
+          "fieldId": 0,
+          "names": [
+            "A",
+            "A"
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "fieldId": 0,
+          "tracks": [
+            {
+              "trackNo": 0,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "A1"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "trackNo": 1,
+              "frames": [
+                {
+                  "frame": 0,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "SYMBOL_NULL_CELL"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "frame": 4,
+                  "data": [
+                    {
+                      "id": 0,
+                      "values": [
+                        "A1.5"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

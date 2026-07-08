@@ -1,0 +1,20 @@
+{
+  "name": "@xsheet-remap/sheet-corrector",
+  "version": "0.1.440",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync:version": "node ../../tools/version/sync-version.mjs",
+    "pretauri": "npm run sync:version",
+    "pretauri:dev": "npm run sync:version",
+    "pretauri:build": "npm run sync:version",
+    "prebuild": "npm run sync:version",
+    "prebuild:portable": "npm run sync:version",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build --no-bundle",
+    "build": "npm run build:portable",
+    "build:portable": "npm run tauri:build"
+  },
+  "license": "MIT"
+}

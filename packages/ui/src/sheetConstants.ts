@@ -1,0 +1,15 @@
+export const SHEET_ZOOM_MIN = 0.2
+export const SHEET_ZOOM_MAX = 3
+export const SHEET_ZOOM_WHEEL_FACTOR = 1.12
+export const WHEEL_LINE_SCROLL_PX = 40
+export const SHEET_WARP_PREVIEW_CANVAS_WIDTH = 900
+export const STANDARD_A3_GRID_HEADER_TOP_OFFSET = 71 / 2481
+export const STANDARD_A3_GRID_HEADER_HEIGHT = 48 / 2481
+export const ASSET_DRAG_MIME = 'application/x-xsheet-remap-asset'
+export const ASSET_MULTI_DRAG_MIME = 'application/x-xsheet-remap-assets'
+export const ASSET_TEXT_DRAG_PREFIX = 'xsheet-remap:asset:'
+export const REGISTERED_CELL_DRAG_MIME = 'application/x-xsheet-remap-registered-cell'
+export const REGISTERED_CELL_TEXT_DRAG_PREFIX = 'xsheet-remap:registered-cell:'
+export const REGISTERED_CELL_POINTER_DROP_EVENT = 'xsheet-remap:registered-cell-pointer-drop'
+export const STACK_GUIDE_DRAG_MIME = 'application/x-xsheet-remap-stack-guide'
+export const ASSET_POINTER_DROP_EVENT = 'xsheet-remap:asset-pointer-drop'

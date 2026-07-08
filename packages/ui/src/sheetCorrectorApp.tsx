@@ -146,6 +146,7 @@ export function SheetCorrectorApp() {
   const [levelCorrectionDialogOpen, setLevelCorrectionDialogOpen] = useState(false)
   const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_SHEET_CORRECTOR_TEMPLATE.templateId)
   const [externalTemplate, setExternalTemplate] = useState<SheetCorrectorExternalTemplate | null>(null)
+  const [templateRestoreReady, setTemplateRestoreReady] = useState(() => !isTauriHost() || !loadStoredSheetCorrectorTemplatePath())
   const [templateOverlayEnabled, setTemplateOverlayEnabled] = useState(true)
   const [templateOverlayOpacity, setTemplateOverlayOpacity] = useState(80)
   const didLoadLaunchPaths = useRef(false)
@@ -238,6 +239,9 @@ export function SheetCorrectorApp() {
         saveStoredSheetCorrectorTemplatePath(undefined)
         setSelectedTemplateId(DEFAULT_SHEET_CORRECTOR_TEMPLATE.templateId)
         setStatus(`前回のテンプレを読み込めません。A3標準に戻しました: ${sheetCorrectorErrorMessage(error)}`)
+      })
+      .finally(() => {
+        if (!disposed) setTemplateRestoreReady(true)
       })
     return () => {
       disposed = true
@@ -1025,6 +1029,7 @@ export function SheetCorrectorApp() {
   }, [enqueueNativeItems, importRules, processQueueItems])
 
   useEffect(() => {
+    if (!templateRestoreReady) return undefined
     if (didLoadLaunchPaths.current) return
     didLoadLaunchPaths.current = true
     let cancelled = false
@@ -1061,7 +1066,7 @@ export function SheetCorrectorApp() {
     return () => {
       cancelled = true
     }
-  }, [collectNativePaths])
+  }, [collectNativePaths, templateRestoreReady])
 
   useEffect(() => {
     let cancelled = false

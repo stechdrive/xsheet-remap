@@ -14,10 +14,15 @@ import {
   sheetTimingRoleForKey,
   timingHitForFrame,
   updateLogicalSheetSettings,
+  updateKey,
+  upsertBinding,
+  type CellBinding,
+  type CspTrackSlot,
   type CutProject,
   type SheetHit,
   type SheetTemplate,
   type SheetTimingRole,
+  type TimingKey,
 } from '@xsheet-remap/core'
 import type { SheetRangeSelection, TimingClipboard } from './appTypes'
 import { compareNaturalFileNameText } from './naturalSort'
@@ -55,6 +60,15 @@ export type TimelineDeleteFramesInput = {
   frameStart: number
   frameCount: number
   durationPolicy: TimelineDeleteDurationPolicy
+}
+
+type TimingClipboardItem = TimingClipboard['items'][number]
+
+type BindingCloneSpec = {
+  slotId: string
+  cspCellName: string
+  assetId?: string
+  materialState: CellBinding['materialState']
 }
 
 export function isPointEventRangeForUi(range: SheetRangeSelection | null): range is SheetRangeSelection & { role: SheetTimingRole; paperTrack: string } {
@@ -133,6 +147,7 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
     )
     .map(event => [`${event.paperTrack}\u0000${event.frame}`, event]))
   const keyById = new Map(project.logicalSheet.keys.map(key => [key.keyId, key]))
+  const slotById = new Map(project.cspTrackSlots.map(slot => [slot.slotId, slot]))
   const items: TimingClipboard['items'] = []
   for (let paperTrackOffset = 0; paperTrackOffset < sourcePaperTracks.length; paperTrackOffset += 1) {
     const paperTrack = sourcePaperTracks[paperTrackOffset]
@@ -153,6 +168,9 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
         kind: key ? 'key' : 'empty',
         keyId: key?.keyId,
         displayLabel: key?.displayLabel,
+        paperToken: key?.paperToken,
+        createdFrom: key?.createdFrom,
+        bindings: key ? timingClipboardBindingSnapshots(project, key.keyId, slotById) : undefined,
         fontSizePx: event.fontSizePx,
       })
     }
@@ -323,25 +341,181 @@ function setTimingClipboardItem(
   targetRole: SheetTimingRole,
   targetPaperTrack: string,
   frame: number,
-  item: TimingClipboard['items'][number],
+  item: TimingClipboardItem,
 ): CutProject {
   if (item.kind === 'empty') return clearEvent(project, targetPaperTrack, frame, targetRole)
   if (item.kind === 'null') return setEvent(project, targetPaperTrack, frame, NULL_CELL_KEY_ID, targetRole, { fontSizePx: item.fontSizePx })
-  const displayLabel = item.displayLabel?.trim()
-  if (!displayLabel) return clearEvent(project, targetPaperTrack, frame, targetRole)
+  const displayLabel = item.displayLabel ?? ''
   const sourceKey = item.keyId ? project.logicalSheet.keys.find(key => key.keyId === item.keyId) : undefined
   const reusableSourceKey = sourceKey
     && sourceKey.paperTrack === targetPaperTrack
     && sheetTimingRoleForKey(sourceKey) === targetRole
-  if (reusableSourceKey) return setEvent(project, targetPaperTrack, frame, sourceKey.keyId, targetRole, { fontSizePx: item.fontSizePx })
-  const existingKey = project.logicalSheet.keys.find(key =>
-    key.paperTrack === targetPaperTrack
-    && sheetTimingRoleForKey(key) === targetRole
-    && key.displayLabel === displayLabel,
+    ? sourceKey
+    : null
+  if (reusableSourceKey) {
+    const withBindings = applyClipboardBindingsForTarget(project, reusableSourceKey.keyId, targetPaperTrack, item)
+    return setEvent(withBindings, targetPaperTrack, frame, reusableSourceKey.keyId, targetRole, { fontSizePx: item.fontSizePx })
+  }
+  const existingKey = findReusableClipboardKey(project, targetRole, targetPaperTrack, item)
+  if (existingKey) {
+    const withBindings = applyClipboardBindingsForTarget(project, existingKey.keyId, targetPaperTrack, item)
+    return setEvent(withBindings, targetPaperTrack, frame, existingKey.keyId, targetRole, { fontSizePx: item.fontSizePx })
+  }
+  const created = createClipboardKey(project, targetRole, targetPaperTrack, item, displayLabel)
+  const withBindings = applyClipboardBindingsForTarget(created.project, created.key.keyId, targetPaperTrack, item)
+  return setEvent(withBindings, targetPaperTrack, frame, created.key.keyId, targetRole, { fontSizePx: item.fontSizePx })
+}
+
+function timingClipboardBindingSnapshots(
+  project: CutProject,
+  keyId: string,
+  slotById: Map<string, CspTrackSlot>,
+): NonNullable<TimingClipboardItem['bindings']> {
+  return project.bindings.flatMap(binding => {
+    if (binding.keyId !== keyId) return []
+    const slot = slotById.get(binding.slotId)
+    if (!slot) return []
+    return [{
+      sourceSlotId: slot.slotId,
+      sourceSlotPaperTrack: slot.paperTrack,
+      sourceSlotStageId: slot.stageId,
+      sourceSlotCorrectionLayerId: slot.correctionLayerId,
+      sourceSlotOccurrenceIndex: slot.occurrenceIndex,
+      sourceSlotTrackNo: slot.trackNo,
+      cspCellName: binding.cspCellName,
+      assetId: binding.assetId,
+      materialState: binding.materialState,
+    }]
+  })
+}
+
+function findReusableClipboardKey(
+  project: CutProject,
+  targetRole: SheetTimingRole,
+  targetPaperTrack: string,
+  item: TimingClipboardItem,
+): TimingKey | null {
+  const displayLabel = item.displayLabel ?? ''
+  const normalizedDisplayLabel = displayLabel.trim()
+  const expectedBindingSignature = bindingCloneSignature(clipboardBindingSpecsForTarget(project, item, targetPaperTrack))
+  return project.logicalSheet.keys.find(key => {
+    if (key.paperTrack !== targetPaperTrack) return false
+    if (sheetTimingRoleForKey(key) !== targetRole) return false
+    if (key.displayLabel !== displayLabel) return false
+    if (normalizedDisplayLabel) return true
+    if ((key.paperToken ?? '') !== (item.paperToken ?? '')) return false
+    return bindingCloneSignature(bindingCloneSpecsForExistingKey(project, key.keyId, targetPaperTrack)) === expectedBindingSignature
+  }) ?? null
+}
+
+function createClipboardKey(
+  project: CutProject,
+  targetRole: SheetTimingRole,
+  targetPaperTrack: string,
+  item: TimingClipboardItem,
+  displayLabel: string,
+): { project: CutProject; key: TimingKey } {
+  const created = createKey(
+    project,
+    targetPaperTrack,
+    displayLabel.trim() ? displayLabel : undefined,
+    item.createdFrom ?? 'manual',
+    item.paperToken,
+    targetRole,
   )
-  if (existingKey) return setEvent(project, targetPaperTrack, frame, existingKey.keyId, targetRole, { fontSizePx: item.fontSizePx })
-  const created = createKey(project, targetPaperTrack, displayLabel, 'manual', displayLabel, targetRole)
-  return setEvent(created.project, targetPaperTrack, frame, created.key.keyId, targetRole, { fontSizePx: item.fontSizePx })
+  if (created.key.displayLabel === displayLabel && (created.key.paperToken ?? '') === (item.paperToken ?? '')) return created
+  const updated = updateKey(created.project, created.key.keyId, {
+    displayLabel,
+    paperToken: item.paperToken,
+  })
+  const key = updated.logicalSheet.keys.find(candidate => candidate.keyId === created.key.keyId) ?? created.key
+  return { project: updated, key }
+}
+
+function applyClipboardBindingsForTarget(
+  project: CutProject,
+  keyId: string,
+  targetPaperTrack: string,
+  item: TimingClipboardItem,
+): CutProject {
+  let next = project
+  for (const spec of clipboardBindingSpecsForTarget(project, item, targetPaperTrack)) {
+    next = upsertBinding(next, {
+      ...spec,
+      keyId,
+    })
+  }
+  return next
+}
+
+function clipboardBindingSpecsForTarget(project: CutProject, item: TimingClipboardItem, targetPaperTrack: string): BindingCloneSpec[] {
+  const bindings = item.bindings ?? []
+  const usedTargetSlotIds = new Set<string>()
+  return bindings
+    .flatMap(binding => {
+      const targetSlot = correspondingSlotForPaperTrack(project, binding, targetPaperTrack)
+      if (!targetSlot || usedTargetSlotIds.has(targetSlot.slotId)) return []
+      usedTargetSlotIds.add(targetSlot.slotId)
+      return [{
+        slotId: targetSlot.slotId,
+        cspCellName: binding.cspCellName,
+        assetId: binding.assetId,
+        materialState: binding.materialState,
+      }]
+    })
+    .sort(compareBindingCloneSpecs)
+}
+
+function bindingCloneSpecsForExistingKey(project: CutProject, keyId: string, paperTrack: string): BindingCloneSpec[] {
+  return project.bindings
+    .flatMap(binding => {
+      if (binding.keyId !== keyId) return []
+      const slot = project.cspTrackSlots.find(item => item.slotId === binding.slotId)
+      if (!slot || slot.paperTrack !== paperTrack) return []
+      return [{
+        slotId: binding.slotId,
+        cspCellName: binding.cspCellName,
+        assetId: binding.assetId,
+        materialState: binding.materialState,
+      }]
+    })
+    .sort(compareBindingCloneSpecs)
+}
+
+function correspondingSlotForPaperTrack(
+  project: CutProject,
+  sourceBinding: NonNullable<TimingClipboardItem['bindings']>[number],
+  targetPaperTrack: string,
+): CspTrackSlot | null {
+  const candidates = project.cspTrackSlots.filter(slot => slot.paperTrack === targetPaperTrack)
+  return candidates.find(slot =>
+    slot.correctionLayerId === sourceBinding.sourceSlotCorrectionLayerId
+    && slot.occurrenceIndex === sourceBinding.sourceSlotOccurrenceIndex,
+  )
+    ?? candidates.find(slot =>
+      slot.correctionLayerId === sourceBinding.sourceSlotCorrectionLayerId
+      && slot.stageId === sourceBinding.sourceSlotStageId,
+    )
+    ?? candidates.find(slot => slot.correctionLayerId === sourceBinding.sourceSlotCorrectionLayerId)
+    ?? candidates.find(slot =>
+      slot.occurrenceIndex === sourceBinding.sourceSlotOccurrenceIndex
+      && slot.trackNo === sourceBinding.sourceSlotTrackNo,
+    )
+    ?? candidates[0]
+    ?? null
+}
+
+function bindingCloneSignature(specs: BindingCloneSpec[]): string {
+  return specs
+    .map(spec => `${spec.slotId}\u0000${spec.cspCellName}\u0000${spec.assetId ?? ''}\u0000${spec.materialState}`)
+    .join('\u0001')
+}
+
+function compareBindingCloneSpecs(a: BindingCloneSpec, b: BindingCloneSpec): number {
+  return a.slotId.localeCompare(b.slotId, 'ja')
+    || a.cspCellName.localeCompare(b.cspCellName, 'ja')
+    || (a.assetId ?? '').localeCompare(b.assetId ?? '', 'ja')
+    || a.materialState.localeCompare(b.materialState, 'ja')
 }
 
 function ensurePostRollCoversEvents(project: CutProject): CutProject {

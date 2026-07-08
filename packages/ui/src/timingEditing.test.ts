@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   createDefaultProject,
   createOrSetEvent,
+  registerAsset,
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
+  upsertBinding,
+  validateProject,
   type SheetHit,
 } from '@xsheet-remap/core'
 import type { SheetRangeSelection } from './appTypes'
@@ -15,6 +18,7 @@ import {
   rangeContainsHit,
   sameSheetHitCell,
 } from './timingEditing'
+import { bindAssetToHit } from './sheetAssets'
 
 function testHit(paperTrack: string, frame: number, role: 'action' | 'cell' = 'action'): SheetHit {
   return {
@@ -131,6 +135,90 @@ describe('timing editing model', () => {
 
     expect(pastedEvent?.keyId).toBe(sourceEvent?.keyId)
     expect(key && sheetTimingRoleForKey(key)).toBe('action')
+  })
+
+  it('repeats asset-drop-only registered cells even when their display label is blank', () => {
+    const registered = registerAsset(createDefaultProject(), { name: 'A3.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const bound = bindAssetToHit(registered.project, registered.asset, testHit('A', 1, 'cell'), 'layer_sakuga')
+    const clipboard = buildTimingClipboard(bound.project, testRange('A', 1, 1, 'cell'), 'copy')
+
+    const pasted = pasteTimingClipboardToProject(bound.project, clipboard, {
+      role: 'cell',
+      paperTrack: 'A',
+      frameStart: 5,
+      frameEnd: 7,
+    }, 'repeat-range')
+
+    const events = pasted.logicalSheet.events
+      .filter(event => event.paperTrack === 'A' && sheetTimingRoleForEvent(event) === 'cell')
+      .sort((a, b) => a.frame - b.frame)
+
+    expect(events.map(event => event.frame)).toEqual([1, 5, 6, 7])
+    expect(new Set(events.map(event => event.keyId))).toEqual(new Set([bound.keyId]))
+    expect(pasted.bindings).toEqual([expect.objectContaining({
+      keyId: bound.keyId,
+      slotId: 'slot_A',
+      cspCellName: 'A3',
+      assetId: registered.asset.assetId,
+      materialState: 'assigned',
+    })])
+  })
+
+  it('clones asset-drop-only registered cell bindings when pasting to another paper track', () => {
+    const registered = registerAsset(createDefaultProject(), { name: 'A3.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const bound = bindAssetToHit(registered.project, registered.asset, testHit('A', 1, 'cell'), 'layer_sakuga')
+    const clipboard = buildTimingClipboard(bound.project, testRange('A', 1, 1, 'cell'), 'copy')
+
+    const pasted = pasteTimingClipboardToProject(bound.project, clipboard, {
+      role: 'cell',
+      paperTrack: 'B',
+      frameStart: 5,
+      frameEnd: 5,
+    }, 'overwrite')
+
+    const event = pasted.logicalSheet.events.find(item => item.paperTrack === 'B' && item.frame === 5 && sheetTimingRoleForEvent(item) === 'cell')
+    const key = pasted.logicalSheet.keys.find(item => item.keyId === event?.keyId)
+    const binding = pasted.bindings.find(item => item.keyId === event?.keyId && item.slotId === 'slot_B')
+
+    expect(key).toMatchObject({ paperTrack: 'B', displayLabel: '' })
+    expect(binding).toMatchObject({
+      cspCellName: 'A3',
+      assetId: registered.asset.assetId,
+      materialState: 'assigned',
+    })
+    expect(validateProject(pasted).filter(issue => issue.severity === 'error')).toEqual([])
+  })
+
+  it('clones registered cell bindings for labeled timing keys when pasting to another paper track', () => {
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell')
+    const registered = registerAsset(created.project, { name: 'A1.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const bound = upsertBinding(registered.project, {
+      slotId: 'slot_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A1_custom',
+      assetId: registered.asset.assetId,
+      materialState: 'assigned',
+    })
+    const clipboard = buildTimingClipboard(bound, testRange('A', 1, 1, 'cell'), 'copy')
+
+    const pasted = pasteTimingClipboardToProject(bound, clipboard, {
+      role: 'cell',
+      paperTrack: 'B',
+      frameStart: 5,
+      frameEnd: 5,
+    }, 'overwrite')
+
+    const event = pasted.logicalSheet.events.find(item => item.paperTrack === 'B' && item.frame === 5 && sheetTimingRoleForEvent(item) === 'cell')
+    const key = pasted.logicalSheet.keys.find(item => item.keyId === event?.keyId)
+    const binding = pasted.bindings.find(item => item.keyId === event?.keyId && item.slotId === 'slot_B')
+
+    expect(key).toMatchObject({ paperTrack: 'B', displayLabel: '1' })
+    expect(binding).toMatchObject({
+      cspCellName: 'A1_custom',
+      assetId: registered.asset.assetId,
+      materialState: 'assigned',
+    })
+    expect(validateProject(pasted).filter(issue => issue.severity === 'error')).toEqual([])
   })
 
   it('inserts blank frames in one paper track without changing the official duration', () => {

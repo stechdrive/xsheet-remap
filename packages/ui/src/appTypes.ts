@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode } from '@xsheet-remap/core'
+import type { MaterialState, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimingKey } from '@xsheet-remap/core'
 
 export type Panel = 'sheet' | 'bindings' | 'slots' | 'template' | 'recognition' | 'export'
 export type TemplateDetailTab = 'region' | 'display' | 'reference' | 'table' | 'json'
@@ -55,6 +55,19 @@ export interface TimingClipboard {
     kind: 'empty' | 'null' | 'key'
     keyId?: string
     displayLabel?: string
+    paperToken?: string
+    createdFrom?: TimingKey['createdFrom']
+    bindings?: Array<{
+      sourceSlotId: string
+      sourceSlotPaperTrack: string
+      sourceSlotStageId?: string
+      sourceSlotCorrectionLayerId?: string
+      sourceSlotOccurrenceIndex: number
+      sourceSlotTrackNo: number
+      cspCellName: string
+      assetId?: string
+      materialState: MaterialState
+    }>
     fontSizePx?: number
   }>
 }

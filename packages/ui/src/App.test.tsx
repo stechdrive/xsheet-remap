@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate, type SheetTemplateGridRole, type SheetTimingRole } from '@xsheet-remap/core'
+import { assignSheetSourceToPage, cellRectForHit, createDefaultProject, registerSheetSource, timingHitForFrame, standardA3SheetTemplate, type SheetTemplateGridRole, type SheetTimingRole } from '@xsheet-remap/core'
 import { App } from './App'
 import { APP_VERSION } from './appVersion'
 import { uiText } from './i18n'
 import { ASSET_DRAG_MIME, ASSET_TEXT_DRAG_PREFIX, REGISTERED_CELL_DRAG_MIME, REGISTERED_CELL_TEXT_DRAG_PREFIX, STACK_GUIDE_DRAG_MIME } from './sheetConstants'
 import { defaultCalibrationPoints } from './sheetImages'
+
+vi.mock('@tauri-apps/api/core', () => ({
+  convertFileSrc: (path: string) => `asset://${path.replace(/\\/g, '/')}`,
+  invoke: async (command: string) => {
+    if (command === 'open_asset_preview_window') throw new Error('native preview unavailable in tests')
+    return null
+  },
+}))
 
 const originalCreateObjectUrl = URL.createObjectURL
 
@@ -379,6 +387,46 @@ describe('App', () => {
     fireEvent.click(viewModeSummary)
     expect(viewModeMenu.open).toBe(true)
     expect(projectMenu.open).toBe(false)
+  })
+
+  it('closes the app navigation menu when a file picker item is selected', async () => {
+    render(<App />)
+    const trigger = screen.getByLabelText(uiText.nav.menu)
+    const menu = openAppNavigationMenu()
+    const details = trigger.closest('details')
+    if (!details) throw new Error('app navigation details not found')
+
+    const loadProjectLabel = within(menu).getByText(uiText.actions.loadProject).closest('label')
+    if (!loadProjectLabel) throw new Error('load project file label not found')
+    fireEvent.click(loadProjectLabel)
+
+    await waitFor(() => expect(details.open).toBe(false))
+    expect(document.querySelector('.actionMenuPortalContent.appNavMenu')).toBeNull()
+  })
+
+  it('restores paper sheet images from saved project file paths', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+    const sourcePath = 'D:\\cuts\\C001\\sheet_001.png'
+    const registered = registerSheetSource(createDefaultProject(), {
+      name: 'sheet_001.png',
+      path: sourcePath,
+      size: 1024,
+      lastModified: 1,
+    })
+    const projectWithSheet = assignSheetSourceToPage(registered.project, 'page_1', registered.source.sourceId)
+    const file = new File([JSON.stringify(projectWithSheet)], 'project.json', { type: 'application/json' })
+
+    render(<App />)
+    const menu = openAppNavigationMenu()
+    const loadProjectInput = within(menu)
+      .getByText(uiText.actions.loadProject)
+      .closest('label')
+      ?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!loadProjectInput) throw new Error('load project file input not found')
+
+    fireEvent.change(loadProjectInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(sheetImageHrefs()).toContain('asset://D:/cuts/C001/sheet_001.png'))
   })
 
   it('edits sheet template metadata and embeds a template reference image', async () => {
@@ -2829,4 +2877,3 @@ describe('App', () => {
     expect(screen.queryByText('notes.txt')).toBeNull()
   })
 })
-

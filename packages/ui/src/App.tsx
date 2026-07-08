@@ -676,6 +676,14 @@ export function App() {
   const sheetDisplayFrameEnd = logicalSheetDisplayFrameEnd(project.logicalSheet)
   const sheetDisplayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const sheetPages = useMemo(() => createSheetPages(template, sheetDisplayDurationFrames, sheetDisplayFrameStart), [template, sheetDisplayDurationFrames, sheetDisplayFrameStart])
+  const sheetSourceRuntimePathEntries = useMemo(() => {
+    const assetPathById = new Map(project.assets.map(asset => [asset.assetId, asset.currentPath]))
+    return project.sheetView.sources.flatMap(source => {
+      if (source.kind !== 'sheet-scan') return []
+      const path = source.imageRef.path ?? (source.assetId ? assetPathById.get(source.assetId) : undefined)
+      return path ? [{ sourceId: source.sourceId, path }] : []
+    })
+  }, [project.assets, project.sheetView.sources])
   const activeSheetPageSize = useMemo(
     () => resolveSheetTemplatePageSize(template, sheetDisplayDurationFrames, {
       paperTracks: templatePaperTracks(project).map(track => track.paperTrack),
@@ -755,6 +763,32 @@ export function App() {
       },
     })
   }, [])
+
+  useEffect(() => {
+    if (!isTauriHost() || sheetSourceRuntimePathEntries.length === 0) return undefined
+    let cancelled = false
+
+    void import('@tauri-apps/api/core')
+      .then(({ convertFileSrc }) => {
+        if (cancelled) return
+        setRuntimeSourceImageUrls(current => {
+          let changed = false
+          const next = { ...current }
+          for (const entry of sheetSourceRuntimePathEntries) {
+            const imageUrl = convertFileSrc(entry.path)
+            if (next[entry.sourceId] === imageUrl) continue
+            next[entry.sourceId] = imageUrl
+            changed = true
+          }
+          return changed ? next : current
+        })
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [sheetSourceRuntimePathEntries])
 
   function commitProject(nextProject: CutProject) {
     projectRef.current = nextProject
@@ -12687,6 +12721,10 @@ function ActionMenu({
     if (!closeOnMenuItemClick) return
     const target = event.target as Element
     if (target.closest('[data-action-menu-keep-open]')) return
+    if (target.closest('label.fileButton')) {
+      window.setTimeout(() => setOpen(false), 0)
+      return
+    }
     if (target.closest('button')) setOpen(false)
   }
 

@@ -607,6 +607,25 @@ describe('App', () => {
     expect(document.querySelector('.gridOverlay-sound')).toBeNull()
   })
 
+  it('creates a digital template draft from the template workflow menu', () => {
+    render(<App />)
+    selectAppPanel(uiText.nav.template)
+
+    fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))
+
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
+    const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
+    expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.json }))
+    const json = document.querySelector('.jsonPreview') as HTMLTextAreaElement | null
+    expect(json?.value).toContain('"templateKind": "digital-native"')
+    expect(json?.value).toContain(uiText.template.draftNames.digital)
+    expect(json?.value).toMatch(/"templateId": "digital-template-[a-z0-9]+"/)
+  })
+
   it('shows context operation hints in the bottom status bar', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)

@@ -95,6 +95,7 @@ import {
   updateStackGuideRegistration,
   hasBlockingIssues,
   validateProject,
+  digitalStandardSheetTemplate,
   standardA3SheetTemplate,
   registerAsset,
   registerAssetRoot,
@@ -479,6 +480,8 @@ type ImportedSheetSourceCalibrationResult = {
   target: ImportedSheetSourceCalibrationTarget
   points: SheetCalibrationPointPair[]
 }
+
+type TemplateDraftKind = 'paper-standard' | 'digital-standard' | 'duplicate-current'
 
 type CalibrationGuideMetrics = {
   handleStrokePx: number
@@ -2203,6 +2206,34 @@ export function App() {
     syncProjectToTemplateTracks(loadedTemplate, { studioPresetId: undefined })
   }
 
+  function applyTemplateDraft(nextTemplate: SheetTemplate) {
+    setTemplate(nextTemplate)
+    syncProjectToTemplateTracks(nextTemplate, {
+      studioPresetId: undefined,
+      resetSheetView: true,
+    })
+  }
+
+  function handleCreateTemplateDraft(kind: TemplateDraftKind): boolean {
+    const nextTemplate = createTemplateDraft(kind, template)
+    applyTemplateDraft(nextTemplate)
+    return true
+  }
+
+  async function handleCreatePaperTemplateFromImage(files: FileList | null): Promise<boolean> {
+    const file = files?.[0]
+    if (!file) return false
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      const imageSize = await readImageDimensionsFromDataUrl(dataUrl)
+      applyTemplateDraft(createPaperTemplateDraftFromImage(file, dataUrl, imageSize))
+      return true
+    } catch (error) {
+      window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))
+      return false
+    }
+  }
+
   async function handleSaveTemplateJson() {
     try {
       await saveJsonFile(template, templateJsonFileName(template), {
@@ -3072,6 +3103,8 @@ export function App() {
             setTemplate={setTemplate}
             onLoadTemplate={handleLoadTemplate}
             onSaveTemplate={() => void handleSaveTemplateJson()}
+            onCreateTemplateDraft={handleCreateTemplateDraft}
+            onCreatePaperTemplateFromImage={handleCreatePaperTemplateFromImage}
             onUpdateCorrectionLayers={handleUpdateCorrectionLayers}
           />
         )}
@@ -11974,6 +12007,8 @@ function TemplatePanel({
   setTemplate,
   onLoadTemplate,
   onSaveTemplate,
+  onCreateTemplateDraft,
+  onCreatePaperTemplateFromImage,
   onUpdateCorrectionLayers,
 }: {
   project: CutProject
@@ -11981,10 +12016,12 @@ function TemplatePanel({
   setTemplate: (template: SheetTemplate) => void
   onLoadTemplate: (files: FileList | null) => void
   onSaveTemplate: () => void
+  onCreateTemplateDraft: (kind: TemplateDraftKind) => boolean
+  onCreatePaperTemplateFromImage: (files: FileList | null) => Promise<boolean>
   onUpdateCorrectionLayers: (layers: CorrectionLayer[]) => boolean
 }) {
   const editableRegions = template.regions
-  const [selectedRegionId, setSelectedRegionId] = useState(() => editableRegions[0]?.regionId ?? null)
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => editableRegions[0]?.regionId ?? null)
   const [detailTab, setDetailTab] = useState<TemplateDetailTab>('region')
   const [templateZoom, setTemplateZoom] = useState(1)
   const [dockWidth, setDockWidth] = useState(380)
@@ -12194,6 +12231,22 @@ function TemplatePanel({
 
   function clearReferenceImage() {
     setTemplate({ ...template, defaultUnderlay: undefined })
+  }
+
+  function applyTemplateDraftUi(success: boolean, nextTab: TemplateDetailTab) {
+    if (!success) return
+    setSelectedRegionId(null)
+    setDetailTab(nextTab)
+    setClampedTemplateZoom(1)
+  }
+
+  function handleCreateTemplateDraft(kind: TemplateDraftKind, nextTab: TemplateDetailTab = 'region') {
+    applyTemplateDraftUi(onCreateTemplateDraft(kind), nextTab)
+  }
+
+  async function handleCreatePaperTemplateDraft(files: FileList | null) {
+    const created = await onCreatePaperTemplateFromImage(files)
+    applyTemplateDraftUi(created, 'reference')
   }
 
   const detailTabs: Array<[TemplateDetailTab, string]> = [
@@ -12409,6 +12462,49 @@ function TemplatePanel({
   return (
     <section className="panel templatePanel">
       <div className="toolRow templateToolbar">
+        <ToolbarGroup>
+          <ActionMenu
+            label={uiText.actions.newTemplate}
+            ariaLabel={uiText.actions.newTemplate}
+            tooltipLabel={uiText.actions.newTemplateTitle}
+            className="templateCreateMenu"
+            closeOnMenuItemClick
+          >
+            <div className="templateCreateMenuGroup">
+              <div className="actionMenuSectionLabel">{uiText.template.createSections.paper}</div>
+              <TooltipTarget label={uiText.actions.createPaperTemplateFromImageTitle}>
+                {tooltipProps => (
+                  <label className="fileButton" {...tooltipProps}>
+                    {uiText.actions.createPaperTemplateFromImage}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={event => {
+                        void handleCreatePaperTemplateDraft(event.currentTarget.files)
+                        event.currentTarget.value = ''
+                      }}
+                    />
+                  </label>
+                )}
+              </TooltipTarget>
+              <button type="button" onClick={() => handleCreateTemplateDraft('paper-standard')}>
+                {uiText.actions.createPaperTemplateFromStandard}
+              </button>
+            </div>
+            <div className="templateCreateMenuGroup">
+              <div className="actionMenuSectionLabel">{uiText.template.createSections.digital}</div>
+              <button type="button" onClick={() => handleCreateTemplateDraft('digital-standard')}>
+                {uiText.actions.createDigitalTemplate}
+              </button>
+            </div>
+            <div className="templateCreateMenuGroup">
+              <div className="actionMenuSectionLabel">{uiText.template.createSections.copy}</div>
+              <button type="button" onClick={() => handleCreateTemplateDraft('duplicate-current')}>
+                {uiText.actions.duplicateCurrentTemplate}
+              </button>
+            </div>
+          </ActionMenu>
+        </ToolbarGroup>
         <ToolbarGroup>
           <TooltipTarget label={uiText.actions.loadTemplateJsonTitle}>
             {tooltipProps => (
@@ -13671,6 +13767,104 @@ function readFileAsDataUrl(file: File): Promise<string> {
     })
     reader.addEventListener('error', () => reject(reader.error ?? new Error('Failed to read file.')))
     reader.readAsDataURL(file)
+  })
+}
+
+function createTemplateDraft(kind: TemplateDraftKind, currentTemplate: SheetTemplate): SheetTemplate {
+  if (kind === 'digital-standard') {
+    return createTemplateDraftFromBase(digitalStandardSheetTemplate, {
+      idBase: 'digital-template',
+      name: uiText.template.draftNames.digital,
+    })
+  }
+  if (kind === 'duplicate-current') {
+    return createTemplateDraftFromBase(currentTemplate, {
+      idBase: `${currentTemplate.templateId}-copy`,
+      name: uiText.template.draftNames.copy(currentTemplate.name),
+    })
+  }
+  return createTemplateDraftFromBase(standardA3SheetTemplate, {
+    idBase: 'paper-template',
+    name: uiText.template.draftNames.paperStandard,
+  })
+}
+
+function createPaperTemplateDraftFromImage(file: File, dataUrl: string, imageSize: { width: number; height: number } | null): SheetTemplate {
+  const template = createTemplateDraftFromBase(standardA3SheetTemplate, {
+    idBase: fileNameStem(file.name) || 'paper-template',
+    name: uiText.template.draftNames.paperFromImage(fileNameStem(file.name) || file.name),
+  })
+  return {
+    ...template,
+    page: imageSize
+      ? {
+          ...template.page,
+          widthPx: imageSize.width,
+          heightPx: imageSize.height,
+        }
+      : template.page,
+    defaultUnderlay: {
+      sourceId: `template_reference_${Date.now().toString(36)}`,
+      label: file.name,
+      assetPath: dataUrl,
+      imageRef: {
+        name: file.name,
+        size: file.size,
+        lastModified: file.lastModified,
+        assetPath: dataUrl,
+      },
+    },
+  }
+}
+
+function createTemplateDraftFromBase(baseTemplate: SheetTemplate, options: { idBase: string; name: string }): SheetTemplate {
+  const template = cloneSheetTemplate(baseTemplate)
+  return {
+    ...template,
+    templateId: `${safeTemplateIdSegment(options.idBase)}-${Date.now().toString(36)}`,
+    name: options.name,
+  }
+}
+
+function cloneSheetTemplate(template: SheetTemplate): SheetTemplate {
+  return structuredClone(template)
+}
+
+function safeTemplateIdSegment(value: string): string {
+  const safe = safeFileName(value)
+    .toLocaleLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+  return safe || 'template'
+}
+
+function fileNameStem(fileName: string): string {
+  const dotIndex = fileName.lastIndexOf('.')
+  return (dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName).trim()
+}
+
+function readImageDimensionsFromDataUrl(dataUrl: string): Promise<{ width: number; height: number } | null> {
+  if (typeof Image === 'undefined') return Promise.resolve(null)
+  return new Promise(resolve => {
+    const image = new Image()
+    let settled = false
+    const timeout = globalThis.setTimeout(() => finish(null), 1500)
+    function finish(size: { width: number; height: number } | null) {
+      if (settled) return
+      settled = true
+      globalThis.clearTimeout(timeout)
+      image.onload = null
+      image.onerror = null
+      resolve(size && size.width > 0 && size.height > 0 ? size : null)
+    }
+    image.onload = () => finish({
+      width: Math.max(1, Math.round(image.naturalWidth || image.width)),
+      height: Math.max(1, Math.round(image.naturalHeight || image.height)),
+    })
+    image.onerror = () => finish(null)
+    image.src = dataUrl
   })
 }
 

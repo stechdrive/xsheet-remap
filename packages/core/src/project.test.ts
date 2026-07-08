@@ -15,6 +15,7 @@ import {
   createProjectHistory,
   createProjectDocumentFromCutProject,
   buildAeRemapText,
+  buildCspImportPackage,
   createAlphabeticTrackLabels,
   createDefaultProject,
   createKey,
@@ -1069,6 +1070,54 @@ describe('core project commands', () => {
       relativePath: 'A1.png',
       contentHash: 'sha256:a1',
     })
+  })
+
+  it('repairs blank asset-drop bindings whose CSP names drifted away from their material file names', () => {
+    const created = createKey(createDefaultProject(), 'C', 'temp', 'asset-drop', 'temp', 'action')
+    const blankKeyProject = {
+      ...created.project,
+      logicalSheet: {
+        ...created.project.logicalSheet,
+        keys: created.project.logicalSheet.keys.map(key => key.keyId === created.key.keyId
+          ? { ...key, displayLabel: '', paperToken: '' }
+          : key),
+      },
+    }
+    const asset = registerAsset(blankKeyProject, {
+      name: 'scan_007.jpg',
+      path: 'D:\\cuts\\C001\\scan_007.jpg',
+      relativePath: 'scan_007.jpg',
+    }, {
+      role: 'cell-material',
+      rootId: 'asset_root_0001',
+      relativePath: 'scan_007.jpg',
+    })
+    const withRoot = {
+      ...asset.project,
+      assetRoots: [{ rootId: 'asset_root_0001', label: 'C001', path: 'D:\\cuts\\C001', handleKind: 'directory' as const }],
+    }
+    const withEvent = setEvent(withRoot, 'C', 1, created.key.keyId, 'action')
+    const drifted = upsertBinding(withEvent, {
+      slotId: 'slot_C',
+      keyId: created.key.keyId,
+      cspCellName: 'scan_004',
+      assetId: asset.asset.assetId,
+      materialState: 'assigned',
+    })
+
+    const rawDocument = createProjectDocumentFromCutProject(drifted)
+    const rawRegisteredBinding = rawDocument.registeredCells?.bindings.find(binding => binding.keyId === created.key.keyId)
+    if (rawRegisteredBinding) rawRegisteredBinding.cspCellName = 'scan_004'
+    const rawCutBinding = rawDocument.cuts[0]?.bindings.find(binding => binding.keyId === created.key.keyId)
+    if (rawCutBinding) rawCutBinding.cspCellName = 'scan_004'
+
+    const document = migrateProjectDocument(rawDocument)
+    const migrated = activeCutProjectFromDocument(document)
+    const repairedBinding = migrated.bindings.find(binding => binding.keyId === created.key.keyId)
+    const packageBuild = buildCspImportPackage(document)
+
+    expect(repairedBinding?.cspCellName).toBe('scan_007')
+    expect(packageBuild.issues.map(issue => issue.code)).not.toContain('cspImport.asset.stemMismatch')
   })
 
   it('updates metadata for the same absolute asset path without creating another browser item', () => {

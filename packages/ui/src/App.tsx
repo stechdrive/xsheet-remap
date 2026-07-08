@@ -123,7 +123,7 @@ import {
   type AssetRoot,
 } from '@xsheet-remap/core'
 import { exportXdts } from '@xsheet-remap/xdts'
-import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, openImageFileRefs, readJsonFile, renameMaterialFiles, saveBinaryFile, saveJsonFile, saveTextFile, writeBinaryFile, writeCspImportPackage, writeTextFile, type AssetRootCandidate, type SaveTextFileOptions } from '@xsheet-remap/adapters'
+import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, openImageFileRefs, readJsonFile, renameMaterialFiles, saveBinaryFile, saveJsonFile, saveTextFile, statNativePaths, writeBinaryFile, writeCspImportPackage, writeTextFile, type AssetRootCandidate, type SaveTextFileOptions } from '@xsheet-remap/adapters'
 import { APP_VERSION } from './appVersion'
 import {
   issueMessage,
@@ -621,6 +621,91 @@ function outputDirectoryFromPath(path: string | undefined): string | null {
 function joinOutputPath(directory: string, fileName: string): string {
   const separator = directory.includes('\\') ? '\\' : '/'
   return `${directory.replace(/[\\/]+$/, '')}${separator}${fileName}`
+}
+
+function cspImportPackageAssetPaths(packageBuild: ReturnType<typeof buildCspImportPackage>): string[] {
+  const assetRootPath = packageBuild.assetRootPath
+  if (!assetRootPath) return []
+  const paths = new Set<string>()
+  for (const cut of packageBuild.manifest.cuts) {
+    for (const track of cut.tracks) {
+      for (const cel of track.cels) {
+        if (cel.assetPath) paths.add(joinOutputPath(assetRootPath, cel.assetPath))
+      }
+    }
+  }
+  return [...paths]
+}
+
+type ProjectNativePathChecks = {
+  assetRoots: string[]
+  materialAssets: string[]
+  sheetImages: string[]
+}
+
+function projectDocumentNativePathChecks(document: ProductionProjectDocument): ProjectNativePathChecks {
+  const rootsById = new Map(document.assetRoots.map(root => [root.rootId, root]))
+  const assetPathById = new Map(document.assets.map(asset => [asset.assetId, nativePathForProjectAsset(asset, rootsById)]))
+  const sheetImages = new Set<string>()
+
+  for (const cut of document.cuts) {
+    for (const source of cut.sheetView.sources) {
+      if (source.kind !== 'sheet-scan') continue
+      const path = source.imageRef.path ?? (source.assetId ? assetPathById.get(source.assetId) : undefined)
+      if (path) sheetImages.add(path)
+    }
+  }
+
+  return {
+    assetRoots: uniquePathList(document.assetRoots.map(root => root.path)),
+    materialAssets: uniquePathList(document.assets.filter(isCellMaterialAsset).map(asset => nativePathForProjectAsset(asset, rootsById))),
+    sheetImages: uniquePathList([...sheetImages]),
+  }
+}
+
+function nativePathForProjectAsset(asset: CutAsset, rootsById: Map<string, AssetRoot>): string | undefined {
+  if (asset.currentPath) return asset.currentPath
+  const rootPath = asset.rootId ? rootsById.get(asset.rootId)?.path : undefined
+  return rootPath && asset.relativePath ? joinOutputPath(rootPath, asset.relativePath) : undefined
+}
+
+function uniquePathList(paths: Array<string | undefined>): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+  for (const path of paths) {
+    if (!path) continue
+    const key = pathCompareKey(path)
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(path)
+  }
+  return unique
+}
+
+async function alertMissingProjectNativePaths(document: ProductionProjectDocument): Promise<void> {
+  if (!isTauriHost()) return
+  const checks = projectDocumentNativePathChecks(document)
+  const allPaths = uniquePathList([
+    ...checks.assetRoots,
+    ...checks.materialAssets,
+    ...checks.sheetImages,
+  ])
+  if (allPaths.length === 0) return
+
+  try {
+    const statusByPath = new Map((await statNativePaths(allPaths)).map(status => [pathCompareKey(status.path), status]))
+    const missingRoots = checks.assetRoots.filter(path => !statusByPath.get(pathCompareKey(path))?.isDirectory)
+    const missingMaterials = checks.materialAssets.filter(path => !statusByPath.get(pathCompareKey(path))?.isFile)
+    const missingSheetImages = checks.sheetImages.filter(path => !statusByPath.get(pathCompareKey(path))?.isFile)
+    if (missingRoots.length === 0 && missingMaterials.length === 0 && missingSheetImages.length === 0) return
+    window.alert(uiText.project.nativePathsMissing({
+      assetRoots: missingRoots,
+      materialAssets: missingMaterials,
+      sheetImages: missingSheetImages,
+    }))
+  } catch (error) {
+    window.alert(uiText.project.nativePathCheckFailed(errorMessage(error)))
+  }
 }
 
 const SHEET_VIEWPORT_FIT_INSET = { horizontal: 24, vertical: 54 }
@@ -2026,6 +2111,7 @@ export function App() {
     setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
     setRuntimeSourceImageUrls({})
     clearSelectionState()
+    void alertMissingProjectNativePaths(loadedDocument)
   }
 
   async function handleLoadTemplate(files: FileList | null) {
@@ -2138,12 +2224,26 @@ export function App() {
         window.alert(uiText.export.cspImportPackageBlocked(details))
         return
       }
+      if (isTauriHost()) {
+        const assetRootStatus = (await statNativePaths([packageBuild.assetRootPath]))[0]
+        if (!assetRootStatus?.isDirectory) {
+          window.alert(uiText.export.cspImportAssetRootMissing(packageBuild.assetRootPath))
+          return
+        }
+        const assetPaths = cspImportPackageAssetPaths(packageBuild)
+        const missingAssets = (await statNativePaths(assetPaths)).filter(status => !status.isFile)
+        if (missingAssets.length > 0) {
+          window.alert(uiText.export.cspImportAssetFilesMissing(missingAssets.length, missingAssets.slice(0, 12).map(status => status.path)))
+          return
+        }
+      }
       const files = cspImportPackageTextOutputs(packageBuild)
       const result = await writeCspImportPackage({
         assetRootPath: packageBuild.assetRootPath,
         outputDirectoryName: packageBuild.outputDirectoryName,
         files,
       })
+      if (!result) return
       window.alert(uiText.export.cspImportPackageSaved(result.outputDirectoryPath))
     } catch (error) {
       window.alert(uiText.export.saveFailed(errorMessage(error)))
@@ -13298,7 +13398,7 @@ function AppNavigationMenu({
             <button type="button" className="appNavMenuItem" disabled={blockingExport} onClick={onSaveXdts}>{uiText.actions.xdts}</button>
           </Tooltip>
           <Tooltip label={uiText.actions.cspImportPackageTitle}>
-            <button type="button" className="appNavMenuItem" disabled={blockingExport} onClick={onSaveCspImportPackage}>{uiText.actions.cspImportPackage}</button>
+            <button type="button" className="appNavMenuItem" onClick={onSaveCspImportPackage}>{uiText.actions.cspImportPackage}</button>
           </Tooltip>
         </div>
       </div>

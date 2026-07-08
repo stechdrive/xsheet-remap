@@ -279,7 +279,6 @@ if ($env:USERNAME -and $env:USERNAME.Length -ge 4) {
 }
 $outputScanFixedPatterns.Add($privateCloudRoot)
 $outputScanFixedPatterns.Add($privateDriveName)
-$outputScanFixedPatterns.Add($privateProjectCodeName)
 Invoke-RipgrepOutputScan `
   -RootPaths @($outputScanRoots | ForEach-Object { $_ }) `
   -RegexPatterns $outputScanRegexPatterns `

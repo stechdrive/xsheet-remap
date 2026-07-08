@@ -109,6 +109,15 @@ struct WriteCspImportPackageResult {
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+struct NativePathStatus {
+    path: String,
+    exists: bool,
+    is_directory: bool,
+    is_file: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DesktopE2eConfig {
     scenario: String,
     root: String,
@@ -153,6 +162,7 @@ pub fn run() {
             write_text_file,
             write_binary_file,
             write_csp_import_package,
+            stat_native_paths,
             confirm_user_action,
             rename_material_files,
             desktop_e2e_config,
@@ -634,16 +644,28 @@ fn write_binary_file(path: String, contents_base64: String) -> Result<(), String
 }
 
 #[tauri::command(rename_all = "camelCase")]
-fn write_csp_import_package(
+async fn write_csp_import_package(
+    window: tauri::WebviewWindow,
     asset_root_path: String,
     output_directory_name: String,
     files: Vec<CspImportPackageFile>,
-) -> Result<WriteCspImportPackageResult, String> {
+) -> Result<Option<WriteCspImportPackageResult>, String> {
     let asset_root = canonicalize_existing_path(std::path::Path::new(&asset_root_path))?;
     if !asset_root.is_dir() {
         return Err("カットフォルダが見つかりません。".to_string());
     }
-    let output_directory = asset_root.join(safe_single_path_component(&output_directory_name)?);
+    let output_directory_name = safe_single_path_component(&output_directory_name)?;
+    let Some(selected_directory) =
+        pick_csp_import_package_directory(window, &asset_root, &output_directory_name).await?
+    else {
+        return Ok(None);
+    };
+    let selected_directory = canonicalize_existing_path(&selected_directory)?;
+    let output_directory = resolve_csp_import_output_directory(
+        &asset_root,
+        &selected_directory,
+        &output_directory_name,
+    );
     std::fs::create_dir_all(&output_directory).map_err(|error| error.to_string())?;
     let output_directory = output_directory
         .canonicalize()
@@ -660,9 +682,69 @@ fn write_csp_import_package(
         std::fs::write(&file_path, file.contents).map_err(|error| error.to_string())?;
     }
 
-    Ok(WriteCspImportPackageResult {
+    Ok(Some(WriteCspImportPackageResult {
         output_directory_path: output_directory.to_string_lossy().into_owned(),
-    })
+    }))
+}
+
+async fn pick_csp_import_package_directory(
+    window: tauri::WebviewWindow,
+    asset_root: &std::path::Path,
+    output_directory_name: &std::path::Path,
+) -> Result<Option<std::path::PathBuf>, String> {
+    let suggested_directory = asset_root.join(output_directory_name);
+    let initial_directory = if suggested_directory.is_dir() {
+        suggested_directory
+    } else {
+        asset_root.to_path_buf()
+    };
+    let dialog = window
+        .dialog()
+        .file()
+        .set_parent(&window)
+        .set_title("CSP自動登録の書き出し先フォルダを選択")
+        .set_directory(initial_directory);
+
+    let (tx, mut rx) = tauri::async_runtime::channel(1);
+    dialog.pick_folder(move |folder| {
+        let _ = tx.blocking_send(folder);
+    });
+
+    let Some(folder_path) = rx.recv().await.flatten() else {
+        return Ok(None);
+    };
+    folder_path
+        .into_path()
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
+fn resolve_csp_import_output_directory(
+    asset_root: &std::path::Path,
+    selected_directory: &std::path::Path,
+    output_directory_name: &std::path::Path,
+) -> std::path::PathBuf {
+    if selected_directory == asset_root {
+        asset_root.join(output_directory_name)
+    } else {
+        selected_directory.to_path_buf()
+    }
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn stat_native_paths(paths: Vec<String>) -> Vec<NativePathStatus> {
+    paths
+        .into_iter()
+        .map(|path| {
+            let metadata = std::fs::metadata(&path).ok();
+            NativePathStatus {
+                path,
+                exists: metadata.is_some(),
+                is_directory: metadata.as_ref().is_some_and(|item| item.is_dir()),
+                is_file: metadata.as_ref().is_some_and(|item| item.is_file()),
+            }
+        })
+        .collect()
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -1058,4 +1140,30 @@ fn assert_e2e_material_rename_is_safe(
         return Err("E2E中の素材リネームは隔離assetsフォルダー配下だけ許可されます。".to_string());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn csp_import_output_uses_default_child_when_asset_root_is_selected() {
+        let asset_root = std::path::Path::new(r"D:\cuts\C001");
+        let output_name = std::path::Path::new("xsheet-csp-import");
+
+        let output = resolve_csp_import_output_directory(asset_root, asset_root, output_name);
+
+        assert_eq!(output, asset_root.join(output_name));
+    }
+
+    #[test]
+    fn csp_import_output_uses_selected_child_directory_directly() {
+        let asset_root = std::path::Path::new(r"D:\cuts\C001");
+        let selected = asset_root.join("custom-csp-import");
+        let output_name = std::path::Path::new("xsheet-csp-import");
+
+        let output = resolve_csp_import_output_directory(asset_root, &selected, output_name);
+
+        assert_eq!(output, selected);
+    }
 }

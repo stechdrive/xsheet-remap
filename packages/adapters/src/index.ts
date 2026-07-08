@@ -131,6 +131,13 @@ export interface WriteCspImportPackageResult {
   outputDirectoryPath: string
 }
 
+export interface NativePathStatus {
+  path: string
+  exists: boolean
+  isDirectory: boolean
+  isFile: boolean
+}
+
 export async function saveTextFile(
   text: string,
   fileName: string,
@@ -190,14 +197,20 @@ export async function writeBinaryFile(path: string, bytes: Uint8Array): Promise<
   return { saved: true, path }
 }
 
-export async function writeCspImportPackage(input: WriteCspImportPackageInput): Promise<WriteCspImportPackageResult> {
+export async function writeCspImportPackage(input: WriteCspImportPackageInput): Promise<WriteCspImportPackageResult | null> {
   if (!isTauriHost()) throw new Error('CSP自動登録パッケージの書き出しはデスクトップ版でのみ使えます。')
   const { invoke } = await import('@tauri-apps/api/core')
-  return invoke<WriteCspImportPackageResult>('write_csp_import_package', {
+  return invoke<WriteCspImportPackageResult | null>('write_csp_import_package', {
     assetRootPath: input.assetRootPath,
     outputDirectoryName: input.outputDirectoryName,
     files: input.files,
   })
+}
+
+export async function statNativePaths(paths: string[]): Promise<NativePathStatus[]> {
+  if (!isTauriHost() || paths.length === 0) return []
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<NativePathStatus[]>('stat_native_paths', { paths })
 }
 
 export function saveJsonFile(value: unknown, fileName: string, options: Pick<SaveTextFileOptions, 'initialDirectory'> = {}): Promise<SaveFileResult> {

@@ -56,7 +56,7 @@ export const uiText = {
     xdts: 'タイムシート/XDTS',
     xdtsTitle: 'タイムシートをXDTS互換形式で書き出す',
     cspImportPackage: 'タイムシート/CSP自動登録',
-    cspImportPackageTitle: 'カットフォルダ配下にCSP自動登録用のXDTSと登録ファイルを書き出す',
+    cspImportPackageTitle: '保存先フォルダを確認してから、CSP自動登録用のXDTSと登録ファイルを書き出す',
     loadProject: '開く',
     loadProjectTitle: '保存済みのプロジェクトJSONを開く',
     projectMenu: '保存',
@@ -126,6 +126,17 @@ export const uiText = {
   },
   project: {
     saveFailed: (message: string) => `プロジェクト保存に失敗しました。\n${message}`,
+    nativePathsMissing: (missing: { assetRoots: string[]; materialAssets: string[]; sheetImages: string[] }) => {
+      const paths = [
+        ...missing.assetRoots.map(path => `カットフォルダ: ${path}`),
+        ...missing.materialAssets.map(path => `登録素材: ${path}`),
+        ...missing.sheetImages.map(path => `紙シート画像: ${path}`),
+      ]
+      const shown = paths.slice(0, 12).join('\n')
+      const hiddenCount = Math.max(0, paths.length - 12)
+      return `プロジェクトを開きましたが、実ファイルを確認できない項目があります。\nカットフォルダ: ${missing.assetRoots.length}件 / 登録素材: ${missing.materialAssets.length}件 / 紙シート画像: ${missing.sheetImages.length}件\n\n${shown}${hiddenCount > 0 ? `\n...ほか ${hiddenCount} 件` : ''}\n\nCSP自動登録や画像書き出しの前に、素材フォルダの同期状態を確認するか、カットフォルダを登録し直してください。`
+    },
+    nativePathCheckFailed: (message: string) => `プロジェクトは開きましたが、素材ファイルの確認に失敗しました。\n${message}`,
   },
   processMove: {
     title: '登録工程を変更',
@@ -602,6 +613,8 @@ export const uiText = {
     importStackHeading: 'CSP読み込みメモ',
     saveFailed: (message: string) => `書き出しに失敗しました。\n${message}`,
     cspImportPackageBlocked: (message: string) => `CSP自動登録を書き出せません。\n${message}`,
+    cspImportAssetRootMissing: (path: string) => `CSP自動登録を書き出せません。\nカットフォルダが見つかりません。\n\n${path}\n\nプロジェクトファイルを別PCで開いた場合や、Google Driveの同期前は、画像素材フォルダを登録し直してください。`,
+    cspImportAssetFilesMissing: (count: number, paths: string[]) => `CSP自動登録を書き出せません。\n登録素材ファイルが見つかりません: ${count}件\n\n${paths.join('\n')}${count > paths.length ? `\n...ほか ${count - paths.length} 件` : ''}`,
     cspImportPackageSaved: (path: string) => `CSP自動登録を書き出しました。\n${path}`,
     trackPlan: {
       name: '名前',

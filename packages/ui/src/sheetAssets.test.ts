@@ -39,6 +39,24 @@ describe('sheet asset binding', () => {
     expect(validateProject(second.project).some(issue => issue.code === 'binding.cspCellName.duplicateInSlot')).toBe(false)
   })
 
+  it('keeps sheet text blank while using the material file name for asset-drop bindings', () => {
+    const registered = registerAsset(createDefaultProject(), { name: 'scan_007.jpg', size: 100, lastModified: 1 }, { role: 'cell-material' })
+
+    const bound = bindAssetToHit(registered.project, registered.asset, cellHit('C', 1), 'layer_sakuga')
+    const key = bound.project.logicalSheet.keys.find(item => item.keyId === bound.keyId)
+
+    expect(key).toMatchObject({
+      displayLabel: '',
+      paperToken: '',
+      createdFrom: 'asset-drop',
+    })
+    expect(bound.project.bindings).toEqual([expect.objectContaining({
+      keyId: bound.keyId,
+      cspCellName: 'scan_007',
+      assetId: registered.asset.assetId,
+    })])
+  })
+
   it('allows the same material name to be registered on different paper tracks', () => {
     const registered = registerAsset(createDefaultProject(), { name: 'A3.jpg', size: 100, lastModified: 1 }, { role: 'cell-material' })
 

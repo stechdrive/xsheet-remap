@@ -1,15 +1,31 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { assignSheetSourceToPage, cellRectForHit, createDefaultProject, registerSheetSource, timingHitForFrame, standardA3SheetTemplate, type SheetTemplateGridRole, type SheetTimingRole } from '@xsheet-remap/core'
+import { assignSheetSourceToPage, cellRectForHit, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, registerAsset, registerAssetRoot, registerSheetSource, timingHitForFrame, upsertBinding, standardA3SheetTemplate, type SheetTemplateGridRole, type SheetTimingRole } from '@xsheet-remap/core'
 import { App } from './App'
 import { APP_VERSION } from './appVersion'
 import { uiText } from './i18n'
 import { ASSET_DRAG_MIME, ASSET_TEXT_DRAG_PREFIX, REGISTERED_CELL_DRAG_MIME, REGISTERED_CELL_TEXT_DRAG_PREFIX, STACK_GUIDE_DRAG_MIME } from './sheetConstants'
 import { defaultCalibrationPoints } from './sheetImages'
 
+const tauriMockState = vi.hoisted(() => ({
+  missingPathKeys: new Set<string>(),
+}))
+
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => `asset://${path.replace(/\\/g, '/')}`,
-  invoke: async (command: string) => {
+  invoke: async (command: string, args?: { paths?: string[] }) => {
+    if (command === 'stat_native_paths') {
+      return (args?.paths ?? []).map(path => {
+        const missing = tauriMockState.missingPathKeys.has(path.replace(/\\/g, '/').toLocaleLowerCase())
+        const isFilePath = /\.[a-z0-9]+$/i.test(path)
+        return {
+          path,
+          exists: !missing,
+          isDirectory: !missing && !isFilePath,
+          isFile: !missing && isFilePath,
+        }
+      })
+    }
     if (command === 'open_asset_preview_window') throw new Error('native preview unavailable in tests')
     return null
   },
@@ -27,6 +43,7 @@ afterEach(() => {
   window.localStorage.clear()
   Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
   document.body.classList.remove('sheetInteractionActive')
+  tauriMockState.missingPathKeys.clear()
   vi.restoreAllMocks()
 })
 
@@ -434,6 +451,52 @@ describe('App', () => {
     fireEvent.change(loadProjectInput, { target: { files: [file] } })
 
     await waitFor(() => expect(sheetImageHrefs()).toContain('asset://D:/cuts/C001/sheet_001.png'))
+  })
+
+  it('warns on project load when registered material files are missing on disk', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+    const rootPath = 'D:\\cuts\\C001'
+    const materialPath = 'D:\\cuts\\C001\\A_01.png'
+    tauriMockState.missingPathKeys.add(materialPath.replace(/\\/g, '/').toLocaleLowerCase())
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const rooted = registerAssetRoot(created.project, {
+      label: 'C001',
+      path: rootPath,
+      handleKind: 'directory',
+    })
+    const asset = registerAsset(rooted.project, {
+      name: 'A_01.png',
+      path: materialPath,
+      relativePath: 'A_01.png',
+      size: 100,
+      lastModified: 1,
+    }, {
+      role: 'cell-material',
+      rootId: rooted.root.rootId,
+      relativePath: 'A_01.png',
+    })
+    const bound = upsertBinding(asset.project, {
+      slotId: 'slot_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A_01',
+      materialState: 'assigned',
+      assetId: asset.asset.assetId,
+    })
+    const file = new File([JSON.stringify(createProjectDocumentFromCutProject(bound))], 'project.json', { type: 'application/json' })
+
+    render(<App />)
+    const menu = openAppNavigationMenu()
+    const loadProjectInput = within(menu)
+      .getByText(uiText.actions.loadProject)
+      .closest('label')
+      ?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!loadProjectInput) throw new Error('load project file input not found')
+
+    fireEvent.change(loadProjectInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('登録素材: 1件')))
+    expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining(materialPath))
   })
 
   it('edits sheet template metadata and embeds a template reference image', async () => {
@@ -2400,7 +2463,7 @@ describe('App', () => {
     expect(registeredCellInputs().map(input => input.value)).toEqual(['', 'BG_A1'])
     expect(registeredCell.querySelector('.cellNameMode')?.textContent).toBe(uiText.keys.autoName)
     fireEvent.change(registeredCellInputs()[1], { target: { value: 'BG_A1_custom' } })
-    expect(registeredCell.querySelector('.cellNameMode')?.textContent).toBe(uiText.keys.manualName)
+    await waitFor(() => expect(registeredCell.querySelector('.cellNameMode')?.textContent).toBe(uiText.keys.manualName))
     fireEvent.click(screen.getByRole('button', { name: uiText.keys.resetAutoName }))
     expect(registeredCellInputs().map(input => input.value)).toEqual(['', 'BG_A1'])
     fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })

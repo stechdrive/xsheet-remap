@@ -1926,6 +1926,26 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
   return { ...project, schemaVersion: 1 }
 }
 
+function repairBlankAssetDropBindingNames(project: CutProject): CutProject {
+  const assetsById = new Map(project.assets.map(asset => [asset.assetId, asset]))
+  const assetDropBlankKeyIds = new Set(project.logicalSheet.keys
+    .filter(key => key.createdFrom === 'asset-drop' && !key.displayLabel.trim())
+    .map(key => key.keyId))
+  if (assetDropBlankKeyIds.size === 0) return project
+
+  let changed = false
+  const bindings = project.bindings.map(binding => {
+    if (!binding.assetId || !assetDropBlankKeyIds.has(binding.keyId)) return binding
+    const asset = assetsById.get(binding.assetId)
+    if (!asset) return binding
+    const cspCellName = assetFileBaseName(asset)
+    if (!cspCellName || binding.cspCellName === cspCellName) return binding
+    changed = true
+    return { ...binding, cspCellName }
+  })
+  return changed ? { ...project, bindings } : project
+}
+
 function productionMetadataFromProject(project: CutProject, fallback: ProductionMetadata = {}): ProductionMetadata {
   return {
     ...fallback,
@@ -1981,7 +2001,7 @@ function applySharedRegisteredCellsToProject(
 ): CutProject {
   if (!catalog) return project
   const placements = cut?.stackGuideLabelPlacements ?? stackGuideLabelPlacementsFromProject(project)
-  return {
+  return repairBlankAssetDropBindingNames({
     ...project,
     logicalSheet: {
       ...project.logicalSheet,
@@ -1989,7 +2009,7 @@ function applySharedRegisteredCellsToProject(
     },
     bindings: catalog.bindings.map(binding => ({ ...binding })),
     stackGuideLabels: applyStackGuideLabelPlacements(catalog.stackGuideLabels.map(label => cloneStackGuideLabel(label)), placements, project),
-  }
+  })
 }
 
 function cloneStackGuideLabel(label: StackGuideLabel): StackGuideLabel {

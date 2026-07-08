@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="18" fill="#416b5a"/>
-  <path d="M22 30h84v68H22z" fill="#f8f8f4"/>
-  <path d="M22 46h84M22 62h84M22 78h84M43 30v68M64 30v68M85 30v68" stroke="#416b5a" stroke-width="4"/>
-  <text x="64" y="118" text-anchor="middle" font-family="'LINE Seed JP', sans-serif" font-size="22" font-weight="700" fill="#f8f8f4">XS</text>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="#214854"/>
+  <rect x="14" y="14" width="100" height="100" rx="21" fill="none" stroke="#7fb8c7" stroke-width="7"/>
+  <rect x="42" y="24" width="44" height="80" rx="7" fill="#f2f7f1"/>
+  <rect x="65" y="32" width="13" height="64" rx="4" fill="#66d2af"/>
+  <path d="M51 43h11M51 64h11M51 85h11" fill="none" stroke="#214854" stroke-width="6" stroke-linecap="round"/>
 </svg>

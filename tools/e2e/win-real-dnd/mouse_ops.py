@@ -55,6 +55,12 @@ def main() -> int:
     up_parser.add_argument("--x", type=int, required=True)
     up_parser.add_argument("--y", type=int, required=True)
 
+    click_parser = subparsers.add_parser("click-screen", help="Click at an absolute screen coordinate.")
+    click_parser.add_argument("--x", type=int, required=True)
+    click_parser.add_argument("--y", type=int, required=True)
+    click_parser.add_argument("--button", choices=["left", "right"], default="left")
+    click_parser.add_argument("--app-pid", type=int)
+
     explorer_parser = subparsers.add_parser("drag-explorer-item", help="Open Explorer, select a file/folder, and drag it to a screen coordinate.")
     explorer_parser.add_argument("--path", required=True)
     explorer_parser.add_argument("--allowed-root", required=True)
@@ -94,6 +100,14 @@ def main() -> int:
         mouse.release(button="left", coords=(args.x, args.y))
         time.sleep(0.05)
         print_json({"ok": True, "command": args.command, "point": [args.x, args.y]})
+        return 0
+
+    if args.command == "click-screen":
+        if args.app_pid:
+            focus_process_window(args.app_pid)
+        mouse.click(button=args.button, coords=(args.x, args.y))
+        time.sleep(0.1)
+        print_json({"ok": True, "command": args.command, "button": args.button, "point": [args.x, args.y]})
         return 0
 
     if args.command == "drag-explorer-item":

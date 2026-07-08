@@ -22,6 +22,8 @@ interface ScreenPoint {
   y: number
 }
 
+type MouseButton = 'left' | 'right'
+
 interface CdpListTarget {
   id: string
   type: string
@@ -184,16 +186,10 @@ try {
   await waitForAssetEventAt('cell', 'B', 2)
   checks.push('dragged a real Windows image file from Explorer directly onto a sheet frame')
 
-  const rangeStartClient = await framePoint('cell', 'A', 20)
-  const rangeEndClient = await framePoint('cell', 'A', 24)
-  const rangeStartScreen = await clientToScreen(rangeStartClient)
-  const rangeEndScreen = await clientToScreen(rangeEndClient)
-  diagnostics.rangeStartClient = rangeStartClient
-  diagnostics.rangeEndClient = rangeEndClient
-  diagnostics.rangeStartScreen = rangeStartScreen
-  diagnostics.rangeEndScreen = rangeEndScreen
-  await realMouseDrag(rangeStartScreen, rangeEndScreen)
-  await waitForSelectedRange('cell', 'A', 20, 24)
+  await verifyAssetDropOnlyRepeatPasteWithRealMouse()
+  checks.push('repeated a material-drop-only registered frame into a selected range through the real EXE context menu')
+
+  await dragSelectSheetRange('cell', 'A', 20, 24, 'range')
   checks.push('created a sheet timing range with real mouse dragging')
 
   const rangeDropAssetClient = await assetCardPoint('A2.png')
@@ -283,6 +279,97 @@ async function realMouseDrag(from: ScreenPoint, to: ScreenPoint): Promise<void> 
     '--to-y', String(to.y),
     '--app-pid', args['app-pid'],
   ])
+}
+
+async function realMouseClick(point: ScreenPoint, button: MouseButton = 'left', focusApp = true): Promise<void> {
+  await runMouseOp([
+    'click-screen',
+    '--x', String(point.x),
+    '--y', String(point.y),
+    '--button', button,
+    ...(focusApp ? ['--app-pid', args['app-pid'] as string] : []),
+  ])
+}
+
+async function dragAssetCardToFrame(
+  fileName: string,
+  role: SheetTimingRole,
+  paperTrack: string,
+  frame: number,
+  diagnosticKey: string,
+): Promise<void> {
+  const assetClient = await assetCardPoint(fileName)
+  const assetScreen = await clientToScreen(assetClient)
+  const targetClient = await framePoint(role, paperTrack, frame)
+  const targetScreen = await clientToScreen(targetClient)
+  diagnostics[`${diagnosticKey}AssetClient`] = assetClient
+  diagnostics[`${diagnosticKey}AssetScreen`] = assetScreen
+  diagnostics[`${diagnosticKey}TargetClient`] = targetClient
+  diagnostics[`${diagnosticKey}TargetScreen`] = targetScreen
+  await realMouseDrag(assetScreen, targetScreen)
+  await waitForAssetEventAt(role, paperTrack, frame)
+}
+
+async function dragSelectSheetRange(
+  role: SheetTimingRole,
+  paperTrack: string,
+  anchorFrame: number,
+  focusFrame: number,
+  diagnosticKey: string,
+): Promise<void> {
+  const anchorClient = await framePoint(role, paperTrack, anchorFrame)
+  const focusClient = await framePoint(role, paperTrack, focusFrame)
+  const anchorScreen = await clientToScreen(anchorClient)
+  const focusScreen = await clientToScreen(focusClient)
+  diagnostics[`${diagnosticKey}AnchorClient`] = anchorClient
+  diagnostics[`${diagnosticKey}FocusClient`] = focusClient
+  diagnostics[`${diagnosticKey}AnchorScreen`] = anchorScreen
+  diagnostics[`${diagnosticKey}FocusScreen`] = focusScreen
+  await realMouseDrag(anchorScreen, focusScreen)
+  await waitForSelectedRange(role, paperTrack, Math.min(anchorFrame, focusFrame), Math.max(anchorFrame, focusFrame))
+}
+
+async function clickSheetContextMenuItemAtFrame(
+  role: SheetTimingRole,
+  paperTrack: string,
+  frame: number,
+  menuItemText: string,
+  diagnosticKey: string,
+): Promise<void> {
+  const frameClient = await framePoint(role, paperTrack, frame)
+  const frameScreen = await clientToScreen(frameClient)
+  diagnostics[`${diagnosticKey}ContextClient`] = frameClient
+  diagnostics[`${diagnosticKey}ContextScreen`] = frameScreen
+  await realMouseClick(frameScreen, 'right')
+  await clickMenuItemWithRealMouse(menuItemText, diagnosticKey)
+}
+
+async function clickMenuItemWithRealMouse(label: string, diagnosticKey: string): Promise<void> {
+  const menuClient = await menuItemPoint(label)
+  const menuScreen = await clientToScreen(menuClient)
+  diagnostics[`${diagnosticKey}MenuClient`] = menuClient
+  diagnostics[`${diagnosticKey}MenuScreen`] = menuScreen
+  await realMouseClick(menuScreen, 'left', false)
+  await delay(100)
+}
+
+async function verifyAssetDropOnlyRepeatPasteWithRealMouse(): Promise<void> {
+  await dragAssetCardToFrame('A2.png', 'cell', 'C', 10, 'assetDropRepeatSource')
+  await waitForNoAssetEventAt('cell', 'C', 11)
+  await dragSelectSheetRange('cell', 'C', 11, 10, 'assetDropRepeatSourceRange')
+  await clickSheetContextMenuItemAtFrame('cell', 'C', 10, 'コピー', 'assetDropRepeatCopy')
+
+  await dragSelectSheetRange('cell', 'C', 14, 19, 'assetDropRepeatTargetRange')
+  for (const frame of [14, 15, 16, 17, 18, 19]) {
+    await waitForNoAssetEventAt('cell', 'C', frame)
+  }
+  await clickSheetContextMenuItemAtFrame('cell', 'C', 14, '選択範囲内にリピート貼り付け', 'assetDropRepeatPaste')
+  for (const frame of [14, 16, 18]) {
+    await waitForAssetEventAt('cell', 'C', frame)
+  }
+  for (const frame of [15, 17, 19]) {
+    await waitForNoAssetEventAt('cell', 'C', frame)
+  }
 }
 
 async function realMouseDragStackGuideLabel(label: string, from: ScreenPoint, to: ScreenPoint): Promise<void> {
@@ -733,6 +820,20 @@ async function clickMenuItemContaining(text: string): Promise<void> {
   `)
   if (!clicked) throw new Error(`menu item not found: ${text}`)
   await delay(100)
+}
+
+async function menuItemPoint(label: string): Promise<ClientPoint> {
+  const point = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const buttons = Array.from(document.querySelectorAll('[role="menu"] button[role="menuitem"]'));
+      const button = buttons.find(item => item.textContent?.trim() === ${JSON.stringify(label)} && !item.disabled);
+      if (!button) return null;
+      const rect = button.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()
+  `)
+  if (!point) throw new Error(`menu item not found or disabled: ${label}`)
+  return point
 }
 
 async function normalizeSelectedRegisteredCellWithRealAssetFileName(paperTrack: string, expectedNextFileName: string): Promise<void> {

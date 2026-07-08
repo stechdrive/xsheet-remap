@@ -13693,7 +13693,7 @@ function AppHelpDialog({ onClose }: { onClose: () => void }) {
               </li>
               <li>
                 <strong>範囲を選んで編集する</strong>
-                <span>ドラッグで範囲を作り、コピー、切り取り、挿入貼り付け、リピート貼り付けを使います。</span>
+                <span>ドラッグで範囲を作り、右クリックメニューからコピー、切り取り、貼り付け、挿入貼り付け、選択範囲内/末尾までのリピート貼り付けを使います。</span>
               </li>
               <li>
                 <strong>表示と注釈を調整する</strong>

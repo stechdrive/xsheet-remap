@@ -12721,11 +12721,18 @@ function ActionMenu({
     if (!closeOnMenuItemClick) return
     const target = event.target as Element
     if (target.closest('[data-action-menu-keep-open]')) return
+    if (target.closest('label.fileButton')) return
+    if (target.closest('button')) setOpen(false)
+  }
+
+  function handleContentChange(event: FormEvent<HTMLDivElement>) {
+    if (!closeOnMenuItemClick) return
+    const target = event.target
+    if (!(target instanceof HTMLInputElement) || target.type !== 'file') return
+    if (target.closest('[data-action-menu-keep-open]')) return
     if (target.closest('label.fileButton')) {
       window.setTimeout(() => setOpen(false), 0)
-      return
     }
-    if (target.closest('button')) setOpen(false)
   }
 
   function renderSummary(tooltipProps?: TooltipTriggerProps) {
@@ -12763,6 +12770,7 @@ function ActionMenu({
           className={`actionMenuContent actionMenuPortalContent ${className}`.trim()}
           style={menuStyle ?? { top: 0, left: 0, visibility: 'hidden' }}
           onClick={handleContentClick}
+          onChange={handleContentChange}
         >
           {children}
         </div>,

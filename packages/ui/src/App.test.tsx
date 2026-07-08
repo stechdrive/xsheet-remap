@@ -398,8 +398,15 @@ describe('App', () => {
 
     const loadProjectLabel = within(menu).getByText(uiText.actions.loadProject).closest('label')
     if (!loadProjectLabel) throw new Error('load project file label not found')
-    fireEvent.click(loadProjectLabel)
+    const loadProjectInput = loadProjectLabel.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!loadProjectInput) throw new Error('load project file input not found')
 
+    fireEvent.click(loadProjectLabel)
+    await new Promise(resolve => window.setTimeout(resolve, 0))
+    expect(details.open).toBe(true)
+
+    const file = new File([JSON.stringify(createDefaultProject())], 'project.json', { type: 'application/json' })
+    fireEvent.change(loadProjectInput, { target: { files: [file] } })
     await waitFor(() => expect(details.open).toBe(false))
     expect(document.querySelector('.actionMenuPortalContent.appNavMenu')).toBeNull()
   })

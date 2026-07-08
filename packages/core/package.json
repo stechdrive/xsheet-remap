@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/core",
-  "version": "0.1.442",
+  "version": "0.1.443",
   "private": true,
   "type": "module",
   "main": "src/index.ts",

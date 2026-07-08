@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 260" role="img" aria-label="xsheet icon proposal preview">
+  <defs>
+    <symbol id="remap-icon" viewBox="0 0 128 128">
+      <rect x="8" y="8" width="112" height="112" rx="26" fill="#214854"/>
+      <rect x="14" y="14" width="100" height="100" rx="21" fill="none" stroke="#7fb8c7" stroke-width="7"/>
+      <rect x="42" y="24" width="44" height="80" rx="7" fill="#f2f7f1"/>
+      <rect x="65" y="32" width="13" height="64" rx="4" fill="#66d2af"/>
+      <path d="M51 43h11M51 64h11M51 85h11" fill="none" stroke="#214854" stroke-width="6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="corrector-icon" viewBox="0 0 128 128">
+      <rect x="8" y="8" width="112" height="112" rx="26" fill="#214854"/>
+      <rect x="14" y="14" width="100" height="100" rx="21" fill="none" stroke="#7fb8c7" stroke-width="7"/>
+      <path d="M42 29L88 36L82 97L36 89Z" fill="#f2f7f1"/>
+      <path d="M42 29L88 36L82 97L36 89Z" fill="none" stroke="#214854" stroke-width="5" stroke-linejoin="round"/>
+      <circle cx="42" cy="29" r="10" fill="#66d2af"/>
+      <circle cx="88" cy="36" r="10" fill="#66d2af"/>
+      <circle cx="82" cy="97" r="10" fill="#66d2af"/>
+      <circle cx="36" cy="89" r="10" fill="#66d2af"/>
+    </symbol>
+  </defs>
+  <rect width="760" height="260" fill="#171b1d"/>
+  <text x="40" y="34" fill="#d8e5e4" font-family="Segoe UI, sans-serif" font-size="18" font-weight="700">xsheet-remap</text>
+  <text x="410" y="34" fill="#d8e5e4" font-family="Segoe UI, sans-serif" font-size="18" font-weight="700">xsheet-corrector</text>
+  <use href="#remap-icon" x="40" y="52" width="128" height="128"/>
+  <use href="#corrector-icon" x="410" y="52" width="128" height="128"/>
+  <g transform="translate(40 204)">
+    <use href="#remap-icon" x="0" y="0" width="48" height="48"/>
+    <use href="#remap-icon" x="68" y="8" width="32" height="32"/>
+    <use href="#remap-icon" x="120" y="16" width="16" height="16"/>
+  </g>
+  <g transform="translate(410 204)">
+    <use href="#corrector-icon" x="0" y="0" width="48" height="48"/>
+    <use href="#corrector-icon" x="68" y="8" width="32" height="32"/>
+    <use href="#corrector-icon" x="120" y="16" width="16" height="16"/>
+  </g>
+</svg>

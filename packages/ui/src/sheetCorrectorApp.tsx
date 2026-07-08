@@ -37,6 +37,16 @@ import {
   type SheetCorrectorImportRule,
   type SheetCorrectorImportSourceKind,
 } from './sheetCorrectorImportRules'
+import {
+  SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE,
+  SHEET_CORRECTOR_LOAD_TEMPLATE_VALUE,
+  loadSheetCorrectorTemplateFile,
+  loadStoredSheetCorrectorTemplatePath,
+  saveStoredSheetCorrectorTemplatePath,
+  sheetCorrectorExternalTemplateLabel,
+  type SheetCorrectorExternalTemplate,
+  type SheetCorrectorTemplateFile,
+} from './sheetCorrectorTemplates'
 
 type SheetCorrectorInput = {
   path: string
@@ -135,6 +145,7 @@ export function SheetCorrectorApp() {
   const [levelCorrectionSettings, setLevelCorrectionSettings] = useState<LevelCorrectionSettings>(() => defaultLevelCorrectionSettings())
   const [levelCorrectionDialogOpen, setLevelCorrectionDialogOpen] = useState(false)
   const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_SHEET_CORRECTOR_TEMPLATE.templateId)
+  const [externalTemplate, setExternalTemplate] = useState<SheetCorrectorExternalTemplate | null>(null)
   const [templateOverlayEnabled, setTemplateOverlayEnabled] = useState(true)
   const [templateOverlayOpacity, setTemplateOverlayOpacity] = useState(80)
   const didLoadLaunchPaths = useRef(false)
@@ -145,10 +156,15 @@ export function SheetCorrectorApp() {
   const correctionMenuRef = useRef<HTMLDetailsElement | null>(null)
   const jobMenuRef = useRef<HTMLDetailsElement | null>(null)
 
-  const selectedTemplate = useMemo(
-    () => SHEET_CORRECTOR_TEMPLATE_PRESETS.find(preset => preset.sheetTemplate.templateId === selectedTemplateId)?.sheetTemplate ?? DEFAULT_SHEET_CORRECTOR_TEMPLATE,
-    [selectedTemplateId],
-  )
+  const selectedTemplate = useMemo(() => {
+    if (selectedTemplateId === SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE && externalTemplate) {
+      return externalTemplate.template
+    }
+    return SHEET_CORRECTOR_TEMPLATE_PRESETS.find(preset => preset.sheetTemplate.templateId === selectedTemplateId)?.sheetTemplate ?? DEFAULT_SHEET_CORRECTOR_TEMPLATE
+  }, [externalTemplate, selectedTemplateId])
+  const selectedTemplateSelectValue = selectedTemplateId === SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE && externalTemplate
+    ? SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE
+    : selectedTemplate.templateId
   const queueItems = useMemo(
     () => items.filter(item => item.matched).sort(compareSheetCorrectorInputs),
     [items],
@@ -188,7 +204,45 @@ export function SheetCorrectorApp() {
     revokeBrowserFileUrls(urls)
   }, [])
 
+  const applyExternalTemplateFile = useCallback((file: SheetCorrectorTemplateFile, restored = false): boolean => {
+    try {
+      const loaded = loadSheetCorrectorTemplateFile(file)
+      setExternalTemplate(loaded)
+      setSelectedTemplateId(SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE)
+      saveStoredSheetCorrectorTemplatePath(loaded.path)
+      setStatus(`テンプレ「${sheetCorrectorExternalTemplateLabel(loaded.template, loaded.path)}」を${restored ? '復元' : '読み込み'}ました。`)
+      return true
+    } catch (error) {
+      if (!restored) setStatus(`テンプレJSONを読み込めません: ${sheetCorrectorErrorMessage(error)}`)
+      return false
+    }
+  }, [])
+
   useEffect(() => revokeBrowserPreviewUrls, [revokeBrowserPreviewUrls])
+
+  useEffect(() => {
+    if (!isTauriHost()) return undefined
+    const templatePath = loadStoredSheetCorrectorTemplatePath()
+    if (!templatePath) return undefined
+    let disposed = false
+    void readNativeSheetCorrectorTemplatePath(templatePath)
+      .then(file => {
+        if (disposed) return
+        if (!applyExternalTemplateFile(file, true)) {
+          saveStoredSheetCorrectorTemplatePath(undefined)
+          setSelectedTemplateId(DEFAULT_SHEET_CORRECTOR_TEMPLATE.templateId)
+        }
+      })
+      .catch(error => {
+        if (disposed) return
+        saveStoredSheetCorrectorTemplatePath(undefined)
+        setSelectedTemplateId(DEFAULT_SHEET_CORRECTOR_TEMPLATE.templateId)
+        setStatus(`前回のテンプレを読み込めません。A3標準に戻しました: ${sheetCorrectorErrorMessage(error)}`)
+      })
+    return () => {
+      disposed = true
+    }
+  }, [applyExternalTemplateFile])
 
   useEffect(() => {
     let disposed = false
@@ -415,6 +469,28 @@ export function SheetCorrectorApp() {
     } catch (error) {
       setStatus(`画像選択に失敗: ${error instanceof Error ? error.message : String(error)}`)
     }
+  }
+
+  async function handleTemplateLoadClick() {
+    if (!isTauriHost()) {
+      setStatus('テンプレJSONの読み込みはデスクトップ版で使えます。')
+      return
+    }
+    try {
+      const file = await openNativeSheetCorrectorTemplateFile()
+      if (!file) return
+      applyExternalTemplateFile(file)
+    } catch (error) {
+      setStatus(`テンプレJSONを読み込めません: ${sheetCorrectorErrorMessage(error)}`)
+    }
+  }
+
+  function handleTemplateSelectChange(value: string) {
+    if (value === SHEET_CORRECTOR_LOAD_TEMPLATE_VALUE) {
+      void handleTemplateLoadClick()
+      return
+    }
+    setSelectedTemplateId(value)
   }
 
   function addImportRule() {
@@ -1212,14 +1288,28 @@ export function SheetCorrectorApp() {
                 <label className="sheetCorrectorTemplateSelect">
                   <span>テンプレ</span>
                   <select
-                    value={selectedTemplate.templateId}
-                    onChange={event => setSelectedTemplateId(event.currentTarget.value)}
+                    value={selectedTemplateSelectValue}
+                    onChange={event => {
+                      const value = event.currentTarget.value
+                      if (value === SHEET_CORRECTOR_LOAD_TEMPLATE_VALUE) {
+                        event.currentTarget.value = selectedTemplateSelectValue
+                      }
+                      handleTemplateSelectChange(value)
+                    }}
                   >
                     {SHEET_CORRECTOR_TEMPLATE_PRESETS.map(preset => (
                       <option key={preset.sheetTemplate.templateId} value={preset.sheetTemplate.templateId}>
                         {preset.name || preset.sheetTemplate.name}
                       </option>
                     ))}
+                    {externalTemplate ? <option value="__separator-external-template" disabled>────────</option> : null}
+                    {externalTemplate ? (
+                      <option value={SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE}>
+                        {sheetCorrectorExternalTemplateLabel(externalTemplate.template, externalTemplate.path)}
+                      </option>
+                    ) : null}
+                    <option value="__separator-load-template" disabled>────────</option>
+                    <option value={SHEET_CORRECTOR_LOAD_TEMPLATE_VALUE}>テンプレJSONを読み込み...</option>
                   </select>
                 </label>
               </Tooltip>
@@ -2024,6 +2114,16 @@ async function createNativeSheetImageDataUrl(item: SheetCorrectorInput): Promise
   })
 }
 
+async function openNativeSheetCorrectorTemplateFile(): Promise<SheetCorrectorTemplateFile | null> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return await invoke<SheetCorrectorTemplateFile | null>('open_sheet_corrector_template')
+}
+
+async function readNativeSheetCorrectorTemplatePath(path: string): Promise<SheetCorrectorTemplateFile> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return await invoke<SheetCorrectorTemplateFile>('read_sheet_corrector_template', { path })
+}
+
 async function correctedPngDataUrl(
   imageUrl: string,
   points: SheetCalibrationPointPair[],
@@ -2193,6 +2293,10 @@ function templateOverlayImageUrl(template: SheetTemplate): string | null {
   const underlay = template.defaultUnderlay
   if (!underlay) return null
   return resolveImageRefUrl({ ...underlay.imageRef, assetPath: underlay.assetPath })
+}
+
+function sheetCorrectorErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function emptySheetCorrectorProgressState(title: string, message: string): SheetCorrectorProgressDialogState {

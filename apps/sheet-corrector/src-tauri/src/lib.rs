@@ -27,6 +27,13 @@ struct SheetCorrectorInputCollection {
     has_file: bool,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SheetCorrectorTemplateFile {
+    path: String,
+    contents: String,
+}
+
 #[derive(serde::Serialize, Clone, Copy)]
 #[serde(rename_all = "kebab-case")]
 enum SheetCorrectorSourceKind {
@@ -65,6 +72,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             open_sheet_corrector_inputs,
+            open_sheet_corrector_template,
+            read_sheet_corrector_template,
             collect_sheet_corrector_inputs,
             sheet_corrector_image_data_url,
             export_sheet_corrector_png,
@@ -121,6 +130,50 @@ async fn open_sheet_corrector_inputs(
     });
     inputs.dedup_by(|a, b| a.path.eq_ignore_ascii_case(&b.path));
     Ok(inputs)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+async fn open_sheet_corrector_template(
+    window: tauri::WebviewWindow,
+) -> Result<Option<SheetCorrectorTemplateFile>, String> {
+    let mut dialog = window
+        .dialog()
+        .file()
+        .set_parent(&window)
+        .set_title("テンプレJSONを読み込み")
+        .add_filter("JSON", &["json"]);
+
+    if let Some(directory) = stable_file_dialog_directory() {
+        dialog = dialog.set_directory(directory);
+    }
+
+    let (tx, mut rx) = tauri::async_runtime::channel(1);
+    dialog.pick_file(move |file| {
+        let _ = tx.blocking_send(file);
+    });
+    let Some(file_path) = rx.recv().await.flatten() else {
+        return Ok(None);
+    };
+    let path = file_path.into_path().map_err(|error| error.to_string())?;
+    read_sheet_corrector_template_path(path).map(Some)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn read_sheet_corrector_template(path: String) -> Result<SheetCorrectorTemplateFile, String> {
+    read_sheet_corrector_template_path(std::path::PathBuf::from(path))
+}
+
+fn read_sheet_corrector_template_path(
+    path: std::path::PathBuf,
+) -> Result<SheetCorrectorTemplateFile, String> {
+    if !path.is_file() {
+        return Err("テンプレJSONファイルが見つかりません。".to_string());
+    }
+    let contents = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    Ok(SheetCorrectorTemplateFile {
+        path: path.to_string_lossy().into_owned(),
+        contents,
+    })
 }
 
 #[tauri::command(rename_all = "camelCase")]

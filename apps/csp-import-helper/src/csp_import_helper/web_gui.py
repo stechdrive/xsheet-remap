@@ -824,6 +824,8 @@ HTML = r"""<!doctype html>
     button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
     button.primary:hover:not(:disabled) { background: #174f9f; }
     button.stop { color: #9d1b1b; border-color: #e1b8b8; background: #fffafa; }
+    .icon-button { width: 32px; min-width: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .icon-button svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
     .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .metric { min-height: 64px; padding: 9px 10px; border: 1px solid #e0e6ef; border-radius: 8px; background: #fbfcfe; }
     .metric-label { color: var(--muted); font-size: 11px; font-weight: 800; }
@@ -852,15 +854,16 @@ HTML = r"""<!doctype html>
     .error-reason.show { display: block; }
     .error-reason-label { display: block; margin-bottom: 3px; color: #8f2219; font-size: 11px; font-weight: 800; }
     .logs { min-height: 58px; padding: 8px 10px; background: #f8fafc; border: 1px solid #e0e6ef; border-radius: 6px; color: #354052; white-space: pre-line; line-height: 1.45; }
-    .footer { color: #8a1f11; font-weight: 800; background: #fff4d6; border: 1px solid #efd28a; border-radius: 6px; padding: 8px 10px; }
+    .footer { color: #8a1f11; font-weight: 800; background: #fff4d6; border: 1px solid #efd28a; border-radius: 6px; padding: 8px 10px; line-height: 1.45; white-space: pre-line; }
     .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(14, 22, 35, .35); align-items: center; justify-content: center; padding: 24px; }
     .modal-backdrop.show { display: flex; }
     .modal { width: min(720px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #fff; border-radius: 8px; border: 1px solid #d4dbe7; box-shadow: 0 12px 36px rgba(0,0,0,.22); padding: 16px; }
     .modal h2 { margin: 0 0 12px; font-size: 17px; }
     .help-modal { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(860px, 100%); padding: 0; overflow: hidden; }
     .help-modal header, .help-modal footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e1e6ef; }
-    .help-modal footer { border-top: 1px solid #e1e6ef; border-bottom: 0; }
+    .help-modal footer { display: block; border-top: 1px solid #e1e6ef; border-bottom: 0; }
     .help-modal header div { min-width: 0; }
+    .help-modal header .icon-button { flex: 0 0 auto; align-self: flex-start; }
     .help-modal h2 { margin: 0 0 3px; }
     .help-modal header p, .help-modal footer p { margin: 0; color: #607086; font-size: 12px; line-height: 1.5; }
     .help-content { min-height: 0; overflow: auto; display: grid; gap: 10px; padding: 14px 16px; }
@@ -870,6 +873,7 @@ HTML = r"""<!doctype html>
     .help-section p { margin: 0 0 8px; color: #4d5b70; font-size: 12px; line-height: 1.55; }
     .help-section ol, .help-section ul { display: grid; gap: 7px; margin: 0; padding-left: 22px; }
     .help-section li { color: #303a4c; font-size: 12px; line-height: 1.55; }
+    .help-section li.critical, .help-section li.critical strong { color: #8a1f11; }
     .help-section li::marker { color: var(--blue); font-weight: 800; }
     .help-section strong { color: #172033; }
     .shortcut-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px 12px; align-items: center; }
@@ -891,7 +895,13 @@ HTML = r"""<!doctype html>
         <div class="version" id="version"></div>
       </div>
       <div class="top-actions">
-        <button id="helpButton">ヘルプ</button>
+        <button class="icon-button" id="helpButton" type="button" aria-label="ヘルプを開く" title="ヘルプ">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"></path>
+            <path d="M12 17h.01"></path>
+          </svg>
+        </button>
         <div class="badge" id="runBadge">待機中</div>
       </div>
     </section>
@@ -901,7 +911,7 @@ HTML = r"""<!doctype html>
         <section class="panel">
           <h2 class="panel-title">入力ファイル</h2>
           <div class="drop-stack">
-            <div class="drop-card" id="manifestCard" title="本体アプリの「タイムシート/CSP自動登録」で書き出した .xci を指定します。">
+            <div class="drop-card" id="manifestCard" title="xsheet-remapの「タイムシート/CSP自動登録」で書き出した .xci を指定します。">
               <div>
                 <div class="file-kind">CSP自動登録ファイル (.xci)</div>
                 <div class="path empty" id="manifestPath"></div>
@@ -971,7 +981,9 @@ HTML = r"""<!doctype html>
       </div>
     </section>
 
-    <section class="footer" id="emergency">自動登録中はマウス・キーボード操作禁止。クリスタを前面のままにしてください。非常停止: Ctrl+Alt+F12 / Ctrl+Alt+Pause</section>
+    <section class="footer" id="emergency">自動登録中はマウス・キーボード操作禁止。クリスタを前面のままにしてください。
+既存のアニメーションフォルダーは全て非表示、または親フォルダを非表示にしてから開始してください。
+非常停止: Ctrl+Alt+F12 / Ctrl+Alt+Pause</section>
   </main>
 
   <div class="modal-backdrop" id="helpModal">
@@ -981,7 +993,12 @@ HTML = r"""<!doctype html>
           <h2>CSP自動登録ヘルパーの使い方</h2>
           <p>CSPはCLIP STUDIO PAINT、つまりクリスタのことです。このヘルパーはクリスタを自動操作して、XDTSと画像素材を組み込みます。</p>
         </div>
-        <button id="helpClose">閉じる</button>
+        <button class="icon-button" id="helpClose" type="button" aria-label="ヘルプを閉じる" title="閉じる">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+            <path d="M18 6 6 18"></path>
+            <path d="m6 6 12 12"></path>
+          </svg>
+        </button>
       </header>
       <div class="help-content">
         <section class="help-section warning">
@@ -995,7 +1012,7 @@ HTML = r"""<!doctype html>
         <section class="help-section">
           <h3>クリスタへ組み込む手順</h3>
           <ol>
-            <li><strong>本体アプリで「タイムシート/CSP自動登録」を書き出します。</strong> カットフォルダ内にヘルパー用の登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。</li>
+            <li><strong>xsheet-remapで「タイムシート/CSP自動登録」を書き出します。</strong> カットフォルダ内にヘルパー用の登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。</li>
             <li><strong>この画面でCSP自動登録ヘルパー用ファイル(.xci)を選びます。</strong> .xciをこのウィンドウへドロップしても読み込めます。</li>
             <li><strong>操作対象のクリスタファイル(.clip)を選びます。</strong> ヘルパーはこの.clipをクリスタで開いて処理します。</li>
             <li><strong>保存先を確認します。</strong> ファイル名込みの.clipパスにしてください。フォルダだけでは保存できません。</li>
@@ -1005,7 +1022,9 @@ HTML = r"""<!doctype html>
         <section class="help-section">
           <h3>実行前のクリスタ側チェック</h3>
           <ul>
+            <li class="critical"><strong>最重要: 読み込ませたCLIPファイル内の既存のアニメーションフォルダーが全て非表示になるようにしてください。</strong> 各アニメーションフォルダ、またはそれを含む親フォルダを非表示にした状態であることを開始前に必ず確認してください。表示されたままだと、自動登録のフォルダ積み込みが崩れます。</li>
             <li>CLIP STUDIO PAINT（クリスタ）のワークスペースとショートカットが、ヘルパーの「設定」と合っていること。</li>
+            <li>乗算化に使うクリスタ側のオートアクションを作成し、ヘルパーの「設定」にある「乗算オートアクション」と同じショートカットを割り当てていること。</li>
             <li>タイムライン編集が有効な状態から始めること。ヘルパーはXDTS読み込み後に必要なタイミングで切り替えます。</li>
             <li>クリスタの確認ダイアログや保存ダイアログを残したまま開始しないこと。</li>
             <li>初回、NAS上のファイル、不安定な環境では速度を「標準」にすること。</li>
@@ -1023,7 +1042,6 @@ HTML = r"""<!doctype html>
       </div>
       <footer>
         <p>csp-import.xciはヘルパー用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。必ずこのCSP自動登録ヘルパーから実行してください。</p>
-        <button id="helpCloseFooter">閉じる</button>
       </footer>
     </div>
   </div>
@@ -1108,7 +1126,7 @@ HTML = r"""<!doctype html>
       $("profileButton").disabled = !!next.running;
       $("helpButton").disabled = !!next.running;
       const emergency = next.emergencyStatus || "非常停止: Ctrl+Alt+F12 / Ctrl+Alt+Pause";
-      $("emergency").textContent = `自動登録中はマウス・キーボード操作禁止。クリスタを前面のままにしてください。${emergency}`;
+      $("emergency").textContent = `自動登録中はマウス・キーボード操作禁止。クリスタを前面のままにしてください。\n既存のアニメーションフォルダーは全て非表示、または親フォルダを非表示にしてから開始してください。\n${emergency}`;
     }
 
     function renderProgress(progress) {
@@ -1244,7 +1262,6 @@ HTML = r"""<!doctype html>
       $("closeButton").addEventListener("click", () => invoke("close_window"));
       $("helpButton").addEventListener("click", openHelpModal);
       $("helpClose").addEventListener("click", closeHelpModal);
-      $("helpCloseFooter").addEventListener("click", closeHelpModal);
       $("helpModal").addEventListener("click", (event) => {
         if (event.target === $("helpModal")) closeHelpModal();
       });

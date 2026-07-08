@@ -15,6 +15,34 @@ export const uiText = {
     hashed: 'hashあり',
     unassigned: '未割当',
   },
+  statusHints: {
+    sheetIdle: 'ホイール: 縦スクロール / Shift+ホイール: 横スクロール / Ctrl+ホイール: ズーム / Space+ドラッグ・中ボタン: 表示移動',
+    selectedCell: (hasEvent: boolean) => hasEvent
+      ? '選択セル: 入力でキー変更 / Deleteで削除 / Alt+ドラッグでキー移動 / 右クリックでセル操作'
+      : '選択セル: 入力でキー登録 / 画像素材ドロップで登録 / 右クリックでセル操作',
+    selectedRange: (hasClipboard: boolean) =>
+      `選択範囲: Ctrl+C コピー / Ctrl+X 切り取り / ${hasClipboard ? 'Ctrl+V 貼り付け / ' : ''}右クリックでリピート貼り付け`,
+    cellEmpty: (role: string, paperTrack: string, frame: string) =>
+      `${role} ${paperTrack} ${frame}: クリック/ドラッグで選択 / 入力・ドロップでキー登録`,
+    cellEvent: (role: string, paperTrack: string, frame: string) =>
+      `${role} ${paperTrack} ${frame}: クリックで選択 / ドラッグで範囲選択 / Alt+ドラッグでキー移動`,
+    rangeDragging: 'ドラッグ中: 範囲選択',
+    eventDragging: 'キー移動中: ドロップ先セルへ移動',
+    panning: '表示位置を移動中',
+    dropAsset: (target: string) => `ドロップ: ${target} に素材を登録して配置`,
+    dropRegisteredCell: (target: string) => `ドロップ: ${target} に登録セルを配置`,
+    dropFiles: (target: string) => `ドロップ: ${target} に画像素材を登録して配置`,
+    dropStackGuide: 'ドロップ: BG/BOOKラベルの位置を移動',
+    dropUnavailable: 'ここにはドロップできません',
+    dropMultipleAssetsUnavailable: '複数素材はセルへ直接ドロップできません。素材欄へ追加してください',
+    overlayPaperTrack: (label: string, isInputTarget: boolean) =>
+      `${label}追加セル列: ${isInputTarget ? '入力先' : 'クリックで入力先'} / ドラッグで位置移動 / 右クリックで編集`,
+    overlayPaperTrackDragging: (label: string) => `${label}追加セル列を移動中: 離すと表示位置を確定`,
+    penMode: 'ペン: シート上をドラッグして注記',
+    eraserMode: '消しゴム: シート上をドラッグして注記を消去',
+    textMode: 'テキスト: シート上をクリックして注記を追加 / Escで終了',
+    calibrateMode: '四隅合わせ: ハンドルをドラッグして紙シート画像を補正',
+  },
   nav: {
     menu: '画面切替',
     menuTitle: 'ファイル操作とワークスペース切り替えを開く',
@@ -67,9 +95,9 @@ export const uiText = {
     loadSheetSourceFilesTitle: '紙のタイムシート画像を下絵として読み込む',
     addOverlayPaperTrack: '追加セル列を作成',
     moveOverlayPaperTrack: (label: string) => `${label}セル列の表示位置を移動`,
-    overlayPaperTrackInputActive: (label: string) => `${label}追加セル列: 入力先/ドロップ先です。クリックで下の列を編集、ドラッグで位置移動`,
-    overlayPaperTrackInputInactive: (label: string) => `${label}追加セル列: 下の列を編集中です。クリックでこの列へ入力、ドラッグで位置移動`,
-    overlayPaperTrackEdit: (label: string) => `${label}追加セル列: 右クリックで名前・XDTS挿入位置を編集`,
+    overlayPaperTrackInputActive: (label: string) => `${label}追加セル列: 入力先`,
+    overlayPaperTrackInputInactive: (label: string) => `${label}追加セル列: クリックで入力先に切替`,
+    overlayPaperTrackEdit: 'ドラッグで位置移動 / 右クリックで名前・XDTS挿入位置を編集',
     selectPaperTrackColumn: 'セル列全体を選択',
     renamePaperTrack: 'セル列名を変更',
     deleteOverlayPaperTrack: '追加セル列を削除',

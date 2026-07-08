@@ -244,6 +244,11 @@ function expectSelectionStatus(...parts: string[]) {
   for (const part of parts) expect(text).toContain(part)
 }
 
+function expectStatusHint(...parts: string[]) {
+  const text = document.querySelector('.statusHint')?.textContent ?? ''
+  for (const part of parts) expect(text).toContain(part)
+}
+
 function expectSelectedHit(role: SheetTemplateGridRole, paperTrack: string, frame: number) {
   expectCurrentFrame(frame)
   expectSelectionStatus(role.toUpperCase(), paperTrack, formatTestFramePosition(frame))
@@ -602,6 +607,21 @@ describe('App', () => {
     expect(document.querySelector('.gridOverlay-sound')).toBeNull()
   })
 
+  it('shows context operation hints in the bottom status bar', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    expectStatusHint('ホイール', 'Ctrl+ホイール')
+
+    const point = templateFramePoint('cell', 'A', 1)
+    fireEvent.pointerMove(sheet, { clientX: point.x, clientY: point.y })
+    expectStatusHint('A', formatTestFramePosition(1), '入力・ドロップ')
+
+    fireEvent.pointerLeave(sheet)
+    expectStatusHint('ホイール', 'Ctrl+ホイール')
+  })
+
   it('omits the fixed paper outer frame for the digital standard template', () => {
     render(<App />)
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
@@ -890,7 +910,19 @@ describe('App', () => {
     await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(true))
     const overlayHandle = document.querySelector<HTMLButtonElement>('.overlayPaperTrackDragHandle')
     if (!overlayHandle) throw new Error('overlay paper track handle not found')
+    expect(overlayHandle.getAttribute('aria-label')).toBe(uiText.actions.overlayPaperTrackInputActive('J'))
+    fireEvent.pointerEnter(overlayHandle)
+    expectStatusHint('J追加セル列', 'ドラッグで位置移動')
+    fireEvent.pointerLeave(overlayHandle)
     fireEvent.contextMenu(overlayHandle, { clientX: 500, clientY: 80 })
+    expect(screen.getByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeTruthy()
+    fireEvent.pointerDown(overlayHandle, { pointerId: 91, pointerType: 'mouse', button: 0, buttons: 1, clientX: 500, clientY: 80 })
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeNull())
+    fireEvent.pointerUp(window, { pointerId: 91, pointerType: 'mouse', button: 0, buttons: 0, clientX: 500, clientY: 80 })
+
+    const currentOverlayHandle = document.querySelector<HTMLButtonElement>('.overlayPaperTrackDragHandle')
+    if (!currentOverlayHandle) throw new Error('current overlay paper track handle not found')
+    fireEvent.contextMenu(currentOverlayHandle, { clientX: 500, clientY: 80 })
     expect(screen.getByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeTruthy()
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)

@@ -601,11 +601,41 @@ textarea,
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 0 10px;
   border-top: 1px solid #c6c8c3;
   background: #f8f8f4;
   color: #59615c;
   font-size: 12px;
+}
+
+.statusBar span {
+  min-width: 0;
+}
+
+.statusSelection {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusHint {
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: #496156;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusHint.active {
+  color: #173528;
+  font-weight: 700;
+}
+
+.statusIssueSummary {
+  flex: 0 0 auto;
 }
 
 .panel {
@@ -1523,6 +1553,13 @@ textarea,
   cursor: grab;
   pointer-events: auto;
   touch-action: none;
+}
+
+.overlayPaperTrackDragHandle:hover,
+.overlayPaperTrackDragHandle:focus,
+.overlayPaperTrackDragHandle:focus-visible {
+  background: transparent !important;
+  box-shadow: none;
 }
 
 .overlayPaperTrackDragHandle:hover,

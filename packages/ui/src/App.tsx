@@ -302,6 +302,18 @@ const TIMELINE_EVENT_LONG_PRESS_MS = 320
 const TIMELINE_EVENT_DRAG_THRESHOLD_PX = 4
 const CONTINUOUS_CANVAS_MIN_FRAME_ROW_PX = 10
 const APP_NAV_PANELS: Panel[] = ['sheet', 'bindings', 'slots', 'template', 'recognition', 'export']
+const STATUS_HINT_SOURCE_ORDER = ['sheet-drag', 'sheet-drop', 'overlay-paper-track', 'sheet-hover'] as const
+
+type StatusHintSource = typeof STATUS_HINT_SOURCE_ORDER[number]
+type StatusHints = Partial<Record<StatusHintSource, string>>
+
+function activeStatusHintText(hints: StatusHints): string | null {
+  for (const source of STATUS_HINT_SOURCE_ORDER) {
+    const text = hints[source]
+    if (text) return text
+  }
+  return null
+}
 
 type NativeDragDropPayload = {
   type: string
@@ -554,6 +566,19 @@ function formatFrameRangePosition(project: CutProject, frameStart: number, frame
   return `${formatFrameNumber(project, frameStart)}-${formatFrameNumber(project, frameEnd)} (${formatPaddedFrameTimecode(project, frameStart)}-${formatPaddedFrameTimecode(project, frameEnd)})`
 }
 
+function sheetHitTargetLabel(project: CutProject, hit: SheetHit): string {
+  return `${sheetRoleLabel(sheetRoleForHit(hit))} ${hit.paperTrack ?? '-'} ${formatFramePosition(project, hit.frame)}`
+}
+
+function sheetHitStatusHint(project: CutProject, hit: SheetHit): string {
+  const role = sheetRoleLabel(sheetRoleForHit(hit))
+  const paperTrack = hit.paperTrack ?? '-'
+  const frame = formatFramePosition(project, hit.frame)
+  return timelineEventAtHit(project, hit)
+    ? uiText.statusHints.cellEvent(role, paperTrack, frame)
+    : uiText.statusHints.cellEmpty(role, paperTrack, frame)
+}
+
 type TextFileOutput = {
   fileName: string
   contents: string
@@ -746,6 +771,7 @@ export function App() {
   const [rangeSelection, setRangeSelection] = useState<SheetRangeSelection | null>(null)
   const [sheetScrollRequest, setSheetScrollRequest] = useState<SheetScrollRequest | null>(null)
   const [timingClipboard, setTimingClipboard] = useState<TimingClipboard | null>(null)
+  const [statusHints, setStatusHints] = useState<StatusHints>({})
   const [valueDraft, setValueDraft] = useState('')
   const [valueDraftActive, setValueDraftActive] = useState(false)
   const [exportProfileId, setExportProfileId] = useState('import-stack')
@@ -832,6 +858,44 @@ export function App() {
   const activeTextFontSizePx = activeTextTarget.fontSizePx
   const hasSelectedTextTarget = activeTextTarget.kind === 'annotationText' || activeTextTarget.kind === 'timingEvent'
   const isTextFontSizeDisabled = activeTextTarget.kind === 'timingRange'
+  const setStatusHint = useCallback((source: StatusHintSource, text: string | null) => {
+    setStatusHints(current => {
+      if (text === null) {
+        if (!(source in current)) return current
+        const next = { ...current }
+        delete next[source]
+        return next
+      }
+      if (current[source] === text) return current
+      return { ...current, [source]: text }
+    })
+  }, [])
+  const switchPanel = useCallback((nextPanel: Panel) => {
+    setStatusHints({})
+    setPanel(nextPanel)
+  }, [])
+  const activeStatusHint = activeStatusHintText(statusHints)
+  const statusSelectionText = rangeSummary
+    ? `${activeCorrectionLayer?.label ?? '-'} / ${rangeSummary}`
+    : selection.hit
+      ? `${activeCorrectionLayer?.label ?? '-'} / ${sheetRoleLabel(sheetRoleForHit(selection.hit))} ${selection.hit.paperTrack ?? '-'} ${selectedFrameSummary}`
+      : `${activeCorrectionLayer?.label ?? '-'} / ${uiText.app.noCellSelected}`
+  const statusFallbackHint = panel === 'sheet'
+    ? editMode === 'calibrate'
+      ? uiText.statusHints.calibrateMode
+      : editMode === 'pen'
+        ? uiText.statusHints.penMode
+        : editMode === 'eraser'
+          ? uiText.statusHints.eraserMode
+          : editMode === 'text'
+            ? uiText.statusHints.textMode
+            : rangeSelection
+              ? uiText.statusHints.selectedRange(Boolean(timingClipboard))
+              : selection.hit
+                ? uiText.statusHints.selectedCell(Boolean(selectedTimelineEvent))
+                : uiText.statusHints.sheetIdle
+    : ''
+  const statusHintText = activeStatusHint ?? statusFallbackHint
 
   useEffect(() => {
     projectRef.current = project
@@ -850,11 +914,11 @@ export function App() {
         setProjectDocument(createProjectDocumentFromCutProject(nextProject))
         setProjectFilePath(null)
         setHistory(createProjectHistory(nextProject))
-        setPanel('export')
+        switchPanel('export')
         setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
       },
     })
-  }, [])
+  }, [switchPanel])
 
   useEffect(() => {
     if (!isTauriHost() || sheetSourceRuntimePathEntries.length === 0) return undefined
@@ -2318,7 +2382,7 @@ export function App() {
     setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
     setRuntimeSourceImageUrls({})
     setRecognitionCandidates([])
-    setPanel('sheet')
+    switchPanel('sheet')
     setEditMode('new')
     setZoom(1)
     setShowTemplate(true)
@@ -2662,7 +2726,7 @@ export function App() {
         <div className="topIdentity">
           <AppNavigationMenu
             panel={panel}
-            onSelect={setPanel}
+            onSelect={switchPanel}
             onLoadProject={files => void handleLoadProject(files)}
             onSaveProject={() => void handleSaveProjectJson()}
             onSaveProjectAs={() => void handleSaveProjectJson({ saveAs: true })}
@@ -2882,6 +2946,7 @@ export function App() {
             zoom={zoom}
             setZoom={setZoom}
             zoomMode={zoomMode}
+            onStatusHint={setStatusHint}
             suppressAssetPreview={assetDropMenu !== null}
             showTemplate={showTemplate}
             setShowTemplate={setShowTemplate}
@@ -3101,8 +3166,9 @@ export function App() {
       </aside>
 
       <footer className="statusBar">
-        <span>{rangeSummary ? `${activeCorrectionLayer?.label ?? '-'} / ${rangeSummary}` : selection.hit ? `${activeCorrectionLayer?.label ?? '-'} / ${sheetRoleLabel(sheetRoleForHit(selection.hit))} ${selection.hit.paperTrack ?? '-'} ${selectedFrameSummary}` : `${activeCorrectionLayer?.label ?? '-'} / ${uiText.app.noCellSelected}`}</span>
-        <span>{uiText.issue.errorCount(issueErrorCount)} / 警告 {issueWarningCount}件</span>
+        <span className="statusSelection">{statusSelectionText}</span>
+        {statusHintText && <span className={activeStatusHint ? 'statusHint active' : 'statusHint'}>{statusHintText}</span>}
+        <span className="statusIssueSummary">{uiText.issue.errorCount(issueErrorCount)} / 警告 {issueWarningCount}件</span>
       </footer>
     </div>
   )
@@ -3138,6 +3204,7 @@ function SheetPanel(props: {
   zoom: number
   setZoom: (value: number) => void
   zoomMode: boolean
+  onStatusHint: (source: StatusHintSource, text: string | null) => void
   suppressAssetPreview: boolean
   showTemplate: boolean
   setShowTemplate: (value: boolean) => void
@@ -4297,6 +4364,7 @@ function SheetCanvas(props: {
   zoom: number
   setZoom: (value: number) => void
   zoomMode: boolean
+  onStatusHint: (source: StatusHintSource, text: string | null) => void
   suppressAssetPreview: boolean
   showTemplate: boolean
   showTemplateGuides: boolean
@@ -4378,11 +4446,27 @@ function SheetCanvas(props: {
   const previousOverlayTrackNamesRef = useRef<Set<string>>(new Set())
   const timelineEventLongPressTimerRef = useRef<number | null>(null)
   const stackGuideInsertRequestIdRef = useRef(0)
+  const onStatusHint = props.onStatusHint
 
   useEffect(() => {
     hoveredHitSignatureRef.current = null
     hoveredHitHasPreviewRef.current = false
   }, [props.project])
+  useEffect(() => () => {
+    onStatusHint('sheet-hover', null)
+    onStatusHint('sheet-drop', null)
+    onStatusHint('sheet-drag', null)
+    onStatusHint('overlay-paper-track', null)
+  }, [onStatusHint])
+  useEffect(() => {
+    const clearDropStatus = () => onStatusHint('sheet-drop', null)
+    window.addEventListener('dragend', clearDropStatus)
+    window.addEventListener('drop', clearDropStatus)
+    return () => {
+      window.removeEventListener('dragend', clearDropStatus)
+      window.removeEventListener('drop', clearDropStatus)
+    }
+  }, [onStatusHint])
   const hasActiveSheetInteraction = Boolean(draftStroke || draftRange || timelineEventDrag || pendingTimelineEventDrag || isPanning)
   const zoom = props.zoom
   const setZoom = props.setZoom
@@ -4531,7 +4615,9 @@ function SheetCanvas(props: {
 
   useEffect(() => {
     if (!contextMenu && !paperTrackHeaderMenu && !overlayPaperTrackMenu && !stackGuideHeaderMenu) return
-    const close = () => {
+    const close = (event?: globalThis.PointerEvent) => {
+      const target = event?.target
+      if (target instanceof Element && target.closest('.sheetContextMenu')) return
       setContextMenu(null)
       setPaperTrackHeaderMenu(null)
       setOverlayPaperTrackMenu(null)
@@ -4540,10 +4626,10 @@ function SheetCanvas(props: {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') close()
     }
-    window.addEventListener('pointerdown', close)
+    window.addEventListener('pointerdown', close, true)
     window.addEventListener('keydown', closeOnEscape)
     return () => {
-      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('pointerdown', close, true)
       window.removeEventListener('keydown', closeOnEscape)
     }
   }, [contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu])
@@ -4789,6 +4875,25 @@ function SheetCanvas(props: {
       || (types.length === 0 && Boolean(dataTransfer.getData(STACK_GUIDE_DRAG_MIME)))
   }
 
+  function setDropStatusForHit(dataTransfer: DataTransfer, hit: SheetHit | null, assetIds = assetIdsFromDragData(dataTransfer)) {
+    if (!hit?.paperTrack) {
+      props.onStatusHint('sheet-drop', uiText.statusHints.dropUnavailable)
+      return
+    }
+    if (assetIds.length > 1) {
+      props.onStatusHint('sheet-drop', uiText.statusHints.dropMultipleAssetsUnavailable)
+      return
+    }
+    const target = sheetHitTargetLabel(props.project, hit)
+    if (keyIdFromDragData(dataTransfer)) {
+      props.onStatusHint('sheet-drop', uiText.statusHints.dropRegisteredCell(target))
+    } else if (assetIds.length === 1) {
+      props.onStatusHint('sheet-drop', uiText.statusHints.dropAsset(target))
+    } else {
+      props.onStatusHint('sheet-drop', uiText.statusHints.dropFiles(target))
+    }
+  }
+
   function assetIdsFromDragData(dataTransfer: DataTransfer): string[] {
     const types = dragDataTypes(dataTransfer)
     if (hasExternalFileDragPayload(dataTransfer, types)) return []
@@ -4941,6 +5046,7 @@ function SheetCanvas(props: {
       const hasPreview = Boolean(hit && cellAssetPreviewItemsForHit(props.project, hit).length > 0)
       hoveredHitHasPreviewRef.current = hasPreview
       setHoveredHit(hit)
+      props.onStatusHint('sheet-hover', hit ? sheetHitStatusHint(props.project, hit) : null)
     }
     scheduleHoverPreviewAnchor(hoveredHitHasPreviewRef.current, anchor)
   }
@@ -5028,6 +5134,7 @@ function SheetCanvas(props: {
       startY,
       moved: false,
     })
+    props.onStatusHint('sheet-drag', uiText.statusHints.eventDragging)
   }
 
   function updateTimelineEventDragFromClient(pointerId: number, clientX: number, clientY: number, viewport: HTMLElement | null) {
@@ -5091,6 +5198,7 @@ function SheetCanvas(props: {
       focus: focusHit,
       moved: !sameSheetHitCell(sourceHit, focusHit),
     })
+    props.onStatusHint('sheet-drag', uiText.statusHints.rangeDragging)
     clearPendingTimelineEventDrag()
   }
 
@@ -5113,6 +5221,7 @@ function SheetCanvas(props: {
       props.onRangeSelect(range)
     }
     setDraftRange(null)
+    props.onStatusHint('sheet-drag', null)
     return true
   }
 
@@ -5183,6 +5292,7 @@ function SheetCanvas(props: {
     if (hit) {
       event.currentTarget.setPointerCapture?.(event.pointerId)
       setDraftRange({ pointerId: event.pointerId, anchor: hit, focus: hit, moved: false })
+      props.onStatusHint('sheet-drag', uiText.statusHints.rangeDragging)
       return
     }
     props.onClearSelection()
@@ -5274,6 +5384,7 @@ function SheetCanvas(props: {
         }
         clearPendingTimelineEventDrag()
         setTimelineEventDrag(nextDrag)
+        props.onStatusHint('sheet-drag', uiText.statusHints.eventDragging)
         return
       }
       return
@@ -5301,6 +5412,7 @@ function SheetCanvas(props: {
     event.stopPropagation()
     const current = timelineEventDrag
     setTimelineEventDrag(null)
+    props.onStatusHint('sheet-drag', null)
     clearHover()
     const target = dropTargetFromClientPoint(event.clientX, event.clientY)
     const releaseHit = target?.hit?.paperTrack && sheetRoleForHit(target.hit) === sheetRoleForHit(current.sourceHit)
@@ -5318,6 +5430,7 @@ function SheetCanvas(props: {
       event.preventDefault()
       event.stopPropagation()
       setDraftRange(null)
+      props.onStatusHint('sheet-drag', null)
       return
     }
     if (pendingTimelineEventDrag && pendingTimelineEventDrag.pointerId === event.pointerId) {
@@ -5330,6 +5443,7 @@ function SheetCanvas(props: {
     event.preventDefault()
     event.stopPropagation()
     setTimelineEventDrag(null)
+    props.onStatusHint('sheet-drag', null)
     clearHover()
   }
 
@@ -5644,6 +5758,7 @@ function SheetCanvas(props: {
     if (timelineEventDrag && timelineEventDrag.pointerId === event.pointerId) {
       const current = timelineEventDrag
       setTimelineEventDrag(null)
+      props.onStatusHint('sheet-drag', null)
       clearHover()
       const target = dropTargetFromClientPoint(event.clientX, event.clientY)
       const releaseHit = target?.hit?.paperTrack && sheetRoleForHit(target.hit) === sheetRoleForHit(current.sourceHit)
@@ -5668,6 +5783,7 @@ function SheetCanvas(props: {
   async function handleDrop(event: DragEvent<SVGSVGElement>, page: SheetPage) {
     event.preventDefault()
     event.stopPropagation()
+    props.onStatusHint('sheet-drop', null)
     const dataTransfer = event.dataTransfer
     props.setActivePageIndex(page.pageIndex)
     if (moveStackGuideLabelFromDragData(dataTransfer, event.clientX, event.clientY)) {
@@ -5708,7 +5824,8 @@ function SheetCanvas(props: {
     autoScrollViewportForDrag(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))
     if (hasStackGuideDragPayload(event.dataTransfer)) {
       event.dataTransfer.dropEffect = 'move'
-      updateStackGuideDropPreview(stackGuideLabelIdFromDragData(event.dataTransfer) || undefined, event.clientX, event.clientY)
+      const target = updateStackGuideDropPreview(stackGuideLabelIdFromDragData(event.dataTransfer) || undefined, event.clientX, event.clientY)
+      props.onStatusHint('sheet-drop', target ? uiText.statusHints.dropStackGuide : uiText.statusHints.dropUnavailable)
       clearHover()
       return
     }
@@ -5725,10 +5842,12 @@ function SheetCanvas(props: {
     })
     if (assetIds.length > 1 && hit) {
       event.dataTransfer.dropEffect = 'none'
+      setDropStatusForHit(event.dataTransfer, hit, assetIds)
       clearHover()
       return
     }
     event.dataTransfer.dropEffect = 'copy'
+    setDropStatusForHit(event.dataTransfer, hit, assetIds)
     updateHover(hit, { x: event.clientX, y: event.clientY })
   }
 
@@ -5738,7 +5857,8 @@ function SheetCanvas(props: {
     autoScrollViewportForDrag(event, event.currentTarget)
     if (hasStackGuideDragPayload(event.dataTransfer)) {
       event.dataTransfer.dropEffect = 'move'
-      updateStackGuideDropPreview(stackGuideLabelIdFromDragData(event.dataTransfer) || undefined, event.clientX, event.clientY)
+      const target = updateStackGuideDropPreview(stackGuideLabelIdFromDragData(event.dataTransfer) || undefined, event.clientX, event.clientY)
+      props.onStatusHint('sheet-drop', target ? uiText.statusHints.dropStackGuide : uiText.statusHints.dropUnavailable)
       clearHover()
       return
     }
@@ -5757,13 +5877,16 @@ function SheetCanvas(props: {
     })
     if (assetIds.length > 1 && hit) {
       event.dataTransfer.dropEffect = 'none'
+      setDropStatusForHit(event.dataTransfer, hit, assetIds)
       clearHover()
       return
     }
     if (target) {
       props.setActivePageIndex(target.page.pageIndex)
+      setDropStatusForHit(event.dataTransfer, hit, assetIds)
       updateHover(hit, { x: event.clientX, y: event.clientY })
     } else {
+      props.onStatusHint('sheet-drop', uiText.statusHints.dropUnavailable)
       clearHover()
     }
   }
@@ -5771,6 +5894,7 @@ function SheetCanvas(props: {
   async function handleViewportDrop(event: DragEvent<HTMLDivElement>) {
     if (!hasSheetDropPayload(event.dataTransfer)) return
     event.preventDefault()
+    props.onStatusHint('sheet-drop', null)
     const dataTransfer = event.dataTransfer
     if (moveStackGuideLabelFromDragData(dataTransfer, event.clientX, event.clientY)) {
       clearHover()
@@ -5829,6 +5953,7 @@ function SheetCanvas(props: {
     const startScrollTop = panViewport.scrollTop
     panningRef.current = true
     setIsPanning(true)
+    props.onStatusHint('sheet-drag', uiText.statusHints.panning)
 
     function stopPan(nextEvent: globalThis.PointerEvent) {
       if (nextEvent.pointerId !== pointerId) return
@@ -5837,6 +5962,7 @@ function SheetCanvas(props: {
       window.removeEventListener('pointercancel', stopPan)
       panningRef.current = false
       setIsPanning(false)
+      props.onStatusHint('sheet-drag', null)
     }
 
     function movePan(nextEvent: globalThis.PointerEvent) {
@@ -5980,6 +6106,7 @@ function SheetCanvas(props: {
                     setDraftStroke(null)
                     setDraftRange(null)
                     setTimelineEventDrag(null)
+                    props.onStatusHint('sheet-drag', null)
                     clearHover()
                   }}
                   onPointerLeave={clearHover}
@@ -6180,6 +6307,7 @@ function SheetCanvas(props: {
                     }}
                     onOpenPaperTrackMenu={(track, position) => openOverlayPaperTrackMenu(track, position)}
                     onDragChange={setOverlayTrackDrag}
+                    onStatusHint={props.onStatusHint}
                     onUpdatePaperTrack={props.onUpdatePaperTrack}
                   />
                 )}
@@ -7110,6 +7238,7 @@ const DEFAULT_STACK_GUIDE_LABEL_CONNECTOR_STROKE_PX = 4
 const DEFAULT_STACK_GUIDE_LABEL_CHAR_WIDTH_PX = 6
 const DEFAULT_STACK_GUIDE_LABEL_RADIUS_PX = 2
 const DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX = 3
+const OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS = 650
 
 interface StackGuideLabelMetrics {
   baseOffsetPx: number
@@ -8634,6 +8763,7 @@ function OverlayPaperTrackInteractionLayer({
   onActivePaperTrackChange,
   onOpenPaperTrackMenu,
   onDragChange,
+  onStatusHint,
   onUpdatePaperTrack,
 }: {
   project: CutProject
@@ -8647,6 +8777,7 @@ function OverlayPaperTrackInteractionLayer({
   onActivePaperTrackChange: (paperTrack: string | null) => void
   onOpenPaperTrackMenu: (track: PaperTrack, position: { x: number; y: number }) => void
   onDragChange: (drag: OverlayPaperTrackDrag | null) => void
+  onStatusHint: (source: StatusHintSource, text: string | null) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
 }) {
   const layerRef = useRef<HTMLDivElement | null>(null)
@@ -8698,12 +8829,14 @@ function OverlayPaperTrackInteractionLayer({
       }
       dragRef.current = null
       onDragChange(null)
+      onStatusHint('sheet-drag', null)
     }
 
     function handlePointerCancel() {
       if (dragRef.current?.pageId !== page.pageId) return
       dragRef.current = null
       onDragChange(null)
+      onStatusHint('sheet-drag', null)
     }
 
     window.addEventListener('pointermove', handlePointerMove)
@@ -8714,7 +8847,7 @@ function OverlayPaperTrackInteractionLayer({
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('pointercancel', handlePointerCancel)
     }
-  }, [activePaperTrack, onActivePaperTrackChange, onDragChange, onUpdatePaperTrack, page.pageId, project, template])
+  }, [activePaperTrack, onActivePaperTrackChange, onDragChange, onStatusHint, onUpdatePaperTrack, page.pageId, project, template])
 
   return (
     <div ref={layerRef} className="overlayPaperTrackInteractionLayer">
@@ -8723,9 +8856,10 @@ function OverlayPaperTrackInteractionLayer({
         const inputStateLabel = isInputTarget
           ? uiText.actions.overlayPaperTrackInputActive(track.label)
           : uiText.actions.overlayPaperTrackInputInactive(track.label)
-        const title = `${inputStateLabel}\n${uiText.actions.overlayPaperTrackEdit(track.label)}`
+        const title = `${inputStateLabel}\n${uiText.actions.overlayPaperTrackEdit}`
+        const statusHint = uiText.statusHints.overlayPaperTrack(track.label, isInputTarget)
         return (
-          <TooltipTarget key={track.paperTrack} label={title}>
+          <TooltipTarget key={track.paperTrack} label={title} delayMs={OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS}>
             {tooltipProps => (
               <button
                 {...tooltipProps}
@@ -8757,6 +8891,23 @@ function OverlayPaperTrackInteractionLayer({
                   }
                   dragRef.current = nextDrag
                   onDragChange(nextDrag)
+                  onStatusHint('sheet-drag', uiText.statusHints.overlayPaperTrackDragging(track.label))
+                }}
+                onPointerEnter={event => {
+                  tooltipProps.onPointerEnter(event)
+                  onStatusHint('overlay-paper-track', statusHint)
+                }}
+                onPointerLeave={() => {
+                  tooltipProps.onPointerLeave()
+                  onStatusHint('overlay-paper-track', null)
+                }}
+                onFocus={event => {
+                  tooltipProps.onFocus(event)
+                  onStatusHint('overlay-paper-track', statusHint)
+                }}
+                onBlur={() => {
+                  tooltipProps.onBlur()
+                  onStatusHint('overlay-paper-track', null)
                 }}
                 onContextMenu={event => {
                   event.preventDefault()
@@ -8766,6 +8917,7 @@ function OverlayPaperTrackInteractionLayer({
                 onPointerCancel={() => {
                   dragRef.current = null
                   onDragChange(null)
+                  onStatusHint('sheet-drag', null)
                 }}
               />
             )}

@@ -1868,6 +1868,7 @@ textarea,
 }
 
 .gridLine {
+  fill: none;
   stroke: #8b908a;
   stroke-width: 0.8px;
   vector-effect: non-scaling-stroke;
@@ -5825,6 +5826,30 @@ button.registeredCellFirstUse:focus-visible {
   stroke: transparent;
 }
 
+.templateStaticLayer {
+  pointer-events: none;
+}
+
+.templateInteractionOverlay {
+  pointer-events: none;
+}
+
+.templateEditorHitSurface {
+  fill: transparent;
+  pointer-events: all;
+  cursor: default;
+}
+
+.templateEditorHitSurface.interactive {
+  cursor: pointer;
+}
+
+.templateRegionHighlight {
+  fill: rgb(65 107 90 / 0.08);
+  stroke: transparent;
+  pointer-events: none;
+}
+
 .templateCalibrationTargetOutline {
   fill: transparent;
   stroke: #1767a8;
@@ -5837,6 +5862,10 @@ button.registeredCellFirstUse:focus-visible {
 .templateCalibrationTargetOutline.selected {
   fill: rgb(23 103 168 / 0.08);
   stroke-width: 2px;
+}
+
+.templateCalibrationTargetOutline.hovered {
+  fill: rgb(23 103 168 / 0.06);
 }
 
 .templateCalibrationTargetHit {

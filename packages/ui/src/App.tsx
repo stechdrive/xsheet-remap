@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FocusEvent, type FormEvent, type MouseEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FocusEvent, type FormEvent, type MouseEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   addAnnotation,
@@ -70,7 +70,6 @@ import {
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
-  sheetGridRowY,
   setEvent,
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
@@ -203,6 +202,21 @@ import {
   STANDARD_A3_GRID_HEADER_HEIGHT,
   STANDARD_A3_GRID_HEADER_TOP_OFFSET,
 } from './sheetConstants'
+import {
+  buildTemplateChromeRenderModel,
+  buildTemplateEditorRenderModel,
+  buildTemplateGridOverlayRenderModel,
+  gridHeaderLabelForRole,
+  gridHeaderRolesForTemplate,
+  gridRowLineClassName,
+  hitTestTemplateEditorTarget,
+  templateGridHeaderFontSizePx,
+  templateEditorHitRadius,
+  templateEditorPointFromClientRect,
+  type TemplateChromeRenderModel,
+  type TemplateEditorTarget,
+  type TemplateGridOverlayRenderModel,
+} from './templateEditorGeometry'
 import {
   DEFAULT_TEXT_FONT_SIZE_PX,
   TEXT_FONT_SIZE_MAX_PX,
@@ -478,8 +492,6 @@ type CalibrationGuideMetrics = {
   hitRadiusX: number
   hitRadiusY: number
 }
-
-const TEMPLATE_GRID_HEADER_ROLE_ORDER: TemplateGridRole[] = ['action', 'sound', 'cell', 'camera', 'frame-guide', 'count-table', 'other']
 
 function clientPointCandidatesFromNativeDropPosition(position: { x: number; y: number }): Array<{ x: number; y: number }> {
   const scale = window.devicePixelRatio || 1
@@ -8463,177 +8475,87 @@ function calibrationHandlePath(point: NormalizedPoint, metrics: CalibrationGuide
   ].join(' ')
 }
 
-function TemplateChrome({ template, paperTracks = template.defaults.paperTracks, durationFrames = template.defaults.durationFrames }: { template: SheetTemplate; paperTracks?: string[]; durationFrames?: number }) {
-  const showOuterFrame = template.templateKind !== 'digital-native'
+const TemplateChrome = memo(function TemplateChrome({
+  template,
+  paperTracks = template.defaults.paperTracks,
+  durationFrames = template.defaults.durationFrames,
+}: {
+  template: SheetTemplate
+  paperTracks?: string[]
+  durationFrames?: number
+}) {
+  const model = useMemo(
+    () => buildTemplateChromeRenderModel(template, paperTracks, durationFrames),
+    [durationFrames, paperTracks, template],
+  )
+  return <TemplateChromeLayer model={model} />
+})
+
+function TemplateChromeLayer({ model }: { model: TemplateChromeRenderModel }) {
   return (
     <g className="templateChrome" aria-hidden="true">
-      {showOuterFrame && <rect className="templateOuterFrame" x="0.02" y="0.019" width="0.96" height="0.952" />}
-      <TemplateReferenceRegions template={template} durationFrames={durationFrames} />
-      {template.regions.filter(region => region.type === 'exposure-grid' && region.grid).map(region => (
-        <GridHeader key={region.regionId} template={template} region={region} paperTracks={paperTracks} durationFrames={durationFrames} />
+      {model.showOuterFrame && <rect className="templateOuterFrame" x="0.02" y="0.019" width="0.96" height="0.952" />}
+      <g>
+        {model.referenceRegions.map(region => (
+          <g key={region.regionId} className={`templateReferenceRegion ${region.type}`}>
+            <rect className="templateReferenceBox" x={region.rect.x} y={region.rect.y} width={region.rect.w} height={region.rect.h} />
+          </g>
+        ))}
+      </g>
+      {model.headers.map(header => (
+        <g key={header.regionId}>
+          <rect className="templateHeaderBox" style={{ fill: 'none' }} x={header.rect.x} y={header.rect.y} width={header.rect.w} height={header.rect.h} />
+          {header.label ? <text className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSize={header.labelFontSize}>{header.label}</text> : null}
+          {header.columns.map(column => (
+            <text key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" fontSize={column.fontSize}>{column.label}</text>
+          ))}
+        </g>
       ))}
     </g>
   )
 }
 
-function TemplateReferenceRegions({ template, durationFrames = template.defaults.durationFrames }: { template: SheetTemplate; durationFrames?: number }) {
-  return (
-    <g>
-      {template.regions.filter(region => region.type !== 'exposure-grid' && region.usage !== 'ignored').map(region => {
-        const rect = resolveSheetTemplateRegionRect(template, region, durationFrames)
-        return (
-          <g key={region.regionId} className={`templateReferenceRegion ${region.type}`}>
-            <rect className="templateReferenceBox" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
-          </g>
-        )
-      })}
-    </g>
+const GridOverlay = memo(function GridOverlay({
+  template,
+  region,
+  paperTracks = template.defaults.paperTracks,
+  durationFrames = template.defaults.durationFrames,
+  frameOrigin = template.defaults.frameOrigin,
+}: {
+  template: SheetTemplate
+  region: SheetTemplate['regions'][number]
+  paperTracks?: string[]
+  durationFrames?: number
+  frameOrigin?: number
+}) {
+  const model = useMemo(
+    () => buildTemplateGridOverlayRenderModel(template, region, { paperTracks, durationFrames, frameOrigin }),
+    [durationFrames, frameOrigin, paperTracks, region, template],
   )
-}
+  return model ? <GridOverlayLayer model={model} /> : null
+})
 
-function gridHeaderRolesForTemplate(template: SheetTemplate): TemplateGridRole[] {
-  const roles = new Set<TemplateGridRole>()
-  for (const region of template.regions) {
-    if (region.type === 'exposure-grid' && region.grid) roles.add(region.grid.role)
-  }
-  return TEMPLATE_GRID_HEADER_ROLE_ORDER.filter(role => roles.has(role))
-}
-
-function gridHeaderLabelForRole(template: SheetTemplate, role: TemplateGridRole): string {
-  const labelOverrides = template.style?.gridHeader?.labelOverrides
-  return labelOverrides && role in labelOverrides
-    ? labelOverrides[role] ?? ''
-    : gridRoleLabel(role)
-}
-
-function GridHeader({ template, region, paperTracks = template.defaults.paperTracks, durationFrames = template.defaults.durationFrames }: { template: SheetTemplate; region: SheetTemplate['regions'][number]; paperTracks?: string[]; durationFrames?: number }) {
-  if (!region.grid) return null
-  const layout = resolveSheetTemplateGridLayout(template, region, { paperTracks, durationFrames })
-  if (!layout) return null
-  const rect = layout.rect
-  const pageSize = layout.pageSize
-  const headerTopOffset = (STANDARD_A3_GRID_HEADER_TOP_OFFSET * template.page.heightPx) / pageSize.heightPx
-  const headerHeight = (STANDARD_A3_GRID_HEADER_HEIGHT * template.page.heightPx) / pageSize.heightPx
-  const headerFontSize = templateGridHeaderFontSizePx(template) / pageSize.heightPx
-  const columnFontSize = templateGridColumnFontSizePx(template) / pageSize.heightPx
-  const columnBaselineOffset = (0.0025 * template.page.heightPx) / pageSize.heightPx
-  const columns = layout.columns
-  const y = rect.y - headerTopOffset
-  const label = gridHeaderLabelForRole(template, region.grid.role)
+function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderModel }) {
   return (
-    <g>
-      <rect className="templateHeaderBox" style={{ fill: 'none' }} x={rect.x} y={y} width={rect.w} height={headerHeight} />
-      {label ? <text className="templateHeaderText" x={rect.x + rect.w / 2} y={y + headerHeight / 2} textAnchor="middle" fontSize={headerFontSize}>{label}</text> : null}
-      {columns.map(column => {
-        const x = column.x + column.w / 2
-        return <text key={column.columnId} className="templateColumnText" x={x} y={rect.y - columnBaselineOffset} textAnchor="middle" fontSize={columnFontSize}>{column.label}</text>
-      })}
-    </g>
-  )
-}
-
-function templateGridHeaderFontSizePx(template: SheetTemplate): number {
-  if (template.templateKind === 'digital-native') return 18
-  return 0.0075 * template.page.heightPx
-}
-
-function templateGridColumnFontSizePx(template: SheetTemplate): number {
-  if (template.templateKind === 'digital-native') return 15
-  return 0.0065 * template.page.heightPx
-}
-
-type TemplateGridConfig = NonNullable<SheetTemplate['regions'][number]['grid']>
-type TemplateGridRowLabelRule = NonNullable<TemplateGridConfig['rowLabelRules']>[number]
-
-const GRID_ROW_LINE_WEIGHT_ORDER = {
-  thin: 0,
-  regular: 1,
-  medium: 2,
-  strong: 3,
-} as const
-
-function gridRowLineWeight(grid: Pick<TemplateGridConfig, 'majorLineEvery' | 'rowLineRules'>, row: number): keyof typeof GRID_ROW_LINE_WEIGHT_ORDER {
-  if (grid.rowLineRules?.length) {
-    return grid.rowLineRules.reduce<keyof typeof GRID_ROW_LINE_WEIGHT_ORDER>((selected, rule) => {
-      if (rule.every <= 0) return selected
-      const offset = rule.offset ?? 0
-      if ((row - offset) % rule.every !== 0) return selected
-      return GRID_ROW_LINE_WEIGHT_ORDER[rule.weight] > GRID_ROW_LINE_WEIGHT_ORDER[selected] ? rule.weight : selected
-    }, 'thin')
-  }
-  return row % (grid.majorLineEvery ?? 999) === 0 ? 'strong' : 'thin'
-}
-
-function gridRowLineClassName(grid: Pick<TemplateGridConfig, 'majorLineEvery' | 'rowLineRules'>, row: number): string {
-  const weight = gridRowLineWeight(grid, row)
-  if (weight === 'strong') return 'gridLine gridLineStrong gridLineMajor'
-  if (weight === 'medium') return 'gridLine gridLineMedium'
-  if (weight === 'regular') return 'gridLine gridLineRegular'
-  return 'gridLine'
-}
-
-function gridRowLabelText(template: SheetTemplate, frames: { frameStart: number; rowCount: number }, row: number, rule: TemplateGridRowLabelRule): string | null {
-  if (rule.every <= 0) return null
-  if (rule.skipRowZero && row === 0) return null
-  const offset = rule.offset ?? 0
-  if ((row - offset) % rule.every !== 0) return null
-  if (rule.format === 'elapsed-seconds') {
-    const boundaryFrame = frames.frameStart + row - 1
-    return String(Math.floor((boundaryFrame - template.defaults.frameOrigin + 1) / rule.every))
-  }
-  return null
-}
-
-function GridOverlay({ template, region, paperTracks = template.defaults.paperTracks, durationFrames = template.defaults.durationFrames, frameOrigin = template.defaults.frameOrigin }: { template: SheetTemplate; region: SheetTemplate['regions'][number]; paperTracks?: string[]; durationFrames?: number; frameOrigin?: number }) {
-  if (!region.grid) return null
-  if (region.grid.role === 'sound' && template.templateKind !== 'digital-native') return null
-  const layout = resolveSheetTemplateGridLayout(template, region, { paperTracks, durationFrames, frameOrigin })
-  if (!layout) return null
-  const rect = layout.rect
-  const pageSize = layout.pageSize
-  const columns = layout.columns
-  const frames = layout.frames
-  const lines = []
-  const renderHorizontalLines = !(template.templateKind === 'digital-native' && region.grid.role === 'sound')
-  if (renderHorizontalLines) {
-    for (let row = 0; row <= frames.rowCount; row += 1) {
-      const y = sheetGridRowY(layout, row)
-      lines.push(<line key={`r${row}`} className={`${gridRowLineClassName(region.grid, row)} gridLineRow`} x1={rect.x} x2={rect.x + rect.w} y1={y} y2={y} />)
-    }
-  }
-  const columnLines = [
-    ...columns.map(column => column.x),
-    columns.at(-1) ? columns.at(-1)!.x + columns.at(-1)!.w : rect.x + rect.w,
-  ]
-  for (const [col, x] of columnLines.entries()) {
-    lines.push(<line key={`c${col}`} className="gridLine gridLineColumn" x1={x} x2={x} y1={rect.y} y2={rect.y + rect.h} />)
-  }
-  const labels = region.grid.rowLabelRules?.flatMap((rule, ruleIndex) => {
-    const xOffset = (rule.xOffsetPx ?? 6) / pageSize.widthPx
-    const yOffset = (rule.yOffsetPx ?? 0) / pageSize.heightPx
-    const fontSize = (rule.fontSizePx ?? 20) / pageSize.heightPx
-    const minY = rect.y + fontSize
-    const maxY = rect.y + rect.h - fontSize * 0.25
-    const x = rule.xAnchor === 'end' ? rect.x + rect.w - xOffset : rect.x + xOffset
-    return Array.from({ length: frames.rowCount + 1 }, (_, row) => {
-      const text = gridRowLabelText(template, frames, row, rule)
-      if (text === null) return null
-      const y = clampNumber(sheetGridRowY(layout, row) + yOffset, minY, maxY)
-      return (
+    <g className={`gridOverlay gridOverlay-${model.role}`}>
+      {model.rowPaths.map(path => (
+        <path key={path.className} className={path.className} d={path.d} />
+      ))}
+      {model.columnPath && <path className={model.columnPath.className} d={model.columnPath.d} />}
+      {model.labels.map(label => (
         <text
-          key={`label-${ruleIndex}-${row}`}
+          key={label.key}
           className="gridRowGuideLabel"
-          x={x}
-          y={y}
-          textAnchor={rule.xAnchor === 'end' ? 'end' : 'start'}
-          fontSize={fontSize}
+          x={label.x}
+          y={label.y}
+          textAnchor={label.textAnchor}
+          fontSize={label.fontSize}
         >
-          {text}
+          {label.text}
         </text>
-      )
-    })
-  }) ?? []
-  return <g className={`gridOverlay gridOverlay-${region.grid.role}`}>{lines}{labels}</g>
+      ))}
+    </g>
+  )
 }
 
 function WorkRangeOverlay({
@@ -9344,7 +9266,7 @@ interface OverlayBandSegment {
   columnWidth: number
   snapCount: number
   majorLineEvery?: number
-  rowLineRules?: TemplateGridConfig['rowLineRules']
+  rowLineRules?: NonNullable<SheetTemplate['regions'][number]['grid']>['rowLineRules']
 }
 
 function overlayBandSegments(template: SheetTemplate, project: CutProject, role: SheetTimingRole): OverlayBandSegment[] {
@@ -12611,17 +12533,57 @@ function TemplateRegionEditor({
   selectedRegionId: string | null
   onSelectRegion: (regionId: string) => void
 }) {
-  const calibrationTargetRect = calibrationTargetRectForTemplate(template)
+  const renderModel = useMemo(() => buildTemplateEditorRenderModel(template), [template])
+  const calibrationTargetRect = renderModel.calibrationTargetRect
   const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
   const selectedRegion = selectedRegionId && !isCalibrationTargetSelected ? template.regions.find(region => region.regionId === selectedRegionId) ?? null : null
+  const [hoveredTargetId, setHoveredTargetId] = useState<string | null>(null)
+  const regionHitRadius = useMemo(() => templateEditorHitRadius(template, zoom, 6), [template, zoom])
+  const calibrationHitRadius = useMemo(() => templateEditorHitRadius(template, zoom, 9), [template, zoom])
+  const effectiveHoveredTargetId = hoveredTargetId === TEMPLATE_CALIBRATION_TARGET_ID
+    ? calibrationTargetRect ? hoveredTargetId : null
+    : hoveredTargetId && template.regions.some(region => region.regionId === hoveredTargetId)
+      ? hoveredTargetId
+      : null
+  const hoveredRegion = effectiveHoveredTargetId && effectiveHoveredTargetId !== selectedRegionId && effectiveHoveredTargetId !== TEMPLATE_CALIBRATION_TARGET_ID
+    ? template.regions.find(region => region.regionId === effectiveHoveredTargetId) ?? null
+    : null
+  const isCalibrationTargetHovered = effectiveHoveredTargetId === TEMPLATE_CALIBRATION_TARGET_ID && !isCalibrationTargetSelected
 
   function pointFromEvent(event: PointerEvent<SVGSVGElement> | PointerEvent<SVGElement>) {
     const svg = event.currentTarget.ownerSVGElement ?? event.currentTarget
-    const box = svg.getBoundingClientRect()
-    return {
-      x: (event.clientX - box.left) / box.width,
-      y: (event.clientY - box.top) / box.height,
-    }
+    return templateEditorPointFromClientRect(svg.getBoundingClientRect(), event.clientX, event.clientY)
+  }
+
+  function targetFromEvent(event: PointerEvent<SVGElement>): TemplateEditorTarget | null {
+    return hitTestTemplateEditorTarget(template, pointFromEvent(event), {
+      calibrationTargetRect,
+      calibrationHitRadius,
+      regionHitRadius,
+    })
+  }
+
+  function targetId(target: TemplateEditorTarget | null): string | null {
+    if (!target) return null
+    return target.kind === 'calibration-target' ? TEMPLATE_CALIBRATION_TARGET_ID : target.regionId
+  }
+
+  function handleHitSurfacePointerMove(event: PointerEvent<SVGElement>) {
+    const nextTargetId = targetId(targetFromEvent(event))
+    setHoveredTargetId(current => current === nextTargetId ? current : nextTargetId)
+  }
+
+  function handleHitSurfacePointerLeave() {
+    setHoveredTargetId(null)
+  }
+
+  function handleHitSurfacePointerDown(event: PointerEvent<SVGElement>) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    const target = targetFromEvent(event)
+    if (!target) return
+    event.preventDefault()
+    event.stopPropagation()
+    onSelectRegion(target.kind === 'calibration-target' ? TEMPLATE_CALIBRATION_TARGET_ID : target.regionId)
   }
 
   function updateEdge(edge: TemplateRegionEdge, point: NormalizedPoint) {
@@ -12645,10 +12607,7 @@ function TemplateRegionEditor({
       const svg = target.ownerSVGElement
       if (!svg) return
       const box = svg.getBoundingClientRect()
-      updateEdge(edge, {
-        x: (nextEvent.clientX - box.left) / box.width,
-        y: (nextEvent.clientY - box.top) / box.height,
-      })
+      updateEdge(edge, templateEditorPointFromClientRect(box, nextEvent.clientX, nextEvent.clientY))
     }
     const stop = (nextEvent: globalThis.PointerEvent) => {
       if (nextEvent.pointerId !== pointerId) return
@@ -12697,56 +12656,56 @@ function TemplateRegionEditor({
           aria-label={uiText.template.editorLabel}
           style={{ width: `${template.page.widthPx * zoom}px`, aspectRatio: `${template.page.widthPx} / ${template.page.heightPx}` }}
         >
-          <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
-          {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={template} preview />}
-          <TemplateChrome template={template} />
-          {template.regions.filter(region => region.type === 'exposure-grid').map(region => (
-            <GridOverlay key={region.regionId} template={template} region={region} />
-          ))}
-          {template.regions.map(region => (
+          <g className="templateStaticLayer" aria-hidden="true">
+            <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
+            {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={template} forceRaw preview />}
+            <TemplateChromeLayer model={renderModel.chrome} />
+            {renderModel.gridOverlays.map(model => (
+              <GridOverlayLayer key={model.regionId} model={model} />
+            ))}
+          </g>
+          <g className="templateInteractionOverlay">
+            {hoveredRegion && (
+              <rect
+                className="templateRegionHighlight hovered"
+                x={hoveredRegion.rect.x}
+                y={hoveredRegion.rect.y}
+                width={hoveredRegion.rect.w}
+                height={hoveredRegion.rect.h}
+              />
+            )}
+            {calibrationTargetRect && (
+              <g className="templateCalibrationTarget">
+                <rect
+                  className={[
+                    'templateCalibrationTargetOutline',
+                    isCalibrationTargetSelected ? 'selected' : '',
+                    isCalibrationTargetHovered ? 'hovered' : '',
+                  ].filter(Boolean).join(' ')}
+                  x={calibrationTargetRect.x}
+                  y={calibrationTargetRect.y}
+                  width={calibrationTargetRect.w}
+                  height={calibrationTargetRect.h}
+                />
+              </g>
+            )}
             <rect
-              key={region.regionId}
-              className={region.regionId === selectedRegionId ? 'templateRegionHit selected' : 'templateRegionHit'}
-              x={region.rect.x}
-              y={region.rect.y}
-              width={region.rect.w}
-              height={region.rect.h}
-              onPointerDown={event => {
-                event.preventDefault()
-                event.stopPropagation()
-                onSelectRegion(region.regionId)
-              }}
+              className={effectiveHoveredTargetId ? 'templateEditorHitSurface interactive' : 'templateEditorHitSurface'}
+              x="0"
+              y="0"
+              width="1"
+              height="1"
+              onPointerMove={handleHitSurfacePointerMove}
+              onPointerLeave={handleHitSurfacePointerLeave}
+              onPointerDown={handleHitSurfacePointerDown}
             />
-          ))}
-          {calibrationTargetRect && (
-            <g className="templateCalibrationTarget">
-              <rect
-                className={isCalibrationTargetSelected ? 'templateCalibrationTargetOutline selected' : 'templateCalibrationTargetOutline'}
-                x={calibrationTargetRect.x}
-                y={calibrationTargetRect.y}
-                width={calibrationTargetRect.w}
-                height={calibrationTargetRect.h}
-              />
-              <rect
-                className={isCalibrationTargetSelected ? 'templateCalibrationTargetHit selected' : 'templateCalibrationTargetHit'}
-                x={calibrationTargetRect.x}
-                y={calibrationTargetRect.y}
-                width={calibrationTargetRect.w}
-                height={calibrationTargetRect.h}
-                onPointerDown={event => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onSelectRegion(TEMPLATE_CALIBRATION_TARGET_ID)
-                }}
-              />
-            </g>
-          )}
-          {selectedRegion && (
-            <TemplateEditHandles rect={selectedRegion.rect} onEdgePointerDown={handleEdgePointerDown} />
-          )}
-          {isCalibrationTargetSelected && calibrationTargetRect && (
-            <TemplateEditHandles rect={calibrationTargetRect} variant="calibrationTarget" onEdgePointerDown={handleEdgePointerDown} />
-          )}
+            {selectedRegion && (
+              <TemplateEditHandles rect={selectedRegion.rect} onEdgePointerDown={handleEdgePointerDown} />
+            )}
+            {isCalibrationTargetSelected && calibrationTargetRect && (
+              <TemplateEditHandles rect={calibrationTargetRect} variant="calibrationTarget" onEdgePointerDown={handleEdgePointerDown} />
+            )}
+          </g>
         </svg>
       </div>
       <div className="templateEditorCaption">

@@ -50,6 +50,10 @@ export function calibrationPointsForSettings(settings: SheetImageSettings, templ
 
 export function calibrationTargetRectForTemplate(template?: Pick<SheetTemplate, 'calibration' | 'regions'>): NormalizedRect | null {
   if (template?.calibration?.targetRect) return template.calibration.targetRect
+  return calibrationGridBoundsForTemplate(template)
+}
+
+export function calibrationGridBoundsForTemplate(template?: Pick<SheetTemplate, 'regions'>): NormalizedRect | null {
   const rects = template?.regions
     .filter(region => region.type === 'exposure-grid' && region.grid && calibrationGridRoles.has(region.grid.role))
     .map(region => region.rect) ?? []

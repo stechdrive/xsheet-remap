@@ -220,6 +220,7 @@ import {
   type AnnotationTextPageSize,
 } from './annotationTextLayout'
 import {
+  calibrationGridBoundsForTemplate,
   calibrationPointsForSettings,
   calibrationTargetRectForTemplate,
   clampPoint,
@@ -276,9 +277,12 @@ import {
   defaultColumnCountForRole,
   defaultRegionLabel,
   gridRoleLabel,
+  clearTemplateCalibrationTargetRect,
+  setTemplateCalibrationTargetRect,
   trackProjectionForRole,
   type TemplateGridRole,
   type TemplateRegionEdge,
+  updateTemplateCalibrationTargetRectEdge,
   updateTemplateRegionEdge,
 } from './templateEditing'
 
@@ -303,6 +307,7 @@ const TIMELINE_EVENT_DRAG_THRESHOLD_PX = 4
 const CONTINUOUS_CANVAS_MIN_FRAME_ROW_PX = 10
 const APP_NAV_PANELS: Panel[] = ['sheet', 'bindings', 'slots', 'template', 'recognition', 'export']
 const STATUS_HINT_SOURCE_ORDER = ['sheet-drag', 'sheet-drop', 'overlay-paper-track', 'sheet-hover'] as const
+const TEMPLATE_CALIBRATION_TARGET_ID = '__template_calibration_target__'
 
 type StatusHintSource = typeof STATUS_HINT_SOURCE_ORDER[number]
 type StatusHints = Partial<Record<StatusHintSource, string>>
@@ -12062,8 +12067,16 @@ function TemplatePanel({
   const [templateZoom, setTemplateZoom] = useState(1)
   const [dockWidth, setDockWidth] = useState(380)
   const [processSettingsOpen, setProcessSettingsOpen] = useState(false)
-  const selectedRegion = editableRegions.find(region => region.regionId === selectedRegionId) ?? editableRegions[0] ?? null
-  const effectiveSelectedRegionId = selectedRegion?.regionId ?? null
+  const calibrationTargetRect = calibrationTargetRectForTemplate(template)
+  const calibrationGridBounds = calibrationGridBoundsForTemplate(template)
+  const hasExplicitCalibrationTarget = Boolean(template.calibration?.targetRect)
+  const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
+  const selectedRegion = isCalibrationTargetSelected
+    ? null
+    : selectedRegionId
+      ? editableRegions.find(region => region.regionId === selectedRegionId) ?? editableRegions[0] ?? null
+      : editableRegions[0] ?? null
+  const effectiveSelectedRegionId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegion?.regionId ?? null
   const correctionLayers = sortedCorrectionLayers(project)
   const defaultCorrectionLayer = correctionLayers[0] ?? null
   const templateReferenceImageUrl = template.defaultUnderlay?.imageRef
@@ -12151,6 +12164,31 @@ function TemplatePanel({
       ...template,
       regions: template.regions.map(region => region.regionId === regionId ? { ...region, rect: { ...region.rect, [key]: value } } : region),
     })
+  }
+
+  function selectCalibrationTarget() {
+    if (calibrationTargetRect) setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
+  }
+
+  function updateCalibrationTargetRect(key: 'x' | 'y' | 'w' | 'h', value: number) {
+    if (!calibrationTargetRect) return
+    setTemplate(setTemplateCalibrationTargetRect(template, { ...calibrationTargetRect, [key]: value }))
+    setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
+  }
+
+  function setCalibrationTargetFromGridBounds() {
+    if (!calibrationGridBounds) return
+    setTemplate(setTemplateCalibrationTargetRect(template, calibrationGridBounds))
+    setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
+  }
+
+  function clearCalibrationTarget() {
+    setTemplate(clearTemplateCalibrationTargetRect(template))
+    if (calibrationGridBounds) {
+      setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
+    } else {
+      setSelectedRegionId(editableRegions[0]?.regionId ?? null)
+    }
   }
 
   function updateRegionColumnCount(regionId: string, value: number) {
@@ -12301,10 +12339,38 @@ function TemplatePanel({
       </dd>
       <dt>{uiText.template.referenceImage}</dt>
       <dd>{template.defaultUnderlay?.imageRef.name ?? uiText.template.noReferenceImage}</dd>
+      <dt>{uiText.template.calibrationTarget}</dt>
+      <dd className="templateCalibrationTargetMeta">
+        <div className="templateCalibrationTargetSummary">
+          <button type="button" disabled={!calibrationTargetRect} className={isCalibrationTargetSelected ? 'active' : ''} onClick={selectCalibrationTarget}>
+            {uiText.template.selectCalibrationTarget}
+          </button>
+          <span className="muted">
+            {hasExplicitCalibrationTarget
+              ? uiText.template.calibrationTargetExplicit
+              : calibrationTargetRect ? uiText.template.calibrationTargetAuto : uiText.template.calibrationTargetNone}
+          </span>
+        </div>
+        {calibrationTargetRect && (
+          <div className="templateCalibrationTargetFields">
+            {(['x', 'y', 'w', 'h'] as const).map(key => (
+              <label key={key}>
+                <span>{key}</span>
+                <input className="numberInput" type="number" step="0.0001" value={calibrationTargetRect[key]} onChange={event => updateCalibrationTargetRect(key, Number(event.currentTarget.value))} />
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="toolRow dockToolRow">
+          <button type="button" disabled={!calibrationGridBounds} onClick={setCalibrationTargetFromGridBounds}>{uiText.template.setCalibrationTargetFromGrid}</button>
+          <button type="button" disabled={!hasExplicitCalibrationTarget} onClick={clearCalibrationTarget}>{uiText.template.clearCalibrationTarget}</button>
+        </div>
+        <p className="muted">{uiText.template.calibrationTargetHint}</p>
+      </dd>
       <dt>{uiText.template.regions}</dt>
       <dd>{template.regions.length}</dd>
       <dt>{uiText.template.selectedRegion}</dt>
-      <dd>{selectedRegion?.label ?? '-'}</dd>
+      <dd>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</dd>
     </dl>
   )
 
@@ -12545,7 +12611,9 @@ function TemplateRegionEditor({
   selectedRegionId: string | null
   onSelectRegion: (regionId: string) => void
 }) {
-  const selectedRegion = selectedRegionId ? template.regions.find(region => region.regionId === selectedRegionId) ?? null : null
+  const calibrationTargetRect = calibrationTargetRectForTemplate(template)
+  const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
+  const selectedRegion = selectedRegionId && !isCalibrationTargetSelected ? template.regions.find(region => region.regionId === selectedRegionId) ?? null : null
 
   function pointFromEvent(event: PointerEvent<SVGSVGElement> | PointerEvent<SVGElement>) {
     const svg = event.currentTarget.ownerSVGElement ?? event.currentTarget
@@ -12557,6 +12625,11 @@ function TemplateRegionEditor({
   }
 
   function updateEdge(edge: TemplateRegionEdge, point: NormalizedPoint) {
+    if (isCalibrationTargetSelected) {
+      if (!calibrationTargetRect) return
+      setTemplate(updateTemplateCalibrationTargetRectEdge(template, calibrationTargetRect, edge, point))
+      return
+    }
     if (!selectedRegionId) return
     setTemplate(updateTemplateRegionEdge(template, selectedRegionId, edge, point))
   }
@@ -12645,37 +12718,69 @@ function TemplateRegionEditor({
               }}
             />
           ))}
+          {calibrationTargetRect && (
+            <g className="templateCalibrationTarget">
+              <rect
+                className={isCalibrationTargetSelected ? 'templateCalibrationTargetOutline selected' : 'templateCalibrationTargetOutline'}
+                x={calibrationTargetRect.x}
+                y={calibrationTargetRect.y}
+                width={calibrationTargetRect.w}
+                height={calibrationTargetRect.h}
+              />
+              <rect
+                className={isCalibrationTargetSelected ? 'templateCalibrationTargetHit selected' : 'templateCalibrationTargetHit'}
+                x={calibrationTargetRect.x}
+                y={calibrationTargetRect.y}
+                width={calibrationTargetRect.w}
+                height={calibrationTargetRect.h}
+                onPointerDown={event => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onSelectRegion(TEMPLATE_CALIBRATION_TARGET_ID)
+                }}
+              />
+            </g>
+          )}
           {selectedRegion && (
-            <TemplateEditHandles region={selectedRegion} onEdgePointerDown={handleEdgePointerDown} />
+            <TemplateEditHandles rect={selectedRegion.rect} onEdgePointerDown={handleEdgePointerDown} />
+          )}
+          {isCalibrationTargetSelected && calibrationTargetRect && (
+            <TemplateEditHandles rect={calibrationTargetRect} variant="calibrationTarget" onEdgePointerDown={handleEdgePointerDown} />
           )}
         </svg>
       </div>
       <div className="templateEditorCaption">
-        <strong>{selectedRegion?.label ?? '-'}</strong>
-        <span className="muted">{selectedRegion?.grid ? `${gridRoleLabel(selectedRegion.grid.role)} / ${selectedRegion.grid.columns.length}列 / ${selectedRegion.grid.rowCount}行` : uiText.template.noGridRegion}</span>
+        <strong>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</strong>
+        <span className="muted">
+          {isCalibrationTargetSelected
+            ? uiText.template.calibrationTargetCaption
+            : selectedRegion?.grid ? `${gridRoleLabel(selectedRegion.grid.role)} / ${selectedRegion.grid.columns.length}列 / ${selectedRegion.grid.rowCount}行` : uiText.template.noGridRegion}
+        </span>
       </div>
     </div>
   )
 }
 
 function TemplateEditHandles({
-  region,
+  rect,
+  variant,
   onEdgePointerDown,
 }: {
-  region: SheetTemplate['regions'][number]
+  rect: NormalizedRect
+  variant?: 'calibrationTarget'
   onEdgePointerDown: (edge: TemplateRegionEdge, event: PointerEvent<SVGElement>) => void
 }) {
-  const left = region.rect.x
-  const right = region.rect.x + region.rect.w
-  const top = region.rect.y
-  const bottom = region.rect.y + region.rect.h
-  const midX = region.rect.x + region.rect.w / 2
-  const midY = region.rect.y + region.rect.h / 2
+  const left = rect.x
+  const right = rect.x + rect.w
+  const top = rect.y
+  const bottom = rect.y + rect.h
+  const midX = rect.x + rect.w / 2
+  const midY = rect.y + rect.h / 2
   const knobRadius = 0.005
 
   return (
-    <g className="templateEditHandles">
-      <rect className="templateSelectedRegion" x={region.rect.x} y={region.rect.y} width={region.rect.w} height={region.rect.h} />
+    <g className={variant === 'calibrationTarget' ? 'templateEditHandles calibrationTarget' : 'templateEditHandles'}>
+      <rect className="templateSelectedRegion" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
       <line className="templateEdgeGuide vertical" x1={left} x2={left} y1={0} y2={1} />
       <line className="templateEdgeGuide vertical" x1={right} x2={right} y1={0} y2={1} />
       <line className="templateEdgeGuide horizontal" x1={0} x2={1} y1={top} y2={top} />

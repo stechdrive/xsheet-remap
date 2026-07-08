@@ -4,33 +4,66 @@ import { clampNumber } from './sheetInteraction'
 
 export type TemplateRegionEdge = 'left' | 'right' | 'top' | 'bottom'
 export type TemplateGridRole = NonNullable<SheetTemplate['regions'][number]['grid']>['role']
+type EditableRect = SheetTemplate['regions'][number]['rect']
+
+export function updateTemplateRectEdge(rect: EditableRect, edge: TemplateRegionEdge, point: NormalizedPoint): EditableRect {
+  const minSize = 0.005
+  const left = rect.x
+  const right = rect.x + rect.w
+  const top = rect.y
+  const bottom = rect.y + rect.h
+  if (edge === 'left') {
+    const x = clampNumber(point.x, 0, right - minSize)
+    return { ...rect, x, w: right - x }
+  }
+  if (edge === 'right') {
+    const nextRight = clampNumber(point.x, left + minSize, 1)
+    return { ...rect, w: nextRight - left }
+  }
+  if (edge === 'top') {
+    const y = clampNumber(point.y, 0, bottom - minSize)
+    return { ...rect, y, h: bottom - y }
+  }
+  const nextBottom = clampNumber(point.y, top + minSize, 1)
+  return { ...rect, h: nextBottom - top }
+}
 
 export function updateTemplateRegionEdge(template: SheetTemplate, regionId: string, edge: TemplateRegionEdge, point: NormalizedPoint): SheetTemplate {
   return {
     ...template,
     regions: template.regions.map(region => {
       if (region.regionId !== regionId) return region
-      const minSize = 0.005
-      const left = region.rect.x
-      const right = region.rect.x + region.rect.w
-      const top = region.rect.y
-      const bottom = region.rect.y + region.rect.h
-      if (edge === 'left') {
-        const x = clampNumber(point.x, 0, right - minSize)
-        return { ...region, rect: { ...region.rect, x, w: right - x } }
-      }
-      if (edge === 'right') {
-        const nextRight = clampNumber(point.x, left + minSize, 1)
-        return { ...region, rect: { ...region.rect, w: nextRight - left } }
-      }
-      if (edge === 'top') {
-        const y = clampNumber(point.y, 0, bottom - minSize)
-        return { ...region, rect: { ...region.rect, y, h: bottom - y } }
-      }
-      const nextBottom = clampNumber(point.y, top + minSize, 1)
-      return { ...region, rect: { ...region.rect, h: nextBottom - top } }
+      return { ...region, rect: updateTemplateRectEdge(region.rect, edge, point) }
     }),
   }
+}
+
+export function setTemplateCalibrationTargetRect(template: SheetTemplate, rect: EditableRect): SheetTemplate {
+  return {
+    ...template,
+    calibration: {
+      ...(template.calibration ?? {}),
+      targetRect: rect,
+    },
+  }
+}
+
+export function clearTemplateCalibrationTargetRect(template: SheetTemplate): SheetTemplate {
+  const nextCalibration = { ...(template.calibration ?? {}) }
+  delete nextCalibration.targetRect
+  return {
+    ...template,
+    calibration: Object.keys(nextCalibration).length > 0 ? nextCalibration : undefined,
+  }
+}
+
+export function updateTemplateCalibrationTargetRectEdge(
+  template: SheetTemplate,
+  rect: EditableRect,
+  edge: TemplateRegionEdge,
+  point: NormalizedPoint,
+): SheetTemplate {
+  return setTemplateCalibrationTargetRect(template, updateTemplateRectEdge(rect, edge, point))
 }
 
 export function defaultColumnCountForRole(template: SheetTemplate, role: TemplateGridRole): number {

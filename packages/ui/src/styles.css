@@ -5825,6 +5825,29 @@ button.registeredCellFirstUse:focus-visible {
   stroke: transparent;
 }
 
+.templateCalibrationTargetOutline {
+  fill: transparent;
+  stroke: #1767a8;
+  stroke-dasharray: 0.018 0.01;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.templateCalibrationTargetOutline.selected {
+  fill: rgb(23 103 168 / 0.08);
+  stroke-width: 2px;
+}
+
+.templateCalibrationTargetHit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 18px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
 .templateSelectedRegion {
   fill: rgb(65 107 90 / 0.08);
   stroke: #174d3f;
@@ -5868,6 +5891,23 @@ button.registeredCellFirstUse:focus-visible {
 .templateHandleKnob:hover {
   fill: #fde1dd;
   stroke-width: 3px;
+}
+
+.templateEditHandles.calibrationTarget .templateSelectedRegion {
+  fill: rgb(23 103 168 / 0.08);
+  stroke: #1767a8;
+}
+
+.templateEditHandles.calibrationTarget .templateEdgeGuide {
+  stroke: #1767a8;
+}
+
+.templateEditHandles.calibrationTarget .templateHandleKnob {
+  stroke: #1767a8;
+}
+
+.templateEditHandles.calibrationTarget .templateHandleKnob:hover {
+  fill: #deeffb;
 }
 
 .selectedTableRow th,
@@ -5914,6 +5954,40 @@ button.registeredCellFirstUse:focus-visible {
 .templateMeta dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.templateCalibrationTargetMeta {
+  display: grid;
+  gap: 8px;
+}
+
+.templateCalibrationTargetSummary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.templateCalibrationTargetSummary button.active {
+  border-color: #1767a8;
+  background: #deeffb;
+}
+
+.templateCalibrationTargetFields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.templateCalibrationTargetFields label {
+  display: grid;
+  gap: 3px;
+  font-size: 0.78rem;
+  color: #5d635f;
+}
+
+.templateCalibrationTargetFields input {
+  width: 100%;
 }
 
 .templateHeaderLabelMeta {

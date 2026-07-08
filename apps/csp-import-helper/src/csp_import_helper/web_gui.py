@@ -115,7 +115,8 @@ def _gui_startup_error_message(exc: Exception) -> str:
     return (
         "CSP自動登録ヘルパーのGUIを起動できませんでした。\n\n"
         "同梱ランタイムまたはWebView backendが利用できません。"
-        "ZIPを再展開し、WebView2 Runtimeを更新してから再実行してください。\n\n"
+        "ZIPのブロックを解除して再展開するか、"
+        "WebView2 Runtimeを更新してから再実行してください。\n\n"
         f"{type(exc).__name__}: {exc}"
     )
 

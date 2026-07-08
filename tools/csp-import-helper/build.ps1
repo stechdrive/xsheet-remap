@@ -223,6 +223,7 @@ function Write-HelperLauncher {
     "  echo Missing helper Python runtime: ""%PYTHON_EXE%"" 1>&2",
     "  exit /b 1",
     ")",
+    "call :unblock_runtime",
     "if /I ""%~1""==""--version"" goto cli",
     "if /I ""%~1""==""--help"" goto cli",
     "if /I ""%~1""==""-h"" goto cli",
@@ -242,7 +243,12 @@ function Write-HelperLauncher {
     "exit /b 0",
     ":cli",
     """%PYTHON_EXE%"" -m csp_import_helper %*",
-    "exit /b %ERRORLEVEL%"
+    "exit /b %ERRORLEVEL%",
+    ":unblock_runtime",
+    "where powershell.exe >nul 2>nul",
+    "if errorlevel 1 exit /b 0",
+    'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = ''SilentlyContinue''; $root = $env:HELPER_ROOT; $probe = Join-Path $root ''site-packages\pythonnet\runtime\Python.Runtime.dll''; if (Get-Item -LiteralPath $probe -Stream Zone.Identifier -ErrorAction SilentlyContinue) { Get-ChildItem -LiteralPath $root -Recurse -File | Unblock-File -ErrorAction SilentlyContinue }" >nul 2>nul',
+    "exit /b 0"
   )
   $launcherLines | Set-Content -LiteralPath $launcherPath -Encoding ASCII
 }

@@ -182,6 +182,7 @@ class WebGuiTests(unittest.TestCase):
 
         self.assertIn("GUIを起動できませんでした", message)
         self.assertIn("同梱ランタイム", message)
+        self.assertIn("ZIPのブロックを解除", message)
         self.assertIn("WebView2 Runtime", message)
         self.assertIn("RuntimeError: webview failed", message)
 

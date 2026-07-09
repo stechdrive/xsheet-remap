@@ -140,7 +140,11 @@ class WebGuiTests(unittest.TestCase):
         self.assertNotIn("本体アプリ", HTML)
         self.assertIn("xsheet-remapで「タイムシート/CSP自動登録」を書き出します", HTML)
         self.assertIn("xsheet-remapの「タイムシート/CSP自動登録」で書き出した .xci", HTML)
-        self.assertIn("既存のアニメーションフォルダーが全て非表示", HTML)
+        self.assertIn(
+            "素材の自動登録先となるCLIPファイル内の既存のアニメーションフォルダーが全て非表示",
+            HTML,
+        )
+        self.assertNotIn("読み込ませたCLIPファイル", HTML)
         self.assertIn("自動登録のフォルダ積み込みが崩れます", HTML)
         self.assertIn("乗算オートアクションを読み込んだ後", HTML)
         self.assertIn("乗算オートアクション", HTML)

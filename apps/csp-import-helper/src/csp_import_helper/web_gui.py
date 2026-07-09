@@ -1047,7 +1047,7 @@ HTML = r"""<!doctype html>
             <a class="help-link external-link" href="__WORKSPACE_ASSET_URL__" data-external-url="__WORKSPACE_ASSET_URL__" target="_blank" rel="noopener noreferrer">ワークスペースをAssetsで開く</a>
           </div>
           <ul>
-            <li class="critical"><strong>最重要: 読み込ませたCLIPファイル内の既存のアニメーションフォルダーが全て非表示になるようにしてください。</strong> 各アニメーションフォルダ、またはそれを含む親フォルダを非表示にした状態であることを開始前に必ず確認してください。表示されたままだと、自動登録のフォルダ積み込みが崩れます。</li>
+            <li class="critical"><strong>最重要: 素材の自動登録先となるCLIPファイル内の既存のアニメーションフォルダーが全て非表示になるようにしてください。</strong> 各アニメーションフォルダ、またはそれを含む親フォルダを非表示にした状態であることを開始前に必ず確認してください。表示されたままだと、自動登録のフォルダ積み込みが崩れます。</li>
             <li>CLIP STUDIO PAINT（クリスタ）へ、xsheet-remap用ワークスペースを読み込み、ワークスペースとショートカットがヘルパーの「設定」と合っていること。</li>
             <li>同梱のassets/xsheet-remap.lafを使う場合は、オートアクションパレットのメニューから「オートアクションセットを読み込み」を選び、xsheet-remap.lafを読み込むこと。</li>
             <li>乗算オートアクションを読み込んだ後、ファイル &gt; ショートカットキー設定から、設定領域 &gt; オートアクションを選び、読み込んだxsheet-remapオートアクションの「乗算」にCtrl+Alt+Lを割り当てていること。ワークスペース読み込みだけではオートアクションのショートカットは自動設定されません。</li>

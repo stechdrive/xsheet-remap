@@ -320,7 +320,7 @@ const CELL_ASSET_PREVIEW_MAX_ITEMS = 6
 const TIMELINE_EVENT_LONG_PRESS_MS = 320
 const TIMELINE_EVENT_DRAG_THRESHOLD_PX = 4
 const CONTINUOUS_CANVAS_MIN_FRAME_ROW_PX = 10
-const APP_NAV_PANELS: Panel[] = ['sheet', 'bindings', 'slots', 'template', 'recognition', 'export']
+const APP_NAV_PANELS: Panel[] = ['sheet', 'bindings', 'slots', 'template', 'export']
 const STATUS_HINT_SOURCE_ORDER = ['sheet-drag', 'sheet-drop', 'overlay-paper-track', 'sheet-hover'] as const
 const TEMPLATE_CALIBRATION_TARGET_ID = '__template_calibration_target__'
 
@@ -2868,6 +2868,18 @@ export function App() {
                     補正
                   </button>
                 </Tooltip>
+                <RecognitionActionMenu
+                  candidates={recognitionCandidates}
+                  threshold={recognitionThreshold}
+                  setThreshold={setRecognitionThreshold}
+                  minInkRatio={recognitionInkRatio}
+                  setMinInkRatio={setRecognitionInkRatio}
+                  disabled={!activePageImage.imageUrl}
+                  onDetect={() => void handleDetectMarks()}
+                  onAccept={acceptRecognitionCandidate}
+                  onAcceptAll={acceptAllRecognitionCandidates}
+                  onClear={() => setRecognitionCandidates([])}
+                />
                 <TooltipTarget label={uiText.sheet.paperSheetImageVisibleTitle}>
                   {tooltipProps => (
                     <label className="compactControl topCheckboxControl" {...tooltipProps}>
@@ -3102,19 +3114,6 @@ export function App() {
             onCreateTemplateDraft={handleCreateTemplateDraft}
             onCreatePaperTemplateFromImage={handleCreatePaperTemplateFromImage}
             onUpdateCorrectionLayers={handleUpdateCorrectionLayers}
-          />
-        )}
-        {panel === 'recognition' && (
-          <RecognitionPanel
-            candidates={recognitionCandidates}
-            threshold={recognitionThreshold}
-            setThreshold={setRecognitionThreshold}
-            minInkRatio={recognitionInkRatio}
-            setMinInkRatio={setRecognitionInkRatio}
-            disabled={!activePageImage.imageUrl}
-            onDetect={() => void handleDetectMarks()}
-            onAccept={acceptRecognitionCandidate}
-            onAcceptAll={acceptAllRecognitionCandidates}
           />
         )}
         {panel === 'export' && (
@@ -12935,7 +12934,7 @@ function TemplateEditHandles({
   )
 }
 
-function RecognitionPanel({
+function RecognitionActionMenu({
   candidates,
   threshold,
   setThreshold,
@@ -12945,6 +12944,7 @@ function RecognitionPanel({
   onDetect,
   onAccept,
   onAcceptAll,
+  onClear,
 }: {
   candidates: RecognitionCandidate[]
   threshold: number
@@ -12955,33 +12955,48 @@ function RecognitionPanel({
   onDetect: () => void
   onAccept: (candidate: RecognitionCandidate) => void
   onAcceptAll: () => void
+  onClear: () => void
 }) {
   return (
-    <section className="panel recognitionPanel">
-      <div className="toolRow">
-        <button disabled={disabled} onClick={onDetect}>{uiText.actions.detectMarks}</button>
-        <button disabled={candidates.length === 0} onClick={onAcceptAll}>{uiText.actions.acceptAll}</button>
-        <label className="compactControl">
+    <ActionMenu
+      label={<OcrIcon />}
+      ariaLabel={uiText.recognition.menu}
+      tooltipLabel={uiText.recognition.menuTitle}
+      className="iconActionMenu sheetRecognitionMenu"
+    >
+      <div className="recognitionMenuBody">
+        <button type="button" disabled={disabled} onClick={onDetect}>{uiText.actions.detectMarks}</button>
+        <div className="recognitionMenuActions">
+          <button type="button" disabled={candidates.length === 0} onClick={onAcceptAll}>{uiText.actions.acceptAll}</button>
+          <button type="button" disabled={candidates.length === 0} onClick={onClear}>{uiText.recognition.clearCandidates}</button>
+        </div>
+        <label className="compactControl recognitionMenuControl">
           {uiText.recognition.darkness}
           <input type="range" min="60" max="230" value={threshold} onChange={event => setThreshold(Number(event.currentTarget.value))} />
           <span>{threshold}</span>
         </label>
-        <label className="compactControl">
+        <label className="compactControl recognitionMenuControl">
           {uiText.recognition.inkRatio}
           <input type="range" min="1" max="120" value={Math.round(minInkRatio * 1000)} onChange={event => setMinInkRatio(Number(event.currentTarget.value) / 1000)} />
           <span>{minInkRatio.toFixed(3)}</span>
         </label>
+        {disabled && <p className="muted">{uiText.recognition.disabled}</p>}
+        <div className="recognitionMenuCandidateHeader">
+          <strong>{uiText.recognition.candidates}</strong>
+          <span>{uiText.recognition.candidateCount(candidates.length)}</span>
+        </div>
+        {candidates.length > 0 && (
+          <div className="candidateList recognitionMenuCandidateList">
+            {candidates.map(candidate => (
+              <button key={candidate.candidateId} className="candidateItem" type="button" onClick={() => onAccept(candidate)}>
+                <strong>{candidate.paperTrack} {candidate.frame}F</strong>
+                <span>{Math.round(candidate.confidence * 100)}%</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      {disabled && <p className="muted">{uiText.recognition.disabled}</p>}
-      <div className="candidateList">
-        {candidates.map(candidate => (
-          <button key={candidate.candidateId} className="candidateItem" onClick={() => onAccept(candidate)}>
-            <strong>{candidate.paperTrack} {candidate.frame}F</strong>
-            <span>{Math.round(candidate.confidence * 100)}%</span>
-          </button>
-        ))}
-      </div>
-    </section>
+    </ActionMenu>
   )
 }
 
@@ -13607,6 +13622,21 @@ function ViewModeIcon() {
   )
 }
 
+function OcrIcon() {
+  return (
+    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 9V6.5A1.5 1.5 0 0 1 6.5 5H9" />
+      <path d="M15 5h2.5A1.5 1.5 0 0 1 19 6.5V9" />
+      <path d="M19 15v2.5a1.5 1.5 0 0 1-1.5 1.5H15" />
+      <path d="M9 19H6.5A1.5 1.5 0 0 1 5 17.5V15" />
+      <path d="M4 12h16" />
+      <path d="M8.2 10.2a2.6 2.6 0 0 1 4.9 0" />
+      <path d="M15.2 9.2h1.5a1.4 1.4 0 0 1 0 2.8h-1.5V9.2Z" />
+      <path d="m17.5 12 1.2 2.4" />
+    </svg>
+  )
+}
+
 function DisplaySettingsIcon() {
   return (
     <svg className="topIconSvg displayTemplateIcon" viewBox="0 0 24 24" aria-hidden="true">
@@ -13827,8 +13857,6 @@ function panelLabel(panel: Panel): string {
       return uiText.nav.slots
     case 'template':
       return uiText.nav.template
-    case 'recognition':
-      return uiText.nav.recognition
     case 'export':
       return uiText.nav.export
   }

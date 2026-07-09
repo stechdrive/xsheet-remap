@@ -54,7 +54,6 @@ export const uiText = {
     bindings: 'セル対応',
     slots: 'セル重ね順',
     template: 'シートテンプレ',
-    recognition: '認識',
     export: 'XDTS詳細設定',
   },
   actions: {
@@ -668,9 +667,14 @@ export const uiText = {
     customCellRegion: (index: number) => `CELL追加${index}`,
   },
   recognition: {
+    menu: 'OCR/認識',
+    menuTitle: '紙シート画像の認識メニューを開く',
     darkness: '濃さ',
     inkRatio: '記入率',
     disabled: '先にシート画像を読み込んでください。',
+    candidates: '候補',
+    candidateCount: (count: number) => `${count}件`,
+    clearCandidates: '候補をクリア',
   },
   export: {
     timingSource: 'タイムライン元',

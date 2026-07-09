@@ -35,7 +35,8 @@ EMERGENCY_HOTKEY_TEXT = "Ctrl+Alt+F12 / Ctrl+Alt+Pause"
 MANIFEST_DROP_HINT = ".xci をドロップ、または選択"
 CLIP_DROP_HINT = ".clip をドロップ、または選択"
 WORKSPACE_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285876"
-ALLOWED_EXTERNAL_URLS = frozenset((WORKSPACE_ASSET_URL,))
+OLM_PEG_HOLE_STABILIZER_URL = "https://www.olm.co.jp/post/olm-peg-hole-stabilizer-updated"
+ALLOWED_EXTERNAL_URLS = frozenset((WORKSPACE_ASSET_URL, OLM_PEG_HOLE_STABILIZER_URL))
 SPEED_DISPLAY_TO_MODE = {
     "標準": SPEED_MODE_STANDARD,
     "高速": SPEED_MODE_FAST,
@@ -894,6 +895,8 @@ HTML = r"""<!doctype html>
     .help-link { min-height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid #b8c9e4; border-radius: 6px; background: #f5f9ff; color: #174f9f; font-size: 12px; font-weight: 800; text-decoration: none; }
     .help-link:hover { background: #edf4ff; }
     .help-link::after { content: "↗"; font-size: 11px; line-height: 1; }
+    .help-inline-link { color: #174f9f; text-decoration: underline; text-underline-offset: 2px; }
+    .help-inline-link:hover { color: #0d3d82; }
     .shortcut-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px 12px; align-items: center; }
     .shortcut-grid input { width: 180px; }
     .shortcut-grid input.capturing { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(29,95,209,.16); }
@@ -1019,12 +1022,12 @@ HTML = r"""<!doctype html>
         </button>
       </header>
       <div class="help-content">
-        <section class="help-section warning">
-          <h3>先に必ず準備すること</h3>
+        <section class="help-section">
+          <h3>紙で作画された素材を扱うときのTips</h3>
+          <p>紙で作画された素材は、スキャン後にタップ穴を基準に位置を揃えておくと、クリスタへ登録した際の位置が安定します。</p>
           <ol>
             <li><strong>Kodakのドキュメントスキャナで登録画像をスキャンします。</strong> 紙シート、動画用紙、セル画像は同じ前提のスキャン画像として扱います。</li>
-            <li><strong>OLMペグホールスタビライザーでタップ穴基準に位置合わせします。</strong> 登録画像は、ヘルパーに渡す前に必ず位置合わせしてください。</li>
-            <li><strong>作業対象の.clipはコピーを使います。</strong> 初回や設定変更後は、本番ファイルではなくテスト用コピーで確認してください。</li>
+            <li><strong><a class="help-inline-link external-link" href="__OLM_PEG_HOLE_STABILIZER_URL__" data-external-url="__OLM_PEG_HOLE_STABILIZER_URL__" target="_blank" rel="noopener noreferrer">OLMペグホールスタビライザー</a>でタップ穴基準に位置合わせします。</strong> オートフィードで生じたタップ穴のずれを、登録前にまとめて補正できます。</li>
           </ol>
         </section>
         <section class="help-section">
@@ -1354,4 +1357,8 @@ HTML = r"""<!doctype html>
 HTML = (
     HTML.replace("/* __LINE_SEED_FONT_FACE_CSS__ */", _line_seed_font_face_css())
     .replace("__WORKSPACE_ASSET_URL__", html.escape(WORKSPACE_ASSET_URL, quote=True))
+    .replace(
+        "__OLM_PEG_HOLE_STABILIZER_URL__",
+        html.escape(OLM_PEG_HOLE_STABILIZER_URL, quote=True),
+    )
 )

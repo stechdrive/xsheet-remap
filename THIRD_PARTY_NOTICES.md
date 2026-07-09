@@ -10,6 +10,9 @@ packages and assets under their own licenses.
 | React / React DOM | MIT | UI runtime |
 | Tauri API and Tauri Rust crates | Apache-2.0 OR MIT | Desktop runtime |
 | OpenCV.js package | Apache-2.0 | Image processing in the UI |
+| PaddleOCR.js | Apache-2.0 | Browser OCR pipeline |
+| PP-OCRv5 mobile detection and recognition models | Apache-2.0 | Bundled ONNX OCR models |
+| ONNX Runtime Web | MIT | Bundled WebAssembly inference runtime |
 | LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files |
 | pywinauto / pyperclip / Pillow / pywebview | permissive OSS licenses | CSP helper runtime dependencies |
 

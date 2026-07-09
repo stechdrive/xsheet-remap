@@ -544,7 +544,7 @@ export function setEvent(
   frame: number,
   keyId: string,
   sheetRole: SheetTimingRole = DEFAULT_SHEET_TIMING_ROLE,
-  options: { fontSizePx?: number } = {},
+  options: { fontSizePx?: number; source?: TimelineEvent['source'] } = {},
 ): CutProject {
   ensurePaperTrack(project, paperTrack)
   if (!isNullCellKeyId(keyId)) {
@@ -560,7 +560,7 @@ export function setEvent(
     frame,
     keyId,
     ...(typeof options.fontSizePx === 'number' && Number.isFinite(options.fontSizePx) ? { fontSizePx: options.fontSizePx } : {}),
-    source: 'manual',
+    source: options.source ?? 'manual',
   }
   const events = project.logicalSheet.events
     .filter(item => !sameEventTarget(item, paperTrack, frame, sheetRole))
@@ -593,6 +593,39 @@ export function createOrSetEvent(
   const created = createKey(project, paperTrack, undefined, 'manual', undefined, sheetRole)
   const withEvent = setEvent(created.project, paperTrack, frame, created.key.keyId, sheetRole)
   return { project: ensureDefaultBindingsForKey(withEvent, created.key.keyId), key: created.key }
+}
+
+export type CreateRecognizedEventStatus = 'created' | 'already-present' | 'conflict'
+
+export function createRecognizedEvent(
+  project: CutProject,
+  paperTrack: PaperTrackName,
+  frame: number,
+  sheetRole: SheetTimingRole,
+  displayLabel: string,
+): { project: CutProject; key: TimingKey | null; status: CreateRecognizedEventStatus } {
+  const normalizedLabel = normalizeTimingKeyDisplayLabel(displayLabel)
+  if (!normalizedLabel) return { project, key: null, status: 'conflict' }
+
+  const existingEvent = project.logicalSheet.events.find(event => sameEventTarget(event, paperTrack, frame, sheetRole))
+  if (existingEvent) {
+    const existingKey = project.logicalSheet.keys.find(key => key.keyId === existingEvent.keyId) ?? null
+    const matches = existingKey
+      && normalizeTimingKeyDisplayLabel(existingKey.displayLabel) === normalizedLabel
+    return {
+      project,
+      key: matches ? existingKey : null,
+      status: matches ? 'already-present' : 'conflict',
+    }
+  }
+
+  const created = createKey(project, paperTrack, displayLabel, 'recognition', undefined, sheetRole)
+  const withEvent = setEvent(created.project, paperTrack, frame, created.key.keyId, sheetRole, { source: 'recognition' })
+  return {
+    project: ensureDefaultBindingsForKey(withEvent, created.key.keyId),
+    key: created.key,
+    status: 'created',
+  }
 }
 
 export function upsertBinding(

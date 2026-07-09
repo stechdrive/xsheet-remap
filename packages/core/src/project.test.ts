@@ -20,6 +20,7 @@ import {
   createDefaultProject,
   createKey,
   createOrSetEvent,
+  createRecognizedEvent,
   createProjectFromTrackLabels,
   createStackGuideLabel,
   defaultCspCellName,
@@ -127,6 +128,32 @@ describe('core project commands', () => {
     expect(two.project.logicalSheet.keys.filter(key => key.paperTrack === 'A' && key.sheetRole === 'cell')).toHaveLength(1)
     expect(otherTrack.key.keyId).not.toBe(one.key.keyId)
     expect(otherRole.key.keyId).not.toBe(one.key.keyId)
+  })
+
+  it('creates recognition keys and events atomically while reusing labels', () => {
+    const first = createRecognizedEvent(createDefaultProject(), 'A', 3, 'cell', '○1')
+    const second = createRecognizedEvent(first.project, 'A', 9, 'cell', '○1')
+
+    expect(first.status).toBe('created')
+    expect(second.status).toBe('created')
+    expect(second.key?.keyId).toBe(first.key?.keyId)
+    expect(second.project.logicalSheet.keys).toHaveLength(1)
+    expect(second.project.logicalSheet.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ paperTrack: 'A', sheetRole: 'cell', frame: 3, keyId: first.key?.keyId, source: 'recognition' }),
+      expect.objectContaining({ paperTrack: 'A', sheetRole: 'cell', frame: 9, keyId: first.key?.keyId, source: 'recognition' }),
+    ]))
+  })
+
+  it('does not overwrite an existing event with a recognition result', () => {
+    const existing = createOrSetEvent(createDefaultProject(), 'A', 3, 'action')
+    const conflict = createRecognizedEvent(existing.project, 'A', 3, 'action', '9')
+    const duplicate = createRecognizedEvent(existing.project, 'A', 3, 'action', existing.key.displayLabel)
+
+    expect(conflict.status).toBe('conflict')
+    expect(conflict.project).toBe(existing.project)
+    expect(duplicate.status).toBe('already-present')
+    expect(duplicate.key?.keyId).toBe(existing.key.keyId)
+    expect(existing.project.logicalSheet.events).toHaveLength(1)
   })
 
   it('rejects duplicate display labels in the same paperTrack and role when editing keys', () => {

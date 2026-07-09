@@ -548,9 +548,13 @@ export interface ValidationIssue {
 export interface RecognitionCandidate {
   candidateId: Id
   provider: 'manual' | 'mark-detection' | 'grid-crop-ocr' | 'vision-model' | 'hybrid'
+  engineId?: string
+  pageId: Id
+  sheetRole: SheetTimingRole
   paperTrack: PaperTrackName
   frame: FrameIndex
-  rawText?: string
+  rawText: string
+  normalizedLabel: string
   confidence: number
   bbox: { x: number; y: number; w: number; h: number }
 }

@@ -198,6 +198,53 @@ export async function applyLevelCorrectionToDataUrl(dataUrl: string, settingsInp
   return canvas.toDataURL('image/png')
 }
 
+export async function renderCorrectedSheetCanvas(
+  imageUrl: string,
+  imageSettings: SheetImageSettings,
+  template: SheetWarpTemplate,
+  outputWidth = Math.max(1, Math.round(template.page.widthPx)),
+): Promise<HTMLCanvasElement> {
+  const image = await loadImage(imageUrl)
+  const width = Math.max(1, Math.round(outputWidth))
+  const height = Math.max(1, Math.round(width * (template.page.heightPx / template.page.widthPx)))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) throw new Error('補正済みシート画像を作成できませんでした。')
+  context.fillStyle = '#fff'
+  context.fillRect(0, 0, width, height)
+
+  if (hasEnabledCalibration(imageSettings)) {
+    const warped = warpSheetImageData(image, imageSettings, template, width)
+    if (!warped) throw new Error('シート画像の位置補正を適用できませんでした。')
+    const warpedCanvas = document.createElement('canvas')
+    warpedCanvas.width = width
+    warpedCanvas.height = height
+    const warpedContext = warpedCanvas.getContext('2d')
+    if (!warpedContext) throw new Error('補正済みシート画像を作成できませんでした。')
+    warpedContext.putImageData(warped, 0, 0)
+    context.drawImage(warpedCanvas, 0, 0)
+    return canvas
+  }
+
+  context.drawImage(
+    image,
+    imageSettings.x * width,
+    imageSettings.y * height,
+    imageSettings.scale * width,
+    imageSettings.scale * height,
+  )
+  if (imageSettings.levelCorrection?.enabled) {
+    const corrected = applyLevelCorrectionToImageData(
+      context.getImageData(0, 0, width, height),
+      imageSettings.levelCorrection,
+    )
+    context.putImageData(corrected, 0, 0)
+  }
+  return canvas
+}
+
 function warpOutputWidth(template: Pick<SheetWarpTemplate, 'page'>, quality: 'preview' | 'final'): number {
   const templateWidth = Math.max(1, Math.round(template.page.widthPx))
   return quality === 'preview'

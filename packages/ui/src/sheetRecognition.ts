@@ -1,136 +1,389 @@
 import {
-  cellRectForHit,
-  globalizeSheetHit,
-  type NormalizedPoint,
+  resolveSheetTemplateGridLayout,
+  sheetGridCellRect,
   type RecognitionCandidate,
+  type SheetGridLayout,
   type SheetPage,
   type SheetTemplate,
+  type SheetTimingRole,
+  type SheetViewLayoutOverrides,
 } from '@xsheet-remap/core'
 import type { SheetImageSettings } from './appTypes'
-import {
-  applyHomography,
-  calibrationPointsForSettings,
-  computeHomography,
-  hasEnabledCalibration,
-  loadImage,
-  type Homography,
-} from './sheetImages'
-import { enumerateTemplateCellHits } from './sheetInteraction'
+import { renderCorrectedSheetCanvas } from './sheetImages'
 
-function sampleDarkRatio(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  rect: { x: number; y: number; w: number; h: number },
-  imageSettings: SheetImageSettings,
-  template: SheetTemplate,
-  darknessThreshold: number,
-): number {
-  let sampled = 0
-  let dark = 0
-  const calibrationPoints = calibrationPointsForSettings(imageSettings, template)
-  const calibrationHomography = hasEnabledCalibration(imageSettings)
-    ? computeHomography(calibrationPoints.map(point => point.target), calibrationPoints.map(point => point.source))
-    : null
-  const stepsX = 9
-  const stepsY = 9
-  for (let row = 0; row < stepsY; row += 1) {
-    for (let col = 0; col < stepsX; col += 1) {
-      const templatePoint = {
-        x: rect.x + rect.w * ((col + 0.5) / stepsX),
-        y: rect.y + rect.h * ((row + 0.5) / stepsY),
-      }
-      const imagePoint = templatePointToImagePixel(templatePoint, imageSettings, canvas, calibrationHomography)
-      if (!imagePoint) continue
-      const pixel = ctx.getImageData(imagePoint.x, imagePoint.y, 1, 1).data
-      if (pixel[3] < 32) continue
-      sampled += 1
-      const luminance = pixel[0] * 0.299 + pixel[1] * 0.587 + pixel[2] * 0.114
-      if (luminance < darknessThreshold) dark += 1
-    }
-  }
-  return sampled === 0 ? 0 : dark / sampled
+const OCR_TILE_ROWS = 12
+const OCR_TILE_OVERLAP_ROWS = 1
+const OCR_TILE_SCALE = 3
+const OCR_MIN_CONFIDENCE = 0.6
+const OCR_MAX_LABEL_LENGTH = 8
+
+export interface SheetOcrDetection {
+  text: string
+  confidence: number
+  polygon: Array<[number, number]>
 }
 
-function templatePointToImagePixel(
-  templatePoint: NormalizedPoint,
-  imageSettings: SheetImageSettings,
-  canvas: HTMLCanvasElement,
-  calibrationHomography: Homography | null,
-): { x: number; y: number } | null {
-  const imagePoint = calibrationHomography ? applyHomography(calibrationHomography, templatePoint.x, templatePoint.y) : null
-  if (imagePoint) return normalizedImagePointToPixel(imagePoint, canvas)
-  const viewportPoint = mapTemplateToViewport(templatePoint, imageSettings.corners)
-  return viewportToImagePixel(viewportPoint, imageSettings, canvas)
+export interface SheetOcrEngine {
+  readonly id: string
+  recognize(image: HTMLCanvasElement): Promise<SheetOcrDetection[]>
+  dispose?(): Promise<void>
 }
 
-function mapTemplateToViewport(point: NormalizedPoint, corners: SheetImageSettings['corners']): NormalizedPoint {
-  const top = lerpPoint(corners.tl, corners.tr, point.x)
-  const bottom = lerpPoint(corners.bl, corners.br, point.x)
-  return lerpPoint(top, bottom, point.y)
+export interface SheetOcrPageInput {
+  page: SheetPage
+  imageUrl: string
+  imageSettings: SheetImageSettings
+  correctedCanvas?: HTMLCanvasElement
 }
 
-function viewportToImagePixel(point: NormalizedPoint, imageSettings: SheetImageSettings, canvas: HTMLCanvasElement): { x: number; y: number } | null {
-  const imageX = (point.x - imageSettings.x) / imageSettings.scale
-  const imageY = (point.y - imageSettings.y) / imageSettings.scale
-  return normalizedImagePointToPixel({ x: imageX, y: imageY }, canvas)
+export interface RecognizeSheetPagesOptions {
+  template: SheetTemplate
+  pages: SheetOcrPageInput[]
+  sheetRole: SheetTimingRole
+  durationFrames: number
+  frameOrigin: number
+  paperTracks?: string[]
+  layoutOverrides?: SheetViewLayoutOverrides
+  engine?: SheetOcrEngine
+  onProgress?: (completed: number, total: number) => void
 }
 
-function normalizedImagePointToPixel(point: NormalizedPoint, canvas: HTMLCanvasElement): { x: number; y: number } | null {
-  const imageX = point.x
-  const imageY = point.y
-  if (imageX < 0 || imageY < 0 || imageX > 1 || imageY > 1) return null
-  return {
-    x: Math.min(canvas.width - 1, Math.max(0, Math.round(imageX * (canvas.width - 1)))),
-    y: Math.min(canvas.height - 1, Math.max(0, Math.round(imageY * (canvas.height - 1)))),
-  }
+interface OcrTile {
+  canvas: HTMLCanvasElement
+  layout: SheetGridLayout
+  page: SheetPage
+  crop: { x: number; y: number; w: number; h: number }
+  coreRowStart: number
+  coreRowEnd: number
 }
 
-function lerpPoint(a: NormalizedPoint, b: NormalizedPoint, t: number): NormalizedPoint {
-  return {
-    x: a.x + (b.x - a.x) * t,
-    y: a.y + (b.y - a.y) * t,
-  }
+interface MappedDetection {
+  paperTrack: string
+  frame: number
+  rawText: string
+  normalizedLabel: string
+  confidence: number
+  bbox: RecognitionCandidate['bbox']
+  centerX: number
 }
 
-export async function detectMarkedCells(
-  imageUrl: string,
-  template: SheetTemplate,
-  page: SheetPage,
-  imageSettings: SheetImageSettings,
-  darknessThreshold: number,
-  minInkRatio: number,
-): Promise<RecognitionCandidate[]> {
-  const image = await loadImage(imageUrl)
-  const canvas = document.createElement('canvas')
-  canvas.width = image.naturalWidth
-  canvas.height = image.naturalHeight
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
-  if (!ctx) return []
-  ctx.drawImage(image, 0, 0)
+type PaddleOcrRuntime = {
+  predict(input: unknown): Promise<Array<{
+    items: Array<{ poly: Array<[number, number]>; text: string; score: number }>
+  }>>
+  dispose(): Promise<void>
+}
+
+let sharedPaddleEngine: Promise<SheetOcrEngine> | null = null
+
+export async function recognizeSheetPages(options: RecognizeSheetPagesOptions): Promise<RecognitionCandidate[]> {
+  if (options.pages.length === 0) return []
+  const engine = options.engine ?? await defaultSheetOcrEngine()
+  const layouts = timingLayouts(options)
+  const tilesPerPage = layouts.reduce((total, layout) => total + Math.ceil(layout.frames.rowCount / OCR_TILE_ROWS), 0)
+  const total = tilesPerPage * options.pages.length
+  let completed = 0
   const candidates: RecognitionCandidate[] = []
 
-  for (const localHit of enumerateTemplateCellHits(template)) {
-    const hit = globalizeSheetHit(template, localHit, page)
-    if (hit.frame > page.frameEnd) continue
-    const rect = cellRectForHit(template, hit)
-    if (!rect) continue
-    const inner = {
-      x: rect.x + rect.w * 0.22,
-      y: rect.y + rect.h * 0.2,
-      w: rect.w * 0.56,
-      h: rect.h * 0.6,
-    }
-    const ratio = sampleDarkRatio(ctx, canvas, inner, imageSettings, template, darknessThreshold)
-    if (ratio >= minInkRatio) {
-      candidates.push({
-        candidateId: `cand_${hit.regionId}_${hit.paperTrack}_${hit.frame}`,
-        provider: 'mark-detection',
-        paperTrack: hit.paperTrack ?? hit.label,
-        frame: hit.frame,
-        confidence: Math.min(1, ratio / Math.max(minInkRatio, 0.001)),
-        bbox: rect,
-      })
+  for (const pageInput of options.pages) {
+    const corrected = pageInput.correctedCanvas ?? await renderCorrectedSheetCanvas(
+      pageInput.imageUrl,
+      pageInput.imageSettings,
+      options.template,
+      options.template.page.widthPx,
+    )
+    for (const layout of layouts) {
+      for (const tile of createOcrTiles(corrected, layout, pageInput.page)) {
+        const detections = await engine.recognize(tile.canvas)
+        candidates.push(...mapTileDetections(detections, tile, options, engine.id))
+        completed += 1
+        options.onProgress?.(completed, total)
+      }
     }
   }
-  return candidates
+
+  return deduplicateRecognitionCandidates(candidates)
+}
+
+export function normalizeRecognitionLabel(rawText: string): string | null {
+  const withEnclosedCharacters = Array.from(rawText).map(expandEnclosedCharacter).join('')
+  const normalized = withEnclosedCharacters
+    .normalize('NFKC')
+    .replace(/[\s\u00a0]+/g, '')
+    .replace(/[◯〇]/g, '○')
+  const allowed = Array.from(normalized)
+    .filter(character => /[0-9A-Za-zぁ-ゖァ-ヺ一-龯々〆ヶー○△▽□◇◎]/u.test(character))
+    .join('')
+  if (!allowed || allowed.length > OCR_MAX_LABEL_LENGTH) return null
+  if (!/[0-9A-Za-zぁ-ゖァ-ヺ一-龯々〆ヶ]/u.test(allowed)) return null
+  return allowed
+}
+
+export function deduplicateRecognitionCandidates(candidates: RecognitionCandidate[]): RecognitionCandidate[] {
+  const byTarget = new Map<string, RecognitionCandidate>()
+  for (const candidate of candidates) {
+    const key = `${candidate.sheetRole}\u0000${candidate.paperTrack}\u0000${candidate.frame}`
+    const current = byTarget.get(key)
+    if (!current || candidate.confidence > current.confidence) byTarget.set(key, candidate)
+  }
+  return [...byTarget.values()].sort((a, b) =>
+    a.frame - b.frame
+    || a.sheetRole.localeCompare(b.sheetRole)
+    || a.paperTrack.localeCompare(b.paperTrack, 'ja'),
+  )
+}
+
+async function defaultSheetOcrEngine(): Promise<SheetOcrEngine> {
+  if (!sharedPaddleEngine) sharedPaddleEngine = createPaddleOcrEngine()
+  try {
+    return await sharedPaddleEngine
+  } catch (error) {
+    sharedPaddleEngine = null
+    throw error
+  }
+}
+
+async function createPaddleOcrEngine(): Promise<SheetOcrEngine> {
+  const { PaddleOCR } = await import('@paddleocr/paddleocr-js')
+  const runtime = await PaddleOCR.create({
+    worker: true,
+    lang: 'ch',
+    ocrVersion: 'PP-OCRv5',
+    textDetectionModelName: 'PP-OCRv5_mobile_det',
+    textRecognitionModelName: 'PP-OCRv5_mobile_rec',
+    textDetectionModelAsset: { url: publicAssetUrl('ocr/models/PP-OCRv5_mobile_det_onnx_infer.tar') },
+    textRecognitionModelAsset: { url: publicAssetUrl('ocr/models/PP-OCRv5_mobile_rec_onnx_infer.tar') },
+    textDetLimitSideLen: 1280,
+    textDetLimitType: 'max',
+    textRecScoreThresh: 0.2,
+    ortOptions: {
+      backend: 'wasm',
+      numThreads: 1,
+      wasmPaths: publicAssetUrl('ocr/ort/'),
+    },
+  }) as PaddleOcrRuntime
+  return {
+    id: 'paddle-ocr-v5',
+    async recognize(image) {
+      const [result] = await runtime.predict(image)
+      return result?.items.map(item => ({
+        text: item.text,
+        confidence: item.score,
+        polygon: item.poly,
+      })) ?? []
+    },
+    dispose: () => runtime.dispose(),
+  }
+}
+
+function publicAssetUrl(path: string): string {
+  const baseUrl = ((import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env?.BASE_URL ?? './').replace(/\/?$/, '/')
+  return new URL(`${baseUrl}${path.replace(/^\/+/, '')}`, window.location.href).href
+}
+
+function timingLayouts(options: RecognizeSheetPagesOptions): SheetGridLayout[] {
+  return options.template.regions.flatMap(region => {
+    if (region.type !== 'exposure-grid' || region.grid?.role !== options.sheetRole) return []
+    const layout = resolveSheetTemplateGridLayout(options.template, region, {
+      durationFrames: options.durationFrames,
+      frameOrigin: options.frameOrigin,
+      paperTracks: options.paperTracks,
+      layoutOverrides: options.layoutOverrides,
+    })
+    return layout ? [layout] : []
+  })
+}
+
+function createOcrTiles(source: HTMLCanvasElement, layout: SheetGridLayout, page: SheetPage): OcrTile[] {
+  const tiles: OcrTile[] = []
+  const columnMargin = Math.max(0, Math.min(...layout.columns.map(column => column.w)) * 0.15)
+  for (let coreRowStart = 0; coreRowStart < layout.frames.rowCount; coreRowStart += OCR_TILE_ROWS) {
+    const coreRowEnd = Math.min(layout.frames.rowCount, coreRowStart + OCR_TILE_ROWS)
+    const cropRowStart = Math.max(0, coreRowStart - OCR_TILE_OVERLAP_ROWS)
+    const cropRowEnd = Math.min(layout.frames.rowCount, coreRowEnd + OCR_TILE_OVERLAP_ROWS)
+    const crop = clampNormalizedRect({
+      x: layout.rect.x - columnMargin,
+      y: layout.rect.y + cropRowStart * layout.frames.rowHeight,
+      w: layout.rect.w + columnMargin * 2,
+      h: (cropRowEnd - cropRowStart) * layout.frames.rowHeight,
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(crop.w * source.width * OCR_TILE_SCALE))
+    canvas.height = Math.max(1, Math.round(crop.h * source.height * OCR_TILE_SCALE))
+    const context = canvas.getContext('2d')
+    if (!context) continue
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = 'high'
+    context.drawImage(
+      source,
+      crop.x * source.width,
+      crop.y * source.height,
+      crop.w * source.width,
+      crop.h * source.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    )
+    tiles.push({ canvas, layout, page, crop, coreRowStart, coreRowEnd })
+  }
+  return tiles
+}
+
+function mapTileDetections(
+  detections: SheetOcrDetection[],
+  tile: OcrTile,
+  options: RecognizeSheetPagesOptions,
+  engineId: string,
+): RecognitionCandidate[] {
+  const mapped = detections
+    .filter(detection => detection.confidence >= OCR_MIN_CONFIDENCE)
+    .flatMap(detection => mapDetectionToGrid(detection, tile, options))
+  const grouped = new Map<string, MappedDetection[]>()
+  for (const item of mapped) {
+    const key = `${item.paperTrack}\u0000${item.frame}`
+    grouped.set(key, [...(grouped.get(key) ?? []), item])
+  }
+  return [...grouped.values()].flatMap(items => {
+    const ordered = [...items].sort((a, b) => a.centerX - b.centerX)
+    const rawText = ordered.map(item => item.rawText).join('')
+    const normalizedLabel = normalizeRecognitionLabel(ordered.map(item => item.normalizedLabel).join(''))
+    if (!normalizedLabel) return []
+    const representative = ordered.reduce((best, item) => item.confidence > best.confidence ? item : best)
+    return [{
+      candidateId: recognitionCandidateId(tile.page.pageId, options.sheetRole, representative.paperTrack, representative.frame),
+      provider: 'grid-crop-ocr' as const,
+      engineId,
+      pageId: tile.page.pageId,
+      sheetRole: options.sheetRole,
+      paperTrack: representative.paperTrack,
+      frame: representative.frame,
+      rawText,
+      normalizedLabel,
+      confidence: ordered.reduce((total, item) => total + item.confidence, 0) / ordered.length,
+      bbox: unionRects(ordered.map(item => item.bbox)),
+    }]
+  })
+}
+
+function mapDetectionToGrid(
+  detection: SheetOcrDetection,
+  tile: OcrTile,
+  options: RecognizeSheetPagesOptions,
+): MappedDetection[] {
+  const normalizedLabel = normalizeRecognitionLabel(detection.text)
+  if (!normalizedLabel || detection.polygon.length === 0) return []
+  const points = detection.polygon.map(([x, y]) => ({
+    x: tile.crop.x + (x / tile.canvas.width) * tile.crop.w,
+    y: tile.crop.y + (y / tile.canvas.height) * tile.crop.h,
+  }))
+  const bbox = boundsForPoints(points)
+  const center = {
+    x: points.reduce((total, point) => total + point.x, 0) / points.length,
+    y: points.reduce((total, point) => total + point.y, 0) / points.length,
+  }
+  const rowPosition = (center.y - tile.layout.rect.y) / tile.layout.frames.rowHeight
+  const rowIndex = Math.floor(rowPosition)
+  if (rowIndex < tile.coreRowStart || rowIndex >= tile.coreRowEnd) return []
+  const localFrame = tile.layout.frames.frameStart + rowIndex
+  const frame = tile.page.frameStart + (localFrame - options.template.defaults.frameOrigin)
+  if (frame < tile.page.frameStart || frame > tile.page.frameEnd) return []
+
+  const columns = tile.layout.columns.filter(item => item.paperTrack)
+  const averageColumnWidth = columns.reduce((total, column) => total + column.w, 0) / Math.max(1, columns.length)
+  const tokens = recognitionLabelTokens(detection.text)
+  if (tokens.length > 1 && bbox.w > averageColumnWidth * 1.45) {
+    return tokens.flatMap((token, index) => {
+      const tokenX = bbox.x + bbox.w * ((index + 0.5) / tokens.length)
+      const column = nearestPaperTrackColumn(tile.layout, tokenX)
+      if (!column?.paperTrack) return []
+      const cellRect = sheetGridCellRect(tile.layout, column.index, rowIndex)
+      if (!cellRect || Math.abs(tokenX - (cellRect.x + cellRect.w / 2)) > cellRect.w * 1.05) return []
+      return [{
+        paperTrack: column.paperTrack,
+        frame,
+        rawText: token.rawText,
+        normalizedLabel: token.normalizedLabel,
+        confidence: detection.confidence,
+        bbox: {
+          x: bbox.x + bbox.w * (index / tokens.length),
+          y: bbox.y,
+          w: bbox.w / tokens.length,
+          h: bbox.h,
+        },
+        centerX: tokenX,
+      }]
+    })
+  }
+
+  const column = nearestPaperTrackColumn(tile.layout, center.x)
+  if (!column?.paperTrack) return []
+  const cellRect = sheetGridCellRect(tile.layout, column.index, rowIndex)
+  if (!cellRect || Math.abs(center.x - (cellRect.x + cellRect.w / 2)) > cellRect.w * 1.05) return []
+  return [{
+    paperTrack: column.paperTrack,
+    frame,
+    rawText: detection.text,
+    normalizedLabel,
+    confidence: detection.confidence,
+    bbox,
+    centerX: center.x,
+  }]
+}
+
+function nearestPaperTrackColumn(layout: SheetGridLayout, x: number): SheetGridLayout['columns'][number] | null {
+  return layout.columns
+    .filter(item => item.paperTrack)
+    .reduce((nearest, item) => {
+      const distance = Math.abs(x - (item.x + item.w / 2))
+      return !nearest || distance < nearest.distance ? { item, distance } : nearest
+    }, null as { item: SheetGridLayout['columns'][number]; distance: number } | null)?.item ?? null
+}
+
+function recognitionLabelTokens(rawText: string): Array<{ rawText: string; normalizedLabel: string }> {
+  return Array.from(rawText).flatMap(character => {
+    const normalizedLabel = normalizeRecognitionLabel(character)
+    return normalizedLabel ? [{ rawText: character, normalizedLabel }] : []
+  })
+}
+
+function expandEnclosedCharacter(character: string): string {
+  const codePoint = character.codePointAt(0) ?? 0
+  if (codePoint >= 0x2460 && codePoint <= 0x2473) return `○${codePoint - 0x245f}`
+  if (codePoint >= 0x24b6 && codePoint <= 0x24cf) return `○${String.fromCharCode(65 + codePoint - 0x24b6)}`
+  if (codePoint >= 0x24d0 && codePoint <= 0x24e9) return `○${String.fromCharCode(97 + codePoint - 0x24d0)}`
+  if (codePoint >= 0x3251 && codePoint <= 0x325f) return `○${codePoint - 0x323c}`
+  if (codePoint >= 0x32b1 && codePoint <= 0x32bf) return `○${codePoint - 0x328c}`
+  if (codePoint >= 0x32d0 && codePoint <= 0x32fe) return `○${character.normalize('NFKC')}`
+  return character
+}
+
+function recognitionCandidateId(pageId: string, sheetRole: SheetTimingRole, paperTrack: string, frame: number): string {
+  return `ocr_${pageId}_${sheetRole}_${encodeURIComponent(paperTrack)}_${frame}`
+}
+
+function boundsForPoints(points: Array<{ x: number; y: number }>): RecognitionCandidate['bbox'] {
+  const left = Math.min(...points.map(point => point.x))
+  const top = Math.min(...points.map(point => point.y))
+  const right = Math.max(...points.map(point => point.x))
+  const bottom = Math.max(...points.map(point => point.y))
+  return clampNormalizedRect({ x: left, y: top, w: right - left, h: bottom - top })
+}
+
+function unionRects(rects: RecognitionCandidate['bbox'][]): RecognitionCandidate['bbox'] {
+  const left = Math.min(...rects.map(rect => rect.x))
+  const top = Math.min(...rects.map(rect => rect.y))
+  const right = Math.max(...rects.map(rect => rect.x + rect.w))
+  const bottom = Math.max(...rects.map(rect => rect.y + rect.h))
+  return clampNormalizedRect({ x: left, y: top, w: right - left, h: bottom - top })
+}
+
+function clampNormalizedRect(rect: RecognitionCandidate['bbox']): RecognitionCandidate['bbox'] {
+  const x = Math.max(0, Math.min(1, rect.x))
+  const y = Math.max(0, Math.min(1, rect.y))
+  const right = Math.max(x, Math.min(1, rect.x + rect.w))
+  const bottom = Math.max(y, Math.min(1, rect.y + rect.h))
+  return { x, y, w: right - x, h: bottom - y }
 }

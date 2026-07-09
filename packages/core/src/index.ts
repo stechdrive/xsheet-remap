@@ -164,6 +164,7 @@ export {
   createProjectDocumentFromCutProject,
   createKey,
   createOrSetEvent,
+  createRecognizedEvent,
   createProjectHistory,
   createStackGuideLabel,
   MAX_CORRECTION_LAYERS,

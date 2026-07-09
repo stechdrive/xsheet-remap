@@ -10,7 +10,6 @@ import {
   buildCspImportPackage,
   buildExportPlan,
   buildNameNormalizationPlan,
-  cellHitForFrame,
   cellRectForHit,
   clearEvent,
   clearAnnotations,
@@ -22,7 +21,7 @@ import {
   createDefaultProject,
   createProjectDocumentFromCutProject,
   createDefaultSheetViewState,
-  createOrSetEvent,
+  createRecognizedEvent,
   createProjectHistory,
   defaultCspCellName,
   defaultCorrectionLayerId,
@@ -283,7 +282,7 @@ import {
   type TimelineInsertDurationPolicy,
 } from './timingEditing'
 import { Tooltip, TooltipTarget, type TooltipTriggerProps } from './Tooltip'
-import { detectMarkedCells } from './sheetRecognition'
+import { normalizeRecognitionLabel, recognizeSheetPages } from './sheetRecognition'
 import { detectSheetCalibrationPoints, type AutoCalibrationDebugOverlay } from './sheetAutoCalibration'
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 import { calibrationPointsSignature } from './sheetCalibrationUtils'
@@ -768,8 +767,10 @@ export function App() {
   const templatePanelKey = useMemo(() => JSON.stringify(template), [template])
   const [runtimeSourceImageUrls, setRuntimeSourceImageUrls] = useState<Record<string, string>>({})
   const [recognitionCandidates, setRecognitionCandidates] = useState<RecognitionCandidate[]>([])
-  const [recognitionThreshold, setRecognitionThreshold] = useState(160)
-  const [recognitionInkRatio, setRecognitionInkRatio] = useState(0.018)
+  const [recognitionRole, setRecognitionRole] = useState<SheetTimingRole>('cell')
+  const [recognitionRunning, setRecognitionRunning] = useState(false)
+  const [recognitionProgress, setRecognitionProgress] = useState<{ completed: number; total: number } | null>(null)
+  const [recognitionMessage, setRecognitionMessage] = useState<string | null>(null)
   const [autoCalibrationRunning, setAutoCalibrationRunning] = useState(false)
   const [autoCalibrationMessage, setAutoCalibrationMessage] = useState<string | null>(null)
   const [autoCalibrationOverlay, setAutoCalibrationOverlay] = useState<AutoCalibrationOverlayState | null>(null)
@@ -834,6 +835,10 @@ export function App() {
   const clampedActivePageIndex = Math.min(activePageIndexFromState, Math.max(0, sheetPages.length - 1))
   const activePage = sheetPages[clampedActivePageIndex] ?? sheetPages[0]
   const activePageImage = getSheetPageImage(project.sheetView, runtimeSourceImageUrls, activePage?.pageId ?? 'page_1', template)
+  const hasRecognitionSheetImages = sheetPages.some(page => {
+    const pageImage = getSheetPageImage(project.sheetView, runtimeSourceImageUrls, page.pageId, template)
+    return Boolean(pageImage.sourceId && pageImage.imageUrl)
+  })
   const selectedKey = selection.keyId ? project.logicalSheet.keys.find(key => key.keyId === selection.keyId) ?? null : null
   const fallbackCorrectionLayerId = defaultCorrectionLayerId(project) ?? ''
   const activeCorrectionLayerId = project.correctionLayers.some(layer => layer.layerId === activeCorrectionLayerIdState)
@@ -2599,30 +2604,71 @@ export function App() {
     if (nextProject !== project) commitProject(nextProject)
   }
 
-  async function handleDetectMarks() {
-    if (!activePageImage.imageUrl || !activePage) return
-    setRecognitionCandidates(await detectMarkedCells(activePageImage.imageUrl, template, activePage, activePageImage.settings, recognitionThreshold, recognitionInkRatio))
+  async function handleRecognizeSheet() {
+    const pages = sheetPages.flatMap(page => {
+      const pageImage = getSheetPageImage(project.sheetView, runtimeSourceImageUrls, page.pageId, template)
+      return pageImage.sourceId && pageImage.imageUrl
+        ? [{ page, imageUrl: pageImage.imageUrl, imageSettings: pageImage.settings }]
+        : []
+    })
+    if (pages.length === 0 || recognitionRunning) return
+    setRecognitionRunning(true)
+    setRecognitionProgress({ completed: 0, total: 0 })
+    setRecognitionMessage(null)
+    try {
+      const candidates = await recognizeSheetPages({
+        template,
+        pages,
+        sheetRole: recognitionRole,
+        durationFrames: sheetDisplayDurationFrames,
+        frameOrigin: sheetDisplayFrameStart,
+        paperTracks: templatePaperTracks(project).map(track => track.paperTrack),
+        layoutOverrides: project.sheetView.layoutOverrides,
+        onProgress: (completed, total) => setRecognitionProgress({ completed, total }),
+      })
+      setRecognitionCandidates(candidates)
+      setRecognitionMessage(uiText.recognition.completed(candidates.length, pages.length))
+    } catch (error) {
+      setRecognitionMessage(uiText.recognition.failed(errorMessage(error)))
+    } finally {
+      setRecognitionRunning(false)
+    }
   }
 
   function acceptRecognitionCandidate(candidate: RecognitionCandidate) {
-    const created = createOrSetEvent(project, candidate.paperTrack, candidate.frame, 'cell')
-    commitProject(created.project)
-    setSelection({ hit: candidateToHit(template, sheetDisplayDurationFrames, sheetDisplayFrameStart, candidate), keyId: created.key.keyId })
+    const result = createRecognizedEvent(project, candidate.paperTrack, candidate.frame, candidate.sheetRole, candidate.normalizedLabel)
+    if (result.status === 'conflict') {
+      setRecognitionMessage(uiText.recognition.conflict(candidate.paperTrack, candidate.frame))
+      return
+    }
+    if (result.project !== project) commitProject(result.project)
+    setSelection({ hit: candidateToHit(template, sheetDisplayDurationFrames, sheetDisplayFrameStart, candidate), keyId: result.key?.keyId ?? null })
     setRecognitionCandidates(current => current.filter(item => item.candidateId !== candidate.candidateId))
   }
 
   function acceptAllRecognitionCandidates() {
     let next = project
     let last: RecognitionCandidate | undefined
+    const conflicts: RecognitionCandidate[] = []
     for (const candidate of recognitionCandidates) {
-      if (next.logicalSheet.events.some(event => event.paperTrack === candidate.paperTrack && event.frame === candidate.frame && sheetTimingRoleForEvent(event) === 'cell')) continue
-      const created = createOrSetEvent(next, candidate.paperTrack, candidate.frame, 'cell')
-      next = created.project
+      const result = createRecognizedEvent(next, candidate.paperTrack, candidate.frame, candidate.sheetRole, candidate.normalizedLabel)
+      if (result.status === 'conflict') {
+        conflicts.push(candidate)
+        continue
+      }
+      next = result.project
       last = candidate
     }
-    commitProject(next)
+    if (next !== project) commitProject(next)
     if (last) setSelection({ hit: candidateToHit(template, logicalSheetDisplayDurationFrames(next.logicalSheet), logicalSheetDisplayFrameStart(next.logicalSheet), last), keyId: null })
-    setRecognitionCandidates([])
+    setRecognitionCandidates(conflicts)
+    setRecognitionMessage(conflicts.length > 0 ? uiText.recognition.conflictsRemain(conflicts.length) : null)
+  }
+
+  function updateRecognitionCandidateLabel(candidateId: string, value: string) {
+    setRecognitionCandidates(current => current.map(candidate => candidate.candidateId === candidateId
+      ? { ...candidate, normalizedLabel: normalizeRecognitionLabel(value) ?? value.trim() }
+      : candidate))
   }
 
   function moveSelection(trackDelta: number, frameDelta: number) {
@@ -2870,15 +2916,26 @@ export function App() {
                 </Tooltip>
                 <RecognitionActionMenu
                   candidates={recognitionCandidates}
-                  threshold={recognitionThreshold}
-                  setThreshold={setRecognitionThreshold}
-                  minInkRatio={recognitionInkRatio}
-                  setMinInkRatio={setRecognitionInkRatio}
-                  disabled={!activePageImage.imageUrl}
-                  onDetect={() => void handleDetectMarks()}
+                  sheetRole={recognitionRole}
+                  running={recognitionRunning}
+                  progress={recognitionProgress}
+                  message={recognitionMessage}
+                  project={project}
+                  disabled={!hasRecognitionSheetImages}
+                  onSheetRoleChange={role => {
+                    setRecognitionRole(role)
+                    setRecognitionCandidates([])
+                    setRecognitionMessage(null)
+                  }}
+                  onDetect={() => void handleRecognizeSheet()}
                   onAccept={acceptRecognitionCandidate}
                   onAcceptAll={acceptAllRecognitionCandidates}
-                  onClear={() => setRecognitionCandidates([])}
+                  onUpdateLabel={updateRecognitionCandidateLabel}
+                  onRemove={candidateId => setRecognitionCandidates(current => current.filter(candidate => candidate.candidateId !== candidateId))}
+                  onClear={() => {
+                    setRecognitionCandidates([])
+                    setRecognitionMessage(null)
+                  }}
                 />
                 <TooltipTarget label={uiText.sheet.paperSheetImageVisibleTitle}>
                   {tooltipProps => (
@@ -6083,8 +6140,7 @@ function SheetCanvas(props: {
           const candidateRects = isCalibrating
             ? []
             : props.recognitionCandidates.filter(candidate => {
-                const hit = cellHitForFrame(props.template, candidate.paperTrack, candidate.frame, displayDurationFrames, displayFrameStart)
-                if (hit?.pageId !== page.pageId) return false
+                if (candidate.pageId !== page.pageId) return false
                 const candidateTrack = props.project.logicalSheet.paperTracks.find(track => track.paperTrack === candidate.paperTrack)
                 return !shouldSuppressRectUnderActiveOverlay(candidateTrack, candidate.bbox, activeOverlayColumn)
               })
@@ -12936,68 +12992,118 @@ function TemplateEditHandles({
 
 function RecognitionActionMenu({
   candidates,
-  threshold,
-  setThreshold,
-  minInkRatio,
-  setMinInkRatio,
+  sheetRole,
+  running,
+  progress,
+  message,
+  project,
   disabled,
+  onSheetRoleChange,
   onDetect,
   onAccept,
   onAcceptAll,
+  onUpdateLabel,
+  onRemove,
   onClear,
 }: {
   candidates: RecognitionCandidate[]
-  threshold: number
-  setThreshold: (value: number) => void
-  minInkRatio: number
-  setMinInkRatio: (value: number) => void
+  sheetRole: SheetTimingRole
+  running: boolean
+  progress: { completed: number; total: number } | null
+  message: string | null
+  project: CutProject
   disabled: boolean
+  onSheetRoleChange: (sheetRole: SheetTimingRole) => void
   onDetect: () => void
   onAccept: (candidate: RecognitionCandidate) => void
   onAcceptAll: () => void
+  onUpdateLabel: (candidateId: string, value: string) => void
+  onRemove: (candidateId: string) => void
   onClear: () => void
 }) {
+  const readyCount = candidates.filter(candidate => !recognitionCandidateHasConflict(project, candidate)).length
   return (
     <ActionMenu
-      label={<OcrIcon />}
+      label={<><OcrIcon /><span>OCR</span></>}
       ariaLabel={uiText.recognition.menu}
       tooltipLabel={uiText.recognition.menuTitle}
-      className="iconActionMenu sheetRecognitionMenu"
+      className="sheetRecognitionMenu"
     >
       <div className="recognitionMenuBody">
-        <button type="button" disabled={disabled} onClick={onDetect}>{uiText.actions.detectMarks}</button>
-        <div className="recognitionMenuActions">
-          <button type="button" disabled={candidates.length === 0} onClick={onAcceptAll}>{uiText.actions.acceptAll}</button>
-          <button type="button" disabled={candidates.length === 0} onClick={onClear}>{uiText.recognition.clearCandidates}</button>
+        <div className="recognitionRoleControl" role="group" aria-label={uiText.recognition.targetField}>
+          {(['action', 'cell'] as const).map(role => (
+            <button
+              key={role}
+              type="button"
+              className={sheetRole === role ? 'active' : ''}
+              aria-pressed={sheetRole === role}
+              disabled={running}
+              onClick={() => onSheetRoleChange(role)}
+            >
+              {uiText.sheetRoles[role]}
+            </button>
+          ))}
         </div>
-        <label className="compactControl recognitionMenuControl">
-          {uiText.recognition.darkness}
-          <input type="range" min="60" max="230" value={threshold} onChange={event => setThreshold(Number(event.currentTarget.value))} />
-          <span>{threshold}</span>
-        </label>
-        <label className="compactControl recognitionMenuControl">
-          {uiText.recognition.inkRatio}
-          <input type="range" min="1" max="120" value={Math.round(minInkRatio * 1000)} onChange={event => setMinInkRatio(Number(event.currentTarget.value) / 1000)} />
-          <span>{minInkRatio.toFixed(3)}</span>
-        </label>
+        <button type="button" className="recognitionRunButton" disabled={disabled || running} onClick={onDetect}>
+          {running ? uiText.recognition.running : uiText.actions.runOcrAllPages}
+        </button>
+        {running && progress && (
+          <progress
+            className="recognitionProgress"
+            max={Math.max(1, progress.total)}
+            value={progress.completed}
+            aria-label={uiText.recognition.running}
+          />
+        )}
+        <div className="recognitionMenuActions">
+          <button type="button" disabled={readyCount === 0 || running} onClick={onAcceptAll}>{uiText.actions.acceptAll}</button>
+          <button type="button" disabled={candidates.length === 0 || running} onClick={onClear}>{uiText.recognition.clearCandidates}</button>
+        </div>
         {disabled && <p className="muted">{uiText.recognition.disabled}</p>}
+        {message && <p className="recognitionMessage" role="status">{message}</p>}
         <div className="recognitionMenuCandidateHeader">
           <strong>{uiText.recognition.candidates}</strong>
           <span>{uiText.recognition.candidateCount(candidates.length)}</span>
         </div>
         {candidates.length > 0 && (
           <div className="candidateList recognitionMenuCandidateList">
-            {candidates.map(candidate => (
-              <button key={candidate.candidateId} className="candidateItem" type="button" onClick={() => onAccept(candidate)}>
-                <strong>{candidate.paperTrack} {candidate.frame}F</strong>
-                <span>{Math.round(candidate.confidence * 100)}%</span>
-              </button>
-            ))}
+            {candidates.map(candidate => {
+              const conflict = recognitionCandidateHasConflict(project, candidate)
+              return (
+                <div key={candidate.candidateId} className={conflict ? 'candidateItem conflict' : 'candidateItem'}>
+                  <div className="candidateItemMeta">
+                    <strong>{candidate.paperTrack} {candidate.frame}F</strong>
+                    <span>{Math.round(candidate.confidence * 100)}%</span>
+                  </div>
+                  <input
+                    value={candidate.normalizedLabel}
+                    aria-label={uiText.recognition.candidateLabel(candidate.paperTrack, candidate.frame)}
+                    onChange={event => onUpdateLabel(candidate.candidateId, event.currentTarget.value)}
+                  />
+                  {conflict && <span className="candidateConflictLabel">{uiText.recognition.existingEvent}</span>}
+                  <div className="candidateItemActions">
+                    <button type="button" disabled={conflict || !candidate.normalizedLabel.trim()} onClick={() => onAccept(candidate)}>{uiText.recognition.accept}</button>
+                    <button type="button" onClick={() => onRemove(candidate.candidateId)}>{uiText.actions.remove}</button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
     </ActionMenu>
   )
+}
+
+function recognitionCandidateHasConflict(project: CutProject, candidate: RecognitionCandidate): boolean {
+  const event = project.logicalSheet.events.find(item =>
+    item.paperTrack === candidate.paperTrack
+    && item.frame === candidate.frame
+    && sheetTimingRoleForEvent(item) === candidate.sheetRole,
+  )
+  if (!event) return false
+  const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
+  return key?.displayLabel.trim().normalize('NFKC') !== candidate.normalizedLabel.trim().normalize('NFKC')
 }
 
 function ExportPanel(props: {

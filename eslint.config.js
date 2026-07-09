@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/dist-ts/**',
       '**/node_modules/**',
+      'apps/web/public/ocr/ort/**',
       '.tmp/**',
       'apps/desktop/src-tauri/target/**',
       'apps/sheet-corrector/src-tauri/target/**',

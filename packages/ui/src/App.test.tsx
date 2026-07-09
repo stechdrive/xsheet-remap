@@ -412,6 +412,20 @@ describe('App', () => {
     expect(projectMenu.open).toBe(false)
   })
 
+  it('shows a labeled OCR menu with only ACTION and CELL as user choices', () => {
+    render(<App />)
+    const menu = screen.getByLabelText(uiText.recognition.menu)
+    expect(menu.textContent).toContain('OCR')
+    fireEvent.click(menu)
+
+    const roleGroup = screen.getByRole('group', { name: uiText.recognition.targetField })
+    expect(within(roleGroup).getByRole('button', { name: uiText.sheetRoles.action })).toBeTruthy()
+    expect(within(roleGroup).getByRole('button', { name: uiText.sheetRoles.cell }).getAttribute('aria-pressed')).toBe('true')
+    expect((screen.getByRole('button', { name: uiText.actions.runOcrAllPages }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByText('濃さ')).toBeNull()
+    expect(screen.queryByText('記入率')).toBeNull()
+  })
+
   it('closes the app navigation menu when a file picker item is selected', async () => {
     render(<App />)
     const trigger = screen.getByLabelText(uiText.nav.menu)

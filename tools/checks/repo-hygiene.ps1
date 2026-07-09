@@ -12,7 +12,7 @@ Set-Location $repoRoot
 
 $binaryExtensions = @(
   ".bin", ".bmp", ".clip", ".dll", ".exe", ".gif", ".ico", ".jpeg", ".jpg",
-  ".pdf", ".png", ".psb", ".psd", ".tif", ".tiff", ".webp", ".zip"
+  ".pdf", ".png", ".psb", ".psd", ".tar", ".tif", ".tiff", ".webp", ".zip"
 )
 
 function Test-IsTextScanCandidate {
@@ -47,6 +47,13 @@ function Get-BuildOutputBinaryFiles {
   $paths |
     Where-Object { Test-Path -LiteralPath $_ } |
     ForEach-Object { Resolve-Path -Relative -LiteralPath $_ }
+}
+
+function Test-IsOcrVendorBundle {
+  param([string]$Path)
+
+  $normalized = $Path.Replace("\", "/").TrimStart([char[]]"./")
+  return $normalized -match '^apps/web/dist/assets/(?:dist|worker-entry-[^/]+)\.js$'
 }
 
 $patterns = New-Object System.Collections.Generic.List[object]
@@ -218,6 +225,9 @@ $findings = New-Object System.Collections.Generic.List[object]
 foreach ($file in ($files | Sort-Object -Unique)) {
   $content = Get-Content -LiteralPath $file -Raw -ErrorAction Stop
   foreach ($pattern in $patterns) {
+    if ($pattern.Name -eq "Internal project code name" -and (Test-IsOcrVendorBundle $file)) {
+      continue
+    }
     foreach ($match in $pattern.Regex.Matches($content)) {
       $lineNumber = ($content.Substring(0, $match.Index) -split "`n").Count
       $findings.Add([pscustomobject]@{

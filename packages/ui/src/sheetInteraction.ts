@@ -182,8 +182,9 @@ export function clampSheetZoom(value: number): number {
   return clampNumber(value, SHEET_ZOOM_MIN, SHEET_ZOOM_MAX)
 }
 
-export function candidateToHit(template: SheetTemplate, durationFrames: number, frameOrigin: number, candidate: { paperTrack: string; frame: number }): SheetHit | null {
-  return enumerateCellHits(template, durationFrames, frameOrigin).find(hit => hit.paperTrack === candidate.paperTrack && hit.frame === candidate.frame) ?? null
+export function candidateToHit(template: SheetTemplate, durationFrames: number, frameOrigin: number, candidate: { paperTrack: string; frame: number; sheetRole: SheetTimingRole }): SheetHit | null {
+  return enumerateTimingHits(template, durationFrames, frameOrigin, candidate.sheetRole)
+    .find(hit => hit.paperTrack === candidate.paperTrack && hit.frame === candidate.frame) ?? null
 }
 
 export function rangeSelectionFromHits(template: SheetTemplate, anchorHit: SheetHit, focusHit: SheetHit, paperTracks = template.defaults.paperTracks): SheetRangeSelection | null {

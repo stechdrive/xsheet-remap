@@ -94,6 +94,12 @@ class WebGuiTests(unittest.TestCase):
             app = CspImportHelperWebGui(profile_path=str(profile_path))
             settings = app.get_profile_settings()
             shortcuts = {field["key"]: field["value"] for field in settings["fields"]}
+            labels = {field["key"]: field["label"] for field in settings["fields"]}
+            self.assertEqual(shortcuts["selectLayerAboveShortcut"], "Alt+]")
+            self.assertEqual(shortcuts["selectLayerBelowShortcut"], "Alt+[")
+            self.assertEqual(shortcuts["saveAsShortcut"], "Ctrl+Shift+S")
+            self.assertEqual(labels["selectLayerAboveShortcut"], "編集対象にする＞上のレイヤー")
+            self.assertEqual(labels["selectLayerBelowShortcut"], "編集対象にする＞下のレイヤー")
             shortcuts["importXdtsShortcut"] = "Ctrl+Alt+X"
 
             state = app.save_profile_settings({"shortcuts": shortcuts, "setMultiply": False})

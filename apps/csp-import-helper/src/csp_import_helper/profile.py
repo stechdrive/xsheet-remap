@@ -54,14 +54,14 @@ class WorkspaceProfile:
     timeline_settings_shortcut: str = "^+q"
     previous_timeline_shortcut: str = "^+a"
     next_timeline_shortcut: str = "^+f"
-    select_layer_above_shortcut: str = "+f"
-    select_layer_below_shortcut: str = "+a"
+    select_layer_above_shortcut: str = "%]"
+    select_layer_below_shortcut: str = "%["
     import_xdts_shortcut: str = "^%x"
     import_image_shortcut: str = "^%i"
     rasterize_shortcut: str = "^%p"
     set_multiply_shortcut: str = "^%l"
     toggle_folder_children_shortcut: str = "^%f"
-    save_as_shortcut: str = "+%s"
+    save_as_shortcut: str = "^+s"
     multi_image_import_enabled: bool = True
     rasterize_after_image_import: bool = True
     close_imported_track_folder_after_image_import: bool = True
@@ -117,7 +117,7 @@ DEFAULT_PROFILE = WorkspaceProfile(
 )
 
 
-PROFILE_SCHEMA_VERSION = 1
+PROFILE_SCHEMA_VERSION = 2
 SPEED_MODE_STANDARD = "standard"
 SPEED_MODE_FAST = "fast"
 SPEED_MODE_TURBO = "turbo"
@@ -298,14 +298,26 @@ def workspace_profile_from_json(raw: dict[str, Any]) -> WorkspaceProfile:
     if not isinstance(raw, dict):
         raise ValueError("profile JSON root must be an object")
     if "profile" in raw:
-        schema_version = raw.get("schemaVersion", PROFILE_SCHEMA_VERSION)
-        if schema_version != PROFILE_SCHEMA_VERSION:
+        schema_version = raw.get("schemaVersion", 1)
+        if schema_version not in (1, PROFILE_SCHEMA_VERSION):
             raise ValueError(f"unsupported profile schemaVersion: {schema_version}")
         raw_profile = raw["profile"]
     else:
+        schema_version = 1
         raw_profile = raw
     if not isinstance(raw_profile, dict):
         raise ValueError("profile must be an object")
+
+    if schema_version == 1:
+        raw_profile = dict(raw_profile)
+        shortcut_migrations = {
+            "select_layer_above_shortcut": ("+f", DEFAULT_PROFILE.select_layer_above_shortcut),
+            "select_layer_below_shortcut": ("+a", DEFAULT_PROFILE.select_layer_below_shortcut),
+            "save_as_shortcut": ("+%s", DEFAULT_PROFILE.save_as_shortcut),
+        }
+        for key, (old_default, new_default) in shortcut_migrations.items():
+            if raw_profile.get(key, old_default) == old_default:
+                raw_profile[key] = new_default
 
     values = DEFAULT_PROFILE.to_json_dict()
     values.update(raw_profile)

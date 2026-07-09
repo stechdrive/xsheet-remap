@@ -7,6 +7,7 @@ import unittest
 
 from csp_import_helper.profile import (
     DEFAULT_PROFILE,
+    PROFILE_SCHEMA_VERSION,
     Rect,
     apply_workspace_profile_speed,
     load_workspace_profile,
@@ -15,6 +16,7 @@ from csp_import_helper.profile import (
     shortcut_from_display_text,
     shortcut_to_display_text,
     update_workspace_profile_shortcuts,
+    workspace_profile_from_json,
 )
 
 
@@ -93,14 +95,15 @@ class ProfileTests(unittest.TestCase):
     def test_shortcut_display_uses_named_modifiers_and_uppercase_keys(self) -> None:
         self.assertEqual(shortcut_to_display_text("^%x"), "Ctrl+Alt+X")
         self.assertEqual(shortcut_to_display_text("^+q"), "Ctrl+Shift+Q")
-        self.assertEqual(shortcut_to_display_text("+%s"), "Shift+Alt+S")
+        self.assertEqual(shortcut_to_display_text("%]"), "Alt+]")
+        self.assertEqual(shortcut_to_display_text("%["), "Alt+[")
 
     def test_shortcut_update_accepts_display_text(self) -> None:
         profile = update_workspace_profile_shortcuts(
             DEFAULT_PROFILE,
             timeline_toggle_shortcut="Shift+T",
-            select_layer_above_shortcut="Shift+F",
-            select_layer_below_shortcut="Shift+A",
+            select_layer_above_shortcut="Alt+]",
+            select_layer_below_shortcut="Alt+[",
             new_timeline_shortcut="Ctrl+Alt+T",
             timeline_settings_shortcut="Ctrl+Shift+Q",
             previous_timeline_shortcut="Ctrl+Shift+A",
@@ -110,16 +113,51 @@ class ProfileTests(unittest.TestCase):
             rasterize_shortcut="Ctrl+Alt+P",
             set_multiply_shortcut="Ctrl+Alt+L",
             toggle_folder_children_shortcut="Ctrl+Alt+F",
-            save_as_shortcut="Shift+Alt+S",
+            save_as_shortcut="Ctrl+Shift+S",
         )
 
         self.assertEqual(profile.timeline_toggle_shortcut, "+t")
+        self.assertEqual(profile.select_layer_above_shortcut, "%]")
+        self.assertEqual(profile.select_layer_below_shortcut, "%[")
         self.assertEqual(profile.new_timeline_shortcut, "^%t")
         self.assertEqual(profile.timeline_settings_shortcut, "^+q")
         self.assertEqual(profile.import_xdts_shortcut, "^%x")
         self.assertEqual(profile.import_image_shortcut, "^%i")
-        self.assertEqual(profile.save_as_shortcut, "+%s")
+        self.assertEqual(profile.save_as_shortcut, "^+s")
         self.assertEqual(shortcut_from_display_text("Ctrl+Shift+LEFT"), "^+left")
+
+    def test_version_one_profile_migrates_old_default_shortcuts(self) -> None:
+        profile = workspace_profile_from_json(
+            {
+                "schemaVersion": 1,
+                "profile": {
+                    "select_layer_above_shortcut": "+f",
+                    "select_layer_below_shortcut": "+a",
+                    "save_as_shortcut": "+%s",
+                },
+            }
+        )
+
+        self.assertEqual(PROFILE_SCHEMA_VERSION, 2)
+        self.assertEqual(profile.select_layer_above_shortcut, "%]")
+        self.assertEqual(profile.select_layer_below_shortcut, "%[")
+        self.assertEqual(profile.save_as_shortcut, "^+s")
+
+    def test_version_one_profile_preserves_custom_shortcuts(self) -> None:
+        profile = workspace_profile_from_json(
+            {
+                "schemaVersion": 1,
+                "profile": {
+                    "select_layer_above_shortcut": "^up",
+                    "select_layer_below_shortcut": "^down",
+                    "save_as_shortcut": "^%s",
+                },
+            }
+        )
+
+        self.assertEqual(profile.select_layer_above_shortcut, "^up")
+        self.assertEqual(profile.select_layer_below_shortcut, "^down")
+        self.assertEqual(profile.save_as_shortcut, "^%s")
 
     def test_fast_speed_profile_shortens_waits_without_slowing_custom_values(self) -> None:
         fast = apply_workspace_profile_speed(DEFAULT_PROFILE, "fast")

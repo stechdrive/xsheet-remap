@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Timesheet workspace thumbnail">
+  <rect width="240" height="240" fill="#f6f7f3"/>
+  <rect x="0" y="0" width="240" height="52" fill="#1f2937"/>
+  <text x="14" y="27" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#ffffff">TIMESHEET</text>
+  <text x="16" y="43" font-family="Segoe UI, Arial, sans-serif" font-size="8" fill="#ffffff">workspace for animation cuts</text>
+
+  <rect x="14" y="66" width="212" height="140" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+  <rect x="18" y="70" width="42" height="132" fill="#e8edeb"/>
+  <rect x="24" y="82" width="24" height="8" fill="#269172"/>
+  <rect x="24" y="98" width="24" height="8" fill="#3e6fb5"/>
+  <rect x="24" y="114" width="24" height="8" fill="#e19c2d"/>
+  <rect x="24" y="130" width="24" height="8" fill="#acb8be"/>
+  <rect x="24" y="146" width="24" height="8" fill="#acb8be"/>
+  <rect x="24" y="162" width="24" height="8" fill="#acb8be"/>
+
+  <rect x="72" y="78" width="140" height="98" fill="none" stroke="#1f2937" stroke-width="2"/>
+  <g stroke="#c3c9c7" stroke-width="1">
+    <line x1="95" y1="78" x2="95" y2="176"/>
+    <line x1="118" y1="78" x2="118" y2="176"/>
+    <line x1="142" y1="78" x2="142" y2="176"/>
+    <line x1="165" y1="78" x2="165" y2="176"/>
+    <line x1="188" y1="78" x2="188" y2="176"/>
+    <line x1="72" y1="90" x2="212" y2="90"/>
+    <line x1="72" y1="102" x2="212" y2="102"/>
+    <line x1="72" y1="115" x2="212" y2="115"/>
+    <line x1="72" y1="127" x2="212" y2="127"/>
+    <line x1="72" y1="139" x2="212" y2="139"/>
+    <line x1="72" y1="151" x2="212" y2="151"/>
+    <line x1="72" y1="164" x2="212" y2="164"/>
+  </g>
+  <line x1="83" y1="92" x2="83" y2="164" stroke="#269172" stroke-width="4" stroke-linecap="round"/>
+  <line x1="106" y1="92" x2="106" y2="132" stroke="#e19c2d" stroke-width="3" stroke-linecap="round"/>
+  <line x1="153" y1="116" x2="153" y2="164" stroke="#3e6fb5" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="83" cy="91" r="5" fill="#269172"/>
+  <circle cx="106" cy="91" r="5" fill="#e19c2d"/>
+  <circle cx="153" cy="115" r="5" fill="#3e6fb5"/>
+
+  <text x="74" y="190" font-family="Segoe UI, Arial, sans-serif" font-size="9" font-weight="700" fill="#269172">CELL</text>
+  <text x="111" y="190" font-family="Segoe UI, Arial, sans-serif" font-size="9" font-weight="700" fill="#e19c2d">ACTION</text>
+  <text x="164" y="190" font-family="Segoe UI, Arial, sans-serif" font-size="9" font-weight="700" fill="#3e6fb5">CAMERA</text>
+  <text x="38" y="228" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2937">xsheet-remap ready</text>
+</svg>

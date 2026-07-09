@@ -501,6 +501,7 @@ $checksumTargets = @(
   "xsheet-remap.exe",
   "xsheet-corrector.exe",
   "xsheet-csp-import-helper.bat",
+  "assets/xsheet-remap.laf",
   "csp-import-helper-cli/xsheet-csp-import-helper-cli.exe",
   "RELEASE.json"
 )

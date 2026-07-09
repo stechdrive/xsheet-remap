@@ -34,9 +34,8 @@ from .progress_plan import build_import_execution_plan
 EMERGENCY_HOTKEY_TEXT = "Ctrl+Alt+F12 / Ctrl+Alt+Pause"
 MANIFEST_DROP_HINT = ".xci をドロップ、または選択"
 CLIP_DROP_HINT = ".clip をドロップ、または選択"
-WORKSPACE_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285656"
-MULTIPLY_ACTION_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285681"
-ALLOWED_EXTERNAL_URLS = frozenset((WORKSPACE_ASSET_URL, MULTIPLY_ACTION_ASSET_URL))
+WORKSPACE_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285876"
+ALLOWED_EXTERNAL_URLS = frozenset((WORKSPACE_ASSET_URL,))
 SPEED_DISPLAY_TO_MODE = {
     "標準": SPEED_MODE_STANDARD,
     "高速": SPEED_MODE_FAST,
@@ -1040,16 +1039,16 @@ HTML = r"""<!doctype html>
         </section>
         <section class="help-section">
           <h3>実行前のクリスタ側チェック</h3>
-          <p>ヘルパー用のショートカット設定済みワークスペースと、乗算オートアクションを先にクリスタへ読み込んでください。</p>
+          <p>ヘルパー用のショートカット設定済みワークスペースを先にクリスタへ読み込んでください。乗算オートアクションは、同梱のassets/xsheet-remap.lafを使うか、自分で作った同等のアクションを使えます。</p>
           <div class="help-links">
             <a class="help-link external-link" href="__WORKSPACE_ASSET_URL__" data-external-url="__WORKSPACE_ASSET_URL__" target="_blank" rel="noopener noreferrer">ワークスペースをAssetsで開く</a>
-            <a class="help-link external-link" href="__MULTIPLY_ACTION_ASSET_URL__" data-external-url="__MULTIPLY_ACTION_ASSET_URL__" target="_blank" rel="noopener noreferrer">乗算オートアクションをAssetsで開く</a>
           </div>
           <ul>
             <li class="critical"><strong>最重要: 読み込ませたCLIPファイル内の既存のアニメーションフォルダーが全て非表示になるようにしてください。</strong> 各アニメーションフォルダ、またはそれを含む親フォルダを非表示にした状態であることを開始前に必ず確認してください。表示されたままだと、自動登録のフォルダ積み込みが崩れます。</li>
             <li>CLIP STUDIO PAINT（クリスタ）へ、xsheet-remap用ワークスペースを読み込み、ワークスペースとショートカットがヘルパーの「設定」と合っていること。</li>
+            <li>同梱のassets/xsheet-remap.lafを使う場合は、オートアクションパレットのメニューから「オートアクションセットを読み込み」を選び、xsheet-remap.lafを読み込むこと。</li>
             <li>乗算オートアクションを読み込んだ後、ファイル &gt; ショートカットキー設定から、設定領域 &gt; オートアクションを選び、読み込んだxsheet-remapオートアクションの「乗算」にCtrl+Alt+Lを割り当てていること。ワークスペース読み込みだけではオートアクションのショートカットは自動設定されません。</li>
-            <li>自分でレイヤー合成モードを乗算にするオートアクションを作っている場合も、ヘルパーの「設定」にある「乗算オートアクション」と同じショートカットが割り当たっていれば使えます。</li>
+            <li>このオートアクションはレイヤー合成モードを乗算にするだけです。同じ内容のオートアクションを自分で作っている場合も、ヘルパーの「設定」にある「乗算オートアクション」と同じショートカットが割り当たっていれば使えます。</li>
             <li>タイムライン編集が有効な状態から始めること。ヘルパーはXDTS読み込み後に必要なタイミングで切り替えます。</li>
             <li>クリスタの確認ダイアログや保存ダイアログを残したまま開始しないこと。</li>
             <li>初回、NAS上のファイル、不安定な環境では速度を「標準」にすること。</li>
@@ -1355,5 +1354,4 @@ HTML = r"""<!doctype html>
 HTML = (
     HTML.replace("/* __LINE_SEED_FONT_FACE_CSS__ */", _line_seed_font_face_css())
     .replace("__WORKSPACE_ASSET_URL__", html.escape(WORKSPACE_ASSET_URL, quote=True))
-    .replace("__MULTIPLY_ACTION_ASSET_URL__", html.escape(MULTIPLY_ACTION_ASSET_URL, quote=True))
 )

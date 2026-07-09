@@ -297,6 +297,17 @@ function Copy-LineSeedFonts {
     Copy-Item -Destination $fontFilesOutputRoot -Force
 }
 
+function Copy-HelperAssets {
+  $assetSourceRoot = Join-Path $appRoot "assets"
+  if (-not (Test-Path -LiteralPath $assetSourceRoot)) {
+    throw "CSP import helper assets not found: $assetSourceRoot"
+  }
+
+  $assetOutputRoot = Join-Path $packageRoot "assets"
+  New-Item -ItemType Directory -Force -Path $assetOutputRoot | Out-Null
+  Copy-Item -LiteralPath (Join-Path $assetSourceRoot "xsheet-remap.laf") -Destination $assetOutputRoot -Force
+}
+
 function Remove-PythonCaches {
   param([string]$Path)
 
@@ -356,6 +367,7 @@ Copy-Item `
   -Recurse `
   -Force
 Copy-LineSeedFonts
+Copy-HelperAssets
 
 $runtimeRequirementsPath = Join-Path $appRoot "requirements\runtime.txt"
 & $venvPython -m pip install --no-compile --upgrade --target $sitePackagesRoot -r $runtimeRequirementsPath

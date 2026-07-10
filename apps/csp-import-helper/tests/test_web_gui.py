@@ -113,6 +113,10 @@ class WebGuiTests(unittest.TestCase):
     def test_external_help_links_are_allowlisted(self) -> None:
         app = CspImportHelperWebGui()
 
+        self.assertEqual(
+            WORKSPACE_ASSET_URL,
+            "https://assets.clip-studio.com/ja-jp/detail?id=2285979",
+        )
         with patch("csp_import_helper.web_gui.webbrowser.open") as open_mock:
             self.assertEqual(app.open_external_url(WORKSPACE_ASSET_URL), {"ok": True})
             self.assertEqual(

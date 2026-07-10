@@ -8,6 +8,9 @@ param(
   [switch]$DiscardOpenDocument,
   [switch]$KeepClipOpen,
   [switch]$ProbeWindow,
+  [ValidateSet("standard", "fast", "turbo")]
+  [string]$Speed = "standard",
+  [string]$SaveAs = "",
   [switch]$Json
 )
 
@@ -23,6 +26,13 @@ function Resolve-InputPath([string]$PathValue) {
     Join-Path $repoRoot $PathValue
   }
   return (Resolve-Path -LiteralPath $candidate).Path
+}
+
+function Resolve-OutputPath([string]$PathValue) {
+  if ([System.IO.Path]::IsPathRooted($PathValue)) {
+    return [System.IO.Path]::GetFullPath($PathValue)
+  }
+  return [System.IO.Path]::GetFullPath((Join-Path $repoRoot $PathValue))
 }
 
 $resolvedRunRoot = Resolve-InputPath $RunRoot
@@ -58,6 +68,7 @@ if (-not (Test-Path -LiteralPath $manifest)) {
 if (-not $Json) {
   Write-Host "[csp-import-helper] smoke manifest: $manifest"
   Write-Host "[csp-import-helper] helper launcher: $resolvedLauncher"
+  Write-Host "[csp-import-helper] automation speed: $Speed"
   if (-not $Run) {
     Write-Host "[csp-import-helper] dry-run only. Add -Run to operate CSP."
   }
@@ -70,14 +81,61 @@ if ($ProbeWindow) {
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-$argsList = @("--manifest", $manifest)
+$argsList = @("--manifest", $manifest, "--speed", $Speed)
 if ($Run) { $argsList += "--run" }
 if ($Json) { $argsList += "--json" }
+$operationLogPath = Join-Path $resolvedRunRoot "csp-import-job-log.json"
+if ($Run -and (Test-Path -LiteralPath $operationLogPath)) {
+  Remove-Item -LiteralPath $operationLogPath -Force
+}
+$resolvedSaveAs = ""
+if ($SaveAs) {
+  $resolvedSaveAs = Resolve-OutputPath $SaveAs
+  $saveDirectory = Split-Path -Parent $resolvedSaveAs
+  New-Item -ItemType Directory -Force -Path $saveDirectory | Out-Null
+  $argsList += @("--save-as", $resolvedSaveAs)
+  if (-not $KeepClipOpen) { $argsList += "--close-after-save" }
+}
 
 & $resolvedLauncher @argsList
 $runExitCode = $LASTEXITCODE
 
-if ($ResetClip -and $Run -and -not $KeepClipOpen) {
+if ($Run -and $runExitCode -eq 0) {
+  $manifestData = Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json
+  $expectedImportCount = @(
+    $manifestData.cuts | ForEach-Object { $_.tracks } | ForEach-Object { $_.cels }
+  ).Count
+  if (-not (Test-Path -LiteralPath $operationLogPath)) {
+    Write-Error "CSP helper operation log was not created: $operationLogPath"
+    $runExitCode = 1
+  } else {
+    $operationLogData = Get-Content -LiteralPath $operationLogPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $errorCount = @($operationLogData.errors).Count
+    $importedCount = @($operationLogData.events | Where-Object { $_.event -eq "asset.imported" }).Count
+    $timingEvent = @($operationLogData.events | Where-Object { $_.event -eq "automation.timing_profile" }) | Select-Object -Last 1
+    if ($errorCount -ne 0) {
+      Write-Error "CSP helper operation log contains $errorCount error(s): $operationLogPath"
+      $runExitCode = 1
+    } elseif ($importedCount -ne $expectedImportCount) {
+      Write-Error "CSP helper imported $importedCount of $expectedImportCount expected asset(s): $operationLogPath"
+      $runExitCode = 1
+    } elseif (-not $timingEvent -or $timingEvent.speedMode -ne $Speed) {
+      $actualSpeed = if ($timingEvent) { $timingEvent.speedMode } else { "missing" }
+      Write-Error "CSP helper speed mismatch. Expected '$Speed', got '$actualSpeed': $operationLogPath"
+      $runExitCode = 1
+    } elseif ($resolvedSaveAs -and -not (Test-Path -LiteralPath $resolvedSaveAs)) {
+      Write-Error "CSP helper did not create the saved CLIP: $resolvedSaveAs"
+      $runExitCode = 1
+    } elseif (-not $Json) {
+      Write-Host "[csp-import-helper] verified $importedCount asset import(s), speed '$Speed', errors 0"
+      if ($resolvedSaveAs) {
+        Write-Host "[csp-import-helper] verified saved CLIP: $resolvedSaveAs"
+      }
+    }
+  }
+}
+
+if ($ResetClip -and $Run -and -not $KeepClipOpen -and -not $resolvedSaveAs) {
   $cleanupArgs = @("-File", (Join-Path $repoRoot "tools\csp-import-helper\reset-test-clip.ps1"), "-CloseOpenDocument")
   if ($Json) { $cleanupArgs += "-Quiet" }
   if (-not $Json) {

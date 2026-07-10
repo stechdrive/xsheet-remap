@@ -34,7 +34,7 @@ from .progress_plan import build_import_execution_plan
 EMERGENCY_HOTKEY_TEXT = "Ctrl+Alt+F12 / Ctrl+Alt+Pause"
 MANIFEST_DROP_HINT = ".xci をドロップ、または選択"
 CLIP_DROP_HINT = ".clip をドロップ、または選択"
-WORKSPACE_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285876"
+WORKSPACE_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285979"
 OLM_PEG_HOLE_STABILIZER_URL = "https://www.olm.co.jp/post/olm-peg-hole-stabilizer-updated"
 ALLOWED_EXTERNAL_URLS = frozenset((WORKSPACE_ASSET_URL, OLM_PEG_HOLE_STABILIZER_URL))
 SPEED_DISPLAY_TO_MODE = {

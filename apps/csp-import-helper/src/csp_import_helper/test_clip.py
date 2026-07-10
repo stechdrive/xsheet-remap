@@ -9,15 +9,16 @@ from typing import Any
 from PIL import ImageStat
 
 from .automation import AutomationError, probe_csp_window
-from .profile import DEFAULT_PROFILE, WorkspaceProfile
+from .profile import Rect, WorkspaceProfile, load_workspace_profile, scale_profile_to_window
 
 
 def reset_test_clip(
     clip_path: Path,
     *,
     discard_open_document: bool,
-    profile: WorkspaceProfile = DEFAULT_PROFILE,
+    profile: WorkspaceProfile | None = None,
 ) -> None:
+    profile = profile or load_workspace_profile()
     if not clip_path.exists():
         raise AutomationError(f"test CLIP was not found: {clip_path}")
     if clip_path.suffix.lower() != ".clip":
@@ -30,7 +31,8 @@ def reset_test_clip(
     _wait_for_csp_window(profile)
 
 
-def close_active_csp_document_without_saving(profile: WorkspaceProfile = DEFAULT_PROFILE) -> None:
+def close_active_csp_document_without_saving(profile: WorkspaceProfile | None = None) -> None:
+    profile = profile or load_workspace_profile()
     _close_active_csp_document_without_saving(profile)
 
 
@@ -244,8 +246,10 @@ def _wait_for_csp_window(profile: WorkspaceProfile) -> None:
     deadline = time.monotonic() + 20.0
     while time.monotonic() < deadline:
         probe = probe_csp_window(profile)
-        if probe.found and _csp_document_looks_open(profile):
-            return
+        if probe.found and probe.rect is not None:
+            current_profile = scale_profile_to_window(profile, Rect(*probe.rect))
+            if _csp_document_looks_open(current_profile):
+                return
         time.sleep(0.25)
     raise AutomationError(
         "The CSP window was found, but the test CLIP did not become visible in the layer palette."

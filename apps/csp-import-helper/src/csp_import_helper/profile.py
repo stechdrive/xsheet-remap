@@ -62,6 +62,7 @@ class WorkspaceProfile:
     set_multiply_shortcut: str = "^%l"
     toggle_folder_children_shortcut: str = "^%f"
     save_as_shortcut: str = "^+s"
+    automation_speed_mode: str = "turbo"
     multi_image_import_enabled: bool = True
     rasterize_after_image_import: bool = True
     close_imported_track_folder_after_image_import: bool = True
@@ -321,6 +322,8 @@ def workspace_profile_from_json(raw: dict[str, Any]) -> WorkspaceProfile:
 
     values = DEFAULT_PROFILE.to_json_dict()
     values.update(raw_profile)
+    if values["automation_speed_mode"] not in SPEED_MODES:
+        values["automation_speed_mode"] = SPEED_MODE_TURBO
     for key in (
         "file_menu",
         "animation_menu",

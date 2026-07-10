@@ -11,7 +11,7 @@ from .emergency_stop import EmergencyHotkeys
 from .web_gui import launch_gui
 from .logging import OperationLog
 from .manifest import ManifestError, build_import_plan, load_manifest, validate_manifest_files
-from .profile import SPEED_MODES, SPEED_MODE_STANDARD, apply_workspace_profile_speed, load_workspace_profile
+from .profile import SPEED_MODES, apply_workspace_profile_speed, load_workspace_profile
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--save-as", help="Full output .clip file path for CSP Save As after import")
     parser.add_argument("--close-after-save", action="store_true", help="Close the active CSP document after Save As")
     parser.add_argument("--stop-file", help="Pause safely when this file exists during --run")
-    parser.add_argument("--speed", choices=SPEED_MODES, default=SPEED_MODE_STANDARD, help="Automation speed preset")
+    parser.add_argument("--speed", choices=SPEED_MODES, default=None, help="Automation speed preset")
     parser.add_argument("--no-emergency-hotkey", action="store_true", help="Disable Ctrl+Alt+F12 / Ctrl+Alt+Pause emergency stop hotkeys during --run")
     parser.add_argument("--no-pause-on-unhandled-dialog", action="store_true", help="Do not pause when an unknown CSP modal dialog appears")
     parser.add_argument(
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         or args.save_as is not None
         or args.close_after_save
         or args.stop_file is not None
-        or args.speed != SPEED_MODE_STANDARD
+        or args.speed is not None
         or args.no_emergency_hotkey
         or args.no_pause_on_unhandled_dialog
         or args.timeline_disabled_confirmed
@@ -122,7 +122,8 @@ def main(argv: list[str] | None = None) -> int:
 
         if not manifest_path:
             parser.error("--manifest is required in CLI mode")
-        profile = apply_workspace_profile_speed(profile, args.speed)
+        speed_mode = args.speed or profile.automation_speed_mode
+        profile = apply_workspace_profile_speed(profile, speed_mode)
         manifest = load_manifest(manifest_path)
         file_errors = validate_manifest_files(manifest)
         if file_errors:
@@ -171,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
             cancel_event=cancel_event,
             stop_file=args.stop_file,
             pause_on_unhandled_dialog=not args.no_pause_on_unhandled_dialog,
-            speed_mode=args.speed,
+            speed_mode=speed_mode,
         )
         save_as_path = args.save_as
         if save_as_path is None and args.save_output:

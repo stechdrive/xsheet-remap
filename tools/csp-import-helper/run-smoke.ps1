@@ -9,7 +9,7 @@ param(
   [switch]$KeepClipOpen,
   [switch]$ProbeWindow,
   [ValidateSet("standard", "fast", "turbo")]
-  [string]$Speed = "standard",
+  [string]$Speed = "turbo",
   [string]$SaveAs = "",
   [switch]$Json
 )

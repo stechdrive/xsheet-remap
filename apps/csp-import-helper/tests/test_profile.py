@@ -51,6 +51,26 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(loaded.timeline_palette, DEFAULT_PROFILE.timeline_palette)
             self.assertEqual(loaded.timeline_menu_row, DEFAULT_PROFILE.timeline_menu_row)
 
+    def test_default_automation_speed_is_turbo_and_custom_choice_round_trips(self) -> None:
+        self.assertEqual(DEFAULT_PROFILE.automation_speed_mode, "turbo")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "profile.json"
+            save_workspace_profile(replace(DEFAULT_PROFILE, automation_speed_mode="standard"), path)
+
+            loaded = load_workspace_profile(path)
+
+        self.assertEqual(loaded.automation_speed_mode, "standard")
+
+    def test_invalid_saved_automation_speed_falls_back_to_turbo(self) -> None:
+        profile = workspace_profile_from_json(
+            {
+                "schemaVersion": PROFILE_SCHEMA_VERSION,
+                "profile": {"automation_speed_mode": "unsupported"},
+            }
+        )
+
+        self.assertEqual(profile.automation_speed_mode, "turbo")
+
     def test_scales_profile_to_current_csp_window_rect(self) -> None:
         calibrated = scale_profile_to_window(DEFAULT_PROFILE, Rect(100, 50, 2020, 1130))
 

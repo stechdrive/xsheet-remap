@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from csp_import_helper import __version__
 from csp_import_helper import cli
-from csp_import_helper.profile import SPEED_MODE_STANDARD, SPEED_MODE_TURBO
+from csp_import_helper.profile import SPEED_MODE_TURBO
 
 
 class CliTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class CliTests(unittest.TestCase):
             launch_gui.assert_called_once_with(
                 "C:\\cut\\csp-import.xci",
                 initial_clip=None,
-                initial_speed_mode=SPEED_MODE_STANDARD,
+                initial_speed_mode=None,
                 auto_start=False,
             )
 
@@ -25,7 +25,7 @@ class CliTests(unittest.TestCase):
             launch_gui.assert_called_once_with(
                 None,
                 initial_clip=None,
-                initial_speed_mode=SPEED_MODE_STANDARD,
+                initial_speed_mode=None,
                 auto_start=False,
             )
 
@@ -35,7 +35,7 @@ class CliTests(unittest.TestCase):
             launch_gui.assert_called_once_with(
                 None,
                 initial_clip="C:\\cut\\work.clip",
-                initial_speed_mode=SPEED_MODE_STANDARD,
+                initial_speed_mode=None,
                 auto_start=False,
             )
 
@@ -48,7 +48,7 @@ class CliTests(unittest.TestCase):
             launch_gui.assert_called_once_with(
                 "C:\\cut\\csp-import.xci",
                 initial_clip="C:\\cut\\work.clip",
-                initial_speed_mode=SPEED_MODE_STANDARD,
+                initial_speed_mode=None,
                 auto_start=False,
             )
 

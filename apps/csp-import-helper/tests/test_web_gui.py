@@ -5,13 +5,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from csp_import_helper.profile import DEFAULT_PROFILE, shortcut_to_display_text
+from csp_import_helper.profile import DEFAULT_PROFILE, load_workspace_profile, shortcut_to_display_text
 from csp_import_helper.web_gui import (
     ALLOWED_EXTERNAL_URLS,
     HTML,
     CspImportHelperWebGui,
     OLM_PEG_HOLE_STABILIZER_URL,
     WORKSPACE_ASSET_URL,
+    _with_speed_retry_guidance,
     _gui_startup_error_message,
     launch_gui,
     select_dropped_import_files,
@@ -28,6 +29,38 @@ FIXTURE_MANIFEST = (
 
 
 class WebGuiTests(unittest.TestCase):
+    def test_speed_defaults_to_turbo_and_persists_user_choice(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            profile_path = Path(tmp) / "workspace-profile.json"
+            app = CspImportHelperWebGui(profile_path=str(profile_path))
+
+            self.assertEqual(app.get_state()["speedMode"], "turbo")
+            state = app.set_options({"speedMode": "standard"})
+
+            self.assertEqual(state["speedMode"], "standard")
+            self.assertEqual(load_workspace_profile(profile_path).automation_speed_mode, "standard")
+            restarted = CspImportHelperWebGui(profile_path=str(profile_path))
+            self.assertEqual(restarted.get_state()["speedMode"], "standard")
+
+    def test_explicit_speed_overrides_saved_choice_without_replacing_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            profile_path = Path(tmp) / "workspace-profile.json"
+            app = CspImportHelperWebGui(profile_path=str(profile_path))
+            app.set_options({"speedMode": "standard"})
+
+            overridden = CspImportHelperWebGui(profile_path=str(profile_path), initial_speed_mode="fast")
+
+            self.assertEqual(overridden.get_state()["speedMode"], "fast")
+            self.assertEqual(load_workspace_profile(profile_path).automation_speed_mode, "standard")
+
+    def test_error_guidance_requires_clean_retry_before_lowering_speed(self) -> None:
+        message = _with_speed_retry_guidance("automation failed", "turbo")
+
+        self.assertIn("CLIPを初期状態へ戻してください", message)
+        self.assertIn("高速", message)
+        self.assertIn("標準（安定優先）", message)
+        self.assertEqual(_with_speed_retry_guidance("automation failed", "standard"), "automation failed")
+
     def test_drop_selection_uses_first_xci_and_first_clip(self) -> None:
         manifest_path, clip_path = select_dropped_import_files(
             (
@@ -192,6 +225,8 @@ class WebGuiTests(unittest.TestCase):
         self.assertNotIn("Yu Gothic UI", HTML)
         self.assertNotIn("Consolas", HTML)
         self.assertNotIn("__LINE_SEED_FONT_FACE_CSS__", HTML)
+        self.assertIn('<option value="turbo">最速（推奨）</option>', HTML)
+        self.assertIn('<option value="standard">標準（安定優先）</option>', HTML)
 
     def test_launch_gui_reports_webview_backend_failure(self) -> None:
         with (

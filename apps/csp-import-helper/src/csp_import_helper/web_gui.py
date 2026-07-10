@@ -37,12 +37,11 @@ CLIP_DROP_HINT = ".clip をドロップ、または選択"
 WORKSPACE_ASSET_URL = "https://assets.clip-studio.com/ja-jp/detail?id=2285979"
 OLM_PEG_HOLE_STABILIZER_URL = "https://www.olm.co.jp/post/olm-peg-hole-stabilizer-updated"
 ALLOWED_EXTERNAL_URLS = frozenset((WORKSPACE_ASSET_URL, OLM_PEG_HOLE_STABILIZER_URL))
-SPEED_DISPLAY_TO_MODE = {
-    "標準": SPEED_MODE_STANDARD,
-    "高速": SPEED_MODE_FAST,
-    "最速": SPEED_MODE_TURBO,
+MODE_TO_SPEED_DISPLAY = {
+    SPEED_MODE_STANDARD: "標準（安定優先）",
+    SPEED_MODE_FAST: "高速",
+    SPEED_MODE_TURBO: "最速（推奨）",
 }
-MODE_TO_SPEED_DISPLAY = {mode: display for display, mode in SPEED_DISPLAY_TO_MODE.items()}
 LINE_SEED_FONT_CSS_FILES = ("400.css", "700.css", "800.css")
 SHORTCUT_FIELDS: tuple[dict[str, str], ...] = (
     {"key": "timelineToggleShortcut", "label": "タイムライン有効化切替", "profile": "timeline_toggle_shortcut"},
@@ -59,6 +58,20 @@ SHORTCUT_FIELDS: tuple[dict[str, str], ...] = (
     {"key": "toggleFolderChildrenShortcut", "label": "フォルダーと配下を開閉", "profile": "toggle_folder_children_shortcut"},
     {"key": "saveAsShortcut", "label": "別名で保存", "profile": "save_as_shortcut"},
 )
+
+
+def _with_speed_retry_guidance(message: str, speed_mode: str) -> str:
+    if speed_mode == SPEED_MODE_TURBO:
+        return (
+            f"{message}\n再実行する場合はCLIPを初期状態へ戻してください。"
+            "タイミングが原因と思われる場合は、速度を「高速」または「標準（安定優先）」へ変更できます。"
+        )
+    if speed_mode == SPEED_MODE_FAST:
+        return (
+            f"{message}\n再実行する場合はCLIPを初期状態へ戻してください。"
+            "タイミングが原因と思われる場合は、速度を「標準（安定優先）」へ変更できます。"
+        )
+    return message
 
 
 def _line_seed_font_source_roots() -> Iterable[Path]:
@@ -93,7 +106,7 @@ def launch_gui(
     profile_path: str | None = None,
     initial_clip: str | None = None,
     *,
-    initial_speed_mode: str = SPEED_MODE_STANDARD,
+    initial_speed_mode: str | None = None,
     auto_start: bool = False,
 ) -> int:
     app = CspImportHelperWebGui(
@@ -157,7 +170,7 @@ class CspImportHelperWebGui:
         profile_path: str | None = None,
         initial_clip: str | None = None,
         *,
-        initial_speed_mode: str = SPEED_MODE_STANDARD,
+        initial_speed_mode: str | None = None,
         auto_start: bool = False,
     ) -> None:
         self.initial_manifest = initial_manifest
@@ -181,7 +194,6 @@ class CspImportHelperWebGui:
         self.run_status = ""
         self.emergency_status = f"非常停止: {EMERGENCY_HOTKEY_TEXT}"
         self.close_after_save = False
-        self.speed_mode = initial_speed_mode if initial_speed_mode in MODE_TO_SPEED_DISPLAY else SPEED_MODE_STANDARD
         self.progress_total = 0
         self.progress_done = 0
         self.progress_steps: list[str] = []
@@ -195,6 +207,8 @@ class CspImportHelperWebGui:
         self.cancel_event: threading.Event | None = None
         self.running = False
         self.profile = self._load_profile(profile_path)
+        saved_speed_mode = self.profile.automation_speed_mode
+        self.speed_mode = initial_speed_mode if initial_speed_mode in MODE_TO_SPEED_DISPLAY else saved_speed_mode
 
     def run(self) -> None:
         import webview
@@ -272,7 +286,7 @@ class CspImportHelperWebGui:
                 "emergencyStatus": self.emergency_status,
                 "closeAfterSave": self.close_after_save,
                 "speedMode": self.speed_mode,
-                "speedDisplay": MODE_TO_SPEED_DISPLAY.get(self.speed_mode, "標準"),
+                "speedDisplay": MODE_TO_SPEED_DISPLAY.get(self.speed_mode, MODE_TO_SPEED_DISPLAY[SPEED_MODE_TURBO]),
                 "canStart": self._can_start_locked(),
                 "running": self.running,
                 "progress": {
@@ -349,15 +363,24 @@ class CspImportHelperWebGui:
         return self.get_state()
 
     def set_options(self, payload: dict[str, Any]) -> dict[str, Any]:
+        profile_to_save: WorkspaceProfile | None = None
         with self.lock:
             self.close_after_save = bool(payload.get("closeAfterSave"))
             speed_mode = str(payload.get("speedMode") or self.speed_mode)
             if speed_mode in MODE_TO_SPEED_DISPLAY:
+                if speed_mode != self.profile.automation_speed_mode:
+                    self.profile = replace(self.profile, automation_speed_mode=speed_mode)
+                    profile_to_save = self.profile
                 self.speed_mode = speed_mode
             save_path = payload.get("savePath")
             if isinstance(save_path, str):
                 self.save_path = save_path
             self._prepare_progress_preview_locked()
+        if profile_to_save is not None:
+            try:
+                save_workspace_profile(profile_to_save, self.profile_path)
+            except (OSError, ValueError) as exc:
+                self._set_notice("error", f"速度設定を保存できません: {exc}")
         return self.get_state()
 
     def load_manifest_path(self, path: str) -> dict[str, Any]:
@@ -456,7 +479,7 @@ class CspImportHelperWebGui:
                 self._log_threadsafe(f"完了: {manifest.operation_log_path}")
                 self._set_run_status_threadsafe("完了")
             except AutomationPaused as exc:
-                message = str(exc)
+                message = _with_speed_retry_guidance(str(exc), speed_mode)
                 log.error(message)
                 log.write(manifest.operation_log_path)
                 self._log_threadsafe(f"PAUSED: {message}")
@@ -464,7 +487,7 @@ class CspImportHelperWebGui:
                 self._set_run_status_threadsafe("一時停止")
                 self._set_notice_threadsafe("warning", message)
             except (AutomationError, ManifestError) as exc:
-                message = str(exc)
+                message = _with_speed_retry_guidance(str(exc), speed_mode)
                 log.error(message)
                 log.write(manifest.operation_log_path)
                 self._log_threadsafe(f"ERROR: {message}")
@@ -985,10 +1008,10 @@ HTML = r"""<!doctype html>
           <h2 class="panel-title">実行</h2>
           <div class="option-grid">
             <label class="check"><input id="closeAfterSave" type="checkbox">保存後にCLIPを閉じる</label>
-            <select id="speed" title="標準は初回/NAS/不安定環境向け。高速は通常運用、最速は検証済み環境向けです。">
-              <option value="standard">標準</option>
+            <select id="speed" title="通常は最速を推奨します。失敗時はCLIPを初期状態へ戻し、高速または標準で再実行してください。">
+              <option value="turbo">最速（推奨）</option>
               <option value="fast">高速</option>
-              <option value="turbo">最速</option>
+              <option value="standard">標準（安定優先）</option>
             </select>
           </div>
           <div class="actions">
@@ -1068,7 +1091,7 @@ HTML = r"""<!doctype html>
           <h3>実行前の最終チェック</h3>
           <ul>
             <li>xsheet-remap用ワークスペースが選択され、ワークスペースとショートカットがヘルパーの「設定」と合っていること。</li>
-            <li>初回、NAS上のファイル、不安定な環境では速度を「標準」にすること。</li>
+            <li>通常は「最速」を使い、タイミング起因のエラーが出る環境ではCLIPを初期状態へ戻して「高速」または「標準」で再実行すること。</li>
           </ul>
         </section>
         <section class="help-section">

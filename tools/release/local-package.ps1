@@ -358,6 +358,16 @@ function New-LocalReleaseZip {
       $false
     )
 
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+    try {
+      $guideEntryName = "$PackageName/README.txt"
+      if (-not ($archive.Entries | Where-Object { ($_.FullName -replace "\\", "/") -eq $guideEntryName })) {
+        throw "release ZIP is missing guide: $guideEntryName"
+      }
+    } finally {
+      $archive.Dispose()
+    }
+
     $zipHash = Get-Sha256Hex $zipPath
     ("{0}  {1}" -f $zipHash, "$PackageName.zip") |
       Set-Content -LiteralPath $zipChecksumPath -Encoding UTF8
@@ -394,6 +404,13 @@ New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 $components = New-Object System.Collections.Generic.List[object]
 $packageJson = Get-Content -LiteralPath (Join-Path $repoRoot "package.json") -Raw | ConvertFrom-Json
 $expectedReleaseVersion = [string]$packageJson.version
+$releaseGuideName = "README.txt"
+$releaseGuideSource = Join-Path $repoRoot "release-assets\$releaseGuideName"
+$releaseGuidePath = Join-Path $releaseRoot $releaseGuideName
+if (-not (Test-Path -LiteralPath $releaseGuideSource)) {
+  throw "missing release guide: $releaseGuideSource"
+}
+Copy-Item -LiteralPath $releaseGuideSource -Destination $releaseGuidePath -Force
 
 if (-not $SkipDesktop) {
   Copy-RequiredFile `
@@ -501,6 +518,7 @@ $checksumTargets = @(
   "xsheet-remap.exe",
   "xsheet-corrector.exe",
   "xsheet-csp-import-helper.bat",
+  "README.txt",
   "assets/xsheet-remap.laf",
   "csp-import-helper-cli/xsheet-csp-import-helper-cli.exe",
   "RELEASE.json"

@@ -227,6 +227,8 @@ class WebGuiTests(unittest.TestCase):
         self.assertNotIn("__LINE_SEED_FONT_FACE_CSS__", HTML)
         self.assertIn('<option value="turbo">最速（推奨）</option>', HTML)
         self.assertIn('<option value="standard">標準（安定優先）</option>', HTML)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) 176px", HTML)
+        self.assertIn(".option-grid #speed { width: 100%; }", HTML)
 
     def test_launch_gui_reports_webview_backend_failure(self) -> None:
         with (

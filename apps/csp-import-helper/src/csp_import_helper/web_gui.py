@@ -869,8 +869,9 @@ HTML = r"""<!doctype html>
     .metric-label { color: var(--muted); font-size: 11px; font-weight: 800; }
     .metric-value { margin-top: 4px; color: var(--ink); font-size: 24px; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums; }
     .cuts { margin-top: 10px; color: #566173; min-height: 20px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .option-grid { display: grid; grid-template-columns: 1fr 96px; gap: 8px; align-items: center; }
-    .check { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: #303a4c; }
+    .option-grid { display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 8px; align-items: center; }
+    .option-grid #speed { width: 100%; }
+    .check { min-width: 0; display: flex; align-items: center; gap: 6px; white-space: normal; color: #303a4c; }
     .actions { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .progress-shell { display: grid; gap: 10px; }
     .progress-head { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 10px; align-items: center; }

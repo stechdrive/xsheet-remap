@@ -956,28 +956,20 @@ textarea,
 }
 
 .processPaletteGroup {
-  max-width: min(40vw, 520px);
+  max-width: 180px;
 }
 
-.processPaletteButtons {
+.processDestinationControl {
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  font-weight: 700;
 }
 
-.processPaletteButtons .appTooltipTrigger {
-  flex: 0 0 auto;
-}
-
-.processPaletteButtons button {
-  max-width: 96px;
-  min-height: 30px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.processDestinationControl select {
+  min-width: 72px;
+  max-width: 110px;
 }
 
 .textToolbarGroup {
@@ -1213,7 +1205,11 @@ textarea,
 .sheetZoomFloatingPalette {
   position: absolute;
   top: 8px;
-  right: calc(var(--sheet-right-dock-width, 300px) + 20px);
+  right: calc(
+    var(--sheet-right-dock-width, 300px)
+    + var(--sheet-right-resizer-width, 10px)
+    + 24px
+  );
   z-index: 18;
   display: flex;
   align-items: center;
@@ -1245,7 +1241,14 @@ textarea,
   border-bottom: 2px solid #416b5a;
 }
 
+.cspLayerTreeHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
 .cspTreeAddCellButton,
+.cspTreeNormalizeButton,
 .cspTreeLayerAddMenu > summary {
   display: inline-grid;
   place-items: center;
@@ -1257,6 +1260,7 @@ textarea,
 }
 
 .cspTreeAddCellButton svg,
+.cspTreeNormalizeButton svg,
 .cspTreeLayerAddMenu > summary svg {
   width: 15px;
   height: 15px;
@@ -1487,12 +1491,6 @@ textarea,
   background: #fff;
 }
 
-.cspTreeCelFrame {
-  color: #6c756f;
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-
 .cspTreeMoveButtons {
   display: flex;
   gap: 2px;
@@ -1514,7 +1512,7 @@ textarea,
 
 .cspTreeCel {
   display: grid;
-  grid-template-columns: minmax(32px, auto) minmax(0, 1fr) auto 12px;
+  grid-template-columns: minmax(0, 1fr) auto 12px;
   align-items: center;
   gap: 4px;
   min-height: 29px;
@@ -1523,6 +1521,10 @@ textarea,
   border-radius: 4px;
   background: #fff;
   cursor: grab;
+}
+
+.cspTreeCel.unregistered {
+  border-style: dashed;
 }
 
 .cspTreeCel.selected {
@@ -1537,22 +1539,37 @@ textarea,
   height: 23px;
   padding: 2px 4px;
   font-size: 11px;
+  font-weight: 700;
 }
 
-.cspTreeCelLabel,
 .cspTreeCelName {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.cspTreeCelLabel {
   font-weight: 800;
 }
 
+.cspTreeSheetLabel {
+  max-width: 80px;
+  overflow: hidden;
+  color: #6c756f;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cspTreeAssetState {
+  grid-column: 3;
   color: #9ba39d;
   font-size: 10px;
+}
+
+.cspTreeUnregisteredStage > summary {
+  background: #f1eee5;
+}
+
+.cspTreeUnregisteredTrack {
+  margin-left: 8px;
 }
 
 .cspTreeCel.assigned .cspTreeAssetState {
@@ -1941,20 +1958,7 @@ textarea,
 .sheetPage {
   display: grid;
   justify-items: center;
-  gap: 6px;
   margin: 0;
-}
-
-.sheetPage figcaption {
-  width: 100%;
-  margin: 0 auto;
-  color: #4f5752;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.sheetPage.active figcaption {
-  color: #174d3f;
 }
 
 .sheetPageSurface {

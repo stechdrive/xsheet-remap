@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState, type DragEvent, type FormEvent, type KeyboardEvent } from 'react'
-import { buildCspLayerTree, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
+import { buildCspLayerTree, defaultCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { assetIdFromAssetDragData, assetIdsFromAssetDragData, hasAssetDragPayload } from './assetFiles'
 import { ActionMenu } from './AppControls'
 import { REGISTERED_CELL_DRAG_MIME, REGISTERED_CELL_TEXT_DRAG_PREFIX } from './sheetConstants'
@@ -24,6 +24,7 @@ export function CspLayerTree({
   selectedKeyId,
   onSelectKey,
   onJumpToFirstUse,
+  activeCorrectionLayerId,
   onUpdateCspCellName,
   onUpdateStackGuideRegistration,
   onRenamePaperTrack,
@@ -32,6 +33,8 @@ export function CspLayerTree({
   onAssignAssetsToStackGuideLabel,
   onRegisterAssetsToTrack,
   onRegisterAssetsToNewTrack,
+  onRegisterKeyToTrack,
+  onOpenNameNormalization,
   onRequestOverlayPaperTrack,
   onRequestStackGuideInsert,
   onCreateStackGuideLabel,
@@ -41,14 +44,17 @@ export function CspLayerTree({
   selectedKeyId: string | null
   onSelectKey: (keyId: string | null) => void
   onJumpToFirstUse: (keyId: string) => void
+  activeCorrectionLayerId: string
   onUpdateCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
   onRenamePaperTrack: (paperTrack: string, name: string) => void
   onMoveStackItem: (itemId: string, direction: 'up' | 'down') => void
-  onAssignAsset: (assetId: string, keyId: string) => void
+  onAssignAsset: (assetId: string, keyId: string, slotId?: string) => void
   onAssignAssetsToStackGuideLabel: (labelId: string, assetIds: string[], correctionLayerId: string) => void
   onRegisterAssetsToTrack: (slotId: string, assetIds: string[]) => CspTreeAssetRegistrationResult
   onRegisterAssetsToNewTrack: (input: CspTreeNewTrackRegistrationInput) => CspTreeAssetRegistrationResult
+  onRegisterKeyToTrack: (keyId: string, slotId: string) => boolean
+  onOpenNameNormalization: () => void
   onRequestOverlayPaperTrack: () => void
   onRequestStackGuideInsert: (correctionLayerId: string) => void
   onCreateStackGuideLabel: (input: { label: string; kind: StackGuideLabel['kind']; gapIndex: number; correctionLayerId: string }) => void
@@ -76,14 +82,14 @@ export function CspLayerTree({
     event.dataTransfer.setData('text/plain', `${REGISTERED_CELL_TEXT_DRAG_PREFIX}${keyId}`)
   }
 
-  function handleAssetDrop(event: DragEvent<HTMLElement>, keyId: string) {
+  function handleAssetDrop(event: DragEvent<HTMLElement>, keyId: string, slotId?: string) {
     const assetIds = assetIdsFromAssetDragData(event.dataTransfer)
     if (assetIds.length > 1) return
     const assetId = assetIds[0] ?? assetIdFromAssetDragData(event.dataTransfer)
     if (!assetId) return
     event.preventDefault()
     event.stopPropagation()
-    onAssignAsset(assetId, keyId)
+    onAssignAsset(assetId, keyId, slotId)
   }
 
   function handleStackGuideAssetDrop(
@@ -101,12 +107,27 @@ export function CspLayerTree({
   }
 
   function handlePaperTrackAssetDrop(event: DragEvent<HTMLElement>, slotId: string) {
+    const keyId = registeredCellKeyIdFromDrag(event)
+    if (keyId) {
+      event.preventDefault()
+      event.stopPropagation()
+      setAssetDropTrackNodeId(null)
+      setDropNotice(onRegisterKeyToTrack(keyId, slotId) ? '未登録カードを工程へ登録しました。' : 'このカードは登録済みです。')
+      return
+    }
     const assetIds = assetIdsFromAssetDragData(event.dataTransfer)
     if (assetIds.length === 0) return
     event.preventDefault()
     event.stopPropagation()
     setAssetDropTrackNodeId(null)
     setDropNotice(assetRegistrationNotice(onRegisterAssetsToTrack(slotId, assetIds)))
+  }
+
+  function activeSlotIdForTrack(track: CspLayerTreeTrack): string | undefined {
+    return project.cspTrackSlots.find(slot =>
+      slot.paperTrack === track.paperTrack
+      && slot.correctionLayerId === activeCorrectionLayerId,
+    )?.slotId
   }
 
   function beginNewTrackDrop(
@@ -194,19 +215,88 @@ export function CspLayerTree({
     )
   }
 
+  function renderCelCard(track: CspLayerTreeTrack, cel: CspLayerTreeCel, correctionLayerId?: string) {
+    const assignmentSlotId = track.slotId ?? activeSlotIdForTrack(track)
+    const editableBinding = Boolean(track.slotId && cel.keyId)
+    const editableGuide = Boolean(track.stackGuideLabelId && correctionLayerId)
+    const automaticName = track.paperTrack && cel.displayLabel
+      ? defaultCspCellName(cel.displayLabel, track.paperTrack)
+      : ''
+    const showSheetLabel = Boolean(cel.keyId && cel.displayLabel?.trim() && automaticName !== cel.cspCellName.trim())
+    return (
+      <div
+        key={cel.nodeId}
+        className={[
+          'cspTreeCel',
+          cel.keyId === selectedKeyId ? 'selected' : '',
+          cel.materialState === 'assigned' ? 'assigned' : '',
+          cel.keyId && !cel.bindingId ? 'unregistered' : '',
+        ].filter(Boolean).join(' ')}
+        draggable={Boolean(cel.keyId)}
+        onDragStart={cel.keyId ? event => handleCelDragStart(event, cel.keyId!) : undefined}
+        onDragOver={cel.keyId ? event => {
+          if (hasAssetDragPayload(event.dataTransfer)) event.preventDefault()
+        } : undefined}
+        onDrop={cel.keyId ? event => handleAssetDrop(event, cel.keyId!, assignmentSlotId) : undefined}
+        onClick={() => onSelectKey(cel.keyId ?? null)}
+        onDoubleClick={() => cel.keyId && onJumpToFirstUse(cel.keyId)}
+      >
+        {(editableBinding || editableGuide) ? (
+          <input
+            className="cspTreeCelNameInput"
+            aria-label={`${track.label}のCSPセル名`}
+            value={cel.cspCellName}
+            onClick={event => event.stopPropagation()}
+            onChange={event => {
+              if (track.slotId && cel.keyId) {
+                onUpdateCspCellName(cel.keyId, track.slotId, event.currentTarget.value)
+              } else if (track.stackGuideLabelId && correctionLayerId) {
+                onUpdateStackGuideRegistration(track.stackGuideLabelId, correctionLayerId, event.currentTarget.value)
+              }
+            }}
+          />
+        ) : <span className="cspTreeCelName">{cel.cspCellName}</span>}
+        {showSheetLabel && <span className="cspTreeSheetLabel">シート: {cel.displayLabel}</span>}
+        <span className="cspTreeAssetState" title={cel.assetId ? '素材割当済み' : '素材未割当'}>{cel.assetId ? '●' : '○'}</span>
+      </div>
+    )
+  }
+
   return (
     <section className="cspLayerTree" aria-label="CSPレイヤー構成">
       <header className="cspLayerTreeHeader">
         <strong>CSPレイヤー構成</strong>
-        <Tooltip label="紙シート上にセル列を追加">
-          <button type="button" className="cspTreeAddCellButton" aria-label="セル列を追加" onClick={onRequestOverlayPaperTrack}>
-            <PlusIcon />
-          </button>
-        </Tooltip>
+        <div className="cspLayerTreeHeaderActions">
+          <Tooltip label="CSPセル名と素材ファイル名をまとめて整える">
+            <button type="button" className="cspTreeNormalizeButton" aria-label="名前を正規化" onClick={onOpenNameNormalization}>
+              <NormalizeIcon />
+            </button>
+          </Tooltip>
+          <Tooltip label="紙シート上にセル列を追加">
+            <button type="button" className="cspTreeAddCellButton" aria-label="セル列を追加" onClick={onRequestOverlayPaperTrack}>
+              <PlusIcon />
+            </button>
+          </Tooltip>
+        </div>
       </header>
       <div className="cspLayerTreeBody">
         {dropNotice && <div className="cspTreeDropNotice" role="status">{dropNotice}</div>}
-        {tree.stages.length === 0 && <p className="cspLayerTreeEmpty">登録済みのレイヤーはありません。</p>}
+        {tree.unregisteredTracks.length > 0 && (
+          <details className="cspTreeStage cspTreeUnregisteredStage" open>
+            <summary>未登録</summary>
+            {tree.unregisteredTracks.map(track => (
+              <div className="cspTreeTrack cspTreeUnregisteredTrack" key={track.nodeId}>
+                <div className="cspTreeTrackRow">
+                  <span className="cspTreeTrackName">{track.label}</span>
+                </div>
+                <div className="cspTreeCels">
+                  {track.cels.map(cel => renderCelCard(track, cel))}
+                </div>
+              </div>
+            ))}
+          </details>
+        )}
+        {tree.stages.length === 0 && tree.unregisteredTracks.length === 0 && <p className="cspLayerTreeEmpty">登録済みのレイヤーはありません。</p>}
         {tree.stages.map(stage => (
           <details className="cspTreeStage" key={stage.nodeId} open>
             <summary>{stage.label}</summary>
@@ -278,7 +368,7 @@ export function CspLayerTree({
                       ].filter(Boolean).join(' ')}
                       aria-label={acceptsAsset ? `${track.label}（${layer.label}）へ画像素材を登録` : undefined}
                       onDragOver={acceptsAsset ? event => {
-                        if (!hasAssetDragPayload(event.dataTransfer)) return
+                        if (!hasAssetDragPayload(event.dataTransfer) && !(acceptsPaperTrackAsset && hasRegisteredCellDragPayload(event))) return
                         event.preventDefault()
                         event.stopPropagation()
                         event.dataTransfer.dropEffect = 'copy'
@@ -314,46 +404,7 @@ export function CspLayerTree({
                     </div>
                     <div className="cspTreeCels">
                       {track.cels.length === 0 && <span className="cspTreeNoCels">カードなし</span>}
-                      {track.cels.map(cel => {
-                        const editableBinding = Boolean(track.slotId && cel.keyId)
-                        const editableGuide = Boolean(track.stackGuideLabelId && layer.layerId)
-                        return (
-                          <div
-                            key={cel.nodeId}
-                            className={[
-                              'cspTreeCel',
-                              cel.keyId === selectedKeyId ? 'selected' : '',
-                              cel.materialState === 'assigned' ? 'assigned' : '',
-                            ].filter(Boolean).join(' ')}
-                            draggable={Boolean(cel.keyId)}
-                            onDragStart={cel.keyId ? event => handleCelDragStart(event, cel.keyId!) : undefined}
-                            onDragOver={cel.keyId ? event => {
-                              if (hasAssetDragPayload(event.dataTransfer)) event.preventDefault()
-                            } : undefined}
-                            onDrop={cel.keyId ? event => handleAssetDrop(event, cel.keyId!) : undefined}
-                            onClick={() => onSelectKey(cel.keyId ?? null)}
-                            onDoubleClick={() => cel.keyId && onJumpToFirstUse(cel.keyId)}
-                          >
-                            <span className="cspTreeCelLabel">{cel.displayLabel ?? cel.cspCellName}</span>
-                            {(editableBinding || editableGuide) ? (
-                              <input
-                                aria-label={`${track.label}のCSPセル名`}
-                                value={cel.cspCellName}
-                                onClick={event => event.stopPropagation()}
-                                onChange={event => {
-                                  if (track.slotId && cel.keyId) {
-                                    onUpdateCspCellName(cel.keyId, track.slotId, event.currentTarget.value)
-                                  } else if (track.stackGuideLabelId && layer.layerId) {
-                                    onUpdateStackGuideRegistration(track.stackGuideLabelId, layer.layerId, event.currentTarget.value)
-                                  }
-                                }}
-                              />
-                            ) : <span className="cspTreeCelName">{cel.cspCellName}</span>}
-                            <span className="cspTreeCelFrame">{typeof cel.firstFrame === 'number' ? `F${cel.firstFrame + 1}` : '未配置'}</span>
-                            <span className="cspTreeAssetState" title={cel.assetId ? '素材割当済み' : '素材未割当'}>{cel.assetId ? '●' : '○'}</span>
-                          </div>
-                        )
-                      })}
+                      {track.cels.map(cel => renderCelCard(track, cel, layer.layerId))}
                     </div>
                     </div>
                     {layer.layerId && renderNewTrackDropZone(layer.layerId, layer.label, layer.tracks, trackIndex + 1)}
@@ -390,6 +441,32 @@ function PlusIcon() {
       <path d="M5 12h14" />
     </svg>
   )
+}
+
+function NormalizeIcon() {
+  return (
+    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6h9" />
+      <path d="M4 12h7" />
+      <path d="M4 18h9" />
+      <path d="m16 8 3-3 3 3" />
+      <path d="M19 5v14" />
+      <path d="m16 16 3 3 3-3" />
+    </svg>
+  )
+}
+
+function hasRegisteredCellDragPayload(event: DragEvent<HTMLElement>): boolean {
+  return Array.from(event.dataTransfer.types ?? []).includes(REGISTERED_CELL_DRAG_MIME)
+}
+
+function registeredCellKeyIdFromDrag(event: DragEvent<HTMLElement>): string {
+  const direct = event.dataTransfer.getData(REGISTERED_CELL_DRAG_MIME).trim()
+  if (direct) return direct
+  const text = event.dataTransfer.getData('text/plain')
+  return text.startsWith(REGISTERED_CELL_TEXT_DRAG_PREFIX)
+    ? text.slice(REGISTERED_CELL_TEXT_DRAG_PREFIX.length).trim()
+    : ''
 }
 
 function assetRegistrationNotice(result: CspTreeAssetRegistrationResult): string {

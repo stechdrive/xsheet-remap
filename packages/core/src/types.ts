@@ -422,6 +422,7 @@ export interface NameNormalizationOptions {
   sheetRole: SheetTimingRole
   keyIds?: Id[]
   paperTracks?: PaperTrackName[]
+  correctionLayerIds?: Id[]
   includeStackGuides?: boolean
   includeAssetFiles?: boolean
   sequencePadding?: number

@@ -40,7 +40,7 @@ describe('CSP layer tree', () => {
     const track = tree.stages.flatMap(stage => stage.layers).flatMap(layer => layer.tracks)
       .find(item => item.slotId === 'slot_A')
 
-    expect(track?.cels.map(cel => [cel.cspCellName, cel.firstFrame])).toEqual([['A2', 11], ['A1', 0]])
+    expect(track?.cels.map(cel => cel.cspCellName)).toEqual(['A2', 'A1'])
     expect(tree.bottomToTopTrackNodeIds).toEqual([...tree.topToBottomTrackNodeIds].reverse())
   })
 
@@ -74,9 +74,24 @@ describe('CSP layer tree', () => {
       .flatMap(layer => layer.tracks)
       .find(item => item.slotId === 'slot_A')
 
-    expect(track?.cels.map(cel => [cel.cspCellName, cel.firstFrame, cel.assetId])).toEqual([
-      ['A2', undefined, secondAsset.asset.assetId],
-      ['A1', undefined, firstAsset.asset.assetId],
+    expect(track?.cels.map(cel => [cel.cspCellName, cel.assetId])).toEqual([
+      ['A2', secondAsset.asset.assetId],
+      ['A1', firstAsset.asset.assetId],
+    ])
+  })
+
+  it('projects timeline keys without CSP bindings once as unregistered cards', () => {
+    const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const second = createOrSetEvent(first.project, 'A', 8, 'action')
+
+    const tree = buildCspLayerTree(second.project, 'import-stack')
+
+    expect(tree.stages.flatMap(stage => stage.layers).flatMap(layer => layer.tracks).flatMap(track => track.cels)).toEqual([])
+    expect(tree.unregisteredTracks).toHaveLength(1)
+    expect(tree.unregisteredTracks[0]).toMatchObject({ label: 'ACTION A', paperTrack: 'A' })
+    expect(tree.unregisteredTracks[0]?.cels.map(cel => [cel.keyId, cel.cspCellName, cel.displayLabel])).toEqual([
+      [second.key.keyId, 'A2', '2'],
+      [first.key.keyId, 'A1', '1'],
     ])
   })
 })

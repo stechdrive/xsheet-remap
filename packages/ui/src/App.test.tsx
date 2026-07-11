@@ -521,7 +521,7 @@ describe('App', () => {
     await waitFor(() => {
       const track = screen.getByLabelText('A（作画）へ画像素材を登録')
       expect(track.querySelectorAll('.cspTreeCel')).toHaveLength(2)
-      expect(Array.from(track.querySelectorAll('.cspTreeCelFrame')).map(item => item.textContent)).toEqual(['未配置', '未配置'])
+      expect(track.querySelector('.cspTreeCelFrame')).toBeNull()
       expect(Array.from(track.querySelectorAll<HTMLInputElement>('.cspTreeCel input')).map(input => input.value)).toEqual(['A2', 'A1'])
     })
 
@@ -535,6 +535,55 @@ describe('App', () => {
       expect(screen.getByRole('status').textContent).toBe('0件追加 / 2件は登録済み')
     })
 
+  })
+
+  it('binds a sheet-first key from the unregistered tree to the active CSP destination', async () => {
+    URL.createObjectURL = file => `blob:csp-unregistered-${(file as File).name}`
+    render(<RemapApp />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
+    clickTemplateFrame(sheet, 'action', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+
+    const unregisteredCard = document.querySelector<HTMLElement>('.cspTreeCel.unregistered')
+    if (!unregisteredCard) throw new Error('unregistered CSP card not found')
+    expect(unregisteredCard.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
+    expect(unregisteredCard.querySelector('.cspTreeCelFrame')).toBeNull()
+
+    const file = new File(['fix'], 'scan_001.png', { type: 'image/png', lastModified: 1 })
+    fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [file] } })
+    expect(await screen.findByText('scan_001.png')).toBeTruthy()
+
+    const dragData: Record<string, string> = {}
+    const dataTransfer = {
+      files: [],
+      types: [] as string[],
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      setData: (type: string, value: string) => {
+        dragData[type] = value
+        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
+      },
+      getData: (type: string) => dragData[type] ?? '',
+      setDragImage: () => undefined,
+    }
+    fireEvent.dragStart(getAssetCardByName('scan_001.png'), { dataTransfer })
+    fireEvent.dragOver(unregisteredCard, { dataTransfer })
+    fireEvent.drop(unregisteredCard, { dataTransfer })
+
+    await waitFor(() => {
+      expect(document.querySelector('.cspTreeCel.unregistered')).toBeNull()
+      const track = screen.getByLabelText('A（演出）へ画像素材を登録')
+      expect(track.querySelector('.cspTreeCel.assigned')).toBeTruthy()
+      expect((track.querySelector('.cspTreeCel input') as HTMLInputElement | null)?.value).toBe('A1')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))
+    expect(screen.getByRole('dialog', { name: uiText.nameNormalization.title })).toBeTruthy()
+    expect((screen.getByLabelText(uiText.nameNormalization.process) as HTMLSelectElement).value).toBe('layer_enshutsu')
+    fireEvent.click(screen.getAllByRole('button', { name: uiText.nameNormalization.cancel })[0])
   })
 
   it('keeps CSP track order and names synchronized with the paper sheet', async () => {
@@ -1055,7 +1104,7 @@ describe('App', () => {
     expect(Array.from(registeredCell?.querySelectorAll('input') ?? []).map(input => input.value)).toEqual(['1', 'A1'])
     fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))
     expect(screen.getByRole('dialog', { name: uiText.nameNormalization.title })).toBeTruthy()
-    expect((screen.getByLabelText(uiText.nameNormalization.target) as HTMLSelectElement).value).toBe('action')
+    expect((screen.getByLabelText(uiText.nameNormalization.target) as HTMLSelectElement).value).toBe('selected-key')
     expect(screen.getByText(uiText.nameNormalization.targets.selectedKey)).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: uiText.nameNormalization.cancel })[0])
     const eventText = document.querySelector('.eventText')
@@ -2326,12 +2375,12 @@ describe('App', () => {
     expect(registeredCellIdentityText(document.querySelector('.registeredCellCard') as Element)).toBe('CELL A')
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.processPaletteButtonTitle('演出') }))
+    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
     expect(registeredCellIdentityText(document.querySelector('.registeredCellCard') as Element)).toBe('CELL A')
     expectSelectionStatus('演出', 'CELL', 'A', formatTestFramePosition(1))
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.processPaletteButtonTitle('作画') }))
+    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_sakuga' } })
     expectSelectionStatus('作画', 'CELL', 'A', formatTestFramePosition(1))
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
   })
@@ -2541,11 +2590,14 @@ describe('App', () => {
     render(<App />)
     const opacity = getSheetOpacitySlider()
     const image = document.querySelector('.sheetSvg image') as SVGImageElement | null
+    const pageLabel = uiText.sheet.pageCaption(1, 1, 144)
 
     expect(opacity.value).toBe('100')
     expect(opacity.disabled).toBe(true)
     expect(image?.getAttribute('href')).toContain('timesheet.png')
     expect(image?.getAttribute('opacity')).toBe('1')
+    expect(screen.getByRole('figure', { name: pageLabel })).toBeTruthy()
+    expect(screen.queryByText(pageLabel)).toBeNull()
   })
 
   it('opens level correction with initial correction values and updates the sheet preview filter', async () => {

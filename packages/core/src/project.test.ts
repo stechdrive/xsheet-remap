@@ -743,6 +743,18 @@ describe('core project commands', () => {
       ['slide_fix.png', 'SL1_01_e.png'],
     ])
 
+    const enshutsuOnly = buildNameNormalizationPlan(project, {
+      sheetRole: 'action',
+      correctionLayerIds: ['layer_enshutsu'],
+      includeStackGuides: true,
+      includeAssetFiles: true,
+    })
+    expect(enshutsuOnly.items.map(item => [item.paperTrack, item.processLabel])).toEqual([
+      ['BG', '演出'],
+      ['SL1', '演出'],
+    ])
+    expect(enshutsuOnly.assetRenames.map(rename => rename.currentFileName)).toEqual(['bg_fix_e.png', 'slide_fix.png'])
+
     const applied = applyNameNormalizationPlan(project, plan, plan.assetRenames.map(rename => ({
       assetId: rename.assetId,
       renamed: true,

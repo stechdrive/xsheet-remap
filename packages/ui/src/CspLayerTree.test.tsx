@@ -31,6 +31,7 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
         onRenamePaperTrack={onRenamePaperTrack}
@@ -39,6 +40,8 @@ describe('CspLayerTree', () => {
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
         onRequestOverlayPaperTrack={vi.fn()}
         onRequestStackGuideInsert={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
@@ -68,6 +71,56 @@ describe('CspLayerTree', () => {
     expect(onRenamePaperTrack).toHaveBeenCalledWith('A', 'LO')
   })
 
+  it('shows timeline-only keys as compact unregistered cards and registers them by track drop', () => {
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const onRegisterKeyToTrack = vi.fn(() => true)
+    const onOpenNameNormalization = vi.fn()
+
+    render(
+      <CspLayerTree
+        project={created.project}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
+        onUpdateCspCellName={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={onRegisterKeyToTrack}
+        onOpenNameNormalization={onOpenNameNormalization}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    const unregisteredCard = document.querySelector<HTMLElement>('.cspTreeCel.unregistered')
+    if (!unregisteredCard) throw new Error('unregistered CSP card not found')
+    expect(screen.getByText('未登録')).toBeTruthy()
+    expect(unregisteredCard.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
+    expect(unregisteredCard.querySelector('.cspTreeSheetLabel')).toBeNull()
+    expect(unregisteredCard.querySelector('.cspTreeCelFrame')).toBeNull()
+
+    const track = screen.getByLabelText('A（作画）へ画像素材を登録')
+    const dataTransfer = {
+      types: [REGISTERED_CELL_DRAG_MIME],
+      dropEffect: 'none',
+      getData: vi.fn((type: string) => type === REGISTERED_CELL_DRAG_MIME ? created.key.keyId : ''),
+    }
+    fireEvent.dragOver(track, { dataTransfer })
+    fireEvent.drop(track, { dataTransfer })
+    expect(onRegisterKeyToTrack).toHaveBeenCalledWith(created.key.keyId, 'slot_A')
+
+    fireEvent.click(screen.getByRole('button', { name: '名前を正規化' }))
+    expect(onOpenNameNormalization).toHaveBeenCalledTimes(1)
+  })
+
   it('offers paper placement globally and auxiliary tracks on each correction layer', () => {
     const onRequestOverlayPaperTrack = vi.fn()
     const onRequestStackGuideInsert = vi.fn()
@@ -80,6 +133,7 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
         onRenamePaperTrack={vi.fn()}
@@ -88,6 +142,8 @@ describe('CspLayerTree', () => {
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
         onRequestOverlayPaperTrack={onRequestOverlayPaperTrack}
         onRequestStackGuideInsert={onRequestStackGuideInsert}
         onCreateStackGuideLabel={onCreateStackGuideLabel}
@@ -129,6 +185,7 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
         onRenamePaperTrack={vi.fn()}
@@ -137,6 +194,8 @@ describe('CspLayerTree', () => {
         onAssignAssetsToStackGuideLabel={onAssignAssetsToStackGuideLabel}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
         onRequestOverlayPaperTrack={vi.fn()}
         onRequestStackGuideInsert={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
@@ -178,6 +237,7 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
         onRenamePaperTrack={vi.fn()}
@@ -186,6 +246,8 @@ describe('CspLayerTree', () => {
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={onRegisterAssetsToTrack}
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
         onRequestOverlayPaperTrack={vi.fn()}
         onRequestStackGuideInsert={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
@@ -211,6 +273,7 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
         onRenamePaperTrack={vi.fn()}
@@ -219,6 +282,8 @@ describe('CspLayerTree', () => {
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterAssetsToNewTrack={onRegisterAssetsToNewTrack}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
         onRequestOverlayPaperTrack={vi.fn()}
         onRequestStackGuideInsert={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}

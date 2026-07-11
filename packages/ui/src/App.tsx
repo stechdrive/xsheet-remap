@@ -2079,10 +2079,14 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
   function handleAssignAssetToKey(
     assetId: string,
     keyId: string,
-    target: { position?: { x: number; y: number } } = {},
+    target: { position?: { x: number; y: number }; slotId?: string } = {},
   ) {
     const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
     if (!key) return
+    if (target.slotId) {
+      assignAssetToKeySlot(assetId, keyId, target.slotId)
+      return
+    }
     const options = processSlotsForKey(project, key)
     if (options.length === 0) return
     const position = target.position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
@@ -2126,6 +2130,20 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
       assetId: binding?.assetId,
       materialState: binding?.materialState ?? 'unassigned',
     }))
+  }
+
+  function handleRegisterKeyToCspTrack(keyId: string, slotId: string): boolean {
+    const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
+    const slot = project.cspTrackSlots.find(item => item.slotId === slotId)
+    if (!key || !slot || key.paperTrack !== slot.paperTrack) return false
+    if (project.bindings.some(binding => binding.keyId === keyId)) return false
+    commitProject(upsertBinding(project, {
+      slotId,
+      keyId,
+      cspCellName: automaticRegisteredCellCspName(key, slot, null),
+      materialState: 'unassigned',
+    }))
+    return true
   }
 
   function handleMoveKeyBindingProcess(keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) {
@@ -3319,6 +3337,7 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
             onAssignAssetsToStackGuideLabel={handleAssignAssetsToStackGuide}
             onRegisterAssetsToCspTrack={handleRegisterAssetsToCspTrack}
             onRegisterAssetsToNewCspTrack={handleRegisterAssetsToNewCspTrack}
+            onRegisterKeyToCspTrack={handleRegisterKeyToCspTrack}
             onAddOverlayPaperTrack={handleAddOverlayPaperTrack}
             onUpdatePaperTrack={handleUpdatePaperTrack}
             onDeleteOverlayPaperTrack={handleDeleteOverlayPaperTrack}
@@ -3600,11 +3619,12 @@ function SheetPanel(props: {
   onAssignAssetsToStackGuideLabel: (labelId: string, assetIds: string[], correctionLayerId?: string) => void
   onRegisterAssetsToCspTrack: (slotId: string, assetIds: string[]) => CspTreeAssetRegistrationResult
   onRegisterAssetsToNewCspTrack: (input: CspTreeNewTrackRegistrationInput) => CspTreeAssetRegistrationResult
+  onRegisterKeyToCspTrack: (keyId: string, slotId: string) => boolean
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   onApplyNameNormalization: (plan: NameNormalizationPlan) => Promise<void>
-  onAssignAssetToKey: (assetId: string, keyId: string) => void
+  onAssignAssetToKey: (assetId: string, keyId: string, target?: { position?: { x: number; y: number }; slotId?: string }) => void
   onMoveCspStackItem: (itemId: string, direction: 'up' | 'down') => void
 }) {
   const activePage = props.sheetPages[props.activePageIndex] ?? props.sheetPages[0]
@@ -3624,6 +3644,7 @@ function SheetPanel(props: {
   const [zoomPaletteOpen, setZoomPaletteOpen] = useState(false)
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
+  const [normalizationOpen, setNormalizationOpen] = useState(false)
   const zoomPaletteRef = useRef<HTMLDivElement>(null)
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
@@ -3848,22 +3869,20 @@ function SheetPanel(props: {
           </TooltipTarget>
         </ToolbarGroup>
         <ToolbarGroup className="sheetToolbarGroup processPaletteGroup">
-          <span className="toolbarGroupLabel">{uiText.sheet.registrationProcess}</span>
-          <div className="processPaletteButtons" role="group" aria-label={uiText.sheet.registrationProcess}>
-            {correctionLayers.map(layer => (
-              <Tooltip key={layer.layerId} label={uiText.sheet.processPaletteButtonTitle(layer.label)}>
-                <button
-                  type="button"
-                  className={layer.layerId === props.activeCorrectionLayerId ? 'activeToolButton' : ''}
-                  aria-label={uiText.sheet.processPaletteButtonTitle(layer.label)}
-                  aria-pressed={layer.layerId === props.activeCorrectionLayerId}
-                  onClick={() => props.setActiveCorrectionLayerId(layer.layerId)}
+          <TooltipTarget label="シートへ直接配置する素材のCSP登録先">
+            {tooltipProps => (
+              <label className="compactControl processDestinationControl" {...tooltipProps}>
+                <span>{uiText.sheet.registrationProcess}</span>
+                <select
+                  aria-label={uiText.sheet.registrationProcess}
+                  value={props.activeCorrectionLayerId}
+                  onChange={event => props.setActiveCorrectionLayerId(event.currentTarget.value)}
                 >
-                  {layer.label}
-                </button>
-              </Tooltip>
-            ))}
-          </div>
+                  {correctionLayers.map(layer => <option key={layer.layerId} value={layer.layerId}>{layer.label}</option>)}
+                </select>
+              </label>
+            )}
+          </TooltipTarget>
         </ToolbarGroup>
         <ToolbarGroup className="sheetToolbarGroup textToolbarGroup">
           <Tooltip label={props.editMode === 'text' ? uiText.sheet.textToolActiveTitle : uiText.sheet.textToolTitle}>
@@ -4128,14 +4147,17 @@ function SheetPanel(props: {
               selectedKeyId={props.selectedKeyId}
               onSelectKey={props.onKeySelect}
               onJumpToFirstUse={props.onJumpToKeyFirstUse}
+              activeCorrectionLayerId={props.activeCorrectionLayerId}
               onUpdateCspCellName={props.onUpdateKeyCspCellName}
               onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
               onRenamePaperTrack={(paperTrack, name) => props.onUpdatePaperTrack(paperTrack, { paperTrack: name, label: name })}
               onMoveStackItem={props.onMoveCspStackItem}
-              onAssignAsset={props.onAssignAssetToKey}
+              onAssignAsset={(assetId, keyId, slotId) => props.onAssignAssetToKey(assetId, keyId, { slotId })}
               onAssignAssetsToStackGuideLabel={props.onAssignAssetsToStackGuideLabel}
               onRegisterAssetsToTrack={props.onRegisterAssetsToCspTrack}
               onRegisterAssetsToNewTrack={props.onRegisterAssetsToNewCspTrack}
+              onRegisterKeyToTrack={props.onRegisterKeyToCspTrack}
+              onOpenNameNormalization={() => setNormalizationOpen(true)}
               onRequestOverlayPaperTrack={() => setStackGuideInsertTool({ mode: 'overlay-track' })}
               onRequestStackGuideInsert={correctionLayerId => setStackGuideInsertTool({
                 mode: 'label-editor',
@@ -4147,8 +4169,6 @@ function SheetPanel(props: {
               project={props.project}
               activeCorrectionLayerId={props.activeCorrectionLayerId}
               selectedKeyId={props.selectedKeyId}
-              selectedHit={props.selectedHit}
-              rangeSelection={props.rangeSelection}
               onSelect={props.onKeySelect}
               onJumpToFirstUse={props.onJumpToKeyFirstUse}
               onUpdateKey={props.onUpdateKey}
@@ -4158,7 +4178,7 @@ function SheetPanel(props: {
               onUpdateStackGuideLabel={props.onUpdateStackGuideLabel}
               onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
               onDeleteStackGuideLabel={props.onDeleteStackGuideLabel}
-              onApplyNameNormalization={props.onApplyNameNormalization}
+              onOpenNameNormalization={() => setNormalizationOpen(true)}
               onAssignAsset={props.onAssignAssetToKey}
               onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}
               onCreateStackGuideLabel={props.onCreateStackGuideLabel}
@@ -4212,6 +4232,20 @@ function SheetPanel(props: {
           </div>
         </aside>
       </div>
+      {normalizationOpen && (
+        <NameNormalizationDialog
+          project={props.project}
+          selectedKeyId={props.selectedKeyId}
+          selectedHit={props.selectedHit}
+          rangeSelection={props.rangeSelection}
+          initialCorrectionLayerId={props.appKind === 'remap' ? props.activeCorrectionLayerId : undefined}
+          onClose={() => setNormalizationOpen(false)}
+          onApply={async plan => {
+            await props.onApplyNameNormalization(plan)
+            setNormalizationOpen(false)
+          }}
+        />
+      )}
     </section>
   )
 }
@@ -6461,13 +6495,16 @@ function SheetCanvas(props: {
             : []
           const rangeRects = [...normalRangeRects, ...overlayRangeRects]
 
+          const pageAccessibleLabel = isContinuousCanvas
+            ? uiText.sheet.surfaceCaption(page.frameStart, page.frameEnd)
+            : uiText.sheet.pageCaption(page.pageIndex + 1, page.frameStart, page.frameEnd)
+
           return (
-            <figure key={page.pageId} className={page.pageIndex === props.activePageIndex ? 'sheetPage active' : 'sheetPage'}>
-              <figcaption>
-                {isContinuousCanvas
-                  ? uiText.sheet.surfaceCaption(page.frameStart, page.frameEnd)
-                  : uiText.sheet.pageCaption(page.pageIndex + 1, page.frameStart, page.frameEnd)}
-              </figcaption>
+            <figure
+              key={page.pageId}
+              className={page.pageIndex === props.activePageIndex ? 'sheetPage active' : 'sheetPage'}
+              aria-label={pageAccessibleLabel}
+            >
               <div
                 className="sheetPageSurface"
                 style={{ width: `${sheetPageWidth}px`, height: `${sheetPageHeight}px` }}
@@ -9596,8 +9633,6 @@ function KeyList({
   project,
   activeCorrectionLayerId,
   selectedKeyId,
-  selectedHit,
-  rangeSelection,
   onSelect,
   onJumpToFirstUse,
   onUpdateKey,
@@ -9608,7 +9643,7 @@ function KeyList({
   onUpdateStackGuideLabel,
   onUpdateStackGuideRegistration,
   onDeleteStackGuideLabel,
-  onApplyNameNormalization,
+  onOpenNameNormalization,
   onAssignAsset,
   onAssignAssetToStackGuideLabel,
   onRequestStackGuideInsert,
@@ -9616,8 +9651,6 @@ function KeyList({
   project: CutProject
   activeCorrectionLayerId: string
   selectedKeyId: string | null
-  selectedHit: SheetHit | null
-  rangeSelection: SheetRangeSelection | null
   onSelect: (keyId: string | null) => void
   onJumpToFirstUse: (keyId: string) => void
   onUpdateKey: (keyId: string, displayLabel: string) => void
@@ -9628,13 +9661,12 @@ function KeyList({
   onUpdateStackGuideLabel: (labelId: string, updates: StackGuideLabelUpdates) => void
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
   onDeleteStackGuideLabel: (labelId: string) => void
-  onApplyNameNormalization: (plan: NameNormalizationPlan) => Promise<void>
+  onOpenNameNormalization: () => void
   onAssignAsset: (assetId: string, keyId: string, target?: { position?: { x: number; y: number } }) => void
   onAssignAssetToStackGuideLabel: (labelId: string, assetId: string, correctionLayerId?: string) => void
   onRequestStackGuideInsert: (tool: StackGuideInsertTool) => void
 }) {
   const trackOrder = useMemo(() => registeredCellTrackOrder(project), [project])
-  const [normalizationOpen, setNormalizationOpen] = useState(false)
   const [registeredCellViewMode, setRegisteredCellViewMode] = useState<RegisteredCellViewMode>('detail')
   const [registeredCellSortDirection, setRegisteredCellSortDirection] = useState<RegisteredCellSortDirection>('asc')
   const [embeddedPreviewPayload, setEmbeddedPreviewPayload] = useState<AssetPreviewPayload | null>(null)
@@ -9782,7 +9814,7 @@ function KeyList({
               type="button"
               className="iconOnlyButton keyListNormalizeButton"
               aria-label={uiText.nameNormalization.open}
-              onClick={() => setNormalizationOpen(true)}
+              onClick={onOpenNameNormalization}
             >
               <NormalizeNamesIcon />
             </button>
@@ -10415,19 +10447,6 @@ function KeyList({
           style={cardHoverPreview.style}
         />
       )}
-      {normalizationOpen && (
-        <NameNormalizationDialog
-          project={project}
-          selectedKeyId={selectedKeyId}
-          selectedHit={selectedHit}
-          rangeSelection={rangeSelection}
-          onClose={() => setNormalizationOpen(false)}
-          onApply={async plan => {
-            await onApplyNameNormalization(plan)
-            setNormalizationOpen(false)
-          }}
-        />
-      )}
     </div>
   )
 }
@@ -10569,6 +10588,7 @@ function NameNormalizationDialog({
   selectedKeyId,
   selectedHit,
   rangeSelection,
+  initialCorrectionLayerId,
   onClose,
   onApply,
 }: {
@@ -10576,17 +10596,23 @@ function NameNormalizationDialog({
   selectedKeyId: string | null
   selectedHit: SheetHit | null
   rangeSelection: SheetRangeSelection | null
+  initialCorrectionLayerId?: string
   onClose: () => void
   onApply: (plan: NameNormalizationPlan) => Promise<void>
 }) {
-  const [target, setTarget] = useState<NameNormalizationTarget>(() => defaultNameNormalizationTarget())
+  const [target, setTarget] = useState<NameNormalizationTarget>(() =>
+    defaultNameNormalizationTarget(project, selectedKeyId, selectedHit, rangeSelection),
+  )
+  const [correctionLayerId, setCorrectionLayerId] = useState(() =>
+    project.correctionLayers.some(layer => layer.layerId === initialCorrectionLayerId) ? initialCorrectionLayerId ?? '' : '',
+  )
   const [includeAssetFiles, setIncludeAssetFiles] = useState(false)
   const [sequencePadding, setSequencePadding] = useState<number | undefined>(undefined)
   const [isApplying, setIsApplying] = useState(false)
   const targetOptions = nameNormalizationTargetOptions(project, selectedKeyId, selectedHit, rangeSelection)
   const options = useMemo<NameNormalizationOptions>(
-    () => nameNormalizationOptionsForTarget(project, target, selectedKeyId, selectedHit, rangeSelection, includeAssetFiles, sequencePadding),
-    [includeAssetFiles, project, rangeSelection, selectedHit, selectedKeyId, sequencePadding, target],
+    () => nameNormalizationOptionsForTarget(project, target, selectedKeyId, selectedHit, rangeSelection, correctionLayerId, includeAssetFiles, sequencePadding),
+    [correctionLayerId, includeAssetFiles, project, rangeSelection, selectedHit, selectedKeyId, sequencePadding, target],
   )
   const plan = useMemo(() => buildNameNormalizationPlan(project, options), [options, project])
   const assetRenameByAssetId = useMemo(() => new Map(plan.assetRenames.map(rename => [rename.assetId, rename])), [plan.assetRenames])
@@ -10619,6 +10645,13 @@ function NameNormalizationDialog({
               {targetOptions.map(option => (
                 <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
               ))}
+            </select>
+          </label>
+          <label>
+            {uiText.nameNormalization.process}
+            <select value={correctionLayerId} onChange={event => setCorrectionLayerId(event.currentTarget.value)}>
+              <option value="">{uiText.nameNormalization.allProcesses}</option>
+              {sortedCorrectionLayers(project).map(layer => <option key={layer.layerId} value={layer.layerId}>{layer.label}</option>)}
             </select>
           </label>
           <label>
@@ -10875,8 +10908,15 @@ function sortedThumbnailRows(project: CutProject, rows: RegisteredCellThumbnailR
   )
 }
 
-function defaultNameNormalizationTarget(): NameNormalizationTarget {
-  return 'action'
+function defaultNameNormalizationTarget(
+  project: CutProject,
+  selectedKeyId: string | null,
+  selectedHit: SheetHit | null,
+  rangeSelection: SheetRangeSelection | null,
+): NameNormalizationTarget {
+  if (selectedKeyId && project.logicalSheet.keys.some(key => key.keyId === selectedKeyId)) return 'selected-key'
+  if (normalizationColumnTarget(selectedHit, rangeSelection)) return 'selected-column'
+  return 'cell'
 }
 
 function nameNormalizationTargetOptions(
@@ -10899,12 +10939,18 @@ function nameNormalizationOptionsForTarget(
   selectedKeyId: string | null,
   selectedHit: SheetHit | null,
   rangeSelection: SheetRangeSelection | null,
+  correctionLayerId: string,
   includeAssetFiles: boolean,
   sequencePadding: number | undefined,
 ): NameNormalizationOptions {
   const selectedKey = selectedKeyId ? project.logicalSheet.keys.find(key => key.keyId === selectedKeyId) ?? null : null
   const columnTarget = normalizationColumnTarget(selectedHit, rangeSelection)
-  const base = { includeAssetFiles, includeStackGuides: target === 'action', sequencePadding }
+  const base = {
+    includeAssetFiles,
+    includeStackGuides: target === 'action',
+    correctionLayerIds: correctionLayerId ? [correctionLayerId] : undefined,
+    sequencePadding,
+  }
   if (target === 'selected-key' && selectedKey) {
     return { ...base, sheetRole: sheetTimingRoleForKey(selectedKey), keyIds: [selectedKey.keyId] }
   }
@@ -12666,7 +12712,9 @@ function AppHelpDialog({
               </li>
               <li>
                 <strong>登録セルと工程を確認する</strong>
-                <span>左の登録セルカードで、作画・演出・作監などの工程、クリスタ上のセル名、重ね順を確認します。BG/BOOKやメモは追加トラックとして登録します。</span>
+                <span>{showDigitalHelp
+                  ? '左の登録セルカードで、作画・演出・作監などの工程、クリスタ上のセル名、重ね順を確認します。BG/BOOKやメモは追加トラックとして登録します。'
+                  : '左のCSPレイヤー構成で、工程、CSPセル名、重ね順を確認します。シートへ先に入力したキーは「未登録」に表示され、素材を置くと現在の登録先へ移ります。'}</span>
               </li>
               <li>
                 <strong>クリスタ用の名前を整える</strong>

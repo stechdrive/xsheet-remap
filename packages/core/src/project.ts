@@ -998,6 +998,7 @@ export function buildNameNormalizationPlan(project: CutProject, options: NameNor
   const sheetRole = options.sheetRole
   const targetKeyIds = new Set(options.keyIds ?? [])
   const targetPaperTracks = new Set(options.paperTracks ?? [])
+  const targetCorrectionLayerIds = new Set(options.correctionLayerIds ?? [])
   const sequencePadding = resolveNameNormalizationSequencePadding(project, sheetRole, options.sequencePadding, options.includeStackGuides)
   const keySequence = buildNormalizedKeySequence(project, sheetRole)
   const targetKeys = project.logicalSheet.keys.filter(key => {
@@ -1013,6 +1014,7 @@ export function buildNameNormalizationPlan(project: CutProject, options: NameNor
       const key = project.logicalSheet.keys.find(item => item.keyId === binding.keyId)
       const slot = project.cspTrackSlots.find(item => item.slotId === binding.slotId)
       if (!key || !slot) return []
+      if (targetCorrectionLayerIds.size > 0 && (!slot.correctionLayerId || !targetCorrectionLayerIds.has(slot.correctionLayerId))) return []
       const asset = binding.assetId ? project.assets.find(item => item.assetId === binding.assetId) : undefined
       const nextCspCellName = normalizedCspCellNameForSlot(project, key, slot, keySequence.get(key.keyId) ?? 1, sequencePadding)
       return [{
@@ -1033,7 +1035,7 @@ export function buildNameNormalizationPlan(project: CutProject, options: NameNor
       }]
     })
   const stackGuideItems = options.includeStackGuides
-    ? buildStackGuideNameNormalizationItems(project, sequencePadding)
+    ? buildStackGuideNameNormalizationItems(project, sequencePadding, targetCorrectionLayerIds)
     : []
   const items = [...bindingItems, ...stackGuideItems]
     .sort(compareNameNormalizationPlanItems)
@@ -1469,7 +1471,11 @@ function buildNormalizedStackGuideSequence(project: CutProject): Map<string, num
   return result
 }
 
-function buildStackGuideNameNormalizationItems(project: CutProject, sequencePadding: number): NameNormalizationPlanItem[] {
+function buildStackGuideNameNormalizationItems(
+  project: CutProject,
+  sequencePadding: number,
+  targetCorrectionLayerIds: ReadonlySet<string> = new Set(),
+): NameNormalizationPlanItem[] {
   const stackGuideSequence = buildNormalizedStackGuideSequence(project)
   const assetsById = new Map(project.assets.map(asset => [asset.assetId, asset]))
   const layersById = new Map(project.correctionLayers.map(layer => [layer.layerId, layer]))
@@ -1479,6 +1485,7 @@ function buildStackGuideNameNormalizationItems(project: CutProject, sequencePadd
       if (!label.label.trim()) return []
       const sequenceIndex = stackGuideSequence.get(label.labelId) ?? 1
       return stackGuideRegistrations(label).flatMap(registration => {
+        if (targetCorrectionLayerIds.size > 0 && !targetCorrectionLayerIds.has(registration.correctionLayerId)) return []
         const nextCspCellName = normalizedCspCellNameForStackGuide(project, label, registration, sequenceIndex, sequencePadding)
         const assetIds = registration.assetIds.length > 0 ? registration.assetIds : [undefined]
         return assetIds.flatMap(assetId => {

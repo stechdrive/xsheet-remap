@@ -1,14 +1,14 @@
-import { buildExportPlan, defaultCorrectionLayerId, stackGuideGapIndex, stackGuideStackBand } from './project'
-import type { CutProject, MaterialState } from './types'
+import { buildExportPlan, defaultCorrectionLayerId, defaultCspCellName, sheetTimingRoleForKey, stackGuideGapIndex, stackGuideStackBand } from './project'
+import type { CutProject, MaterialState, SheetTimingRole } from './types'
 
 export interface CspLayerTreeCel {
   nodeId: string
   cspCellName: string
-  firstFrame?: number
   keyId?: string
   bindingId?: string
   assetId?: string
   displayLabel?: string
+  sheetRole?: SheetTimingRole
   materialState: MaterialState
 }
 
@@ -39,6 +39,7 @@ export interface CspLayerTreeStage {
 
 export interface CspLayerTree {
   stages: CspLayerTreeStage[]
+  unregisteredTracks: CspLayerTreeTrack[]
   topToBottomTrackNodeIds: string[]
   bottomToTopTrackNodeIds: string[]
 }
@@ -173,6 +174,7 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
   const topToBottomTrackNodeIds = stages.flatMap(stage => stage.layers.flatMap(layer => layer.tracks.map(track => track.nodeId)))
   return {
     stages,
+    unregisteredTracks: cspUnregisteredTracks(project),
     topToBottomTrackNodeIds,
     bottomToTopTrackNodeIds: xdtsBottomToTopFromCspTopToBottom(topToBottomTrackNodeIds),
   }
@@ -194,29 +196,19 @@ function cspTrackCelsForSlot(
         || (keyOrder.get(a.keyId) ?? Number.MAX_SAFE_INTEGER) - (keyOrder.get(b.keyId) ?? Number.MAX_SAFE_INTEGER)
         || a.bindingId.localeCompare(b.bindingId, 'ja')
     })
-  const boundNames = new Set(bindings.map(binding => binding.cspCellName))
   const bottomToTopCels = bindings.map<CspLayerTreeCel>(binding => {
     const key = project.logicalSheet.keys.find(item => item.keyId === binding.keyId)
     return {
       nodeId: `cel:binding:${binding.bindingId}`,
       cspCellName: binding.cspCellName,
-      firstFrame: firstFrameByName.get(binding.cspCellName),
       keyId: binding.keyId,
       bindingId: binding.bindingId,
       assetId: binding.assetId,
       displayLabel: key?.displayLabel,
+      sheetRole: key ? sheetTimingRoleForKey(key) : undefined,
       materialState: binding.materialState,
     } satisfies CspLayerTreeCel
   })
-  for (const [cspCellName, firstFrame] of firstFrameByName) {
-    if (boundNames.has(cspCellName)) continue
-    bottomToTopCels.push({
-      nodeId: `cel:frame:${slotId}:${cspCellName}`,
-      cspCellName,
-      firstFrame,
-      materialState: 'unassigned',
-    })
-  }
   // The helper imports first-use/registration order and each imported CSP layer lands above the previous one.
   return cspTopToBottomFromXdtsBottomToTop(bottomToTopCels)
 }
@@ -230,17 +222,78 @@ function cspTrackCelsForStackGuide(
   const firstFrames = firstFrameByCspCellName(frames)
   const cspCellName = registration?.cspCellName?.trim()
   if (cspCellName && !firstFrames.has(cspCellName)) firstFrames.set(cspCellName, Number.MAX_SAFE_INTEGER)
-  return cspTopToBottomFromXdtsBottomToTop([...firstFrames].map(([name, firstFrame]) => {
+  return cspTopToBottomFromXdtsBottomToTop([...firstFrames].map(([name]) => {
     const isRegistration = registration?.cspCellName === name
     return {
       nodeId: `cel:${trackNo}:${name}`,
       cspCellName: name,
-      firstFrame: firstFrame === Number.MAX_SAFE_INTEGER ? undefined : firstFrame,
       assetId: isRegistration ? registration.assetIds[0] : undefined,
       displayLabel,
       materialState: isRegistration && registration.assetIds.length > 0 ? 'assigned' : 'unassigned',
     } satisfies CspLayerTreeCel
   }))
+}
+
+function cspUnregisteredTracks(project: CutProject): CspLayerTreeTrack[] {
+  const boundKeyIds = new Set(project.bindings.map(binding => binding.keyId))
+  const paperTrackOrder = new Map(project.logicalSheet.paperTracks.map((track, index) => [track.paperTrack, index]))
+  const firstFrameByKeyId = new Map<string, number>()
+  for (const event of project.logicalSheet.events) {
+    if (boundKeyIds.has(event.keyId)) continue
+    const current = firstFrameByKeyId.get(event.keyId)
+    if (current === undefined || event.frame < current) firstFrameByKeyId.set(event.keyId, event.frame)
+  }
+
+  const grouped = new Map<string, { paperTrack: string; sheetRole: SheetTimingRole; cels: Array<CspLayerTreeCel & { firstFrame: number; keyOrder: number }> }>()
+  project.logicalSheet.keys.forEach((key, keyOrder) => {
+    if (boundKeyIds.has(key.keyId)) return
+    const firstFrame = firstFrameByKeyId.get(key.keyId)
+    if (firstFrame === undefined) return
+    const sheetRole = sheetTimingRoleForKey(key)
+    const groupId = `${sheetRole}:${key.paperTrack}`
+    const group = grouped.get(groupId) ?? { paperTrack: key.paperTrack, sheetRole, cels: [] }
+    group.cels.push({
+      nodeId: `cel:unregistered:${key.keyId}`,
+      cspCellName: defaultCspCellName(key.displayLabel, key.paperTrack),
+      keyId: key.keyId,
+      displayLabel: key.displayLabel,
+      sheetRole,
+      materialState: 'unassigned',
+      firstFrame,
+      keyOrder,
+    })
+    grouped.set(groupId, group)
+  })
+
+  return [...grouped.values()]
+    .sort((a, b) =>
+      (paperTrackOrder.get(b.paperTrack) ?? Number.MAX_SAFE_INTEGER) - (paperTrackOrder.get(a.paperTrack) ?? Number.MAX_SAFE_INTEGER)
+      || sheetRoleOrder(a.sheetRole) - sheetRoleOrder(b.sheetRole)
+      || b.paperTrack.localeCompare(a.paperTrack, 'ja'),
+    )
+    .map(group => {
+      const paperTrack = project.logicalSheet.paperTracks.find(track => track.paperTrack === group.paperTrack)
+      return {
+        nodeId: `track:unregistered:${group.sheetRole}:${group.paperTrack}`,
+        label: `${group.sheetRole === 'action' ? 'ACTION' : 'CELL'} ${paperTrack?.label || group.paperTrack}`,
+        paperTrack: group.paperTrack,
+        cels: group.cels
+          .sort((a, b) => a.firstFrame - b.firstFrame || a.keyOrder - b.keyOrder || a.nodeId.localeCompare(b.nodeId, 'ja'))
+          .reverse()
+          .map(cel => ({
+            nodeId: cel.nodeId,
+            cspCellName: cel.cspCellName,
+            keyId: cel.keyId,
+            displayLabel: cel.displayLabel,
+            sheetRole: cel.sheetRole,
+            materialState: cel.materialState,
+          })),
+      }
+    })
+}
+
+function sheetRoleOrder(role: SheetTimingRole): number {
+  return role === 'action' ? 0 : 1
 }
 
 function firstFrameByCspCellName(frames: Array<{ frame: number; value?: string | null }>): Map<string, number> {

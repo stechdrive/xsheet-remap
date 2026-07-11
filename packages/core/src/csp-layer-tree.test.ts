@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addOverlayPaperTrack,
   buildCspLayerTree,
   createDefaultProject,
   createOrSetEvent,
@@ -39,5 +40,22 @@ describe('CSP layer tree', () => {
 
     expect(track?.cels.map(cel => [cel.cspCellName, cel.firstFrame])).toEqual([['A2', 11], ['A1', 0]])
     expect(tree.bottomToTopTrackNodeIds).toEqual([...tree.topToBottomTrackNodeIds].reverse())
+  })
+
+  it('keeps configured correction layers and explicit empty overlay tracks without exposing unused template tracks', () => {
+    const project = addOverlayPaperTrack(createDefaultProject(), {
+      paperTrack: 'LO',
+      label: 'LO',
+      insertAfterPaperTrack: 'A',
+      snapIndex: 2,
+    }).project
+
+    const tree = buildCspLayerTree(project, 'import-stack')
+    const layers = tree.stages.flatMap(stage => stage.layers)
+    const tracks = layers.flatMap(layer => layer.tracks)
+
+    expect(layers.map(layer => layer.layerId)).toEqual(expect.arrayContaining(project.correctionLayers.map(layer => layer.layerId)))
+    expect(tracks.find(track => track.paperTrack === 'LO')).toMatchObject({ label: 'LO', cels: [] })
+    expect(tracks.some(track => track.paperTrack === 'A')).toBe(false)
   })
 })

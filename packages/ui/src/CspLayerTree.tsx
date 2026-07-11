@@ -1,6 +1,7 @@
-import { useMemo, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { buildCspLayerTree, type CutProject } from '@xsheet-remap/core'
+import { useMemo, useState, type DragEvent, type FormEvent, type KeyboardEvent } from 'react'
+import { buildCspLayerTree, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { assetIdFromAssetDragData, hasAssetDragPayload } from './assetFiles'
+import { ActionMenu } from './AppControls'
 import { REGISTERED_CELL_DRAG_MIME, REGISTERED_CELL_TEXT_DRAG_PREFIX } from './sheetConstants'
 import { Tooltip } from './Tooltip'
 
@@ -15,6 +16,9 @@ export function CspLayerTree({
   onRenamePaperTrack,
   onMoveStackItem,
   onAssignAsset,
+  onRequestOverlayPaperTrack,
+  onRequestStackGuideInsert,
+  onCreateStackGuideLabel,
 }: {
   project: CutProject
   exportProfileId?: string
@@ -26,8 +30,16 @@ export function CspLayerTree({
   onRenamePaperTrack: (paperTrack: string, name: string) => void
   onMoveStackItem: (itemId: string, direction: 'up' | 'down') => void
   onAssignAsset: (assetId: string, keyId: string) => void
+  onRequestOverlayPaperTrack: () => void
+  onRequestStackGuideInsert: (correctionLayerId: string) => void
+  onCreateStackGuideLabel: (input: { label: string; kind: StackGuideLabel['kind']; gapIndex: number; correctionLayerId: string }) => void
 }) {
   const tree = useMemo(() => buildCspLayerTree(project, exportProfileId), [exportProfileId, project])
+  const [auxiliaryDraft, setAuxiliaryDraft] = useState<{
+    correctionLayerId: string
+    kind: Extract<StackGuideLabel['kind'], 'camera-note' | 'memo'>
+    label: string
+  } | null>(null)
 
   function handleCelDragStart(event: DragEvent<HTMLElement>, keyId: string) {
     event.dataTransfer.effectAllowed = 'copy'
@@ -47,6 +59,11 @@ export function CspLayerTree({
     <section className="cspLayerTree" aria-label="CSPレイヤー構成">
       <header className="cspLayerTreeHeader">
         <strong>CSPレイヤー構成</strong>
+        <Tooltip label="紙シート上にセル列を追加">
+          <button type="button" className="cspTreeAddCellButton" aria-label="セル列を追加" onClick={onRequestOverlayPaperTrack}>
+            <PlusIcon />
+          </button>
+        </Tooltip>
       </header>
       <div className="cspLayerTreeBody">
         {tree.stages.length === 0 && <p className="cspLayerTreeEmpty">登録済みのレイヤーはありません。</p>}
@@ -54,10 +71,42 @@ export function CspLayerTree({
           <details className="cspTreeStage" key={stage.nodeId} open>
             <summary>{stage.label}</summary>
             {stage.layers.map(layer => (
-              <details className="cspTreeLayer" key={layer.nodeId} open>
-                <summary>{layer.label}</summary>
-                {layer.tracks.map(track => (
-                  <div className="cspTreeTrack" key={track.nodeId}>
+              <div className="cspTreeLayerShell" key={layer.nodeId}>
+                <details className="cspTreeLayer" open>
+                  <summary>{layer.label}</summary>
+                  {auxiliaryDraft && auxiliaryDraft.correctionLayerId === layer.layerId && (
+                    <form
+                      className="cspTreeAuxiliaryForm"
+                      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                        event.preventDefault()
+                        const label = auxiliaryDraft.label.trim()
+                        if (!label || !layer.layerId) return
+                        onCreateStackGuideLabel({
+                          label,
+                          kind: auxiliaryDraft.kind,
+                          gapIndex: project.logicalSheet.paperTracks.length,
+                          correctionLayerId: layer.layerId,
+                        })
+                        setAuxiliaryDraft(null)
+                      }}
+                    >
+                      <input
+                        autoFocus
+                        aria-label="追加トラック名"
+                        placeholder={auxiliaryDraft.kind === 'camera-note' ? 'SL1 / PAN1 / TU1' : 'MEMO1'}
+                        value={auxiliaryDraft.label}
+                        onChange={event => {
+                          const label = event.currentTarget.value
+                          setAuxiliaryDraft(current => current ? { ...current, label } : current)
+                        }}
+                      />
+                      <button type="submit" aria-label="追加を確定" title="追加を確定">✓</button>
+                      <button type="button" aria-label="追加をキャンセル" title="追加をキャンセル" onClick={() => setAuxiliaryDraft(null)}>×</button>
+                    </form>
+                  )}
+                  {layer.tracks.length === 0 && <p className="cspTreeNoTracks">トラックなし</p>}
+                  {layer.tracks.map(track => (
+                    <div className="cspTreeTrack" key={track.nodeId}>
                     <div className="cspTreeTrackRow">
                       {track.paperTrack ? (
                         <PaperTrackNameInput
@@ -119,14 +168,37 @@ export function CspLayerTree({
                         )
                       })}
                     </div>
-                  </div>
-                ))}
-              </details>
+                    </div>
+                  ))}
+                </details>
+                {layer.layerId && (
+                  <ActionMenu
+                    label={<PlusIcon />}
+                    ariaLabel={`${layer.label}にトラックを追加`}
+                    tooltipLabel={`${layer.label}にトラックを追加`}
+                    className="cspTreeLayerAddMenu iconActionMenu"
+                    closeOnMenuItemClick
+                  >
+                    <button type="button" onClick={() => onRequestStackGuideInsert(layer.layerId!)}>BG／BOOK</button>
+                    <button type="button" onClick={() => setAuxiliaryDraft({ correctionLayerId: layer.layerId!, kind: 'camera-note', label: '' })}>撮影指示</button>
+                    <button type="button" onClick={() => setAuxiliaryDraft({ correctionLayerId: layer.layerId!, kind: 'memo', label: '' })}>メモ</button>
+                  </ActionMenu>
+                )}
+              </div>
             ))}
           </details>
         ))}
       </div>
     </section>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
   )
 }
 

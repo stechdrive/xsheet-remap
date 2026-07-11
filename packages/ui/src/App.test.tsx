@@ -412,6 +412,43 @@ describe('App', () => {
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.template })).toBeNull()
   })
 
+  it('adds an empty paper track from the CSP layer pane and keeps it visible for later event entry', async () => {
+    render(<RemapApp />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'セル列を追加' }))
+    await clickActiveStackGuideInsertHandle(templateStackGuideHeaderPoint('action', 3))
+    fireEvent.change(screen.getByLabelText(uiText.sheet.addOverlayTrackName), { target: { value: 'J' } })
+    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+
+    await waitFor(() => {
+      expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).map(input => input.value))
+        .toContain('J')
+    })
+    const emptyTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrack'))
+      .find(track => track.querySelector<HTMLInputElement>('.cspTreeTrackNameInput')?.value === 'J')
+    expect(emptyTrack?.querySelector('.cspTreeNoCels')?.textContent).toBe('イベントなし')
+  })
+
+  it('keeps the selected correction layer when placing a BG or BOOK track from the CSP pane', async () => {
+    render(<RemapApp />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    fireEvent.click(screen.getByLabelText('演出にトラックを追加'))
+    fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
+    await clickActiveStackGuideInsertHandle(templateStackGuideHeaderPoint('action', 3))
+    fireEvent.change(screen.getByLabelText(uiText.stackGuides.inputLabel), { target: { value: 'BG1' } })
+    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+
+    await waitFor(() => {
+      const bgTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+        .find(track => track.textContent === 'BG1')
+      expect(bgTrack?.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('演出')
+    })
+  })
+
   it('keeps CSP track order and names synchronized with the paper sheet', async () => {
     render(<RemapApp />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)

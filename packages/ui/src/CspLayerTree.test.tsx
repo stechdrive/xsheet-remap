@@ -35,6 +35,9 @@ describe('CspLayerTree', () => {
         onRenamePaperTrack={onRenamePaperTrack}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
       />,
     )
 
@@ -48,5 +51,47 @@ describe('CspLayerTree', () => {
     fireEvent.change(trackName, { target: { value: 'LO' } })
     fireEvent.blur(trackName)
     expect(onRenamePaperTrack).toHaveBeenCalledWith('A', 'LO')
+  })
+
+  it('offers paper placement globally and auxiliary tracks on each correction layer', () => {
+    const onRequestOverlayPaperTrack = vi.fn()
+    const onRequestStackGuideInsert = vi.fn()
+    const onCreateStackGuideLabel = vi.fn()
+
+    render(
+      <CspLayerTree
+        project={createDefaultProject()}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={vi.fn()}
+        onUpdateCspCellName={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onRequestOverlayPaperTrack={onRequestOverlayPaperTrack}
+        onRequestStackGuideInsert={onRequestStackGuideInsert}
+        onCreateStackGuideLabel={onCreateStackGuideLabel}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'セル列を追加' }))
+    expect(onRequestOverlayPaperTrack).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByLabelText('作画にトラックを追加'))
+    fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
+    expect(onRequestStackGuideInsert).toHaveBeenCalledWith('layer_sakuga')
+
+    fireEvent.click(screen.getByLabelText('作画にトラックを追加'))
+    fireEvent.click(screen.getByRole('button', { name: '撮影指示' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '追加トラック名' }), { target: { value: 'PAN1' } })
+    fireEvent.click(screen.getByRole('button', { name: '追加を確定' }))
+    expect(onCreateStackGuideLabel).toHaveBeenCalledWith({
+      label: 'PAN1',
+      kind: 'camera-note',
+      gapIndex: 9,
+      correctionLayerId: 'layer_sakuga',
+    })
   })
 })

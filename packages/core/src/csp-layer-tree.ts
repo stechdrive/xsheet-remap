@@ -1,4 +1,4 @@
-import { buildExportPlan } from './project'
+import { buildExportPlan, defaultCorrectionLayerId, stackGuideGapIndex, stackGuideStackBand } from './project'
 import type { CutProject, MaterialState } from './types'
 
 export interface CspLayerTreeCel {
@@ -54,25 +54,13 @@ export function xdtsBottomToTopFromCspTopToBottom<T>(items: readonly T[]): T[] {
 
 export function buildCspLayerTree(project: CutProject, profileId?: string): CspLayerTree {
   const plan = buildExportPlan(project, profileId)
-  const visualTracks = cspTopToBottomFromXdtsBottomToTop(plan.tracks.filter(track => !track.dummy))
   const stages: CspLayerTreeStage[] = []
   const stageById = new Map<string, CspLayerTreeStage>()
   const layerById = new Map<string, CspLayerTreeLayer>()
 
-  for (const track of visualTracks) {
-    const slot = track.slotId ? project.cspTrackSlots.find(item => item.slotId === track.slotId) : undefined
-    const stackLabel = track.stackGuideLabelId
-      ? project.stackGuideLabels.find(item => item.labelId === track.stackGuideLabelId)
-      : undefined
-    const registration = stackLabel && track.stackGuideRegistrationId
-      ? stackLabel.registrations?.find(item => item.registrationId === track.stackGuideRegistrationId)
-      : undefined
-    const layerId = slot?.correctionLayerId ?? registration?.correctionLayerId
-    const layer = layerId ? project.correctionLayers.find(item => item.layerId === layerId) : undefined
-    const stage = layer ? project.productionStages.find(item => item.stageId === layer.stageId) : undefined
+  function ensureStageNode(stageId?: string): CspLayerTreeStage {
+    const stage = stageId ? project.productionStages.find(item => item.stageId === stageId) : undefined
     const stageKey = stage?.stageId ?? 'unassigned-stage'
-    const layerKey = layer?.layerId ?? 'unassigned-layer'
-
     let stageNode = stageById.get(stageKey)
     if (!stageNode) {
       stageNode = {
@@ -84,7 +72,12 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
       stageById.set(stageKey, stageNode)
       stages.push(stageNode)
     }
+    return stageNode
+  }
 
+  function ensureLayerNode(layerId?: string): CspLayerTreeLayer {
+    const layer = layerId ? project.correctionLayers.find(item => item.layerId === layerId) : undefined
+    const layerKey = layer?.layerId ?? 'unassigned-layer'
     let layerNode = layerById.get(layerKey)
     if (!layerNode) {
       layerNode = {
@@ -94,8 +87,29 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
         tracks: [],
       }
       layerById.set(layerKey, layerNode)
-      stageNode.layers.push(layerNode)
+      ensureStageNode(layer?.stageId).layers.push(layerNode)
     }
+    return layerNode
+  }
+
+  for (const stage of [...project.productionStages].sort((a, b) => b.order - a.order || a.stageId.localeCompare(b.stageId))) {
+    const layers = project.correctionLayers
+      .filter(layer => layer.stageId === stage.stageId)
+      .sort((a, b) => b.order - a.order || a.layerId.localeCompare(b.layerId))
+    for (const layer of layers) ensureLayerNode(layer.layerId)
+  }
+
+  const projectedPaperTracks = new Set<string>()
+  for (const track of plan.tracks.filter(track => !track.dummy)) {
+    const slot = track.slotId ? project.cspTrackSlots.find(item => item.slotId === track.slotId) : undefined
+    const stackLabel = track.stackGuideLabelId
+      ? project.stackGuideLabels.find(item => item.labelId === track.stackGuideLabelId)
+      : undefined
+    const registration = stackLabel && track.stackGuideRegistrationId
+      ? stackLabel.registrations?.find(item => item.registrationId === track.stackGuideRegistrationId)
+      : undefined
+    const layerId = slot?.correctionLayerId ?? registration?.correctionLayerId
+    const layerNode = ensureLayerNode(layerId)
 
     const firstFrameByName = new Map<string, number>()
     for (const frame of track.frames) {
@@ -127,8 +141,11 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
       ? project.logicalSheet.paperTracks.find(item => item.paperTrack === slot.paperTrack)
       : undefined
 
+    const trackNodeId = slot
+      ? `track:slot:${slot.slotId}`
+      : registration ? `track:stack:${registration.registrationId}` : `track:export:${track.trackNo}`
     layerNode.tracks.push({
-      nodeId: `track:${track.trackNo}`,
+      nodeId: trackNodeId,
       label: paperTrack?.label ?? track.name,
       paperTrack: paperTrack?.paperTrack,
       stackItemId: slot
@@ -139,6 +156,31 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
       stackGuideRegistrationId: registration?.registrationId,
       cels,
     })
+    if (slot) projectedPaperTracks.add(slot.paperTrack)
+  }
+
+  const defaultLayerId = defaultCorrectionLayerId(project)
+  for (const paperTrack of project.logicalSheet.paperTracks.filter(item => item.source === 'overlay')) {
+    if (projectedPaperTracks.has(paperTrack.paperTrack)) continue
+    const slot = project.cspTrackSlots.find(item =>
+      item.paperTrack === paperTrack.paperTrack
+      && (!defaultLayerId || item.correctionLayerId === defaultLayerId),
+    ) ?? project.cspTrackSlots.find(item => item.paperTrack === paperTrack.paperTrack)
+    if (!slot) continue
+    ensureLayerNode(slot.correctionLayerId).tracks.push({
+      nodeId: `track:slot:${slot.slotId}`,
+      label: paperTrack.label || paperTrack.paperTrack,
+      paperTrack: paperTrack.paperTrack,
+      stackItemId: `paper:${paperTrack.paperTrack}`,
+      slotId: slot.slotId,
+      cels: [],
+    })
+  }
+
+  for (const stage of stages) {
+    for (const layer of stage.layers) {
+      layer.tracks.sort((a, b) => compareCspTreeTracksTopToBottom(project, a, b))
+    }
   }
 
   const topToBottomTrackNodeIds = stages.flatMap(stage => stage.layers.flatMap(layer => layer.tracks.map(track => track.nodeId)))
@@ -146,5 +188,33 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
     stages,
     topToBottomTrackNodeIds,
     bottomToTopTrackNodeIds: xdtsBottomToTopFromCspTopToBottom(topToBottomTrackNodeIds),
+  }
+}
+
+function compareCspTreeTracksTopToBottom(project: CutProject, a: CspLayerTreeTrack, b: CspLayerTreeTrack): number {
+  const aPosition = cspTreeTrackPosition(project, a)
+  const bPosition = cspTreeTrackPosition(project, b)
+  return bPosition.position - aPosition.position
+    || bPosition.orderInGap - aPosition.orderInGap
+    || b.label.localeCompare(a.label, 'ja')
+    || b.nodeId.localeCompare(a.nodeId, 'ja')
+}
+
+function cspTreeTrackPosition(project: CutProject, track: CspLayerTreeTrack): { position: number; orderInGap: number } {
+  if (track.paperTrack) {
+    const paperTrack = project.logicalSheet.paperTracks.find(item => item.paperTrack === track.paperTrack)
+    return { position: (paperTrack?.order ?? Number.MAX_SAFE_INTEGER) + 0.5, orderInGap: 0 }
+  }
+  const label = track.stackGuideLabelId
+    ? project.stackGuideLabels.find(item => item.labelId === track.stackGuideLabelId)
+    : undefined
+  if (!label) return { position: Number.MAX_SAFE_INTEGER, orderInGap: 0 }
+  const band = stackGuideStackBand(label)
+  if (band === 'cell-interleave') {
+    return { position: stackGuideGapIndex(project, label), orderInGap: label.orderInGap }
+  }
+  return {
+    position: project.logicalSheet.paperTracks.length + (band === 'camera-note' ? 1 : 2),
+    orderInGap: label.orderInGap,
   }
 }

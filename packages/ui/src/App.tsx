@@ -440,9 +440,13 @@ interface StackGuideHeaderMenuState extends StackGuideInsertTarget {
   y: number
 }
 
-interface StackGuideInsertRequest extends StackGuideInsertTarget {
-  requestId: number
+interface StackGuideInsertContext {
   mode: StackGuideInsertTool
+  correctionLayerId?: string
+}
+
+interface StackGuideInsertRequest extends StackGuideInsertTarget, StackGuideInsertContext {
+  requestId: number
 }
 
 type StackGuideInsertTool = 'label-editor' | 'overlay-track'
@@ -3516,7 +3520,7 @@ function SheetPanel(props: {
   const [paneVisibility, setPaneVisibility] = useState<SheetPaneVisibility>(() => initialSheetPaneVisibility(props.appKind, props.collapseEditorPanes))
   const [zoomPaletteOpen, setZoomPaletteOpen] = useState(false)
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
-  const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertTool | null>(null)
+  const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
   const zoomPaletteRef = useRef<HTMLDivElement>(null)
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
@@ -4016,6 +4020,9 @@ function SheetPanel(props: {
               onRenamePaperTrack={(paperTrack, name) => props.onUpdatePaperTrack(paperTrack, { paperTrack: name, label: name })}
               onMoveStackItem={props.onMoveCspStackItem}
               onAssignAsset={props.onAssignAssetToKey}
+              onRequestOverlayPaperTrack={() => setStackGuideInsertTool({ mode: 'overlay-track' })}
+              onRequestStackGuideInsert={correctionLayerId => setStackGuideInsertTool({ mode: 'label-editor', correctionLayerId })}
+              onCreateStackGuideLabel={props.onCreateStackGuideLabel}
             /> : <KeyList
               project={props.project}
               activeCorrectionLayerId={props.activeCorrectionLayerId}
@@ -4035,7 +4042,7 @@ function SheetPanel(props: {
               onAssignAsset={props.onAssignAssetToKey}
               onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}
               onCreateStackGuideLabel={props.onCreateStackGuideLabel}
-              onRequestStackGuideInsert={setStackGuideInsertTool}
+              onRequestStackGuideInsert={mode => setStackGuideInsertTool({ mode })}
             />}
           </div>
         </aside>
@@ -4658,7 +4665,7 @@ function SheetCanvas(props: {
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
-  stackGuideInsertTool: StackGuideInsertTool | null
+  stackGuideInsertTool: StackGuideInsertContext | null
   onStackGuideInsertToolConsumed: () => void
   onClearSelection: () => void
   onAnnotation: (stroke: AnnotationStroke) => void
@@ -6921,16 +6928,16 @@ function StackGuideOverlay({
   pageWidth: number
   pageHeight: number
   insertRequest?: StackGuideInsertRequest | null
-  insertTool?: StackGuideInsertTool | null
+  insertTool?: StackGuideInsertContext | null
   dropPreview?: StackGuideDropPreviewState | null
   onInsertRequestConsumed?: () => void
   onInsertToolConsumed?: () => void
-  onCreate: (input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number }) => void
+  onCreate: (input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) => void
   onCreateOverlayPaperTrack: (input: { x: number; y: number; insertAfterPaperTrack?: string; snapIndex: number; sheetRole: SheetTimingRole }) => void
 }) {
   const editorInputRef = useRef<HTMLInputElement | null>(null)
   const overlayRef = useRef<HTMLDivElement | null>(null)
-  const [requestInsertTool, setRequestInsertTool] = useState<StackGuideInsertTool | null>(null)
+  const [requestInsertTool, setRequestInsertTool] = useState<StackGuideInsertContext | null>(null)
   const [insertToolTarget, setInsertToolTarget] = useState<StackGuideInsertTarget | null>(null)
   const [insertMenu, setInsertMenu] = useState<{
     regionId: string
@@ -6946,6 +6953,7 @@ function StackGuideOverlay({
     displayRole: SheetTimingRole
     snapIndex: number
     value: string
+    correctionLayerId?: string
   } | null>(null)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
@@ -6953,8 +6961,9 @@ function StackGuideOverlay({
     layoutOverrides: project.sheetView.layoutOverrides,
   })
   const anchorRegions = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
-  const activeInsertTool = insertTool ?? requestInsertTool
-  const currentInsertToolTarget = activeInsertTool
+  const activeInsertContext = insertTool ?? requestInsertTool
+  const activeInsertTool = activeInsertContext?.mode
+  const currentInsertToolTarget = activeInsertContext
     ? insertToolTarget ?? defaultStackGuideInsertTarget(template, project, page)
     : null
 
@@ -6963,7 +6972,7 @@ function StackGuideOverlay({
     const timer = window.setTimeout(() => {
       setInsertMenu(null)
       setEditor(null)
-      setRequestInsertTool(insertRequest.mode)
+      setRequestInsertTool({ mode: insertRequest.mode, correctionLayerId: insertRequest.correctionLayerId })
       setInsertToolTarget(insertRequest)
       onInsertRequestConsumed?.()
     }, 0)
@@ -7033,7 +7042,7 @@ function StackGuideOverlay({
     event.stopPropagation()
     setInsertToolTarget(target)
     if (activeInsertTool === 'label-editor') {
-      openEditor(target.regionId, target.gapIndex, target.insertAfterPaperTrack, target.displayRole, target.snapIndex)
+      openEditor(target.regionId, target.gapIndex, target.insertAfterPaperTrack, target.displayRole, target.snapIndex, activeInsertContext?.correctionLayerId)
       clearActiveInsertTool()
       return
     }
@@ -7047,9 +7056,16 @@ function StackGuideOverlay({
     clearActiveInsertTool()
   }
 
-  function openEditor(regionId: string, gapIndex: number, insertAfterPaperTrack: string | undefined, displayRole: SheetTimingRole, snapIndex: number) {
+  function openEditor(
+    regionId: string,
+    gapIndex: number,
+    insertAfterPaperTrack: string | undefined,
+    displayRole: SheetTimingRole,
+    snapIndex: number,
+    correctionLayerId?: string,
+  ) {
     setInsertMenu(null)
-    setEditor({ regionId, gapIndex, insertAfterPaperTrack, displayRole, snapIndex, value: '' })
+    setEditor({ regionId, gapIndex, insertAfterPaperTrack, displayRole, snapIndex, value: '', correctionLayerId })
   }
 
   function openInsertMenu(regionId: string, gapIndex: number, insertAfterPaperTrack: string | undefined, displayRole: SheetTimingRole, snapIndex: number) {
@@ -7072,6 +7088,7 @@ function StackGuideOverlay({
       insertAfterPaperTrack: editor.insertAfterPaperTrack,
       displayRole: editor.displayRole,
       viewSnapIndex: editor.snapIndex,
+      correctionLayerId: editor.correctionLayerId,
     })
     setEditor(null)
   }
@@ -7162,7 +7179,14 @@ function StackGuideOverlay({
                           event.stopPropagation()
                           const target = { pageId: page.pageId, regionId: region.regionId, gapIndex, insertAfterPaperTrack, displayRole, snapIndex }
                           if (activeInsertTool === 'label-editor') {
-                            openEditor(region.regionId, gapIndex, insertAfterPaperTrack, displayRole, snapIndex)
+                            openEditor(
+                              region.regionId,
+                              gapIndex,
+                              insertAfterPaperTrack,
+                              displayRole,
+                              snapIndex,
+                              activeInsertContext?.correctionLayerId,
+                            )
                             clearActiveInsertTool()
                             return
                           }

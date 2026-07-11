@@ -5,6 +5,7 @@ import { levelCorrectionFilterUrl, useLevelCorrectionFilterId } from './levelCor
 import type { SheetImageSettings } from './appTypes'
 import { useWarpedSheetImageUrl } from './sheetImages'
 import type { TemplateChromeRenderModel, TemplateGridOverlayRenderModel } from './templateEditorGeometry'
+import { SheetSvgText } from './SheetSvgText'
 
 export function SheetImageLayer({
   imageUrl,
@@ -84,9 +85,9 @@ export function TemplateChromeLayer({ model }: { model: TemplateChromeRenderMode
       {model.headers.map(header => (
         <g key={header.regionId}>
           <rect className="templateHeaderBox" style={{ fill: 'none' }} x={header.rect.x} y={header.rect.y} width={header.rect.w} height={header.rect.h} />
-          {header.label ? <text className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSize={header.labelFontSize}>{header.label}</text> : null}
+          {header.label ? <SheetSvgText className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSizePx={header.labelFontSizePx} pageSize={model.pageSize}>{header.label}</SheetSvgText> : null}
           {header.columns.map(column => (
-            <text key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" fontSize={column.fontSize}>{column.label}</text>
+            <SheetSvgText key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" fontSizePx={column.fontSizePx} pageSize={model.pageSize}>{column.label}</SheetSvgText>
           ))}
         </g>
       ))}
@@ -102,60 +103,60 @@ export function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderMo
       ))}
       {model.columnPath && <path className={model.columnPath.className} d={model.columnPath.d} />}
       {model.labels.map(label => (
-        <text
+        <SheetSvgText
           key={label.key}
           className="gridRowGuideLabel"
           x={label.x}
           y={label.y}
           textAnchor={label.textAnchor}
-          fontSize={label.fontSize}
+          fontSizePx={label.fontSizePx}
+          pageSize={model.pageSize}
         >
           {label.text}
-        </text>
+        </SheetSvgText>
       ))}
       {model.frameNumbers.map(item => (
-        <text
+        <SheetSvgText
           key={item.key}
           className="gridActionFrameNumber"
           x={item.x}
           y={item.y}
           textAnchor={item.textAnchor}
           dominantBaseline="text-after-edge"
-          fontSize={item.fontSize}
+          fontSizePx={item.fontSizePx}
+          pageSize={model.pageSize}
         >
           {item.text}
-        </text>
+        </SheetSvgText>
       ))}
       {model.secondCounters.map(item => (
-        <text
+        <SheetSvgText
           key={item.key}
           className="gridSecondCounter"
           x={item.x}
           y={item.y}
           textAnchor={item.textAnchor}
           dominantBaseline="text-after-edge"
-          fontSize={item.fontSize}
-          transform={item.horizontalScale !== 1
-            ? `translate(${item.x} 0) scale(${item.horizontalScale} 1) translate(${-item.x} 0)`
-            : undefined}
+          fontSizePx={item.fontSizePx}
+          pageSize={model.pageSize}
         >
           {item.text}
-        </text>
+        </SheetSvgText>
       ))}
       {model.bottomTrackLabels.map(item => (
-        <text
+        <SheetSvgText
           key={item.key}
           className="gridBottomTrackLabel"
           x={item.x}
           y={item.y}
           textAnchor="middle"
           dominantBaseline="text-after-edge"
-          fontSize={item.fontSize}
+          fontSizePx={item.fontSizePx}
+          pageSize={model.pageSize}
           opacity={item.opacity}
-          transform={`translate(${item.x} 0) scale(${item.horizontalScale} 1) translate(${-item.x} 0)`}
         >
           {item.text}
-        </text>
+        </SheetSvgText>
       ))}
     </g>
   )

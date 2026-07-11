@@ -1,5 +1,6 @@
 import {
   resolveSheetTemplateGridLayout,
+  resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
   sheetGridRowY,
   type NormalizedPoint,
@@ -7,6 +8,7 @@ import {
   type SheetGridLayout,
   type SheetGridLayoutOptions,
   type SheetTemplate,
+  type SheetTemplateLayoutResolveOptions,
   type SheetTemplateGrid,
   type SheetTemplateGridRole,
   type SheetTemplateGridRowLabelRule,
@@ -16,6 +18,7 @@ import {
   STANDARD_A3_GRID_HEADER_TOP_OFFSET,
 } from './sheetConstants'
 import { calibrationTargetRectForTemplate } from './sheetImages'
+import type { SheetSvgPageSize } from './sheetSvgTextGeometry'
 import { gridRoleLabel } from './templateEditing'
 
 export type TemplateGridHeaderColumnRenderModel = {
@@ -23,7 +26,7 @@ export type TemplateGridHeaderColumnRenderModel = {
   label: string
   x: number
   y: number
-  fontSize: number
+  fontSizePx: number
 }
 
 export type TemplateGridHeaderRenderModel = {
@@ -32,7 +35,7 @@ export type TemplateGridHeaderRenderModel = {
   label: string
   labelX: number
   labelY: number
-  labelFontSize: number
+  labelFontSizePx: number
   columns: TemplateGridHeaderColumnRenderModel[]
 }
 
@@ -43,6 +46,7 @@ export type TemplateReferenceRegionRenderModel = {
 }
 
 export type TemplateChromeRenderModel = {
+  pageSize: SheetSvgPageSize
   showOuterFrame: boolean
   referenceRegions: TemplateReferenceRegionRenderModel[]
   headers: TemplateGridHeaderRenderModel[]
@@ -67,7 +71,7 @@ export type TemplateGridRowLabelRenderModel = {
   x: number
   y: number
   textAnchor: 'start' | 'end'
-  fontSize: number
+  fontSizePx: number
 }
 
 export type TemplateGridCounterRenderModel = {
@@ -76,8 +80,7 @@ export type TemplateGridCounterRenderModel = {
   x: number
   y: number
   textAnchor: 'start' | 'end'
-  fontSize: number
-  horizontalScale: number
+  fontSizePx: number
 }
 
 export type TemplateBottomTrackLabelRenderModel = {
@@ -85,14 +88,14 @@ export type TemplateBottomTrackLabelRenderModel = {
   text: string
   x: number
   y: number
-  fontSize: number
-  horizontalScale: number
+  fontSizePx: number
   opacity: number
 }
 
 export type TemplateGridOverlayRenderModel = {
   regionId: string
   role: SheetTemplateGridRole
+  pageSize: SheetSvgPageSize
   rowPaths: TemplateGridPathRenderModel[]
   columnPath: TemplateGridPathRenderModel | null
   labels: TemplateGridRowLabelRenderModel[]
@@ -143,19 +146,23 @@ export function buildTemplateChromeRenderModel(
   template: SheetTemplate,
   paperTracks = template.defaults.paperTracks,
   durationFrames = template.defaults.durationFrames,
+  options: Omit<SheetTemplateLayoutResolveOptions, 'paperTracks'> = {},
 ): TemplateChromeRenderModel {
+  const resolveOptions = { ...options, paperTracks }
+  const pageSize = resolveSheetTemplatePageSize(template, durationFrames, resolveOptions)
   return {
+    pageSize,
     showOuterFrame: template.templateKind !== 'digital-native',
     referenceRegions: template.regions
       .filter(region => region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored')
       .map(region => ({
         regionId: region.regionId,
         type: region.type,
-        rect: resolveSheetTemplateRegionRect(template, region, durationFrames),
+        rect: resolveSheetTemplateRegionRect(template, region, durationFrames, resolveOptions),
       })),
     headers: template.regions
       .filter(region => region.type === 'exposure-grid' && region.grid)
-      .map(region => buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames))
+      .map(region => buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames, options))
       .filter((model): model is TemplateGridHeaderRenderModel => model !== null),
   }
 }
@@ -230,9 +237,10 @@ export function buildTemplateGridOverlayRenderModel(
   const labels = region.grid.rowLabelRules?.flatMap((rule, ruleIndex) => {
     const xOffset = (rule.xOffsetPx ?? 6) / pageSize.widthPx
     const yOffset = (rule.yOffsetPx ?? 0) / pageSize.heightPx
-    const fontSize = (rule.fontSizePx ?? 20) / pageSize.heightPx
-    const minY = rect.y + fontSize
-    const maxY = rect.y + rect.h - fontSize * 0.25
+    const fontSizePx = rule.fontSizePx ?? 20
+    const normalizedFontSize = fontSizePx / pageSize.heightPx
+    const minY = rect.y + normalizedFontSize
+    const maxY = rect.y + rect.h - normalizedFontSize * 0.25
     const x = rule.xAnchor === 'end' ? rect.x + rect.w - xOffset : rect.x + xOffset
     return Array.from({ length: frames.rowCount + 1 }, (_, row) => {
       const text = gridRowLabelText(template, frames, row, rule)
@@ -244,7 +252,7 @@ export function buildTemplateGridOverlayRenderModel(
         x,
         y,
         textAnchor: rule.xAnchor === 'end' ? 'end' : 'start',
-        fontSize,
+        fontSizePx,
       }
     })
   }).filter((label): label is TemplateGridRowLabelRenderModel => label !== null) ?? []
@@ -258,6 +266,7 @@ export function buildTemplateGridOverlayRenderModel(
   return {
     regionId: region.regionId,
     role: region.grid.role,
+    pageSize,
     rowPaths: Array.from(rowPaths, ([className, segments]) => ({
       className,
       d: segments.map(segment => `M ${segment.x1} ${segment.y1} H ${segment.x2}`).join(' '),
@@ -356,9 +365,10 @@ function buildTemplateGridHeaderRenderModel(
   region: SheetTemplate['regions'][number],
   paperTracks: string[],
   durationFrames: number,
+  options: Omit<SheetTemplateLayoutResolveOptions, 'paperTracks'> = {},
 ): TemplateGridHeaderRenderModel | null {
   if (!region.grid) return null
-  const layout = resolveSheetTemplateGridLayout(template, region, { paperTracks, durationFrames })
+  const layout = resolveSheetTemplateGridLayout(template, region, { ...options, paperTracks, durationFrames })
   if (!layout) return null
   const rect = layout.rect
   const pageSize = layout.pageSize
@@ -372,13 +382,13 @@ function buildTemplateGridHeaderRenderModel(
     label: gridHeaderLabelForRole(template, region.grid.role),
     labelX: rect.x + rect.w / 2,
     labelY: y + headerHeight / 2,
-    labelFontSize: templateGridHeaderFontSizePx(template) / pageSize.heightPx,
+    labelFontSizePx: templateGridHeaderFontSizePx(template),
     columns: layout.columns.map(column => ({
       columnId: column.columnId,
       label: column.label,
       x: column.x + column.w / 2,
       y: rect.y - columnBaselineOffset,
-      fontSize: templateGridColumnFontSizePx(template) / pageSize.heightPx,
+      fontSizePx: templateGridColumnFontSizePx(template),
     })),
   }
 }
@@ -430,8 +440,7 @@ function buildActionFrameNumberRenderModels(
       x,
       y: sheetGridRowY(layout, row + 1) - bottomInset,
       textAnchor: 'start',
-      fontSize: fontSizePx / layout.pageSize.heightPx,
-      horizontalScale: 1,
+      fontSizePx,
     }
   }).filter((item): item is TemplateGridCounterRenderModel => item !== null)
 }
@@ -459,8 +468,7 @@ function buildSecondCounterRenderModels(
       x,
       y: sheetGridRowY(layout, row + 1) - bottomInset,
       textAnchor: 'end',
-      fontSize: fontSizePx / layout.pageSize.heightPx,
-      horizontalScale: layout.pageSize.heightPx / layout.pageSize.widthPx,
+      fontSizePx,
     }
   }).filter((item): item is TemplateGridCounterRenderModel => item !== null)
 }
@@ -493,8 +501,7 @@ function buildBottomTrackLabelRenderModels(
           text,
           x: column.x + column.w / 2,
           y: labelY,
-          fontSize: fontSizePx / pageSize.heightPx,
-          horizontalScale: pageSize.heightPx / pageSize.widthPx,
+          fontSizePx,
           opacity: 0.55,
         }]
       : []

@@ -218,7 +218,6 @@ import {
 import {
   annotationTextCssLayout,
   annotationTextLines,
-  annotationTextSvgFontSize,
   resolveAnnotationTextFontSizePx,
   type AnnotationTextPageSize,
 } from './annotationTextLayout'
@@ -275,6 +274,8 @@ import { normalizeRecognitionLabel, recognizeSheetPages } from './sheetRecogniti
 import { detectSheetCalibrationPoints, type AutoCalibrationDebugOverlay } from './sheetAutoCalibration'
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 import { calibrationPointsSignature } from './sheetCalibrationUtils'
+import { SheetSvgText } from './SheetSvgText'
+import { sheetSvgTextX } from './sheetSvgTextGeometry'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import { GridOverlayLayer, SheetImageLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { TemplateWorkspace } from './TemplateWorkspace'
@@ -4515,22 +4516,23 @@ function AnnotationSvgText({
 }) {
   const lines = annotationTextLines(annotation.text)
   if (lines.length === 0) return null
-  const fontSize = annotationTextSvgFontSize(annotation, pageSize)
+  const fontSizePx = resolveAnnotationTextFontSizePx(annotation, pageSize)
   return (
-    <text
+    <SheetSvgText
       className="annotationTextSvg"
       x={annotation.x}
       y={annotation.y}
       fill={annotation.color}
-      fontSize={fontSize}
+      fontSizePx={fontSizePx}
+      pageSize={pageSize}
       dominantBaseline="hanging"
     >
       {lines.map((line, index) => (
-        <tspan key={index} x={annotation.x} dy={index === 0 ? 0 : '1.25em'}>
+        <tspan key={index} x={sheetSvgTextX(annotation.x, pageSize)} dy={index === 0 ? 0 : '1.25em'}>
           {line}
         </tspan>
       ))}
-    </text>
+    </SheetSvgText>
   )
 }
 
@@ -6554,9 +6556,9 @@ function SheetCanvas(props: {
                       preview
                     />
                   )}
-                  {showTemplateGuides && <TemplateChrome template={props.template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} />}
+                  {showTemplateGuides && <TemplateChrome template={props.template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} layoutOverrides={props.project.sheetView.layoutOverrides} />}
                   {showTemplateGuides && props.template.regions.filter(region => region.type === 'exposure-grid').map(region => (
-                    <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} />
+                    <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={props.project.sheetView.layoutOverrides} />
                   ))}
                   {showTemplateGuides && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
                   {candidateRects.map(candidate => (
@@ -6618,7 +6620,6 @@ function SheetCanvas(props: {
                     const pendingEventDrag = pendingTimelineEventDrag && sameSheetHitCell(pendingTimelineEventDrag.sourceHit, eventHit)
                       ? pendingTimelineEventDrag
                       : null
-                    const textGeometry = eventTextGeometry(rect, fontSizePx, sheetPageSize)
                     const timelineEventClassName = [
                       isDraggingEvent ? 'timelineEventDragSource' : 'timelineEventHandle',
                       pendingEventDrag ? 'timelineEventDragPending' : '',
@@ -6637,18 +6638,18 @@ function SheetCanvas(props: {
                         {hasAssetBinding && <polygon className="assetAssignedEventMarker" points={assetAssignedEventMarkerPoints(rect)} />}
                         {displayLabel.trim()
                           && (
-                            <text
+                            <SheetSvgText
                               className="eventText"
-                              x={textGeometry.x}
-                              y={textGeometry.y}
-                              transform={textGeometry.transform}
+                              x={rect.x + rect.w / 2}
+                              y={rect.y + rect.h / 2}
                               textAnchor="middle"
                               dominantBaseline="central"
                               alignmentBaseline="central"
-                              fontSize={textGeometry.fontSize}
+                              fontSizePx={clampTextFontSizePx(fontSizePx)}
+                              pageSize={sheetPageSize}
                             >
                               {displayLabel}
-                            </text>
+                            </SheetSvgText>
                         )}
                       </g>
                     )
@@ -7650,17 +7651,18 @@ function StackGuideSvgLayer({
                 rx={geometry.radiusX}
                 ry={geometry.radiusY}
               />
-              <text
+              <SheetSvgText
                 className="stackGuideSvgLabelText"
                 x={geometry.labelTextX}
                 y={geometry.labelY + geometry.labelHeight / 2}
                 dy="0.08em"
                 textAnchor="start"
                 dominantBaseline="middle"
-                fontSize={geometry.fontSize}
+                fontSizePx={geometry.fontSizePx}
+                pageSize={pageSize}
               >
                 {label.label}
-              </text>
+              </SheetSvgText>
             </g>
           )
         }))
@@ -7911,7 +7913,7 @@ function stackGuideSvgGeometry(template: SheetTemplate, rect: NormalizedRect, pa
     labelBottomY,
     labelWidth,
     labelHeight,
-    fontSize: metrics.fontSizePx / pageSize.heightPx,
+    fontSizePx: metrics.fontSizePx,
     radiusX: metrics.radiusPx / pageSize.widthPx,
     radiusY: metrics.radiusPx / pageSize.heightPx,
     connectorStrokeWidth: metrics.connectorStrokePx / pageSize.heightPx,
@@ -8625,14 +8627,16 @@ const TemplateChrome = memo(function TemplateChrome({
   template,
   paperTracks = template.defaults.paperTracks,
   durationFrames = template.defaults.durationFrames,
+  layoutOverrides,
 }: {
   template: SheetTemplate
   paperTracks?: string[]
   durationFrames?: number
+  layoutOverrides?: CutProject['sheetView']['layoutOverrides']
 }) {
   const model = useMemo(
-    () => buildTemplateChromeRenderModel(template, paperTracks, durationFrames),
-    [durationFrames, paperTracks, template],
+    () => buildTemplateChromeRenderModel(template, paperTracks, durationFrames, { layoutOverrides }),
+    [durationFrames, layoutOverrides, paperTracks, template],
   )
   return <TemplateChromeLayer model={model} />
 })
@@ -8644,6 +8648,7 @@ const GridOverlay = memo(function GridOverlay({
   durationFrames = template.defaults.durationFrames,
   frameOrigin = template.defaults.frameOrigin,
   pageFrameStart,
+  layoutOverrides,
 }: {
   template: SheetTemplate
   region: SheetTemplate['regions'][number]
@@ -8651,10 +8656,11 @@ const GridOverlay = memo(function GridOverlay({
   durationFrames?: number
   frameOrigin?: number
   pageFrameStart?: number
+  layoutOverrides?: CutProject['sheetView']['layoutOverrides']
 }) {
   const model = useMemo(
-    () => buildTemplateGridOverlayRenderModel(template, region, { paperTracks, durationFrames, frameOrigin, pageFrameStart }),
-    [durationFrames, frameOrigin, pageFrameStart, paperTracks, region, template],
+    () => buildTemplateGridOverlayRenderModel(template, region, { paperTracks, durationFrames, frameOrigin, pageFrameStart, layoutOverrides }),
+    [durationFrames, frameOrigin, layoutOverrides, pageFrameStart, paperTracks, region, template],
   )
   return model ? <GridOverlayLayer model={model} /> : null
 })
@@ -8665,26 +8671,27 @@ function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext
   return (
     <g className="metadataTextLayer" aria-hidden="true">
       {items.map(item => (
-        <text
+        <SheetSvgText
           key={item.regionId}
           className="metadataFieldText"
           x={item.x}
           y={item.y}
           textAnchor={item.textAnchor}
           dominantBaseline={item.dominantBaseline}
-          fontSize={item.fontSizePx / context.pageSize.heightPx}
+          fontSizePx={item.fontSizePx}
+          pageSize={context.pageSize}
           fontWeight={item.fontWeight}
         >
           {item.lines.map((line, index) => (
             <tspan
               key={`${item.regionId}_${index}`}
-              x={item.x}
-              dy={index === 0 ? 0 : item.lineHeightPx / context.pageSize.heightPx}
+              x={sheetSvgTextX(item.x, context.pageSize)}
+              dy={index === 0 ? 0 : item.lineHeightPx}
             >
               {line}
             </tspan>
           ))}
-        </text>
+        </SheetSvgText>
       ))}
     </g>
   )
@@ -8791,17 +8798,18 @@ function OverlayPaperTrackLayer({
             <g className="overlayPaperTrackLabel">
               <path className="overlayPaperTrackStem" d={`M ${label.stemX} ${column.rect.y} V ${label.labelBottomY} H ${label.labelAttachX}`} />
               <rect className="overlayPaperTrackLabelBox" x={label.labelX} y={label.labelY} width={label.labelWidth} height={label.labelHeight} rx={label.radiusX} ry={label.radiusY} />
-              <text
+              <SheetSvgText
                 className="overlayPaperTrackLabelText"
                 x={label.labelX + label.labelWidth / 2}
                 y={label.labelY + label.labelHeight / 2}
                 dy="0.08em"
                 dominantBaseline="middle"
                 textAnchor="middle"
-                fontSize={label.fontSize}
+                fontSizePx={label.fontSizePx}
+                pageSize={label.pageSize}
               >
                 {track.label}
-              </text>
+              </SheetSvgText>
             </g>
           </g>
         )
@@ -9003,7 +9011,8 @@ interface OverlayPaperTrackLabelGeometry {
   labelBottomY: number
   labelWidth: number
   labelHeight: number
-  fontSize: number
+  fontSizePx: number
+  pageSize: { widthPx: number; heightPx: number }
   radiusX: number
   radiusY: number
 }
@@ -9165,7 +9174,8 @@ function overlayPaperTrackLabelGeometry(
     labelBottomY,
     labelWidth,
     labelHeight,
-    fontSize: metrics.fontSizePx / pageSize.heightPx,
+    fontSizePx: metrics.fontSizePx,
+    pageSize,
     radiusX: metrics.radiusPx / pageSize.widthPx,
     radiusY: metrics.radiusPx / pageSize.heightPx,
   }
@@ -9478,17 +9488,6 @@ function overlaySnapIndexFromPoint(template: SheetTemplate, project: CutProject,
 function overlaySnapIndexFromSegment(x: number, segment: OverlayBandSegment | null | undefined): number {
   if (!segment) return 0
   return clampNumber(Math.round((x - segment.minX) / segment.columnWidth), 0, segment.snapCount)
-}
-
-function eventTextGeometry(rect: NormalizedRect, fontSizePx: number, pageSize: { widthPx: number; heightPx: number }) {
-  const safeWidth = Math.max(1, pageSize.widthPx)
-  const safeHeight = Math.max(1, pageSize.heightPx)
-  return {
-    x: (rect.x + rect.w / 2) * safeWidth,
-    y: (rect.y + rect.h / 2) * safeHeight,
-    fontSize: clampTextFontSizePx(fontSizePx),
-    transform: `scale(${1 / safeWidth} ${1 / safeHeight})`,
-  }
 }
 
 function timelineEventAtHit(project: CutProject, hit: SheetHit | null): TimelineEvent | null {
@@ -11819,9 +11818,9 @@ function SlotSheetPreview({
                 preview
               />
             )}
-            <TemplateChrome template={template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} />
+            <TemplateChrome template={template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} layoutOverrides={project.sheetView.layoutOverrides} />
             {template.regions.filter(region => region.type === 'exposure-grid').map(region => (
-              <GridOverlay key={region.regionId} template={template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={getSheetViewLayout(template).surface?.type === 'continuous-canvas' ? page.frameStart : template.defaults.frameOrigin} pageFrameStart={page.frameStart} />
+              <GridOverlay key={region.regionId} template={template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={getSheetViewLayout(template).surface?.type === 'continuous-canvas' ? page.frameStart : template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={project.sheetView.layoutOverrides} />
             ))}
             <MetadataTextLayer context={sheetRenderModelContext} page={page} />
             <WorkRangeOverlay
@@ -11842,25 +11841,24 @@ function SlotSheetPreview({
               />
             )}
             {eventRects.map(({ event, displayLabel, rect, hasAssetBinding, fontSizePx }) => {
-              const textGeometry = eventTextGeometry(rect, fontSizePx, pageSize)
               return (
                 <g key={event.eventId}>
                   <rect className={hasAssetBinding ? 'eventRect assetAssignedEventRect' : 'eventRect'} x={rect.x} y={rect.y} width={rect.w} height={rect.h} rx="0.002" />
                   {hasAssetBinding && <polygon className="assetAssignedEventMarker" points={assetAssignedEventMarkerPoints(rect)} />}
                   {displayLabel.trim()
                     && (
-                      <text
+                      <SheetSvgText
                         className="eventText"
-                        x={textGeometry.x}
-                        y={textGeometry.y}
-                        transform={textGeometry.transform}
+                        x={rect.x + rect.w / 2}
+                        y={rect.y + rect.h / 2}
                         textAnchor="middle"
                         dominantBaseline="central"
                         alignmentBaseline="central"
-                        fontSize={textGeometry.fontSize}
+                        fontSizePx={clampTextFontSizePx(fontSizePx)}
+                        pageSize={pageSize}
                       >
                         {displayLabel}
-                      </text>
+                      </SheetSvgText>
                   )}
                 </g>
               )

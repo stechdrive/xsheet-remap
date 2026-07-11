@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { assignSheetSourceToPage, cellRectForHit, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, registerAsset, registerAssetRoot, registerSheetSource, timingHitForFrame, upsertBinding, standardA3SheetTemplate, type SheetTemplateGridRole, type SheetTimingRole } from '@xsheet-remap/core'
+import { assignSheetSourceToPage, cellRectForHit, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, timingHitForFrame, upsertBinding, standardA3SheetTemplate, type SheetTemplateGridRole, type SheetTimingRole } from '@xsheet-remap/core'
 import { App, EditorApp, RemapApp } from './App'
 import { APP_VERSION } from './appVersion'
 import { uiText } from './i18n'
@@ -912,6 +912,7 @@ describe('App', () => {
 
   it('renders the default paper template chrome and grid lines', () => {
     render(<App />)
+    const paperTextTransform = `scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`
     expect(screen.getByLabelText(uiText.sheet.canvasLabel).getAttribute('preserveAspectRatio')).toBe('none')
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
@@ -925,6 +926,11 @@ describe('App', () => {
     expect(document.querySelector('.gridOverlay-sound')).toBeNull()
     expect(Array.from(document.querySelectorAll('.gridSecondCounter')).map(element => element.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toEqual(['001', '06+00', '1/1'])
+    expect(document.querySelector('.templateHeaderText')?.getAttribute('transform')).toBe(paperTextTransform)
+    expect(document.querySelector('.templateColumnText')?.getAttribute('transform')).toBe(paperTextTransform)
+    expect(document.querySelector('.gridActionFrameNumber')?.getAttribute('transform')).toBe(paperTextTransform)
+    expect(document.querySelector('.metadataFieldText')?.getAttribute('transform')).toBe(paperTextTransform)
+    expect(Array.from(document.querySelectorAll('.sheetSvg text')).every(element => element.getAttribute('transform') === paperTextTransform)).toBe(true)
   })
 
   it('toggles shared cut numbers beside the cut switch even before another cut exists', () => {
@@ -1069,6 +1075,7 @@ describe('App', () => {
 
   it('omits the fixed paper outer frame for the digital standard template', () => {
     render(<App />)
+    const digitalTextTransform = `scale(${1 / digitalStandardSheetTemplate.page.widthPx} ${1 / digitalStandardSheetTemplate.page.heightPx})`
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
 
     fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
@@ -1088,6 +1095,11 @@ describe('App', () => {
     expect(Array.from(document.querySelectorAll('.gridActionFrameNumber')).map(element => element.textContent)).toEqual(
       Array.from({ length: 72 }, (_, index) => String((index + 1) * 2)),
     )
+    expect(document.querySelector('.templateHeaderText')?.getAttribute('transform')).toBe(digitalTextTransform)
+    expect(document.querySelector('.templateColumnText')?.getAttribute('transform')).toBe(digitalTextTransform)
+    expect(document.querySelector('.gridActionFrameNumber')?.getAttribute('transform')).toBe(digitalTextTransform)
+    expect(document.querySelector('.gridSecondCounter')?.getAttribute('transform')).toBe(digitalTextTransform)
+    expect(Array.from(document.querySelectorAll('.sheetSvg text')).every(element => element.getAttribute('transform') === digitalTextTransform)).toBe(true)
   })
 
   it('selects a CELL grid position and creates a key from explicit input', () => {
@@ -1357,6 +1369,8 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
 
     await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(true))
+    const overlayLabelText = Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).find(label => label.textContent === 'J')
+    expect(overlayLabelText?.getAttribute('transform')).toBe(`scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`)
     const overlayHandle = document.querySelector<HTMLButtonElement>('.overlayPaperTrackDragHandle')
     if (!overlayHandle) throw new Error('overlay paper track handle not found')
     expect(overlayHandle.getAttribute('aria-label')).toBe(uiText.actions.overlayPaperTrackInputActive('J'))
@@ -3196,6 +3210,7 @@ describe('App', () => {
     expect(screen.queryByLabelText(uiText.stackGuides.inputLabel)).toBeNull()
     expect(Array.from(document.querySelectorAll('.stackGuideLabel')).some(label => label.textContent === 'BOOK2,3')).toBe(true)
     expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BOOK2,3')
+    expect(document.querySelector('.stackGuideSvgLabelText')?.getAttribute('transform')).toBe(`scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`)
     expect(screen.getAllByText(uiText.stackGuides.title).length).toBeGreaterThan(0)
 
     openStackGuideInsertMenu(sheet, 'cell', 2)

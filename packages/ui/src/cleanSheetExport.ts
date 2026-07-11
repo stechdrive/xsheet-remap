@@ -256,7 +256,9 @@ function renderTemplateDrawingLayer(
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
-  const chrome = buildTemplateChromeRenderModel(context.template, context.paperTracks, context.displayDurationFrames)
+  const chrome = buildTemplateChromeRenderModel(context.template, context.paperTracks, context.displayDurationFrames, {
+    layoutOverrides: context.project.sheetView.layoutOverrides,
+  })
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
     if (options.includeStaticChrome) drawTemplateStaticChrome(ctx, context, chrome, offsetY)
@@ -279,20 +281,20 @@ function renderTemplateDrawingLayer(
         ctx.fillStyle = '#2a302c'
         ctx.textBaseline = 'middle'
         for (const label of model.labels) {
-          ctx.font = fontDeclaration(label.fontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+          ctx.font = fontDeclaration(label.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
           ctx.textAlign = label.textAnchor === 'end' ? 'right' : 'left'
           ctx.fillText(label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx)
         }
         ctx.textBaseline = 'bottom'
         for (const item of [...model.frameNumbers, ...model.secondCounters]) {
-          ctx.font = fontDeclaration(item.fontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+          ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
           ctx.textAlign = item.textAnchor === 'end' ? 'right' : 'left'
           ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
         }
         ctx.textAlign = 'center'
         for (const item of model.bottomTrackLabels) {
           ctx.globalAlpha = item.opacity
-          ctx.font = fontDeclaration(item.fontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+          ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
           ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
         }
         ctx.globalAlpha = 1
@@ -366,12 +368,12 @@ function drawTemplateGridHeaders(
       header.rect.h * context.pageSize.heightPx,
     )
     if (header.label) {
-      ctx.font = fontDeclaration(header.labelFontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+      ctx.font = fontDeclaration(header.labelFontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.fillText(header.label, header.labelX * context.pageSize.widthPx, offsetY + header.labelY * context.pageSize.heightPx)
     }
     for (const column of header.columns) {
       if (!column.label) continue
-      ctx.font = fontDeclaration(column.fontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+      ctx.font = fontDeclaration(column.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.fillText(column.label, column.x * context.pageSize.widthPx, offsetY + column.y * context.pageSize.heightPx)
     }
   }
@@ -517,7 +519,7 @@ function drawOverlayPaperTracks(
         labelTextX: label.labelX + label.labelWidth / 2,
         labelWidth: label.labelWidth,
         labelHeight: label.labelHeight,
-        fontSize: label.fontSize,
+        fontSizePx: label.fontSizePx,
         radiusX: label.radiusX,
         radiusY: label.radiusY,
         connectorStrokeWidth: 3 / context.pageSize.heightPx,
@@ -582,7 +584,7 @@ function drawFlagLabel(
   roundedRectPath(ctx, labelX, labelY, labelW, labelH, radius)
   ctx.fill()
   ctx.fillStyle = '#ffffff'
-  ctx.font = fontDeclaration(Math.max(8, geometry.fontSize * pageHeight), SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+  ctx.font = fontDeclaration(Math.max(8, geometry.fontSizePx), SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
   ctx.textBaseline = 'middle'
   ctx.textAlign = input.align === 'center' ? 'center' : 'left'
   const textX = input.align === 'center' ? labelX + labelW / 2 : geometry.labelTextX * pageWidth

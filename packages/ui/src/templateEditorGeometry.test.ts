@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { digitalStandardSheetTemplate, standardA3SheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import {
+  buildTemplateChromeRenderModel,
   buildTemplateGridOverlayRenderModel,
   gridRowLineClassName,
   hitTestTemplateEditorTarget,
@@ -45,7 +46,7 @@ describe('template editor geometry', () => {
     expect(right?.frameNumbers.map(item => item.text)).toEqual(Array.from({ length: 36 }, (_, index) => String(218 + index * 2)))
     expect(left?.frameNumbers[0]).toMatchObject({ text: '146' })
     expect(left!.frameNumbers[0].x).toBeGreaterThan(leftRegion!.rect.x + leftRegion!.rect.w)
-    expect(left!.frameNumbers[0].fontSize * standardA3SheetTemplate.page.heightPx).toBe(9)
+    expect(left!.frameNumbers[0].fontSizePx).toBe(9)
   })
 
   it('uses the continuous timeline origin for digital ACTION frame numbers', () => {
@@ -57,7 +58,8 @@ describe('template editor geometry', () => {
     })
 
     expect(model?.frameNumbers.map(item => item.text)).toEqual(['102', '104', '106', '108'])
-    expect(model!.frameNumbers[0].fontSize * digitalStandardSheetTemplate.page.heightPx).toBe(9)
+    expect(model!.frameNumbers[0].fontSizePx).toBe(9)
+    expect(model?.pageSize).toEqual({ widthPx: 1920, heightPx: 3600 })
   })
 
   it('places elapsed seconds at the lower-left edge of paper CELL grids across pages', () => {
@@ -87,9 +89,9 @@ describe('template editor geometry', () => {
     expect(sound?.columnPath).not.toBeNull()
     expect(sound?.labels).toHaveLength(0)
     expect(cell?.secondCounters.map(item => item.text)).toEqual(['1', '2', '3', '4', '5', '6'])
-    expect(cell!.secondCounters[0].fontSize * digitalStandardSheetTemplate.page.heightPx).toBe(17)
-    expect(cell!.secondCounters[0].horizontalScale).toBe(digitalStandardSheetTemplate.page.heightPx / digitalStandardSheetTemplate.page.widthPx)
-    expect(cell!.secondCounters[0].fontSize).toBeGreaterThan(action!.frameNumbers[0].fontSize)
+    expect(cell!.secondCounters[0].fontSizePx).toBe(17)
+    expect(cell!.pageSize).toEqual({ widthPx: 1920, heightPx: 3600 })
+    expect(cell!.secondCounters[0].fontSizePx).toBeGreaterThan(action!.frameNumbers[0].fontSizePx)
   })
 
   it('keeps digital seconds cumulative when the visible timeline starts after frame one', () => {
@@ -149,6 +151,26 @@ describe('template editor geometry', () => {
 
     expect(buildTemplateGridOverlayRenderModel(paperTemplate, paperRegion!)?.bottomTrackLabels).toHaveLength(9)
     expect(buildTemplateGridOverlayRenderModel(digitalTemplate, digitalRegion!)?.bottomTrackLabels).toHaveLength(0)
+  })
+
+  it('uses the resolved dimensions of a user-created landscape template for every text layer', () => {
+    const template = {
+      ...standardA3SheetTemplate,
+      templateId: 'studio-landscape-template',
+      page: {
+        ...standardA3SheetTemplate.page,
+        widthPx: 3200,
+        heightPx: 1800,
+        format: 'custom-landscape',
+      },
+    } as SheetTemplate
+    const region = template.regions.find(item => item.regionId === 'left_action_grid')
+    const chrome = buildTemplateChromeRenderModel(template)
+    const grid = buildTemplateGridOverlayRenderModel(template, region!)
+
+    expect(chrome.pageSize).toEqual({ widthPx: 3200, heightPx: 1800 })
+    expect(grid?.pageSize).toEqual(chrome.pageSize)
+    expect(grid?.frameNumbers[0].fontSizePx).toBeGreaterThan(0)
   })
 
   it('omits paper SOUND overlays as before', () => {

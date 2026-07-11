@@ -86,7 +86,7 @@ export type FlagLabelGeometry = {
   labelBottomY: number
   labelWidth: number
   labelHeight: number
-  fontSize: number
+  fontSizePx: number
   radiusX: number
   radiusY: number
   connectorStrokeWidth: number
@@ -146,7 +146,7 @@ type OverlayPaperTrackLabelGeometry = {
   labelBottomY: number
   labelWidth: number
   labelHeight: number
-  fontSize: number
+  fontSizePx: number
   radiusX: number
   radiusY: number
 }
@@ -745,7 +745,7 @@ function stackGuideSvgGeometry(
     labelBottomY,
     labelWidth,
     labelHeight,
-    fontSize: metrics.fontSizePx / pageSize.heightPx,
+    fontSizePx: metrics.fontSizePx,
     radiusX: metrics.radiusPx / pageSize.widthPx,
     radiusY: metrics.radiusPx / pageSize.heightPx,
     connectorStrokeWidth: metrics.connectorStrokePx / pageSize.heightPx,
@@ -899,7 +899,7 @@ function overlayPaperTrackLabelGeometry(
     labelBottomY,
     labelWidth,
     labelHeight,
-    fontSize: metrics.fontSizePx / pageSize.heightPx,
+    fontSizePx: metrics.fontSizePx,
     radiusX: metrics.radiusPx / pageSize.widthPx,
     radiusY: metrics.radiusPx / pageSize.heightPx,
   }

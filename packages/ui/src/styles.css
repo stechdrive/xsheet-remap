@@ -2371,7 +2371,8 @@ textarea,
 }
 
 .gridActionFrameNumber,
-.gridSecondCounter {
+.gridSecondCounter,
+.gridBottomTrackLabel {
   fill: #202622;
   font-family: var(--font-sheet-sans);
   font-weight: 700;

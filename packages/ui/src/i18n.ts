@@ -634,6 +634,7 @@ export const uiText = {
     editorLabel: 'シートテンプレ領域編集',
     noGridRegion: 'グリッドなし',
     secondCounter: '秒カウンター',
+    bottomTrackLabels: '下端セル列名',
     gridHeaderLabels: 'ヘッダー見出し',
     gridHeaderHint: '各グリッド欄の上部見出しとして表示する文字です。空欄にすると、その見出しは表示しません。',
     gridHeaderLabelInput: (label: string) => `${label}ヘッダー見出し`,

@@ -245,6 +245,21 @@ export function TemplateWorkspace({
     })
   }
 
+  function updateBottomTrackLabelsVisible(visible: boolean) {
+    updateTemplateDraft(currentTemplate => {
+      const nextStyle = { ...(currentTemplate.style ?? {}) }
+      if (visible) {
+        nextStyle.bottomTrackLabels = { visible: true }
+      } else {
+        delete nextStyle.bottomTrackLabels
+      }
+      return {
+        ...currentTemplate,
+        style: Object.keys(nextStyle).length > 0 ? nextStyle : undefined,
+      }
+    })
+  }
+
   function updateRegion(regionId: string, updates: Partial<SheetTemplate['regions'][number]>) {
     updateTemplateDraft(currentTemplate => ({
       ...currentTemplate,
@@ -608,6 +623,16 @@ export function TemplateWorkspace({
 
   const displayControls = (
     <div className="detailStack">
+      {template.page.isPhysical && (
+        <label className="compactControl templateBottomTrackLabelsControl">
+          <input
+            type="checkbox"
+            checked={template.style?.bottomTrackLabels?.visible ?? false}
+            onChange={event => updateBottomTrackLabelsVisible(event.currentTarget.checked)}
+          />
+          <span>{uiText.template.bottomTrackLabels}</span>
+        </label>
+      )}
       <label className="compactControl templateSecondCounterControl">
         <input
           type="checkbox"

@@ -271,7 +271,6 @@ function renderTemplateDrawingLayer(
         durationFrames: page.frameEnd - page.frameStart + 1,
         frameOrigin,
         pageFrameStart: page.frameStart,
-        timelineFrameOrigin: context.project.logicalSheet.frameOrigin,
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
       if (model) {
@@ -290,6 +289,13 @@ function renderTemplateDrawingLayer(
           ctx.textAlign = item.textAnchor === 'end' ? 'right' : 'left'
           ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
         }
+        ctx.textAlign = 'center'
+        for (const item of model.bottomTrackLabels) {
+          ctx.globalAlpha = item.opacity
+          ctx.font = fontDeclaration(item.fontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+          ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
+        }
+        ctx.globalAlpha = 1
       }
       const layout = resolveSheetTemplateGridLayout(context.template, region, {
         paperTracks: context.paperTracks,

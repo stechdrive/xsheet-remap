@@ -475,6 +475,7 @@ describe('core project commands', () => {
       },
     })
     expect(standardA3SheetTemplate.style?.secondCounter).toEqual({ visible: true })
+    expect(standardA3SheetTemplate.style?.bottomTrackLabels).toEqual({ visible: true })
     expect(project.sheetView.sources).toEqual([])
     expect(project.sheetView.pages[0].sourceId).toBeUndefined()
   })
@@ -1533,6 +1534,7 @@ describe('sheet template hit testing', () => {
     expect(soundGrid?.rowLineRules).toBeUndefined()
     expect(soundGrid?.rowLabelRules).toBeUndefined()
     expect(digitalStandardSheetTemplate.style?.secondCounter).toEqual({ visible: true })
+    expect(digitalStandardSheetTemplate.style?.bottomTrackLabels).toBeUndefined()
   })
 
   it('expands the digital standard canvas without compressing logical frame grids', () => {

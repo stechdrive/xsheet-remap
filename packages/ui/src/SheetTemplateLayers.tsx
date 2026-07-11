@@ -135,6 +135,24 @@ export function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderMo
           textAnchor={item.textAnchor}
           dominantBaseline="text-after-edge"
           fontSize={item.fontSize}
+          transform={item.horizontalScale !== 1
+            ? `translate(${item.x} 0) scale(${item.horizontalScale} 1) translate(${-item.x} 0)`
+            : undefined}
+        >
+          {item.text}
+        </text>
+      ))}
+      {model.bottomTrackLabels.map(item => (
+        <text
+          key={item.key}
+          className="gridBottomTrackLabel"
+          x={item.x}
+          y={item.y}
+          textAnchor="middle"
+          dominantBaseline="text-after-edge"
+          fontSize={item.fontSize}
+          opacity={item.opacity}
+          transform={`translate(${item.x} 0) scale(${item.horizontalScale} 1) translate(${-item.x} 0)`}
         >
           {item.text}
         </text>

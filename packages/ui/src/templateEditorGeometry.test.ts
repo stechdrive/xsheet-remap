@@ -64,8 +64,8 @@ describe('template editor geometry', () => {
     const leftRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_cell_grid')
     const rightRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'right_cell_grid')
 
-    const left = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, leftRegion!, { pageFrameStart: 145, timelineFrameOrigin: 1 })
-    const right = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, rightRegion!, { pageFrameStart: 145, timelineFrameOrigin: 1 })
+    const left = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, leftRegion!, { pageFrameStart: 145 })
+    const right = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, rightRegion!, { pageFrameStart: 145 })
 
     expect(left?.secondCounters.map(item => item.text)).toEqual(['7', '8', '9'])
     expect(right?.secondCounters.map(item => item.text)).toEqual(['10', '11', '12'])
@@ -87,7 +87,20 @@ describe('template editor geometry', () => {
     expect(sound?.columnPath).not.toBeNull()
     expect(sound?.labels).toHaveLength(0)
     expect(cell?.secondCounters.map(item => item.text)).toEqual(['1', '2', '3', '4', '5', '6'])
-    expect(cell!.secondCounters[0].fontSize).toBe(action!.frameNumbers[0].fontSize)
+    expect(cell!.secondCounters[0].fontSize * digitalStandardSheetTemplate.page.heightPx).toBe(17)
+    expect(cell!.secondCounters[0].horizontalScale).toBe(digitalStandardSheetTemplate.page.heightPx / digitalStandardSheetTemplate.page.widthPx)
+    expect(cell!.secondCounters[0].fontSize).toBeGreaterThan(action!.frameNumbers[0].fontSize)
+  })
+
+  it('keeps digital seconds cumulative when the visible timeline starts after frame one', () => {
+    const region = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_cell_grid')
+    const model = buildTemplateGridOverlayRenderModel(digitalStandardSheetTemplate, region!, {
+      durationFrames: 48,
+      frameOrigin: 101,
+      pageFrameStart: 101,
+    })
+
+    expect(model?.secondCounters.map(item => item.text)).toEqual(['5', '6'])
   })
 
   it('omits second counters when the template display setting is off', () => {
@@ -95,6 +108,47 @@ describe('template editor geometry', () => {
     const template = { ...standardA3SheetTemplate, style: { ...standardA3SheetTemplate.style, secondCounter: undefined } }
 
     expect(buildTemplateGridOverlayRenderModel(template, region!)?.secondCounters).toHaveLength(0)
+  })
+
+  it('renders current paper-track names at the page bottom for physical templates', () => {
+    const region = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_cell_grid')
+    const model = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, region!, {
+      paperTracks: ['LO', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+    })
+
+    expect(model?.bottomTrackLabels.map(item => item.text)).toEqual(['LO', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
+    expect(model?.bottomTrackLabels.every(item => item.y < 1 && item.opacity === 0.55)).toBe(true)
+  })
+
+  it('omits bottom paper-track names when the display setting is off', () => {
+    const region = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_cell_grid')
+    const template = {
+      ...standardA3SheetTemplate,
+      style: {
+        ...standardA3SheetTemplate.style,
+        bottomTrackLabels: { visible: false },
+      },
+    } as SheetTemplate
+    const model = buildTemplateGridOverlayRenderModel(template, region!)
+
+    expect(model?.bottomTrackLabels).toHaveLength(0)
+  })
+
+  it('supports bottom paper-track names in user-created physical templates but not digital templates', () => {
+    const paperRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_action_grid')
+    const paperTemplate = {
+      ...standardA3SheetTemplate,
+      templateId: 'studio-paper-template',
+      style: { ...standardA3SheetTemplate.style, bottomTrackLabels: { visible: true } },
+    } as SheetTemplate
+    const digitalRegion = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_cell_grid')
+    const digitalTemplate = {
+      ...digitalStandardSheetTemplate,
+      style: { ...digitalStandardSheetTemplate.style, bottomTrackLabels: { visible: true } },
+    } as SheetTemplate
+
+    expect(buildTemplateGridOverlayRenderModel(paperTemplate, paperRegion!)?.bottomTrackLabels).toHaveLength(9)
+    expect(buildTemplateGridOverlayRenderModel(digitalTemplate, digitalRegion!)?.bottomTrackLabels).toHaveLength(0)
   })
 
   it('omits paper SOUND overlays as before', () => {

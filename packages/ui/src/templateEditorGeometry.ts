@@ -77,6 +77,17 @@ export type TemplateGridCounterRenderModel = {
   y: number
   textAnchor: 'start' | 'end'
   fontSize: number
+  horizontalScale: number
+}
+
+export type TemplateBottomTrackLabelRenderModel = {
+  key: string
+  text: string
+  x: number
+  y: number
+  fontSize: number
+  horizontalScale: number
+  opacity: number
 }
 
 export type TemplateGridOverlayRenderModel = {
@@ -87,11 +98,11 @@ export type TemplateGridOverlayRenderModel = {
   labels: TemplateGridRowLabelRenderModel[]
   frameNumbers: TemplateGridCounterRenderModel[]
   secondCounters: TemplateGridCounterRenderModel[]
+  bottomTrackLabels: TemplateBottomTrackLabelRenderModel[]
 }
 
 export interface TemplateGridOverlayOptions extends SheetGridLayoutOptions {
   pageFrameStart?: number
-  timelineFrameOrigin?: number
 }
 
 export type TemplateEditorRenderModel = {
@@ -243,6 +254,7 @@ export function buildTemplateGridOverlayRenderModel(
   const secondCounters = region.grid.role === 'cell' && template.style?.secondCounter?.visible
     ? buildSecondCounterRenderModels(template, region.grid, layout, options)
     : []
+  const bottomTrackLabels = buildBottomTrackLabelRenderModels(template, region.grid, layout)
   return {
     regionId: region.regionId,
     role: region.grid.role,
@@ -255,6 +267,7 @@ export function buildTemplateGridOverlayRenderModel(
     labels,
     frameNumbers,
     secondCounters,
+    bottomTrackLabels,
   }
 }
 
@@ -418,6 +431,7 @@ function buildActionFrameNumberRenderModels(
       y: sheetGridRowY(layout, row + 1) - bottomInset,
       textAnchor: 'start',
       fontSize: fontSizePx / layout.pageSize.heightPx,
+      horizontalScale: 1,
     }
   }).filter((item): item is TemplateGridCounterRenderModel => item !== null)
 }
@@ -431,28 +445,68 @@ function buildSecondCounterRenderModels(
   const leftEdge = layout.columns[0]?.x ?? layout.rect.x
   const x = leftEdge - 2 / layout.pageSize.widthPx
   const bottomInset = 1 / layout.pageSize.heightPx
-  const fontSizePx = gridCounterFontSizePx(layout)
+  const fontSizePx = gridSecondCounterFontSizePx(layout)
   const frameOffset = gridTimelineFrameOffset(template, grid, options.pageFrameStart)
-  const timelineFrameOrigin = options.timelineFrameOrigin ?? template.defaults.frameOrigin
   const framesPerSecond = Math.max(1, Math.round(template.defaults.fps))
 
   return Array.from({ length: layout.frames.rowCount }, (_, row) => {
     const boundaryFrame = layout.frames.frameStart + frameOffset + row
-    const elapsedFrames = boundaryFrame - timelineFrameOrigin + 1
-    if (elapsedFrames <= 0 || elapsedFrames % framesPerSecond !== 0) return null
+    const cumulativeFrames = boundaryFrame - template.defaults.frameOrigin + 1
+    if (cumulativeFrames <= 0 || cumulativeFrames % framesPerSecond !== 0) return null
     return {
-      key: `second-${elapsedFrames}-${row}`,
-      text: String(elapsedFrames / framesPerSecond),
+      key: `second-${cumulativeFrames}-${row}`,
+      text: String(cumulativeFrames / framesPerSecond),
       x,
       y: sheetGridRowY(layout, row + 1) - bottomInset,
       textAnchor: 'end',
       fontSize: fontSizePx / layout.pageSize.heightPx,
+      horizontalScale: layout.pageSize.heightPx / layout.pageSize.widthPx,
     }
   }).filter((item): item is TemplateGridCounterRenderModel => item !== null)
 }
 
+function buildBottomTrackLabelRenderModels(
+  template: SheetTemplate,
+  grid: SheetTemplateGrid,
+  layout: SheetGridLayout,
+): TemplateBottomTrackLabelRenderModel[] {
+  const style = template.style?.bottomTrackLabels
+  if (!template.page.isPhysical || !style?.visible || grid.trackProjection?.source !== 'logical-paper-tracks') {
+    return []
+  }
+
+  if (layout.columns.length === 0) return []
+
+  const pageSize = layout.pageSize
+  const fontSizePx = layout.frames.rowHeightPx * 0.62
+  const bottomInsetPx = Math.max(3, fontSizePx * 0.25)
+  const gridBottom = layout.rect.y + layout.rect.h
+  const labelY = Math.min(
+    1 - bottomInsetPx / pageSize.heightPx,
+    gridBottom + (fontSizePx + 2) / pageSize.heightPx,
+  )
+  return layout.columns.flatMap(column => {
+    const text = (column.paperTrack ?? column.label).trim()
+    return text
+      ? [{
+          key: `bottom-track-${column.columnId}`,
+          text,
+          x: column.x + column.w / 2,
+          y: labelY,
+          fontSize: fontSizePx / pageSize.heightPx,
+          horizontalScale: pageSize.heightPx / pageSize.widthPx,
+          opacity: 0.55,
+        }]
+      : []
+  })
+}
+
 function gridCounterFontSizePx(layout: SheetGridLayout): number {
   return clampNumber(layout.frames.rowHeightPx * 0.4, 7, 9)
+}
+
+function gridSecondCounterFontSizePx(layout: SheetGridLayout): number {
+  return layout.frames.rowHeightPx * 0.85
 }
 
 function gridTimelineFrameOffset(template: SheetTemplate, grid: SheetTemplateGrid, pageFrameStart?: number): number {

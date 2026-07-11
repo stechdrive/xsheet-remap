@@ -846,6 +846,13 @@ describe('App', () => {
     expect(document.querySelectorAll('.gridSecondCounter')).toHaveLength(0)
     fireEvent.click(secondCounter)
 
+    const bottomTrackLabels = screen.getByLabelText(uiText.template.bottomTrackLabels) as HTMLInputElement
+    expect(bottomTrackLabels.checked).toBe(true)
+    expect(document.querySelectorAll('.gridBottomTrackLabel')).toHaveLength(36)
+    fireEvent.click(bottomTrackLabels)
+    expect(document.querySelectorAll('.gridBottomTrackLabel')).toHaveLength(0)
+    fireEvent.click(bottomTrackLabels)
+
     const soundInput = screen.getByLabelText(uiText.template.gridHeaderLabelInput('SOUND')) as HTMLInputElement
     expect(soundInput.value).toBe('')
 

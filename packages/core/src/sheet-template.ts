@@ -193,8 +193,13 @@ export interface SheetTemplateSecondCounterStyle {
   visible: boolean
 }
 
+export interface SheetTemplateBottomTrackLabelsStyle {
+  visible: boolean
+}
+
 export interface SheetTemplateStyle {
   bgBookLabel?: SheetTemplateBgBookLabelStyle
+  bottomTrackLabels?: SheetTemplateBottomTrackLabelsStyle
   gridHeader?: SheetTemplateGridHeaderStyle
   secondCounter?: SheetTemplateSecondCounterStyle
 }
@@ -1149,6 +1154,9 @@ export const standardA3SheetTemplate: SheetTemplate = {
     importStackEndSeparatorName: '===== XSHEET IMPORT END =====',
   },
   style: {
+    bottomTrackLabels: {
+      visible: true,
+    },
     secondCounter: {
       visible: true,
     },

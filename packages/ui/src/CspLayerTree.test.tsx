@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { createDefaultProject, createOrSetEvent, upsertBinding } from '@xsheet-remap/core'
+import { createDefaultProject, createOrSetEvent, createStackGuideLabel, upsertBinding } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CspLayerTree } from './CspLayerTree'
+import { ASSET_DRAG_MIME } from './sheetConstants'
 
 afterEach(cleanup)
 
@@ -35,6 +36,7 @@ describe('CspLayerTree', () => {
         onRenamePaperTrack={onRenamePaperTrack}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
+        onAssignAssetToStackGuideLabel={vi.fn()}
         onRequestOverlayPaperTrack={vi.fn()}
         onRequestStackGuideInsert={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
@@ -70,6 +72,7 @@ describe('CspLayerTree', () => {
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
+        onAssignAssetToStackGuideLabel={vi.fn()}
         onRequestOverlayPaperTrack={onRequestOverlayPaperTrack}
         onRequestStackGuideInsert={onRequestStackGuideInsert}
         onCreateStackGuideLabel={onCreateStackGuideLabel}
@@ -93,5 +96,51 @@ describe('CspLayerTree', () => {
       gapIndex: 9,
       correctionLayerId: 'layer_sakuga',
     })
+  })
+
+  it('assigns an image asset dropped on a BG or BOOK track to its correction layer', () => {
+    const created = createStackGuideLabel(createDefaultProject(), {
+      label: 'BG1',
+      kind: 'background',
+      gapIndex: 0,
+      correctionLayerId: 'layer_enshutsu',
+    })
+    const onAssignAssetToStackGuideLabel = vi.fn()
+
+    render(
+      <CspLayerTree
+        project={created.project}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={vi.fn()}
+        onUpdateCspCellName={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetToStackGuideLabel={onAssignAssetToStackGuideLabel}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    const track = screen.getByLabelText('BG1（演出）へ画像素材を登録')
+    const dataTransfer = {
+      types: [ASSET_DRAG_MIME],
+      dropEffect: 'none',
+      getData: vi.fn((type: string) => type === ASSET_DRAG_MIME ? 'asset_bg' : ''),
+    }
+    fireEvent.dragOver(track, { dataTransfer })
+    expect(track.classList.contains('assetDragOver')).toBe(true)
+    fireEvent.drop(track, { dataTransfer })
+
+    expect(onAssignAssetToStackGuideLabel).toHaveBeenCalledWith(
+      created.label.labelId,
+      'asset_bg',
+      'layer_enshutsu',
+    )
+    expect(track.classList.contains('assetDragOver')).toBe(false)
   })
 })

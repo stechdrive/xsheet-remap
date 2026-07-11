@@ -1252,6 +1252,11 @@ textarea,
   height: 15px;
 }
 
+.cspTreeLayerAddMenu > summary::after {
+  display: none;
+  content: none;
+}
+
 .cspLayerTreeBody {
   min-height: 0;
   padding-top: 6px;
@@ -1329,6 +1334,21 @@ textarea,
 .cspTreeTrack {
   margin-left: 11px;
   border-top: 1px solid #d3d8d3;
+}
+
+.cspTreeTrack.stackGuideAssetDropTarget {
+  cursor: copy;
+}
+
+.cspTreeTrack.stackGuideAssetDropTarget.assetDragOver {
+  outline: 2px solid #416b5a;
+  outline-offset: -2px;
+  box-shadow: inset 4px 0 #416b5a;
+}
+
+.cspTreeTrack.stackGuideAssetDropTarget.assetDragOver .cspTreeTrackRow,
+.cspTreeTrack.stackGuideAssetDropTarget.assetDragOver .cspTreeCels {
+  background: #eef5ef;
 }
 
 .cspTreeTrackRow {

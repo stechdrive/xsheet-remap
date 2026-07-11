@@ -16,6 +16,7 @@ export function CspLayerTree({
   onRenamePaperTrack,
   onMoveStackItem,
   onAssignAsset,
+  onAssignAssetToStackGuideLabel,
   onRequestOverlayPaperTrack,
   onRequestStackGuideInsert,
   onCreateStackGuideLabel,
@@ -30,6 +31,7 @@ export function CspLayerTree({
   onRenamePaperTrack: (paperTrack: string, name: string) => void
   onMoveStackItem: (itemId: string, direction: 'up' | 'down') => void
   onAssignAsset: (assetId: string, keyId: string) => void
+  onAssignAssetToStackGuideLabel: (labelId: string, assetId: string, correctionLayerId: string) => void
   onRequestOverlayPaperTrack: () => void
   onRequestStackGuideInsert: (correctionLayerId: string) => void
   onCreateStackGuideLabel: (input: { label: string; kind: StackGuideLabel['kind']; gapIndex: number; correctionLayerId: string }) => void
@@ -40,6 +42,7 @@ export function CspLayerTree({
     kind: Extract<StackGuideLabel['kind'], 'camera-note' | 'memo'>
     label: string
   } | null>(null)
+  const [assetDropTrackNodeId, setAssetDropTrackNodeId] = useState<string | null>(null)
 
   function handleCelDragStart(event: DragEvent<HTMLElement>, keyId: string) {
     event.dataTransfer.effectAllowed = 'copy'
@@ -53,6 +56,19 @@ export function CspLayerTree({
     event.preventDefault()
     event.stopPropagation()
     onAssignAsset(assetId, keyId)
+  }
+
+  function handleStackGuideAssetDrop(
+    event: DragEvent<HTMLElement>,
+    labelId: string,
+    correctionLayerId: string,
+  ) {
+    const assetId = assetIdFromAssetDragData(event.dataTransfer)
+    if (!assetId) return
+    event.preventDefault()
+    event.stopPropagation()
+    setAssetDropTrackNodeId(null)
+    onAssignAssetToStackGuideLabel(labelId, assetId, correctionLayerId)
   }
 
   return (
@@ -105,8 +121,32 @@ export function CspLayerTree({
                     </form>
                   )}
                   {layer.tracks.length === 0 && <p className="cspTreeNoTracks">トラックなし</p>}
-                  {layer.tracks.map(track => (
-                    <div className="cspTreeTrack" key={track.nodeId}>
+                  {layer.tracks.map(track => {
+                    const acceptsStackGuideAsset = Boolean(track.stackGuideLabelId && layer.layerId)
+                    return (
+                    <div
+                      className={[
+                        'cspTreeTrack',
+                        acceptsStackGuideAsset ? 'stackGuideAssetDropTarget' : '',
+                        assetDropTrackNodeId === track.nodeId ? 'assetDragOver' : '',
+                      ].filter(Boolean).join(' ')}
+                      key={track.nodeId}
+                      aria-label={acceptsStackGuideAsset ? `${track.label}（${layer.label}）へ画像素材を登録` : undefined}
+                      onDragOver={acceptsStackGuideAsset ? event => {
+                        if (!hasAssetDragPayload(event.dataTransfer)) return
+                        event.preventDefault()
+                        event.stopPropagation()
+                        event.dataTransfer.dropEffect = 'copy'
+                        setAssetDropTrackNodeId(track.nodeId)
+                      } : undefined}
+                      onDragLeave={acceptsStackGuideAsset ? event => {
+                        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+                        setAssetDropTrackNodeId(current => current === track.nodeId ? null : current)
+                      } : undefined}
+                      onDrop={acceptsStackGuideAsset && track.stackGuideLabelId && layer.layerId
+                        ? event => handleStackGuideAssetDrop(event, track.stackGuideLabelId!, layer.layerId!)
+                        : undefined}
+                    >
                     <div className="cspTreeTrackRow">
                       {track.paperTrack ? (
                         <PaperTrackNameInput
@@ -169,7 +209,8 @@ export function CspLayerTree({
                       })}
                     </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </details>
                 {layer.layerId && (
                   <ActionMenu

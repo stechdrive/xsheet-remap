@@ -432,13 +432,18 @@ describe('App', () => {
   })
 
   it('keeps the selected correction layer when placing a BG or BOOK track from the CSP pane', async () => {
+    URL.createObjectURL = () => 'blob:csp-stack-guide-asset'
     render(<RemapApp />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
     fireEvent.click(screen.getByLabelText('演出にトラックを追加'))
     fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
-    await clickActiveStackGuideInsertHandle(templateStackGuideHeaderPoint('action', 3))
+    await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
+    const activeTarget = document.querySelector<HTMLElement>('.stackGuideGap.insertToolActive')
+    expect(activeTarget?.dataset.stackGuideSnapIndex).toBe('0')
+    const reservePoint = templateStackGuideHeaderSnapPoint('action', 0)
+    await clickActiveStackGuideInsertHandle(reservePoint)
     fireEvent.change(screen.getByLabelText(uiText.stackGuides.inputLabel), { target: { value: 'BG1' } })
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
 
@@ -446,6 +451,35 @@ describe('App', () => {
       const bgTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
         .find(track => track.textContent === 'BG1')
       expect(bgTrack?.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('演出')
+    })
+    const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')
+    if (!region?.grid) throw new Error('action region not found')
+    expect(stackGuideConnectorAnchorX('BG1')).toBeCloseTo(region.rect.x - region.rect.w / region.grid.columns.length, 4)
+
+    const assetFile = new File(['bg'], 'BG1.png', { type: 'image/png', lastModified: 1 })
+    fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [assetFile] } })
+    expect(await screen.findByText('BG1.png')).toBeTruthy()
+    const dragData: Record<string, string> = {}
+    const dataTransfer = {
+      files: [],
+      types: [] as string[],
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      setData: (type: string, value: string) => {
+        dragData[type] = value
+        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
+      },
+      getData: (type: string) => dragData[type] ?? '',
+      setDragImage: () => undefined,
+    }
+    fireEvent.dragStart(getAssetCardByName('BG1.png'), { dataTransfer })
+    const bgTrack = screen.getByLabelText('BG1（演出）へ画像素材を登録')
+    fireEvent.dragOver(bgTrack, { dataTransfer })
+    fireEvent.drop(bgTrack, { dataTransfer })
+
+    await waitFor(() => {
+      const assignedTrack = screen.getByLabelText('BG1（演出）へ画像素材を登録')
+      expect(assignedTrack.querySelector('.cspTreeCel.assigned')).toBeTruthy()
     })
   })
 

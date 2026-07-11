@@ -443,6 +443,7 @@ interface StackGuideHeaderMenuState extends StackGuideInsertTarget {
 interface StackGuideInsertContext {
   mode: StackGuideInsertTool
   correctionLayerId?: string
+  preferredSnapIndex?: number
 }
 
 interface StackGuideInsertRequest extends StackGuideInsertTarget, StackGuideInsertContext {
@@ -4020,8 +4021,13 @@ function SheetPanel(props: {
               onRenamePaperTrack={(paperTrack, name) => props.onUpdatePaperTrack(paperTrack, { paperTrack: name, label: name })}
               onMoveStackItem={props.onMoveCspStackItem}
               onAssignAsset={props.onAssignAssetToKey}
+              onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}
               onRequestOverlayPaperTrack={() => setStackGuideInsertTool({ mode: 'overlay-track' })}
-              onRequestStackGuideInsert={correctionLayerId => setStackGuideInsertTool({ mode: 'label-editor', correctionLayerId })}
+              onRequestStackGuideInsert={correctionLayerId => setStackGuideInsertTool({
+                mode: 'label-editor',
+                correctionLayerId,
+                preferredSnapIndex: 0,
+              })}
               onCreateStackGuideLabel={props.onCreateStackGuideLabel}
             /> : <KeyList
               project={props.project}
@@ -6964,7 +6970,7 @@ function StackGuideOverlay({
   const activeInsertContext = insertTool ?? requestInsertTool
   const activeInsertTool = activeInsertContext?.mode
   const currentInsertToolTarget = activeInsertContext
-    ? insertToolTarget ?? defaultStackGuideInsertTarget(template, project, page)
+    ? insertToolTarget ?? defaultStackGuideInsertTarget(template, project, page, activeInsertContext?.preferredSnapIndex)
     : null
 
   useEffect(() => {
@@ -6972,7 +6978,11 @@ function StackGuideOverlay({
     const timer = window.setTimeout(() => {
       setInsertMenu(null)
       setEditor(null)
-      setRequestInsertTool({ mode: insertRequest.mode, correctionLayerId: insertRequest.correctionLayerId })
+      setRequestInsertTool({
+        mode: insertRequest.mode,
+        correctionLayerId: insertRequest.correctionLayerId,
+        preferredSnapIndex: insertRequest.preferredSnapIndex,
+      })
       setInsertToolTarget(insertRequest)
       onInsertRequestConsumed?.()
     }, 0)
@@ -7876,7 +7886,12 @@ function stackGuideInsertTargetFromPoint(
   }
 }
 
-function defaultStackGuideInsertTarget(template: SheetTemplate, project: CutProject, page: SheetPage): StackGuideInsertTarget | null {
+function defaultStackGuideInsertTarget(
+  template: SheetTemplate,
+  project: CutProject,
+  page: SheetPage,
+  preferredSnapIndex = 1,
+): StackGuideInsertTarget | null {
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const paperTracks = project.logicalSheet.paperTracks.map(track => track.paperTrack)
   const anchorRegions = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
@@ -7892,7 +7907,7 @@ function defaultStackGuideInsertTarget(template: SheetTemplate, project: CutProj
   const columns = layout.columns
   const rect = layout.rect
   const targets = stackGuideInsertionTargets(template, project, displayRole, region.regionId, rect, columns)
-  const target = targets.find(item => item.snapIndex === 1) ?? targets[0]
+  const target = targets.find(item => item.snapIndex === preferredSnapIndex) ?? targets[0]
   return target
     ? {
         pageId: page.pageId,

@@ -4,8 +4,6 @@ param(
   [switch]$RequireHelper,
   [switch]$IncludeHelperCli,
   [switch]$SkipLeakCheck,
-  [switch]$SkipDistributionCopy,
-  [string]$DistributionCopyDir = "",
   [string]$OutputDir = ""
 )
 
@@ -13,18 +11,12 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-. (Join-Path $repoRoot "tools\release\local-settings.ps1")
 $releaseRoot = if ($OutputDir) {
   [System.IO.Path]::GetFullPath($OutputDir)
 } else {
   [System.IO.Path]::GetFullPath((Join-Path $repoRoot "release-local"))
 }
 $releasePackageName = "xsheet-remap"
-$distributionCopyDirectory = Resolve-XsheetReleaseCopyDirectory -RepoRoot $repoRoot -ExplicitDirectory $DistributionCopyDir
-$hasDistributionCopyDirectory = -not [string]::IsNullOrWhiteSpace($distributionCopyDirectory)
-$shouldCopyDistributionZip = -not $SkipDistributionCopy -and (
-  $hasDistributionCopyDirectory
-)
 
 function Test-IsInsideOrEqualPath {
   param(
@@ -377,27 +369,6 @@ function New-LocalReleaseZip {
   }
 }
 
-function Copy-DistributionZip {
-  param(
-    [string]$PackageName,
-    [string]$DestinationDirectory
-  )
-
-  $zipPath = Join-Path $releaseRoot "$PackageName.zip"
-  $zipChecksumPath = Join-Path $releaseRoot "$PackageName.zip.sha256"
-  if (-not (Test-Path -LiteralPath $zipPath)) {
-    throw "missing local release ZIP to copy: $zipPath"
-  }
-  if (-not (Test-Path -LiteralPath $zipChecksumPath)) {
-    throw "missing local release ZIP checksum to copy: $zipChecksumPath"
-  }
-
-  New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
-  Copy-Item -LiteralPath $zipPath -Destination (Join-Path $DestinationDirectory "$PackageName.zip") -Force
-  Copy-Item -LiteralPath $zipChecksumPath -Destination (Join-Path $DestinationDirectory "$PackageName.zip.sha256") -Force
-  Write-Host "[local-package] copied $PackageName.zip and checksum to $DestinationDirectory"
-}
-
 Assert-PathInsideRepository $releaseRoot
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 
@@ -532,9 +503,6 @@ foreach ($relativePath in $checksumTargets) {
 }
 $checksumLines | Set-Content -LiteralPath (Join-Path $releaseRoot "CHECKSUMS.sha256") -Encoding UTF8
 New-LocalReleaseZip -PackageName $releasePackageName
-if ($shouldCopyDistributionZip) {
-  Copy-DistributionZip -PackageName $releasePackageName -DestinationDirectory $distributionCopyDirectory
-}
 
 if (-not $SkipLeakCheck) {
   & (Join-Path $repoRoot "tools/checks/repo-hygiene.ps1") -IncludeLocalRelease

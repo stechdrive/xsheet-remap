@@ -34,7 +34,7 @@ function Get-RepoLocalEnvValue {
   return ""
 }
 
-function Resolve-XsheetReleaseCopyDirectory {
+function Resolve-XsheetHandoffDirectory {
   param(
     [string]$RepoRoot,
     [string]$ExplicitDirectory = ""

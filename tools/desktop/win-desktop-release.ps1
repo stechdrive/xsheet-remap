@@ -6,23 +6,10 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-. (Join-Path $repoRoot "tools\release\local-settings.ps1")
 $releaseExeRelativePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
 $releaseExePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $releaseExeRelativePath))
 $sheetCorrectorReleaseExeRelativePath = "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe"
 $sheetCorrectorReleaseExePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $sheetCorrectorReleaseExeRelativePath))
-$developmentCopyDirectory = Resolve-XsheetReleaseCopyDirectory -RepoRoot $repoRoot
-$hasDevelopmentCopyDirectory = -not [string]::IsNullOrWhiteSpace($developmentCopyDirectory)
-$developmentCopyExePath = if ($hasDevelopmentCopyDirectory) {
-  [System.IO.Path]::GetFullPath((Join-Path $developmentCopyDirectory "xsheet-remap.exe"))
-} else {
-  ""
-}
-$sheetCorrectorDevelopmentCopyExePath = if ($hasDevelopmentCopyDirectory) {
-  [System.IO.Path]::GetFullPath((Join-Path $developmentCopyDirectory "xsheet-corrector.exe"))
-} else {
-  ""
-}
 
 if (-not $releaseExePath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
   throw "resolved release executable is outside the repository: $releaseExePath"
@@ -83,9 +70,6 @@ try {
 
   if ($env:OS -eq "Windows_NT") {
     $buildOutputPaths = @($releaseExePath, $sheetCorrectorReleaseExePath)
-    if ($hasDevelopmentCopyDirectory) {
-      $buildOutputPaths += @($developmentCopyExePath, $sheetCorrectorDevelopmentCopyExePath)
-    }
     $runningTargets = Get-Process -Name "xsheet-remap", "xsheet-corrector" -ErrorAction SilentlyContinue |
       Where-Object {
         try {
@@ -121,16 +105,6 @@ try {
   }
   if (-not (Test-Path -LiteralPath $sheetCorrectorReleaseExePath)) {
     throw "sheet corrector build did not produce expected exe: $sheetCorrectorReleaseExePath"
-  }
-
-  if ($hasDevelopmentCopyDirectory) {
-    New-Item -ItemType Directory -Force -Path $developmentCopyDirectory | Out-Null
-    Copy-Item -LiteralPath $releaseExePath -Destination $developmentCopyExePath -Force
-    Write-Host "[desktop-build] copied release exe to $developmentCopyExePath"
-    Copy-Item -LiteralPath $sheetCorrectorReleaseExePath -Destination $sheetCorrectorDevelopmentCopyExePath -Force
-    Write-Host "[desktop-build] copied sheet corrector exe to $sheetCorrectorDevelopmentCopyExePath"
-  } else {
-    Write-Host "[desktop-build] XSHEET_RELEASE_COPY_DIR is not set; skipping external release copy"
   }
 
   & (Join-Path $repoRoot "tools/release/local-package.ps1") -SkipHelper -SkipLeakCheck

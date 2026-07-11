@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.472",
+  "version": "0.1.473",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -36,6 +36,7 @@
     "diagnose:csp-psd": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/csp-import-helper/export-psd-diagnostic.ps1",
     "package:local": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/local-package.ps1",
     "build:all-local": "npm run build:desktop && npm run build:csp-helper && npm run package:local",
+    "publish:handoff": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/publish-handoff.ps1",
     "release:github": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/github-latest-release.ps1",
     "release:github:build": "npm run build:all-local && npm run release:github",
     "check:repo-hygiene:release": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/checks/repo-hygiene.ps1 -IncludeBuildOutput -IncludeHelperBuildOutput -IncludeLocalRelease",

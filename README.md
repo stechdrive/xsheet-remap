@@ -69,6 +69,12 @@ CSP自動登録ヘルパーを使う前に、CLIP STUDIO PAINTへ乗算オート
 
 確認用にはPNG/JPG/PSD、CSP連携用にはXDTSまたはCSP自動登録出力を使います。CSP自動登録出力では素材画像そのものをコピーせず、登録ファイルからカットフォルダ内の既存素材を参照します。
 
+## 開発用ビルドと配布
+
+`npm run build:desktop`、`npm run build:csp-helper`、`npm run package:local`、`npm run build:all-local`は、成果物をリポジトリ内の`release-local/`に生成します。これらのコマンドは、`XSHEET_RELEASE_COPY_DIR`が設定されていても外部フォルダへコピーしません。
+
+生成済みの配布ZIPとチェックサムを受け渡し先へコピーするときだけ、`npm run publish:handoff`を実行します。コピー先は`XSHEET_RELEASE_COPY_DIR`または`tools/release/publish-handoff.ps1`の`-DestinationDir`で指定します。このコマンドが外部へコピーするのは`xsheet-remap.zip`と`xsheet-remap.zip.sha256`だけです。
+
 ## ライセンス
 
 このリポジトリの自作コードと自作ドキュメントはMIT Licenseです。第三者依存パッケージ、フォント、同梱ランタイムはそれぞれのライセンスに従います。概要は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。

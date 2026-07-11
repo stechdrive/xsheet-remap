@@ -47,7 +47,7 @@ import {
   type NameNormalizationOptions,
   type NameNormalizationPlan,
   type PaperTrack,
-  type ProductionProjectDocument,
+  type CutGroupProjectDocument,
   type SheetHit,
   type SheetImageAlignment,
   type SheetCalibrationPointPair,
@@ -114,7 +114,7 @@ import {
   logicalSheetFrameNumber,
   logicalSheetOfficialFrameEnd,
   logicalSheetWorkRange,
-  migrateProjectDocument,
+  parseProjectDocument,
   moveBindingToCorrectionLayer,
   type SheetTemplatePreset,
   updateActiveCutProjectInDocument,
@@ -609,7 +609,7 @@ type BinaryFileOutput = {
   mimeType: string
 }
 
-function exportCutProjectsFromDocument(document: ProductionProjectDocument): CutProject[] {
+function exportCutProjectsFromDocument(document: CutGroupProjectDocument): CutProject[] {
   if (document.cuts.length === 0) return [activeCutProjectFromDocument(document)]
   return document.cuts.map(cut => activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId }))
 }
@@ -687,7 +687,7 @@ type ProjectNativePathChecks = {
   sheetImages: string[]
 }
 
-function projectDocumentNativePathChecks(document: ProductionProjectDocument): ProjectNativePathChecks {
+function projectDocumentNativePathChecks(document: CutGroupProjectDocument): ProjectNativePathChecks {
   const rootsById = new Map(document.assetRoots.map(root => [root.rootId, root]))
   const assetPathById = new Map(document.assets.map(asset => [asset.assetId, nativePathForProjectAsset(asset, rootsById)]))
   const sheetImages = new Set<string>()
@@ -726,7 +726,7 @@ function uniquePathList(paths: Array<string | undefined>): string[] {
   return unique
 }
 
-async function alertMissingProjectNativePaths(document: ProductionProjectDocument): Promise<void> {
+async function alertMissingProjectNativePaths(document: CutGroupProjectDocument): Promise<void> {
   if (!isTauriHost()) return
   const checks = projectDocumentNativePathChecks(document)
   const allPaths = uniquePathList([
@@ -808,7 +808,10 @@ export function App() {
   const nativeFileDropDedupeRef = useRef<{ signature: string; timestamp: number } | null>(null)
 
   const issues = useMemo(() => validateProject(project, project.exportProfiles.find(profile => profile.profileId === exportProfileId)), [project, exportProfileId])
-  const projectDocumentSnapshot = useMemo(() => updateActiveCutProjectInDocument(projectDocument, project), [projectDocument, project])
+  const projectDocumentSnapshot = useMemo(
+    () => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }),
+    [projectDocument, project, template],
+  )
   const projectCuts = projectDocumentSnapshot.cuts
   const exportPlan = useMemo(() => buildExportPlan(project, exportProfileId), [project, exportProfileId])
   const xdtsText = useMemo(() => exportXdts(exportPlan), [exportPlan])
@@ -937,7 +940,7 @@ export function App() {
       applyProject: (nextProject, nextTemplate) => {
         setTemplate(nextTemplate)
         setTextFontSizePx(defaultTimingTextFontSizePx(nextTemplate, 'cell'))
-        setProjectDocument(createProjectDocumentFromCutProject(nextProject))
+        setProjectDocument(createProjectDocumentFromCutProject(nextProject, { sheetTemplate: nextTemplate }))
         setProjectFilePath(null)
         setHistory(createProjectHistory(nextProject))
         switchPanel('export')
@@ -2193,15 +2196,20 @@ export function App() {
   async function handleLoadProject(files: FileList | null) {
     const file = files?.[0]
     if (!file) return
-    const loadedDocument = migrateProjectDocument(await readJsonFile<unknown>(file))
-    const loaded = activeCutProjectFromDocument(loadedDocument)
-    setProjectDocument(loadedDocument)
-    setProjectFilePath((file as File & { path?: string }).path ?? null)
-    setHistory(createProjectHistory(loaded))
-    setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
-    setRuntimeSourceImageUrls({})
-    clearSelectionState()
-    void alertMissingProjectNativePaths(loadedDocument)
+    try {
+      const loadedDocument = parseProjectDocument(await readJsonFile<unknown>(file))
+      const loaded = activeCutProjectFromDocument(loadedDocument)
+      setTemplate(loadedDocument.sheetTemplate)
+      setProjectDocument(loadedDocument)
+      setProjectFilePath((file as File & { path?: string }).path ?? null)
+      setHistory(createProjectHistory(loaded))
+      setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
+      setRuntimeSourceImageUrls({})
+      clearSelectionState()
+      void alertMissingProjectNativePaths(loadedDocument)
+    } catch (error) {
+      window.alert(uiText.project.loadFailed(errorMessage(error)))
+    }
   }
 
   async function handleLoadTemplate(files: FileList | null): Promise<SheetTemplate | null> {
@@ -2246,14 +2254,14 @@ export function App() {
 
   async function handleSaveProjectJson(options: { saveAs?: boolean } = {}) {
     try {
-      const nextDocument = updateActiveCutProjectInDocument(projectDocument, project)
+      const nextDocument = updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template })
       const json = `${JSON.stringify(nextDocument, null, 2)}\n`
       if (!options.saveAs && projectFilePath) {
         await writeTextFile(projectFilePath, json)
         setProjectDocument(nextDocument)
         return
       }
-      const result = await saveJsonFile(nextDocument, projectFileName(project), {
+      const result = await saveJsonFile(nextDocument, projectFileName(nextDocument), {
         initialDirectory: fileDialogInitialDirectory(project),
       })
       if (result.path) setProjectFilePath(result.path)
@@ -2263,7 +2271,7 @@ export function App() {
     }
   }
 
-  function handleUpdateCutMetadata(field: 'title' | 'episode' | 'cut', value: string) {
+  function handleUpdateCutMetadata(field: 'title' | 'episode' | 'scene' | 'cut', value: string) {
     const trimmed = value.trim()
     commitProject({
       ...project,
@@ -2274,10 +2282,18 @@ export function App() {
     })
   }
 
+  function handleCspImportAssetRootChange(rootId: string) {
+    const nextDocument = updateActiveCutProjectInDocument(projectDocument, project, {
+      sheetTemplate: template,
+      cspImportAssetRootId: rootId || undefined,
+    })
+    setProjectDocument(nextDocument)
+  }
+
   function handleSwitchProjectCut(cutId: string) {
     if (!cutId || cutId === projectDocumentSnapshot.activeCutId) return
     try {
-      const nextDocument = switchActiveCutInProjectDocument(projectDocument, project, cutId)
+      const nextDocument = switchActiveCutInProjectDocument(projectDocumentSnapshot, project, cutId, { sheetTemplate: template })
       const nextProject = activeCutProjectFromDocument(nextDocument)
       setProjectDocument(nextDocument)
       setHistory(createProjectHistory(nextProject))
@@ -2292,7 +2308,7 @@ export function App() {
   function handleAddSharedCut() {
     try {
       const suggestedCutNumber = nextCutNumberLabel(projectDocumentSnapshot)
-      const nextDocument = addBlankSharedCutToProjectDocument(projectDocument, project, {
+      const nextDocument = addBlankSharedCutToProjectDocument(projectDocumentSnapshot, project, {
         cut: { cut: suggestedCutNumber },
       })
       const nextProject = activeCutProjectFromDocument(nextDocument)
@@ -2328,7 +2344,6 @@ export function App() {
       const packageBuild = buildCspImportPackage(projectDocumentSnapshot, {
         exportProfileId,
         appVersion: APP_VERSION,
-        sheetTemplate: template,
       })
       const blockingIssues = packageBuild.issues.filter(issue => issue.severity === 'error')
       if (blockingIssues.length > 0 || !packageBuild.assetRootPath) {
@@ -2856,6 +2871,17 @@ export function App() {
                 </label>
               )}
             </TooltipTarget>
+            <TooltipTarget label="シーン・カット管理を行う作品だけ入力します。">
+              {tooltipProps => (
+                <label className="topTextField compact" {...tooltipProps}>
+                  <span>シーン</span>
+                  <input
+                    value={project.cut.scene ?? ''}
+                    onChange={event => handleUpdateCutMetadata('scene', event.currentTarget.value)}
+                  />
+                </label>
+              )}
+            </TooltipTarget>
             <TooltipTarget label={uiText.sheet.cutNumberTitle}>
               {tooltipProps => (
                 <label className="topTextField compact" {...tooltipProps}>
@@ -3176,11 +3202,13 @@ export function App() {
         {panel === 'export' && (
           <ExportPanel
             project={project}
+            cspImportAssetRootId={projectDocumentSnapshot.cspImportAssetRootId}
             issues={issues}
             exportPlan={exportPlan}
             xdtsText={xdtsText}
             setTimingSourceRole={updateExportTimingSourceRole}
             updateExportProfile={updateExportProfile}
+            onCspImportAssetRootChange={handleCspImportAssetRootChange}
           />
         )}
       </main>
@@ -3282,7 +3310,7 @@ function SheetPanel(props: {
   templatePresets: SheetTemplatePreset[]
   selectedPresetId?: string
   onPresetSelect: (presetId: string) => void
-  projectCuts: ProductionProjectDocument['cuts']
+  projectCuts: CutGroupProjectDocument['cuts']
   activeCutId: string
   onSwitchProjectCut: (cutId: string) => void
   onAddSharedCut: () => void
@@ -3599,7 +3627,7 @@ function SheetPanel(props: {
                 <select value={props.activeCutId} onChange={event => props.onSwitchProjectCut(event.currentTarget.value)}>
                   {props.projectCuts.map((cut, index) => (
                     <option key={cut.cutId} value={cut.cutId}>
-                      {cut.cut.cut?.trim() || `カット${index + 1}`}
+                      {cut.metadata.cut?.trim() || `カット${index + 1}`}
                     </option>
                   ))}
                 </select>
@@ -13108,11 +13136,13 @@ function recognitionCandidateHasConflict(project: CutProject, candidate: Recogni
 
 function ExportPanel(props: {
   project: CutProject
+  cspImportAssetRootId?: string
   issues: ReturnType<typeof validateProject>
   exportPlan: ReturnType<typeof buildExportPlan>
   xdtsText: string
   setTimingSourceRole: (value: SheetTimingRole) => void
   updateExportProfile: (profileId: string, updates: Partial<ExportProfile>) => void
+  onCspImportAssetRootChange: (rootId: string) => void
 }) {
   const activeProfile = props.project.exportProfiles.find(profile => profile.mode === 'import-stack') ?? props.project.exportProfiles[0]
   const timingSourceRole = activeProfile?.timingSourceRole ?? 'action'
@@ -13122,6 +13152,15 @@ function ExportPanel(props: {
   return (
     <section className="panel exportPanel">
       <div className="toolRow">
+        <label>
+          CSPカットフォルダ
+          <select value={props.cspImportAssetRootId ?? ''} onChange={event => props.onCspImportAssetRootChange(event.currentTarget.value)}>
+            <option value="">未選択</option>
+            {props.project.assetRoots.filter(root => root.path).map(root => (
+              <option key={root.rootId} value={root.rootId}>{root.label || root.path}</option>
+            ))}
+          </select>
+        </label>
         <label>
           {uiText.export.timingSource}
           <select value={timingSourceRole} onChange={event => props.setTimingSourceRole(event.currentTarget.value as SheetTimingRole)}>
@@ -14173,8 +14212,8 @@ function templateJsonFileName(template: SheetTemplate): string {
   return `${baseName}.template.json`
 }
 
-function nextCutNumberLabel(document: ProductionProjectDocument): string {
-  const used = new Set(document.cuts.map(cut => cut.cut.cut).filter((value): value is string => Boolean(value?.trim())))
+function nextCutNumberLabel(document: CutGroupProjectDocument): string {
+  const used = new Set(document.cuts.map(cut => cut.metadata.cut).filter((value): value is string => Boolean(value?.trim())))
   let index = document.cuts.length + 1
   let candidate = String(index).padStart(3, '0')
   while (used.has(candidate)) {

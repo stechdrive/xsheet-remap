@@ -18,7 +18,7 @@ import {
   upsertBinding,
   type CutMetadata,
   type CutProject,
-  type ProductionProjectDocument,
+  type CutGroupProjectDocument,
 } from '@xsheet-remap/core'
 import { exportXdts, parseXdts } from '@xsheet-remap/xdts'
 
@@ -44,16 +44,14 @@ interface FixtureCut {
   cut: string
   timelineName: string
   durationFrames: number
-  time: string
   events: FixtureEvent[]
 }
 
 const repoRoot = process.cwd()
 const fixturesRoot = path.resolve(repoRoot, 'apps/csp-import-helper/tests/fixtures')
-const fixtureRoot = path.resolve(fixturesRoot, 'csp-import-v2-shared-cuts')
+const fixtureRoot = path.resolve(fixturesRoot, 'csp-import-v3-cut-group')
 const materialsDirectory = path.join(fixtureRoot, 'materials')
 const packageDirectory = path.join(fixtureRoot, 'xsheet-csp-import')
-const cutNumbers = ['C101A', 'C101B', 'C101C']
 
 const fixtureAssets: FixtureAsset[] = [
   { cspCellName: 'A_01', paperTrack: 'A', correctionLayerId: 'layer_sakuga', relativePath: 'materials/A_01.png', color: [224, 73, 57, 255] },
@@ -76,7 +74,6 @@ const fixtureCuts: FixtureCut[] = [
     cut: 'C101A',
     timelineName: '101A',
     durationFrames: 24,
-    time: '1+00',
     events: [
       { key: 'A_01', paperTrack: 'A', frame: 1 },
       { key: 'C_01', paperTrack: 'C', frame: 3 },
@@ -91,7 +88,6 @@ const fixtureCuts: FixtureCut[] = [
     cut: 'C101B',
     timelineName: '101B',
     durationFrames: 36,
-    time: '1+12',
     events: [
       { key: 'A_01', paperTrack: 'A', frame: 1 },
       { key: 'B_01', paperTrack: 'B', frame: 7 },
@@ -109,7 +105,6 @@ const fixtureCuts: FixtureCut[] = [
     cut: 'C101C',
     timelineName: '101C',
     durationFrames: 48,
-    time: '2+00',
     events: [
       { key: 'A_02', paperTrack: 'A', frame: 1 },
       { key: 'B_02', paperTrack: 'B', frame: 9 },
@@ -133,7 +128,7 @@ async function main(): Promise<void> {
 
   await writeFixtureImages()
   const document = await buildFixtureDocument()
-  const packageBuild = buildCspImportPackage(document, { appVersion: 'fixture-v2-shared-cuts' })
+  const packageBuild = buildCspImportPackage(document, { appVersion: 'fixture-v3-cut-group' })
   const errors = packageBuild.issues.filter(issue => issue.severity === 'error')
   if (errors.length > 0) {
     throw new Error(`fixture package has validation errors:\n${errors.map(issue => issue.message).join('\n')}`)
@@ -171,7 +166,7 @@ async function writeFixtureImages(): Promise<void> {
   }
 }
 
-async function buildFixtureDocument(): Promise<ProductionProjectDocument> {
+async function buildFixtureDocument(): Promise<CutGroupProjectDocument> {
   const rootCut = fixtureCuts[0]
   if (!rootCut) throw new Error('fixture requires at least one cut')
 
@@ -179,7 +174,7 @@ async function buildFixtureDocument(): Promise<ProductionProjectDocument> {
   project = updateProjectPaperTracks(project, ['A', 'B', 'C', 'D', 'E'])
   project = {
     ...project,
-    projectId: 'fixture_csp_import_v2_shared_cuts',
+    projectId: 'fixture_csp_import_v3_cut_group',
     cut: cutMetadata(rootCut),
   }
   project = updateLogicalSheetSettings(project, { durationFrames: rootCut.durationFrames })
@@ -226,12 +221,12 @@ async function buildFixtureDocument(): Promise<ProductionProjectDocument> {
 }
 
 function addTimedCut(
-  documentInput: ProductionProjectDocument,
+  documentInput: CutGroupProjectDocument,
   cut: FixtureCut,
   assetIdByCellName: Map<string, string>,
   assetByCellName: Map<string, FixtureAsset>,
   keyIdByCellName: Map<string, string>,
-): ProductionProjectDocument {
+): CutGroupProjectDocument {
   const previousActiveProject = activeCutProjectFromDocument(documentInput)
   let document = addBlankSharedCutToProjectDocument(documentInput, previousActiveProject, { cut: cutMetadata(cut) })
   let project = activeCutProjectFromDocument(document)
@@ -273,15 +268,12 @@ function createTimedEventWithBinding(
   return { project }
 }
 
-function cutMetadata(cut: Pick<FixtureCut, 'cut' | 'timelineName' | 'durationFrames' | 'time'>): CutMetadata {
+function cutMetadata(cut: Pick<FixtureCut, 'cut' | 'timelineName'>): CutMetadata {
   return {
     title: 'CSP Import Fixture',
-    no: '101',
+    episode: '101',
     cut: cut.cut,
     cspTimelineName: cut.timelineName,
-    cutList: cutNumbers,
-    duration: `${cut.durationFrames}f`,
-    time: cut.time,
   }
 }
 
@@ -317,7 +309,7 @@ async function verifyWrittenFixture(manifestFileName: string): Promise<void> {
       tracks: Array<{ cels?: Array<{ cspCellName: string; assetPath: string }> }>
     }>
   }
-  if (manifest.schemaVersion !== 2) throw new Error(`unexpected schemaVersion: ${manifest.schemaVersion ?? '(none)'}`)
+  if (manifest.schemaVersion !== 3) throw new Error(`unexpected schemaVersion: ${manifest.schemaVersion ?? '(none)'}`)
   if (manifest.assetRoot !== '..') throw new Error(`unexpected assetRoot: ${manifest.assetRoot ?? '(none)'}`)
   const setup = manifest.setup
   if (!setup || setup.xdts !== '_setup.xdts') throw new Error(`unexpected setup xdts: ${setup?.xdts ?? '(none)'}`)
@@ -377,21 +369,21 @@ async function verifyWrittenFixture(manifestFileName: string): Promise<void> {
 async function writeReadme(): Promise<void> {
   await writeFile(
     path.join(fixtureRoot, 'README.md'),
-    `# CSP import v2 shared-cuts fixture
+    `# CSP import v3 cut-group fixture
 
 Generated test data for updating the CSP import helper from the legacy
-single-cut manifest shape to the current main-app schema v2 shape.
+single-cut manifest shape to the current main-app schema v3 shape.
 
 Regenerate from the repository root:
 
 \`\`\`powershell
-npx tsx tools/fixtures/generate-csp-import-v2-shared-cuts.ts
+npx tsx tools/fixtures/generate-csp-import-v3-cut-group.ts
 \`\`\`
 
 Layout:
 
 \`\`\`text
-csp-import-v2-shared-cuts/
+csp-import-v3-cut-group/
   materials/
     A_01.png
     A_02.png
@@ -434,7 +426,7 @@ Each cut has its own CSP timeline name and duration. The cut number keeps its
 | C101B | 101B | 36f |
 | C101C | 101C | 48f |
 
-The manifest is schemaVersion 2 and is intended to exercise the helper's
+The manifest is schemaVersion 3 and is intended to exercise the helper's
 multi-cut XDTS import and cross-cut asset de-duplication path.
 The setup XDTS contains the union animation-folder stack for 作画, 演出, and
 作監. It deliberately repeats animation-folder names such as A under multiple

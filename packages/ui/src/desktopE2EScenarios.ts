@@ -64,10 +64,7 @@ export function buildFullDefaultA3Scenario(fileRefs: FileRef[], renameResults: N
       title: 'E2E',
       episode: '01',
       cut: 'E2E_FULL_A3',
-      time: '6+0',
       worker: 'desktop-e2e',
-      currentPage: 1,
-      totalPages: 1,
     },
   }
 

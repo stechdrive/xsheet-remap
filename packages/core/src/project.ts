@@ -1,11 +1,16 @@
 import type {
+  Annotation,
+  AssetRoot,
   CellBinding,
   CorrectionLayer,
   CspTrackSlot,
   CspCellNamePolicy,
   CutAsset,
+  CutGroupProjectDocument,
   CutMetadata,
   CutProject,
+  CutSheetDocument,
+  CutSheetMetadata,
   DomainCommand,
   ExportMode,
   ExportPlan,
@@ -20,16 +25,16 @@ import type {
   PaperTrack,
   PaperTrackName,
   ProductionMetadata,
-  ProductionProjectDocument,
   ProductionStage,
-  ProjectCut,
   ProjectHistory,
   SharedRegisteredCellCatalog,
+  SheetViewState,
   SheetTimingRole,
   StackGuideLabel,
   StackGuideLabelPlacementState,
   StackGuideRegistration,
   StackGuideStackBand,
+  TimedRangeCue,
   TimelineEvent,
   TimingKey,
 } from './types'
@@ -40,6 +45,7 @@ import {
   withSheetTemplatePaperTracks,
   standardA3SheetTemplate,
   standardA3SheetTemplatePreset,
+  sheetTemplatePresets,
   type SheetTemplate,
 } from './sheet-template'
 import {
@@ -72,8 +78,8 @@ export const DEFAULT_CSP_CELL_NAME_POLICY: CspCellNamePolicy = { mode: 'binding-
 export const DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME = '===== XSHEET IMPORT START ====='
 export const DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME = '===== XSHEET IMPORT END ====='
 export const MAX_CORRECTION_LAYERS = 10
-export const PROJECT_DOCUMENT_KIND = 'xsheet-remap-project'
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 2
+export const PROJECT_DOCUMENT_KIND = 'xsheet-remap-cut-group-project'
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 3
 
 export {
   DEFAULT_PRE_ROLL_FRAMES,
@@ -121,13 +127,19 @@ export function createDefaultProject(): CutProject {
   })
 }
 
-export function createDefaultProjectDocument(): ProductionProjectDocument {
-  return createProjectDocumentFromCutProject(createDefaultProject())
+export function createDefaultProjectDocument(): CutGroupProjectDocument {
+  return createProjectDocumentFromCutProject(createDefaultProject(), { sheetTemplate: standardA3SheetTemplate })
 }
 
-export function createProjectDocumentFromCutProject(projectInput: CutProject, options: { cutId?: string } = {}): ProductionProjectDocument {
+export function createProjectDocumentFromCutProject(
+  projectInput: CutProject,
+  options: { cutId?: string; sheetTemplate?: SheetTemplate } = {},
+): CutGroupProjectDocument {
   const project = migrateProject(projectInput)
   const cutId = options.cutId ?? 'cut_1'
+  const sheetTemplate = options.sheetTemplate
+    ?? sheetTemplatePresets.find(preset => preset.sheetTemplate.templateId === project.sheetTemplateId)?.sheetTemplate
+    ?? standardA3SheetTemplate
   return {
     documentKind: PROJECT_DOCUMENT_KIND,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
@@ -135,13 +147,15 @@ export function createProjectDocumentFromCutProject(projectInput: CutProject, op
     activeCutId: cutId,
     production: productionMetadataFromProject(project),
     studioPresetId: project.studioPresetId,
-    sheetTemplateId: project.sheetTemplateId,
+    sheetTemplate,
     productionStages: project.productionStages,
     correctionLayers: project.correctionLayers,
     assetRoots: project.assetRoots,
+    cspImportAssetRootId: preferredCspImportAssetRootId(project.assetRoots),
     assets: project.assets,
     registeredCells: sharedRegisteredCellCatalogFromProject(project),
-    cuts: [projectCutFromProject(project, cutId)],
+    exportProfiles: project.exportProfiles,
+    cuts: [cutSheetFromProject(project, cutId, 0)],
   }
 }
 
@@ -189,7 +203,7 @@ export function createProjectFromTrackLabels(
   return {
     schemaVersion: 1,
     projectId: options.projectId ?? 'project_sample',
-    cut: options.cut ?? { cut: '001', time: '6+0' },
+    cut: options.cut ?? { cut: '001' },
     studioPresetId: options.studioPresetId,
     sheetTemplateId: options.sheetTemplateId ?? template.templateId,
     sheetView: createDefaultSheetViewState(template),
@@ -1773,99 +1787,107 @@ export function redoHistory(history: ProjectHistory): ProjectHistory {
   }
 }
 
-export function migrateProjectDocument(input: unknown): ProductionProjectDocument {
-  if (!isProductionProjectDocumentInput(input)) {
-    return createProjectDocumentFromCutProject(migrateProject(input as Partial<CutProject>))
+export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
+  if (!isCutGroupProjectDocumentInput(input)) {
+    throw new Error('対応していないプロジェクトファイルです。新しい兼用カットプロジェクトを作成してください。')
+  }
+  if (input.schemaVersion !== PROJECT_DOCUMENT_SCHEMA_VERSION) {
+    throw new Error(`対応していないプロジェクトバージョンです: ${String(input.schemaVersion)}`)
+  }
+  if (!isRecord(input.production) || !isSheetTemplateInput(input.sheetTemplate)) {
+    throw new Error('プロジェクトの制作情報またはシートテンプレートが不正です。')
+  }
+  if (!Array.isArray(input.cuts) || input.cuts.length === 0) {
+    throw new Error('プロジェクトには1件以上のタイムシートが必要です。')
+  }
+  if (!Array.isArray(input.productionStages) || !Array.isArray(input.correctionLayers)
+    || !Array.isArray(input.assetRoots) || !Array.isArray(input.assets)
+    || !Array.isArray(input.exportProfiles) || !isRecord(input.registeredCells)) {
+    throw new Error('プロジェクトの共有データが不正です。')
   }
 
-  const baseProject = createDefaultProject()
-  const rawCuts = Array.isArray(input.cuts) ? input.cuts : []
-  const sharedInput = input as Partial<ProductionProjectDocument>
-  const projectId = typeof sharedInput.projectId === 'string' && sharedInput.projectId.trim()
-    ? sharedInput.projectId
-    : baseProject.projectId
-  const rawProduction = isRecord(sharedInput.production) ? sharedInput.production : {}
+  const document = input as unknown as CutGroupProjectDocument
   const production: ProductionMetadata = {
-    title: stringValue(rawProduction.title),
-    episode: stringValue(rawProduction.episode),
-    scene: stringValue(rawProduction.scene),
-    custom: isStringRecord(rawProduction.custom) ? { ...rawProduction.custom } : undefined,
+    title: stringValue(document.production.title),
+    episode: stringValue(document.production.episode),
+    custom: isStringRecord(document.production.custom) ? { ...document.production.custom } : undefined,
   }
-  const cutProjects = rawCuts.length > 0
-    ? rawCuts.map(cutInput => cutProjectFromDocumentParts(sharedInput, cutInput, projectId, production))
-    : [migrateProject({
-        projectId,
-        cut: cutMetadataWithProduction({}, production),
-        studioPresetId: sharedInput.studioPresetId,
-        sheetTemplateId: sharedInput.sheetTemplateId,
-        productionStages: sharedInput.productionStages,
-        correctionLayers: sharedInput.correctionLayers,
-        assetRoots: sharedInput.assetRoots,
-        assets: sharedInput.assets,
-      })]
-  const cuts = cutProjects.map((project, index) => {
-    const rawCut = rawCuts[index]
-    const rawCutId = isRecord(rawCut) ? stringValue(rawCut.cutId) : undefined
-    const migratedCut = projectCutFromProject(project, rawCutId || `cut_${index + 1}`)
-    const rawPlacements = isRecord(rawCut) && Array.isArray(rawCut.stackGuideLabelPlacements)
-      ? rawCut.stackGuideLabelPlacements as StackGuideLabelPlacementState[]
-      : undefined
-    return rawPlacements ? { ...migratedCut, stackGuideLabelPlacements: rawPlacements } : migratedCut
-  })
-  const activeCutId = typeof sharedInput.activeCutId === 'string' && cuts.some(cut => cut.cutId === sharedInput.activeCutId)
-    ? sharedInput.activeCutId
-    : cuts[0]?.cutId ?? 'cut_1'
-  const sharedProject = cutProjects[0] ?? baseProject
-  const registeredCells = sharedRegisteredCellCatalogFromInput(sharedInput.registeredCells, cutProjects)
+  const registeredCells = sharedRegisteredCellCatalogFromInput(document.registeredCells)
+  const cuts = document.cuts
+    .map((cut, index) => normalizeCutSheetDocument(cut, index))
+    .sort((a, b) => a.order - b.order || a.cutId.localeCompare(b.cutId, 'ja'))
+    .map((cut, order) => ({ ...cut, order }))
+  const activeCutId = cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : cuts[0]!.cutId
+  const cspImportAssetRootId = document.cspImportAssetRootId && document.assetRoots.some(root => root.rootId === document.cspImportAssetRootId)
+    ? document.cspImportAssetRootId
+    : preferredCspImportAssetRootId(document.assetRoots)
   return {
     documentKind: PROJECT_DOCUMENT_KIND,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
-    projectId,
+    projectId: document.projectId,
     activeCutId,
     production,
-    studioPresetId: sharedProject.studioPresetId,
-    sheetTemplateId: sharedProject.sheetTemplateId,
-    productionStages: sharedProject.productionStages,
-    correctionLayers: sharedProject.correctionLayers,
-    assetRoots: sharedProject.assetRoots,
-    assets: sharedProject.assets,
+    studioPresetId: document.studioPresetId,
+    sheetTemplate: document.sheetTemplate,
+    productionStages: document.productionStages,
+    correctionLayers: document.correctionLayers,
+    assetRoots: document.assetRoots,
+    cspImportAssetRootId,
+    assets: document.assets,
     registeredCells,
+    exportProfiles: document.exportProfiles,
     cuts,
   }
 }
 
-export function activeCutProjectFromDocument(documentInput: ProductionProjectDocument): CutProject {
-  const document = migrateProjectDocument(documentInput)
+export function activeCutProjectFromDocument(documentInput: CutGroupProjectDocument): CutProject {
+  const document = parseProjectDocument(documentInput)
   const activeCut = document.cuts.find(cut => cut.cutId === document.activeCutId) ?? document.cuts[0]
-  return applySharedRegisteredCellsToProject(cutProjectFromDocumentCut(document, activeCut), document.registeredCells, activeCut)
+  return cutProjectFromDocumentCut(document, activeCut)
 }
 
-export function updateActiveCutProjectInDocument(documentInput: ProductionProjectDocument, activeProjectInput: CutProject): ProductionProjectDocument {
-  const document = migrateProjectDocument(documentInput)
+export function updateActiveCutProjectInDocument(
+  documentInput: CutGroupProjectDocument,
+  activeProjectInput: CutProject,
+  options: { sheetTemplate?: SheetTemplate; cspImportAssetRootId?: string } = {},
+): CutGroupProjectDocument {
+  const document = parseProjectDocument(documentInput)
   const activeProject = migrateProject(activeProjectInput)
   const activeCutId = document.cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : document.cuts[0]?.cutId ?? 'cut_1'
-  const activeCut = projectCutFromProject(activeProject, activeCutId)
+  const currentCut = document.cuts.find(cut => cut.cutId === activeCutId)
+  const activeCut = cutSheetFromProject(activeProject, activeCutId, currentCut?.order ?? document.cuts.length)
   const cuts = document.cuts.some(cut => cut.cutId === activeCutId)
     ? document.cuts.map(cut => cut.cutId === activeCutId ? activeCut : cut)
     : [...document.cuts, activeCut]
+  const requestedRootId = options.cspImportAssetRootId ?? document.cspImportAssetRootId
+  const cspImportAssetRootId = requestedRootId && activeProject.assetRoots.some(root => root.rootId === requestedRootId)
+    ? requestedRootId
+    : preferredCspImportAssetRootId(activeProject.assetRoots)
   return {
     ...document,
     projectId: activeProject.projectId,
     activeCutId,
     production: productionMetadataFromProject(activeProject, document.production),
     studioPresetId: activeProject.studioPresetId,
-    sheetTemplateId: activeProject.sheetTemplateId,
+    sheetTemplate: options.sheetTemplate ?? document.sheetTemplate,
     productionStages: activeProject.productionStages,
     correctionLayers: activeProject.correctionLayers,
     assetRoots: activeProject.assetRoots,
+    cspImportAssetRootId,
     assets: activeProject.assets,
     registeredCells: sharedRegisteredCellCatalogFromProject(activeProject),
+    exportProfiles: activeProject.exportProfiles,
     cuts,
   }
 }
 
-export function switchActiveCutInProjectDocument(documentInput: ProductionProjectDocument, activeProjectInput: CutProject, cutId: string): ProductionProjectDocument {
-  const document = updateActiveCutProjectInDocument(documentInput, activeProjectInput)
+export function switchActiveCutInProjectDocument(
+  documentInput: CutGroupProjectDocument,
+  activeProjectInput: CutProject,
+  cutId: string,
+  options: { sheetTemplate?: SheetTemplate } = {},
+): CutGroupProjectDocument {
+  const document = updateActiveCutProjectInDocument(documentInput, activeProjectInput, options)
   if (!document.cuts.some(cut => cut.cutId === cutId)) throw new Error(`cut not found: ${cutId}`)
   return {
     ...document,
@@ -1874,10 +1896,10 @@ export function switchActiveCutInProjectDocument(documentInput: ProductionProjec
 }
 
 export function addBlankSharedCutToProjectDocument(
-  documentInput: ProductionProjectDocument,
+  documentInput: CutGroupProjectDocument,
   activeProjectInput: CutProject,
   input: { cut?: Partial<CutMetadata> } = {},
-): ProductionProjectDocument {
+): CutGroupProjectDocument {
   const document = updateActiveCutProjectInDocument(documentInput, activeProjectInput)
   const baseProject = activeCutProjectFromDocument(document)
   const cutId = nextProjectCutId(document)
@@ -1885,7 +1907,7 @@ export function addBlankSharedCutToProjectDocument(
   return {
     ...document,
     activeCutId: cutId,
-    cuts: [...document.cuts, projectCutFromProject(cutProject, cutId)],
+    cuts: [...document.cuts, cutSheetFromProject(cutProject, cutId, document.cuts.length)],
   }
 }
 
@@ -1984,7 +2006,6 @@ function productionMetadataFromProject(project: CutProject, fallback: Production
     ...fallback,
     title: project.cut.title ?? fallback.title,
     episode: project.cut.episode ?? fallback.episode,
-    scene: project.cut.no ?? fallback.scene,
   }
 }
 
@@ -1996,53 +2017,15 @@ function sharedRegisteredCellCatalogFromProject(project: CutProject): SharedRegi
   }
 }
 
-function sharedRegisteredCellCatalogFromInput(input: unknown, cutProjects: CutProject[]): SharedRegisteredCellCatalog {
-  if (isRecord(input)) {
-    return {
-      keys: Array.isArray(input.keys) ? input.keys.filter(isRecord).map(key => ({ ...key } as unknown as TimingKey)) : [],
-      bindings: Array.isArray(input.bindings) ? input.bindings.filter(isRecord).map(binding => ({ ...binding } as unknown as CellBinding)) : [],
-      stackGuideLabels: Array.isArray(input.stackGuideLabels)
-        ? input.stackGuideLabels.filter(isRecord).map(label => cloneStackGuideLabel(label as unknown as StackGuideLabel))
-        : [],
-    }
-  }
-  const keys = new Map<string, TimingKey>()
-  const bindings = new Map<string, CellBinding>()
-  const labels = new Map<string, StackGuideLabel>()
-  for (const project of cutProjects) {
-    for (const key of project.logicalSheet.keys) {
-      if (!keys.has(key.keyId)) keys.set(key.keyId, { ...key })
-    }
-    for (const binding of project.bindings) {
-      if (!bindings.has(binding.bindingId)) bindings.set(binding.bindingId, { ...binding })
-    }
-    for (const label of project.stackGuideLabels) {
-      if (!labels.has(label.labelId)) labels.set(label.labelId, cloneStackGuideLabel(label))
-    }
-  }
+function sharedRegisteredCellCatalogFromInput(input: unknown): SharedRegisteredCellCatalog {
+  if (!isRecord(input)) throw new Error('プロジェクトの登録セルカタログが不正です。')
   return {
-    keys: [...keys.values()],
-    bindings: [...bindings.values()],
-    stackGuideLabels: [...labels.values()],
+    keys: Array.isArray(input.keys) ? input.keys.filter(isRecord).map(key => ({ ...key } as unknown as TimingKey)) : [],
+    bindings: Array.isArray(input.bindings) ? input.bindings.filter(isRecord).map(binding => ({ ...binding } as unknown as CellBinding)) : [],
+    stackGuideLabels: Array.isArray(input.stackGuideLabels)
+      ? input.stackGuideLabels.filter(isRecord).map(label => cloneStackGuideLabel(label as unknown as StackGuideLabel))
+      : [],
   }
-}
-
-function applySharedRegisteredCellsToProject(
-  project: CutProject,
-  catalog: SharedRegisteredCellCatalog | undefined,
-  cut: ProjectCut | undefined,
-): CutProject {
-  if (!catalog) return project
-  const placements = cut?.stackGuideLabelPlacements ?? stackGuideLabelPlacementsFromProject(project)
-  return repairBlankAssetDropBindingNames({
-    ...project,
-    logicalSheet: {
-      ...project.logicalSheet,
-      keys: catalog.keys.map(key => ({ ...key })),
-    },
-    bindings: catalog.bindings.map(binding => ({ ...binding })),
-    stackGuideLabels: applyStackGuideLabelPlacements(catalog.stackGuideLabels.map(label => cloneStackGuideLabel(label)), placements, project),
-  })
 }
 
 function cloneStackGuideLabel(label: StackGuideLabel): StackGuideLabel {
@@ -2091,17 +2074,10 @@ function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMet
       ...withoutUndefined({
         title: cutInput.title ?? baseProject.cut.title,
         episode: cutInput.episode ?? baseProject.cut.episode,
-        no: cutInput.no ?? baseProject.cut.no,
+        scene: cutInput.scene,
         cut: cutInput.cut,
         cspTimelineName: cutInput.cspTimelineName,
-        cutList: cutInput.cutList,
-        duration: cutInput.duration,
-        time: cutInput.time,
         worker: cutInput.worker,
-        name: cutInput.name,
-        currentPage: cutInput.currentPage,
-        totalPages: cutInput.totalPages,
-        page: cutInput.page,
         custom: cutInput.custom,
       }),
     },
@@ -2116,7 +2092,7 @@ function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMet
   }
 }
 
-function nextProjectCutId(document: ProductionProjectDocument): string {
+function nextProjectCutId(document: CutGroupProjectDocument): string {
   const usedIds = new Set(document.cuts.map(cut => cut.cutId))
   let index = document.cuts.length + 1
   let cutId = `cut_${index}`
@@ -2127,83 +2103,121 @@ function nextProjectCutId(document: ProductionProjectDocument): string {
   return cutId
 }
 
-function projectCutFromProject(project: CutProject, cutId: string): ProjectCut {
+function cutSheetFromProject(project: CutProject, cutId: string, order: number): CutSheetDocument {
+  const logicalSheet: CutSheetDocument['logicalSheet'] = {
+    fps: project.logicalSheet.fps,
+    frameOrigin: project.logicalSheet.frameOrigin,
+    durationFrames: project.logicalSheet.durationFrames,
+    allowNegativeFrames: project.logicalSheet.allowNegativeFrames,
+    workRange: project.logicalSheet.workRange,
+    paperTracks: project.logicalSheet.paperTracks,
+    timelineSections: project.logicalSheet.timelineSections,
+    events: project.logicalSheet.events,
+  }
   return {
     cutId,
-    cut: { ...project.cut },
+    order,
+    metadata: cutSheetMetadataFromProject(project),
     sheetView: project.sheetView,
-    logicalSheet: project.logicalSheet,
+    logicalSheet,
     cspTrackSlots: project.cspTrackSlots,
-    bindings: project.bindings,
-    stackGuideLabels: project.stackGuideLabels,
     stackGuideLabelPlacements: stackGuideLabelPlacementsFromProject(project),
     annotations: project.annotations,
     timedRangeCues: project.timedRangeCues,
-    exportProfiles: project.exportProfiles,
   }
 }
 
-function cutProjectFromDocumentCut(document: ProductionProjectDocument, cut: ProjectCut | undefined): CutProject {
-  const fallbackCut = createProjectDocumentFromCutProject(createDefaultProject()).cuts[0]
-  const resolvedCut = cut ?? fallbackCut
-  return migrateProject({
-    projectId: document.projectId,
-    cut: cutMetadataWithProduction(resolvedCut.cut, document.production),
-    studioPresetId: document.studioPresetId,
-    sheetTemplateId: document.sheetTemplateId,
-    productionStages: document.productionStages,
-    correctionLayers: document.correctionLayers,
-    assetRoots: document.assetRoots,
-    assets: document.assets,
-    sheetView: resolvedCut.sheetView,
-    logicalSheet: resolvedCut.logicalSheet,
-    cspTrackSlots: resolvedCut.cspTrackSlots,
-    bindings: resolvedCut.bindings,
-    stackGuideLabels: resolvedCut.stackGuideLabels,
-    annotations: resolvedCut.annotations,
-    timedRangeCues: resolvedCut.timedRangeCues,
-    exportProfiles: resolvedCut.exportProfiles,
+function cutSheetMetadataFromProject(project: Pick<CutProject, 'cut'>): CutSheetMetadata {
+  return withoutUndefined({
+    scene: project.cut.scene,
+    cut: project.cut.cut,
+    cspTimelineName: project.cut.cspTimelineName,
+    worker: project.cut.worker,
+    custom: project.cut.custom,
   })
 }
 
-function cutProjectFromDocumentParts(
-  document: Partial<ProductionProjectDocument>,
-  cutInput: unknown,
-  projectId: string,
-  production: ProductionMetadata,
-): CutProject {
-  const cut = isRecord(cutInput) ? cutInput as Partial<ProjectCut> : {}
-  return migrateProject({
-    projectId,
-    cut: cutMetadataWithProduction(isRecord(cut.cut) ? cut.cut as CutMetadata : {}, production),
+function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSheetDocument | undefined): CutProject {
+  if (!cut) throw new Error('active cut not found')
+  const base = migrateProject({
+    projectId: document.projectId,
+    cut: cutMetadataWithProduction(cut.metadata, document.production),
     studioPresetId: document.studioPresetId,
-    sheetTemplateId: document.sheetTemplateId,
+    sheetTemplateId: document.sheetTemplate.templateId,
     productionStages: document.productionStages,
     correctionLayers: document.correctionLayers,
     assetRoots: document.assetRoots,
     assets: document.assets,
     sheetView: cut.sheetView,
-    logicalSheet: cut.logicalSheet,
+    logicalSheet: { ...cut.logicalSheet, keys: document.registeredCells.keys.map(key => ({ ...key })) },
     cspTrackSlots: cut.cspTrackSlots,
-    bindings: cut.bindings,
-    stackGuideLabels: cut.stackGuideLabels,
+    bindings: document.registeredCells.bindings.map(binding => ({ ...binding })),
+    stackGuideLabels: document.registeredCells.stackGuideLabels.map(label => cloneStackGuideLabel(label)),
     annotations: cut.annotations,
     timedRangeCues: cut.timedRangeCues,
-    exportProfiles: cut.exportProfiles,
-  } as Partial<CutProject>)
+    exportProfiles: document.exportProfiles,
+  })
+  return repairBlankAssetDropBindingNames({
+    ...base,
+    stackGuideLabels: applyStackGuideLabelPlacements(base.stackGuideLabels, cut.stackGuideLabelPlacements, base),
+  })
 }
 
-function cutMetadataWithProduction(cut: CutMetadata, production: ProductionMetadata): CutMetadata {
+function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSheetDocument {
+  if (!isRecord(input) || typeof input.cutId !== 'string' || !isRecord(input.metadata)
+    || !isRecord(input.sheetView) || !isRecord(input.logicalSheet)
+    || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
+    || !Array.isArray(input.annotations) || !Array.isArray(input.timedRangeCues)) {
+    throw new Error(`タイムシート${fallbackOrder + 1}のデータが不正です。`)
+  }
+  const metadata: CutSheetMetadata = {
+    scene: stringValue(input.metadata.scene),
+    cut: stringValue(input.metadata.cut),
+    cspTimelineName: stringValue(input.metadata.cspTimelineName),
+    worker: stringValue(input.metadata.worker),
+    custom: isStringRecord(input.metadata.custom) ? { ...input.metadata.custom } : undefined,
+  }
   return {
-    ...cut,
-    title: cut.title ?? production.title,
-    episode: cut.episode ?? production.episode,
-    no: cut.no ?? production.scene,
+    cutId: input.cutId,
+    order: typeof input.order === 'number' && Number.isFinite(input.order) ? Math.max(0, Math.round(input.order)) : fallbackOrder,
+    metadata,
+    sheetView: input.sheetView as unknown as SheetViewState,
+    logicalSheet: input.logicalSheet as unknown as CutSheetDocument['logicalSheet'],
+    cspTrackSlots: input.cspTrackSlots as CspTrackSlot[],
+    stackGuideLabelPlacements: input.stackGuideLabelPlacements as StackGuideLabelPlacementState[],
+    annotations: input.annotations as Annotation[],
+    timedRangeCues: input.timedRangeCues as TimedRangeCue[],
   }
 }
 
-function isProductionProjectDocumentInput(input: unknown): input is Partial<ProductionProjectDocument> {
-  return isRecord(input) && (input.documentKind === PROJECT_DOCUMENT_KIND || Array.isArray(input.cuts))
+function cutMetadataWithProduction(cut: CutSheetMetadata, production: ProductionMetadata): CutMetadata {
+  return {
+    title: production.title,
+    episode: production.episode,
+    scene: cut.scene,
+    cut: cut.cut,
+    cspTimelineName: cut.cspTimelineName,
+    worker: cut.worker,
+    custom: cut.custom,
+  }
+}
+
+function isCutGroupProjectDocumentInput(input: unknown): input is Partial<CutGroupProjectDocument> {
+  return isRecord(input) && input.documentKind === PROJECT_DOCUMENT_KIND
+}
+
+function isSheetTemplateInput(input: unknown): input is SheetTemplate {
+  return isRecord(input)
+    && typeof input.templateId === 'string'
+    && typeof input.name === 'string'
+    && isRecord(input.page)
+    && isRecord(input.defaults)
+    && Array.isArray(input.regions)
+}
+
+function preferredCspImportAssetRootId(assetRoots: AssetRoot[]): string | undefined {
+  const pathRoots = assetRoots.filter(root => Boolean(root.path))
+  return pathRoots.length === 1 ? pathRoots[0]?.rootId : undefined
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {

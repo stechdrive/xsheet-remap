@@ -86,7 +86,7 @@ foreach ($entry in @(
 }
 
 $manifest = [pscustomobject]@{
-  schemaVersion = 2
+  schemaVersion = 3
   createdBy = [pscustomobject]@{
     app = "xsheet-remap"
     version = "dev"
@@ -95,6 +95,7 @@ $manifest = [pscustomobject]@{
   cuts = @(
     [pscustomobject]@{
       cutId = "smoke.cut"
+      order = 0
       cutNumber = "SMOKE"
       displayName = "SMOKE"
       timelineName = "SMOKE"

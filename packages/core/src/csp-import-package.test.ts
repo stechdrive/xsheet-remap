@@ -70,7 +70,7 @@ describe('CSP import package builder', () => {
 
     expect(result.assetRootPath).toBe('D:\\cuts\\shared')
     expect(result.outputDirectoryName).toBe('xsheet-csp-import')
-    expect(result.manifest.schemaVersion).toBe(2)
+    expect(result.manifest.schemaVersion).toBe(3)
     expect(result.manifest.createdBy).toEqual({ app: 'xsheet-remap', version: '0.1.test' })
     expect(result.manifest.assetRoot).toBe('..')
     expect(result.manifest.outputClipFileName).toBe('SAMPLE_05_001_002.clip')
@@ -128,15 +128,16 @@ describe('CSP import package builder', () => {
 
   it('uses the template cut prefix for CSP timeline and helper output CLIP names', () => {
     const project = createDefaultProject()
-    const result = buildCspImportPackage(createProjectDocumentFromCutProject({
+    const document = createProjectDocumentFromCutProject({
       ...project,
       cut: { title: 'SAMPLE', episode: '05', cut: '101' },
-    }), {
+    }, {
       sheetTemplate: {
         ...standardA3SheetTemplate,
         naming: { cutNumberPrefix: 'C' },
       },
     })
+    const result = buildCspImportPackage(document)
 
     expect(result.manifest.outputClipFileName).toBe('SAMPLE_05_C101.clip')
     expect(result.manifest.cuts[0]?.timelineName).toBe('C101')
@@ -144,15 +145,16 @@ describe('CSP import package builder', () => {
 
   it('does not add a numeric-only template cut prefix to nonnumeric cut text', () => {
     const project = createDefaultProject()
-    const result = buildCspImportPackage(createProjectDocumentFromCutProject({
+    const document = createProjectDocumentFromCutProject({
       ...project,
       cut: { title: 'SAMPLE', episode: '05', cut: 'OP' },
-    }), {
+    }, {
       sheetTemplate: {
         ...standardA3SheetTemplate,
         naming: { cutNumberPrefix: 'C' },
       },
     })
+    const result = buildCspImportPackage(document)
 
     expect(result.manifest.outputClipFileName).toBe('SAMPLE_05_OP.clip')
     expect(result.manifest.cuts[0]?.timelineName).toBe('OP')
@@ -163,6 +165,37 @@ describe('CSP import package builder', () => {
     expect(digitalStandardSheetTemplate.naming?.cutNumberPrefix).toBeUndefined()
     expect(formatSheetTemplateCutNumber(standardA3SheetTemplate, '001')).toBe('001')
     expect(formatSheetTemplateCutNumber(digitalStandardSheetTemplate, '001')).toBe('001')
+  })
+
+  it('uses scene and cut as the default timeline identity', () => {
+    const project = { ...createDefaultProject(), cut: { title: 'SAMPLE', episode: '05', scene: '12', cut: '034' } }
+    const result = buildCspImportPackage(createProjectDocumentFromCutProject(project))
+
+    expect(result.manifest.cuts[0]).toMatchObject({ scene: '12', cutNumber: '034', displayName: '12-034', timelineName: '12-034' })
+    expect(result.manifest.outputClipFileName).toBe('SAMPLE_05_12-034.clip')
+  })
+
+  it('blocks duplicate CSP timeline names across cut-group sheets', () => {
+    const first = { ...createDefaultProject(), cut: { cut: 'C001', cspTimelineName: '001' } }
+    let document = createProjectDocumentFromCutProject(first)
+    document = addBlankSharedCutToProjectDocument(document, first, { cut: { cut: 'C002', cspTimelineName: '001' } })
+
+    const result = buildCspImportPackage(document)
+
+    expect(result.issues.map(issue => issue.code)).toContain('cspImport.timelineName.duplicate')
+  })
+
+  it('requires an explicit CSP asset root when the cut group has multiple roots', () => {
+    const firstRoot = registerAssetRoot(createDefaultProject(), { label: 'primary', path: 'D:\\cuts\\shared', handleKind: 'directory' })
+    const secondRoot = registerAssetRoot(firstRoot.project, { label: 'reference', path: 'D:\\cuts\\reference', handleKind: 'directory' })
+    const document = createProjectDocumentFromCutProject(secondRoot.project)
+    const blocked = buildCspImportPackage(document)
+    const selectedDocument = updateActiveCutProjectInDocument(document, secondRoot.project, { cspImportAssetRootId: firstRoot.root.rootId })
+    const selected = buildCspImportPackage(selectedDocument)
+
+    expect(blocked.issues.map(issue => issue.code)).toContain('cspImport.assetRoot.selectionRequired')
+    expect(selected.assetRootPath).toBe('D:\\cuts\\shared')
+    expect(selected.issues.map(issue => issue.code)).not.toContain('cspImport.assetRoot.selectionRequired')
   })
 
   it('reports asset roots and file names that are not safe for CSP image import', () => {

@@ -442,7 +442,7 @@ describe('App', () => {
     await new Promise(resolve => window.setTimeout(resolve, 0))
     expect(details.open).toBe(true)
 
-    const file = new File([JSON.stringify(createDefaultProject())], 'project.json', { type: 'application/json' })
+    const file = new File([JSON.stringify(createProjectDocumentFromCutProject(createDefaultProject()))], 'project.json', { type: 'application/json' })
     fireEvent.change(loadProjectInput, { target: { files: [file] } })
     await waitFor(() => expect(details.open).toBe(false))
     expect(document.querySelector('.actionMenuPortalContent.appNavMenu')).toBeNull()
@@ -458,7 +458,7 @@ describe('App', () => {
       lastModified: 1,
     })
     const projectWithSheet = assignSheetSourceToPage(registered.project, 'page_1', registered.source.sourceId)
-    const file = new File([JSON.stringify(projectWithSheet)], 'project.json', { type: 'application/json' })
+    const file = new File([JSON.stringify(createProjectDocumentFromCutProject(projectWithSheet))], 'project.json', { type: 'application/json' })
 
     render(<App />)
     const menu = openAppNavigationMenu()

@@ -2,11 +2,11 @@ import type {
   CorrectionLayer,
   CspTrackSlot,
   CutAsset,
+  CutGroupProjectDocument,
   CutProject,
+  CutSheetDocument,
   ExportPlan,
   ExportProfile,
-  ProductionProjectDocument,
-  ProjectCut,
   StackGuideLabel,
   StackGuideRegistration,
   ValidationIssue,
@@ -32,8 +32,8 @@ export type CspImportManifestTrackKind =
   | 'memo'
   | 'separator'
 
-export interface CspImportManifestV2 {
-  schemaVersion: 2
+export interface CspImportManifestV3 {
+  schemaVersion: 3
   createdBy: {
     app: 'xsheet-remap'
     version?: string
@@ -51,10 +51,11 @@ export interface CspImportManifestSetup {
 
 export interface CspImportManifestCut {
   cutId: string
+  order: number
+  scene?: string
   cutNumber: string
   displayName: string
   timelineName: string
-  cutNumbers: string[]
   durationFrames: number
   fps: number
   files: {
@@ -112,7 +113,7 @@ export interface CspImportPackageBuildResult {
   outputDirectoryName: string
   manifestFileName: string
   assetRootPath?: string
-  manifest: CspImportManifestV2
+  manifest: CspImportManifestV3
   setupOutput?: CspImportPackageSetupOutput
   cutOutputs: CspImportPackageCutOutput[]
   issues: ValidationIssue[]
@@ -122,7 +123,6 @@ export interface BuildCspImportPackageOptions {
   exportProfileId?: string
   appVersion?: string
   outputDirectoryName?: string
-  sheetTemplate?: Pick<SheetTemplate, 'naming'>
 }
 
 interface CutBuildInput {
@@ -158,16 +158,18 @@ interface SetupTrackGroup {
 }
 
 export function buildCspImportPackage(
-  documentInput: ProductionProjectDocument,
+  documentInput: CutGroupProjectDocument,
   options: BuildCspImportPackageOptions = {},
 ): CspImportPackageBuildResult {
-  const syncedDocument = updateActiveCutProjectInDocument(documentInput, activeCutProjectFromDocument(documentInput))
+  const syncedDocument = updateActiveCutProjectInDocument(documentInput, activeCutProjectFromDocument(documentInput), {
+    sheetTemplate: documentInput.sheetTemplate,
+  })
   const cutProjects = exportCutProjectsFromDocument(syncedDocument)
   const fileStems = uniqueCutFileStems(cutProjects)
   const cutInputs = cutProjects.map((project, index): CutBuildInput => ({
     cutId: syncedDocument.cuts[index]?.cutId ?? `cut_${index + 1}`,
     project,
-    sheetTemplate: options.sheetTemplate,
+    sheetTemplate: syncedDocument.sheetTemplate,
     exportPlan: buildExportPlan(project, options.exportProfileId),
     exportProfile: exportProfileForProject(project, options.exportProfileId),
     fileStem: fileStems[index] ?? `cut_${index + 1}`,
@@ -179,18 +181,19 @@ export function buildCspImportPackage(
     }
     issues.push(...cutInput.exportPlan.validation.filter(issue => issue.severity === 'error'))
   }
+  issues.push(...validateCutIdentities(cutInputs))
 
   const usedAssetIds = collectCspImportAssetIds(cutInputs, issues)
-  const assetRoot = resolveCspImportAssetRoot(cutProjects[0] ?? activeCutProjectFromDocument(syncedDocument), usedAssetIds, issues)
-  const cuts = cutInputs.map(input => buildManifestCut(input, assetRoot, issues))
+  const assetRoot = resolveCspImportAssetRoot(syncedDocument, cutProjects[0] ?? activeCutProjectFromDocument(syncedDocument), usedAssetIds, issues)
+  const cuts = cutInputs.map((input, index) => buildManifestCut(input, index, assetRoot, issues))
   const setupOutput = cutInputs.length > 1
     ? {
         xdtsFileName: CSP_IMPORT_SETUP_XDTS_FILE_NAME,
         exportPlan: buildSetupExportPlan(cutInputs),
       }
     : undefined
-  const manifest: CspImportManifestV2 = {
-    schemaVersion: 2,
+  const manifest: CspImportManifestV3 = {
+    schemaVersion: 3,
     createdBy: {
       app: 'xsheet-remap',
       ...(options.appVersion ? { version: options.appVersion } : {}),
@@ -219,13 +222,14 @@ export function buildCspImportPackage(
   }
 }
 
-function exportCutProjectsFromDocument(document: ProductionProjectDocument): CutProject[] {
+function exportCutProjectsFromDocument(document: CutGroupProjectDocument): CutProject[] {
   if (document.cuts.length === 0) return [activeCutProjectFromDocument(document)]
-  return document.cuts.map((cut: ProjectCut) => activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId }))
+  return document.cuts.map((cut: CutSheetDocument) => activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId }))
 }
 
 function buildManifestCut(
   input: CutBuildInput,
+  order: number,
   assetRoot: AssetRootResolution | undefined,
   issues: ValidationIssue[],
 ): CspImportManifestCut {
@@ -235,10 +239,11 @@ function buildManifestCut(
     .filter((track): track is CspImportManifestTrack => Boolean(track))
   return {
     cutId: input.cutId,
+    order,
+    ...(input.project.cut.scene?.trim() ? { scene: input.project.cut.scene.trim() } : {}),
     cutNumber: cutNumberForProject(input.project, input.cutId),
     displayName: cutDisplayName(input.project, input.cutId),
     timelineName: cspTimelineNameForProject(input),
-    cutNumbers: cutNumbersForProject(input.project, input.cutId),
     durationFrames: input.project.logicalSheet.durationFrames,
     fps: input.project.logicalSheet.fps,
     files: {
@@ -615,6 +620,7 @@ function collectCspImportAssetIds(cutInputs: CutBuildInput[], issues: Validation
 }
 
 function resolveCspImportAssetRoot(
+  document: CutGroupProjectDocument,
   project: CutProject,
   usedAssetIds: Set<string>,
   issues: ValidationIssue[],
@@ -625,34 +631,23 @@ function resolveCspImportAssetRoot(
     return undefined
   }
 
-  const usedRootIds = new Set<string>()
+  const selected = document.cspImportAssetRootId
+    ? pathRoots.find(root => root.rootId === document.cspImportAssetRootId)
+    : undefined
+  if (!selected?.path) {
+    issues.push(cspImportIssue('cspImport.assetRoot.selectionRequired', 'CSP自動登録に使うカットフォルダを選択してください。'))
+    return undefined
+  }
+
   for (const assetId of usedAssetIds) {
     const asset = project.assets.find(item => item.assetId === assetId)
     if (!asset) {
       issues.push(cspImportIssue('cspImport.asset.missing', `画像素材が見つかりません: ${assetId}`))
       continue
     }
-    const root = rootForAsset(project, asset, pathRoots)
-    if (!root?.rootId) {
-      issues.push(cspImportIssue('cspImport.asset.rootMissing', `画像素材がカットフォルダに含まれていません: ${asset.displayName}`))
-      continue
+    if (!assetRootRelativePath(project, asset, { rootId: selected.rootId, path: selected.path })) {
+      issues.push(cspImportIssue('cspImport.asset.outsideRoot', `画像素材が選択したカットフォルダの外にあります: ${asset.displayName}`))
     }
-    usedRootIds.add(root.rootId)
-  }
-
-  if (usedRootIds.size > 1) {
-    issues.push(cspImportIssue('cspImport.assetRoot.multipleUsed', 'CSP自動登録で使う画像素材は1つのカットフォルダ内にまとめてください。'))
-    return undefined
-  }
-
-  const selected = usedRootIds.size === 1
-    ? pathRoots.find(root => root.rootId === [...usedRootIds][0])
-    : pathRoots.length === 1
-      ? pathRoots[0]
-      : undefined
-  if (!selected?.path) {
-    issues.push(cspImportIssue('cspImport.assetRoot.ambiguous', 'CSP自動登録に使うカットフォルダを1つにしてください。'))
-    return undefined
   }
   return { rootId: selected.rootId, path: selected.path }
 }
@@ -699,13 +694,6 @@ function assetRootRelativePath(project: CutProject, asset: CutAsset, assetRoot: 
   return relativePathFromRoot(asset.currentPath, root.path)
 }
 
-function rootForAsset(project: CutProject, asset: CutAsset, pathRoots: Array<{ rootId: string; path?: string }>): { rootId: string; path?: string } | undefined {
-  const directRoot = asset.rootId ? pathRoots.find(root => root.rootId === asset.rootId) : undefined
-  if (directRoot) return directRoot
-  if (!asset.currentPath) return undefined
-  return pathRoots.find(root => root.path && relativePathFromRoot(asset.currentPath as string, root.path))
-}
-
 function relativePathFromRoot(path: string, rootPath: string): string | undefined {
   const normalizedPath = normalizePath(path)
   const normalizedRoot = normalizePath(rootPath).replace(/\/+$/, '')
@@ -729,7 +717,7 @@ function normalizePath(path: string): string {
 function uniqueCutFileStems(projects: CutProject[]): string[] {
   const used = new Set<string>()
   return projects.map((project, index) => {
-    const base = safeFileStem(project.cut.cut || project.cut.no || `cut_${index + 1}`) || `cut_${index + 1}`
+    const base = safeFileStem(cutIdentityForProject(project, `cut_${index + 1}`)) || `cut_${index + 1}`
     let candidate = base
     let suffix = 2
     while (used.has(candidate.toLowerCase())) {
@@ -775,8 +763,7 @@ function cspOutputProductionPrefix(project: CutProject): string {
 function cspOutputCutSegment(input: CutBuildInput, index: number): string {
   const { project } = input
   const timelineName = project.cut.cspTimelineName?.trim() || project.cut.custom?.cspTimelineName?.trim()
-  const rawCut = timelineName || project.cut.cut || project.cut.no || `cut_${index + 1}`
-  const outputCut = timelineName ? rawCut : formatSheetTemplateCutNumber(input.sheetTemplate, rawCut)
+  const outputCut = timelineName || formattedCutIdentity(input, `cut_${index + 1}`)
   return safeFileStem(outputCut) || `cut_${index + 1}`
 }
 
@@ -789,28 +776,48 @@ function safeFileStem(value: string): string {
 }
 
 function cutNumberForProject(project: CutProject, cutId: string): string {
-  return project.cut.cut?.trim() || project.cut.no?.trim() || cutId
+  return project.cut.cut?.trim() || cutId
 }
 
 function cutDisplayName(project: CutProject, cutId: string): string {
-  return cutNumberForProject(project, cutId)
+  return cutIdentityForProject(project, cutId)
 }
 
 function cspTimelineNameForProject(input: CutBuildInput): string {
   const timelineName = input.project.cut.cspTimelineName?.trim() || input.project.cut.custom?.cspTimelineName?.trim()
-  return timelineName || formatSheetTemplateCutNumber(input.sheetTemplate, cutNumberForProject(input.project, input.cutId))
+  return timelineName || formattedCutIdentity(input, input.cutId)
 }
 
-function cutNumbersForProject(project: CutProject, cutId: string): string[] {
-  const numbers = [
-    ...(project.cut.cutList ?? []),
-    project.cut.cut,
-    project.cut.no,
-    cutId,
-  ]
-    .map(item => item?.trim())
-    .filter((item): item is string => Boolean(item))
-  return [...new Set(numbers)]
+function formattedCutIdentity(input: Pick<CutBuildInput, 'project' | 'sheetTemplate'>, fallback: string): string {
+  const cut = formatSheetTemplateCutNumber(input.sheetTemplate, input.project.cut.cut?.trim() || fallback)
+  const scene = input.project.cut.scene?.trim()
+  return scene ? `${scene}-${cut}` : cut
+}
+
+function cutIdentityForProject(project: CutProject, fallback: string): string {
+  const cut = project.cut.cut?.trim() || fallback
+  const scene = project.cut.scene?.trim()
+  return scene ? `${scene}-${cut}` : cut
+}
+
+function validateCutIdentities(inputs: CutBuildInput[]): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  const cutIds = new Set<string>()
+  const timelineNames = new Set<string>()
+  for (const input of inputs) {
+    const cutIdKey = input.cutId.trim().toLocaleLowerCase('ja')
+    if (cutIds.has(cutIdKey)) {
+      issues.push(cspImportIssue('cspImport.cutId.duplicate', `兼用カットIDが重複しています: ${input.cutId}`))
+    }
+    cutIds.add(cutIdKey)
+    const timelineName = cspTimelineNameForProject(input)
+    const timelineKey = timelineName.trim().toLocaleLowerCase('ja')
+    if (timelineNames.has(timelineKey)) {
+      issues.push(cspImportIssue('cspImport.timelineName.duplicate', `CSPタイムライン名が重複しています: ${timelineName}`))
+    }
+    timelineNames.add(timelineKey)
+  }
+  return issues
 }
 
 function exportProfileForProject(project: CutProject, profileId: string | undefined): ExportProfile | undefined {

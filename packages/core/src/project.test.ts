@@ -35,11 +35,10 @@ import {
   hitTestSheetTemplate,
   logicalSheetFrameNumber,
   migrateProject,
-  migrateProjectDocument,
+  parseProjectDocument,
   moveBindingToCorrectionLayer,
   NULL_CELL_CSP_CELL_NAME,
   NULL_CELL_KEY_ID,
-  PROJECT_DOCUMENT_KIND,
   redoHistory,
   registerAsset,
   registerSheetSource,
@@ -852,67 +851,27 @@ describe('core project commands', () => {
     expect(migrated.productionStages).toHaveLength(1)
   })
 
-  it('wraps legacy single-cut projects in a production document', () => {
-    const created = createOrSetEvent(createDefaultProject(), 'B', 12)
-    const document = migrateProjectDocument({ ...created.project, cut: { title: 'SAMPLE', episode: '05', cut: '237', time: '6+0' } })
-    expect(document.documentKind).toBe(PROJECT_DOCUMENT_KIND)
-    expect(document.production).toMatchObject({ title: 'SAMPLE', episode: '05' })
-    expect(document.activeCutId).toBe('cut_1')
-    expect(document.cuts).toHaveLength(1)
-
-    const activeCut = activeCutProjectFromDocument(document)
-    expect(activeCut.cut).toMatchObject({ title: 'SAMPLE', episode: '05', cut: '237' })
-    expect(activeCut.logicalSheet.events).toEqual(created.project.logicalSheet.events)
+  it('rejects obsolete single-cut project files', () => {
+    expect(() => parseProjectDocument(createDefaultProject())).toThrow('対応していないプロジェクトファイル')
   })
 
-  it('preserves inactive cuts when updating the active cut in a production document', () => {
-    const active = createOrSetEvent({ ...createDefaultProject(), cut: { cut: '237' } }, 'A', 1).project
-    const inactive = createOrSetEvent({ ...createDefaultProject(), cut: { cut: '238' } }, 'C', 24).project
-    const document = migrateProjectDocument({
-      documentKind: PROJECT_DOCUMENT_KIND,
-      schemaVersion: 2,
-      projectId: 'sample_05',
-      activeCutId: 'cut_237',
-      production: { title: 'SAMPLE', episode: '05' },
-      studioPresetId: active.studioPresetId,
-      sheetTemplateId: active.sheetTemplateId,
-      productionStages: active.productionStages,
-      correctionLayers: active.correctionLayers,
-      assetRoots: active.assetRoots,
-      assets: active.assets,
-      cuts: [
-        {
-          cutId: 'cut_237',
-          cut: active.cut,
-          sheetView: active.sheetView,
-          logicalSheet: active.logicalSheet,
-          cspTrackSlots: active.cspTrackSlots,
-          bindings: active.bindings,
-          stackGuideLabels: active.stackGuideLabels,
-          annotations: active.annotations,
-          timedRangeCues: active.timedRangeCues,
-          exportProfiles: active.exportProfiles,
-        },
-        {
-          cutId: 'cut_238',
-          cut: inactive.cut,
-          sheetView: inactive.sheetView,
-          logicalSheet: inactive.logicalSheet,
-          cspTrackSlots: inactive.cspTrackSlots,
-          bindings: inactive.bindings,
-          stackGuideLabels: inactive.stackGuideLabels,
-          annotations: inactive.annotations,
-          timedRangeCues: inactive.timedRangeCues,
-          exportProfiles: inactive.exportProfiles,
-        },
-      ],
-    })
-
-    const updatedActive = createOrSetEvent(activeCutProjectFromDocument(document), 'B', 8).project
-    const updatedDocument = updateActiveCutProjectInDocument(document, updatedActive)
+  it('preserves inactive cuts while keeping production metadata canonical', () => {
+    const first = createOrSetEvent({ ...createDefaultProject(), cut: { title: 'SAMPLE', episode: '05', scene: '1', cut: '237' } }, 'A', 1).project
+    let document = createProjectDocumentFromCutProject(first, { cutId: 'cut_237' })
+    document = addBlankSharedCutToProjectDocument(document, first, { cut: { scene: '1', cut: '238' } })
+    const second = createOrSetEvent(activeCutProjectFromDocument(document), 'C', 24).project
+    document = updateActiveCutProjectInDocument(document, second)
+    const switched = switchActiveCutInProjectDocument(document, second, 'cut_237')
+    const updatedFirst = createOrSetEvent({
+      ...activeCutProjectFromDocument(switched),
+      cut: { ...activeCutProjectFromDocument(switched).cut, title: 'RENAMED' },
+    }, 'B', 8).project
+    const updatedDocument = updateActiveCutProjectInDocument(switched, updatedFirst)
     expect(updatedDocument.cuts).toHaveLength(2)
-    expect(updatedDocument.cuts.find(cut => cut.cutId === 'cut_237')?.logicalSheet.events).toEqual(updatedActive.logicalSheet.events)
-    expect(updatedDocument.cuts.find(cut => cut.cutId === 'cut_238')?.logicalSheet.events).toEqual(inactive.logicalSheet.events)
+    expect(updatedDocument.production).toMatchObject({ title: 'RENAMED', episode: '05' })
+    expect(updatedDocument.cuts.find(cut => cut.cutId === 'cut_237')?.logicalSheet.events).toEqual(updatedFirst.logicalSheet.events)
+    expect(updatedDocument.cuts.find(cut => cut.cutId !== 'cut_237')?.logicalSheet.events).toEqual(second.logicalSheet.events)
+    expect(activeCutProjectFromDocument({ ...updatedDocument, activeCutId: document.activeCutId }).cut.title).toBe('RENAMED')
   })
 
   it('adds blank shared cuts while sharing registered cells and stack guide labels', () => {
@@ -923,6 +882,11 @@ describe('core project commands', () => {
     const activeCut = activeCutProjectFromDocument(withSharedCut)
 
     expect(withSharedCut.cuts).toHaveLength(2)
+    expect(withSharedCut.sheetTemplate.templateId).toBe(withLabel.sheetTemplateId)
+    expect('keys' in withSharedCut.cuts[0]!.logicalSheet).toBe(false)
+    expect('bindings' in withSharedCut.cuts[0]!).toBe(false)
+    expect('stackGuideLabels' in withSharedCut.cuts[0]!).toBe(false)
+    expect('exportProfiles' in withSharedCut.cuts[0]!).toBe(false)
     expect(activeCut.cut).toMatchObject({ title: 'SAMPLE', episode: '05', cut: '238' })
     expect(activeCut.logicalSheet.events).toHaveLength(0)
     expect(activeCut.sheetView.sources).toHaveLength(0)
@@ -1133,12 +1097,10 @@ describe('core project commands', () => {
     })
 
     const rawDocument = createProjectDocumentFromCutProject(drifted)
-    const rawRegisteredBinding = rawDocument.registeredCells?.bindings.find(binding => binding.keyId === created.key.keyId)
+    const rawRegisteredBinding = rawDocument.registeredCells.bindings.find(binding => binding.keyId === created.key.keyId)
     if (rawRegisteredBinding) rawRegisteredBinding.cspCellName = 'scan_004'
-    const rawCutBinding = rawDocument.cuts[0]?.bindings.find(binding => binding.keyId === created.key.keyId)
-    if (rawCutBinding) rawCutBinding.cspCellName = 'scan_004'
 
-    const document = migrateProjectDocument(rawDocument)
+    const document = parseProjectDocument(rawDocument)
     const migrated = activeCutProjectFromDocument(document)
     const repairedBinding = migrated.bindings.find(binding => binding.keyId === created.key.keyId)
     const packageBuild = buildCspImportPackage(document)
@@ -1438,7 +1400,7 @@ describe('sheet template hit testing', () => {
     expect(sheetTemplatePresetSupportsCapability(sheetTemplatePresets[1], 'image-correction')).toBe(false)
     expect(standardA3SheetTemplate.regions.find(region => region.regionId === 'top_cut_metadata_area')?.binding).toMatchObject({
       target: 'cut-metadata',
-      fields: ['title', 'episode', 'cut', 'cutList', 'duration', 'worker', 'page'],
+      fields: ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'],
     })
     expect(digitalStandardSheetTemplate).toMatchObject({
       name: 'デジタル標準',
@@ -1451,7 +1413,7 @@ describe('sheet template hit testing', () => {
     })
     expect(digitalStandardSheetTemplate.regions.find(region => region.regionId === 'digital_cut_metadata_area')?.binding).toMatchObject({
       target: 'cut-metadata',
-      fields: ['title', 'episode', 'cut', 'cutList', 'duration', 'worker', 'page'],
+      fields: ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'],
     })
   })
 

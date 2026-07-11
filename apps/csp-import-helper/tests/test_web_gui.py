@@ -22,7 +22,7 @@ from csp_import_helper.web_gui import (
 FIXTURE_MANIFEST = (
     Path(__file__).resolve().parent
     / "fixtures"
-    / "csp-import-v2-shared-cuts"
+    / "csp-import-v3-cut-group"
     / "xsheet-csp-import"
     / "csp-import.xci"
 )

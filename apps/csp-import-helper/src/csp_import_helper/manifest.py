@@ -60,6 +60,8 @@ class CspImportSetup:
 @dataclass(frozen=True)
 class CspImportCut:
     cut_id: str
+    order: int
+    scene: str | None
     cut_number: str
     display_name: str
     timeline_name: str
@@ -129,7 +131,7 @@ def load_manifest(path: str | Path) -> CspImportManifest:
         raise ManifestError("manifest root must be an object")
 
     schema_version = _required_int(raw, "schemaVersion")
-    if schema_version != 2:
+    if schema_version != 3:
         raise ManifestError(f"unsupported schemaVersion: {schema_version}")
 
     base_dir = manifest_path.parent
@@ -138,12 +140,11 @@ def load_manifest(path: str | Path) -> CspImportManifest:
     if not isinstance(cuts_raw, list) or not cuts_raw:
         raise ManifestError("cuts must be a non-empty array")
 
-    cuts = tuple(
-        sorted(
-            (_parse_cut(item, base_dir, asset_root, index) for index, item in enumerate(cuts_raw)),
-            key=lambda cut: (_natural_key(cut.xdts_path.name), _natural_key(cut.cut_number), cut.cut_id),
-        )
-    )
+    cuts = tuple(sorted(
+        (_parse_cut(item, base_dir, asset_root, index) for index, item in enumerate(cuts_raw)),
+        key=lambda cut: (cut.order, cut.cut_id),
+    ))
+    _validate_unique_cut_identities(cuts)
     setup = _parse_setup(raw.get("setup"), base_dir)
 
     return CspImportManifest(
@@ -225,6 +226,8 @@ def _parse_cut(raw: Any, base_dir: Path, asset_root: Path, index: int) -> CspImp
 
     return CspImportCut(
         cut_id=_required_str(raw, "cutId"),
+        order=_required_int(raw, "order"),
+        scene=_optional_nullable_str(raw, "scene"),
         cut_number=cut_number,
         display_name=_optional_str(raw, "displayName", cut_number),
         timeline_name=_required_str(raw, "timelineName"),
@@ -235,6 +238,20 @@ def _parse_cut(raw: Any, base_dir: Path, asset_root: Path, index: int) -> CspImp
         import_stack=import_stack,
         tracks=tracks,
     )
+
+
+def _validate_unique_cut_identities(cuts: tuple[CspImportCut, ...]) -> None:
+    cut_ids: set[str] = set()
+    timeline_names: set[str] = set()
+    for cut in cuts:
+        cut_id = cut.cut_id.casefold()
+        if cut_id in cut_ids:
+            raise ManifestError(f"duplicate cutId: {cut.cut_id}")
+        cut_ids.add(cut_id)
+        timeline_name = cut.timeline_name.casefold()
+        if timeline_name in timeline_names:
+            raise ManifestError(f"duplicate timelineName: {cut.timeline_name}")
+        timeline_names.add(timeline_name)
 
 
 def _parse_setup(raw: Any, base_dir: Path) -> CspImportSetup | None:

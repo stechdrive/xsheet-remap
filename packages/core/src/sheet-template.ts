@@ -1136,7 +1136,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'text',
       binding: {
         target: 'cut-metadata',
-        fields: ['title', 'episode', 'cut', 'cutList', 'duration', 'worker', 'page'],
+        fields: ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'],
         layout: 'freeform',
       },
     },
@@ -1396,7 +1396,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       inputKind: 'text',
       binding: {
         target: 'cut-metadata',
-        fields: ['title', 'episode', 'cut', 'cutList', 'duration', 'worker', 'page'],
+        fields: ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'],
         layout: 'grid',
       },
     },

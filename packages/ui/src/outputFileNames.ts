@@ -1,9 +1,14 @@
-import type { CutProject } from '@xsheet-remap/core'
+import type { CutGroupProjectDocument, CutProject } from '@xsheet-remap/core'
 
 type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
-export function projectFileName(project: CutProject): string {
-  return `${projectOutputPrefix(project)}.xsr.json`
+export function projectFileName(document: CutGroupProjectDocument): string {
+  const productionPrefix = [safeFileNameSegment(document.production.title), safeFileNameSegment(document.production.episode)].filter(Boolean).join('_')
+  const cuts = document.cuts
+    .map(cut => [safeFileNameSegment(cut.metadata.scene), safeFileNameSegment(cut.metadata.cut)].filter(Boolean).join('-'))
+    .filter(Boolean)
+  const group = cuts.join('_') || 'cut-group'
+  return `${productionPrefix ? `${productionPrefix}_${group}` : group}.xsr.json`
 }
 
 export function sheetXdtsFileName(project: CutProject): string {
@@ -22,7 +27,8 @@ export function sheetImageFileName(project: CutProject, format: SheetImageExport
 export function projectOutputPrefix(project: Pick<CutProject, 'cut'>): string {
   const title = safeFileNameSegment(project.cut.title)
   const episode = safeFileNameSegment(project.cut.episode)
-  const cut = safeFileNameSegment(project.cut.cut) || '000'
+  const scene = safeFileNameSegment(project.cut.scene)
+  const cut = [scene, safeFileNameSegment(project.cut.cut) || '000'].filter(Boolean).join('-')
   const productionPrefix = [title, episode].filter(Boolean).join('_')
   return productionPrefix ? `${productionPrefix}_${cut}` : `_${cut}`
 }

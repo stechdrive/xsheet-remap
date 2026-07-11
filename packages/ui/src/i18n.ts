@@ -161,6 +161,7 @@ export const uiText = {
     zoomFitTitle: 'シート全体が見える倍率に合わせる',
   },
   project: {
+    loadFailed: (message: string) => `プロジェクトを開けませんでした。\n${message}`,
     saveFailed: (message: string) => `プロジェクト保存に失敗しました。\n${message}`,
     nativePathsMissing: (missing: { assetRoots: string[]; materialAssets: string[]; sheetImages: string[] }) => {
       const paths = [

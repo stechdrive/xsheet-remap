@@ -12,7 +12,7 @@ from csp_import_helper.progress_plan import build_import_execution_plan, build_t
 FIXTURE_MANIFEST = (
     Path(__file__).parent
     / "fixtures"
-    / "csp-import-v2-shared-cuts"
+    / "csp-import-v3-cut-group"
     / "xsheet-csp-import"
     / "csp-import.xci"
 )
@@ -60,11 +60,12 @@ class ProgressPlanTests(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "schemaVersion": 2,
+                        "schemaVersion": 3,
                         "assetRoot": "..",
                         "cuts": [
                             {
                                 "cutId": "cut_1",
+                                "order": 0,
                                 "cutNumber": "C001",
                                 "displayName": "C001",
                                 "timelineName": "001",

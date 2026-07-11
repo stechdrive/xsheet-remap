@@ -34,8 +34,8 @@ export type StackGuideStackBand = 'cell-interleave' | 'camera-note' | 'memo'
 export type CutMetadataFieldId =
   | 'title'
   | 'episode'
+  | 'scene'
   | 'cut'
-  | 'cutList'
   | 'duration'
   | 'worker'
   | 'page'
@@ -49,17 +49,10 @@ export interface NormalizedPoint {
 export interface CutMetadata {
   title?: string
   episode?: string
-  no?: string
+  scene?: string
   cut?: string
   cspTimelineName?: string
-  cutList?: string[]
-  duration?: string
-  time?: string
   worker?: string
-  name?: string
-  currentPage?: number
-  totalPages?: number
-  page?: string
   custom?: Record<string, string>
 }
 
@@ -498,41 +491,50 @@ export interface CutProject {
 export interface ProductionMetadata {
   title?: string
   episode?: string
-  scene?: string
   custom?: Record<string, string>
 }
 
-export interface ProjectCut {
-  cutId: Id
-  cut: CutMetadata
-  sheetView: SheetViewState
-  logicalSheet: LogicalSheet
-  cspTrackSlots: CspTrackSlot[]
-  bindings: CellBinding[]
-  stackGuideLabels: StackGuideLabel[]
-  stackGuideLabelPlacements?: StackGuideLabelPlacementState[]
-  annotations: Annotation[]
-  timedRangeCues: TimedRangeCue[]
-  exportProfiles: ExportProfile[]
+export interface CutSheetMetadata {
+  scene?: string
+  cut?: string
+  cspTimelineName?: string
+  worker?: string
+  custom?: Record<string, string>
 }
 
-export interface ProductionProjectDocument {
-  documentKind: 'xsheet-remap-project'
+export type CutSheetLogicalSheet = Omit<LogicalSheet, 'keys'>
+
+export interface CutSheetDocument {
+  cutId: Id
+  order: number
+  metadata: CutSheetMetadata
+  sheetView: SheetViewState
+  logicalSheet: CutSheetLogicalSheet
+  cspTrackSlots: CspTrackSlot[]
+  stackGuideLabelPlacements: StackGuideLabelPlacementState[]
+  annotations: Annotation[]
+  timedRangeCues: TimedRangeCue[]
+}
+
+export interface CutGroupProjectDocument {
+  documentKind: 'xsheet-remap-cut-group-project'
   schemaVersion: number
   projectId: Id
   activeCutId: Id
   production: ProductionMetadata
   studioPresetId?: string
-  sheetTemplateId?: string
+  sheetTemplate: import('./sheet-template').SheetTemplate
   productionStages: ProductionStage[]
   correctionLayers: CorrectionLayer[]
   assetRoots: AssetRoot[]
+  cspImportAssetRootId?: Id
   assets: CutAsset[]
-  registeredCells?: SharedRegisteredCellCatalog
-  cuts: ProjectCut[]
+  registeredCells: SharedRegisteredCellCatalog
+  exportProfiles: ExportProfile[]
+  cuts: CutSheetDocument[]
 }
 
-export type ProjectFile = CutProject | ProductionProjectDocument
+export type ProjectFile = CutGroupProjectDocument
 
 export interface ValidationIssue {
   issueId: Id

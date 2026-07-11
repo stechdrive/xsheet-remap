@@ -31,7 +31,7 @@ from csp_import_helper.progress_plan import build_import_execution_plan
 FIXTURE_MANIFEST = (
     Path(__file__).parent
     / "fixtures"
-    / "csp-import-v2-shared-cuts"
+    / "csp-import-v3-cut-group"
     / "xsheet-csp-import"
     / "csp-import.xci"
 )
@@ -417,7 +417,7 @@ class AutomationTests(unittest.TestCase):
     def test_default_output_clip_path_uses_asset_root_and_timeline_names(self) -> None:
         manifest = load_manifest(FIXTURE_MANIFEST)
 
-        self.assertEqual(default_output_clip_path(manifest), manifest.assets_root / "101A_101B_101C.clip")
+        self.assertEqual(default_output_clip_path(manifest), manifest.assets_root / "CSP_Import_Fixture_101_101A_101B_101C.clip")
 
     def test_default_output_clip_path_uses_manifest_output_clip_file_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -804,11 +804,12 @@ class AutomationTests(unittest.TestCase):
 def _write_manifest(package: Path, tracks: list[dict[str, object]], *, output_clip_file_name: str | None = None) -> Path:
     manifest_path = package / "csp-import.xci"
     manifest: dict[str, object] = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "assetRoot": "..",
         "cuts": [
             {
                 "cutId": "cut_1",
+                "order": 0,
                 "cutNumber": "C001",
                 "displayName": "C001",
                 "timelineName": "C001",

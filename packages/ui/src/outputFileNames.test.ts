@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultProject } from '@xsheet-remap/core'
+import { createDefaultProject, createProjectDocumentFromCutProject } from '@xsheet-remap/core'
 import { projectFileName, projectOutputPrefix, sheetImageFileName, sheetXdtsFileName } from './outputFileNames'
 
 describe('output file names', () => {
@@ -10,7 +10,7 @@ describe('output file names', () => {
     }
 
     expect(projectOutputPrefix(project)).toBe('SAMPLE_05_237')
-    expect(projectFileName(project)).toBe('SAMPLE_05_237.xsr.json')
+    expect(projectFileName(createProjectDocumentFromCutProject(project))).toBe('SAMPLE_05_237.xsr.json')
     expect(sheetXdtsFileName(project)).toBe('SAMPLE_05_237_sheet.xdts')
     expect(sheetImageFileName(project, 'jpg', 0, 12)).toBe('SAMPLE_05_237_sheet01.jpg')
     expect(sheetImageFileName(project, 'psd', 11, 12)).toBe('SAMPLE_05_237_sheet12.psd')

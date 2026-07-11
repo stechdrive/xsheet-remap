@@ -1,10 +1,11 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "createdBy": {
     "app": "xsheet-remap",
-    "version": "fixture-v2-shared-cuts"
+    "version": "fixture-v3-cut-group"
   },
   "assetRoot": "..",
+  "outputClipFileName": "CSP_Import_Fixture_101_101A_101B_101C.clip",
   "setup": {
     "xdts": "_setup.xdts",
     "purpose": "create-union-animation-folders"
@@ -12,16 +13,10 @@
   "cuts": [
     {
       "cutId": "cut_1",
+      "order": 0,
       "cutNumber": "C101A",
       "displayName": "C101A",
       "timelineName": "101A",
-      "cutNumbers": [
-        "C101A",
-        "C101B",
-        "C101C",
-        "101",
-        "cut_1"
-      ],
       "durationFrames": 24,
       "fps": 24,
       "files": {
@@ -168,16 +163,10 @@
     },
     {
       "cutId": "cut_2",
+      "order": 1,
       "cutNumber": "C101B",
       "displayName": "C101B",
       "timelineName": "101B",
-      "cutNumbers": [
-        "C101A",
-        "C101B",
-        "C101C",
-        "101",
-        "cut_2"
-      ],
       "durationFrames": 36,
       "fps": 24,
       "files": {
@@ -347,16 +336,10 @@
     },
     {
       "cutId": "cut_3",
+      "order": 2,
       "cutNumber": "C101C",
       "displayName": "C101C",
       "timelineName": "101C",
-      "cutNumbers": [
-        "C101A",
-        "C101B",
-        "C101C",
-        "101",
-        "cut_3"
-      ],
       "durationFrames": 48,
       "fps": 24,
       "files": {

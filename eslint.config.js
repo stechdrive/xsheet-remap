@@ -10,6 +10,8 @@ export default tseslint.config(
       '**/dist/**',
       '**/dist-ts/**',
       '**/node_modules/**',
+      '**/.pytest_cache/**',
+      '**/__pycache__/**',
       'apps/web/public/ocr/ort/**',
       '.tmp/**',
       'apps/desktop/src-tauri/target/**',

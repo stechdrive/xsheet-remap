@@ -5842,6 +5842,13 @@ button.registeredCellFirstUse:focus-visible {
   background: #fbfbf8;
 }
 
+.templateEditorRectReadout {
+  color: #315f50;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
 .templateDockTabs {
   overflow-x: auto;
 }

@@ -5,7 +5,10 @@ import {
   gridRowLineClassName,
   hitTestTemplateEditorTarget,
   pointInExpandedNormalizedRect,
+  snapTemplateEditorPointToPagePixels,
   templateEditorPointFromClientRect,
+  templateEditorNormalizedRectValue,
+  templateEditorRectPixelValue,
 } from './templateEditorGeometry'
 
 describe('template editor geometry', () => {
@@ -79,6 +82,17 @@ describe('template editor geometry', () => {
       x: 0.25,
       y: 0.25,
     })
+  })
+
+  it('snaps editor points and numeric fields to source page pixels', () => {
+    const page = { widthPx: 1754, heightPx: 2481 }
+    const point = snapTemplateEditorPointToPagePixels({ x: 864.4 / 1754, y: 165.4 / 2481 }, page)
+
+    expect(point).toEqual({ x: 864 / 1754, y: 165 / 2481 })
+    expect(templateEditorRectPixelValue({ x: point.x, y: point.y, w: 173 / 1754, h: 71 / 2481 }, 'x', page)).toBe(864)
+    expect(templateEditorRectPixelValue({ x: point.x, y: point.y, w: 173 / 1754, h: 71 / 2481 }, 'h', page)).toBe(71)
+    expect(templateEditorNormalizedRectValue(173, 'w', page)).toBe(173 / 1754)
+    expect(templateEditorNormalizedRectValue(71, 'h', page)).toBe(71 / 2481)
   })
 
   it('expands normalized rect hit areas by independent x and y radii', () => {

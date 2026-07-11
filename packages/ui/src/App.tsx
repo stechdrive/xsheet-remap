@@ -214,8 +214,12 @@ import {
   hitTestTemplateEditorTarget,
   templateGridHeaderFontSizePx,
   templateEditorHitRadius,
+  templateEditorNormalizedRectValue,
   templateEditorPointFromClientRect,
+  templateEditorRectPixelValue,
+  snapTemplateEditorPointToPagePixels,
   type TemplateChromeRenderModel,
+  type TemplateEditorRectKey,
   type TemplateEditorTarget,
   type TemplateGridOverlayRenderModel,
 } from './templateEditorGeometry'
@@ -303,8 +307,7 @@ import {
   trackProjectionForRole,
   type TemplateGridRole,
   type TemplateRegionEdge,
-  updateTemplateCalibrationTargetRectEdge,
-  updateTemplateRegionEdge,
+  updateTemplateRectEdge,
 } from './templateEditing'
 
 type StackGuideLabelUpdates = Parameters<typeof updateStackGuideLabel>[2]
@@ -12330,6 +12333,10 @@ function TemplatePanel({
     }))
   }
 
+  function updateRegionRectPixel(regionId: string, key: TemplateEditorRectKey, pixelValue: number) {
+    updateRegionRect(regionId, key, templateEditorNormalizedRectValue(pixelValue, key, template.page))
+  }
+
   function selectCalibrationTarget() {
     if (calibrationTargetRect) setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
   }
@@ -12343,6 +12350,10 @@ function TemplatePanel({
         : currentTemplate
     })
     setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
+  }
+
+  function updateCalibrationTargetRectPixel(key: TemplateEditorRectKey, pixelValue: number) {
+    updateCalibrationTargetRect(key, templateEditorNormalizedRectValue(pixelValue, key, template.page))
   }
 
   function setCalibrationTargetFromGridBounds() {
@@ -12586,8 +12597,15 @@ function TemplatePanel({
           <div className="templateCalibrationTargetFields">
             {(['x', 'y', 'w', 'h'] as const).map(key => (
               <label key={key}>
-                <span>{key}</span>
-                <input className="numberInput" type="number" step="0.0001" value={calibrationTargetRect[key]} onChange={event => updateCalibrationTargetRect(key, Number(event.currentTarget.value))} />
+                <span>{key} px</span>
+                <input
+                  aria-label={`${uiText.template.calibrationTarget} ${key} px`}
+                  className="numberInput"
+                  type="number"
+                  step="1"
+                  value={templateEditorRectPixelValue(calibrationTargetRect, key, template.page)}
+                  onChange={event => updateCalibrationTargetRectPixel(key, Number(event.currentTarget.value))}
+                />
               </label>
             ))}
           </div>
@@ -12603,6 +12621,26 @@ function TemplatePanel({
       <dd>{template.regions.length}</dd>
       <dt>{uiText.template.selectedRegion}</dt>
       <dd>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</dd>
+      {selectedRegion && (
+        <>
+          <dt>{uiText.template.selectedRegionRect}</dt>
+          <dd className="templateCalibrationTargetFields templateSelectedRegionFields">
+            {(['x', 'y', 'w', 'h'] as const).map(key => (
+              <label key={key}>
+                <span>{key} px</span>
+                <input
+                  aria-label={`${uiText.template.selectedRegion} ${key} px`}
+                  className="numberInput"
+                  type="number"
+                  step="1"
+                  value={templateEditorRectPixelValue(selectedRegion.rect, key, template.page)}
+                  onChange={event => updateRegionRectPixel(selectedRegion.regionId, key, Number(event.currentTarget.value))}
+                />
+              </label>
+            ))}
+          </dd>
+        </>
+      )}
     </dl>
   )
 
@@ -12673,10 +12711,10 @@ function TemplatePanel({
             <th>{uiText.template.headers.role}</th>
             <th>{uiText.template.headers.metadataField}</th>
             <th>{uiText.template.headers.fontSize}</th>
-            <th>x</th>
-            <th>y</th>
-            <th>w</th>
-            <th>h</th>
+            <th>x px</th>
+            <th>y px</th>
+            <th>w px</th>
+            <th>h px</th>
             <th>{uiText.template.headers.frameStart}</th>
             <th>{uiText.template.headers.rows}</th>
             <th>{uiText.template.headers.columns}</th>
@@ -12723,7 +12761,13 @@ function TemplatePanel({
               </td>
               {(['x', 'y', 'w', 'h'] as const).map(key => (
                 <td key={key}>
-                  <input className="numberInput" type="number" step="0.0001" value={region.rect[key]} onChange={event => updateRegionRect(region.regionId, key, Number(event.currentTarget.value))} />
+                  <input
+                    className="numberInput"
+                    type="number"
+                    step="1"
+                    value={templateEditorRectPixelValue(region.rect, key, template.page)}
+                    onChange={event => updateRegionRectPixel(region.regionId, key, Number(event.currentTarget.value))}
+                  />
                 </td>
               ))}
               <td>
@@ -12919,6 +12963,11 @@ function TemplatePanel({
   )
 }
 
+type TemplateEditorDragPreview = {
+  targetId: string
+  rect: NormalizedRect
+}
+
 function TemplateRegionEditor({
   template,
   setTemplate,
@@ -12938,30 +12987,50 @@ function TemplateRegionEditor({
   selectedRegionId: string | null
   onSelectRegion: (regionId: string) => void
 }) {
-  const renderModel = useMemo(() => buildTemplateEditorRenderModel(template), [template])
+  const [dragPreview, setDragPreview] = useState<TemplateEditorDragPreview | null>(null)
+  const editorTemplate = useMemo(() => {
+    if (!dragPreview) return template
+    if (dragPreview.targetId === TEMPLATE_CALIBRATION_TARGET_ID) {
+      return setTemplateCalibrationTargetRect(template, dragPreview.rect)
+    }
+    return {
+      ...template,
+      regions: template.regions.map(region => region.regionId === dragPreview.targetId
+        ? { ...region, rect: dragPreview.rect }
+        : region),
+    }
+  }, [dragPreview, template])
+  const renderModel = useMemo(() => buildTemplateEditorRenderModel(editorTemplate), [editorTemplate])
   const calibrationTargetRect = renderModel.calibrationTargetRect
   const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
-  const selectedRegion = selectedRegionId && !isCalibrationTargetSelected ? template.regions.find(region => region.regionId === selectedRegionId) ?? null : null
+  const selectedRegion = selectedRegionId && !isCalibrationTargetSelected ? editorTemplate.regions.find(region => region.regionId === selectedRegionId) ?? null : null
   const [hoveredTargetId, setHoveredTargetId] = useState<string | null>(null)
-  const regionHitRadius = useMemo(() => templateEditorHitRadius(template, zoom, 6), [template, zoom])
-  const calibrationHitRadius = useMemo(() => templateEditorHitRadius(template, zoom, 9), [template, zoom])
+  const regionHitRadius = useMemo(() => templateEditorHitRadius(editorTemplate, zoom, 6), [editorTemplate, zoom])
+  const calibrationHitRadius = useMemo(() => templateEditorHitRadius(editorTemplate, zoom, 9), [editorTemplate, zoom])
   const effectiveHoveredTargetId = hoveredTargetId === TEMPLATE_CALIBRATION_TARGET_ID
     ? calibrationTargetRect ? hoveredTargetId : null
-    : hoveredTargetId && template.regions.some(region => region.regionId === hoveredTargetId)
+    : hoveredTargetId && editorTemplate.regions.some(region => region.regionId === hoveredTargetId)
       ? hoveredTargetId
       : null
   const hoveredRegion = effectiveHoveredTargetId && effectiveHoveredTargetId !== selectedRegionId && effectiveHoveredTargetId !== TEMPLATE_CALIBRATION_TARGET_ID
-    ? template.regions.find(region => region.regionId === effectiveHoveredTargetId) ?? null
+    ? editorTemplate.regions.find(region => region.regionId === effectiveHoveredTargetId) ?? null
     : null
   const isCalibrationTargetHovered = effectiveHoveredTargetId === TEMPLATE_CALIBRATION_TARGET_ID && !isCalibrationTargetSelected
 
   function pointFromEvent(event: PointerEvent<SVGSVGElement> | PointerEvent<SVGElement>) {
-    const svg = event.currentTarget.ownerSVGElement ?? event.currentTarget
-    return templateEditorPointFromClientRect(svg.getBoundingClientRect(), event.clientX, event.clientY)
+    const svg = (event.currentTarget.ownerSVGElement ?? event.currentTarget) as SVGSVGElement
+    return templateEditorPointFromSvg(svg, event.clientX, event.clientY)
+  }
+
+  function templateEditorPointFromSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
+    return snapTemplateEditorPointToPagePixels(
+      templateEditorPointFromClientRect(svg.getBoundingClientRect(), clientX, clientY),
+      editorTemplate.page,
+    )
   }
 
   function targetFromEvent(event: PointerEvent<SVGElement>): TemplateEditorTarget | null {
-    return hitTestTemplateEditorTarget(template, pointFromEvent(event), {
+    return hitTestTemplateEditorTarget(editorTemplate, pointFromEvent(event), {
       calibrationTargetRect,
       calibrationHitRadius,
       regionHitRadius,
@@ -12991,18 +13060,16 @@ function TemplateRegionEditor({
     onSelectRegion(target.kind === 'calibration-target' ? TEMPLATE_CALIBRATION_TARGET_ID : target.regionId)
   }
 
-  function updateEdge(edge: TemplateRegionEdge, point: NormalizedPoint) {
-    if (isCalibrationTargetSelected) {
-      setTemplate(currentTemplate => {
-        const currentCalibrationTargetRect = calibrationTargetRectForTemplate(currentTemplate)
-        return currentCalibrationTargetRect
-          ? updateTemplateCalibrationTargetRectEdge(currentTemplate, currentCalibrationTargetRect, edge, point)
-          : currentTemplate
-      })
-      return
-    }
-    if (!selectedRegionId) return
-    setTemplate(currentTemplate => updateTemplateRegionEdge(currentTemplate, selectedRegionId, edge, point))
+  function commitDragRect(targetId: string, rect: NormalizedRect) {
+    setTemplate(currentTemplate => {
+      if (targetId === TEMPLATE_CALIBRATION_TARGET_ID) {
+        return setTemplateCalibrationTargetRect(currentTemplate, rect)
+      }
+      return {
+        ...currentTemplate,
+        regions: currentTemplate.regions.map(region => region.regionId === targetId ? { ...region, rect } : region),
+      }
+    })
   }
 
   function handleEdgePointerDown(edge: TemplateRegionEdge, event: PointerEvent<SVGElement>) {
@@ -13011,24 +13078,48 @@ function TemplateRegionEditor({
     event.stopPropagation()
     const pointerId = event.pointerId
     const target = event.currentTarget
+    const targetId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegionId
+    const startRect = isCalibrationTargetSelected ? calibrationTargetRect : selectedRegion?.rect
+    if (!targetId || !startRect) return
+    const svg = target.ownerSVGElement
+    if (!svg) return
+    let latestPoint = pointFromEvent(event)
+    let previewFrameId = 0
+    const updatePreview = () => {
+      previewFrameId = 0
+      setDragPreview({ targetId, rect: updateTemplateRectEdge(startRect, edge, latestPoint) })
+    }
     const updateFromEvent = (nextEvent: globalThis.PointerEvent) => {
       if (nextEvent.pointerId !== pointerId) return
-      const svg = target.ownerSVGElement
-      if (!svg) return
-      const box = svg.getBoundingClientRect()
-      updateEdge(edge, templateEditorPointFromClientRect(box, nextEvent.clientX, nextEvent.clientY))
+      latestPoint = templateEditorPointFromSvg(svg, nextEvent.clientX, nextEvent.clientY)
+      if (previewFrameId === 0) previewFrameId = window.requestAnimationFrame(updatePreview)
     }
-    const stop = (nextEvent: globalThis.PointerEvent) => {
+    const finishDrag = (nextEvent: globalThis.PointerEvent, useEventPoint: boolean) => {
       if (nextEvent.pointerId !== pointerId) return
+      if (useEventPoint) {
+        latestPoint = templateEditorPointFromSvg(svg, nextEvent.clientX, nextEvent.clientY)
+      }
+      if (previewFrameId !== 0) window.cancelAnimationFrame(previewFrameId)
       window.removeEventListener('pointermove', updateFromEvent)
-      window.removeEventListener('pointerup', stop)
-      window.removeEventListener('pointercancel', stop)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerCancel)
+      const finalRect = updateTemplateRectEdge(startRect, edge, latestPoint)
+      if (!sameNormalizedRect(startRect, finalRect)) commitDragRect(targetId, finalRect)
+      setDragPreview(null)
+      if (
+        typeof target.releasePointerCapture === 'function'
+        && (typeof target.hasPointerCapture !== 'function' || target.hasPointerCapture(pointerId))
+      ) {
+        target.releasePointerCapture(pointerId)
+      }
     }
+    const handlePointerUp = (nextEvent: globalThis.PointerEvent) => finishDrag(nextEvent, true)
+    const handlePointerCancel = (nextEvent: globalThis.PointerEvent) => finishDrag(nextEvent, false)
     target.setPointerCapture(pointerId)
-    updateEdge(edge, pointFromEvent(event))
+    updatePreview()
     window.addEventListener('pointermove', updateFromEvent)
-    window.addEventListener('pointerup', stop)
-    window.addEventListener('pointercancel', stop)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerCancel)
   }
 
   function handleWheelZoom(event: WheelEvent<HTMLDivElement>) {
@@ -13055,6 +13146,13 @@ function TemplateRegionEditor({
     })
   }
 
+  const activeEditorRect = isCalibrationTargetSelected ? calibrationTargetRect : selectedRegion?.rect ?? null
+  const activeEditorRectReadout = activeEditorRect
+    ? (['x', 'y', 'w', 'h'] as const)
+        .map(key => `${key.toUpperCase()} ${templateEditorRectPixelValue(activeEditorRect, key, editorTemplate.page)}`)
+        .join(' / ')
+    : null
+
   return (
     <div className="templateEditor">
       <div className="templateEditorViewport" onWheel={handleWheelZoom}>
@@ -13063,11 +13161,11 @@ function TemplateRegionEditor({
           preserveAspectRatio="none"
           className="templateEditorSvg"
           aria-label={uiText.template.editorLabel}
-          style={{ width: `${template.page.widthPx * zoom}px`, aspectRatio: `${template.page.widthPx} / ${template.page.heightPx}` }}
+          style={{ width: `${editorTemplate.page.widthPx * zoom}px`, aspectRatio: `${editorTemplate.page.widthPx} / ${editorTemplate.page.heightPx}` }}
         >
           <g className="templateStaticLayer" aria-hidden="true">
             <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
-            {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={template} forceRaw preview />}
+            {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={editorTemplate} forceRaw preview />}
             <TemplateChromeLayer model={renderModel.chrome} />
             {renderModel.gridOverlays.map(model => (
               <GridOverlayLayer key={model.regionId} model={model} />
@@ -13124,6 +13222,7 @@ function TemplateRegionEditor({
             ? uiText.template.calibrationTargetCaption
             : selectedRegion?.grid ? `${gridRoleLabel(selectedRegion.grid.role)} / ${selectedRegion.grid.columns.length}列 / ${selectedRegion.grid.rowCount}行` : uiText.template.noGridRegion}
         </span>
+        {activeEditorRectReadout && <span className="templateEditorRectReadout">{activeEditorRectReadout} px</span>}
       </div>
     </div>
   )

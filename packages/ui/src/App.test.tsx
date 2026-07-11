@@ -678,6 +678,62 @@ describe('App', () => {
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
   })
 
+  it('edits selected template rectangles in source-image pixels', () => {
+    render(<App />)
+    selectAppPanel(uiText.nav.template)
+
+    const xInput = screen.getByLabelText(`${uiText.template.selectedRegion} x px`) as HTMLInputElement
+    const yInput = screen.getByLabelText(`${uiText.template.selectedRegion} y px`) as HTMLInputElement
+    const widthInput = screen.getByLabelText(`${uiText.template.selectedRegion} w px`) as HTMLInputElement
+    const heightInput = screen.getByLabelText(`${uiText.template.selectedRegion} h px`) as HTMLInputElement
+
+    expect([xInput.value, yInput.value, widthInput.value, heightInput.value]).toEqual(['35', '47', '1598', '71'])
+    fireEvent.change(xInput, { target: { value: '36' } })
+
+    expect(Number(document.querySelector('.templateSelectedRegion')?.getAttribute('x')) * standardA3SheetTemplate.page.widthPx).toBeCloseTo(36)
+    expect(screen.getByText(/X 36 \/ Y 47 \/ W 1598 \/ H 71/)).toBeTruthy()
+  })
+
+  it('previews template edge drags locally and commits once on pointer up', async () => {
+    render(<App />)
+    selectAppPanel(uiText.nav.template)
+
+    const editor = document.querySelector<SVGSVGElement>('.templateEditorSvg')
+    if (!editor) throw new Error('template editor not found')
+    editor.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+    const verticalEdges = document.querySelectorAll<SVGLineElement>('.templateEdgeHit.vertical')
+    expect(verticalEdges).toHaveLength(2)
+    const rightEdge = verticalEdges[1]
+    Object.defineProperty(rightEdge, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(rightEdge, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+
+    fireEvent.pointerDown(rightEdge, { pointerId: 41, pointerType: 'mouse', button: 0, clientX: 931, clientY: 100 })
+    fireEvent.pointerMove(window, { pointerId: 41, pointerType: 'mouse', buttons: 1, clientX: 800, clientY: 100 })
+
+    await waitFor(() => {
+      const previewWidth = Number(document.querySelector('.templateSelectedRegion')?.getAttribute('width')) * standardA3SheetTemplate.page.widthPx
+      expect(previewWidth).toBeCloseTo(1368)
+    })
+    expect(screen.getByText(uiText.template.builtInProtected)).toBeTruthy()
+    expect((screen.getByLabelText(`${uiText.template.selectedRegion} w px`) as HTMLInputElement).value).toBe('1598')
+
+    fireEvent.pointerUp(window, { pointerId: 41, pointerType: 'mouse', button: 0, clientX: 800, clientY: 100 })
+
+    await waitFor(() => expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy())
+    expect((screen.getByLabelText(`${uiText.template.selectedRegion} w px`) as HTMLInputElement).value).toBe('1368')
+    expect(rightEdge.releasePointerCapture).toHaveBeenCalledWith(41)
+  })
+
   it('turns built-in standard template edits into a custom draft', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)

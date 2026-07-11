@@ -628,6 +628,7 @@ export const uiText = {
     clearCalibrationTarget: 'グリッド外接を使う',
     regions: '領域数',
     selectedRegion: '選択領域',
+    selectedRegionRect: '選択領域座標',
     editorLabel: 'シートテンプレ領域編集',
     noGridRegion: 'グリッドなし',
     gridHeaderLabels: 'ヘッダー見出し',

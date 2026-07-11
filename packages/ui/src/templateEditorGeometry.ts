@@ -87,6 +87,8 @@ export type TemplateEditorTarget =
   | { kind: 'region'; regionId: string }
   | { kind: 'calibration-target' }
 
+export type TemplateEditorRectKey = 'x' | 'y' | 'w' | 'h'
+
 const TEMPLATE_GRID_HEADER_ROLE_ORDER: SheetTemplateGridRole[] = ['action', 'sound', 'cell', 'camera', 'frame-guide', 'count-table', 'other']
 
 const GRID_ROW_LINE_WEIGHT_ORDER = {
@@ -242,6 +244,34 @@ export function templateEditorPointFromClientRect(
   }
 }
 
+export function snapTemplateEditorPointToPagePixels(
+  point: NormalizedPoint,
+  page: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+): NormalizedPoint {
+  return {
+    x: Math.round(point.x * page.widthPx) / page.widthPx,
+    y: Math.round(point.y * page.heightPx) / page.heightPx,
+  }
+}
+
+export function templateEditorRectPixelValue(
+  rect: NormalizedRect,
+  key: TemplateEditorRectKey,
+  page: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+): number {
+  const dimension = key === 'x' || key === 'w' ? page.widthPx : page.heightPx
+  return roundTemplateEditorPixelValue(rect[key] * dimension)
+}
+
+export function templateEditorNormalizedRectValue(
+  pixelValue: number,
+  key: TemplateEditorRectKey,
+  page: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+): number {
+  const dimension = key === 'x' || key === 'w' ? page.widthPx : page.heightPx
+  return Number.isFinite(pixelValue) ? pixelValue / Math.max(1, dimension) : 0
+}
+
 export function templateEditorHitRadius(template: SheetTemplate, zoom: number, radiusPx: number): NormalizedPoint {
   const scale = Math.max(zoom, 0.0001)
   return {
@@ -353,4 +383,8 @@ function pointInNormalizedRectStroke(point: NormalizedPoint, rect: NormalizedRec
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
+}
+
+function roundTemplateEditorPixelValue(value: number): number {
+  return Math.round(value * 100) / 100
 }

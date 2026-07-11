@@ -399,8 +399,10 @@ describe('App', () => {
     render(<RemapApp />)
     expect(screen.getByText('xsheet-remap')).toBeTruthy()
     expect(document.querySelector('.cspLayerTree')).toBeTruthy()
-    expect(screen.getByText('CSPパレット上端')).toBeTruthy()
-    expect(screen.getByText('CSPパレット下端')).toBeTruthy()
+    expect(screen.getByText('CSPレイヤー構成')).toBeTruthy()
+    expect(screen.queryByText('パレット表示順')).toBeNull()
+    expect(screen.queryByText('CSPパレット上端')).toBeNull()
+    expect(screen.queryByText('CSPパレット下端')).toBeNull()
     const appNavigationMenu = openAppNavigationMenu()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.bindings })).toBeNull()
@@ -408,6 +410,47 @@ describe('App', () => {
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.export })).toBeNull()
     expect(within(appNavigationMenu).getByRole('button', { name: 'XDTS詳細設定...' })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.template })).toBeNull()
+  })
+
+  it('keeps CSP track order and names synchronized with the paper sheet', async () => {
+    render(<RemapApp />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'action', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+    clickTemplateFrame(sheet, 'action', 'B', 4)
+    fireEvent.keyDown(window, { key: '2' })
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
+
+    await waitFor(() => {
+      expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).map(input => input.value))
+        .toEqual(['B', 'A'])
+    })
+
+    const columnX = (label: string) => {
+      const element = Array.from(document.querySelectorAll<SVGTextElement>('.templateColumnText'))
+        .find(item => item.textContent === label)
+      if (!element) throw new Error(`template column not found: ${label}`)
+      return Number(element.getAttribute('x'))
+    }
+    expect(columnX('A')).toBeLessThan(columnX('B'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'AをCSPで上へ（シートで右へ）' }))
+    await waitFor(() => {
+      expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).map(input => input.value))
+        .toEqual(['A', 'B'])
+      expect(columnX('B')).toBeLessThan(columnX('A'))
+    })
+
+    const trackName = screen.getByLabelText('Aのセル列名')
+    fireEvent.change(trackName, { target: { value: 'LO' } })
+    fireEvent.blur(trackName)
+    await waitFor(() => {
+      expect(screen.getByLabelText('LOのセル列名')).toBeTruthy()
+      expect(Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)).toContain('LO')
+      expect(Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)).not.toContain('A')
+    })
   })
 
   it('starts the editor with optional work panes collapsed and can reopen them', () => {

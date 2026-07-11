@@ -15,7 +15,7 @@ export interface CspLayerTreeCel {
 export interface CspLayerTreeTrack {
   nodeId: string
   label: string
-  stackOrder: number
+  paperTrack?: string
   stackItemId?: string
   slotId?: string
   stackGuideLabelId?: string
@@ -104,7 +104,7 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
       firstFrameByName.set(name, frame.frame)
     }
 
-    const cels = [...firstFrameByName].map(([cspCellName, firstFrame]) => {
+    const bottomToTopCels = [...firstFrameByName].map(([cspCellName, firstFrame]) => {
       const binding = slot
         ? project.bindings.find(item => item.slotId === slot.slotId && item.cspCellName === cspCellName)
         : undefined
@@ -121,11 +121,16 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
         materialState: binding?.materialState ?? (stackAssetId ? 'assigned' : 'unassigned'),
       } satisfies CspLayerTreeCel
     })
+    // The helper imports first-use order and each imported CSP layer lands above the previous one.
+    const cels = cspTopToBottomFromXdtsBottomToTop(bottomToTopCels)
+    const paperTrack = slot
+      ? project.logicalSheet.paperTracks.find(item => item.paperTrack === slot.paperTrack)
+      : undefined
 
     layerNode.tracks.push({
       nodeId: `track:${track.trackNo}`,
-      label: track.name,
-      stackOrder: track.trackNo,
+      label: paperTrack?.label ?? track.name,
+      paperTrack: paperTrack?.paperTrack,
       stackItemId: slot
         ? `paper:${slot.paperTrack}`
         : stackLabel ? `stack:${stackLabel.labelId}` : undefined,

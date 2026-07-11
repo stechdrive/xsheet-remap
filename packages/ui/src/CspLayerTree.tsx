@@ -1,4 +1,4 @@
-import { useMemo, type DragEvent } from 'react'
+import { useMemo, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { buildCspLayerTree, type CutProject } from '@xsheet-remap/core'
 import { assetIdFromAssetDragData, hasAssetDragPayload } from './assetFiles'
 import { REGISTERED_CELL_DRAG_MIME, REGISTERED_CELL_TEXT_DRAG_PREFIX } from './sheetConstants'
@@ -12,6 +12,7 @@ export function CspLayerTree({
   onJumpToFirstUse,
   onUpdateCspCellName,
   onUpdateStackGuideRegistration,
+  onRenamePaperTrack,
   onMoveStackItem,
   onAssignAsset,
 }: {
@@ -22,6 +23,7 @@ export function CspLayerTree({
   onJumpToFirstUse: (keyId: string) => void
   onUpdateCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
+  onRenamePaperTrack: (paperTrack: string, name: string) => void
   onMoveStackItem: (itemId: string, direction: 'up' | 'down') => void
   onAssignAsset: (assetId: string, keyId: string) => void
 }) {
@@ -44,14 +46,9 @@ export function CspLayerTree({
   return (
     <section className="cspLayerTree" aria-label="CSPレイヤー構成">
       <header className="cspLayerTreeHeader">
-        <div>
-          <strong>CSPレイヤー構成</strong>
-          <span>パレット表示順</span>
-        </div>
-        <span className="cspLayerDirection">上</span>
+        <strong>CSPレイヤー構成</strong>
       </header>
       <div className="cspLayerTreeBody">
-        <div className="cspLayerBoundary">CSPパレット上端</div>
         {tree.stages.length === 0 && <p className="cspLayerTreeEmpty">登録済みのレイヤーはありません。</p>}
         {tree.stages.map(stage => (
           <details className="cspTreeStage" key={stage.nodeId} open>
@@ -62,14 +59,20 @@ export function CspLayerTree({
                 {layer.tracks.map(track => (
                   <div className="cspTreeTrack" key={track.nodeId}>
                     <div className="cspTreeTrackRow">
-                      <span className="cspTreeTrackName">{track.label}</span>
-                      <span className="cspTreeTrackOrder">#{track.stackOrder}</span>
+                      {track.paperTrack ? (
+                        <PaperTrackNameInput
+                          key={`${track.paperTrack}:${track.label}`}
+                          paperTrack={track.paperTrack}
+                          label={track.label}
+                          onCommit={onRenamePaperTrack}
+                        />
+                      ) : <span className="cspTreeTrackName">{track.label}</span>}
                       {track.stackItemId && <div className="cspTreeMoveButtons">
-                        <Tooltip label="CSPパレットで1段上へ移動">
-                          <button type="button" aria-label={`${track.label}を上へ`} onClick={() => onMoveStackItem(track.stackItemId!, 'up')}>↑</button>
+                        <Tooltip label="CSPで1段上へ（紙シートでは右へ）">
+                          <button type="button" aria-label={`${track.label}をCSPで上へ（シートで右へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'up')}>↑</button>
                         </Tooltip>
-                        <Tooltip label="CSPパレットで1段下へ移動">
-                          <button type="button" aria-label={`${track.label}を下へ`} onClick={() => onMoveStackItem(track.stackItemId!, 'down')}>↓</button>
+                        <Tooltip label="CSPで1段下へ（紙シートでは左へ）">
+                          <button type="button" aria-label={`${track.label}をCSPで下へ（シートで左へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'down')}>↓</button>
                         </Tooltip>
                       </div>}
                     </div>
@@ -122,8 +125,48 @@ export function CspLayerTree({
             ))}
           </details>
         ))}
-        <div className="cspLayerBoundary bottom">CSPパレット下端</div>
       </div>
     </section>
+  )
+}
+
+function PaperTrackNameInput({
+  paperTrack,
+  label,
+  onCommit,
+}: {
+  paperTrack: string
+  label: string
+  onCommit: (paperTrack: string, name: string) => void
+}) {
+  const [draft, setDraft] = useState(label)
+
+  function commit() {
+    const name = draft.trim()
+    if (name && name !== label) onCommit(paperTrack, name)
+    setDraft(label)
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      event.currentTarget.blur()
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      setDraft(label)
+      event.currentTarget.blur()
+    }
+  }
+
+  return (
+    <input
+      className="cspTreeTrackNameInput"
+      aria-label={`${label}のセル列名`}
+      title="セル列名"
+      value={draft}
+      onChange={event => setDraft(event.currentTarget.value)}
+      onBlur={commit}
+      onKeyDown={handleKeyDown}
+    />
   )
 }

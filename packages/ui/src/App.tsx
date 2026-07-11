@@ -4013,6 +4013,7 @@ function SheetPanel(props: {
               onJumpToFirstUse={props.onJumpToKeyFirstUse}
               onUpdateCspCellName={props.onUpdateKeyCspCellName}
               onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
+              onRenamePaperTrack={(paperTrack, name) => props.onUpdatePaperTrack(paperTrack, { paperTrack: name, label: name })}
               onMoveStackItem={props.onMoveCspStackItem}
               onAssignAsset={props.onAssignAssetToKey}
             /> : <KeyList

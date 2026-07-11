@@ -16,7 +16,7 @@ describe('CSP layer tree', () => {
       .toEqual(['bottom', 'middle', 'top'])
   })
 
-  it('projects registered cels in first-use order and preserves reversible track order', () => {
+  it('projects first-use cel order from CSP palette top to bottom and preserves reversible track order', () => {
     const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const second = createOrSetEvent(first.project, 'A', 12, 'action')
     let project = upsertBinding(second.project, {
@@ -37,7 +37,7 @@ describe('CSP layer tree', () => {
     const track = tree.stages.flatMap(stage => stage.layers).flatMap(layer => layer.tracks)
       .find(item => item.slotId === 'slot_A')
 
-    expect(track?.cels.map(cel => [cel.cspCellName, cel.firstFrame])).toEqual([['A1', 0], ['A2', 11]])
+    expect(track?.cels.map(cel => [cel.cspCellName, cel.firstFrame])).toEqual([['A2', 11], ['A1', 0]])
     expect(tree.bottomToTopTrackNodeIds).toEqual([...tree.topToBottomTrackNodeIds].reverse())
   })
 })

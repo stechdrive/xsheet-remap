@@ -428,7 +428,7 @@ describe('App', () => {
     })
     const emptyTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrack'))
       .find(track => track.querySelector<HTMLInputElement>('.cspTreeTrackNameInput')?.value === 'J')
-    expect(emptyTrack?.querySelector('.cspTreeNoCels')?.textContent).toBe('イベントなし')
+    expect(emptyTrack?.querySelector('.cspTreeNoCels')?.textContent).toBe('カードなし')
   })
 
   it('keeps the selected correction layer when placing a BG or BOOK track from the CSP pane', async () => {
@@ -481,6 +481,60 @@ describe('App', () => {
       const assignedTrack = screen.getByLabelText('BG1（演出）へ画像素材を登録')
       expect(assignedTrack.querySelector('.cspTreeCel.assigned')).toBeTruthy()
     })
+  })
+
+  it('creates unplaced CSP cards by dropping multiple selected assets into a correction layer and avoids duplicates', async () => {
+    URL.createObjectURL = file => `blob:csp-multi-${(file as File).name}`
+    render(<RemapApp />)
+
+    const firstFile = new File(['a1'], 'A1.png', { type: 'image/png', lastModified: 1 })
+    const secondFile = new File(['a2'], 'A2.png', { type: 'image/png', lastModified: 2 })
+    fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [firstFile, secondFile] } })
+    expect(await screen.findByText('A1.png')).toBeTruthy()
+    expect(await screen.findByText('A2.png')).toBeTruthy()
+
+    const firstCard = getAssetCardByName('A1.png')
+    const secondCard = getAssetCardByName('A2.png')
+    fireEvent.click(firstCard)
+    fireEvent.click(secondCard, { ctrlKey: true })
+
+    const dragData: Record<string, string> = {}
+    const dataTransfer = {
+      files: [],
+      types: [] as string[],
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      setData: (type: string, value: string) => {
+        dragData[type] = value
+        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
+      },
+      getData: (type: string) => dragData[type] ?? '',
+      setDragImage: () => undefined,
+    }
+    fireEvent.dragStart(firstCard, { dataTransfer })
+    const gap = screen.getByLabelText('作画のセル列挿入位置1')
+    fireEvent.dragOver(gap, { dataTransfer })
+    fireEvent.drop(gap, { dataTransfer })
+    expect((screen.getByLabelText('作画に追加するセル列名') as HTMLInputElement).value).toBe('A')
+    fireEvent.click(screen.getByRole('button', { name: 'セル列を作成して素材を登録' }))
+
+    await waitFor(() => {
+      const track = screen.getByLabelText('A（作画）へ画像素材を登録')
+      expect(track.querySelectorAll('.cspTreeCel')).toHaveLength(2)
+      expect(Array.from(track.querySelectorAll('.cspTreeCelFrame')).map(item => item.textContent)).toEqual(['未配置', '未配置'])
+      expect(Array.from(track.querySelectorAll<HTMLInputElement>('.cspTreeCel input')).map(input => input.value)).toEqual(['A2', 'A1'])
+    })
+
+    const track = screen.getByLabelText('A（作画）へ画像素材を登録')
+    const existingCard = track.querySelector<HTMLElement>('.cspTreeCel')
+    if (!existingCard) throw new Error('registered CSP card not found')
+    fireEvent.dragOver(existingCard, { dataTransfer })
+    fireEvent.drop(existingCard, { dataTransfer })
+    await waitFor(() => {
+      expect(track.querySelectorAll('.cspTreeCel')).toHaveLength(2)
+      expect(screen.getByRole('status').textContent).toBe('0件追加 / 2件は登録済み')
+    })
+
   })
 
   it('keeps CSP track order and names synchronized with the paper sheet', async () => {

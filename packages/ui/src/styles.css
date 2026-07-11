@@ -1298,6 +1298,12 @@ textarea,
   background: #f0f3f0;
 }
 
+.cspTreeLayer > summary.assetDragOver {
+  outline: 2px solid #2372c4;
+  outline-offset: -2px;
+  background: #e9f3fc;
+}
+
 .cspTreeLayerAddMenu {
   position: absolute;
   top: 3px;
@@ -1326,9 +1332,96 @@ textarea,
 }
 
 .cspTreeNoTracks {
-  margin: 0 4px 4px 18px;
+  margin: 0 4px 0 18px;
   color: #737c76;
   font-size: 11px;
+}
+
+.cspTreeDropNotice {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0 3px 5px;
+  padding: 4px 6px;
+  border-left: 3px solid #416b5a;
+  background: #eef5ef;
+  color: #31493e;
+  font-size: 11px;
+}
+
+.cspTreeTrackInsertDropZone {
+  position: relative;
+  height: 8px;
+  margin-left: 11px;
+}
+
+.cspTreeTrackInsertDropZone::before {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  left: 3px;
+  height: 2px;
+  background: transparent;
+  content: '';
+}
+
+.cspTreeTrackInsertDropZone.emptyLayer {
+  height: 24px;
+}
+
+.cspTreeTrackInsertDropZone.emptyLayer::before {
+  top: 11px;
+}
+
+.cspTreeTrackInsertDropZone.assetDragOver::before {
+  background: #2372c4;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.9);
+}
+
+.cspTreeTrackInsertDropZone.assetDragOver::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2372c4;
+  content: '';
+}
+
+.cspTreeTrackInsertDropZone.emptyLayer.assetDragOver::after {
+  top: 8px;
+}
+
+.cspTreeTrackInsertDropZone.editing {
+  height: 38px;
+}
+
+.cspTreeNewTrackForm {
+  position: absolute;
+  z-index: 2;
+  inset: 3px 3px auto 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 25px 25px;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #789286;
+  border-radius: 4px;
+  background: #f8faf8;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.12);
+}
+
+.cspTreeNewTrackForm input {
+  min-width: 0;
+  height: 25px;
+}
+
+.cspTreeNewTrackForm button {
+  width: 25px;
+  min-width: 25px;
+  height: 25px;
+  min-height: 25px;
+  padding: 0;
 }
 
 .cspTreeTrack {
@@ -1336,18 +1429,18 @@ textarea,
   border-top: 1px solid #d3d8d3;
 }
 
-.cspTreeTrack.stackGuideAssetDropTarget {
+.cspTreeTrack.assetDropTarget {
   cursor: copy;
 }
 
-.cspTreeTrack.stackGuideAssetDropTarget.assetDragOver {
+.cspTreeTrack.assetDropTarget.assetDragOver {
   outline: 2px solid #416b5a;
   outline-offset: -2px;
   box-shadow: inset 4px 0 #416b5a;
 }
 
-.cspTreeTrack.stackGuideAssetDropTarget.assetDragOver .cspTreeTrackRow,
-.cspTreeTrack.stackGuideAssetDropTarget.assetDragOver .cspTreeCels {
+.cspTreeTrack.assetDropTarget.assetDragOver .cspTreeTrackRow,
+.cspTreeTrack.assetDropTarget.assetDragOver .cspTreeCels {
   background: #eef5ef;
 }
 

@@ -1,5 +1,5 @@
 import type { CutAsset, SheetPageImageRef } from '@xsheet-remap/core'
-import { ASSET_DRAG_MIME, ASSET_TEXT_DRAG_PREFIX, REGISTERED_CELL_TEXT_DRAG_PREFIX } from './sheetConstants'
+import { ASSET_DRAG_MIME, ASSET_MULTI_DRAG_MIME, ASSET_TEXT_DRAG_PREFIX, REGISTERED_CELL_TEXT_DRAG_PREFIX } from './sheetConstants'
 import { compareFileNameLikeText } from './naturalSort'
 
 interface BrowserFileSystemEntry {
@@ -39,18 +39,25 @@ export function hasFileTransferPayload(dataTransfer: DataTransfer): boolean {
 
 export function hasAssetDragPayload(dataTransfer: DataTransfer): boolean {
   const types = Array.from(dataTransfer.types ?? [])
-  if (types.includes(ASSET_DRAG_MIME)) return true
+  if (types.includes(ASSET_DRAG_MIME) || types.includes(ASSET_MULTI_DRAG_MIME)) return true
   if (!types.includes('text/plain')) return false
   const textPayload = dataTransfer.getData('text/plain')
   return Boolean(assetIdFromAssetTextDragData(textPayload))
 }
 
 export function assetIdFromAssetDragData(dataTransfer: DataTransfer): string {
+  return assetIdsFromAssetDragData(dataTransfer)[0] ?? ''
+}
+
+export function assetIdsFromAssetDragData(dataTransfer: DataTransfer): string[] {
+  const multiAssetIds = parseAssetIdsFromDragData(dataTransfer.getData(ASSET_MULTI_DRAG_MIME))
+  if (multiAssetIds.length > 0) return multiAssetIds
   const explicitAssetId = dataTransfer.getData(ASSET_DRAG_MIME)
-  if (explicitAssetId) return explicitAssetId
-  if (hasFileTransferPayload(dataTransfer)) return ''
+  if (explicitAssetId) return [explicitAssetId]
+  if (hasFileTransferPayload(dataTransfer)) return []
   const textPayload = dataTransfer.getData('text/plain')
-  return assetIdFromAssetTextDragData(textPayload)
+  const textAssetId = assetIdFromAssetTextDragData(textPayload)
+  return textAssetId ? [textAssetId] : []
 }
 
 export function assetTextDragData(assetId: string): string {

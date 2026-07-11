@@ -5,6 +5,8 @@ import {
   createDefaultProject,
   createOrSetEvent,
   cspTopToBottomFromXdtsBottomToTop,
+  registerAsset,
+  registerAssetsToCspTrack,
   upsertBinding,
   xdtsBottomToTopFromCspTopToBottom,
 } from './index'
@@ -57,5 +59,24 @@ describe('CSP layer tree', () => {
     expect(layers.map(layer => layer.layerId)).toEqual(expect.arrayContaining(project.correctionLayers.map(layer => layer.layerId)))
     expect(tracks.find(track => track.paperTrack === 'LO')).toMatchObject({ label: 'LO', cels: [] })
     expect(tracks.some(track => track.paperTrack === 'A')).toBe(false)
+  })
+
+  it('projects registered cards before they are placed on the timeline', () => {
+    const firstAsset = registerAsset(createDefaultProject(), { name: 'A1.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const secondAsset = registerAsset(firstAsset.project, { name: 'A2.png', size: 101, lastModified: 2 }, { role: 'cell-material' })
+    const registered = registerAssetsToCspTrack(secondAsset.project, {
+      slotId: 'slot_A',
+      assetIds: [firstAsset.asset.assetId, secondAsset.asset.assetId],
+    })
+
+    const track = buildCspLayerTree(registered.project, 'import-stack')
+      .stages.flatMap(stage => stage.layers)
+      .flatMap(layer => layer.tracks)
+      .find(item => item.slotId === 'slot_A')
+
+    expect(track?.cels.map(cel => [cel.cspCellName, cel.firstFrame, cel.assetId])).toEqual([
+      ['A2', undefined, secondAsset.asset.assetId],
+      ['A1', undefined, firstAsset.asset.assetId],
+    ])
   })
 })

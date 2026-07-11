@@ -41,10 +41,12 @@ import {
   NULL_CELL_KEY_ID,
   redoHistory,
   registerAsset,
+  registerAssetsToCspTrack,
   registerSheetSource,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
   setEvent,
+  sheetTimingRoleForKey,
   timingHitForFrame,
   undoHistory,
   updateKey,
@@ -507,6 +509,45 @@ describe('core project commands', () => {
       assetId: asset.asset.assetId,
       materialState: 'assigned',
     })
+  })
+
+  it('registers multiple assets as unplaced cards in source order and skips duplicates in the same CSP track', () => {
+    const firstAsset = registerAsset(createDefaultProject(), { name: 'A1.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const secondAsset = registerAsset(firstAsset.project, { name: 'A2.png', size: 101, lastModified: 2 }, { role: 'cell-material' })
+
+    const registered = registerAssetsToCspTrack(secondAsset.project, {
+      slotId: 'slot_A',
+      assetIds: [firstAsset.asset.assetId, secondAsset.asset.assetId, firstAsset.asset.assetId],
+    })
+
+    expect(registered.addedKeyIds).toHaveLength(2)
+    expect(registered.duplicateKeyIds).toEqual([])
+    expect(registered.project.logicalSheet.events).toEqual([])
+    expect(registered.project.bindings.filter(binding => binding.slotId === 'slot_A').map(binding => binding.assetId))
+      .toEqual([firstAsset.asset.assetId, secondAsset.asset.assetId])
+    expect(registered.project.logicalSheet.keys.filter(key => registered.addedKeyIds.includes(key.keyId)).map(key => key.displayLabel))
+      .toEqual(['1', '2'])
+    expect(registered.project.logicalSheet.keys.filter(key => registered.addedKeyIds.includes(key.keyId)).map(sheetTimingRoleForKey))
+      .toEqual(['action', 'action'])
+
+    const repeated = registerAssetsToCspTrack(registered.project, {
+      slotId: 'slot_A',
+      assetIds: [secondAsset.asset.assetId],
+    })
+    expect(repeated.addedKeyIds).toEqual([])
+    expect(repeated.duplicateKeyIds).toEqual([registered.addedKeyIds[1]])
+    expect(repeated.project.bindings).toHaveLength(registered.project.bindings.length)
+  })
+
+  it('reuses a logical card when the same asset is registered in another correction layer', () => {
+    const asset = registerAsset(createDefaultProject(), { name: 'A1.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const sakuga = registerAssetsToCspTrack(asset.project, { slotId: 'slot_A', assetIds: [asset.asset.assetId] })
+    const enshutsu = registerAssetsToCspTrack(sakuga.project, { slotId: 'slot_enshutsu_A', assetIds: [asset.asset.assetId] })
+
+    expect(enshutsu.addedKeyIds).toEqual([sakuga.addedKeyIds[0]])
+    expect(enshutsu.project.logicalSheet.keys).toHaveLength(sakuga.project.logicalSheet.keys.length)
+    expect(enshutsu.project.bindings.filter(binding => binding.keyId === sakuga.addedKeyIds[0]).map(binding => binding.slotId))
+      .toEqual(['slot_A', 'slot_enshutsu_A'])
   })
 
   it('requires overwrite when moving a binding into an occupied correction layer', () => {

@@ -4,7 +4,7 @@ import type { CutProject, MaterialState } from './types'
 export interface CspLayerTreeCel {
   nodeId: string
   cspCellName: string
-  firstFrame: number
+  firstFrame?: number
   keyId?: string
   bindingId?: string
   assetId?: string
@@ -99,7 +99,7 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
     for (const layer of layers) ensureLayerNode(layer.layerId)
   }
 
-  const projectedPaperTracks = new Set<string>()
+  const projectedSlotIds = new Set<string>()
   for (const track of plan.tracks.filter(track => !track.dummy)) {
     const slot = track.slotId ? project.cspTrackSlots.find(item => item.slotId === track.slotId) : undefined
     const stackLabel = track.stackGuideLabelId
@@ -111,32 +111,9 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
     const layerId = slot?.correctionLayerId ?? registration?.correctionLayerId
     const layerNode = ensureLayerNode(layerId)
 
-    const firstFrameByName = new Map<string, number>()
-    for (const frame of track.frames) {
-      const name = frame.value?.trim()
-      if (!name || firstFrameByName.has(name)) continue
-      firstFrameByName.set(name, frame.frame)
-    }
-
-    const bottomToTopCels = [...firstFrameByName].map(([cspCellName, firstFrame]) => {
-      const binding = slot
-        ? project.bindings.find(item => item.slotId === slot.slotId && item.cspCellName === cspCellName)
-        : undefined
-      const key = binding ? project.logicalSheet.keys.find(item => item.keyId === binding.keyId) : undefined
-      const stackAssetId = registration?.cspCellName === cspCellName ? registration.assetIds[0] : undefined
-      return {
-        nodeId: `cel:${track.trackNo}:${cspCellName}`,
-        cspCellName,
-        firstFrame,
-        keyId: binding?.keyId,
-        bindingId: binding?.bindingId,
-        assetId: binding?.assetId ?? stackAssetId,
-        displayLabel: key?.displayLabel ?? stackLabel?.label,
-        materialState: binding?.materialState ?? (stackAssetId ? 'assigned' : 'unassigned'),
-      } satisfies CspLayerTreeCel
-    })
-    // The helper imports first-use order and each imported CSP layer lands above the previous one.
-    const cels = cspTopToBottomFromXdtsBottomToTop(bottomToTopCels)
+    const cels = slot
+      ? cspTrackCelsForSlot(project, slot.slotId, track.frames)
+      : cspTrackCelsForStackGuide(track.trackNo, track.frames, stackLabel?.label, registration)
     const paperTrack = slot
       ? project.logicalSheet.paperTracks.find(item => item.paperTrack === slot.paperTrack)
       : undefined
@@ -156,24 +133,34 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
       stackGuideRegistrationId: registration?.registrationId,
       cels,
     })
-    if (slot) projectedPaperTracks.add(slot.paperTrack)
+    if (slot) projectedSlotIds.add(slot.slotId)
   }
 
   const defaultLayerId = defaultCorrectionLayerId(project)
-  for (const paperTrack of project.logicalSheet.paperTracks.filter(item => item.source === 'overlay')) {
-    if (projectedPaperTracks.has(paperTrack.paperTrack)) continue
-    const slot = project.cspTrackSlots.find(item =>
-      item.paperTrack === paperTrack.paperTrack
-      && (!defaultLayerId || item.correctionLayerId === defaultLayerId),
-    ) ?? project.cspTrackSlots.find(item => item.paperTrack === paperTrack.paperTrack)
-    if (!slot) continue
+  const primaryEmptyOverlaySlotIds = new Set(
+    project.logicalSheet.paperTracks
+      .filter(item => item.source === 'overlay')
+      .flatMap(paperTrack => {
+        const slot = project.cspTrackSlots.find(item =>
+          item.paperTrack === paperTrack.paperTrack
+          && (!defaultLayerId || item.correctionLayerId === defaultLayerId),
+        ) ?? project.cspTrackSlots.find(item => item.paperTrack === paperTrack.paperTrack)
+        return slot ? [slot.slotId] : []
+      }),
+  )
+  for (const slot of project.cspTrackSlots) {
+    if (projectedSlotIds.has(slot.slotId)) continue
+    const hasBindings = project.bindings.some(binding => binding.slotId === slot.slotId)
+    if (!hasBindings && !primaryEmptyOverlaySlotIds.has(slot.slotId)) continue
+    const paperTrack = project.logicalSheet.paperTracks.find(item => item.paperTrack === slot.paperTrack)
+    if (!paperTrack) continue
     ensureLayerNode(slot.correctionLayerId).tracks.push({
       nodeId: `track:slot:${slot.slotId}`,
       label: paperTrack.label || paperTrack.paperTrack,
       paperTrack: paperTrack.paperTrack,
       stackItemId: `paper:${paperTrack.paperTrack}`,
       slotId: slot.slotId,
-      cels: [],
+      cels: cspTrackCelsForSlot(project, slot.slotId, []),
     })
   }
 
@@ -189,6 +176,81 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
     topToBottomTrackNodeIds,
     bottomToTopTrackNodeIds: xdtsBottomToTopFromCspTopToBottom(topToBottomTrackNodeIds),
   }
+}
+
+function cspTrackCelsForSlot(
+  project: CutProject,
+  slotId: string,
+  frames: Array<{ frame: number; value?: string | null }>,
+): CspLayerTreeCel[] {
+  const firstFrameByName = firstFrameByCspCellName(frames)
+  const keyOrder = new Map(project.logicalSheet.keys.map((key, index) => [key.keyId, index]))
+  const bindings = project.bindings
+    .filter(binding => binding.slotId === slotId)
+    .sort((a, b) => {
+      const aFirstFrame = firstFrameByName.get(a.cspCellName) ?? Number.MAX_SAFE_INTEGER
+      const bFirstFrame = firstFrameByName.get(b.cspCellName) ?? Number.MAX_SAFE_INTEGER
+      return aFirstFrame - bFirstFrame
+        || (keyOrder.get(a.keyId) ?? Number.MAX_SAFE_INTEGER) - (keyOrder.get(b.keyId) ?? Number.MAX_SAFE_INTEGER)
+        || a.bindingId.localeCompare(b.bindingId, 'ja')
+    })
+  const boundNames = new Set(bindings.map(binding => binding.cspCellName))
+  const bottomToTopCels = bindings.map<CspLayerTreeCel>(binding => {
+    const key = project.logicalSheet.keys.find(item => item.keyId === binding.keyId)
+    return {
+      nodeId: `cel:binding:${binding.bindingId}`,
+      cspCellName: binding.cspCellName,
+      firstFrame: firstFrameByName.get(binding.cspCellName),
+      keyId: binding.keyId,
+      bindingId: binding.bindingId,
+      assetId: binding.assetId,
+      displayLabel: key?.displayLabel,
+      materialState: binding.materialState,
+    } satisfies CspLayerTreeCel
+  })
+  for (const [cspCellName, firstFrame] of firstFrameByName) {
+    if (boundNames.has(cspCellName)) continue
+    bottomToTopCels.push({
+      nodeId: `cel:frame:${slotId}:${cspCellName}`,
+      cspCellName,
+      firstFrame,
+      materialState: 'unassigned',
+    })
+  }
+  // The helper imports first-use/registration order and each imported CSP layer lands above the previous one.
+  return cspTopToBottomFromXdtsBottomToTop(bottomToTopCels)
+}
+
+function cspTrackCelsForStackGuide(
+  trackNo: number,
+  frames: Array<{ frame: number; value?: string | null }>,
+  displayLabel: string | undefined,
+  registration: { registrationId: string; cspCellName?: string; assetIds: string[] } | undefined,
+): CspLayerTreeCel[] {
+  const firstFrames = firstFrameByCspCellName(frames)
+  const cspCellName = registration?.cspCellName?.trim()
+  if (cspCellName && !firstFrames.has(cspCellName)) firstFrames.set(cspCellName, Number.MAX_SAFE_INTEGER)
+  return cspTopToBottomFromXdtsBottomToTop([...firstFrames].map(([name, firstFrame]) => {
+    const isRegistration = registration?.cspCellName === name
+    return {
+      nodeId: `cel:${trackNo}:${name}`,
+      cspCellName: name,
+      firstFrame: firstFrame === Number.MAX_SAFE_INTEGER ? undefined : firstFrame,
+      assetId: isRegistration ? registration.assetIds[0] : undefined,
+      displayLabel,
+      materialState: isRegistration && registration.assetIds.length > 0 ? 'assigned' : 'unassigned',
+    } satisfies CspLayerTreeCel
+  }))
+}
+
+function firstFrameByCspCellName(frames: Array<{ frame: number; value?: string | null }>): Map<string, number> {
+  const result = new Map<string, number>()
+  for (const frame of frames) {
+    const name = frame.value?.trim()
+    if (!name || result.has(name)) continue
+    result.set(name, frame.frame)
+  }
+  return result
 }
 
 function compareCspTreeTracksTopToBottom(project: CutProject, a: CspLayerTreeTrack, b: CspLayerTreeTrack): number {

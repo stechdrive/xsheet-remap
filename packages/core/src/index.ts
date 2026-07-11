@@ -192,6 +192,8 @@ export {
   moveBindingToCorrectionLayer,
   nextDisplayLabel,
   redoHistory,
+  registerAssetsToCspTrack,
+  type RegisterAssetsToCspTrackResult,
   resolveCspCellName,
   removeAssetFromStackGuideLabel,
   setEvent,

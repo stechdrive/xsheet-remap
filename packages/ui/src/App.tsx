@@ -26,6 +26,7 @@ import {
   createProjectHistory,
   defaultCspCellName,
   defaultCorrectionLayerId,
+  DEFAULT_EXPORT_TIMING_ROLE,
   DEFAULT_PRE_ROLL_FRAMES,
   deleteOverlayPaperTrack,
   deleteStackGuideLabel,
@@ -64,6 +65,7 @@ import {
   getSheetTemplatePaperTracks,
   getSheetViewLayout,
   redoHistory,
+  registerAssetsToCspTrack,
   resolveSheetTemplateGridFrames,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
@@ -276,7 +278,7 @@ import { calibrationPointsSignature } from './sheetCalibrationUtils'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import { GridOverlayLayer, SheetImageLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { TemplateWorkspace } from './TemplateWorkspace'
-import { CspLayerTree } from './CspLayerTree'
+import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import {
   createPaperTemplateDraftFromImage,
   createTemplateDraft,
@@ -2174,6 +2176,80 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
     }
   }
 
+  function handleAssignAssetsToStackGuide(labelId: string, assetIds: string[], correctionLayerId = activeCorrectionLayerId) {
+    try {
+      let next = projectRef.current
+      for (const assetId of Array.from(new Set(assetIds))) {
+        next = assignAssetToStackGuideLabel(next, labelId, assetId, correctionLayerId)
+      }
+      commitProject(next)
+    } catch (error) {
+      window.alert(errorMessage(error))
+    }
+  }
+
+  function handleRegisterAssetsToCspTrack(slotId: string, assetIds: string[]): CspTreeAssetRegistrationResult {
+    try {
+      const sourceProject = projectRef.current
+      const sheetRole = sourceProject.exportProfiles.find(profile => profile.profileId === exportProfileId)?.timingSourceRole
+        ?? DEFAULT_EXPORT_TIMING_ROLE
+      const result = registerAssetsToCspTrack(sourceProject, { slotId, assetIds, sheetRole })
+      commitProject(result.project)
+      return {
+        addedCount: result.addedKeyIds.length,
+        duplicateCount: result.duplicateKeyIds.length,
+        missingCount: result.missingAssetIds.length,
+      }
+    } catch (error) {
+      window.alert(errorMessage(error))
+      return { addedCount: 0, duplicateCount: 0, missingCount: assetIds.length }
+    }
+  }
+
+  function handleRegisterAssetsToNewCspTrack(input: CspTreeNewTrackRegistrationInput): CspTreeAssetRegistrationResult {
+    try {
+      const sourceProject = projectRef.current
+      const sheetRole = sourceProject.exportProfiles.find(profile => profile.profileId === exportProfileId)?.timingSourceRole
+        ?? DEFAULT_EXPORT_TIMING_ROLE
+      const normalizedName = input.paperTrack.trim()
+      const existingTrack = sourceProject.logicalSheet.paperTracks.find(track =>
+        track.paperTrack.localeCompare(normalizedName, 'ja', { sensitivity: 'accent' }) === 0
+        || track.label.localeCompare(normalizedName, 'ja', { sensitivity: 'accent' }) === 0,
+      )
+      let next = sourceProject
+      let paperTrack = existingTrack?.paperTrack
+      if (!paperTrack) {
+        const referenceTrack = input.insertAfterPaperTrack
+          ? sourceProject.logicalSheet.paperTracks.find(track => track.paperTrack === input.insertAfterPaperTrack)
+          : undefined
+        const created = addOverlayPaperTrack(sourceProject, {
+          paperTrack: normalizedName,
+          label: normalizedName,
+          insertAfterPaperTrack: referenceTrack?.paperTrack,
+          snapIndex: Math.max(0, (referenceTrack?.viewPlacement?.snapIndex ?? -1) + 1),
+          templateId: template.templateId,
+          sheetRole,
+        })
+        next = created.project
+        paperTrack = created.paperTrack.paperTrack
+      }
+      const slot = next.cspTrackSlots.find(item =>
+        item.paperTrack === paperTrack && item.correctionLayerId === input.correctionLayerId,
+      ) ?? next.cspTrackSlots.find(item => item.paperTrack === paperTrack)
+      if (!slot) throw new Error(`slot not found: ${paperTrack} / ${input.correctionLayerId}`)
+      const result = registerAssetsToCspTrack(next, { slotId: slot.slotId, assetIds: input.assetIds, sheetRole })
+      commitProject(result.project)
+      return {
+        addedCount: result.addedKeyIds.length,
+        duplicateCount: result.duplicateKeyIds.length,
+        missingCount: result.missingAssetIds.length,
+      }
+    } catch (error) {
+      window.alert(errorMessage(error))
+      return { addedCount: 0, duplicateCount: 0, missingCount: input.assetIds.length }
+    }
+  }
+
   function handleAddOverlayPaperTrack(input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) {
     try {
       const created = addOverlayPaperTrack(project, {
@@ -3218,6 +3294,9 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
             onUpdateStackGuideRegistration={handleUpdateStackGuideRegistration}
             onDeleteStackGuideLabel={handleDeleteStackGuideLabel}
             onAssignAssetToStackGuideLabel={handleAssignAssetToStackGuide}
+            onAssignAssetsToStackGuideLabel={handleAssignAssetsToStackGuide}
+            onRegisterAssetsToCspTrack={handleRegisterAssetsToCspTrack}
+            onRegisterAssetsToNewCspTrack={handleRegisterAssetsToNewCspTrack}
             onAddOverlayPaperTrack={handleAddOverlayPaperTrack}
             onUpdatePaperTrack={handleUpdatePaperTrack}
             onDeleteOverlayPaperTrack={handleDeleteOverlayPaperTrack}
@@ -3496,6 +3575,9 @@ function SheetPanel(props: {
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
   onDeleteStackGuideLabel: (labelId: string) => void
   onAssignAssetToStackGuideLabel: (labelId: string, assetId: string, correctionLayerId?: string) => void
+  onAssignAssetsToStackGuideLabel: (labelId: string, assetIds: string[], correctionLayerId?: string) => void
+  onRegisterAssetsToCspTrack: (slotId: string, assetIds: string[]) => CspTreeAssetRegistrationResult
+  onRegisterAssetsToNewCspTrack: (input: CspTreeNewTrackRegistrationInput) => CspTreeAssetRegistrationResult
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
@@ -4021,7 +4103,9 @@ function SheetPanel(props: {
               onRenamePaperTrack={(paperTrack, name) => props.onUpdatePaperTrack(paperTrack, { paperTrack: name, label: name })}
               onMoveStackItem={props.onMoveCspStackItem}
               onAssignAsset={props.onAssignAssetToKey}
-              onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}
+              onAssignAssetsToStackGuideLabel={props.onAssignAssetsToStackGuideLabel}
+              onRegisterAssetsToTrack={props.onRegisterAssetsToCspTrack}
+              onRegisterAssetsToNewTrack={props.onRegisterAssetsToNewCspTrack}
               onRequestOverlayPaperTrack={() => setStackGuideInsertTool({ mode: 'overlay-track' })}
               onRequestStackGuideInsert={correctionLayerId => setStackGuideInsertTool({
                 mode: 'label-editor',

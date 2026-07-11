@@ -676,6 +676,69 @@ export function upsertBinding(
   }
 }
 
+export interface RegisterAssetsToCspTrackResult {
+  project: CutProject
+  addedKeyIds: string[]
+  duplicateKeyIds: string[]
+  missingAssetIds: string[]
+}
+
+export function registerAssetsToCspTrack(
+  project: CutProject,
+  input: { slotId: string; assetIds: string[]; sheetRole?: SheetTimingRole },
+): RegisterAssetsToCspTrackResult {
+  const slot = project.cspTrackSlots.find(item => item.slotId === input.slotId)
+  if (!slot) throw new Error(`slot not found: ${input.slotId}`)
+
+  const requestedAssetIds = Array.from(new Set(input.assetIds.filter(Boolean)))
+  const addedKeyIds: string[] = []
+  const duplicateKeyIds: string[] = []
+  const missingAssetIds: string[] = []
+  const sheetRole = input.sheetRole ?? DEFAULT_EXPORT_TIMING_ROLE
+  let next = project
+
+  for (const assetId of requestedAssetIds) {
+    const asset = next.assets.find(item => item.assetId === assetId)
+    if (!asset) {
+      missingAssetIds.push(assetId)
+      continue
+    }
+
+    const duplicate = next.bindings.find(binding => binding.slotId === slot.slotId && binding.assetId === assetId)
+    if (duplicate) {
+      duplicateKeyIds.push(duplicate.keyId)
+      continue
+    }
+
+    const reusableBinding = next.bindings.find(binding => {
+      if (binding.assetId !== assetId) return false
+      const key = next.logicalSheet.keys.find(item => item.keyId === binding.keyId)
+      if (!key || key.paperTrack !== slot.paperTrack || sheetTimingRoleForKey(key) !== sheetRole) return false
+      return !next.bindings.some(candidate => candidate.slotId === slot.slotId && candidate.keyId === key.keyId)
+    })
+    const reusableKey = reusableBinding
+      ? next.logicalSheet.keys.find(item => item.keyId === reusableBinding.keyId)
+      : undefined
+    const created = reusableKey
+      ? { project: next, key: reusableKey }
+      : createKey(next, slot.paperTrack, undefined, 'asset-drop', undefined, sheetRole)
+    next = created.project
+
+    const desiredCspCellName = reusableBinding?.cspCellName || assetFileBaseName(asset) || defaultCspCellName(created.key.displayLabel, slot.paperTrack)
+    const cspCellName = uniqueCspCellNameForSlot(next, slot.slotId, desiredCspCellName)
+    next = upsertBinding(next, {
+      slotId: slot.slotId,
+      keyId: created.key.keyId,
+      assetId,
+      cspCellName,
+      materialState: 'assigned',
+    })
+    addedKeyIds.push(created.key.keyId)
+  }
+
+  return { project: next, addedKeyIds, duplicateKeyIds, missingAssetIds }
+}
+
 export function moveBindingToCorrectionLayer(
   project: CutProject,
   input: {
@@ -2551,6 +2614,20 @@ function displayLabelCspCellName(displayLabel: string): string {
 
 function assetFileBaseName(asset: Pick<CutAsset, 'displayName' | 'originalFileName'>): string {
   return (asset.displayName || asset.originalFileName).replace(/\.[^.]+$/, '')
+}
+
+function uniqueCspCellNameForSlot(project: CutProject, slotId: string, desiredName: string): string {
+  const baseName = desiredName.trim() || 'CELL'
+  const usedNames = new Set(
+    project.bindings
+      .filter(binding => binding.slotId === slotId)
+      .map(binding => binding.cspCellName.trim().toLocaleLowerCase()),
+  )
+  if (!usedNames.has(baseName.toLocaleLowerCase())) return baseName
+
+  let suffix = 2
+  while (usedNames.has(`${baseName}_${suffix}`.toLocaleLowerCase())) suffix += 1
+  return `${baseName}_${suffix}`
 }
 
 export function isNullLabel(value: string): boolean {

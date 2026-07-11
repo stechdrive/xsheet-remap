@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createDefaultProject, createOrSetEvent, createStackGuideLabel, upsertBinding } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CspLayerTree } from './CspLayerTree'
-import { ASSET_DRAG_MIME } from './sheetConstants'
+import { ASSET_DRAG_MIME, ASSET_MULTI_DRAG_MIME, REGISTERED_CELL_DRAG_MIME } from './sheetConstants'
 
 afterEach(cleanup)
 
@@ -36,7 +36,9 @@ describe('CspLayerTree', () => {
         onRenamePaperTrack={onRenamePaperTrack}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
-        onAssignAssetToStackGuideLabel={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRequestOverlayPaperTrack={vi.fn()}
         onRequestStackGuideInsert={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
@@ -48,6 +50,17 @@ describe('CspLayerTree', () => {
     expect(screen.queryByText('パレット表示順')).toBeNull()
     expect(screen.queryByText('CSPパレット上端')).toBeNull()
     expect(document.querySelector('.cspTreeTrackOrder')).toBeNull()
+
+    const dragData: Record<string, string> = {}
+    const registeredCell = document.querySelector<HTMLElement>('.cspTreeCel')
+    if (!registeredCell) throw new Error('CSP cell card not found')
+    fireEvent.dragStart(registeredCell, {
+      dataTransfer: {
+        effectAllowed: 'none',
+        setData: (type: string, value: string) => { dragData[type] = value },
+      },
+    })
+    expect(dragData[REGISTERED_CELL_DRAG_MIME]).toBe(second.key.keyId)
 
     const trackName = screen.getByLabelText('Aのセル列名')
     fireEvent.change(trackName, { target: { value: 'LO' } })
@@ -72,7 +85,9 @@ describe('CspLayerTree', () => {
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
-        onAssignAssetToStackGuideLabel={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRequestOverlayPaperTrack={onRequestOverlayPaperTrack}
         onRequestStackGuideInsert={onRequestStackGuideInsert}
         onCreateStackGuideLabel={onCreateStackGuideLabel}
@@ -105,7 +120,7 @@ describe('CspLayerTree', () => {
       gapIndex: 0,
       correctionLayerId: 'layer_enshutsu',
     })
-    const onAssignAssetToStackGuideLabel = vi.fn()
+    const onAssignAssetsToStackGuideLabel = vi.fn()
 
     render(
       <CspLayerTree
@@ -119,7 +134,9 @@ describe('CspLayerTree', () => {
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
-        onAssignAssetToStackGuideLabel={onAssignAssetToStackGuideLabel}
+        onAssignAssetsToStackGuideLabel={onAssignAssetsToStackGuideLabel}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRequestOverlayPaperTrack={vi.fn()}
         onRequestStackGuideInsert={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
@@ -136,11 +153,104 @@ describe('CspLayerTree', () => {
     expect(track.classList.contains('assetDragOver')).toBe(true)
     fireEvent.drop(track, { dataTransfer })
 
-    expect(onAssignAssetToStackGuideLabel).toHaveBeenCalledWith(
+    expect(onAssignAssetsToStackGuideLabel).toHaveBeenCalledWith(
       created.label.labelId,
-      'asset_bg',
+      ['asset_bg'],
       'layer_enshutsu',
     )
     expect(track.classList.contains('assetDragOver')).toBe(false)
   })
+
+  it('registers a multi-selection on an existing paper track', () => {
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell')
+    const project = upsertBinding(created.project, {
+      slotId: 'slot_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A1',
+      materialState: 'unassigned',
+    })
+    const onRegisterAssetsToTrack = vi.fn(() => ({ addedCount: 2, duplicateCount: 0, missingCount: 0 }))
+
+    render(
+      <CspLayerTree
+        project={project}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={vi.fn()}
+        onUpdateCspCellName={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={onRegisterAssetsToTrack}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    const track = screen.getByLabelText('A（作画）へ画像素材を登録')
+    const dataTransfer = multiAssetDataTransfer(['asset_A1', 'asset_A2'])
+    fireEvent.dragOver(track, { dataTransfer })
+    expect(track.classList.contains('assetDragOver')).toBe(true)
+    fireEvent.drop(track, { dataTransfer })
+
+    expect(onRegisterAssetsToTrack).toHaveBeenCalledWith('slot_A', ['asset_A1', 'asset_A2'])
+    expect(screen.getByRole('status').textContent).toBe('2件追加')
+  })
+
+  it('opens an inline track-name form when assets are dropped between tracks', () => {
+    const onRegisterAssetsToNewTrack = vi.fn(() => ({ addedCount: 1, duplicateCount: 1, missingCount: 0 }))
+    render(
+      <CspLayerTree
+        project={createDefaultProject()}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={vi.fn()}
+        onUpdateCspCellName={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={onRegisterAssetsToNewTrack}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    const gap = screen.getByLabelText('作画のセル列挿入位置1')
+    const dataTransfer = multiAssetDataTransfer(['asset_A1', 'asset_A2'])
+    fireEvent.dragOver(gap, { dataTransfer })
+    expect(gap.classList.contains('assetDragOver')).toBe(true)
+    fireEvent.drop(gap, { dataTransfer })
+
+    const input = screen.getByLabelText('作画に追加するセル列名')
+    expect((input as HTMLInputElement).value).toBe('A')
+    fireEvent.change(input, { target: { value: 'LO' } })
+    fireEvent.click(screen.getByRole('button', { name: 'セル列を作成して素材を登録' }))
+
+    expect(onRegisterAssetsToNewTrack).toHaveBeenCalledWith({
+      correctionLayerId: 'layer_sakuga',
+      gapIndex: 0,
+      assetIds: ['asset_A1', 'asset_A2'],
+      paperTrack: 'LO',
+      insertAfterPaperTrack: undefined,
+    })
+    expect(screen.getByRole('status').textContent).toBe('1件追加 / 1件は登録済み')
+  })
 })
+
+function multiAssetDataTransfer(assetIds: string[]) {
+  return {
+    types: [ASSET_MULTI_DRAG_MIME],
+    dropEffect: 'none',
+    getData: vi.fn((type: string) => type === ASSET_MULTI_DRAG_MIME ? JSON.stringify(assetIds) : ''),
+  }
+}

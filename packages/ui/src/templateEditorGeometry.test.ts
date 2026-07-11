@@ -34,16 +34,67 @@ describe('template editor geometry', () => {
     expect(model?.rowPaths.find(path => path.className.includes('gridLineRegular'))?.segments).toHaveLength(6)
   })
 
-  it('keeps the digital SOUND overlay column-only with row labels', () => {
+  it('places even absolute frame numbers at the lower-right edge of paper ACTION rows', () => {
+    const leftRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_action_grid')
+    const rightRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'right_action_grid')
+
+    const left = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, leftRegion!, { pageFrameStart: 145 })
+    const right = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, rightRegion!, { pageFrameStart: 145 })
+
+    expect(left?.frameNumbers.map(item => item.text)).toEqual(Array.from({ length: 36 }, (_, index) => String(146 + index * 2)))
+    expect(right?.frameNumbers.map(item => item.text)).toEqual(Array.from({ length: 36 }, (_, index) => String(218 + index * 2)))
+    expect(left?.frameNumbers[0]).toMatchObject({ text: '146' })
+    expect(left!.frameNumbers[0].x).toBeGreaterThan(leftRegion!.rect.x + leftRegion!.rect.w)
+    expect(left!.frameNumbers[0].fontSize * standardA3SheetTemplate.page.heightPx).toBe(9)
+  })
+
+  it('uses the continuous timeline origin for digital ACTION frame numbers', () => {
+    const region = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_action_grid')
+    const model = buildTemplateGridOverlayRenderModel(digitalStandardSheetTemplate, region!, {
+      durationFrames: 8,
+      frameOrigin: 101,
+      pageFrameStart: 101,
+    })
+
+    expect(model?.frameNumbers.map(item => item.text)).toEqual(['102', '104', '106', '108'])
+    expect(model!.frameNumbers[0].fontSize * digitalStandardSheetTemplate.page.heightPx).toBe(9)
+  })
+
+  it('places elapsed seconds at the lower-left edge of paper CELL grids across pages', () => {
+    const leftRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_cell_grid')
+    const rightRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'right_cell_grid')
+
+    const left = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, leftRegion!, { pageFrameStart: 145, timelineFrameOrigin: 1 })
+    const right = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, rightRegion!, { pageFrameStart: 145, timelineFrameOrigin: 1 })
+
+    expect(left?.secondCounters.map(item => item.text)).toEqual(['7', '8', '9'])
+    expect(right?.secondCounters.map(item => item.text)).toEqual(['10', '11', '12'])
+    expect(left?.secondCounters[0]).toMatchObject({ textAnchor: 'end' })
+    expect(left!.secondCounters[0].x).toBeLessThan(leftRegion!.rect.x)
+  })
+
+  it('places digital seconds beside CELL and keeps SOUND column-only', () => {
+    const cellRegion = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'cell')
+    const actionRegion = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'action')
     const region = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'sound')
-    expect(region?.grid).toBeTruthy()
+    expect(region?.grid && cellRegion?.grid && actionRegion?.grid).toBeTruthy()
 
-    const model = buildTemplateGridOverlayRenderModel(digitalStandardSheetTemplate, region!)
+    const sound = buildTemplateGridOverlayRenderModel(digitalStandardSheetTemplate, region!)
+    const cell = buildTemplateGridOverlayRenderModel(digitalStandardSheetTemplate, cellRegion!)
+    const action = buildTemplateGridOverlayRenderModel(digitalStandardSheetTemplate, actionRegion!)
 
-    expect(model).not.toBeNull()
-    expect(model?.rowPaths).toHaveLength(0)
-    expect(model?.columnPath).not.toBeNull()
-    expect(model?.labels.map(label => label.text)).toEqual(['1', '2', '3', '4', '5', '6'])
+    expect(sound?.rowPaths).toHaveLength(0)
+    expect(sound?.columnPath).not.toBeNull()
+    expect(sound?.labels).toHaveLength(0)
+    expect(cell?.secondCounters.map(item => item.text)).toEqual(['1', '2', '3', '4', '5', '6'])
+    expect(cell!.secondCounters[0].fontSize).toBe(action!.frameNumbers[0].fontSize)
+  })
+
+  it('omits second counters when the template display setting is off', () => {
+    const region = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_cell_grid')
+    const template = { ...standardA3SheetTemplate, style: { ...standardA3SheetTemplate.style, secondCounter: undefined } }
+
+    expect(buildTemplateGridOverlayRenderModel(template, region!)?.secondCounters).toHaveLength(0)
   })
 
   it('omits paper SOUND overlays as before', () => {

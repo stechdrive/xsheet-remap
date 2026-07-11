@@ -2370,6 +2370,14 @@ textarea,
   pointer-events: none;
 }
 
+.gridActionFrameNumber,
+.gridSecondCounter {
+  fill: #202622;
+  font-family: var(--font-sheet-sans);
+  font-weight: 700;
+  pointer-events: none;
+}
+
 .eventRect {
   fill: transparent;
   stroke: transparent;

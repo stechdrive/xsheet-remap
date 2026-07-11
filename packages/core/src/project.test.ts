@@ -474,6 +474,7 @@ describe('core project commands', () => {
         sound: '',
       },
     })
+    expect(standardA3SheetTemplate.style?.secondCounter).toEqual({ visible: true })
     expect(project.sheetView.sources).toEqual([])
     expect(project.sheetView.pages[0].sourceId).toBeUndefined()
   })
@@ -1530,9 +1531,8 @@ describe('sheet template hit testing', () => {
       { every: 6, weight: 'regular' },
     ])
     expect(soundGrid?.rowLineRules).toBeUndefined()
-    expect(soundGrid?.rowLabelRules).toEqual([
-      expect.objectContaining({ every: 24, format: 'elapsed-seconds', skipRowZero: true }),
-    ])
+    expect(soundGrid?.rowLabelRules).toBeUndefined()
+    expect(digitalStandardSheetTemplate.style?.secondCounter).toEqual({ visible: true })
   })
 
   it('expands the digital standard canvas without compressing logical frame grids', () => {

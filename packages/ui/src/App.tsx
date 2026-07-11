@@ -6556,7 +6556,7 @@ function SheetCanvas(props: {
                   )}
                   {showTemplateGuides && <TemplateChrome template={props.template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} />}
                   {showTemplateGuides && props.template.regions.filter(region => region.type === 'exposure-grid').map(region => (
-                    <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} />
+                    <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} timelineFrameOrigin={props.project.logicalSheet.frameOrigin} />
                   ))}
                   {showTemplateGuides && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
                   {candidateRects.map(candidate => (
@@ -8643,16 +8643,20 @@ const GridOverlay = memo(function GridOverlay({
   paperTracks = template.defaults.paperTracks,
   durationFrames = template.defaults.durationFrames,
   frameOrigin = template.defaults.frameOrigin,
+  pageFrameStart,
+  timelineFrameOrigin = template.defaults.frameOrigin,
 }: {
   template: SheetTemplate
   region: SheetTemplate['regions'][number]
   paperTracks?: string[]
   durationFrames?: number
   frameOrigin?: number
+  pageFrameStart?: number
+  timelineFrameOrigin?: number
 }) {
   const model = useMemo(
-    () => buildTemplateGridOverlayRenderModel(template, region, { paperTracks, durationFrames, frameOrigin }),
-    [durationFrames, frameOrigin, paperTracks, region, template],
+    () => buildTemplateGridOverlayRenderModel(template, region, { paperTracks, durationFrames, frameOrigin, pageFrameStart, timelineFrameOrigin }),
+    [durationFrames, frameOrigin, pageFrameStart, paperTracks, region, template, timelineFrameOrigin],
   )
   return model ? <GridOverlayLayer model={model} /> : null
 })
@@ -11819,7 +11823,7 @@ function SlotSheetPreview({
             )}
             <TemplateChrome template={template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} />
             {template.regions.filter(region => region.type === 'exposure-grid').map(region => (
-              <GridOverlay key={region.regionId} template={template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={getSheetViewLayout(template).surface?.type === 'continuous-canvas' ? page.frameStart : template.defaults.frameOrigin} />
+              <GridOverlay key={region.regionId} template={template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={getSheetViewLayout(template).surface?.type === 'continuous-canvas' ? page.frameStart : template.defaults.frameOrigin} pageFrameStart={page.frameStart} timelineFrameOrigin={project.logicalSheet.frameOrigin} />
             ))}
             <MetadataTextLayer context={sheetRenderModelContext} page={page} />
             <WorkRangeOverlay

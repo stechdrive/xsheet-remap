@@ -4,6 +4,7 @@ import {
   sheetGridRowY,
   type NormalizedPoint,
   type NormalizedRect,
+  type SheetGridLayout,
   type SheetGridLayoutOptions,
   type SheetTemplate,
   type SheetTemplateGrid,
@@ -69,12 +70,28 @@ export type TemplateGridRowLabelRenderModel = {
   fontSize: number
 }
 
+export type TemplateGridCounterRenderModel = {
+  key: string
+  text: string
+  x: number
+  y: number
+  textAnchor: 'start' | 'end'
+  fontSize: number
+}
+
 export type TemplateGridOverlayRenderModel = {
   regionId: string
   role: SheetTemplateGridRole
   rowPaths: TemplateGridPathRenderModel[]
   columnPath: TemplateGridPathRenderModel | null
   labels: TemplateGridRowLabelRenderModel[]
+  frameNumbers: TemplateGridCounterRenderModel[]
+  secondCounters: TemplateGridCounterRenderModel[]
+}
+
+export interface TemplateGridOverlayOptions extends SheetGridLayoutOptions {
+  pageFrameStart?: number
+  timelineFrameOrigin?: number
 }
 
 export type TemplateEditorRenderModel = {
@@ -168,7 +185,7 @@ export function gridRowLineClassName(grid: Pick<SheetTemplateGrid, 'majorLineEve
 export function buildTemplateGridOverlayRenderModel(
   template: SheetTemplate,
   region: SheetTemplate['regions'][number],
-  options: SheetGridLayoutOptions = {},
+  options: TemplateGridOverlayOptions = {},
 ): TemplateGridOverlayRenderModel | null {
   if (!region.grid) return null
   if (region.grid.role === 'sound' && template.templateKind !== 'digital-native') return null
@@ -220,6 +237,12 @@ export function buildTemplateGridOverlayRenderModel(
       }
     })
   }).filter((label): label is TemplateGridRowLabelRenderModel => label !== null) ?? []
+  const frameNumbers = region.grid.role === 'action'
+    ? buildActionFrameNumberRenderModels(template, region.grid, layout, options.pageFrameStart)
+    : []
+  const secondCounters = region.grid.role === 'cell' && template.style?.secondCounter?.visible
+    ? buildSecondCounterRenderModels(template, region.grid, layout, options)
+    : []
   return {
     regionId: region.regionId,
     role: region.grid.role,
@@ -230,6 +253,8 @@ export function buildTemplateGridOverlayRenderModel(
     })),
     columnPath,
     labels,
+    frameNumbers,
+    secondCounters,
   }
 }
 
@@ -367,6 +392,73 @@ function gridRowLabelText(template: SheetTemplate, frames: { frameStart: number;
     return String(Math.floor((boundaryFrame - template.defaults.frameOrigin + 1) / rule.every))
   }
   return null
+}
+
+function buildActionFrameNumberRenderModels(
+  template: SheetTemplate,
+  grid: SheetTemplateGrid,
+  layout: SheetGridLayout,
+  pageFrameStart?: number,
+): TemplateGridCounterRenderModel[] {
+  const rightEdge = layout.columns.at(-1)
+    ? layout.columns.at(-1)!.x + layout.columns.at(-1)!.w
+    : layout.rect.x + layout.rect.w
+  const x = rightEdge + 2 / layout.pageSize.widthPx
+  const bottomInset = 1 / layout.pageSize.heightPx
+  const fontSizePx = gridCounterFontSizePx(layout)
+  const frameOffset = gridTimelineFrameOffset(template, grid, pageFrameStart)
+
+  return Array.from({ length: layout.frames.rowCount }, (_, row) => {
+    const frame = layout.frames.frameStart + frameOffset + row
+    if (frame % 2 !== 0) return null
+    return {
+      key: `frame-${frame}-${row}`,
+      text: String(frame),
+      x,
+      y: sheetGridRowY(layout, row + 1) - bottomInset,
+      textAnchor: 'start',
+      fontSize: fontSizePx / layout.pageSize.heightPx,
+    }
+  }).filter((item): item is TemplateGridCounterRenderModel => item !== null)
+}
+
+function buildSecondCounterRenderModels(
+  template: SheetTemplate,
+  grid: SheetTemplateGrid,
+  layout: SheetGridLayout,
+  options: TemplateGridOverlayOptions,
+): TemplateGridCounterRenderModel[] {
+  const leftEdge = layout.columns[0]?.x ?? layout.rect.x
+  const x = leftEdge - 2 / layout.pageSize.widthPx
+  const bottomInset = 1 / layout.pageSize.heightPx
+  const fontSizePx = gridCounterFontSizePx(layout)
+  const frameOffset = gridTimelineFrameOffset(template, grid, options.pageFrameStart)
+  const timelineFrameOrigin = options.timelineFrameOrigin ?? template.defaults.frameOrigin
+  const framesPerSecond = Math.max(1, Math.round(template.defaults.fps))
+
+  return Array.from({ length: layout.frames.rowCount }, (_, row) => {
+    const boundaryFrame = layout.frames.frameStart + frameOffset + row
+    const elapsedFrames = boundaryFrame - timelineFrameOrigin + 1
+    if (elapsedFrames <= 0 || elapsedFrames % framesPerSecond !== 0) return null
+    return {
+      key: `second-${elapsedFrames}-${row}`,
+      text: String(elapsedFrames / framesPerSecond),
+      x,
+      y: sheetGridRowY(layout, row + 1) - bottomInset,
+      textAnchor: 'end',
+      fontSize: fontSizePx / layout.pageSize.heightPx,
+    }
+  }).filter((item): item is TemplateGridCounterRenderModel => item !== null)
+}
+
+function gridCounterFontSizePx(layout: SheetGridLayout): number {
+  return clampNumber(layout.frames.rowHeightPx * 0.4, 7, 9)
+}
+
+function gridTimelineFrameOffset(template: SheetTemplate, grid: SheetTemplateGrid, pageFrameStart?: number): number {
+  return grid.frameProjection?.source === 'logical-frames'
+    ? 0
+    : (pageFrameStart ?? template.defaults.frameOrigin) - template.defaults.frameOrigin
 }
 
 function pointInNormalizedRectStroke(point: NormalizedPoint, rect: NormalizedRect, radius: NormalizedPoint): boolean {

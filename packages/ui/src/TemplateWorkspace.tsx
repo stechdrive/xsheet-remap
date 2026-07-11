@@ -230,6 +230,21 @@ export function TemplateWorkspace({
     })
   }
 
+  function updateSecondCounterVisible(visible: boolean) {
+    updateTemplateDraft(currentTemplate => {
+      const nextStyle = { ...(currentTemplate.style ?? {}) }
+      if (visible) {
+        nextStyle.secondCounter = { visible: true }
+      } else {
+        delete nextStyle.secondCounter
+      }
+      return {
+        ...currentTemplate,
+        style: Object.keys(nextStyle).length > 0 ? nextStyle : undefined,
+      }
+    })
+  }
+
   function updateRegion(regionId: string, updates: Partial<SheetTemplate['regions'][number]>) {
     updateTemplateDraft(currentTemplate => ({
       ...currentTemplate,
@@ -593,6 +608,14 @@ export function TemplateWorkspace({
 
   const displayControls = (
     <div className="detailStack">
+      <label className="compactControl templateSecondCounterControl">
+        <input
+          type="checkbox"
+          checked={template.style?.secondCounter?.visible ?? false}
+          onChange={event => updateSecondCounterVisible(event.currentTarget.checked)}
+        />
+        <span>{uiText.template.secondCounter}</span>
+      </label>
       <p className="muted">{uiText.template.gridHeaderHint}</p>
       <dl className="templateMeta templateHeaderLabelMeta">
         <dt>{uiText.template.gridHeaderLabels}</dt>

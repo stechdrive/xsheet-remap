@@ -113,6 +113,32 @@ export function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderMo
           {label.text}
         </text>
       ))}
+      {model.frameNumbers.map(item => (
+        <text
+          key={item.key}
+          className="gridActionFrameNumber"
+          x={item.x}
+          y={item.y}
+          textAnchor={item.textAnchor}
+          dominantBaseline="text-after-edge"
+          fontSize={item.fontSize}
+        >
+          {item.text}
+        </text>
+      ))}
+      {model.secondCounters.map(item => (
+        <text
+          key={item.key}
+          className="gridSecondCounter"
+          x={item.x}
+          y={item.y}
+          textAnchor={item.textAnchor}
+          dominantBaseline="text-after-edge"
+          fontSize={item.fontSize}
+        >
+          {item.text}
+        </text>
+      ))}
     </g>
   )
 }

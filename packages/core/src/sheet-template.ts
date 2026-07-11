@@ -189,9 +189,14 @@ export interface SheetTemplateGridHeaderStyle {
   labelOverrides?: Partial<Record<SheetTemplateGridRole, string>>
 }
 
+export interface SheetTemplateSecondCounterStyle {
+  visible: boolean
+}
+
 export interface SheetTemplateStyle {
   bgBookLabel?: SheetTemplateBgBookLabelStyle
   gridHeader?: SheetTemplateGridHeaderStyle
+  secondCounter?: SheetTemplateSecondCounterStyle
 }
 
 export type SheetViewLayoutType = 'paged' | 'continuous' | 'infinite'
@@ -1144,6 +1149,9 @@ export const standardA3SheetTemplate: SheetTemplate = {
     importStackEndSeparatorName: '===== XSHEET IMPORT END =====',
   },
   style: {
+    secondCounter: {
+      visible: true,
+    },
     gridHeader: {
       labelOverrides: {
         sound: '',
@@ -1381,8 +1389,6 @@ const DIGITAL_STANDARD_MARGIN_X_PX = 32
 const DIGITAL_STANDARD_CONTENT_WIDTH_PX = DIGITAL_STANDARD_PAGE_WIDTH_PX - DIGITAL_STANDARD_MARGIN_X_PX * 2
 const DIGITAL_STANDARD_GRID_TOP_PX = 620
 const DIGITAL_STANDARD_GRID_HEIGHT_PX = 2880
-const DIGITAL_STANDARD_SECOND_FRAMES = 24
-
 function digitalRect(x: number, y: number, w: number, h: number): NormalizedRect {
   return {
     x: x / DIGITAL_STANDARD_PAGE_WIDTH_PX,
@@ -1416,17 +1422,6 @@ const digitalLogicalPaperTrackProjection: SheetTemplateTrackProjection = {
   overflow: 'scroll',
 }
 
-const digitalStandardSecondLabelRules: SheetTemplateGridRowLabelRule[] = [
-  {
-    every: DIGITAL_STANDARD_SECOND_FRAMES,
-    format: 'elapsed-seconds',
-    skipRowZero: true,
-    xAnchor: 'end',
-    xOffsetPx: 12,
-    yOffsetPx: -3,
-    fontSizePx: 34,
-  },
-]
 const DIGITAL_STANDARD_TIMING_GRID_TYPOGRAPHY: SheetTemplateGridTypography = {
   cellFontSizePx: 18,
   cellMinFontSizePx: 6,
@@ -1441,6 +1436,11 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
   templateKind: 'digital-native',
   layoutMode: 'infinite-digital',
   exportDefaults: standardA3SheetTemplate.exportDefaults,
+  style: {
+    secondCounter: {
+      visible: true,
+    },
+  },
   viewLayout: {
     type: 'infinite',
     defaultViewMode: 'continuous',
@@ -1538,7 +1538,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'digital_sound',
-      grid: { role: 'sound', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLabelRules: digitalStandardSecondLabelRules, frameProjection: digitalLogicalFrameProjection, columns: digitalSoundColumns },
+      grid: { role: 'sound', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, frameProjection: digitalLogicalFrameProjection, columns: digitalSoundColumns },
     },
     {
       regionId: 'digital_cell_grid',

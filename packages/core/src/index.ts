@@ -124,6 +124,7 @@ export type {
   SheetTemplatePreset,
   SheetTemplateRegion,
   SheetTemplateRegionBinding,
+  SheetTemplateSecondCounterStyle,
   SheetTemplateStyle,
   SheetTemplateTextStyle,
   SheetTemplateTrackProjection,

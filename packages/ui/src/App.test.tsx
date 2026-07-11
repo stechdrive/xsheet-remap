@@ -839,6 +839,13 @@ describe('App', () => {
     selectAppPanel(uiText.nav.template)
     fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.display }))
 
+    const secondCounter = screen.getByLabelText(uiText.template.secondCounter) as HTMLInputElement
+    expect(secondCounter.checked).toBe(true)
+    expect(Array.from(document.querySelectorAll('.gridSecondCounter')).map(element => element.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
+    fireEvent.click(secondCounter)
+    expect(document.querySelectorAll('.gridSecondCounter')).toHaveLength(0)
+    fireEvent.click(secondCounter)
+
     const soundInput = screen.getByLabelText(uiText.template.gridHeaderLabelInput('SOUND')) as HTMLInputElement
     expect(soundInput.value).toBe('')
 
@@ -909,6 +916,7 @@ describe('App', () => {
     expect(document.querySelectorAll('.gridLine, .gridLineMajor').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridOverlay-action, .gridOverlay-cell, .gridOverlay-camera').length).toBeGreaterThan(0)
     expect(document.querySelector('.gridOverlay-sound')).toBeNull()
+    expect(Array.from(document.querySelectorAll('.gridSecondCounter')).map(element => element.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toEqual(['001', '06+00', '1/1'])
   })
 
@@ -1068,7 +1076,11 @@ describe('App', () => {
     expect(document.querySelectorAll('.gridLineStrong').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridLineMedium').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridLineRegular').length).toBeGreaterThan(0)
-    expect(Array.from(document.querySelectorAll('.gridRowGuideLabel')).map(element => element.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
+    expect(document.querySelectorAll('.gridRowGuideLabel')).toHaveLength(0)
+    expect(Array.from(document.querySelectorAll('.gridSecondCounter')).map(element => element.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
+    expect(Array.from(document.querySelectorAll('.gridActionFrameNumber')).map(element => element.textContent)).toEqual(
+      Array.from({ length: 72 }, (_, index) => String((index + 1) * 2)),
+    )
   })
 
   it('selects a CELL grid position and creates a key from explicit input', () => {

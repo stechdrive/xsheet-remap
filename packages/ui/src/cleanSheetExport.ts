@@ -25,6 +25,7 @@ import {
 import {
   buildTemplateChromeRenderModel,
   buildTemplateGridOverlayRenderModel,
+  gridRowLineClassName,
   type TemplateGridPathRenderModel,
 } from './templateEditorGeometry'
 import { sheetImageFileName } from './outputFileNames'
@@ -425,7 +426,13 @@ function renderInputTextLayer(context: SheetExportLayerContext): ImageData {
       ctx.font = fontDeclaration(item.fontSizePx, SHEET_CANVAS_FONT_FAMILY, item.fontWeight)
       ctx.textAlign = item.textAnchor === 'start' ? 'left' : item.textAnchor === 'end' ? 'right' : 'center'
       ctx.textBaseline = item.dominantBaseline === 'hanging' ? 'top' : item.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
-      ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
+      item.lines.forEach((line, index) => {
+        ctx.fillText(
+          line,
+          item.x * context.pageSize.widthPx,
+          offsetY + item.y * context.pageSize.heightPx + index * item.lineHeightPx,
+        )
+      })
     }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -477,7 +484,7 @@ function drawOverlayPaperTracks(
     ctx.strokeRect(x, y, w, h)
     for (let row = 0; row <= column.frames.rowCount; row += 1) {
       const yy = y + (h * row) / column.frames.rowCount
-      ctx.lineWidth = row % (column.majorLineEvery ?? 999) === 0 ? 1.4 : 0.75
+      ctx.lineWidth = overlayGridCanvasLineWidth(gridRowLineClassName(column, row))
       ctx.beginPath()
       ctx.moveTo(x, yy)
       ctx.lineTo(x + w, yy)
@@ -505,6 +512,13 @@ function drawOverlayPaperTracks(
       align: 'center',
     })
   }
+}
+
+function overlayGridCanvasLineWidth(className: string): number {
+  if (className.includes('gridLineStrong')) return 1.8
+  if (className.includes('gridLineMedium')) return 1.35
+  if (className.includes('gridLineRegular')) return 1.05
+  return 0.75
 }
 
 function drawStackGuideLabels(

@@ -623,22 +623,23 @@ describe('App', () => {
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toEqual(['001', '06+00', '1/1'])
   })
 
-  it('toggles shared cut numbers from display settings', () => {
+  it('toggles shared cut numbers beside the cut switch even before another cut exists', () => {
     render(<App />)
 
-    fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
-    const initiallyDisabled = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
-    expect(initiallyDisabled.disabled).toBe(true)
-    fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
+    const initialToggle = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
+    expect(initialToggle.disabled).toBe(false)
+    fireEvent.click(initialToggle)
+    expect(initialToggle.checked).toBe(true)
+    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).not.toContain('[]')
+    fireEvent.click(initialToggle)
 
     fireEvent.click(document.querySelector('.cutSwitchAddButton') as HTMLButtonElement)
-    fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
     const toggle = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
     expect(toggle.disabled).toBe(false)
     expect(toggle.checked).toBe(false)
 
     fireEvent.click(toggle)
-    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toContain('兼用 001')
+    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toContain('[001]')
   })
 
   it('keeps template creation as a draft until apply or cancel', () => {

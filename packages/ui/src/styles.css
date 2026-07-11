@@ -744,36 +744,17 @@ textarea,
   font-weight: 800;
 }
 
+.sharedCutNumbersControl {
+  gap: 5px;
+  padding-inline: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .sheetTemplateMenuList {
   display: grid;
   gap: 4px;
   min-width: 136px;
-}
-
-.sheetDisplaySettingsDivider {
-  height: 1px;
-  margin: 4px 0;
-  background: #cbd2cd;
-}
-
-.sheetDisplaySettingsSectionLabel {
-  padding: 2px 4px 0;
-  color: #68706a;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.sheetDisplaySetting {
-  display: flex;
-  min-height: 30px;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 7px;
-  white-space: nowrap;
-}
-
-.sheetDisplaySetting.disabled {
-  color: #858b87;
 }
 
 .sheetTemplateMenuButton,

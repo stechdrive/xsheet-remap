@@ -41,7 +41,13 @@ describe('sheet render model', () => {
     expect(context.paperTracks).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'])
     expect(context.overlayTracks.map(track => track.paperTrack)).toEqual(['J'])
     expect(hasOverlayRenderContent(context)).toBe(true)
-    expect(overlayPaperTrackRenderItems(context, page).map(item => item.track.paperTrack)).toEqual(['J'])
+    const overlayItems = overlayPaperTrackRenderItems(context, page)
+    expect(overlayItems.map(item => item.track.paperTrack)).toEqual(['J'])
+    expect(overlayItems[0]?.column.rowLineRules).toEqual([
+      { every: 24, weight: 'strong' },
+      { every: 12, weight: 'medium' },
+      { every: 6, weight: 'regular' },
+    ])
 
     const stackGuideItems = stackGuideFlagRenderItemsForPage(context, page)
     expect(stackGuideItems).toHaveLength(1)
@@ -134,7 +140,10 @@ describe('sheet render model', () => {
     const visibleItems = metadataTextRenderItemsForPage(visibleContext, visibleContext.pages[0])
     const visibleCut = visibleItems.find(item => item.field === 'cut')
 
-    expect(visibleItems.find(item => item.field === 'shared-cut-numbers')?.text).toBe('兼用 002・003')
+    expect(visibleItems.find(item => item.field === 'shared-cut-numbers')).toMatchObject({
+      text: '[002・003]',
+      lines: ['[002・003]'],
+    })
     expect(visibleCut?.dominantBaseline).toBe('hanging')
 
     const hiddenProject = {
@@ -149,5 +158,66 @@ describe('sheet render model', () => {
 
     expect(hiddenItems.some(item => item.field === 'shared-cut-numbers')).toBe(false)
     expect(hiddenItems.find(item => item.field === 'cut')?.dominantBaseline).toBe('central')
+  })
+
+  it('wraps shared cut numbers by label and keeps the bracket pair around the whole group', () => {
+    const base = createDefaultProject()
+    const project = {
+      ...base,
+      sheetView: {
+        ...base.sheetView,
+        metadataDisplay: { sharedCutNumbers: true },
+      },
+    }
+    const cutGroup = {
+      activeCutId: 'cut_1',
+      cuts: [
+        { cutId: 'cut_1', order: 0, metadata: { cut: '001' } },
+        ...['002', '003', '004', '005', '006', '007'].map((cut, index) => ({
+          cutId: `cut_${index + 2}`,
+          order: index + 1,
+          metadata: { cut },
+        })),
+      ],
+    }
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate, { cutGroup })
+    const shared = metadataTextRenderItemsForPage(context, context.pages[0]).find(item => item.field === 'shared-cut-numbers')
+
+    expect(shared?.lines.length).toBeGreaterThan(1)
+    expect(shared?.lines[0]?.startsWith('[')).toBe(true)
+    expect(shared?.lines.at(-1)?.endsWith(']')).toBe(true)
+    expect(shared?.lines.flatMap(line => line.match(/\d+/g) ?? [])).toEqual(['002', '003', '004', '005', '006', '007'])
+  })
+
+  it('falls back to the lower half of the CUT field when no shared-cut region is defined', () => {
+    const base = createDefaultProject()
+    const project = {
+      ...base,
+      sheetView: {
+        ...base.sheetView,
+        metadataDisplay: { sharedCutNumbers: true },
+      },
+    }
+    const template = {
+      ...standardA3SheetTemplate,
+      templateId: 'test-cut-field-fallback',
+      regions: standardA3SheetTemplate.regions.filter(region => region.binding?.target !== 'cut-group'),
+    }
+    const cutGroup = {
+      activeCutId: 'cut_1',
+      cuts: [
+        { cutId: 'cut_1', order: 0, metadata: { cut: '001' } },
+        { cutId: 'cut_2', order: 1, metadata: { cut: '002' } },
+      ],
+    }
+    const context = createSheetRenderModelContext(project, template, { cutGroup })
+    const items = metadataTextRenderItemsForPage(context, context.pages[0])
+    const cut = items.find(item => item.field === 'cut')
+    const shared = items.find(item => item.field === 'shared-cut-numbers')
+
+    expect(shared).toMatchObject({ text: '[002]', lines: ['[002]'] })
+    expect(shared?.regionId).toBe('top_cut_field__shared_cut_numbers')
+    expect(shared?.rect.y).toBeGreaterThan(cut?.rect.y ?? 0)
+    expect(cut?.dominantBaseline).toBe('hanging')
   })
 })

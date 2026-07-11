@@ -106,7 +106,8 @@ export type SheetTemplateRegionBinding =
   | {
       target: 'cut-group'
       field: 'shared-cut-numbers'
-      prefix?: string
+      opening?: string
+      closing?: string
       separator?: string
     }
   | {
@@ -160,6 +161,7 @@ export interface SheetTemplateRegion {
 export interface SheetTemplateTextStyle {
   fontSizePx?: number
   minFontSizePx?: number
+  lineHeightPx?: number
   fontWeight?: number
   horizontalAlign?: 'left' | 'center' | 'right'
   verticalAlign?: 'top' | 'middle' | 'bottom'
@@ -1038,6 +1040,11 @@ const cameraColumns = Array.from({ length: 6 }, (_, index) => ({
 
 const STANDARD_A3_PAGE_WIDTH_PX = 1754
 const STANDARD_A3_PAGE_HEIGHT_PX = 2481
+const STANDARD_24_FPS_ROW_LINE_RULES: SheetTemplateGridRowLineRule[] = [
+  { every: 24, weight: 'strong' },
+  { every: 12, weight: 'medium' },
+  { every: 6, weight: 'regular' },
+]
 const STANDARD_A3_TIMING_GRID_TYPOGRAPHY: SheetTemplateGridTypography = {
   cellFontSizePx: 18,
   cellMinFontSizePx: 6,
@@ -1106,7 +1113,8 @@ function sharedCutNumbersRegion(
     binding: {
       target: 'cut-group',
       field: 'shared-cut-numbers',
-      prefix: '兼用 ',
+      opening: '[',
+      closing: ']',
       separator: '・',
     },
     textStyle,
@@ -1219,12 +1227,13 @@ export const standardA3SheetTemplate: SheetTemplate = {
         },
       },
     },
-    sharedCutNumbersRegion('top_shared_cut_numbers_field', standardA3Rect(864, 211, 173, 25), {
-      fontSizePx: 14,
+    sharedCutNumbersRegion('top_shared_cut_numbers_field', standardA3Rect(864, 198, 173, 38), {
+      fontSizePx: 13,
       minFontSizePx: 8,
+      lineHeightPx: 15,
       fontWeight: 700,
       horizontalAlign: 'center',
-      verticalAlign: 'middle',
+      verticalAlign: 'top',
       paddingPx: 2,
       shrinkToFit: true,
     }),
@@ -1275,7 +1284,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'main_action',
-      grid: { role: 'action', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: actionColumns },
+      grid: { role: 'action', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: actionColumns },
     },
     {
       regionId: 'left_sound_grid',
@@ -1286,7 +1295,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, columns: soundColumns },
+      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, columns: soundColumns },
     },
     {
       regionId: 'left_cell_grid',
@@ -1297,7 +1306,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'main_cell',
-      grid: { role: 'cell', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: cellColumns },
+      grid: { role: 'cell', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: cellColumns },
     },
     {
       regionId: 'left_camera_grid',
@@ -1308,7 +1317,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'camera',
       inputMode: 'timed-range',
       flowGroupId: 'main_camera',
-      grid: { role: 'camera', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, columns: cameraColumns },
+      grid: { role: 'camera', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, columns: cameraColumns },
     },
     {
       regionId: 'right_action_grid',
@@ -1319,7 +1328,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'main_action',
-      grid: { role: 'action', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: actionColumns },
+      grid: { role: 'action', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: actionColumns },
     },
     {
       regionId: 'right_sound_grid',
@@ -1330,7 +1339,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, columns: soundColumns },
+      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, columns: soundColumns },
     },
     {
       regionId: 'right_cell_grid',
@@ -1341,7 +1350,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'main_cell',
-      grid: { role: 'cell', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: cellColumns },
+      grid: { role: 'cell', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: cellColumns },
     },
     {
       regionId: 'right_camera_grid',
@@ -1352,7 +1361,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'camera',
       inputMode: 'timed-range',
       flowGroupId: 'main_camera',
-      grid: { role: 'camera', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, columns: cameraColumns },
+      grid: { role: 'camera', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, columns: cameraColumns },
     },
   ],
 }
@@ -1373,8 +1382,6 @@ const DIGITAL_STANDARD_CONTENT_WIDTH_PX = DIGITAL_STANDARD_PAGE_WIDTH_PX - DIGIT
 const DIGITAL_STANDARD_GRID_TOP_PX = 620
 const DIGITAL_STANDARD_GRID_HEIGHT_PX = 2880
 const DIGITAL_STANDARD_SECOND_FRAMES = 24
-const DIGITAL_STANDARD_HALF_SECOND_FRAMES = 12
-const DIGITAL_STANDARD_MAJOR_LINE_FRAMES = 6
 
 function digitalRect(x: number, y: number, w: number, h: number): NormalizedRect {
   return {
@@ -1408,12 +1415,6 @@ const digitalLogicalPaperTrackProjection: SheetTemplateTrackProjection = {
   startIndex: 0,
   overflow: 'scroll',
 }
-
-const digitalStandardRowLineRules: SheetTemplateGridRowLineRule[] = [
-  { every: DIGITAL_STANDARD_SECOND_FRAMES, weight: 'strong' },
-  { every: DIGITAL_STANDARD_HALF_SECOND_FRAMES, weight: 'medium' },
-  { every: DIGITAL_STANDARD_MAJOR_LINE_FRAMES, weight: 'regular' },
-]
 
 const digitalStandardSecondLabelRules: SheetTemplateGridRowLabelRule[] = [
   {
@@ -1490,12 +1491,13 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
         },
       },
     },
-    sharedCutNumbersRegion('digital_shared_cut_numbers_field', digitalRect(988, 96, 160, 18), {
+    sharedCutNumbersRegion('digital_shared_cut_numbers_field', digitalRect(988, 82, 160, 32), {
       fontSizePx: 12,
       minFontSizePx: 7,
+      lineHeightPx: 14,
       fontWeight: 700,
       horizontalAlign: 'center',
-      verticalAlign: 'middle',
+      verticalAlign: 'top',
       paddingPx: 2,
       shrinkToFit: true,
     }),
@@ -1525,7 +1527,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'digital_action',
-      grid: { role: 'action', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: digitalStandardRowLineRules, trackProjection: digitalLogicalPaperTrackProjection, frameProjection: digitalLogicalFrameProjection, typography: DIGITAL_STANDARD_TIMING_GRID_TYPOGRAPHY, columns: digitalActionColumns },
+      grid: { role: 'action', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: digitalLogicalPaperTrackProjection, frameProjection: digitalLogicalFrameProjection, typography: DIGITAL_STANDARD_TIMING_GRID_TYPOGRAPHY, columns: digitalActionColumns },
     },
     {
       regionId: 'digital_sound_grid',
@@ -1547,7 +1549,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'digital_cell',
-      grid: { role: 'cell', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: digitalStandardRowLineRules, trackProjection: digitalLogicalPaperTrackProjection, frameProjection: digitalLogicalFrameProjection, typography: DIGITAL_STANDARD_TIMING_GRID_TYPOGRAPHY, columns: digitalCellColumns },
+      grid: { role: 'cell', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: digitalLogicalPaperTrackProjection, frameProjection: digitalLogicalFrameProjection, typography: DIGITAL_STANDARD_TIMING_GRID_TYPOGRAPHY, columns: digitalCellColumns },
     },
     {
       regionId: 'digital_camera_grid',
@@ -1558,7 +1560,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       inputKind: 'camera',
       inputMode: 'timed-range',
       flowGroupId: 'digital_camera',
-      grid: { role: 'camera', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: digitalStandardRowLineRules, frameProjection: digitalLogicalFrameProjection, columns: digitalCameraColumns },
+      grid: { role: 'camera', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, frameProjection: digitalLogicalFrameProjection, columns: digitalCameraColumns },
     },
   ],
 }

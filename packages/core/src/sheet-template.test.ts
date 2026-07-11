@@ -75,6 +75,18 @@ describe('sheet template layout', () => {
     expect(rightPx).toBeCloseTo(1633)
   })
 
+  it('uses distinct 1 second, half-second, and 6-frame row weights across the A3 grids', () => {
+    const grids = standardA3SheetTemplate.regions.flatMap(region => region.grid ? [region.grid] : [])
+
+    expect(grids).toHaveLength(8)
+    expect(grids.every(grid => grid.rowLineRules === grids[0]?.rowLineRules)).toBe(true)
+    expect(grids[0]?.rowLineRules).toEqual([
+      { every: 24, weight: 'strong' },
+      { every: 12, weight: 'medium' },
+      { every: 6, weight: 'regular' },
+    ])
+  })
+
   it('places optional shared cut numbers at the bottom of the A3 CUT field', () => {
     const cutRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'top_cut_field')
     const sharedRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'top_shared_cut_numbers_field')
@@ -84,12 +96,14 @@ describe('sheet template layout', () => {
     expect(sharedRegion?.binding).toEqual({
       target: 'cut-group',
       field: 'shared-cut-numbers',
-      prefix: '兼用 ',
+      opening: '[',
+      closing: ']',
       separator: '・',
     })
     expect(sharedRegion.rect.x * standardA3SheetTemplate.page.widthPx).toBeCloseTo(864)
-    expect(sharedRegion.rect.y * standardA3SheetTemplate.page.heightPx).toBeCloseTo(211)
-    expect(sharedRegion.rect.h * standardA3SheetTemplate.page.heightPx).toBeCloseTo(25)
+    expect(sharedRegion.rect.y * standardA3SheetTemplate.page.heightPx).toBeCloseTo(198)
+    expect(sharedRegion.rect.h * standardA3SheetTemplate.page.heightPx).toBeCloseTo(38)
+    expect(sharedRegion.textStyle).toMatchObject({ fontSizePx: 13, lineHeightPx: 15, verticalAlign: 'top' })
   })
 })
 

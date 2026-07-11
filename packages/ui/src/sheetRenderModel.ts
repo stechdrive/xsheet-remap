@@ -23,6 +23,7 @@ import {
   type PaperTrack,
   type SheetPage,
   type SheetTemplate,
+  type SheetTemplateGridRowLineRule,
   type SheetTimingRole,
   type StackGuideLabel,
 } from '@xsheet-remap/core'
@@ -64,6 +65,8 @@ export type SheetMetadataTextRenderItem = {
   regionId: string
   field: string
   text: string
+  lines: string[]
+  lineHeightPx: number
   rect: NormalizedRect
   x: number
   y: number
@@ -104,6 +107,7 @@ export type OverlayBandSegment = {
   columnWidth: number
   snapCount: number
   majorLineEvery?: number
+  rowLineRules?: SheetTemplateGridRowLineRule[]
 }
 
 export type OverlayPaperTrackRenderItem = {
@@ -226,43 +230,157 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
 }
 
 export function metadataTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetMetadataTextRenderItem[] {
-  const sharedCutNumbersVisible = sharedCutNumberLabels(context).length > 0
-  return context.template.regions.flatMap(region => {
+  const sharedLabels = sharedCutNumberLabels(context)
+  const sharedCutNumbersVisible = sharedLabels.length > 0
+  const explicitSharedCutRegion = context.template.regions.some(region =>
+    region.type === 'metadata-field'
+    && region.usage !== 'ignored'
+    && region.binding?.target === 'cut-group'
+    && region.binding.field === 'shared-cut-numbers',
+  )
+  const items = context.template.regions.flatMap(region => metadataTextRenderItemsForRegion(
+    context,
+    page,
+    region,
+    sharedLabels,
+    sharedCutNumbersVisible,
+  ))
+  if (!sharedCutNumbersVisible || explicitSharedCutRegion) return items
+
+  const cutRegion = context.template.regions.find(region =>
+    region.type === 'metadata-field'
+    && region.usage !== 'ignored'
+    && region.binding?.target === 'cut-metadata'
+    && region.binding.field === 'cut',
+  )
+  if (!cutRegion) return items
+  const cutRect = resolveSheetTemplateRegionRect(
+    context.template,
+    cutRegion,
+    context.displayDurationFrames,
+    { paperTracks: context.paperTracks, layoutOverrides: context.project.sheetView.layoutOverrides },
+  )
+  const fallbackRegion: SheetTemplate['regions'][number] = {
+    regionId: `${cutRegion.regionId}__shared_cut_numbers`,
+    type: 'metadata-field',
+    label: '兼用カット',
+    rect: {
+      x: cutRect.x,
+      y: cutRect.y + cutRect.h * 0.48,
+      w: cutRect.w,
+      h: cutRect.h * 0.52,
+    },
+    usage: 'render-only',
+    inputKind: 'text',
+    binding: {
+      target: 'cut-group',
+      field: 'shared-cut-numbers',
+      opening: '[',
+      closing: ']',
+      separator: '・',
+    },
+    textStyle: {
+      fontSizePx: 12,
+      minFontSizePx: 7,
+      lineHeightPx: 14,
+      fontWeight: 700,
+      horizontalAlign: 'center',
+      verticalAlign: 'top',
+      paddingPx: 2,
+      shrinkToFit: true,
+    },
+  }
+  return [
+    ...items,
+    ...metadataTextRenderItemsForRegion(
+      context,
+      page,
+      fallbackRegion,
+      sharedLabels,
+      sharedCutNumbersVisible,
+      fallbackRegion.rect,
+    ),
+  ]
+}
+
+function metadataTextRenderItemsForRegion(
+  context: SheetRenderModelContext,
+  page: SheetPage,
+  region: SheetTemplate['regions'][number],
+  sharedLabels: string[],
+  sharedCutNumbersVisible: boolean,
+  resolvedRect?: NormalizedRect,
+): SheetMetadataTextRenderItem[] {
     if (region.type !== 'metadata-field' || !region.binding || region.usage === 'ignored') return []
+    const sharedCutBinding = region.binding.target === 'cut-group' && region.binding.field === 'shared-cut-numbers'
+      ? region.binding
+      : null
+    const isSharedCutNumbers = sharedCutBinding !== null
+    const opening = sharedCutBinding?.opening ?? '['
+    const closing = sharedCutBinding?.closing ?? ']'
+    const separator = sharedCutBinding?.separator ?? '・'
     const text = region.binding.target === 'cut-metadata'
       ? metadataFieldText(context, page, region.binding.field, region.binding.customKey)
-      : region.binding.target === 'cut-group' && region.binding.field === 'shared-cut-numbers'
-        ? sharedCutNumbersText(context, region.binding.prefix, region.binding.separator)
+      : isSharedCutNumbers
+        ? sharedCutNumbersText(sharedLabels, opening, closing, separator)
         : ''
     if (!text) return []
     const field = region.binding.target === 'cut-metadata' || region.binding.target === 'cut-group'
       ? region.binding.field
       : ''
-    const rect = resolveSheetTemplateRegionRect(
+    const rect = resolvedRect ?? resolveSheetTemplateRegionRect(
       context.template,
       region,
       context.displayDurationFrames,
       { paperTracks: context.paperTracks, layoutOverrides: context.project.sheetView.layoutOverrides },
     )
+    const sharedCutNumberCutStyle = sharedCutNumbersVisible
+      && region.binding.target === 'cut-metadata'
+      && region.binding.field === 'cut'
+      ? region.textStyleVariants?.sharedCutNumbersVisible ?? {
+          verticalAlign: 'top' as const,
+          paddingPx: Math.min(region.textStyle?.paddingPx ?? 8, 5),
+        }
+      : {}
     const style = {
       ...(region.textStyle ?? {}),
-      ...(sharedCutNumbersVisible ? region.textStyleVariants?.sharedCutNumbersVisible ?? {} : {}),
+      ...sharedCutNumberCutStyle,
     }
     const paddingPx = Math.max(0, style.paddingPx ?? 8)
     const horizontalAlign = style.horizontalAlign ?? 'center'
     const verticalAlign = style.verticalAlign ?? 'middle'
-    const fontSizePx = metadataFontSizePx(text, rect, context.pageSize, {
+    const fontSizePx = isSharedCutNumbers
+      ? sharedCutNumbersFontSizePx(sharedLabels, rect, context.pageSize, {
+          fontSizePx: style.fontSizePx ?? 12,
+          minFontSizePx: style.minFontSizePx ?? 7,
+          paddingPx,
+          shrinkToFit: style.shrinkToFit !== false,
+          opening,
+          closing,
+        })
+      : metadataFontSizePx(text, rect, context.pageSize, {
       fontSizePx: style.fontSizePx ?? 22,
       minFontSizePx: style.minFontSizePx ?? 10,
       paddingPx,
       shrinkToFit: style.shrinkToFit !== false,
     })
+    const lines = isSharedCutNumbers
+      ? wrapSharedCutNumberLines(sharedLabels, {
+          availableWidthPx: Math.max(1, rect.w * context.pageSize.widthPx - paddingPx * 2),
+          fontSizePx,
+          opening,
+          closing,
+          separator,
+        })
+      : [text]
     const paddingX = paddingPx / context.pageSize.widthPx
     const paddingY = paddingPx / context.pageSize.heightPx
     return [{
       regionId: region.regionId,
       field,
       text,
+      lines,
+      lineHeightPx: Math.max(fontSizePx, style.lineHeightPx ?? fontSizePx * 1.15),
       rect,
       x: horizontalAlign === 'left' ? rect.x + paddingX : horizontalAlign === 'right' ? rect.x + rect.w - paddingX : rect.x + rect.w / 2,
       y: verticalAlign === 'top' ? rect.y + paddingY : verticalAlign === 'bottom' ? rect.y + rect.h - paddingY : rect.y + rect.h / 2,
@@ -271,7 +389,6 @@ export function metadataTextRenderItemsForPage(context: SheetRenderModelContext,
       fontSizePx,
       fontWeight: Math.max(100, Math.min(900, Math.round(style.fontWeight ?? 700))),
     }]
-  })
 }
 
 function sharedCutNumberLabels(context: SheetRenderModelContext): string[] {
@@ -290,9 +407,8 @@ function sharedCutNumberLabels(context: SheetRenderModelContext): string[] {
     })
 }
 
-function sharedCutNumbersText(context: SheetRenderModelContext, prefix = '兼用 ', separator = '・'): string {
-  const labels = sharedCutNumberLabels(context)
-  return labels.length > 0 ? `${prefix}${labels.join(separator)}` : ''
+function sharedCutNumbersText(labels: string[], opening: string, closing: string, separator: string): string {
+  return labels.length > 0 ? `${opening}${labels.join(separator)}${closing}` : ''
 }
 
 function metadataFieldText(
@@ -324,9 +440,69 @@ function metadataFontSizePx(
   const requested = Math.max(1, options.fontSizePx)
   const heightLimited = Math.min(requested, availableHeight)
   if (!options.shrinkToFit) return heightLimited
-  const widthUnits = Array.from(text).reduce((total, character) => total + (/^[\x20-\x7e]$/.test(character) ? 0.58 : 1), 0)
+  const widthUnits = metadataTextWidthUnits(text)
   const widthLimited = widthUnits > 0 ? availableWidth / widthUnits : heightLimited
   return Math.max(Math.min(options.minFontSizePx, heightLimited), Math.min(heightLimited, widthLimited))
+}
+
+function sharedCutNumbersFontSizePx(
+  labels: string[],
+  rect: NormalizedRect,
+  pageSize: { widthPx: number; heightPx: number },
+  options: {
+    fontSizePx: number
+    minFontSizePx: number
+    paddingPx: number
+    shrinkToFit: boolean
+    opening: string
+    closing: string
+  },
+): number {
+  const availableWidth = Math.max(1, rect.w * pageSize.widthPx - options.paddingPx * 2)
+  const availableHeight = Math.max(1, rect.h * pageSize.heightPx - options.paddingPx * 2)
+  const requested = Math.max(1, options.fontSizePx)
+  const heightLimited = Math.min(requested, availableHeight)
+  if (!options.shrinkToFit) return heightLimited
+  const widestAtomicUnits = labels.reduce(
+    (widest, label) => Math.max(widest, metadataTextWidthUnits(`${options.opening}${label}${options.closing}`)),
+    0,
+  )
+  const widthLimited = widestAtomicUnits > 0 ? availableWidth / widestAtomicUnits : heightLimited
+  return Math.max(Math.min(options.minFontSizePx, heightLimited), Math.min(heightLimited, widthLimited))
+}
+
+function wrapSharedCutNumberLines(
+  labels: string[],
+  options: {
+    availableWidthPx: number
+    fontSizePx: number
+    opening: string
+    closing: string
+    separator: string
+  },
+): string[] {
+  if (labels.length === 0) return []
+  const groups: string[][] = []
+  let current: string[] = []
+  for (let index = 0; index < labels.length; index += 1) {
+    const candidate = [...current, labels[index]]
+    const candidateText = `${groups.length === 0 ? options.opening : ''}${candidate.join(options.separator)}${index === labels.length - 1 ? options.closing : ''}`
+    const candidateWidthPx = metadataTextWidthUnits(candidateText) * options.fontSizePx
+    if (current.length === 0 || candidateWidthPx <= options.availableWidthPx) {
+      current = candidate
+      continue
+    }
+    groups.push(current)
+    current = [labels[index]]
+  }
+  if (current.length > 0) groups.push(current)
+  return groups.map((group, index) =>
+    `${index === 0 ? options.opening : ''}${group.join(options.separator)}${index === groups.length - 1 ? options.closing : ''}`,
+  )
+}
+
+function metadataTextWidthUnits(text: string): number {
+  return Array.from(text).reduce((total, character) => total + (/^[\x20-\x7e]$/.test(character) ? 0.58 : 1), 0)
 }
 
 export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, page: SheetPage): OverlayPaperTrackRenderItem[] {
@@ -828,6 +1004,7 @@ function overlayBandSegments(context: SheetRenderModelContext, role: SheetTiming
       columnWidth,
       snapCount,
       majorLineEvery: region.grid.majorLineEvery,
+      rowLineRules: region.grid.rowLineRules,
     }]
   })
 }

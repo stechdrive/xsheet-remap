@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { digitalStandardSheetTemplate, standardA3SheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import {
   buildTemplateGridOverlayRenderModel,
+  gridRowLineClassName,
   hitTestTemplateEditorTarget,
   pointInExpandedNormalizedRect,
   templateEditorPointFromClientRect,
@@ -21,6 +22,13 @@ describe('template editor geometry', () => {
     expect(model?.columnPath).not.toBeNull()
     expect(pathCommandCount(model?.columnPath?.d ?? '')).toBe(region!.grid!.columns.length + 1)
     expect(model?.columnPath?.segments).toHaveLength(region!.grid!.columns.length + 1)
+    expect(gridRowLineClassName(region!.grid!, 1)).toBe('gridLine')
+    expect(gridRowLineClassName(region!.grid!, 6)).toContain('gridLineRegular')
+    expect(gridRowLineClassName(region!.grid!, 12)).toContain('gridLineMedium')
+    expect(gridRowLineClassName(region!.grid!, 24)).toContain('gridLineStrong')
+    expect(model?.rowPaths.find(path => path.className.includes('gridLineStrong'))?.segments).toHaveLength(4)
+    expect(model?.rowPaths.find(path => path.className.includes('gridLineMedium'))?.segments).toHaveLength(3)
+    expect(model?.rowPaths.find(path => path.className.includes('gridLineRegular'))?.segments).toHaveLength(6)
   })
 
   it('keeps the digital SOUND overlay column-only with row labels', () => {

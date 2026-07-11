@@ -3477,8 +3477,6 @@ function SheetPanel(props: {
   const workRange = logicalSheetWorkRange(props.project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(props.project.logicalSheet)
   const sheetScanSources = props.project.sheetView.sources.filter(source => source.kind === 'sheet-scan')
-  const supportsSharedCutNumbers = props.template.regions.some(region => region.binding?.target === 'cut-group' && region.binding.field === 'shared-cut-numbers')
-  const hasOtherSharedCuts = props.projectCuts.some(cut => cut.cutId !== props.activeCutId && Boolean(cut.metadata.cut?.trim()))
   const sheetPageSize = useMemo(
     () => resolveSheetTemplatePageSize(props.template, displayDurationFrames, {
       paperTracks: templatePaperTrackNames,
@@ -3625,21 +3623,6 @@ function SheetPanel(props: {
                   </Tooltip>
                 )
               })}
-              <div className="sheetDisplaySettingsDivider" />
-              <div className="sheetDisplaySettingsSectionLabel">{uiText.sheet.settingsDisplaySection}</div>
-              <TooltipTarget label={supportsSharedCutNumbers ? uiText.sheet.sharedCutNumbersTitle : uiText.sheet.sharedCutNumbersUnsupportedTitle}>
-                {tooltipProps => (
-                  <label className={!supportsSharedCutNumbers || !hasOtherSharedCuts ? 'sheetDisplaySetting disabled' : 'sheetDisplaySetting'} {...tooltipProps}>
-                    <input
-                      type="checkbox"
-                      checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
-                      disabled={!supportsSharedCutNumbers || !hasOtherSharedCuts}
-                      onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
-                    />
-                    {uiText.sheet.sharedCutNumbers}
-                  </label>
-                )}
-              </TooltipTarget>
             </div>
           </ActionMenu>
         </ToolbarGroup>
@@ -3680,6 +3663,19 @@ function SheetPanel(props: {
           <Tooltip label={uiText.sheet.addSharedCutTitle}>
             <button type="button" className="cutSwitchAddButton" onClick={props.onAddSharedCut}>＋</button>
           </Tooltip>
+          <TooltipTarget label={uiText.sheet.sharedCutNumbersTitle}>
+            {tooltipProps => (
+              <label className="compactControl sharedCutNumbersControl" {...tooltipProps}>
+                <input
+                  type="checkbox"
+                  aria-label={uiText.sheet.sharedCutNumbers}
+                  checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
+                  onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
+                />
+                番号表示
+              </label>
+            )}
+          </TooltipTarget>
         </ToolbarGroup>
         <ToolbarGroup className="sheetToolbarGroup processPaletteGroup">
           <span className="toolbarGroupLabel">{uiText.sheet.registrationProcess}</span>
@@ -8738,7 +8734,15 @@ function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext
           fontSize={item.fontSizePx / context.pageSize.heightPx}
           fontWeight={item.fontWeight}
         >
-          {item.text}
+          {item.lines.map((line, index) => (
+            <tspan
+              key={`${item.regionId}_${index}`}
+              x={item.x}
+              dy={index === 0 ? 0 : item.lineHeightPx / context.pageSize.heightPx}
+            >
+              {line}
+            </tspan>
+          ))}
         </text>
       ))}
     </g>
@@ -14171,7 +14175,7 @@ function metadataBindingOptionId(binding: SheetTemplateRegionBinding | undefined
 
 function metadataBindingFromOptionId(optionId: MetadataBindingOptionId): SheetTemplateRegionBinding {
   if (optionId === 'group:shared-cut-numbers') {
-    return { target: 'cut-group', field: 'shared-cut-numbers', prefix: '兼用 ', separator: '・' }
+    return { target: 'cut-group', field: 'shared-cut-numbers', opening: '[', closing: ']', separator: '・' }
   }
   return { target: 'cut-metadata', field: optionId.slice(4) as CutMetadataFieldId }
 }

@@ -171,6 +171,7 @@ export function PanelResizeHandle({
   value,
   min,
   max,
+  defaultValue,
   side = 'right',
   onChange,
 }: {
@@ -178,6 +179,7 @@ export function PanelResizeHandle({
   value: number
   min: number
   max: number
+  defaultValue?: number
   side?: 'left' | 'right'
   onChange: (value: number) => void
 }) {
@@ -197,7 +199,21 @@ export function PanelResizeHandle({
       aria-valuemax={max}
       aria-valuenow={Math.round(value)}
       tabIndex={0}
-      onPointerDown={event => beginPanelResize(event, value, min, max, side, onChange)}
+      onPointerDown={event => {
+        if (defaultValue !== undefined && event.detail >= 2) {
+          event.preventDefault()
+          event.stopPropagation()
+          onChange(clampNumber(defaultValue, min, max))
+          return
+        }
+        beginPanelResize(event, value, min, max, side, onChange)
+      }}
+      onDoubleClick={event => {
+        if (defaultValue === undefined) return
+        event.preventDefault()
+        event.stopPropagation()
+        onChange(clampNumber(defaultValue, min, max))
+      }}
       onKeyDown={event => {
         if (event.key === 'ArrowLeft') {
           event.preventDefault()

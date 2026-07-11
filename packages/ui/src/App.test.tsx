@@ -589,6 +589,43 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '画像素材' }))
     expect(leftDock?.hidden).toBe(false)
     expect(rightDock?.hidden).toBe(false)
+    expect(screen.getByRole('button', { name: '登録セル' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: '画像素材' }).getAttribute('aria-expanded')).toBe('true')
+    expect(document.querySelector('.sheetPaneVisibilityControls')).toBeNull()
+    expect(document.querySelectorAll('.sheetPaneEdgeToggle')).toHaveLength(2)
+  })
+
+  it('persists side-pane widths and resets a resized pane to its default width', async () => {
+    window.localStorage.setItem('xsheet:remap:sheet-pane-layout', JSON.stringify({
+      left: false,
+      right: true,
+      leftWidth: 318,
+      rightWidth: 444,
+    }))
+    const firstRender = render(<RemapApp />)
+    const workspace = document.querySelector<HTMLElement>('.sheetWorkspace')
+    if (!workspace) throw new Error('sheet workspace not found')
+
+    expect(document.querySelector<HTMLElement>('.sheetDockLeft')?.hidden).toBe(true)
+    expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('0px')
+    expect(workspace.style.getPropertyValue('--sheet-right-dock-width')).toBe('444px')
+
+    fireEvent.click(screen.getByRole('button', { name: 'CSPレイヤー構成' }))
+    expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('318px')
+    const leftResizeHandle = screen.getByRole('separator', { name: uiText.layout.resizeRegisteredCellPane })
+    fireEvent.doubleClick(leftResizeHandle)
+    expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('240px')
+
+    await waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem('xsheet:remap:sheet-pane-layout') ?? '{}') as Record<string, unknown>
+      expect(stored).toMatchObject({ left: true, right: true, leftWidth: 240, rightWidth: 444 })
+    })
+
+    firstRender.unmount()
+    render(<RemapApp />)
+    const restoredWorkspace = document.querySelector<HTMLElement>('.sheetWorkspace')
+    expect(restoredWorkspace?.style.getPropertyValue('--sheet-left-dock-width')).toBe('240px')
+    expect(restoredWorkspace?.style.getPropertyValue('--sheet-right-dock-width')).toBe('444px')
   })
 
   it('opens remap XDTS details from the export menu without adding a workspace tab', () => {

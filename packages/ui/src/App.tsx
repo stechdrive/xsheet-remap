@@ -307,19 +307,41 @@ const TIMELINE_EVENT_DRAG_THRESHOLD_PX = 4
 const CONTINUOUS_CANVAS_MIN_FRAME_ROW_PX = 10
 export type MainAppKind = 'editor' | 'remap'
 
-type SheetPaneVisibility = { left: boolean; right: boolean }
+const SHEET_LEFT_PANE_DEFAULT_WIDTH = 240
+const SHEET_LEFT_PANE_MIN_WIDTH = 180
+const SHEET_LEFT_PANE_MAX_WIDTH = 420
+const SHEET_RIGHT_PANE_DEFAULT_WIDTH = 300
+const SHEET_RIGHT_PANE_MIN_WIDTH = 200
+const SHEET_RIGHT_PANE_MAX_WIDTH = 560
 
-function initialSheetPaneVisibility(appKind: MainAppKind, collapseEditorPanes: boolean): SheetPaneVisibility {
-  const fallback = appKind === 'remap' || !collapseEditorPanes
-    ? { left: true, right: true }
-    : { left: false, right: false }
+type SheetPaneLayout = {
+  left: boolean
+  right: boolean
+  leftWidth: number
+  rightWidth: number
+}
+
+function initialSheetPaneLayout(appKind: MainAppKind, collapseEditorPanes: boolean): SheetPaneLayout {
+  const visibleByDefault = appKind === 'remap' || !collapseEditorPanes
+  const fallback: SheetPaneLayout = {
+    left: visibleByDefault,
+    right: visibleByDefault,
+    leftWidth: SHEET_LEFT_PANE_DEFAULT_WIDTH,
+    rightWidth: SHEET_RIGHT_PANE_DEFAULT_WIDTH,
+  }
   try {
-    const stored = window.localStorage.getItem(`xsheet:${appKind}:sheet-panes`)
+    const stored = window.localStorage.getItem(`xsheet:${appKind}:sheet-pane-layout`)
     if (!stored) return fallback
-    const parsed = JSON.parse(stored) as Partial<SheetPaneVisibility>
+    const parsed = JSON.parse(stored) as Partial<SheetPaneLayout>
     return {
       left: typeof parsed.left === 'boolean' ? parsed.left : fallback.left,
       right: typeof parsed.right === 'boolean' ? parsed.right : fallback.right,
+      leftWidth: typeof parsed.leftWidth === 'number'
+        ? clampNumber(parsed.leftWidth, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH)
+        : fallback.leftWidth,
+      rightWidth: typeof parsed.rightWidth === 'number'
+        ? clampNumber(parsed.rightWidth, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH)
+        : fallback.rightWidth,
     }
   } catch {
     return fallback
@@ -3598,9 +3620,7 @@ function SheetPanel(props: {
         duration: formatPaddedDurationTimecode(props.project, props.rangeSelection.frameEnd - props.rangeSelection.frameStart + 1),
       }
     : { start: '--+--', end: '--+--', duration: '--+--' }
-  const [registeredCellPaneWidth, setRegisteredCellPaneWidth] = useState(240)
-  const [imageAssetPaneWidth, setImageAssetPaneWidth] = useState(300)
-  const [paneVisibility, setPaneVisibility] = useState<SheetPaneVisibility>(() => initialSheetPaneVisibility(props.appKind, props.collapseEditorPanes))
+  const [paneLayout, setPaneLayout] = useState<SheetPaneLayout>(() => initialSheetPaneLayout(props.appKind, props.collapseEditorPanes))
   const [zoomPaletteOpen, setZoomPaletteOpen] = useState(false)
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
@@ -3630,11 +3650,11 @@ function SheetPanel(props: {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(`xsheet:${props.appKind}:sheet-panes`, JSON.stringify(paneVisibility))
+      window.localStorage.setItem(`xsheet:${props.appKind}:sheet-pane-layout`, JSON.stringify(paneLayout))
     } catch {
       // Pane state persistence is optional in restricted browser contexts.
     }
-  }, [paneVisibility, props.appKind])
+  }, [paneLayout, props.appKind])
 
   useLayoutEffect(() => {
     sheetZoomRef.current = props.zoom
@@ -3962,36 +3982,46 @@ function SheetPanel(props: {
       <div
         className={[
           'sheetWorkspace',
-          paneVisibility.left ? '' : 'leftDockClosed',
-          paneVisibility.right ? '' : 'rightDockClosed',
+          paneLayout.left ? '' : 'leftDockClosed',
+          paneLayout.right ? '' : 'rightDockClosed',
         ].filter(Boolean).join(' ')}
         style={{
-          '--sheet-left-dock-width': paneVisibility.left ? `${registeredCellPaneWidth}px` : '0px',
-          '--sheet-right-dock-width': paneVisibility.right ? `${imageAssetPaneWidth}px` : '0px',
-          '--sheet-left-resizer-width': paneVisibility.left ? '10px' : '0px',
-          '--sheet-right-resizer-width': paneVisibility.right ? '10px' : '0px',
+          '--sheet-left-dock-width': paneLayout.left ? `${paneLayout.leftWidth}px` : '0px',
+          '--sheet-right-dock-width': paneLayout.right ? `${paneLayout.rightWidth}px` : '0px',
+          '--sheet-left-resizer-width': paneLayout.left ? '10px' : '0px',
+          '--sheet-right-resizer-width': paneLayout.right ? '10px' : '0px',
         } as WorkspaceStyle}
       >
-        <div className="sheetPaneVisibilityControls" aria-label="サイドペイン">
-          <Tooltip label={props.appKind === 'remap' ? 'CSPレイヤー構成を表示' : '登録セルを表示'}>
+        <TooltipTarget label={`${props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル'}を${paneLayout.left ? '閉じる' : '開く'}`}>
+          {tooltipProps => (
             <button
               type="button"
-              className={paneVisibility.left ? 'active' : ''}
+              className="sheetPaneEdgeToggle left"
               aria-label={props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル'}
-              aria-pressed={paneVisibility.left}
-              onClick={() => setPaneVisibility(current => ({ ...current, left: !current.left }))}
-            >構成</button>
-          </Tooltip>
-          <Tooltip label="画像素材を表示">
+              aria-controls="sheet-left-pane"
+              aria-expanded={paneLayout.left}
+              onClick={() => setPaneLayout(current => ({ ...current, left: !current.left }))}
+              {...tooltipProps}
+            >
+              <PaneChevronIcon direction={paneLayout.left ? 'left' : 'right'} />
+            </button>
+          )}
+        </TooltipTarget>
+        <TooltipTarget label={`画像素材を${paneLayout.right ? '閉じる' : '開く'}`}>
+          {tooltipProps => (
             <button
               type="button"
-              className={paneVisibility.right ? 'active' : ''}
+              className="sheetPaneEdgeToggle right"
               aria-label="画像素材"
-              aria-pressed={paneVisibility.right}
-              onClick={() => setPaneVisibility(current => ({ ...current, right: !current.right }))}
-            >素材</button>
-          </Tooltip>
-        </div>
+              aria-controls="sheet-right-pane"
+              aria-expanded={paneLayout.right}
+              onClick={() => setPaneLayout(current => ({ ...current, right: !current.right }))}
+              {...tooltipProps}
+            >
+              <PaneChevronIcon direction={paneLayout.right ? 'right' : 'left'} />
+            </button>
+          )}
+        </TooltipTarget>
         <div
           ref={zoomPaletteRef}
           className={[
@@ -4090,7 +4120,7 @@ function SheetPanel(props: {
             <button type="button" onClick={props.onClearAllAnnotations}>{uiText.actions.clearAllInk}</button>
           </ActionMenu>
         </div>
-        <aside className="sheetDock sheetDockLeft" aria-label={props.appKind === 'remap' ? 'CSPレイヤー構成' : uiText.keys.title} hidden={!paneVisibility.left}>
+        <aside id="sheet-left-pane" className="sheetDock sheetDockLeft" aria-label={props.appKind === 'remap' ? 'CSPレイヤー構成' : uiText.keys.title} hidden={!paneLayout.left}>
           <div className="dockBody">
             {props.appKind === 'remap' ? <CspLayerTree
               project={props.project}
@@ -4136,13 +4166,14 @@ function SheetPanel(props: {
             />}
           </div>
         </aside>
-        {paneVisibility.left && <PanelResizeHandle
+        {paneLayout.left && <PanelResizeHandle
           label={uiText.layout.resizeRegisteredCellPane}
-          min={180}
-          max={420}
-          value={registeredCellPaneWidth}
+          min={SHEET_LEFT_PANE_MIN_WIDTH}
+          max={SHEET_LEFT_PANE_MAX_WIDTH}
+          value={paneLayout.leftWidth}
+          defaultValue={SHEET_LEFT_PANE_DEFAULT_WIDTH}
           side="left"
-          onChange={setRegisteredCellPaneWidth}
+          onChange={leftWidth => setPaneLayout(current => ({ ...current, leftWidth }))}
         />}
         <SheetCanvas
           {...props}
@@ -4156,14 +4187,15 @@ function SheetPanel(props: {
           stackGuideInsertTool={stackGuideInsertTool}
           onStackGuideInsertToolConsumed={() => setStackGuideInsertTool(null)}
         />
-        {paneVisibility.right && <PanelResizeHandle
+        {paneLayout.right && <PanelResizeHandle
           label={uiText.layout.resizeImageAssetPane}
-          min={200}
-          max={560}
-          value={imageAssetPaneWidth}
-          onChange={setImageAssetPaneWidth}
+          min={SHEET_RIGHT_PANE_MIN_WIDTH}
+          max={SHEET_RIGHT_PANE_MAX_WIDTH}
+          value={paneLayout.rightWidth}
+          defaultValue={SHEET_RIGHT_PANE_DEFAULT_WIDTH}
+          onChange={rightWidth => setPaneLayout(current => ({ ...current, rightWidth }))}
         />}
-        <aside className="sheetDock sheetDockRight" aria-label={uiText.assets.title} hidden={!paneVisibility.right}>
+        <aside id="sheet-right-pane" className="sheetDock sheetDockRight" aria-label={uiText.assets.title} hidden={!paneLayout.right}>
           <div className="dockBody">
             <AssetTray
               assetRoots={props.project.assetRoots}
@@ -12420,6 +12452,14 @@ function RegisteredCellListViewIcon() {
     <svg className="assetBrowserIcon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M8 6h12M8 12h12M8 18h12" />
       <path d="M4 6h.01M4 12h.01M4 18h.01" />
+    </svg>
+  )
+}
+
+function PaneChevronIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+      <path d={direction === 'left' ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6'} />
     </svg>
   )
 }

@@ -1172,32 +1172,42 @@ textarea,
   min-height: 0;
 }
 
-.sheetPaneVisibilityControls {
+.sheetPaneEdgeToggle {
   position: absolute;
-  bottom: 8px;
-  left: calc(var(--sheet-left-dock-width, 240px) + var(--sheet-left-resizer-width, 10px) + 8px);
+  top: 50%;
   z-index: 19;
-  display: flex;
-  gap: 4px;
-  padding: 3px;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  min-width: 22px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
   border: 1px solid rgb(65 107 90 / 0.34);
-  border-radius: 6px;
-  background: rgb(251 251 248 / 0.92);
-  box-shadow: 0 5px 14px rgb(0 0 0 / 0.1);
+  background: rgb(251 251 248 / 0.94);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+  transform: translateY(-50%);
 }
 
-.sheetPaneVisibilityControls button {
-  min-width: 40px;
-  min-height: 26px;
-  padding: 3px 7px;
-  font-size: 11px;
-  font-weight: 700;
+.sheetPaneEdgeToggle.left {
+  left: calc(var(--sheet-left-dock-width, 240px) + var(--sheet-left-resizer-width, 10px) + 3px);
+  border-radius: 0 5px 5px 0;
 }
 
-.sheetPaneVisibilityControls button.active {
+.sheetPaneEdgeToggle.right {
+  right: calc(var(--sheet-right-dock-width, 300px) + var(--sheet-right-resizer-width, 10px) + 3px);
+  border-radius: 5px 0 0 5px;
+}
+
+.sheetPaneEdgeToggle:hover,
+.sheetPaneEdgeToggle:focus-visible {
   border-color: #416b5a;
-  background: #dce8df;
-  color: #173a2b;
+  background: rgb(251 251 248 / 0.92);
+}
+
+.sheetPaneEdgeToggle svg {
+  width: 16px;
+  height: 16px;
 }
 
 .sheetZoomFloatingPalette {

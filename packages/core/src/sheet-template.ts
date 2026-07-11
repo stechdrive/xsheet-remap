@@ -1,5 +1,7 @@
 import type { CutMetadataFieldId, Id, LogicalTimelineSectionRole, PaperTrackName, SheetImageAlignment, SheetPageImageRef, SheetTimingRole, SheetViewLayoutOverrides, SheetViewMode } from './types'
 
+export const SHEET_TEMPLATE_SCHEMA_VERSION = 2
+
 export interface NormalizedRect {
   x: number
   y: number
@@ -98,8 +100,14 @@ export type SheetTemplateInputMode = 'point-event' | 'timed-range' | 'free-annot
 export type SheetTemplateRegionBinding =
   | {
       target: 'cut-metadata'
-      fields: CutMetadataFieldId[]
-      layout?: 'freeform' | 'inline' | 'grid'
+      field: CutMetadataFieldId
+      customKey?: string
+    }
+  | {
+      target: 'cut-group'
+      field: 'shared-cut-numbers'
+      prefix?: string
+      separator?: string
     }
   | {
       target: 'timeline-section'
@@ -143,6 +151,20 @@ export interface SheetTemplateRegion {
   flowGroupId?: string
   binding?: SheetTemplateRegionBinding
   grid?: SheetTemplateGrid
+  textStyle?: SheetTemplateTextStyle
+  textStyleVariants?: {
+    sharedCutNumbersVisible?: SheetTemplateTextStyle
+  }
+}
+
+export interface SheetTemplateTextStyle {
+  fontSizePx?: number
+  minFontSizePx?: number
+  fontWeight?: number
+  horizontalAlign?: 'left' | 'center' | 'right'
+  verticalAlign?: 'top' | 'middle' | 'bottom'
+  paddingPx?: number
+  shrinkToFit?: boolean
 }
 
 export interface SheetTemplateBgBookLabelStyle {
@@ -1023,12 +1045,71 @@ const STANDARD_A3_TIMING_GRID_TYPOGRAPHY: SheetTemplateGridTypography = {
   shrinkToFit: false,
 }
 
+const STANDARD_A3_METADATA_TEXT_STYLE: SheetTemplateTextStyle = {
+  fontSizePx: 24,
+  minFontSizePx: 12,
+  fontWeight: 700,
+  horizontalAlign: 'center',
+  verticalAlign: 'middle',
+  paddingPx: 8,
+  shrinkToFit: true,
+}
+
 function standardA3Rect(x: number, y: number, w: number, h: number): NormalizedRect {
   return {
     x: x / STANDARD_A3_PAGE_WIDTH_PX,
     y: y / STANDARD_A3_PAGE_HEIGHT_PX,
     w: w / STANDARD_A3_PAGE_WIDTH_PX,
     h: h / STANDARD_A3_PAGE_HEIGHT_PX,
+  }
+}
+
+function metadataFieldRegion(
+  regionId: string,
+  label: string,
+  field: CutMetadataFieldId,
+  rect: NormalizedRect,
+  textStyle: SheetTemplateTextStyle = {
+    fontSizePx: 22,
+    minFontSizePx: 11,
+    fontWeight: 700,
+    horizontalAlign: 'center',
+    verticalAlign: 'middle',
+    paddingPx: 8,
+    shrinkToFit: true,
+  },
+): SheetTemplateRegion {
+  return {
+    regionId,
+    type: 'metadata-field',
+    label,
+    rect,
+    usage: 'input',
+    inputKind: 'text',
+    binding: { target: 'cut-metadata', field },
+    textStyle,
+  }
+}
+
+function sharedCutNumbersRegion(
+  regionId: string,
+  rect: NormalizedRect,
+  textStyle: SheetTemplateTextStyle,
+): SheetTemplateRegion {
+  return {
+    regionId,
+    type: 'metadata-field',
+    label: '兼用カット',
+    rect,
+    usage: 'render-only',
+    inputKind: 'text',
+    binding: {
+      target: 'cut-group',
+      field: 'shared-cut-numbers',
+      prefix: '兼用 ',
+      separator: '・',
+    },
+    textStyle,
   }
 }
 
@@ -1044,8 +1125,8 @@ export const standardA3DefaultUnderlay: SheetTemplateUnderlay = {
 }
 
 export const standardA3SheetTemplate: SheetTemplate = {
-  schemaVersion: 1,
-  templateId: 'standard-a3-timesheet-v1',
+  schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
+  templateId: 'standard-a3-timesheet-v2',
   name: 'A3標準',
   templateKind: 'japanese-a3-paper',
   layoutMode: 'fixed-page',
@@ -1127,19 +1208,29 @@ export const standardA3SheetTemplate: SheetTemplate = {
       usage: 'reference',
       inputKind: 'annotation',
     },
+    metadataFieldRegion('top_title_field', 'タイトル', 'title', standardA3Rect(35, 165, 655, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+    metadataFieldRegion('top_episode_field', '話数', 'episode', standardA3Rect(690, 165, 174, 71), STANDARD_A3_METADATA_TEXT_STYLE),
     {
-      regionId: 'top_cut_metadata_area',
-      type: 'metadata-field',
-      label: 'カット情報欄',
-      rect: standardA3Rect(35, 141, 1683, 95),
-      usage: 'input',
-      inputKind: 'text',
-      binding: {
-        target: 'cut-metadata',
-        fields: ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'],
-        layout: 'freeform',
+      ...metadataFieldRegion('top_cut_field', 'カット', 'cut', standardA3Rect(864, 165, 173, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+      textStyleVariants: {
+        sharedCutNumbersVisible: {
+          verticalAlign: 'top',
+          paddingPx: 5,
+        },
       },
     },
+    sharedCutNumbersRegion('top_shared_cut_numbers_field', standardA3Rect(864, 211, 173, 25), {
+      fontSizePx: 14,
+      minFontSizePx: 8,
+      fontWeight: 700,
+      horizontalAlign: 'center',
+      verticalAlign: 'middle',
+      paddingPx: 2,
+      shrinkToFit: true,
+    }),
+    metadataFieldRegion('top_duration_field', '尺', 'duration', standardA3Rect(1037, 165, 258, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+    metadataFieldRegion('top_worker_field', '作業者', 'worker', standardA3Rect(1295, 165, 259, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+    metadataFieldRegion('top_page_field', 'ページ', 'page', standardA3Rect(1554, 165, 164, 71), STANDARD_A3_METADATA_TEXT_STYLE),
     {
       regionId: 'top_memo_area',
       type: 'memo-area',
@@ -1343,8 +1434,8 @@ const DIGITAL_STANDARD_TIMING_GRID_TYPOGRAPHY: SheetTemplateGridTypography = {
 }
 
 export const digitalStandardSheetTemplate: SheetTemplate = {
-  schemaVersion: 1,
-  templateId: 'digital-standard-v1',
+  schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
+  templateId: 'digital-standard-v2',
   name: 'デジタル標準',
   templateKind: 'digital-native',
   layoutMode: 'infinite-digital',
@@ -1387,19 +1478,30 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
     paperTracks: standardA3DefaultPaperTracks,
   },
   regions: [
+    metadataFieldRegion('digital_title_field', 'タイトル', 'title', digitalRect(32, 54, 600, 60)),
+    metadataFieldRegion('digital_episode_field', '話数', 'episode', digitalRect(644, 54, 160, 60)),
+    metadataFieldRegion('digital_scene_field', 'シーン', 'scene', digitalRect(816, 54, 160, 60)),
     {
-      regionId: 'digital_cut_metadata_area',
-      type: 'metadata-field',
-      label: 'カット情報欄',
-      rect: digitalRect(DIGITAL_STANDARD_MARGIN_X_PX, 32, DIGITAL_STANDARD_CONTENT_WIDTH_PX, 104),
-      usage: 'input',
-      inputKind: 'text',
-      binding: {
-        target: 'cut-metadata',
-        fields: ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'],
-        layout: 'grid',
+      ...metadataFieldRegion('digital_cut_field', 'カット', 'cut', digitalRect(988, 54, 160, 60)),
+      textStyleVariants: {
+        sharedCutNumbersVisible: {
+          verticalAlign: 'top',
+          paddingPx: 4,
+        },
       },
     },
+    sharedCutNumbersRegion('digital_shared_cut_numbers_field', digitalRect(988, 96, 160, 18), {
+      fontSizePx: 12,
+      minFontSizePx: 7,
+      fontWeight: 700,
+      horizontalAlign: 'center',
+      verticalAlign: 'middle',
+      paddingPx: 2,
+      shrinkToFit: true,
+    }),
+    metadataFieldRegion('digital_duration_field', '尺', 'duration', digitalRect(1160, 54, 190, 60)),
+    metadataFieldRegion('digital_worker_field', '作業者', 'worker', digitalRect(1362, 54, 300, 60)),
+    metadataFieldRegion('digital_page_field', 'ページ', 'page', digitalRect(1674, 54, 214, 60)),
     {
       regionId: 'digital_memo_area',
       type: 'memo-area',

@@ -381,6 +381,10 @@ export interface SheetViewLayoutOverrides {
   grids?: Record<Id, SheetViewGridLayoutOverride>
 }
 
+export interface SheetViewMetadataDisplay {
+  sharedCutNumbers: boolean
+}
+
 export interface SheetViewState {
   templateId: string
   viewMode: SheetViewMode
@@ -388,6 +392,7 @@ export interface SheetViewState {
   sources: SheetSource[]
   pages: SheetPageViewState[]
   layoutOverrides?: SheetViewLayoutOverrides
+  metadataDisplay: SheetViewMetadataDisplay
 }
 
 export interface ExportProfile {

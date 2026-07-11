@@ -1190,8 +1190,9 @@ describe('core project commands', () => {
   it('migrates old project JSON with default sheet view state', () => {
     const oldJson = { ...createDefaultProject(), sheetView: undefined }
     const migrated = migrateProject(oldJson)
-    expect(migrated.sheetView.templateId).toBe('standard-a3-timesheet-v1')
+    expect(migrated.sheetView.templateId).toBe('standard-a3-timesheet-v2')
     expect(migrated.sheetView.viewMode).toBe('continuous')
+    expect(migrated.sheetView.metadataDisplay).toEqual({ sharedCutNumbers: false })
     expect(migrated.sheetView.pages[0].alignment.corners.br).toEqual({ x: 1, y: 1 })
   })
 
@@ -1398,10 +1399,9 @@ describe('sheet template hit testing', () => {
     expect(sheetTemplatePresetsForImageCorrection().map(preset => preset.name)).toEqual(['A3標準'])
     expect(sheetTemplatePresetSupportsCapability(sheetTemplatePresets[0], 'image-correction')).toBe(true)
     expect(sheetTemplatePresetSupportsCapability(sheetTemplatePresets[1], 'image-correction')).toBe(false)
-    expect(standardA3SheetTemplate.regions.find(region => region.regionId === 'top_cut_metadata_area')?.binding).toMatchObject({
-      target: 'cut-metadata',
-      fields: ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'],
-    })
+    expect(standardA3SheetTemplate.regions.flatMap(region =>
+      region.binding?.target === 'cut-metadata' ? [region.binding.field] : [],
+    )).toEqual(['title', 'episode', 'cut', 'duration', 'worker', 'page'])
     expect(digitalStandardSheetTemplate).toMatchObject({
       name: 'デジタル標準',
       templateKind: 'digital-native',
@@ -1411,10 +1411,9 @@ describe('sheet template hit testing', () => {
         surface: { type: 'continuous-canvas' },
       },
     })
-    expect(digitalStandardSheetTemplate.regions.find(region => region.regionId === 'digital_cut_metadata_area')?.binding).toMatchObject({
-      target: 'cut-metadata',
-      fields: ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'],
-    })
+    expect(digitalStandardSheetTemplate.regions.flatMap(region =>
+      region.binding?.target === 'cut-metadata' ? [region.binding.field] : [],
+    )).toEqual(['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'])
   })
 
   it('lets the digital standard view follow logical tracks and duration', () => {
@@ -1449,14 +1448,23 @@ describe('sheet template hit testing', () => {
       }
     }
 
-    const cutMetadata = rectForRegion('digital_cut_metadata_area')
+    const metadataRects = digitalStandardSheetTemplate.regions
+      .filter(region => region.binding?.target === 'cut-metadata')
+      .map(region => rectForRegion(region.regionId))
+    const cutMetadata = {
+      x: Math.min(...metadataRects.map(rect => rect.x)),
+      y: Math.min(...metadataRects.map(rect => rect.y)),
+      w: Math.max(...metadataRects.map(rect => rect.x + rect.w)) - Math.min(...metadataRects.map(rect => rect.x)),
+      h: Math.max(...metadataRects.map(rect => rect.y + rect.h)) - Math.min(...metadataRects.map(rect => rect.y)),
+    }
     const memo = rectForRegion('digital_memo_area')
     const action = rectForRegion('digital_action_grid')
     const camera = rectForRegion('digital_camera_grid')
     const actionGrid = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_action_grid')?.grid
     const soundGrid = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_sound_grid')?.grid
 
-    expect(cutMetadata).toEqual({ x: 32, y: 32, w: 1856, h: 104 })
+    expect(metadataRects).toHaveLength(7)
+    expect(cutMetadata).toEqual({ x: 32, y: 54, w: 1856, h: 60 })
     expect(memo).toEqual({ x: 32, y: 160, w: 1856, h: 300 })
     expect(action).toMatchObject({ x: 32, y: 620, h: 2880 })
     expect(camera.x + camera.w).toBe(1888)

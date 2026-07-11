@@ -17,8 +17,10 @@ describe('template editor geometry', () => {
     expect(model).not.toBeNull()
     expect(model?.rowPaths.length).toBeLessThan(region!.grid!.rowCount)
     expect(pathCommandCount(model?.rowPaths.map(path => path.d).join(' ') ?? '')).toBe(region!.grid!.rowCount + 1)
+    expect(model?.rowPaths.flatMap(path => path.segments)).toHaveLength(region!.grid!.rowCount + 1)
     expect(model?.columnPath).not.toBeNull()
     expect(pathCommandCount(model?.columnPath?.d ?? '')).toBe(region!.grid!.columns.length + 1)
+    expect(model?.columnPath?.segments).toHaveLength(region!.grid!.columns.length + 1)
   })
 
   it('keeps the digital SOUND overlay column-only with row labels', () => {

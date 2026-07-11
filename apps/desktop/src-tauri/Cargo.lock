@@ -4640,7 +4640,7 @@ dependencies = [
 
 [[package]]
 name = "xsheet-remap"
-version = "0.1.471"
+version = "0.1.472"
 dependencies = [
  "base64 0.22.1",
  "serde",

@@ -1,7 +1,6 @@
 import {
   getSheetViewLayout,
   resolveSheetTemplateGridLayout,
-  sheetGridRowY,
   type AnnotationStroke,
   type AnnotationText,
   type CutProject,
@@ -16,21 +15,28 @@ import {
   createSheetRenderModelContext,
   hasOverlayRenderContent,
   inputTextRenderItemsForPage,
+  metadataTextRenderItemsForPage,
   overlayPaperTrackRenderItems,
   stackGuideFlagRenderItemsForPage,
   type FlagLabelGeometry,
+  type SheetRenderCutGroupContext,
   type SheetRenderModelContext,
 } from './sheetRenderModel'
+import {
+  buildTemplateChromeRenderModel,
+  buildTemplateGridOverlayRenderModel,
+  type TemplateGridPathRenderModel,
+} from './templateEditorGeometry'
 import { sheetImageFileName } from './outputFileNames'
 import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
-export type SheetTemplateExportMode = 'none' | 'template-image' | 'app-lines'
 
 export type SheetImageExportOptions = {
   format: SheetImageExportFormat
   includePaperSheet: boolean
-  templateMode: SheetTemplateExportMode
+  includeTemplateImage: boolean
+  includeTemplateDrawing: boolean
 }
 
 export type SheetImageExportResult = {
@@ -41,7 +47,7 @@ export type SheetImageExportResult = {
   pageIndex: number
 }
 
-type SheetExportLayerId = 'white' | 'paperSheet' | 'template' | 'overlayTracks' | 'inputText' | 'annotations'
+type SheetExportLayerId = 'white' | 'paperSheet' | 'templateImage' | 'templateDrawing' | 'overlayTracks' | 'inputText' | 'annotations'
 
 type SheetExportLayer = {
   id: SheetExportLayerId
@@ -61,13 +67,15 @@ const SHEET_LABEL_FONT_WEIGHT = 700
 
 export function defaultSheetImageExportOptions(
   project: CutProject,
+  template: SheetTemplate,
   format: SheetImageExportFormat,
 ): SheetImageExportOptions {
   const includePaperSheet = hasPaperSheetImages(project)
   return {
     format,
     includePaperSheet,
-    templateMode: includePaperSheet ? 'none' : 'app-lines',
+    includeTemplateImage: !includePaperSheet && Boolean(template.defaultUnderlay),
+    includeTemplateDrawing: true,
   }
 }
 
@@ -83,8 +91,9 @@ export async function renderSheetImageExport(
   template: SheetTemplate,
   runtimeSourceImageUrls: Record<string, string>,
   options: SheetImageExportOptions,
+  renderOptions: { cutGroup?: SheetRenderCutGroupContext } = {},
 ): Promise<SheetImageExportResult> {
-  const results = await renderSheetImageExports(project, template, runtimeSourceImageUrls, options)
+  const results = await renderSheetImageExports(project, template, runtimeSourceImageUrls, options, renderOptions)
   const first = results[0]
   if (!first) throw new Error('No sheet pages to export')
   return first
@@ -95,9 +104,10 @@ export async function renderSheetImageExports(
   template: SheetTemplate,
   runtimeSourceImageUrls: Record<string, string>,
   options: SheetImageExportOptions,
+  renderOptions: { cutGroup?: SheetRenderCutGroupContext } = {},
 ): Promise<SheetImageExportResult[]> {
   await waitForSheetExportFonts()
-  const context = createLayerContext(project, template, runtimeSourceImageUrls)
+  const context = createLayerContext(project, template, runtimeSourceImageUrls, renderOptions)
   const layers = await renderSheetExportLayers(context, normalizeExportOptions(project, options))
   const extension = options.format
   const mimeType = extension === 'jpg' ? 'image/jpeg' : 'image/png'
@@ -143,11 +153,8 @@ export async function renderSheetImageExports(
 }
 
 function normalizeExportOptions(project: CutProject, options: SheetImageExportOptions): SheetImageExportOptions {
-  if (!options.includePaperSheet && options.templateMode === 'none') {
-    return { ...options, templateMode: 'app-lines' }
-  }
   if (options.includePaperSheet && !hasPaperSheetImages(project)) {
-    return { ...options, includePaperSheet: false, templateMode: options.templateMode === 'none' ? 'app-lines' : options.templateMode }
+    return { ...options, includePaperSheet: false }
   }
   return options
 }
@@ -156,9 +163,10 @@ function createLayerContext(
   project: CutProject,
   template: SheetTemplate,
   runtimeSourceImageUrls: Record<string, string>,
+  renderOptions: { cutGroup?: SheetRenderCutGroupContext },
 ): SheetExportLayerContext {
   return {
-    ...createSheetRenderModelContext(project, template),
+    ...createSheetRenderModelContext(project, template, renderOptions),
     runtimeSourceImageUrls,
   }
 }
@@ -170,13 +178,20 @@ async function renderSheetExportLayers(
   const layers: SheetExportLayer[] = [
     { id: 'white', name: '白地', imageData: solidWhiteImageData(context.width, context.height) },
   ]
+  if (options.includeTemplateImage && context.template.defaultUnderlay) {
+    layers.push({ id: 'templateImage', name: 'テンプレ画像', imageData: await renderTemplateImageLayer(context) })
+  }
   if (options.includePaperSheet) {
     layers.push({ id: 'paperSheet', name: '紙シート画像', imageData: await renderPaperSheetLayer(context) })
   }
-  if (options.templateMode === 'template-image') {
-    layers.push({ id: 'template', name: 'テンプレ画像', imageData: await renderTemplateImageLayer(context) })
-  } else if (options.templateMode === 'app-lines') {
-    layers.push({ id: 'template', name: '罫線', imageData: renderTemplateLineLayer(context) })
+  if (options.includeTemplateDrawing) {
+    layers.push({
+      id: 'templateDrawing',
+      name: 'アプリ描画',
+      imageData: renderTemplateDrawingLayer(context, {
+        includeStaticChrome: !options.includePaperSheet && !options.includeTemplateImage,
+      }),
+    })
   }
   if (hasOverlayRenderContent(context)) {
     layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル', imageData: renderOverlayTrackLayer(context) })
@@ -223,30 +238,50 @@ async function renderTemplateImageLayer(context: SheetExportLayerContext): Promi
     ? { ...context.template.defaultUnderlay.imageRef, assetPath: context.template.defaultUnderlay.assetPath }
     : null
   const imageUrl = imageRef ? resolveImageRefUrl(imageRef) : null
-  if (!imageUrl) return renderTemplateLineLayer(context)
+  if (!imageUrl) return blankTransparentImageData(context.width, context.height)
   const image = await loadImage(imageUrl)
   const sourceCanvas = createCanvas(context.pageSize.widthPx, context.pageSize.heightPx)
   const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true })
-  if (!sourceContext) return renderTemplateLineLayer(context)
+  if (!sourceContext) return blankTransparentImageData(context.width, context.height)
   sourceContext.drawImage(image, 0, 0, context.pageSize.widthPx, context.pageSize.heightPx)
-  const pageLayer = lineAlphaImageData(sourceContext.getImageData(0, 0, context.pageSize.widthPx, context.pageSize.heightPx))
+  const pageLayer = sourceContext.getImageData(0, 0, context.pageSize.widthPx, context.pageSize.heightPx)
   return repeatPageLayer(context, pageLayer)
 }
 
-function renderTemplateLineLayer(context: SheetExportLayerContext): ImageData {
+function renderTemplateDrawingLayer(
+  context: SheetExportLayerContext,
+  options: { includeStaticChrome: boolean },
+): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
-  ctx.strokeStyle = '#60645f'
-  ctx.fillStyle = '#202421'
+  const chrome = buildTemplateChromeRenderModel(context.template, context.paperTracks, context.displayDurationFrames)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
+    if (options.includeStaticChrome) drawTemplateStaticChrome(ctx, context, chrome, offsetY)
+    drawTemplateGridHeaders(ctx, context, chrome, offsetY)
     for (const region of context.template.regions.filter(region => region.type === 'exposure-grid' && region.grid)) {
-      const grid = region.grid!
       const viewLayout = getSheetViewLayout(context.template)
       const frameOrigin = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
         ? page.frameStart
         : context.template.defaults.frameOrigin
+      const model = buildTemplateGridOverlayRenderModel(context.template, region, {
+        paperTracks: context.paperTracks,
+        durationFrames: page.frameEnd - page.frameStart + 1,
+        frameOrigin,
+        layoutOverrides: context.project.sheetView.layoutOverrides,
+      })
+      if (model) {
+        for (const path of model.rowPaths) drawTemplateGridPath(ctx, context, path, offsetY)
+        if (model.columnPath) drawTemplateGridPath(ctx, context, model.columnPath, offsetY)
+        ctx.fillStyle = '#2a302c'
+        ctx.textBaseline = 'middle'
+        for (const label of model.labels) {
+          ctx.font = fontDeclaration(label.fontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+          ctx.textAlign = label.textAnchor === 'end' ? 'right' : 'left'
+          ctx.fillText(label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx)
+        }
+      }
       const layout = resolveSheetTemplateGridLayout(context.template, region, {
         paperTracks: context.paperTracks,
         durationFrames: page.frameEnd - page.frameStart + 1,
@@ -255,43 +290,101 @@ function renderTemplateLineLayer(context: SheetExportLayerContext): ImageData {
       })
       if (!layout) continue
       const rect = layout.rect
-      const columns = layout.columns
-      const frames = layout.frames
       const x = rect.x * context.pageSize.widthPx
       const y = offsetY + rect.y * context.pageSize.heightPx
       const w = rect.w * context.pageSize.widthPx
-      const h = rect.h * context.pageSize.heightPx
-      for (let row = 0; row <= frames.rowCount; row += 1) {
-        ctx.lineWidth = row % (grid.majorLineEvery ?? 999) === 0 ? 2 : 1
-        const yy = offsetY + sheetGridRowY(layout, row) * context.pageSize.heightPx
-        ctx.beginPath()
-        ctx.moveTo(x, yy)
-        ctx.lineTo(x + w, yy)
-        ctx.stroke()
-      }
-      ctx.lineWidth = 1
-      const columnLines = [
-        ...columns.map(column => column.x),
-        columns.at(-1) ? columns.at(-1)!.x + columns.at(-1)!.w : rect.x + rect.w,
-      ]
-      for (const lineX of columnLines) {
-        const xx = lineX * context.pageSize.widthPx
-        ctx.beginPath()
-        ctx.moveTo(xx, y)
-        ctx.lineTo(xx, y + h)
-        ctx.stroke()
-      }
-      ctx.font = fontDeclaration(18, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'alphabetic'
-      columns.forEach(column => {
-        const xx = (column.x + column.w / 2) * context.pageSize.widthPx
-        ctx.fillText(column.label, xx, y - 6)
-      })
       drawInactiveRange(ctx, context, page, layout, frameOrigin, x, y, w)
     }
   }
   return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function drawTemplateStaticChrome(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  chrome: ReturnType<typeof buildTemplateChromeRenderModel>,
+  offsetY: number,
+) {
+  ctx.fillStyle = 'transparent'
+  ctx.strokeStyle = '#2f3430'
+  ctx.lineWidth = 1
+  ctx.setLineDash([])
+  if (chrome.showOuterFrame) {
+    ctx.strokeRect(
+      0.02 * context.pageSize.widthPx,
+      offsetY + 0.019 * context.pageSize.heightPx,
+      0.96 * context.pageSize.widthPx,
+      0.952 * context.pageSize.heightPx,
+    )
+  }
+  for (const region of chrome.referenceRegions) {
+    if (region.type === 'memo-area') continue
+    ctx.strokeStyle = '#416b5a'
+    ctx.setLineDash([6, 4])
+    ctx.strokeRect(
+      region.rect.x * context.pageSize.widthPx,
+      offsetY + region.rect.y * context.pageSize.heightPx,
+      region.rect.w * context.pageSize.widthPx,
+      region.rect.h * context.pageSize.heightPx,
+    )
+  }
+  ctx.setLineDash([])
+}
+
+function drawTemplateGridHeaders(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  chrome: ReturnType<typeof buildTemplateChromeRenderModel>,
+  offsetY: number,
+) {
+  ctx.strokeStyle = '#2f3430'
+  ctx.fillStyle = '#1f2421'
+  ctx.lineWidth = 1
+  ctx.setLineDash([])
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const header of chrome.headers) {
+    ctx.strokeRect(
+      header.rect.x * context.pageSize.widthPx,
+      offsetY + header.rect.y * context.pageSize.heightPx,
+      header.rect.w * context.pageSize.widthPx,
+      header.rect.h * context.pageSize.heightPx,
+    )
+    if (header.label) {
+      ctx.font = fontDeclaration(header.labelFontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+      ctx.fillText(header.label, header.labelX * context.pageSize.widthPx, offsetY + header.labelY * context.pageSize.heightPx)
+    }
+    for (const column of header.columns) {
+      if (!column.label) continue
+      ctx.font = fontDeclaration(column.fontSize * context.pageSize.heightPx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+      ctx.fillText(column.label, column.x * context.pageSize.widthPx, offsetY + column.y * context.pageSize.heightPx)
+    }
+  }
+}
+
+function drawTemplateGridPath(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  path: TemplateGridPathRenderModel,
+  offsetY: number,
+) {
+  const style = templateGridCanvasStyle(path.className)
+  ctx.strokeStyle = style.stroke
+  ctx.lineWidth = style.lineWidth
+  ctx.setLineDash([])
+  ctx.beginPath()
+  for (const segment of path.segments) {
+    ctx.moveTo(segment.x1 * context.pageSize.widthPx, offsetY + segment.y1 * context.pageSize.heightPx)
+    ctx.lineTo(segment.x2 * context.pageSize.widthPx, offsetY + segment.y2 * context.pageSize.heightPx)
+  }
+  ctx.stroke()
+}
+
+function templateGridCanvasStyle(className: string): { stroke: string; lineWidth: number } {
+  if (className.includes('gridLineStrong')) return { stroke: '#101512', lineWidth: 2.6 }
+  if (className.includes('gridLineMedium')) return { stroke: '#343b36', lineWidth: 1.8 }
+  if (className.includes('gridLineRegular')) return { stroke: '#646a64', lineWidth: 1.25 }
+  return { stroke: '#8b908a', lineWidth: 0.8 }
 }
 
 function drawInactiveRange(
@@ -325,10 +418,17 @@ function renderInputTextLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const item of metadataTextRenderItemsForPage(context, page)) {
+      ctx.fillStyle = '#1f2421'
+      ctx.font = fontDeclaration(item.fontSizePx, SHEET_CANVAS_FONT_FAMILY, item.fontWeight)
+      ctx.textAlign = item.textAnchor === 'start' ? 'left' : item.textAnchor === 'end' ? 'right' : 'center'
+      ctx.textBaseline = item.dominantBaseline === 'hanging' ? 'top' : item.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
+      ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
+    }
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
     for (const item of inputTextRenderItemsForPage(context, page)) {
       const rect = item.rect
       const x = rect.x * context.pageSize.widthPx
@@ -518,22 +618,6 @@ function repeatPageLayer(context: SheetExportLayerContext, pageLayer: ImageData)
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   for (const page of context.pages) ctx.putImageData(pageLayer, 0, page.pageIndex * context.pageSize.heightPx)
   return ctx.getImageData(0, 0, context.width, context.height)
-}
-
-function lineAlphaImageData(imageData: ImageData): ImageData {
-  const output = new ImageData(imageData.width, imageData.height)
-  for (let index = 0; index < imageData.data.length; index += 4) {
-    const sourceAlpha = imageData.data[index + 3] / 255
-    if (sourceAlpha <= 0.03) continue
-    const luminance = imageData.data[index] * 0.299 + imageData.data[index + 1] * 0.587 + imageData.data[index + 2] * 0.114
-    const darkness = Math.max(0, 246 - luminance)
-    const alpha = Math.max(0, Math.min(255, Math.round(darkness * 2.2 * sourceAlpha)))
-    output.data[index] = 0
-    output.data[index + 1] = 0
-    output.data[index + 2] = 0
-    output.data[index + 3] = alpha
-  }
-  return output
 }
 
 function compositeLayers(layers: SheetExportLayer[]): ImageData {

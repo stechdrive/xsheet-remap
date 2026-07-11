@@ -35,6 +35,7 @@ import {
   type Annotation,
   type CellBinding,
   type CorrectionLayer,
+  type CutMetadataFieldId,
   type CutProject,
   type AnnotationPoint,
   type AnnotationStroke,
@@ -54,6 +55,7 @@ import {
   type SheetPage,
   type SheetSource,
   type SheetTemplate,
+  type SheetTemplateRegionBinding,
   type SheetTimingRole,
   type SheetViewState,
   type SheetViewMode,
@@ -142,7 +144,7 @@ import {
   type TemplateDetailTab,
   type WorkspaceStyle,
 } from './appTypes'
-import { defaultSheetImageExportOptions, hasPaperSheetImages, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions, type SheetTemplateExportMode } from './cleanSheetExport'
+import { defaultSheetImageExportOptions, hasPaperSheetImages, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions } from './cleanSheetExport'
 import { cspImportPackageTextOutputs } from './cspImportPackageOutputs'
 import { projectFileName, sheetXdtsFileName } from './outputFileNames'
 import { AssetTray, type AssetRegistrationSummary, type DropDiagnosticReport } from './AssetBrowser'
@@ -233,6 +235,11 @@ import {
   resolveAnnotationTextFontSizePx,
   type AnnotationTextPageSize,
 } from './annotationTextLayout'
+import {
+  createSheetRenderModelContext,
+  metadataTextRenderItemsForPage,
+  type SheetRenderModelContext,
+} from './sheetRenderModel'
 import {
   calibrationGridBoundsForTemplate,
   calibrationPointsForSettings,
@@ -751,6 +758,13 @@ async function alertMissingProjectNativePaths(document: CutGroupProjectDocument)
     window.alert(uiText.project.nativePathCheckFailed(errorMessage(error)))
   }
 }
+
+const CUT_METADATA_FIELD_IDS: CutMetadataFieldId[] = ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page']
+type MetadataBindingOptionId = `cut:${CutMetadataFieldId}` | 'group:shared-cut-numbers'
+const METADATA_BINDING_OPTION_IDS: MetadataBindingOptionId[] = [
+  ...CUT_METADATA_FIELD_IDS.map(field => `cut:${field}` as const),
+  'group:shared-cut-numbers',
+]
 
 const SHEET_VIEWPORT_FIT_INSET = { horizontal: 24, vertical: 54 }
 const SHEET_AUTO_FIT_MIN_ZOOM = 0.5
@@ -2378,14 +2392,20 @@ export function App() {
   }
 
   function handleOpenSheetImageExport(format: SheetImageExportFormat) {
-    setSheetImageExportDraft(defaultSheetImageExportOptions(project, format))
+    setSheetImageExportDraft(defaultSheetImageExportOptions(project, template, format))
   }
 
   async function handleSaveSheetImageExport(options: SheetImageExportOptions) {
     try {
       const outputs = []
-      for (const cutProject of exportCutProjectsFromDocument(projectDocumentSnapshot)) {
-        outputs.push(...await renderSheetImageExports(cutProject, template, runtimeSourceImageUrls, options))
+      const cutProjects = exportCutProjectsFromDocument(projectDocumentSnapshot)
+      for (const [index, cutProject] of cutProjects.entries()) {
+        outputs.push(...await renderSheetImageExports(cutProject, template, runtimeSourceImageUrls, options, {
+          cutGroup: {
+            activeCutId: projectDocumentSnapshot.cuts[index]?.cutId ?? projectDocumentSnapshot.activeCutId,
+            cuts: projectDocumentSnapshot.cuts,
+          },
+        }))
       }
       const saved = await saveBinaryOutputs(outputs, {
         filterName: imageExportFilterName(options.format),
@@ -3064,6 +3084,9 @@ export function App() {
             activeCutId={projectDocumentSnapshot.activeCutId}
             onSwitchProjectCut={handleSwitchProjectCut}
             onAddSharedCut={handleAddSharedCut}
+            onSetSharedCutNumbersVisible={visible => commitProject(updateSheetViewState(project, {
+              metadataDisplay: { ...project.sheetView.metadataDisplay, sharedCutNumbers: visible },
+            }))}
             sheetPages={sheetPages}
             activePageIndex={clampedActivePageIndex}
             setActivePageIndex={setActivePageIndex}
@@ -3184,6 +3207,8 @@ export function App() {
             runtimeSourceImageUrls={runtimeSourceImageUrls}
             showTemplate={showTemplate}
             showAnnotations={showAnnotations}
+            projectCuts={projectCuts}
+            activeCutId={projectDocumentSnapshot.activeCutId}
           />
         )}
         {panel === 'template' && (
@@ -3314,6 +3339,7 @@ function SheetPanel(props: {
   activeCutId: string
   onSwitchProjectCut: (cutId: string) => void
   onAddSharedCut: () => void
+  onSetSharedCutNumbersVisible: (visible: boolean) => void
   sheetPages: SheetPage[]
   activePageIndex: number
   setActivePageIndex: (pageIndex: number) => void
@@ -3451,6 +3477,8 @@ function SheetPanel(props: {
   const workRange = logicalSheetWorkRange(props.project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(props.project.logicalSheet)
   const sheetScanSources = props.project.sheetView.sources.filter(source => source.kind === 'sheet-scan')
+  const supportsSharedCutNumbers = props.template.regions.some(region => region.binding?.target === 'cut-group' && region.binding.field === 'shared-cut-numbers')
+  const hasOtherSharedCuts = props.projectCuts.some(cut => cut.cutId !== props.activeCutId && Boolean(cut.metadata.cut?.trim()))
   const sheetPageSize = useMemo(
     () => resolveSheetTemplatePageSize(props.template, displayDurationFrames, {
       paperTracks: templatePaperTrackNames,
@@ -3597,6 +3625,21 @@ function SheetPanel(props: {
                   </Tooltip>
                 )
               })}
+              <div className="sheetDisplaySettingsDivider" />
+              <div className="sheetDisplaySettingsSectionLabel">{uiText.sheet.settingsDisplaySection}</div>
+              <TooltipTarget label={supportsSharedCutNumbers ? uiText.sheet.sharedCutNumbersTitle : uiText.sheet.sharedCutNumbersUnsupportedTitle}>
+                {tooltipProps => (
+                  <label className={!supportsSharedCutNumbers || !hasOtherSharedCuts ? 'sheetDisplaySetting disabled' : 'sheetDisplaySetting'} {...tooltipProps}>
+                    <input
+                      type="checkbox"
+                      checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
+                      disabled={!supportsSharedCutNumbers || !hasOtherSharedCuts}
+                      onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
+                    />
+                    {uiText.sheet.sharedCutNumbers}
+                  </label>
+                )}
+              </TooltipTarget>
             </div>
           </ActionMenu>
         </ToolbarGroup>
@@ -4480,6 +4523,8 @@ function minLogicalFrameRowHeightPx(
 function SheetCanvas(props: {
   project: CutProject
   template: SheetTemplate
+  projectCuts: CutGroupProjectDocument['cuts']
+  activeCutId: string
   sheetPages: SheetPage[]
   activePageIndex: number
   setActivePageIndex: (pageIndex: number) => void
@@ -4620,6 +4665,12 @@ function SheetCanvas(props: {
   const sheetPageWidth = Math.round(sheetPageSize.widthPx * zoom)
   const sheetPageHeight = Math.round(sheetPageSize.heightPx * zoom)
   const overlayTracks = overlayPaperTracks(props.project)
+  const sheetRenderModelContext = useMemo(
+    () => createSheetRenderModelContext(props.project, props.template, {
+      cutGroup: { activeCutId: props.activeCutId, cuts: props.projectCuts },
+    }),
+    [props.activeCutId, props.project, props.projectCuts, props.template],
+  )
   const rangeTrackOrder = (role: SheetTimingRole) => paperTrackOrderForRole(props.project, role)
   const rangeFromHits = (anchorHit: SheetHit, focusHit: SheetHit): SheetRangeSelection | null => {
     const usesOverlayTrack = [anchorHit.paperTrack, focusHit.paperTrack].some(paperTrack =>
@@ -6259,6 +6310,7 @@ function SheetCanvas(props: {
                   {showTemplateGuides && props.template.regions.filter(region => region.type === 'exposure-grid').map(region => (
                     <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} />
                   ))}
+                  {showTemplateGuides && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
                   {candidateRects.map(candidate => (
                     <rect
                       key={candidate.candidateId}
@@ -8670,6 +8722,29 @@ function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderModel }) 
   )
 }
 
+function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext; page: SheetPage }) {
+  const items = metadataTextRenderItemsForPage(context, page)
+  if (items.length === 0) return null
+  return (
+    <g className="metadataTextLayer" aria-hidden="true">
+      {items.map(item => (
+        <text
+          key={item.regionId}
+          className="metadataFieldText"
+          x={item.x}
+          y={item.y}
+          textAnchor={item.textAnchor}
+          dominantBaseline={item.dominantBaseline}
+          fontSize={item.fontSizePx / context.pageSize.heightPx}
+          fontWeight={item.fontWeight}
+        >
+          {item.text}
+        </text>
+      ))}
+    </g>
+  )
+}
+
 function WorkRangeOverlay({
   template,
   page,
@@ -10740,8 +10815,8 @@ function SheetImageExportDialog({
     setOptions(current => normalizeSheetImageExportDialogOptions({ ...current, includePaperSheet }, hasPaper, hasTemplateImage))
   }
 
-  function updateTemplateMode(templateMode: SheetTemplateExportMode) {
-    setOptions(current => normalizeSheetImageExportDialogOptions({ ...current, templateMode }, hasPaper, hasTemplateImage))
+  function updateTemplateImage(includeTemplateImage: boolean) {
+    setOptions(current => normalizeSheetImageExportDialogOptions({ ...current, includeTemplateImage }, hasPaper, hasTemplateImage))
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -10753,25 +10828,6 @@ function SheetImageExportDialog({
       setIsSaving(false)
     }
   }
-
-  const templateModeItems: Array<{ value: SheetTemplateExportMode; label: string; disabled: boolean; title?: string }> = [
-    {
-      value: 'none',
-      label: uiText.actions.imageExportTemplateNone,
-      disabled: !options.includePaperSheet,
-      title: uiText.actions.imageExportTemplateNoneHint,
-    },
-    {
-      value: 'template-image',
-      label: uiText.actions.imageExportTemplateImage,
-      disabled: !hasTemplateImage,
-    },
-    {
-      value: 'app-lines',
-      label: uiText.actions.imageExportTemplateLines,
-      disabled: false,
-    },
-  ]
 
   return (
     <div className="assetQuickPreviewBackdrop sheetImageExportBackdrop" role="dialog" aria-modal="true" aria-label={uiText.actions.imageExport}>
@@ -10797,24 +10853,32 @@ function SheetImageExportDialog({
             )}
           </TooltipTarget>
           <fieldset className="sheetImageExportTemplateModes">
-            <legend>{uiText.actions.imageExportTemplate}</legend>
-            {templateModeItems.map(item => (
-              <TooltipTarget key={item.value} label={item.title ?? item.label}>
-                {tooltipProps => (
-                  <label className={item.disabled ? 'disabled' : ''} {...tooltipProps}>
-                    <input
-                      type="radio"
-                      name="sheetTemplateExportMode"
-                      value={item.value}
-                      checked={options.templateMode === item.value}
-                      disabled={item.disabled}
-                      onChange={() => updateTemplateMode(item.value)}
-                    />
-                    {item.label}
-                  </label>
-                )}
-              </TooltipTarget>
-            ))}
+            <legend>{uiText.actions.imageExportLayers}</legend>
+            <TooltipTarget label={uiText.actions.imageExportTemplateImageTitle}>
+              {tooltipProps => (
+                <label className={!hasTemplateImage ? 'disabled' : ''} {...tooltipProps}>
+                  <input
+                    type="checkbox"
+                    checked={options.includeTemplateImage}
+                    disabled={!hasTemplateImage}
+                    onChange={event => updateTemplateImage(event.currentTarget.checked)}
+                  />
+                  {uiText.actions.imageExportTemplateImage}
+                </label>
+              )}
+            </TooltipTarget>
+            <TooltipTarget label={uiText.actions.imageExportTemplateDrawingTitle}>
+              {tooltipProps => (
+                <label {...tooltipProps}>
+                  <input
+                    type="checkbox"
+                    checked={options.includeTemplateDrawing}
+                    onChange={event => setOptions(current => ({ ...current, includeTemplateDrawing: event.currentTarget.checked }))}
+                  />
+                  {uiText.actions.imageExportTemplateDrawing}
+                </label>
+              )}
+            </TooltipTarget>
           </fieldset>
         </div>
         <footer className="sheetImageExportFooter">
@@ -10834,10 +10898,8 @@ function normalizeSheetImageExportDialogOptions(
   hasTemplateImage: boolean,
 ): SheetImageExportOptions {
   const includePaperSheet = hasPaper && options.includePaperSheet
-  let templateMode = options.templateMode
-  if (!includePaperSheet && templateMode === 'none') templateMode = hasTemplateImage ? 'template-image' : 'app-lines'
-  if (templateMode === 'template-image' && !hasTemplateImage) templateMode = 'app-lines'
-  return { ...options, includePaperSheet, templateMode }
+  const includeTemplateImage = hasTemplateImage && options.includeTemplateImage
+  return { ...options, includePaperSheet, includeTemplateImage }
 }
 
 interface RegisteredCellThumbnailRow {
@@ -11441,6 +11503,8 @@ function SlotPanel({
   runtimeSourceImageUrls,
   showTemplate,
   showAnnotations,
+  projectCuts,
+  activeCutId,
 }: {
   project: CutProject
   commitProject: (project: CutProject) => void
@@ -11451,6 +11515,8 @@ function SlotPanel({
   runtimeSourceImageUrls: Record<string, string>
   showTemplate: boolean
   showAnnotations: boolean
+  projectCuts: CutGroupProjectDocument['cuts']
+  activeCutId: string
 }) {
   const [syncViewOrder, setSyncViewOrder] = useState(true)
   const [selectedStackItemIds, setSelectedStackItemIds] = useState<Set<string>>(() => new Set())
@@ -11677,6 +11743,8 @@ function SlotPanel({
               runtimeSourceImageUrls={runtimeSourceImageUrls}
               showTemplate={showTemplate}
               showAnnotations={showAnnotations}
+              projectCuts={projectCuts}
+              activeCutId={activeCutId}
             />
           </aside>
         </div>
@@ -11739,6 +11807,8 @@ function SlotSheetPreview({
   runtimeSourceImageUrls,
   showTemplate,
   showAnnotations,
+  projectCuts,
+  activeCutId,
 }: {
   project: CutProject
   template: SheetTemplate
@@ -11748,6 +11818,8 @@ function SlotSheetPreview({
   runtimeSourceImageUrls: Record<string, string>
   showTemplate: boolean
   showAnnotations: boolean
+  projectCuts: CutGroupProjectDocument['cuts']
+  activeCutId: string
 }) {
   const page = sheetPages[activePageIndex] ?? sheetPages[0]
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
@@ -11755,6 +11827,9 @@ function SlotSheetPreview({
   const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
     paperTracks: templateTrackNames,
     layoutOverrides: sheetView.layoutOverrides,
+  })
+  const sheetRenderModelContext = createSheetRenderModelContext(project, template, {
+    cutGroup: { activeCutId, cuts: projectCuts },
   })
   const overlayTracks = overlayPaperTracks(project)
   if (!page) return <p className="muted">{uiText.slots.noSheetPreview}</p>
@@ -11794,6 +11869,7 @@ function SlotSheetPreview({
             {template.regions.filter(region => region.type === 'exposure-grid').map(region => (
               <GridOverlay key={region.regionId} template={template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={getSheetViewLayout(template).surface?.type === 'continuous-canvas' ? page.frameStart : template.defaults.frameOrigin} />
             ))}
+            <MetadataTextLayer context={sheetRenderModelContext} page={page} />
             <WorkRangeOverlay
               template={template}
               page={page}
@@ -12344,6 +12420,37 @@ function TemplatePanel({
     setSelectedRegionId(regionId)
   }
 
+  function addMetadataRegion() {
+    const editableTemplate = ensureEditableTemplateDraft(template)
+    const usedBindings = new Set(editableTemplate.regions.flatMap(region => {
+      const optionId = metadataBindingOptionId(region.binding)
+      return optionId ? [optionId] : []
+    }))
+    const optionId = METADATA_BINDING_OPTION_IDS.find(candidate => !usedBindings.has(candidate)) ?? 'cut:title'
+    const binding = metadataBindingFromOptionId(optionId)
+    const regionId = `metadata_${optionId.replace(/[:]/g, '_')}_${editableTemplate.regions.length + 1}`
+    const region: SheetTemplate['regions'][number] = {
+      regionId,
+      type: 'metadata-field',
+      label: metadataBindingOptionLabel(optionId),
+      rect: { x: 0.1, y: 0.08, w: 0.2, h: 0.04 },
+      usage: binding.target === 'cut-group' ? 'render-only' : 'input',
+      inputKind: 'text',
+      binding,
+      textStyle: {
+        fontSizePx: 22,
+        minFontSizePx: 10,
+        fontWeight: 700,
+        horizontalAlign: 'center',
+        verticalAlign: 'middle',
+        paddingPx: 8,
+        shrinkToFit: true,
+      },
+    }
+    setDraftTemplate({ ...editableTemplate, regions: [...editableTemplate.regions, region] })
+    setSelectedRegionId(regionId)
+  }
+
   async function handleLoadReferenceImage(files: FileList | null) {
     const file = files?.[0]
     if (!file) return
@@ -12560,6 +12667,8 @@ function TemplatePanel({
           <tr>
             <th>{uiText.template.headers.region}</th>
             <th>{uiText.template.headers.role}</th>
+            <th>{uiText.template.headers.metadataField}</th>
+            <th>{uiText.template.headers.fontSize}</th>
             <th>x</th>
             <th>y</th>
             <th>w</th>
@@ -12577,6 +12686,37 @@ function TemplatePanel({
                 <input value={region.label} onChange={event => updateRegion(region.regionId, { label: event.currentTarget.value })} />
               </th>
               <td>{region.grid?.role ?? region.type}</td>
+              <td>
+                {(region.binding?.target === 'cut-metadata' || region.binding?.target === 'cut-group') && (
+                  <select
+                    value={metadataBindingOptionId(region.binding) ?? 'cut:title'}
+                    onChange={event => {
+                      const optionId = event.currentTarget.value as MetadataBindingOptionId
+                      const binding = metadataBindingFromOptionId(optionId)
+                      updateRegion(region.regionId, {
+                        binding,
+                        label: metadataBindingOptionLabel(optionId),
+                        usage: binding.target === 'cut-group' ? 'render-only' : 'input',
+                      })
+                    }}
+                  >
+                    {METADATA_BINDING_OPTION_IDS.map(optionId => <option key={optionId} value={optionId}>{metadataBindingOptionLabel(optionId)}</option>)}
+                  </select>
+                )}
+              </td>
+              <td>
+                {(region.binding?.target === 'cut-metadata' || region.binding?.target === 'cut-group') && (
+                  <input
+                    className="numberInput"
+                    type="number"
+                    min="1"
+                    value={region.textStyle?.fontSizePx ?? 22}
+                    onChange={event => updateRegion(region.regionId, {
+                      textStyle: { ...(region.textStyle ?? {}), fontSizePx: Math.max(1, Number(event.currentTarget.value)) },
+                    })}
+                  />
+                )}
+              </td>
               {(['x', 'y', 'w', 'h'] as const).map(key => (
                 <td key={key}>
                   <input className="numberInput" type="number" step="0.0001" value={region.rect[key]} onChange={event => updateRegionRect(region.regionId, key, Number(event.currentTarget.value))} />
@@ -12681,6 +12821,9 @@ function TemplatePanel({
           </Tooltip>
         </ToolbarGroup>
         <ToolbarGroup>
+          <Tooltip label={uiText.actions.addMetadataRegionTitle}>
+            <button onClick={addMetadataRegion}>{uiText.actions.addMetadataRegion}</button>
+          </Tooltip>
           <Tooltip label={uiText.actions.addActionRegionTitle}>
             <button onClick={() => addGridRegion('action')}>{uiText.actions.addActionRegion}</button>
           </Tooltip>
@@ -14005,6 +14148,38 @@ function panelLabel(panel: Panel): string {
     case 'export':
       return uiText.nav.export
   }
+}
+
+function metadataFieldLabel(field: CutMetadataFieldId): string {
+  return {
+    title: 'タイトル',
+    episode: '話数',
+    scene: 'シーン',
+    cut: 'カット',
+    duration: '尺',
+    worker: '作業者',
+    page: 'ページ',
+    custom: 'カスタム',
+  }[field]
+}
+
+function metadataBindingOptionId(binding: SheetTemplateRegionBinding | undefined): MetadataBindingOptionId | null {
+  if (binding?.target === 'cut-metadata') return `cut:${binding.field}`
+  if (binding?.target === 'cut-group' && binding.field === 'shared-cut-numbers') return 'group:shared-cut-numbers'
+  return null
+}
+
+function metadataBindingFromOptionId(optionId: MetadataBindingOptionId): SheetTemplateRegionBinding {
+  if (optionId === 'group:shared-cut-numbers') {
+    return { target: 'cut-group', field: 'shared-cut-numbers', prefix: '兼用 ', separator: '・' }
+  }
+  return { target: 'cut-metadata', field: optionId.slice(4) as CutMetadataFieldId }
+}
+
+function metadataBindingOptionLabel(optionId: MetadataBindingOptionId): string {
+  return optionId === 'group:shared-cut-numbers'
+    ? '兼用カット'
+    : metadataFieldLabel(optionId.slice(4) as CutMetadataFieldId)
 }
 
 function sheetSourceLabel(source: SheetSource): string {

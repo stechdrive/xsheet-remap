@@ -74,6 +74,23 @@ describe('sheet template layout', () => {
     expect(leftPx).toBeCloseTo(35)
     expect(rightPx).toBeCloseTo(1633)
   })
+
+  it('places optional shared cut numbers at the bottom of the A3 CUT field', () => {
+    const cutRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'top_cut_field')
+    const sharedRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'top_shared_cut_numbers_field')
+
+    expect(cutRegion?.textStyleVariants?.sharedCutNumbersVisible).toMatchObject({ verticalAlign: 'top' })
+    if (!sharedRegion) throw new Error('top_shared_cut_numbers_field not found')
+    expect(sharedRegion?.binding).toEqual({
+      target: 'cut-group',
+      field: 'shared-cut-numbers',
+      prefix: '兼用 ',
+      separator: '・',
+    })
+    expect(sharedRegion.rect.x * standardA3SheetTemplate.page.widthPx).toBeCloseTo(864)
+    expect(sharedRegion.rect.y * standardA3SheetTemplate.page.heightPx).toBeCloseTo(211)
+    expect(sharedRegion.rect.h * standardA3SheetTemplate.page.heightPx).toBeCloseTo(25)
+  })
 })
 
 function variableLayoutTemplate(gridOverrides: Partial<NonNullable<SheetTemplate['regions'][number]['grid']>> = {}): SheetTemplate {

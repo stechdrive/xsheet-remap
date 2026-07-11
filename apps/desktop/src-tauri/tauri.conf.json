@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "xsheet-remap",
-  "version": "0.1.471",
+  "version": "0.1.472",
   "identifier": "local.xsheet-remap.desktop",
   "build": {
     "beforeDevCommand": "npm run dev -w @xsheet-remap/web",

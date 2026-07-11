@@ -50,6 +50,14 @@ export type TemplateChromeRenderModel = {
 export type TemplateGridPathRenderModel = {
   className: string
   d: string
+  segments: TemplateGridLineSegment[]
+}
+
+export type TemplateGridLineSegment = {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
 }
 
 export type TemplateGridRowLabelRenderModel = {
@@ -109,7 +117,7 @@ export function buildTemplateChromeRenderModel(
   return {
     showOuterFrame: template.templateKind !== 'digital-native',
     referenceRegions: template.regions
-      .filter(region => region.type !== 'exposure-grid' && region.usage !== 'ignored')
+      .filter(region => region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored')
       .map(region => ({
         regionId: region.regionId,
         type: region.type,
@@ -167,14 +175,14 @@ export function buildTemplateGridOverlayRenderModel(
   const rect = layout.rect
   const pageSize = layout.pageSize
   const frames = layout.frames
-  const rowPaths = new Map<string, string[]>()
+  const rowPaths = new Map<string, TemplateGridLineSegment[]>()
   const renderHorizontalLines = !(template.templateKind === 'digital-native' && region.grid.role === 'sound')
   if (renderHorizontalLines) {
     for (let row = 0; row <= frames.rowCount; row += 1) {
       const y = sheetGridRowY(layout, row)
       const className = `${gridRowLineClassName(region.grid, row)} gridLineRow`
       const segments = rowPaths.get(className) ?? []
-      segments.push(`M ${rect.x} ${y} H ${rect.x + rect.w}`)
+      segments.push({ x1: rect.x, y1: y, x2: rect.x + rect.w, y2: y })
       rowPaths.set(className, segments)
     }
   }
@@ -186,6 +194,7 @@ export function buildTemplateGridOverlayRenderModel(
     ? {
         className: 'gridLine gridLineColumn',
         d: columnLines.map(x => `M ${x} ${rect.y} V ${rect.y + rect.h}`).join(' '),
+        segments: columnLines.map(x => ({ x1: x, y1: rect.y, x2: x, y2: rect.y + rect.h })),
       }
     : null
   const labels = region.grid.rowLabelRules?.flatMap((rule, ruleIndex) => {
@@ -212,7 +221,11 @@ export function buildTemplateGridOverlayRenderModel(
   return {
     regionId: region.regionId,
     role: region.grid.role,
-    rowPaths: Array.from(rowPaths, ([className, segments]) => ({ className, d: segments.join(' ') })),
+    rowPaths: Array.from(rowPaths, ([className, segments]) => ({
+      className,
+      d: segments.map(segment => `M ${segment.x1} ${segment.y1} H ${segment.x2}`).join(' '),
+      segments,
+    })),
     columnPath,
     labels,
   }

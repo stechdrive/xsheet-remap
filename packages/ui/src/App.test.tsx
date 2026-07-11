@@ -620,6 +620,25 @@ describe('App', () => {
     expect(document.querySelectorAll('.gridLine, .gridLineMajor').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridOverlay-action, .gridOverlay-cell, .gridOverlay-camera').length).toBeGreaterThan(0)
     expect(document.querySelector('.gridOverlay-sound')).toBeNull()
+    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toEqual(['001', '06+00', '1/1'])
+  })
+
+  it('toggles shared cut numbers from display settings', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
+    const initiallyDisabled = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
+    expect(initiallyDisabled.disabled).toBe(true)
+    fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
+
+    fireEvent.click(document.querySelector('.cutSwitchAddButton') as HTMLButtonElement)
+    fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
+    const toggle = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
+    expect(toggle.disabled).toBe(false)
+    expect(toggle.checked).toBe(false)
+
+    fireEvent.click(toggle)
+    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toContain('兼用 001')
   })
 
   it('keeps template creation as a draft until apply or cancel', () => {
@@ -668,8 +687,8 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.json }))
     const json = document.querySelector('.jsonPreview') as HTMLTextAreaElement | null
     expect(json?.value).toContain('"name": "A3標準 改"')
-    expect(json?.value).not.toContain('"templateId": "standard-a3-timesheet-v1"')
-    expect(json?.value).toMatch(/"templateId": "standard-a3-timesheet-v1-custom-[a-z0-9]+"/)
+    expect(json?.value).not.toContain('"templateId": "standard-a3-timesheet-v2"')
+    expect(json?.value).toMatch(/"templateId": "standard-a3-timesheet-v2-custom-[a-z0-9]+"/)
   })
 
   it('shows context operation hints in the bottom status bar', () => {

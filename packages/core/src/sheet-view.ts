@@ -37,6 +37,9 @@ export function createDefaultSheetViewState(templateInput: string | Pick<SheetTe
     viewMode: viewLayout?.defaultViewMode ?? 'continuous',
     activePageId: 'page_1',
     sources: [],
+    metadataDisplay: {
+      sharedCutNumbers: false,
+    },
     pages: [
       {
         pageId: 'page_1',
@@ -146,6 +149,10 @@ export function migrateSheetView(input: Partial<SheetViewState> | undefined, tem
     templateId: input?.templateId ?? templateId,
     sources,
     pages,
+    metadataDisplay: {
+      ...base.metadataDisplay,
+      ...(input?.metadataDisplay ?? {}),
+    },
   }
 }
 

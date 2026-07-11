@@ -1,6 +1,7 @@
 import {
   cellRectForHit,
   createSheetPages,
+  formatSheetTemplateCutNumber,
   getSheetViewLayout,
   localizeFrameToSheetPage,
   logicalSheetDisplayDurationFrames,
@@ -11,11 +12,13 @@ import {
   resolveSheetTemplateGridFrames,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
+  resolveSheetTemplateRegionRect,
   sheetTimingRoleForEvent,
   stackGuideGapIndex,
   stackGuideStackBand,
   timingHitForFrame,
   type CutProject,
+  type CutSheetDocument,
   type NormalizedRect,
   type PaperTrack,
   type SheetPage,
@@ -39,6 +42,12 @@ export type SheetRenderModelContext = {
   officialFrameEnd: number
   paperTracks: string[]
   overlayTracks: PaperTrack[]
+  cutGroup?: SheetRenderCutGroupContext
+}
+
+export type SheetRenderCutGroupContext = {
+  activeCutId: string
+  cuts: Array<Pick<CutSheetDocument, 'cutId' | 'order' | 'metadata'>>
 }
 
 export type SheetInputTextRenderItem = {
@@ -49,6 +58,19 @@ export type SheetInputTextRenderItem = {
   text: string
   fontSizePx: number
   rect: NormalizedRect
+}
+
+export type SheetMetadataTextRenderItem = {
+  regionId: string
+  field: string
+  text: string
+  rect: NormalizedRect
+  x: number
+  y: number
+  textAnchor: 'start' | 'middle' | 'end'
+  dominantBaseline: 'hanging' | 'central' | 'text-after-edge'
+  fontSizePx: number
+  fontWeight: number
 }
 
 export type FlagLabelGeometry = {
@@ -150,6 +172,7 @@ const STACK_GUIDE_LABEL_EXTRA_WIDTH_PX = 3
 export function createSheetRenderModelContext(
   project: CutProject,
   template: SheetTemplate,
+  options: { cutGroup?: SheetRenderCutGroupContext } = {},
 ): SheetRenderModelContext {
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
@@ -172,6 +195,7 @@ export function createSheetRenderModelContext(
     officialFrameEnd,
     paperTracks,
     overlayTracks: overlayPaperTracks(project),
+    cutGroup: options.cutGroup,
   }
 }
 
@@ -199,6 +223,110 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
       rect,
     }]
   })
+}
+
+export function metadataTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetMetadataTextRenderItem[] {
+  const sharedCutNumbersVisible = sharedCutNumberLabels(context).length > 0
+  return context.template.regions.flatMap(region => {
+    if (region.type !== 'metadata-field' || !region.binding || region.usage === 'ignored') return []
+    const text = region.binding.target === 'cut-metadata'
+      ? metadataFieldText(context, page, region.binding.field, region.binding.customKey)
+      : region.binding.target === 'cut-group' && region.binding.field === 'shared-cut-numbers'
+        ? sharedCutNumbersText(context, region.binding.prefix, region.binding.separator)
+        : ''
+    if (!text) return []
+    const field = region.binding.target === 'cut-metadata' || region.binding.target === 'cut-group'
+      ? region.binding.field
+      : ''
+    const rect = resolveSheetTemplateRegionRect(
+      context.template,
+      region,
+      context.displayDurationFrames,
+      { paperTracks: context.paperTracks, layoutOverrides: context.project.sheetView.layoutOverrides },
+    )
+    const style = {
+      ...(region.textStyle ?? {}),
+      ...(sharedCutNumbersVisible ? region.textStyleVariants?.sharedCutNumbersVisible ?? {} : {}),
+    }
+    const paddingPx = Math.max(0, style.paddingPx ?? 8)
+    const horizontalAlign = style.horizontalAlign ?? 'center'
+    const verticalAlign = style.verticalAlign ?? 'middle'
+    const fontSizePx = metadataFontSizePx(text, rect, context.pageSize, {
+      fontSizePx: style.fontSizePx ?? 22,
+      minFontSizePx: style.minFontSizePx ?? 10,
+      paddingPx,
+      shrinkToFit: style.shrinkToFit !== false,
+    })
+    const paddingX = paddingPx / context.pageSize.widthPx
+    const paddingY = paddingPx / context.pageSize.heightPx
+    return [{
+      regionId: region.regionId,
+      field,
+      text,
+      rect,
+      x: horizontalAlign === 'left' ? rect.x + paddingX : horizontalAlign === 'right' ? rect.x + rect.w - paddingX : rect.x + rect.w / 2,
+      y: verticalAlign === 'top' ? rect.y + paddingY : verticalAlign === 'bottom' ? rect.y + rect.h - paddingY : rect.y + rect.h / 2,
+      textAnchor: horizontalAlign === 'left' ? 'start' : horizontalAlign === 'right' ? 'end' : 'middle',
+      dominantBaseline: verticalAlign === 'top' ? 'hanging' : verticalAlign === 'bottom' ? 'text-after-edge' : 'central',
+      fontSizePx,
+      fontWeight: Math.max(100, Math.min(900, Math.round(style.fontWeight ?? 700))),
+    }]
+  })
+}
+
+function sharedCutNumberLabels(context: SheetRenderModelContext): string[] {
+  if (!context.project.sheetView.metadataDisplay.sharedCutNumbers || !context.cutGroup) return []
+  const seen = new Set<string>()
+  return [...context.cutGroup.cuts]
+    .sort((a, b) => a.order - b.order || a.cutId.localeCompare(b.cutId, 'ja'))
+    .flatMap(cut => {
+      if (cut.cutId === context.cutGroup?.activeCutId) return []
+      const cutNumber = cut.metadata.cut?.trim()
+      if (!cutNumber) return []
+      const label = formatSheetTemplateCutNumber(context.template, cutNumber)
+      if (!label || seen.has(label)) return []
+      seen.add(label)
+      return [label]
+    })
+}
+
+function sharedCutNumbersText(context: SheetRenderModelContext, prefix = '兼用 ', separator = '・'): string {
+  const labels = sharedCutNumberLabels(context)
+  return labels.length > 0 ? `${prefix}${labels.join(separator)}` : ''
+}
+
+function metadataFieldText(
+  context: SheetRenderModelContext,
+  page: SheetPage,
+  field: string,
+  customKey?: string,
+): string {
+  if (field === 'duration') {
+    const fps = Math.max(1, Math.round(context.project.logicalSheet.fps))
+    const duration = Math.max(1, Math.round(context.project.logicalSheet.durationFrames))
+    return `${String(Math.floor(duration / fps)).padStart(2, '0')}+${String(duration % fps).padStart(2, '0')}`
+  }
+  if (field === 'page') return `${page.pageIndex + 1}/${context.pages.length}`
+  if (field === 'cut') return formatSheetTemplateCutNumber(context.template, context.project.cut.cut ?? '')
+  if (field === 'custom') return customKey ? context.project.cut.custom?.[customKey] ?? '' : ''
+  const value = context.project.cut[field as keyof typeof context.project.cut]
+  return typeof value === 'string' ? value : ''
+}
+
+function metadataFontSizePx(
+  text: string,
+  rect: NormalizedRect,
+  pageSize: { widthPx: number; heightPx: number },
+  options: { fontSizePx: number; minFontSizePx: number; paddingPx: number; shrinkToFit: boolean },
+): number {
+  const availableWidth = Math.max(1, rect.w * pageSize.widthPx - options.paddingPx * 2)
+  const availableHeight = Math.max(1, rect.h * pageSize.heightPx - options.paddingPx * 2)
+  const requested = Math.max(1, options.fontSizePx)
+  const heightLimited = Math.min(requested, availableHeight)
+  if (!options.shrinkToFit) return heightLimited
+  const widthUnits = Array.from(text).reduce((total, character) => total + (/^[\x20-\x7e]$/.test(character) ? 0.58 : 1), 0)
+  const widthLimited = widthUnits > 0 ? availableWidth / widthUnits : heightLimited
+  return Math.max(Math.min(options.minFontSizePx, heightLimited), Math.min(heightLimited, widthLimited))
 }
 
 export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, page: SheetPage): OverlayPaperTrackRenderItem[] {

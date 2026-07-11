@@ -46,6 +46,7 @@ import {
   standardA3SheetTemplate,
   standardA3SheetTemplatePreset,
   sheetTemplatePresets,
+  SHEET_TEMPLATE_SCHEMA_VERSION,
   type SheetTemplate,
 } from './sheet-template'
 import {
@@ -79,7 +80,7 @@ export const DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME = '===== XSHEET IMPORT ST
 export const DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME = '===== XSHEET IMPORT END ====='
 export const MAX_CORRECTION_LAYERS = 10
 export const PROJECT_DOCUMENT_KIND = 'xsheet-remap-cut-group-project'
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 3
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 4
 
 export {
   DEFAULT_PRE_ROLL_FRAMES,
@@ -2208,6 +2209,7 @@ function isCutGroupProjectDocumentInput(input: unknown): input is Partial<CutGro
 
 function isSheetTemplateInput(input: unknown): input is SheetTemplate {
   return isRecord(input)
+    && input.schemaVersion === SHEET_TEMPLATE_SCHEMA_VERSION
     && typeof input.templateId === 'string'
     && typeof input.name === 'string'
     && isRecord(input.page)

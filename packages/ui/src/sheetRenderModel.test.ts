@@ -13,6 +13,7 @@ import {
   createSheetRenderModelContext,
   hasOverlayRenderContent,
   inputTextRenderItemsForPage,
+  metadataTextRenderItemsForPage,
   overlayPaperTrackRenderItems,
   stackGuideFlagRenderItemsForPage,
 } from './sheetRenderModel'
@@ -79,5 +80,74 @@ describe('sheet render model', () => {
 
     expect(items).toHaveLength(1)
     expect(items[0]?.fontSizePx).toBe(defaultTimingTextFontSizePx(digitalStandardSheetTemplate, 'action'))
+  })
+
+  it('resolves cut metadata, duration, and page numbers into template field rectangles', () => {
+    const project = {
+      ...createDefaultProject(),
+      cut: {
+        title: '作品タイトル',
+        episode: '03',
+        scene: '12',
+        cut: '101',
+        worker: '作業者A',
+      },
+      logicalSheet: {
+        ...createDefaultProject().logicalSheet,
+        durationFrames: 150,
+      },
+    }
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate)
+    const firstPage = metadataTextRenderItemsForPage(context, context.pages[0])
+    const secondPage = metadataTextRenderItemsForPage(context, context.pages[1])
+
+    expect(Object.fromEntries(firstPage.map(item => [item.field, item.text]))).toEqual({
+      title: '作品タイトル',
+      episode: '03',
+      cut: '101',
+      duration: '06+06',
+      worker: '作業者A',
+      page: '1/2',
+    })
+    expect(secondPage.find(item => item.field === 'page')?.text).toBe('2/2')
+    expect(firstPage.every(item => item.rect.w > 0 && item.fontSizePx > 0)).toBe(true)
+  })
+
+  it('renders other shared cut numbers only when the per-cut display option is enabled', () => {
+    const base = createDefaultProject()
+    const project = {
+      ...base,
+      sheetView: {
+        ...base.sheetView,
+        metadataDisplay: { sharedCutNumbers: true },
+      },
+    }
+    const cutGroup = {
+      activeCutId: 'cut_1',
+      cuts: [
+        { cutId: 'cut_1', order: 0, metadata: { cut: '001' } },
+        { cutId: 'cut_2', order: 1, metadata: { cut: '002' } },
+        { cutId: 'cut_3', order: 2, metadata: { cut: '003' } },
+      ],
+    }
+    const visibleContext = createSheetRenderModelContext(project, standardA3SheetTemplate, { cutGroup })
+    const visibleItems = metadataTextRenderItemsForPage(visibleContext, visibleContext.pages[0])
+    const visibleCut = visibleItems.find(item => item.field === 'cut')
+
+    expect(visibleItems.find(item => item.field === 'shared-cut-numbers')?.text).toBe('兼用 002・003')
+    expect(visibleCut?.dominantBaseline).toBe('hanging')
+
+    const hiddenProject = {
+      ...project,
+      sheetView: {
+        ...project.sheetView,
+        metadataDisplay: { sharedCutNumbers: false },
+      },
+    }
+    const hiddenContext = createSheetRenderModelContext(hiddenProject, standardA3SheetTemplate, { cutGroup })
+    const hiddenItems = metadataTextRenderItemsForPage(hiddenContext, hiddenContext.pages[0])
+
+    expect(hiddenItems.some(item => item.field === 'shared-cut-numbers')).toBe(false)
+    expect(hiddenItems.find(item => item.field === 'cut')?.dominantBaseline).toBe('central')
   })
 })

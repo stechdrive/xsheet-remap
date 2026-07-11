@@ -182,6 +182,20 @@ export function clampSheetZoom(value: number): number {
   return clampNumber(value, SHEET_ZOOM_MIN, SHEET_ZOOM_MAX)
 }
 
+export function fitZoomForViewport(
+  viewport: HTMLElement,
+  pageSize: { widthPx: number; heightPx: number },
+  inset: { horizontal: number; vertical: number },
+): number | null {
+  if (viewport.clientWidth <= 0 || viewport.clientHeight <= 0) return null
+  const availableWidth = Math.max(1, viewport.clientWidth - inset.horizontal)
+  const availableHeight = Math.max(1, viewport.clientHeight - inset.vertical)
+  return Math.min(
+    availableWidth / pageSize.widthPx,
+    availableHeight / pageSize.heightPx,
+  )
+}
+
 export function candidateToHit(template: SheetTemplate, durationFrames: number, frameOrigin: number, candidate: { paperTrack: string; frame: number; sheetRole: SheetTimingRole }): SheetHit | null {
   return enumerateTimingHits(template, durationFrames, frameOrigin, candidate.sheetRole)
     .find(hit => hit.paperTrack === candidate.paperTrack && hit.frame === candidate.frame) ?? null

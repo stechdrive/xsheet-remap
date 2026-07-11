@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "xsheet-editor",
+  "version": "0.1.477",
+  "identifier": "local.xsheet-remap.editor",
+  "build": {
+    "beforeDevCommand": "npm run dev -w @xsheet-remap/web",
+    "devUrl": "http://localhost:5173?app=editor",
+    "beforeBuildCommand": "npm run build -w @xsheet-remap/web",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "xsheet-editor",
+        "url": "index.html?app=editor",
+        "width": 1680,
+        "height": 960,
+        "minWidth": 1024,
+        "minHeight": 720,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/icon.ico"
+    ]
+  }
+}

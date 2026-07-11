@@ -85,7 +85,7 @@ function Get-PythonCommand {
   }
   $py = Get-Command py -ErrorAction SilentlyContinue
   if ($py) {
-    return @($py.Source, "-3.12")
+    return @($py.Source, "-3")
   }
   return @("python")
 }
@@ -112,6 +112,20 @@ function Remove-VenvSafely {
   Remove-DirectorySafely -Path $venvRoot -AllowedRoot $repoRoot -Description "venv"
 }
 
+function Get-SelectedPythonMajorMinor {
+  $lines = @(
+    Invoke-SelectedPython @(
+      "-c",
+      "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    )
+  )
+  if ($LASTEXITCODE -ne 0 -or $lines.Count -lt 1) {
+    $command = (Get-PythonCommand) -join " "
+    throw "failed to start the selected build Python: $command"
+  }
+  return ([string]$lines[0]).Trim()
+}
+
 function Test-PythonModuleInstalled {
   param(
     [string]$PythonExe,
@@ -123,16 +137,32 @@ function Test-PythonModuleInstalled {
 }
 
 function Assert-ExpectedVenv {
+  param([string]$ExpectedMajorMinor)
+
   if (-not (Test-Path -LiteralPath $venvRoot)) {
     return
   }
   $venvPython = Join-Path $venvRoot "Scripts\python.exe"
   if (-not (Test-Path -LiteralPath $venvPython)) {
+    Remove-VenvSafely "Python executable is missing"
     return
   }
-  $version = (& $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
-  if ($version -ne "3.12") {
-    Remove-VenvSafely "Python 3.12 required, found $version"
+
+  $versionLines = @()
+  try {
+    $versionLines = @(& $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null)
+  } catch {
+    Remove-VenvSafely "Python interpreter is unavailable"
+    return
+  }
+  if ($LASTEXITCODE -ne 0 -or $versionLines.Count -lt 1) {
+    Remove-VenvSafely "Python interpreter is unavailable"
+    return
+  }
+
+  $version = ([string]$versionLines[0]).Trim()
+  if ($version -ne $ExpectedMajorMinor) {
+    Remove-VenvSafely "selected Python is $ExpectedMajorMinor, venv uses $version"
     return
   }
   if ($ForceCleanVenv) {
@@ -332,13 +362,20 @@ function Remove-UnneededRuntimeFiles {
   }
 }
 
-Assert-ExpectedVenv
+$selectedPythonMajorMinor = Get-SelectedPythonMajorMinor
+Assert-ExpectedVenv -ExpectedMajorMinor $selectedPythonMajorMinor
 
 if (-not (Test-Path -LiteralPath $venvRoot)) {
   Invoke-SelectedPython @("-m", "venv", $venvRoot)
+  if ($LASTEXITCODE -ne 0) {
+    throw "failed to create helper build venv with Python $selectedPythonMajorMinor"
+  }
 }
 
 $venvPython = Join-Path $venvRoot "Scripts\python.exe"
+if (-not (Test-Path -LiteralPath $venvPython)) {
+  throw "helper build venv did not create a Python executable: $venvPython"
+}
 & $venvPython -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) {
   throw "failed to upgrade build pip"

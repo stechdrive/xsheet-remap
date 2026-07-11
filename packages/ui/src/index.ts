@@ -1,4 +1,6 @@
-export { App } from './App'
+export { App, EditorApp, RemapApp, type MainAppKind } from './App'
 export { AssetPreviewWindow } from './assetPreview'
 export { SheetCorrectorApp } from './sheetCorrectorApp'
+export { TemplateEditorApp } from './TemplateEditorApp'
+export { TemplateWorkspace } from './TemplateWorkspace'
 export { Tooltip, TooltipTarget } from './Tooltip'

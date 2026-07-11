@@ -1,6 +1,8 @@
 param(
-  [string]$ExePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe",
-  [string]$ExpectedTitle = "xsheet-remap",
+  [string]$ExePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe",
+  [string]$ExpectedTitle = "xsheet-editor",
+  [string[]]$ArgumentList = @(),
+  [string]$WorkingDirectory = "",
   [int]$TimeoutSeconds = 30,
   [int]$StableSeconds = 3,
   [int]$MinWidth = 800,
@@ -37,6 +39,16 @@ if (-not (Test-Path -LiteralPath $candidateExePath)) {
 }
 
 $resolvedExePath = (Resolve-Path -LiteralPath $candidateExePath).Path
+$resolvedWorkingDirectory = if ([string]::IsNullOrWhiteSpace($WorkingDirectory)) {
+  $repoRoot.Path
+} elseif ([System.IO.Path]::IsPathRooted($WorkingDirectory)) {
+  [System.IO.Path]::GetFullPath($WorkingDirectory)
+} else {
+  [System.IO.Path]::GetFullPath((Join-Path $repoRoot $WorkingDirectory))
+}
+if (-not (Test-Path -LiteralPath $resolvedWorkingDirectory -PathType Container)) {
+  throw "desktop working directory not found: $resolvedWorkingDirectory"
+}
 
 if (-not ("WinDesktopSmokeUser32" -as [type])) {
   Add-Type -TypeDefinition @"
@@ -114,7 +126,16 @@ function Get-VisibleProcessWindows {
 }
 
 Write-Host "[desktop-smoke] launching $resolvedExePath"
-$process = Start-Process -FilePath $resolvedExePath -PassThru -WindowStyle Normal
+$startParameters = @{
+  FilePath = $resolvedExePath
+  PassThru = $true
+  WindowStyle = "Normal"
+  WorkingDirectory = $resolvedWorkingDirectory
+}
+if ($ArgumentList.Count -gt 0) {
+  $startParameters.ArgumentList = $ArgumentList
+}
+$process = Start-Process @startParameters
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 $matchedWindow = $null
 

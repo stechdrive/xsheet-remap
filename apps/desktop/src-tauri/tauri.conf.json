@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "xsheet-remap",
-  "version": "0.1.475",
-  "identifier": "local.xsheet-remap.desktop",
+  "version": "0.1.477",
+  "identifier": "local.xsheet-remap.remap",
   "build": {
     "beforeDevCommand": "npm run dev -w @xsheet-remap/web",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:5173?app=remap",
     "beforeBuildCommand": "npm run build -w @xsheet-remap/web",
     "frontendDist": "../../web/dist"
   },
@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "xsheet-remap",
+        "url": "index.html?app=remap",
         "width": 1680,
         "height": 960,
         "minWidth": 1024,

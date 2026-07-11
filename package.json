@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.475",
+  "version": "0.1.477",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -53,11 +53,17 @@
     "e2e:sheet-corrector:calibration-eval": "tsx tools/e2e/sheet-corrector-calibration-eval.ts",
     "smoke:desktop:win": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke/win-desktop-smoke.ps1",
     "smoke:desktop:win:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke/win-desktop-smoke.ps1 -Build",
+    "smoke:apps:win": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke/win-app-suite-smoke.ps1",
+    "smoke:apps:win:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke/win-app-suite-smoke.ps1 -Build",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "npm run tauri -w @xsheet-remap/desktop",
     "tauri:dev": "npm run tauri:dev -w @xsheet-remap/desktop",
+    "tauri:editor": "npm run tauri -w @xsheet-remap/editor",
+    "tauri:editor:dev": "npm run tauri:dev -w @xsheet-remap/editor",
+    "tauri:template-editor": "npm run tauri -w @xsheet-remap/template-editor",
+    "tauri:template-editor:dev": "npm run tauri:dev -w @xsheet-remap/template-editor",
     "xdts:inspect": "tsx tools/xdts-inspect/src/index.ts",
     "xdts:patch": "tsx tools/xdts-patch/src/index.ts",
     "csv-xdts:compare": "tsx tools/csv-xdts-compare/src/index.ts"

@@ -1,9 +1,9 @@
 param(
-  [string]$ExePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe",
+  [string]$ExePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe",
   [string]$Scenario = "launch",
   [string]$FixtureSource = "",
   [string]$ArtifactRoot = ".tmp/desktop-e2e",
-  [string]$ExpectedTitle = "xsheet-remap",
+  [string]$ExpectedTitle = "xsheet-editor",
   [int]$TimeoutSeconds = 30,
   [int]$StableSeconds = 3,
   [int]$MinWidth = 800,

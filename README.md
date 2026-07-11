@@ -1,18 +1,20 @@
 # xsheet-remap
 
-xsheet-remapは、紙タイムシートと作画素材をCLIP STUDIO PAINT EXへ組み込みやすい形に整理するためのデスクトップアプリです。
+xsheet-remapは、デジタルタイムシートの編集、紙シート画像の補正、テンプレート作成、CLIP STUDIO PAINT EXへの組み込みを扱うデスクトップアプリ群です。CSPはCLIP STUDIO PAINTのことです。
 
-紙シート画像を下敷きにしてタイミングや素材対応を確認し、素材ファイル名、CSP上のセル名、XDTS、CSP自動登録用ファイルをまとめて扱います。CSPはCLIP STUDIO PAINTのことです。
+全機能版の`xsheet-editor`と、CSP組み込みに絞った`xsheet-remap`は同じプロジェクト・テンプレート・XDTS・CSP自動登録データの実装を共有しています。
 
 ## ダウンロードと起動
 
 [GitHub Releasesの`latest`](https://github.com/stechdrive/xsheet-remap/releases/tag/latest)から`xsheet-remap.zip`をダウンロードし、ZIP全体を展開して使います。インストールは不要です。
 
-迷った場合は、まず`xsheet-remap.exe`を起動してください。
+迷った場合は、まず全機能版の`xsheet-editor.exe`を起動してください。CSP組み込み作業だけを行う場合は`xsheet-remap.exe`を使います。
 
 | ファイル | 役割 | 使う場面 |
 | --- | --- | --- |
-| `xsheet-remap.exe` | 本体アプリ | 紙シートの読込、素材割当、タイミング編集、XDTS・CSP自動登録データの出力 |
+| `xsheet-editor.exe` | デジタルタイムシート全機能版 | 紙シート読込、タイミング編集、素材管理、テンプレート編集、各種出力 |
+| `xsheet-remap.exe` | CSP組み込み | 紙シート、素材、セル対応を整理し、XDTS・CSP自動登録データを出力 |
+| `xsheet-template-editor.exe` | シートテンプレート編集 | 参照画像、罫線領域、情報欄、補正基準枠を編集してテンプレートを保存 |
 | `xsheet-corrector.exe` | シート画像補正 | スキャンしたシート画像の一括補正とPSD出力 |
 | `xsheet-csp-import-helper.bat` | CSP自動登録ヘルパー | 本体が出力した`.xci`と対象`.clip`を使い、CLIP STUDIO PAINTを自動操作 |
 | `assets/xsheet-remap.laf` | 乗算オートアクション | CLIP STUDIO PAINTのオートアクションパレットから読み込むファイル。アプリではありません |
@@ -22,13 +24,15 @@ xsheet-remapは、紙タイムシートと作画素材をCLIP STUDIO PAINT EXへ
 
 | 操作 | 起動・実行されるもの |
 | --- | --- |
-| `xsheet-remap.exe`をダブルクリック | 本体アプリが起動します |
+| `xsheet-editor.exe`をダブルクリック | デジタルタイムシート全機能版が起動します |
+| `xsheet-remap.exe`をダブルクリック | CSP組み込みに絞った画面が起動します |
+| `xsheet-template-editor.exe`をダブルクリック | シートテンプレート専用エディタが起動します |
 | `xsheet-corrector.exe`をダブルクリック | 補正内容を確認しながら処理する通常画面が起動します |
 | 画像やカットフォルダを`xsheet-corrector.exe`へドロップ | 補正ツールがバッチモードで起動し、自動PSD出力を開始します |
 | `xsheet-csp-import-helper.bat`をダブルクリック | CSP自動登録ヘルパーが起動します |
 | `.xci`または`.clip`をBATへドロップ | そのファイルを選択した状態でヘルパーが起動します。もう一方のファイルは画面で指定します |
 | ヘルパーで「開始」 | 対象`.clip`を開き、CLIP STUDIO PAINTの自動操作を開始します |
-| 本体で「タイムシート/CSP自動登録」を出力 | 登録用ファイルを出力します。ヘルパーは自動起動しません |
+| `xsheet-editor`または`xsheet-remap`で「タイムシート/CSP自動登録」を出力 | 登録用ファイルを出力します。ヘルパーは自動起動しません |
 
 `xsheet-csp-import-helper.bat`だけを別の場所へ移動すると動作しません。配布フォルダの構成を保ったまま使用してください。
 
@@ -47,7 +51,7 @@ xsheet-remapは、紙タイムシートと作画素材をCLIP STUDIO PAINT EXへ
 
 1. 紙タイムシートを指定dpiでスキャンします。
 2. スキャンした作画素材を、必要に応じてタップ穴基準で位置合わせします。
-3. 本体アプリで紙シート画像を読み込みます。
+3. `xsheet-editor`または`xsheet-remap`で紙シート画像を読み込みます。
 4. 素材画像またはカットフォルダを素材ブラウザへ入れます。
 5. 素材をシート上の該当セルへドラッグして、キーや工程へ割り当てます。
 6. 登録セル、CSPセル名、素材ファイル名を確認します。

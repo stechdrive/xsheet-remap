@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FocusEvent, type FormEvent, type MouseEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FocusEvent, type FormEvent, type MouseEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   addAnnotation,
@@ -8,6 +8,7 @@ import {
   applyNameNormalizationPlan,
   activeCutProjectFromDocument,
   buildCspImportPackage,
+  cspTopToBottomFromXdtsBottomToTop,
   buildExportPlan,
   buildNameNormalizationPlan,
   cellRectForHit,
@@ -30,12 +31,9 @@ import {
   deleteStackGuideLabel,
   eraseAnnotations,
   findTimingKeyByDisplayLabel,
-  formatSheetTemplateCutNumber,
-  MAX_CORRECTION_LAYERS,
   type Annotation,
   type CellBinding,
   type CorrectionLayer,
-  type CutMetadataFieldId,
   type CutProject,
   type AnnotationPoint,
   type AnnotationStroke,
@@ -55,7 +53,6 @@ import {
   type SheetPage,
   type SheetSource,
   type SheetTemplate,
-  type SheetTemplateRegionBinding,
   type SheetTimingRole,
   type SheetViewState,
   type SheetViewMode,
@@ -96,7 +93,6 @@ import {
   updateStackGuideRegistration,
   hasBlockingIssues,
   validateProject,
-  digitalStandardSheetTemplate,
   standardA3SheetTemplate,
   registerAsset,
   registerAssetRoot,
@@ -120,6 +116,7 @@ import {
   moveBindingToCorrectionLayer,
   type SheetTemplatePreset,
   updateActiveCutProjectInDocument,
+  xdtsBottomToTopFromCspTopToBottom,
   switchActiveCutInProjectDocument,
   type AssetRoot,
 } from '@xsheet-remap/core'
@@ -141,7 +138,6 @@ import {
   type SheetImageSettings,
   type SheetPageImage,
   type TimingClipboard,
-  type TemplateDetailTab,
   type WorkspaceStyle,
 } from './appTypes'
 import { defaultSheetImageExportOptions, hasPaperSheetImages, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions } from './cleanSheetExport'
@@ -149,8 +145,6 @@ import { cspImportPackageTextOutputs } from './cspImportPackageOutputs'
 import { projectFileName, sheetXdtsFileName } from './outputFileNames'
 import { AssetTray, type AssetRegistrationSummary, type DropDiagnosticReport } from './AssetBrowser'
 import { LevelCorrectionDialog } from './LevelCorrectionDialog'
-import { LevelCorrectionFilterDefinition } from './LevelCorrectionFilter'
-import { levelCorrectionFilterUrl, useLevelCorrectionFilterId } from './levelCorrectionFilterModel'
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection'
 import {
   assetBaseName,
@@ -206,22 +200,9 @@ import {
 } from './sheetConstants'
 import {
   buildTemplateChromeRenderModel,
-  buildTemplateEditorRenderModel,
   buildTemplateGridOverlayRenderModel,
-  gridHeaderLabelForRole,
-  gridHeaderRolesForTemplate,
   gridRowLineClassName,
-  hitTestTemplateEditorTarget,
   templateGridHeaderFontSizePx,
-  templateEditorHitRadius,
-  templateEditorNormalizedRectValue,
-  templateEditorPointFromClientRect,
-  templateEditorRectPixelValue,
-  snapTemplateEditorPointToPagePixels,
-  type TemplateChromeRenderModel,
-  type TemplateEditorRectKey,
-  type TemplateEditorTarget,
-  type TemplateGridOverlayRenderModel,
 } from './templateEditorGeometry'
 import {
   DEFAULT_TEXT_FONT_SIZE_PX,
@@ -245,25 +226,21 @@ import {
   type SheetRenderModelContext,
 } from './sheetRenderModel'
 import {
-  calibrationGridBoundsForTemplate,
   calibrationPointsForSettings,
   calibrationTargetRectForTemplate,
   clampPoint,
-  defaultSheetImageSettings,
   getSheetPageImage,
   rawImageToViewportPoint,
-  resolveImageRefUrl,
   roundForInput,
   serializableImageRef,
-  useWarpedSheetImageUrl,
   viewportToRawImagePoint,
 } from './sheetImages'
 import {
   candidateToHit,
   clampNumber,
   clampSheetZoom,
+  fitZoomForViewport,
   handleNativeHorizontalWheelScroll,
-  handleHorizontalWheelScroll,
   isTimingValueCharacter,
   modeShortcut,
   nextTimingHit,
@@ -272,7 +249,6 @@ import {
   sheetRoleForHit,
   sheetRoleLabel,
   nativeVerticalWheelDelta,
-  verticalWheelDelta,
 } from './sheetInteraction'
 import {
   buildTimingClipboard,
@@ -292,23 +268,23 @@ import {
   type TimelineFrameEditScope,
   type TimelineInsertDurationPolicy,
 } from './timingEditing'
-import { Tooltip, TooltipTarget, type TooltipTriggerProps } from './Tooltip'
+import { Tooltip, TooltipTarget } from './Tooltip'
 import { normalizeRecognitionLabel, recognizeSheetPages } from './sheetRecognition'
 import { detectSheetCalibrationPoints, type AutoCalibrationDebugOverlay } from './sheetAutoCalibration'
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 import { calibrationPointsSignature } from './sheetCalibrationUtils'
+import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
+import { GridOverlayLayer, SheetImageLayer, TemplateChromeLayer } from './SheetTemplateLayers'
+import { TemplateWorkspace } from './TemplateWorkspace'
+import { CspLayerTree } from './CspLayerTree'
 import {
-  buildTemplateColumns,
-  defaultColumnCountForRole,
-  defaultRegionLabel,
-  gridRoleLabel,
-  clearTemplateCalibrationTargetRect,
-  setTemplateCalibrationTargetRect,
-  trackProjectionForRole,
-  type TemplateGridRole,
-  type TemplateRegionEdge,
-  updateTemplateRectEdge,
-} from './templateEditing'
+  createPaperTemplateDraftFromImage,
+  createTemplateDraft,
+  readFileAsDataUrl,
+  readImageDimensionsFromDataUrl,
+  templateJsonFileName,
+  type TemplateDraftKind,
+} from './templateDrafts'
 
 type StackGuideLabelUpdates = Parameters<typeof updateStackGuideLabel>[2]
 
@@ -320,8 +296,6 @@ type ActiveTextTarget =
   | { kind: 'timingRange'; fontSizePx: number }
   | { kind: 'annotationText'; annotationId: string; fontSizePx: number }
 type TextAnnotationUpdate = Partial<Pick<AnnotationText, 'text' | 'fontSizePx' | 'x' | 'y' | 'color' | 'coordinateSpace' | 'anchor'>>
-
-const ACTION_MENU_OPEN_EVENT = 'xsheet-remap:action-menu-open'
 const IMPORTED_SHEET_SECONDS_PER_PAGE = 6
 const IMPORTED_SHEET_IMAGE_INITIAL_OPACITY = 0.5
 const SHEET_INTERACTION_ACTIVE_CLASS = 'sheetInteractionActive'
@@ -329,9 +303,40 @@ const CELL_ASSET_PREVIEW_MAX_ITEMS = 6
 const TIMELINE_EVENT_LONG_PRESS_MS = 320
 const TIMELINE_EVENT_DRAG_THRESHOLD_PX = 4
 const CONTINUOUS_CANVAS_MIN_FRAME_ROW_PX = 10
-const APP_NAV_PANELS: Panel[] = ['sheet', 'bindings', 'slots', 'template', 'export']
+export type MainAppKind = 'editor' | 'remap'
+
+type SheetPaneVisibility = { left: boolean; right: boolean }
+
+function initialSheetPaneVisibility(appKind: MainAppKind, collapseEditorPanes: boolean): SheetPaneVisibility {
+  const fallback = appKind === 'remap' || !collapseEditorPanes
+    ? { left: true, right: true }
+    : { left: false, right: false }
+  try {
+    const stored = window.localStorage.getItem(`xsheet:${appKind}:sheet-panes`)
+    if (!stored) return fallback
+    const parsed = JSON.parse(stored) as Partial<SheetPaneVisibility>
+    return {
+      left: typeof parsed.left === 'boolean' ? parsed.left : fallback.left,
+      right: typeof parsed.right === 'boolean' ? parsed.right : fallback.right,
+    }
+  } catch {
+    return fallback
+  }
+}
+
+const APP_PROFILES: Record<MainAppKind, { appName: string; panels: Panel[]; showDigitalHelp: boolean }> = {
+  editor: {
+    appName: 'xsheet-editor',
+    panels: ['sheet', 'bindings', 'slots', 'template', 'export'],
+    showDigitalHelp: true,
+  },
+  remap: {
+    appName: 'xsheet-remap',
+    panels: ['sheet'],
+    showDigitalHelp: false,
+  },
+}
 const STATUS_HINT_SOURCE_ORDER = ['sheet-drag', 'sheet-drop', 'overlay-paper-track', 'sheet-hover'] as const
-const TEMPLATE_CALIBRATION_TARGET_ID = '__template_calibration_target__'
 
 type StatusHintSource = typeof STATUS_HINT_SOURCE_ORDER[number]
 type StatusHints = Partial<Record<StatusHintSource, string>>
@@ -489,8 +494,6 @@ type ImportedSheetSourceCalibrationResult = {
   target: ImportedSheetSourceCalibrationTarget
   points: SheetCalibrationPointPair[]
 }
-
-type TemplateDraftKind = 'paper-standard' | 'digital-standard' | 'duplicate-current'
 
 type CalibrationGuideMetrics = {
   handleStrokePx: number
@@ -762,18 +765,20 @@ async function alertMissingProjectNativePaths(document: CutGroupProjectDocument)
   }
 }
 
-const CUT_METADATA_FIELD_IDS: CutMetadataFieldId[] = ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page']
-type MetadataBindingOptionId = `cut:${CutMetadataFieldId}` | 'group:shared-cut-numbers'
-const METADATA_BINDING_OPTION_IDS: MetadataBindingOptionId[] = [
-  ...CUT_METADATA_FIELD_IDS.map(field => `cut:${field}` as const),
-  'group:shared-cut-numbers',
-]
-
 const SHEET_VIEWPORT_FIT_INSET = { horizontal: 24, vertical: 54 }
 const SHEET_AUTO_FIT_MIN_ZOOM = 0.5
 const SHEET_AUTO_FIT_ZOOM_EPSILON = 0.001
 
-export function App() {
+export function EditorApp() {
+  return <App appKind="editor" collapseEditorSheetPanes />
+}
+
+export function RemapApp() {
+  return <App appKind="remap" />
+}
+
+export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean } = {}) {
+  const appProfile = APP_PROFILES[appKind]
   const [history, setHistory] = useState(() => createProjectHistory(createDefaultProject()))
   const [projectDocument, setProjectDocument] = useState(() => createProjectDocumentFromCutProject(createDefaultProject()))
   const [projectFilePath, setProjectFilePath] = useState<string | null>(null)
@@ -817,6 +822,7 @@ export function App() {
   const [sheetImageExportDraft, setSheetImageExportDraft] = useState<SheetImageExportOptions | null>(null)
   const [sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen] = useState(false)
   const [appHelpDialogOpen, setAppHelpDialogOpen] = useState(false)
+  const [exportSettingsDialogOpen, setExportSettingsDialogOpen] = useState(false)
   const [frameOperationDialog, setFrameOperationDialog] = useState<FrameOperationDialogState | null>(null)
   const [assetDropMenu, setAssetDropMenu] = useState<AssetDropMenuState | null>(null)
   const [activeCorrectionLayerIdState, setActiveCorrectionLayerIdState] = useState(() => defaultCorrectionLayerId(createDefaultProject()) ?? '')
@@ -2116,6 +2122,17 @@ export function App() {
     }
   }
 
+  function handleMoveCspStackItem(itemId: string, direction: 'up' | 'down') {
+    const stackItems = cellStackOrderItems(project)
+    const currentIndex = stackItems.findIndex(item => item.id === itemId)
+    const targetIndex = currentIndex + (direction === 'up' ? 1 : -1)
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= stackItems.length) return
+    const nextIds = stackItems.map(item => item.id)
+    const [moved] = nextIds.splice(currentIndex, 1)
+    nextIds.splice(targetIndex, 0, moved)
+    commitProject(applyCellStackOrder(project, nextIds, true))
+  }
+
   function handleCreateStackGuideLabel(input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) {
     try {
       commitProject(createStackGuideLabel(project, { correctionLayerId: activeCorrectionLayerId, ...input }).project)
@@ -2852,6 +2869,7 @@ export function App() {
       <header className="topBar">
         <div className="topIdentity">
           <AppNavigationMenu
+            panels={appProfile.panels}
             panel={panel}
             onSelect={switchPanel}
             onLoadProject={files => void handleLoadProject(files)}
@@ -2862,10 +2880,11 @@ export function App() {
             onOpenSheetImageExport={handleOpenSheetImageExport}
             onSaveXdts={() => void handleSaveXdts()}
             onSaveCspImportPackage={() => void handleSaveCspImportPackage()}
+            onOpenExportSettings={appKind === 'remap' ? () => setExportSettingsDialogOpen(true) : undefined}
             blockingExport={blockingExport}
           />
           <span className="topBrand">
-            <strong>xsheet-remap</strong>
+            <strong>{appProfile.appName}</strong>
             <span className="appVersion">v{APP_VERSION}</span>
           </span>
         </div>
@@ -3069,7 +3088,7 @@ export function App() {
           <Tooltip label={uiText.actions.redo}>
             <button className="topIconButton" onClick={handleRedo} disabled={history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></button>
           </Tooltip>
-          <Tooltip label="CSP組み込み用シート作成と基本操作のヘルプを開く">
+          <Tooltip label={`${appProfile.appName}の基本操作と作業手順を開く`}>
             <button className="topIconButton" type="button" onClick={() => setAppHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></button>
           </Tooltip>
         </div>
@@ -3078,7 +3097,10 @@ export function App() {
       <main className="mainPane">
         {panel === 'sheet' && (
           <SheetPanel
+            appKind={appKind}
+            collapseEditorPanes={collapseEditorSheetPanes}
             project={project}
+            exportProfileId={exportProfileId}
             template={template}
             templatePresets={sheetTemplatePresets}
             selectedPresetId={project.studioPresetId ?? sheetTemplatePresets.find(preset => preset.sheetTemplate.templateId === template.templateId)?.presetId}
@@ -3196,6 +3218,7 @@ export function App() {
             onDeleteOverlayPaperTrack={handleDeleteOverlayPaperTrack}
             onApplyNameNormalization={handleApplyNameNormalization}
             onAssignAssetToKey={handleAssignAssetToKey}
+            onMoveCspStackItem={handleMoveCspStackItem}
           />
         )}
         {panel === 'bindings' && <BindingPanel project={project} commitProject={commitProject} selectedKeyId={selection.keyId} />}
@@ -3215,7 +3238,7 @@ export function App() {
           />
         )}
         {panel === 'template' && (
-          <TemplatePanel
+          <TemplateWorkspace
             key={templatePanelKey}
             project={project}
             template={template}
@@ -3252,7 +3275,31 @@ export function App() {
       )}
 
       {appHelpDialogOpen && (
-        <AppHelpDialog onClose={() => setAppHelpDialogOpen(false)} />
+        <AppHelpDialog appName={appProfile.appName} showDigitalHelp={appProfile.showDigitalHelp} onClose={() => setAppHelpDialogOpen(false)} />
+      )}
+
+      {exportSettingsDialogOpen && (
+        <div className="assetQuickPreviewBackdrop exportSettingsBackdrop" role="dialog" aria-modal="true" aria-label="XDTS詳細設定" onPointerDown={() => setExportSettingsDialogOpen(false)}>
+          <section className="exportSettingsDialog" onPointerDown={event => event.stopPropagation()}>
+            <header>
+              <div>
+                <strong>XDTS詳細設定</strong>
+                <span>通常は変更せずに書き出せます。</span>
+              </div>
+              <button type="button" aria-label="閉じる" onClick={() => setExportSettingsDialogOpen(false)}><CloseSmallIcon /></button>
+            </header>
+            <ExportPanel
+              project={project}
+              cspImportAssetRootId={projectDocumentSnapshot.cspImportAssetRootId}
+              issues={issues}
+              exportPlan={exportPlan}
+              xdtsText={xdtsText}
+              setTimingSourceRole={updateExportTimingSourceRole}
+              updateExportProfile={updateExportProfile}
+              onCspImportAssetRootChange={handleCspImportAssetRootChange}
+            />
+          </section>
+        </div>
       )}
 
       {sheetLevelCorrectionDialogOpen && (
@@ -3333,7 +3380,10 @@ export function App() {
 }
 
 function SheetPanel(props: {
+  appKind: MainAppKind
+  collapseEditorPanes: boolean
   project: CutProject
+  exportProfileId: string
   template: SheetTemplate
   templatePresets: SheetTemplatePreset[]
   selectedPresetId?: string
@@ -3446,6 +3496,7 @@ function SheetPanel(props: {
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   onApplyNameNormalization: (plan: NameNormalizationPlan) => Promise<void>
   onAssignAssetToKey: (assetId: string, keyId: string) => void
+  onMoveCspStackItem: (itemId: string, direction: 'up' | 'down') => void
 }) {
   const activePage = props.sheetPages[props.activePageIndex] ?? props.sheetPages[0]
   const currentFrameBadge = props.rangeSelection
@@ -3462,6 +3513,7 @@ function SheetPanel(props: {
     : { start: '--+--', end: '--+--', duration: '--+--' }
   const [registeredCellPaneWidth, setRegisteredCellPaneWidth] = useState(240)
   const [imageAssetPaneWidth, setImageAssetPaneWidth] = useState(300)
+  const [paneVisibility, setPaneVisibility] = useState<SheetPaneVisibility>(() => initialSheetPaneVisibility(props.appKind, props.collapseEditorPanes))
   const [zoomPaletteOpen, setZoomPaletteOpen] = useState(false)
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertTool | null>(null)
@@ -3488,6 +3540,14 @@ function SheetPanel(props: {
     [props.template, displayDurationFrames, props.project.sheetView.layoutOverrides, templatePaperTrackNames],
   )
   const assetRegistrationSummaryMap = useMemo(() => assetRegistrationSummaries(props.project), [props.project])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(`xsheet:${props.appKind}:sheet-panes`, JSON.stringify(paneVisibility))
+    } catch {
+      // Pane state persistence is optional in restricted browser contexts.
+    }
+  }, [paneVisibility, props.appKind])
 
   useLayoutEffect(() => {
     sheetZoomRef.current = props.zoom
@@ -3813,12 +3873,38 @@ function SheetPanel(props: {
         )}
       </div>
       <div
-        className="sheetWorkspace"
+        className={[
+          'sheetWorkspace',
+          paneVisibility.left ? '' : 'leftDockClosed',
+          paneVisibility.right ? '' : 'rightDockClosed',
+        ].filter(Boolean).join(' ')}
         style={{
-          '--sheet-left-dock-width': `${registeredCellPaneWidth}px`,
-          '--sheet-right-dock-width': `${imageAssetPaneWidth}px`,
+          '--sheet-left-dock-width': paneVisibility.left ? `${registeredCellPaneWidth}px` : '0px',
+          '--sheet-right-dock-width': paneVisibility.right ? `${imageAssetPaneWidth}px` : '0px',
+          '--sheet-left-resizer-width': paneVisibility.left ? '10px' : '0px',
+          '--sheet-right-resizer-width': paneVisibility.right ? '10px' : '0px',
         } as WorkspaceStyle}
       >
+        <div className="sheetPaneVisibilityControls" aria-label="サイドペイン">
+          <Tooltip label={props.appKind === 'remap' ? 'CSPレイヤー構成を表示' : '登録セルを表示'}>
+            <button
+              type="button"
+              className={paneVisibility.left ? 'active' : ''}
+              aria-label={props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル'}
+              aria-pressed={paneVisibility.left}
+              onClick={() => setPaneVisibility(current => ({ ...current, left: !current.left }))}
+            >構成</button>
+          </Tooltip>
+          <Tooltip label="画像素材を表示">
+            <button
+              type="button"
+              className={paneVisibility.right ? 'active' : ''}
+              aria-label="画像素材"
+              aria-pressed={paneVisibility.right}
+              onClick={() => setPaneVisibility(current => ({ ...current, right: !current.right }))}
+            >素材</button>
+          </Tooltip>
+        </div>
         <div
           ref={zoomPaletteRef}
           className={[
@@ -3917,9 +4003,19 @@ function SheetPanel(props: {
             <button type="button" onClick={props.onClearAllAnnotations}>{uiText.actions.clearAllInk}</button>
           </ActionMenu>
         </div>
-        <aside className="sheetDock sheetDockLeft" aria-label={uiText.keys.title}>
+        <aside className="sheetDock sheetDockLeft" aria-label={props.appKind === 'remap' ? 'CSPレイヤー構成' : uiText.keys.title} hidden={!paneVisibility.left}>
           <div className="dockBody">
-            <KeyList
+            {props.appKind === 'remap' ? <CspLayerTree
+              project={props.project}
+              exportProfileId={props.exportProfileId}
+              selectedKeyId={props.selectedKeyId}
+              onSelectKey={props.onKeySelect}
+              onJumpToFirstUse={props.onJumpToKeyFirstUse}
+              onUpdateCspCellName={props.onUpdateKeyCspCellName}
+              onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
+              onMoveStackItem={props.onMoveCspStackItem}
+              onAssignAsset={props.onAssignAssetToKey}
+            /> : <KeyList
               project={props.project}
               activeCorrectionLayerId={props.activeCorrectionLayerId}
               selectedKeyId={props.selectedKeyId}
@@ -3939,17 +4035,17 @@ function SheetPanel(props: {
               onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}
               onCreateStackGuideLabel={props.onCreateStackGuideLabel}
               onRequestStackGuideInsert={setStackGuideInsertTool}
-            />
+            />}
           </div>
         </aside>
-        <PanelResizeHandle
+        {paneVisibility.left && <PanelResizeHandle
           label={uiText.layout.resizeRegisteredCellPane}
           min={180}
           max={420}
           value={registeredCellPaneWidth}
           side="left"
           onChange={setRegisteredCellPaneWidth}
-        />
+        />}
         <SheetCanvas
           {...props}
           setZoom={setClampedZoom}
@@ -3962,14 +4058,14 @@ function SheetPanel(props: {
           stackGuideInsertTool={stackGuideInsertTool}
           onStackGuideInsertToolConsumed={() => setStackGuideInsertTool(null)}
         />
-        <PanelResizeHandle
+        {paneVisibility.right && <PanelResizeHandle
           label={uiText.layout.resizeImageAssetPane}
           min={200}
           max={560}
           value={imageAssetPaneWidth}
           onChange={setImageAssetPaneWidth}
-        />
-        <aside className="sheetDock sheetDockRight" aria-label={uiText.assets.title}>
+        />}
+        <aside className="sheetDock sheetDockRight" aria-label={uiText.assets.title} hidden={!paneVisibility.right}>
           <div className="dockBody">
             <AssetTray
               assetRoots={props.project.assetRoots}
@@ -4430,20 +4526,6 @@ function beginFontSizeDrag(event: PointerEvent<HTMLElement>, startValue: number,
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', stopDrag)
   window.addEventListener('pointercancel', stopDrag)
-}
-
-function fitZoomForViewport(
-  viewport: HTMLElement,
-  pageSize: { widthPx: number; heightPx: number },
-  inset: { horizontal: number; vertical: number },
-): number | null {
-  if (viewport.clientWidth <= 0 || viewport.clientHeight <= 0) return null
-  const availableWidth = Math.max(1, viewport.clientWidth - inset.horizontal)
-  const availableHeight = Math.max(1, viewport.clientHeight - inset.vertical)
-  return Math.min(
-    availableWidth / pageSize.widthPx,
-    availableHeight / pageSize.heightPx,
-  )
 }
 
 function clampAutoFitSheetZoom(value: number): number {
@@ -7994,236 +8076,6 @@ function AssetDropProcessMenu({
   )
 }
 
-type ProcessLayerDraft = CorrectionLayer & { draftId: string }
-
-function ProcessSettingsDialog({
-  project,
-  onClose,
-  onApply,
-}: {
-  project: CutProject
-  onClose: () => void
-  onApply: (layers: CorrectionLayer[]) => void
-}) {
-  const [draftLayers, setDraftLayers] = useState<ProcessLayerDraft[]>(() => sortedCorrectionLayers(project).map(layer => ({
-    ...layer,
-    draftId: layer.layerId,
-  })).reverse())
-  const [draggingDraftId, setDraggingDraftId] = useState<string | null>(null)
-  const [dropIndex, setDropIndex] = useState<number | null>(null)
-  const dragPointerRef = useRef<{ draftId: string; pointerId: number } | null>(null)
-  const processSettingsTableRef = useRef<HTMLDivElement>(null)
-  const defaultStageId = project.productionStages[0]?.stageId ?? 'stage_lo'
-  const canAdd = draftLayers.length < MAX_CORRECTION_LAYERS
-  const defaultRegistrationDraftId = draftLayers[draftLayers.length - 1]?.draftId ?? ''
-
-  function updateDraft(draftId: string, updates: Partial<Pick<CorrectionLayer, 'label' | 'fileNameSuffix'>>) {
-    setDraftLayers(current => current.map(layer => layer.draftId === draftId ? { ...layer, ...updates } : layer))
-  }
-
-  function moveDraftToIndex(draftId: string, targetIndex: number) {
-    setDraftLayers(current => {
-      const index = current.findIndex(layer => layer.draftId === draftId)
-      if (index < 0) return current
-      const next = [...current]
-      const [item] = next.splice(index, 1)
-      const insertionIndex = clampNumber(index < targetIndex ? targetIndex - 1 : targetIndex, 0, next.length)
-      next.splice(insertionIndex, 0, item)
-      return next
-    })
-  }
-
-  function deleteDraft(draftId: string) {
-    setDraftLayers(current => {
-      if (current.length <= 1) return current
-      return current.filter(layer => layer.draftId !== draftId)
-    })
-  }
-
-  function addDraft() {
-    if (!canAdd) return
-    setDraftLayers(current => ([
-      {
-        draftId: `draft_layer_${current.length + 1}_${Date.now()}`,
-        layerId: '',
-        stageId: defaultStageId,
-        label: uiText.processSettings.newLayerLabel(current.length + 1),
-        order: current.length,
-        role: 'correction',
-        defaultVisible: true,
-        fileNameSuffix: '',
-      },
-      ...current,
-    ]))
-  }
-
-  function dropIndexFromPointer(clientY: number): number {
-    const rows = Array.from(processSettingsTableRef.current?.querySelectorAll<HTMLElement>('[data-process-layer-row-index]') ?? [])
-    if (rows.length === 0) return 0
-    const firstRect = rows[0]?.getBoundingClientRect()
-    if (firstRect && clientY < firstRect.top) return 0
-    for (const row of rows) {
-      const rowIndex = Number(row.dataset.processLayerRowIndex ?? 0)
-      const rect = row.getBoundingClientRect()
-      if (clientY < rect.top + rect.height / 2) return rowIndex
-      if (clientY <= rect.bottom) return rowIndex + 1
-    }
-    return rows.length
-  }
-
-  function clearProcessLayerDrag() {
-    dragPointerRef.current = null
-    setDraggingDraftId(null)
-    setDropIndex(null)
-  }
-
-  function handleDragHandlePointerDown(event: PointerEvent<HTMLButtonElement>, draftId: string, rowIndex: number) {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    dragPointerRef.current = { draftId, pointerId: event.pointerId }
-    setDraggingDraftId(draftId)
-    setDropIndex(rowIndex)
-  }
-
-  function handleDragHandlePointerMove(event: PointerEvent<HTMLButtonElement>) {
-    const drag = dragPointerRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    event.preventDefault()
-    setDropIndex(dropIndexFromPointer(event.clientY))
-  }
-
-  function handleDragHandlePointerUp(event: PointerEvent<HTMLButtonElement>) {
-    const drag = dragPointerRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    event.preventDefault()
-    moveDraftToIndex(drag.draftId, dropIndex ?? dropIndexFromPointer(event.clientY))
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    clearProcessLayerDrag()
-  }
-
-  function handleDragHandlePointerCancel(event: PointerEvent<HTMLButtonElement>) {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    clearProcessLayerDrag()
-  }
-
-  function validateDrafts(): string | null {
-    if (draftLayers.length < 1) return uiText.processSettings.minError
-    if (draftLayers.length > MAX_CORRECTION_LAYERS) return uiText.processSettings.maxError(MAX_CORRECTION_LAYERS)
-    const labels = new Set<string>()
-    for (const layer of draftLayers) {
-      const label = layer.label.trim()
-      if (!label) return uiText.processSettings.emptyNameError
-      if (labels.has(label)) return uiText.processSettings.duplicateNameError(label)
-      labels.add(label)
-      if (/[<>:"/\\|?*]/.test(layer.fileNameSuffix ?? '')) return uiText.processSettings.invalidSuffixError(label)
-    }
-    return null
-  }
-
-  function handleApply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const validationError = validateDrafts()
-    if (validationError) {
-      window.alert(validationError)
-      return
-    }
-    const layers = [...draftLayers].reverse().map<CorrectionLayer>((layer, index) => ({
-      ...layer,
-      layerId: layer.layerId,
-      stageId: layer.stageId || defaultStageId,
-      label: layer.label.trim(),
-      order: index,
-      role: index === 0 ? 'base' : layer.role === 'base' ? 'correction' : layer.role,
-      defaultVisible: true,
-      fileNameSuffix: layer.fileNameSuffix?.trim() ?? '',
-    }))
-    onApply(layers)
-  }
-
-  return (
-    <div className="assetQuickPreviewBackdrop processSettingsBackdrop" role="dialog" aria-modal="true" aria-label={uiText.processSettings.title}>
-      <form className="processSettingsDialog" onSubmit={handleApply}>
-        <header className="processSettingsHeader">
-          <div>
-            <strong>{uiText.processSettings.title}</strong>
-            <span>{uiText.processSettings.orderHint}</span>
-          </div>
-        </header>
-        <div ref={processSettingsTableRef} className="processSettingsTable" role="table" aria-label={uiText.processSettings.title}>
-          <div className="processSettingsStackMarker top">{uiText.processSettings.cspTop}</div>
-          <div className="processSettingsRow processSettingsHead" role="row">
-            <span>{uiText.processSettings.dragHandle}</span>
-            <span>{uiText.processSettings.name}</span>
-            <span>{uiText.processSettings.suffix}</span>
-            <span>{uiText.processSettings.directRegistration}</span>
-            <span>{uiText.processSettings.delete}</span>
-          </div>
-          {draftLayers.map((layer, index) => (
-            <div
-              className={[
-                'processSettingsRow',
-                draggingDraftId === layer.draftId ? 'dragging' : '',
-                dropIndex === index ? 'dropBefore' : '',
-                dropIndex === index + 1 ? 'dropAfter' : '',
-              ].filter(Boolean).join(' ')}
-              role="row"
-              key={layer.draftId}
-              data-process-layer-row-index={index}
-            >
-              <Tooltip label={uiText.processSettings.dragHandleTitle(layer.label)}>
-                <button
-                  type="button"
-                  className="processSettingsDragHandle"
-                  aria-label={uiText.processSettings.dragHandleTitle(layer.label)}
-                  onPointerDown={event => handleDragHandlePointerDown(event, layer.draftId, index)}
-                  onPointerMove={handleDragHandlePointerMove}
-                  onPointerUp={handleDragHandlePointerUp}
-                  onPointerCancel={handleDragHandlePointerCancel}
-                >
-                  ⋮⋮
-                </button>
-              </Tooltip>
-              <input
-                value={layer.label}
-                aria-label={uiText.processSettings.name}
-                onChange={event => updateDraft(layer.draftId, { label: event.currentTarget.value })}
-              />
-              <input
-                value={layer.fileNameSuffix ?? ''}
-                aria-label={uiText.processSettings.suffix}
-                onChange={event => updateDraft(layer.draftId, { fileNameSuffix: event.currentTarget.value })}
-              />
-              <span className={layer.draftId === defaultRegistrationDraftId ? 'processSettingsDefaultBadge active' : 'processSettingsDefaultBadge'}>
-                {layer.draftId === defaultRegistrationDraftId ? uiText.processSettings.defaultRegistrationLayer : '-'}
-              </span>
-              <Tooltip label={uiText.processSettings.deleteLayer(layer.label)}>
-                <button
-                  type="button"
-                  className="registeredCellDeleteButton"
-                  disabled={draftLayers.length <= 1}
-                  aria-label={uiText.processSettings.deleteLayer(layer.label)}
-                  onClick={() => deleteDraft(layer.draftId)}
-                >
-                  <TrashIcon />
-                </button>
-              </Tooltip>
-            </div>
-          ))}
-          <div className="processSettingsStackMarker bottom">{uiText.processSettings.cspBottom}</div>
-        </div>
-        <footer className="processSettingsFooter">
-          <button type="button" disabled={!canAdd} onClick={addDraft}>{uiText.processSettings.add}</button>
-          <span className="muted">{uiText.processSettings.limit(draftLayers.length, MAX_CORRECTION_LAYERS)}</span>
-          <span className="processSettingsFooterSpacer" />
-          <button type="button" onClick={onClose}>{uiText.processSettings.cancel}</button>
-          <button type="submit">{uiText.processSettings.apply}</button>
-        </footer>
-      </form>
-    </div>
-  )
-}
-
 function ProcessMoveMenu({
   project,
   keyId,
@@ -8478,68 +8330,6 @@ function compareBindingCloneSpecs(a: BindingCloneSpec, b: BindingCloneSpec): num
     || a.materialState.localeCompare(b.materialState, 'ja')
 }
 
-function SheetImageLayer({
-  imageUrl,
-  imageSettings,
-  template,
-  forceRaw = false,
-  preview = false,
-}: {
-  imageUrl: string
-  imageSettings: SheetImageSettings
-  template: SheetTemplate
-  forceRaw?: boolean
-  preview?: boolean
-}) {
-  const warpedImageUrl = useWarpedSheetImageUrl(forceRaw ? null : imageUrl, imageSettings, template, preview ? 'preview' : 'final')
-  const effectiveLevelCorrection = imageSettings.levelCorrection
-    ? normalizeLevelCorrectionSettings(imageSettings.levelCorrection)
-    : defaultLevelCorrectionSettings()
-  const levelCorrectionFilterId = useLevelCorrectionFilterId('sheetImageLevelCorrection')
-  const levelCorrectionFilter = levelCorrectionFilterUrl(levelCorrectionFilterId, effectiveLevelCorrection)
-  const filterDefinition = levelCorrectionFilter
-    ? (
-      <defs>
-        <LevelCorrectionFilterDefinition id={levelCorrectionFilterId} settings={effectiveLevelCorrection} />
-      </defs>
-      )
-    : null
-  if (warpedImageUrl) {
-    return (
-      <>
-        {filterDefinition}
-        <image
-          className="sheetImage"
-          href={warpedImageUrl}
-          x="0"
-          y="0"
-          width="1"
-          height="1"
-          preserveAspectRatio="none"
-          opacity={imageSettings.opacity}
-          filter={levelCorrectionFilter}
-        />
-      </>
-    )
-  }
-  return (
-    <>
-      {filterDefinition}
-      <image
-        className={forceRaw ? 'sheetImage sheetImageRaw' : 'sheetImage'}
-        href={imageUrl}
-        x={imageSettings.x}
-        y={imageSettings.y}
-        width={imageSettings.scale}
-        height={imageSettings.scale}
-        preserveAspectRatio="none"
-        opacity={imageSettings.opacity}
-        filter={levelCorrectionFilter}
-      />
-    </>
-  )
-}
-
 function AutoCalibrationGuideOverlay({
   overlay,
   imageSettings,
@@ -8654,30 +8444,6 @@ const TemplateChrome = memo(function TemplateChrome({
   return <TemplateChromeLayer model={model} />
 })
 
-function TemplateChromeLayer({ model }: { model: TemplateChromeRenderModel }) {
-  return (
-    <g className="templateChrome" aria-hidden="true">
-      {model.showOuterFrame && <rect className="templateOuterFrame" x="0.02" y="0.019" width="0.96" height="0.952" />}
-      <g>
-        {model.referenceRegions.map(region => (
-          <g key={region.regionId} className={`templateReferenceRegion ${region.type}`}>
-            <rect className="templateReferenceBox" x={region.rect.x} y={region.rect.y} width={region.rect.w} height={region.rect.h} />
-          </g>
-        ))}
-      </g>
-      {model.headers.map(header => (
-        <g key={header.regionId}>
-          <rect className="templateHeaderBox" style={{ fill: 'none' }} x={header.rect.x} y={header.rect.y} width={header.rect.w} height={header.rect.h} />
-          {header.label ? <text className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSize={header.labelFontSize}>{header.label}</text> : null}
-          {header.columns.map(column => (
-            <text key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" fontSize={column.fontSize}>{column.label}</text>
-          ))}
-        </g>
-      ))}
-    </g>
-  )
-}
-
 const GridOverlay = memo(function GridOverlay({
   template,
   region,
@@ -8697,29 +8463,6 @@ const GridOverlay = memo(function GridOverlay({
   )
   return model ? <GridOverlayLayer model={model} /> : null
 })
-
-function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderModel }) {
-  return (
-    <g className={`gridOverlay gridOverlay-${model.role}`}>
-      {model.rowPaths.map(path => (
-        <path key={path.className} className={path.className} d={path.d} />
-      ))}
-      {model.columnPath && <path className={model.columnPath.className} d={model.columnPath.d} />}
-      {model.labels.map(label => (
-        <text
-          key={label.key}
-          className="gridRowGuideLabel"
-          x={label.x}
-          y={label.y}
-          textAnchor={label.textAnchor}
-          fontSize={label.fontSize}
-        >
-          {label.text}
-        </text>
-      ))}
-    </g>
-  )
-}
 
 function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext; page: SheetPage }) {
   const items = metadataTextRenderItemsForPage(context, page)
@@ -11536,7 +11279,7 @@ function SlotPanel({
   const suppressStackClickRef = useRef(false)
   const stackItems = useMemo(() => cellStackOrderItems(project), [project])
   const visibleStackItems = useMemo(
-    () => stackItems.map((item, stackIndex) => ({ item, stackIndex })).reverse(),
+    () => cspTopToBottomFromXdtsBottomToTop(stackItems.map((item, stackIndex) => ({ item, stackIndex }))),
     [stackItems],
   )
   const visibleStackItemIds = useMemo(() => visibleStackItems.map(({ item }) => item.id), [visibleStackItems])
@@ -11551,7 +11294,7 @@ function SlotPanel({
   const previewStackItemIds = useMemo(() => previewStackItems.map(({ item }) => item.id), [previewStackItems])
   const sheetPreviewProject = useMemo(
     () => draggingStackItemIds.length > 0 && dropVisualIndex !== null
-      ? applyCellStackOrder(project, [...previewStackItemIds].reverse(), syncViewOrder)
+      ? applyCellStackOrder(project, xdtsBottomToTopFromCspTopToBottom(previewStackItemIds), syncViewOrder)
       : project,
     [draggingStackItemIds.length, dropVisualIndex, previewStackItemIds, project, syncViewOrder],
   )
@@ -11602,7 +11345,7 @@ function SlotPanel({
       if (current.moved) {
         const nextDropIndex = visualDropIndexFromClientY(event.clientY)
         const nextVisibleIds = reorderVisibleIdsForDrop(visibleStackItemIds, current.itemIds, nextDropIndex)
-        commitProject(applyCellStackOrder(project, [...nextVisibleIds].reverse(), syncViewOrder))
+        commitProject(applyCellStackOrder(project, xdtsBottomToTopFromCspTopToBottom(nextVisibleIds), syncViewOrder))
         setSelectedStackItemIds(new Set(current.itemIds))
         setSelectionAnchorId(current.itemIds[0] ?? null)
         suppressStackClickRef.current = true
@@ -12163,1107 +11906,6 @@ function paperTrackExportSortKeyForUi(track: PaperTrack, templateOrder: Map<stri
   }
 }
 
-function TemplatePanel({
-  project,
-  template: appliedTemplate,
-  onLoadTemplate,
-  onSaveTemplate,
-  onApplyTemplate,
-  onCreateTemplateDraft,
-  onCreatePaperTemplateFromImage,
-  onUpdateCorrectionLayers,
-}: {
-  project: CutProject
-  template: SheetTemplate
-  onLoadTemplate: (files: FileList | null) => Promise<SheetTemplate | null>
-  onSaveTemplate: (template: SheetTemplate) => void
-  onApplyTemplate: (template: SheetTemplate) => void
-  onCreateTemplateDraft: (kind: TemplateDraftKind) => SheetTemplate
-  onCreatePaperTemplateFromImage: (files: FileList | null) => Promise<SheetTemplate | null>
-  onUpdateCorrectionLayers: (layers: CorrectionLayer[]) => boolean
-}) {
-  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(appliedTemplate))
-  const template = draftTemplate
-  const appliedTemplateJson = useMemo(() => JSON.stringify(appliedTemplate), [appliedTemplate])
-  const draftTemplateJson = useMemo(() => JSON.stringify(draftTemplate), [draftTemplate])
-  const hasTemplateDraftChanges = draftTemplateJson !== appliedTemplateJson
-  const templateDraftStatus = hasTemplateDraftChanges
-    ? uiText.template.draftChanged
-    : isBuiltInSheetTemplate(template)
-      ? uiText.template.builtInProtected
-      : uiText.template.draftApplied
-  const editableRegions = template.regions
-  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => editableRegions[0]?.regionId ?? null)
-  const [detailTab, setDetailTab] = useState<TemplateDetailTab>('region')
-  const [templateZoom, setTemplateZoom] = useState(1)
-  const [dockWidth, setDockWidth] = useState(380)
-  const [processSettingsOpen, setProcessSettingsOpen] = useState(false)
-  const calibrationTargetRect = calibrationTargetRectForTemplate(template)
-  const calibrationGridBounds = calibrationGridBoundsForTemplate(template)
-  const hasExplicitCalibrationTarget = Boolean(template.calibration?.targetRect)
-  const standardCalibrationTargetRect = standardCalibrationTargetRectForTemplate(template)
-  const usesStandardCalibrationTarget = Boolean(hasExplicitCalibrationTarget && calibrationTargetRect && standardCalibrationTargetRect && sameNormalizedRect(calibrationTargetRect, standardCalibrationTargetRect))
-  const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
-  const selectedRegion = isCalibrationTargetSelected
-    ? null
-    : selectedRegionId
-      ? editableRegions.find(region => region.regionId === selectedRegionId) ?? editableRegions[0] ?? null
-      : editableRegions[0] ?? null
-  const effectiveSelectedRegionId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegion?.regionId ?? null
-  const correctionLayers = sortedCorrectionLayers(project)
-  const defaultCorrectionLayer = correctionLayers[0] ?? null
-  const templateReferenceImageUrl = template.defaultUnderlay?.imageRef
-    ? resolveImageRefUrl({ ...template.defaultUnderlay.imageRef, assetPath: template.defaultUnderlay.assetPath })
-    : null
-  const templateReferenceImageSettings: SheetImageSettings = template.defaultUnderlay?.alignment
-    ? { ...defaultSheetImageSettings(), ...template.defaultUnderlay.alignment }
-    : defaultSheetImageSettings()
-
-  function setClampedTemplateZoom(value: number) {
-    setTemplateZoom(clampSheetZoom(value))
-  }
-
-  function updateTemplateDraft(updater: (currentTemplate: SheetTemplate) => SheetTemplate) {
-    setDraftTemplate(currentTemplate => {
-      const nextTemplate = updater(ensureEditableTemplateDraft(currentTemplate))
-      return isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate
-    })
-  }
-
-  function replaceTemplateDraft(nextTemplate: SheetTemplate | null, nextTab: TemplateDetailTab) {
-    if (!nextTemplate) return
-    const clonedTemplate = cloneSheetTemplate(isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate)
-    setDraftTemplate(clonedTemplate)
-    setSelectedRegionId(clonedTemplate.regions[0]?.regionId ?? null)
-    setDetailTab(nextTab)
-    setClampedTemplateZoom(1)
-  }
-
-  function applyTemplateDraftChanges() {
-    if (!hasTemplateDraftChanges) return
-    const nextTemplate = finalizeTemplateDraftForApply(template)
-    onApplyTemplate(nextTemplate)
-    setDraftTemplate(cloneSheetTemplate(nextTemplate))
-  }
-
-  function cancelTemplateDraftChanges() {
-    if (!hasTemplateDraftChanges) return
-    const nextTemplate = cloneSheetTemplate(appliedTemplate)
-    setDraftTemplate(nextTemplate)
-    setSelectedRegionId(nextTemplate.regions[0]?.regionId ?? null)
-  }
-
-  function fitTemplateToViewport() {
-    const viewport = document.querySelector<HTMLElement>('.templateEditorViewport')
-    if (!viewport) return
-    const zoom = fitZoomForViewport(viewport, template.page, { horizontal: 24, vertical: 24 })
-    if (zoom !== null) setClampedTemplateZoom(zoom)
-  }
-
-  function updateTemplateMetadata(updates: Partial<Pick<SheetTemplate, 'templateId' | 'name'>>) {
-    updateTemplateDraft(currentTemplate => ({
-      ...currentTemplate,
-      ...updates,
-    }))
-  }
-
-  function updateTemplatePage(updates: Partial<SheetTemplate['page']>) {
-    updateTemplateDraft(currentTemplate => ({
-      ...currentTemplate,
-      page: {
-        ...currentTemplate.page,
-        ...updates,
-      },
-    }))
-  }
-
-  function updateTemplateNaming(updates: Partial<NonNullable<SheetTemplate['naming']>>) {
-    updateTemplateDraft(currentTemplate => {
-      const nextNaming = {
-        ...(currentTemplate.naming ?? {}),
-        ...updates,
-      }
-      const cutNumberPrefix = nextNaming.cutNumberPrefix?.trim() ?? ''
-      const normalizedNaming: NonNullable<SheetTemplate['naming']> = {
-        ...(cutNumberPrefix ? { cutNumberPrefix } : {}),
-        ...(cutNumberPrefix && nextNaming.cutNumberPrefixMode === 'always' ? { cutNumberPrefixMode: 'always' as const } : {}),
-      }
-      return {
-        ...currentTemplate,
-        naming: Object.keys(normalizedNaming).length > 0 ? normalizedNaming : undefined,
-      }
-    })
-  }
-
-  function updateGridHeaderLabel(role: TemplateGridRole, value: string) {
-    updateTemplateDraft(currentTemplate => {
-      const defaultLabel = gridRoleLabel(role)
-      const existingOverrides = currentTemplate.style?.gridHeader?.labelOverrides ?? {}
-      const nextOverrides = { ...existingOverrides }
-      if (value === defaultLabel) {
-        delete nextOverrides[role]
-      } else {
-        nextOverrides[role] = value
-      }
-      const styleWithoutGridHeader = { ...(currentTemplate.style ?? {}) }
-      delete styleWithoutGridHeader.gridHeader
-      const nextStyle = Object.keys(nextOverrides).length > 0
-        ? { ...styleWithoutGridHeader, gridHeader: { labelOverrides: nextOverrides } }
-        : Object.keys(styleWithoutGridHeader).length > 0
-          ? styleWithoutGridHeader
-          : undefined
-      return {
-        ...currentTemplate,
-        style: nextStyle,
-      }
-    })
-  }
-
-  function updateRegion(regionId: string, updates: Partial<SheetTemplate['regions'][number]>) {
-    updateTemplateDraft(currentTemplate => ({
-      ...currentTemplate,
-      regions: currentTemplate.regions.map(region => region.regionId === regionId ? { ...region, ...updates } : region),
-    }))
-  }
-
-  function updateRegionRect(regionId: string, key: 'x' | 'y' | 'w' | 'h', value: number) {
-    updateTemplateDraft(currentTemplate => ({
-      ...currentTemplate,
-      regions: currentTemplate.regions.map(region => region.regionId === regionId ? { ...region, rect: { ...region.rect, [key]: value } } : region),
-    }))
-  }
-
-  function updateRegionRectPixel(regionId: string, key: TemplateEditorRectKey, pixelValue: number) {
-    updateRegionRect(regionId, key, templateEditorNormalizedRectValue(pixelValue, key, template.page))
-  }
-
-  function selectCalibrationTarget() {
-    if (calibrationTargetRect) setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
-  }
-
-  function updateCalibrationTargetRect(key: 'x' | 'y' | 'w' | 'h', value: number) {
-    if (!calibrationTargetRect) return
-    updateTemplateDraft(currentTemplate => {
-      const currentCalibrationTargetRect = calibrationTargetRectForTemplate(currentTemplate)
-      return currentCalibrationTargetRect
-        ? setTemplateCalibrationTargetRect(currentTemplate, { ...currentCalibrationTargetRect, [key]: value })
-        : currentTemplate
-    })
-    setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
-  }
-
-  function updateCalibrationTargetRectPixel(key: TemplateEditorRectKey, pixelValue: number) {
-    updateCalibrationTargetRect(key, templateEditorNormalizedRectValue(pixelValue, key, template.page))
-  }
-
-  function setCalibrationTargetFromGridBounds() {
-    if (!calibrationGridBounds) return
-    updateTemplateDraft(currentTemplate => {
-      const currentCalibrationGridBounds = calibrationGridBoundsForTemplate(currentTemplate)
-      return currentCalibrationGridBounds ? setTemplateCalibrationTargetRect(currentTemplate, currentCalibrationGridBounds) : currentTemplate
-    })
-    setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
-  }
-
-  function clearCalibrationTarget() {
-    updateTemplateDraft(currentTemplate => clearTemplateCalibrationTargetRect(currentTemplate))
-    if (calibrationGridBounds) {
-      setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
-    } else {
-      setSelectedRegionId(editableRegions[0]?.regionId ?? null)
-    }
-  }
-
-  function resetCalibrationTargetToStandard() {
-    if (!standardCalibrationTargetRect) return
-    updateTemplateDraft(currentTemplate => setTemplateCalibrationTargetRect(currentTemplate, standardCalibrationTargetRect))
-    setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
-  }
-
-  function updateRegionColumnCount(regionId: string, value: number) {
-    const columnCount = clampNumber(Math.round(value), 1, 64)
-    updateTemplateDraft(currentTemplate => ({
-      ...currentTemplate,
-      regions: currentTemplate.regions.map(region => {
-        if (region.regionId !== regionId || !region.grid) return region
-        return {
-          ...region,
-          grid: {
-            ...region.grid,
-            columns: buildTemplateColumns(currentTemplate, region.grid.role, columnCount, region.grid.columns),
-          },
-        }
-      }),
-    }))
-  }
-
-  function updateRegionGrid(regionId: string, updates: Partial<NonNullable<SheetTemplate['regions'][number]['grid']>>) {
-    updateTemplateDraft(currentTemplate => ({
-      ...currentTemplate,
-      regions: currentTemplate.regions.map(region => region.regionId === regionId && region.grid ? { ...region, grid: { ...region.grid, ...updates } } : region),
-    }))
-  }
-
-  function addGridRegion(role: NonNullable<SheetTemplate['regions'][number]['grid']>['role']) {
-    const editableTemplate = ensureEditableTemplateDraft(template)
-    const regionNumber = editableTemplate.regions.filter(region => region.grid?.role === role).length + 1
-    const columnCount = defaultColumnCountForRole(editableTemplate, role)
-    const label = defaultRegionLabel(role, regionNumber)
-    const regionId = `custom_${role}_${editableTemplate.regions.length + 1}`
-    const region: SheetTemplate['regions'][number] = {
-      regionId,
-      type: 'exposure-grid',
-      label,
-      rect: { x: 0.1, y: 0.2, w: 0.3, h: 0.6 },
-      usage: role === 'cell' || role === 'sound' ? 'input' : 'reference',
-      inputKind: role === 'cell' || role === 'action' ? 'timing-event' : role === 'camera' ? 'camera' : role === 'sound' ? 'dialogue' : 'text',
-      grid: {
-        role,
-        frameStart: 1,
-        frameEnd: editableTemplate.defaults.durationFrames,
-        rowCount: editableTemplate.defaults.durationFrames,
-        majorLineEvery: 6,
-        pageBreakEvery: 24,
-        trackProjection: trackProjectionForRole(role),
-        columns: buildTemplateColumns(editableTemplate, role, columnCount),
-      },
-    }
-    setDraftTemplate({
-      ...editableTemplate,
-      regions: [...editableTemplate.regions, region],
-    })
-    setSelectedRegionId(regionId)
-  }
-
-  function addMetadataRegion() {
-    const editableTemplate = ensureEditableTemplateDraft(template)
-    const usedBindings = new Set(editableTemplate.regions.flatMap(region => {
-      const optionId = metadataBindingOptionId(region.binding)
-      return optionId ? [optionId] : []
-    }))
-    const optionId = METADATA_BINDING_OPTION_IDS.find(candidate => !usedBindings.has(candidate)) ?? 'cut:title'
-    const binding = metadataBindingFromOptionId(optionId)
-    const regionId = `metadata_${optionId.replace(/[:]/g, '_')}_${editableTemplate.regions.length + 1}`
-    const region: SheetTemplate['regions'][number] = {
-      regionId,
-      type: 'metadata-field',
-      label: metadataBindingOptionLabel(optionId),
-      rect: { x: 0.1, y: 0.08, w: 0.2, h: 0.04 },
-      usage: binding.target === 'cut-group' ? 'render-only' : 'input',
-      inputKind: 'text',
-      binding,
-      textStyle: {
-        fontSizePx: 22,
-        minFontSizePx: 10,
-        fontWeight: 700,
-        horizontalAlign: 'center',
-        verticalAlign: 'middle',
-        paddingPx: 8,
-        shrinkToFit: true,
-      },
-    }
-    setDraftTemplate({ ...editableTemplate, regions: [...editableTemplate.regions, region] })
-    setSelectedRegionId(regionId)
-  }
-
-  async function handleLoadReferenceImage(files: FileList | null) {
-    const file = files?.[0]
-    if (!file) return
-    try {
-      const dataUrl = await readFileAsDataUrl(file)
-      const editableTemplate = ensureEditableTemplateDraft(template)
-      const sourceId = editableTemplate.defaultUnderlay?.sourceId ?? `template_reference_${Date.now()}`
-      setDraftTemplate({
-        ...editableTemplate,
-        defaultUnderlay: {
-          sourceId,
-          label: file.name,
-          assetPath: dataUrl,
-          imageRef: {
-            name: file.name,
-            size: file.size,
-            lastModified: file.lastModified,
-            assetPath: dataUrl,
-          },
-        },
-      })
-    } catch (error) {
-      window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))
-    }
-  }
-
-  function clearReferenceImage() {
-    updateTemplateDraft(currentTemplate => ({ ...currentTemplate, defaultUnderlay: undefined }))
-  }
-
-  async function handleLoadTemplateDraft(files: FileList | null) {
-    try {
-      const loaded = await onLoadTemplate(files)
-      replaceTemplateDraft(loaded, 'region')
-    } catch (error) {
-      window.alert(uiText.template.loadFailed(errorMessage(error)))
-    }
-  }
-
-  function handleCreateTemplateDraft(kind: TemplateDraftKind, nextTab: TemplateDetailTab = 'region') {
-    replaceTemplateDraft(onCreateTemplateDraft(kind), nextTab)
-  }
-
-  async function handleCreatePaperTemplateDraft(files: FileList | null) {
-    const created = await onCreatePaperTemplateFromImage(files)
-    replaceTemplateDraft(created, 'reference')
-  }
-
-  const detailTabs: Array<[TemplateDetailTab, string]> = [
-    ['region', uiText.template.detailTabs.region],
-    ['display', uiText.template.detailTabs.display],
-    ['reference', uiText.template.detailTabs.reference],
-    ['table', uiText.template.detailTabs.table],
-    ['json', uiText.template.detailTabs.json],
-  ]
-  const gridHeaderRoles = gridHeaderRolesForTemplate(template)
-
-  const templateViewLayout = getSheetViewLayout(template)
-  const templateMeta = (
-    <dl className="templateMeta">
-      <dt>{uiText.template.id}</dt>
-      <dd>
-        <input aria-label={uiText.template.id} value={template.templateId} onChange={event => updateTemplateMetadata({ templateId: event.currentTarget.value })} />
-      </dd>
-      <dt>{uiText.template.name}</dt>
-      <dd>
-        <input aria-label={uiText.template.name} value={template.name} onChange={event => updateTemplateMetadata({ name: event.currentTarget.value })} />
-      </dd>
-      <dt>{uiText.template.cutNumberPrefix}</dt>
-      <dd>
-        <input value={template.naming?.cutNumberPrefix ?? ''} onChange={event => updateTemplateNaming({ cutNumberPrefix: event.currentTarget.value })} />
-      </dd>
-      <dt>{uiText.template.cutNumberPrefixMode}</dt>
-      <dd>
-        <label className="compactControl">
-          <input
-            type="checkbox"
-            disabled={!template.naming?.cutNumberPrefix}
-            checked={(template.naming?.cutNumberPrefixMode ?? 'numeric-only') === 'numeric-only'}
-            onChange={event => updateTemplateNaming({ cutNumberPrefixMode: event.currentTarget.checked ? 'numeric-only' : 'always' })}
-          />
-          {uiText.template.cutNumberPrefixNumericOnly}
-        </label>
-      </dd>
-      <dt>{uiText.template.cutNumberPrefixPreview}</dt>
-      <dd className="muted">001 -&gt; {formatSheetTemplateCutNumber(template, '001')} / OP -&gt; {formatSheetTemplateCutNumber(template, 'OP')}</dd>
-      <dt>{uiText.template.viewLayout}</dt>
-      <dd>{templateViewLayout.type} / {templateViewLayout.defaultViewMode ?? 'continuous'}{templateViewLayout.framesPerPage ? ` / ${templateViewLayout.framesPerPage}F` : ''}</dd>
-      <dt>{uiText.template.pageFormat}</dt>
-      <dd>
-        <input value={template.page.format ?? ''} onChange={event => updateTemplatePage({ format: event.currentTarget.value || undefined })} />
-      </dd>
-      <dt>{uiText.template.widthPx}</dt>
-      <dd>
-        <input className="numberInput" type="number" min="1" value={template.page.widthPx} onChange={event => updateTemplatePage({ widthPx: Math.max(1, Number(event.currentTarget.value)) })} />
-      </dd>
-      <dt>{uiText.template.heightPx}</dt>
-      <dd>
-        <input className="numberInput" type="number" min="1" value={template.page.heightPx} onChange={event => updateTemplatePage({ heightPx: Math.max(1, Number(event.currentTarget.value)) })} />
-      </dd>
-      <dt>{uiText.template.dpi}</dt>
-      <dd>
-        <input className="numberInput" type="number" min="1" value={template.page.dpi ?? ''} onChange={event => updateTemplatePage({ dpi: event.currentTarget.value ? Math.max(1, Number(event.currentTarget.value)) : undefined })} />
-      </dd>
-      <dt>{uiText.template.physicalPage}</dt>
-      <dd>
-        <label className="compactControl">
-          <input type="checkbox" checked={template.page.isPhysical ?? false} onChange={event => updateTemplatePage({ isPhysical: event.currentTarget.checked })} />
-          {template.page.isPhysical ? uiText.app.loaded : uiText.app.none}
-        </label>
-      </dd>
-      <dt>{uiText.template.referenceImage}</dt>
-      <dd>{template.defaultUnderlay?.imageRef.name ?? uiText.template.noReferenceImage}</dd>
-      <dt>{uiText.template.calibrationTarget}</dt>
-      <dd className="templateCalibrationTargetMeta">
-        <div className="templateCalibrationTargetSummary">
-          <button type="button" disabled={!calibrationTargetRect} className={isCalibrationTargetSelected ? 'active' : ''} onClick={selectCalibrationTarget}>
-            {uiText.template.selectCalibrationTarget}
-          </button>
-          <span className="muted">
-            {usesStandardCalibrationTarget
-              ? uiText.template.calibrationTargetStandard
-              : hasExplicitCalibrationTarget
-              ? uiText.template.calibrationTargetExplicit
-              : calibrationTargetRect ? uiText.template.calibrationTargetAuto : uiText.template.calibrationTargetNone}
-          </span>
-        </div>
-        {calibrationTargetRect && (
-          <div className="templateCalibrationTargetFields">
-            {(['x', 'y', 'w', 'h'] as const).map(key => (
-              <label key={key}>
-                <span>{key} px</span>
-                <input
-                  aria-label={`${uiText.template.calibrationTarget} ${key} px`}
-                  className="numberInput"
-                  type="number"
-                  step="1"
-                  value={templateEditorRectPixelValue(calibrationTargetRect, key, template.page)}
-                  onChange={event => updateCalibrationTargetRectPixel(key, Number(event.currentTarget.value))}
-                />
-              </label>
-            ))}
-          </div>
-        )}
-        <div className="toolRow dockToolRow">
-          <button type="button" disabled={!calibrationGridBounds} onClick={setCalibrationTargetFromGridBounds}>{uiText.template.setCalibrationTargetFromGrid}</button>
-          <button type="button" disabled={!standardCalibrationTargetRect || usesStandardCalibrationTarget} onClick={resetCalibrationTargetToStandard}>{uiText.template.resetCalibrationTargetToStandard}</button>
-          <button type="button" disabled={!hasExplicitCalibrationTarget} onClick={clearCalibrationTarget}>{uiText.template.clearCalibrationTarget}</button>
-        </div>
-        <p className="muted">{uiText.template.calibrationTargetHint}</p>
-      </dd>
-      <dt>{uiText.template.regions}</dt>
-      <dd>{template.regions.length}</dd>
-      <dt>{uiText.template.selectedRegion}</dt>
-      <dd>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</dd>
-      {selectedRegion && (
-        <>
-          <dt>{uiText.template.selectedRegionRect}</dt>
-          <dd className="templateCalibrationTargetFields templateSelectedRegionFields">
-            {(['x', 'y', 'w', 'h'] as const).map(key => (
-              <label key={key}>
-                <span>{key} px</span>
-                <input
-                  aria-label={`${uiText.template.selectedRegion} ${key} px`}
-                  className="numberInput"
-                  type="number"
-                  step="1"
-                  value={templateEditorRectPixelValue(selectedRegion.rect, key, template.page)}
-                  onChange={event => updateRegionRectPixel(selectedRegion.regionId, key, Number(event.currentTarget.value))}
-                />
-              </label>
-            ))}
-          </dd>
-        </>
-      )}
-    </dl>
-  )
-
-  const referenceImageControls = (
-    <div className="detailStack">
-      <div className="toolRow dockToolRow">
-        <TooltipTarget label={uiText.actions.loadTemplateReferenceImageTitle}>
-          {tooltipProps => (
-            <label className="fileButton" {...tooltipProps}>
-              {uiText.actions.loadTemplateReferenceImage}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={event => {
-                  void handleLoadReferenceImage(event.currentTarget.files)
-                  event.currentTarget.value = ''
-                }}
-              />
-            </label>
-          )}
-        </TooltipTarget>
-        <Tooltip label={uiText.actions.clearTemplateReferenceImageTitle}>
-          <button disabled={!template.defaultUnderlay} onClick={clearReferenceImage}>{uiText.actions.clearTemplateReferenceImage}</button>
-        </Tooltip>
-      </div>
-      <p className="muted">{uiText.template.referenceImageHint}</p>
-      {template.defaultUnderlay
-        ? (
-          <dl className="templateMeta">
-            <dt>{uiText.template.name}</dt>
-            <dd>{template.defaultUnderlay.imageRef.name}</dd>
-            <dt>{uiText.app.loaded}</dt>
-            <dd>{template.defaultUnderlay.assetPath.startsWith('data:') ? uiText.template.referenceImageEmbedded : template.defaultUnderlay.assetPath}</dd>
-          </dl>
-          )
-        : <p className="muted">{uiText.template.noReferenceImage}</p>}
-    </div>
-  )
-
-  const displayControls = (
-    <div className="detailStack">
-      <p className="muted">{uiText.template.gridHeaderHint}</p>
-      <dl className="templateMeta templateHeaderLabelMeta">
-        <dt>{uiText.template.gridHeaderLabels}</dt>
-        <dd className="templateHeaderLabelList">
-          {gridHeaderRoles.map(role => (
-            <label key={role} className="templateHeaderLabelField">
-              <span>{gridRoleLabel(role)}</span>
-              <input
-                aria-label={uiText.template.gridHeaderLabelInput(gridRoleLabel(role))}
-                value={gridHeaderLabelForRole(template, role)}
-                placeholder={gridRoleLabel(role)}
-                onChange={event => updateGridHeaderLabel(role, event.currentTarget.value)}
-              />
-            </label>
-          ))}
-        </dd>
-      </dl>
-    </div>
-  )
-
-  const regionTable = (
-    <div className="bindingTableWrap templateTableWrap">
-      <table className="bindingTable">
-        <thead>
-          <tr>
-            <th>{uiText.template.headers.region}</th>
-            <th>{uiText.template.headers.role}</th>
-            <th>{uiText.template.headers.metadataField}</th>
-            <th>{uiText.template.headers.fontSize}</th>
-            <th>x px</th>
-            <th>y px</th>
-            <th>w px</th>
-            <th>h px</th>
-            <th>{uiText.template.headers.frameStart}</th>
-            <th>{uiText.template.headers.rows}</th>
-            <th>{uiText.template.headers.columns}</th>
-            <th>{uiText.template.headers.usage}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {template.regions.map(region => (
-            <tr key={region.regionId} className={region.regionId === effectiveSelectedRegionId ? 'selectedTableRow' : ''} onClick={() => setSelectedRegionId(region.regionId)}>
-              <th>
-                <input value={region.label} onChange={event => updateRegion(region.regionId, { label: event.currentTarget.value })} />
-              </th>
-              <td>{region.grid?.role ?? region.type}</td>
-              <td>
-                {(region.binding?.target === 'cut-metadata' || region.binding?.target === 'cut-group') && (
-                  <select
-                    value={metadataBindingOptionId(region.binding) ?? 'cut:title'}
-                    onChange={event => {
-                      const optionId = event.currentTarget.value as MetadataBindingOptionId
-                      const binding = metadataBindingFromOptionId(optionId)
-                      updateRegion(region.regionId, {
-                        binding,
-                        label: metadataBindingOptionLabel(optionId),
-                        usage: binding.target === 'cut-group' ? 'render-only' : 'input',
-                      })
-                    }}
-                  >
-                    {METADATA_BINDING_OPTION_IDS.map(optionId => <option key={optionId} value={optionId}>{metadataBindingOptionLabel(optionId)}</option>)}
-                  </select>
-                )}
-              </td>
-              <td>
-                {(region.binding?.target === 'cut-metadata' || region.binding?.target === 'cut-group') && (
-                  <input
-                    className="numberInput"
-                    type="number"
-                    min="1"
-                    value={region.textStyle?.fontSizePx ?? 22}
-                    onChange={event => updateRegion(region.regionId, {
-                      textStyle: { ...(region.textStyle ?? {}), fontSizePx: Math.max(1, Number(event.currentTarget.value)) },
-                    })}
-                  />
-                )}
-              </td>
-              {(['x', 'y', 'w', 'h'] as const).map(key => (
-                <td key={key}>
-                  <input
-                    className="numberInput"
-                    type="number"
-                    step="1"
-                    value={templateEditorRectPixelValue(region.rect, key, template.page)}
-                    onChange={event => updateRegionRectPixel(region.regionId, key, Number(event.currentTarget.value))}
-                  />
-                </td>
-              ))}
-              <td>
-                {region.grid && (
-                  <input className="numberInput" type="number" value={region.grid.frameStart ?? 1} onChange={event => updateRegionGrid(region.regionId, { frameStart: Number(event.currentTarget.value) })} />
-                )}
-              </td>
-              <td>
-                {region.grid && (
-                  <input className="numberInput" type="number" value={region.grid.rowCount} onChange={event => updateRegionGrid(region.regionId, { rowCount: Number(event.currentTarget.value) })} />
-                )}
-              </td>
-              <td>
-                {region.grid && (
-                  <input className="numberInput" type="number" min="1" value={region.grid.columns.length} onChange={event => updateRegionColumnCount(region.regionId, Number(event.currentTarget.value))} />
-                )}
-              </td>
-              <td>{region.usage}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-
-  return (
-    <section className="panel templatePanel">
-      <div className="toolRow templateToolbar">
-        <ToolbarGroup className="templateDraftToolbarGroup">
-          <span className={`templateDraftStatus ${hasTemplateDraftChanges ? 'dirty' : ''}`.trim()}>{templateDraftStatus}</span>
-          <Tooltip label={uiText.template.applyDraftTitle}>
-            <button type="button" disabled={!hasTemplateDraftChanges} onClick={applyTemplateDraftChanges}>{uiText.template.applyDraft}</button>
-          </Tooltip>
-          <Tooltip label={uiText.template.cancelDraftTitle}>
-            <button type="button" disabled={!hasTemplateDraftChanges} onClick={cancelTemplateDraftChanges}>{uiText.template.cancelDraft}</button>
-          </Tooltip>
-        </ToolbarGroup>
-        <ToolbarGroup>
-          <ActionMenu
-            label={uiText.actions.newTemplate}
-            ariaLabel={uiText.actions.newTemplate}
-            tooltipLabel={uiText.actions.newTemplateTitle}
-            className="templateCreateMenu"
-            closeOnMenuItemClick
-          >
-            <div className="templateCreateMenuGroup">
-              <div className="actionMenuSectionLabel">{uiText.template.createSections.paper}</div>
-              <TooltipTarget label={uiText.actions.createPaperTemplateFromImageTitle}>
-                {tooltipProps => (
-                  <label className="fileButton" {...tooltipProps}>
-                    {uiText.actions.createPaperTemplateFromImage}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={event => {
-                        void handleCreatePaperTemplateDraft(event.currentTarget.files)
-                        event.currentTarget.value = ''
-                      }}
-                    />
-                  </label>
-                )}
-              </TooltipTarget>
-              <button type="button" onClick={() => handleCreateTemplateDraft('paper-standard')}>
-                {uiText.actions.createPaperTemplateFromStandard}
-              </button>
-            </div>
-            <div className="templateCreateMenuGroup">
-              <div className="actionMenuSectionLabel">{uiText.template.createSections.digital}</div>
-              <button type="button" onClick={() => handleCreateTemplateDraft('digital-standard')}>
-                {uiText.actions.createDigitalTemplate}
-              </button>
-            </div>
-            <div className="templateCreateMenuGroup">
-              <div className="actionMenuSectionLabel">{uiText.template.createSections.copy}</div>
-              <button type="button" onClick={() => handleCreateTemplateDraft('duplicate-current')}>
-                {uiText.actions.duplicateCurrentTemplate}
-              </button>
-            </div>
-          </ActionMenu>
-        </ToolbarGroup>
-        <ToolbarGroup>
-          <TooltipTarget label={uiText.actions.loadTemplateJsonTitle}>
-            {tooltipProps => (
-              <label className="fileButton" {...tooltipProps}>
-                {uiText.actions.loadTemplateJson}
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={event => {
-                    void handleLoadTemplateDraft(event.currentTarget.files)
-                    event.currentTarget.value = ''
-                  }}
-                />
-              </label>
-            )}
-          </TooltipTarget>
-          <Tooltip label={uiText.actions.downloadTemplateJsonTitle}>
-            <button type="button" onClick={() => onSaveTemplate(finalizeTemplateDraftForApply(template))}>{uiText.actions.downloadTemplateJson}</button>
-          </Tooltip>
-        </ToolbarGroup>
-        <ToolbarGroup>
-          <Tooltip label={uiText.actions.addMetadataRegionTitle}>
-            <button onClick={addMetadataRegion}>{uiText.actions.addMetadataRegion}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addActionRegionTitle}>
-            <button onClick={() => addGridRegion('action')}>{uiText.actions.addActionRegion}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addSoundRegionTitle}>
-            <button onClick={() => addGridRegion('sound')}>{uiText.actions.addSoundRegion}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addCellRegionTitle}>
-            <button onClick={() => addGridRegion('cell')}>{uiText.actions.addCellRegion}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addCameraRegionTitle}>
-            <button onClick={() => addGridRegion('camera')}>{uiText.actions.addCameraRegion}</button>
-          </Tooltip>
-        </ToolbarGroup>
-        <ToolbarGroup className="templateProcessToolbarGroup">
-          <span className="toolbarGroupLabel">{uiText.template.processSection}</span>
-          <span className="muted">{uiText.template.processSummary(correctionLayers.length, defaultCorrectionLayer?.label ?? '-')}</span>
-          <Tooltip label={uiText.sheet.processSettingsTitle}>
-            <button type="button" className="processSettingsOpenButton" onClick={() => setProcessSettingsOpen(true)}>
-              {uiText.processSettings.openShort}
-            </button>
-          </Tooltip>
-        </ToolbarGroup>
-        <ToolbarGroup>
-          <label className="compactControl">
-            {uiText.sheet.zoom}
-            <input
-              type="range"
-              min={SHEET_ZOOM_MIN * 100}
-              max={SHEET_ZOOM_MAX * 100}
-              value={Math.round(templateZoom * 100)}
-              onInput={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
-              onChange={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
-            />
-            <span className="zoomValue">{Math.round(templateZoom * 100)}%</span>
-          </label>
-          <Tooltip label={uiText.actions.zoomResetTitle}>
-            <button onClick={() => setClampedTemplateZoom(1)}>{uiText.actions.zoomReset}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.zoomFitTitle}>
-            <button onClick={fitTemplateToViewport}>{uiText.actions.zoomFit}</button>
-          </Tooltip>
-        </ToolbarGroup>
-      </div>
-      {processSettingsOpen && (
-        <ProcessSettingsDialog
-          project={project}
-          onClose={() => setProcessSettingsOpen(false)}
-          onApply={layers => {
-            if (onUpdateCorrectionLayers(layers)) setProcessSettingsOpen(false)
-          }}
-        />
-      )}
-      <div className="templateWorkspace" style={{ '--template-dock-width': `${dockWidth}px` } as WorkspaceStyle}>
-        <TemplateRegionEditor
-          template={template}
-          setTemplate={updateTemplateDraft}
-          imageUrl={templateReferenceImageUrl}
-          imageSettings={templateReferenceImageSettings}
-          zoom={templateZoom}
-          setZoom={setClampedTemplateZoom}
-          selectedRegionId={effectiveSelectedRegionId}
-          onSelectRegion={setSelectedRegionId}
-        />
-        <PanelResizeHandle
-          label={uiText.layout.resizeTemplateDock}
-          min={300}
-          max={760}
-          value={dockWidth}
-          onChange={setDockWidth}
-        />
-        <aside className="templateDock">
-          <div className="dockTabs templateDockTabs" role="tablist" aria-label={uiText.template.editorLabel}>
-            {detailTabs.map(([tab, label]) => (
-              <button key={tab} className={detailTab === tab ? 'active' : ''} onClick={() => setDetailTab(tab)} role="tab" aria-selected={detailTab === tab}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="templateDockBody">
-            {detailTab === 'region' && templateMeta}
-            {detailTab === 'display' && displayControls}
-            {detailTab === 'reference' && referenceImageControls}
-            {detailTab === 'table' && regionTable}
-            {detailTab === 'json' && <textarea className="jsonPreview" value={JSON.stringify(template, null, 2)} readOnly />}
-          </div>
-        </aside>
-      </div>
-    </section>
-  )
-}
-
-type TemplateEditorDragPreview = {
-  targetId: string
-  rect: NormalizedRect
-}
-
-function TemplateRegionEditor({
-  template,
-  setTemplate,
-  imageUrl,
-  imageSettings,
-  zoom,
-  setZoom,
-  selectedRegionId,
-  onSelectRegion,
-}: {
-  template: SheetTemplate
-  setTemplate: (updater: (currentTemplate: SheetTemplate) => SheetTemplate) => void
-  imageUrl: string | null
-  imageSettings: SheetImageSettings
-  zoom: number
-  setZoom: (zoom: number) => void
-  selectedRegionId: string | null
-  onSelectRegion: (regionId: string) => void
-}) {
-  const [dragPreview, setDragPreview] = useState<TemplateEditorDragPreview | null>(null)
-  const editorTemplate = useMemo(() => {
-    if (!dragPreview) return template
-    if (dragPreview.targetId === TEMPLATE_CALIBRATION_TARGET_ID) {
-      return setTemplateCalibrationTargetRect(template, dragPreview.rect)
-    }
-    return {
-      ...template,
-      regions: template.regions.map(region => region.regionId === dragPreview.targetId
-        ? { ...region, rect: dragPreview.rect }
-        : region),
-    }
-  }, [dragPreview, template])
-  const renderModel = useMemo(() => buildTemplateEditorRenderModel(editorTemplate), [editorTemplate])
-  const calibrationTargetRect = renderModel.calibrationTargetRect
-  const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
-  const selectedRegion = selectedRegionId && !isCalibrationTargetSelected ? editorTemplate.regions.find(region => region.regionId === selectedRegionId) ?? null : null
-  const [hoveredTargetId, setHoveredTargetId] = useState<string | null>(null)
-  const regionHitRadius = useMemo(() => templateEditorHitRadius(editorTemplate, zoom, 6), [editorTemplate, zoom])
-  const calibrationHitRadius = useMemo(() => templateEditorHitRadius(editorTemplate, zoom, 9), [editorTemplate, zoom])
-  const effectiveHoveredTargetId = hoveredTargetId === TEMPLATE_CALIBRATION_TARGET_ID
-    ? calibrationTargetRect ? hoveredTargetId : null
-    : hoveredTargetId && editorTemplate.regions.some(region => region.regionId === hoveredTargetId)
-      ? hoveredTargetId
-      : null
-  const hoveredRegion = effectiveHoveredTargetId && effectiveHoveredTargetId !== selectedRegionId && effectiveHoveredTargetId !== TEMPLATE_CALIBRATION_TARGET_ID
-    ? editorTemplate.regions.find(region => region.regionId === effectiveHoveredTargetId) ?? null
-    : null
-  const isCalibrationTargetHovered = effectiveHoveredTargetId === TEMPLATE_CALIBRATION_TARGET_ID && !isCalibrationTargetSelected
-
-  function pointFromEvent(event: PointerEvent<SVGSVGElement> | PointerEvent<SVGElement>) {
-    const svg = (event.currentTarget.ownerSVGElement ?? event.currentTarget) as SVGSVGElement
-    return templateEditorPointFromSvg(svg, event.clientX, event.clientY)
-  }
-
-  function templateEditorPointFromSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
-    return snapTemplateEditorPointToPagePixels(
-      templateEditorPointFromClientRect(svg.getBoundingClientRect(), clientX, clientY),
-      editorTemplate.page,
-    )
-  }
-
-  function targetFromEvent(event: PointerEvent<SVGElement>): TemplateEditorTarget | null {
-    return hitTestTemplateEditorTarget(editorTemplate, pointFromEvent(event), {
-      calibrationTargetRect,
-      calibrationHitRadius,
-      regionHitRadius,
-    })
-  }
-
-  function targetId(target: TemplateEditorTarget | null): string | null {
-    if (!target) return null
-    return target.kind === 'calibration-target' ? TEMPLATE_CALIBRATION_TARGET_ID : target.regionId
-  }
-
-  function handleHitSurfacePointerMove(event: PointerEvent<SVGElement>) {
-    const nextTargetId = targetId(targetFromEvent(event))
-    setHoveredTargetId(current => current === nextTargetId ? current : nextTargetId)
-  }
-
-  function handleHitSurfacePointerLeave() {
-    setHoveredTargetId(null)
-  }
-
-  function handleHitSurfacePointerDown(event: PointerEvent<SVGElement>) {
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    const target = targetFromEvent(event)
-    if (!target) return
-    event.preventDefault()
-    event.stopPropagation()
-    onSelectRegion(target.kind === 'calibration-target' ? TEMPLATE_CALIBRATION_TARGET_ID : target.regionId)
-  }
-
-  function commitDragRect(targetId: string, rect: NormalizedRect) {
-    setTemplate(currentTemplate => {
-      if (targetId === TEMPLATE_CALIBRATION_TARGET_ID) {
-        return setTemplateCalibrationTargetRect(currentTemplate, rect)
-      }
-      return {
-        ...currentTemplate,
-        regions: currentTemplate.regions.map(region => region.regionId === targetId ? { ...region, rect } : region),
-      }
-    })
-  }
-
-  function handleEdgePointerDown(edge: TemplateRegionEdge, event: PointerEvent<SVGElement>) {
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    event.preventDefault()
-    event.stopPropagation()
-    const pointerId = event.pointerId
-    const target = event.currentTarget
-    const targetId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegionId
-    const startRect = isCalibrationTargetSelected ? calibrationTargetRect : selectedRegion?.rect
-    if (!targetId || !startRect) return
-    const svg = target.ownerSVGElement
-    if (!svg) return
-    let latestPoint = pointFromEvent(event)
-    let previewFrameId = 0
-    const updatePreview = () => {
-      previewFrameId = 0
-      setDragPreview({ targetId, rect: updateTemplateRectEdge(startRect, edge, latestPoint) })
-    }
-    const updateFromEvent = (nextEvent: globalThis.PointerEvent) => {
-      if (nextEvent.pointerId !== pointerId) return
-      latestPoint = templateEditorPointFromSvg(svg, nextEvent.clientX, nextEvent.clientY)
-      if (previewFrameId === 0) previewFrameId = window.requestAnimationFrame(updatePreview)
-    }
-    const finishDrag = (nextEvent: globalThis.PointerEvent, useEventPoint: boolean) => {
-      if (nextEvent.pointerId !== pointerId) return
-      if (useEventPoint) {
-        latestPoint = templateEditorPointFromSvg(svg, nextEvent.clientX, nextEvent.clientY)
-      }
-      if (previewFrameId !== 0) window.cancelAnimationFrame(previewFrameId)
-      window.removeEventListener('pointermove', updateFromEvent)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerCancel)
-      const finalRect = updateTemplateRectEdge(startRect, edge, latestPoint)
-      if (!sameNormalizedRect(startRect, finalRect)) commitDragRect(targetId, finalRect)
-      setDragPreview(null)
-      if (
-        typeof target.releasePointerCapture === 'function'
-        && (typeof target.hasPointerCapture !== 'function' || target.hasPointerCapture(pointerId))
-      ) {
-        target.releasePointerCapture(pointerId)
-      }
-    }
-    const handlePointerUp = (nextEvent: globalThis.PointerEvent) => finishDrag(nextEvent, true)
-    const handlePointerCancel = (nextEvent: globalThis.PointerEvent) => finishDrag(nextEvent, false)
-    target.setPointerCapture(pointerId)
-    updatePreview()
-    window.addEventListener('pointermove', updateFromEvent)
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerCancel)
-  }
-
-  function handleWheelZoom(event: WheelEvent<HTMLDivElement>) {
-    if (!event.ctrlKey && !event.metaKey) {
-      handleHorizontalWheelScroll(event)
-      return
-    }
-    const rawVerticalDelta = verticalWheelDelta(event)
-    if (rawVerticalDelta === 0) return
-    event.preventDefault()
-    const viewport = event.currentTarget
-    const rect = viewport.getBoundingClientRect()
-    const localX = event.clientX - rect.left
-    const localY = event.clientY - rect.top
-    const contentX = viewport.scrollLeft + localX
-    const contentY = viewport.scrollTop + localY
-    const factor = rawVerticalDelta < 0 ? SHEET_ZOOM_WHEEL_FACTOR : 1 / SHEET_ZOOM_WHEEL_FACTOR
-    const nextZoom = clampSheetZoom(zoom * factor)
-    const ratio = nextZoom / zoom
-    setZoom(nextZoom)
-    window.requestAnimationFrame(() => {
-      viewport.scrollLeft = contentX * ratio - localX
-      viewport.scrollTop = contentY * ratio - localY
-    })
-  }
-
-  const activeEditorRect = isCalibrationTargetSelected ? calibrationTargetRect : selectedRegion?.rect ?? null
-  const activeEditorRectReadout = activeEditorRect
-    ? (['x', 'y', 'w', 'h'] as const)
-        .map(key => `${key.toUpperCase()} ${templateEditorRectPixelValue(activeEditorRect, key, editorTemplate.page)}`)
-        .join(' / ')
-    : null
-
-  return (
-    <div className="templateEditor">
-      <div className="templateEditorViewport" onWheel={handleWheelZoom}>
-        <svg
-          viewBox="0 0 1 1"
-          preserveAspectRatio="none"
-          className="templateEditorSvg"
-          aria-label={uiText.template.editorLabel}
-          style={{ width: `${editorTemplate.page.widthPx * zoom}px`, aspectRatio: `${editorTemplate.page.widthPx} / ${editorTemplate.page.heightPx}` }}
-        >
-          <g className="templateStaticLayer" aria-hidden="true">
-            <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
-            {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={editorTemplate} forceRaw preview />}
-            <TemplateChromeLayer model={renderModel.chrome} />
-            {renderModel.gridOverlays.map(model => (
-              <GridOverlayLayer key={model.regionId} model={model} />
-            ))}
-          </g>
-          <g className="templateInteractionOverlay">
-            {hoveredRegion && (
-              <rect
-                className="templateRegionHighlight hovered"
-                x={hoveredRegion.rect.x}
-                y={hoveredRegion.rect.y}
-                width={hoveredRegion.rect.w}
-                height={hoveredRegion.rect.h}
-              />
-            )}
-            {calibrationTargetRect && (
-              <g className="templateCalibrationTarget">
-                <rect
-                  className={[
-                    'templateCalibrationTargetOutline',
-                    isCalibrationTargetSelected ? 'selected' : '',
-                    isCalibrationTargetHovered ? 'hovered' : '',
-                  ].filter(Boolean).join(' ')}
-                  x={calibrationTargetRect.x}
-                  y={calibrationTargetRect.y}
-                  width={calibrationTargetRect.w}
-                  height={calibrationTargetRect.h}
-                />
-              </g>
-            )}
-            <rect
-              className={effectiveHoveredTargetId ? 'templateEditorHitSurface interactive' : 'templateEditorHitSurface'}
-              x="0"
-              y="0"
-              width="1"
-              height="1"
-              onPointerMove={handleHitSurfacePointerMove}
-              onPointerLeave={handleHitSurfacePointerLeave}
-              onPointerDown={handleHitSurfacePointerDown}
-            />
-            {selectedRegion && (
-              <TemplateEditHandles rect={selectedRegion.rect} onEdgePointerDown={handleEdgePointerDown} />
-            )}
-            {isCalibrationTargetSelected && calibrationTargetRect && (
-              <TemplateEditHandles rect={calibrationTargetRect} variant="calibrationTarget" onEdgePointerDown={handleEdgePointerDown} />
-            )}
-          </g>
-        </svg>
-      </div>
-      <div className="templateEditorCaption">
-        <strong>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</strong>
-        <span className="muted">
-          {isCalibrationTargetSelected
-            ? uiText.template.calibrationTargetCaption
-            : selectedRegion?.grid ? `${gridRoleLabel(selectedRegion.grid.role)} / ${selectedRegion.grid.columns.length}列 / ${selectedRegion.grid.rowCount}行` : uiText.template.noGridRegion}
-        </span>
-        {activeEditorRectReadout && <span className="templateEditorRectReadout">{activeEditorRectReadout} px</span>}
-      </div>
-    </div>
-  )
-}
-
-function TemplateEditHandles({
-  rect,
-  variant,
-  onEdgePointerDown,
-}: {
-  rect: NormalizedRect
-  variant?: 'calibrationTarget'
-  onEdgePointerDown: (edge: TemplateRegionEdge, event: PointerEvent<SVGElement>) => void
-}) {
-  const left = rect.x
-  const right = rect.x + rect.w
-  const top = rect.y
-  const bottom = rect.y + rect.h
-  const midX = rect.x + rect.w / 2
-  const midY = rect.y + rect.h / 2
-  const knobRadius = 0.005
-
-  return (
-    <g className={variant === 'calibrationTarget' ? 'templateEditHandles calibrationTarget' : 'templateEditHandles'}>
-      <rect className="templateSelectedRegion" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
-      <line className="templateEdgeGuide vertical" x1={left} x2={left} y1={0} y2={1} />
-      <line className="templateEdgeGuide vertical" x1={right} x2={right} y1={0} y2={1} />
-      <line className="templateEdgeGuide horizontal" x1={0} x2={1} y1={top} y2={top} />
-      <line className="templateEdgeGuide horizontal" x1={0} x2={1} y1={bottom} y2={bottom} />
-      <line className="templateEdgeHit vertical" x1={left} x2={left} y1={0} y2={1} onPointerDown={event => onEdgePointerDown('left', event)} />
-      <line className="templateEdgeHit vertical" x1={right} x2={right} y1={0} y2={1} onPointerDown={event => onEdgePointerDown('right', event)} />
-      <line className="templateEdgeHit horizontal" x1={0} x2={1} y1={top} y2={top} onPointerDown={event => onEdgePointerDown('top', event)} />
-      <line className="templateEdgeHit horizontal" x1={0} x2={1} y1={bottom} y2={bottom} onPointerDown={event => onEdgePointerDown('bottom', event)} />
-      <circle className="templateHandleKnob vertical" cx={left} cy={midY} r={knobRadius} onPointerDown={event => onEdgePointerDown('left', event)} />
-      <circle className="templateHandleKnob vertical" cx={right} cy={midY} r={knobRadius} onPointerDown={event => onEdgePointerDown('right', event)} />
-      <circle className="templateHandleKnob horizontal" cx={midX} cy={top} r={knobRadius} onPointerDown={event => onEdgePointerDown('top', event)} />
-      <circle className="templateHandleKnob horizontal" cx={midX} cy={bottom} r={knobRadius} onPointerDown={event => onEdgePointerDown('bottom', event)} />
-    </g>
-  )
-}
-
 function RecognitionActionMenu({
   candidates,
   sheetRole,
@@ -13616,244 +12258,6 @@ function formatDurationPart(value: number, minDigits: number): string {
   return String(Math.max(0, Math.round(value))).padStart(minDigits, '0')
 }
 
-function ActionMenu({
-  label,
-  children,
-  ariaLabel,
-  tooltipLabel,
-  className = '',
-  closeOnMenuItemClick = false,
-}: {
-  label: ReactNode
-  children: ReactNode
-  ariaLabel?: string
-  tooltipLabel?: string
-  className?: string
-  closeOnMenuItemClick?: boolean
-}) {
-  const menuId = useId()
-  const menuRef = useRef<HTMLDetailsElement>(null)
-  const summaryRef = useRef<HTMLElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [open, setOpen] = useState(false)
-  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null)
-
-  const updateMenuPosition = useCallback(() => {
-    const summary = summaryRef.current
-    if (!summary) return
-    const summaryRect = summary.getBoundingClientRect()
-    const content = contentRef.current
-    const contentWidth = content?.offsetWidth ?? 220
-    const contentHeight = content?.offsetHeight ?? 120
-    const margin = 8
-    const preferredTop = summaryRect.bottom + 5
-    const top = preferredTop + contentHeight > window.innerHeight - margin
-      ? Math.max(margin, summaryRect.top - contentHeight - 5)
-      : preferredTop
-    const left = Math.min(
-      Math.max(margin, summaryRect.left),
-      Math.max(margin, window.innerWidth - contentWidth - margin),
-    )
-    setMenuStyle({ top, left })
-  }, [])
-
-  useEffect(() => {
-    function closeOtherMenus(event: Event) {
-      if ((event as CustomEvent<string>).detail !== menuId) setOpen(false)
-    }
-
-    function closeFromOutside(event: globalThis.PointerEvent) {
-      const target = event.target as Node
-      if (menuRef.current?.contains(target) || contentRef.current?.contains(target)) return
-      setOpen(false)
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
-    }
-
-    window.addEventListener(ACTION_MENU_OPEN_EVENT, closeOtherMenus)
-    window.addEventListener('pointerdown', closeFromOutside)
-    window.addEventListener('keydown', closeOnEscape)
-    return () => {
-      window.removeEventListener(ACTION_MENU_OPEN_EVENT, closeOtherMenus)
-      window.removeEventListener('pointerdown', closeFromOutside)
-      window.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [menuId])
-
-  useLayoutEffect(() => {
-    if (!open) return undefined
-    updateMenuPosition()
-    const frame = window.requestAnimationFrame(updateMenuPosition)
-    window.addEventListener('resize', updateMenuPosition)
-    window.addEventListener('scroll', updateMenuPosition, true)
-    return () => {
-      window.cancelAnimationFrame(frame)
-      window.removeEventListener('resize', updateMenuPosition)
-      window.removeEventListener('scroll', updateMenuPosition, true)
-    }
-  }, [open, updateMenuPosition])
-
-  function toggleOpen(event: MouseEvent<HTMLElement>) {
-    event.preventDefault()
-    setOpen(current => {
-      const nextOpen = !current
-      if (nextOpen) window.dispatchEvent(new CustomEvent(ACTION_MENU_OPEN_EVENT, { detail: menuId }))
-      return nextOpen
-    })
-  }
-
-  function handleContentClick(event: MouseEvent<HTMLDivElement>) {
-    if (!closeOnMenuItemClick) return
-    const target = event.target as Element
-    if (target.closest('[data-action-menu-keep-open]')) return
-    if (target.closest('label.fileButton')) return
-    if (target.closest('button')) setOpen(false)
-  }
-
-  function handleContentChange(event: FormEvent<HTMLDivElement>) {
-    if (!closeOnMenuItemClick) return
-    const target = event.target
-    if (!(target instanceof HTMLInputElement) || target.type !== 'file') return
-    if (target.closest('[data-action-menu-keep-open]')) return
-    if (target.closest('label.fileButton')) {
-      window.setTimeout(() => setOpen(false), 0)
-    }
-  }
-
-  function renderSummary(tooltipProps?: TooltipTriggerProps) {
-    return (
-      <summary
-        ref={summaryRef}
-        aria-label={ariaLabel}
-        {...tooltipProps}
-        onClick={event => {
-          tooltipProps?.onPointerDown()
-          toggleOpen(event)
-        }}
-      >
-        {label}
-      </summary>
-    )
-  }
-
-  return (
-    <details
-      ref={menuRef}
-      className={`actionMenu ${className}`.trim()}
-      open={open}
-    >
-      {tooltipLabel
-        ? (
-          <TooltipTarget label={tooltipLabel} disabled={open}>
-            {tooltipProps => renderSummary(tooltipProps)}
-          </TooltipTarget>
-          )
-        : renderSummary()}
-      {open && createPortal(
-        <div
-          ref={contentRef}
-          className={`actionMenuContent actionMenuPortalContent ${className}`.trim()}
-          style={menuStyle ?? { top: 0, left: 0, visibility: 'hidden' }}
-          onClick={handleContentClick}
-          onChange={handleContentChange}
-        >
-          {children}
-        </div>,
-        document.body,
-      )}
-    </details>
-  )
-}
-
-function ToolbarGroup({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`toolbarGroup ${className}`.trim()}>{children}</div>
-}
-
-function PanelResizeHandle({
-  label,
-  value,
-  min,
-  max,
-  side = 'right',
-  onChange,
-}: {
-  label: string
-  value: number
-  min: number
-  max: number
-  side?: 'left' | 'right'
-  onChange: (value: number) => void
-}) {
-  const keyboardStep = side === 'left' ? 24 : -24
-
-  function moveBy(delta: number) {
-    onChange(clampNumber(value + delta, min, max))
-  }
-
-  return (
-    <div
-      className="panelResizeHandle"
-      role="separator"
-      aria-label={label}
-      aria-orientation="vertical"
-      aria-valuemin={min}
-      aria-valuemax={max}
-      aria-valuenow={Math.round(value)}
-      tabIndex={0}
-      onPointerDown={event => beginPanelResize(event, value, min, max, side, onChange)}
-      onKeyDown={event => {
-        if (event.key === 'ArrowLeft') {
-          event.preventDefault()
-          moveBy(-keyboardStep)
-        }
-        if (event.key === 'ArrowRight') {
-          event.preventDefault()
-          moveBy(keyboardStep)
-        }
-      }}
-    />
-  )
-}
-
-function beginPanelResize(
-  event: PointerEvent<HTMLElement>,
-  startWidth: number,
-  min: number,
-  max: number,
-  side: 'left' | 'right',
-  onChange: (value: number) => void,
-) {
-  event.preventDefault()
-  const startX = event.clientX
-  const previousCursor = document.body.style.cursor
-  const previousUserSelect = document.body.style.userSelect
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-
-  function viewportMax() {
-    return Math.max(min, Math.min(max, window.innerWidth - 320))
-  }
-
-  function onPointerMove(moveEvent: globalThis.PointerEvent) {
-    const delta = side === 'left' ? moveEvent.clientX - startX : startX - moveEvent.clientX
-    onChange(clampNumber(startWidth + delta, min, viewportMax()))
-  }
-
-  function stopResize() {
-    window.removeEventListener('pointermove', onPointerMove)
-    window.removeEventListener('pointerup', stopResize)
-    window.removeEventListener('pointercancel', stopResize)
-    document.body.style.cursor = previousCursor
-    document.body.style.userSelect = previousUserSelect
-  }
-
-  window.addEventListener('pointermove', onPointerMove)
-  window.addEventListener('pointerup', stopResize)
-  window.addEventListener('pointercancel', stopResize)
-}
-
 function RegisteredCellSortIcon({ direction }: { direction: RegisteredCellSortDirection }) {
   return (
     <svg className="assetSortIcon" viewBox="0 0 24 24" aria-hidden="true">
@@ -14042,13 +12446,21 @@ function DisplaySettingsIcon() {
   )
 }
 
-function AppHelpDialog({ onClose }: { onClose: () => void }) {
+function AppHelpDialog({
+  appName,
+  showDigitalHelp,
+  onClose,
+}: {
+  appName: string
+  showDigitalHelp: boolean
+  onClose: () => void
+}) {
   return (
-    <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label="xsheet-remapの使い方">
+    <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label={`${appName}の使い方`}>
       <section className="appHelpDialog">
         <header>
           <div>
-            <strong>xsheet-remapの使い方</strong>
+            <strong>{appName}の使い方</strong>
             <span>CSPはCLIP STUDIO PAINT、つまりクリスタのことです。ここでは主な作業の流れを説明します。</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
@@ -14074,7 +12486,7 @@ function AppHelpDialog({ onClose }: { onClose: () => void }) {
           </article>
           <article className="appHelpWorkflow">
             <h2>CSP組み込み用シートを作る</h2>
-            <p>本体アプリでタイムシートと素材対応を作り、ヘルパーでCLIP STUDIO PAINT（クリスタ）へ登録します。</p>
+            <p>{appName}でタイムシートと素材対応を作り、ヘルパーでCLIP STUDIO PAINT（クリスタ）へ登録します。</p>
             <ol>
               <li>
                 <strong>紙シート画像を読み込む</strong>
@@ -14104,7 +12516,7 @@ function AppHelpDialog({ onClose }: { onClose: () => void }) {
               </li>
             </ol>
           </article>
-          <article className="appHelpWorkflow">
+          {showDigitalHelp && <article className="appHelpWorkflow">
             <h2>デジタルタイムシートとして使う</h2>
             <p>この領域は拡張中ですが、紙シートの下敷き、キー入力、注釈、XDTS/画像出力の作業台として使えます。</p>
             <ol>
@@ -14125,7 +12537,7 @@ function AppHelpDialog({ onClose }: { onClose: () => void }) {
                 <span>確認用にはJPG/PNG/PSD、連携用にはXDTSを使います。CSP自動登録には専用の「タイムシート/CSP自動登録」を使ってください。</span>
               </li>
             </ol>
-          </article>
+          </article>}
         </div>
         <footer>
           <p>CSP自動登録は、同梱のCSP自動登録ヘルパーがクリスタを操作して行います。csp-import.xciはヘルパー用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。</p>
@@ -14136,6 +12548,7 @@ function AppHelpDialog({ onClose }: { onClose: () => void }) {
 }
 
 function AppNavigationMenu({
+  panels,
   panel,
   onSelect,
   onLoadProject,
@@ -14146,8 +12559,10 @@ function AppNavigationMenu({
   onOpenSheetImageExport,
   onSaveXdts,
   onSaveCspImportPackage,
+  onOpenExportSettings,
   blockingExport,
 }: {
+  panels: Panel[]
   panel: Panel
   onSelect: (panel: Panel) => void
   onLoadProject: (files: FileList | null) => void
@@ -14158,6 +12573,7 @@ function AppNavigationMenu({
   onOpenSheetImageExport: (format: SheetImageExportFormat) => void
   onSaveXdts: () => void
   onSaveCspImportPackage: () => void
+  onOpenExportSettings?: () => void
   blockingExport: boolean
 }) {
   return (
@@ -14216,13 +12632,18 @@ function AppNavigationMenu({
           <Tooltip label={uiText.actions.cspImportPackageTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveCspImportPackage}>{uiText.actions.cspImportPackage}</button>
           </Tooltip>
+          {onOpenExportSettings && (
+            <Tooltip label="XDTSの工程・対象トラック・セル名規則を設定">
+              <button type="button" className="appNavMenuItem" onClick={onOpenExportSettings}>XDTS詳細設定...</button>
+            </Tooltip>
+          )}
         </div>
       </div>
       <Tooltip label={uiText.actions.resetAppTitle}>
         <button type="button" className="appNavMenuItem" onClick={onResetApp}>{uiText.actions.resetApp}</button>
       </Tooltip>
       <div className="appNavSectionLabel">ワークスペース</div>
-      {APP_NAV_PANELS.map(item => (
+      {panels.map(item => (
         <Tooltip key={item} label={uiText.nav.workspaceItemTitle(panelLabel(item))}>
           <button
             type="button"
@@ -14253,188 +12674,8 @@ function panelLabel(panel: Panel): string {
   }
 }
 
-function metadataFieldLabel(field: CutMetadataFieldId): string {
-  return {
-    title: 'タイトル',
-    episode: '話数',
-    scene: 'シーン',
-    cut: 'カット',
-    duration: '尺',
-    worker: '作業者',
-    page: 'ページ',
-    custom: 'カスタム',
-  }[field]
-}
-
-function metadataBindingOptionId(binding: SheetTemplateRegionBinding | undefined): MetadataBindingOptionId | null {
-  if (binding?.target === 'cut-metadata') return `cut:${binding.field}`
-  if (binding?.target === 'cut-group' && binding.field === 'shared-cut-numbers') return 'group:shared-cut-numbers'
-  return null
-}
-
-function metadataBindingFromOptionId(optionId: MetadataBindingOptionId): SheetTemplateRegionBinding {
-  if (optionId === 'group:shared-cut-numbers') {
-    return { target: 'cut-group', field: 'shared-cut-numbers', opening: '[', closing: ']', separator: '・' }
-  }
-  return { target: 'cut-metadata', field: optionId.slice(4) as CutMetadataFieldId }
-}
-
-function metadataBindingOptionLabel(optionId: MetadataBindingOptionId): string {
-  return optionId === 'group:shared-cut-numbers'
-    ? '兼用カット'
-    : metadataFieldLabel(optionId.slice(4) as CutMetadataFieldId)
-}
-
 function sheetSourceLabel(source: SheetSource): string {
   return source.imageRef.name
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.addEventListener('load', () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result)
-      } else {
-        reject(new Error('FileReader did not return a data URL.'))
-      }
-    })
-    reader.addEventListener('error', () => reject(reader.error ?? new Error('Failed to read file.')))
-    reader.readAsDataURL(file)
-  })
-}
-
-function createTemplateDraft(kind: TemplateDraftKind, currentTemplate: SheetTemplate): SheetTemplate {
-  if (kind === 'digital-standard') {
-    return createTemplateDraftFromBase(digitalStandardSheetTemplate, {
-      idBase: 'digital-template',
-      name: uiText.template.draftNames.digital,
-    })
-  }
-  if (kind === 'duplicate-current') {
-    return createTemplateDraftFromBase(currentTemplate, {
-      idBase: `${currentTemplate.templateId}-copy`,
-      name: uiText.template.draftNames.copy(currentTemplate.name),
-    })
-  }
-  return createTemplateDraftFromBase(standardA3SheetTemplate, {
-    idBase: 'paper-template',
-    name: uiText.template.draftNames.paperStandard,
-  })
-}
-
-function createPaperTemplateDraftFromImage(file: File, dataUrl: string, imageSize: { width: number; height: number } | null): SheetTemplate {
-  const template = createTemplateDraftFromBase(standardA3SheetTemplate, {
-    idBase: fileNameStem(file.name) || 'paper-template',
-    name: uiText.template.draftNames.paperFromImage(fileNameStem(file.name) || file.name),
-  })
-  return {
-    ...template,
-    page: imageSize
-      ? {
-          ...template.page,
-          widthPx: imageSize.width,
-          heightPx: imageSize.height,
-        }
-      : template.page,
-    defaultUnderlay: {
-      sourceId: `template_reference_${Date.now().toString(36)}`,
-      label: file.name,
-      assetPath: dataUrl,
-      imageRef: {
-        name: file.name,
-        size: file.size,
-        lastModified: file.lastModified,
-        assetPath: dataUrl,
-      },
-    },
-  }
-}
-
-function createTemplateDraftFromBase(baseTemplate: SheetTemplate, options: { idBase: string; name: string }): SheetTemplate {
-  const template = cloneSheetTemplate(baseTemplate)
-  return {
-    ...template,
-    templateId: `${safeTemplateIdSegment(options.idBase)}-${Date.now().toString(36)}`,
-    name: options.name,
-  }
-}
-
-function cloneSheetTemplate(template: SheetTemplate): SheetTemplate {
-  return structuredClone(template)
-}
-
-function builtInSheetTemplateForId(templateId: string): SheetTemplate | null {
-  if (templateId === standardA3SheetTemplate.templateId) return standardA3SheetTemplate
-  if (templateId === digitalStandardSheetTemplate.templateId) return digitalStandardSheetTemplate
-  return null
-}
-
-function isBuiltInSheetTemplate(template: Pick<SheetTemplate, 'templateId'>): boolean {
-  return builtInSheetTemplateForId(template.templateId) !== null
-}
-
-function isModifiedBuiltInSheetTemplate(template: SheetTemplate): boolean {
-  const builtInTemplate = builtInSheetTemplateForId(template.templateId)
-  return Boolean(builtInTemplate && JSON.stringify(template) !== JSON.stringify(builtInTemplate))
-}
-
-function ensureEditableTemplateDraft(template: SheetTemplate): SheetTemplate {
-  if (!isBuiltInSheetTemplate(template)) return template
-  return createTemplateDraftFromBase(template, {
-    idBase: `${template.templateId}-custom`,
-    name: editableTemplateDraftName(template),
-  })
-}
-
-function finalizeTemplateDraftForApply(template: SheetTemplate): SheetTemplate {
-  return isModifiedBuiltInSheetTemplate(template)
-    ? ensureEditableTemplateDraft(template)
-    : cloneSheetTemplate(template)
-}
-
-function editableTemplateDraftName(template: SheetTemplate): string {
-  const builtInTemplate = builtInSheetTemplateForId(template.templateId)
-  if (builtInTemplate && template.name && template.name !== builtInTemplate.name) return template.name
-  return uiText.template.draftNames.editableCopy(template.name)
-}
-
-function safeTemplateIdSegment(value: string): string {
-  const safe = safeFileName(value)
-    .toLocaleLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-  return safe || 'template'
-}
-
-function fileNameStem(fileName: string): string {
-  const dotIndex = fileName.lastIndexOf('.')
-  return (dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName).trim()
-}
-
-function readImageDimensionsFromDataUrl(dataUrl: string): Promise<{ width: number; height: number } | null> {
-  if (typeof Image === 'undefined') return Promise.resolve(null)
-  return new Promise(resolve => {
-    const image = new Image()
-    let settled = false
-    const timeout = globalThis.setTimeout(() => finish(null), 1500)
-    function finish(size: { width: number; height: number } | null) {
-      if (settled) return
-      settled = true
-      globalThis.clearTimeout(timeout)
-      image.onload = null
-      image.onerror = null
-      resolve(size && size.width > 0 && size.height > 0 ? size : null)
-    }
-    image.onload = () => finish({
-      width: Math.max(1, Math.round(image.naturalWidth || image.width)),
-      height: Math.max(1, Math.round(image.naturalHeight || image.height)),
-    })
-    image.onerror = () => finish(null)
-    image.src = dataUrl
-  })
 }
 
 function calibrationCornersForTemplate(template: Pick<SheetTemplate, 'regions'>): SheetImageAlignment['corners'] | null {
@@ -14471,25 +12712,6 @@ function cornersFromRect(rect: NormalizedRect): SheetImageAlignment['corners'] {
   }
 }
 
-function standardCalibrationTargetRectForTemplate(template: SheetTemplate): NormalizedRect | null {
-  if (template.templateKind !== standardA3SheetTemplate.templateKind || template.layoutMode !== standardA3SheetTemplate.layoutMode) return null
-  const rect = standardA3SheetTemplate.calibration?.targetRect
-  return rect ? { ...rect } : null
-}
-
-function sameNormalizedRect(a: NormalizedRect, b: NormalizedRect): boolean {
-  const epsilon = 0.000001
-  return Math.abs(a.x - b.x) <= epsilon
-    && Math.abs(a.y - b.y) <= epsilon
-    && Math.abs(a.w - b.w) <= epsilon
-    && Math.abs(a.h - b.h) <= epsilon
-}
-
-function templateJsonFileName(template: SheetTemplate): string {
-  const baseName = safeFileName(template.name || template.templateId || 'template')
-  return `${baseName}.template.json`
-}
-
 function nextCutNumberLabel(document: CutGroupProjectDocument): string {
   const used = new Set(document.cuts.map(cut => cut.metadata.cut).filter((value): value is string => Boolean(value?.trim())))
   let index = document.cuts.length + 1
@@ -14499,11 +12721,6 @@ function nextCutNumberLabel(document: CutGroupProjectDocument): string {
     candidate = String(index).padStart(3, '0')
   }
   return candidate
-}
-
-function safeFileName(value: string): string {
-  const safe = Array.from(value.trim(), char => (char.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(char)) ? '_' : char).join('').replace(/[. ]+$/g, '')
-  return safe || 'template'
 }
 
 function imageExportFilterName(format: SheetImageExportFormat): string {

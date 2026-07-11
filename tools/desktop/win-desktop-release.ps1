@@ -6,16 +6,34 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$releaseExeRelativePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
-$releaseExePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $releaseExeRelativePath))
-$sheetCorrectorReleaseExeRelativePath = "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe"
-$sheetCorrectorReleaseExePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $sheetCorrectorReleaseExeRelativePath))
+$desktopApps = @(
+  [pscustomobject]@{
+    Name = "xsheet-editor"
+    Workspace = "@xsheet-remap/editor"
+    RelativePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe"
+  },
+  [pscustomobject]@{
+    Name = "xsheet-remap"
+    Workspace = "@xsheet-remap/desktop"
+    RelativePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
+  },
+  [pscustomobject]@{
+    Name = "xsheet-template-editor"
+    Workspace = "@xsheet-remap/template-editor"
+    RelativePath = "apps/template-editor/src-tauri/target/release/xsheet-template-editor.exe"
+  },
+  [pscustomobject]@{
+    Name = "xsheet-corrector"
+    Workspace = "@xsheet-remap/sheet-corrector"
+    RelativePath = "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe"
+  }
+)
 
-if (-not $releaseExePath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-  throw "resolved release executable is outside the repository: $releaseExePath"
-}
-if (-not $sheetCorrectorReleaseExePath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-  throw "resolved sheet corrector executable is outside the repository: $sheetCorrectorReleaseExePath"
+foreach ($app in $desktopApps) {
+  $app | Add-Member -NotePropertyName OutputPath -NotePropertyValue ([System.IO.Path]::GetFullPath((Join-Path $repoRoot $app.RelativePath)))
+  if (-not $app.OutputPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "resolved $($app.Name) executable is outside the repository: $($app.OutputPath)"
+  }
 }
 
 function Add-RustPathRemapFlag {
@@ -69,8 +87,9 @@ try {
   }
 
   if ($env:OS -eq "Windows_NT") {
-    $buildOutputPaths = @($releaseExePath, $sheetCorrectorReleaseExePath)
-    $runningTargets = Get-Process -Name "xsheet-remap", "xsheet-corrector" -ErrorAction SilentlyContinue |
+    $buildOutputPaths = @($desktopApps | ForEach-Object { $_.OutputPath })
+    $processNames = @($desktopApps | ForEach-Object { $_.Name })
+    $runningTargets = Get-Process -Name $processNames -ErrorAction SilentlyContinue |
       Where-Object {
         try {
           if (-not $_.Path) {
@@ -90,21 +109,17 @@ try {
     }
   }
 
-  npm run build:portable -w @xsheet-remap/desktop
-  if ($LASTEXITCODE -ne 0) {
-    throw "desktop build failed with exit code $LASTEXITCODE"
+  foreach ($app in $desktopApps) {
+    npm run build:portable -w $app.Workspace
+    if ($LASTEXITCODE -ne 0) {
+      throw "$($app.Name) build failed with exit code $LASTEXITCODE"
+    }
   }
 
-  npm run build:portable -w @xsheet-remap/sheet-corrector
-  if ($LASTEXITCODE -ne 0) {
-    throw "sheet corrector build failed with exit code $LASTEXITCODE"
-  }
-
-  if (-not (Test-Path -LiteralPath $releaseExePath)) {
-    throw "desktop build did not produce expected exe: $releaseExePath"
-  }
-  if (-not (Test-Path -LiteralPath $sheetCorrectorReleaseExePath)) {
-    throw "sheet corrector build did not produce expected exe: $sheetCorrectorReleaseExePath"
+  foreach ($app in $desktopApps) {
+    if (-not (Test-Path -LiteralPath $app.OutputPath)) {
+      throw "$($app.Name) build did not produce expected exe: $($app.OutputPath)"
+    }
   }
 
   & (Join-Path $repoRoot "tools/release/local-package.ps1") -SkipHelper -SkipLeakCheck

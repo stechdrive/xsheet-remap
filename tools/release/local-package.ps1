@@ -144,6 +144,26 @@ function Copy-RequiredFile {
   Write-Host "[local-package] copied $ComponentName to $(Get-ReleaseRelativePath $destinationPath)"
 }
 
+function Add-PreservedFile {
+  param(
+    [string]$DestinationName,
+    [string]$ComponentName,
+    [System.Collections.Generic.List[object]]$Components
+  )
+
+  $path = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot $DestinationName))
+  if (-not (Test-Path -LiteralPath $path)) {
+    return
+  }
+
+  $Components.Add([pscustomobject]@{
+    name = $ComponentName
+    type = "file"
+    status = "preserved"
+    path = Get-ReleaseRelativePath $path
+  })
+}
+
 function Copy-HelperDirectory {
   param(
     [string]$SourceDirectory,
@@ -383,17 +403,42 @@ if (-not (Test-Path -LiteralPath $releaseGuideSource)) {
 }
 Copy-Item -LiteralPath $releaseGuideSource -Destination $releaseGuidePath -Force
 
-if (-not $SkipDesktop) {
-  Copy-RequiredFile `
-    -SourceRelativePath "apps/desktop/src-tauri/target/release/xsheet-remap.exe" `
-    -DestinationName "xsheet-remap.exe" `
-    -ComponentName "xsheet-remap" `
-    -Components $components
-  Copy-RequiredFile `
-    -SourceRelativePath "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe" `
-    -DestinationName "xsheet-corrector.exe" `
-    -ComponentName "xsheet-corrector" `
-    -Components $components
+$desktopComponents = @(
+  [pscustomobject]@{
+    Name = "xsheet-editor"
+    Source = "apps/editor/src-tauri/target/release/xsheet-editor.exe"
+    Destination = "xsheet-editor.exe"
+  },
+  [pscustomobject]@{
+    Name = "xsheet-remap"
+    Source = "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
+    Destination = "xsheet-remap.exe"
+  },
+  [pscustomobject]@{
+    Name = "xsheet-corrector"
+    Source = "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe"
+    Destination = "xsheet-corrector.exe"
+  },
+  [pscustomobject]@{
+    Name = "xsheet-template-editor"
+    Source = "apps/template-editor/src-tauri/target/release/xsheet-template-editor.exe"
+    Destination = "xsheet-template-editor.exe"
+  }
+)
+
+foreach ($desktopComponent in $desktopComponents) {
+  if ($SkipDesktop) {
+    Add-PreservedFile `
+      -DestinationName $desktopComponent.Destination `
+      -ComponentName $desktopComponent.Name `
+      -Components $components
+  } else {
+    Copy-RequiredFile `
+      -SourceRelativePath $desktopComponent.Source `
+      -DestinationName $desktopComponent.Destination `
+      -ComponentName $desktopComponent.Name `
+      -Components $components
+  }
 }
 
 $helperDistRoot = Join-Path $repoRoot ".tmp\csp-import-helper-dist"
@@ -486,8 +531,10 @@ $releaseManifestPath = Join-Path $releaseRoot "RELEASE.json"
 $releaseManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $releaseManifestPath -Encoding UTF8
 
 $checksumTargets = @(
+  "xsheet-editor.exe",
   "xsheet-remap.exe",
   "xsheet-corrector.exe",
+  "xsheet-template-editor.exe",
   "xsheet-csp-import-helper.bat",
   "README.txt",
   "assets/xsheet-remap.laf",

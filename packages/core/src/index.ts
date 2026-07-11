@@ -290,3 +290,13 @@ export {
   standardA3SheetTemplatePreset,
 } from './sheet-template'
 export { hasBlockingIssues, validateProject } from './validation'
+export {
+  buildCspLayerTree,
+  cspTopToBottomFromXdtsBottomToTop,
+  xdtsBottomToTopFromCspTopToBottom,
+  type CspLayerTree,
+  type CspLayerTreeCel,
+  type CspLayerTreeLayer,
+  type CspLayerTreeStage,
+  type CspLayerTreeTrack,
+} from './csp-layer-tree'

@@ -105,6 +105,96 @@ def corrector_icon(size: int) -> Image.Image:
     return image.resize((size, size), Image.Resampling.LANCZOS)
 
 
+def editor_icon(size: int) -> Image.Image:
+    canvas = size * SCALE
+    factor = canvas / 128
+    image = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    tiny = size <= 24
+
+    draw_base(draw, factor, tiny)
+    draw.rounded_rectangle(
+        scaled_rect((30, 23, 98, 105), factor),
+        radius=round(7 * factor),
+        fill=PAPER,
+    )
+    grid_lines = (
+        ((40, 43), (88, 43)),
+        ((40, 63), (82, 63)),
+        ((40, 83), (69, 83)),
+        ((56, 32), (56, 94)),
+        ((76, 32), (76, 68)),
+    )
+    if tiny:
+        grid_lines = (
+            ((40, 46), (87, 46)),
+            ((40, 69), (76, 69)),
+            ((56, 32), (56, 92)),
+        )
+    for start, end in grid_lines:
+        draw.line(
+            scaled_points([start, end], factor),
+            fill=BASE,
+            width=max(1, round((6 if tiny else 5) * factor)),
+        )
+
+    pencil = [(67, 94), (71, 78), (89, 60), (100, 71), (82, 89)]
+    if tiny:
+        pencil = [(65, 95), (70, 77), (88, 59), (101, 72), (82, 90)]
+    scaled_pencil = scaled_points(pencil, factor)
+    draw.polygon(scaled_pencil, fill=ACCENT)
+    draw.line(
+        [*scaled_pencil, scaled_pencil[0]],
+        fill=BASE,
+        width=max(1, round((5 if tiny else 4) * factor)),
+        joint="curve",
+    )
+
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def template_editor_icon(size: int) -> Image.Image:
+    canvas = size * SCALE
+    factor = canvas / 128
+    image = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    tiny = size <= 24
+
+    draw_base(draw, factor, tiny)
+    draw.rounded_rectangle(
+        scaled_rect((30, 23, 98, 105), factor),
+        radius=round(7 * factor),
+        fill=PAPER,
+    )
+    draw.rounded_rectangle(
+        scaled_rect((38, 32, 90, 96), factor),
+        radius=round(3 * factor),
+        outline=BASE,
+        width=max(1, round((6 if tiny else 5) * factor)),
+    )
+    blocks = (
+        (43, 37, 85, 49),
+        (43, 55, 58, 91),
+        (64, 55, 85, 70),
+        (64, 76, 85, 91),
+    )
+    if tiny:
+        blocks = (
+            (43, 38, 85, 51),
+            (43, 57, 59, 90),
+            (65, 57, 85, 72),
+            (65, 78, 85, 90),
+        )
+    for block in blocks:
+        draw.rounded_rectangle(
+            scaled_rect(block, factor),
+            radius=max(1, round(2 * factor)),
+            fill=ACCENT,
+        )
+
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
 def png_bytes(image: Image.Image) -> bytes:
     output = io.BytesIO()
     image.save(output, format="PNG")
@@ -127,17 +217,15 @@ def save_ico(path: Path, images: dict[int, Image.Image]) -> None:
     path.write_bytes(struct.pack("<HHH", 0, 1, len(entries)) + directory + payload)
 
 
-def save_preview(path: Path, remap: dict[int, Image.Image], corrector: dict[int, Image.Image]) -> None:
-    preview = Image.new("RGBA", (760, 260), "#171b1d")
+def save_preview(path: Path, icon_sets: tuple[tuple[str, dict[int, Image.Image]], ...]) -> None:
+    preview = Image.new("RGBA", (1480, 260), "#171b1d")
     draw = ImageDraw.Draw(preview)
-    draw.text((40, 20), "xsheet-remap", fill="#d8e5e4")
-    draw.text((410, 20), "xsheet-corrector", fill="#d8e5e4")
-    preview.alpha_composite(remap[128], (40, 52))
-    preview.alpha_composite(corrector[128], (410, 52))
-    for x, size in ((40, 48), (108, 32), (160, 16)):
-        preview.alpha_composite(remap[size], (x, 204 + (48 - size) // 2))
-    for x, size in ((410, 48), (478, 32), (530, 16)):
-        preview.alpha_composite(corrector[size], (x, 204 + (48 - size) // 2))
+    for index, (label, images) in enumerate(icon_sets):
+        origin_x = 40 + index * 360
+        draw.text((origin_x, 20), label, fill="#d8e5e4")
+        preview.alpha_composite(images[128], (origin_x, 52))
+        for offset, size in ((0, 48), (68, 32), (120, 16)):
+            preview.alpha_composite(images[size], (origin_x + offset, 204 + (48 - size) // 2))
     path.parent.mkdir(parents=True, exist_ok=True)
     preview.save(path)
 
@@ -145,10 +233,22 @@ def save_preview(path: Path, remap: dict[int, Image.Image], corrector: dict[int,
 def main() -> None:
     remap_images = {size: remap_icon(size) for size in SIZES}
     corrector_images = {size: corrector_icon(size) for size in SIZES}
+    editor_images = {size: editor_icon(size) for size in SIZES}
+    template_editor_images = {size: template_editor_icon(size) for size in SIZES}
 
     save_ico(ROOT / "apps/desktop/src-tauri/icons/icon.ico", remap_images)
     save_ico(ROOT / "apps/sheet-corrector/src-tauri/icons/icon.ico", corrector_images)
-    save_preview(ROOT / "design/icon-proposals/xsheet-icon-final-preview.png", remap_images, corrector_images)
+    save_ico(ROOT / "apps/editor/src-tauri/icons/icon.ico", editor_images)
+    save_ico(ROOT / "apps/template-editor/src-tauri/icons/icon.ico", template_editor_images)
+    save_preview(
+        ROOT / "design/icon-proposals/xsheet-icon-final-preview.png",
+        (
+            ("xsheet-remap", remap_images),
+            ("xsheet-editor", editor_images),
+            ("xsheet-template-editor", template_editor_images),
+            ("xsheet-corrector", corrector_images),
+        ),
+    )
 
 
 if __name__ == "__main__":

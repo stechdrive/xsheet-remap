@@ -11,6 +11,8 @@ export type SheetImageSettings = SheetImageAlignment
 export type WorkspaceStyle = CSSProperties & {
   '--sheet-left-dock-width'?: string
   '--sheet-right-dock-width'?: string
+  '--sheet-left-resizer-width'?: string
+  '--sheet-right-resizer-width'?: string
   '--template-dock-width'?: string
 }
 

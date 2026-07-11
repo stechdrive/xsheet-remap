@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="xsheet-editor icon proposal">
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="#214854"/>
+  <rect x="14" y="14" width="100" height="100" rx="21" fill="none" stroke="#7fb8c7" stroke-width="7"/>
+  <rect x="30" y="23" width="68" height="82" rx="7" fill="#f2f7f1"/>
+  <path d="M40 43H88M40 63H82M40 83H69M56 32V94M76 32V68" fill="none" stroke="#214854" stroke-width="5" stroke-linecap="round"/>
+  <path d="M67 94L71 78L89 60L100 71L82 89L67 94Z" fill="#66d2af" stroke="#214854" stroke-width="4" stroke-linejoin="round"/>
+</svg>

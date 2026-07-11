@@ -40,8 +40,10 @@ function Get-BuildOutputTextFiles {
 
 function Get-BuildOutputBinaryFiles {
   $paths = @(
+    "apps/editor/src-tauri/target/release/xsheet-editor.exe",
     "apps/desktop/src-tauri/target/release/xsheet-remap.exe",
-    "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe"
+    "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe",
+    "apps/template-editor/src-tauri/target/release/xsheet-template-editor.exe"
   )
 
   $paths |

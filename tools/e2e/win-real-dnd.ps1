@@ -1,5 +1,5 @@
 param(
-  [string]$ExePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe",
+  [string]$ExePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe",
   [string]$ArtifactRoot = ".tmp/desktop-e2e-real-dnd",
   [string]$PythonPath = "python",
   [int]$TimeoutSeconds = 45,

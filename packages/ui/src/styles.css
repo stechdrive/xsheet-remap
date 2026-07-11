@@ -1164,12 +1164,40 @@ textarea,
   display: grid;
   grid-template-columns:
     var(--sheet-left-dock-width, 240px)
-    10px
+    var(--sheet-left-resizer-width, 10px)
     minmax(0, 1fr)
-    10px
+    var(--sheet-right-resizer-width, 10px)
     var(--sheet-right-dock-width, 300px);
   gap: 0;
   min-height: 0;
+}
+
+.sheetPaneVisibilityControls {
+  position: absolute;
+  bottom: 8px;
+  left: calc(var(--sheet-left-dock-width, 240px) + var(--sheet-left-resizer-width, 10px) + 8px);
+  z-index: 19;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid rgb(65 107 90 / 0.34);
+  border-radius: 6px;
+  background: rgb(251 251 248 / 0.92);
+  box-shadow: 0 5px 14px rgb(0 0 0 / 0.1);
+}
+
+.sheetPaneVisibilityControls button {
+  min-width: 40px;
+  min-height: 26px;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sheetPaneVisibilityControls button.active {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173a2b;
 }
 
 .sheetZoomFloatingPalette {
@@ -1188,6 +1216,245 @@ textarea,
   background: rgb(251 251 248 / 0.92);
   box-shadow: 0 8px 18px rgb(0 0 0 / 0.12);
   backdrop-filter: blur(2px);
+}
+
+.cspLayerTree {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100%;
+  color: #26312a;
+  font-size: 12px;
+}
+
+.cspLayerTreeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 2px 8px;
+}
+
+.cspLayerTreeHeader > div {
+  display: grid;
+  gap: 2px;
+}
+
+.cspLayerTreeHeader span {
+  color: #667169;
+  font-size: 10px;
+}
+
+.cspLayerDirection {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #9da8a0;
+  border-radius: 4px;
+  background: #fff;
+  color: #345d4d !important;
+  font-weight: 800;
+}
+
+.cspLayerTreeBody {
+  min-height: 0;
+  overflow: auto;
+}
+
+.cspLayerBoundary {
+  margin: 0 0 6px;
+  padding: 4px 6px;
+  border-top: 2px solid #416b5a;
+  color: #416b5a;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.cspLayerBoundary.bottom {
+  margin: 7px 0 0;
+  border-top: 0;
+  border-bottom: 2px solid #416b5a;
+}
+
+.cspTreeStage,
+.cspTreeLayer {
+  margin: 0;
+}
+
+.cspTreeStage > summary,
+.cspTreeLayer > summary {
+  min-width: 0;
+  padding: 5px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.cspTreeStage > summary {
+  border-bottom: 1px solid #aeb8b0;
+  background: #e8ede9;
+}
+
+.cspTreeLayer {
+  margin-left: 8px;
+  border-left: 1px solid #bdc6bf;
+}
+
+.cspTreeLayer > summary {
+  background: #f0f3f0;
+}
+
+.cspTreeTrack {
+  margin-left: 11px;
+  border-top: 1px solid #d3d8d3;
+}
+
+.cspTreeTrackRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 3px 3px 7px;
+  background: #fafaf7;
+}
+
+.cspTreeTrackName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.cspTreeTrackOrder,
+.cspTreeCelFrame {
+  color: #6c756f;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cspTreeMoveButtons {
+  display: flex;
+  gap: 2px;
+}
+
+.cspTreeMoveButtons button {
+  width: 23px;
+  min-width: 23px;
+  height: 23px;
+  min-height: 23px;
+  padding: 0;
+}
+
+.cspTreeCels {
+  display: grid;
+  gap: 2px;
+  padding: 3px 3px 5px 12px;
+}
+
+.cspTreeCel {
+  display: grid;
+  grid-template-columns: minmax(32px, auto) minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: 4px;
+  min-height: 29px;
+  padding: 3px 4px;
+  border: 1px solid #d0d5d0;
+  border-radius: 4px;
+  background: #fff;
+  cursor: grab;
+}
+
+.cspTreeCel.selected {
+  border-color: #416b5a;
+  box-shadow: inset 3px 0 #416b5a;
+  background: #eef5ef;
+}
+
+.cspTreeCel input {
+  min-width: 0;
+  width: 100%;
+  height: 23px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.cspTreeCelLabel,
+.cspTreeCelName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cspTreeCelLabel {
+  font-weight: 800;
+}
+
+.cspTreeAssetState {
+  color: #9ba39d;
+  font-size: 10px;
+}
+
+.cspTreeCel.assigned .cspTreeAssetState {
+  color: #416b5a;
+}
+
+.cspTreeNoCels,
+.cspLayerTreeEmpty {
+  margin: 0;
+  padding: 6px;
+  color: #737c76;
+  font-size: 11px;
+}
+
+.exportSettingsBackdrop {
+  z-index: 80;
+}
+
+.exportSettingsDialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(920px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid #939b95;
+  border-radius: 7px;
+  background: #f5f5f1;
+  box-shadow: 0 18px 60px rgb(0 0 0 / 0.25);
+}
+
+.exportSettingsDialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #c7cbc7;
+}
+
+.exportSettingsDialog > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.exportSettingsDialog > header span {
+  color: #68716b;
+  font-size: 11px;
+}
+
+.exportSettingsDialog > header button {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 5px;
+}
+
+.exportSettingsDialog > .panel {
+  min-height: 0;
+  overflow: auto;
 }
 
 .zoomPaletteTrigger {
@@ -1362,6 +1629,30 @@ textarea,
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
+}
+
+.sheetDock[hidden] {
+  display: none;
+}
+
+.sheetWorkspace > .sheetDockLeft {
+  grid-column: 1;
+}
+
+.sheetWorkspace > .sheetDockLeft + .panelResizeHandle {
+  grid-column: 2;
+}
+
+.sheetWorkspace > .sheetViewport {
+  grid-column: 3;
+}
+
+.sheetWorkspace > .sheetViewport + .panelResizeHandle {
+  grid-column: 4;
+}
+
+.sheetWorkspace > .sheetDockRight {
+  grid-column: 5;
 }
 
 .templateDock {
@@ -5736,6 +6027,37 @@ button.registeredCellFirstUse:focus-visible {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   overflow: hidden;
+}
+
+.templateEditorAppShell {
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr) 28px;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #eef0ec;
+}
+
+.templateEditorAppHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #cbd0ca;
+  background: #f7f8f5;
+}
+
+.templateEditorAppMain {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px;
+}
+
+.templateEditorAppMain > .templatePanel {
+  width: 100%;
+  height: 100%;
 }
 
 .templateToolbar {

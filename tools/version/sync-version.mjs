@@ -25,7 +25,9 @@ function syncVersion() {
   const packageJsonPaths = [
     'package.json',
     'apps/desktop/package.json',
+    'apps/editor/package.json',
     'apps/sheet-corrector/package.json',
+    'apps/template-editor/package.json',
     'apps/web/package.json',
     'packages/adapters/package.json',
     'packages/core/package.json',
@@ -39,7 +41,9 @@ function syncVersion() {
   const packageLockPackageKeys = [
     '',
     'apps/desktop',
+    'apps/editor',
     'apps/sheet-corrector',
+    'apps/template-editor',
     'apps/web',
     'packages/adapters',
     'packages/core',
@@ -69,14 +73,28 @@ function syncVersion() {
   tauriConfig.version = version
   writeJson('apps/desktop/src-tauri/tauri.conf.json', tauriConfig)
 
+  const editorTauriConfig = readJson('apps/editor/src-tauri/tauri.conf.json')
+  editorTauriConfig.version = version
+  writeJson('apps/editor/src-tauri/tauri.conf.json', editorTauriConfig)
+
   const sheetCorrectorTauriConfig = readJson('apps/sheet-corrector/src-tauri/tauri.conf.json')
   sheetCorrectorTauriConfig.version = version
   writeJson('apps/sheet-corrector/src-tauri/tauri.conf.json', sheetCorrectorTauriConfig)
+
+  const templateEditorTauriConfig = readJson('apps/template-editor/src-tauri/tauri.conf.json')
+  templateEditorTauriConfig.version = version
+  writeJson('apps/template-editor/src-tauri/tauri.conf.json', templateEditorTauriConfig)
 
   const cargoTomlPath = 'apps/desktop/src-tauri/Cargo.toml'
   writeText(
     cargoTomlPath,
     updateTomlPackageVersion(readFileSync(join(repoRoot, cargoTomlPath), 'utf8'), version),
+  )
+
+  const editorCargoTomlPath = 'apps/editor/src-tauri/Cargo.toml'
+  writeText(
+    editorCargoTomlPath,
+    updateTomlPackageVersion(readFileSync(join(repoRoot, editorCargoTomlPath), 'utf8'), version),
   )
 
   const sheetCorrectorCargoTomlPath = 'apps/sheet-corrector/src-tauri/Cargo.toml'
@@ -85,10 +103,22 @@ function syncVersion() {
     updateTomlPackageVersion(readFileSync(join(repoRoot, sheetCorrectorCargoTomlPath), 'utf8'), version),
   )
 
+  const templateEditorCargoTomlPath = 'apps/template-editor/src-tauri/Cargo.toml'
+  writeText(
+    templateEditorCargoTomlPath,
+    updateTomlPackageVersion(readFileSync(join(repoRoot, templateEditorCargoTomlPath), 'utf8'), version),
+  )
+
   const cargoLockPath = 'apps/desktop/src-tauri/Cargo.lock'
   writeText(
     cargoLockPath,
     updateCargoLockPackageVersion(readFileSync(join(repoRoot, cargoLockPath), 'utf8'), 'xsheet-remap', version),
+  )
+
+  const editorCargoLockPath = 'apps/editor/src-tauri/Cargo.lock'
+  writeText(
+    editorCargoLockPath,
+    updateCargoLockPackageVersion(readFileSync(join(repoRoot, editorCargoLockPath), 'utf8'), 'xsheet-editor', version),
   )
 
   const sheetCorrectorCargoLockPath = 'apps/sheet-corrector/src-tauri/Cargo.lock'
@@ -98,6 +128,12 @@ function syncVersion() {
       updateCargoLockPackageVersion(readFileSync(join(repoRoot, sheetCorrectorCargoLockPath), 'utf8'), 'xsheet-corrector', version),
     )
   }
+
+  const templateEditorCargoLockPath = 'apps/template-editor/src-tauri/Cargo.lock'
+  writeText(
+    templateEditorCargoLockPath,
+    updateCargoLockPackageVersion(readFileSync(join(repoRoot, templateEditorCargoLockPath), 'utf8'), 'xsheet-template-editor', version),
+  )
 
   writeText(
     'packages/ui/src/appVersion.ts',

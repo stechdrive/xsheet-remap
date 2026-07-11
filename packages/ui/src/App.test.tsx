@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { assignSheetSourceToPage, cellRectForHit, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, registerAsset, registerAssetRoot, registerSheetSource, timingHitForFrame, upsertBinding, standardA3SheetTemplate, type SheetTemplateGridRole, type SheetTimingRole } from '@xsheet-remap/core'
-import { App } from './App'
+import { App, EditorApp, RemapApp } from './App'
 import { APP_VERSION } from './appVersion'
 import { uiText } from './i18n'
 import { ASSET_DRAG_MIME, ASSET_TEXT_DRAG_PREFIX, REGISTERED_CELL_DRAG_MIME, REGISTERED_CELL_TEXT_DRAG_PREFIX, STACK_GUIDE_DRAG_MIME } from './sheetConstants'
@@ -375,7 +375,7 @@ function levelCorrectionFilterTableValues(): string {
 describe('App', () => {
   it('renders the main workspace shell', () => {
     render(<App />)
-    expect(screen.getByText('xsheet-remap')).toBeTruthy()
+    expect(screen.getByText('xsheet-editor')).toBeTruthy()
     expect(screen.getByText(`v${APP_VERSION}`)).toBeTruthy()
     const appNavigationMenu = openAppNavigationMenu()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
@@ -393,6 +393,41 @@ describe('App', () => {
     expect(document.querySelector('.sheetDockLeft h2')?.textContent).toBe(uiText.keys.title)
     expect(document.querySelector('.sheetDockRight h2')?.textContent).toBe(uiText.assets.title)
     expect(screen.queryByRole('tablist', { name: uiText.sheet.sideDock })).toBeNull()
+  })
+
+  it('provides a focused CSP remap shell without template authoring navigation', () => {
+    render(<RemapApp />)
+    expect(screen.getByText('xsheet-remap')).toBeTruthy()
+    expect(document.querySelector('.cspLayerTree')).toBeTruthy()
+    expect(screen.getByText('CSPパレット上端')).toBeTruthy()
+    expect(screen.getByText('CSPパレット下端')).toBeTruthy()
+    const appNavigationMenu = openAppNavigationMenu()
+    expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
+    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.bindings })).toBeNull()
+    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.slots })).toBeNull()
+    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.export })).toBeNull()
+    expect(within(appNavigationMenu).getByRole('button', { name: 'XDTS詳細設定...' })).toBeTruthy()
+    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.template })).toBeNull()
+  })
+
+  it('starts the editor with optional work panes collapsed and can reopen them', () => {
+    render(<EditorApp />)
+    const leftDock = document.querySelector<HTMLElement>('.sheetDockLeft')
+    const rightDock = document.querySelector<HTMLElement>('.sheetDockRight')
+    expect(leftDock?.hidden).toBe(true)
+    expect(rightDock?.hidden).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: '登録セル' }))
+    fireEvent.click(screen.getByRole('button', { name: '画像素材' }))
+    expect(leftDock?.hidden).toBe(false)
+    expect(rightDock?.hidden).toBe(false)
+  })
+
+  it('opens remap XDTS details from the export menu without adding a workspace tab', () => {
+    render(<RemapApp />)
+    const appNavigationMenu = openAppNavigationMenu()
+    fireEvent.click(within(appNavigationMenu).getByRole('button', { name: 'XDTS詳細設定...' }))
+    expect(screen.getByRole('dialog', { name: 'XDTS詳細設定' })).toBeTruthy()
   })
 
   it('keeps only one top action menu open at a time', () => {

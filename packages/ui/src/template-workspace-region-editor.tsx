@@ -1,11 +1,11 @@
 import { type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
-import { useMemo, useState, type PointerEvent, type WheelEvent } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import type { SheetImageSettings } from './appTypes'
 import { uiText } from './i18n'
 import { SHEET_ZOOM_WHEEL_FACTOR } from './sheetConstants'
 import { clampSheetZoom, handleHorizontalWheelScroll, verticalWheelDelta } from './sheetInteraction'
 import { GridOverlayLayer, SheetImageLayer, TemplateChromeLayer } from './SheetTemplateLayers'
-import { buildTemplateEditorRenderModel, hitTestTemplateEditorTarget, snapTemplateEditorPointToPagePixels, templateEditorHitRadius, templateEditorPointFromClientRect, templateEditorRectPixelValue, type TemplateEditorTarget } from './templateEditorGeometry'
+import { buildTemplateEditorRegionRenderModel, buildTemplateEditorRenderModel, hitTestTemplateEditorTarget, snapTemplateEditorPointToPagePixels, templateEditorHitRadius, templateEditorPointFromClientRect, templateEditorRectPixelValue, type TemplateEditorRegionRenderModel, type TemplateEditorTarget } from './templateEditorGeometry'
 import { gridRoleLabel, setTemplateCalibrationTargetRect, updateTemplateRectEdge, type TemplateRegionEdge } from './templateEditing'
 import { TEMPLATE_CALIBRATION_TARGET_ID, sameNormalizedRect } from './template-workspace-model'
 
@@ -34,6 +34,8 @@ export function TemplateRegionEditor({
   onSelectRegion: (regionId: string) => void
 }) {
   const [dragPreview, setDragPreview] = useState<TemplateEditorDragPreview | null>(null)
+  const editorSvgRef = useRef<SVGSVGElement | null>(null)
+  const editorClientRectRef = useRef<DOMRect | null>(null)
   const editorTemplate = useMemo(() => {
     if (!dragPreview) return template
     if (dragPreview.targetId === TEMPLATE_CALIBRATION_TARGET_ID) {
@@ -46,8 +48,16 @@ export function TemplateRegionEditor({
         : region),
     }
   }, [dragPreview, template])
-  const renderModel = useMemo(() => buildTemplateEditorRenderModel(editorTemplate), [editorTemplate])
-  const calibrationTargetRect = renderModel.calibrationTargetRect
+  const baseRenderModel = useMemo(() => buildTemplateEditorRenderModel(template), [template])
+  const activeRegionRenderModel = useMemo(
+    () => dragPreview && dragPreview.targetId !== TEMPLATE_CALIBRATION_TARGET_ID
+      ? buildTemplateEditorRegionRenderModel(editorTemplate, dragPreview.targetId)
+      : null,
+    [dragPreview, editorTemplate],
+  )
+  const calibrationTargetRect = dragPreview?.targetId === TEMPLATE_CALIBRATION_TARGET_ID
+    ? dragPreview.rect
+    : baseRenderModel.calibrationTargetRect
   const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
   const selectedRegion = selectedRegionId && !isCalibrationTargetSelected ? editorTemplate.regions.find(region => region.regionId === selectedRegionId) ?? null : null
   const [hoveredTargetId, setHoveredTargetId] = useState<string | null>(null)
@@ -63,20 +73,44 @@ export function TemplateRegionEditor({
     : null
   const isCalibrationTargetHovered = effectiveHoveredTargetId === TEMPLATE_CALIBRATION_TARGET_ID && !isCalibrationTargetSelected
 
-  function pointFromEvent(event: PointerEvent<SVGSVGElement> | PointerEvent<SVGElement>) {
-    const svg = (event.currentTarget.ownerSVGElement ?? event.currentTarget) as SVGSVGElement
-    return templateEditorPointFromSvg(svg, event.clientX, event.clientY)
+  useLayoutEffect(() => {
+    const svg = editorSvgRef.current
+    if (!svg) return undefined
+    const viewport = svg.closest<HTMLElement>('.templateEditorViewport')
+    const updateClientRect = () => {
+      editorClientRectRef.current = svg.getBoundingClientRect()
+    }
+    updateClientRect()
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateClientRect)
+    resizeObserver?.observe(svg)
+    viewport?.addEventListener('scroll', updateClientRect, { passive: true })
+    window.addEventListener('resize', updateClientRect)
+    return () => {
+      resizeObserver?.disconnect()
+      viewport?.removeEventListener('scroll', updateClientRect)
+      window.removeEventListener('resize', updateClientRect)
+    }
+  }, [template.page.heightPx, template.page.widthPx, zoom])
+
+  function editorClientRect(svg: SVGSVGElement, refresh = false): DOMRect {
+    if (refresh || !editorClientRectRef.current) editorClientRectRef.current = svg.getBoundingClientRect()
+    return editorClientRectRef.current
   }
 
-  function templateEditorPointFromSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
+  function pointFromEvent(event: PointerEvent<SVGSVGElement> | PointerEvent<SVGElement>, refresh = false) {
+    const svg = (event.currentTarget.ownerSVGElement ?? event.currentTarget) as SVGSVGElement
+    return templateEditorPointFromSvg(svg, event.clientX, event.clientY, refresh)
+  }
+
+  function templateEditorPointFromSvg(svg: SVGSVGElement, clientX: number, clientY: number, refresh = false) {
     return snapTemplateEditorPointToPagePixels(
-      templateEditorPointFromClientRect(svg.getBoundingClientRect(), clientX, clientY),
+      templateEditorPointFromClientRect(editorClientRect(svg, refresh), clientX, clientY),
       editorTemplate.page,
     )
   }
 
-  function targetFromEvent(event: PointerEvent<SVGElement>): TemplateEditorTarget | null {
-    return hitTestTemplateEditorTarget(editorTemplate, pointFromEvent(event), {
+  function targetFromEvent(event: PointerEvent<SVGElement>, refresh = false): TemplateEditorTarget | null {
+    return hitTestTemplateEditorTarget(editorTemplate, pointFromEvent(event, refresh), {
       calibrationTargetRect,
       calibrationHitRadius,
       regionHitRadius,
@@ -99,7 +133,7 @@ export function TemplateRegionEditor({
 
   function handleHitSurfacePointerDown(event: PointerEvent<SVGElement>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
-    const target = targetFromEvent(event)
+    const target = targetFromEvent(event, true)
     if (!target) return
     event.preventDefault()
     event.stopPropagation()
@@ -129,7 +163,12 @@ export function TemplateRegionEditor({
     if (!targetId || !startRect) return
     const svg = target.ownerSVGElement
     if (!svg) return
-    let latestPoint = pointFromEvent(event)
+    const dragClientRect = editorClientRect(svg, true)
+    const pointFromDragEvent = (clientX: number, clientY: number) => snapTemplateEditorPointToPagePixels(
+      templateEditorPointFromClientRect(dragClientRect, clientX, clientY),
+      editorTemplate.page,
+    )
+    let latestPoint = pointFromDragEvent(event.clientX, event.clientY)
     let previewFrameId = 0
     const updatePreview = () => {
       previewFrameId = 0
@@ -137,13 +176,13 @@ export function TemplateRegionEditor({
     }
     const updateFromEvent = (nextEvent: globalThis.PointerEvent) => {
       if (nextEvent.pointerId !== pointerId) return
-      latestPoint = templateEditorPointFromSvg(svg, nextEvent.clientX, nextEvent.clientY)
+      latestPoint = pointFromDragEvent(nextEvent.clientX, nextEvent.clientY)
       if (previewFrameId === 0) previewFrameId = window.requestAnimationFrame(updatePreview)
     }
     const finishDrag = (nextEvent: globalThis.PointerEvent, useEventPoint: boolean) => {
       if (nextEvent.pointerId !== pointerId) return
       if (useEventPoint) {
-        latestPoint = templateEditorPointFromSvg(svg, nextEvent.clientX, nextEvent.clientY)
+        latestPoint = pointFromDragEvent(nextEvent.clientX, nextEvent.clientY)
       }
       if (previewFrameId !== 0) window.cancelAnimationFrame(previewFrameId)
       window.removeEventListener('pointermove', updateFromEvent)
@@ -202,22 +241,28 @@ export function TemplateRegionEditor({
   return (
     <div className="templateEditor">
       <div className="templateEditorViewport" onWheel={handleWheelZoom}>
-        <svg
-          viewBox="0 0 1 1"
-          preserveAspectRatio="none"
-          className="templateEditorSvg"
-          aria-label={uiText.template.editorLabel}
+        <div
+          className="templateEditorCanvas"
           style={{ width: `${editorTemplate.page.widthPx * zoom}px`, aspectRatio: `${editorTemplate.page.widthPx} / ${editorTemplate.page.heightPx}` }}
         >
-          <g className="templateStaticLayer" aria-hidden="true">
-            <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
-            {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={editorTemplate} forceRaw preview />}
-            <TemplateChromeLayer model={renderModel.chrome} />
-            {renderModel.gridOverlays.map(model => (
-              <GridOverlayLayer key={model.regionId} model={model} />
-            ))}
-          </g>
-          <g className="templateInteractionOverlay">
+          <TemplateStaticPreview
+            template={template}
+            renderModel={baseRenderModel}
+            imageUrl={imageUrl}
+            imageSettings={imageSettings}
+            hiddenRegionId={dragPreview?.targetId === TEMPLATE_CALIBRATION_TARGET_ID ? null : dragPreview?.targetId ?? null}
+          />
+          {activeRegionRenderModel && (
+            <TemplateActiveRegionPreview renderModel={activeRegionRenderModel} />
+          )}
+          <svg
+            ref={editorSvgRef}
+            viewBox="0 0 1 1"
+            preserveAspectRatio="none"
+            className="templateEditorSvg templateInteractionSvg"
+            aria-label={uiText.template.editorLabel}
+          >
+            <g className="templateInteractionOverlay">
             {hoveredRegion && (
               <rect
                 className="templateRegionHighlight hovered"
@@ -249,6 +294,10 @@ export function TemplateRegionEditor({
               width="1"
               height="1"
               onPointerMove={handleHitSurfacePointerMove}
+              onPointerEnter={() => {
+                const svg = editorSvgRef.current
+                if (svg) editorClientRect(svg, true)
+              }}
               onPointerLeave={handleHitSurfacePointerLeave}
               onPointerDown={handleHitSurfacePointerDown}
             />
@@ -258,8 +307,9 @@ export function TemplateRegionEditor({
             {isCalibrationTargetSelected && calibrationTargetRect && (
               <TemplateEditHandles rect={calibrationTargetRect} variant="calibrationTarget" onEdgePointerDown={handleEdgePointerDown} />
             )}
-          </g>
-        </svg>
+            </g>
+          </svg>
+        </div>
       </div>
       <div className="templateEditorCaption">
         <strong>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</strong>
@@ -271,6 +321,55 @@ export function TemplateRegionEditor({
         {activeEditorRectReadout && <span className="templateEditorRectReadout">{activeEditorRectReadout} px</span>}
       </div>
     </div>
+  )
+}
+
+const TemplateStaticPreview = memo(function TemplateStaticPreview({
+  template,
+  renderModel,
+  imageUrl,
+  imageSettings,
+  hiddenRegionId,
+}: {
+  template: SheetTemplate
+  renderModel: ReturnType<typeof buildTemplateEditorRenderModel>
+  imageUrl: string | null
+  imageSettings: SheetImageSettings
+  hiddenRegionId: string | null
+}) {
+  const chrome = hiddenRegionId
+    ? {
+        ...renderModel.chrome,
+        referenceRegions: renderModel.chrome.referenceRegions.filter(region => region.regionId !== hiddenRegionId),
+        headers: renderModel.chrome.headers.filter(header => header.regionId !== hiddenRegionId),
+      }
+    : renderModel.chrome
+  return (
+    <svg viewBox="0 0 1 1" preserveAspectRatio="none" className="templatePreviewSvg templateStaticPreviewSvg" aria-hidden="true">
+      <g className="templateStaticLayer">
+        <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
+        {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={template} forceRaw preview />}
+        <TemplateChromeLayer model={chrome} />
+        {renderModel.gridOverlays
+          .filter(model => model.regionId !== hiddenRegionId)
+          .map(model => <GridOverlayLayer key={model.regionId} model={model} />)}
+      </g>
+    </svg>
+  )
+})
+
+function TemplateActiveRegionPreview({
+  renderModel,
+}: {
+  renderModel: TemplateEditorRegionRenderModel
+}) {
+  return (
+    <svg viewBox="0 0 1 1" preserveAspectRatio="none" className="templatePreviewSvg templateActiveRegionSvg" aria-hidden="true">
+      <g className="templateActiveRegionLayer">
+        <TemplateChromeLayer model={renderModel.chrome} />
+        {renderModel.gridOverlay && <GridOverlayLayer model={renderModel.gridOverlay} />}
+      </g>
+    </svg>
   )
 }
 

@@ -41,7 +41,7 @@ export interface AppControllerOptions {
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
-    history, setHistory, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -1617,9 +1617,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleApplyTemplateDraft(nextTemplate: SheetTemplate) {
-    setTemplate(nextTemplate)
     syncProjectToTemplateTracks(nextTemplate, {
       studioPresetId: undefined,
+      commitTemplate: true,
     })
   }
 
@@ -1826,27 +1826,33 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handlePresetSelect(presetId: string) {
     const preset = sheetTemplatePresets.find(item => item.presetId === presetId)
     if (!preset) return
-    setTemplate(preset.sheetTemplate)
     syncProjectToTemplateTracks(preset.sheetTemplate, {
       studioPresetId: preset.presetId,
       resetSheetView: true,
+      commitTemplate: true,
     })
   }
 
   function syncProjectToTemplateTracks(
     nextTemplate: SheetTemplate,
-    options: { studioPresetId?: string; resetSheetView?: boolean } = {},
+    options: { studioPresetId?: string; resetSheetView?: boolean; commitTemplate?: boolean } = {},
   ) {
     const reconfigured = updateProjectPaperTracks(project, getSheetTemplatePaperTracks(nextTemplate))
     const nextProject = updateLogicalSheetSettings(reconfigured, { fps: nextTemplate.defaults.fps })
-    commitProject({
+    const nextProjectWithTemplate = {
       ...nextProject,
       studioPresetId: options.studioPresetId,
       sheetTemplateId: nextTemplate.templateId,
       sheetView: options.resetSheetView
         ? createDefaultSheetViewState(nextTemplate)
         : { ...nextProject.sheetView, templateId: nextTemplate.templateId },
-    })
+    }
+    if (options.commitTemplate) {
+      projectRef.current = nextProjectWithTemplate
+      commitWorkspace(nextProjectWithTemplate, nextTemplate)
+    } else {
+      commitProject(nextProjectWithTemplate)
+    }
     clearSelectionState()
     setRecognitionCandidates([])
     setTextFontSizePx(defaultTimingTextFontSizePx(nextTemplate, 'cell'))

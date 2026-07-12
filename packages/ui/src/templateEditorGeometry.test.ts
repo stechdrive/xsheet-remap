@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { digitalStandardSheetTemplate, standardA3SheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import {
   buildTemplateChromeRenderModel,
+  buildTemplateEditorRegionRenderModel,
+  buildTemplateEditorRenderModel,
   buildTemplateGridOverlayRenderModel,
   gridRowLineClassName,
   hitTestTemplateEditorTarget,
@@ -13,6 +15,26 @@ import {
 } from './templateEditorGeometry'
 
 describe('template editor geometry', () => {
+  it.each([standardA3SheetTemplate, digitalStandardSheetTemplate])(
+    'builds the active-region preview without changing full-model output for $templateId',
+    template => {
+      const full = buildTemplateEditorRenderModel(template)
+
+      for (const region of template.regions) {
+        const active = buildTemplateEditorRegionRenderModel(template, region.regionId)
+
+        expect(active).not.toBeNull()
+        expect(active?.chrome).toEqual({
+          ...full.chrome,
+          showOuterFrame: false,
+          referenceRegions: full.chrome.referenceRegions.filter(item => item.regionId === region.regionId),
+          headers: full.chrome.headers.filter(item => item.regionId === region.regionId),
+        })
+        expect(active?.gridOverlay).toEqual(full.gridOverlays.find(item => item.regionId === region.regionId) ?? null)
+      }
+    },
+  )
+
   it('compacts grid row and column lines into SVG paths', () => {
     const region = standardA3SheetTemplate.regions.find(item => item.grid?.role === 'action')
     expect(region?.grid).toBeTruthy()

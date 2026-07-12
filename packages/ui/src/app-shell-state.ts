@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
-  createDefaultProject, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId,
-  standardA3SheetTemplate, type AnnotationText, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
+  commitHistory, createDefaultProject, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId,
+  standardA3SheetTemplate, type AnnotationText, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
 import type { EditMode, Panel, Selection, SheetRangeSelection, TimingClipboard, TimingExportDialogState } from './appTypes'
@@ -9,14 +9,61 @@ import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
 
+interface WorkspaceHistorySnapshot {
+  project: CutProject
+  template: SheetTemplate
+}
+
+interface WorkspaceHistory {
+  past: WorkspaceHistorySnapshot[]
+  present: WorkspaceHistorySnapshot
+  future: WorkspaceHistorySnapshot[]
+}
+
 export function useAppShellState() {
-  const [history, setHistory] = useState(() => createProjectHistory(createDefaultProject()))
+  const [workspaceHistory, setWorkspaceHistory] = useState<WorkspaceHistory>(() => {
+    const projectHistory = createProjectHistory(createDefaultProject())
+    return {
+      past: [],
+      present: { project: projectHistory.present, template: standardA3SheetTemplate },
+      future: [],
+    }
+  })
+  const history = useMemo<ProjectHistory>(() => projectHistoryFromWorkspaceHistory(workspaceHistory), [workspaceHistory])
+  const setHistory = useCallback<Dispatch<SetStateAction<ProjectHistory>>>(update => {
+    setWorkspaceHistory(current => {
+      const currentProjectHistory = projectHistoryFromWorkspaceHistory(current)
+      const nextProjectHistory = typeof update === 'function' ? update(currentProjectHistory) : update
+      if (nextProjectHistory === currentProjectHistory) return current
+      return workspaceHistoryFromProjectHistory(nextProjectHistory, current)
+    })
+  }, [])
+  const setTemplate = useCallback<Dispatch<SetStateAction<SheetTemplate>>>(update => {
+    setWorkspaceHistory(current => {
+      const nextTemplate = typeof update === 'function' ? update(current.present.template) : update
+      if (nextTemplate === current.present.template) return current
+      return {
+        ...current,
+        present: { ...current.present, template: nextTemplate },
+      }
+    })
+  }, [])
+  const commitWorkspace = useCallback((nextProject: CutProject, nextTemplate: SheetTemplate) => {
+    setWorkspaceHistory(current => {
+      const nextProjectHistory = commitHistory(projectHistoryFromWorkspaceHistory(current), nextProject)
+      return {
+        past: [...current.past, current.present],
+        present: { project: nextProjectHistory.present, template: nextTemplate },
+        future: [],
+      }
+    })
+  }, [])
   const [projectDocument, setProjectDocument] = useState(() => createProjectDocumentFromCutProject(createDefaultProject()))
   const [projectFilePath, setProjectFilePath] = useState<string | null>(null)
   const paperSheetInputRef = useRef<HTMLInputElement | null>(null)
-  const project = history.present
+  const project = workspaceHistory.present.project
   const projectRef = useRef(project)
-  const [template, setTemplate] = useState<SheetTemplate>(() => standardA3SheetTemplate)
+  const template = workspaceHistory.present.template
   const [runtimeSourceImageUrls, setRuntimeSourceImageUrls] = useState<Record<string, string>>({})
   const [recognitionCandidates, setRecognitionCandidates] = useState<RecognitionCandidate[]>([])
   const [recognitionRole, setRecognitionRole] = useState<SheetTimingRole>('cell')
@@ -60,7 +107,7 @@ export function useAppShellState() {
   const nativeFileDropDedupeRef = useRef<{ signature: string; timestamp: number } | null>(null)
 
   return {
-    history, setHistory, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -73,5 +120,30 @@ export function useAppShellState() {
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
+  }
+}
+
+function projectHistoryFromWorkspaceHistory(history: WorkspaceHistory): ProjectHistory {
+  return {
+    past: history.past.map(snapshot => snapshot.project),
+    present: history.present.project,
+    future: history.future.map(snapshot => snapshot.project),
+  }
+}
+
+function workspaceHistoryFromProjectHistory(projectHistory: ProjectHistory, current: WorkspaceHistory): WorkspaceHistory {
+  const templateByProject = new Map<CutProject, SheetTemplate>([
+    ...current.past.map(snapshot => [snapshot.project, snapshot.template] as const),
+    [current.present.project, current.present.template] as const,
+    ...current.future.map(snapshot => [snapshot.project, snapshot.template] as const),
+  ])
+  const snapshot = (project: CutProject): WorkspaceHistorySnapshot => ({
+    project,
+    template: templateByProject.get(project) ?? current.present.template,
+  })
+  return {
+    past: projectHistory.past.map(snapshot),
+    present: snapshot(projectHistory.present),
+    future: projectHistory.future.map(snapshot),
   }
 }

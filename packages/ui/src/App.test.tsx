@@ -601,6 +601,26 @@ it('keeps template creation as a draft until apply or cancel', () => {
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
   })
 
+it('undoes and redoes an applied template with the synchronized project history', () => {
+    render(<App />)
+    selectAppPanel(uiText.nav.template)
+
+    fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))
+    fireEvent.click(screen.getByRole('button', { name: uiText.template.applyDraft }))
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+
+    const undo = screen.getByRole('button', { name: uiText.actions.undo }) as HTMLButtonElement
+    const redo = screen.getByRole('button', { name: uiText.actions.redo }) as HTMLButtonElement
+    expect(undo.disabled).toBe(false)
+    fireEvent.click(undo)
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
+
+    expect(redo.disabled).toBe(false)
+    fireEvent.click(redo)
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+  })
+
 it('edits selected template rectangles in source-image pixels', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
@@ -623,7 +643,7 @@ it('previews template edge drags locally and commits once on pointer up', async 
 
     const editor = document.querySelector<SVGSVGElement>('.templateEditorSvg')
     if (!editor) throw new Error('template editor not found')
-    editor.getBoundingClientRect = () => ({
+    const getEditorRect = vi.fn(() => ({
       x: 0,
       y: 0,
       left: 0,
@@ -633,7 +653,8 @@ it('previews template edge drags locally and commits once on pointer up', async 
       width: 1000,
       height: 1000,
       toJSON: () => ({}),
-    })
+    }))
+    editor.getBoundingClientRect = getEditorRect
     const verticalEdges = document.querySelectorAll<SVGLineElement>('.templateEdgeHit.vertical')
     expect(verticalEdges).toHaveLength(2)
     const rightEdge = verticalEdges[1]
@@ -642,6 +663,7 @@ it('previews template edge drags locally and commits once on pointer up', async 
 
     fireEvent.pointerDown(rightEdge, { pointerId: 41, pointerType: 'mouse', button: 0, clientX: 931, clientY: 100 })
     fireEvent.pointerMove(window, { pointerId: 41, pointerType: 'mouse', buttons: 1, clientX: 800, clientY: 100 })
+    expect(getEditorRect).toHaveBeenCalledTimes(1)
 
     await waitFor(() => {
       const previewWidth = Number(document.querySelector('.templateSelectedRegion')?.getAttribute('width')) * standardA3SheetTemplate.page.widthPx

@@ -114,6 +114,11 @@ export type TemplateEditorRenderModel = {
   calibrationTargetRect: NormalizedRect | null
 }
 
+export type TemplateEditorRegionRenderModel = {
+  chrome: TemplateChromeRenderModel
+  gridOverlay: TemplateGridOverlayRenderModel | null
+}
+
 export type TemplateEditorTarget =
   | { kind: 'region'; regionId: string }
   | { kind: 'calibration-target' }
@@ -139,6 +144,37 @@ export function buildTemplateEditorRenderModel(template: SheetTemplate): Templat
       .map(region => buildTemplateGridOverlayRenderModel(template, region))
       .filter((model): model is TemplateGridOverlayRenderModel => model !== null),
     calibrationTargetRect: calibrationTargetRectForTemplate(template),
+  }
+}
+
+export function buildTemplateEditorRegionRenderModel(
+  template: SheetTemplate,
+  regionId: string,
+): TemplateEditorRegionRenderModel | null {
+  const region = template.regions.find(item => item.regionId === regionId)
+  if (!region) return null
+  const paperTracks = template.defaults.paperTracks
+  const durationFrames = template.defaults.durationFrames
+  const resolveOptions = { paperTracks }
+  const header = region.type === 'exposure-grid' && region.grid
+    ? buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames)
+    : null
+  return {
+    chrome: {
+      pageSize: resolveSheetTemplatePageSize(template, durationFrames, resolveOptions),
+      showOuterFrame: false,
+      referenceRegions: region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored'
+        ? [{
+            regionId: region.regionId,
+            type: region.type,
+            rect: resolveSheetTemplateRegionRect(template, region, durationFrames, resolveOptions),
+          }]
+        : [],
+      headers: header ? [header] : [],
+    },
+    gridOverlay: region.type === 'exposure-grid'
+      ? buildTemplateGridOverlayRenderModel(template, region)
+      : null,
   }
 }
 

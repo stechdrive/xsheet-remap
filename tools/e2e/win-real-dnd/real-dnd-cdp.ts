@@ -278,6 +278,20 @@ async function runRemapRealDndScenario(): Promise<void> {
   )
   checks.push('dragged a real Windows folder from Explorer onto the remap asset browser')
 
+  const firstAssetScreen = await clientToScreen(await assetCardPoint('A1.png'))
+  const middleAssetScreen = await clientToScreen(await assetCardPoint('A1_e.png'))
+  const lastAssetScreen = await clientToScreen(await assetCardPoint('A2.png'))
+  await realMouseClick(firstAssetScreen)
+  await realMouseClick(lastAssetScreen, 'left', true, ['shift'])
+  await waitForAssetBrowserSelection(['A1.png', 'A1_e.png', 'A2.png'])
+  await realMouseClick(middleAssetScreen, 'left', true, ['ctrl'])
+  await waitForAssetBrowserSelection(['A1.png', 'A2.png'])
+  await realMouseClick(middleAssetScreen, 'left', true, ['ctrl'])
+  await waitForAssetBrowserSelection(['A1.png', 'A1_e.png', 'A2.png'])
+  checks.push('selected unregistered asset-browser files with real Shift and Ctrl clicks')
+  await realMouseClick(firstAssetScreen)
+  await waitForAssetBrowserSelection(['A1.png'])
+
   const assetClient = await assetCardPoint('A1.png')
   const assetScreen = await clientToScreen(assetClient)
   const ghostScreen = await clientToScreen({ x: assetClient.x - 80, y: assetClient.y + 24 })
@@ -540,12 +554,18 @@ async function realMouseDrag(from: ScreenPoint, to: ScreenPoint): Promise<void> 
   ])
 }
 
-async function realMouseClick(point: ScreenPoint, button: MouseButton = 'left', focusApp = true): Promise<void> {
+async function realMouseClick(
+  point: ScreenPoint,
+  button: MouseButton = 'left',
+  focusApp = true,
+  modifiers: Array<'ctrl' | 'shift'> = [],
+): Promise<void> {
   await runMouseOp([
     'click-screen',
     '--x', String(point.x),
     '--y', String(point.y),
     '--button', button,
+    ...modifiers.flatMap(modifier => ['--modifier', modifier]),
     ...(focusApp ? ['--app-pid', args['app-pid'] as string] : []),
   ])
 }
@@ -835,6 +855,22 @@ async function waitForAssetBrowserFile(fileName: string): Promise<void> {
       })()
     `),
     `asset browser file ${fileName}`,
+  )
+}
+
+async function waitForAssetBrowserSelection(expectedFileNames: string[]): Promise<void> {
+  const expected = [...expectedFileNames].sort()
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      (() => {
+        const selected = Array.from(document.querySelectorAll('.assetDirectoryCard[aria-selected="true"]'))
+          .map(card => card.querySelector('.assetCardMeta strong')?.textContent?.trim() || '')
+          .filter(Boolean)
+          .sort();
+        return JSON.stringify(selected) === ${JSON.stringify(JSON.stringify(expected))};
+      })()
+    `),
+    `asset browser selection ${expected.join(', ')}`,
   )
 }
 

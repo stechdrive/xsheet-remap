@@ -1,4 +1,4 @@
-import { type MouseEvent } from 'react'
+import { type KeyboardEvent, type MouseEvent } from 'react'
 import type { CutAsset } from '@xsheet-remap/core'
 import { type AssetDirectoryEntry } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
@@ -33,7 +33,7 @@ export function AssetDirectoryCard({
   onNavigate: (path: string) => void
   onEnsureAsset: () => CutAsset | null
   onSelect: (event: MouseEvent<HTMLElement>) => void
-  onKeyboardSelect: () => void
+  onKeyboardSelect: (event: KeyboardEvent<HTMLElement>) => void
   onDragStateChange: (isDragging: boolean, assetIds: string[]) => void
   onDragStart: () => string[]
   onContextMenu?: (event: MouseEvent<HTMLElement>) => void
@@ -94,7 +94,7 @@ export function AssetDirectoryCard({
           onNavigate(entry.path)
           return
         }
-        onKeyboardSelect()
+        onKeyboardSelect(event)
       }}
       onContextMenu={onContextMenu}
     >
@@ -171,7 +171,7 @@ export function AssetCard({
   isSelected: boolean
   isDragging: boolean
   onSelect: (event: MouseEvent<HTMLElement>) => void
-  onKeyboardSelect: () => void
+  onKeyboardSelect: (event: KeyboardEvent<HTMLElement>) => void
   onDragStateChange: (isDragging: boolean, assetIds: string[]) => void
   onDragStart: () => string[]
   onContextMenu?: (event: MouseEvent<HTMLElement>) => void
@@ -211,7 +211,7 @@ export function AssetCard({
       onKeyDown={event => {
         if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
-        onKeyboardSelect()
+        onKeyboardSelect(event)
       }}
     >
       <TooltipTarget label={uiText.assets.quickPreview}>

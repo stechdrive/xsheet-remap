@@ -6,7 +6,7 @@ import { collectAssetFilesFromDrop, compareAssetNames } from './assetFiles'
 import { AssetFloatingPreview } from './assetPreview'
 import { embeddedAssetPreviewPayload, initialAssetPreviewRect, openNativeAssetPreview, updateNativeAssetPreviewIfOpen, updateNativeAssetPreviewPayloadIfOpen, writeAssetPreviewRect, clampAssetPreviewRect, type AssetPreviewPayload, type AssetPreviewRect } from './assetPreviewModel'
 import { Tooltip } from './Tooltip'
-import { assetContextMenuStyle, assetDirectoryAssetKey, assetForDirectoryEntry, assetSelectionFromIntent, fileRefFromDirectoryEntry, previewPayloadForDirectoryEntry } from './asset-browser-model'
+import { assetContextMenuStyle, assetDirectoryAssetKey, assetForDirectoryEntry, assetIdFromSelectionKey, assetSelectionFromIntent, assetSelectionKey, directoryEntrySelectionKey, fileRefFromDirectoryEntry, previewPayloadForDirectoryEntry } from './asset-browser-model'
 import { AssetFileBrowser, AssetViewControls, isPathInsideRoot } from './asset-browser-controls'
 import { AssetCard, AssetDirectoryCard } from './asset-browser-cards'
 import type { AssetRegistrationSummary, AssetSelectionIntent, AssetSortDirection, AssetThumbnailSize, AssetViewMode, DropDiagnosticReport } from './asset-browser-types'
@@ -22,7 +22,7 @@ type AssetBrowserProps = {
   onAssets: (files: FileList | File[] | null) => void
   onAssetRefs: (refs: FileRef[]) => void
   onAssetRoots: (roots: AssetRootCandidate[]) => void
-  onEnsureAssetRef: (ref: FileRef) => string | null
+  onEnsureAssetRefs: (refs: FileRef[]) => string[]
   onAssetSheetSources?: (assetIds: string[]) => void
   canUseAssetsAsSheetSources?: boolean
   onDropDiagnostic?: (report: DropDiagnosticReport) => void
@@ -76,7 +76,7 @@ function AssetBrowser({
   onAssets,
   onAssetRefs,
   onAssetRoots,
-  onEnsureAssetRef,
+  onEnsureAssetRefs,
   onAssetSheetSources,
   canUseAssetsAsSheetSources = false,
   onDropDiagnostic,
@@ -84,8 +84,8 @@ function AssetBrowser({
   const [viewMode, setViewMode] = useState<AssetViewMode>('grid')
   const [thumbnailSize, setThumbnailSize] = useState<AssetThumbnailSize>('normal')
   const [sortDirection, setSortDirection] = useState<AssetSortDirection>('asc')
-  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([])
-  const [selectionAnchorAssetId, setSelectionAnchorAssetId] = useState<string | null>(null)
+  const [selectedItemKeys, setSelectedItemKeys] = useState<string[]>([])
+  const [selectionAnchorKey, setSelectionAnchorKey] = useState<string | null>(null)
   const [draggingAssetIds, setDraggingAssetIds] = useState<string[]>([])
   const [previewAssetId, setPreviewAssetId] = useState<string | null>(null)
   const [embeddedPreviewOpen, setEmbeddedPreviewOpen] = useState(false)
@@ -101,7 +101,7 @@ function AssetBrowser({
     const nextAssets = [...assets].sort(compareAssetNames)
     return sortDirection === 'asc' ? nextAssets : nextAssets.reverse()
   }, [assets, sortDirection])
-  const sortedAssetIds = useMemo(() => sortedAssets.map(asset => asset.assetId), [sortedAssets])
+  const sortedAssetSelectionKeys = useMemo(() => sortedAssets.map(asset => assetSelectionKey(asset.assetId)), [sortedAssets])
   const assetsByRootRelativePath = useMemo(() => {
     const map = new Map<string, CutAsset>()
     for (const asset of sortedAssets) {
@@ -110,11 +110,6 @@ function AssetBrowser({
     }
     return map
   }, [sortedAssets])
-  const availableAssetIdSet = useMemo(() => new Set(sortedAssetIds), [sortedAssetIds])
-  const activeSelectedAssetIds = useMemo(() => selectedAssetIds.filter(assetId => availableAssetIdSet.has(assetId)), [availableAssetIdSet, selectedAssetIds])
-  const activeDraggingAssetIds = useMemo(() => draggingAssetIds.filter(assetId => availableAssetIdSet.has(assetId)), [availableAssetIdSet, draggingAssetIds])
-  const selectedAssetIdSet = useMemo(() => new Set(activeSelectedAssetIds), [activeSelectedAssetIds])
-  const draggingAssetIdSet = useMemo(() => new Set(activeDraggingAssetIds), [activeDraggingAssetIds])
   const selectedPreviewAsset = previewAssetId ? sortedAssets.find(item => item.assetId === previewAssetId) ?? null : null
   const activeEmbeddedPreviewPayload = embeddedPreviewOpen && selectedPreviewAsset
     ? embeddedAssetPreviewPayload(selectedPreviewAsset)
@@ -153,6 +148,28 @@ function AssetBrowser({
     })
     return sortDirection === 'asc' ? nextEntries : nextEntries.reverse()
   }, [directoryListing?.entries, sortDirection])
+  const selectableDirectoryEntries = useMemo(
+    () => visibleDirectoryEntries.filter(entry => entry.kind === 'file' && entry.isSupportedImage),
+    [visibleDirectoryEntries],
+  )
+  const directorySelectionKeys = useMemo(
+    () => selectableDirectoryEntries.map(directoryEntrySelectionKey),
+    [selectableDirectoryEntries],
+  )
+  const visibleSelectionKeys = directoryListing ? directorySelectionKeys : sortedAssetSelectionKeys
+  const visibleSelectionKeySet = useMemo(() => new Set(visibleSelectionKeys), [visibleSelectionKeys])
+  const activeSelectedItemKeys = useMemo(
+    () => selectedItemKeys.filter(selectionKey => visibleSelectionKeySet.has(selectionKey)),
+    [selectedItemKeys, visibleSelectionKeySet],
+  )
+  const selectedItemKeySet = useMemo(() => new Set(activeSelectedItemKeys), [activeSelectedItemKeys])
+  const availableAssetIdSet = useMemo(() => new Set(sortedAssets.map(asset => asset.assetId)), [sortedAssets])
+  const activeDraggingAssetIds = useMemo(() => draggingAssetIds.filter(assetId => availableAssetIdSet.has(assetId)), [availableAssetIdSet, draggingAssetIds])
+  const draggingAssetIdSet = useMemo(() => new Set(activeDraggingAssetIds), [activeDraggingAssetIds])
+  const activeSelectedAssetIds = useMemo(
+    () => activeSelectedItemKeys.flatMap(selectionKey => assetIdFromSelectionKey(selectionKey) ?? []),
+    [activeSelectedItemKeys],
+  )
 
   useEffect(() => {
     if (!activeRoot?.path || !currentDirectoryPath) {
@@ -246,15 +263,33 @@ function AssetBrowser({
 
   function handleRootChange(rootId: string) {
     const root = assetRoots.find(item => item.rootId === rootId) ?? null
+    clearAssetSelection()
     setActiveRootId(root?.rootId ?? null)
     setRequestedDirectoryPath(root?.path ?? null)
   }
 
+  function handleDirectoryNavigate(path: string) {
+    clearAssetSelection()
+    setRequestedDirectoryPath(path)
+  }
+
+  function selectItem(selectionKey: string, orderedSelectionKeys: string[], intent: AssetSelectionIntent = {}) {
+    const nextSelection = assetSelectionFromIntent(activeSelectedItemKeys, orderedSelectionKeys, selectionAnchorKey, selectionKey, intent)
+    setSelectedItemKeys(nextSelection.assetIds)
+    setSelectionAnchorKey(nextSelection.anchorAssetId)
+  }
+
   function selectAsset(assetId: string, intent: AssetSelectionIntent = {}) {
-    const nextSelection = assetSelectionFromIntent(activeSelectedAssetIds, sortedAssetIds, selectionAnchorAssetId, assetId, intent)
-    setSelectedAssetIds(nextSelection.assetIds)
-    setSelectionAnchorAssetId(nextSelection.anchorAssetId)
+    selectItem(assetSelectionKey(assetId), sortedAssetSelectionKeys, intent)
     setPreviewAssetId(assetId)
+  }
+
+  function selectDirectoryEntry(entry: AssetDirectoryEntry, intent: AssetSelectionIntent = {}) {
+    const selectionKey = directoryEntrySelectionKey(entry)
+    selectItem(selectionKey, directorySelectionKeys, intent)
+    const asset = assetForDirectoryEntry(entry, activeRoot, assetsByRootRelativePath)
+    if (asset) setPreviewAssetId(asset.assetId)
+    else previewDirectoryEntryIfOpen(entry)
   }
 
   function previewDirectoryEntryIfOpen(entry: AssetDirectoryEntry) {
@@ -271,10 +306,11 @@ function AssetBrowser({
     if (!canOpenSheetSourceContextMenu) return
     event.preventDefault()
     event.stopPropagation()
-    const assetIds = selectedAssetIdSet.has(assetId) ? activeSelectedAssetIds : [assetId]
-    if (!selectedAssetIdSet.has(assetId)) {
-      setSelectedAssetIds([assetId])
-      setSelectionAnchorAssetId(assetId)
+    const selectionKey = assetSelectionKey(assetId)
+    const assetIds = selectedItemKeySet.has(selectionKey) ? activeSelectedAssetIds : [assetId]
+    if (!selectedItemKeySet.has(selectionKey)) {
+      setSelectedItemKeys([selectionKey])
+      setSelectionAnchorKey(selectionKey)
     }
     setPreviewAssetId(assetId)
     setContextMenu({
@@ -291,9 +327,10 @@ function AssetBrowser({
   }
 
   function openAssetPreview(assetId: string) {
-    if (!selectedAssetIdSet.has(assetId)) {
-      setSelectedAssetIds([assetId])
-      setSelectionAnchorAssetId(assetId)
+    const selectionKey = assetSelectionKey(assetId)
+    if (!selectedItemKeySet.has(selectionKey)) {
+      setSelectedItemKeys([selectionKey])
+      setSelectionAnchorKey(selectionKey)
     }
     setPreviewAssetId(assetId)
     const asset = sortedAssets.find(item => item.assetId === assetId)
@@ -301,45 +338,107 @@ function AssetBrowser({
   }
 
   function beginAssetDrag(assetId: string): string[] {
-    const assetIds = selectedAssetIdSet.has(assetId) ? activeSelectedAssetIds : [assetId]
-    if (!selectedAssetIdSet.has(assetId)) {
-      setSelectedAssetIds(assetIds)
-      setSelectionAnchorAssetId(assetId)
+    const selectionKey = assetSelectionKey(assetId)
+    const assetIds = selectedItemKeySet.has(selectionKey) ? activeSelectedAssetIds : [assetId]
+    if (!selectedItemKeySet.has(selectionKey)) {
+      setSelectedItemKeys([selectionKey])
+      setSelectionAnchorKey(selectionKey)
     }
     setPreviewAssetId(assetId)
     setDraggingAssetIds(assetIds)
     return assetIds
   }
 
+  function resolveDirectoryAssets(entries: AssetDirectoryEntry[]): CutAsset[] {
+    const resolvedBySelectionKey = new Map<string, CutAsset>()
+    const unresolved = entries.flatMap(entry => {
+      const existing = assetForDirectoryEntry(entry, activeRoot, assetsByRootRelativePath)
+      if (existing) {
+        resolvedBySelectionKey.set(directoryEntrySelectionKey(entry), existing)
+        return []
+      }
+      const ref = fileRefFromDirectoryEntry(entry, activeRoot)
+      return ref ? [{ entry, ref }] : []
+    })
+    const resolvedAssetIds = unresolved.length > 0 ? onEnsureAssetRefs(unresolved.map(item => item.ref)) : []
+    unresolved.forEach((item, index) => {
+      const assetId = resolvedAssetIds[index]
+      if (!assetId) return
+      const ref = item.ref
+      resolvedBySelectionKey.set(directoryEntrySelectionKey(item.entry), sortedAssets.find(asset => asset.assetId === assetId) ?? {
+        assetId,
+        originalFileName: ref.name,
+        displayName: ref.name,
+        role: 'cell-material',
+        rootId: activeRoot?.rootId,
+        relativePath: ref.relativePath,
+        currentPath: ref.path,
+        fileSize: ref.size,
+        modifiedAt: ref.lastModified === undefined ? undefined : new Date(ref.lastModified).toISOString(),
+        thumbnailUrl: ref.objectUrl,
+      })
+    })
+    return entries.flatMap(entry => resolvedBySelectionKey.get(directoryEntrySelectionKey(entry)) ?? [])
+  }
+
   function ensureDirectoryAsset(entry: AssetDirectoryEntry): CutAsset | null {
-    const existing = assetForDirectoryEntry(entry, activeRoot, assetsByRootRelativePath)
-    if (existing) return existing
-    const ref = fileRefFromDirectoryEntry(entry, activeRoot)
-    if (!ref) return null
-    const assetId = onEnsureAssetRef(ref)
-    return assetId ? sortedAssets.find(asset => asset.assetId === assetId) ?? {
-      assetId,
-      originalFileName: ref.name,
-      displayName: ref.name,
-      role: 'cell-material',
-      rootId: activeRoot?.rootId,
-      relativePath: ref.relativePath,
-      currentPath: ref.path,
-      fileSize: ref.size,
-      modifiedAt: ref.lastModified === undefined ? undefined : new Date(ref.lastModified).toISOString(),
-      thumbnailUrl: ref.objectUrl,
-    } : null
+    return resolveDirectoryAssets([entry])[0] ?? null
   }
 
   function beginDirectoryAssetDrag(entry: AssetDirectoryEntry): string[] {
+    const targetSelectionKey = directoryEntrySelectionKey(entry)
+    const selectionKeys = selectedItemKeySet.has(targetSelectionKey) ? activeSelectedItemKeys : [targetSelectionKey]
+    const selectionKeySet = new Set(selectionKeys)
+    const selectedEntries = selectableDirectoryEntries.filter(item => selectionKeySet.has(directoryEntrySelectionKey(item)))
+    const resolvedAssets = resolveDirectoryAssets(selectedEntries)
+    const assetIds = [...new Set(resolvedAssets.map(asset => asset.assetId))]
+    if (!selectedItemKeySet.has(targetSelectionKey)) {
+      setSelectedItemKeys([targetSelectionKey])
+      setSelectionAnchorKey(targetSelectionKey)
+    }
+    const targetAsset = resolvedAssets.find(asset => asset.relativePath === entry.relativePath) ?? resolvedAssets[0]
+    setPreviewAssetId(targetAsset?.assetId ?? null)
+    setDraggingAssetIds(assetIds)
+    return assetIds
+  }
+
+  function openDirectoryAssetContextMenu(event: MouseEvent<HTMLElement>, entry: AssetDirectoryEntry) {
+    if (!canOpenSheetSourceContextMenu) return
+    event.preventDefault()
+    event.stopPropagation()
+    const targetSelectionKey = directoryEntrySelectionKey(entry)
+    const selectionKeys = selectedItemKeySet.has(targetSelectionKey) ? activeSelectedItemKeys : [targetSelectionKey]
+    const selectionKeySet = new Set(selectionKeys)
+    const assets = resolveDirectoryAssets(selectableDirectoryEntries
+      .filter(item => selectionKeySet.has(directoryEntrySelectionKey(item))))
+    if (assets.length === 0) return
+    if (!selectedItemKeySet.has(targetSelectionKey)) {
+      setSelectedItemKeys([targetSelectionKey])
+      setSelectionAnchorKey(targetSelectionKey)
+    }
+    setPreviewAssetId(assets.find(asset => asset.relativePath === entry.relativePath)?.assetId ?? assets[0]!.assetId)
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      assetIds: [...new Set(assets.map(asset => asset.assetId))],
+    })
+  }
+
+  function openDirectoryAssetPreview(entry: AssetDirectoryEntry) {
+    const selectionKey = directoryEntrySelectionKey(entry)
+    if (!selectedItemKeySet.has(selectionKey)) {
+      setSelectedItemKeys([selectionKey])
+      setSelectionAnchorKey(selectionKey)
+    }
     const asset = ensureDirectoryAsset(entry)
-    if (!asset) return []
-    return beginAssetDrag(asset.assetId)
+    if (!asset) return
+    setPreviewAssetId(asset.assetId)
+    void openPreviewForAsset(asset)
   }
 
   function clearAssetSelection() {
-    setSelectedAssetIds([])
-    setSelectionAnchorAssetId(null)
+    setSelectedItemKeys([])
+    setSelectionAnchorKey(null)
     setContextMenu(null)
   }
 
@@ -455,12 +554,12 @@ function AssetBrowser({
         onRootChange={handleRootChange}
         onOpenRoot={() => void handleOpenAssetRootDirectory()}
         dropActive={isNativeDropActive}
-        onNavigate={setRequestedDirectoryPath}
+        onNavigate={handleDirectoryNavigate}
         onImportCurrent={handleImportCurrentDirectory}
       />
-      {activeSelectedAssetIds.length > 0 && (
+      {activeSelectedItemKeys.length > 0 && (
         <div className="assetSelectionControls">
-          <span>{uiText.assets.selectedCount(activeSelectedAssetIds.length)}</span>
+          <span>{uiText.assets.selectedCount(activeSelectedItemKeys.length)}</span>
           <Tooltip label={uiText.assets.clearSelectionTitle}>
             <button type="button" onClick={clearAssetSelection}>{uiText.assets.clearSelection}</button>
           </Tooltip>
@@ -480,22 +579,24 @@ function AssetBrowser({
                     asset={asset}
                     registration={asset ? registrationSummaries.get(asset.assetId) : undefined}
                     viewMode={viewMode}
-                    isSelected={Boolean(asset && selectedAssetIdSet.has(asset.assetId))}
+                    isSelected={selectedItemKeySet.has(directoryEntrySelectionKey(entry))}
                     isDragging={Boolean(asset && draggingAssetIdSet.has(asset.assetId))}
-                    onNavigate={setRequestedDirectoryPath}
+                    onNavigate={handleDirectoryNavigate}
                     onEnsureAsset={() => ensureDirectoryAsset(entry)}
                     onSelect={event => {
-                      if (!asset) {
+                      if (!entry.isSupportedImage) {
                         previewDirectoryEntryIfOpen(entry)
                         clearAssetSelection()
                         return
                       }
-                      selectAsset(asset.assetId, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey })
+                      selectDirectoryEntry(entry, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey })
                     }}
-                    onKeyboardSelect={() => {
-                      const ensured = asset ?? ensureDirectoryAsset(entry)
-                      if (ensured) selectAsset(ensured.assetId)
-                      else previewDirectoryEntryIfOpen(entry)
+                    onKeyboardSelect={event => {
+                      if (entry.isSupportedImage) {
+                        selectDirectoryEntry(entry, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey })
+                      } else {
+                        previewDirectoryEntryIfOpen(entry)
+                      }
                     }}
                     onDragStateChange={setDragState}
                     onDragStart={() => {
@@ -512,13 +613,9 @@ function AssetBrowser({
                     }}
                     onContextMenu={event => {
                       if (!entry.isSupportedImage) return
-                      const ensured = asset ?? ensureDirectoryAsset(entry)
-                      if (ensured) openAssetContextMenu(event, ensured.assetId)
+                      openDirectoryAssetContextMenu(event, entry)
                     }}
-                    onPreview={() => {
-                      const ensured = asset ?? ensureDirectoryAsset(entry)
-                      if (ensured) openAssetPreview(ensured.assetId)
-                    }}
+                    onPreview={() => openDirectoryAssetPreview(entry)}
                   />
                 )
               })}
@@ -533,10 +630,10 @@ function AssetBrowser({
                   asset={asset}
                   registration={registrationSummaries.get(asset.assetId)}
                   viewMode={viewMode}
-                  isSelected={selectedAssetIdSet.has(asset.assetId)}
+                  isSelected={selectedItemKeySet.has(assetSelectionKey(asset.assetId))}
                   isDragging={draggingAssetIdSet.has(asset.assetId)}
                   onSelect={event => selectAsset(asset.assetId, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey })}
-                  onKeyboardSelect={() => selectAsset(asset.assetId)}
+                  onKeyboardSelect={event => selectAsset(asset.assetId, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey })}
                   onDragStateChange={setDragState}
                   onDragStart={() => {
                     const assetIds = beginAssetDrag(asset.assetId)

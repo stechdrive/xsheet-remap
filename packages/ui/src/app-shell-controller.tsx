@@ -1134,11 +1134,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     })
   }
 
-  function handleEnsureAssetRef(ref: FileRef): string | null {
-    if (!isImageFileRef(ref)) return null
-    const registered = registerMaterialAssetRef(projectRef.current, ref)
-    commitProject(registered.project)
-    return registered.asset.assetId
+  function handleEnsureAssetRefs(refs: FileRef[]): string[] {
+    let next = projectRef.current
+    const assetIds: string[] = []
+    for (const ref of refs) {
+      if (!isImageFileRef(ref)) continue
+      const registered = registerMaterialAssetRef(next, ref)
+      next = registered.project
+      assetIds.push(registered.asset.assetId)
+    }
+    if (next !== projectRef.current) commitProject(next)
+    return assetIds
   }
 
   function handleAssetFileRefs(refs: FileRef[], targetHit: SheetHit | null = null, position?: { x: number; y: number }, rootCandidates: AssetRootCandidate[] = []) {
@@ -2205,7 +2211,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     copySelectedTimingRange, pasteTimingClipboard, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
-    handleAssetNativePaths, handleAssetRootCandidates, handleEnsureAssetRef, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
+    handleAssetNativePaths, handleAssetRootCandidates, handleEnsureAssetRefs, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,

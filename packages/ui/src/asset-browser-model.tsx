@@ -5,6 +5,23 @@ import { dedupeStringList } from './assetFiles'
 import { type AssetPreviewPayload } from './assetPreviewModel'
 import type { AssetSelectionIntent } from './asset-browser-types'
 
+const ASSET_SELECTION_PREFIX = 'asset:'
+const DIRECTORY_ENTRY_SELECTION_PREFIX = 'entry:'
+
+export function assetSelectionKey(assetId: string): string {
+  return `${ASSET_SELECTION_PREFIX}${assetId}`
+}
+
+export function assetIdFromSelectionKey(selectionKey: string): string | null {
+  return selectionKey.startsWith(ASSET_SELECTION_PREFIX)
+    ? selectionKey.slice(ASSET_SELECTION_PREFIX.length) || null
+    : null
+}
+
+export function directoryEntrySelectionKey(entry: Pick<AssetDirectoryEntry, 'path'>): string {
+  return `${DIRECTORY_ENTRY_SELECTION_PREFIX}${entry.path.replace(/\\/g, '/').toLocaleLowerCase()}`
+}
+
 export function assetSelectionFromIntent(
   currentAssetIds: string[],
   sortedAssetIds: string[],

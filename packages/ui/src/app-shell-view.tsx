@@ -37,7 +37,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     copySelectedTimingRange, pasteTimingClipboard, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
-    handleAssetNativePaths, handleAssetRootCandidates, handleEnsureAssetRef, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
+    handleAssetNativePaths, handleAssetRootCandidates, handleEnsureAssetRefs, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
@@ -361,7 +361,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onAssetFiles={files => void handleAssetFiles(files)}
             onAssetFileRefs={handleAssetFileRefs}
             onAssetRoots={handleAssetRootCandidates}
-            onEnsureAssetRef={handleEnsureAssetRef}
+            onEnsureAssetRefs={handleEnsureAssetRefs}
             onAssetNativePaths={(paths, options) => void handleAssetNativePaths(paths, null, undefined, options)}
             onDropDiagnostic={recordDropDiagnostic}
             onAssetAssign={handleAssignAsset}

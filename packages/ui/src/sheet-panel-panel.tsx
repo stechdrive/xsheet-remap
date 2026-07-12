@@ -96,7 +96,7 @@ export function SheetPanel(props: {
   onAssetFiles: (files: FileList | File[] | null) => void
   onAssetFileRefs: (refs: FileRef[]) => void
   onAssetRoots: (roots: AssetRootCandidate[]) => void
-  onEnsureAssetRef: (ref: FileRef) => string | null
+  onEnsureAssetRefs: (refs: FileRef[]) => string[]
   onAssetNativePaths: (paths: string[], options?: { recursive?: boolean }) => void
   onDropDiagnostic: (report: DropDiagnosticReport) => void
   onAssetAssign: (assetId: string, hit: SheetHit | null, position?: { x: number; y: number }) => void
@@ -713,7 +713,7 @@ export function SheetPanel(props: {
               onAssets={props.onAssetFiles}
               onAssetRefs={props.onAssetFileRefs}
               onAssetRoots={props.onAssetRoots}
-              onEnsureAssetRef={props.onEnsureAssetRef}
+              onEnsureAssetRefs={props.onEnsureAssetRefs}
               onAssetSheetSources={props.onAssetSheetSources}
               canUseAssetsAsSheetSources={sheetScanSources.length === 0}
               onDropDiagnostic={props.onDropDiagnostic}

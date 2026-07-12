@@ -61,6 +61,7 @@ def main() -> int:
     click_parser.add_argument("--y", type=int, required=True)
     click_parser.add_argument("--button", choices=["left", "right"], default="left")
     click_parser.add_argument("--app-pid", type=int)
+    click_parser.add_argument("--modifier", action="append", choices=["ctrl", "shift"], default=[])
 
     key_parser = subparsers.add_parser("key-press", help="Send keyboard input to the main app window.")
     key_parser.add_argument("--keys", required=True)
@@ -111,9 +112,16 @@ def main() -> int:
     if args.command == "click-screen":
         if args.app_pid:
             focus_process_window(args.app_pid)
-        mouse.click(button=args.button, coords=(args.x, args.y))
+        modifier_keys = {"ctrl": "VK_CONTROL", "shift": "VK_SHIFT"}
+        try:
+            for modifier in args.modifier:
+                keyboard.send_keys("{" + modifier_keys[modifier] + " down}")
+            mouse.click(button=args.button, coords=(args.x, args.y))
+        finally:
+            for modifier in reversed(args.modifier):
+                keyboard.send_keys("{" + modifier_keys[modifier] + " up}")
         time.sleep(0.1)
-        print_json({"ok": True, "command": args.command, "button": args.button, "point": [args.x, args.y]})
+        print_json({"ok": True, "command": args.command, "button": args.button, "modifiers": args.modifier, "point": [args.x, args.y]})
         return 0
 
     if args.command == "key-press":

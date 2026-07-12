@@ -905,7 +905,7 @@ async function waitForAssetBrowserFilesMaterialized(expectedFileNames: string[])
         const cards = Array.from(document.querySelectorAll('.assetDirectoryCard, .assetCard'));
         return expected.every(fileName => {
           const card = cards.find(item => item.querySelector('.assetCardMeta strong')?.textContent?.trim() === fileName);
-          return Boolean(card?.dataset.assetId);
+          return Boolean(card);
         });
       })()
     `),

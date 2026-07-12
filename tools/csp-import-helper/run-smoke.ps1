@@ -49,6 +49,8 @@ if (-not (Test-Path -LiteralPath $resolvedLauncher)) {
 if ($ResetClip) {
   $resetArgs = @("-File", (Join-Path $repoRoot "tools\csp-import-helper\reset-test-clip.ps1"))
   if ($ClipPath) { $resetArgs += @("-ClipPath", $ClipPath) }
+  $portablePython = Join-Path (Split-Path -Parent $resolvedLauncher) "csp-import-helper\python\python.exe"
+  if (Test-Path -LiteralPath $portablePython) { $resetArgs += @("-Python", $portablePython) }
   if ($DiscardOpenDocument) { $resetArgs += "-DiscardOpenDocument" }
   if ($Json) { $resetArgs += "-Quiet" }
   if (-not $Json) {

@@ -290,7 +290,7 @@ async function runRemapRealDndScenario(): Promise<void> {
   await waitForAssetBrowserSelection(['A1.png', 'A2.png'])
   await realMouseClick(middleAssetScreen, 'left', true, ['ctrl'])
   await waitForAssetBrowserSelection(['A1.png', 'A1_e.png', 'A2.png'])
-  checks.push('selected unregistered asset-browser files with real Shift and Ctrl clicks')
+  checks.push('selected project-catalog assets with real Shift and Ctrl clicks')
   await realMouseClick(firstAssetScreen)
   await waitForAssetBrowserSelection(['A1.png'])
 
@@ -857,12 +857,17 @@ async function assetBrowserDropPoint(): Promise<ClientPoint> {
   return evaluatePage<ClientPoint>(`
     (() => {
       const browser = document.querySelector('.assetBrowser');
-      if (!browser) throw new Error('asset browser not found');
-      const rect = browser.getBoundingClientRect();
-      if (rect.width < 40 || rect.height < 80) {
-        throw new Error('asset browser is not visibly expanded: ' + JSON.stringify({ width: rect.width, height: rect.height }));
+      const items = browser?.querySelector('.assetBrowserItems');
+      if (!browser || !items) throw new Error('asset browser drop surface not found');
+      const browserRect = browser.getBoundingClientRect();
+      const itemsRect = items.getBoundingClientRect();
+      if (browserRect.width < 40 || browserRect.height < 80 || itemsRect.width < 40 || itemsRect.height < 40) {
+        throw new Error('asset browser is not visibly expanded: ' + JSON.stringify({ browser: { width: browserRect.width, height: browserRect.height }, items: { width: itemsRect.width, height: itemsRect.height } }));
       }
-      return { x: rect.left + Math.min(Math.max(rect.width / 2, 32), rect.width - 24), y: rect.top + Math.min(96, Math.max(24, rect.height / 3)) };
+      return {
+        x: itemsRect.left + Math.min(Math.max(itemsRect.width / 2, 32), itemsRect.width - 24),
+        y: itemsRect.top + Math.min(Math.max(itemsRect.height / 3, 32), itemsRect.height - 24),
+      };
     })()
   `)
 }

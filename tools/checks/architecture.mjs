@@ -36,6 +36,13 @@ await checkImports('packages/core/src', [
   },
 ])
 
+await checkImports('packages/ui/src', [
+  {
+    pattern: /(?:from\s+|import\s*\()['"]@tauri-apps\/api/,
+    message: 'ui must access Tauri through @xsheet-remap/adapters',
+  },
+])
+
 for (const directory of ['apps', 'packages', 'tools']) {
   await checkImports(directory, [
     {

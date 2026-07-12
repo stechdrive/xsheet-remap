@@ -1,5 +1,5 @@
 import type { CutAsset } from '@xsheet-remap/core'
-import { isTauriHost } from '@xsheet-remap/adapters'
+import { invokeDesktopCommand, isTauriHost, nativeFileSource } from '@xsheet-remap/adapters'
 import { clampNumber } from './sheetInteraction'
 
 export type AssetPreviewRect = {
@@ -41,8 +41,7 @@ export async function openNativeAssetPreview(asset: CutAsset): Promise<boolean> 
 export async function openNativeAssetPreviewPayload(payload: AssetPreviewPayload): Promise<boolean> {
   try {
     window.localStorage.setItem(ASSET_PREVIEW_PAYLOAD_STORAGE_KEY, JSON.stringify(payload))
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('open_asset_preview_window', { payload })
+    await invokeDesktopCommand('open_asset_preview_window', { payload })
     return true
   } catch (error) {
     console.warn('Failed to open native asset preview window.', error)
@@ -58,8 +57,7 @@ export async function updateNativeAssetPreviewIfOpen(asset: CutAsset): Promise<b
 export async function updateNativeAssetPreviewPayloadIfOpen(payload: AssetPreviewPayload): Promise<boolean> {
   if (!isTauriHost()) return false
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const updated = await invoke<boolean>('update_asset_preview_window_if_open', { payload })
+    const updated = await invokeDesktopCommand<boolean>('update_asset_preview_window_if_open', { payload })
     if (updated) {
       window.localStorage.setItem(ASSET_PREVIEW_PAYLOAD_STORAGE_KEY, JSON.stringify(payload))
     }
@@ -88,8 +86,7 @@ export async function nativeAssetPreviewItemPayload(
 ): Promise<AssetPreviewItemPayload | null> {
   if (!isTauriHost()) return null
   try {
-    const { convertFileSrc } = await import('@tauri-apps/api/core')
-    const imageUrl = asset.currentPath ? convertFileSrc(asset.currentPath) : asset.thumbnailUrl
+    const imageUrl = asset.currentPath ? await nativeFileSource(asset.currentPath) : asset.thumbnailUrl
     if (!imageUrl && !asset.currentPath) return null
     return {
       label: options.label ?? asset.displayName,

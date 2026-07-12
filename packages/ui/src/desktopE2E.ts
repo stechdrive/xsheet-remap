@@ -8,7 +8,7 @@ import {
   type NameNormalizationAssetRenameResult,
   type SheetTemplate,
 } from '@xsheet-remap/core'
-import { renameMaterialFiles, isTauriHost } from '@xsheet-remap/adapters'
+import { invokeDesktopCommand, renameMaterialFiles, isTauriHost } from '@xsheet-remap/adapters'
 import {
   buildFullDefaultA3Scenario,
   FULL_DEFAULT_A3_SCENARIO_ID,
@@ -142,13 +142,11 @@ async function runFullDefaultA3DesktopE2E(config: DesktopE2EConfig, callbacks: D
 
 async function getDesktopE2EConfig(): Promise<DesktopE2EConfig | null> {
   if (!isTauriHost()) return null
-  const { invoke } = await import('@tauri-apps/api/core')
-  return invoke<DesktopE2EConfig | null>('desktop_e2e_config')
+  return invokeDesktopCommand<DesktopE2EConfig | null>('desktop_e2e_config')
 }
 
 async function listDesktopE2EAssetFiles(): Promise<FileRef[]> {
-  const { invoke } = await import('@tauri-apps/api/core')
-  return invoke<FileRef[]>('list_desktop_e2e_asset_files')
+  return invokeDesktopCommand<FileRef[]>('list_desktop_e2e_asset_files')
 }
 
 async function writeDesktopE2EJson(relativePath: string, value: unknown): Promise<string> {
@@ -156,8 +154,7 @@ async function writeDesktopE2EJson(relativePath: string, value: unknown): Promis
 }
 
 async function writeDesktopE2EText(relativePath: string, contents: string): Promise<string> {
-  const { invoke } = await import('@tauri-apps/api/core')
-  return invoke<string>('write_desktop_e2e_artifact', { relativePath, contents })
+  return invokeDesktopCommand<string>('write_desktop_e2e_artifact', { relativePath, contents })
 }
 
 function assertFileRefsStayInside(fileRefs: FileRef[], root: string): void {

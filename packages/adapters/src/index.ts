@@ -3,6 +3,21 @@ import { isTauriHost } from './environment'
 
 export { isTauriHost, isTauriLikeWindow } from './environment'
 export { fileToFileRef, sha256File } from './browserFiles'
+export {
+  closeCurrentNativeWindow,
+  configureCurrentNativeWindow,
+  currentNativeWindowBounds,
+  invokeDesktopCommand,
+  listenDesktopEvent,
+  nativeFileSource,
+  subscribeNativeDragDrop,
+  watchCurrentNativeWindowBounds,
+  type NativeDragDropPayload,
+  type NativeDragDropSource,
+  type NativeDropPosition,
+  type NativeWindowBounds,
+  type NativeWindowLayout,
+} from './desktopRuntime'
 
 export interface AssetRootCandidate {
   label: string

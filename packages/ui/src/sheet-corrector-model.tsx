@@ -1,4 +1,5 @@
 import { type SheetCalibrationPointPair, type SheetTemplate } from '@xsheet-remap/core'
+import { configureCurrentNativeWindow, currentNativeWindowBounds, invokeDesktopCommand } from '@xsheet-remap/adapters'
 import { compareFileNameLikeText } from './naturalSort'
 import { defaultSheetImageSettings, applyLevelCorrectionToDataUrl, loadImage, resolveImageRefUrl, warpSheetImage, warpSheetImageData } from './sheetImages'
 import { alphaComposite, writeRgbPsd } from './psdWriter'
@@ -69,20 +70,17 @@ export function imageUrlForItem(
 
 export async function createNativeSheetImageDataUrl(item: SheetCorrectorInput): Promise<string | null> {
   if (item.sourceKind === 'browser-file') return null
-  const { invoke } = await import('@tauri-apps/api/core')
-  return await invoke<string>('sheet_corrector_image_data_url', {
+  return await invokeDesktopCommand<string>('sheet_corrector_image_data_url', {
     sourcePath: item.path,
   })
 }
 
 export async function openNativeSheetCorrectorTemplateFile(): Promise<SheetCorrectorTemplateFile | null> {
-  const { invoke } = await import('@tauri-apps/api/core')
-  return await invoke<SheetCorrectorTemplateFile | null>('open_sheet_corrector_template')
+  return await invokeDesktopCommand<SheetCorrectorTemplateFile | null>('open_sheet_corrector_template')
 }
 
 export async function readNativeSheetCorrectorTemplatePath(path: string): Promise<SheetCorrectorTemplateFile> {
-  const { invoke } = await import('@tauri-apps/api/core')
-  return await invoke<SheetCorrectorTemplateFile>('read_sheet_corrector_template', { path })
+  return await invokeDesktopCommand<SheetCorrectorTemplateFile>('read_sheet_corrector_template', { path })
 }
 
 export async function correctedPngDataUrl(
@@ -276,12 +274,7 @@ export function emptySheetCorrectorProgressState(title: string, message: string)
 
 export async function configureSheetCorrectorBatchWindow(): Promise<void> {
   try {
-    const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window')
-    const currentWindow = getCurrentWindow()
-    await currentWindow.setMinSize(new LogicalSize(SHEET_CORRECTOR_BATCH_WINDOW.minWidth, SHEET_CORRECTOR_BATCH_WINDOW.minHeight))
-    await currentWindow.setSize(new LogicalSize(SHEET_CORRECTOR_BATCH_WINDOW.width, SHEET_CORRECTOR_BATCH_WINDOW.height))
-    await currentWindow.center()
-    await currentWindow.show()
+    await configureCurrentNativeWindow(SHEET_CORRECTOR_BATCH_WINDOW)
   } catch {
     // Browser preview and non-desktop hosts do not expose native windows.
   }
@@ -289,20 +282,16 @@ export async function configureSheetCorrectorBatchWindow(): Promise<void> {
 
 export async function restoreSheetCorrectorMainWindow(): Promise<void> {
   try {
-    const { getCurrentWindow, LogicalSize, PhysicalPosition, PhysicalSize } = await import('@tauri-apps/api/window')
-    const currentWindow = getCurrentWindow()
     const saved = loadSheetCorrectorWindowState()
-    await currentWindow.setMinSize(new LogicalSize(SHEET_CORRECTOR_MAIN_WINDOW.minWidth, SHEET_CORRECTOR_MAIN_WINDOW.minHeight))
-    if (saved) {
-      await currentWindow.setSize(new PhysicalSize(saved.width, saved.height))
-      if (typeof saved.x === 'number' && typeof saved.y === 'number') {
-        await currentWindow.setPosition(new PhysicalPosition(saved.x, saved.y))
-      }
-    } else {
-      await currentWindow.setSize(new LogicalSize(SHEET_CORRECTOR_MAIN_WINDOW.width, SHEET_CORRECTOR_MAIN_WINDOW.height))
-      await currentWindow.center()
-    }
-    await currentWindow.show()
+    await configureCurrentNativeWindow({
+      ...SHEET_CORRECTOR_MAIN_WINDOW,
+      width: saved?.width ?? SHEET_CORRECTOR_MAIN_WINDOW.width,
+      height: saved?.height ?? SHEET_CORRECTOR_MAIN_WINDOW.height,
+      position: saved && typeof saved.x === 'number' && typeof saved.y === 'number'
+        ? { x: saved.x, y: saved.y }
+        : undefined,
+      physicalSize: Boolean(saved),
+    })
   } catch {
     // Rust setup still shows the normal startup window; browser preview has no native window.
   }
@@ -311,17 +300,12 @@ export async function restoreSheetCorrectorMainWindow(): Promise<void> {
 export async function saveCurrentSheetCorrectorWindowState(): Promise<void> {
   if (typeof window === 'undefined') return
   try {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    const currentWindow = getCurrentWindow()
-    const [size, position] = await Promise.all([
-      currentWindow.innerSize(),
-      currentWindow.outerPosition(),
-    ])
+    const bounds = await currentNativeWindowBounds()
     const state: SheetCorrectorSavedWindowState = {
-      width: Math.round(size.width),
-      height: Math.round(size.height),
-      x: Math.round(position.x),
-      y: Math.round(position.y),
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
     }
     if (!isValidSheetCorrectorWindowState(state)) return
     window.localStorage.setItem(SHEET_CORRECTOR_WINDOW_STATE_STORAGE_KEY, JSON.stringify(state))

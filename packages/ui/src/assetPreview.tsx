@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { invokeDesktopCommand, listenDesktopEvent } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import {
   ASSET_PREVIEW_REFRESH_EVENT,
@@ -42,17 +43,13 @@ export function AssetPreviewWindow() {
     }
 
     function readCurrentNativePayload() {
-      return import('@tauri-apps/api/core')
-        .then(({ invoke }) => invoke<unknown>('current_asset_preview_payload'))
+      return invokeDesktopCommand<unknown>('current_asset_preview_payload')
         .then(setPreviewPayload)
         .catch(() => undefined)
     }
 
     let unlisten: (() => void) | undefined
-    void import('@tauri-apps/api/event')
-      .then(({ listen }) => listen<AssetPreviewPayload>(ASSET_PREVIEW_UPDATE_EVENT, event => {
-        setPreviewPayload(event.payload)
-      }))
+    void listenDesktopEvent<AssetPreviewPayload>(ASSET_PREVIEW_UPDATE_EVENT, setPreviewPayload)
       .then(nextUnlisten => {
         unlisten = nextUnlisten
         void readCurrentNativePayload()

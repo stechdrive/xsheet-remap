@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, buildCspImportPackage, buildExportPlan, clearEvent, clearAnnotations, clearAnnotationsForPage, commitHistory, createKey, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, findTimingKeyByDisplayLabel, type CorrectionLayer, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type ExportProfile, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateKey, updateCorrectionLayers, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, hasBlockingIssues, validateProject, standardA3SheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, isNullLabel, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, parseProjectDocument, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, type AssetRoot } from '@xsheet-remap/core'
 import { exportXdts } from '@xsheet-remap/xdts'
-import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, openImageFileRefs, readJsonFile, renameMaterialFiles, saveJsonFile, statNativePaths, writeCspImportPackage, writeTextFile, type AssetRootCandidate } from '@xsheet-remap/adapters'
+import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, readJsonFile, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeTextFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters'
 import { APP_VERSION } from './appVersion'
 import { issueMessage, uiText, viewModeLabels } from './i18n'
 import { type EditMode, type Panel, type Selection, type SheetRangeSelection, type TimingClipboard } from './appTypes'
@@ -29,7 +29,7 @@ import { ActionMenu } from './AppControls'
 import { TemplateWorkspace } from './TemplateWorkspace'
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import { createPaperTemplateDraftFromImage, createTemplateDraft, readFileAsDataUrl, readImageDimensionsFromDataUrl, templateJsonFileName, type TemplateDraftKind } from './templateDrafts'
-import { APP_PROFILES, ActiveTextTarget, AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, NativeDragDropPayload, SheetScrollRequest, StackGuideLabelUpdates, StatusHintSource, StatusHints, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, assetRootForFile, clientPointCandidatesFromNativeDropPosition, cspImportPackageAssetPaths, errorMessage, exportCutProjectsFromDocument, fileDialogInitialDirectory, formatFramePosition, formatFrameRangePosition, isImageFileRef, pathCompareKey, relativePathFromRoot, saveBinaryOutputs, saveTextOutputs, timelineEventAtHit } from './app-foundation'
+import { APP_PROFILES, ActiveTextTarget, AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, SheetScrollRequest, StackGuideLabelUpdates, StatusHintSource, StatusHints, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, assetRootForFile, clientPointCandidatesFromNativeDropPosition, cspImportPackageAssetPaths, errorMessage, exportCutProjectsFromDocument, fileDialogInitialDirectory, formatFramePosition, formatFrameRangePosition, isImageFileRef, pathCompareKey, relativePathFromRoot, saveBinaryOutputs, saveTextOutputs, timelineEventAtHit } from './app-foundation'
 import { AssetDropProcessMenu, assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers'
 import { paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry'
 import { BindingPanel, FrameOperationDialog, SheetImageExportDialog, SlotPanel, applyCellStackOrder, automaticRegisteredCellCspName, cellStackOrderItems, firstTimelineUseForKey, registeredCellAssetRows, registeredCellTrackOrder, updateNativeRegisteredCellPreviewIfOpen } from './app-registered-cells'
@@ -244,16 +244,18 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
     if (!isTauriHost() || sheetSourceRuntimePathEntries.length === 0) return undefined
     let cancelled = false
 
-    void import('@tauri-apps/api/core')
-      .then(({ convertFileSrc }) => {
+    void Promise.all(sheetSourceRuntimePathEntries.map(async entry => ({
+      ...entry,
+      imageUrl: await nativeFileSource(entry.path),
+    })))
+      .then(entries => {
         if (cancelled) return
         setRuntimeSourceImageUrls(current => {
           let changed = false
           const next = { ...current }
-          for (const entry of sheetSourceRuntimePathEntries) {
-            const imageUrl = convertFileSrc(entry.path)
-            if (next[entry.sourceId] === imageUrl) continue
-            next[entry.sourceId] = imageUrl
+          for (const entry of entries) {
+            if (next[entry.sourceId] === entry.imageUrl) continue
+            next[entry.sourceId] = entry.imageUrl
             changed = true
           }
           return changed ? next : current
@@ -365,30 +367,24 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
   useEffect(() => {
     if (!isTauriHost()) return undefined
     let disposed = false
-    const unlisteners: Array<() => void> = []
+    let unsubscribe: (() => void) | undefined
     async function subscribeNativeDropEvents() {
-      const [{ getCurrentWebview }, { getCurrentWindow }, { listen }] = await Promise.all([
-        import('@tauri-apps/api/webview'),
-        import('@tauri-apps/api/window'),
-        import('@tauri-apps/api/event'),
-      ])
-      const nextUnlisteners = await Promise.all([
-        getCurrentWebview().onDragDropEvent(event => nativeDragDropPayloadHandlerRef.current(event.payload, 'native:webview')),
-        getCurrentWindow().onDragDropEvent(event => nativeDragDropPayloadHandlerRef.current(event.payload, 'native:window')),
-        listen('tauri://drag-drop', event => nativeDragDropPayloadHandlerRef.current(event.payload as NativeDragDropPayload, 'native:event')),
-      ])
+      const nextUnsubscribe = await subscribeNativeDragDrop(
+        (payload, source) => nativeDragDropPayloadHandlerRef.current(payload, `native:${source}`),
+        ['webview', 'window', 'event'],
+      )
       if (disposed) {
-        nextUnlisteners.forEach(unlisten => unlisten())
+        nextUnsubscribe()
         return
       }
-      unlisteners.push(...nextUnlisteners)
+      unsubscribe = nextUnsubscribe
     }
     void subscribeNativeDropEvents().catch(error => {
       console.error('Failed to subscribe native file drop event', error)
     })
     return () => {
       disposed = true
-      unlisteners.forEach(unlisten => unlisten())
+      unsubscribe?.()
     }
   }, [])
 

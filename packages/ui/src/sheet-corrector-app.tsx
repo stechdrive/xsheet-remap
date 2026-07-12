@@ -9,7 +9,7 @@ import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 import { calibrationPointsSignature } from './sheetCalibrationUtils'
 import { defaultCalibrationPoints, defaultSheetImageSettings, useWarpedSheetImageUrl } from './sheetImages'
 import { Tooltip, TooltipTarget } from './Tooltip'
-import { isTauriHost } from '@xsheet-remap/adapters'
+import { closeCurrentNativeWindow, invokeDesktopCommand, isTauriHost, nativeFileSource, subscribeNativeDragDrop, watchCurrentNativeWindowBounds } from '@xsheet-remap/adapters'
 import { LevelCorrectionDialog } from './LevelCorrectionDialog'
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection'
 import { defaultSheetCorrectorImportRules, matchSheetCorrectorImportCandidates, sheetCorrectorImportRule, sheetCorrectorImportRuleSummary } from './sheetCorrectorImportRules'
@@ -188,7 +188,6 @@ export function SheetCorrectorApp() {
     let disposed = false
     window.__xsheetCorrectorDiagnostics = {
       evaluateCalibrationFile: async (path: string) => {
-        const { convertFileSrc } = await import('@tauri-apps/api/core')
         const normalizedPath = path.replace(/\\/g, '/')
         const name = normalizedPath.split('/').pop() || path
         if (disposed) throw new Error('sheet corrector diagnostics disposed')
@@ -196,7 +195,7 @@ export function SheetCorrectorApp() {
           {
             path,
             name,
-            imageUrl: convertFileSrc(path),
+            imageUrl: await nativeFileSource(path),
           },
           standardA3SheetTemplate,
         )
@@ -216,8 +215,7 @@ export function SheetCorrectorApp() {
     if (viewMode !== 'main') return undefined
     let disposed = false
     let saveTimer: number | undefined
-    let unlistenResize: (() => void) | undefined
-    let unlistenMove: (() => void) | undefined
+    let unlistenWindowBounds: (() => void) | undefined
 
     function scheduleSave() {
       if (disposed) return
@@ -227,25 +225,14 @@ export function SheetCorrectorApp() {
       }, 300)
     }
 
-    void import('@tauri-apps/api/window')
-      .then(({ getCurrentWindow }) => {
-        if (disposed) return
-        const currentWindow = getCurrentWindow()
+    void watchCurrentNativeWindowBounds(scheduleSave)
+      .then(unlisten => {
+        if (disposed) {
+          unlisten()
+          return
+        }
         scheduleSave()
-        void currentWindow.onResized(() => scheduleSave()).then(unlisten => {
-          if (disposed) {
-            unlisten()
-          } else {
-            unlistenResize = unlisten
-          }
-        })
-        void currentWindow.onMoved(() => scheduleSave()).then(unlisten => {
-          if (disposed) {
-            unlisten()
-          } else {
-            unlistenMove = unlisten
-          }
-        })
+        unlistenWindowBounds = unlisten
       })
       .catch(() => {
         // Window state persistence is a convenience for desktop runs.
@@ -254,8 +241,7 @@ export function SheetCorrectorApp() {
     return () => {
       disposed = true
       if (saveTimer) window.clearTimeout(saveTimer)
-      unlistenResize?.()
-      unlistenMove?.()
+      unlistenWindowBounds?.()
     }
   }, [viewMode])
 
@@ -402,8 +388,7 @@ export function SheetCorrectorApp() {
       return
     }
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      const selectedItems = await invoke<SheetCorrectorInput[]>('open_sheet_corrector_inputs')
+      const selectedItems = await invokeDesktopCommand<SheetCorrectorInput[]>('open_sheet_corrector_inputs')
       if (selectedItems.length === 0) return
       await enqueueNativeItems(selectedItems, '直接追加')
     } catch (error) {
@@ -548,8 +533,7 @@ export function SheetCorrectorApp() {
       downloadDataUrl(pngDataUrl, correctedOutputName(item.name, 'png'))
       return correctedOutputName(item.name, 'png')
     }
-    const { invoke } = await import('@tauri-apps/api/core')
-    return await invoke<string>('export_sheet_corrector_png', {
+    return await invokeDesktopCommand<string>('export_sheet_corrector_png', {
       sourcePath: item.path,
       pngDataUrl,
     })
@@ -580,8 +564,7 @@ export function SheetCorrectorApp() {
       downloadBytes(base64ToBytes(psdBase64), correctedOutputName(item.name, 'psd'), 'image/vnd.adobe.photoshop')
       return correctedOutputName(item.name, 'psd')
     }
-    const { invoke } = await import('@tauri-apps/api/core')
-    return await invoke<string>('export_sheet_corrector_psd', {
+    return await invokeDesktopCommand<string>('export_sheet_corrector_psd', {
       sourcePath: item.path,
       psdBase64,
     })
@@ -847,10 +830,8 @@ export function SheetCorrectorApp() {
   }, [queueItems, queueStates])
 
   function closeSheetCorrector() {
-    void import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke('quit_sheet_corrector'))
-      .catch(() => import('@tauri-apps/api/window')
-        .then(({ getCurrentWindow }) => getCurrentWindow().close()))
+    void invokeDesktopCommand('quit_sheet_corrector')
+      .catch(() => closeCurrentNativeWindow())
       .catch(() => {
         if (viewMode !== 'batch') {
           setProgressDialog(null)
@@ -894,8 +875,7 @@ export function SheetCorrectorApp() {
         })
       }
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      const collection = await invoke<SheetCorrectorInputCollection>('collect_sheet_corrector_inputs', {
+      const collection = await invokeDesktopCommand<SheetCorrectorInputCollection>('collect_sheet_corrector_inputs', {
         paths: nextPaths,
       })
       const match = matchSheetCorrectorImportCandidates(collection.inputs, importRules)
@@ -969,8 +949,7 @@ export function SheetCorrectorApp() {
     if (didLoadLaunchPaths.current) return
     didLoadLaunchPaths.current = true
     let cancelled = false
-    void import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke<string[]>('sheet_corrector_launch_paths'))
+    void invokeDesktopCommand<string[]>('sheet_corrector_launch_paths')
       .then(paths => {
         if (cancelled) return
         if (paths.length > 0) {
@@ -1007,10 +986,8 @@ export function SheetCorrectorApp() {
   useEffect(() => {
     let cancelled = false
     let unlisten: (() => void) | undefined
-    void import('@tauri-apps/api/webview')
-      .then(({ getCurrentWebview }) => getCurrentWebview().onDragDropEvent(event => {
+    void subscribeNativeDragDrop(payload => {
         if (cancelled) return
-        const payload = event.payload
         if (payload.type === 'enter' || payload.type === 'over') {
           setIsDragOver(true)
           return
@@ -1020,8 +997,8 @@ export function SheetCorrectorApp() {
           return
         }
         setIsDragOver(false)
-        if (payload.paths.length > 0) void collectNativePaths(payload.paths, 'enqueue', 'window-drop')
-      }))
+        if (payload.paths && payload.paths.length > 0) void collectNativePaths(payload.paths, 'enqueue', 'window-drop')
+      })
       .then(nextUnlisten => {
         if (cancelled) {
           nextUnlisten()

@@ -7,6 +7,57 @@ import { dispatchInternalDrag, subscribeInternalDrag, type InternalDragPayload }
 afterEach(cleanup)
 
 describe('CspLayerTree', () => {
+  it('adds a material-unassigned card from a process track with a normalized name proposal', () => {
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const project = upsertBinding(created.project, {
+      slotId: 'slot_enshutsu_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A_01_e',
+      materialState: 'missing-ok',
+    })
+    const onCreateUnplacedCard = vi.fn(() => 'key_unplaced')
+    const onSelectKey = vi.fn()
+
+    render(
+      <CspLayerTree
+        project={project}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={onSelectKey}
+        onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
+        activeCorrectionLayerId="layer_enshutsu"
+        onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onCreateUnplacedCard={onCreateUnplacedCard}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'A（演出）にセルを追加' }))
+    const input = screen.getByLabelText('A（演出）に追加するCSPセル名')
+    expect((input as HTMLInputElement).value).toBe('A_02_e')
+    fireEvent.change(input, { target: { value: 'A_missing_e' } })
+    fireEvent.click(screen.getByRole('button', { name: 'セルを追加' }))
+
+    expect(onCreateUnplacedCard).toHaveBeenCalledWith('slot_enshutsu_A', 'A_missing_e')
+    expect(onSelectKey).toHaveBeenCalledWith('key_unplaced')
+  })
+
   it('shows later first-use cels above earlier cels and commits paper-track names', () => {
     const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const second = createOrSetEvent(first.project, 'A', 8, 'action')

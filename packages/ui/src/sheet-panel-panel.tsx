@@ -131,6 +131,7 @@ export function SheetPanel(props: {
   onAssignAssetsToStackGuideLabel: (labelId: string, assetIds: string[], correctionLayerId?: string) => void
   onRegisterAssetsToCspTrack: (slotId: string, assetIds: string[]) => CspTreeAssetRegistrationResult
   onRegisterAssetsToNewCspTrack: (input: CspTreeNewTrackRegistrationInput) => CspTreeAssetRegistrationResult
+  onCreateUnplacedCspCard: (slotId: string, cspCellName: string) => string | null
   onRegisterKeyToCspTrack: (keyId: string, slotId: string) => boolean
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
@@ -643,6 +644,7 @@ export function SheetPanel(props: {
               onAssignAssetsToStackGuideLabel={props.onAssignAssetsToStackGuideLabel}
               onRegisterAssetsToTrack={props.onRegisterAssetsToCspTrack}
               onRegisterAssetsToNewTrack={props.onRegisterAssetsToNewCspTrack}
+              onCreateUnplacedCard={props.onCreateUnplacedCspCard}
               onRegisterKeyToTrack={props.onRegisterKeyToCspTrack}
               onOpenNameNormalization={() => setNormalizationOpen(true)}
               onRequestOverlayPaperTrack={() => setStackGuideInsertTool({ mode: 'overlay-track' })}

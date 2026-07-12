@@ -1,7 +1,7 @@
 import type { CellBinding, CutProject, PaperTrackName, SheetTimingRole, TimelineEvent, TimingKey } from './types'
 import { nextId, withoutUndefined } from './core-utils'
 import { DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
-import { assetFileBaseName, compareTimelineEvents, defaultCspCellName, ensurePaperTrack, isNullCellKeyId, nextDisplayLabel, normalizeTimingKeyDisplayLabel, sameEventTarget, sheetTimingRoleForKey, uniqueCspCellNameForSlot } from './project-shared'
+import { assetFileBaseName, compareTimelineEvents, defaultCspCellName, ensurePaperTrack, isNullCellKeyId, nextDisplayLabel, normalizeTimingKeyDisplayLabel, sameEventTarget, sequenceCspCellName, sheetTimingRoleForKey, uniqueCspCellNameForSlot } from './project-shared'
 
 export function createKey(
   project: CutProject,
@@ -178,6 +178,62 @@ export interface RegisterAssetsToCspTrackResult {
   addedKeyIds: string[]
   duplicateKeyIds: string[]
   missingAssetIds: string[]
+}
+
+export interface CreateUnplacedCspCardResult {
+  project: CutProject
+  key: TimingKey
+  binding: CellBinding
+}
+
+export function suggestUnplacedCspCellName(
+  project: CutProject,
+  slotId: string,
+  sheetRole: SheetTimingRole = DEFAULT_EXPORT_TIMING_ROLE,
+): string {
+  const slot = project.cspTrackSlots.find(item => item.slotId === slotId)
+  if (!slot) throw new Error(`slot not found: ${slotId}`)
+  let sequenceIndex = project.logicalSheet.keys.filter(key =>
+    key.paperTrack === slot.paperTrack && sheetTimingRoleForKey(key) === sheetRole,
+  ).length + 1
+  const sequencePadding = Math.max(2, String(sequenceIndex).length)
+  const usedNames = new Set(project.bindings
+    .filter(binding => binding.slotId === slotId)
+    .map(binding => binding.cspCellName.trim().toLocaleLowerCase()))
+  let candidate = sequenceCspCellName(project, slot.paperTrack, slot.correctionLayerId, sequenceIndex, sequencePadding)
+  while (usedNames.has(candidate.toLocaleLowerCase())) {
+    sequenceIndex += 1
+    candidate = sequenceCspCellName(project, slot.paperTrack, slot.correctionLayerId, sequenceIndex, Math.max(2, String(sequenceIndex).length))
+  }
+  return candidate
+}
+
+export function createUnplacedCspCard(
+  project: CutProject,
+  input: { slotId: string; cspCellName?: string; sheetRole?: SheetTimingRole },
+): CreateUnplacedCspCardResult {
+  const slot = project.cspTrackSlots.find(item => item.slotId === input.slotId)
+  if (!slot) throw new Error(`slot not found: ${input.slotId}`)
+  const sheetRole = input.sheetRole ?? DEFAULT_EXPORT_TIMING_ROLE
+  const cspCellName = input.cspCellName?.trim() || suggestUnplacedCspCellName(project, slot.slotId, sheetRole)
+  const duplicate = project.bindings.some(binding =>
+    binding.slotId === slot.slotId && binding.cspCellName.trim().toLocaleLowerCase() === cspCellName.toLocaleLowerCase(),
+  )
+  if (duplicate) throw new Error(`CSP cell name already exists in slot ${slot.slotId}: ${cspCellName}`)
+
+  const created = createKey(project, slot.paperTrack, undefined, 'manual', undefined, sheetRole)
+  const withoutSheetLabel = updateKey(created.project, created.key.keyId, { displayLabel: '', paperToken: '' })
+  const withBinding = upsertBinding(withoutSheetLabel, {
+    slotId: slot.slotId,
+    keyId: created.key.keyId,
+    cspCellName,
+    materialState: 'unassigned',
+  })
+  return {
+    project: withBinding,
+    key: withBinding.logicalSheet.keys.find(key => key.keyId === created.key.keyId)!,
+    binding: withBinding.bindings.find(binding => binding.slotId === slot.slotId && binding.keyId === created.key.keyId)!,
+  }
 }
 
 export function registerAssetsToCspTrack(

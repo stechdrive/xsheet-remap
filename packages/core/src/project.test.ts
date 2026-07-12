@@ -19,6 +19,7 @@ import {
   createAlphabeticTrackLabels,
   createDefaultProject,
   createKey,
+  createUnplacedCspCard,
   createOrSetEvent,
   createRecognizedEvent,
   createProjectFromTrackLabels,
@@ -50,6 +51,7 @@ import {
   resolveSheetTemplateRegionRect,
   setEvent,
   sheetTimingRoleForKey,
+  suggestUnplacedCspCellName,
   timingHitForFrame,
   undoHistory,
   updateKey,
@@ -543,6 +545,33 @@ describe('core project commands', () => {
     expect(repeated.addedKeyIds).toEqual([])
     expect(repeated.duplicateKeyIds).toEqual([registered.addedKeyIds[1]])
     expect(repeated.project.bindings).toHaveLength(registered.project.bindings.length)
+  })
+
+  it('creates an unplaced CSP card without a sheet label, event, or material', () => {
+    const project = createDefaultProject()
+
+    expect(suggestUnplacedCspCellName(project, 'slot_enshutsu_A', 'action')).toBe('A_01_e')
+    const created = createUnplacedCspCard(project, {
+      slotId: 'slot_enshutsu_A',
+      cspCellName: 'A_01_e',
+      sheetRole: 'action',
+    })
+
+    expect(created.key).toMatchObject({ paperTrack: 'A', displayLabel: '', paperToken: '', createdFrom: 'manual' })
+    expect(created.binding).toMatchObject({
+      slotId: 'slot_enshutsu_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A_01_e',
+      materialState: 'unassigned',
+    })
+    expect(created.binding.assetId).toBeUndefined()
+    expect(created.project.logicalSheet.events).toEqual([])
+    expect(suggestUnplacedCspCellName(created.project, 'slot_enshutsu_A', 'action')).toBe('A_02_e')
+    expect(() => createUnplacedCspCard(created.project, {
+      slotId: 'slot_enshutsu_A',
+      cspCellName: 'a_01_E',
+      sheetRole: 'action',
+    })).toThrow('CSP cell name already exists')
   })
 
   it('keeps process cards unlinked even when the same asset is registered in another correction layer', () => {

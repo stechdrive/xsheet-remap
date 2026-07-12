@@ -3,7 +3,7 @@ import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { withoutUndefined } from './core-utils'
 import { validateProject } from './validation'
 import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE } from './project-constants'
-import { compareStackGuideExportTracksForProject, compareStackGuideLabelsForProject, correctionLayerIdForSlot, correctionLayerOrderById, defaultCorrectionLayerFileNameSuffix, defaultCorrectionLayerId, eventsForSlot, exportEventsForSlot, groupLabelForCorrectionLayer, groupLabelForSlot, isNullCellEvent, resolveCspCellName, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideGapIndex, stackGuideRegistrationForLayer, stackGuideRegistrations, stackGuideStackBand, stackGuideStackBandOrder, stageOrderForCorrectionLayer } from './project-shared'
+import { compareStackGuideExportTracksForProject, compareStackGuideLabelsForProject, correctionLayerIdForSlot, correctionLayerOrderById, correctionLayerFileNameSuffix, defaultCorrectionLayerId, eventsForSlot, exportEventsForSlot, groupLabelForCorrectionLayer, groupLabelForSlot, isNullCellEvent, resolveCspCellName, sanitizeFileBaseName, sequenceCspCellName, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideGapIndex, stackGuideRegistrationForLayer, stackGuideRegistrations, stackGuideStackBand, stackGuideStackBandOrder, stageOrderForCorrectionLayer } from './project-shared'
 import { assetAbsolutePath } from './assets'
 
 export function buildNameNormalizationPlan(project: CutProject, options: NameNormalizationOptions): NameNormalizationPlan {
@@ -468,9 +468,7 @@ function resolveNameNormalizationSequencePadding(project: CutProject, sheetRole:
 }
 
 function normalizedCspCellNameForSlot(project: CutProject, key: TimingKey, slot: CspTrackSlot, sequenceIndex: number, sequencePadding: number): string {
-  const cellNumber = String(sequenceIndex).padStart(sequencePadding, '0')
-  const suffix = correctionLayerFileNameSuffix(project, slot.correctionLayerId)
-  return sanitizeFileBaseName(`${key.paperTrack}_${cellNumber}${suffix}`)
+  return sequenceCspCellName(project, key.paperTrack, slot.correctionLayerId, sequenceIndex, sequencePadding)
 }
 
 function buildNormalizedStackGuideSequence(project: CutProject): Map<string, number> {
@@ -662,11 +660,6 @@ function processLabelForSlot(project: CutProject, slot: CspTrackSlot): string {
   return layer?.label ?? slot.displayPath
 }
 
-function correctionLayerFileNameSuffix(project: Pick<CutProject, 'correctionLayers'>, layerId: string | undefined): string {
-  const layer = layerId ? project.correctionLayers.find(item => item.layerId === layerId) : undefined
-  return layer?.fileNameSuffix ?? defaultCorrectionLayerFileNameSuffix(layer)
-}
-
 function correctionLayerOrderText(layerId: string | undefined): number {
   const order = [
     'layer_sakuga',
@@ -690,17 +683,6 @@ function fileExtension(fileName: string): string {
   const lastDot = fileName.lastIndexOf('.')
   if (lastDot <= lastSlash) return ''
   return fileName.slice(lastDot)
-}
-
-function sanitizeFileBaseName(value: string): string {
-  const cleaned = value
-    .replace(/[<>:"/\\|?*]/g, '_')
-    .split('')
-    .map(character => character.charCodeAt(0) < 32 ? '_' : character)
-    .join('')
-    .replace(/\s+/g, '_')
-    .replace(/[. ]+$/g, '')
-  return cleaned || 'cell'
 }
 
 function paperTrackNameCompare(a: string, b: string): number {

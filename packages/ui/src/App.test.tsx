@@ -21,6 +21,7 @@ it('renders the main workspace shell', () => {
     expect(screen.getByRole('button', { name: uiText.sheet.imageCorrection })).toBeTruthy()
     expect(screen.getByLabelText(uiText.recognition.menu)).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.template })).toBeTruthy()
+    expect(within(appNavigationMenu).queryByRole('button', { name: 'セル対応' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル重ね順' })).toBeNull()
     expect(screen.queryByText('詳細スロット一覧')).toBeNull()
     expect(screen.getByLabelText('紙シート')).toBeTruthy()
@@ -42,14 +43,14 @@ it('provides a focused CSP remap shell without template authoring navigation', (
     expect(screen.queryByText('CSPパレット下端')).toBeNull()
     const appNavigationMenu = openAppNavigationMenu()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
-    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.bindings })).toBeNull()
+    expect(within(appNavigationMenu).queryByRole('button', { name: 'セル対応' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル重ね順' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.export })).toBeNull()
     expect(within(appNavigationMenu).getByRole('button', { name: 'XDTS詳細設定...' })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.template })).toBeNull()
   })
 
-it('adds an empty paper track from the CSP layer pane and keeps it visible for later event entry', async () => {
+it('adds an empty paper track and a material-unassigned card from the CSP layer pane', async () => {
     render(<RemapApp />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -66,6 +67,18 @@ it('adds an empty paper track from the CSP layer pane and keeps it visible for l
     const emptyTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrack'))
       .find(track => track.querySelector<HTMLInputElement>('.cspTreeTrackNameInput')?.value === 'J')
     expect(emptyTrack?.querySelector('.cspTreeNoCels')?.textContent).toBe('カードなし')
+
+    fireEvent.click(screen.getByRole('button', { name: 'J（作画）にセルを追加' }))
+    const cspNameInput = screen.getByLabelText('J（作画）に追加するCSPセル名') as HTMLInputElement
+    expect(cspNameInput.value).toBe('J_01')
+    fireEvent.click(screen.getByRole('button', { name: 'セルを追加' }))
+
+    await waitFor(() => {
+      const card = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
+      expect(card?.querySelector<HTMLInputElement>('.cspTreeCelNameInput')?.value).toBe('J_01')
+      expect(card?.classList.contains('assigned')).toBe(false)
+      expect(card?.querySelector<HTMLInputElement>('.cspTreeSheetNameField input')?.value).toBe('')
+    })
   })
 
 it('keeps the selected correction layer when placing a BG or BOOK track from the CSP pane', async () => {

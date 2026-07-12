@@ -305,6 +305,36 @@ export function defaultCorrectionLayerFileNameSuffix(layer: Pick<CorrectionLayer
   }
 }
 
+export function correctionLayerFileNameSuffix(
+  project: Pick<CutProject, 'correctionLayers'>,
+  layerId: string | undefined,
+): string {
+  const layer = layerId ? project.correctionLayers.find(item => item.layerId === layerId) : undefined
+  return layer?.fileNameSuffix ?? defaultCorrectionLayerFileNameSuffix(layer)
+}
+
+export function sequenceCspCellName(
+  project: Pick<CutProject, 'correctionLayers'>,
+  trackName: string,
+  correctionLayerId: string | undefined,
+  sequenceIndex: number,
+  sequencePadding = 2,
+): string {
+  const cellNumber = String(Math.max(1, Math.trunc(sequenceIndex))).padStart(Math.max(0, sequencePadding), '0')
+  return sanitizeFileBaseName(`${trackName}_${cellNumber}${correctionLayerFileNameSuffix(project, correctionLayerId)}`)
+}
+
+export function sanitizeFileBaseName(value: string): string {
+  const cleaned = value
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .split('')
+    .map(character => character.charCodeAt(0) < 32 ? '_' : character)
+    .join('')
+    .replace(/\s+/g, '_')
+    .replace(/[. ]+$/g, '')
+  return cleaned || 'cell'
+}
+
 export function correctionLayerOrderById(project: Pick<CutProject, 'correctionLayers'>, layerId: string | undefined): number {
   const layer = layerId ? project.correctionLayers.find(item => item.layerId === layerId) : undefined
   return layer?.order ?? Number.MAX_SAFE_INTEGER

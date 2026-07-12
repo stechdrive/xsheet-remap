@@ -1,4 +1,4 @@
-import type { MaterialState, SheetViewMode, ValidationIssue } from '@xsheet-remap/core'
+import type { SheetViewMode, ValidationIssue } from '@xsheet-remap/core'
 
 export type AppLocale = 'ja'
 
@@ -51,7 +51,6 @@ export const uiText = {
     sheet: 'シート入力',
     sources: 'シート読込',
     assets: '画像素材',
-    bindings: 'セル対応',
     template: 'シートテンプレ',
     export: 'XDTS詳細設定',
   },
@@ -585,9 +584,6 @@ export const uiText = {
       file: 'ファイル',
     },
   },
-  bindings: {
-    key: '登録セル',
-  },
   template: {
     referenceImage: 'テンプレ参照画像',
     referenceImageHint: 'この画像はシートテンプレの基準画像です。カットごとのスキャン補正はシート入力/シート読込で行います。',
@@ -717,12 +713,6 @@ export const viewModeLabels: Record<SheetViewMode, string> = {
   'single-page': '1ページ',
   continuous: '連続',
   spread: '見開き',
-}
-
-export const materialStateLabels: Record<MaterialState, string> = {
-  assigned: '割当済み',
-  unassigned: '未割当',
-  'missing-ok': '不在許容',
 }
 
 export function cornerLabel(corner: 'tl' | 'tr' | 'br' | 'bl'): string {

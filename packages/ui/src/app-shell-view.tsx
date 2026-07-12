@@ -9,7 +9,7 @@ import { CalibrationLoupeDialog } from './sheetCalibrationLoupe';
 import { ActionMenu } from './AppControls';
 import { TemplateWorkspace } from './TemplateWorkspace';
 import { AssetDropProcessMenu } from './app-sheet-layers';
-import { BindingPanel, FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
+import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
 import { AppHelpDialog, AppNavigationMenu, CloseSmallIcon, DurationFrameControl, ExportPanel, HelpIcon, RecognitionActionMenu, RedoIcon, UndoIcon, ViewModeIcon } from './app-navigation';
 import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
@@ -38,7 +38,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleAssignAsset, handleAssignRegisteredCell,
-    handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleRegisterKeyToCspTrack,
+    handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
@@ -399,6 +399,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onAssignAssetsToStackGuideLabel={handleAssignAssetsToStackGuide}
             onRegisterAssetsToCspTrack={handleRegisterAssetsToCspTrack}
             onRegisterAssetsToNewCspTrack={handleRegisterAssetsToNewCspTrack}
+            onCreateUnplacedCspCard={handleCreateUnplacedCspCard}
             onRegisterKeyToCspTrack={handleRegisterKeyToCspTrack}
             onAddOverlayPaperTrack={handleAddOverlayPaperTrack}
             onUpdatePaperTrack={handleUpdatePaperTrack}
@@ -408,7 +409,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onMoveCspStackItem={handleMoveCspStackItem}
           />
         )}
-        {panel === 'bindings' && <BindingPanel project={project} commitProject={commitProject} selectedKeyId={selection.keyId} />}
         {panel === 'template' && (
           <TemplateWorkspace
             key={templatePanelKey}

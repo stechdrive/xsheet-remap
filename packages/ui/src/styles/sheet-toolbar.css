@@ -817,10 +817,38 @@
   padding: 0;
 }
 
+.cspTreeMoveButtons .topIconSvg {
+  width: 14px;
+  height: 14px;
+}
+
 .cspTreeCels {
   display: grid;
   gap: 2px;
   padding: 3px 3px 5px 12px;
+}
+
+.cspTreeNewCelForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 25px 25px;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid #789286;
+  border-radius: 4px;
+  background: #f8faf8;
+}
+
+.cspTreeNewCelForm input {
+  min-width: 0;
+  height: 25px;
+}
+
+.cspTreeNewCelForm button {
+  width: 25px;
+  min-width: 25px;
+  height: 25px;
+  min-height: 25px;
+  padding: 0;
 }
 
 .cspTreeAssetDropZone {

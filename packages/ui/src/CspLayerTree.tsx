@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { buildCspLayerTree, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
+import { buildCspLayerTree, DEFAULT_EXPORT_TIMING_ROLE, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
 import { createInternalDragCardImage, startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 import { Tooltip } from './Tooltip'
@@ -37,6 +37,7 @@ export function CspLayerTree({
   onAssignAssetsToStackGuideLabel,
   onRegisterAssetsToTrack,
   onRegisterAssetsToNewTrack,
+  onCreateUnplacedCard,
   onRegisterKeyToTrack,
   onOpenNameNormalization,
   onRequestOverlayPaperTrack,
@@ -62,6 +63,7 @@ export function CspLayerTree({
   onAssignAssetsToStackGuideLabel: (labelId: string, assetIds: string[], correctionLayerId: string) => void
   onRegisterAssetsToTrack: (slotId: string, assetIds: string[]) => CspTreeAssetRegistrationResult
   onRegisterAssetsToNewTrack: (input: CspTreeNewTrackRegistrationInput) => CspTreeAssetRegistrationResult
+  onCreateUnplacedCard?: (slotId: string, cspCellName: string) => string | null
   onRegisterKeyToTrack: (keyId: string, slotId: string) => boolean
   onOpenNameNormalization: () => void
   onRequestOverlayPaperTrack: () => void
@@ -86,8 +88,11 @@ export function CspLayerTree({
     paperTrack: string
     insertAfterPaperTrack?: string
   } | null>(null)
+  const [newCelDraft, setNewCelDraft] = useState<{ slotId: string; cspCellName: string } | null>(null)
   const [dropNotice, setDropNotice] = useState<string | null>(null)
   const treeRootRef = useRef<HTMLElement | null>(null)
+  const timingSourceRole = project.exportProfiles.find(profile => profile.profileId === exportProfileId)?.timingSourceRole
+    ?? DEFAULT_EXPORT_TIMING_ROLE
 
   function handleAssetDrop(assetIds: string[], keyId: string, slotId?: string) {
     if (assetIds.length !== 1) {
@@ -245,6 +250,22 @@ export function CspLayerTree({
     const result = onRegisterAssetsToNewTrack({ ...newTrackDraft, paperTrack })
     setDropNotice(assetRegistrationNotice(result))
     setNewTrackDraft(null)
+  }
+
+  function beginNewCel(slotId: string) {
+    setNewCelDraft({
+      slotId,
+      cspCellName: suggestUnplacedCspCellName(project, slotId, timingSourceRole),
+    })
+  }
+
+  function submitNewCel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!newCelDraft?.cspCellName.trim() || !onCreateUnplacedCard) return
+    const keyId = onCreateUnplacedCard(newCelDraft.slotId, newCelDraft.cspCellName.trim())
+    if (!keyId) return
+    setNewCelDraft(null)
+    onSelectKey(keyId)
   }
 
   function renderNewTrackDropZone(
@@ -512,6 +533,17 @@ export function CspLayerTree({
                         />
                       ) : <span className="cspTreeTrackName">{track.label}</span>}
                       {track.stackItemId && <div className="cspTreeMoveButtons">
+                        {track.slotId && onCreateUnplacedCard && (
+                          <Tooltip label={`${track.label}（${layer.label}）に素材未割当のセルを追加`}>
+                            <button
+                              type="button"
+                              aria-label={`${track.label}（${layer.label}）にセルを追加`}
+                              onClick={() => beginNewCel(track.slotId!)}
+                            >
+                              <PlusIcon />
+                            </button>
+                          </Tooltip>
+                        )}
                         <Tooltip label={`全工程の${track.label}をCSPで1段上へ（紙シートでは右へ）`}>
                           <button type="button" aria-label={`全工程の${track.label}をCSPで上へ（シートで右へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'up')}>↑</button>
                         </Tooltip>
@@ -533,7 +565,28 @@ export function CspLayerTree({
                       </div>}
                     </div>
                     <div className="cspTreeCels">
-                      {track.cels.length === 0 && <span className="cspTreeNoCels">カードなし</span>}
+                      {newCelDraft && newCelDraft.slotId === track.slotId && (
+                        <form className="cspTreeNewCelForm" onSubmit={submitNewCel}>
+                          <input
+                            autoFocus
+                            aria-label={`${track.label}（${layer.label}）に追加するCSPセル名`}
+                            value={newCelDraft.cspCellName}
+                            onFocus={event => event.currentTarget.select()}
+                            onChange={event => {
+                              const cspCellName = event.currentTarget.value
+                              setNewCelDraft(current => current ? { ...current, cspCellName } : current)
+                            }}
+                            onKeyDown={event => {
+                              if (event.key !== 'Escape') return
+                              event.preventDefault()
+                              setNewCelDraft(null)
+                            }}
+                          />
+                          <button type="submit" aria-label="セルを追加" title="確定">✓</button>
+                          <button type="button" aria-label="セルの追加をキャンセル" title="キャンセル" onClick={() => setNewCelDraft(null)}>×</button>
+                        </form>
+                      )}
+                      {track.cels.length === 0 && newCelDraft?.slotId !== track.slotId && <span className="cspTreeNoCels">カードなし</span>}
                       {track.cels.map(cel => renderCelCard(track, cel, layer.layerId))}
                     </div>
                     {acceptsAsset && (

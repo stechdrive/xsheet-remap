@@ -965,13 +965,13 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
 
   useEffect(() => {
     void runDesktopE2EIfRequested({
-      applyProject: (nextProject, nextTemplate) => {
+      applyProject: (nextProject, nextTemplate, initialPanel) => {
         setTemplate(nextTemplate)
         setTextFontSizePx(defaultTimingTextFontSizePx(nextTemplate, 'cell'))
         setProjectDocument(createProjectDocumentFromCutProject(nextProject, { sheetTemplate: nextTemplate }))
         setProjectFilePath(null)
         setHistory(createProjectHistory(nextProject))
-        switchPanel('export')
+        switchPanel(initialPanel)
         setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
       },
     })

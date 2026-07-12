@@ -24,7 +24,7 @@ interface DesktopE2EConfig {
 }
 
 interface DesktopE2ERunCallbacks {
-  applyProject: (project: CutProject, template: SheetTemplate) => void
+  applyProject: (project: CutProject, template: SheetTemplate, initialPanel: 'sheet' | 'export') => void
 }
 
 interface DesktopE2EResult {
@@ -44,7 +44,7 @@ export async function runDesktopE2EIfRequested(callbacks: DesktopE2ERunCallbacks
   const config = await getDesktopE2EConfig()
   if (!config || config.scenario === 'launch') return
   if (config.scenario === REMAP_REAL_DND_SCENARIO_ID) {
-    callbacks.applyProject(buildRemapRealDndProject(), standardA3SheetTemplate)
+    callbacks.applyProject(buildRemapRealDndProject(), standardA3SheetTemplate, 'sheet')
     return
   }
   if (config.scenario !== FULL_DEFAULT_A3_SCENARIO_ID) return
@@ -95,7 +95,7 @@ async function runFullDefaultA3DesktopE2E(config: DesktopE2EConfig, callbacks: D
   assertRenameResults(renameResults)
 
   const scenario = buildFullDefaultA3Scenario(fileRefs, renameResults)
-  callbacks.applyProject(scenario.normalizedProject, standardA3SheetTemplate)
+  callbacks.applyProject(scenario.normalizedProject, standardA3SheetTemplate, 'export')
 
   const normalizedXdtsPath = await writeDesktopE2EText('export.normalized.xdts', scenario.normalizedXdts)
   const reportPath = await writeDesktopE2EJson('report.json', scenario.report)

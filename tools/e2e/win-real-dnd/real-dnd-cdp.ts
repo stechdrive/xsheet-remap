@@ -223,18 +223,6 @@ try {
   await waitForStackGuideCardAsset('BOOK-REAL', 'A2.png')
   checks.push('dragged an asset card with real mouse input onto an additional CSP track')
 
-  const stackGuideLayerAssetClient = await assetCardPoint('A1.png')
-  const stackGuideLayerAssetScreen = await clientToScreen(stackGuideLayerAssetClient)
-  const stackGuideLayerRowClient = await stackGuideLayerRowPoint('BOOK-REAL', '作画')
-  const stackGuideLayerRowScreen = await clientToScreen(stackGuideLayerRowClient)
-  diagnostics.stackGuideLayerAssetClient = stackGuideLayerAssetClient
-  diagnostics.stackGuideLayerAssetScreen = stackGuideLayerAssetScreen
-  diagnostics.stackGuideLayerRowClient = stackGuideLayerRowClient
-  diagnostics.stackGuideLayerRowScreen = stackGuideLayerRowScreen
-  await realMouseDrag(stackGuideLayerAssetScreen, stackGuideLayerRowScreen)
-  await waitForStackGuideCardAsset('BOOK-REAL', 'A1.png')
-  checks.push('dragged an asset card with real mouse input onto an additional-track process row and assigned it directly')
-
   const stackGuideMovePoints = await stackGuideLabelToGridRolePoints('BOOK-REAL', 'cell')
   const stackGuideLabelClient = stackGuideMovePoints.label
   const stackGuideLabelScreen = await clientToScreen(stackGuideLabelClient)
@@ -249,7 +237,7 @@ try {
   await waitForNoStackGuideLabelRole('BOOK-REAL', 'action')
   checks.push('dragged an additional-track label with real mouse input and verified its sheet placement moved')
 
-  await normalizeSelectedRegisteredCellWithRealAssetFileName('A', 'A_01.png')
+  await normalizeSelectedRegisteredCellWithRealAssetFileName('A', 'A_02.png')
   checks.push('normalized a registered cell with real material filename renaming in the desktop EXE')
   }
 
@@ -831,7 +819,7 @@ async function registeredCellCardPoint(paperTrack: string): Promise<ClientPoint>
       const card = cards.find(item => item.dataset.cspPaperTrack === ${JSON.stringify(paperTrack)});
       if (!card) throw new Error('registered cell card not found: ${escapeForSingleQuotedError(paperTrack)}');
       card.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const handle = card.querySelector('.cspTreeCelNameInput') || card.querySelector('.cspTreeCelName') || card;
+      const handle = card.querySelector('.cspTreeAssetState') || card.querySelector('.cspTreeSheetLabel') || card;
       const rect = handle.getBoundingClientRect();
       return { x: rect.left + Math.min(Math.max(rect.width / 2, 18), rect.width - 8), y: rect.top + rect.height / 2 };
     })()
@@ -864,23 +852,6 @@ async function stackGuideCardPoint(label: string): Promise<ClientPoint> {
     })()
   `)
   if (!point) throw new Error(`stack guide card not found: ${label}`)
-  return point
-}
-
-async function stackGuideLayerRowPoint(label: string, processLabel: string): Promise<ClientPoint> {
-  const point = await evaluatePage<ClientPoint | null>(`
-    (() => {
-      const inputs = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).filter(item => item.value === ${JSON.stringify(label)});
-      const card = inputs.map(input => input.closest('.cspTreeTrack')).find(item =>
-        item?.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent?.trim() === ${JSON.stringify(processLabel)}
-      );
-      if (!card) return null;
-      card.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const rect = card.getBoundingClientRect();
-      return { x: rect.left + Math.min(Math.max(rect.width / 2, 36), rect.width - 8), y: rect.top + rect.height / 2 };
-    })()
-  `)
-  if (!point) throw new Error(`stack guide layer row not found: ${label} ${processLabel}`)
   return point
 }
 

@@ -322,27 +322,80 @@ async function runRemapRealDndScenario(): Promise<void> {
 }
 
 async function dragAssetToCspTrack(fileName: string, trackLabel: string): Promise<void> {
-  const targetClient = await cspTrackPoint(trackLabel)
   const assetClient = await assetCardPoint(fileName)
-  const targetScreen = await clientToScreen(targetClient)
   const assetScreen = await clientToScreen(assetClient)
-  diagnostics[`csp:${trackLabel}:asset`] = { client: assetClient, screen: assetScreen, fileName }
-  diagnostics[`csp:${trackLabel}:target`] = { client: targetClient, screen: targetScreen }
-  await realMouseDrag(assetScreen, targetScreen)
+  let mouseIsDown = false
+  let targetScreen = assetScreen
+  try {
+    await runMouseOp([
+      'mouse-down-screen',
+      '--x', String(assetScreen.x),
+      '--y', String(assetScreen.y),
+      '--app-pid', args['app-pid'] as string,
+    ])
+    mouseIsDown = true
+    await runMouseOp([
+      'mouse-move-screen',
+      '--x', String(assetScreen.x - 24),
+      '--y', String(assetScreen.y + 8),
+      '--duration', '0.25',
+    ])
+    await waitForPageCondition(
+      () => evaluatePage<boolean>(`Boolean(document.querySelector('.cspTreeAssetDropZone.active'))`),
+      'CSP asset drop zones visible',
+      3000,
+    )
+    const targetClient = await cspTrackAssetDropZonePoint(trackLabel)
+    targetScreen = await clientToScreen(targetClient)
+    diagnostics[`csp:${trackLabel}:asset`] = { client: assetClient, screen: assetScreen, fileName }
+    diagnostics[`csp:${trackLabel}:target`] = { client: targetClient, screen: targetScreen }
+    await runMouseOp([
+      'mouse-move-screen',
+      '--x', String(targetScreen.x),
+      '--y', String(targetScreen.y),
+      '--duration', '0.8',
+    ])
+    await waitForCspAssetDropZoneHover(trackLabel)
+  } finally {
+    if (mouseIsDown) {
+      await runMouseOp([
+        'mouse-up-screen',
+        '--x', String(targetScreen.x),
+        '--y', String(targetScreen.y),
+      ])
+    }
+  }
 }
 
-async function cspTrackPoint(trackLabel: string): Promise<ClientPoint> {
+async function cspTrackAssetDropZonePoint(trackLabel: string): Promise<ClientPoint> {
   return evaluatePage<ClientPoint>(`
     (() => {
-      const tracks = Array.from(document.querySelectorAll('.cspTreeTrack[data-csp-drop-kind="track"]'));
-      const track = tracks.find(item => item.querySelector('.cspTreeTrackName, .cspTreeTrackNameInput')?.value === ${JSON.stringify(trackLabel)})
+      const tracks = Array.from(document.querySelectorAll('.cspTreeTrack'));
+      const track = tracks.find(item => item.querySelector('.cspTreeTrackNameInput')?.value === ${JSON.stringify(trackLabel)})
         || tracks.find(item => item.querySelector('.cspTreeTrackName')?.textContent?.trim() === ${JSON.stringify(trackLabel)});
       if (!track) throw new Error('CSP track not found: ${escapeForSingleQuotedError(trackLabel)}');
-      track.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const rect = track.getBoundingClientRect();
-      return { x: rect.left + Math.min(rect.width * 0.72, rect.width - 20), y: rect.top + rect.height / 2 };
+      const dropZone = track.querySelector('.cspTreeAssetDropZone.active');
+      if (!dropZone) throw new Error('CSP asset drop zone not active: ${escapeForSingleQuotedError(trackLabel)}');
+      dropZone.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = dropZone.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()
   `)
+}
+
+async function waitForCspAssetDropZoneHover(trackLabel: string): Promise<void> {
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      (() => {
+        const tracks = Array.from(document.querySelectorAll('.cspTreeTrack'));
+        const track = tracks.find(item => item.querySelector('.cspTreeTrackNameInput')?.value === ${JSON.stringify(trackLabel)})
+          || tracks.find(item => item.querySelector('.cspTreeTrackName')?.textContent?.trim() === ${JSON.stringify(trackLabel)});
+        return Boolean(track?.querySelector('.cspTreeAssetDropZone.assetDragOver'));
+      })()
+    `),
+    `CSP track ${trackLabel} asset drop target`,
+    3000,
+  )
 }
 
 async function cspTrackCelPoint(trackLabel: string): Promise<ClientPoint> {
@@ -365,7 +418,7 @@ async function waitForCspTrackAssigned(trackLabel: string): Promise<void> {
   await waitForPageCondition(
     () => evaluatePage<boolean>(`
       (() => {
-        const tracks = Array.from(document.querySelectorAll('.cspTreeTrack[data-csp-drop-kind="track"]'));
+        const tracks = Array.from(document.querySelectorAll('.cspTreeTrack'));
         const track = tracks.find(item => item.querySelector('.cspTreeTrackNameInput')?.value === ${JSON.stringify(trackLabel)})
           || tracks.find(item => item.querySelector('.cspTreeTrackName')?.textContent?.trim() === ${JSON.stringify(trackLabel)});
         return Boolean(track?.querySelector('.cspTreeCel.assigned'));

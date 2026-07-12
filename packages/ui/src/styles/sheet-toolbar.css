@@ -710,6 +710,27 @@
   content: '';
 }
 
+.cspTreeTrackInsertDropZone.assetDragOver:not(.editing) {
+  height: 27px;
+}
+
+.cspTreeTrackInsertLabel {
+  position: absolute;
+  z-index: 1;
+  top: 5px;
+  left: 13px;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #2372c4;
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cspTreeTrackInsertDropZone.emptyLayer.assetDragOver::after {
   top: 8px;
 }
@@ -748,21 +769,6 @@
 .cspTreeTrack {
   margin-left: 11px;
   border-top: 1px solid #d3d8d3;
-}
-
-.cspTreeTrack.assetDropTarget {
-  cursor: copy;
-}
-
-.cspTreeTrack.assetDropTarget.assetDragOver {
-  outline: 2px solid #416b5a;
-  outline-offset: -2px;
-  box-shadow: inset 4px 0 #416b5a;
-}
-
-.cspTreeTrack.assetDropTarget.assetDragOver .cspTreeTrackRow,
-.cspTreeTrack.assetDropTarget.assetDragOver .cspTreeCels {
-  background: #eef5ef;
 }
 
 .cspTreeTrackRow {
@@ -817,6 +823,34 @@
   padding: 3px 3px 5px 12px;
 }
 
+.cspTreeAssetDropZone {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 27px;
+  margin: 0 4px 5px 12px;
+  padding: 3px 6px;
+  border: 1px dashed #789286;
+  border-radius: 4px;
+  background: #f5f8f5;
+  color: #416b5a;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: copy;
+  text-align: center;
+}
+
+.cspTreeAssetDropZone.active {
+  display: flex;
+}
+
+.cspTreeAssetDropZone.assetDragOver {
+  border-style: solid;
+  border-color: #416b5a;
+  background: #dfeee4;
+  box-shadow: inset 3px 0 #416b5a;
+}
+
 .cspTreeCel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto 12px;
@@ -828,6 +862,37 @@
   border-radius: 4px;
   background: #fff;
   cursor: grab;
+}
+
+.cspTreeCel.assetDragOver {
+  border-color: #2372c4;
+  outline: 2px solid #2372c4;
+  outline-offset: -2px;
+  background: #e9f3fc;
+  cursor: copy;
+}
+
+.cspTreeCel.assetDragOver.assetDropInvalid {
+  border-color: #a05a2c;
+  outline-color: #a05a2c;
+  background: #fff3e8;
+  cursor: not-allowed;
+}
+
+.cspTreeCelDropLabel {
+  grid-column: 1 / -1;
+  padding: 3px 5px;
+  border-radius: 3px;
+  background: #2372c4;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
+.cspTreeCel.assetDropInvalid .cspTreeCelDropLabel {
+  background: #a05a2c;
 }
 
 .cspTreeCelDetails {

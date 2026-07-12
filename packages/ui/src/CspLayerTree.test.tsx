@@ -118,7 +118,7 @@ describe('CspLayerTree', () => {
     expect(unregisteredCard.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
     expect(unregisteredCard.querySelector('.cspTreeCelFrame')).toBeNull()
 
-    const track = screen.getByLabelText('A（作画）へ画像素材を登録')
+    const track = screen.getByLabelText('A（作画）にカードを追加')
     dropInternalOn(track, { kind: 'registered-cell', keyId: created.key.keyId })
     expect(onRegisterKeyToTrack).toHaveBeenCalledWith(created.key.keyId, 'slot_A')
 
@@ -198,6 +198,7 @@ describe('CspLayerTree', () => {
     })
     const onUpdateKey = vi.fn()
     const onDeleteKey = vi.fn()
+    const onAssignAsset = vi.fn()
 
     render(
       <CspLayerTree
@@ -216,7 +217,7 @@ describe('CspLayerTree', () => {
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
-        onAssignAsset={vi.fn()}
+        onAssignAsset={onAssignAsset}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -235,6 +236,21 @@ describe('CspLayerTree', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'A 1を削除' }))
     expect(onDeleteKey).toHaveBeenCalledWith(created.key.keyId)
+
+    const card = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
+    if (!card) throw new Error('CSP cell card not found')
+    moveInternalOver(card, { kind: 'asset', assetIds: ['asset_replacement'] })
+    expect(card.classList.contains('assetDragOver')).toBe(true)
+    expect(card.textContent).toContain('A1の素材を差し替え')
+    dropInternalOn(card, { kind: 'asset', assetIds: ['asset_replacement'] })
+    expect(onAssignAsset).toHaveBeenCalledWith('asset_replacement', created.key.keyId, 'slot_A')
+
+    moveInternalOver(card, { kind: 'asset', assetIds: ['asset_1', 'asset_2'] })
+    expect(card.classList.contains('assetDropInvalid')).toBe(true)
+    expect(card.textContent).toContain('複数素材は「A列にカードを追加」へ')
+    dropInternalOn(card, { kind: 'asset', assetIds: ['asset_1', 'asset_2'] })
+    expect(onAssignAsset).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status').textContent).toBe('複数素材はセル列の「カードを追加」へドロップしてください。')
   })
 
   it('moves a registered card between correction layers through the shared drag contract', () => {
@@ -319,7 +335,7 @@ describe('CspLayerTree', () => {
       />,
     )
 
-    const track = screen.getByLabelText('BG1（演出）へ画像素材を登録')
+    const track = screen.getByLabelText('BG1（演出）へ画像素材を割り当て')
     moveInternalOver(track, { kind: 'asset', assetIds: ['asset_bg'] })
     expect(track.classList.contains('assetDragOver')).toBe(true)
     dropInternalOn(track, { kind: 'asset', assetIds: ['asset_bg'] })
@@ -375,12 +391,12 @@ describe('CspLayerTree', () => {
       />,
     )
 
-    dropInternalOn(screen.getByLabelText('SL1（作画）へ画像素材を登録'), { kind: 'asset', assetIds: ['asset_sl1'] })
-    dropInternalOn(screen.getByLabelText('MEMO1（作画）へ画像素材を登録'), { kind: 'asset', assetIds: ['asset_memo1'] })
+    dropInternalOn(screen.getByLabelText('SL1（作画）へ画像素材を割り当て'), { kind: 'asset', assetIds: ['asset_sl1'] })
+    dropInternalOn(screen.getByLabelText('MEMO1（作画）へ画像素材を割り当て'), { kind: 'asset', assetIds: ['asset_memo1'] })
     expect(onAssignAssetsToStackGuideLabel).toHaveBeenNthCalledWith(1, camera.label.labelId, ['asset_sl1'], 'layer_sakuga')
     expect(onAssignAssetsToStackGuideLabel).toHaveBeenNthCalledWith(2, memo.label.labelId, ['asset_memo1'], 'layer_sakuga')
 
-    dropInternalOn(screen.getByLabelText('SL1（作画）へ画像素材を登録'), { kind: 'asset', assetIds: ['asset_a', 'asset_b'] })
+    dropInternalOn(screen.getByLabelText('SL1（作画）へ画像素材を割り当て'), { kind: 'asset', assetIds: ['asset_a', 'asset_b'] })
     expect(onAssignAssetsToStackGuideLabel).toHaveBeenCalledTimes(2)
     expect(screen.getByRole('status').textContent).toContain('1件だけ選択')
   })
@@ -424,9 +440,10 @@ describe('CspLayerTree', () => {
       />,
     )
 
-    const track = screen.getByLabelText('A（作画）へ画像素材を登録')
+    const track = screen.getByLabelText('A（作画）にカードを追加')
     moveInternalOver(track, { kind: 'asset', assetIds: ['asset_A1', 'asset_A2'] })
     expect(track.classList.contains('assetDragOver')).toBe(true)
+    expect(track.textContent).toBe('A列に2件のカードを追加')
     dropInternalOn(track, { kind: 'asset', assetIds: ['asset_A1', 'asset_A2'] })
 
     expect(onRegisterAssetsToTrack).toHaveBeenCalledWith('slot_A', ['asset_A1', 'asset_A2'])
@@ -467,6 +484,7 @@ describe('CspLayerTree', () => {
     const gap = screen.getByLabelText('作画のセル列挿入位置1')
     moveInternalOver(gap, { kind: 'asset', assetIds: ['asset_A1', 'asset_A2'] })
     expect(gap.classList.contains('assetDragOver')).toBe(true)
+    expect(gap.textContent).toContain('ここに新しいセル列を作成（2件）')
     dropInternalOn(gap, { kind: 'asset', assetIds: ['asset_A1', 'asset_A2'] })
 
     const input = screen.getByLabelText('作画に追加するセル列名')

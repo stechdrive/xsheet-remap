@@ -1,7 +1,9 @@
 import {
   createDefaultProject,
+  createKey,
   createStackGuideLabel,
   standardA3SheetTemplate,
+  upsertBinding,
   type CutProject,
   type FileRef,
   type NameNormalizationAssetRename,
@@ -76,13 +78,20 @@ function buildRemapRealDndProject(): CutProject {
     gapIndex: 9,
     correctionLayerId: 'layer_enshutsu',
   })
-  return createStackGuideLabel(camera.project, {
+  const memo = createStackGuideLabel(camera.project, {
     label: 'MEMO1',
     kind: 'memo',
     displayRole: 'action',
     gapIndex: 9,
     correctionLayerId: 'layer_enshutsu',
-  }).project
+  })
+  const existing = createKey(memo.project, 'A', '1', 'manual', '1', 'action')
+  return upsertBinding(existing.project, {
+    slotId: 'slot_A',
+    keyId: existing.key.keyId,
+    cspCellName: 'A1',
+    materialState: 'missing-ok',
+  })
 }
 
 async function runFullDefaultA3DesktopE2E(config: DesktopE2EConfig, callbacks: DesktopE2ERunCallbacks): Promise<DesktopE2EResult> {

@@ -573,13 +573,15 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     const stackGuideCard = Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
       .find(input => input.value === 'BOOK-CUT')?.closest<HTMLElement>('.cspTreeTrack')
     if (!stackGuideCard) throw new Error('stack guide track not found')
+    const stackGuideDropZone = stackGuideCard.querySelector<HTMLElement>('.cspTreeAssetDropZone')
+    if (!stackGuideDropZone) throw new Error('stack guide asset drop zone not found')
     const originalElementFromPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
     Object.defineProperty(document, 'elementFromPoint', {
       configurable: true,
-      value: vi.fn(() => stackGuideCard),
+      value: vi.fn(() => stackGuideDropZone),
     })
     const stackGuideTargetBox = { left: 300, top: 240, width: 120, height: 60 }
-    stackGuideCard.getBoundingClientRect = () => ({
+    stackGuideDropZone.getBoundingClientRect = () => ({
       x: stackGuideTargetBox.left,
       y: stackGuideTargetBox.top,
       left: stackGuideTargetBox.left,

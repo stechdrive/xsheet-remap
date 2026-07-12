@@ -94,12 +94,12 @@ it('keeps the selected correction layer when placing a BG or BOOK track from the
     const assetFile = new File(['bg'], 'BG1.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [assetFile] } })
     expect(await screen.findByText('BG1.png')).toBeTruthy()
-    const bgTrack = screen.getByLabelText('BG1（演出）へ画像素材を登録')
+    const bgTrack = screen.getByLabelText('BG1（演出）へ画像素材を割り当て')
     dragInternalPointer(getAssetCardByName('BG1.png'), bgTrack)
 
     await waitFor(() => {
-      const assignedTrack = screen.getByLabelText('BG1（演出）へ画像素材を登録')
-      expect(assignedTrack.querySelector('.cspTreeCel.assigned')).toBeTruthy()
+      const assignedTrack = screen.getByLabelText('BG1（演出）へ画像素材を割り当て').closest('.cspTreeTrack')
+      expect(assignedTrack?.querySelector('.cspTreeCel.assigned')).toBeTruthy()
     })
   })
 
@@ -124,16 +124,24 @@ it('creates unplaced CSP cards by dropping multiple selected assets into a corre
     fireEvent.click(screen.getByRole('button', { name: 'セル列を作成して素材を登録' }))
 
     await waitFor(() => {
-      const track = screen.getByLabelText('A（作画）へ画像素材を登録')
-      expect(track.querySelectorAll('.cspTreeCel')).toHaveLength(2)
-      expect(track.querySelector('.cspTreeCelFrame')).toBeNull()
-      expect(Array.from(track.querySelectorAll<HTMLInputElement>('.cspTreeCel input')).map(input => input.value)).toEqual(['A2', 'A1'])
+      const track = screen.getByLabelText('A（作画）にカードを追加').closest('.cspTreeTrack')
+      expect(track?.querySelectorAll('.cspTreeCel')).toHaveLength(2)
+      expect(track?.querySelector('.cspTreeCelFrame')).toBeNull()
+      expect(Array.from(track?.querySelectorAll<HTMLInputElement>('.cspTreeCel input') ?? []).map(input => input.value)).toEqual(['A2', 'A1'])
     })
 
-    const track = screen.getByLabelText('A（作画）へ画像素材を登録')
+    const addToTrack = screen.getByLabelText('A（作画）にカードを追加')
+    const track = addToTrack.closest('.cspTreeTrack')
+    if (!track) throw new Error('CSP track not found')
     const existingCard = track.querySelector<HTMLElement>('.cspTreeCel')
     if (!existingCard) throw new Error('registered CSP card not found')
     dragInternalPointer(firstCard, existingCard)
+    await waitFor(() => {
+      expect(track.querySelectorAll('.cspTreeCel')).toHaveLength(2)
+      expect(screen.getByRole('status').textContent).toBe('複数素材はセル列の「カードを追加」へドロップしてください。')
+    })
+
+    dragInternalPointer(firstCard, addToTrack)
     await waitFor(() => {
       expect(track.querySelectorAll('.cspTreeCel')).toHaveLength(2)
       expect(screen.getByRole('status').textContent).toBe('0件追加 / 2件は登録済み')
@@ -164,9 +172,9 @@ it('binds a sheet-first key from the unregistered tree to the active CSP destina
 
     await waitFor(() => {
       expect(document.querySelector('.cspTreeCel.unregistered')).toBeNull()
-      const track = screen.getByLabelText('A（演出）へ画像素材を登録')
-      expect(track.querySelector('.cspTreeCel.assigned')).toBeTruthy()
-      expect((track.querySelector('.cspTreeCel input') as HTMLInputElement | null)?.value).toBe('A1')
+      const track = screen.getByLabelText('A（演出）にカードを追加').closest('.cspTreeTrack')
+      expect(track?.querySelector('.cspTreeCel.assigned')).toBeTruthy()
+      expect((track?.querySelector('.cspTreeCel input') as HTMLInputElement | null)?.value).toBe('A1')
     })
 
     fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))

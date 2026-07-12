@@ -76,7 +76,9 @@ export function CspLayerTree({
     label: string
   } | null>(null)
   const [assetDropTrackNodeId, setAssetDropTrackNodeId] = useState<string | null>(null)
+  const [assetDropCelNodeId, setAssetDropCelNodeId] = useState<string | null>(null)
   const [assetDropGapId, setAssetDropGapId] = useState<string | null>(null)
+  const [activeAssetDragCount, setActiveAssetDragCount] = useState(0)
   const [newTrackDraft, setNewTrackDraft] = useState<{
     correctionLayerId: string
     gapIndex: number
@@ -191,25 +193,27 @@ export function CspLayerTree({
 
   useEffect(() => subscribeInternalDrag(detail => {
     if (detail.payload.kind !== 'asset' && detail.payload.kind !== 'registered-cell') return
-    const target = cspInternalDropTarget(treeRootRef.current, detail.clientX, detail.clientY)
+    const target = cspInternalDropTarget(treeRootRef.current, detail.clientX, detail.clientY, detail.payload)
     if (detail.phase === 'start' || detail.phase === 'move') {
-      setAssetDropTrackNodeId(target?.trackNodeId ?? null)
+      setActiveAssetDragCount(detail.payload.kind === 'asset' ? detail.payload.assetIds.length : 0)
+      setAssetDropCelNodeId(detail.payload.kind === 'asset' && target?.kind === 'cel' ? target.celNodeId ?? null : null)
+      setAssetDropTrackNodeId(target?.kind === 'track' ? target.trackNodeId ?? null : null)
       setAssetDropGapId(target?.gapId ?? null)
       return
     }
+    setActiveAssetDragCount(0)
+    setAssetDropCelNodeId(null)
     setAssetDropTrackNodeId(null)
     setAssetDropGapId(null)
     if (detail.phase !== 'drop' || !target) return
 
     if (target.kind === 'cel') {
       if (detail.payload.kind !== 'asset') return
-      if (detail.payload.assetIds.length > 1 && target.trackNodeId && target.correctionLayerId) {
-        const layer = tree.stages.flatMap(stage => stage.layers).find(item => item.layerId === target.correctionLayerId)
-        const track = layer?.tracks.find(item => item.nodeId === target.trackNodeId)
-        if (track?.slotId) handlePaperTrackDrop(detail.payload, track.slotId)
-      } else if (target.keyId) {
-        handleAssetDrop(detail.payload.assetIds, target.keyId, target.slotId)
+      if (detail.payload.assetIds.length !== 1) {
+        setDropNotice('複数素材はセル列の「カードを追加」へドロップしてください。')
+        return
       }
+      if (target.keyId) handleAssetDrop(detail.payload.assetIds, target.keyId, target.slotId)
       return
     }
     if (target.kind === 'track') {
@@ -265,6 +269,9 @@ export function CspLayerTree({
         data-csp-correction-layer-id={correctionLayerId}
         data-csp-gap-index={gapIndex}
       >
+        {activeAssetDragCount > 0 && assetDropGapId === gapId && !editing && (
+          <span className="cspTreeTrackInsertLabel">ここに新しいセル列を作成（{activeAssetDragCount}件）</span>
+        )}
         {editing && newTrackDraft && (
           <form className="cspTreeNewTrackForm" onSubmit={submitNewTrack}>
             <input
@@ -297,6 +304,8 @@ export function CspLayerTree({
     const showSheetLabel = Boolean(cel.keyId && cel.displayLabel?.trim() && cel.displayLabel.trim() !== cel.cspCellName.trim())
     const asset = cel.assetId ? assetsById.get(cel.assetId) : undefined
     const selected = cel.keyId === selectedKeyId
+    const assetDragOver = cel.nodeId === assetDropCelNodeId
+    const assetDropInvalid = assetDragOver && activeAssetDragCount !== 1
     return (
       <div
         key={cel.nodeId}
@@ -305,9 +314,12 @@ export function CspLayerTree({
           selected ? 'selected' : '',
           cel.materialState === 'assigned' ? 'assigned' : '',
           cel.keyId && !cel.bindingId ? 'unregistered' : '',
+          assetDragOver ? 'assetDragOver' : '',
+          assetDropInvalid ? 'assetDropInvalid' : '',
         ].filter(Boolean).join(' ')}
         draggable={false}
         data-csp-drop-kind={cel.keyId ? 'cel' : undefined}
+        data-csp-cel-node-id={cel.nodeId}
         data-csp-key-id={cel.keyId}
         data-csp-slot-id={assignmentSlotId}
         data-csp-paper-track={track.paperTrack}
@@ -362,6 +374,15 @@ export function CspLayerTree({
               </button>
             </Tooltip>
           </div>
+        )}
+        {assetDragOver && (
+          <span className="cspTreeCelDropLabel">
+            {assetDropInvalid
+              ? `複数素材は「${track.label}列にカードを追加」へ`
+              : asset
+                ? `${cel.cspCellName}の素材を差し替え`
+                : `${cel.cspCellName}へ素材を割り当て`}
+          </span>
         )}
       </div>
     )
@@ -451,18 +472,18 @@ export function CspLayerTree({
                     const acceptsStackGuideAsset = Boolean(track.stackGuideLabelId && layer.layerId)
                     const acceptsPaperTrackAsset = Boolean(track.paperTrack && track.slotId)
                     const acceptsAsset = acceptsStackGuideAsset || acceptsPaperTrackAsset
+                    const assetDropZoneLabel = acceptsStackGuideAsset
+                      ? `${track.label}（${layer.label}）へ画像素材を割り当て`
+                      : `${track.label}（${layer.label}）にカードを追加`
                     return (
                     <Fragment key={track.nodeId}>
                     <div
                       className={[
                         'cspTreeTrack',
-                        acceptsAsset ? 'assetDropTarget' : '',
-                        assetDropTrackNodeId === track.nodeId ? 'assetDragOver' : '',
                       ].filter(Boolean).join(' ')}
-                      aria-label={acceptsAsset ? `${track.label}（${layer.label}）へ画像素材を登録` : undefined}
-                      data-csp-drop-kind={acceptsAsset ? 'track' : undefined}
-                      data-csp-track-node-id={acceptsAsset ? track.nodeId : undefined}
-                      data-csp-correction-layer-id={acceptsAsset ? layer.layerId : undefined}
+                      data-csp-drop-kind={track.slotId ? 'track' : undefined}
+                      data-csp-track-node-id={track.slotId ? track.nodeId : undefined}
+                      data-csp-correction-layer-id={track.slotId ? layer.layerId : undefined}
                       onPointerDown={track.stackGuideLabelId ? event => {
                         const dragSource = event.currentTarget
                         startInternalPointerDrag(event, {
@@ -512,6 +533,25 @@ export function CspLayerTree({
                       {track.cels.length === 0 && <span className="cspTreeNoCels">カードなし</span>}
                       {track.cels.map(cel => renderCelCard(track, cel, layer.layerId))}
                     </div>
+                    {acceptsAsset && (
+                      <div
+                        className={[
+                          'cspTreeAssetDropZone',
+                          activeAssetDragCount > 0 ? 'active' : '',
+                          assetDropTrackNodeId === track.nodeId ? 'assetDragOver' : '',
+                        ].filter(Boolean).join(' ')}
+                        aria-label={assetDropZoneLabel}
+                        data-csp-drop-kind="track-add"
+                        data-csp-track-node-id={track.nodeId}
+                        data-csp-correction-layer-id={layer.layerId}
+                      >
+                        {acceptsStackGuideAsset
+                          ? `${track.label}へ素材を割り当て`
+                          : activeAssetDragCount > 0
+                            ? `${track.label}列に${activeAssetDragCount}件のカードを追加`
+                            : `${track.label}列にカードを追加`}
+                      </div>
+                    )}
                     </div>
                     {layer.layerId && renderNewTrackDropZone(layer.layerId, layer.label, layer.tracks, trackIndex + 1)}
                     </Fragment>
@@ -575,6 +615,7 @@ function DeleteIcon() {
 
 interface CspInternalDropTarget {
   kind: 'cel' | 'track' | 'gap'
+  celNodeId?: string
   keyId?: string
   slotId?: string
   trackNodeId?: string
@@ -583,28 +624,43 @@ interface CspInternalDropTarget {
   gapIndex?: number
 }
 
-function cspInternalDropTarget(root: HTMLElement | null, clientX: number, clientY: number): CspInternalDropTarget | null {
+function cspInternalDropTarget(
+  root: HTMLElement | null,
+  clientX: number,
+  clientY: number,
+  payload: Extract<InternalDragPayload, { kind: 'asset' | 'registered-cell' }>,
+): CspInternalDropTarget | null {
   const element = document.elementFromPoint?.(clientX, clientY)
   if (!root || !element || !root.contains(element)) return null
 
-  const cel = element.closest<HTMLElement>('[data-csp-drop-kind="cel"][data-csp-key-id]')
-  if (cel && root.contains(cel)) {
-    const keyId = cel.dataset.cspKeyId
-    const parentTrack = cel.closest<HTMLElement>('[data-csp-drop-kind="track"][data-csp-track-node-id][data-csp-correction-layer-id]')
-    if (keyId) return {
-      kind: 'cel',
-      keyId,
-      slotId: cel.dataset.cspSlotId,
-      trackNodeId: parentTrack?.dataset.cspTrackNodeId,
-      correctionLayerId: parentTrack?.dataset.cspCorrectionLayerId,
+  if (payload.kind === 'asset') {
+    const cel = element.closest<HTMLElement>('[data-csp-drop-kind="cel"][data-csp-key-id][data-csp-cel-node-id]')
+    if (cel && root.contains(cel)) {
+      const keyId = cel.dataset.cspKeyId
+      const celNodeId = cel.dataset.cspCelNodeId
+      if (keyId && celNodeId) return {
+        kind: 'cel',
+        celNodeId,
+        keyId,
+        slotId: cel.dataset.cspSlotId,
+      }
+    }
+
+    const assetTarget = element.closest<HTMLElement>('[data-csp-drop-kind="track-add"][data-csp-track-node-id][data-csp-correction-layer-id]')
+    if (assetTarget && root.contains(assetTarget)) {
+      const trackNodeId = assetTarget.dataset.cspTrackNodeId
+      const correctionLayerId = assetTarget.dataset.cspCorrectionLayerId
+      if (trackNodeId && correctionLayerId) return { kind: 'track', trackNodeId, correctionLayerId }
     }
   }
 
-  const track = element.closest<HTMLElement>('[data-csp-drop-kind="track"][data-csp-track-node-id][data-csp-correction-layer-id]')
-  if (track && root.contains(track)) {
-    const trackNodeId = track.dataset.cspTrackNodeId
-    const correctionLayerId = track.dataset.cspCorrectionLayerId
-    if (trackNodeId && correctionLayerId) return { kind: 'track', trackNodeId, correctionLayerId }
+  if (payload.kind === 'registered-cell') {
+    const track = element.closest<HTMLElement>('[data-csp-drop-kind="track"][data-csp-track-node-id][data-csp-correction-layer-id]')
+    if (track && root.contains(track)) {
+      const trackNodeId = track.dataset.cspTrackNodeId
+      const correctionLayerId = track.dataset.cspCorrectionLayerId
+      if (trackNodeId && correctionLayerId) return { kind: 'track', trackNodeId, correctionLayerId }
+    }
   }
 
   const gap = element.closest<HTMLElement>('[data-csp-drop-kind="gap"][data-csp-gap-id][data-csp-correction-layer-id][data-csp-gap-index]')

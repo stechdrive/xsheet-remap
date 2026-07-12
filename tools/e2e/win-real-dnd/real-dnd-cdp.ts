@@ -118,6 +118,8 @@ try {
   client = await CdpClient.connect(target.webSocketDebuggerUrl)
   await client.send('Runtime.enable')
   await waitForSheet()
+  await ensurePaneExpandedWithRealMouse('sheet-left-pane')
+  await ensurePaneExpandedWithRealMouse('sheet-right-pane')
   await setSheetZoomForRealMouse(60)
 
   if (args.mode === 'remap') {
@@ -405,6 +407,28 @@ async function waitForPaneExpanded(controls: string, expanded: boolean): Promise
     `),
     `${controls} expanded=${expanded}`,
   )
+}
+
+async function ensurePaneExpandedWithRealMouse(controls: string): Promise<void> {
+  const expanded = await evaluatePage<boolean>(`
+    document.querySelector('button[aria-controls=${JSON.stringify(controls)}]')?.getAttribute('aria-expanded') === 'true'
+  `)
+  if (!expanded) {
+    const toggleClient = await paneTogglePoint(controls)
+    await realMouseClick(await clientToScreen(toggleClient))
+    await waitForPaneExpanded(controls, true)
+  }
+  diagnostics[`pane:${controls}`] = await evaluatePage(`
+    (() => {
+      const button = document.querySelector('button[aria-controls=${JSON.stringify(controls)}]');
+      const pane = document.getElementById(${JSON.stringify(controls)});
+      const rect = pane?.getBoundingClientRect();
+      return {
+        expanded: button?.getAttribute('aria-expanded'),
+        rect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null,
+      };
+    })()
+  `)
 }
 
 async function focusPaneToggleWithRealKeyboard(controls: string): Promise<void> {
@@ -754,6 +778,9 @@ async function assetBrowserDropPoint(): Promise<ClientPoint> {
       const browser = document.querySelector('.assetBrowser');
       if (!browser) throw new Error('asset browser not found');
       const rect = browser.getBoundingClientRect();
+      if (rect.width < 40 || rect.height < 80) {
+        throw new Error('asset browser is not visibly expanded: ' + JSON.stringify({ width: rect.width, height: rect.height }));
+      }
       return { x: rect.left + Math.min(Math.max(rect.width / 2, 32), rect.width - 24), y: rect.top + Math.min(96, Math.max(24, rect.height / 3)) };
     })()
   `)

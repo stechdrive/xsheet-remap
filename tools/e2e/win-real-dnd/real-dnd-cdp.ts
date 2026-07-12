@@ -312,20 +312,25 @@ async function runRemapRealDndScenario(): Promise<void> {
   await waitForCspTrackAssigned('A')
   const cspCellClient = await cspTrackCelPoint('A')
   const cspCellScreen = await clientToScreen(cspCellClient)
-  const cspGhostScreen = await clientToScreen({ x: cspCellClient.x + 90, y: cspCellClient.y + 20 })
+  const cspGhostScreen = await clientToScreen({ x: cspCellClient.x - 40, y: cspCellClient.y + 8 })
   await verifyPointerDragGhost(cspCellScreen, cspGhostScreen, '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragCardClone', 'remap CSP cell pointer drag ghost')
-  const frameClient = await framePoint('cell', 'A', 1)
+  const cspDropCellClient = await cspTrackCelPoint('A')
+  const cspDropCellScreen = await clientToScreen(cspDropCellClient)
+  const frameClient = await framePoint('action', 'A', 1)
   const frameScreen = await clientToScreen(frameClient)
-  await realMouseDrag(cspCellScreen, frameScreen)
-  await waitForAssetEventAt('cell', 'A', 1)
+  diagnostics.cspCellDropSource = { client: cspDropCellClient, screen: cspDropCellScreen }
+  diagnostics.cspCellDropTarget = { client: frameClient, screen: frameScreen }
+  await realMouseDragRegisteredCellToSheet(cspDropCellScreen, frameScreen)
+  await waitForAssetEventAt('action', 'A', 1)
   checks.push('dragged a CSP layer-tree card onto a sheet frame with the real mouse and created the event')
 
-  await focusPaneToggle('sheet-left-pane')
-  await realKeyPress('{ENTER}')
+  const paneToggleClient = await paneTogglePoint('sheet-left-pane')
+  await realMouseClick(await clientToScreen(paneToggleClient))
   await waitForPaneExpanded('sheet-left-pane', false)
-  await realKeyPress('{ENTER}')
+  await focusPaneToggleWithRealKeyboard('sheet-left-pane')
+  await realKeyPress('{SPACE}', true)
   await waitForPaneExpanded('sheet-left-pane', true)
-  checks.push('closed and reopened the CSP layer pane with real keyboard input')
+  checks.push('closed the CSP layer pane with the real mouse and reopened it with real keyboard input')
 }
 
 async function dragAssetToCspTrack(fileName: string, trackLabel: string): Promise<void> {
@@ -361,7 +366,8 @@ async function cspTrackCelPoint(trackLabel: string): Promise<ClientPoint> {
       const cel = track?.querySelector('.cspTreeCel[data-csp-key-id]');
       if (!cel) throw new Error('registered CSP cell not found: ${escapeForSingleQuotedError(trackLabel)}');
       cel.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const rect = cel.getBoundingClientRect();
+      const dragHandle = cel.querySelector('.cspTreeAssetState') || cel;
+      const rect = dragHandle.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()
   `)
@@ -381,16 +387,15 @@ async function waitForCspTrackAssigned(trackLabel: string): Promise<void> {
   )
 }
 
-async function focusPaneToggle(controls: string): Promise<void> {
-  const focused = await evaluatePage<boolean>(`
+async function paneTogglePoint(controls: string): Promise<ClientPoint> {
+  return evaluatePage<ClientPoint>(`
     (() => {
       const button = document.querySelector('button[aria-controls=${JSON.stringify(controls)}]');
-      if (!button) return false;
-      button.focus();
-      return document.activeElement === button;
+      if (!button) throw new Error('pane toggle not found: ${escapeForSingleQuotedError(controls)}');
+      const rect = button.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()
   `)
-  if (!focused) throw new Error(`pane toggle could not be focused: ${controls}`)
 }
 
 async function waitForPaneExpanded(controls: string, expanded: boolean): Promise<void> {
@@ -402,8 +407,59 @@ async function waitForPaneExpanded(controls: string, expanded: boolean): Promise
   )
 }
 
-async function realKeyPress(keys: string): Promise<void> {
-  await runMouseOp(['key-press', '--keys', keys, '--app-pid', args['app-pid'] as string])
+async function focusPaneToggleWithRealKeyboard(controls: string): Promise<void> {
+  for (let index = 0; index < 40; index += 1) {
+    const focused = await evaluatePage<boolean>(`
+      document.activeElement?.matches('button[aria-controls=${JSON.stringify(controls)}]') === true
+    `)
+    if (focused) {
+      diagnostics.paneToggleKeyboardTabs = index
+      return
+    }
+    await realKeyPress('{TAB}', true)
+  }
+  throw new Error(`pane toggle was not reached by real keyboard tab navigation: ${controls}`)
+}
+
+async function realKeyPress(keys: string, preserveFocus = false): Promise<void> {
+  await runMouseOp([
+    'key-press',
+    '--keys', keys,
+    '--app-pid', args['app-pid'] as string,
+    ...(preserveFocus ? ['--preserve-focus'] : []),
+  ])
+}
+
+async function realMouseDragRegisteredCellToSheet(from: ScreenPoint, to: ScreenPoint): Promise<void> {
+  let mouseIsDown = false
+  try {
+    await runMouseOp([
+      'mouse-down-screen',
+      '--x', String(from.x),
+      '--y', String(from.y),
+      '--app-pid', args['app-pid'] as string,
+    ])
+    mouseIsDown = true
+    await runMouseOp([
+      'mouse-move-screen',
+      '--x', String(to.x),
+      '--y', String(to.y),
+      '--duration', '0.8',
+    ])
+    await waitForPageCondition(
+      () => evaluatePage<boolean>(`Boolean(document.querySelector('.registeredCellDragImageShell.pointerDragGhost .registeredCellDragCardClone'))`),
+      'registered cell ghost at sheet target',
+      3000,
+    )
+  } finally {
+    if (mouseIsDown) {
+      await runMouseOp([
+        'mouse-up-screen',
+        '--x', String(to.x),
+        '--y', String(to.y),
+      ])
+    }
+  }
 }
 
 async function runMouseOp(mouseArgs: string[]): Promise<void> {

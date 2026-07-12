@@ -4640,7 +4640,7 @@ dependencies = [
 
 [[package]]
 name = "xsheet-template-editor"
-version = "0.1.488"
+version = "0.1.489"
 dependencies = [
  "base64 0.22.1",
  "serde",

@@ -13,6 +13,7 @@ from pathlib import Path
 from pywinauto import Desktop, keyboard, mouse
 from win32api import GetMonitorInfo, GetSystemMetrics, MonitorFromPoint
 import win32gui
+import win32process
 
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
@@ -64,6 +65,7 @@ def main() -> int:
     key_parser = subparsers.add_parser("key-press", help="Send keyboard input to the main app window.")
     key_parser.add_argument("--keys", required=True)
     key_parser.add_argument("--app-pid", type=int, required=True)
+    key_parser.add_argument("--preserve-focus", action="store_true")
 
     explorer_parser = subparsers.add_parser("drag-explorer-item", help="Open Explorer, select a file/folder, and drag it to a screen coordinate.")
     explorer_parser.add_argument("--path", required=True)
@@ -115,7 +117,16 @@ def main() -> int:
         return 0
 
     if args.command == "key-press":
-        focus_process_window(args.app_pid)
+        if args.preserve_focus:
+            foreground = win32gui.GetForegroundWindow()
+            _, foreground_pid = win32process.GetWindowThreadProcessId(foreground)
+            if foreground_pid != args.app_pid:
+                raise RuntimeError(
+                    f"refusing to preserve keyboard focus for a different process: "
+                    f"expected={args.app_pid}, foreground={foreground_pid}"
+                )
+        else:
+            focus_process_window(args.app_pid)
         keyboard.send_keys(args.keys)
         time.sleep(0.1)
         print_json({"ok": True, "command": args.command, "keys": args.keys})

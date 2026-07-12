@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useReducer, useRef, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
 import type { AssetRoot, CutAsset, FileRef } from '@xsheet-remap/core'
 import { collectAssetPathDrop, isTauriHost, listAssetDirectory, openAssetRootDirectory, type AssetDirectoryEntry, type AssetDirectoryListing, type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
-import { ASSET_DRAG_MIME, ASSET_MULTI_DRAG_MIME, ASSET_POINTER_DROP_EVENT } from './sheetConstants'
-import { assetTextDragData, collectAssetFilesFromDrop, compareAssetNames, dedupeStringList } from './assetFiles'
+import { collectAssetFilesFromDrop, compareAssetNames, dedupeStringList } from './assetFiles'
 import {
   AssetFloatingPreview,
 } from './assetPreview'
@@ -19,7 +18,7 @@ import {
   type AssetPreviewRect,
 } from './assetPreviewModel'
 import { Tooltip, TooltipTarget } from './Tooltip'
-import { createPointerDragGhost, type PointerDragGhost } from './pointerDragGhost'
+import { startInternalPointerDrag } from './internalDrag'
 
 type AssetViewMode = 'grid' | 'list'
 type AssetThumbnailSize = 'normal' | 'large'
@@ -48,17 +47,6 @@ type AssetSelectionIntent = {
 
 type AssetDragWindow = Window & {
   __xsheetRemapAssetDragIds?: string[]
-}
-
-type AssetPointerDropPosition = {
-  x: number
-  y: number
-}
-
-type AssetPointerDropDetail = {
-  assetIds: string[]
-  clientX: number
-  clientY: number
 }
 
 type AssetBrowserProps = {
@@ -425,20 +413,6 @@ function AssetBrowser({
     }
   }
 
-  function dispatchAssetPointerDrop(assetIds: string[], position: AssetPointerDropPosition) {
-    if (assetIds.length === 0) return
-    const detail: AssetPointerDropDetail = {
-      assetIds,
-      clientX: position.x,
-      clientY: position.y,
-    }
-    window.dispatchEvent(new CustomEvent(ASSET_POINTER_DROP_EVENT, { detail }))
-  }
-
-  function selectedDragIdsForAsset(assetId: string): string[] {
-    return selectedAssetIdSet.has(assetId) ? activeSelectedAssetIds : [assetId]
-  }
-
   async function openPreviewForAsset(asset: CutAsset) {
     if (await openNativeAssetPreview(asset)) {
       setEmbeddedPreviewOpen(false)
@@ -542,7 +516,6 @@ function AssetBrowser({
                     viewMode={viewMode}
                     isSelected={Boolean(asset && selectedAssetIdSet.has(asset.assetId))}
                     isDragging={Boolean(asset && draggingAssetIdSet.has(asset.assetId))}
-                    dragAssetIds={asset ? selectedDragIdsForAsset(asset.assetId) : []}
                     onNavigate={setRequestedDirectoryPath}
                     onEnsureAsset={() => ensureDirectoryAsset(entry)}
                     onSelect={event => {
@@ -571,18 +544,6 @@ function AssetBrowser({
                       })
                       return assetIds
                     }}
-                    onPointerDrop={(position, assetIds) => {
-                      dispatchAssetPointerDrop(assetIds, position)
-                      onDropDiagnostic?.({
-                        source: 'asset-pointer',
-                        type: 'drop',
-                        target: 'directory-file',
-                        fileCount: assetIds.length,
-                        paths: [entry.path],
-                        position,
-                        details: assetIds.length > 0 ? `assetId ${assetIds.join(', ')}` : 'assetIdなし',
-                      })
-                    }}
                     onContextMenu={event => {
                       if (!entry.isSupportedImage) return
                       const ensured = asset ?? ensureDirectoryAsset(entry)
@@ -608,7 +569,6 @@ function AssetBrowser({
                   viewMode={viewMode}
                   isSelected={selectedAssetIdSet.has(asset.assetId)}
                   isDragging={draggingAssetIdSet.has(asset.assetId)}
-                  dragAssetIds={selectedDragIdsForAsset(asset.assetId)}
                   onSelect={event => selectAsset(asset.assetId, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey })}
                   onKeyboardSelect={() => selectAsset(asset.assetId)}
                   onDragStateChange={setDragState}
@@ -623,18 +583,6 @@ function AssetBrowser({
                       details: assetIds.length > 0 ? `assetId ${assetIds.join(', ')}` : 'assetIdなし',
                     })
                     return assetIds
-                  }}
-                  onPointerDrop={(position, assetIds) => {
-                    dispatchAssetPointerDrop(assetIds, position)
-                    onDropDiagnostic?.({
-                      source: 'asset-pointer',
-                      type: 'drop',
-                      target: 'registered-asset',
-                      fileCount: assetIds.length,
-                      paths: [asset.currentPath ?? asset.originalFileName],
-                      position,
-                      details: assetIds.length > 0 ? `assetId ${assetIds.join(', ')}` : 'assetIdなし',
-                    })
                   }}
                   onContextMenu={event => openAssetContextMenu(event, asset.assetId)}
                   onPreview={() => openAssetPreview(asset.assetId)}
@@ -988,14 +936,12 @@ function AssetDirectoryCard({
   viewMode,
   isSelected,
   isDragging,
-  dragAssetIds,
   onNavigate,
   onEnsureAsset,
   onSelect,
   onKeyboardSelect,
   onDragStateChange,
   onDragStart,
-  onPointerDrop,
   onContextMenu,
   onPreview,
 }: {
@@ -1005,27 +951,19 @@ function AssetDirectoryCard({
   viewMode: AssetViewMode
   isSelected: boolean
   isDragging: boolean
-  dragAssetIds: string[]
   onNavigate: (path: string) => void
   onEnsureAsset: () => CutAsset | null
   onSelect: (event: MouseEvent<HTMLElement>) => void
   onKeyboardSelect: () => void
   onDragStateChange: (isDragging: boolean, assetIds: string[]) => void
   onDragStart: () => string[]
-  onPointerDrop: (position: AssetPointerDropPosition, assetIds: string[]) => void
   onContextMenu?: (event: MouseEvent<HTMLElement>) => void
   onPreview: () => void
 }) {
-  const dragImageRef = useRef<HTMLElement | null>(null)
   const isFileAsset = entry.kind === 'file' && entry.isSupportedImage
   const isUnsupportedFile = entry.kind === 'file' && !entry.isSupportedImage
   const title = [entry.relativePath || entry.name, registration?.title].filter(Boolean).join('\n')
   const displayName = asset?.displayName ?? entry.name
-
-  function clearDragImage() {
-    dragImageRef.current?.remove()
-    dragImageRef.current = null
-  }
 
   return (
     <article
@@ -1043,16 +981,18 @@ function AssetDirectoryCard({
       aria-selected={isSelected}
       onPointerDown={event => {
         const dragSource = event.currentTarget
-        startAssetPointerDrag(event, {
-          canDrag: isFileAsset,
-          onDragStart: () => {
-            clearDragImage()
+        if (!isFileAsset) return
+        startInternalPointerDrag(event, {
+          begin: () => {
             const draggedAssetIds = onDragStart()
-            if (draggedAssetIds.length > 0) onDragStateChange(true, draggedAssetIds)
-            return draggedAssetIds
+            return draggedAssetIds.length > 0 ? { kind: 'asset', assetIds: draggedAssetIds } : null
           },
-          onDrop: onPointerDrop,
-          onDragEnd: assetIds => onDragStateChange(false, assetIds),
+          onStarted: payload => {
+            if (payload.kind === 'asset') onDragStateChange(true, payload.assetIds)
+          },
+          onFinished: payload => {
+            if (payload.kind === 'asset') onDragStateChange(false, payload.assetIds)
+          },
           createDragGhost: () => createAssetDragImage(dragSource),
           sourceScrollElement: dragSource.closest<HTMLElement>('.assetBrowserItems'),
         })
@@ -1078,31 +1018,6 @@ function AssetDirectoryCard({
         onKeyboardSelect()
       }}
       onContextMenu={onContextMenu}
-      onDragStart={event => {
-        if (!isFileAsset) {
-          event.preventDefault()
-          return
-        }
-        clearDragImage()
-        const draggedAssetIds = onDragStart()
-        if (draggedAssetIds.length === 0) {
-          event.preventDefault()
-          return
-        }
-        onDragStateChange(true, draggedAssetIds)
-        writeAssetDragData(event.dataTransfer, draggedAssetIds)
-        event.dataTransfer.effectAllowed = 'copy'
-        if (event.dataTransfer.setDragImage) {
-          const dragImage = createAssetDragImage(event.currentTarget)
-          document.body.append(dragImage)
-          event.dataTransfer.setDragImage(dragImage, 0, 0)
-          dragImageRef.current = dragImage
-        }
-      }}
-      onDragEnd={() => {
-        clearDragImage()
-        onDragStateChange(false, dragAssetIds)
-      }}
     >
       {isFileAsset && (
         <TooltipTarget label={uiText.assets.quickPreview}>
@@ -1164,12 +1079,10 @@ function AssetCard({
   viewMode,
   isSelected,
   isDragging,
-  dragAssetIds,
   onSelect,
   onKeyboardSelect,
   onDragStateChange,
   onDragStart,
-  onPointerDrop,
   onContextMenu,
   onPreview,
 }: {
@@ -1178,23 +1091,14 @@ function AssetCard({
   viewMode: AssetViewMode
   isSelected: boolean
   isDragging: boolean
-  dragAssetIds: string[]
   onSelect: (event: MouseEvent<HTMLElement>) => void
   onKeyboardSelect: () => void
   onDragStateChange: (isDragging: boolean, assetIds: string[]) => void
   onDragStart: () => string[]
-  onPointerDrop: (position: AssetPointerDropPosition, assetIds: string[]) => void
   onContextMenu?: (event: MouseEvent<HTMLElement>) => void
   onPreview: () => void
 }) {
   const title = [asset.relativePath ?? asset.currentPath ?? asset.originalFileName, registration?.title].filter(Boolean).join('\n')
-  const dragImageRef = useRef<HTMLElement | null>(null)
-
-  function clearDragImage() {
-    dragImageRef.current?.remove()
-    dragImageRef.current = null
-  }
-
   return (
     <article
       className={[
@@ -1208,16 +1112,17 @@ function AssetCard({
       aria-selected={isSelected}
       onPointerDown={event => {
         const dragSource = event.currentTarget
-        startAssetPointerDrag(event, {
-          canDrag: true,
-          onDragStart: () => {
-            clearDragImage()
+        startInternalPointerDrag(event, {
+          begin: () => {
             const draggedAssetIds = onDragStart()
-            if (draggedAssetIds.length > 0) onDragStateChange(true, draggedAssetIds)
-            return draggedAssetIds
+            return draggedAssetIds.length > 0 ? { kind: 'asset', assetIds: draggedAssetIds } : null
           },
-          onDrop: onPointerDrop,
-          onDragEnd: assetIds => onDragStateChange(false, assetIds),
+          onStarted: payload => {
+            if (payload.kind === 'asset') onDragStateChange(true, payload.assetIds)
+          },
+          onFinished: payload => {
+            if (payload.kind === 'asset') onDragStateChange(false, payload.assetIds)
+          },
           createDragGhost: () => createAssetDragImage(dragSource),
           sourceScrollElement: dragSource.closest<HTMLElement>('.assetBrowserItems'),
         })
@@ -1228,23 +1133,6 @@ function AssetCard({
         if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
         onKeyboardSelect()
-      }}
-      onDragStart={event => {
-        clearDragImage()
-        const draggedAssetIds = onDragStart()
-        onDragStateChange(true, draggedAssetIds)
-        writeAssetDragData(event.dataTransfer, draggedAssetIds)
-        event.dataTransfer.effectAllowed = 'copy'
-        if (event.dataTransfer.setDragImage) {
-          const dragImage = createAssetDragImage(event.currentTarget)
-          document.body.append(dragImage)
-          event.dataTransfer.setDragImage(dragImage, 0, 0)
-          dragImageRef.current = dragImage
-        }
-      }}
-      onDragEnd={() => {
-        clearDragImage()
-        onDragStateChange(false, dragAssetIds)
       }}
     >
       <TooltipTarget label={uiText.assets.quickPreview}>
@@ -1289,128 +1177,6 @@ function AssetCard({
       </div>
     </article>
   )
-}
-
-const ASSET_POINTER_DRAG_THRESHOLD_PX = 4
-
-type AssetSourceScrollLock = {
-  element: HTMLElement
-  scrollLeft: number
-  scrollTop: number
-}
-
-function startAssetPointerDrag(
-  event: ReactPointerEvent<HTMLElement>,
-  input: {
-    canDrag: boolean
-    onDragStart: () => string[]
-    onDrop: (position: AssetPointerDropPosition, assetIds: string[]) => void
-    onDragEnd: (assetIds: string[]) => void
-    createDragGhost: () => HTMLElement
-    sourceScrollElement?: HTMLElement | null
-  },
-) {
-  if (!input.canDrag || event.button !== 0 || isInteractiveAssetPointerTarget(event.target)) return
-
-  const dragElement = event.currentTarget
-  const pointerId = event.pointerId
-  const startX = event.clientX
-  const startY = event.clientY
-  const sourceScrollLock = createAssetSourceScrollLock(input.sourceScrollElement)
-  let isDragging = false
-  let dragAssetIds: string[] = []
-  let dragGhost: PointerDragGhost | null = null
-
-  function cleanup() {
-    window.removeEventListener('pointermove', handleMove)
-    window.removeEventListener('pointerup', handleStop)
-    window.removeEventListener('pointercancel', handleCancel)
-    releasePointerCaptureIfNeeded(dragElement, pointerId)
-    if (isDragging) restoreAssetSourceScroll(sourceScrollLock)
-    dragGhost?.dispose()
-    dragGhost = null
-  }
-
-  function ensureDragging(nextEvent: globalThis.PointerEvent) {
-    if (isDragging) return true
-    const moved = Math.abs(nextEvent.clientX - startX) >= ASSET_POINTER_DRAG_THRESHOLD_PX
-      || Math.abs(nextEvent.clientY - startY) >= ASSET_POINTER_DRAG_THRESHOLD_PX
-    if (!moved) return false
-    dragAssetIds = input.onDragStart()
-    if (dragAssetIds.length === 0) {
-      cleanup()
-      return false
-    }
-    capturePointerIfNeeded(dragElement, pointerId)
-    restoreAssetSourceScroll(sourceScrollLock)
-    dragGhost = createPointerDragGhost(input.createDragGhost(), nextEvent.clientX, nextEvent.clientY)
-    isDragging = true
-    return true
-  }
-
-  function handleMove(nextEvent: globalThis.PointerEvent) {
-    if (nextEvent.pointerId !== pointerId) return
-    if (!ensureDragging(nextEvent)) return
-    nextEvent.preventDefault()
-    restoreAssetSourceScroll(sourceScrollLock)
-    dragGhost?.move(nextEvent.clientX, nextEvent.clientY)
-  }
-
-  function handleStop(nextEvent: globalThis.PointerEvent) {
-    if (nextEvent.pointerId !== pointerId) return
-    cleanup()
-    if (!isDragging) return
-    nextEvent.preventDefault()
-    input.onDrop({ x: nextEvent.clientX, y: nextEvent.clientY }, dragAssetIds)
-    input.onDragEnd(dragAssetIds)
-  }
-
-  function handleCancel(nextEvent: globalThis.PointerEvent) {
-    if (nextEvent.pointerId !== pointerId) return
-    cleanup()
-    if (isDragging) input.onDragEnd(dragAssetIds)
-  }
-
-  window.addEventListener('pointermove', handleMove)
-  window.addEventListener('pointerup', handleStop)
-  window.addEventListener('pointercancel', handleCancel)
-}
-
-function createAssetSourceScrollLock(element: HTMLElement | null | undefined): AssetSourceScrollLock | null {
-  return element
-    ? {
-        element,
-        scrollLeft: element.scrollLeft,
-        scrollTop: element.scrollTop,
-      }
-    : null
-}
-
-function restoreAssetSourceScroll(lock: AssetSourceScrollLock | null) {
-  if (!lock) return
-  lock.element.scrollLeft = lock.scrollLeft
-  lock.element.scrollTop = lock.scrollTop
-}
-
-function capturePointerIfNeeded(element: HTMLElement, pointerId: number) {
-  try {
-    element.setPointerCapture?.(pointerId)
-  } catch {
-    // Some test and embedded browser runtimes do not expose pointer capture for synthetic events.
-  }
-}
-
-function releasePointerCaptureIfNeeded(element: HTMLElement, pointerId: number) {
-  try {
-    if (element.hasPointerCapture?.(pointerId)) element.releasePointerCapture?.(pointerId)
-  } catch {
-    // Ignore stale pointer capture handles after drag cancellation.
-  }
-}
-
-function isInteractiveAssetPointerTarget(target: EventTarget | null): boolean {
-  const element = target instanceof Element ? target : null
-  return Boolean(element?.closest('button,input,select,textarea,a,[role="button"]'))
 }
 
 function assetSelectionFromIntent(
@@ -1479,17 +1245,6 @@ function previewPayloadForDirectoryEntry(entry: AssetDirectoryEntry): AssetPrevi
       detailText,
     }],
   }
-}
-
-function writeAssetDragData(dataTransfer: DataTransfer, assetIds: string[]) {
-  if (assetIds.length > 1) {
-    dataTransfer.setData(ASSET_MULTI_DRAG_MIME, JSON.stringify(assetIds))
-    return
-  }
-  const assetId = assetIds[0]
-  if (!assetId) return
-  dataTransfer.setData(ASSET_DRAG_MIME, assetId)
-  dataTransfer.setData('text/plain', assetTextDragData(assetId))
 }
 
 function assetRange(sortedAssetIds: string[], anchorAssetId: string, targetAssetId: string): string[] {

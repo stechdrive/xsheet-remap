@@ -120,6 +120,9 @@ try {
   await waitForSheet()
   await setSheetZoomForRealMouse(60)
 
+  if (args.mode === 'remap') {
+    await runRemapRealDndScenario()
+  } else {
   const folderDropClient = await assetBrowserDropPoint()
   const folderDropScreen = await clientToScreen(folderDropClient)
   diagnostics.folderDropClient = folderDropClient
@@ -248,9 +251,11 @@ try {
 
   await normalizeSelectedRegisteredCellWithRealAssetFileName('A', 'A_01.png')
   checks.push('normalized a registered cell with real material filename renaming in the desktop EXE')
+  }
 
+  const scenario = args.mode === 'remap' ? 'remap-real-dnd' : 'real-dnd'
   await writeJson(args.report, { passed: true, checks, diagnostics })
-  await writeJson(args.result, { passed: true, scenario: 'real-dnd', checks, artifacts: [args.report] })
+  await writeJson(args.result, { passed: true, scenario, checks, artifacts: [args.report] })
 } catch (error) {
   const report = {
     passed: false,
@@ -260,10 +265,145 @@ try {
     debug: client ? await pageDebug().catch(debugError => ({ debugError: errorMessage(debugError) })) : null,
   }
   await writeJson(args.report, report)
-  await writeJson(args.result, { passed: false, scenario: 'real-dnd', error: errorMessage(error), checks, artifacts: [args.report] })
+  const scenario = args.mode === 'remap' ? 'remap-real-dnd' : 'real-dnd'
+  await writeJson(args.result, { passed: false, scenario, error: errorMessage(error), checks, artifacts: [args.report] })
   process.exitCode = 1
 } finally {
   client?.close()
+}
+
+async function runRemapRealDndScenario(): Promise<void> {
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`Boolean(document.querySelector('.cspLayerTree') && document.querySelector('[aria-label^="BG1（"]') && document.querySelector('[aria-label^="SL1（"]') && document.querySelector('[aria-label^="MEMO1（"]'))`),
+    'remap CSP layer tree fixture',
+  )
+
+  const folderDropClient = await assetBrowserDropPoint()
+  const folderDropScreen = await clientToScreen(folderDropClient)
+  diagnostics.folderDropClient = folderDropClient
+  diagnostics.folderDropScreen = folderDropScreen
+  await runExplorerDropAndWait(
+    args.folder as string,
+    folderDropScreen,
+    () => waitForAssetBrowserFile('A1.png'),
+    'remap asset browser folder import',
+  )
+  checks.push('dragged a real Windows folder from Explorer onto the remap asset browser')
+
+  const assetClient = await assetCardPoint('A1.png')
+  const assetScreen = await clientToScreen(assetClient)
+  const ghostScreen = await clientToScreen({ x: assetClient.x - 80, y: assetClient.y + 24 })
+  await verifyPointerDragGhost(assetScreen, ghostScreen, '.assetDragImageShell.pointerDragGhost', 'remap asset pointer drag ghost')
+  checks.push('showed and cleaned up the remap asset drag ghost with real mouse input')
+
+  await dragAssetToCspTrack('A1.png', 'BG1')
+  await waitForCspTrackAssigned('BG1')
+  checks.push('dragged an asset onto the BG/BOOK CSP track with the real mouse')
+
+  await dragAssetToCspTrack('A1_e.png', 'SL1')
+  await waitForCspTrackAssigned('SL1')
+  checks.push('dragged an asset onto the camera-note CSP track with the real mouse')
+
+  await dragAssetToCspTrack('A2.png', 'MEMO1')
+  await waitForCspTrackAssigned('MEMO1')
+  checks.push('dragged an asset onto the memo CSP track with the real mouse')
+
+  await dragAssetToCspTrack('A1.png', 'A')
+  await waitForCspTrackAssigned('A')
+  const cspCellClient = await cspTrackCelPoint('A')
+  const cspCellScreen = await clientToScreen(cspCellClient)
+  const cspGhostScreen = await clientToScreen({ x: cspCellClient.x + 90, y: cspCellClient.y + 20 })
+  await verifyPointerDragGhost(cspCellScreen, cspGhostScreen, '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragCardClone', 'remap CSP cell pointer drag ghost')
+  const frameClient = await framePoint('cell', 'A', 1)
+  const frameScreen = await clientToScreen(frameClient)
+  await realMouseDrag(cspCellScreen, frameScreen)
+  await waitForAssetEventAt('cell', 'A', 1)
+  checks.push('dragged a CSP layer-tree card onto a sheet frame with the real mouse and created the event')
+
+  await focusPaneToggle('sheet-left-pane')
+  await realKeyPress('{ENTER}')
+  await waitForPaneExpanded('sheet-left-pane', false)
+  await realKeyPress('{ENTER}')
+  await waitForPaneExpanded('sheet-left-pane', true)
+  checks.push('closed and reopened the CSP layer pane with real keyboard input')
+}
+
+async function dragAssetToCspTrack(fileName: string, trackLabel: string): Promise<void> {
+  const targetClient = await cspTrackPoint(trackLabel)
+  const assetClient = await assetCardPoint(fileName)
+  const targetScreen = await clientToScreen(targetClient)
+  const assetScreen = await clientToScreen(assetClient)
+  diagnostics[`csp:${trackLabel}:asset`] = { client: assetClient, screen: assetScreen, fileName }
+  diagnostics[`csp:${trackLabel}:target`] = { client: targetClient, screen: targetScreen }
+  await realMouseDrag(assetScreen, targetScreen)
+}
+
+async function cspTrackPoint(trackLabel: string): Promise<ClientPoint> {
+  return evaluatePage<ClientPoint>(`
+    (() => {
+      const tracks = Array.from(document.querySelectorAll('.cspTreeTrack[data-csp-drop-kind="track"]'));
+      const track = tracks.find(item => item.querySelector('.cspTreeTrackName, .cspTreeTrackNameInput')?.value === ${JSON.stringify(trackLabel)})
+        || tracks.find(item => item.querySelector('.cspTreeTrackName')?.textContent?.trim() === ${JSON.stringify(trackLabel)});
+      if (!track) throw new Error('CSP track not found: ${escapeForSingleQuotedError(trackLabel)}');
+      track.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = track.getBoundingClientRect();
+      return { x: rect.left + Math.min(rect.width * 0.72, rect.width - 20), y: rect.top + rect.height / 2 };
+    })()
+  `)
+}
+
+async function cspTrackCelPoint(trackLabel: string): Promise<ClientPoint> {
+  return evaluatePage<ClientPoint>(`
+    (() => {
+      const tracks = Array.from(document.querySelectorAll('.cspTreeTrack[data-csp-drop-kind="track"]'));
+      const track = tracks.find(item => item.querySelector('.cspTreeTrackNameInput')?.value === ${JSON.stringify(trackLabel)})
+        || tracks.find(item => item.querySelector('.cspTreeTrackName')?.textContent?.trim() === ${JSON.stringify(trackLabel)});
+      const cel = track?.querySelector('.cspTreeCel[data-csp-key-id]');
+      if (!cel) throw new Error('registered CSP cell not found: ${escapeForSingleQuotedError(trackLabel)}');
+      cel.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = cel.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()
+  `)
+}
+
+async function waitForCspTrackAssigned(trackLabel: string): Promise<void> {
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      (() => {
+        const tracks = Array.from(document.querySelectorAll('.cspTreeTrack[data-csp-drop-kind="track"]'));
+        const track = tracks.find(item => item.querySelector('.cspTreeTrackNameInput')?.value === ${JSON.stringify(trackLabel)})
+          || tracks.find(item => item.querySelector('.cspTreeTrackName')?.textContent?.trim() === ${JSON.stringify(trackLabel)});
+        return Boolean(track?.querySelector('.cspTreeCel.assigned'));
+      })()
+    `),
+    `CSP track ${trackLabel} assigned asset`,
+  )
+}
+
+async function focusPaneToggle(controls: string): Promise<void> {
+  const focused = await evaluatePage<boolean>(`
+    (() => {
+      const button = document.querySelector('button[aria-controls=${JSON.stringify(controls)}]');
+      if (!button) return false;
+      button.focus();
+      return document.activeElement === button;
+    })()
+  `)
+  if (!focused) throw new Error(`pane toggle could not be focused: ${controls}`)
+}
+
+async function waitForPaneExpanded(controls: string, expanded: boolean): Promise<void> {
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      document.querySelector('button[aria-controls=${JSON.stringify(controls)}]')?.getAttribute('aria-expanded') === ${JSON.stringify(String(expanded))}
+    `),
+    `${controls} expanded=${expanded}`,
+  )
+}
+
+async function realKeyPress(keys: string): Promise<void> {
+  await runMouseOp(['key-press', '--keys', keys, '--app-pid', args['app-pid'] as string])
 }
 
 async function runMouseOp(mouseArgs: string[]): Promise<void> {

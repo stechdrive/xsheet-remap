@@ -1,5 +1,7 @@
 param(
-  [string]$ExePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe",
+  [ValidateSet("editor", "remap")]
+  [string]$AppMode = "editor",
+  [string]$ExePath = "",
   [string]$ArtifactRoot = ".tmp/desktop-e2e-real-dnd",
   [string]$PythonPath = "python",
   [int]$TimeoutSeconds = 45,
@@ -16,6 +18,15 @@ if ($env:OS -ne "Windows_NT") {
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
+
+if (-not $ExePath) {
+  $ExePath = if ($AppMode -eq "remap") {
+    "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
+  } else {
+    "apps/editor/src-tauri/target/release/xsheet-editor.exe"
+  }
+}
+$scenario = if ($AppMode -eq "remap") { "remap-real-dnd" } else { "real-dnd" }
 
 if ($Build) {
   Write-Host "[real-dnd] building desktop executable..."
@@ -166,7 +177,7 @@ $remoteDebugPort = Get-FreeTcpPort
 $previousEnvironment = @{}
 $environmentOverrides = @{
   "XSHEET_REMAP_E2E" = "1"
-  "XSHEET_REMAP_E2E_SCENARIO" = "real-dnd"
+  "XSHEET_REMAP_E2E_SCENARIO" = $scenario
   "XSHEET_REMAP_E2E_ROOT" = $runRoot
   "XSHEET_REMAP_E2E_ASSETS" = $cutFolder
   "XSHEET_REMAP_E2E_EXPORTS" = $exportRoot
@@ -184,7 +195,8 @@ foreach ($key in $environmentOverrides.Keys) {
 $manifestPath = Join-Path $runRoot "manifest.json"
 [pscustomobject]@{
   runId = $runId
-  scenario = "real-dnd"
+  scenario = $scenario
+  appMode = $AppMode
   exePath = $resolvedExePath
   runRoot = $runRoot
   cutFolder = $cutFolder
@@ -219,6 +231,7 @@ try {
 
   $tsxPath = Join-Path $repoRoot "node_modules\.bin\tsx.cmd"
   & $tsxPath "tools/e2e/win-real-dnd/real-dnd-cdp.ts" `
+    "--mode" "$AppMode" `
     "--port" "$remoteDebugPort" `
     "--python" "$venvPython" `
     "--app-pid" "$($process.Id)" `
@@ -251,7 +264,7 @@ try {
 } finally {
   [pscustomobject]@{
     runId = $runId
-    scenario = "real-dnd"
+    scenario = $scenario
     passed = $passed
     error = $errorMessage
     processId = if ($process) { $process.Id } else { $null }

@@ -1,4 +1,6 @@
 import {
+  createDefaultProject,
+  createStackGuideLabel,
   standardA3SheetTemplate,
   type CutProject,
   type FileRef,
@@ -11,6 +13,8 @@ import {
   buildFullDefaultA3Scenario,
   FULL_DEFAULT_A3_SCENARIO_ID,
 } from './desktopE2EScenarios'
+
+export const REMAP_REAL_DND_SCENARIO_ID = 'remap-real-dnd'
 
 interface DesktopE2EConfig {
   scenario: string
@@ -39,6 +43,10 @@ interface DesktopE2EResult {
 export async function runDesktopE2EIfRequested(callbacks: DesktopE2ERunCallbacks): Promise<void> {
   const config = await getDesktopE2EConfig()
   if (!config || config.scenario === 'launch') return
+  if (config.scenario === REMAP_REAL_DND_SCENARIO_ID) {
+    callbacks.applyProject(buildRemapRealDndProject(), standardA3SheetTemplate)
+    return
+  }
   if (config.scenario !== FULL_DEFAULT_A3_SCENARIO_ID) return
 
   try {
@@ -51,6 +59,30 @@ export async function runDesktopE2EIfRequested(callbacks: DesktopE2ERunCallbacks
       error: errorMessage(error),
     } satisfies DesktopE2EResult)
   }
+}
+
+function buildRemapRealDndProject(): CutProject {
+  const background = createStackGuideLabel(createDefaultProject(), {
+    label: 'BG1',
+    kind: 'background',
+    displayRole: 'action',
+    gapIndex: 1,
+    correctionLayerId: 'layer_sakuga',
+  })
+  const camera = createStackGuideLabel(background.project, {
+    label: 'SL1',
+    kind: 'camera-note',
+    displayRole: 'action',
+    gapIndex: 9,
+    correctionLayerId: 'layer_enshutsu',
+  })
+  return createStackGuideLabel(camera.project, {
+    label: 'MEMO1',
+    kind: 'memo',
+    displayRole: 'action',
+    gapIndex: 9,
+    correctionLayerId: 'layer_enshutsu',
+  }).project
 }
 
 async function runFullDefaultA3DesktopE2E(config: DesktopE2EConfig, callbacks: DesktopE2ERunCallbacks): Promise<DesktopE2EResult> {

@@ -1,8 +1,7 @@
-import { Fragment, useMemo, useState, type DragEvent, type FormEvent, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { buildCspLayerTree, defaultCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
-import { assetIdFromAssetDragData, assetIdsFromAssetDragData, hasAssetDragPayload } from './assetFiles'
 import { ActionMenu } from './AppControls'
-import { REGISTERED_CELL_DRAG_MIME, REGISTERED_CELL_TEXT_DRAG_PREFIX } from './sheetConstants'
+import { createInternalDragCardImage, startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 import { Tooltip } from './Tooltip'
 
 export interface CspTreeAssetRegistrationResult {
@@ -75,52 +74,40 @@ export function CspLayerTree({
     insertAfterPaperTrack?: string
   } | null>(null)
   const [dropNotice, setDropNotice] = useState<string | null>(null)
+  const treeRootRef = useRef<HTMLElement | null>(null)
 
-  function handleCelDragStart(event: DragEvent<HTMLElement>, keyId: string) {
-    event.dataTransfer.effectAllowed = 'copy'
-    event.dataTransfer.setData(REGISTERED_CELL_DRAG_MIME, keyId)
-    event.dataTransfer.setData('text/plain', `${REGISTERED_CELL_TEXT_DRAG_PREFIX}${keyId}`)
-  }
-
-  function handleAssetDrop(event: DragEvent<HTMLElement>, keyId: string, slotId?: string) {
-    const assetIds = assetIdsFromAssetDragData(event.dataTransfer)
-    if (assetIds.length > 1) return
-    const assetId = assetIds[0] ?? assetIdFromAssetDragData(event.dataTransfer)
-    if (!assetId) return
-    event.preventDefault()
-    event.stopPropagation()
-    onAssignAsset(assetId, keyId, slotId)
+  function handleAssetDrop(assetIds: string[], keyId: string, slotId?: string) {
+    if (assetIds.length !== 1) {
+      setDropNotice('登録済みカードへ割り当てる画像素材は1件だけ選択してください。')
+      return
+    }
+    onAssignAsset(assetIds[0]!, keyId, slotId)
+    setDropNotice('画像素材を登録しました。')
   }
 
   function handleStackGuideAssetDrop(
-    event: DragEvent<HTMLElement>,
+    assetIds: string[],
     labelId: string,
     correctionLayerId: string,
   ) {
-    const assetIds = assetIdsFromAssetDragData(event.dataTransfer)
-    if (assetIds.length === 0) return
-    event.preventDefault()
-    event.stopPropagation()
-    setAssetDropTrackNodeId(null)
-    onAssignAssetsToStackGuideLabel(labelId, assetIds, correctionLayerId)
-    setDropNotice(assetRegistrationNotice({ addedCount: assetIds.length, duplicateCount: 0, missingCount: 0 }))
-  }
-
-  function handlePaperTrackAssetDrop(event: DragEvent<HTMLElement>, slotId: string) {
-    const keyId = registeredCellKeyIdFromDrag(event)
-    if (keyId) {
-      event.preventDefault()
-      event.stopPropagation()
-      setAssetDropTrackNodeId(null)
-      setDropNotice(onRegisterKeyToTrack(keyId, slotId) ? '未登録カードを工程へ登録しました。' : 'このカードは登録済みです。')
+    if (assetIds.length !== 1) {
+      setDropNotice('BG／BOOK・撮影指示・メモへ登録する画像素材は1件だけ選択してください。')
       return
     }
-    const assetIds = assetIdsFromAssetDragData(event.dataTransfer)
-    if (assetIds.length === 0) return
-    event.preventDefault()
-    event.stopPropagation()
     setAssetDropTrackNodeId(null)
-    setDropNotice(assetRegistrationNotice(onRegisterAssetsToTrack(slotId, assetIds)))
+    onAssignAssetsToStackGuideLabel(labelId, assetIds, correctionLayerId)
+    setDropNotice('画像素材を登録しました。')
+  }
+
+  function handlePaperTrackDrop(payload: InternalDragPayload, slotId: string) {
+    if (payload.kind === 'registered-cell') {
+      setAssetDropTrackNodeId(null)
+      setDropNotice(onRegisterKeyToTrack(payload.keyId, slotId) ? '未登録カードを工程へ登録しました。' : 'このカードは登録済みです。')
+      return
+    }
+    if (payload.kind !== 'asset') return
+    setAssetDropTrackNodeId(null)
+    setDropNotice(assetRegistrationNotice(onRegisterAssetsToTrack(slotId, payload.assetIds)))
   }
 
   function activeSlotIdForTrack(track: CspLayerTreeTrack): string | undefined {
@@ -131,15 +118,12 @@ export function CspLayerTree({
   }
 
   function beginNewTrackDrop(
-    event: DragEvent<HTMLElement>,
+    assetIds: string[],
     correctionLayerId: string,
     tracks: CspLayerTreeTrack[],
     gapIndex: number,
   ) {
-    const assetIds = assetIdsFromAssetDragData(event.dataTransfer)
     if (assetIds.length === 0) return
-    event.preventDefault()
-    event.stopPropagation()
     setAssetDropGapId(null)
     setNewTrackDraft({
       correctionLayerId,
@@ -149,6 +133,47 @@ export function CspLayerTree({
       insertAfterPaperTrack: tracks.slice(gapIndex).find(track => track.paperTrack)?.paperTrack,
     })
   }
+
+  useEffect(() => subscribeInternalDrag(detail => {
+    if (detail.payload.kind !== 'asset' && detail.payload.kind !== 'registered-cell') return
+    const target = cspInternalDropTarget(treeRootRef.current, detail.clientX, detail.clientY)
+    if (detail.phase === 'start' || detail.phase === 'move') {
+      setAssetDropTrackNodeId(target?.trackNodeId ?? null)
+      setAssetDropGapId(target?.gapId ?? null)
+      return
+    }
+    setAssetDropTrackNodeId(null)
+    setAssetDropGapId(null)
+    if (detail.phase !== 'drop' || !target) return
+
+    if (target.kind === 'cel') {
+      if (detail.payload.kind !== 'asset') return
+      if (detail.payload.assetIds.length > 1 && target.trackNodeId && target.correctionLayerId) {
+        const layer = tree.stages.flatMap(stage => stage.layers).find(item => item.layerId === target.correctionLayerId)
+        const track = layer?.tracks.find(item => item.nodeId === target.trackNodeId)
+        if (track?.slotId) handlePaperTrackDrop(detail.payload, track.slotId)
+      } else if (target.keyId) {
+        handleAssetDrop(detail.payload.assetIds, target.keyId, target.slotId)
+      }
+      return
+    }
+    if (target.kind === 'track') {
+      if (!target.correctionLayerId || !target.trackNodeId) return
+      const layer = tree.stages.flatMap(stage => stage.layers).find(item => item.layerId === target.correctionLayerId)
+      const track = layer?.tracks.find(item => item.nodeId === target.trackNodeId)
+      if (!track) return
+      if (track.stackGuideLabelId && detail.payload.kind === 'asset') {
+        handleStackGuideAssetDrop(detail.payload.assetIds, track.stackGuideLabelId, target.correctionLayerId)
+      } else if (track.slotId) {
+        handlePaperTrackDrop(detail.payload, track.slotId)
+      }
+      return
+    }
+    if (detail.payload.kind !== 'asset') return
+    if (!target.correctionLayerId || target.gapIndex === undefined) return
+    const layer = tree.stages.flatMap(stage => stage.layers).find(item => item.layerId === target.correctionLayerId)
+    if (layer) beginNewTrackDrop(detail.payload.assetIds, target.correctionLayerId, layer.tracks, target.gapIndex)
+  }))
 
   function submitNewTrack(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -177,18 +202,10 @@ export function CspLayerTree({
           editing ? 'editing' : '',
         ].filter(Boolean).join(' ')}
         aria-label={`${layerLabel}のセル列挿入位置${gapIndex + 1}`}
-        onDragOver={event => {
-          if (!hasAssetDragPayload(event.dataTransfer)) return
-          event.preventDefault()
-          event.stopPropagation()
-          event.dataTransfer.dropEffect = 'copy'
-          setAssetDropGapId(gapId)
-        }}
-        onDragLeave={event => {
-          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-          setAssetDropGapId(current => current === gapId ? null : current)
-        }}
-        onDrop={event => beginNewTrackDrop(event, correctionLayerId, tracks, gapIndex)}
+        data-csp-drop-kind="gap"
+        data-csp-gap-id={gapId}
+        data-csp-correction-layer-id={correctionLayerId}
+        data-csp-gap-index={gapIndex}
       >
         {editing && newTrackDraft && (
           <form className="cspTreeNewTrackForm" onSubmit={submitNewTrack}>
@@ -232,12 +249,17 @@ export function CspLayerTree({
           cel.materialState === 'assigned' ? 'assigned' : '',
           cel.keyId && !cel.bindingId ? 'unregistered' : '',
         ].filter(Boolean).join(' ')}
-        draggable={Boolean(cel.keyId)}
-        onDragStart={cel.keyId ? event => handleCelDragStart(event, cel.keyId!) : undefined}
-        onDragOver={cel.keyId ? event => {
-          if (hasAssetDragPayload(event.dataTransfer)) event.preventDefault()
+        draggable={false}
+        data-csp-drop-kind={cel.keyId ? 'cel' : undefined}
+        data-csp-key-id={cel.keyId}
+        data-csp-slot-id={assignmentSlotId}
+        onPointerDown={cel.keyId ? event => {
+          const dragSource = event.currentTarget
+          startInternalPointerDrag(event, {
+            begin: () => ({ kind: 'registered-cell', keyId: cel.keyId! }),
+            createDragGhost: () => createInternalDragCardImage(track.label, cel.cspCellName, dragSource),
+          })
         } : undefined}
-        onDrop={cel.keyId ? event => handleAssetDrop(event, cel.keyId!, assignmentSlotId) : undefined}
         onClick={() => onSelectKey(cel.keyId ?? null)}
         onDoubleClick={() => cel.keyId && onJumpToFirstUse(cel.keyId)}
       >
@@ -263,7 +285,7 @@ export function CspLayerTree({
   }
 
   return (
-    <section className="cspLayerTree" aria-label="CSPレイヤー構成">
+    <section ref={treeRootRef} className="cspLayerTree" aria-label="CSPレイヤー構成">
       <header className="cspLayerTreeHeader">
         <strong>CSPレイヤー構成</strong>
         <div className="cspLayerTreeHeaderActions">
@@ -305,22 +327,10 @@ export function CspLayerTree({
                 <details className="cspTreeLayer" open>
                   <summary
                     className={layer.layerId && assetDropGapId === `${layer.layerId}:0` ? 'assetDragOver' : undefined}
-                    onDragOver={layer.layerId ? event => {
-                      if (!hasAssetDragPayload(event.dataTransfer)) return
-                      event.preventDefault()
-                      event.stopPropagation()
-                      event.dataTransfer.dropEffect = 'copy'
-                      setAssetDropGapId(`${layer.layerId}:0`)
-                    } : undefined}
-                    onDragLeave={layer.layerId ? event => {
-                      if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-                      setAssetDropGapId(current => current === `${layer.layerId}:0` ? null : current)
-                    } : undefined}
-                    onDrop={layer.layerId ? event => {
-                      const details = event.currentTarget.parentElement
-                      if (details instanceof HTMLDetailsElement) details.open = true
-                      beginNewTrackDrop(event, layer.layerId!, layer.tracks, 0)
-                    } : undefined}
+                    data-csp-drop-kind={layer.layerId ? 'gap' : undefined}
+                    data-csp-gap-id={layer.layerId ? `${layer.layerId}:0` : undefined}
+                    data-csp-correction-layer-id={layer.layerId}
+                    data-csp-gap-index={layer.layerId ? 0 : undefined}
                   >{layer.label}</summary>
                   {auxiliaryDraft && auxiliaryDraft.correctionLayerId === layer.layerId && (
                     <form
@@ -367,22 +377,9 @@ export function CspLayerTree({
                         assetDropTrackNodeId === track.nodeId ? 'assetDragOver' : '',
                       ].filter(Boolean).join(' ')}
                       aria-label={acceptsAsset ? `${track.label}（${layer.label}）へ画像素材を登録` : undefined}
-                      onDragOver={acceptsAsset ? event => {
-                        if (!hasAssetDragPayload(event.dataTransfer) && !(acceptsPaperTrackAsset && hasRegisteredCellDragPayload(event))) return
-                        event.preventDefault()
-                        event.stopPropagation()
-                        event.dataTransfer.dropEffect = 'copy'
-                        setAssetDropTrackNodeId(track.nodeId)
-                      } : undefined}
-                      onDragLeave={acceptsAsset ? event => {
-                        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-                        setAssetDropTrackNodeId(current => current === track.nodeId ? null : current)
-                      } : undefined}
-                      onDrop={acceptsStackGuideAsset && track.stackGuideLabelId && layer.layerId
-                        ? event => handleStackGuideAssetDrop(event, track.stackGuideLabelId!, layer.layerId!)
-                        : acceptsPaperTrackAsset && track.slotId
-                          ? event => handlePaperTrackAssetDrop(event, track.slotId!)
-                          : undefined}
+                      data-csp-drop-kind={acceptsAsset ? 'track' : undefined}
+                      data-csp-track-node-id={acceptsAsset ? track.nodeId : undefined}
+                      data-csp-correction-layer-id={acceptsAsset ? layer.layerId : undefined}
                     >
                     <div className="cspTreeTrackRow">
                       {track.paperTrack ? (
@@ -456,17 +453,48 @@ function NormalizeIcon() {
   )
 }
 
-function hasRegisteredCellDragPayload(event: DragEvent<HTMLElement>): boolean {
-  return Array.from(event.dataTransfer.types ?? []).includes(REGISTERED_CELL_DRAG_MIME)
+interface CspInternalDropTarget {
+  kind: 'cel' | 'track' | 'gap'
+  keyId?: string
+  slotId?: string
+  trackNodeId?: string
+  correctionLayerId?: string
+  gapId?: string
+  gapIndex?: number
 }
 
-function registeredCellKeyIdFromDrag(event: DragEvent<HTMLElement>): string {
-  const direct = event.dataTransfer.getData(REGISTERED_CELL_DRAG_MIME).trim()
-  if (direct) return direct
-  const text = event.dataTransfer.getData('text/plain')
-  return text.startsWith(REGISTERED_CELL_TEXT_DRAG_PREFIX)
-    ? text.slice(REGISTERED_CELL_TEXT_DRAG_PREFIX.length).trim()
-    : ''
+function cspInternalDropTarget(root: HTMLElement | null, clientX: number, clientY: number): CspInternalDropTarget | null {
+  const element = document.elementFromPoint?.(clientX, clientY)
+  if (!root || !element || !root.contains(element)) return null
+
+  const cel = element.closest<HTMLElement>('[data-csp-drop-kind="cel"][data-csp-key-id]')
+  if (cel && root.contains(cel)) {
+    const keyId = cel.dataset.cspKeyId
+    const parentTrack = cel.closest<HTMLElement>('[data-csp-drop-kind="track"][data-csp-track-node-id][data-csp-correction-layer-id]')
+    if (keyId) return {
+      kind: 'cel',
+      keyId,
+      slotId: cel.dataset.cspSlotId,
+      trackNodeId: parentTrack?.dataset.cspTrackNodeId,
+      correctionLayerId: parentTrack?.dataset.cspCorrectionLayerId,
+    }
+  }
+
+  const track = element.closest<HTMLElement>('[data-csp-drop-kind="track"][data-csp-track-node-id][data-csp-correction-layer-id]')
+  if (track && root.contains(track)) {
+    const trackNodeId = track.dataset.cspTrackNodeId
+    const correctionLayerId = track.dataset.cspCorrectionLayerId
+    if (trackNodeId && correctionLayerId) return { kind: 'track', trackNodeId, correctionLayerId }
+  }
+
+  const gap = element.closest<HTMLElement>('[data-csp-drop-kind="gap"][data-csp-gap-id][data-csp-correction-layer-id][data-csp-gap-index]')
+  if (gap && root.contains(gap)) {
+    const gapId = gap.dataset.cspGapId
+    const correctionLayerId = gap.dataset.cspCorrectionLayerId
+    const gapIndex = Number(gap.dataset.cspGapIndex)
+    if (gapId && correctionLayerId && Number.isInteger(gapIndex)) return { kind: 'gap', gapId, correctionLayerId, gapIndex }
+  }
+  return null
 }
 
 function assetRegistrationNotice(result: CspTreeAssetRegistrationResult): string {

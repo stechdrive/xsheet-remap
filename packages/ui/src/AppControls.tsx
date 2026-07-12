@@ -173,6 +173,8 @@ export function PanelResizeHandle({
   max,
   defaultValue,
   side = 'right',
+  resizeEnabled = true,
+  dockToggle,
   onChange,
 }: {
   label: string
@@ -181,6 +183,15 @@ export function PanelResizeHandle({
   max: number
   defaultValue?: number
   side?: 'left' | 'right'
+  resizeEnabled?: boolean
+  dockToggle?: {
+    label: string
+    tooltipLabel: string
+    controls: string
+    expanded: boolean
+    icon: ReactNode
+    onToggle: () => void
+  }
   onChange: (value: number) => void
 }) {
   const keyboardStep = side === 'left' ? 24 : -24
@@ -189,7 +200,7 @@ export function PanelResizeHandle({
     onChange(clampNumber(value + delta, min, max))
   }
 
-  return (
+  const resizeHandle = resizeEnabled ? (
     <div
       className="panelResizeHandle"
       role="separator"
@@ -225,6 +236,29 @@ export function PanelResizeHandle({
         }
       }}
     />
+  ) : null
+
+  if (!dockToggle) return resizeHandle
+
+  return (
+    <div className={`panelResizeRail${resizeEnabled ? '' : ' collapsed'}`}>
+      {resizeHandle}
+      <TooltipTarget label={dockToggle.tooltipLabel}>
+        {tooltipProps => (
+          <button
+            type="button"
+            className="panelResizeToggle"
+            aria-label={dockToggle.label}
+            aria-controls={dockToggle.controls}
+            aria-expanded={dockToggle.expanded}
+            onClick={dockToggle.onToggle}
+            {...tooltipProps}
+          >
+            {dockToggle.icon}
+          </button>
+        )}
+      </TooltipTarget>
+    </div>
   )
 }
 

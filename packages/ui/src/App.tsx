@@ -176,7 +176,7 @@ import {
   type AssetPreviewRect,
 } from './assetPreviewModel'
 import { compareFileNameLikeText, compareNaturalFileNameText } from './naturalSort'
-import { createPointerDragGhost, type PointerDragGhost } from './pointerDragGhost'
+import { createInternalDragCardImage, startInternalPointerDrag, subscribeInternalDrag } from './internalDrag'
 import {
   bindAssetToHit,
   cellAssetPreviewItemsForHit,
@@ -189,9 +189,7 @@ import { runDesktopE2EIfRequested } from './desktopE2E'
 import {
   ASSET_MULTI_DRAG_MIME,
   ASSET_DRAG_MIME,
-  ASSET_POINTER_DROP_EVENT,
   REGISTERED_CELL_DRAG_MIME,
-  REGISTERED_CELL_POINTER_DROP_EVENT,
   REGISTERED_CELL_TEXT_DRAG_PREFIX,
   STACK_GUIDE_DRAG_MIME,
   SHEET_ZOOM_MAX,
@@ -378,29 +376,6 @@ type NativeDragDropPayload = {
   type: string
   paths?: string[]
   position?: { x: number; y: number }
-}
-
-type AssetDragWindow = Window & {
-  __xsheetRemapAssetDragIds?: string[]
-  __xsheetRemapRegisteredCellDragKeyId?: string
-}
-
-type AssetPointerDropDetail = {
-  assetIds?: string[]
-  clientX?: number
-  clientY?: number
-}
-
-type AssetPointerDropEvent = CustomEvent<AssetPointerDropDetail>
-
-type RegisteredCellPointerDropDetail = {
-  keyId?: string
-  clientX?: number
-  clientY?: number
-}
-
-function registeredCellTextDragData(keyId: string): string {
-  return `${REGISTERED_CELL_TEXT_DRAG_PREFIX}${keyId}`
 }
 
 function keyIdFromRegisteredCellTextDragData(value: string): string {
@@ -2219,8 +2194,13 @@ export function App({ appKind = 'editor', collapseEditorSheetPanes = false }: { 
 
   function handleAssignAssetsToStackGuide(labelId: string, assetIds: string[], correctionLayerId = activeCorrectionLayerId) {
     try {
+      const uniqueAssetIds = Array.from(new Set(assetIds))
+      if (uniqueAssetIds.length !== 1) {
+        window.alert('BG／BOOK・撮影指示・メモへ登録する画像素材は1件だけ選択してください。')
+        return
+      }
       let next = projectRef.current
-      for (const assetId of Array.from(new Set(assetIds))) {
+      for (const assetId of uniqueAssetIds) {
         next = assignAssetToStackGuideLabel(next, labelId, assetId, correctionLayerId)
       }
       commitProject(next)
@@ -4008,40 +3988,10 @@ function SheetPanel(props: {
         style={{
           '--sheet-left-dock-width': paneLayout.left ? `${paneLayout.leftWidth}px` : '0px',
           '--sheet-right-dock-width': paneLayout.right ? `${paneLayout.rightWidth}px` : '0px',
-          '--sheet-left-resizer-width': paneLayout.left ? '10px' : '0px',
-          '--sheet-right-resizer-width': paneLayout.right ? '10px' : '0px',
+          '--sheet-left-resizer-width': '16px',
+          '--sheet-right-resizer-width': '16px',
         } as WorkspaceStyle}
       >
-        <TooltipTarget label={`${props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル'}を${paneLayout.left ? '閉じる' : '開く'}`}>
-          {tooltipProps => (
-            <button
-              type="button"
-              className="sheetPaneEdgeToggle left"
-              aria-label={props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル'}
-              aria-controls="sheet-left-pane"
-              aria-expanded={paneLayout.left}
-              onClick={() => setPaneLayout(current => ({ ...current, left: !current.left }))}
-              {...tooltipProps}
-            >
-              <PaneChevronIcon direction={paneLayout.left ? 'left' : 'right'} />
-            </button>
-          )}
-        </TooltipTarget>
-        <TooltipTarget label={`画像素材を${paneLayout.right ? '閉じる' : '開く'}`}>
-          {tooltipProps => (
-            <button
-              type="button"
-              className="sheetPaneEdgeToggle right"
-              aria-label="画像素材"
-              aria-controls="sheet-right-pane"
-              aria-expanded={paneLayout.right}
-              onClick={() => setPaneLayout(current => ({ ...current, right: !current.right }))}
-              {...tooltipProps}
-            >
-              <PaneChevronIcon direction={paneLayout.right ? 'right' : 'left'} />
-            </button>
-          )}
-        </TooltipTarget>
         <div
           ref={zoomPaletteRef}
           className={[
@@ -4187,15 +4137,24 @@ function SheetPanel(props: {
             />}
           </div>
         </aside>
-        {paneLayout.left && <PanelResizeHandle
+        <PanelResizeHandle
           label={uiText.layout.resizeRegisteredCellPane}
           min={SHEET_LEFT_PANE_MIN_WIDTH}
           max={SHEET_LEFT_PANE_MAX_WIDTH}
           value={paneLayout.leftWidth}
           defaultValue={SHEET_LEFT_PANE_DEFAULT_WIDTH}
           side="left"
+          resizeEnabled={paneLayout.left}
+          dockToggle={{
+            label: props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル',
+            tooltipLabel: `${props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル'}を${paneLayout.left ? '閉じる' : '開く'}`,
+            controls: 'sheet-left-pane',
+            expanded: paneLayout.left,
+            icon: <PaneChevronIcon direction={paneLayout.left ? 'left' : 'right'} />,
+            onToggle: () => setPaneLayout(current => ({ ...current, left: !current.left })),
+          }}
           onChange={leftWidth => setPaneLayout(current => ({ ...current, leftWidth }))}
-        />}
+        />
         <SheetCanvas
           {...props}
           setZoom={setClampedZoom}
@@ -4208,14 +4167,23 @@ function SheetPanel(props: {
           stackGuideInsertTool={stackGuideInsertTool}
           onStackGuideInsertToolConsumed={() => setStackGuideInsertTool(null)}
         />
-        {paneLayout.right && <PanelResizeHandle
+        <PanelResizeHandle
           label={uiText.layout.resizeImageAssetPane}
           min={SHEET_RIGHT_PANE_MIN_WIDTH}
           max={SHEET_RIGHT_PANE_MAX_WIDTH}
           value={paneLayout.rightWidth}
           defaultValue={SHEET_RIGHT_PANE_DEFAULT_WIDTH}
+          resizeEnabled={paneLayout.right}
+          dockToggle={{
+            label: '画像素材',
+            tooltipLabel: `画像素材を${paneLayout.right ? '閉じる' : '開く'}`,
+            controls: 'sheet-right-pane',
+            expanded: paneLayout.right,
+            icon: <PaneChevronIcon direction={paneLayout.right ? 'right' : 'left'} />,
+            onToggle: () => setPaneLayout(current => ({ ...current, right: !current.right })),
+          }}
           onChange={rightWidth => setPaneLayout(current => ({ ...current, rightWidth }))}
-        />}
+        />
         <aside id="sheet-right-pane" className="sheetDock sheetDockRight" aria-label={uiText.assets.title} hidden={!paneLayout.right}>
           <div className="dockBody">
             <AssetTray
@@ -5120,54 +5088,58 @@ function SheetCanvas(props: {
     return rangeStartHit(props.rangeSelection) ?? hit
   }
 
-  useEffect(() => {
-    function handleAssetPointerDrop(event: Event) {
-      const detail = (event as AssetPointerDropEvent).detail
-      const assetIds = detail?.assetIds ?? []
-      const clientX = detail?.clientX
-      const clientY = detail?.clientY
-      if (assetIds.length === 0 || typeof clientX !== 'number' || typeof clientY !== 'number') return
+  useEffect(() => subscribeInternalDrag(detail => {
+    const { payload, clientX, clientY, phase } = detail
+    if (phase === 'cancel') {
+      clearHover()
+      setStackGuideDropPreview(null)
+      return
+    }
+    if (payload.kind === 'stack-guide') {
+      if (phase === 'start' || phase === 'move') updateStackGuideDropPreview(payload.labelId, clientX, clientY)
+      if (phase === 'drop') moveStackGuideLabelFromPoint(payload.labelId, clientX, clientY)
+      return
+    }
 
-      const target = dropTargetFromClientPoint(clientX, clientY)
-      if (!target?.hit?.paperTrack) return
-      if (target) props.setActivePageIndex(target.page.pageIndex)
-      const hit = dropHitForActiveRange(target?.hit ?? null)
+    const pointedElement = document.elementFromPoint?.(clientX, clientY)
+    const stackGuideElement = pointedElement?.closest<HTMLElement>('.stackGuideSvgLabel[data-stack-guide-label-id]')
+    if (stackGuideElement && payload.kind === 'asset') {
+      if (phase === 'drop' && payload.assetIds.length === 1) {
+        props.onAssignAssetToStackGuideLabel(stackGuideElement.dataset.stackGuideLabelId!, payload.assetIds[0]!)
+      }
+      clearHover()
+      return
+    }
+
+    const target = dropTargetFromClientPoint(clientX, clientY)
+    const hit = dropHitForActiveRange(target?.hit ?? null)
+    if (phase === 'start' || phase === 'move') {
+      if (target?.hit?.paperTrack) {
+        props.setActivePageIndex(target.page.pageIndex)
+        updateHover(hit, { x: clientX, y: clientY })
+      }
+      return
+    }
+    if (phase !== 'drop' || !target?.hit?.paperTrack) {
+      clearHover()
+      return
+    }
+    props.setActivePageIndex(target.page.pageIndex)
+    clearHover()
+    if (payload.kind === 'asset') {
       props.onDropDiagnostic({
         source: 'asset-pointer',
         type: 'drop',
         target: hit ? `${sheetRoleLabel(sheetRoleForHit(hit))} ${hit.paperTrack ?? '-'}` : 'sheet/no-hit',
-        fileCount: assetIds.length,
+        fileCount: payload.assetIds.length,
         position: { x: clientX, y: clientY },
-        details: `assetIds ${assetIds.join(', ')}`,
+        details: `assetIds ${payload.assetIds.join(', ')}`,
       })
-      clearHover()
-      if (hit && assetIds.length === 1) {
-        props.onAssetAssign(assetIds[0], hit, { x: clientX, y: clientY })
-      }
+      if (hit && payload.assetIds.length === 1) props.onAssetAssign(payload.assetIds[0]!, hit, { x: clientX, y: clientY })
+    } else {
+      props.onRegisteredCellAssign(payload.keyId, hit)
     }
-
-    window.addEventListener(ASSET_POINTER_DROP_EVENT, handleAssetPointerDrop)
-    return () => window.removeEventListener(ASSET_POINTER_DROP_EVENT, handleAssetPointerDrop)
-  })
-
-  useEffect(() => {
-    function handleRegisteredCellPointerDrop(event: Event) {
-      const detail = (event as CustomEvent<RegisteredCellPointerDropDetail>).detail
-      const keyId = detail?.keyId ?? ''
-      const clientX = detail?.clientX
-      const clientY = detail?.clientY
-      if (!keyId || typeof clientX !== 'number' || typeof clientY !== 'number') return
-
-      const target = dropTargetFromClientPoint(clientX, clientY)
-      if (target) props.setActivePageIndex(target.page.pageIndex)
-      const hit = dropHitForActiveRange(target?.hit ?? null)
-      clearHover()
-      props.onRegisteredCellAssign(keyId, hit)
-    }
-
-    window.addEventListener(REGISTERED_CELL_POINTER_DROP_EVENT, handleRegisteredCellPointerDrop)
-    return () => window.removeEventListener(REGISTERED_CELL_POINTER_DROP_EVENT, handleRegisteredCellPointerDrop)
-  })
+  }))
 
   function rangeStartHit(range: SheetRangeSelection | null): SheetHit | null {
     if (!isPointEventRangeForUi(range)) return null
@@ -5271,19 +5243,9 @@ function SheetCanvas(props: {
       || types.includes('application/x-moz-file')
   }
 
-  function activeAssetDragIds(): string[] {
-    return (window as AssetDragWindow).__xsheetRemapAssetDragIds ?? []
-  }
-
-  function activeRegisteredCellDragKeyId(): string {
-    return (window as AssetDragWindow).__xsheetRemapRegisteredCellDragKeyId ?? ''
-  }
-
   function keyIdFromDragData(dataTransfer: DataTransfer): string {
     const types = dragDataTypes(dataTransfer)
     if (hasExternalFileDragPayload(dataTransfer, types)) return ''
-    const activeKeyId = activeRegisteredCellDragKeyId()
-    if (activeKeyId) return activeKeyId
     const explicitKeyId = canReadDragDataType(types, REGISTERED_CELL_DRAG_MIME)
       ? dataTransfer.getData(REGISTERED_CELL_DRAG_MIME)
       : ''
@@ -5325,8 +5287,6 @@ function SheetCanvas(props: {
   function assetIdsFromDragData(dataTransfer: DataTransfer): string[] {
     const types = dragDataTypes(dataTransfer)
     if (hasExternalFileDragPayload(dataTransfer, types)) return []
-    const activeAssetIds = activeAssetDragIds()
-    if (activeAssetIds.length > 0) return activeAssetIds
     if (keyIdFromDragData(dataTransfer)) return []
     const multiAssetIds = canReadDragDataType(types, ASSET_MULTI_DRAG_MIME)
       ? parseAssetIdsFromDragData(dataTransfer.getData(ASSET_MULTI_DRAG_MIME))
@@ -5450,8 +5410,7 @@ function SheetCanvas(props: {
     return target
   }
 
-  function moveStackGuideLabelFromDragData(dataTransfer: DataTransfer, clientX: number, clientY: number): boolean {
-    const labelId = stackGuideLabelIdFromDragData(dataTransfer)
+  function moveStackGuideLabelFromPoint(labelId: string, clientX: number, clientY: number): boolean {
     if (!labelId) return false
     const label = props.project.stackGuideLabels.find(item => item.labelId === labelId)
     if (!label) return true
@@ -5465,6 +5424,10 @@ function SheetCanvas(props: {
     }
     setStackGuideDropPreview(null)
     return true
+  }
+
+  function moveStackGuideLabelFromDragData(dataTransfer: DataTransfer, clientX: number, clientY: number): boolean {
+    return moveStackGuideLabelFromPoint(stackGuideLabelIdFromDragData(dataTransfer), clientX, clientY)
   }
 
   function updateHover(hit: SheetHit | null, anchor?: { x: number; y: number }) {
@@ -6659,7 +6622,6 @@ function SheetCanvas(props: {
                       project={props.project}
                       template={props.template}
                       page={page}
-                      onAssignAsset={props.onAssignAssetToStackGuideLabel}
                       onUpdateLabel={props.onUpdateStackGuideLabel}
                       onPreviewPlacement={(labelId, clientX, clientY) => {
                         updateStackGuideDropPreview(labelId, clientX, clientY)
@@ -6986,72 +6948,6 @@ function deleteRegisteredCellKey(project: CutProject, keyId: string): CutProject
 function isInteractiveKeyboardTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false
   return Boolean(target.closest('input, textarea, select, button, [contenteditable="true"]'))
-}
-
-const REGISTERED_CELL_POINTER_DRAG_THRESHOLD_PX = 4
-
-function startRegisteredCellPointerDrag(
-  event: PointerEvent<HTMLElement>,
-  input: {
-    keyId: string
-    onDragStart: () => void
-    onDrop: (position: { x: number; y: number }) => void
-    onDragEnd: () => void
-    createDragGhost: () => HTMLElement
-  },
-) {
-  if (event.button !== 0 || isInteractiveKeyboardTarget(event.target)) return
-
-  const pointerId = event.pointerId
-  const startX = event.clientX
-  const startY = event.clientY
-  let isDragging = false
-  let dragGhost: PointerDragGhost | null = null
-
-  function cleanup() {
-    window.removeEventListener('pointermove', handleMove)
-    window.removeEventListener('pointerup', handleStop)
-    window.removeEventListener('pointercancel', handleCancel)
-    dragGhost?.dispose()
-    dragGhost = null
-  }
-
-  function ensureDragging(nextEvent: globalThis.PointerEvent) {
-    if (isDragging) return true
-    const moved = Math.abs(nextEvent.clientX - startX) >= REGISTERED_CELL_POINTER_DRAG_THRESHOLD_PX
-      || Math.abs(nextEvent.clientY - startY) >= REGISTERED_CELL_POINTER_DRAG_THRESHOLD_PX
-    if (!moved) return false
-    input.onDragStart()
-    dragGhost = createPointerDragGhost(input.createDragGhost(), nextEvent.clientX, nextEvent.clientY)
-    isDragging = true
-    return true
-  }
-
-  function handleMove(nextEvent: globalThis.PointerEvent) {
-    if (nextEvent.pointerId !== pointerId) return
-    if (!ensureDragging(nextEvent)) return
-    nextEvent.preventDefault()
-    dragGhost?.move(nextEvent.clientX, nextEvent.clientY)
-  }
-
-  function handleStop(nextEvent: globalThis.PointerEvent) {
-    if (nextEvent.pointerId !== pointerId) return
-    cleanup()
-    if (!isDragging) return
-    nextEvent.preventDefault()
-    input.onDrop({ x: nextEvent.clientX, y: nextEvent.clientY })
-    input.onDragEnd()
-  }
-
-  function handleCancel(nextEvent: globalThis.PointerEvent) {
-    if (nextEvent.pointerId !== pointerId) return
-    cleanup()
-    if (isDragging) input.onDragEnd()
-  }
-
-  window.addEventListener('pointermove', handleMove)
-  window.addEventListener('pointerup', handleStop)
-  window.addEventListener('pointercancel', handleCancel)
 }
 
 function HoverCellOverlay({ rect }: { rect: { x: number; y: number; w: number; h: number } }) {
@@ -7459,7 +7355,6 @@ function StackGuideSvgLayer({
   project,
   template,
   page,
-  onAssignAsset,
   onUpdateLabel,
   onPreviewPlacement,
   onClearPreview,
@@ -7467,7 +7362,6 @@ function StackGuideSvgLayer({
   project: CutProject
   template: SheetTemplate
   page: SheetPage
-  onAssignAsset: (labelId: string, assetId: string) => void
   onUpdateLabel?: (labelId: string, updates: StackGuideLabelUpdates) => void
   onPreviewPlacement?: (labelId: string, clientX: number, clientY: number) => void
   onClearPreview?: () => void
@@ -7610,6 +7504,7 @@ function StackGuideSvgLayer({
               key={`${region.regionId}-${label.labelId}`}
               className={className}
               data-stack-guide-role={displayRole}
+              data-stack-guide-label-id={label.labelId}
               data-region-id={region.regionId}
               aria-label={uiText.stackGuides.labelTitle(label.label, label.assetIds.length)}
               onPointerDown={event => startLabelDrag(event, label)}
@@ -7626,19 +7521,6 @@ function StackGuideSvgLayer({
               onClick={event => {
                 event.preventDefault()
                 event.stopPropagation()
-              }}
-              onDragOver={event => {
-                if (!hasAssetDragPayload(event.dataTransfer)) return
-                event.preventDefault()
-                event.stopPropagation()
-                event.dataTransfer.dropEffect = 'copy'
-              }}
-              onDrop={event => {
-                const assetId = assetIdFromAssetDragData(event.dataTransfer)
-                if (!assetId) return
-                event.preventDefault()
-                event.stopPropagation()
-                onAssignAsset(label.labelId, assetId)
               }}
             >
               <path className="stackGuideSvgConnector" d={`M ${geometry.anchorX} ${geometry.anchorY} V ${geometry.labelBottomY} H ${geometry.labelAttachX}`} strokeWidth={geometry.connectorStrokeWidth} />
@@ -9712,13 +9594,11 @@ function KeyList({
     }
   }, [processMoveMenu])
 
-  useEffect(() => {
-    function handleAssetPointerDrop(event: Event) {
-      const detail = (event as AssetPointerDropEvent).detail
-      const assetId = detail?.assetIds?.length === 1 ? detail.assetIds[0] : ''
-      const clientX = detail?.clientX
-      const clientY = detail?.clientY
-      if (!assetId || typeof clientX !== 'number' || typeof clientY !== 'number') return
+  useEffect(() => subscribeInternalDrag(detail => {
+      if (detail.phase !== 'drop' || detail.payload.kind !== 'asset' || detail.payload.assetIds.length !== 1) return
+      const assetId = detail.payload.assetIds[0]!
+      const clientX = detail.clientX
+      const clientY = detail.clientY
 
       const root = keyListRef.current
       const target = document.elementFromPoint(clientX, clientY)
@@ -9748,11 +9628,7 @@ function KeyList({
         if (!keyId) return
         onAssignAsset(assetId, keyId, { position: { x: clientX, y: clientY } })
       }
-    }
-
-    window.addEventListener(ASSET_POINTER_DROP_EVENT, handleAssetPointerDrop)
-    return () => window.removeEventListener(ASSET_POINTER_DROP_EVENT, handleAssetPointerDrop)
-  })
+  }))
 
   async function openPreviewForRegisteredCell(key: TimingKey) {
     const nativePayload = await nativeRegisteredCellPreviewPayload(project, key)
@@ -9925,26 +9801,12 @@ function KeyList({
             onClick={() => selectRegisteredCell(key)}
             onPointerDown={event => {
               const dragSource = event.currentTarget
-              startRegisteredCellPointerDrag(event, {
-                keyId: key.keyId,
-                onDragStart: () => {
+              startInternalPointerDrag(event, {
+                begin: () => ({ kind: 'registered-cell', keyId: key.keyId }),
+                onStarted: () => {
                   setCardHoverPreview(null)
-                  const dragWindow = window as AssetDragWindow
-                  dragWindow.__xsheetRemapRegisteredCellDragKeyId = key.keyId
                 },
-                onDrop: position => {
-                  window.dispatchEvent(new CustomEvent(REGISTERED_CELL_POINTER_DROP_EVENT, {
-                    detail: {
-                      keyId: key.keyId,
-                      clientX: position.x,
-                      clientY: position.y,
-                    } satisfies RegisteredCellPointerDropDetail,
-                  }))
-                },
-                onDragEnd: () => {
-                  delete (window as AssetDragWindow).__xsheetRemapRegisteredCellDragKeyId
-                },
-                createDragGhost: () => createRegisteredCellDragImage(dragLabel, dragSubLabel, dragSource),
+                createDragGhost: () => createInternalDragCardImage(dragLabel, dragSubLabel, dragSource),
               })
             }}
             onKeyDown={event => {
@@ -9952,27 +9814,6 @@ function KeyList({
               if (event.key !== 'Enter' && event.key !== ' ') return
               event.preventDefault()
               selectRegisteredCell(key)
-            }}
-            onDragStart={event => {
-              setCardHoverPreview(null)
-              if (isInteractiveKeyboardTarget(event.target)) {
-                event.preventDefault()
-                return
-              }
-              const dragWindow = window as AssetDragWindow
-              dragWindow.__xsheetRemapRegisteredCellDragKeyId = key.keyId
-              event.dataTransfer.setData(REGISTERED_CELL_DRAG_MIME, key.keyId)
-              event.dataTransfer.setData('text/plain', registeredCellTextDragData(key.keyId))
-              event.dataTransfer.effectAllowed = 'copy'
-              if (event.dataTransfer.setDragImage) {
-                const dragImage = createRegisteredCellDragImage(dragLabel, dragSubLabel, event.currentTarget)
-                document.body.append(dragImage)
-                event.dataTransfer.setDragImage(dragImage, 0, 0)
-                window.setTimeout(() => dragImage.remove(), 0)
-              }
-            }}
-            onDragEnd={() => {
-              delete (window as AssetDragWindow).__xsheetRemapRegisteredCellDragKeyId
             }}
             onDragOver={event => {
               if (!hasAssetDragPayload(event.dataTransfer)) return
@@ -10235,23 +10076,6 @@ function KeyList({
                 || a.registration.correctionLayerId.localeCompare(b.registration.correctionLayerId, 'ja'),
               )
 
-            function handleDrop(event: DragEvent<HTMLElement>) {
-              const assetId = assetIdFromAssetDragData(event.dataTransfer)
-              if (!assetId) return
-              event.preventDefault()
-              event.stopPropagation()
-              setStackGuideDrop({ labelId: label.labelId, assetId, x: event.clientX, y: event.clientY })
-            }
-
-            function handleLayerDrop(event: DragEvent<HTMLElement>, correctionLayerId: string) {
-              const assetId = assetIdFromAssetDragData(event.dataTransfer)
-              if (!assetId) return
-              event.preventDefault()
-              event.stopPropagation()
-              onAssignAssetToStackGuideLabel(label.labelId, assetId, correctionLayerId)
-              setStackGuideDrop(null)
-            }
-
             return (
               <article
                 key={label.labelId}
@@ -10261,28 +10085,16 @@ function KeyList({
                   registeredCellViewMode === 'list' ? 'compact' : '',
                 ].filter(Boolean).join(' ')}
                 data-stack-guide-label-id={label.labelId}
-                draggable={stackGuideStackBand(label) === 'cell-interleave'}
-                onDragStart={event => {
-                  setCardHoverPreview(null)
-                  if (isInteractiveKeyboardTarget(event.target) || stackGuideStackBand(label) !== 'cell-interleave') {
-                    event.preventDefault()
-                    return
-                  }
-                  event.dataTransfer.setData(STACK_GUIDE_DRAG_MIME, label.labelId)
-                  event.dataTransfer.effectAllowed = 'move'
-                  if (event.dataTransfer.setDragImage) {
-                    const dragImage = createRegisteredCellDragImage(label.label, kindLabel, event.currentTarget)
-                    document.body.append(dragImage)
-                    event.dataTransfer.setDragImage(dragImage, 0, 0)
-                    window.setTimeout(() => dragImage.remove(), 0)
-                  }
+                draggable={false}
+                onPointerDown={event => {
+                  if (stackGuideStackBand(label) !== 'cell-interleave') return
+                  const dragSource = event.currentTarget
+                  startInternalPointerDrag(event, {
+                    begin: () => ({ kind: 'stack-guide', labelId: label.labelId }),
+                    onStarted: () => setCardHoverPreview(null),
+                    createDragGhost: () => createInternalDragCardImage(label.label, kindLabel, dragSource),
+                  })
                 }}
-                onDragOver={event => {
-                  if (!hasAssetDragPayload(event.dataTransfer)) return
-                  event.preventDefault()
-                  event.dataTransfer.dropEffect = 'copy'
-                }}
-                onDrop={handleDrop}
                 onMouseEnter={event => showCardHoverPreview(event, label.label, thumbnailRows)}
                 onMouseLeave={() => setCardHoverPreview(null)}
               >
@@ -10350,13 +10162,6 @@ function KeyList({
                               key={row.registration.registrationId}
                               data-stack-guide-label-id={label.labelId}
                               data-correction-layer-id={row.registration.correctionLayerId}
-                              onDragOver={event => {
-                                if (!hasAssetDragPayload(event.dataTransfer)) return
-                                event.preventDefault()
-                                event.stopPropagation()
-                                event.dataTransfer.dropEffect = 'copy'
-                              }}
-                              onDrop={event => handleLayerDrop(event, row.registration.correctionLayerId)}
                             >
                               <span className="registeredCellAssetProcess">{row.layer?.label ?? row.registration.correctionLayerId}</span>
                               <input
@@ -11368,39 +11173,6 @@ function registeredCellPreviewName(key: TimingKey): string {
   ].filter(Boolean).join(' ')
 }
 
-function createRegisteredCellDragImage(label: string, subLabel: string, source?: HTMLElement) {
-  const shell = document.createElement('div')
-  shell.className = 'registeredCellDragImageShell'
-
-  if (source) {
-    const card = source.cloneNode(true) as HTMLElement
-    card.classList.add('registeredCellDragCardClone')
-    card.removeAttribute('tabindex')
-    card.querySelectorAll<HTMLElement>('button, input, textarea, select').forEach(control => {
-      control.setAttribute('tabindex', '-1')
-      control.setAttribute('aria-hidden', 'true')
-    })
-    shell.append(card)
-    return shell
-  }
-
-  const preview = document.createElement('div')
-  preview.className = 'registeredCellDragImagePreview'
-
-  const title = document.createElement('strong')
-  title.textContent = label
-  preview.append(title)
-
-  if (subLabel) {
-    const meta = document.createElement('span')
-    meta.textContent = subLabel
-    preview.append(meta)
-  }
-
-  shell.append(preview)
-  return shell
-}
-
 function BindingPanel({ project, commitProject, selectedKeyId }: { project: CutProject; commitProject: (project: CutProject) => void; selectedKeyId: string | null }) {
   const keys = selectedKeyId ? project.logicalSheet.keys.filter(key => key.keyId === selectedKeyId) : project.logicalSheet.keys
   return (
@@ -11867,7 +11639,6 @@ function SlotSheetPreview({
               project={project}
               template={template}
               page={page}
-              onAssignAsset={() => undefined}
             />
             {strokes.map(stroke => (
               <path key={stroke.annotationId} className="annotationStroke" d={strokePath(stroke)} stroke={stroke.color} strokeWidth={stroke.width} />

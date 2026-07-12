@@ -4,7 +4,7 @@ import { assignSheetSourceToPage, cellRectForHit, createDefaultProject, createOr
 import { App, EditorApp, RemapApp } from './App'
 import { APP_VERSION } from './appVersion'
 import { uiText } from './i18n'
-import { ASSET_DRAG_MIME, ASSET_TEXT_DRAG_PREFIX, REGISTERED_CELL_DRAG_MIME, REGISTERED_CELL_TEXT_DRAG_PREFIX, STACK_GUIDE_DRAG_MIME } from './sheetConstants'
+import { ASSET_DRAG_MIME } from './sheetConstants'
 import { defaultCalibrationPoints } from './sheetImages'
 
 const tauriMockState = vi.hoisted(() => ({
@@ -50,6 +50,27 @@ afterEach(() => {
 function clickSheet(sheet: HTMLElement, clientX: number, clientY: number) {
   fireEvent.pointerDown(sheet, { pointerId: 10, pointerType: 'mouse', button: 0, buttons: 1, clientX, clientY })
   fireEvent.pointerUp(sheet, { pointerId: 10, pointerType: 'mouse', button: 0, buttons: 0, clientX, clientY })
+}
+
+let nextInternalDragPointerId = 200
+
+function dragInternalPointer(
+  source: HTMLElement,
+  target: Element,
+  options: { fromX?: number; fromY?: number; toX?: number; toY?: number } = {},
+) {
+  const pointerId = nextInternalDragPointerId++
+  const fromX = options.fromX ?? 100
+  const fromY = options.fromY ?? 100
+  const toX = options.toX ?? 300
+  const toY = options.toY ?? 260
+  const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => target) })
+  fireEvent.pointerDown(source, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX: fromX, clientY: fromY })
+  fireEvent.pointerMove(window, { pointerId, pointerType: 'mouse', buttons: 1, clientX: toX, clientY: toY })
+  fireEvent.pointerUp(window, { pointerId, pointerType: 'mouse', button: 0, buttons: 0, clientX: toX, clientY: toY })
+  if (original) Object.defineProperty(document, 'elementFromPoint', original)
+  else Reflect.deleteProperty(document, 'elementFromPoint')
 }
 
 function clickTemplateFrame(sheet: HTMLElement, role: SheetTimingRole, paperTrack: string, frame: number) {
@@ -459,23 +480,8 @@ describe('App', () => {
     const assetFile = new File(['bg'], 'BG1.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [assetFile] } })
     expect(await screen.findByText('BG1.png')).toBeTruthy()
-    const dragData: Record<string, string> = {}
-    const dataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        dragData[type] = value
-        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
-      },
-      getData: (type: string) => dragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('BG1.png'), { dataTransfer })
     const bgTrack = screen.getByLabelText('BG1（演出）へ画像素材を登録')
-    fireEvent.dragOver(bgTrack, { dataTransfer })
-    fireEvent.drop(bgTrack, { dataTransfer })
+    dragInternalPointer(getAssetCardByName('BG1.png'), bgTrack)
 
     await waitFor(() => {
       const assignedTrack = screen.getByLabelText('BG1（演出）へ画像素材を登録')
@@ -498,23 +504,8 @@ describe('App', () => {
     fireEvent.click(firstCard)
     fireEvent.click(secondCard, { ctrlKey: true })
 
-    const dragData: Record<string, string> = {}
-    const dataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        dragData[type] = value
-        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
-      },
-      getData: (type: string) => dragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(firstCard, { dataTransfer })
     const gap = screen.getByLabelText('作画のセル列挿入位置1')
-    fireEvent.dragOver(gap, { dataTransfer })
-    fireEvent.drop(gap, { dataTransfer })
+    dragInternalPointer(firstCard, gap)
     expect((screen.getByLabelText('作画に追加するセル列名') as HTMLInputElement).value).toBe('A')
     fireEvent.click(screen.getByRole('button', { name: 'セル列を作成して素材を登録' }))
 
@@ -528,8 +519,7 @@ describe('App', () => {
     const track = screen.getByLabelText('A（作画）へ画像素材を登録')
     const existingCard = track.querySelector<HTMLElement>('.cspTreeCel')
     if (!existingCard) throw new Error('registered CSP card not found')
-    fireEvent.dragOver(existingCard, { dataTransfer })
-    fireEvent.drop(existingCard, { dataTransfer })
+    dragInternalPointer(firstCard, existingCard)
     await waitFor(() => {
       expect(track.querySelectorAll('.cspTreeCel')).toHaveLength(2)
       expect(screen.getByRole('status').textContent).toBe('0件追加 / 2件は登録済み')
@@ -556,22 +546,7 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [file] } })
     expect(await screen.findByText('scan_001.png')).toBeTruthy()
 
-    const dragData: Record<string, string> = {}
-    const dataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        dragData[type] = value
-        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
-      },
-      getData: (type: string) => dragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('scan_001.png'), { dataTransfer })
-    fireEvent.dragOver(unregisteredCard, { dataTransfer })
-    fireEvent.drop(unregisteredCard, { dataTransfer })
+    dragInternalPointer(getAssetCardByName('scan_001.png'), unregisteredCard)
 
     await waitFor(() => {
       expect(document.querySelector('.cspTreeCel.unregistered')).toBeNull()
@@ -641,7 +616,9 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '登録セル' }).getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('button', { name: '画像素材' }).getAttribute('aria-expanded')).toBe('true')
     expect(document.querySelector('.sheetPaneVisibilityControls')).toBeNull()
-    expect(document.querySelectorAll('.sheetPaneEdgeToggle')).toHaveLength(2)
+    expect(document.querySelectorAll('.sheetPaneEdgeToggle')).toHaveLength(0)
+    expect(document.querySelectorAll('.panelResizeRail')).toHaveLength(2)
+    expect(document.querySelectorAll('.panelResizeRail > .panelResizeToggle')).toHaveLength(2)
   })
 
   it('persists side-pane widths and resets a resized pane to its default width', async () => {
@@ -1475,24 +1452,7 @@ describe('App', () => {
     fireEvent.change(assetInput, { target: { files: [file] } })
     expect(await screen.findByText('A1_ref.png')).toBeTruthy()
 
-    const dragData: Record<string, string> = {}
-    const dataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        dragData[type] = value
-        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
-      },
-      getData: (type: string) => dragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('A1_ref.png'), { dataTransfer })
-    const dragOver = createEvent.dragOver(registeredCell, { dataTransfer })
-    fireEvent(registeredCell, dragOver)
-    expect(dragOver.defaultPrevented).toBe(true)
-    fireEvent.drop(registeredCell, { clientX: 300, clientY: 260, dataTransfer })
+    dragInternalPointer(getAssetCardByName('A1_ref.png'), registeredCell)
     const dropMenu = await screen.findByRole('menu')
     expect(dropMenu.textContent).toContain(uiText.assetDrop.title)
     expect(dropMenu.textContent).toContain('A1_ref.png')
@@ -1519,23 +1479,9 @@ describe('App', () => {
     fireEvent.change(assetInput, { target: { files: [new File(['asset'], 'A1_ref.png', { type: 'image/png', lastModified: 1 })] } })
     expect(await screen.findByText('A1_ref.png')).toBeTruthy()
 
-    const dragData: Record<string, string> = {}
-    const dataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        dragData[type] = value
-        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
-      },
-      getData: (type: string) => dragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('A1_ref.png'), { dataTransfer })
     const registeredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
     if (!registeredCell) throw new Error('registered cell card not found')
-    fireEvent.drop(registeredCell, { clientX: 300, clientY: 260, dataTransfer })
+    dragInternalPointer(getAssetCardByName('A1_ref.png'), registeredCell)
     fireEvent.click(await screen.findByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('作画')) }))
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
@@ -1574,45 +1520,9 @@ describe('App', () => {
     fireEvent.change(assetInput, { target: { files: [file] } })
     expect(await screen.findByText('A1_enshutsu.png')).toBeTruthy()
 
-    const dragData: Record<string, string> = {}
-    const dataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        dragData[type] = value
-        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
-      },
-      getData: (type: string) => dragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('A1_enshutsu.png'), { dataTransfer })
-    expect(dragData['application/x-xsheet-remap-asset']).toBeTruthy()
-    expect(dragData['text/plain']).toBeTruthy()
-    const sheetDropTransfer = {
-      files: [],
-      types: ['text/plain'],
-      effectAllowed: 'copy',
-      dropEffect: 'none',
-      setData: () => undefined,
-      getData: (type: string) => type === 'text/plain' ? dragData['text/plain'] : '',
-    }
     const viewport = sheet.closest('.sheetViewport')
     if (!viewport) throw new Error('sheet viewport not found')
-    const viewportDragOver = createEvent.dragOver(viewport, {
-      clientX: 255,
-      clientY: 290,
-      dataTransfer: sheetDropTransfer,
-    })
-    fireEvent(viewport, viewportDragOver)
-    expect(viewportDragOver.defaultPrevented).toBe(true)
-    fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })
-    fireEvent.drop(sheet, {
-      clientX: 255,
-      clientY: 290,
-      dataTransfer: sheetDropTransfer,
-    })
+    dragInternalPointer(getAssetCardByName('A1_enshutsu.png'), sheet, { toX: 255, toY: 290 })
 
     const menu = await screen.findByRole('menu')
     expect(menu.textContent).toContain(uiText.assetDrop.title)
@@ -2875,46 +2785,8 @@ describe('App', () => {
     expect(document.querySelector('.assetThumb-large')).toBeTruthy()
 
     selectAppPanel(uiText.nav.sheet)
-    const dragData: Record<string, string> = {}
-    const dragImageCalls: Array<{ element: Element; x: number; y: number }> = []
-    const dataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      setData: (type: string, value: string) => {
-        dragData[type] = value
-        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
-      },
-      getData: (type: string) => dragData[type] ?? '',
-      setDragImage: (element: Element, x: number, y: number) => {
-        dragImageCalls.push({ element, x, y })
-      },
-    }
     const assetCard = getAssetCardByName('BG_A1.png')
-    fireEvent.dragStart(assetCard, { dataTransfer })
-    expect(assetCard.classList.contains('dragging')).toBe(true)
-    expect(dragData['application/x-xsheet-remap-asset']).toBeTruthy()
-    expect(dragData['text/plain']).toBe(`${ASSET_TEXT_DRAG_PREFIX}${dragData['application/x-xsheet-remap-asset']}`)
-    const dragImageCall = dragImageCalls[0]
-    if (!dragImageCall) throw new Error('drag image was not set')
-    expect(dragImageCall.x).toBe(0)
-    expect(dragImageCall.y).toBe(0)
-    expect((dragImageCall.element as HTMLElement).className).toBe('assetDragImageShell')
-    expect((dragImageCall.element as HTMLElement).querySelector('.assetDragImagePreview')).toBeTruthy()
-    fireEvent.dragEnd(assetCard)
-    expect(assetCard.classList.contains('dragging')).toBe(false)
-    expect(document.querySelector('.assetDragImageShell')).toBeNull()
-    const webviewDataTransfer = {
-      files: [],
-      types: ['text/plain'],
-      effectAllowed: 'copy',
-      dropEffect: 'none',
-      setData: () => undefined,
-      getData: (type: string) => type === 'text/plain' ? dragData['text/plain'] : '',
-    }
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
-    const viewport = sheet.closest('.sheetViewport')
-    if (!viewport) throw new Error('sheet viewport not found')
     sheet.getBoundingClientRect = () => ({
       x: 0,
       y: 0,
@@ -2926,20 +2798,18 @@ describe('App', () => {
       height: 1000,
       toJSON: () => ({}),
     })
-    const viewportDragOver = createEvent.dragOver(viewport, {
-      clientX: 255,
-      clientY: 290,
-      dataTransfer: webviewDataTransfer,
-    })
-    fireEvent(viewport, viewportDragOver)
-    expect(viewportDragOver.defaultPrevented).toBe(true)
-    fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })
+    const registeredCellElementFromPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => sheet) })
+    fireEvent.pointerDown(assetCard, { pointerId: 211, pointerType: 'mouse', button: 0, buttons: 1, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(window, { pointerId: 211, pointerType: 'mouse', buttons: 1, clientX: 255, clientY: 290 })
+    expect(assetCard.classList.contains('dragging')).toBe(true)
+    expect(document.querySelector('.assetDragImageShell.pointerDragGhost .assetDragImagePreview')).toBeTruthy()
     await waitFor(() => expect(document.querySelector('.hoverCellRect')).toBeTruthy())
-    fireEvent.drop(sheet, {
-      clientX: 255,
-      clientY: 290,
-      dataTransfer: webviewDataTransfer,
-    })
+    fireEvent.pointerUp(window, { pointerId: 211, pointerType: 'mouse', button: 0, buttons: 0, clientX: 255, clientY: 290 })
+    if (registeredCellElementFromPoint) Object.defineProperty(document, 'elementFromPoint', registeredCellElementFromPoint)
+    else Reflect.deleteProperty(document, 'elementFromPoint')
+    expect(assetCard.classList.contains('dragging')).toBe(false)
+    expect(document.querySelector('.assetDragImageShell')).toBeNull()
 
     await waitFor(() => expectSelectedHit('cell', 'A', 1))
     const registeredAssetBadge = await waitFor(() => {
@@ -2979,32 +2849,7 @@ describe('App', () => {
     const secondFile = new File(['asset-2'], 'BG_A2.png', { type: 'image/png', lastModified: 2 })
     fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [secondFile] } })
     expect(await screen.findByText('BG_A2.png')).toBeTruthy()
-    const secondDragData: Record<string, string> = {}
-    const secondDataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      setData: (type: string, value: string) => {
-        secondDragData[type] = value
-        if (!secondDataTransfer.types.includes(type)) secondDataTransfer.types.push(type)
-      },
-      getData: (type: string) => secondDragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('BG_A2.png'), { dataTransfer: secondDataTransfer })
-    const secondWebviewDataTransfer = {
-      files: [],
-      types: ['text/plain'],
-      effectAllowed: 'copy',
-      dropEffect: 'none',
-      setData: () => undefined,
-      getData: (type: string) => type === 'text/plain' ? secondDragData['text/plain'] : '',
-    }
-    fireEvent.drop(sheet, {
-      clientX: 255,
-      clientY: 290,
-      dataTransfer: secondWebviewDataTransfer,
-    })
+    dragInternalPointer(getAssetCardByName('BG_A2.png'), sheet, { toX: 255, toY: 290 })
     const dropMenu = await screen.findByRole('menu')
     expect(dropMenu.textContent).toContain(uiText.assetDrop.title)
     expect(dropMenu.textContent).toContain('BG_A2.png')
@@ -3045,34 +2890,6 @@ describe('App', () => {
     if (!closeRegisteredCellPreview) throw new Error('registered cell preview close button not found')
     fireEvent.click(closeRegisteredCellPreview)
 
-    const registeredCellDragData: Record<string, string> = {}
-    const registeredCellDataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dragImageCalls: [] as Array<{ element: Element; x: number; y: number }>,
-      setData: (type: string, value: string) => {
-        registeredCellDragData[type] = value
-        if (!registeredCellDataTransfer.types.includes(type)) registeredCellDataTransfer.types.push(type)
-      },
-      getData: (type: string) => registeredCellDragData[type] ?? '',
-      setDragImage: (element: Element, x: number, y: number) => {
-        registeredCellDataTransfer.dragImageCalls.push({ element, x, y })
-      },
-    }
-    fireEvent.dragStart(updatedRegisteredCell, { dataTransfer: registeredCellDataTransfer })
-    expect(registeredCellDragData[REGISTERED_CELL_DRAG_MIME]).toBeTruthy()
-    expect(registeredCellDragData['text/plain']).toBe(`${REGISTERED_CELL_TEXT_DRAG_PREFIX}${registeredCellDragData[REGISTERED_CELL_DRAG_MIME]}`)
-    const registeredCellDragImage = registeredCellDataTransfer.dragImageCalls[0]
-    if (!registeredCellDragImage) throw new Error('registered cell drag image was not set')
-    expect(registeredCellDragImage.x).toBe(0)
-    expect(registeredCellDragImage.y).toBe(0)
-    expect((registeredCellDragImage.element as HTMLElement).className).toBe('registeredCellDragImageShell')
-    const registeredCellDragCard = (registeredCellDragImage.element as HTMLElement).querySelector('.registeredCellDragCardClone')
-    expect(registeredCellDragCard).toBeTruthy()
-    expect(registeredCellDragCard?.querySelector('.registeredCellTrackBadge')?.textContent).toBe('A')
-    expect(registeredCellDragCard?.textContent).toContain('BG_A1.png')
-    fireEvent.dragEnd(updatedRegisteredCell)
     const currentSheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     currentSheet.getBoundingClientRect = () => ({
       x: 0,
@@ -3085,21 +2902,15 @@ describe('App', () => {
       height: 1000,
       toJSON: () => ({}),
     })
-    fireEvent.pointerMove(currentSheet, { clientX: 273, clientY: 290 })
+    const originalElementFromPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => currentSheet) })
+    fireEvent.pointerDown(updatedRegisteredCell, { button: 0, pointerId: 901, clientX: 20, clientY: 20 })
+    fireEvent.pointerMove(window, { pointerId: 901, clientX: 273, clientY: 290 })
+    expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost .registeredCellDragCardClone')).toBeTruthy()
     await waitFor(() => expect(document.querySelector('.hoverCellRect')).toBeTruthy())
-    const registeredCellWebviewDataTransfer = {
-      files: [],
-      types: ['text/plain'],
-      effectAllowed: 'copy',
-      dropEffect: 'none',
-      setData: () => undefined,
-      getData: (type: string) => type === 'text/plain' ? registeredCellDragData['text/plain'] : '',
-    }
-    expect(fireEvent.drop(currentSheet, {
-      clientX: 273,
-      clientY: 290,
-      dataTransfer: registeredCellWebviewDataTransfer,
-    })).toBe(false)
+    fireEvent.pointerUp(window, { pointerId: 901, clientX: 273, clientY: 290 })
+    if (originalElementFromPoint) Object.defineProperty(document, 'elementFromPoint', originalElementFromPoint)
+    else Reflect.deleteProperty(document, 'elementFromPoint')
     const registeredCellsAfterCardDrop = await waitFor(() => {
       const cards = Array.from(document.querySelectorAll('.registeredCellCard'))
       expect(cards.map(registeredCellIdentityText)).toEqual(['CELL A', 'CELL B'])
@@ -3116,25 +2927,12 @@ describe('App', () => {
     const thirdFile = new File(['asset-3'], 'BG_A3.png', { type: 'image/png', lastModified: 3 })
     fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [thirdFile] } })
     expect(await screen.findByText('BG_A3.png')).toBeTruthy()
-    const thirdDragData: Record<string, string> = {}
-    const thirdDataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      setData: (type: string, value: string) => {
-        thirdDragData[type] = value
-        if (!thirdDataTransfer.types.includes(type)) thirdDataTransfer.types.push(type)
-      },
-      getData: (type: string) => thirdDragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('BG_A3.png'), { dataTransfer: thirdDataTransfer })
     const sourceRegisteredCell = Array.from(document.querySelectorAll('.registeredCellCard'))
       .find(card => registeredCellIdentityText(card) === 'CELL A') as HTMLElement | undefined
     if (!sourceRegisteredCell) throw new Error('source registered cell card not found')
     const firstAssetRow = sourceRegisteredCell.querySelector('.registeredCellAssetRow') as HTMLElement | null
     if (!firstAssetRow) throw new Error('registered cell asset row not found')
-    fireEvent.drop(firstAssetRow, { dataTransfer: thirdDataTransfer })
+    dragInternalPointer(getAssetCardByName('BG_A3.png'), firstAssetRow)
     const registeredCellDropMenu = await screen.findByRole('menu')
     expect(registeredCellDropMenu.textContent).toContain(uiText.assetDrop.title)
     expect(registeredCellDropMenu.textContent).toContain('BG_A3.png')
@@ -3225,24 +3023,9 @@ describe('App', () => {
     fireEvent.change(assetInput, { target: { files: [file] } })
     expect(await screen.findByText('BOOK2_3.png')).toBeTruthy()
 
-    const dragData: Record<string, string> = {}
-    const dataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        dragData[type] = value
-        if (!dataTransfer.types.includes(type)) dataTransfer.types.push(type)
-      },
-      getData: (type: string) => dragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('BOOK2_3.png'), { dataTransfer })
-    expect(dragData[ASSET_DRAG_MIME]).toBeTruthy()
     const labelButton = Array.from(document.querySelectorAll('.stackGuideLabel')).find(label => label.textContent === 'BOOK2,3')
     if (!labelButton) throw new Error('stack guide label was not rendered')
-    fireEvent.drop(labelButton, { dataTransfer })
+    dragInternalPointer(getAssetCardByName('BOOK2_3.png'), labelButton)
 
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')).toBeTruthy())
     const stackGuideCard = Array.from(document.querySelectorAll('.stackGuideCard'))
@@ -3251,34 +3034,8 @@ describe('App', () => {
     expect(stackGuideCard.textContent).toContain('BOOK2_3.png')
     expect(stackGuideCard.textContent).toContain('作画')
 
-    const cardDragData: Record<string, string> = {}
-    const stackGuideDataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        cardDragData[type] = value
-        if (!stackGuideDataTransfer.types.includes(type)) stackGuideDataTransfer.types.push(type)
-      },
-      getData: (type: string) => cardDragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(stackGuideCard, { dataTransfer: stackGuideDataTransfer })
-    expect(cardDragData[STACK_GUIDE_DRAG_MIME]).toBeTruthy()
     const cellTarget = templateStackGuideHeaderPoint('cell', 4)
-    const viewport = document.querySelector('.sheetViewport') as HTMLElement | null
-    if (!viewport) throw new Error('sheet viewport not found')
-    const stackGuideDragOver = createEvent.dragOver(viewport)
-    Object.defineProperty(stackGuideDragOver, 'clientX', { value: cellTarget.x })
-    Object.defineProperty(stackGuideDragOver, 'clientY', { value: cellTarget.y })
-    Object.defineProperty(stackGuideDragOver, 'dataTransfer', { value: stackGuideDataTransfer })
-    fireEvent(viewport, stackGuideDragOver)
-    const stackGuideDrop = createEvent.drop(viewport)
-    Object.defineProperty(stackGuideDrop, 'clientX', { value: cellTarget.x })
-    Object.defineProperty(stackGuideDrop, 'clientY', { value: cellTarget.y })
-    Object.defineProperty(stackGuideDrop, 'dataTransfer', { value: stackGuideDataTransfer })
-    fireEvent(viewport, stackGuideDrop)
+    dragInternalPointer(stackGuideCard, sheet, { toX: cellTarget.x, toY: cellTarget.y })
     await waitFor(() => expect(document.querySelectorAll('.stackGuideLabel').length).toBe(2))
     await waitFor(() => {
       const labels = Array.from(document.querySelectorAll('.stackGuideLabel')).map(label => `${label.getAttribute('data-stack-guide-role')}:${label.textContent}`).join(', ')
@@ -3343,23 +3100,9 @@ describe('App', () => {
       expect(Array.from(document.querySelectorAll('.stackGuideCard')).find(card => card.textContent?.includes('BOOK-CUT'))?.textContent).toContain('BOOK_CUT.png')
     })
 
-    const assetDragData: Record<string, string> = {}
-    const assetDataTransfer = {
-      files: [],
-      types: [] as string[],
-      effectAllowed: 'none',
-      dropEffect: 'none',
-      setData: (type: string, value: string) => {
-        assetDragData[type] = value
-        if (!assetDataTransfer.types.includes(type)) assetDataTransfer.types.push(type)
-      },
-      getData: (type: string) => assetDragData[type] ?? '',
-      setDragImage: () => undefined,
-    }
-    fireEvent.dragStart(getAssetCardByName('BOOK_CUT.png'), { dataTransfer: assetDataTransfer })
     const firstCutLabel = Array.from(document.querySelectorAll('.stackGuideLabel')).find(label => label.textContent === 'BOOK-CUT')
     if (!firstCutLabel) throw new Error('first cut stack guide label was not rendered')
-    fireEvent.drop(firstCutLabel, { dataTransfer: assetDataTransfer })
+    dragInternalPointer(getAssetCardByName('BOOK_CUT.png'), firstCutLabel)
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')?.textContent).toBe('BOOK-CUT'))
     expect(Array.from(document.querySelectorAll('.stackGuideCard')).find(card => card.textContent?.includes('BOOK-CUT'))?.textContent).toContain('BOOK_CUT.png')
 

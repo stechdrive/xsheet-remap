@@ -1164,44 +1164,6 @@ textarea,
   min-height: 0;
 }
 
-.sheetPaneEdgeToggle {
-  position: absolute;
-  top: 50%;
-  z-index: 19;
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  min-width: 22px;
-  height: 42px;
-  min-height: 42px;
-  padding: 0;
-  border: 1px solid rgb(65 107 90 / 0.34);
-  background: rgb(251 251 248 / 0.94);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
-  transform: translateY(-50%);
-}
-
-.sheetPaneEdgeToggle.left {
-  left: calc(var(--sheet-left-dock-width, 240px) + var(--sheet-left-resizer-width, 10px) + 3px);
-  border-radius: 0 5px 5px 0;
-}
-
-.sheetPaneEdgeToggle.right {
-  right: calc(var(--sheet-right-dock-width, 300px) + var(--sheet-right-resizer-width, 10px) + 3px);
-  border-radius: 5px 0 0 5px;
-}
-
-.sheetPaneEdgeToggle:hover,
-.sheetPaneEdgeToggle:focus-visible {
-  border-color: #416b5a;
-  background: rgb(251 251 248 / 0.92);
-}
-
-.sheetPaneEdgeToggle svg {
-  width: 16px;
-  height: 16px;
-}
-
 .sheetZoomFloatingPalette {
   position: absolute;
   top: 8px;
@@ -1813,6 +1775,7 @@ textarea,
   grid-column: 1;
 }
 
+.sheetWorkspace > .sheetDockLeft + .panelResizeRail,
 .sheetWorkspace > .sheetDockLeft + .panelResizeHandle {
   grid-column: 2;
 }
@@ -1821,6 +1784,7 @@ textarea,
   grid-column: 3;
 }
 
+.sheetWorkspace > .sheetViewport + .panelResizeRail,
 .sheetWorkspace > .sheetViewport + .panelResizeHandle {
   grid-column: 4;
 }
@@ -1856,6 +1820,56 @@ textarea,
 .panelResizeHandle:hover::before,
 .panelResizeHandle:focus-visible::before {
   background: #416b5a;
+}
+
+.panelResizeRail {
+  position: relative;
+  min-width: 16px;
+  min-height: 100%;
+  background: #eceee9;
+}
+
+.panelResizeRail .panelResizeHandle {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  min-width: 0;
+}
+
+.panelResizeRail .panelResizeHandle::before {
+  inset: 8px 7px;
+  border-radius: 0;
+}
+
+.panelResizeToggle {
+  position: absolute;
+  top: 50%;
+  left: 1px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  min-width: 14px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid #aeb7b0;
+  border-radius: 3px;
+  background: #fbfbf8;
+  color: #30483d;
+  transform: translateY(-50%);
+}
+
+.panelResizeToggle:hover,
+.panelResizeToggle:focus-visible {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173528;
+}
+
+.panelResizeToggle svg {
+  width: 12px;
+  height: 12px;
 }
 
 .dockTabs {

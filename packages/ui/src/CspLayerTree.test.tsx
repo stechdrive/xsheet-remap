@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createDefaultProject, createOrSetEvent, createStackGuideLabel, upsertBinding } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CspLayerTree } from './CspLayerTree'
-import { ASSET_DRAG_MIME, ASSET_MULTI_DRAG_MIME, REGISTERED_CELL_DRAG_MIME } from './sheetConstants'
+import { dispatchInternalDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 
 afterEach(cleanup)
 
@@ -54,16 +54,17 @@ describe('CspLayerTree', () => {
     expect(screen.queryByText('CSPパレット上端')).toBeNull()
     expect(document.querySelector('.cspTreeTrackOrder')).toBeNull()
 
-    const dragData: Record<string, string> = {}
     const registeredCell = document.querySelector<HTMLElement>('.cspTreeCel')
     if (!registeredCell) throw new Error('CSP cell card not found')
-    fireEvent.dragStart(registeredCell, {
-      dataTransfer: {
-        effectAllowed: 'none',
-        setData: (type: string, value: string) => { dragData[type] = value },
-      },
+    const droppedPayloads: InternalDragPayload[] = []
+    const unsubscribe = subscribeInternalDrag(detail => {
+      if (detail.phase === 'drop') droppedPayloads.push(detail.payload)
     })
-    expect(dragData[REGISTERED_CELL_DRAG_MIME]).toBe(second.key.keyId)
+    fireEvent.pointerDown(registeredCell, { pointerId: 10, pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 })
+    fireEvent.pointerMove(window, { pointerId: 10, pointerType: 'mouse', buttons: 1, clientX: 20, clientY: 10 })
+    fireEvent.pointerUp(window, { pointerId: 10, pointerType: 'mouse', button: 0, clientX: 30, clientY: 10 })
+    unsubscribe()
+    expect(droppedPayloads).toEqual([{ kind: 'registered-cell', keyId: second.key.keyId }])
 
     const trackName = screen.getByLabelText('Aのセル列名')
     fireEvent.change(trackName, { target: { value: 'LO' } })
@@ -108,13 +109,7 @@ describe('CspLayerTree', () => {
     expect(unregisteredCard.querySelector('.cspTreeCelFrame')).toBeNull()
 
     const track = screen.getByLabelText('A（作画）へ画像素材を登録')
-    const dataTransfer = {
-      types: [REGISTERED_CELL_DRAG_MIME],
-      dropEffect: 'none',
-      getData: vi.fn((type: string) => type === REGISTERED_CELL_DRAG_MIME ? created.key.keyId : ''),
-    }
-    fireEvent.dragOver(track, { dataTransfer })
-    fireEvent.drop(track, { dataTransfer })
+    dropInternalOn(track, { kind: 'registered-cell', keyId: created.key.keyId })
     expect(onRegisterKeyToTrack).toHaveBeenCalledWith(created.key.keyId, 'slot_A')
 
     fireEvent.click(screen.getByRole('button', { name: '名前を正規化' }))
@@ -203,14 +198,9 @@ describe('CspLayerTree', () => {
     )
 
     const track = screen.getByLabelText('BG1（演出）へ画像素材を登録')
-    const dataTransfer = {
-      types: [ASSET_DRAG_MIME],
-      dropEffect: 'none',
-      getData: vi.fn((type: string) => type === ASSET_DRAG_MIME ? 'asset_bg' : ''),
-    }
-    fireEvent.dragOver(track, { dataTransfer })
+    moveInternalOver(track, { kind: 'asset', assetIds: ['asset_bg'] })
     expect(track.classList.contains('assetDragOver')).toBe(true)
-    fireEvent.drop(track, { dataTransfer })
+    dropInternalOn(track, { kind: 'asset', assetIds: ['asset_bg'] })
 
     expect(onAssignAssetsToStackGuideLabel).toHaveBeenCalledWith(
       created.label.labelId,
@@ -218,6 +208,54 @@ describe('CspLayerTree', () => {
       'layer_enshutsu',
     )
     expect(track.classList.contains('assetDragOver')).toBe(false)
+  })
+
+  it('uses the same pointer drop contract for camera notes and memos and rejects multiple assets', () => {
+    const camera = createStackGuideLabel(createDefaultProject(), {
+      label: 'SL1',
+      kind: 'camera-note',
+      gapIndex: 9,
+      correctionLayerId: 'layer_sakuga',
+    })
+    const memo = createStackGuideLabel(camera.project, {
+      label: 'MEMO1',
+      kind: 'memo',
+      gapIndex: 9,
+      correctionLayerId: 'layer_sakuga',
+    })
+    const onAssignAssetsToStackGuideLabel = vi.fn()
+    render(
+      <CspLayerTree
+        project={memo.project}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
+        onUpdateCspCellName={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={onAssignAssetsToStackGuideLabel}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    dropInternalOn(screen.getByLabelText('SL1（作画）へ画像素材を登録'), { kind: 'asset', assetIds: ['asset_sl1'] })
+    dropInternalOn(screen.getByLabelText('MEMO1（作画）へ画像素材を登録'), { kind: 'asset', assetIds: ['asset_memo1'] })
+    expect(onAssignAssetsToStackGuideLabel).toHaveBeenNthCalledWith(1, camera.label.labelId, ['asset_sl1'], 'layer_sakuga')
+    expect(onAssignAssetsToStackGuideLabel).toHaveBeenNthCalledWith(2, memo.label.labelId, ['asset_memo1'], 'layer_sakuga')
+
+    dropInternalOn(screen.getByLabelText('SL1（作画）へ画像素材を登録'), { kind: 'asset', assetIds: ['asset_a', 'asset_b'] })
+    expect(onAssignAssetsToStackGuideLabel).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('status').textContent).toContain('1件だけ選択')
   })
 
   it('registers a multi-selection on an existing paper track', () => {
@@ -255,10 +293,9 @@ describe('CspLayerTree', () => {
     )
 
     const track = screen.getByLabelText('A（作画）へ画像素材を登録')
-    const dataTransfer = multiAssetDataTransfer(['asset_A1', 'asset_A2'])
-    fireEvent.dragOver(track, { dataTransfer })
+    moveInternalOver(track, { kind: 'asset', assetIds: ['asset_A1', 'asset_A2'] })
     expect(track.classList.contains('assetDragOver')).toBe(true)
-    fireEvent.drop(track, { dataTransfer })
+    dropInternalOn(track, { kind: 'asset', assetIds: ['asset_A1', 'asset_A2'] })
 
     expect(onRegisterAssetsToTrack).toHaveBeenCalledWith('slot_A', ['asset_A1', 'asset_A2'])
     expect(screen.getByRole('status').textContent).toBe('2件追加')
@@ -291,10 +328,9 @@ describe('CspLayerTree', () => {
     )
 
     const gap = screen.getByLabelText('作画のセル列挿入位置1')
-    const dataTransfer = multiAssetDataTransfer(['asset_A1', 'asset_A2'])
-    fireEvent.dragOver(gap, { dataTransfer })
+    moveInternalOver(gap, { kind: 'asset', assetIds: ['asset_A1', 'asset_A2'] })
     expect(gap.classList.contains('assetDragOver')).toBe(true)
-    fireEvent.drop(gap, { dataTransfer })
+    dropInternalOn(gap, { kind: 'asset', assetIds: ['asset_A1', 'asset_A2'] })
 
     const input = screen.getByLabelText('作画に追加するセル列名')
     expect((input as HTMLInputElement).value).toBe('A')
@@ -312,10 +348,18 @@ describe('CspLayerTree', () => {
   })
 })
 
-function multiAssetDataTransfer(assetIds: string[]) {
-  return {
-    types: [ASSET_MULTI_DRAG_MIME],
-    dropEffect: 'none',
-    getData: vi.fn((type: string) => type === ASSET_MULTI_DRAG_MIME ? JSON.stringify(assetIds) : ''),
-  }
+function moveInternalOver(target: Element, payload: InternalDragPayload) {
+  dispatchInternalOn(target, 'move', payload)
+}
+
+function dropInternalOn(target: Element, payload: InternalDragPayload) {
+  dispatchInternalOn(target, 'drop', payload)
+}
+
+function dispatchInternalOn(target: Element, phase: 'move' | 'drop', payload: InternalDragPayload) {
+  const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => target) })
+  act(() => dispatchInternalDrag({ sessionId: 'test', phase, payload, clientX: 20, clientY: 20 }))
+  if (original) Object.defineProperty(document, 'elementFromPoint', original)
+  else Reflect.deleteProperty(document, 'elementFromPoint')
 }

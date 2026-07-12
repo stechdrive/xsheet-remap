@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from pywinauto import Desktop, mouse
+from pywinauto import Desktop, keyboard, mouse
 from win32api import GetMonitorInfo, GetSystemMetrics, MonitorFromPoint
 import win32gui
 
@@ -61,6 +61,10 @@ def main() -> int:
     click_parser.add_argument("--button", choices=["left", "right"], default="left")
     click_parser.add_argument("--app-pid", type=int)
 
+    key_parser = subparsers.add_parser("key-press", help="Send keyboard input to the main app window.")
+    key_parser.add_argument("--keys", required=True)
+    key_parser.add_argument("--app-pid", type=int, required=True)
+
     explorer_parser = subparsers.add_parser("drag-explorer-item", help="Open Explorer, select a file/folder, and drag it to a screen coordinate.")
     explorer_parser.add_argument("--path", required=True)
     explorer_parser.add_argument("--allowed-root", required=True)
@@ -108,6 +112,13 @@ def main() -> int:
         mouse.click(button=args.button, coords=(args.x, args.y))
         time.sleep(0.1)
         print_json({"ok": True, "command": args.command, "button": args.button, "point": [args.x, args.y]})
+        return 0
+
+    if args.command == "key-press":
+        focus_process_window(args.app_pid)
+        keyboard.send_keys(args.keys)
+        time.sleep(0.1)
+        print_json({"ok": True, "command": args.command, "keys": args.keys})
         return 0
 
     if args.command == "drag-explorer-item":

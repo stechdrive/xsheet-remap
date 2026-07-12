@@ -121,7 +121,7 @@ export function buildCspLayerTree(project: CutProject, profileId?: string): CspL
 
     const trackNodeId = slot
       ? `track:slot:${slot.slotId}`
-      : registration ? `track:stack:${registration.registrationId}` : `track:export:${track.trackNo}`
+      : registration && stackLabel ? `track:stack:${stackLabel.labelId}:${registration.registrationId}` : `track:export:${track.trackNo}`
     layerNode.tracks.push({
       nodeId: trackNodeId,
       label: paperTrack?.label ?? track.name,

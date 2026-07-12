@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.486",
+  "version": "0.1.487",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -48,6 +48,8 @@
     "e2e:desktop:win:sheet-ops:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sheet-ops -Build",
     "e2e:desktop:win:real-dnd": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-real-dnd.ps1",
     "e2e:desktop:win:real-dnd:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-real-dnd.ps1 -Build",
+    "e2e:remap:win:real-dnd": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-real-dnd.ps1 -AppMode remap",
+    "e2e:remap:win:real-dnd:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-real-dnd.ps1 -AppMode remap -Build",
     "e2e:desktop:win:auto-calibration": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario auto-calibration",
     "e2e:desktop:win:auto-calibration:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario auto-calibration -Build",
     "e2e:sheet-corrector:calibration-eval": "tsx tools/e2e/sheet-corrector-calibration-eval.ts",

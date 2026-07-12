@@ -1,0 +1,655 @@
+@import '@fontsource/line-seed-jp/400.css';
+@import '@fontsource/line-seed-jp/700.css';
+@import '@fontsource/line-seed-jp/800.css';
+
+:root {
+  color: #202124;
+  background: #ecebe6;
+  --font-ui-sans: "LINE Seed JP", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+  --font-sheet-sans: "LINE Seed JP", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+  font-family: var(--font-ui-sans);
+  font-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body.sheetInteractionActive,
+body.sheetInteractionActive * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+select,
+textarea {
+  line-height: 1.45;
+}
+
+button,
+.fileButton,
+.actionMenu > summary {
+  border: 1px solid #a7aca8;
+  background: #fafaf7;
+  color: #1f2421;
+  border-radius: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+button:hover,
+.fileButton:hover,
+.actionMenu > summary:hover {
+  background: #f0f3ee;
+}
+
+button:disabled {
+  color: #8a918c;
+  cursor: not-allowed;
+  background: #e8e9e4;
+}
+
+.appTooltipTrigger {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.appTooltipTrigger > button:disabled {
+  pointer-events: none;
+}
+
+.appTooltip {
+  position: fixed;
+  z-index: 10000;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 5px 8px;
+  border: 1px solid rgb(21 32 28 / 0.22);
+  border-radius: 5px;
+  background: rgb(24 31 28 / 0.96);
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.22);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+  pointer-events: none;
+  white-space: pre-line;
+  transform: translateX(calc(-50% + var(--tooltip-shift-x, 0px)));
+}
+
+.appTooltip-top {
+  transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), -100%);
+}
+
+.appTooltip::after {
+  content: "";
+  position: absolute;
+  left: var(--tooltip-arrow-x, 50%);
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid rgb(21 32 28 / 0.22);
+  border-bottom: 1px solid rgb(21 32 28 / 0.22);
+  background: rgb(24 31 28 / 0.96);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.appTooltip-top::after {
+  bottom: -4px;
+}
+
+.appTooltip-bottom::after {
+  top: -4px;
+  transform: translateX(-50%) rotate(225deg);
+}
+
+input,
+select,
+textarea {
+  border: 1px solid #b8bdb9;
+  border-radius: 4px;
+  background: #fff;
+  color: #1f2421;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.appShell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) 28px;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.topBar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 5px 10px;
+  border-bottom: 1px solid #c6c8c3;
+  background: #f8f8f4;
+  position: relative;
+  z-index: 10;
+}
+
+.topIdentity {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.topBrand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.topIdentity strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appVersion {
+  color: #767a72;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.topPanelLabel {
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 1px solid #d2d5cf;
+  color: #3d4942;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topActions,
+.toolRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.topActions {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  overflow-x: auto;
+  overflow-y: visible;
+  flex-wrap: nowrap;
+  row-gap: 0;
+  scrollbar-width: thin;
+}
+
+.topActions > * {
+  flex: 0 0 auto;
+}
+
+.paperSheetTopGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 3px 5px;
+  border: 1px solid #d5d8d2;
+  border-radius: 6px;
+  background: #fbfbf8;
+  white-space: nowrap;
+}
+
+.cutMetadataTopGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 3px 5px;
+  border: 1px solid #d5d8d2;
+  border-radius: 6px;
+  background: #fbfbf8;
+  white-space: nowrap;
+}
+
+.topTextField {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  color: #3e4942;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.topTextField input {
+  height: 28px;
+  min-width: 0;
+  width: 120px;
+  padding: 3px 6px;
+  border: 1px solid #b8bdb9;
+  border-radius: 4px;
+  background: #fff;
+  color: #202421;
+  font: inherit;
+}
+
+.topTextField.compact input {
+  width: 64px;
+}
+
+.topGroupLabel {
+  color: #4e5a53;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.paperSheetTopGroup .fileButton,
+.paperSheetTopGroup button {
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.topCheckboxControl {
+  min-height: 28px;
+}
+
+.topOpacityControl {
+  min-height: 28px;
+}
+
+.topOpacityControl input[type="range"] {
+  width: 90px;
+}
+
+.topIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  line-height: 1;
+}
+
+.topIconSvg {
+  display: block;
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.actionMenu {
+  position: relative;
+}
+
+.actionMenu > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.actionMenu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.actionMenu > summary::after {
+  content: "▾";
+  color: #59615c;
+  font-size: 11px;
+}
+
+.actionMenu[open] > summary {
+  border-color: #416b5a;
+  background: #dce8df;
+}
+
+.actionMenuContent {
+  position: fixed;
+  z-index: 2000;
+  display: grid;
+  gap: 6px;
+  min-width: 200px;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 8px;
+  border: 1px solid #a7aca8;
+  border-radius: 6px;
+  background: #fbfbf8;
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.14);
+}
+
+.actionMenuPortalContent {
+  max-height: min(70vh, 520px);
+  overflow: auto;
+}
+
+.actionMenuContent button,
+.actionMenuContent .fileButton {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.actionMenuContent > .appTooltipTrigger,
+.actionMenuContent .appNavFlyout > .appTooltipTrigger,
+.actionMenuContent .appNavFlyoutMenu > .appTooltipTrigger {
+  width: 100%;
+}
+
+.actionMenuContent .compactControl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  white-space: normal;
+}
+
+.actionMenuContent select,
+.actionMenuContent input[type="number"],
+.actionMenuContent input[type="text"] {
+  max-width: 100%;
+}
+
+.actionMenuContent .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.imageExportMenuGroup {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 0 6px;
+  border-bottom: 1px solid #d6dbd4;
+}
+
+.imageExportMenuLabel {
+  padding: 0 2px;
+  color: #66716a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.actionMenuSectionLabel {
+  padding: 0 2px;
+  color: #66716a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.imageExportFormatButtons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.imageExportFormatButtons > .appTooltipTrigger {
+  min-width: 0;
+}
+
+.actionMenuContent .imageExportFormatButtons button {
+  justify-content: center;
+  min-height: 32px;
+  padding: 5px 8px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.appNavMenu > summary {
+  width: 36px;
+  min-width: 36px;
+  height: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.appNavMenu > summary::after {
+  display: none;
+}
+
+.appNavMenu.iconActionMenu > summary svg {
+  width: 26px;
+  height: 26px;
+}
+
+.appNavMenu.actionMenuContent {
+  min-width: 204px;
+}
+
+.appNavMenu.actionMenuPortalContent {
+  max-height: none;
+  overflow: visible;
+}
+
+.appNavMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-start;
+  min-height: 34px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.fileButton.appNavMenuItem {
+  display: flex;
+  width: 100%;
+}
+
+.appNavMenuItem.active {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173a2b;
+}
+
+.appNavSectionLabel {
+  margin: 8px 4px 3px;
+  color: #66716a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appNavFlyout {
+  position: relative;
+}
+
+.appNavFlyoutTrigger::after {
+  content: "›";
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 14px;
+  color: #65716a;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.appNavFlyoutMenu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 6px);
+  z-index: 2001;
+  display: none;
+  min-width: 190px;
+  padding: 8px;
+  border: 1px solid #a7aca8;
+  border-radius: 6px;
+  background: #fbfbf8;
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.14);
+}
+
+.appNavExportFlyoutMenu {
+  min-width: 220px;
+}
+
+.appNavImageExportGroup {
+  padding: 0 0 5px;
+  border-bottom: 1px solid #e1e4de;
+}
+
+.appNavExportFlyoutMenu .imageExportFormatButtons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.appNavExportFlyoutMenu .imageExportFormatButtons button {
+  justify-content: center;
+  min-height: 32px;
+  padding: 5px 8px;
+  font-weight: 800;
+}
+
+.appNavFlyout:hover .appNavFlyoutMenu,
+.appNavFlyout:focus-within .appNavFlyoutMenu {
+  display: grid;
+  gap: 4px;
+}
+
+.viewModeMenuList {
+  display: grid;
+  gap: 4px;
+  min-width: 128px;
+}
+
+.viewModeMenuList button {
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: 6px 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.viewModeMenuList button.active {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173528;
+  font-weight: 800;
+}
+
+.mainPane {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.inspector {
+  display: none;
+}
+
+.inspector h2,
+.keyList h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.inspector dl {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  margin: 0;
+}
+
+.inspector dt {
+  color: #666f68;
+}
+
+.inspector dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.statusBar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  border-top: 1px solid #c6c8c3;
+  background: #f8f8f4;
+  color: #59615c;
+  font-size: 12px;
+}
+
+.statusBar span {
+  min-width: 0;
+}
+
+.statusSelection {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusHint {
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: #496156;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusHint.active {
+  color: #173528;
+  font-weight: 700;
+}
+
+.statusIssueSummary {
+  flex: 0 0 auto;
+}
+
+.panel {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px;
+  overflow: auto;
+}
+

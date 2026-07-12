@@ -1,0 +1,620 @@
+.templateEditorAppShell {
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr) 28px;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #eef0ec;
+}
+
+.templateEditorAppHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #cbd0ca;
+  background: #f7f8f5;
+}
+
+.templateEditorAppMain {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px;
+}
+
+.templateEditorAppMain > .templatePanel {
+  width: 100%;
+  height: 100%;
+}
+
+.templateToolbar {
+  align-items: flex-start;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+.templateToolbar > * {
+  flex: 0 1 auto;
+}
+
+.templateDraftToolbarGroup {
+  align-items: center;
+}
+
+.templateDraftStatus {
+  min-width: 112px;
+  color: #4c554e;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.templateDraftStatus.dirty {
+  color: #8b4c12;
+}
+
+.templateProcessToolbarGroup {
+  align-items: center;
+}
+
+.templateProcessToolbarGroup .muted {
+  white-space: nowrap;
+}
+
+.templateProcessToolbarGroup .processSettingsOpenButton {
+  white-space: nowrap;
+}
+
+.templateCreateMenu.actionMenuContent {
+  min-width: 220px;
+}
+
+.templateCreateMenuGroup {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 0 8px;
+  border-bottom: 1px solid #d6dbd4;
+}
+
+.templateCreateMenuGroup:last-child {
+  padding-bottom: 2px;
+  border-bottom: 0;
+}
+
+.templateWorkspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10px var(--template-dock-width, 380px);
+  gap: 0;
+  min-height: 0;
+}
+
+.templateEditor {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.templateEditorViewport {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding: 10px;
+  background: #d6d5ce;
+  border: 1px solid #bfc3bd;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.templateEditorSvg {
+  display: block;
+  height: auto;
+  max-width: none;
+  aspect-ratio: 1754 / 2481;
+  background: #fbfbf8;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.templateEditorCaption {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #c6c8c3;
+  background: #fbfbf8;
+}
+
+.templateEditorRectReadout {
+  color: #315f50;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.templateDockTabs {
+  overflow-x: auto;
+}
+
+.templateDockTabs button {
+  flex: 0 0 auto;
+}
+
+.detailStack {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.dockToolRow {
+  align-items: flex-start;
+}
+
+.templateRegionHit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 12px;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+.templateRegionHit:hover,
+.templateRegionHit.selected {
+  fill: rgb(65 107 90 / 0.08);
+  stroke: transparent;
+}
+
+.templateStaticLayer {
+  pointer-events: none;
+}
+
+.templateInteractionOverlay {
+  pointer-events: none;
+}
+
+.templateEditorHitSurface {
+  fill: transparent;
+  pointer-events: all;
+  cursor: default;
+}
+
+.templateEditorHitSurface.interactive {
+  cursor: pointer;
+}
+
+.templateRegionHighlight {
+  fill: rgb(65 107 90 / 0.08);
+  stroke: transparent;
+  pointer-events: none;
+}
+
+.templateCalibrationTargetOutline {
+  fill: transparent;
+  stroke: #1767a8;
+  stroke-dasharray: 0.018 0.01;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.templateCalibrationTargetOutline.selected {
+  fill: rgb(23 103 168 / 0.08);
+  stroke-width: 2px;
+}
+
+.templateCalibrationTargetOutline.hovered {
+  fill: rgb(23 103 168 / 0.06);
+}
+
+.templateCalibrationTargetHit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 18px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.templateSelectedRegion {
+  fill: rgb(65 107 90 / 0.08);
+  stroke: #174d3f;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.templateEdgeGuide {
+  stroke: #d63d2e;
+  stroke-width: 1.25px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.templateEdgeHit {
+  stroke: transparent;
+  stroke-width: 18px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+
+.templateEdgeHit.vertical,
+.templateHandleKnob.vertical {
+  cursor: col-resize;
+}
+
+.templateEdgeHit.horizontal,
+.templateHandleKnob.horizontal {
+  cursor: row-resize;
+}
+
+.templateHandleKnob {
+  fill: #fbfbf8;
+  stroke: #d63d2e;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+}
+
+.templateHandleKnob:hover {
+  fill: #fde1dd;
+  stroke-width: 3px;
+}
+
+.templateEditHandles.calibrationTarget .templateSelectedRegion {
+  fill: rgb(23 103 168 / 0.08);
+  stroke: #1767a8;
+}
+
+.templateEditHandles.calibrationTarget .templateEdgeGuide {
+  stroke: #1767a8;
+}
+
+.templateEditHandles.calibrationTarget .templateHandleKnob {
+  stroke: #1767a8;
+}
+
+.templateEditHandles.calibrationTarget .templateHandleKnob:hover {
+  fill: #deeffb;
+}
+
+.selectedTableRow th,
+.selectedTableRow td {
+  background: #e5efe7;
+}
+
+.sheetRecognitionMenu.actionMenuContent {
+  min-width: 300px;
+  max-width: min(390px, calc(100vw - 24px));
+}
+
+.sheetRecognitionMenu > summary {
+  gap: 4px;
+  min-width: 74px;
+  height: 34px;
+  padding: 0 8px;
+  font-weight: 800;
+}
+
+.sheetRecognitionMenu > summary svg {
+  width: 20px;
+  height: 20px;
+}
+
+.recognitionRoleControl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #c9d0ca;
+  background: #eef1ed;
+}
+
+.recognitionRoleControl button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.recognitionRoleControl button.active {
+  border-color: #5c776b;
+  background: #fff;
+  color: #173528;
+  font-weight: 800;
+}
+
+.recognitionRunButton {
+  width: 100%;
+  min-height: 36px;
+  font-weight: 800;
+}
+
+.recognitionProgress {
+  width: 100%;
+  height: 8px;
+}
+
+.recognitionMenuBody {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.recognitionMenuActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.recognitionMessage {
+  margin: 0;
+  color: #49534d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.recognitionMenuCandidateHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 2px;
+  border-top: 1px solid #d6dbd4;
+  color: #4b5650;
+  font-size: 12px;
+}
+
+.recognitionMenuCandidateList {
+  grid-template-columns: 1fr;
+  max-height: 220px;
+}
+
+.candidateList {
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  overflow: auto;
+}
+
+.candidateItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 76px;
+  padding: 8px;
+  border: 1px solid #cfd5cf;
+  background: #fff;
+}
+
+.candidateItem.conflict {
+  border-color: #caa89d;
+  background: #fff8f5;
+}
+
+.candidateItemMeta,
+.candidateItemActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.candidateItemMeta span,
+.candidateConflictLabel {
+  color: #68726c;
+  font-size: 11px;
+}
+
+.candidateItem > input {
+  min-width: 0;
+  width: 100%;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.candidateItemActions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.candidateItemActions button {
+  min-width: 52px;
+  min-height: 30px;
+}
+
+.candidateConflictLabel {
+  align-self: center;
+  color: #9b4938;
+  font-weight: 700;
+}
+
+.templateMeta {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #c6c8c3;
+  background: #fbfbf8;
+}
+
+.templateMeta dt {
+  color: #66706a;
+}
+
+.templateMeta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.templateCalibrationTargetMeta {
+  display: grid;
+  gap: 8px;
+}
+
+.templateCalibrationTargetSummary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.templateCalibrationTargetSummary button.active {
+  border-color: #1767a8;
+  background: #deeffb;
+}
+
+.templateCalibrationTargetFields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.templateCalibrationTargetFields label {
+  display: grid;
+  gap: 3px;
+  font-size: 0.78rem;
+  color: #5d635f;
+}
+
+.templateCalibrationTargetFields input {
+  width: 100%;
+}
+
+.templateHeaderLabelMeta {
+  grid-template-columns: 110px minmax(0, 1fr);
+}
+
+.templateHeaderLabelList {
+  display: grid;
+  gap: 6px;
+}
+
+.templateHeaderLabelField {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.templateHeaderLabelField span {
+  color: #66706a;
+  font-size: 12px;
+}
+
+.templateHeaderLabelField input {
+  min-width: 0;
+}
+
+.cornerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.calibrationGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px;
+}
+
+.cornerControl {
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #c6c8c3;
+  background: #fbfbf8;
+}
+
+.calibrationControl {
+  display: grid;
+  grid-template-columns: 76px repeat(2, minmax(88px, 1fr));
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #c6c8c3;
+  background: #fbfbf8;
+}
+
+.cornerControl label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.calibrationControl label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.templateTableWrap {
+  max-height: 100%;
+}
+
+.templateDockBody .jsonPreview {
+  height: 100%;
+  min-height: 360px;
+}
+
+.trackPlan {
+  border-collapse: collapse;
+  width: 100%;
+  background: #fff;
+}
+
+.trackPlan th,
+.trackPlan td {
+  border: 1px solid #c6c8c3;
+  padding: 5px 7px;
+  text-align: left;
+}
+
+.trackPlan th {
+  background: #f3f4f0;
+}
+
+.fileButton input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.hiddenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.divider {
+  height: 1px;
+  margin: 12px 0;
+  background: #d5d8d2;
+}
+
+.muted {
+  color: #66706a;
+}
+

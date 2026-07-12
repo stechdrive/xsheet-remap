@@ -1,0 +1,1107 @@
+.sheetLayout {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  overflow: hidden;
+}
+
+.sheetToolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 42px;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.sheetToolbar > * {
+  flex: 0 0 auto;
+}
+
+.toolbarGroup {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid #d5d8d2;
+  border-radius: 6px;
+  background: #fbfbf8;
+}
+
+.sheetToolbarGroup {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-height: 36px;
+  padding: 3px 5px;
+}
+
+.sheetToolbar .compactControl {
+  min-height: 30px;
+  white-space: nowrap;
+}
+
+.sheetToolbar .fileButton,
+.sheetToolbar button,
+.sheetToolbar .actionMenu > summary {
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
+.sheetTimingGroup {
+  flex: 0 0 auto;
+}
+
+.sheetDisplaySettingsMenu.actionMenuContent {
+  min-width: 156px;
+}
+
+.cutSwitchToolbarGroup {
+  gap: 4px;
+}
+
+.cutSwitchControl {
+  gap: 5px;
+  font-weight: 700;
+}
+
+.cutSwitchControl select {
+  width: 84px;
+  height: 30px;
+  min-width: 0;
+  padding: 4px 22px 4px 6px;
+  border: 1px solid #b8bdb9;
+  border-radius: 4px;
+  background: #fff;
+  color: #202421;
+  font: inherit;
+}
+
+.cutSwitchAddButton {
+  width: 30px;
+  min-width: 30px;
+  padding: 4px 0;
+  font-weight: 800;
+}
+
+.sharedCutNumbersControl {
+  gap: 5px;
+  padding-inline: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sheetTemplateMenuList {
+  display: grid;
+  gap: 4px;
+  min-width: 136px;
+}
+
+.sheetTemplateMenuButton,
+.sheetTemplateMenuCurrent {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sheetTemplateMenuButton {
+  justify-content: space-between;
+}
+
+.sheetTemplateMenuButton.active,
+.sheetTemplateMenuCurrent {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173528;
+}
+
+.sheetTemplateMenuCurrent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #b8c8bd;
+  border-radius: 4px;
+}
+
+.sheetTemplateMenuCheck {
+  margin-left: 12px;
+}
+
+.actionMenuContent .processSettingsOpenButton {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.sheetFrameStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 380px;
+  min-width: 360px;
+  min-height: 36px;
+  overflow: hidden;
+  padding: 3px 5px;
+  border: 1px solid #d5d8d2;
+  border-radius: 6px;
+  background: #fbfbf8;
+}
+
+.sheetPageTabs {
+  flex: 1 1 auto;
+  min-width: 84px;
+  padding-bottom: 0;
+}
+
+.pageJumpMenu > summary {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-weight: 800;
+}
+
+.pageJumpList {
+  display: grid;
+  gap: 4px;
+  width: min(340px, calc(100vw - 32px));
+  min-width: 240px;
+  max-height: min(320px, calc(100vh - 96px));
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.pageJumpRow {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.pageJumpRow.active {
+  border-color: #416b5a;
+  background: #edf4ee;
+}
+
+.pageJumpPageButton,
+.pageJumpClearButton {
+  min-height: 28px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.pageJumpPageButton {
+  justify-content: center;
+  text-align: center;
+}
+
+.pageJumpRow.active .pageJumpPageButton {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173528;
+  font-weight: 800;
+}
+
+.pageJumpSourceSelect {
+  display: block;
+  align-items: center;
+  min-width: 0;
+  color: #58635c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pageJumpSourceSelect select {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.pageJumpClearButton {
+  min-width: 48px;
+  justify-content: center;
+}
+
+.pageJumpEmpty {
+  margin: 2px 4px;
+  color: #66716a;
+  font-size: 12px;
+}
+
+.calibrationStatus {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbarGroup .muted {
+  white-space: normal;
+}
+
+.toolbarGroupLabel {
+  color: #5f6962;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.activeToolButton {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173528;
+  font-weight: 700;
+}
+
+.iconActionMenu > summary {
+  justify-content: center;
+  width: 42px;
+  min-width: 42px;
+  height: 34px;
+  padding: 0;
+}
+
+.iconActionMenu > summary svg {
+  width: 24px;
+  height: 24px;
+}
+
+.sheetDisplaySettingsMenu > summary svg {
+  width: 32px;
+  height: 32px;
+  stroke-width: 2.35;
+}
+
+.sheetDisplaySettingsMenu > summary .displayTemplateIcon {
+  margin-left: -2px;
+}
+
+.iconActionMenu > summary::after {
+  margin-left: -3px;
+}
+
+.dummyKToolbarGroup {
+  gap: 4px;
+}
+
+.dummyKControl {
+  gap: 4px;
+  font-weight: 800;
+}
+
+.workRangeMeta {
+  white-space: nowrap;
+}
+
+.processPaletteGroup {
+  max-width: 180px;
+}
+
+.processDestinationControl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.processDestinationControl select {
+  min-width: 72px;
+  max-width: 110px;
+}
+
+.textToolbarGroup {
+  gap: 5px;
+}
+
+.sheetToolbar .textToolButton {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  line-height: 1;
+}
+
+.sheetToolbar .textToolButton .topIconSvg,
+.sheetToolbar .textToolButton .textToolIconBox {
+  width: 18px;
+  height: 18px;
+}
+
+.textToolIconBox {
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+
+.textToolIconSvg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  color: currentcolor;
+  fill: currentcolor;
+  stroke: none;
+}
+
+.textToolButton.activeToolButton {
+  position: relative;
+  border-color: #235746;
+  background: #d8ebe0;
+  box-shadow: inset 0 0 0 1px rgb(35 87 70 / 0.24);
+}
+
+.textToolButton.activeToolButton::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #235746;
+}
+
+.textFontSizeControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 2px 3px 2px 7px;
+  border: 1px solid #d5d8d2;
+  border-radius: 5px;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.textFontSizeControl.active {
+  border-color: #416b5a;
+  background: #edf4ee;
+}
+
+.textFontSizeControl.disabled {
+  border-color: #d8dbd6;
+  background: #f3f4f1;
+  opacity: 0.72;
+}
+
+.fontSizeDragValue,
+.fontSizeInput {
+  width: 42px;
+  height: 24px;
+  padding: 1px 4px;
+  border: 1px solid #b8bdb9;
+  border-radius: 4px;
+  background: #fbfbf8;
+  color: #1f2421;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1;
+  text-align: right;
+}
+
+.fontSizeDragValue {
+  cursor: ew-resize;
+}
+
+.textFontSizeControl.disabled .fontSizeDragValue {
+  cursor: not-allowed;
+}
+
+.fontSizeDragValue:hover,
+.fontSizeDragValue:focus-visible {
+  border-color: #416b5a;
+  background: #eef5ef;
+}
+
+.fontSizeInput {
+  background: #fff;
+}
+
+.fontSizeUnit {
+  color: #59635c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.fontSizePresetMenu > summary {
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+
+.fontSizePresetMenu > summary::after {
+  display: none;
+}
+
+.fontSizePresetTrigger {
+  color: #475149;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.fontSizePresetMenu.actionMenuContent {
+  min-width: 118px;
+}
+
+.fontSizePresetList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.fontSizePresetList button {
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 6px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  text-align: center;
+}
+
+.fontSizePresetList button.active {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173528;
+}
+
+.annotationToolbarGroup input[type="range"] {
+  width: 78px;
+}
+
+.processSettingsButton {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  line-height: 1;
+}
+
+.processSettingsButton .topIconSvg {
+  width: 17px;
+  height: 17px;
+}
+
+.sheetWorkspace {
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    var(--sheet-left-dock-width, 240px)
+    var(--sheet-left-resizer-width, 10px)
+    minmax(0, 1fr)
+    var(--sheet-right-resizer-width, 10px)
+    var(--sheet-right-dock-width, 300px);
+  gap: 0;
+  min-height: 0;
+}
+
+.sheetZoomFloatingPalette {
+  position: absolute;
+  top: 8px;
+  right: calc(
+    var(--sheet-right-dock-width, 300px)
+    + var(--sheet-right-resizer-width, 10px)
+    + 24px
+  );
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 32px;
+  padding: 3px 4px;
+  border: 1px solid rgb(65 107 90 / 0.36);
+  border-radius: 7px;
+  background: rgb(251 251 248 / 0.92);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.12);
+  backdrop-filter: blur(2px);
+}
+
+.cspLayerTree {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100%;
+  color: #26312a;
+  font-size: 12px;
+}
+
+.cspLayerTreeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 2px 8px;
+  border-bottom: 2px solid #416b5a;
+}
+
+.cspLayerTreeHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cspTreeAddCellButton,
+.cspTreeNormalizeButton,
+.cspTreeLayerAddMenu > summary {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+
+.cspTreeAddCellButton svg,
+.cspTreeNormalizeButton svg,
+.cspTreeLayerAddMenu > summary svg {
+  width: 15px;
+  height: 15px;
+}
+
+.cspTreeLayerAddMenu > summary::after {
+  display: none;
+  content: none;
+}
+
+.cspLayerTreeBody {
+  min-height: 0;
+  padding-top: 6px;
+  overflow: auto;
+}
+
+.cspTreeStage,
+.cspTreeLayer {
+  margin: 0;
+}
+
+.cspTreeStage > summary,
+.cspTreeLayer > summary {
+  min-width: 0;
+  padding: 5px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.cspTreeStage > summary {
+  border-bottom: 1px solid #aeb8b0;
+  background: #e8ede9;
+}
+
+.cspTreeLayer {
+  margin-left: 8px;
+  border-left: 1px solid #bdc6bf;
+}
+
+.cspTreeLayerShell {
+  position: relative;
+}
+
+.cspTreeLayer > summary {
+  padding-right: 36px;
+  background: #f0f3f0;
+}
+
+.cspTreeLayer > summary.assetDragOver {
+  outline: 2px solid #2372c4;
+  outline-offset: -2px;
+  background: #e9f3fc;
+}
+
+.cspTreeLayerAddMenu {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  z-index: 2;
+}
+
+.cspTreeAuxiliaryForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px 24px;
+  gap: 3px;
+  margin: 4px 4px 4px 18px;
+}
+
+.cspTreeAuxiliaryForm input {
+  min-width: 0;
+  height: 25px;
+}
+
+.cspTreeAuxiliaryForm button {
+  width: 24px;
+  min-width: 24px;
+  height: 25px;
+  min-height: 25px;
+  padding: 0;
+}
+
+.cspTreeNoTracks {
+  margin: 0 4px 0 18px;
+  color: #737c76;
+  font-size: 11px;
+}
+
+.cspTreeDropNotice {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0 3px 5px;
+  padding: 4px 6px;
+  border-left: 3px solid #416b5a;
+  background: #eef5ef;
+  color: #31493e;
+  font-size: 11px;
+}
+
+.cspTreeTrackInsertDropZone {
+  position: relative;
+  height: 8px;
+  margin-left: 11px;
+}
+
+.cspTreeTrackInsertDropZone::before {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  left: 3px;
+  height: 2px;
+  background: transparent;
+  content: '';
+}
+
+.cspTreeTrackInsertDropZone.emptyLayer {
+  height: 24px;
+}
+
+.cspTreeTrackInsertDropZone.emptyLayer::before {
+  top: 11px;
+}
+
+.cspTreeTrackInsertDropZone.assetDragOver::before {
+  background: #2372c4;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.9);
+}
+
+.cspTreeTrackInsertDropZone.assetDragOver::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2372c4;
+  content: '';
+}
+
+.cspTreeTrackInsertDropZone.emptyLayer.assetDragOver::after {
+  top: 8px;
+}
+
+.cspTreeTrackInsertDropZone.editing {
+  height: 38px;
+}
+
+.cspTreeNewTrackForm {
+  position: absolute;
+  z-index: 2;
+  inset: 3px 3px auto 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 25px 25px;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #789286;
+  border-radius: 4px;
+  background: #f8faf8;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.12);
+}
+
+.cspTreeNewTrackForm input {
+  min-width: 0;
+  height: 25px;
+}
+
+.cspTreeNewTrackForm button {
+  width: 25px;
+  min-width: 25px;
+  height: 25px;
+  min-height: 25px;
+  padding: 0;
+}
+
+.cspTreeTrack {
+  margin-left: 11px;
+  border-top: 1px solid #d3d8d3;
+}
+
+.cspTreeTrack.assetDropTarget {
+  cursor: copy;
+}
+
+.cspTreeTrack.assetDropTarget.assetDragOver {
+  outline: 2px solid #416b5a;
+  outline-offset: -2px;
+  box-shadow: inset 4px 0 #416b5a;
+}
+
+.cspTreeTrack.assetDropTarget.assetDragOver .cspTreeTrackRow,
+.cspTreeTrack.assetDropTarget.assetDragOver .cspTreeCels {
+  background: #eef5ef;
+}
+
+.cspTreeTrackRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 3px 3px 7px;
+  background: #fafaf7;
+}
+
+.cspTreeTrackName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.cspTreeTrackNameInput {
+  min-width: 0;
+  width: 100%;
+  height: 24px;
+  padding: 2px 5px;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 700;
+}
+
+.cspTreeTrackNameInput:hover,
+.cspTreeTrackNameInput:focus {
+  border-color: #9da8a0;
+  background: #fff;
+}
+
+.cspTreeMoveButtons {
+  display: flex;
+  gap: 2px;
+}
+
+.cspTreeMoveButtons button {
+  width: 23px;
+  min-width: 23px;
+  height: 23px;
+  min-height: 23px;
+  padding: 0;
+}
+
+.cspTreeCels {
+  display: grid;
+  gap: 2px;
+  padding: 3px 3px 5px 12px;
+}
+
+.cspTreeCel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: 4px;
+  min-height: 29px;
+  padding: 3px 4px;
+  border: 1px solid #d0d5d0;
+  border-radius: 4px;
+  background: #fff;
+  cursor: grab;
+}
+
+.cspTreeCel.unregistered {
+  border-style: dashed;
+}
+
+.cspTreeCel.selected {
+  border-color: #416b5a;
+  box-shadow: inset 3px 0 #416b5a;
+  background: #eef5ef;
+}
+
+.cspTreeCel input {
+  min-width: 0;
+  width: 100%;
+  height: 23px;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cspTreeCelName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.cspTreeSheetLabel {
+  max-width: 80px;
+  overflow: hidden;
+  color: #6c756f;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cspTreeAssetState {
+  grid-column: 3;
+  color: #9ba39d;
+  font-size: 10px;
+}
+
+.cspTreeUnregisteredStage > summary {
+  background: #f1eee5;
+}
+
+.cspTreeUnregisteredTrack {
+  margin-left: 8px;
+}
+
+.cspTreeCel.assigned .cspTreeAssetState {
+  color: #416b5a;
+}
+
+.cspTreeNoCels,
+.cspLayerTreeEmpty {
+  margin: 0;
+  padding: 6px;
+  color: #737c76;
+  font-size: 11px;
+}
+
+.exportSettingsBackdrop {
+  z-index: 80;
+}
+
+.exportSettingsDialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(920px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid #939b95;
+  border-radius: 7px;
+  background: #f5f5f1;
+  box-shadow: 0 18px 60px rgb(0 0 0 / 0.25);
+}
+
+.exportSettingsDialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #c7cbc7;
+}
+
+.exportSettingsDialog > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.exportSettingsDialog > header span {
+  color: #68716b;
+  font-size: 11px;
+}
+
+.exportSettingsDialog > header button {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 5px;
+}
+
+.exportSettingsDialog > .panel {
+  min-height: 0;
+  overflow: auto;
+}
+
+.zoomPaletteTrigger {
+  color: #173528;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.zoomPaletteControls {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.sheetZoomFloatingPalette.open {
+  justify-content: flex-start;
+  width: auto;
+}
+
+.sheetZoomFloatingPalette.open .zoomPaletteTrigger {
+  display: none;
+}
+
+.sheetZoomFloatingPalette.open .zoomPaletteControls {
+  display: inline-flex;
+}
+
+.zoomPaletteControls .compactControl {
+  min-height: 28px;
+  white-space: nowrap;
+}
+
+.zoomSliderControl {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.zoomPaletteControls input[type="range"] {
+  width: 104px;
+}
+
+.zoomPaletteControls button {
+  min-height: 28px;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+
+.zoomPaletteControls .zoomResetButton {
+  min-width: 50px;
+}
+
+.zoomPaletteControls .zoomFitButton {
+  min-width: 46px;
+}
+
+.sheetZoomFloatingPalette.zoomModeActive {
+  border-color: #235b93;
+  background: rgb(235 245 255 / 0.94);
+}
+
+.annotationFloatingPalette {
+  position: absolute;
+  top: 8px;
+  left: calc(var(--sheet-left-dock-width, 240px) + 20px);
+  z-index: 18;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  width: 34px;
+  max-height: 34px;
+  overflow: hidden;
+  padding: 4px;
+  border: 1px solid rgb(65 107 90 / 0.36);
+  border-radius: 7px;
+  background: rgb(251 251 248 / 0.92);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.12);
+  backdrop-filter: blur(2px);
+  transition: width 120ms ease, max-height 120ms ease, padding 120ms ease;
+}
+
+.annotationFloatingPalette:hover,
+.annotationFloatingPalette:focus-within {
+  width: 72px;
+  max-height: 360px;
+  padding: 6px;
+}
+
+.annotationPaletteTrigger {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: #dce8df;
+  color: #173528;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.annotationFloatingPalette .topIconSvg {
+  width: 18px;
+  height: 18px;
+}
+
+.annotationFloatingPalette:hover .annotationPaletteTrigger,
+.annotationFloatingPalette:focus-within .annotationPaletteTrigger {
+  display: none;
+}
+
+.annotationPaletteTitle {
+  display: none;
+}
+
+.annotationFloatingPalette:hover .annotationPaletteTitle,
+.annotationFloatingPalette:focus-within .annotationPaletteTitle {
+  display: block;
+  text-align: center;
+}
+
+.annotationFloatingPalette > :not(.annotationPaletteTrigger):not(.annotationPaletteTitle) {
+  display: none;
+}
+
+.annotationFloatingPalette:hover > :not(.annotationPaletteTrigger),
+.annotationFloatingPalette:focus-within > :not(.annotationPaletteTrigger) {
+  display: inline-flex;
+}
+
+.annotationFloatingPalette button,
+.annotationFloatingPalette .actionMenu > summary {
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 5px;
+  font-size: 12px;
+}
+
+.annotationFloatingPalette button {
+  gap: 0;
+}
+
+.annotationFloatingPalette .actionMenu > summary {
+  width: 100%;
+}
+
+.annotationFloatingPalette input[type="color"] {
+  width: 100%;
+  height: 28px;
+  padding: 2px;
+}
+
+.annotationVisibilityToggle {
+  justify-content: center;
+  min-height: 28px;
+  font-size: 12px;
+}
+
+.annotationWidthMenu.actionMenuContent {
+  min-width: 210px;
+}
+
+.annotationClearMenu.actionMenuContent {
+  min-width: 148px;
+}
+

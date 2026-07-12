@@ -1,0 +1,1390 @@
+.sheetCorrectorShell {
+  position: relative;
+  height: 100vh;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: #f1f2ee;
+  color: #1f2722;
+  user-select: none;
+}
+
+.sheetCorrectorShell input,
+.sheetCorrectorShell textarea {
+  user-select: text;
+}
+
+.sheetCorrectorTopBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #cfd4cd;
+  background: #fbfcf8;
+}
+
+.sheetCorrectorTopBar div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.sheetCorrectorTopBar strong {
+  font-size: 17px;
+}
+
+.sheetCorrectorTopBar span {
+  color: #5d675f;
+}
+
+.sheetCorrectorTopBarActions {
+  margin-left: auto;
+}
+
+.sheetCorrectorHelpButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-color: #c5ccc3;
+  background: #fff;
+  color: #23342b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sheetCorrectorHelpButton span {
+  color: inherit;
+}
+
+.sheetCorrectorWorkspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.sheetCorrectorControls,
+.sheetCorrectorMain {
+  min-height: 0;
+  border: 1px solid #cfd4cd;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.sheetCorrectorControls {
+  display: grid;
+  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  overflow: hidden;
+  padding: 14px;
+}
+
+.sheetCorrectorPanelBlock {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sheetCorrectorPanelBlock h1,
+.sheetCorrectorPanelBlock h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.sheetCorrectorQueueHeader {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sheetCorrectorQueueToolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: visible;
+}
+
+.sheetCorrectorIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  line-height: 1;
+}
+
+.sheetCorrectorOutputSummary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 76px;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid #a7aca8;
+  border-radius: 6px;
+  background: #fafaf7;
+  color: #1f2421;
+  line-height: 1;
+}
+
+.sheetCorrectorOutputSummary:hover,
+.sheetCorrectorJobMenu[open] > .sheetCorrectorOutputSummary {
+  background: #f0f3ee;
+}
+
+.sheetCorrectorOutputChevron {
+  color: #5f6a63;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sheetCorrectorQueueIcon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sheetCorrectorFileButton {
+  position: relative;
+  overflow: hidden;
+}
+
+.sheetCorrectorJobMenu {
+  position: relative;
+}
+
+.sheetCorrectorJobMenu[open] {
+  z-index: 4;
+}
+
+.sheetCorrectorJobMenu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.sheetCorrectorJobMenu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sheetCorrectorJobMenuContent {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid #bbc6bd;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.16);
+}
+
+.sheetCorrectorJobMenuContent .appTooltipTrigger {
+  display: flex;
+  width: 100%;
+}
+
+.sheetCorrectorJobMenuContent button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.sheetCorrectorJobMenuContent button:hover,
+.sheetCorrectorJobMenuContent button:focus-visible {
+  background: #eaf2ec;
+}
+
+.sheetCorrectorFolderFilter {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #d7dcd5;
+  border-radius: 6px;
+  background: #fbfcf9;
+  font-size: 12px;
+}
+
+.sheetCorrectorFolderFilterHeader,
+.sheetCorrectorImportRuleActions,
+.sheetCorrectorImportRuleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sheetCorrectorFolderFilterHeader {
+  justify-content: space-between;
+}
+
+.sheetCorrectorFolderFilterHeader > span:first-child {
+  color: #405048;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sheetCorrectorFolderFilterScope {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 6px;
+  border: 1px solid #c9d2ca;
+  border-radius: 999px;
+  background: #edf3ee;
+  color: #405048;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sheetCorrectorImportRuleList {
+  display: grid;
+  gap: 5px;
+  max-height: 122px;
+  min-width: 0;
+  overflow: auto;
+}
+
+.sheetCorrectorImportRuleList p {
+  margin: 0;
+  color: #66726b;
+}
+
+.sheetCorrectorImportRuleRow > .appTooltipTrigger:nth-child(2) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sheetCorrectorFolderFilterInput {
+  display: block;
+  min-width: 0;
+  width: 100%;
+}
+
+.sheetCorrectorImportRuleToggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 30px;
+}
+
+.sheetCorrectorImportRuleToggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.sheetCorrectorFolderFilter input[type="text"],
+.sheetCorrectorFolderFilter .sheetCorrectorFolderFilterInput {
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid #b8c0b8;
+  border-radius: 4px;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.sheetCorrectorImportRuleRemove {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #cbd5cd;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.sheetCorrectorImportRuleActions {
+  justify-content: space-between;
+}
+
+.sheetCorrectorImportRuleActions button {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid #cbd5cd;
+  border-radius: 4px;
+  background: #fff;
+  color: #2e3d35;
+  font: inherit;
+  font-weight: 700;
+}
+
+.sheetCorrectorImportRuleActions button:hover,
+.sheetCorrectorImportRuleActions button:focus-visible,
+.sheetCorrectorImportRuleRemove:hover,
+.sheetCorrectorImportRuleRemove:focus-visible {
+  background: #eaf2ec;
+}
+
+.sheetCorrectorBatchShell {
+  height: 100vh;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  overflow: hidden;
+  background: #f1f2ee;
+  color: #1f2722;
+  user-select: none;
+}
+
+.sheetCorrectorBatchShell .sheetCorrectorProgressDialog {
+  width: min(100%, 480px);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.18);
+}
+
+.sheetCorrectorModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(17 22 19 / 0.42);
+}
+
+.sheetCorrectorProgressDialog {
+  display: grid;
+  gap: 12px;
+  width: min(460px, calc(100vw - 48px));
+  padding: 16px;
+  border: 1px solid #c5ccc3;
+  border-radius: 8px;
+  background: #fbfcf9;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 0.26);
+}
+
+.sheetCorrectorProgressDialog > header,
+.sheetCorrectorProgressDialog > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sheetCorrectorProgressDialog > header > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sheetCorrectorProgressDialog > header strong {
+  font-size: 16px;
+}
+
+.sheetCorrectorProgressDialog > header span {
+  color: #5f6a63;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sheetCorrectorProgressDialog > footer {
+  justify-content: flex-end;
+}
+
+.sheetCorrectorProgressDialog > footer button {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.sheetCorrectorProgressDialog > footer button.primary {
+  border-color: #2d6a57;
+  background: #2d6a57;
+  color: #fff;
+}
+
+.sheetCorrectorHelpDialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  width: min(980px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid #c5ccc3;
+  border-radius: 8px;
+  background: #fbfcf9;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 0.26);
+  user-select: text;
+}
+
+.sheetCorrectorHelpDialog > header,
+.sheetCorrectorHelpDialog > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sheetCorrectorHelpDialog > header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sheetCorrectorHelpDialog > header strong {
+  font-size: 17px;
+}
+
+.sheetCorrectorHelpDialog > header span,
+.sheetCorrectorHelpDialog > footer p {
+  margin: 0;
+  color: #5f6a63;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sheetCorrectorHelpDialog > header button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.sheetCorrectorHelpWorkflows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sheetCorrectorHelpWorkflow {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #d7dcd5;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.sheetCorrectorHelpWorkflow h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.sheetCorrectorHelpWorkflow p {
+  margin: 0 0 10px;
+  color: #526059;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sheetCorrectorHelpWorkflow ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.sheetCorrectorHelpWorkflow li {
+  padding-left: 2px;
+}
+
+.sheetCorrectorHelpWorkflow li::marker {
+  color: #2d6a57;
+  font-weight: 700;
+}
+
+.sheetCorrectorHelpWorkflow li strong,
+.sheetCorrectorHelpWorkflow li span {
+  display: block;
+}
+
+.sheetCorrectorHelpWorkflow li strong {
+  margin-bottom: 2px;
+  color: #1f2421;
+  font-size: 13px;
+}
+
+.sheetCorrectorHelpWorkflow li span {
+  color: #405048;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.sheetCorrectorProgressMeter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+}
+
+.sheetCorrectorProgressMeter > div {
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid #bdc8bf;
+  border-radius: 999px;
+  background: #eef3ef;
+}
+
+.sheetCorrectorProgressMeter span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: #2d6a57;
+  transition: width 160ms ease;
+}
+
+.sheetCorrectorProgressMeter strong {
+  color: #405048;
+  font-size: 12px;
+}
+
+.sheetCorrectorProgressStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.sheetCorrectorProgressStats div {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #d7dcd5;
+  border-radius: 6px;
+  background: #f4f7f3;
+}
+
+.sheetCorrectorProgressStats dt,
+.sheetCorrectorProgressStats dd {
+  margin: 0;
+}
+
+.sheetCorrectorProgressStats dt {
+  color: #5f6a63;
+  font-size: 12px;
+}
+
+.sheetCorrectorProgressStats dd {
+  color: #1f2421;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sheetCorrectorImportDialog {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  width: min(780px, calc(100vw - 48px));
+  max-height: min(720px, calc(100vh - 48px));
+  padding: 14px;
+  border: 1px solid #c5ccc3;
+  border-radius: 8px;
+  background: #fbfcf9;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 0.26);
+}
+
+.sheetCorrectorImportDialog > header,
+.sheetCorrectorImportDialog > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sheetCorrectorImportDialog > header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sheetCorrectorImportDialog > header strong {
+  font-size: 16px;
+}
+
+.sheetCorrectorImportDialog > header span {
+  color: #5f6a63;
+  font-size: 12px;
+}
+
+.sheetCorrectorImportDialog > footer {
+  justify-content: flex-end;
+}
+
+.sheetCorrectorImportDialog > footer button {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.sheetCorrectorImportDialog > footer button.primary {
+  border-color: #2d6a57;
+  background: #2d6a57;
+  color: #fff;
+}
+
+.sheetCorrectorImportPattern {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sheetCorrectorImportPattern > .appTooltipTrigger {
+  min-width: 0;
+}
+
+.sheetCorrectorImportPattern input {
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid #aeb8af;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.sheetCorrectorImportSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sheetCorrectorImportSummary span {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 7px;
+  border: 1px solid #d1d8d0;
+  border-radius: 999px;
+  background: #f0f4ee;
+  color: #405048;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetCorrectorImportList {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 160px;
+  overflow: hidden;
+  border: 1px solid #d7dcd5;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.sheetCorrectorImportList > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #d7dcd5;
+  background: #f1f5ef;
+}
+
+.sheetCorrectorImportList ol,
+.sheetCorrectorImportDetails div {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 2px;
+  min-height: 0;
+  margin: 0;
+  padding: 6px;
+  overflow: auto;
+  list-style: none;
+}
+
+.sheetCorrectorImportList li,
+.sheetCorrectorImportDetails span {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 21px;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #f7f9f6;
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetCorrectorImportList p {
+  margin: 0;
+  padding: 12px;
+}
+
+.sheetCorrectorImportDetails {
+  min-height: 0;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.sheetCorrectorImportDetails summary {
+  cursor: pointer;
+  color: #405048;
+}
+
+.sheetCorrectorImportDetails div {
+  max-height: 96px;
+  margin-top: 6px;
+  border: 1px solid #d7dcd5;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.sheetCorrectorCheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.sheetCorrectorMain {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px;
+  overflow: hidden;
+}
+
+.sheetCorrectorStatus {
+  margin: 0;
+  color: #435047;
+  font-size: 13px;
+}
+
+.sheetCorrectorList {
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid #d7dcd5;
+  border-radius: 6px;
+  background: #fbfcf9;
+}
+
+.sheetCorrectorList > header,
+.sheetCorrectorList > summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border-bottom: 1px solid #d7dcd5;
+  background: #f1f5ef;
+}
+
+.sheetCorrectorList ol {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheetCorrectorList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
+
+.sheetCorrectorQueueSelect {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.sheetCorrectorList li > .appTooltipTrigger {
+  display: block;
+  min-width: 0;
+  width: 100%;
+}
+
+.sheetCorrectorList li > .appTooltipTrigger > .sheetCorrectorQueueSelect {
+  width: 100%;
+}
+
+.sheetCorrectorQueueSelect:hover,
+.sheetCorrectorQueueSelect.selected {
+  border-left-color: #2d6a57;
+  background: #eaf2ec;
+}
+
+.sheetCorrectorQueueSelect.primary {
+  outline: 1px solid #2d6a57;
+  outline-offset: -1px;
+}
+
+.sheetCorrectorQueueItemActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+}
+
+.sheetCorrectorQueueItemActions .appTooltipTrigger {
+  width: auto;
+}
+
+.sheetCorrectorQueueItemAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.sheetCorrectorQueueItemAction:hover,
+.sheetCorrectorQueueItemAction:focus-visible {
+  background: #e5ece8;
+}
+
+.sheetCorrectorQueueItemAction .sheetCorrectorQueueIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.sheetCorrectorList li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.sheetCorrectorList p {
+  margin: 0;
+  padding: 12px;
+}
+
+.sheetCorrectorSkipped {
+  max-height: 180px;
+}
+
+.sheetCorrectorList.compact {
+  max-height: 180px;
+}
+
+.sheetCorrectorQueueState {
+  align-self: start;
+  padding: 2px 6px;
+  border: 1px solid #ccd4cc;
+  border-radius: 4px;
+  background: #f4f6f2;
+  color: #4f5b53;
+  font-size: 11px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.sheetCorrectorQueueState.running {
+  border-color: #94a6cb;
+  background: #edf3ff;
+  color: #234b88;
+}
+
+.sheetCorrectorQueueState.corrected,
+.sheetCorrectorQueueState.exported {
+  border-color: #8fb597;
+  background: #e9f5eb;
+  color: #245a34;
+}
+
+.sheetCorrectorQueueState.review {
+  border-color: #cfb36d;
+  background: #fff6d9;
+  color: #765a12;
+}
+
+.sheetCorrectorQueueState.error {
+  border-color: #c87f78;
+  background: #fdecea;
+  color: #8a2d25;
+}
+
+.sheetCorrectorCorrectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d7dcd5;
+  border-radius: 6px;
+  background: #fbfcf9;
+}
+
+.sheetCorrectorCorrectionHeader > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sheetCorrectorCorrectionHeader strong,
+.sheetCorrectorCorrectionHeader span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetCorrectorCorrectionHeader span {
+  color: #66706a;
+  font-size: 12px;
+}
+
+.sheetCorrectorCorrectionActions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.sheetCorrectorTemplateSelect,
+.sheetCorrectorOverlayToggle,
+.sheetCorrectorOverlayOpacity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.sheetCorrectorTemplateSelect select {
+  width: 112px;
+  min-width: 0;
+  height: 30px;
+  padding: 3px 8px;
+  line-height: 1.45;
+}
+
+.sheetCorrectorOverlayOpacity input {
+  width: 96px;
+}
+
+.sheetCorrectorOverlayOpacity span {
+  min-width: 34px;
+  color: #66706a;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheetCorrectorLevelCorrection {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.sheetLevelCorrectionControl {
+  gap: 3px;
+}
+
+.levelCorrectionInlineButton {
+  min-height: 28px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.35;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.levelCorrectionInlineButton:hover,
+.levelCorrectionInlineButton:focus-visible {
+  border-color: #b8c2bb;
+  background: #f2f5f0;
+}
+
+.levelCorrectionInlineButton:disabled {
+  color: #8b948d;
+  text-decoration: none;
+}
+
+.paperSheetTopGroup .levelCorrectionInlineButton {
+  min-height: 28px;
+  padding: 2px 6px;
+}
+
+.levelCorrectionBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.levelCorrectionDialog {
+  position: fixed;
+  top: 72px;
+  right: 24px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(680px, calc(100vh - 32px));
+  border: 1px solid #aeb8af;
+  border-radius: 6px;
+  background: #f8faf7;
+  color: #233027;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+  pointer-events: auto;
+}
+
+.levelCorrectionHeader,
+.levelCorrectionFooter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.levelCorrectionHeader {
+  justify-content: space-between;
+  border-bottom: 1px solid #d8ded7;
+  cursor: move;
+  user-select: none;
+}
+
+.levelCorrectionHeader strong {
+  font-size: 14px;
+}
+
+.levelCorrectionCloseButton {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.levelCorrectionBody {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+}
+
+.levelCorrectionInputLevels {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #d3dbd3;
+  border-radius: 6px;
+}
+
+.levelCorrectionInputLevels legend {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.levelCorrectionSlider {
+  position: relative;
+  height: 126px;
+  border: 1px solid #aeb8af;
+  border-radius: 4px;
+  background: #30342f;
+  touch-action: none;
+}
+
+.levelCorrectionHistogram {
+  position: absolute;
+  inset: 8px 8px 34px;
+  width: calc(100% - 16px);
+  height: 80px;
+  overflow: visible;
+}
+
+.levelCorrectionHistogram path {
+  fill: rgba(235, 238, 232, 0.72);
+}
+
+.levelCorrectionGradient {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 20px;
+  height: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(90deg, #000 0%, #fff 100%);
+}
+
+.levelCorrectionHandle {
+  position: absolute;
+  bottom: 6px;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+}
+
+.levelCorrectionHandle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 0;
+  height: 0;
+  border-right: 6px solid transparent;
+  border-left: 6px solid transparent;
+  border-bottom: 9px solid #f2f5ef;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8));
+}
+
+.levelCorrectionHandle.black::before {
+  border-bottom-color: #1b1f1c;
+}
+
+.levelCorrectionHandle.gamma::before {
+  border-bottom-color: #8f9890;
+}
+
+.levelCorrectionHandle:focus-visible::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #6d8fcf;
+  border-radius: 4px;
+  transform: translateX(-50%);
+}
+
+.levelCorrectionInputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.levelCorrectionNumberField {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: #4f5b53;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.levelCorrectionNumberField input {
+  width: 100%;
+  height: 32px;
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.levelCorrectionFooter {
+  justify-content: flex-end;
+  border-top: 1px solid #d8ded7;
+}
+
+.levelCorrectionFilterSvg {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sheetCorrectorCalibrationMessage {
+  margin: 0;
+  color: #435047;
+  font-size: 13px;
+}
+
+.sheetCorrectorPreviewPanel {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid #d7dcd5;
+  border-radius: 6px;
+  background: #fbfcf9;
+  overflow: hidden;
+}
+
+.sheetCorrectorPreviewPanel header {
+  padding: 8px 10px;
+  border-bottom: 1px solid #d7dcd5;
+  background: #f1f5ef;
+  font-weight: 700;
+}
+
+.sheetCorrectorImageViewport {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  background: #dfe2dc;
+}
+
+.sheetCorrectorImageViewport.panEnabled {
+  cursor: grab;
+  user-select: none;
+}
+
+.sheetCorrectorImageViewport.panning {
+  cursor: grabbing;
+}
+
+.sheetCorrectorImageViewport p {
+  margin: 20px auto;
+  text-align: center;
+}
+
+.sheetCorrectorPreviewPlaceholder {
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  min-height: 100%;
+  color: #536058;
+  text-align: center;
+}
+
+.sheetCorrectorPreviewPlaceholder strong {
+  color: #26342d;
+  font-size: 17px;
+}
+
+.sheetCorrectorPreviewPlaceholder span {
+  font-size: 13px;
+}
+
+.sheetCorrectorDropOverlay {
+  position: fixed;
+  inset: 12px;
+  z-index: 9000;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  border: 2px dashed #2868c8;
+  border-radius: 10px;
+  background: rgb(238 245 255 / 0.86);
+  color: #17345f;
+  text-align: center;
+  pointer-events: none;
+}
+
+.sheetCorrectorDropOverlay strong {
+  font-size: 18px;
+}
+
+.sheetCorrectorImageViewport img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.16);
+}
+
+.sheetCorrectorPreviewStack {
+  position: relative;
+  display: grid;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.16);
+}
+
+.sheetCorrectorPreviewImage {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  box-shadow: none;
+}
+
+.sheetCorrectorTemplateOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.sheetCorrectorTemplateOverlay image {
+  image-rendering: auto;
+}
+
+.sheetCorrectorStats {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #d7dcd5;
+  border-radius: 6px;
+  background: #fbfcf9;
+}
+
+.sheetCorrectorStats dt,
+.sheetCorrectorStats dd {
+  margin: 0;
+}
+
+.sheetCorrectorStats dt {
+  color: #66706a;
+}
+
+.sheetCorrectorStats dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+

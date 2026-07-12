@@ -1,0 +1,671 @@
+.keyListHeader {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.keyListHeader h2 {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keyListHeaderActions {
+  --pane-header-icon-size: 19px;
+
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.keyListNormalizeButton {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+}
+
+.keyListHeaderActions .assetBrowserIcon,
+.keyListHeaderActions .assetSortIcon {
+  width: var(--pane-header-icon-size);
+  height: var(--pane-header-icon-size);
+}
+
+.keyListHeaderActions .registeredCellNormalizeIcon {
+  stroke-width: 2.2;
+}
+
+.registeredCellViewToggle button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
+.registeredCellSortButton {
+  width: 32px;
+  height: 32px;
+}
+
+.registeredCellSection {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 10px;
+}
+
+.registeredCellSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0 1px;
+  border-bottom: 1px solid #d0d5cf;
+}
+
+.registeredCellSectionTitle,
+.stackGuideSectionHeader h3 {
+  margin: 0;
+  color: #26372d;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.registeredCellCardList {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.registeredCellCardList.compact {
+  gap: 3px;
+}
+
+.registeredCellCard {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 6px;
+  padding: 6px;
+  border: 1px solid #c6c8c3;
+  background: #fbfbf8;
+  cursor: grab;
+}
+
+.registeredCellCard:hover,
+.registeredCellCard:focus-within {
+  z-index: 30;
+}
+
+.registeredCellCard.selected {
+  border-color: #416b5a;
+  background: #eef5ef;
+}
+
+.registeredCellCard:active {
+  cursor: grabbing;
+}
+
+.registeredCellCard:focus-visible {
+  outline: 2px solid #416b5a;
+  outline-offset: 2px;
+}
+
+.registeredCellCard input {
+  cursor: text;
+}
+
+.registeredCellCard button {
+  cursor: pointer;
+}
+
+.registeredCellHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 5px;
+  align-items: center;
+}
+
+.registeredCellIdentity {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.registeredCellRoleBadge,
+.registeredCellTrackBadge {
+  min-width: 0;
+  padding: 1px 4px;
+  border: 1px solid #c8cec6;
+  border-radius: 4px;
+  color: #425047;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registeredCellRoleBadge {
+  max-width: 92px;
+  background: #ecefeb;
+}
+
+.registeredCellTrackBadge {
+  min-width: 22px;
+  max-width: 46px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.registeredCellCard.compact {
+  gap: 0;
+  margin-bottom: 0;
+  padding: 4px 5px;
+}
+
+.registeredCellCard.compact .registeredCellHeader {
+  gap: 4px;
+}
+
+.registeredCellCard.compact .registeredCellIdentity {
+  gap: 4px;
+}
+
+.registeredCellCompactName {
+  min-width: 0;
+  overflow: hidden;
+  color: #24322a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registeredCellCompactSub {
+  min-width: 0;
+  overflow: hidden;
+  color: #66706a;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registeredCellProcessStrip {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.registeredCellCard.compact .registeredCellPreviewButton,
+.registeredCellCard.compact .registeredCellDeleteButton {
+  width: 20px;
+  height: 20px;
+}
+
+.registeredCellCard.compact .cellNameMode {
+  padding: 1px 3px;
+  font-size: 9px;
+}
+
+.registeredCellFirstUse {
+  min-width: 0;
+  min-height: 0;
+  padding: 1px 4px;
+  border: 1px solid #d5d0bf;
+  border-radius: 4px;
+  background: #f7f4eb;
+  color: #5b533e;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.registeredCellFirstUse:hover,
+button.registeredCellFirstUse:focus-visible {
+  border-color: #a39153;
+  background: #fff5cf;
+  color: #443915;
+}
+
+.registeredCellFirstUse.empty {
+  border-color: #d7dad4;
+  background: #f2f3f0;
+  color: #7b827c;
+  font-weight: 700;
+}
+
+.cellNameMode {
+  padding: 1px 4px;
+  border: 1px solid #b8c5bc;
+  border-radius: 999px;
+  background: #edf3ed;
+  color: #315141;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cellNameMode.manual {
+  border-color: #d3b06b;
+  background: #fff4d8;
+  color: #6f4c00;
+}
+
+.registeredCellPreviewButton {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid #b8c5bc;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #315141;
+  box-shadow: none;
+}
+
+.registeredCellPreviewButton:hover,
+.registeredCellPreviewButton:focus-visible {
+  border-color: #416b5a;
+  background: #eef5ef;
+}
+
+.registeredCellThumbPlaceholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+  color: #6b746d;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.registeredCellHoverPreview {
+  position: fixed;
+  z-index: 2400;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #9baaa0;
+  background: #fbfbf8;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+  pointer-events: none;
+}
+
+.registeredCellHoverPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.registeredCellHoverPreviewItem {
+  display: grid;
+  grid-template-rows: 150px auto;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid #d6dbd4;
+  background: #ffffff;
+}
+
+.registeredCellHoverPreviewImage {
+  width: 100%;
+  height: 150px;
+  overflow: hidden;
+  border: 1px solid #c3cbc5;
+  background: #eef1ec;
+}
+
+.registeredCellHoverPreviewImage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.registeredCellHoverPreviewCaption {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+}
+
+.registeredCellHoverPreviewCaption strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #25312b;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registeredCellThumbMore {
+  padding: 3px 4px 1px;
+  color: #5c6860;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.registeredCellDeleteButton {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid #dbc5c1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #8d3029;
+  box-shadow: none;
+}
+
+.registeredCellDeleteButton .topIconSvg {
+  width: 14px;
+  height: 14px;
+}
+
+.registeredCellDeleteButton:hover,
+.registeredCellDeleteButton:focus-visible {
+  border-color: #b94439;
+  background: #fff0ee;
+}
+
+.registeredCellField {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 4px;
+  align-items: center;
+}
+
+.registeredCellField > span,
+.registeredCellMeta > span {
+  color: #66706a;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.registeredCellField input {
+  min-width: 0;
+  width: 100%;
+  height: 22px;
+  padding: 2px 5px;
+  font-size: 11px;
+}
+
+.registeredCellMeta {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 4px;
+  align-items: start;
+  min-width: 0;
+}
+
+.registeredCellAssetList {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.registeredCellAssetEmpty {
+  color: #66706a;
+  font-size: 12px;
+}
+
+.registeredCellAssetRow {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid #d4d8d0;
+  border-radius: 4px;
+  background: #ffffff;
+  cursor: copy;
+  transition: border-color 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.registeredCellAssetRow:hover,
+.registeredCellAssetRow:focus-within {
+  border-color: #416b5a;
+  background: #f3f8f3;
+  box-shadow: 0 0 0 2px rgb(65 107 90 / 0.12);
+}
+
+.registeredCellAssetProcess {
+  max-width: 48px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #eef1ec;
+  color: #526057;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registeredCellAssetProcessButton {
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.registeredCellAssetProcessButton:hover,
+.registeredCellAssetProcessButton:focus-visible {
+  background: #d7e5dc;
+  color: #22372e;
+  outline: 1px solid #789383;
+}
+
+.registeredCellAssetRow strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  max-height: calc(1.2em * 2);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.registeredCellAssetRow > .appTooltipTrigger,
+.stackGuideRegistrationRow > .appTooltipTrigger {
+  display: flex;
+  min-width: 0;
+}
+
+.registeredCellAssetRow > .appTooltipTrigger > strong,
+.stackGuideRegistrationRow > .appTooltipTrigger > strong {
+  min-width: 0;
+}
+
+.registeredCellAutoButton {
+  justify-self: end;
+  min-height: 24px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.stackGuideCardSection {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 7px;
+  border-top: 1px solid #cfd6cf;
+}
+
+.stackGuideSectionHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.stackGuideCardSection h3 {
+  margin: 0;
+  color: #38433d;
+  font-size: 12px;
+}
+
+.stackGuideCreateButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.stackGuideCreateButtons button {
+  min-height: 24px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.stackGuideCreateForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 4px;
+}
+
+.stackGuideCreateForm input {
+  min-width: 0;
+}
+
+.stackGuideCard {
+  cursor: default;
+}
+
+.stackGuideCard .registeredCellTrackBadge {
+  max-width: 86px;
+}
+
+.stackGuideRegistrationList {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stackGuideRegistrationRow {
+  display: grid;
+  grid-template-columns: auto minmax(58px, 0.45fr) minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid #d7dcd5;
+  background: #f8faf7;
+}
+
+.stackGuideRegistrationRow input {
+  min-width: 0;
+  height: 22px;
+  padding: 2px 5px;
+  font-size: 11px;
+}
+
+.stackGuideRegistrationRow strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #29312c;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stackGuideDropMenuScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: transparent;
+}
+
+.stackGuideDropMenu {
+  position: fixed;
+  z-index: 1001;
+  display: grid;
+  gap: 4px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #7b8b7f;
+  background: #fbfcf9;
+  box-shadow: 0 10px 28px rgb(26 32 29 / 0.22);
+}
+
+.stackGuideDropMenu strong {
+  padding: 0 2px 3px;
+  color: #2f3a34;
+  font-size: 12px;
+}
+
+.stackGuideDropMenu button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 1px solid #d5dbd3;
+  background: #f3f6f1;
+  color: #26302a;
+  text-align: left;
+}
+
+.stackGuideDropMenu button:hover,
+.stackGuideDropMenu button:focus-visible {
+  border-color: #416b5a;
+  background: #e8f0e8;
+}
+
+.stackGuideDropMenu button span,
+.stackGuideDropMenu button small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stackGuideDropMenu button small {
+  color: #5a675f;
+  font-size: 11px;
+}
+
+.sourcesPanel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.sourceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+

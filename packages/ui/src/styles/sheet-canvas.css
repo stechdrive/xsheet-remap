@@ -1,0 +1,1397 @@
+.sheetDock {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sheetDock[hidden] {
+  display: none;
+}
+
+.sheetWorkspace > .sheetDockLeft {
+  grid-column: 1;
+}
+
+.sheetWorkspace > .sheetDockLeft + .panelResizeRail,
+.sheetWorkspace > .sheetDockLeft + .panelResizeHandle {
+  grid-column: 2;
+}
+
+.sheetWorkspace > .sheetViewport {
+  grid-column: 3;
+}
+
+.sheetWorkspace > .sheetViewport + .panelResizeRail,
+.sheetWorkspace > .sheetViewport + .panelResizeHandle {
+  grid-column: 4;
+}
+
+.sheetWorkspace > .sheetDockRight {
+  grid-column: 5;
+}
+
+.templateDock {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panelResizeHandle {
+  position: relative;
+  min-width: 10px;
+  min-height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  outline: 0;
+}
+
+.panelResizeHandle::before {
+  content: "";
+  position: absolute;
+  inset: 8px 4px;
+  border-radius: 999px;
+  background: #bfc3bd;
+}
+
+.panelResizeHandle:hover::before,
+.panelResizeHandle:focus-visible::before {
+  background: #416b5a;
+}
+
+.panelResizeRail {
+  position: relative;
+  min-width: 16px;
+  min-height: 100%;
+  background: #eceee9;
+}
+
+.panelResizeRail .panelResizeHandle {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  min-width: 0;
+}
+
+.panelResizeRail .panelResizeHandle::before {
+  inset: 8px 7px;
+  border-radius: 0;
+}
+
+.panelResizeToggle {
+  position: absolute;
+  top: 50%;
+  left: 1px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  min-width: 14px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid #aeb7b0;
+  border-radius: 3px;
+  background: #fbfbf8;
+  color: #30483d;
+  transform: translateY(-50%);
+}
+
+.panelResizeToggle:hover,
+.panelResizeToggle:focus-visible {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173528;
+}
+
+.panelResizeToggle svg {
+  width: 12px;
+  height: 12px;
+}
+
+.dockTabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid #c6c8c3;
+  border-bottom: 0;
+  background: #f8f8f4;
+}
+
+.dockTabs button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 7px;
+  white-space: nowrap;
+}
+
+.dockTabs button.active {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173a2b;
+  font-weight: 700;
+}
+
+.dockBody,
+.templateDockBody {
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid #c6c8c3;
+  background: #fbfbf8;
+  padding: 8px;
+}
+
+.sheetDock .keyList,
+.sheetDock .assetTray {
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.sheetViewport {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: #d6d5ce;
+  border: 1px solid #bfc3bd;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sheetSourceButton {
+  font-weight: 700;
+}
+
+.sheetOpacityControl input[type="range"] {
+  width: 92px;
+}
+
+.sheetViewport.spacePanReady,
+.sheetViewport.spacePanReady .sheetSvg {
+  cursor: grab;
+}
+
+.sheetViewport.zoomMode,
+.sheetViewport.zoomMode .sheetSvg,
+.sheetViewport.zoomMode .sheetSvg * {
+  cursor: zoom-in !important;
+}
+
+.sheetViewport.panning,
+.sheetViewport.panning .sheetSvg {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.sheetSvg.textAnnotationMode,
+.sheetSvg.textAnnotationMode * {
+  cursor: default;
+}
+
+.sheetSvg.textAnnotationPlacementMode,
+.sheetSvg.textAnnotationPlacementMode * {
+  cursor: crosshair;
+}
+
+.sheetPageStack {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  padding: 10px 0 24px;
+}
+
+.sheetPageStack.spread {
+  grid-template-columns: repeat(auto-fit, minmax(620px, 1fr));
+  align-items: start;
+}
+
+.sheetPage {
+  display: grid;
+  justify-items: center;
+  margin: 0;
+}
+
+.sheetPageSurface {
+  position: relative;
+  contain: layout paint style;
+  line-height: 0;
+}
+
+.textCursorBadge {
+  position: absolute;
+  z-index: 8;
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid rgb(35 87 70 / 0.54);
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.88);
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.14);
+  color: #1d4d3d;
+  font-family: var(--font-sheet-sans);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(12px, 10px);
+}
+
+.stackGuideOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.stackGuideOverlay.editing {
+  pointer-events: auto;
+}
+
+.overlayPaperTrackInteractionLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.overlayPaperTrackDragHandle {
+  appearance: none;
+  position: absolute;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.overlayPaperTrackDragHandle:hover,
+.overlayPaperTrackDragHandle:focus,
+.overlayPaperTrackDragHandle:focus-visible {
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.overlayPaperTrackDragHandle:hover,
+.overlayPaperTrackDragHandle:focus-visible {
+  outline: 1px solid rgb(9 116 107 / 0.78);
+  outline-offset: 1px;
+}
+
+.overlayPaperTrackDragHandle.inputInactive:hover,
+.overlayPaperTrackDragHandle.inputInactive:focus-visible {
+  outline-color: rgb(15 118 110 / 0.46);
+}
+
+.stackGuideGap {
+  position: absolute;
+  width: 28px;
+  height: 1px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.stackGuideGap.editing {
+  pointer-events: auto;
+}
+
+.stackGuideGap.insertToolActive {
+  pointer-events: auto;
+}
+
+.stackGuideGap.preview {
+  pointer-events: none;
+}
+
+.stackGuideInsertHandle {
+  appearance: none;
+  position: absolute;
+  left: 50%;
+  bottom: var(--stack-guide-column-header-hit, 0px);
+  width: 24px;
+  height: calc(var(--stack-guide-guide-height) + var(--stack-guide-header-reach) - var(--stack-guide-column-header-hit, 0px) + 14px);
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+  color: transparent;
+  transform: translateX(-50%);
+  cursor: copy;
+  pointer-events: none;
+}
+
+.stackGuideGap.editing .stackGuideInsertHandle {
+  pointer-events: auto;
+}
+
+.stackGuideGap.insertToolActive .stackGuideInsertHandle {
+  pointer-events: auto;
+}
+
+.stackGuideInsertHandle:hover,
+.stackGuideInsertHandle:focus,
+.stackGuideInsertHandle:focus-visible {
+  border: 0;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.stackGuideInsertHandle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(-1 * var(--stack-guide-column-header-hit, 0px));
+  width: 0;
+  height: calc(var(--stack-guide-guide-height) + var(--stack-guide-header-reach));
+  border-left: 3px solid rgb(31 84 200 / 0.74);
+  opacity: 0;
+  transform: translateX(-50%);
+  mix-blend-mode: multiply;
+  transition: opacity 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.stackGuideInsertHandle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(-1 * var(--stack-guide-column-header-hit, 0px) - 3px);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #1f54c8;
+  opacity: 0;
+  transform: translateX(-50%);
+  mix-blend-mode: multiply;
+  transition: opacity 120ms ease;
+}
+
+.stackGuideGap:hover .stackGuideInsertHandle::before,
+.stackGuideGap:hover .stackGuideInsertHandle::after,
+.stackGuideGap.editing .stackGuideInsertHandle::before,
+.stackGuideGap.editing .stackGuideInsertHandle::after,
+.stackGuideGap.preview .stackGuideInsertHandle::before,
+.stackGuideGap.preview .stackGuideInsertHandle::after,
+.stackGuideGap.insertToolActive .stackGuideInsertHandle::before,
+.stackGuideGap.insertToolActive .stackGuideInsertHandle::after,
+.stackGuideInsertHandle:focus-visible::before,
+.stackGuideInsertHandle:focus-visible::after {
+  opacity: 1;
+}
+
+.stackGuideGap.hasLabels .stackGuideInsertHandle::before {
+  border-left-color: rgb(31 84 200 / 0.82);
+}
+
+.stackGuideGap.hasLabels .stackGuideInsertHandle::after {
+  background: #1f54c8;
+}
+
+.stackGuideGap.editing .stackGuideInsertHandle::before,
+.stackGuideGap.preview .stackGuideInsertHandle::before,
+.stackGuideGap.insertToolActive .stackGuideInsertHandle::before,
+.stackGuideInsertHandle:focus-visible::before {
+  border-left-color: #1f54c8;
+  box-shadow: 0 0 0 1px rgb(31 84 200 / 0.22);
+}
+
+.stackGuideEditor {
+  position: absolute;
+  left: 50%;
+  bottom: var(--stack-guide-editor-bottom);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 148px;
+  padding: 5px;
+  border: 1px solid rgb(28 72 96 / 0.36);
+  border-radius: 4px;
+  background: rgb(251 251 248 / 0.98);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.18);
+  transform: translateX(calc(-50% + var(--stack-guide-editor-shift)));
+  pointer-events: auto;
+}
+
+.stackGuideInsertMenu {
+  position: absolute;
+  left: 50%;
+  bottom: var(--stack-guide-editor-bottom);
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  width: 128px;
+  padding: 4px;
+  border: 1px solid rgb(28 72 96 / 0.34);
+  border-radius: 4px;
+  background: rgb(251 251 248 / 0.98);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.18);
+  transform: translateX(calc(-50% + var(--stack-guide-editor-shift)));
+  pointer-events: auto;
+}
+
+.stackGuideInsertMenu button {
+  justify-content: flex-start;
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.stackGuideEditor input {
+  min-width: 0;
+  flex: 1;
+  width: auto;
+  height: 24px;
+  padding: 2px 6px;
+  border: 1px solid rgb(28 72 96 / 0.35);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.stackGuideEditorIconButton {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 3px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.stackGuideSvgLayer {
+  pointer-events: none;
+}
+
+.stackGuideSvgLabel {
+  cursor: copy;
+  pointer-events: auto;
+}
+
+.stackGuideSvgLabel.draggable {
+  cursor: grab;
+}
+
+.stackGuideSvgLabel.dragging {
+  cursor: grabbing;
+  opacity: 0.82;
+}
+
+.stackGuideSvgConnector {
+  fill: none;
+  stroke: rgb(31 84 200 / 0.68);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.stackGuideSvgLabelBox {
+  fill: #3467e2;
+  stroke: #1f54c8;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.stackGuideSvgLabel.assigned .stackGuideSvgLabelBox {
+  fill: #236f55;
+  stroke: #174d3f;
+}
+
+.stackGuideSvgLabelText {
+  fill: #ffffff;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.sheetSvg {
+  display: block;
+  max-width: none;
+  aspect-ratio: 1754 / 2481;
+  font-family: var(--font-sheet-sans);
+  margin: 0 auto;
+  background: #fbfbf8;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.15);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sheetImage {
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+.templateChrome {
+  pointer-events: none;
+}
+
+.templateOuterFrame,
+.templateThinBox,
+.templateHeaderBox {
+  fill: none;
+  stroke: #2f3430;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.templateThinLine {
+  stroke: #2f3430;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.templateHeaderBox {
+  fill: none;
+}
+
+.templateSmallText,
+.templateHeaderText,
+.templateColumnText,
+.metadataFieldText {
+  fill: #1f2421;
+  font-family: var(--font-sheet-sans);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.templateHeaderText {
+  dominant-baseline: middle;
+}
+
+.templateReferenceBox {
+  fill: transparent;
+  stroke: #416b5a;
+  stroke-dasharray: 6px 4px;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.templateReferenceRegion.memo-area .templateReferenceBox {
+  stroke: transparent;
+}
+
+.gridLine {
+  fill: none;
+  stroke: #8b908a;
+  stroke-width: 0.8px;
+  vector-effect: non-scaling-stroke;
+}
+
+.gridLineRegular {
+  stroke: #646a64;
+  stroke-width: 1.25px;
+}
+
+.gridLineMedium {
+  stroke: #343b36;
+  stroke-width: 1.8px;
+}
+
+.gridLineMajor {
+  stroke: #1f2421;
+  stroke-width: 1.8px;
+  vector-effect: non-scaling-stroke;
+}
+
+.gridLineStrong {
+  stroke: #101512;
+  stroke-width: 2.6px;
+}
+
+.gridRowGuideLabel {
+  fill: #2a302c;
+  font-family: var(--font-sheet-sans);
+  font-weight: 700;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.gridActionFrameNumber,
+.gridSecondCounter,
+.gridBottomTrackLabel {
+  fill: #202622;
+  font-family: var(--font-sheet-sans);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.eventRect {
+  fill: transparent;
+  stroke: transparent;
+  pointer-events: none;
+}
+
+.assetAssignedEventRect {
+  fill: rgb(255 190 54 / 0.24);
+  stroke: none;
+  mix-blend-mode: multiply;
+}
+
+.assetAssignedEventMarker {
+  fill: rgb(255 141 0 / 0.42);
+  stroke: rgb(148 83 0 / 0.42);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.eventText {
+  fill: #113c2d;
+  font-weight: 800;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.timelineEventHandle,
+.timelineEventDragSource {
+  pointer-events: none;
+}
+
+.timelineEventHandle .eventText,
+.timelineEventDragSource .eventText {
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.timelineEventHandle .assetAssignedEventRect,
+.timelineEventDragSource .assetAssignedEventRect {
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.timelineEventDragPending .eventRect {
+  stroke: rgb(37 97 165 / 0.45);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.timelineEventDragReady .eventRect {
+  stroke: rgb(37 97 165 / 0.78);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.timelineEventDragReady .eventText,
+.timelineEventDragReady .assetAssignedEventRect {
+  cursor: grab;
+}
+
+.timelineEventDragSource .eventRect,
+.timelineEventDragSource .eventText {
+  cursor: grabbing;
+  opacity: 0.62;
+}
+
+.hoverCellRect {
+  box-sizing: border-box;
+  position: absolute;
+  z-index: 3;
+  border: 1px solid rgb(173 107 0 / 0.62);
+  background: rgb(255 209 102 / 0.18);
+  pointer-events: none;
+}
+
+.draftRangeRect,
+.selectedRangeRect {
+  pointer-events: none;
+}
+
+.draftRangeRect {
+  fill: rgb(255 209 102 / 0.16);
+  stroke: rgb(173 107 0 / 0.62);
+  stroke-dasharray: 5px 3px;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  mix-blend-mode: multiply;
+}
+
+.selectedRangeRect {
+  fill: rgb(62 112 214 / 0.1);
+  stroke: rgb(23 75 214 / 0.58);
+  stroke-linejoin: round;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  mix-blend-mode: multiply;
+}
+
+.selectedCellRect {
+  fill: rgb(62 112 214 / 0.1);
+  stroke: rgb(23 75 214 / 0.62);
+  stroke-linejoin: round;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.overlayPaperTrackColumn {
+  fill: rgb(255 255 255 / 0.34);
+  stroke: rgb(27 72 58 / 0.42);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.overlayPaperTrack.inputActive .overlayPaperTrackColumn {
+  fill: rgb(238 250 247 / 0.62);
+  stroke: rgb(15 118 110 / 0.72);
+  mix-blend-mode: normal;
+}
+
+.overlayPaperTrack.inputInactive .overlayPaperTrackColumn {
+  fill: rgb(255 255 255 / 0.08);
+  stroke: rgb(15 118 110 / 0.28);
+  stroke-dasharray: 4px 4px;
+}
+
+.overlayPaperTrackLine {
+  stroke: rgb(27 72 58 / 0.32);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.overlayPaperTrack.inputActive .overlayPaperTrackLine {
+  stroke: rgb(15 118 110 / 0.42);
+}
+
+.overlayPaperTrack.inputInactive .overlayPaperTrackLine {
+  stroke: rgb(15 118 110 / 0.16);
+  stroke-dasharray: 3px 5px;
+}
+
+.overlayPaperTrackLine.major,
+.overlayPaperTrackBorder {
+  stroke: rgb(27 72 58 / 0.55);
+  stroke-width: 1.2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.overlayPaperTrackLine.gridLineRegular {
+  stroke-width: 1.05px;
+}
+
+.overlayPaperTrackLine.gridLineMedium {
+  stroke-width: 1.35px;
+}
+
+.overlayPaperTrackLine.gridLineStrong {
+  stroke-width: 1.8px;
+}
+
+.overlayPaperTrack.inputActive .overlayPaperTrackBorder {
+  stroke: rgb(15 118 110 / 0.82);
+  stroke-width: 1.45px;
+}
+
+.overlayPaperTrack.inputInactive .overlayPaperTrackBorder {
+  stroke: rgb(15 118 110 / 0.34);
+  stroke-dasharray: 5px 4px;
+}
+
+.overlayPaperTrackLabel {
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.overlayPaperTrackStem {
+  fill: none;
+  stroke: #0f766e;
+  stroke-linecap: square;
+  stroke-linejoin: round;
+  stroke-width: 1.45px;
+  vector-effect: non-scaling-stroke;
+  mix-blend-mode: multiply;
+}
+
+.overlayPaperTrackLabelBox {
+  fill: #0f766e;
+  stroke: #064e45;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.overlayPaperTrack.inputActive .overlayPaperTrackStem {
+  stroke-width: 1.7px;
+}
+
+.overlayPaperTrack.inputInactive .overlayPaperTrackStem {
+  stroke: rgb(15 118 110 / 0.52);
+  stroke-dasharray: 4px 3px;
+}
+
+.overlayPaperTrack.inputActive .overlayPaperTrackLabelBox {
+  fill: #0f766e;
+  stroke: #064e45;
+}
+
+.overlayPaperTrack.inputInactive .overlayPaperTrackLabelBox {
+  fill: rgb(248 252 249 / 0.92);
+  stroke: #0f766e;
+}
+
+.overlayPaperTrackLabelText {
+  fill: #fff;
+  font-weight: 750;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+.overlayPaperTrack.inputInactive .overlayPaperTrackLabelText {
+  fill: #0f766e;
+}
+
+.paperTrackEditorPopover {
+  position: fixed;
+  z-index: 1200;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #7b8b7f;
+  background: #fbfcf9;
+  box-shadow: 0 10px 28px rgb(26 32 29 / 0.22);
+}
+
+.paperTrackEditorPopover label {
+  display: grid;
+  gap: 4px;
+  color: #38433d;
+  font-size: 12px;
+}
+
+.paperTrackEditorPopover input {
+  min-width: 0;
+  height: 28px;
+  padding: 3px 6px;
+}
+
+.paperTrackEditorPopover select {
+  min-width: 0;
+  height: 28px;
+}
+
+.paperTrackEditorPopover div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.paperTrackEditorPopover button {
+  width: 28px;
+  min-height: 26px;
+  padding: 0;
+}
+
+.cellAssetPreviewPanel {
+  box-sizing: border-box;
+  position: fixed;
+  z-index: 1200;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 5px;
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid #47708a;
+  border-radius: 6px;
+  background: rgb(255 255 252 / 0.96);
+  box-shadow: 0 8px 22px rgb(24 35 42 / 0.22);
+  color: #1c2529;
+  font-size: 12px;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+.cellAssetPreviewTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: #315163;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellAssetPreviewList {
+  display: grid;
+  gap: 6px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cellAssetPreviewPanel.grid .cellAssetPreviewList {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cellAssetPreviewItem {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid #d8ddd8;
+  background: rgb(246 248 246 / 0.92);
+}
+
+.cellAssetPreviewPanel.single .cellAssetPreviewItem {
+  grid-template-rows: 78px minmax(0, auto);
+  align-items: stretch;
+  gap: 5px;
+  min-height: 122px;
+}
+
+.cellAssetPreviewPanel.grid .cellAssetPreviewItem {
+  grid-template-rows: 58px minmax(0, auto);
+  align-items: stretch;
+  gap: 5px;
+  min-height: 104px;
+}
+
+.cellAssetPreviewItem img,
+.cellAssetPreviewThumbFallback {
+  box-sizing: border-box;
+  border: 1px solid #c6c8c3;
+  background: #ecebe6;
+  object-fit: contain;
+}
+
+.cellAssetPreviewPanel.single .cellAssetPreviewItem img,
+.cellAssetPreviewPanel.single .cellAssetPreviewThumbFallback {
+  width: 100%;
+  height: 78px;
+}
+
+.cellAssetPreviewPanel.grid .cellAssetPreviewItem img,
+.cellAssetPreviewPanel.grid .cellAssetPreviewThumbFallback {
+  width: 100%;
+  height: 58px;
+}
+
+.cellAssetPreviewThumbFallback {
+  display: grid;
+  place-items: center;
+  color: #66706a;
+  font-size: 9px;
+  text-align: center;
+}
+
+.cellAssetPreviewMeta {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.cellAssetPreviewProcess,
+.cellAssetPreviewMeta strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellAssetPreviewProcess {
+  color: #53636b;
+  font-size: 11px;
+}
+
+.cellAssetPreviewMeta strong {
+  font-size: 12px;
+}
+
+.cellAssetPreviewMore {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px dashed #b9c1bc;
+  background: rgb(242 245 242 / 0.9);
+  color: #53636b;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sheetContextMenu {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  min-width: 154px;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 4px;
+  border: 1px solid #8f9792;
+  border-radius: 6px;
+  background: #fffffb;
+  box-shadow: 0 10px 28px rgb(20 27 31 / 0.22);
+}
+
+.sheetContextMenu button {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sheetContextMenu button span,
+.sheetContextMenu button small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheetContextMenu button:hover,
+.sheetContextMenu button:focus-visible {
+  background: #dce8df;
+  outline: 0;
+}
+
+.sheetContextMenuTitle {
+  margin-top: 3px;
+  padding: 6px 8px 3px;
+  border-top: 1px solid #d6ded9;
+  color: #344047;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sheetContextMenu.assetDropMenu {
+  min-width: 240px;
+  max-width: 280px;
+  gap: 2px;
+}
+
+.assetDropMenuTitle {
+  padding: 5px 8px 2px;
+  color: #344047;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.assetDropMenuMeta {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 0 8px 6px;
+  border-bottom: 1px solid #d6ded9;
+  color: #53636b;
+  font-size: 11px;
+}
+
+.assetDropMenu > .appTooltipTrigger {
+  display: block;
+  min-width: 0;
+}
+
+.assetDropMenuMeta strong,
+.assetDropMenuMeta span,
+.assetDropMenu button span,
+.assetDropMenu button small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assetDropMenuMeta strong {
+  color: #1f292f;
+  font-size: 12px;
+}
+
+.assetDropMenu button {
+  display: grid;
+  gap: 2px;
+}
+
+.assetDropMenu button small {
+  color: #647179;
+  font-size: 10px;
+}
+
+.candidateRect {
+  fill: rgb(255 194 71 / 0.22);
+  stroke: #ad6b00;
+  stroke-dasharray: 0.006 0.004;
+  stroke-width: 0.002;
+  pointer-events: none;
+}
+
+.inactiveFrameRect {
+  fill: rgb(80 80 80 / 0.18);
+  pointer-events: none;
+}
+
+.calibrationLink {
+  stroke: #d6261d;
+  stroke-dasharray: 0.008 0.006;
+  stroke-width: 0.0014;
+  pointer-events: none;
+}
+
+.calibrationPoint {
+  fill: #fbfbf8;
+  stroke: #d6261d;
+  stroke-width: 0.0025;
+  pointer-events: none;
+}
+
+.calibrationSourcePoint {
+  fill: #fbfbf8;
+  stroke: #d6261d;
+  stroke-width: 0.0025;
+  pointer-events: none;
+}
+
+.calibrationPoint.active {
+  fill: #d63d2e;
+  stroke: #fff;
+}
+
+.calibrationSourcePoint.active {
+  fill: #d63d2e;
+  stroke: #fff;
+}
+
+.calibrationHandle {
+  fill: rgb(255 255 255 / 0.001);
+  stroke: transparent;
+  stroke-width: 0;
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.autoCalibrationGuideOverlay {
+  pointer-events: none;
+}
+
+.autoCalibrationExpectedQuad,
+.autoCalibrationDetectedQuad {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-width: 2;
+  stroke-linejoin: miter;
+}
+
+.autoCalibrationExpectedQuad {
+  stroke: rgb(229 28 18 / 0.96);
+  stroke-dasharray: 10 6;
+}
+
+.autoCalibrationDetectedQuad {
+  stroke: rgb(0 149 214 / 0.96);
+}
+
+.sheetSvg.calibrationDragging,
+.sheetSvg.calibrationDragging .calibrationHandle {
+  cursor: none;
+}
+
+.calibrationHandleMark {
+  fill: none;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.calibrationTrimMark {
+  fill: none;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.calibrationTrimMark.source {
+  stroke: rgb(218 38 29 / 0.92);
+}
+
+.calibrationHandleMark.source {
+  stroke: rgb(218 38 29 / 0.92);
+}
+
+.calibrationHandleMark.target {
+  stroke: #d6261d;
+}
+
+.sheetImageRaw {
+  image-rendering: pixelated;
+}
+
+.annotationStroke {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.annotationTextLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: visible;
+  color: #202421;
+  font-family: var(--font-sheet-sans);
+  line-height: 1.25;
+  pointer-events: none;
+}
+
+.annotationTextDisplay,
+.annotationTextEditor {
+  position: absolute;
+  pointer-events: auto;
+  font: inherit;
+  font-family: var(--font-sheet-sans);
+  line-height: 1.25;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.annotationTextEditorActions {
+  position: absolute;
+  z-index: 8;
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px;
+  border: 1px solid #bfd0c6;
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+  line-height: 1;
+  pointer-events: auto;
+}
+
+.annotationTextEditorActions button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #1e4f40;
+}
+
+.annotationTextEditorActions button:hover,
+.annotationTextEditorActions button:focus-visible {
+  border-color: #88aa99;
+  background: #edf4ee;
+  outline: none;
+}
+
+.annotationTextCommitHint {
+  position: absolute;
+  z-index: 9;
+  padding: 1px 3px;
+  color: rgb(96 104 99 / 0.62);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(calc(-100% - 6px), -17px);
+  white-space: nowrap;
+}
+
+.smallInlineIcon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.annotationTextDisplay {
+  display: block;
+  min-width: 1.5em;
+  min-height: 1.25em;
+  margin: 0;
+  padding: 0 2px;
+  overflow: visible;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 3px;
+  cursor: grab;
+  font-weight: 700;
+  user-select: none;
+}
+
+.annotationTextDisplay[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.annotationTextDisplay.empty {
+  border-color: rgb(65 107 90 / 0.34);
+  border-style: dashed;
+  color: #59635c;
+  opacity: 0.74;
+}
+
+.annotationTextDisplay.selected {
+  border-color: #235746;
+  background: rgb(216 235 224 / 0.66);
+  box-shadow: 0 0 0 1px rgb(35 87 70 / 0.18);
+}
+
+.annotationTextDisplay:hover,
+.annotationTextDisplay:focus-visible {
+  border-color: #416b5a;
+  background: rgb(237 244 238 / 0.72);
+  outline: none;
+}
+
+.annotationTextEditor {
+  margin: 0;
+  padding: 2px 4px;
+  border: 1px solid #2d6a57;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.14);
+  font-weight: 700;
+  resize: both;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.annotationTextEditor:focus {
+  outline: 2px solid rgb(45 106 87 / 0.22);
+  outline-offset: 1px;
+}
+
+.annotationTextSvg {
+  font-family: var(--font-sheet-sans);
+  font-weight: 700;
+  pointer-events: none;
+  paint-order: stroke fill;
+  stroke: rgb(255 255 255 / 0.72);
+  stroke-width: 0.0025;
+  stroke-linejoin: round;
+}
+
+.annotationEraserPreview {
+  stroke: #2f7f6a;
+  stroke-dasharray: 0.012 0.008;
+  opacity: 0.78;
+  mix-blend-mode: multiply;
+}
+

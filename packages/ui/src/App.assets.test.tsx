@@ -4,7 +4,7 @@ import { standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
 import { defaultCalibrationPoints } from './sheetImages';
-import { clickActiveStackGuideInsertHandle, clickSheet, dragInternalPointer, dragStackGuideSvgLabel, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, switchSharedCutByLabel, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, dragInternalPointer, dragStackGuideSvgLabel, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 describe('App: viewport and assets', () => {
 it('zooms the sheet with Ctrl+wheel and viewport controls', () => {
@@ -414,235 +414,60 @@ it('edits sheet warp quadrilateral handles and applies template targets', async 
     expect(document.querySelector('.calibrationHandle.source')).toBeNull()
   })
 
-it('registers material assets and assigns a dragged asset to the dropped sheet cell', async () => {
+it('registers material assets in the CSP layer tree and reuses its cards on the sheet', async () => {
     URL.createObjectURL = () => 'blob:asset-preview'
     render(<App />)
 
     const assetInput = screen.getByLabelText(uiText.actions.addAssets)
-    const file = new File(['asset'], 'BG_A1.png', { type: 'image/png', lastModified: 1 })
-    fireEvent.change(assetInput, { target: { files: [file] } })
+    fireEvent.change(assetInput, { target: { files: [new File(['asset'], 'BG_A1.png', { type: 'image/png', lastModified: 1 })] } })
     expect(await screen.findByText('BG_A1.png')).toBeTruthy()
-    expect(document.querySelector('.assetRegistrationBadge')).toBeNull()
-    const assetPanelCard = getAssetCardByName('BG_A1.png')
-    fireEvent.click(assetPanelCard)
-    expect(assetPanelCard.classList.contains('selected')).toBe(true)
-    const previewButton = assetPanelCard.querySelector('.assetQuickPreviewButton') as HTMLButtonElement | null
-    if (!previewButton) throw new Error('asset quick preview button not found')
-    fireEvent.click(previewButton)
-    const quickPreview = await screen.findByRole('dialog', { name: uiText.assets.previewDialog('BG_A1.png') })
-    expect(quickPreview.getAttribute('aria-modal')).toBe('false')
-    expect(quickPreview.querySelector('img')?.getAttribute('src')).toBe('blob:asset-preview')
-    expect(quickPreview.textContent).toContain('BG_A1.png')
-    expect(quickPreview.textContent?.match(/BG_A1\.png/g)).toHaveLength(1)
-    const quickPreviewImageFrame = quickPreview.querySelector('.assetFloatingPreviewImageFrame') as HTMLElement | null
-    if (!quickPreviewImageFrame) throw new Error('quick preview image frame not found')
-    const quickPreviewHeader = quickPreview.querySelector('.assetFloatingPreviewHeader') as HTMLElement | null
-    if (!quickPreviewHeader) throw new Error('quick preview header not found')
-    fireEvent.pointerDown(quickPreviewHeader, { pointerId: 20, button: 0, clientX: 120, clientY: 120 })
-    fireEvent.pointerMove(quickPreviewHeader, { pointerId: 20, clientX: 150, clientY: 145 })
-    fireEvent.pointerUp(quickPreviewHeader, { pointerId: 20, clientX: 150, clientY: 145 })
-    expect(quickPreview.getAttribute('style')).toContain('left:')
-    const quickPreviewResize = quickPreview.querySelector('.assetFloatingPreviewResize') as HTMLElement | null
-    if (!quickPreviewResize) throw new Error('quick preview resize handle not found')
-    fireEvent.pointerDown(quickPreviewResize, { pointerId: 21, button: 0, clientX: 480, clientY: 380 })
-    fireEvent.pointerMove(quickPreviewResize, { pointerId: 21, clientX: 520, clientY: 420 })
-    fireEvent.pointerUp(quickPreviewResize, { pointerId: 21, clientX: 520, clientY: 420 })
-    expect(quickPreview.getAttribute('style')).toContain('width:')
-    fireEvent.click(screen.getByRole('button', { name: uiText.assets.closePreview }))
-    expect(screen.queryByRole('dialog', { name: uiText.assets.previewDialog('BG_A1.png') })).toBeNull()
-    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
-    fireEvent.click(previewButton)
-    const tauriFallbackPreview = await screen.findByRole('dialog', { name: uiText.assets.previewDialog('BG_A1.png') })
-    expect(tauriFallbackPreview.querySelector('img')?.getAttribute('src')).toBe('blob:asset-preview')
-    fireEvent.click(screen.getByRole('button', { name: uiText.assets.closePreview }))
-    expect(screen.queryByRole('dialog', { name: uiText.assets.previewDialog('BG_A1.png') })).toBeNull()
-    Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
-    expect(screen.queryByText('5 B')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: uiText.assets.view.listTitle }))
-    expect(document.querySelector('.assetBrowser-list')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: uiText.assets.size.largeTitle }))
-    expect(document.querySelector('.assetThumb-large')).toBeTruthy()
 
-    selectAppPanel(uiText.nav.sheet)
-    const assetCard = getAssetCardByName('BG_A1.png')
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
-    sheet.getBoundingClientRect = () => ({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: 1000,
-      bottom: 1000,
-      width: 1000,
-      height: 1000,
-      toJSON: () => ({}),
-    })
-    const registeredCellElementFromPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
-    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => sheet) })
-    fireEvent.pointerDown(assetCard, { pointerId: 211, pointerType: 'mouse', button: 0, buttons: 1, clientX: 100, clientY: 100 })
-    fireEvent.pointerMove(window, { pointerId: 211, pointerType: 'mouse', buttons: 1, clientX: 255, clientY: 290 })
-    expect(assetCard.classList.contains('dragging')).toBe(true)
-    expect(document.querySelector('.assetDragImageShell.pointerDragGhost .assetDragImagePreview')).toBeTruthy()
-    await waitFor(() => expect(document.querySelector('.hoverCellRect')).toBeTruthy())
-    fireEvent.pointerUp(window, { pointerId: 211, pointerType: 'mouse', button: 0, buttons: 0, clientX: 255, clientY: 290 })
-    if (registeredCellElementFromPoint) Object.defineProperty(document, 'elementFromPoint', registeredCellElementFromPoint)
-    else Reflect.deleteProperty(document, 'elementFromPoint')
-    expect(assetCard.classList.contains('dragging')).toBe(false)
-    expect(document.querySelector('.assetDragImageShell')).toBeNull()
+    setSheetRect(sheet, 0, 0)
+    dragInternalPointer(getAssetCardByName('BG_A1.png'), sheet, { toX: 255, toY: 290 })
 
     await waitFor(() => expectSelectedHit('cell', 'A', 1))
-    const registeredAssetBadge = await waitFor(() => {
-      const badge = document.querySelector('.sheetDockRight .assetRegistrationBadge') as HTMLElement | null
-      if (!badge) throw new Error('asset registration badge not found')
-      return badge
-    })
-    expect(registeredAssetBadge.textContent).toBe(uiText.assets.registered)
-    expect(screen.queryByText('1 (key_0001)')).toBeNull()
     expect(document.querySelector('.assetAssignedEventRect')).toBeTruthy()
-    expect(document.querySelector('.assetEventDot')).toBeNull()
-    expect(document.querySelector('.assetEventBracket')).toBeNull()
-    expect(document.querySelector('.eventText')).toBeNull()
-    const registeredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
-    if (!registeredCell) throw new Error('registered cell card not found')
-    expect(registeredCell.textContent).toContain('作画')
-    expect(registeredCell.textContent).toContain('BG_A1')
-    const registeredCellInputs = () => Array.from(registeredCell.querySelectorAll('input')) as HTMLInputElement[]
-    expect(registeredCellInputs().map(input => input.value)).toEqual(['', 'BG_A1'])
-    expect(registeredCell.querySelector('.cellNameMode')?.textContent).toBe(uiText.keys.autoName)
-    fireEvent.change(registeredCellInputs()[1], { target: { value: 'BG_A1_custom' } })
-    await waitFor(() => expect(registeredCell.querySelector('.cellNameMode')?.textContent).toBe(uiText.keys.manualName))
-    fireEvent.click(screen.getByRole('button', { name: uiText.keys.resetAutoName }))
-    expect(registeredCellInputs().map(input => input.value)).toEqual(['', 'BG_A1'])
-    fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })
-    const previewPanel = await waitFor(() => {
-      const panel = document.querySelector('.cellAssetPreviewPanel') as HTMLElement | null
-      expect(panel).toBeTruthy()
-      return panel
-    })
-    expect(previewPanel?.textContent).toContain(uiText.sheet.registeredAssets)
-    expect(previewPanel?.textContent).toContain('作画')
-    expect(previewPanel?.textContent).toContain('BG_A1')
-    expect(previewPanel?.textContent).not.toContain('BG_A1.png')
-    expect(previewPanel?.querySelector('img')?.getAttribute('src')).toBe('blob:asset-preview')
+    const drawingCell = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeCel[data-csp-key-id]'))
+      .find(cell => cell.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent === '作画')
+    if (!drawingCell) throw new Error('drawing CSP cell was not rendered')
+    expect(drawingCell.textContent).toContain('BG_A1.png')
+    expect(drawingCell.dataset.cspSheetRole).toBe('cell')
+    const cspNameInput = drawingCell.querySelector<HTMLInputElement>('.cspTreeCelNameInput')
+    if (!cspNameInput) throw new Error('CSP cell name input was not rendered')
+    expect(cspNameInput.value).toBe('BG_A1')
+    fireEvent.change(cspNameInput, { target: { value: 'BG_A1_custom' } })
 
-    const secondFile = new File(['asset-2'], 'BG_A2.png', { type: 'image/png', lastModified: 2 })
-    fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [secondFile] } })
+    fireEvent.change(assetInput, { target: { files: [new File(['asset-2'], 'BG_A2.png', { type: 'image/png', lastModified: 2 })] } })
     expect(await screen.findByText('BG_A2.png')).toBeTruthy()
     dragInternalPointer(getAssetCardByName('BG_A2.png'), sheet, { toX: 255, toY: 290 })
     const dropMenu = await screen.findByRole('menu')
     expect(dropMenu.textContent).toContain(uiText.assetDrop.title)
-    expect(dropMenu.textContent).toContain('BG_A2.png')
-    expect(document.querySelector('.cellAssetPreviewPanel')).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('演出')) }))
-    fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })
-    const gridPreviewPanel = await waitFor(() => {
-      const panel = document.querySelector('.cellAssetPreviewPanel') as HTMLElement | null
-      expect(panel).toBeTruthy()
-      return panel
-    })
-    expect(gridPreviewPanel?.classList.contains('grid')).toBe(true)
-    expect(gridPreviewPanel?.textContent).toContain(uiText.sheet.registeredAssetsCount(2))
-    expect(gridPreviewPanel?.textContent).toContain('BG_A1')
-    expect(gridPreviewPanel?.textContent).toContain('BG_A2')
-    expect(gridPreviewPanel?.textContent).not.toContain('BG_A1.png')
-    expect(gridPreviewPanel?.textContent).not.toContain('BG_A2.png')
-    const updatedRegisteredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
-    if (!updatedRegisteredCell) throw new Error('registered cell card not found')
-    expect(Array.from(updatedRegisteredCell.querySelectorAll('.registeredCellAssetRow strong')).map(item => item.textContent)).toEqual([
-      'BG_A1.png',
-      'BG_A2.png',
-    ])
-    const registeredCellPreviewButton = updatedRegisteredCell.querySelector('.registeredCellPreviewButton') as HTMLButtonElement | null
-    if (!registeredCellPreviewButton) throw new Error('registered cell preview button not found')
-    fireEvent.click(registeredCellPreviewButton)
-    const registeredCellPreview = await screen.findByRole('dialog', { name: uiText.assets.previewDialog('CELL A') })
-    expect(registeredCellPreview.querySelectorAll('.assetPreviewItem')).toHaveLength(2)
-    expect(registeredCellPreview.textContent).toContain('作画')
-    expect(registeredCellPreview.textContent).toContain('演出')
-    expect(registeredCellPreview.textContent).toContain('BG_A1')
-    expect(registeredCellPreview.textContent).toContain('BG_A2')
-    expect(Array.from(registeredCellPreview.querySelectorAll('img')).map(image => image.getAttribute('src'))).toEqual([
-      'blob:asset-preview',
-      'blob:asset-preview',
-    ])
-    const closeRegisteredCellPreview = registeredCellPreview.querySelector('.assetFloatingPreviewClose') as HTMLButtonElement | null
-    if (!closeRegisteredCellPreview) throw new Error('registered cell preview close button not found')
-    fireEvent.click(closeRegisteredCellPreview)
 
-    const currentSheet = screen.getByLabelText(uiText.sheet.canvasLabel)
-    currentSheet.getBoundingClientRect = () => ({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: 1000,
-      bottom: 1000,
-      width: 1000,
-      height: 1000,
-      toJSON: () => ({}),
-    })
-    const originalElementFromPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
-    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => currentSheet) })
-    fireEvent.pointerDown(updatedRegisteredCell, { button: 0, pointerId: 901, clientX: 20, clientY: 20 })
-    fireEvent.pointerMove(window, { pointerId: 901, clientX: 273, clientY: 290 })
-    expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost .registeredCellDragCardClone')).toBeTruthy()
-    await waitFor(() => expect(document.querySelector('.hoverCellRect')).toBeTruthy())
-    fireEvent.pointerUp(window, { pointerId: 901, clientX: 273, clientY: 290 })
-    if (originalElementFromPoint) Object.defineProperty(document, 'elementFromPoint', originalElementFromPoint)
-    else Reflect.deleteProperty(document, 'elementFromPoint')
-    const registeredCellsAfterCardDrop = await waitFor(() => {
-      const cards = Array.from(document.querySelectorAll('.registeredCellCard'))
-      expect(cards.map(registeredCellIdentityText)).toEqual(['CELL A', 'CELL B'])
-      return cards
-    })
-    expect(registeredCellsAfterCardDrop.map(registeredCellIdentityText)).toEqual(['CELL A', 'CELL B'])
-    const clonedRegisteredCell = registeredCellsAfterCardDrop.find(card => registeredCellIdentityText(card) === 'CELL B') as HTMLElement | undefined
-    if (!clonedRegisteredCell) throw new Error('cloned registered cell card not found')
-    expect(Array.from(clonedRegisteredCell.querySelectorAll('.registeredCellAssetRow strong')).map(item => item.textContent)).toEqual([
-      'BG_A1.png',
-      'BG_A2.png',
-    ])
-
-    const thirdFile = new File(['asset-3'], 'BG_A3.png', { type: 'image/png', lastModified: 3 })
-    fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [thirdFile] } })
-    expect(await screen.findByText('BG_A3.png')).toBeTruthy()
-    const sourceRegisteredCell = Array.from(document.querySelectorAll('.registeredCellCard'))
-      .find(card => registeredCellIdentityText(card) === 'CELL A') as HTMLElement | undefined
-    if (!sourceRegisteredCell) throw new Error('source registered cell card not found')
-    const firstAssetRow = sourceRegisteredCell.querySelector('.registeredCellAssetRow') as HTMLElement | null
-    if (!firstAssetRow) throw new Error('registered cell asset row not found')
-    dragInternalPointer(getAssetCardByName('BG_A3.png'), firstAssetRow)
-    const registeredCellDropMenu = await screen.findByRole('menu')
-    expect(registeredCellDropMenu.textContent).toContain(uiText.assetDrop.title)
-    expect(registeredCellDropMenu.textContent).toContain('BG_A3.png')
-    fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(uiText.assetDrop.overwrite('作画')) }))
-    const replacedRegisteredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
-    if (!replacedRegisteredCell) throw new Error('registered cell card not found')
-    expect(Array.from(replacedRegisteredCell.querySelectorAll('.registeredCellAssetRow strong')).map(item => item.textContent)).toEqual([
-      'BG_A3.png',
-      'BG_A2.png',
-    ])
-    const currentSourceRegisteredCell = Array.from(document.querySelectorAll('.registeredCellCard'))
-      .find(card => registeredCellIdentityText(card) === 'CELL A') as HTMLElement | undefined
-    if (!currentSourceRegisteredCell) throw new Error('current source registered cell card not found')
-    const sourcePreviewButton = currentSourceRegisteredCell.querySelector('.registeredCellPreviewButton') as HTMLButtonElement | null
-    if (!sourcePreviewButton) throw new Error('source registered cell preview button not found')
-    fireEvent.click(sourcePreviewButton)
-    expect(await screen.findByRole('dialog', { name: uiText.assets.previewDialog('CELL A') })).toBeTruthy()
-    clickSheet(currentSheet, 273, 290)
     await waitFor(() => {
-      const targetPreview = screen.getByRole('dialog', { name: uiText.assets.previewDialog('CELL B') })
-      expect(targetPreview.textContent).toContain('BG_A1')
+      const layerNames = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeCel[data-csp-key-id]'))
+        .map(cell => cell.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent)
+      expect(layerNames).toEqual(['演出', '作画'])
     })
-    fireEvent.click(screen.getByRole('button', { name: uiText.assets.closePreview }))
+    expect(Array.from(document.querySelectorAll('.cspTreeAssetName')).map(item => item.textContent)).toEqual(['BG_A2.png', 'BG_A1.png'])
+
+    const target = templateFramePoint('cell', 'B', 1)
+    dragInternalPointer(drawingCell, sheet, { toX: target.x, toY: target.y })
+    await waitFor(() => expectSelectedHit('cell', 'B', 1))
+    expect(Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).map(registeredCellIdentityText)).toEqual([
+      'CELL B',
+      'CELL A',
+      'CELL B',
+      'CELL A',
+    ])
 
     selectAppPanel(uiText.nav.export)
     const sourceSelect = screen.getByLabelText(uiText.export.timingSource)
     fireEvent.change(sourceSelect, { target: { value: 'cell' } })
     const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
-    expect(preview?.value).toContain('BG_A1')
+    expect(preview?.value).toContain('BG_A1_custom')
   })
-
 it('updates an open material preview when the asset browser selection changes', async () => {
     URL.createObjectURL = () => 'blob:asset-preview'
     render(<App />)
@@ -688,7 +513,7 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     expect(Array.from(document.querySelectorAll('.stackGuideLabel')).some(label => label.textContent === 'BOOK2,3')).toBe(true)
     expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BOOK2,3')
     expect(document.querySelector('.stackGuideSvgLabelText')?.getAttribute('transform')).toBe(`scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`)
-    expect(screen.getAllByText(uiText.stackGuides.title).length).toBeGreaterThan(0)
+    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).some(input => input.value === 'BOOK2,3')).toBe(true)
 
     openStackGuideInsertMenu(sheet, 'cell', 2)
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.add }))
@@ -707,11 +532,11 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     dragInternalPointer(getAssetCardByName('BOOK2_3.png'), labelButton)
 
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')).toBeTruthy())
-    const stackGuideCard = Array.from(document.querySelectorAll('.stackGuideCard'))
-      .find(card => card.textContent?.includes('BOOK2,3')) as HTMLElement | undefined
-    if (!stackGuideCard) throw new Error('stack guide card not found')
+    const stackGuideCard = Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
+      .find(input => input.value === 'BOOK2,3')?.closest<HTMLElement>('.cspTreeTrack')
+    if (!stackGuideCard) throw new Error('stack guide track not found')
     expect(stackGuideCard.textContent).toContain('BOOK2_3.png')
-    expect(stackGuideCard.textContent).toContain('作画')
+    expect(stackGuideCard.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('作画')
 
     const cellTarget = templateStackGuideHeaderPoint('cell', 4)
     dragInternalPointer(stackGuideCard, sheet, { toX: cellTarget.x, toY: cellTarget.y })
@@ -745,9 +570,9 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     fireEvent.change(assetInput, { target: { files: [file] } })
     expect(await screen.findByText('BOOK_CUT.png')).toBeTruthy()
 
-    const stackGuideCard = Array.from(document.querySelectorAll('.stackGuideCard'))
-      .find(card => card.textContent?.includes('BOOK-CUT')) as HTMLElement | undefined
-    if (!stackGuideCard) throw new Error('stack guide card not found')
+    const stackGuideCard = Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
+      .find(input => input.value === 'BOOK-CUT')?.closest<HTMLElement>('.cspTreeTrack')
+    if (!stackGuideCard) throw new Error('stack guide track not found')
     const originalElementFromPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
     Object.defineProperty(document, 'elementFromPoint', {
       configurable: true,
@@ -771,19 +596,19 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     expect(document.querySelector('.assetDragImageShell.pointerDragGhost')).toBeTruthy()
     fireEvent.pointerUp(window, { pointerId: 73, pointerType: 'mouse', button: 0, buttons: 0, clientX: 360, clientY: 270 })
     expect(document.querySelector('.assetDragImageShell.pointerDragGhost')).toBeNull()
-    const stackGuideDropMenu = await screen.findByRole('menu', { name: uiText.stackGuides.selectCorrectionLayer })
-    fireEvent.click(within(stackGuideDropMenu).getByRole('menuitem', { name: /作画/ }))
     if (originalElementFromPoint) Object.defineProperty(document, 'elementFromPoint', originalElementFromPoint)
     else Reflect.deleteProperty(document, 'elementFromPoint')
     await waitFor(() => {
-      expect(Array.from(document.querySelectorAll('.stackGuideCard')).find(card => card.textContent?.includes('BOOK-CUT'))?.textContent).toContain('BOOK_CUT.png')
+      expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
+        .find(input => input.value === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
     })
 
     const firstCutLabel = Array.from(document.querySelectorAll('.stackGuideLabel')).find(label => label.textContent === 'BOOK-CUT')
     if (!firstCutLabel) throw new Error('first cut stack guide label was not rendered')
     dragInternalPointer(getAssetCardByName('BOOK_CUT.png'), firstCutLabel)
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')?.textContent).toBe('BOOK-CUT'))
-    expect(Array.from(document.querySelectorAll('.stackGuideCard')).find(card => card.textContent?.includes('BOOK-CUT'))?.textContent).toContain('BOOK_CUT.png')
+    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
+      .find(input => input.value === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
 
     const addCutButton = document.querySelector<HTMLButtonElement>('.cutSwitchAddButton')
     if (!addCutButton) throw new Error('shared cut add button not found')
@@ -793,7 +618,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
       expect(select?.options.length).toBe(2)
       expect(select?.selectedOptions[0]?.textContent?.trim()).toBe('002')
     })
-    expect(Array.from(document.querySelectorAll('.stackGuideCard')).find(card => card.textContent?.includes('BOOK-CUT'))?.textContent).toContain('BOOK_CUT.png')
+    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
+      .find(input => input.value === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
 
     dragStackGuideSvgLabel('BOOK-CUT', 'cell', 4)
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="cell"]')?.textContent).toBe('BOOK-CUT'))
@@ -805,7 +631,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     switchSharedCutByLabel('002')
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="cell"]')?.textContent).toBe('BOOK-CUT'))
     expect(Array.from(document.querySelectorAll('.stackGuideLabel[data-stack-guide-role="action"]')).some(label => label.textContent === 'BOOK-CUT')).toBe(false)
-    expect(Array.from(document.querySelectorAll('.stackGuideCard')).find(card => card.textContent?.includes('BOOK-CUT'))?.textContent).toContain('BOOK_CUT.png')
+    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
+      .find(input => input.value === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
   })
 
 it('sorts image assets by natural filename order', async () => {

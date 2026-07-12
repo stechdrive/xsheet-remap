@@ -25,7 +25,7 @@ it('renders the main workspace shell', () => {
     expect(screen.getByLabelText(uiText.actions.loadSheetSourceFiles)).toBeTruthy()
     expect(screen.getByLabelText(uiText.sheet.viewModeMenu)).toBeTruthy()
     expect(document.querySelector('.sheetWorkspace')).toBeTruthy()
-    expect(document.querySelector('.sheetDockLeft h2')?.textContent).toBe(uiText.keys.title)
+    expect(document.querySelector('.sheetDockLeft .cspLayerTreeHeader strong')?.textContent).toBe('CSPレイヤー構成')
     expect(document.querySelector('.sheetDockRight h2')?.textContent).toBe(uiText.assets.title)
     expect(screen.queryByRole('tablist', { name: uiText.sheet.sideDock })).toBeNull()
   })
@@ -83,8 +83,8 @@ it('keeps the selected correction layer when placing a BG or BOOK track from the
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
 
     await waitFor(() => {
-      const bgTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
-        .find(track => track.textContent === 'BG1')
+      const bgTrack = Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
+        .find(track => track.value === 'BG1')
       expect(bgTrack?.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('演出')
     })
     const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')
@@ -223,11 +223,11 @@ it('starts the editor with optional work panes collapsed and can reopen them', (
     expect(leftDock?.hidden).toBe(true)
     expect(rightDock?.hidden).toBe(true)
 
-    fireEvent.click(screen.getByRole('button', { name: '登録セル' }))
+    fireEvent.click(screen.getByRole('button', { name: 'CSPレイヤー構成' }))
     fireEvent.click(screen.getByRole('button', { name: '画像素材' }))
     expect(leftDock?.hidden).toBe(false)
     expect(rightDock?.hidden).toBe(false)
-    expect(screen.getByRole('button', { name: '登録セル' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: 'CSPレイヤー構成' }).getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('button', { name: '画像素材' }).getAttribute('aria-expanded')).toBe('true')
     expect(document.querySelector('.sheetPaneVisibilityControls')).toBeNull()
     expect(document.querySelectorAll('.sheetPaneEdgeToggle')).toHaveLength(0)
@@ -252,7 +252,7 @@ it('persists side-pane widths and resets a resized pane to its default width', a
 
     fireEvent.click(screen.getByRole('button', { name: 'CSPレイヤー構成' }))
     expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('318px')
-    const leftResizeHandle = screen.getByRole('separator', { name: uiText.layout.resizeRegisteredCellPane })
+    const leftResizeHandle = screen.getByRole('separator', { name: uiText.layout.resizeCspLayerTreePane })
     fireEvent.doubleClick(leftResizeHandle)
     expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('240px')
 
@@ -718,12 +718,12 @@ it('selects a CELL grid position and creates a key from explicit input', () => {
 
     fireEvent.keyDown(window, { key: '1' })
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
-    const registeredCell = document.querySelector('.registeredCellCard')
+    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]')
     expect(registeredCell).toBeTruthy()
     if (!registeredCell) throw new Error('registered cell card not found')
     expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
-    expect(registeredCell.querySelector('.registeredCellFirstUse')?.textContent).toBe('0+1')
-    expect(Array.from(registeredCell?.querySelectorAll('input') ?? []).map(input => input.value)).toEqual(['1', 'A1'])
+    expect(Array.from(registeredCell?.querySelectorAll('input') ?? []).map(input => input.value)).toEqual(['1'])
+    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
     fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))
     expect(screen.getByRole('dialog', { name: uiText.nameNormalization.title })).toBeTruthy()
     expect((screen.getByLabelText(uiText.nameNormalization.target) as HTMLSelectElement).value).toBe('selected-key')
@@ -828,16 +828,16 @@ it('reuses a registered cell when typing the same value in the same CELL column'
     fireEvent.keyDown(window, { key: '1' })
 
     expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
-    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(1)
-    const registeredCell = document.querySelector('.registeredCellCard')
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(1)
+    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]')
     expect(registeredCell).toBeTruthy()
     if (!registeredCell) throw new Error('registered cell card not found')
     expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
-    expect(registeredCell.querySelector('.registeredCellFirstUse')?.textContent).toBe('0+1')
-    expect(Array.from(registeredCell.querySelectorAll('input')).map(input => input.value)).toEqual(['1', 'A1'])
+    expect(Array.from(registeredCell.querySelectorAll('input')).map(input => input.value)).toEqual(['1'])
+    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
   })
 
-it('shows registered cell first use as seconds plus koma from 0+1', () => {
+it('jumps to the first timeline use by double-clicking a CSP cell card', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -845,15 +845,13 @@ it('shows registered cell first use as seconds plus koma from 0+1', () => {
     clickTemplateFrame(sheet, 'cell', 'A', 24)
     fireEvent.keyDown(window, { key: '1' })
 
-    const registeredCell = document.querySelector('.registeredCellCard')
+    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]')
     expect(registeredCell).toBeTruthy()
     if (!registeredCell) throw new Error('registered cell card not found')
     expectSelectedHit('cell', 'A', 24)
-    expect(registeredCell.querySelector('.registeredCellFirstUse')?.textContent).toBe('0+24')
-
     clickTemplateFrame(sheet, 'cell', 'B', 1)
     expectSelectedHit('cell', 'B', 1)
-    fireEvent.click(screen.getByRole('button', { name: uiText.keys.firstUseJump('0+24') }))
+    fireEvent.doubleClick(registeredCell)
     expectSelectedHit('cell', 'A', 24)
   })
 
@@ -898,14 +896,14 @@ it('deletes a registered cell from the registered cell pane', async () => {
     setSheetRect(sheet, 0, 0)
     clickSheet(sheet, 255, 290)
     fireEvent.keyDown(window, { key: '1' })
-    expect(document.querySelector('.registeredCellCard')).toBeTruthy()
+    expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    fireEvent.click(screen.getByRole('button', { name: uiText.keys.deleteLabel('CELL A 1') }))
+    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
 
     expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteConfirm('1', 0, 1))
-    await waitFor(() => expect(document.querySelector('.registeredCellCard')).toBeNull())
+    await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeNull())
     expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
   })
 })

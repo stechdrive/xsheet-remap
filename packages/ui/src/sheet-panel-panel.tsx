@@ -12,7 +12,7 @@ import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, formatFramePosition, formatPaddedDurationTimecode, formatPaddedFrameTimecode, initialSheetPaneLayout } from './app-foundation'
 import { templatePaperTracks } from './app-sheet-geometry'
-import { KeyList, NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
+import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
 import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
@@ -623,17 +623,22 @@ export function SheetPanel(props: {
             <button type="button" onClick={props.onClearAllAnnotations}>{uiText.actions.clearAllInk}</button>
           </ActionMenu>
         </div>
-        <aside id="sheet-left-pane" className="sheetDock sheetDockLeft" aria-label={props.appKind === 'remap' ? 'CSPレイヤー構成' : uiText.keys.title} hidden={!paneLayout.left}>
+        <aside id="sheet-left-pane" className="sheetDock sheetDockLeft" aria-label="CSPレイヤー構成" hidden={!paneLayout.left}>
           <div className="dockBody">
-            {props.appKind === 'remap' ? <CspLayerTree
+            <CspLayerTree
               project={props.project}
               exportProfileId={props.exportProfileId}
               selectedKeyId={props.selectedKeyId}
               onSelectKey={props.onKeySelect}
               onJumpToFirstUse={props.onJumpToKeyFirstUse}
+              onUpdateKey={props.onUpdateKey}
+              onDeleteKey={props.onDeleteKey}
               activeCorrectionLayerId={props.activeCorrectionLayerId}
               onUpdateCspCellName={props.onUpdateKeyCspCellName}
+              onMoveKeyBindingProcess={props.onMoveKeyBindingProcess}
               onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
+              onUpdateStackGuideLabel={props.onUpdateStackGuideLabel}
+              onDeleteStackGuideLabel={props.onDeleteStackGuideLabel}
               onRenamePaperTrack={(paperTrack, name) => props.onUpdatePaperTrack(paperTrack, { paperTrack: name, label: name })}
               onMoveStackItem={props.onMoveCspStackItem}
               onAssignAsset={(assetId, keyId, slotId) => props.onAssignAssetToKey(assetId, keyId, { slotId })}
@@ -649,29 +654,11 @@ export function SheetPanel(props: {
                 preferredSnapIndex: 0,
               })}
               onCreateStackGuideLabel={props.onCreateStackGuideLabel}
-            /> : <KeyList
-              project={props.project}
-              activeCorrectionLayerId={props.activeCorrectionLayerId}
-              selectedKeyId={props.selectedKeyId}
-              onSelect={props.onKeySelect}
-              onJumpToFirstUse={props.onJumpToKeyFirstUse}
-              onUpdateKey={props.onUpdateKey}
-              onDeleteKey={props.onDeleteKey}
-              onUpdateCspCellName={props.onUpdateKeyCspCellName}
-              onMoveKeyBindingProcess={props.onMoveKeyBindingProcess}
-              onUpdateStackGuideLabel={props.onUpdateStackGuideLabel}
-              onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
-              onDeleteStackGuideLabel={props.onDeleteStackGuideLabel}
-              onOpenNameNormalization={() => setNormalizationOpen(true)}
-              onAssignAsset={props.onAssignAssetToKey}
-              onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}
-              onCreateStackGuideLabel={props.onCreateStackGuideLabel}
-              onRequestStackGuideInsert={mode => setStackGuideInsertTool({ mode })}
-            />}
+            />
           </div>
         </aside>
         <PanelResizeHandle
-          label={uiText.layout.resizeRegisteredCellPane}
+          label={uiText.layout.resizeCspLayerTreePane}
           min={SHEET_LEFT_PANE_MIN_WIDTH}
           max={SHEET_LEFT_PANE_MAX_WIDTH}
           value={paneLayout.leftWidth}
@@ -679,8 +666,8 @@ export function SheetPanel(props: {
           side="left"
           resizeEnabled={paneLayout.left}
           dockToggle={{
-            label: props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル',
-            tooltipLabel: `${props.appKind === 'remap' ? 'CSPレイヤー構成' : '登録セル'}を${paneLayout.left ? '閉じる' : '開く'}`,
+            label: 'CSPレイヤー構成',
+            tooltipLabel: `CSPレイヤー構成を${paneLayout.left ? '閉じる' : '開く'}`,
             controls: 'sheet-left-pane',
             expanded: paneLayout.left,
             icon: <PaneChevronIcon direction={paneLayout.left ? 'left' : 'right'} />,

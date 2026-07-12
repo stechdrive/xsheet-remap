@@ -12,7 +12,7 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
     setSheetRect(sheet, 0, 0)
     clickTemplateFrame(sheet, 'cell', 'A', 1)
     fireEvent.keyDown(window, { key: '1' })
-    const registeredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
+    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as HTMLElement | null
     if (!registeredCell) throw new Error('registered cell card not found')
 
     const target = templateFramePoint('cell', 'B', 1)
@@ -23,7 +23,7 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
 
     await waitFor(() => expectSelectedHit('cell', 'B', 1))
     expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost')).toBeNull()
-    expect(Array.from(document.querySelectorAll('.registeredCellCard')).map(registeredCellIdentityText)).toEqual(['CELL A', 'CELL B'])
+    expect(Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).map(registeredCellIdentityText)).toEqual(['CELL B', 'CELL A'])
   })
 
 it('cancels BG/BOOK insertion mode before creating a label', async () => {
@@ -88,12 +88,12 @@ it('adds a BG/BOOK label from the registered-cell plus menu and places it in the
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
-    fireEvent.click(screen.getByLabelText(uiText.stackGuides.addMenu))
-    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.add }))
+    fireEvent.click(screen.getByLabelText('作画にトラックを追加'))
+    fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
     await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
     const defaultTarget = document.querySelector<HTMLElement>('.stackGuideGap.insertToolActive')
     expect(defaultTarget?.dataset.stackGuideRole).toBe('action')
-    expect(defaultTarget?.dataset.stackGuideSnapIndex).toBe('1')
+    expect(defaultTarget?.dataset.stackGuideSnapIndex).toBe('0')
 
     const overlay = setStackGuideOverlayRect()
     const reservePoint = templateStackGuideHeaderSnapPoint('action', 0)
@@ -151,12 +151,10 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     clickSheet(sheet, 255, 290)
     fireEvent.keyDown(window, { key: '1' })
 
-    const registeredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
+    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as HTMLElement | null
     if (!registeredCell) throw new Error('registered cell card not found')
-    const inputs = registeredCell.querySelectorAll('input')
-    expect(Array.from(inputs).map(input => input.value)).toEqual(['1', 'A1'])
-    fireEvent.change(inputs[1], { target: { value: 'A1_custom' } })
-    expect(registeredCell.querySelector('.cellNameMode')?.textContent).toBe(uiText.keys.manualName)
+    expect(Array.from(registeredCell.querySelectorAll('input')).map(input => input.value)).toEqual(['1'])
+    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
 
     const assetInput = screen.getByLabelText(uiText.actions.addAssets)
     const file = new File(['asset'], 'A1_ref.png', { type: 'image/png', lastModified: 1 })
@@ -164,12 +162,15 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     expect(await screen.findByText('A1_ref.png')).toBeTruthy()
 
     dragInternalPointer(getAssetCardByName('A1_ref.png'), registeredCell)
-    const dropMenu = await screen.findByRole('menu')
-    expect(dropMenu.textContent).toContain(uiText.assetDrop.title)
-    expect(dropMenu.textContent).toContain('A1_ref.png')
-    fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('作画')) }))
-
-    expect(registeredCell.textContent).toContain('A1_ref.png')
+    const assignedCell = await waitFor(() => {
+      const cell = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id].assigned')
+      if (!cell) throw new Error('assigned CSP cell card not found')
+      return cell
+    })
+    const cspNameInput = assignedCell.querySelector<HTMLInputElement>('.cspTreeCelNameInput')
+    if (!cspNameInput) throw new Error('CSP cell name input not found')
+    fireEvent.change(cspNameInput, { target: { value: 'A1_custom' } })
+    expect(assignedCell.textContent).toContain('A1_ref.png')
 
     selectAppPanel(uiText.nav.export)
     const sourceSelect = screen.getByLabelText(uiText.export.timingSource)
@@ -190,19 +191,19 @@ it('confirms before deleting a registered cell with image assets', async () => {
     fireEvent.change(assetInput, { target: { files: [new File(['asset'], 'A1_ref.png', { type: 'image/png', lastModified: 1 })] } })
     expect(await screen.findByText('A1_ref.png')).toBeTruthy()
 
-    const registeredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
+    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as HTMLElement | null
     if (!registeredCell) throw new Error('registered cell card not found')
     dragInternalPointer(getAssetCardByName('A1_ref.png'), registeredCell)
-    fireEvent.click(await screen.findByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('作画')) }))
+    await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id].assigned')).toBeTruthy())
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    fireEvent.click(screen.getByRole('button', { name: uiText.keys.deleteLabel('CELL A 1') }))
+    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
     expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteConfirm('1', 1))
-    expect(document.querySelector('.registeredCellCard')).toBeTruthy()
+    expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
 
     confirmSpy.mockReturnValue(true)
-    fireEvent.click(screen.getByRole('button', { name: uiText.keys.deleteLabel('CELL A 1') }))
-    await waitFor(() => expect(document.querySelector('.registeredCellCard')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
+    await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeNull())
     expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
   })
 
@@ -302,9 +303,9 @@ it('chooses a process when an external image file is dropped onto an already reg
     expect(previewPanel?.textContent).toContain('A1')
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    fireEvent.click(screen.getByRole('button', { name: uiText.keys.deleteLabel('CELL A 1') }))
+    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
     expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteConfirm('1', 1, 1))
-    expect(document.querySelector('.registeredCellCard')).toBeTruthy()
+    expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
   })
 
 it('drops image assets onto the first frame when dropped inside an active range', async () => {
@@ -458,7 +459,7 @@ it('opens the sheet context menu on right click and prevents the browser menu', 
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.setNullCell }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(document.querySelector('.eventText')?.textContent).toBe('x')
-    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(0)
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(0)
   })
 
 it('selects and renames a paper track from the grid column header menu', async () => {
@@ -552,7 +553,7 @@ it('treats direct x input as a hidden reserved null-cell event', () => {
     fireEvent.keyDown(window, { key: 'x' })
 
     expect(document.querySelector('.eventText')?.textContent).toBe('x')
-    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(0)
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(0)
   })
 
 it('clears the current sheet cell selection with Escape', () => {
@@ -595,22 +596,20 @@ it('creates independent keys in ACTION and CELL grid positions', () => {
     clickSheet(sheet, 45, 290)
     fireEvent.keyDown(window, { key: '1' })
     expectSelectedHit('action', 'A', 1)
-    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(1)
-    expect(registeredCellIdentityText(document.querySelector('.registeredCellCard') as Element)).toBe('ACTION A')
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(1)
+    expect(registeredCellIdentityText(document.querySelector('.cspTreeCel[data-csp-key-id]') as Element)).toBe('ACTION A')
 
     clickSheet(sheet, 255, 290)
     fireEvent.keyDown(window, { key: '1' })
     expectSelectedHit('cell', 'A', 1)
-    const registeredCells = Array.from(document.querySelectorAll('.registeredCellCard'))
+    const registeredCells = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
     expect(registeredCells).toHaveLength(2)
     expect(registeredCells.map(registeredCellIdentityText)).toEqual(['ACTION A', 'CELL A'])
-    expect(registeredCells.map(card => Array.from(card.querySelectorAll('input')).map(input => input.value))).toEqual([
-      ['1', 'A1'],
-      ['1', 'A1'],
-    ])
+    expect(registeredCells.map(card => card.querySelector('.cspTreeCelName')?.textContent)).toEqual(['A1', 'A1'])
+    expect(registeredCells.map(card => Array.from(card.querySelectorAll('input')).map(input => input.value))).toEqual([[], ['1']])
   })
 
-it('groups registered cells and sorts them by column then first timeline use', () => {
+it('groups CSP cells by column and keeps CSP top-to-bottom stacking order', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -624,34 +623,16 @@ it('groups registered cells and sorts them by column then first timeline use', (
     clickTemplateFrame(sheet, 'cell', 'A', 1)
     fireEvent.keyDown(window, { key: '4' })
 
-    const sectionByTitle = (title: string) => Array.from(document.querySelectorAll('.registeredCellSection'))
-      .find(section => section.getAttribute('data-section-title') === title)
-    const cardSummaries = (section: Element | undefined) => Array.from(section?.querySelectorAll('.registeredCellCard') ?? [])
-      .map(card => `${registeredCellIdentityText(card)} ${card.querySelector('.registeredCellFirstUse')?.textContent ?? ''}`)
-
-    expect(cardSummaries(sectionByTitle(uiText.keys.sections.action))).toEqual([
-      'ACTION A 0+5',
-      'ACTION A 0+20',
-      'ACTION B 0+3',
+    const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
+    expect(cards.map(registeredCellIdentityText)).toEqual(['ACTION B', 'ACTION A', 'ACTION A', 'CELL A'])
+    expect(cards.map(card => card.querySelector('.cspTreeSheetLabel')?.textContent)).toEqual([
+      'シート: 1',
+      'シート: 2',
+      'シート: 3',
+      'シート: 4',
     ])
-    expect(cardSummaries(sectionByTitle(uiText.keys.sections.cell))).toEqual([
-      'CELL A 0+1',
-    ])
-
-    fireEvent.click(screen.getByRole('button', { name: uiText.keys.sort.toDescending }))
-    expect(cardSummaries(sectionByTitle(uiText.keys.sections.action))).toEqual([
-      'ACTION B 0+3',
-      'ACTION A 0+20',
-      'ACTION A 0+5',
-    ])
-    expect(cardSummaries(sectionByTitle(uiText.keys.sections.cell))).toEqual([
-      'CELL A 0+1',
-    ])
-
-    fireEvent.click(screen.getByRole('button', { name: uiText.keys.view.list }))
-    expect(document.querySelectorAll('.registeredCellCard.compact')).toHaveLength(4)
-    expect(document.querySelector('.registeredCellCompactName')).toBeTruthy()
-    expect(document.querySelector('.registeredCellCard input')).toBeNull()
+    expect(document.querySelector('.registeredCellSection')).toBeNull()
+    expect(screen.queryByRole('button', { name: uiText.keys.view.list })).toBeNull()
   })
 
 it('defaults XDTS export to an import stack while keeping animation folder names unchanged', () => {
@@ -1006,7 +987,7 @@ it('opens frame operation commands from the sheet context menu', () => {
 
     expect(screen.queryByRole('dialog', { name: uiText.frameOperation.dialogTitleDelete })).toBeNull()
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
-    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(2)
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(1)
   })
 
 it('keeps timing visible when the active material registration process changes', () => {
@@ -1026,11 +1007,11 @@ it('keeps timing visible when the active material registration process changes',
 
     clickSheet(sheet, 255, 290)
     fireEvent.keyDown(window, { key: '1' })
-    expect(registeredCellIdentityText(document.querySelector('.registeredCellCard') as Element)).toBe('CELL A')
+    expect(registeredCellIdentityText(document.querySelector('.cspTreeCel[data-csp-key-id]') as Element)).toBe('CELL A')
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
 
     fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
-    expect(registeredCellIdentityText(document.querySelector('.registeredCellCard') as Element)).toBe('CELL A')
+    expect(registeredCellIdentityText(document.querySelector('.cspTreeCel[data-csp-key-id]') as Element)).toBe('CELL A')
     expectSelectionStatus('演出', 'CELL', 'A', formatTestFramePosition(1))
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
 

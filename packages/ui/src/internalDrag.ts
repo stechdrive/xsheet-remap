@@ -3,7 +3,7 @@ import { createPointerDragGhost, type PointerDragGhost } from './pointerDragGhos
 
 export type InternalDragPayload =
   | { kind: 'asset'; assetIds: string[] }
-  | { kind: 'registered-cell'; keyId: string }
+  | { kind: 'registered-cell'; keyId: string; sourceSlotId?: string }
   | { kind: 'stack-guide'; labelId: string }
 
 export type InternalDragPhase = 'start' | 'move' | 'drop' | 'cancel'

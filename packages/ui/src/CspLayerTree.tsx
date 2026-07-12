@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { buildCspLayerTree, defaultCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
+import { buildCspLayerTree, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
 import { createInternalDragCardImage, startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 import { Tooltip } from './Tooltip'
@@ -23,9 +23,14 @@ export function CspLayerTree({
   selectedKeyId,
   onSelectKey,
   onJumpToFirstUse,
+  onUpdateKey,
+  onDeleteKey,
   activeCorrectionLayerId,
   onUpdateCspCellName,
+  onMoveKeyBindingProcess,
   onUpdateStackGuideRegistration,
+  onUpdateStackGuideLabel,
+  onDeleteStackGuideLabel,
   onRenamePaperTrack,
   onMoveStackItem,
   onAssignAsset,
@@ -43,9 +48,14 @@ export function CspLayerTree({
   selectedKeyId: string | null
   onSelectKey: (keyId: string | null) => void
   onJumpToFirstUse: (keyId: string) => void
+  onUpdateKey: (keyId: string, displayLabel: string) => void
+  onDeleteKey: (keyId: string) => void | Promise<void>
   activeCorrectionLayerId: string
   onUpdateCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
+  onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
+  onUpdateStackGuideLabel: (labelId: string, updates: { label: string }) => void
+  onDeleteStackGuideLabel: (labelId: string) => void
   onRenamePaperTrack: (paperTrack: string, name: string) => void
   onMoveStackItem: (itemId: string, direction: 'up' | 'down') => void
   onAssignAsset: (assetId: string, keyId: string, slotId?: string) => void
@@ -59,6 +69,7 @@ export function CspLayerTree({
   onCreateStackGuideLabel: (input: { label: string; kind: StackGuideLabel['kind']; gapIndex: number; correctionLayerId: string }) => void
 }) {
   const tree = useMemo(() => buildCspLayerTree(project, exportProfileId), [exportProfileId, project])
+  const assetsById = useMemo(() => new Map(project.assets.map(asset => [asset.assetId, asset])), [project.assets])
   const [auxiliaryDraft, setAuxiliaryDraft] = useState<{
     correctionLayerId: string
     kind: Extract<StackGuideLabel['kind'], 'camera-note' | 'memo'>
@@ -102,12 +113,56 @@ export function CspLayerTree({
   function handlePaperTrackDrop(payload: InternalDragPayload, slotId: string) {
     if (payload.kind === 'registered-cell') {
       setAssetDropTrackNodeId(null)
+      if (payload.sourceSlotId) {
+        const sourceSlot = project.cspTrackSlots.find(slot => slot.slotId === payload.sourceSlotId)
+        const targetSlot = project.cspTrackSlots.find(slot => slot.slotId === slotId)
+        if (!sourceSlot || !targetSlot || sourceSlot.paperTrack !== targetSlot.paperTrack) {
+          setDropNotice('登録済みカードは同じセル列の工程間で移動してください。')
+          return
+        }
+        if (sourceSlot.slotId === targetSlot.slotId) {
+          setDropNotice('このカードは登録済みです。')
+          return
+        }
+        if (!targetSlot.correctionLayerId) {
+          setDropNotice('移動先の工程を特定できません。')
+          return
+        }
+        onMoveKeyBindingProcess(payload.keyId, sourceSlot.slotId, targetSlot.correctionLayerId)
+        setDropNotice('カードの工程を移動しました。')
+        return
+      }
       setDropNotice(onRegisterKeyToTrack(payload.keyId, slotId) ? '未登録カードを工程へ登録しました。' : 'このカードは登録済みです。')
       return
     }
     if (payload.kind !== 'asset') return
     setAssetDropTrackNodeId(null)
     setDropNotice(assetRegistrationNotice(onRegisterAssetsToTrack(slotId, payload.assetIds)))
+  }
+
+  function handleCorrectionLayerDrop(payload: Extract<InternalDragPayload, { kind: 'registered-cell' }>, correctionLayerId: string) {
+    const key = project.logicalSheet.keys.find(item => item.keyId === payload.keyId)
+    const sourceSlot = payload.sourceSlotId
+      ? project.cspTrackSlots.find(slot => slot.slotId === payload.sourceSlotId)
+      : undefined
+    const paperTrack = sourceSlot?.paperTrack ?? key?.paperTrack
+    const targetSlot = paperTrack
+      ? project.cspTrackSlots.find(slot => slot.paperTrack === paperTrack && slot.correctionLayerId === correctionLayerId)
+      : undefined
+    if (!targetSlot) {
+      setDropNotice('この工程に対応するセル列がありません。')
+      return
+    }
+    if (sourceSlot) {
+      if (sourceSlot.slotId === targetSlot.slotId) {
+        setDropNotice('このカードは登録済みです。')
+        return
+      }
+      onMoveKeyBindingProcess(payload.keyId, sourceSlot.slotId, correctionLayerId)
+      setDropNotice('カードの工程を移動しました。')
+      return
+    }
+    setDropNotice(onRegisterKeyToTrack(payload.keyId, targetSlot.slotId) ? '未登録カードを工程へ登録しました。' : 'このカードは登録済みです。')
   }
 
   function activeSlotIdForTrack(track: CspLayerTreeTrack): string | undefined {
@@ -169,7 +224,10 @@ export function CspLayerTree({
       }
       return
     }
-    if (detail.payload.kind !== 'asset') return
+    if (detail.payload.kind === 'registered-cell') {
+      if (target.correctionLayerId) handleCorrectionLayerDrop(detail.payload, target.correctionLayerId)
+      return
+    }
     if (!target.correctionLayerId || target.gapIndex === undefined) return
     const layer = tree.stages.flatMap(stage => stage.layers).find(item => item.layerId === target.correctionLayerId)
     if (layer) beginNewTrackDrop(detail.payload.assetIds, target.correctionLayerId, layer.tracks, target.gapIndex)
@@ -236,16 +294,15 @@ export function CspLayerTree({
     const assignmentSlotId = track.slotId ?? activeSlotIdForTrack(track)
     const editableBinding = Boolean(track.slotId && cel.keyId)
     const editableGuide = Boolean(track.stackGuideLabelId && correctionLayerId)
-    const automaticName = track.paperTrack && cel.displayLabel
-      ? defaultCspCellName(cel.displayLabel, track.paperTrack)
-      : ''
-    const showSheetLabel = Boolean(cel.keyId && cel.displayLabel?.trim() && automaticName !== cel.cspCellName.trim())
+    const showSheetLabel = Boolean(cel.keyId && cel.displayLabel?.trim() && cel.displayLabel.trim() !== cel.cspCellName.trim())
+    const asset = cel.assetId ? assetsById.get(cel.assetId) : undefined
+    const selected = cel.keyId === selectedKeyId
     return (
       <div
         key={cel.nodeId}
         className={[
           'cspTreeCel',
-          cel.keyId === selectedKeyId ? 'selected' : '',
+          selected ? 'selected' : '',
           cel.materialState === 'assigned' ? 'assigned' : '',
           cel.keyId && !cel.bindingId ? 'unregistered' : '',
         ].filter(Boolean).join(' ')}
@@ -253,10 +310,12 @@ export function CspLayerTree({
         data-csp-drop-kind={cel.keyId ? 'cel' : undefined}
         data-csp-key-id={cel.keyId}
         data-csp-slot-id={assignmentSlotId}
+        data-csp-paper-track={track.paperTrack}
+        data-csp-sheet-role={cel.sheetRole}
         onPointerDown={cel.keyId ? event => {
           const dragSource = event.currentTarget
           startInternalPointerDrag(event, {
-            begin: () => ({ kind: 'registered-cell', keyId: cel.keyId! }),
+            begin: () => ({ kind: 'registered-cell', keyId: cel.keyId!, sourceSlotId: cel.bindingId ? track.slotId : undefined }),
             createDragGhost: () => createInternalDragCardImage(track.label, cel.cspCellName, dragSource),
           })
         } : undefined}
@@ -279,7 +338,31 @@ export function CspLayerTree({
           />
         ) : <span className="cspTreeCelName">{cel.cspCellName}</span>}
         {showSheetLabel && <span className="cspTreeSheetLabel">シート: {cel.displayLabel}</span>}
-        <span className="cspTreeAssetState" title={cel.assetId ? '素材割当済み' : '素材未割当'}>{cel.assetId ? '●' : '○'}</span>
+        {asset && !cel.keyId && <span className="cspTreeSheetLabel" title={asset.displayName}>{asset.displayName}</span>}
+        <span className="cspTreeAssetState" title={asset ? `素材: ${asset.displayName}` : '素材未割当'}>{asset ? '●' : '○'}</span>
+        {selected && cel.keyId && (
+          <div className="cspTreeCelDetails" onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
+            <label className="cspTreeSheetNameField">
+              <span>シート</span>
+              <input
+                aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}のシート表示名`}
+                value={cel.displayLabel ?? ''}
+                onChange={event => onUpdateKey(cel.keyId!, event.currentTarget.value)}
+              />
+            </label>
+            {asset && <span className="cspTreeAssetName" title={asset.displayName}>{asset.displayName}</span>}
+            <Tooltip label="登録セルを削除">
+              <button
+                type="button"
+                className="cspTreeDeleteButton"
+                aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}を削除`}
+                onClick={() => onDeleteKey(cel.keyId!)}
+              >
+                <DeleteIcon />
+              </button>
+            </Tooltip>
+          </div>
+        )}
       </div>
     )
   }
@@ -380,6 +463,13 @@ export function CspLayerTree({
                       data-csp-drop-kind={acceptsAsset ? 'track' : undefined}
                       data-csp-track-node-id={acceptsAsset ? track.nodeId : undefined}
                       data-csp-correction-layer-id={acceptsAsset ? layer.layerId : undefined}
+                      onPointerDown={track.stackGuideLabelId ? event => {
+                        const dragSource = event.currentTarget
+                        startInternalPointerDrag(event, {
+                          begin: () => ({ kind: 'stack-guide', labelId: track.stackGuideLabelId! }),
+                          createDragGhost: () => createInternalDragCardImage(layer.label, track.label, dragSource),
+                        })
+                      } : undefined}
                     >
                     <div className="cspTreeTrackRow">
                       {track.paperTrack ? (
@@ -389,6 +479,13 @@ export function CspLayerTree({
                           label={track.label}
                           onCommit={onRenamePaperTrack}
                         />
+                      ) : track.stackGuideLabelId ? (
+                        <StackGuideTrackNameInput
+                          key={`${track.stackGuideLabelId}:${track.label}`}
+                          labelId={track.stackGuideLabelId}
+                          label={track.label}
+                          onCommit={(labelId, label) => onUpdateStackGuideLabel(labelId, { label })}
+                        />
                       ) : <span className="cspTreeTrackName">{track.label}</span>}
                       {track.stackItemId && <div className="cspTreeMoveButtons">
                         <Tooltip label="CSPで1段上へ（紙シートでは右へ）">
@@ -397,6 +494,18 @@ export function CspLayerTree({
                         <Tooltip label="CSPで1段下へ（紙シートでは左へ）">
                           <button type="button" aria-label={`${track.label}をCSPで下へ（シートで左へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'down')}>↓</button>
                         </Tooltip>
+                        {track.stackGuideLabelId && (
+                          <Tooltip label={`${track.label}を削除`}>
+                            <button
+                              type="button"
+                              className="cspTreeTrackDeleteButton"
+                              aria-label={`${track.label}を削除`}
+                              onClick={() => onDeleteStackGuideLabel(track.stackGuideLabelId!)}
+                            >
+                              <DeleteIcon />
+                            </button>
+                          </Tooltip>
+                        )}
                       </div>}
                     </div>
                     <div className="cspTreeCels">
@@ -449,6 +558,17 @@ function NormalizeIcon() {
       <path d="m16 8 3-3 3 3" />
       <path d="M19 5v14" />
       <path d="m16 16 3 3 3-3" />
+    </svg>
+  )
+}
+
+function DeleteIcon() {
+  return (
+    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M9 7V4h6v3" />
+      <path d="m7 7 1 13h8l1-13" />
+      <path d="M10 11v5M14 11v5" />
     </svg>
   )
 }
@@ -565,6 +685,45 @@ function PaperTrackNameInput({
       onChange={event => setDraft(event.currentTarget.value)}
       onBlur={commit}
       onKeyDown={handleKeyDown}
+    />
+  )
+}
+
+function StackGuideTrackNameInput({
+  labelId,
+  label,
+  onCommit,
+}: {
+  labelId: string
+  label: string
+  onCommit: (labelId: string, label: string) => void
+}) {
+  const [draft, setDraft] = useState(label)
+
+  function commit() {
+    const name = draft.trim()
+    if (name && name !== label) onCommit(labelId, name)
+    setDraft(label)
+  }
+
+  return (
+    <input
+      className="cspTreeTrackNameInput"
+      aria-label={`${label}の追加トラック名`}
+      title="追加トラック名"
+      value={draft}
+      onChange={event => setDraft(event.currentTarget.value)}
+      onBlur={commit}
+      onKeyDown={event => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          event.currentTarget.blur()
+        } else if (event.key === 'Escape') {
+          event.preventDefault()
+          setDraft(label)
+          event.currentTarget.blur()
+        }
+      }}
     />
   )
 }

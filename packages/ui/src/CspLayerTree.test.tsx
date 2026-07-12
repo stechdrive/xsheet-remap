@@ -31,9 +31,14 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={onRenamePaperTrack}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
@@ -64,7 +69,7 @@ describe('CspLayerTree', () => {
     fireEvent.pointerMove(window, { pointerId: 10, pointerType: 'mouse', buttons: 1, clientX: 20, clientY: 10 })
     fireEvent.pointerUp(window, { pointerId: 10, pointerType: 'mouse', button: 0, clientX: 30, clientY: 10 })
     unsubscribe()
-    expect(droppedPayloads).toEqual([{ kind: 'registered-cell', keyId: second.key.keyId }])
+    expect(droppedPayloads).toEqual([{ kind: 'registered-cell', keyId: second.key.keyId, sourceSlotId: 'slot_A' }])
 
     const trackName = screen.getByLabelText('Aのセル列名')
     fireEvent.change(trackName, { target: { value: 'LO' } })
@@ -84,9 +89,14 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
@@ -105,7 +115,7 @@ describe('CspLayerTree', () => {
     if (!unregisteredCard) throw new Error('unregistered CSP card not found')
     expect(screen.getByText('未登録')).toBeTruthy()
     expect(unregisteredCard.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
-    expect(unregisteredCard.querySelector('.cspTreeSheetLabel')).toBeNull()
+    expect(unregisteredCard.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
     expect(unregisteredCard.querySelector('.cspTreeCelFrame')).toBeNull()
 
     const track = screen.getByLabelText('A（作画）へ画像素材を登録')
@@ -128,9 +138,14 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
@@ -164,6 +179,108 @@ describe('CspLayerTree', () => {
     })
   })
 
+  it('edits the selected sheet label, exposes its asset name, and deletes the card', () => {
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const project = upsertBinding({
+      ...created.project,
+      assets: [{
+        assetId: 'asset_a1',
+        originalFileName: 'A1.png',
+        displayName: 'A1 reference.png',
+        role: 'cell-material',
+      }],
+    }, {
+      slotId: 'slot_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A1',
+      assetId: 'asset_a1',
+      materialState: 'assigned',
+    })
+    const onUpdateKey = vi.fn()
+    const onDeleteKey = vi.fn()
+
+    render(
+      <CspLayerTree
+        project={project}
+        exportProfileId="import-stack"
+        selectedKeyId={created.key.keyId}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={vi.fn()}
+        onUpdateKey={onUpdateKey}
+        onDeleteKey={onDeleteKey}
+        activeCorrectionLayerId="layer_sakuga"
+        onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    const sheetName = screen.getByRole('textbox', { name: 'A 1のシート表示名' })
+    fireEvent.change(sheetName, { target: { value: 'ア' } })
+    expect(onUpdateKey).toHaveBeenCalledWith(created.key.keyId, 'ア')
+    expect(screen.getByText('A1 reference.png')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'A 1を削除' }))
+    expect(onDeleteKey).toHaveBeenCalledWith(created.key.keyId)
+  })
+
+  it('moves a registered card between correction layers through the shared drag contract', () => {
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const project = upsertBinding(created.project, {
+      slotId: 'slot_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A1',
+      materialState: 'missing-ok',
+    })
+    const onMoveKeyBindingProcess = vi.fn()
+
+    render(
+      <CspLayerTree
+        project={project}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
+        onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={onMoveKeyBindingProcess}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    const target = screen.getByText('演出')
+    dropInternalOn(target, { kind: 'registered-cell', keyId: created.key.keyId, sourceSlotId: 'slot_A' })
+    expect(onMoveKeyBindingProcess).toHaveBeenCalledWith(created.key.keyId, 'slot_A', 'layer_enshutsu')
+  })
+
   it('assigns an image asset dropped on a BG or BOOK track to its correction layer', () => {
     const created = createStackGuideLabel(createDefaultProject(), {
       label: 'BG1',
@@ -180,9 +297,14 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
@@ -231,9 +353,14 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
@@ -275,9 +402,14 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}
@@ -310,9 +442,14 @@ describe('CspLayerTree', () => {
         selectedKeyId={null}
         onSelectKey={vi.fn()}
         onJumpToFirstUse={vi.fn()}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
         onMoveStackItem={vi.fn()}
         onAssignAsset={vi.fn()}

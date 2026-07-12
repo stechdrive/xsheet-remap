@@ -221,7 +221,7 @@ try {
   await recordAssetRootStateAfterCdpDrop()
   checks.push('dropped an image inside an active range and assigned it to the range start frame')
 
-  await openRegisteredCellPreviewByTrack('A')
+  await openAssetBrowserPreviewByName('A1.png')
   previewClient = await connectPreviewWindow(port)
   await waitForSelectedRegisteredCellCard('A')
   await waitForPreviewText('A1')
@@ -914,33 +914,27 @@ async function clickMenuItem(label: string): Promise<void> {
   await mouseClick(point)
 }
 
-async function openRegisteredCellPreviewByTrack(paperTrack: string): Promise<void> {
+async function openAssetBrowserPreviewByName(fileName: string): Promise<void> {
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
-      const cards = Array.from(document.querySelectorAll('.registeredCellCard'));
-      const card = cards.find(item =>
-        item.querySelector('.registeredCellTrackBadge')?.textContent?.trim() === ${JSON.stringify(paperTrack)}
-        && item.querySelector('.registeredCellPreviewButton')
-      );
-      const button = card?.querySelector('.registeredCellPreviewButton');
+      const cards = Array.from(document.querySelectorAll('.assetBrowserItems .assetCard'));
+      const card = cards.find(item => item.querySelector('strong')?.textContent?.trim() === ${JSON.stringify(fileName)});
+      const button = card?.querySelector('.assetQuickPreviewButton');
       if (!button) return null;
       button.scrollIntoView({ block: 'center', inline: 'nearest' });
       const box = button.getBoundingClientRect();
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     })()
   `)
-  if (!point) throw new Error(`registered cell preview button not found: ${paperTrack}`)
+  if (!point) throw new Error(`asset preview button not found: ${fileName}`)
   await mouseClick(point)
 }
 
 async function clickRegisteredCellCardByTrack(paperTrack: string): Promise<void> {
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
-      const cards = Array.from(document.querySelectorAll('.registeredCellCard'));
-      const card = cards.find(item =>
-        item.querySelector('.registeredCellTrackBadge')?.textContent?.trim() === ${JSON.stringify(paperTrack)}
-        && item.querySelector('.registeredCellPreviewButton')
-      );
+      const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'));
+      const card = cards.find(item => item.dataset.cspPaperTrack === ${JSON.stringify(paperTrack)});
       if (!card) return null;
       card.scrollIntoView({ block: 'center', inline: 'nearest' });
       const box = card.getBoundingClientRect();
@@ -972,8 +966,8 @@ async function waitForSelectedRegisteredCellCard(paperTrack: string): Promise<vo
   await waitForCondition(
     () => evaluatePage<boolean>(`
       (() => {
-        const selected = document.querySelector('.registeredCellCard.selected .registeredCellTrackBadge');
-        return selected?.textContent?.trim() === ${JSON.stringify(paperTrack)};
+        const selected = document.querySelector('.cspTreeCel[data-csp-key-id].selected');
+        return selected?.dataset.cspPaperTrack === ${JSON.stringify(paperTrack)};
       })()
     `),
     5000,

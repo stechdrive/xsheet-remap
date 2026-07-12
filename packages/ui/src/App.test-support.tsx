@@ -332,6 +332,12 @@ export function mockFileTransferItem(entry: MockFileSystemEntry, file: File | nu
 }
 
 export function registeredCellIdentityText(card: Element) {
+  if (card.matches('.cspTreeCel[data-csp-key-id]')) {
+    const element = card as HTMLElement
+    return [element.dataset.cspSheetRole?.toLocaleUpperCase(), element.dataset.cspPaperTrack]
+      .filter(Boolean)
+      .join(' ')
+  }
   const sectionTitle = card.closest('.registeredCellSection')?.getAttribute('data-section-title') ?? ''
   return [sectionTitle, ...Array.from(card.querySelectorAll('.registeredCellRoleBadge, .registeredCellTrackBadge'))
     .map(item => item.textContent ?? '')

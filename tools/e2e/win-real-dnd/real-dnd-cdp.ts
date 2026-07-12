@@ -162,9 +162,8 @@ try {
   diagnostics.registeredCellAssetTargetClient = registeredCellAssetTargetClient
   diagnostics.registeredCellAssetTargetScreen = registeredCellAssetTargetScreen
   await realMouseDrag(cardDropAssetScreen, registeredCellAssetTargetScreen)
-  await clickMenuItemContaining('作画')
   await waitForRegisteredCellCardAsset('A', 'A1_e.png')
-  checks.push('dragged an asset card with real mouse input onto a registered cell card and assigned it through the process menu')
+  checks.push('dragged an asset card with real mouse input onto a CSP layer cell and assigned it to that process')
 
   const registeredCellClient = await registeredCellCardPoint('A')
   const registeredCellScreen = await clientToScreen(registeredCellClient)
@@ -221,9 +220,8 @@ try {
   diagnostics.stackGuideCardClient = stackGuideCardClient
   diagnostics.stackGuideCardScreen = stackGuideCardScreen
   await realMouseDrag(stackGuideCardAssetScreen, stackGuideCardScreen)
-  await clickMenuItemContaining('作画')
   await waitForStackGuideCardAsset('BOOK-REAL', 'A2.png')
-  checks.push('dragged an asset card with real mouse input onto an additional-track card and assigned it through the process menu')
+  checks.push('dragged an asset card with real mouse input onto an additional CSP track')
 
   const stackGuideLayerAssetClient = await assetCardPoint('A1.png')
   const stackGuideLayerAssetScreen = await clientToScreen(stackGuideLayerAssetClient)
@@ -829,11 +827,11 @@ async function activeStackGuideInsertHandlePoint(role: SheetTimingRole, gapIndex
 async function registeredCellCardPoint(paperTrack: string): Promise<ClientPoint> {
   return evaluatePage<ClientPoint>(`
     (() => {
-      const cards = Array.from(document.querySelectorAll('.registeredCellCard:not(.stackGuideCard)'));
-      const card = cards.find(item => item.querySelector('.registeredCellTrackBadge')?.textContent?.trim() === ${JSON.stringify(paperTrack)});
+      const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'));
+      const card = cards.find(item => item.dataset.cspPaperTrack === ${JSON.stringify(paperTrack)});
       if (!card) throw new Error('registered cell card not found: ${escapeForSingleQuotedError(paperTrack)}');
       card.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const handle = card.querySelector('.registeredCellTrackBadge') || card.querySelector('.registeredCellIdentity') || card.querySelector('.registeredCellHeader') || card;
+      const handle = card.querySelector('.cspTreeCelNameInput') || card.querySelector('.cspTreeCelName') || card;
       const rect = handle.getBoundingClientRect();
       return { x: rect.left + Math.min(Math.max(rect.width / 2, 18), rect.width - 8), y: rect.top + rect.height / 2 };
     })()
@@ -844,8 +842,8 @@ async function waitForRegisteredCellCardAsset(paperTrack: string, fileName: stri
   await waitForPageCondition(
     () => evaluatePage<boolean>(`
       (() => {
-        const cards = Array.from(document.querySelectorAll('.registeredCellCard:not(.stackGuideCard)'));
-        const card = cards.find(item => item.querySelector('.registeredCellTrackBadge')?.textContent?.trim() === ${JSON.stringify(paperTrack)});
+        const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'));
+        const card = cards.find(item => item.dataset.cspPaperTrack === ${JSON.stringify(paperTrack)});
         return Boolean(card && (card.textContent || '').includes(${JSON.stringify(fileName)}));
       })()
     `),
@@ -856,11 +854,11 @@ async function waitForRegisteredCellCardAsset(paperTrack: string, fileName: stri
 async function stackGuideCardPoint(label: string): Promise<ClientPoint> {
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
-      const cards = Array.from(document.querySelectorAll('.stackGuideCard'));
-      const card = cards.find(item => item.querySelector('.registeredCellTrackBadge')?.textContent?.trim() === ${JSON.stringify(label)});
+      const input = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).find(item => item.value === ${JSON.stringify(label)});
+      const card = input?.closest('.cspTreeTrack');
       if (!card) return null;
       card.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const handle = card.querySelector('.registeredCellIdentity') || card.querySelector('.registeredCellHeader') || card;
+      const handle = card.querySelector('.cspTreeCels') || card;
       const rect = handle.getBoundingClientRect();
       return { x: rect.left + Math.min(Math.max(rect.width / 2, 24), rect.width - 8), y: rect.top + rect.height / 2 };
     })()
@@ -872,14 +870,13 @@ async function stackGuideCardPoint(label: string): Promise<ClientPoint> {
 async function stackGuideLayerRowPoint(label: string, processLabel: string): Promise<ClientPoint> {
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
-      const cards = Array.from(document.querySelectorAll('.stackGuideCard'));
-      const card = cards.find(item => item.querySelector('.registeredCellTrackBadge')?.textContent?.trim() === ${JSON.stringify(label)});
+      const inputs = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).filter(item => item.value === ${JSON.stringify(label)});
+      const card = inputs.map(input => input.closest('.cspTreeTrack')).find(item =>
+        item?.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent?.trim() === ${JSON.stringify(processLabel)}
+      );
       if (!card) return null;
-      const rows = Array.from(card.querySelectorAll('.stackGuideRegistrationRow'));
-      const row = rows.find(item => item.querySelector('.registeredCellAssetProcess')?.textContent?.trim() === ${JSON.stringify(processLabel)});
-      if (!row) return null;
-      row.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const rect = row.getBoundingClientRect();
+      card.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = card.getBoundingClientRect();
       return { x: rect.left + Math.min(Math.max(rect.width / 2, 36), rect.width - 8), y: rect.top + rect.height / 2 };
     })()
   `)
@@ -891,8 +888,8 @@ async function waitForStackGuideCardAsset(label: string, fileName: string): Prom
   await waitForPageCondition(
     () => evaluatePage<boolean>(`
       (() => {
-        const cards = Array.from(document.querySelectorAll('.stackGuideCard'));
-        const card = cards.find(item => item.querySelector('.registeredCellTrackBadge')?.textContent?.trim() === ${JSON.stringify(label)});
+        const input = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).find(item => item.value === ${JSON.stringify(label)});
+        const card = input?.closest('.cspTreeTrack');
         return Boolean(card && (card.textContent || '').includes(${JSON.stringify(fileName)}));
       })()
     `),
@@ -1024,27 +1021,6 @@ async function clickMenuItem(label: string): Promise<void> {
   await delay(50)
 }
 
-async function clickMenuItemContaining(text: string): Promise<void> {
-  await waitForPageCondition(
-    () => evaluatePage<boolean>(`
-      (() => Boolean(Array.from(document.querySelectorAll('[role="menu"] button[role="menuitem"]'))
-        .some(item => (item.textContent || '').includes(${JSON.stringify(text)}) && !item.disabled)))()
-    `),
-    `menu item containing ${text}`,
-  )
-  const clicked = await evaluatePage<boolean>(`
-    (() => {
-      const button = Array.from(document.querySelectorAll('[role="menu"] button[role="menuitem"]'))
-        .find(item => (item.textContent || '').includes(${JSON.stringify(text)}) && !item.disabled);
-      if (!button) return false;
-      button.click();
-      return true;
-    })()
-  `)
-  if (!clicked) throw new Error(`menu item not found: ${text}`)
-  await delay(100)
-}
-
 async function menuItemPoint(label: string): Promise<ClientPoint> {
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
@@ -1063,7 +1039,7 @@ async function normalizeSelectedRegisteredCellWithRealAssetFileName(paperTrack: 
   await cdpMouseClick(await registeredCellCardPoint(paperTrack))
   const opened = await evaluatePage<boolean>(`
     (() => {
-      const button = document.querySelector('.keyListNormalizeButton');
+      const button = document.querySelector('.cspTreeNormalizeButton');
       if (!button) return false;
       button.click();
       return true;

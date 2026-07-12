@@ -830,6 +830,52 @@
   cursor: grab;
 }
 
+.cspTreeCelDetails {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 4px;
+  padding-top: 3px;
+  border-top: 1px solid #cbd5cd;
+}
+
+.cspTreeSheetNameField {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: #59645d;
+  font-size: 10px;
+}
+
+.cspTreeAssetName {
+  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #59645d;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cspTreeDeleteButton {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 3px;
+}
+
+.cspTreeDeleteButton svg,
+.cspTreeTrackDeleteButton svg {
+  width: 14px;
+  height: 14px;
+}
+
 .cspTreeCel.unregistered {
   border-style: dashed;
 }
@@ -1104,4 +1150,3 @@
 .annotationClearMenu.actionMenuContent {
   min-width: 148px;
 }
-

@@ -716,7 +716,7 @@ export const uiText = {
     errorCount: (errors: number) => `エラー${errors}件`,
   },
   layout: {
-    resizeRegisteredCellPane: '登録セルペインの幅を調整',
+    resizeCspLayerTreePane: 'CSPレイヤー構成ペインの幅を調整',
     resizeImageAssetPane: '画像素材ペインの幅を調整',
     resizeTemplateDock: 'シートテンプレ詳細パネルの幅を調整',
   },

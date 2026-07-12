@@ -1,46 +1,10 @@
 import { type CutProject, type PaperTrack, type StackGuideLabel, stackGuideStackBand } from '@xsheet-remap/core'
-import { uiText } from './i18n'
 import { compareNaturalFileNameText } from './naturalSort'
 
 export type CellStackOrderItem =
-  | { id: string; kind: 'template-track'; label: string; kindLabel: string; paperTrack: string }
-  | { id: string; kind: 'overlay-track'; label: string; kindLabel: string; paperTrack: string }
-  | { id: string; kind: 'stack-guide'; label: string; kindLabel: string; labelId: string }
-
-type VisibleCellStackOrderItem = { item: CellStackOrderItem; stackIndex: number }
-
-export type StackPointerDrag = {
-  pointerId: number
-  itemIds: string[]
-  startX: number
-  startY: number
-  moved: boolean
-}
-
-export function reorderVisibleStackItemsForDropPreview(
-  visibleItems: VisibleCellStackOrderItem[],
-  movingIds: string[],
-  dropIndex: number | null,
-): VisibleCellStackOrderItem[] {
-  if (movingIds.length === 0 || dropIndex === null) return visibleItems
-  const byId = new Map(visibleItems.map(entry => [entry.item.id, entry]))
-  return reorderVisibleIdsForDrop(visibleItems.map(entry => entry.item.id), movingIds, dropIndex)
-    .map(id => byId.get(id))
-    .filter((entry): entry is VisibleCellStackOrderItem => Boolean(entry))
-}
-
-export function reorderVisibleIdsForDrop(visibleIds: string[], movingIds: string[], dropIndex: number): string[] {
-  const movingSet = new Set(movingIds)
-  const moving = visibleIds.filter(id => movingSet.has(id))
-  if (moving.length === 0) return visibleIds
-  const remaining = visibleIds.filter(id => !movingSet.has(id))
-  const insertionIndex = visibleIds.slice(0, dropIndex).filter(id => !movingSet.has(id)).length
-  return [
-    ...remaining.slice(0, insertionIndex),
-    ...moving,
-    ...remaining.slice(insertionIndex),
-  ]
-}
+  | { id: string; kind: 'template-track'; label: string; paperTrack: string }
+  | { id: string; kind: 'overlay-track'; label: string; paperTrack: string }
+  | { id: string; kind: 'stack-guide'; label: string; labelId: string }
 
 export function cellStackOrderItems(project: CutProject): CellStackOrderItem[] {
   const templateTracks = project.logicalSheet.paperTracks
@@ -61,7 +25,6 @@ export function cellStackOrderItems(project: CutProject): CellStackOrderItem[] {
       id: `paper:${track.paperTrack}`,
       kind: 'overlay-track',
       label: track.label || track.paperTrack,
-      kindLabel: uiText.slots.overlayTrack,
       paperTrack: track.paperTrack,
     })
   }
@@ -71,7 +34,6 @@ export function cellStackOrderItems(project: CutProject): CellStackOrderItem[] {
       id: `stack:${label.labelId}`,
       kind: 'stack-guide',
       label: label.label,
-      kindLabel: uiText.slots.stackGuideTrack,
       labelId: label.labelId,
     })
   }
@@ -91,7 +53,6 @@ export function cellStackOrderItems(project: CutProject): CellStackOrderItem[] {
       id: `paper:${track.paperTrack}`,
       kind: 'template-track',
       label: track.label || track.paperTrack,
-      kindLabel: uiText.slots.fixedAnchor,
       paperTrack: track.paperTrack,
     })
     items.push(...cellStackGapItems(entriesByAnchor, track.paperTrack))

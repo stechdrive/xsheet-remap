@@ -1337,6 +1337,35 @@ describe('core project commands', () => {
     expect(migrated.assetBins).toEqual([{ binId: 'asset_bin_root', name: 'プロジェクト素材', order: 0 }])
   })
 
+  it('derives CSP slot metadata from the global process and paper-track structure', () => {
+    const project = createDefaultProject()
+    const sourceSlot = project.cspTrackSlots.find(slot => slot.paperTrack === 'A' && slot.correctionLayerId === 'layer_sakuga')
+    if (!sourceSlot) throw new Error('A/sakuga slot not found')
+    const migrated = migrateProject({
+      ...project,
+      cspTrackSlots: project.cspTrackSlots.map(slot => slot.slotId === sourceSlot.slotId
+        ? {
+            ...slot,
+            displayPath: '監督/Aだけ特別',
+            xdtsName: 'A_director_only',
+            trackNo: 999,
+            occurrenceIndex: 999,
+            stageId: 'stage_invalid',
+          }
+        : slot),
+    })
+
+    expect(migrated.cspTrackSlots.find(slot => slot.slotId === sourceSlot.slotId)).toMatchObject({
+      paperTrack: 'A',
+      stageId: 'stage_lo',
+      correctionLayerId: 'layer_sakuga',
+      displayPath: '作画/A',
+      xdtsName: 'A',
+      trackNo: 0,
+      occurrenceIndex: 0,
+    })
+  })
+
   it('roundtrips project JSON through migration without losing operational data', () => {
     const created = createOrSetEvent(createDefaultProject(), 'B', 12)
     let project = upsertBinding(created.project, { slotId: 'slot_B', keyId: created.key.keyId, cspCellName: 'B12_custom', materialState: 'assigned' })

@@ -675,11 +675,6 @@ export type DomainCommand =
   | {
       type: 'annotation.clear'
     }
-  | {
-      type: 'slot.update'
-      slotId: Id
-      updates: Partial<Pick<CspTrackSlot, 'displayPath' | 'xdtsName' | 'trackNo' | 'occurrenceIndex' | 'stageId' | 'correctionLayerId'>>
-    }
 
 export interface ProjectHistory {
   past: CutProject[]

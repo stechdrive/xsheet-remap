@@ -2,7 +2,7 @@ import type { CorrectionLayer, CutMetadata, CutProject, ExportProfile, LogicalSh
 import { getSheetTemplatePaperTracks, withSheetTemplatePaperTracks, standardA3SheetTemplate, standardA3SheetTemplatePreset, type SheetTemplate } from './sheet-template'
 import { defaultLogicalSheetWorkRange } from './logical-sheet'
 import { createDefaultSheetViewState } from './sheet-view'
-import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, findMatchingSlot, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, stackGuideRegistrations, uniqueId, uniquePaperTrackName } from './project-shared'
+import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
 import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME, DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME, ROOT_ASSET_BIN_ID } from './project-constants'
 
 export interface CreateProjectOptions {
@@ -166,27 +166,7 @@ export function updateCorrectionLayers(project: CutProject, layers: CorrectionLa
     productionStages,
     correctionLayers,
   }
-  const defaultSlots = createDefaultCspTrackSlots(project.logicalSheet.paperTracks, productionStages, correctionLayers)
-  const usedSlotIds = new Set<string>()
-  const cspTrackSlots = defaultSlots.map(defaultSlot => {
-    const existing = project.cspTrackSlots.find(slot =>
-      slot.paperTrack === defaultSlot.paperTrack
-      && slot.correctionLayerId === defaultSlot.correctionLayerId,
-    )
-    const slot = existing
-      ? {
-          ...existing,
-          stageId: defaultSlot.stageId,
-          correctionLayerId: defaultSlot.correctionLayerId,
-          displayPath: defaultSlot.displayPath,
-          trackNo: defaultSlot.trackNo,
-          occurrenceIndex: defaultSlot.occurrenceIndex,
-        }
-      : defaultSlot
-    const slotId = uniqueId(slot.slotId, usedSlotIds)
-    usedSlotIds.add(slotId)
-    return slotId === slot.slotId ? slot : { ...slot, slotId }
-  })
+  const cspTrackSlots = reconcileCspTrackSlots(project.logicalSheet.paperTracks, productionStages, correctionLayers, project.cspTrackSlots)
   const allowedSlotIds = new Set(cspTrackSlots.map(slot => slot.slotId))
   const allowedLayerIds = new Set(correctionLayers.map(layer => layer.layerId))
   return {
@@ -326,21 +306,7 @@ function rebuildProjectPaperTrackSlots(
 ): CutProject {
   const allowedTracks = new Set(paperTracks.map(track => track.paperTrack))
   const allowedKeyIds = new Set(project.logicalSheet.keys.filter(key => allowedTracks.has(key.paperTrack)).map(key => key.keyId))
-  const defaultSlots = createDefaultCspTrackSlots(paperTracks, project.productionStages, project.correctionLayers)
-  const usedSlotIds = new Set<string>()
-  const cspTrackSlots = defaultSlots.map(defaultSlot => {
-    const existing = findMatchingSlot(project.cspTrackSlots, defaultSlot)
-    const slot = existing
-      ? {
-          ...existing,
-          paperTrack: defaultSlot.paperTrack,
-          trackNo: defaultSlot.trackNo,
-        }
-      : defaultSlot
-    const slotId = uniqueId(slot.slotId, usedSlotIds)
-    usedSlotIds.add(slotId)
-    return slotId === slot.slotId ? slot : { ...slot, slotId }
-  })
+  const cspTrackSlots = reconcileCspTrackSlots(paperTracks, project.productionStages, project.correctionLayers, project.cspTrackSlots)
   const allowedSlotIds = new Set(cspTrackSlots.map(slot => slot.slotId))
   return {
     ...project,

@@ -220,7 +220,6 @@ export {
   updateProjectPaperTracks,
   updateStackGuideLabel,
   updateStackGuideRegistration,
-  updateSlot,
   upsertBinding,
 } from './project'
 export {

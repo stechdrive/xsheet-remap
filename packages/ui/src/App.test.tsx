@@ -21,6 +21,8 @@ it('renders the main workspace shell', () => {
     expect(screen.getByRole('button', { name: uiText.sheet.imageCorrection })).toBeTruthy()
     expect(screen.getByLabelText(uiText.recognition.menu)).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.template })).toBeTruthy()
+    expect(within(appNavigationMenu).queryByRole('button', { name: 'セル重ね順' })).toBeNull()
+    expect(screen.queryByText('詳細スロット一覧')).toBeNull()
     expect(screen.getByLabelText('紙シート')).toBeTruthy()
     expect(screen.getByLabelText(uiText.actions.loadSheetSourceFiles)).toBeTruthy()
     expect(screen.getByLabelText(uiText.sheet.viewModeMenu)).toBeTruthy()
@@ -41,7 +43,7 @@ it('provides a focused CSP remap shell without template authoring navigation', (
     const appNavigationMenu = openAppNavigationMenu()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.bindings })).toBeNull()
-    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.slots })).toBeNull()
+    expect(within(appNavigationMenu).queryByRole('button', { name: 'セル重ね順' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.export })).toBeNull()
     expect(within(appNavigationMenu).getByRole('button', { name: 'XDTS詳細設定...' })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.template })).toBeNull()
@@ -207,7 +209,7 @@ it('keeps CSP track order and names synchronized with the paper sheet', async ()
     }
     expect(columnX('A')).toBeLessThan(columnX('B'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'AをCSPで上へ（シートで右へ）' }))
+    fireEvent.click(screen.getByRole('button', { name: '全工程のAをCSPで上へ（シートで右へ）' }))
     await waitFor(() => {
       expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).map(input => input.value))
         .toEqual(['A', 'B'])

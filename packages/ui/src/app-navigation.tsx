@@ -767,8 +767,6 @@ function panelLabel(panel: Panel): string {
       return uiText.nav.sheet
     case 'bindings':
       return uiText.nav.bindings
-    case 'slots':
-      return uiText.nav.slots
     case 'template':
       return uiText.nav.template
     case 'export':

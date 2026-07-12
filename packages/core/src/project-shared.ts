@@ -503,13 +503,29 @@ export function createDefaultCspTrackSlots(
   )
 }
 
-export function findMatchingSlot(slots: CspTrackSlot[], target: CspTrackSlot): CspTrackSlot | undefined {
-  return slots.find(slot =>
-    slot.paperTrack === target.paperTrack
-    && slot.stageId === target.stageId
-    && slot.correctionLayerId === target.correctionLayerId
-    && slot.occurrenceIndex === target.occurrenceIndex,
-  ) ?? slots.find(slot => slot.paperTrack === target.paperTrack && slot.occurrenceIndex === target.occurrenceIndex)
+export function reconcileCspTrackSlots(
+  paperTracks: PaperTrack[],
+  productionStages: ProductionStage[],
+  correctionLayers: CorrectionLayer[],
+  existingSlots: CspTrackSlot[],
+): CspTrackSlot[] {
+  const usedSlotIds = new Set<string>()
+  return createDefaultCspTrackSlots(paperTracks, productionStages, correctionLayers).map(defaultSlot => {
+    const existing = existingSlots.find(slot =>
+      slot.paperTrack === defaultSlot.paperTrack
+      && slot.correctionLayerId === defaultSlot.correctionLayerId,
+    )
+    const slot = existing
+      ? {
+          ...defaultSlot,
+          slotId: existing.slotId,
+          resolutionSource: existing.resolutionSource,
+        }
+      : defaultSlot
+    const slotId = uniqueId(slot.slotId, usedSlotIds)
+    usedSlotIds.add(slotId)
+    return slotId === slot.slotId ? slot : { ...slot, slotId }
+  })
 }
 
 function defaultSlotId(paperTrack: PaperTrackName, layer: CorrectionLayer): string {

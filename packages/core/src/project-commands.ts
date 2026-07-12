@@ -1,25 +1,10 @@
-import type { CspTrackSlot, CutProject, DomainCommand, ProjectHistory } from './types'
+import type { CutProject, DomainCommand, ProjectHistory } from './types'
 import { addAnnotation, clearAnnotations } from './annotations'
 import { registerAsset } from './assets'
-import { withoutUndefined } from './core-utils'
 import { migrateProject } from './project-documents'
 import { DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
 import { correctionLayerIdForSlot, defaultCorrectionLayerId } from './project-shared'
 import { clearEvent, createKey, ensureDefaultBindingsForKey, setEvent, updateKey, upsertBinding } from './project-timing'
-
-export function updateSlot(
-  project: CutProject,
-  slotId: string,
-  updates: Partial<Pick<CspTrackSlot, 'displayPath' | 'xdtsName' | 'trackNo' | 'occurrenceIndex' | 'stageId' | 'correctionLayerId'>>,
-): CutProject {
-  if (!project.cspTrackSlots.some(slot => slot.slotId === slotId)) throw new Error(`slot not found: ${slotId}`)
-  return {
-    ...project,
-    cspTrackSlots: project.cspTrackSlots
-      .map(slot => slot.slotId === slotId ? { ...slot, ...withoutUndefined(updates) } : slot)
-      .sort((a, b) => a.trackNo - b.trackNo || a.slotId.localeCompare(b.slotId)),
-  }
-}
 
 export function applyCommand(project: CutProject, command: DomainCommand): CutProject {
   switch (command.type) {
@@ -58,8 +43,6 @@ export function applyCommand(project: CutProject, command: DomainCommand): CutPr
       return addAnnotation(project, command.stroke)
     case 'annotation.clear':
       return clearAnnotations(project)
-    case 'slot.update':
-      return updateSlot(project, command.slotId, command.updates)
   }
 }
 

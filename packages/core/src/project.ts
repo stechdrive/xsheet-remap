@@ -39,6 +39,6 @@ export { mergeTimingKeys, removeCellBinding, updateOrMergeTimingKeyDisplayLabel 
 export type { UpdateOrMergeTimingKeyResult } from './project-logical-cells'
 export { createStackGuideLabel, updateStackGuideLabel, deleteStackGuideLabel, updateStackGuideRegistration, assignAssetToStackGuideLabel, removeAssetFromStackGuideLabel } from './project-stack-guides'
 export { buildNameNormalizationPlan, applyNameNormalizationPlan, updateLogicalSheetSettings, buildExportPlan, buildAeRemapText } from './project-export'
-export { updateSlot, applyCommand, createProjectHistory, commitHistory, undoHistory, redoHistory } from './project-commands'
+export { applyCommand, createProjectHistory, commitHistory, undoHistory, redoHistory } from './project-commands'
 export { createDefaultProjectDocument, createProjectDocumentFromCutProject, parseProjectDocument, activeCutProjectFromDocument, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, addBlankSharedCutToProjectDocument, migrateProject } from './project-documents'
 export { nextDisplayLabel, stackGuideGapIndex, stackGuideCspCellName, stackGuideRegistrations, stackGuideRegistrationForLayer, stackGuideStackBand, defaultCorrectionLayerId, sheetTimingRoleForEvent, sheetTimingRoleForKey, defaultCspCellName, resolveCspCellName, isNullLabel, isNullCellKeyId, isNullCellEvent } from './project-shared'

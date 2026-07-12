@@ -512,11 +512,11 @@ export function CspLayerTree({
                         />
                       ) : <span className="cspTreeTrackName">{track.label}</span>}
                       {track.stackItemId && <div className="cspTreeMoveButtons">
-                        <Tooltip label="CSPで1段上へ（紙シートでは右へ）">
-                          <button type="button" aria-label={`${track.label}をCSPで上へ（シートで右へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'up')}>↑</button>
+                        <Tooltip label={`全工程の${track.label}をCSPで1段上へ（紙シートでは右へ）`}>
+                          <button type="button" aria-label={`全工程の${track.label}をCSPで上へ（シートで右へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'up')}>↑</button>
                         </Tooltip>
-                        <Tooltip label="CSPで1段下へ（紙シートでは左へ）">
-                          <button type="button" aria-label={`${track.label}をCSPで下へ（シートで左へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'down')}>↓</button>
+                        <Tooltip label={`全工程の${track.label}をCSPで1段下へ（紙シートでは左へ）`}>
+                          <button type="button" aria-label={`全工程の${track.label}をCSPで下へ（シートで左へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'down')}>↓</button>
                         </Tooltip>
                         {track.stackGuideLabelId && (
                           <Tooltip label={`${track.label}を削除`}>

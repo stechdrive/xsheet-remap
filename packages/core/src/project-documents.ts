@@ -6,7 +6,7 @@ import { createDefaultSheetViewState, migrateSheetView } from './sheet-view'
 import { withoutUndefined } from './core-utils'
 import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME, DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createDefaultProject } from './project-model'
-import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations } from './project-shared'
+import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations } from './project-shared'
 
 export function createDefaultProjectDocument(): CutGroupProjectDocument {
   return createProjectDocumentFromCutProject(createDefaultProject(), { sheetTemplate: standardA3SheetTemplate })
@@ -198,7 +198,7 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
       role: asset.role ?? 'cell-material',
     })),
     sheetView: migrateSheetView(input.sheetView, input.sheetTemplateId ?? base.sheetTemplateId ?? standardA3SheetTemplate.templateId),
-    cspTrackSlots: input.cspTrackSlots ?? base.cspTrackSlots,
+    cspTrackSlots: reconcileCspTrackSlots(paperTracks, productionStages, correctionLayers, input.cspTrackSlots ?? base.cspTrackSlots),
     bindings: input.bindings ?? [],
     stackGuideLabels: (input.stackGuideLabels ?? []).map(label => normalizeStackGuideLabelForProject(label, {
       ...base,

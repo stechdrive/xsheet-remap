@@ -9,7 +9,7 @@ import { CalibrationLoupeDialog } from './sheetCalibrationLoupe';
 import { ActionMenu } from './AppControls';
 import { TemplateWorkspace } from './TemplateWorkspace';
 import { AssetDropProcessMenu } from './app-sheet-layers';
-import { BindingPanel, FrameOperationDialog, SheetImageExportDialog, SlotPanel } from './app-registered-cells';
+import { BindingPanel, FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
 import { AppHelpDialog, AppNavigationMenu, CloseSmallIcon, DurationFrameControl, ExportPanel, HelpIcon, RecognitionActionMenu, RedoIcon, UndoIcon, ViewModeIcon } from './app-navigation';
 import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
@@ -409,21 +409,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
           />
         )}
         {panel === 'bindings' && <BindingPanel project={project} commitProject={commitProject} selectedKeyId={selection.keyId} />}
-        {panel === 'slots' && (
-          <SlotPanel
-            project={project}
-            commitProject={commitProject}
-            template={template}
-            sheetPages={sheetPages}
-            activePageIndex={clampedActivePageIndex}
-            sheetView={project.sheetView}
-            runtimeSourceImageUrls={runtimeSourceImageUrls}
-            showTemplate={showTemplate}
-            showAnnotations={showAnnotations}
-            projectCuts={projectCuts}
-            activeCutId={projectDocumentSnapshot.activeCutId}
-          />
-        )}
         {panel === 'template' && (
           <TemplateWorkspace
             key={templatePanelKey}

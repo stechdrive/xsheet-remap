@@ -45,15 +45,6 @@
     flex-basis: 100%;
   }
 
-  .slotOrderWorkspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .slotOrderList,
-  .slotStackPreview {
-    max-width: none;
-    max-height: none;
-  }
 }
 
 @media (max-width: 720px) {

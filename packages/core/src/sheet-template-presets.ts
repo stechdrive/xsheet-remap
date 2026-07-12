@@ -124,10 +124,6 @@ export const standardA3SheetTemplate: SheetTemplate = {
   templateKind: 'japanese-a3-paper',
   layoutMode: 'fixed-page',
   defaultUnderlay: standardA3DefaultUnderlay,
-  exportDefaults: {
-    importStackStartSeparatorName: '===== XSHEET IMPORT START =====',
-    importStackEndSeparatorName: '===== XSHEET IMPORT END =====',
-  },
   style: {
     bottomTrackLabels: {
       visible: true,
@@ -427,7 +423,6 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
   name: 'デジタル標準',
   templateKind: 'digital-native',
   layoutMode: 'infinite-digital',
-  exportDefaults: standardA3SheetTemplate.exportDefaults,
   style: {
     secondCounter: {
       visible: true,

@@ -174,6 +174,12 @@ describe('CSP import package builder', () => {
     const result = buildCspImportPackage(createProjectDocumentFromCutProject(project))
 
     expect(result.manifest.cuts[0]).toMatchObject({ scene: '12', cutNumber: '034', displayName: '12-034', timelineName: '12-034' })
+    expect(result.cutOutputs[0]?.exportPlan.metadata).toEqual({
+      cut: '034',
+      scene: '12',
+      displayName: '12-034',
+      timeTableName: '12-034',
+    })
     expect(result.manifest.outputClipFileName).toBe('SAMPLE_05_12-034.clip')
   })
 

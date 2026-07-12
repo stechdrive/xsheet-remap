@@ -1034,10 +1034,10 @@
   z-index: 80;
 }
 
-.exportSettingsDialog {
+.timingExportDialog {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  width: min(920px, calc(100vw - 48px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(520px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
   overflow: hidden;
   border: 1px solid #939b95;
@@ -1046,7 +1046,8 @@
   box-shadow: 0 18px 60px rgb(0 0 0 / 0.25);
 }
 
-.exportSettingsDialog > header {
+.timingExportDialog > header,
+.timingExportDialog > footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1055,26 +1056,59 @@
   border-bottom: 1px solid #c7cbc7;
 }
 
-.exportSettingsDialog > header > div {
-  display: grid;
-  gap: 2px;
-}
-
-.exportSettingsDialog > header span {
-  color: #68716b;
-  font-size: 11px;
-}
-
-.exportSettingsDialog > header button {
+.timingExportDialog > header button {
   width: 30px;
   min-width: 30px;
   height: 30px;
   padding: 5px;
 }
 
-.exportSettingsDialog > .panel {
+.timingExportDialogBody {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
   min-height: 0;
   overflow: auto;
+}
+
+.timingExportDialog fieldset {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.timingExportDialog legend,
+.timingExportPathField > span {
+  color: #4d5751;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.timingExportDialog .segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.timingExportPathField {
+  display: grid;
+  gap: 5px;
+}
+
+.timingExportPathField input {
+  width: 100%;
+}
+
+.timingExportIssues {
+  display: grid;
+  gap: 5px;
+}
+
+.timingExportDialog > footer {
+  justify-content: flex-end;
+  border-top: 1px solid #c7cbc7;
+  border-bottom: 0;
 }
 
 .zoomPaletteTrigger {

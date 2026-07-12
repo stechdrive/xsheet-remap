@@ -1,10 +1,12 @@
 import type { CspTrackSlot, CspCellNamePolicy, CutProject, ExportMode, ExportPlan, LogicalSheet, NameNormalizationAssetRename, NameNormalizationAssetRenameResult, NameNormalizationOptions, NameNormalizationPlan, NameNormalizationPlanItem, PaperTrackName, SheetTimingRole, StackGuideLabel, StackGuideRegistration, TimingKey } from './types'
+import type { SheetTemplate } from './sheet-template-schema'
 import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { withoutUndefined } from './core-utils'
 import { validateProject } from './validation'
-import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE } from './project-constants'
+import { CSP_IMPORT_STACK_END_SEPARATOR_NAME, CSP_IMPORT_STACK_START_SEPARATOR_NAME, DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE } from './project-constants'
 import { compareStackGuideExportTracksForProject, compareStackGuideLabelsForProject, correctionLayerIdForSlot, correctionLayerOrderById, correctionLayerFileNameSuffix, defaultCorrectionLayerId, eventsForSlot, exportEventsForSlot, groupLabelForCorrectionLayer, groupLabelForSlot, isNullCellEvent, resolveCspCellName, sanitizeFileBaseName, sequenceCspCellName, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideGapIndex, stackGuideRegistrationForLayer, stackGuideRegistrations, stackGuideStackBand, stackGuideStackBandOrder, stageOrderForCorrectionLayer } from './project-shared'
 import { assetAbsolutePath } from './assets'
+import { resolveCutExportIdentity } from './project-export-identity'
 
 export function buildNameNormalizationPlan(project: CutProject, options: NameNormalizationOptions): NameNormalizationPlan {
   const sheetRole = options.sheetRole
@@ -120,12 +122,21 @@ export function updateLogicalSheetSettings(
   }
 }
 
-export function buildExportPlan(project: CutProject, profileId = project.exportProfiles[0]?.profileId ?? 'import-stack'): ExportPlan {
+export interface BuildExportPlanOptions {
+  profileId?: string
+  timingSourceRole?: SheetTimingRole
+  sheetTemplate?: Pick<SheetTemplate, 'naming'>
+  fallbackCutId?: string
+}
+
+export function buildExportPlan(project: CutProject, options: BuildExportPlanOptions = {}): ExportPlan {
+  const profileId = options.profileId ?? project.exportProfiles[0]?.profileId ?? 'import-stack'
   const profile = project.exportProfiles.find(item => item.profileId === profileId) ?? project.exportProfiles[0]
   const mode: ExportMode = profile?.mode ?? 'direct-to-visible-slots'
-  const timingSourceRole = profile?.timingSourceRole ?? DEFAULT_EXPORT_TIMING_ROLE
+  const timingSourceRole = options.timingSourceRole ?? DEFAULT_EXPORT_TIMING_ROLE
   const cspCellNamePolicy = profile?.cspCellNamePolicy ?? DEFAULT_CSP_CELL_NAME_POLICY
   const validation = validateProject(project, profile)
+  const identity = resolveCutExportIdentity(project, options.sheetTemplate, options.fallbackCutId)
   const selectedSlots = (profile?.slotIds ?? project.cspTrackSlots.map(slot => slot.slotId))
     .map(slotId => project.cspTrackSlots.find(slot => slot.slotId === slotId))
     .filter((slot): slot is CspTrackSlot => Boolean(slot))
@@ -137,14 +148,18 @@ export function buildExportPlan(project: CutProject, profileId = project.exportP
       selectedSlots,
       timingSourceRole,
       cspCellNamePolicy,
-      profile?.includeDummySeparators ?? true,
-      profile?.importStackStartSeparatorName,
-      profile?.importStackEndSeparatorName,
     )
     : buildDirectExportTracks(project, selectedSlots, timingSourceRole, cspCellNamePolicy)
 
   return {
     mode,
+    metadata: {
+      cut: identity.cutNumber,
+      scene: identity.sceneNumber,
+      displayName: identity.displayName,
+      timeTableName: identity.timelineName,
+    },
+    timingSourceRole,
     durationFrames: project.logicalSheet.durationFrames,
     fps: project.logicalSheet.fps,
     tracks,
@@ -198,9 +213,6 @@ function buildImportStackTracks(
   selectedSlots: CspTrackSlot[],
   timingSourceRole: SheetTimingRole,
   cspCellNamePolicy: CspCellNamePolicy,
-  includeDummySeparators: boolean,
-  startSeparatorName?: string,
-  endSeparatorName?: string,
 ): ExportPlan['tracks'] {
   const selectedSlotIds = new Set(selectedSlots.map(slot => slot.slotId))
   const sortedSlots = [...selectedSlots].sort((a, b) => compareImportStackSlots(project, a, b))
@@ -242,14 +254,12 @@ function buildImportStackTracks(
     const groupTracks = [...slotTracks, ...stackGuideTracks].sort((a, b) => compareImportStackGroupEntries(project, a, b))
     if (groupTracks.length === 0) continue
 
-    if (includeDummySeparators) {
-      pendingTracks.push({
-        trackNo: -1,
-        name: `===== ${group.label} =====`,
-        dummy: true,
-        frames: [{ frame: 0, value: null }],
-      })
-    }
+    pendingTracks.push({
+      trackNo: -1,
+      name: `===== ${group.label} =====`,
+      dummy: true,
+      frames: [{ frame: 0, value: null }],
+    })
 
     for (const entry of groupTracks) {
       if (entry.kind === 'slot') {
@@ -281,12 +291,12 @@ function buildImportStackTracks(
   }
 
   if (pendingTracks.length > 0) {
-    addDummyTrack(startSeparatorName ?? '')
+    addDummyTrack(CSP_IMPORT_STACK_START_SEPARATOR_NAME)
     for (const track of pendingTracks) {
       tracks.push({ ...track, trackNo: outputTrackNo })
       outputTrackNo += 1
     }
-    addDummyTrack(endSeparatorName ?? '')
+    addDummyTrack(CSP_IMPORT_STACK_END_SEPARATOR_NAME)
   }
 
   return tracks

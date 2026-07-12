@@ -10,9 +10,10 @@ import { ActionMenu } from './AppControls';
 import { TemplateWorkspace } from './TemplateWorkspace';
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
-import { AppHelpDialog, AppNavigationMenu, CloseSmallIcon, DurationFrameControl, ExportPanel, HelpIcon, RecognitionActionMenu, RedoIcon, UndoIcon, ViewModeIcon } from './app-navigation';
+import { AppHelpDialog, AppNavigationMenu, DurationFrameControl, HelpIcon, RecognitionActionMenu, RedoIcon, UndoIcon, ViewModeIcon } from './app-navigation';
 import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
+import { TimingExportDialog } from './TimingExportDialog'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -24,14 +25,14 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setShowTemplateGuides, showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, sheetScrollRequest, timingClipboard, exportProfileId, sheetImageExportDraft,
-    setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, exportSettingsDialogOpen,
-    setExportSettingsDialogOpen, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
-    projectDocumentSnapshot, projectCuts, exportPlan, xdtsText, sheetPages, clampedActivePageIndex,
+    setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
+    setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
+    projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
-    blockingExport, issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
+    issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
-    recordDropDiagnostic, setActivePageIndex, updateTiming, updateExportTimingSourceRole, updateExportProfile, setSelectionFromRange,
+    recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, setSelectionFromRange,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect, handleJumpToKeyFirstUse,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard, handleUpdateLogicalCellLabel,
     copySelectedTimingRange, pasteTimingClipboard, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
@@ -43,7 +44,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
-    handleAddSharedCut, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
+    handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
@@ -63,10 +64,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSaveTemplate={() => void handleSaveTemplateJson()}
             onResetApp={handleResetApp}
             onOpenSheetImageExport={handleOpenSheetImageExport}
-            onSaveXdts={() => void handleSaveXdts()}
-            onSaveCspImportPackage={() => void handleSaveCspImportPackage()}
-            onOpenExportSettings={appKind === 'remap' ? () => setExportSettingsDialogOpen(true) : undefined}
-            blockingExport={blockingExport}
+            onSaveXdts={() => openTimingExportDialog('xdts')}
+            onSaveCspImportPackage={() => openTimingExportDialog('csp-import')}
           />
           <span className="topBrand">
             <strong>{appProfile.appName}</strong>
@@ -422,16 +421,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onUpdateCorrectionLayers={handleUpdateCorrectionLayers}
           />
         )}
-        {panel === 'export' && (
-          <ExportPanel
-            project={project}
-            issues={issues}
-            exportPlan={exportPlan}
-            xdtsText={xdtsText}
-            setTimingSourceRole={updateExportTimingSourceRole}
-            updateExportProfile={updateExportProfile}
-          />
-        )}
       </main>
 
       {sheetImageExportDraft && (
@@ -448,26 +437,16 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <AppHelpDialog appName={appProfile.appName} showDigitalHelp={appProfile.showDigitalHelp} onClose={() => setAppHelpDialogOpen(false)} />
       )}
 
-      {exportSettingsDialogOpen && (
-        <div className="assetQuickPreviewBackdrop exportSettingsBackdrop" role="dialog" aria-modal="true" aria-label="XDTS詳細設定" onPointerDown={() => setExportSettingsDialogOpen(false)}>
-          <section className="exportSettingsDialog" onPointerDown={event => event.stopPropagation()}>
-            <header>
-              <div>
-                <strong>XDTS詳細設定</strong>
-                <span>通常は変更せずに書き出せます。</span>
-              </div>
-              <button type="button" aria-label="閉じる" onClick={() => setExportSettingsDialogOpen(false)}><CloseSmallIcon /></button>
-            </header>
-            <ExportPanel
-              project={project}
-              issues={issues}
-              exportPlan={exportPlan}
-              xdtsText={xdtsText}
-              setTimingSourceRole={updateExportTimingSourceRole}
-              updateExportProfile={updateExportProfile}
-            />
-          </section>
-        </div>
+      {timingExportDialog && timingExportPlan && (
+        <TimingExportDialog
+          state={timingExportDialog}
+          template={template}
+          assetRootPath={project.assetRoot?.path}
+          issues={timingExportPlan.validation}
+          onChangeRole={updateTimingExportRole}
+          onCancel={() => setTimingExportDialog(null)}
+          onConfirm={confirmTimingExport}
+        />
       )}
 
       {sheetLevelCorrectionDialogOpen && (

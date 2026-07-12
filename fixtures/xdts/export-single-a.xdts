@@ -2,12 +2,12 @@ exchangeDigitalTimeSheet Save Data
 {
   "version": 5,
   "header": {
-    "cut": "1",
-    "scene": "1"
+    "cut": "001",
+    "scene": ""
   },
   "timeTables": [
     {
-      "name": "タイムライン1",
+      "name": "001",
       "duration": 144,
       "frameRate": 24,
       "timeTableHeaders": [

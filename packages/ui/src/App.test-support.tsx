@@ -374,6 +374,13 @@ export function selectAppPanel(label: string) {
   fireEvent.click(within(menu).getByRole('button', { name: label }))
 }
 
+export function openTimingExportDialog(kind: 'xdts' | 'csp-import' = 'xdts'): HTMLElement {
+  const menu = openAppNavigationMenu()
+  const command = kind === 'csp-import' ? uiText.actions.cspImportPackage : uiText.actions.xdts
+  fireEvent.click(within(menu).getByRole('button', { name: command }))
+  return screen.getByRole('dialog', { name: kind === 'csp-import' ? uiText.actions.cspImportPackage : 'XDTS書き出し' })
+}
+
 export function getZoomSlider(): HTMLInputElement {
   const zoom = document.querySelector('.zoomSliderControl input[type="range"]') as HTMLInputElement | null
   if (!zoom) throw new Error('zoom control not found')

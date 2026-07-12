@@ -179,7 +179,7 @@ export function buildFullDefaultA3Scenario(fileRefs: FileRef[], renameResults: N
     },
   })
 
-  const initialPlan = buildExportPlan(project, 'import-stack')
+  const initialPlan = buildExportPlan(project, { profileId: 'import-stack' })
   const initialXdts = exportXdts(initialPlan)
   const initialChecks = validateFullDefaultA3Plan(project, initialXdts)
   if (assetRootRegistration) {
@@ -192,7 +192,7 @@ export function buildFullDefaultA3Scenario(fileRefs: FileRef[], renameResults: N
     includeAssetFiles: true,
   })
   const normalizedProject = applyNameNormalizationPlan(project, normalizationPlan, renameResults)
-  const normalizedPlan = buildExportPlan(normalizedProject, 'import-stack')
+  const normalizedPlan = buildExportPlan(normalizedProject, { profileId: 'import-stack' })
   const normalizedXdts = exportXdts(normalizedPlan)
   const normalizedChecks = validateFullDefaultA3NormalizedPlan(normalizedProject, normalizedXdts)
 
@@ -272,7 +272,7 @@ function validateFullDefaultA3Plan(project: CutProject, xdtsText: string): strin
   const checks: string[] = []
   const issues = validateProject(project).filter(issue => issue.severity === 'error')
   if (issues.length > 0) throw new Error(`project has validation errors: ${issues.map(issue => issue.code).join(', ')}`)
-  const plan = buildExportPlan(project, 'import-stack')
+  const plan = buildExportPlan(project, { profileId: 'import-stack' })
   const parsed = parseXdts(xdtsText)
   assert(parsed.duration === 144, 'XDTS duration should be 144')
   assert(parsed.fps === 24, 'XDTS fps should be 24')
@@ -324,7 +324,7 @@ function validateFullDefaultA3NormalizedPlan(project: CutProject, xdtsText: stri
 function assertSlotFrame(project: CutProject, paperTrack: string, correctionLayerId: string, frame: number, expectedValue: string): void {
   const slot = project.cspTrackSlots.find(item => item.paperTrack === paperTrack && item.correctionLayerId === correctionLayerId)
   if (!slot) throw new Error(`slot not found: ${paperTrack} / ${correctionLayerId}`)
-  const track = buildExportPlan(project, 'import-stack').tracks.find(item => item.slotId === slot.slotId)
+  const track = buildExportPlan(project, { profileId: 'import-stack' }).tracks.find(item => item.slotId === slot.slotId)
   const actual = track?.frames.find(item => item.frame === frame)?.value
   assert(actual === expectedValue, `expected ${paperTrack}/${correctionLayerId} frame ${frame} to be ${expectedValue}, got ${String(actual)}`)
 }
@@ -332,8 +332,8 @@ function assertSlotFrame(project: CutProject, paperTrack: string, correctionLaye
 function assertStackGuideFrame(project: CutProject, labelText: string, correctionLayerId: string, expectedValue: string): void {
   const label = project.stackGuideLabels.find(item => item.label === labelText)
   if (!label) throw new Error(`stack guide not found: ${labelText}`)
-  const track = buildExportPlan(project, 'import-stack').tracks.find(item => item.stackGuideLabelId === label.labelId && item.stackGuideRegistrationId && project.stackGuideLabels.some(candidate => candidate.labelId === label.labelId))
-  const matchingTrack = buildExportPlan(project, 'import-stack').tracks.find(item => {
+  const track = buildExportPlan(project, { profileId: 'import-stack' }).tracks.find(item => item.stackGuideLabelId === label.labelId && item.stackGuideRegistrationId && project.stackGuideLabels.some(candidate => candidate.labelId === label.labelId))
+  const matchingTrack = buildExportPlan(project, { profileId: 'import-stack' }).tracks.find(item => {
     if (item.stackGuideLabelId !== label.labelId) return false
     const registration = label.registrations?.find(candidate => candidate.registrationId === item.stackGuideRegistrationId)
     return registration?.correctionLayerId === correctionLayerId

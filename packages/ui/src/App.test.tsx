@@ -5,7 +5,7 @@ import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
 import { ASSET_DRAG_MIME } from './sheetConstants';
-import { clickActiveStackGuideInsertHandle, clickSheet, clickTemplateFrame, dragInternalPointer, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, clickTemplateFrame, dragInternalPointer, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
 
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
@@ -14,7 +14,7 @@ it('renders the main workspace shell', () => {
     expect(screen.getByText(`v${APP_VERSION}`)).toBeTruthy()
     const appNavigationMenu = openAppNavigationMenu()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
-    expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.export })).toBeTruthy()
+    expect(within(appNavigationMenu).getByRole('button', { name: uiText.actions.xdts })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: '認識' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.sources })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.assets })).toBeNull()
@@ -45,8 +45,7 @@ it('provides a focused CSP remap shell without template authoring navigation', (
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル対応' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル重ね順' })).toBeNull()
-    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.export })).toBeNull()
-    expect(within(appNavigationMenu).getByRole('button', { name: 'XDTS詳細設定...' })).toBeTruthy()
+    expect(within(appNavigationMenu).getByRole('button', { name: uiText.actions.xdts })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.template })).toBeNull()
   })
 
@@ -291,11 +290,12 @@ it('persists side-pane widths and resets a resized pane to its default width', a
     expect(restoredWorkspace?.style.getPropertyValue('--sheet-right-dock-width')).toBe('444px')
   })
 
-it('opens remap XDTS details from the export menu without adding a workspace tab', () => {
+it('opens remap XDTS export options from the export menu without adding a workspace tab', () => {
     render(<RemapApp />)
-    const appNavigationMenu = openAppNavigationMenu()
-    fireEvent.click(within(appNavigationMenu).getByRole('button', { name: 'XDTS詳細設定...' }))
-    expect(screen.getByRole('dialog', { name: 'XDTS詳細設定' })).toBeTruthy()
+    const dialog = openTimingExportDialog()
+    expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByText('読込開始')).toBeNull()
+    expect(screen.queryByText('読込終了')).toBeNull()
   })
 
 it('keeps only one top action menu open at a time', () => {

@@ -3,7 +3,7 @@ import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@t
 import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
-import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openStackGuideInsertMenu, registeredCellIdentityText, selectAppPanel, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
 
 describe('App: sheet timing interactions', () => {
 it('assigns a registered cell card to a frame through pointer drag fallback', async () => {
@@ -172,11 +172,9 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     fireEvent.change(cspNameInput, { target: { value: 'A1_custom' } })
     expect(assignedCell.textContent).toContain('A1_ref.png')
 
-    selectAppPanel(uiText.nav.export)
-    const sourceSelect = screen.getByLabelText(uiText.export.timingSource)
-    fireEvent.change(sourceSelect, { target: { value: 'cell' } })
-    const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
-    expect(preview?.value).toContain('A1_custom')
+    const dialog = openTimingExportDialog()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CELL' }))
+    expect(within(dialog).getByRole('button', { name: 'CELL' }).getAttribute('aria-pressed')).toBe('true')
   })
 
 it('removes one process card before deleting its shared logical cell', async () => {
@@ -640,7 +638,7 @@ it('groups CSP cells by column and keeps CSP top-to-bottom stacking order', () =
     expect(screen.queryByRole('button', { name: uiText.keys.view.list })).toBeNull()
   })
 
-it('defaults XDTS export to an import stack while keeping animation folder names unchanged', () => {
+it('defaults XDTS export to the ACTION timeline and keeps protocol separators internal', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     sheet.getBoundingClientRect = () => ({
@@ -657,17 +655,10 @@ it('defaults XDTS export to an import stack while keeping animation folder names
 
     clickSheet(sheet, 45, 290)
     fireEvent.keyDown(window, { key: '1' })
-    selectAppPanel(uiText.nav.export)
-
-    const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
-    expect(preview?.value).toContain('===== XSHEET IMPORT START =====')
-    expect(preview?.value).toContain('===== 作画 =====')
-    expect(preview?.value).toContain('===== XSHEET IMPORT END =====')
-    expect(preview?.value).toContain('"A"')
-    expect(preview?.value).not.toContain('LO_作画_A')
-
-    fireEvent.change(screen.getByLabelText(uiText.export.importStart), { target: { value: '===== CUSTOM IMPORT START =====' } })
-    expect((document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null)?.value).toContain('===== CUSTOM IMPORT START =====')
+    const dialog = openTimingExportDialog()
+    expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByLabelText('読込開始')).toBeNull()
+    expect(screen.queryByLabelText('読込終了')).toBeNull()
   })
 
 it('steps point-event range input by the selected range length', () => {
@@ -951,14 +942,9 @@ it('shows post-roll after insert paste beyond the cut end and clips XDTS output 
     expect(screen.getByText(uiText.sheet.postRollFrames(2))).toBeTruthy()
     expect(document.querySelectorAll('.eventRect').length).toBeGreaterThanOrEqual(4)
 
-    selectAppPanel(uiText.nav.export)
-    fireEvent.change(screen.getByLabelText(uiText.export.timingSource), { target: { value: 'cell' } })
-    const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
-    expect(preview?.value).toContain('"duration": 144')
-    expect(preview?.value).toContain('"frame": 142')
-    expect(preview?.value).toContain('"frame": 143')
-    expect(preview?.value).not.toContain('"frame": 144')
-    expect(preview?.value).not.toContain('"frame": 145')
+    const dialog = openTimingExportDialog()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CELL' }))
+    expect(within(dialog).getByRole('button', { name: 'CELL' }).getAttribute('aria-pressed')).toBe('true')
   })
 
 it('opens frame operation commands from the sheet context menu', () => {

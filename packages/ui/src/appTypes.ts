@@ -1,7 +1,12 @@
 import type { CSSProperties } from 'react'
 import type { MaterialState, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimingKey } from '@xsheet-remap/core'
 
-export type Panel = 'sheet' | 'template' | 'export'
+export type Panel = 'sheet' | 'template'
+export type TimingExportKind = 'xdts' | 'csp-import'
+export interface TimingExportDialogState {
+  kind: TimingExportKind
+  timingSourceRole: 'action' | 'cell'
+}
 export type TemplateDetailTab = 'region' | 'display' | 'reference' | 'table' | 'json'
 export type EditMode = 'new' | 'pen' | 'eraser' | 'text' | 'calibrate'
 export type CalibrationPointKind = 'source' | 'target'

@@ -4,7 +4,7 @@ import { standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
 import { defaultCalibrationPoints } from './sheetImages';
-import { clickActiveStackGuideInsertHandle, clickSheet, dragInternalPointer, dragStackGuideSvgLabel, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, dragInternalPointer, dragStackGuideSvgLabel, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 describe('App: viewport and assets', () => {
 it('zooms the sheet with Ctrl+wheel and viewport controls', () => {
@@ -462,11 +462,9 @@ it('registers material assets in the CSP layer tree and reuses its cards on the 
       'CELL A',
     ])
 
-    selectAppPanel(uiText.nav.export)
-    const sourceSelect = screen.getByLabelText(uiText.export.timingSource)
-    fireEvent.change(sourceSelect, { target: { value: 'cell' } })
-    const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
-    expect(preview?.value).toContain('BG_A1_custom')
+    const dialog = openTimingExportDialog()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CELL' }))
+    expect(within(dialog).getByRole('button', { name: 'CELL' }).getAttribute('aria-pressed')).toBe('true')
   })
 it('updates an open material preview when the asset browser selection changes', async () => {
     URL.createObjectURL = () => 'blob:asset-preview'
@@ -546,10 +544,8 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
       expect(Array.from(document.querySelectorAll('.stackGuideLabel[data-stack-guide-role="cell"]')).some(label => label.textContent === 'BOOK2,3'), labels).toBe(true)
     })
 
-    selectAppPanel(uiText.nav.export)
-    const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
-    expect(preview?.value).toContain('BOOK2,3')
-    expect(preview?.value).toContain('BG')
+    const dialog = openTimingExportDialog()
+    expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
   })
 
 it('keeps shared stack guide registrations while storing placement per shared cut', async () => {

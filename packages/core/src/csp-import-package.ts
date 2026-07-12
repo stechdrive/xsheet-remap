@@ -7,7 +7,7 @@ import type {
   CutProject,
   CutSheetDocument,
   ExportPlan,
-  ExportProfile,
+  SheetTimingRole,
   StackGuideLabel,
   StackGuideRegistration,
   ValidationIssue,
@@ -21,7 +21,7 @@ import {
   stackGuideRegistrations,
   updateActiveCutProjectInDocument,
 } from './project'
-import { formatSheetTemplateCutNumber, type SheetTemplate } from './sheet-template'
+import { CSP_IMPORT_STACK_END_SEPARATOR_NAME, CSP_IMPORT_STACK_START_SEPARATOR_NAME, DEFAULT_EXPORT_TIMING_ROLE } from './project-constants'
 
 export const CSP_IMPORT_PACKAGE_DIRECTORY = 'xsheet-csp-import'
 export const CSP_IMPORT_MANIFEST_FILE_NAME = 'csp-import.xci'
@@ -127,6 +127,7 @@ export interface CspImportPackageBuildResult {
 
 export interface BuildCspImportPackageOptions {
   exportProfileId?: string
+  timingSourceRole?: SheetTimingRole
   appVersion?: string
   outputDirectoryName?: string
 }
@@ -134,9 +135,7 @@ export interface BuildCspImportPackageOptions {
 interface CutBuildInput {
   cutId: string
   project: CutProject
-  sheetTemplate?: Pick<SheetTemplate, 'naming'>
   exportPlan: ExportPlan
-  exportProfile?: ExportProfile
   fileStem: string
 }
 
@@ -166,13 +165,18 @@ export function buildCspImportPackage(
     sheetTemplate: documentInput.sheetTemplate,
   })
   const cutProjects = exportCutProjectsFromDocument(syncedDocument)
-  const fileStems = uniqueCutFileStems(cutProjects)
+  const timingSourceRole = options.timingSourceRole ?? DEFAULT_EXPORT_TIMING_ROLE
+  const plans = cutProjects.map((project, index) => buildExportPlan(project, {
+    profileId: options.exportProfileId,
+    timingSourceRole,
+    sheetTemplate: syncedDocument.sheetTemplate,
+    fallbackCutId: syncedDocument.cuts[index]?.cutId ?? `cut_${index + 1}`,
+  }))
+  const fileStems = uniqueCutFileStems(plans)
   const cutInputs = cutProjects.map((project, index): CutBuildInput => ({
     cutId: syncedDocument.cuts[index]?.cutId ?? `cut_${index + 1}`,
     project,
-    sheetTemplate: syncedDocument.sheetTemplate,
-    exportPlan: buildExportPlan(project, options.exportProfileId),
-    exportProfile: exportProfileForProject(project, options.exportProfileId),
+    exportPlan: plans[index]!,
     fileStem: fileStems[index] ?? `cut_${index + 1}`,
   }))
   const issues: ValidationIssue[] = []
@@ -211,9 +215,9 @@ export function buildCspImportPackage(
     setupOutput,
     cutOutputs: cutInputs.map(input => ({
       cutId: input.cutId,
-      cutNumber: cutNumberForProject(input.project, input.cutId),
-      displayName: cutDisplayName(input.project, input.cutId),
-      timelineName: cspTimelineNameForProject(input),
+      cutNumber: input.exportPlan.metadata.cut,
+      displayName: input.exportPlan.metadata.displayName,
+      timelineName: input.exportPlan.metadata.timeTableName,
       xdtsFileName: `${input.fileStem}.xdts`,
       operationLogFileName: `${input.fileStem}-csp-import-log.json`,
       exportPlan: input.exportPlan,
@@ -235,15 +239,15 @@ function buildManifestCut(
 ): CspImportManifestCut {
   const tracks = input.exportPlan.tracks
     .filter(track => !track.dummy)
-    .map(track => buildManifestTrack(input.project, track, input.exportProfile, assetRoot, issues))
+    .map(track => buildManifestTrack(input.project, track, input.exportPlan.timingSourceRole, assetRoot, issues))
     .filter((track): track is CspImportManifestTrack => Boolean(track))
   return {
     cutId: input.cutId,
     order,
-    ...(input.project.cut.scene?.trim() ? { scene: input.project.cut.scene.trim() } : {}),
-    cutNumber: cutNumberForProject(input.project, input.cutId),
-    displayName: cutDisplayName(input.project, input.cutId),
-    timelineName: cspTimelineNameForProject(input),
+    ...(input.exportPlan.metadata.scene ? { scene: input.exportPlan.metadata.scene } : {}),
+    cutNumber: input.exportPlan.metadata.cut,
+    displayName: input.exportPlan.metadata.displayName,
+    timelineName: input.exportPlan.metadata.timeTableName,
     durationFrames: input.project.logicalSheet.durationFrames,
     fps: input.project.logicalSheet.fps,
     files: {
@@ -252,8 +256,8 @@ function buildManifestCut(
     },
     importStack: {
       enabled: input.exportPlan.mode === 'import-stack',
-      startSeparator: input.exportProfile?.importStackStartSeparatorName ?? '===== XSHEET IMPORT START =====',
-      endSeparator: input.exportProfile?.importStackEndSeparatorName ?? '===== XSHEET IMPORT END =====',
+      startSeparator: CSP_IMPORT_STACK_START_SEPARATOR_NAME,
+      endSeparator: CSP_IMPORT_STACK_END_SEPARATOR_NAME,
     },
     tracks,
     validation: {
@@ -268,6 +272,13 @@ function buildSetupExportPlan(cutInputs: CutBuildInput[]): ExportPlan {
   const mergedTracks = mergeSetupTracks(cutInputs)
   return {
     mode: 'import-stack',
+    metadata: {
+      cut: '_setup',
+      scene: '',
+      displayName: 'CSPセットアップ',
+      timeTableName: 'CSPセットアップ',
+    },
+    timingSourceRole: first?.exportPlan.timingSourceRole ?? DEFAULT_EXPORT_TIMING_ROLE,
     durationFrames: Math.max(1, ...cutInputs.map(input => input.project.logicalSheet.durationFrames)),
     fps: first?.project.logicalSheet.fps ?? 24,
     tracks: mergedTracks.map((track, index) => ({
@@ -282,9 +293,8 @@ function buildSetupExportPlan(cutInputs: CutBuildInput[]): ExportPlan {
 
 function mergeSetupTracks(cutInputs: CutBuildInput[]): ExportPlan['tracks'] {
   const groups = new Map<string, SetupTrackGroup>()
-  const first = cutInputs[0]
-  const startSeparator = first?.exportProfile?.importStackStartSeparatorName ?? '===== XSHEET IMPORT START ====='
-  const endSeparator = first?.exportProfile?.importStackEndSeparatorName ?? '===== XSHEET IMPORT END ====='
+  const startSeparator = CSP_IMPORT_STACK_START_SEPARATOR_NAME
+  const endSeparator = CSP_IMPORT_STACK_END_SEPARATOR_NAME
   let startTrack: ExportPlan['tracks'][number] | undefined
   let endTrack: ExportPlan['tracks'][number] | undefined
 
@@ -480,7 +490,7 @@ function setupStackBandOrder(stackBand: NonNullable<StackGuideLabel['stackBand']
 function buildManifestTrack(
   project: CutProject,
   track: ExportPlan['tracks'][number],
-  profile: ExportProfile | undefined,
+  timingSourceRole: SheetTimingRole,
   assetRoot: AssetRoot | undefined,
   issues: ValidationIssue[],
 ): CspImportManifestTrack | null {
@@ -492,7 +502,7 @@ function buildManifestTrack(
     return {
       trackId: slot.slotId,
       kind: 'cell',
-      paperRegion: profile?.timingSourceRole ?? 'action',
+      paperRegion: timingSourceRole,
       paperTrackLabel: slot.paperTrack,
       stageId: layer?.stageId,
       stageLabel: layer?.label,
@@ -633,10 +643,10 @@ function normalizeManifestRelativePath(path: string): string | undefined {
   return normalized
 }
 
-function uniqueCutFileStems(projects: CutProject[]): string[] {
+function uniqueCutFileStems(plans: ExportPlan[]): string[] {
   const used = new Set<string>()
-  return projects.map((project, index) => {
-    const base = safeFileStem(cutIdentityForProject(project, `cut_${index + 1}`)) || `cut_${index + 1}`
+  return plans.map((plan, index) => {
+    const base = safeFileStem(plan.metadata.displayName) || `cut_${index + 1}`
     let candidate = base
     let suffix = 2
     while (used.has(candidate.toLowerCase())) {
@@ -680,10 +690,7 @@ function cspOutputProductionPrefix(project: CutProject): string {
 }
 
 function cspOutputCutSegment(input: CutBuildInput, index: number): string {
-  const { project } = input
-  const timelineName = project.cut.cspTimelineName?.trim() || project.cut.custom?.cspTimelineName?.trim()
-  const outputCut = timelineName || formattedCutIdentity(input, `cut_${index + 1}`)
-  return safeFileStem(outputCut) || `cut_${index + 1}`
+  return safeFileStem(input.exportPlan.metadata.timeTableName) || `cut_${index + 1}`
 }
 
 function safeFileStem(value: string): string {
@@ -692,31 +699,6 @@ function safeFileStem(value: string): string {
     .replace(/\s+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^[_. ]+|[_. ]+$/g, '')
-}
-
-function cutNumberForProject(project: CutProject, cutId: string): string {
-  return project.cut.cut?.trim() || cutId
-}
-
-function cutDisplayName(project: CutProject, cutId: string): string {
-  return cutIdentityForProject(project, cutId)
-}
-
-function cspTimelineNameForProject(input: CutBuildInput): string {
-  const timelineName = input.project.cut.cspTimelineName?.trim() || input.project.cut.custom?.cspTimelineName?.trim()
-  return timelineName || formattedCutIdentity(input, input.cutId)
-}
-
-function formattedCutIdentity(input: Pick<CutBuildInput, 'project' | 'sheetTemplate'>, fallback: string): string {
-  const cut = formatSheetTemplateCutNumber(input.sheetTemplate, input.project.cut.cut?.trim() || fallback)
-  const scene = input.project.cut.scene?.trim()
-  return scene ? `${scene}-${cut}` : cut
-}
-
-function cutIdentityForProject(project: CutProject, fallback: string): string {
-  const cut = project.cut.cut?.trim() || fallback
-  const scene = project.cut.scene?.trim()
-  return scene ? `${scene}-${cut}` : cut
 }
 
 function validateCutIdentities(inputs: CutBuildInput[]): ValidationIssue[] {
@@ -729,7 +711,7 @@ function validateCutIdentities(inputs: CutBuildInput[]): ValidationIssue[] {
       issues.push(cspImportIssue('cspImport.cutId.duplicate', `兼用カットIDが重複しています: ${input.cutId}`))
     }
     cutIds.add(cutIdKey)
-    const timelineName = cspTimelineNameForProject(input)
+    const timelineName = input.exportPlan.metadata.timeTableName
     const timelineKey = timelineName.trim().toLocaleLowerCase('ja')
     if (timelineNames.has(timelineKey)) {
       issues.push(cspImportIssue('cspImport.timelineName.duplicate', `CSPタイムライン名が重複しています: ${timelineName}`))
@@ -737,12 +719,6 @@ function validateCutIdentities(inputs: CutBuildInput[]): ValidationIssue[] {
     timelineNames.add(timelineKey)
   }
   return issues
-}
-
-function exportProfileForProject(project: CutProject, profileId: string | undefined): ExportProfile | undefined {
-  return profileId
-    ? project.exportProfiles.find(profile => profile.profileId === profileId) ?? project.exportProfiles[0]
-    : project.exportProfiles.find(profile => profile.mode === 'import-stack') ?? project.exportProfiles[0]
 }
 
 function correctionLayerForSlot(project: CutProject, slot: CspTrackSlot): CorrectionLayer | undefined {

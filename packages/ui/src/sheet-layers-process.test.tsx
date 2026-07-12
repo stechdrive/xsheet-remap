@@ -13,6 +13,17 @@ const actionAFrame = (frame: number): SheetHit => ({
   paperTrack: 'A',
 })
 
+const cellAFrame = (frame: number): SheetHit => ({
+  regionId: 'cell',
+  role: 'cell',
+  frame,
+  rowIndex: frame - 1,
+  columnIndex: 0,
+  columnId: 'cell_A',
+  label: 'A',
+  paperTrack: 'A',
+})
+
 describe('CSP process card timing assignment', () => {
   it('links an unplaced process card to the logical cell already present at the drop frame', () => {
     const logicalA1 = createKey(createDefaultProject(), 'A', '1', 'manual', '1', 'action')
@@ -72,5 +83,28 @@ describe('CSP process card timing assignment', () => {
     expect(placed.project.logicalSheet.events).toEqual([
       expect.objectContaining({ frame: 24, keyId }),
     ])
+  })
+
+  it('keeps a new asset card role-neutral until its first sheet drop', () => {
+    const asset = registerAsset(createDefaultProject(), { name: 'A1_scan.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const registered = registerAssetsToCspTrack(asset.project, {
+      slotId: 'slot_enshutsu_A',
+      assetIds: [asset.asset.assetId],
+    })
+    const keyId = registered.addedKeyIds[0]!
+
+    expect(registered.project.logicalSheet.keys.find(key => key.keyId === keyId)?.sheetRole).toBeUndefined()
+
+    const placed = assignRegisteredCellKeyToHit(registered.project, keyId, cellAFrame(12))
+
+    expect(placed.project.logicalSheet.keys.find(key => key.keyId === keyId)?.sheetRole).toBe('cell')
+    expect(placed.project.logicalSheet.events).toEqual([
+      expect.objectContaining({ frame: 12, keyId, sheetRole: 'cell' }),
+    ])
+    expect(placed.project.bindings.find(binding => binding.keyId === keyId)).toMatchObject({
+      slotId: 'slot_enshutsu_A',
+      assetId: asset.asset.assetId,
+      cspCellName: 'A1_scan',
+    })
   })
 })

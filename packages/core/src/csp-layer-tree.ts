@@ -54,7 +54,7 @@ export function xdtsBottomToTopFromCspTopToBottom<T>(items: readonly T[]): T[] {
 }
 
 export function buildCspLayerTree(project: CutProject, profileId?: string): CspLayerTree {
-  const plan = buildExportPlan(project, profileId)
+  const plan = buildExportPlan(project, { profileId })
   const stages: CspLayerTreeStage[] = []
   const stageById = new Map<string, CspLayerTreeStage>()
   const layerById = new Map<string, CspLayerTreeLayer>()
@@ -205,7 +205,7 @@ function cspTrackCelsForSlot(
       bindingId: binding.bindingId,
       assetId: binding.assetId,
       displayLabel: key?.displayLabel,
-      sheetRole: key ? sheetTimingRoleForKey(key) : undefined,
+      sheetRole: key?.sheetRole,
       materialState: binding.materialState,
     } satisfies CspLayerTreeCel
   })

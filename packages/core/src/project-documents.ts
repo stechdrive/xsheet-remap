@@ -4,7 +4,7 @@ import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { migrateAnnotation } from './annotations'
 import { createDefaultSheetViewState, migrateSheetView } from './sheet-view'
 import { withoutUndefined } from './core-utils'
-import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME, DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION, ROOT_ASSET_BIN_ID } from './project-constants'
+import { DEFAULT_CSP_CELL_NAME_POLICY, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations } from './project-shared'
 
@@ -214,15 +214,7 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
     timedRangeCues: input.timedRangeCues ?? [],
     exportProfiles: (input.exportProfiles ?? base.exportProfiles).map(profile => ({
       ...profile,
-      timingSourceRole: profile.timingSourceRole ?? DEFAULT_EXPORT_TIMING_ROLE,
       cspCellNamePolicy: profile.cspCellNamePolicy ?? DEFAULT_CSP_CELL_NAME_POLICY,
-      includeDummySeparators: profile.includeDummySeparators ?? (profile.mode === 'import-stack'),
-      importStackStartSeparatorName: profile.importStackStartSeparatorName ?? (
-        profile.mode === 'import-stack' ? DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME : undefined
-      ),
-      importStackEndSeparatorName: profile.importStackEndSeparatorName ?? (
-        profile.mode === 'import-stack' ? DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME : undefined
-      ),
     })),
   }
   return { ...project, schemaVersion: 2 }

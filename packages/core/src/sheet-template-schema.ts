@@ -261,10 +261,6 @@ export interface SheetTemplate {
   layoutMode?: 'fixed-page' | 'paged-digital' | 'infinite-digital'
   naming?: SheetTemplateNaming
   defaultUnderlay?: SheetTemplateUnderlay
-  exportDefaults?: {
-    importStackStartSeparatorName?: string
-    importStackEndSeparatorName?: string
-  }
   style?: SheetTemplateStyle
   calibration?: SheetTemplateCalibration
   viewLayout?: SheetViewLayout

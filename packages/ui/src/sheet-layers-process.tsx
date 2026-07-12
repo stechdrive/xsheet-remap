@@ -228,21 +228,28 @@ type BindingCloneSpec = {
 
 export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string, hit: SheetHit, fontSizePx?: number): { project: CutProject; keyId: string | null } {
   if (!hit.paperTrack) return { project, keyId: null }
-  const sourceKey = project.logicalSheet.keys.find(key => key.keyId === keyId)
+  let sourceProject = project
+  let sourceKey = sourceProject.logicalSheet.keys.find(key => key.keyId === keyId)
   if (!sourceKey) return { project, keyId: null }
   const sheetRole = sheetRoleForHit(hit)
-  if (sheetTimingRoleForKey(sourceKey) !== sheetRole) return { project, keyId: null }
+  const isUnplaced = !sourceProject.logicalSheet.events.some(event => event.keyId === keyId)
+    && !sourceKey.displayLabel.trim()
+  if ((isUnplaced && sourceKey.sheetRole === undefined) || sheetTimingRoleForKey(sourceKey) !== sheetRole) {
+    if (!isUnplaced && sheetTimingRoleForKey(sourceKey) !== sheetRole) return { project, keyId: null }
+    sourceProject = updateKey(sourceProject, keyId, { sheetRole })
+    sourceKey = sourceProject.logicalSheet.keys.find(key => key.keyId === keyId)!
+  }
 
-  const targetEvent = project.logicalSheet.events.find(event =>
+  const targetEvent = sourceProject.logicalSheet.events.find(event =>
     event.paperTrack === hit.paperTrack
     && event.frame === hit.frame
     && sheetTimingRoleForEvent(event) === sheetRole,
   )
   const targetKey = targetEvent
-    ? project.logicalSheet.keys.find(key => key.keyId === targetEvent.keyId)
+    ? sourceProject.logicalSheet.keys.find(key => key.keyId === targetEvent.keyId)
     : undefined
   if (!sourceKey.displayLabel.trim() && targetKey && targetKey.keyId !== sourceKey.keyId) {
-    const merged = mergeTimingKeys(project, sourceKey.keyId, targetKey.keyId)
+    const merged = mergeTimingKeys(sourceProject, sourceKey.keyId, targetKey.keyId)
     return {
       project: setEvent(merged, hit.paperTrack, hit.frame, targetKey.keyId, sheetRole, { fontSizePx }),
       keyId: targetKey.keyId,
@@ -251,22 +258,22 @@ export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string,
 
   if (sourceKey.paperTrack === hit.paperTrack) {
     return {
-      project: setEvent(project, hit.paperTrack, hit.frame, sourceKey.keyId, sheetRole, { fontSizePx }),
+      project: setEvent(sourceProject, hit.paperTrack, hit.frame, sourceKey.keyId, sheetRole, { fontSizePx }),
       keyId: sourceKey.keyId,
     }
   }
 
-  const reusableKey = findReusableRegisteredCellClone(project, sourceKey, hit.paperTrack, sheetRole)
+  const reusableKey = findReusableRegisteredCellClone(sourceProject, sourceKey, hit.paperTrack, sheetRole)
   if (reusableKey) {
     return {
-      project: setEvent(project, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx }),
+      project: setEvent(sourceProject, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx }),
       keyId: reusableKey.keyId,
     }
   }
 
-  const created = createKey(project, hit.paperTrack, sourceKey.displayLabel || undefined, sourceKey.createdFrom, sourceKey.paperToken, sheetRole)
+  const created = createKey(sourceProject, hit.paperTrack, sourceKey.displayLabel || undefined, sourceKey.createdFrom, sourceKey.paperToken, sheetRole)
   let next = updateKey(created.project, created.key.keyId, { displayLabel: sourceKey.displayLabel, paperToken: sourceKey.paperToken })
-  for (const spec of bindingCloneSpecsForTarget(project, sourceKey, hit.paperTrack)) {
+  for (const spec of bindingCloneSpecsForTarget(sourceProject, sourceKey, hit.paperTrack)) {
     next = upsertBinding(next, {
       ...spec,
       keyId: created.key.keyId,

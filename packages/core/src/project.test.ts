@@ -50,7 +50,6 @@ import {
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
   setEvent,
-  sheetTimingRoleForKey,
   suggestUnplacedCspCellName,
   timingHitForFrame,
   undoHistory,
@@ -88,10 +87,8 @@ function withDirectExportProfile(project: CutProject, updates: Partial<ExportPro
         profileId: 'direct',
         name: '直接反映テスト',
         mode: 'direct-to-visible-slots',
-        timingSourceRole: 'action',
         cspCellNamePolicy: { mode: 'binding-or-paper-track-label' },
         slotIds: project.cspTrackSlots.map(slot => slot.slotId),
-        includeDummySeparators: false,
         ...updates,
       },
     ],
@@ -187,14 +184,8 @@ describe('core project commands', () => {
     const action = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const cell = createOrSetEvent(action.project, 'A', 1, 'cell')
     const labeledCell = updateKey(cell.project, cell.key.keyId, { displayLabel: '9' })
-    const cellProfileProject = {
-      ...labeledCell,
-      exportProfiles: labeledCell.exportProfiles.map(profile =>
-        ({ ...profile, timingSourceRole: 'cell' as const }),
-      ),
-    }
     const actionPlan = buildExportPlan(labeledCell)
-    const cellPlan = buildExportPlan(cellProfileProject)
+    const cellPlan = buildExportPlan(labeledCell, { timingSourceRole: 'cell' })
 
     expect(actionPlan.tracks.find(track => track.slotId === 'slot_A')?.frames).toEqual([{ frame: 0, value: 'A1' }])
     expect(cellPlan.tracks.find(track => track.slotId === 'slot_A')?.frames).toEqual([{ frame: 0, value: 'A9' }])
@@ -211,7 +202,7 @@ describe('core project commands', () => {
       ],
     }
     project = upsertBinding(project, { slotId: 'slot_enshutsu_A', keyId: created.key.keyId, cspCellName: 'A1_enshutsu', materialState: 'assigned', assetId: 'asset_enshutsu' })
-    const plan = buildExportPlan(withDirectExportProfile(project), 'direct')
+    const plan = buildExportPlan(withDirectExportProfile(project), { profileId: 'direct' })
 
     expect(project.logicalSheet.events).toHaveLength(1)
     expect(project.logicalSheet.keys).toHaveLength(1)
@@ -230,7 +221,7 @@ describe('core project commands', () => {
 
   it('uses a reserved null-cell event without creating a user-visible key', () => {
     const project = setEvent(createDefaultProject(), 'A', 1, NULL_CELL_KEY_ID, 'action')
-    const plan = buildExportPlan(withDirectExportProfile(project), 'direct')
+    const plan = buildExportPlan(withDirectExportProfile(project), { profileId: 'direct' })
 
     expect(project.logicalSheet.keys).toHaveLength(0)
     expect(project.logicalSheet.events).toEqual([expect.objectContaining({ paperTrack: 'A', frame: 1, keyId: NULL_CELL_KEY_ID })])
@@ -254,9 +245,9 @@ describe('core project commands', () => {
     const displayLabelPolicy = withDirectExportProfile(labeled, { cspCellNamePolicy: { mode: 'binding-or-display-label' as const } })
     const bound = upsertBinding(displayLabelPolicy, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: 'manual_12', materialState: 'missing-ok' })
 
-    expect(buildExportPlan(directLabeled, 'direct').tracks.find(track => track.slotId === 'slot_A')?.frames).toEqual([{ frame: 0, value: 'A12' }])
-    expect(buildExportPlan(displayLabelPolicy, 'direct').tracks.find(track => track.slotId === 'slot_A')?.frames).toEqual([{ frame: 0, value: '12' }])
-    expect(buildExportPlan(bound, 'direct').tracks.find(track => track.slotId === 'slot_A')?.frames).toEqual([{ frame: 0, value: 'manual_12' }])
+    expect(buildExportPlan(directLabeled, { profileId: 'direct' }).tracks.find(track => track.slotId === 'slot_A')?.frames).toEqual([{ frame: 0, value: 'A12' }])
+    expect(buildExportPlan(displayLabelPolicy, { profileId: 'direct' }).tracks.find(track => track.slotId === 'slot_A')?.frames).toEqual([{ frame: 0, value: '12' }])
+    expect(buildExportPlan(bound, { profileId: 'direct' }).tracks.find(track => track.slotId === 'slot_A')?.frames).toEqual([{ frame: 0, value: 'manual_12' }])
   })
 
   it('validates duplicate cell names in one slot', () => {
@@ -270,7 +261,7 @@ describe('core project commands', () => {
   it('builds export plan with zero-based XDTS frames', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const project = upsertBinding(created.project, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: 'A1', materialState: 'missing-ok' })
-    const plan = buildExportPlan(withDirectExportProfile(project), 'direct')
+    const plan = buildExportPlan(withDirectExportProfile(project), { profileId: 'direct' })
     expect(plan.tracks[0].frames[0]).toEqual({ frame: 0, value: 'A1' })
   })
 
@@ -298,7 +289,7 @@ describe('core project commands', () => {
   it('clips pre-roll events into XDTS frame zero when they carry into the cut', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', -11, 'action')
     const project = upsertBinding(created.project, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: 'A-pre', materialState: 'missing-ok' })
-    const plan = buildExportPlan(withDirectExportProfile(project), 'direct')
+    const plan = buildExportPlan(withDirectExportProfile(project), { profileId: 'direct' })
     expect(plan.tracks[0].frames[0]).toEqual({ frame: 0, value: 'A-pre' })
   })
 
@@ -306,14 +297,14 @@ describe('core project commands', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', -24, 'action')
     const bound = upsertBinding(created.project, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: 'A-pre', materialState: 'missing-ok' })
     const cleared = setEvent(bound, 'A', -1, NULL_CELL_KEY_ID, 'action')
-    const plan = buildExportPlan(withDirectExportProfile(cleared), 'direct')
+    const plan = buildExportPlan(withDirectExportProfile(cleared), { profileId: 'direct' })
     expect(plan.tracks.find(track => track.slotId === 'slot_A')).toBeUndefined()
   })
 
   it('updates logical sheet duration for arbitrary cut lengths', () => {
     const project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 168 })
     expect(project.logicalSheet.durationFrames).toBe(168)
-    expect(buildExportPlan(withDirectExportProfile(project), 'direct').durationFrames).toBe(168)
+    expect(buildExportPlan(withDirectExportProfile(project), { profileId: 'direct' }).durationFrames).toBe(168)
   })
 
   it('allows post-roll events inside the logical work range without extending XDTS duration', () => {
@@ -326,8 +317,8 @@ describe('core project commands', () => {
       },
     })
     expect(validateProject(project).some(issue => issue.code === 'event.frame.afterDuration')).toBe(false)
-    expect(buildExportPlan(withDirectExportProfile(project), 'direct').durationFrames).toBe(144)
-    expect(buildExportPlan(withDirectExportProfile(project), 'direct').tracks.find(track => track.slotId === 'slot_A')).toBeUndefined()
+    expect(buildExportPlan(withDirectExportProfile(project), { profileId: 'direct' }).durationFrames).toBe(144)
+    expect(buildExportPlan(withDirectExportProfile(project), { profileId: 'direct' }).tracks.find(track => track.slotId === 'slot_A')).toBeUndefined()
   })
 
   it('creates same-name CSP slots for base and correction layers', () => {
@@ -369,11 +360,7 @@ describe('core project commands', () => {
       ['slot_A', 'A_01'],
       ['slot_enshutsu_A', 'A_02_en'],
     ])
-    const exportProject = {
-      ...withCorrection,
-      exportProfiles: withCorrection.exportProfiles.map(profile => profile.profileId === 'import-stack' ? { ...profile, timingSourceRole: 'cell' as const } : profile),
-    }
-    expect(buildExportPlan(exportProject, 'import-stack').tracks.map(track => track.name)).toContain('===== 演出修正 =====')
+    expect(buildExportPlan(withCorrection, { profileId: 'import-stack', timingSourceRole: 'cell' }).tracks.map(track => track.name)).toContain('===== 演出修正 =====')
   })
 
   it('blocks deleting correction layers that still have registrations', () => {
@@ -389,7 +376,7 @@ describe('core project commands', () => {
     expect(project.cspTrackSlots.some(slot => slot.paperTrack === 'F')).toBe(false)
 
     const created = createOrSetEvent(project, 'E', 1, 'action')
-    const plan = buildExportPlan(withDirectExportProfile(created.project), 'direct')
+    const plan = buildExportPlan(withDirectExportProfile(created.project), { profileId: 'direct' })
     expect(plan.tracks.map(track => track.name)).toEqual(['E'])
   })
 
@@ -420,7 +407,7 @@ describe('core project commands', () => {
     const j = createOrSetEvent(added.project, 'J', 1, 'action')
     expect(j.project.logicalSheet.paperTracks.map(track => [track.paperTrack, track.source ?? 'template', track.viewPlacement?.snapIndex ?? null])).toContainEqual(['J', 'overlay', 18])
 
-    const plan = buildExportPlan(j.project, 'import-stack')
+    const plan = buildExportPlan(j.project, { profileId: 'import-stack' })
     expect(plan.tracks.map(track => track.name)).toEqual([
       '===== XSHEET IMPORT START =====',
       '===== 作画 =====',
@@ -535,8 +522,8 @@ describe('core project commands', () => {
       .toEqual([firstAsset.asset.assetId, secondAsset.asset.assetId])
     expect(registered.project.logicalSheet.keys.filter(key => registered.addedKeyIds.includes(key.keyId)).map(key => key.displayLabel))
       .toEqual(['', ''])
-    expect(registered.project.logicalSheet.keys.filter(key => registered.addedKeyIds.includes(key.keyId)).map(sheetTimingRoleForKey))
-      .toEqual(['action', 'action'])
+    expect(registered.project.logicalSheet.keys.filter(key => registered.addedKeyIds.includes(key.keyId)).map(key => key.sheetRole))
+      .toEqual([undefined, undefined])
 
     const repeated = registerAssetsToCspTrack(registered.project, {
       slotId: 'slot_A',
@@ -649,7 +636,7 @@ describe('core project commands', () => {
 
   it('keeps import stack output limited to populated process slots', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
-    const plan = buildExportPlan(created.project, 'import-stack')
+    const plan = buildExportPlan(created.project, { profileId: 'import-stack' })
     expect(plan.tracks.map(track => ({ name: track.name, dummy: track.dummy ?? false, slotId: track.slotId }))).toEqual([
       { name: '===== XSHEET IMPORT START =====', dummy: true, slotId: undefined },
       { name: '===== 作画 =====', dummy: true, slotId: undefined },
@@ -674,7 +661,7 @@ describe('core project commands', () => {
       ],
     }
 
-    const plan = buildExportPlan(project, 'import-stack')
+    const plan = buildExportPlan(project, { profileId: 'import-stack' })
     expect(plan.tracks.map(track => [track.trackNo, track.name, track.slotId ?? null, track.dummy ?? false])).toEqual([
       [0, '===== XSHEET IMPORT START =====', null, true],
       [1, '===== 作画 =====', null, true],
@@ -706,7 +693,7 @@ describe('core project commands', () => {
       insertAfterPaperTrack: 'C',
     })
     const customized = updateStackGuideLabel(book4.project, book4.label.labelId, { cspCellName: 'BOOK4_CELL' })
-    const plan = buildExportPlan(customized, 'import-stack')
+    const plan = buildExportPlan(customized, { profileId: 'import-stack' })
 
     expect(plan.tracks.map(track => [track.name, track.slotId ?? null, track.stackGuideLabelId ?? null, track.dummy ?? false])).toEqual([
       ['===== XSHEET IMPORT START =====', null, null, true],
@@ -728,7 +715,7 @@ describe('core project commands', () => {
       insertAfterPaperTrack: 'A',
       exportAsStaticCell: false,
     })
-    const plan = buildExportPlan(legacyBg.project, 'import-stack')
+    const plan = buildExportPlan(legacyBg.project, { profileId: 'import-stack' })
 
     expect(plan.tracks.find(track => track.stackGuideLabelId === legacyBg.label.labelId)).toMatchObject({
       name: 'BG',
@@ -749,7 +736,7 @@ describe('core project commands', () => {
     project = assignAssetToStackGuideLabel(project, bg.label.labelId, enshutsuBgAsset.asset.assetId, 'layer_enshutsu')
     project = assignAssetToStackGuideLabel(project, sl.label.labelId, slAsset.asset.assetId, 'layer_enshutsu')
 
-    const plan = buildExportPlan(project, 'import-stack')
+    const plan = buildExportPlan(project, { profileId: 'import-stack' })
     expect(plan.tracks.map(track => [
       track.name,
       track.slotId ?? null,
@@ -784,7 +771,7 @@ describe('core project commands', () => {
     const asset = registerAsset(bg.project, { name: 'bg2_sakkan.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
     const project = assignAssetToStackGuideLabel(asset.project, bg.label.labelId, asset.asset.assetId, 'layer_sakkan')
 
-    const plan = buildExportPlan(project, 'import-stack')
+    const plan = buildExportPlan(project, { profileId: 'import-stack' })
     expect(plan.tracks.map(track => [track.name, track.slotId ?? null, track.stackGuideLabelId ?? null, track.frames])).toEqual([
       ['===== XSHEET IMPORT START =====', null, null, [{ frame: 0, value: null }]],
       ['===== 作監 =====', null, null, [{ frame: 0, value: null }]],

@@ -3,7 +3,7 @@ import { getSheetTemplatePaperTracks, withSheetTemplatePaperTracks, standardA3Sh
 import { defaultLogicalSheetWorkRange } from './logical-sheet'
 import { createDefaultSheetViewState } from './sheet-view'
 import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
-import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME, DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME, ROOT_ASSET_BIN_ID } from './project-constants'
+import { DEFAULT_CSP_CELL_NAME_POLICY, ROOT_ASSET_BIN_ID } from './project-constants'
 
 export interface CreateProjectOptions {
   projectId?: string
@@ -45,19 +45,13 @@ export function createProjectFromTrackLabels(
     events: [],
   }
   const cspTrackSlots = createDefaultCspTrackSlots(paperTracks, productionStages, correctionLayers)
-  const importStackStartSeparatorName = template.exportDefaults?.importStackStartSeparatorName ?? DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME
-  const importStackEndSeparatorName = template.exportDefaults?.importStackEndSeparatorName ?? DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME
   const exportProfiles: ExportProfile[] = [
     {
       profileId: 'import-stack',
       name: '仮置きスタック',
       mode: 'import-stack',
-      timingSourceRole: DEFAULT_EXPORT_TIMING_ROLE,
       cspCellNamePolicy: DEFAULT_CSP_CELL_NAME_POLICY,
       slotIds: cspTrackSlots.map(slot => slot.slotId),
-      includeDummySeparators: true,
-      importStackStartSeparatorName,
-      importStackEndSeparatorName,
     },
   ]
   return {

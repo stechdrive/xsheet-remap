@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { buildExportPlan, createDefaultProject, createOrSetEvent, upsertBinding } from '@xsheet-remap/core'
+import { buildExportPlan, createDefaultProject, createOrSetEvent, standardA3SheetTemplate, upsertBinding } from '@xsheet-remap/core'
 import { exportXdts, parseXdts, patchXdtsValue, resolveCellsAtFrameByTrackNo } from './index'
 
 describe('XDTS parse/export', () => {
@@ -20,16 +20,37 @@ describe('XDTS parse/export', () => {
   it('exports an ExportPlan and parses it back', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const project = withDirectExportProfile(upsertBinding(created.project, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: 'A1', materialState: 'missing-ok' }))
-    const text = exportXdts(buildExportPlan(project, 'direct'))
+    const text = exportXdts(buildExportPlan(project, { profileId: 'direct' }))
     const parsed = parseXdts(text)
     expect(parsed.tracks[0]).toMatchObject({ name: 'A', trackNo: 0 })
     expect(parsed.tracks[0].frames[0]).toEqual({ frameIndex: 0, cellName: 'A1' })
   })
 
+  it('writes project cut identity into the XDTS header and time table name', () => {
+    const project = {
+      ...createDefaultProject(),
+      cut: { scene: '12', cut: '034' },
+    }
+    const text = exportXdts(buildExportPlan(project, {
+      sheetTemplate: {
+        ...standardA3SheetTemplate,
+        naming: { cutNumberPrefix: 'C' },
+      },
+    }))
+    const payload = JSON.parse(text.slice(text.indexOf('\n') + 1)) as {
+      header: { cut: string; scene: string }
+      timeTables: Array<{ name: string }>
+    }
+
+    expect(payload.header).toEqual({ cut: '034', scene: '12' })
+    expect(payload.timeTables[0]?.name).toBe('12-C034')
+    expect(parseXdts(text).timeTableName).toBe('12-C034')
+  })
+
   it('patches a target frame', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const project = withDirectExportProfile(upsertBinding(created.project, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: 'A1', materialState: 'missing-ok' }))
-    const patched = patchXdtsValue(exportXdts(buildExportPlan(project, 'direct')), 'A', 4, 'A2')
+    const patched = patchXdtsValue(exportXdts(buildExportPlan(project, { profileId: 'direct' })), 'A', 4, 'A2')
     const parsed = parseXdts(patched)
     const resolved = resolveCellsAtFrameByTrackNo(parsed.tracks, 4)
     expect(resolved.get(0)).toBe('A2')
@@ -90,13 +111,11 @@ describe('XDTS parse/export', () => {
           profileId: 'single-a',
           name: 'Single A',
           mode: 'direct-to-visible-slots' as const,
-          timingSourceRole: 'action' as const,
           slotIds: ['slot_A'],
-          includeDummySeparators: false,
         },
       ],
     }
-    const text = exportXdts(buildExportPlan(project, 'single-a'))
+    const text = exportXdts(buildExportPlan(project, { profileId: 'single-a' }))
     const golden = readFixture('export-single-a.xdts')
     expect(text).toBe(golden)
   })
@@ -114,9 +133,7 @@ function withDirectExportProfile(project: ReturnType<typeof createDefaultProject
         profileId: 'direct',
         name: 'Direct',
         mode: 'direct-to-visible-slots' as const,
-        timingSourceRole: 'action' as const,
         slotIds: project.cspTrackSlots.map(slot => slot.slotId),
-        includeDummySeparators: false,
       },
     ],
   }

@@ -9,16 +9,17 @@ export function createKey(
   displayLabel?: string,
   createdFrom: TimingKey['createdFrom'] = 'manual',
   paperToken?: string,
-  sheetRole: SheetTimingRole = DEFAULT_SHEET_TIMING_ROLE,
+  sheetRole: SheetTimingRole | null = DEFAULT_SHEET_TIMING_ROLE,
 ): { project: CutProject; key: TimingKey } {
   ensurePaperTrack(project, paperTrack)
-  const label = displayLabel?.trim() || nextDisplayLabel(project, paperTrack, sheetRole)
-  const existing = findTimingKeyByDisplayLabel(project, paperTrack, label, sheetRole)
+  const resolvedSheetRole = sheetRole ?? DEFAULT_SHEET_TIMING_ROLE
+  const label = displayLabel?.trim() || nextDisplayLabel(project, paperTrack, resolvedSheetRole)
+  const existing = findTimingKeyByDisplayLabel(project, paperTrack, label, resolvedSheetRole)
   if (existing) return { project, key: existing }
   const key: TimingKey = {
     keyId: nextId('key', project.logicalSheet.keys.map(item => item.keyId)),
     paperTrack,
-    sheetRole,
+    ...(sheetRole ? { sheetRole } : {}),
     displayLabel: label,
     paperToken,
     createdFrom,
@@ -221,7 +222,7 @@ export function createUnplacedCspCard(
   )
   if (duplicate) throw new Error(`CSP cell name already exists in slot ${slot.slotId}: ${cspCellName}`)
 
-  const created = createKey(project, slot.paperTrack, undefined, 'manual', undefined, sheetRole)
+  const created = createKey(project, slot.paperTrack, undefined, 'manual', undefined, input.sheetRole ?? null)
   const withoutSheetLabel = updateKey(created.project, created.key.keyId, { displayLabel: '', paperToken: '' })
   const withBinding = upsertBinding(withoutSheetLabel, {
     slotId: slot.slotId,
@@ -247,7 +248,6 @@ export function registerAssetsToCspTrack(
   const addedKeyIds: string[] = []
   const duplicateKeyIds: string[] = []
   const missingAssetIds: string[] = []
-  const sheetRole = input.sheetRole ?? DEFAULT_EXPORT_TIMING_ROLE
   let next = project
 
   for (const assetId of requestedAssetIds) {
@@ -263,7 +263,7 @@ export function registerAssetsToCspTrack(
       continue
     }
 
-    const created = createKey(next, slot.paperTrack, undefined, 'asset-drop', undefined, sheetRole)
+    const created = createKey(next, slot.paperTrack, undefined, 'asset-drop', undefined, input.sheetRole ?? null)
     next = updateKey(created.project, created.key.keyId, { displayLabel: '', paperToken: '' })
 
     const desiredCspCellName = assetFileBaseName(asset) || defaultCspCellName(created.key.displayLabel, slot.paperTrack)
@@ -328,11 +328,11 @@ export function ensureDefaultBindingsForKey(project: CutProject, keyId: string):
   return project
 }
 
-export function updateKey(project: CutProject, keyId: string, updates: { displayLabel?: string; paperToken?: string }): CutProject {
+export function updateKey(project: CutProject, keyId: string, updates: { displayLabel?: string; paperToken?: string; sheetRole?: SheetTimingRole }): CutProject {
   const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
   if (!key) throw new Error(`key not found: ${keyId}`)
   if (updates.displayLabel !== undefined) {
-    const duplicate = findTimingKeyByDisplayLabel(project, key.paperTrack, updates.displayLabel, sheetTimingRoleForKey(key))
+    const duplicate = findTimingKeyByDisplayLabel(project, key.paperTrack, updates.displayLabel, updates.sheetRole ?? sheetTimingRoleForKey(key))
     if (duplicate && duplicate.keyId !== keyId) {
       throw new Error(`displayLabel already exists in ${key.paperTrack}: ${updates.displayLabel}`)
     }

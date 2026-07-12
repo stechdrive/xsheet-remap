@@ -26,7 +26,7 @@ interface DesktopE2EConfig {
 }
 
 interface DesktopE2ERunCallbacks {
-  applyProject: (project: CutProject, template: SheetTemplate, initialPanel: 'sheet' | 'export') => void
+  applyProject: (project: CutProject, template: SheetTemplate, initialPanel: 'sheet') => void
 }
 
 interface DesktopE2EResult {
@@ -104,7 +104,7 @@ async function runFullDefaultA3DesktopE2E(config: DesktopE2EConfig, callbacks: D
   assertRenameResults(renameResults)
 
   const scenario = buildFullDefaultA3Scenario(fileRefs, renameResults)
-  callbacks.applyProject(scenario.normalizedProject, standardA3SheetTemplate, 'export')
+  callbacks.applyProject(scenario.normalizedProject, standardA3SheetTemplate, 'sheet')
 
   const normalizedXdtsPath = await writeDesktopE2EText('export.normalized.xdts', scenario.normalizedXdts)
   const reportPath = await writeDesktopE2EJson('report.json', scenario.report)

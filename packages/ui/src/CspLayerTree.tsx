@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { buildCspLayerTree, DEFAULT_EXPORT_TIMING_ROLE, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
+import { buildCspLayerTree, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
 import { createInternalDragCardImage, startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 import { Tooltip } from './Tooltip'
@@ -91,8 +91,6 @@ export function CspLayerTree({
   const [newCelDraft, setNewCelDraft] = useState<{ slotId: string; cspCellName: string } | null>(null)
   const [dropNotice, setDropNotice] = useState<string | null>(null)
   const treeRootRef = useRef<HTMLElement | null>(null)
-  const timingSourceRole = project.exportProfiles.find(profile => profile.profileId === exportProfileId)?.timingSourceRole
-    ?? DEFAULT_EXPORT_TIMING_ROLE
 
   function handleAssetDrop(assetIds: string[], keyId: string, slotId?: string) {
     if (assetIds.length !== 1) {
@@ -255,7 +253,7 @@ export function CspLayerTree({
   function beginNewCel(slotId: string) {
     setNewCelDraft({
       slotId,
-      cspCellName: suggestUnplacedCspCellName(project, slotId, timingSourceRole),
+      cspCellName: suggestUnplacedCspCellName(project, slotId),
     })
   }
 

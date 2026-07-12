@@ -12,12 +12,12 @@ export function exportXdts(plan: ExportPlan): string {
   const raw = {
     version: 5,
     header: {
-      cut: '1',
-      scene: '1',
+      cut: plan.metadata.cut,
+      scene: plan.metadata.scene,
     },
     timeTables: [
       {
-        name: 'タイムライン1',
+        name: plan.metadata.timeTableName,
         duration: plan.durationFrames,
         frameRate: plan.fps,
         timeTableHeaders: [

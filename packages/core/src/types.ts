@@ -418,12 +418,8 @@ export interface ExportProfile {
   profileId: Id
   name: string
   mode: ExportMode
-  timingSourceRole?: SheetTimingRole
   cspCellNamePolicy?: CspCellNamePolicy
   slotIds: Id[]
-  includeDummySeparators: boolean
-  importStackStartSeparatorName?: string
-  importStackEndSeparatorName?: string
 }
 
 export type CspCellNamePolicyMode =
@@ -609,6 +605,13 @@ export interface CspInstruction {
 
 export interface ExportPlan {
   mode: ExportMode
+  metadata: {
+    cut: string
+    scene: string
+    displayName: string
+    timeTableName: string
+  }
+  timingSourceRole: SheetTimingRole
   durationFrames: number
   fps: number
   tracks: ExportTrack[]

@@ -4,7 +4,7 @@ import {
   standardA3SheetTemplate, type AnnotationText, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
-import type { EditMode, Panel, Selection, SheetRangeSelection, TimingClipboard } from './appTypes'
+import type { EditMode, Panel, Selection, SheetRangeSelection, TimingClipboard, TimingExportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
@@ -48,11 +48,10 @@ export function useAppShellState() {
   const [statusHints, setStatusHints] = useState<StatusHints>({})
   const [valueDraft, setValueDraft] = useState('')
   const [valueDraftActive, setValueDraftActive] = useState(false)
-  const [exportProfileId, setExportProfileId] = useState('import-stack')
   const [sheetImageExportDraft, setSheetImageExportDraft] = useState<SheetImageExportOptions | null>(null)
   const [sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen] = useState(false)
   const [appHelpDialogOpen, setAppHelpDialogOpen] = useState(false)
-  const [exportSettingsDialogOpen, setExportSettingsDialogOpen] = useState(false)
+  const [timingExportDialog, setTimingExportDialog] = useState<TimingExportDialogState | null>(null)
   const [frameOperationDialog, setFrameOperationDialog] = useState<FrameOperationDialogState | null>(null)
   const [assetDropMenu, setAssetDropMenu] = useState<AssetDropMenuState | null>(null)
   const [activeCorrectionLayerIdState, setActiveCorrectionLayerIdState] = useState(() => defaultCorrectionLayerId(createDefaultProject()) ?? '')
@@ -70,9 +69,9 @@ export function useAppShellState() {
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, selection, setSelection,
     rangeSelection, setRangeSelection, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard, statusHints, setStatusHints,
-    valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, exportProfileId, setExportProfileId, sheetImageExportDraft, setSheetImageExportDraft,
+    valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
-    exportSettingsDialogOpen, setExportSettingsDialogOpen, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
+    timingExportDialog, setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
   }
 }

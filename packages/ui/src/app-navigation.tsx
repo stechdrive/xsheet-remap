@@ -1,7 +1,7 @@
 import { useId } from 'react'
-import { buildExportPlan, type CutProject, type ExportProfile, type NormalizedRect, type CutGroupProjectDocument, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent, validateProject } from '@xsheet-remap/core'
+import { type CutProject, type NormalizedRect, type CutGroupProjectDocument, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
-import { issueMessage, severityLabel, uiText } from './i18n'
+import { uiText } from './i18n'
 import { type Panel } from './appTypes'
 import { type SheetImageExportFormat } from './cleanSheetExport'
 import { calibrationTargetRectForTemplate } from './sheetImages'
@@ -124,105 +124,6 @@ function recognitionCandidateHasConflict(project: CutProject, candidate: Recogni
   if (!event) return false
   const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
   return key?.displayLabel.trim().normalize('NFKC') !== candidate.normalizedLabel.trim().normalize('NFKC')
-}
-
-export function ExportPanel(props: {
-  project: CutProject
-  issues: ReturnType<typeof validateProject>
-  exportPlan: ReturnType<typeof buildExportPlan>
-  xdtsText: string
-  setTimingSourceRole: (value: SheetTimingRole) => void
-  updateExportProfile: (profileId: string, updates: Partial<ExportProfile>) => void
-}) {
-  const activeProfile = props.project.exportProfiles.find(profile => profile.mode === 'import-stack') ?? props.project.exportProfiles[0]
-  const timingSourceRole = activeProfile?.timingSourceRole ?? 'action'
-  const infoInstructions = props.exportPlan.cspInstructions.filter(instruction => instruction.level === 'info')
-  const visibleWarnings = props.exportPlan.cspInstructions.filter(instruction => instruction.level !== 'info')
-
-  return (
-    <section className="panel exportPanel">
-      <div className="toolRow">
-        <label>CSPカットフォルダ<input value={props.project.assetRoot?.path ?? '未設定'} readOnly /></label>
-        <label>
-          {uiText.export.timingSource}
-          <select value={timingSourceRole} onChange={event => props.setTimingSourceRole(event.currentTarget.value as SheetTimingRole)}>
-            <option value="action">{uiText.sheetRoles.action}</option>
-            <option value="cell">{uiText.sheetRoles.cell}</option>
-          </select>
-        </label>
-        <label>
-          {uiText.export.importStart}
-          <input
-            value={activeProfile?.importStackStartSeparatorName ?? ''}
-            onChange={event => activeProfile && props.updateExportProfile(activeProfile.profileId, { importStackStartSeparatorName: event.currentTarget.value })}
-          />
-        </label>
-        <label>
-          {uiText.export.importEnd}
-          <input
-            value={activeProfile?.importStackEndSeparatorName ?? ''}
-            onChange={event => activeProfile && props.updateExportProfile(activeProfile.profileId, { importStackEndSeparatorName: event.currentTarget.value })}
-          />
-        </label>
-      </div>
-      <div className="instructionSummary">
-        <strong>{uiText.export.importStackHeading}</strong>
-        <ul>
-          {infoInstructions.map((instruction, index) => <li key={index}>{instruction.message}</li>)}
-        </ul>
-      </div>
-      {visibleWarnings.length > 0 && (
-        <div className="instructionList">
-          {visibleWarnings.map((instruction, index) => (
-            <div key={index} className={`issue ${instruction.level}`}>
-              <strong>{severityLabel(instruction.level)}</strong>
-              <span>{instruction.message}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      <TrackPlanTable plan={props.exportPlan} />
-      <IssueList issues={props.issues} />
-      <textarea className="xdtsPreview" value={props.xdtsText} readOnly />
-    </section>
-  )
-}
-
-function TrackPlanTable({ plan }: { plan: ReturnType<typeof buildExportPlan> }) {
-  return (
-    <table className="trackPlan">
-      <thead>
-        <tr>
-          <th>trackNo</th>
-          <th>{uiText.export.trackPlan.name}</th>
-          <th>{uiText.export.trackPlan.frames}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {plan.tracks.map(track => (
-          <tr key={`${track.trackNo}-${track.name}`}>
-            <td>{track.trackNo}</td>
-            <td>{track.name}</td>
-            <td>{track.frames.length}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-function IssueList({ issues }: { issues: ReturnType<typeof validateProject> }) {
-  return (
-    <div className="issueList">
-      {issues.map(issue => (
-        <div key={issue.issueId} className={`issue ${issue.severity}`}>
-          <strong>{severityLabel(issue.severity)}</strong>
-          <span>{issue.code}</span>
-          <span>{issueMessage(issue)}</span>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 export function DurationFrameControl({
@@ -661,8 +562,6 @@ export function AppNavigationMenu({
   onOpenSheetImageExport,
   onSaveXdts,
   onSaveCspImportPackage,
-  onOpenExportSettings,
-  blockingExport,
 }: {
   panels: Panel[]
   panel: Panel
@@ -675,8 +574,6 @@ export function AppNavigationMenu({
   onOpenSheetImageExport: (format: SheetImageExportFormat) => void
   onSaveXdts: () => void
   onSaveCspImportPackage: () => void
-  onOpenExportSettings?: () => void
-  blockingExport: boolean
 }) {
   return (
     <ActionMenu label={<MenuIcon />} ariaLabel={uiText.nav.menu} tooltipLabel={uiText.nav.menuTitle} className="appNavMenu iconActionMenu" closeOnMenuItemClick>
@@ -729,16 +626,11 @@ export function AppNavigationMenu({
             </div>
           </div>
           <Tooltip label={uiText.actions.xdtsTitle}>
-            <button type="button" className="appNavMenuItem" disabled={blockingExport} onClick={onSaveXdts}>{uiText.actions.xdts}</button>
+            <button type="button" className="appNavMenuItem" onClick={onSaveXdts}>{uiText.actions.xdts}</button>
           </Tooltip>
           <Tooltip label={uiText.actions.cspImportPackageTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveCspImportPackage}>{uiText.actions.cspImportPackage}</button>
           </Tooltip>
-          {onOpenExportSettings && (
-            <Tooltip label="XDTSの工程・対象トラック・セル名規則を設定">
-              <button type="button" className="appNavMenuItem" onClick={onOpenExportSettings}>XDTS詳細設定...</button>
-            </Tooltip>
-          )}
         </div>
       </div>
       <Tooltip label={uiText.actions.resetAppTitle}>
@@ -767,8 +659,6 @@ function panelLabel(panel: Panel): string {
       return uiText.nav.sheet
     case 'template':
       return uiText.nav.template
-    case 'export':
-      return uiText.nav.export
   }
 }
 

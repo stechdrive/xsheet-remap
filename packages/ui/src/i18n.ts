@@ -52,7 +52,6 @@ export const uiText = {
     sources: 'シート読込',
     assets: '画像素材',
     template: 'シートテンプレ',
-    export: 'XDTS詳細設定',
   },
   actions: {
     undo: '元に戻す',
@@ -684,19 +683,11 @@ export const uiText = {
     clearCandidates: '候補をクリア',
   },
   export: {
-    timingSource: 'タイムライン元',
-    importStart: '読込開始',
-    importEnd: '読込終了',
-    importStackHeading: 'CSP読み込みメモ',
     saveFailed: (message: string) => `書き出しに失敗しました。\n${message}`,
     cspImportPackageBlocked: (message: string) => `CSP自動登録を書き出せません。\n${message}`,
     cspImportAssetRootMissing: (path: string) => `CSP自動登録を書き出せません。\nカットフォルダが見つかりません。\n\n${path}\n\nプロジェクトファイルを別PCで開いた場合や、Google Driveの同期前は、画像素材フォルダを登録し直してください。`,
     cspImportAssetFilesMissing: (count: number, paths: string[]) => `登録素材ファイルが見つかりません: ${count}件\n\n${paths.join('\n')}${count > paths.length ? `\n...ほか ${count - paths.length} 件` : ''}\n\n該当画像の読み込みを省略し、XDTSのキーとCSPセル名のみで自動登録パッケージを書き出しますか？`,
     cspImportPackageSaved: (path: string) => `CSP自動登録を書き出しました。\n${path}`,
-    trackPlan: {
-      name: '名前',
-      frames: 'フレーム数',
-    },
   },
   issue: {
     errorsWarnings: (errors: number, warnings: number) => `エラー${errors}件 / 警告${warnings}件`,

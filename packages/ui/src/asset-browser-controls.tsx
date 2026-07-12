@@ -80,67 +80,33 @@ export function AssetViewControls({
 }
 
 export function AssetFileBrowser({
-  roots,
-  activeRoot,
+  root,
   listing,
   loading,
   error,
-  onRootChange,
   onOpenRoot,
   onNavigate,
-  onImportCurrent,
   dropActive,
 }: {
-  roots: AssetRoot[]
-  activeRoot: AssetRoot | null
+  root: AssetRoot | null
   listing: AssetDirectoryListing | null
   loading: boolean
   error: string | null
-  onRootChange: (rootId: string) => void
   onOpenRoot: () => void
   onNavigate: (path: string) => void
-  onImportCurrent: (recursive: boolean) => void
   dropActive: boolean
 }) {
   if (!isTauriHost()) return null
-  const crumbs = listing ? breadcrumbParts(listing.rootPath, listing.currentPath) : []
+  const location = listing ? relativeLocation(listing.rootPath, listing.currentPath) : root?.label ?? ''
   return (
     <div className={dropActive ? 'assetFileBrowser assetFileBrowser-dropActive' : 'assetFileBrowser'}>
       <div className="assetFileBrowserToolbar">
-        <Tooltip label={uiText.assets.root.addTitle}>
-          <button type="button" className="iconOnlyButton" aria-label={uiText.assets.root.add} onClick={onOpenRoot}>
+        <Tooltip label={root ? uiText.assets.root.changeTitle : uiText.assets.root.addTitle}>
+          <button type="button" className="iconOnlyButton" aria-label={root ? uiText.assets.root.change : uiText.assets.root.add} onClick={onOpenRoot}>
             <FolderPlusIcon />
           </button>
         </Tooltip>
-        {roots.length > 0 && (
-          <Tooltip label={uiText.assets.root.selectTitle}>
-            <label className="assetRootSelectLabel">
-              <FolderIcon />
-              <select aria-label={uiText.assets.root.selectTitle} value={activeRoot?.rootId ?? ''} onChange={event => onRootChange(event.currentTarget.value)}>
-                {roots.map(root => (
-                  <option key={root.rootId} value={root.rootId}>{root.label}</option>
-                ))}
-              </select>
-            </label>
-          </Tooltip>
-        )}
         {listing && (
-          <div className="assetFileBrowserActions">
-            <Tooltip label={uiText.assets.folder.importCurrent}>
-              <button type="button" className="iconOnlyButton" aria-label={uiText.assets.folder.importCurrent} onClick={() => onImportCurrent(false)}>
-                <ImageImportIcon />
-              </button>
-            </Tooltip>
-            <Tooltip label={uiText.assets.folder.importRecursive}>
-              <button type="button" className="iconOnlyButton" aria-label={uiText.assets.folder.importRecursive} onClick={() => onImportCurrent(true)}>
-                <RecursiveImportIcon />
-              </button>
-            </Tooltip>
-          </div>
-        )}
-      </div>
-      {listing && (
-        <div className="assetLocationBar">
           <Tooltip label={listing.parentPath ? uiText.assets.folder.up : uiText.assets.folder.rootHere}>
             <button
               type="button"
@@ -151,44 +117,28 @@ export function AssetFileBrowser({
                 if (listing.parentPath) onNavigate(listing.parentPath)
               }}
             >
-              <FolderUpIcon />
-            </button>
+            <FolderUpIcon />
+          </button>
           </Tooltip>
-          <div className="assetBreadcrumb" aria-label={uiText.assets.folder.breadcrumb}>
-            {crumbs.map((crumb, index) => (
-              <Tooltip key={`${crumb.path}:${index}`} label={uiText.assets.folder.breadcrumbTitle(crumb.label)}>
-                <button
-                  type="button"
-                  disabled={index === crumbs.length - 1}
-                  onClick={() => onNavigate(crumb.path)}
-                >
-                  {crumb.label}
-                </button>
-              </Tooltip>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+        <Tooltip label={listing?.currentPath ?? root?.path ?? uiText.assets.root.unset}>
+          <div className="assetLocationText" aria-label={uiText.assets.folder.currentLocation}>{location || uiText.assets.root.unset}</div>
+        </Tooltip>
+      </div>
       {loading && <p className="muted assetFileBrowserMessage">{uiText.assets.folder.loading}</p>}
       {error && <p className="assetFileBrowserError">{error}</p>}
     </div>
   )
 }
 
-function breadcrumbParts(rootPath: string, currentPath: string): Array<{ label: string; path: string }> {
+function relativeLocation(rootPath: string, currentPath: string): string {
   const rootLabel = fileNameFromPath(rootPath) || rootPath
   const normalizedRoot = normalizePathForDisplay(rootPath)
   const normalizedCurrent = normalizePathForDisplay(currentPath)
-  if (normalizedCurrent === normalizedRoot) return [{ label: rootLabel, path: rootPath }]
+  if (normalizedCurrent === normalizedRoot) return rootLabel
   const suffix = normalizedCurrent.startsWith(`${normalizedRoot}/`) ? normalizedCurrent.slice(normalizedRoot.length + 1) : ''
   const parts = suffix.split('/').filter(Boolean)
-  const crumbs = [{ label: rootLabel, path: rootPath }]
-  let path = rootPath
-  for (const part of parts) {
-    path = `${path.replace(/[\\/]+$/, '')}\\${part}`
-    crumbs.push({ label: part, path })
-  }
-  return crumbs
+  return [rootLabel, ...parts].join(' / ')
 }
 
 function normalizePathForDisplay(path: string): string {
@@ -266,26 +216,6 @@ function FolderUpIcon() {
     <svg className="assetBrowserIcon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 7.5h7l2 2h9v8.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
       <path d="m12 16 3-3 3 3M15 13v6" />
-    </svg>
-  )
-}
-
-function ImageImportIcon() {
-  return (
-    <svg className="assetBrowserIcon" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="4" y="5" width="12" height="14" rx="2" />
-      <path d="m7 16 2.5-3 2 2.2 1.2-1.4 2.3 2.2" />
-      <path d="M18 8v8M15 13l3 3 3-3" />
-    </svg>
-  )
-}
-
-function RecursiveImportIcon() {
-  return (
-    <svg className="assetBrowserIcon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 6.5h6l1.7 2H20v4" />
-      <path d="M4 10h7l1.7 2H20v6H4Z" />
-      <path d="m15 15 2 2 2-2" />
     </svg>
   )
 }

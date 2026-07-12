@@ -1,4 +1,4 @@
-import type { CutAsset } from '@xsheet-remap/core'
+import { assetAbsolutePath, assetSourceDisplayPath, type CutAsset } from '@xsheet-remap/core'
 import { invokeDesktopCommand, isTauriHost, nativeFileSource } from '@xsheet-remap/adapters'
 import { clampNumber } from './sheetInteraction'
 
@@ -86,12 +86,13 @@ export async function nativeAssetPreviewItemPayload(
 ): Promise<AssetPreviewItemPayload | null> {
   if (!isTauriHost()) return null
   try {
-    const imageUrl = asset.currentPath ? await nativeFileSource(asset.currentPath) : asset.thumbnailUrl
-    if (!imageUrl && !asset.currentPath) return null
+    const assetPath = assetAbsolutePath(asset)
+    const imageUrl = assetPath ? await nativeFileSource(assetPath) : asset.thumbnailUrl
+    if (!imageUrl && !assetPath) return null
     return {
       label: options.label ?? asset.displayName,
       imageUrl,
-      detailText: asset.relativePath ?? asset.currentPath ?? asset.displayName,
+      detailText: assetSourceDisplayPath(asset),
       processLabel: options.processLabel,
     }
   } catch {
@@ -99,14 +100,14 @@ export async function nativeAssetPreviewItemPayload(
     return {
       label: options.label ?? asset.displayName,
       imageUrl: asset.thumbnailUrl,
-      detailText: asset.relativePath ?? asset.currentPath ?? asset.displayName,
+      detailText: assetSourceDisplayPath(asset),
       processLabel: options.processLabel,
     }
   }
 }
 
 export function embeddedAssetPreviewPayload(asset: CutAsset): AssetPreviewPayload {
-  const detailText = asset.relativePath ?? asset.currentPath
+  const detailText = assetSourceDisplayPath(asset)
   return {
     displayName: asset.displayName,
     imageUrl: asset.thumbnailUrl,

@@ -46,11 +46,11 @@ export function assetSelectionFromIntent(
 
 export function assetForDirectoryEntry(entry: AssetDirectoryEntry, root: AssetRoot | null, assetsByRootRelativePath: Map<string, CutAsset>): CutAsset | null {
   if (entry.kind !== 'file' || !root) return null
-  return assetsByRootRelativePath.get(assetDirectoryAssetKey(root.rootId, entry.relativePath)) ?? null
+  return assetsByRootRelativePath.get(assetDirectoryAssetKey(entry.relativePath)) ?? null
 }
 
-export function assetDirectoryAssetKey(rootId: string, relativePath: string): string {
-  return `${rootId}:${relativePath.replace(/\\/g, '/').toLocaleLowerCase()}`
+export function assetDirectoryAssetKey(relativePath: string): string {
+  return relativePath.replace(/\\/g, '/').toLocaleLowerCase()
 }
 
 export function assetContextMenuStyle(x: number, y: number): { left: number; top: number } {

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { activeCutProjectFromDocument, buildCspImportPackage, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, type CutAsset, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, type AssetRoot, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
+import { activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
 import { isTauriHost, saveBinaryFile, saveTextFile, statNativePaths, writeBinaryFile, writeTextFile, type SaveTextFileOptions } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel, type SheetRangeSelection } from './appTypes'
@@ -280,27 +280,6 @@ export function pathCompareKey(path?: string): string {
   return normalizeFsPath(path).toLocaleLowerCase()
 }
 
-export function relativePathFromRoot(filePath?: string, rootPath?: string): string | undefined {
-  const file = normalizeFsPath(filePath)
-  const root = normalizeFsPath(rootPath)
-  if (!file || !root) return undefined
-  const fileKey = pathCompareKey(file)
-  const rootKey = pathCompareKey(root)
-  if (fileKey === rootKey) return undefined
-  if (!fileKey.startsWith(`${rootKey}/`)) return undefined
-  return file.slice(root.length + 1)
-}
-
-export function assetRootForFile(roots: AssetRoot[], ref: FileRef): AssetRoot | undefined {
-  const explicitRoot = ref.rootPath
-    ? roots.find(root => pathCompareKey(root.path) === pathCompareKey(ref.rootPath))
-    : undefined
-  if (explicitRoot) return explicitRoot
-  return roots
-    .filter(root => relativePathFromRoot(ref.path, root.path))
-    .sort((a, b) => normalizeFsPath(b.path).length - normalizeFsPath(a.path).length)[0]
-}
-
 function formatSignedPaddedNumber(value: number, digits: number): string {
   const rounded = Math.round(value)
   const sign = rounded < 0 ? '-' : ''
@@ -419,7 +398,7 @@ export function exportCutProjectsFromDocument(document: CutGroupProjectDocument)
 }
 
 export function fileDialogInitialDirectory(project: CutProject): string | undefined {
-  return project.assetRoots.find(root => root.path)?.path
+  return project.assetRoot?.path
 }
 
 export async function saveTextOutputs(outputs: TextFileOutput[], mimeType: string, options: SaveTextFileOptions): Promise<boolean> {
@@ -478,7 +457,8 @@ export function cspImportPackageAssetPaths(packageBuild: ReturnType<typeof build
   for (const cut of packageBuild.manifest.cuts) {
     for (const track of cut.tracks) {
       for (const cel of track.cels) {
-        if (cel.assetPath) paths.add(joinOutputPath(assetRootPath, cel.assetPath))
+        if (!cel.material) continue
+        paths.add(cel.material.pathKind === 'absolute' ? cel.material.path : joinOutputPath(assetRootPath, cel.material.path))
       }
     }
   }
@@ -492,8 +472,7 @@ type ProjectNativePathChecks = {
 }
 
 function projectDocumentNativePathChecks(document: CutGroupProjectDocument): ProjectNativePathChecks {
-  const rootsById = new Map(document.assetRoots.map(root => [root.rootId, root]))
-  const assetPathById = new Map(document.assets.map(asset => [asset.assetId, nativePathForProjectAsset(asset, rootsById)]))
+  const assetPathById = new Map(document.assets.map(asset => [asset.assetId, assetAbsolutePath(asset, document.assetRoot)]))
   const sheetImages = new Set<string>()
 
   for (const cut of document.cuts) {
@@ -505,16 +484,10 @@ function projectDocumentNativePathChecks(document: CutGroupProjectDocument): Pro
   }
 
   return {
-    assetRoots: uniquePathList(document.assetRoots.map(root => root.path)),
-    materialAssets: uniquePathList(document.assets.filter(isCellMaterialAsset).map(asset => nativePathForProjectAsset(asset, rootsById))),
+    assetRoots: uniquePathList([document.assetRoot?.path]),
+    materialAssets: uniquePathList(document.assets.filter(isCellMaterialAsset).map(asset => assetAbsolutePath(asset, document.assetRoot))),
     sheetImages: uniquePathList([...sheetImages]),
   }
-}
-
-function nativePathForProjectAsset(asset: CutAsset, rootsById: Map<string, AssetRoot>): string | undefined {
-  if (asset.currentPath) return asset.currentPath
-  const rootPath = asset.rootId ? rootsById.get(asset.rootId)?.path : undefined
-  return rootPath && asset.relativePath ? joinOutputPath(rootPath, asset.relativePath) : undefined
 }
 
 function uniquePathList(paths: Array<string | undefined>): string[] {

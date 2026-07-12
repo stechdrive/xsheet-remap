@@ -1,5 +1,5 @@
 import { type CSSProperties } from 'react'
-import { defaultCspCellName, defaultCorrectionLayerId, type CellBinding, type CutProject, type CspTrackSlot, type NameNormalizationOptions, type SheetHit, type SheetTimingRole, type StackGuideLabel, formatLogicalSheetFrameTimecode, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideRegistrations, type CutAsset, type TimingKey, isNullCellKeyId } from '@xsheet-remap/core'
+import { assetSourceDisplayPath, defaultCspCellName, defaultCorrectionLayerId, type CellBinding, type CutProject, type CspTrackSlot, type NameNormalizationOptions, type SheetHit, type SheetTimingRole, type StackGuideLabel, formatLogicalSheetFrameTimecode, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideRegistrations, type CutAsset, type TimingKey, isNullCellKeyId } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type SheetRangeSelection } from './appTypes'
@@ -274,7 +274,7 @@ export function registeredCellAssetRows(project: CutProject, key: TimingKey) {
           assetName: asset.displayName,
           cspCellName: binding.cspCellName,
           thumbnailUrl: asset.thumbnailUrl,
-          detailText: asset.relativePath ?? asset.currentPath ?? asset.displayName,
+          detailText: assetSourceDisplayPath(asset),
         sortKey: [
           correctionLayerOrder.get(slot.correctionLayerId ?? '') ?? 999,
           slot.trackNo,
@@ -339,7 +339,7 @@ export function stackGuideAssetRows(project: CutProject, label: StackGuideLabel)
         assetId: asset.assetId,
         assetName: asset.displayName,
         thumbnailUrl: asset.thumbnailUrl,
-        detailText: asset.relativePath ?? asset.currentPath ?? asset.displayName,
+        detailText: assetSourceDisplayPath(asset),
       }]
     })
   })
@@ -477,7 +477,7 @@ export function embeddedRegisteredCellPreviewPayload(project: CutProject, key: T
     return [{
       label: row.cspCellName || row.assetName,
       imageUrl: asset.thumbnailUrl,
-      detailText: asset.relativePath ?? asset.currentPath ?? asset.displayName,
+      detailText: assetSourceDisplayPath(asset),
       processLabel: row.processLabel,
     }]
   })
@@ -499,7 +499,7 @@ export function embeddedStackGuidePreviewPayload(project: CutProject, label: Sta
     return [{
       label: row.cspCellName,
       imageUrl: asset.thumbnailUrl,
-      detailText: asset.relativePath ?? asset.currentPath ?? asset.displayName,
+      detailText: assetSourceDisplayPath(asset),
       processLabel: row.processLabel,
     }]
   })

@@ -1,7 +1,9 @@
 export type {
   AssetRole,
+  AssetBin,
   AssetRoot,
   AssetRootHandleKind,
+  AssetSource,
   CellBinding,
   Annotation,
   AnnotationAnchor,
@@ -146,7 +148,7 @@ export {
   type CspImportManifestCut,
   type CspImportManifestTrack,
   type CspImportManifestTrackKind,
-  type CspImportManifestV3,
+  type CspImportManifestV4,
   type CspImportPackageBuildResult,
   type CspImportPackageCutOutput,
 } from './csp-import-package'
@@ -229,6 +231,10 @@ export {
   updateSheetViewState,
 } from './sheet-view'
 export {
+  assetAbsolutePath,
+  assetRelativePath,
+  assetSourceDisplayPath,
+  createAssetBin,
   registerAsset,
   registerAssetRoot,
   registerSheetSource,

@@ -3,7 +3,7 @@ import { getSheetTemplatePaperTracks, withSheetTemplatePaperTracks, standardA3Sh
 import { defaultLogicalSheetWorkRange } from './logical-sheet'
 import { createDefaultSheetViewState } from './sheet-view'
 import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, findMatchingSlot, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, stackGuideRegistrations, uniqueId, uniquePaperTrackName } from './project-shared'
-import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME, DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME } from './project-constants'
+import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME, DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME, ROOT_ASSET_BIN_ID } from './project-constants'
 
 export interface CreateProjectOptions {
   projectId?: string
@@ -61,7 +61,7 @@ export function createProjectFromTrackLabels(
     },
   ]
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     projectId: options.projectId ?? 'project_sample',
     cut: options.cut ?? { cut: '001' },
     studioPresetId: options.studioPresetId,
@@ -70,7 +70,8 @@ export function createProjectFromTrackLabels(
     logicalSheet,
     productionStages,
     correctionLayers,
-    assetRoots: [],
+    assetRoot: undefined,
+    assetBins: [{ binId: ROOT_ASSET_BIN_ID, name: 'プロジェクト素材', order: 0 }],
     assets: [],
     cspTrackSlots,
     bindings: [],

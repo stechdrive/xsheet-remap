@@ -452,34 +452,24 @@ class AutomationTests(unittest.TestCase):
 
             self.assertEqual(_resolve_save_as_clip_path(root / "finished"), root / "finished.clip")
 
-    def test_rejects_asset_file_names_that_do_not_match_csp_cell_names_before_import(self) -> None:
+    def test_stages_asset_file_names_to_match_csp_cell_names_before_import(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             package = root / "xsheet-csp-import"
             package.mkdir()
             (package / "C001.xdts").write_text("xdts", encoding="utf-8")
             (root / "rough.png").write_bytes(b"a")
-            manifest_path = _write_manifest(package, [_track(cels=[{"cspCellName": "A_01", "assetPath": "rough.png"}])])
+            manifest_path = _write_manifest(package, [_track(cels=[_cel("A_01", "rough.png")])])
             manifest = load_manifest(manifest_path)
             log = OperationLog(manifest_path=str(manifest_path), dry_run=False)
 
             automation = FakeAutomation()
-            with self.assertRaisesRegex(AutomationError, "Manifest asset file stems must match cspCellName"):
-                automation.run(manifest, log)
+            automation.run(manifest, log)
 
-            self.assertEqual(
-                automation.calls,
-                [
-                    "focus",
-                    "move_first",
-                    "ensure_timeline_enabled",
-                    "import_xdts:C001",
-                    "rename_timeline:C001",
-                    "move_first",
-                    "ensure_timeline_disabled",
-                    "select:A",
-                ],
-            )
+            self.assertIn("import_images:A:A_01", automation.calls)
+            staged = [event for event in log.events if event["event"] == "asset.staged_for_csp_name"]
+            self.assertEqual(len(staged), 1)
+            self.assertEqual(staged[0]["cspCellName"], "A_01")
 
     def test_formats_multiple_file_dialog_paths_for_windows_common_dialog(self) -> None:
         self.assertEqual(_format_file_dialog_paths((Path(r"D:\cut\A_01.png"),)), r"D:\cut\A_01.png")
@@ -804,7 +794,7 @@ class AutomationTests(unittest.TestCase):
 def _write_manifest(package: Path, tracks: list[dict[str, object]], *, output_clip_file_name: str | None = None) -> Path:
     manifest_path = package / "csp-import.xci"
     manifest: dict[str, object] = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "assetRoot": "..",
         "cuts": [
             {
@@ -841,7 +831,7 @@ def _track(
     stack_order: int = 10,
     stage_label: str | None = None,
     target_folder_path: list[str] | None = None,
-    cels: list[dict[str, str]] | None = None,
+    cels: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     return {
         "trackId": track_id,
@@ -850,7 +840,15 @@ def _track(
         "stackOrder": stack_order,
         "stageLabel": stage_label,
         "targetFolderPath": target_folder_path or [],
-        "cels": cels if cels is not None else [{"cspCellName": "A_01", "assetPath": "A_01.png"}],
+        "cels": cels if cels is not None else [_cel("A_01", "A_01.png")],
+    }
+
+
+def _cel(csp_cell_name: str, path: str) -> dict[str, object]:
+    return {
+        "cspCellName": csp_cell_name,
+        "firstFrame": 0,
+        "material": {"assetId": f"asset_{csp_cell_name}", "pathKind": "asset-root-relative", "path": path},
     }
 
 

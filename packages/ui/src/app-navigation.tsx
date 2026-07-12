@@ -128,13 +128,11 @@ function recognitionCandidateHasConflict(project: CutProject, candidate: Recogni
 
 export function ExportPanel(props: {
   project: CutProject
-  cspImportAssetRootId?: string
   issues: ReturnType<typeof validateProject>
   exportPlan: ReturnType<typeof buildExportPlan>
   xdtsText: string
   setTimingSourceRole: (value: SheetTimingRole) => void
   updateExportProfile: (profileId: string, updates: Partial<ExportProfile>) => void
-  onCspImportAssetRootChange: (rootId: string) => void
 }) {
   const activeProfile = props.project.exportProfiles.find(profile => profile.mode === 'import-stack') ?? props.project.exportProfiles[0]
   const timingSourceRole = activeProfile?.timingSourceRole ?? 'action'
@@ -144,15 +142,7 @@ export function ExportPanel(props: {
   return (
     <section className="panel exportPanel">
       <div className="toolRow">
-        <label>
-          CSPカットフォルダ
-          <select value={props.cspImportAssetRootId ?? ''} onChange={event => props.onCspImportAssetRootChange(event.currentTarget.value)}>
-            <option value="">未選択</option>
-            {props.project.assetRoots.filter(root => root.path).map(root => (
-              <option key={root.rootId} value={root.rootId}>{root.label || root.path}</option>
-            ))}
-          </select>
-        </label>
+        <label>CSPカットフォルダ<input value={props.project.assetRoot?.path ?? '未設定'} readOnly /></label>
         <label>
           {uiText.export.timingSource}
           <select value={timingSourceRole} onChange={event => props.setTimingSourceRole(event.currentTarget.value as SheetTimingRole)}>

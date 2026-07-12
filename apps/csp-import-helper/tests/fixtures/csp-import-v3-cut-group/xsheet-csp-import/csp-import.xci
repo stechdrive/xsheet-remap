@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "createdBy": {
     "app": "xsheet-remap",
-    "version": "fixture-v3-cut-group"
+    "version": "fixture-v4-cut-group"
   },
   "assetRoot": "..",
   "outputClipFileName": "CSP_Import_Fixture_101_101A_101B_101C.clip",
@@ -46,13 +46,21 @@
           "cels": [
             {
               "cspCellName": "A_01",
-              "assetPath": "materials/A_01.png",
-              "firstFrame": 0
+              "firstFrame": 0,
+              "material": {
+                "assetId": "asset_0001",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_01.png"
+              }
             },
             {
               "cspCellName": "A_02",
-              "assetPath": "materials/A_02.png",
-              "firstFrame": 8
+              "firstFrame": 8,
+              "material": {
+                "assetId": "asset_0002",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_02.png"
+              }
             }
           ]
         },
@@ -73,13 +81,21 @@
           "cels": [
             {
               "cspCellName": "B_01",
-              "assetPath": "materials/B_01.png",
-              "firstFrame": 4
+              "firstFrame": 4,
+              "material": {
+                "assetId": "asset_0003",
+                "pathKind": "asset-root-relative",
+                "path": "materials/B_01.png"
+              }
             },
             {
               "cspCellName": "B_02",
-              "assetPath": "materials/B_02.png",
-              "firstFrame": 16
+              "firstFrame": 16,
+              "material": {
+                "assetId": "asset_0004",
+                "pathKind": "asset-root-relative",
+                "path": "materials/B_02.png"
+              }
             }
           ]
         },
@@ -100,8 +116,12 @@
           "cels": [
             {
               "cspCellName": "C_01",
-              "assetPath": "materials/C_01.png",
-              "firstFrame": 2
+              "firstFrame": 2,
+              "material": {
+                "assetId": "asset_0005",
+                "pathKind": "asset-root-relative",
+                "path": "materials/C_01.png"
+              }
             }
           ]
         },
@@ -122,8 +142,12 @@
           "cels": [
             {
               "cspCellName": "A_03_e",
-              "assetPath": "materials/A_03_e.png",
-              "firstFrame": 12
+              "firstFrame": 12,
+              "material": {
+                "assetId": "asset_0008",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_03_e.png"
+              }
             }
           ]
         },
@@ -144,8 +168,12 @@
           "cels": [
             {
               "cspCellName": "C_02_s",
-              "assetPath": "materials/C_02_s.png",
-              "firstFrame": 18
+              "firstFrame": 18,
+              "material": {
+                "assetId": "asset_0013",
+                "pathKind": "asset-root-relative",
+                "path": "materials/C_02_s.png"
+              }
             }
           ]
         }
@@ -196,13 +224,21 @@
           "cels": [
             {
               "cspCellName": "A_01",
-              "assetPath": "materials/A_01.png",
-              "firstFrame": 0
+              "firstFrame": 0,
+              "material": {
+                "assetId": "asset_0001",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_01.png"
+              }
             },
             {
               "cspCellName": "A_02",
-              "assetPath": "materials/A_02.png",
-              "firstFrame": 12
+              "firstFrame": 12,
+              "material": {
+                "assetId": "asset_0002",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_02.png"
+              }
             }
           ]
         },
@@ -223,13 +259,21 @@
           "cels": [
             {
               "cspCellName": "B_01",
-              "assetPath": "materials/B_01.png",
-              "firstFrame": 6
+              "firstFrame": 6,
+              "material": {
+                "assetId": "asset_0003",
+                "pathKind": "asset-root-relative",
+                "path": "materials/B_01.png"
+              }
             },
             {
               "cspCellName": "B_02",
-              "assetPath": "materials/B_02.png",
-              "firstFrame": 18
+              "firstFrame": 18,
+              "material": {
+                "assetId": "asset_0004",
+                "pathKind": "asset-root-relative",
+                "path": "materials/B_02.png"
+              }
             }
           ]
         },
@@ -250,8 +294,12 @@
           "cels": [
             {
               "cspCellName": "D_01",
-              "assetPath": "materials/D_01.png",
-              "firstFrame": 10
+              "firstFrame": 10,
+              "material": {
+                "assetId": "asset_0006",
+                "pathKind": "asset-root-relative",
+                "path": "materials/D_01.png"
+              }
             }
           ]
         },
@@ -272,8 +320,12 @@
           "cels": [
             {
               "cspCellName": "A_03_e",
-              "assetPath": "materials/A_03_e.png",
-              "firstFrame": 14
+              "firstFrame": 14,
+              "material": {
+                "assetId": "asset_0008",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_03_e.png"
+              }
             }
           ]
         },
@@ -294,8 +346,12 @@
           "cels": [
             {
               "cspCellName": "D_02_e",
-              "assetPath": "materials/D_02_e.png",
-              "firstFrame": 20
+              "firstFrame": 20,
+              "material": {
+                "assetId": "asset_0009",
+                "pathKind": "asset-root-relative",
+                "path": "materials/D_02_e.png"
+              }
             }
           ]
         },
@@ -316,8 +372,12 @@
           "cels": [
             {
               "cspCellName": "B_03_s",
-              "assetPath": "materials/B_03_s.png",
-              "firstFrame": 22
+              "firstFrame": 22,
+              "material": {
+                "assetId": "asset_0012",
+                "pathKind": "asset-root-relative",
+                "path": "materials/B_03_s.png"
+              }
             }
           ]
         }
@@ -369,13 +429,21 @@
           "cels": [
             {
               "cspCellName": "A_02",
-              "assetPath": "materials/A_02.png",
-              "firstFrame": 0
+              "firstFrame": 0,
+              "material": {
+                "assetId": "asset_0002",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_02.png"
+              }
             },
             {
               "cspCellName": "A_01",
-              "assetPath": "materials/A_01.png",
-              "firstFrame": 16
+              "firstFrame": 16,
+              "material": {
+                "assetId": "asset_0001",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_01.png"
+              }
             }
           ]
         },
@@ -396,13 +464,21 @@
           "cels": [
             {
               "cspCellName": "B_02",
-              "assetPath": "materials/B_02.png",
-              "firstFrame": 8
+              "firstFrame": 8,
+              "material": {
+                "assetId": "asset_0004",
+                "pathKind": "asset-root-relative",
+                "path": "materials/B_02.png"
+              }
             },
             {
               "cspCellName": "B_01",
-              "assetPath": "materials/B_01.png",
-              "firstFrame": 24
+              "firstFrame": 24,
+              "material": {
+                "assetId": "asset_0003",
+                "pathKind": "asset-root-relative",
+                "path": "materials/B_01.png"
+              }
             }
           ]
         },
@@ -423,8 +499,12 @@
           "cels": [
             {
               "cspCellName": "E_01",
-              "assetPath": "materials/E_01.png",
-              "firstFrame": 20
+              "firstFrame": 20,
+              "material": {
+                "assetId": "asset_0007",
+                "pathKind": "asset-root-relative",
+                "path": "materials/E_01.png"
+              }
             }
           ]
         },
@@ -445,8 +525,12 @@
           "cels": [
             {
               "cspCellName": "E_02_e",
-              "assetPath": "materials/E_02_e.png",
-              "firstFrame": 26
+              "firstFrame": 26,
+              "material": {
+                "assetId": "asset_0010",
+                "pathKind": "asset-root-relative",
+                "path": "materials/E_02_e.png"
+              }
             }
           ]
         },
@@ -467,8 +551,12 @@
           "cels": [
             {
               "cspCellName": "A_04_s",
-              "assetPath": "materials/A_04_s.png",
-              "firstFrame": 36
+              "firstFrame": 36,
+              "material": {
+                "assetId": "asset_0011",
+                "pathKind": "asset-root-relative",
+                "path": "materials/A_04_s.png"
+              }
             }
           ]
         },
@@ -489,8 +577,12 @@
           "cels": [
             {
               "cspCellName": "B_03_s",
-              "assetPath": "materials/B_03_s.png",
-              "firstFrame": 44
+              "firstFrame": 44,
+              "material": {
+                "assetId": "asset_0012",
+                "pathKind": "asset-root-relative",
+                "path": "materials/B_03_s.png"
+              }
             }
           ]
         }

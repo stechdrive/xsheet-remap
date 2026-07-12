@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
-import type { AssetRoot, CutAsset, FileRef } from '@xsheet-remap/core'
+import { assetRelativePath, assetSourceDisplayPath, type AssetRoot, type CutAsset, type FileRef } from '@xsheet-remap/core'
 import { collectAssetPathDrop, isTauriHost, listAssetDirectory, openAssetRootDirectory, type AssetDirectoryEntry, type AssetDirectoryListing, type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { collectAssetFilesFromDrop, compareAssetNames } from './assetFiles'
@@ -16,11 +16,10 @@ type AssetDragWindow = Window & {
 }
 
 type AssetBrowserProps = {
-  assetRoots: AssetRoot[]
+  assetRoot?: AssetRoot
   assets: CutAsset[]
   registrationSummaries: Map<string, AssetRegistrationSummary>
   onAssets: (files: FileList | File[] | null) => void
-  onAssetRefs: (refs: FileRef[]) => void
   onAssetRoots: (roots: AssetRootCandidate[]) => void
   onEnsureAssetRefs: (refs: FileRef[]) => string[]
   onAssetSheetSources?: (assetIds: string[]) => void
@@ -52,6 +51,8 @@ const emptyDirectoryBrowserState: DirectoryBrowserState = {
   error: null,
 }
 
+type AssetSourceView = 'files' | 'project'
+
 function directoryBrowserReducer(state: DirectoryBrowserState, action: DirectoryBrowserAction): DirectoryBrowserState {
   switch (action.type) {
     case 'idle':
@@ -71,10 +72,9 @@ export function AssetTray(props: AssetBrowserProps) {
 
 function AssetBrowser({
   assets,
-  assetRoots,
+  assetRoot,
   registrationSummaries,
   onAssets,
-  onAssetRefs,
   onAssetRoots,
   onEnsureAssetRefs,
   onAssetSheetSources,
@@ -84,6 +84,7 @@ function AssetBrowser({
   const [viewMode, setViewMode] = useState<AssetViewMode>('grid')
   const [thumbnailSize, setThumbnailSize] = useState<AssetThumbnailSize>('normal')
   const [sortDirection, setSortDirection] = useState<AssetSortDirection>('asc')
+  const [sourceView, setSourceView] = useState<AssetSourceView>('files')
   const [selectedItemKeys, setSelectedItemKeys] = useState<string[]>([])
   const [selectionAnchorKey, setSelectionAnchorKey] = useState<string | null>(null)
   const [draggingAssetIds, setDraggingAssetIds] = useState<string[]>([])
@@ -91,12 +92,12 @@ function AssetBrowser({
   const [embeddedPreviewOpen, setEmbeddedPreviewOpen] = useState(false)
   const [embeddedPreviewPayload, setEmbeddedPreviewPayload] = useState<AssetPreviewPayload | null>(null)
   const [previewRect, setPreviewRect] = useState<AssetPreviewRect>(() => initialAssetPreviewRect())
-  const [activeRootId, setActiveRootId] = useState<string | null>(assetRoots[0]?.rootId ?? null)
-  const [requestedDirectoryPath, setRequestedDirectoryPath] = useState<string | null>(assetRoots[0]?.path ?? null)
+  const [requestedDirectoryPath, setRequestedDirectoryPath] = useState<string | null>(assetRoot?.path ?? null)
   const [directoryState, dispatchDirectoryState] = useReducer(directoryBrowserReducer, emptyDirectoryBrowserState)
   const [isNativeDropActive, setIsNativeDropActive] = useState(false)
   const [contextMenu, setContextMenu] = useState<AssetContextMenuState | null>(null)
   const lastDropDiagnosticOverRef = useRef(0)
+  const knownAssetIdsRef = useRef(new Set(assets.map(asset => asset.assetId)))
   const sortedAssets = useMemo(() => {
     const nextAssets = [...assets].sort(compareAssetNames)
     return sortDirection === 'asc' ? nextAssets : nextAssets.reverse()
@@ -105,8 +106,9 @@ function AssetBrowser({
   const assetsByRootRelativePath = useMemo(() => {
     const map = new Map<string, CutAsset>()
     for (const asset of sortedAssets) {
-      if (!asset.rootId || !asset.relativePath) continue
-      map.set(assetDirectoryAssetKey(asset.rootId, asset.relativePath), asset)
+      const relativePath = assetRelativePath(asset)
+      if (!relativePath) continue
+      map.set(assetDirectoryAssetKey(relativePath), asset)
     }
     return map
   }, [sortedAssets])
@@ -114,22 +116,18 @@ function AssetBrowser({
   const activeEmbeddedPreviewPayload = embeddedPreviewOpen && selectedPreviewAsset
     ? embeddedAssetPreviewPayload(selectedPreviewAsset)
     : embeddedPreviewPayload
-  const activeRoot = useMemo(
-    () => assetRoots.find(root => root.rootId === activeRootId) ?? assetRoots[0] ?? null,
-    [activeRootId, assetRoots],
-  )
+  const activeRoot = assetRoot ?? null
   const activeRootAssetVersion = useMemo(
     () => assets
-      .filter(asset => asset.rootId === activeRoot?.rootId)
+      .filter(asset => asset.source.kind === 'root-relative')
       .sort((a, b) => a.assetId.localeCompare(b.assetId))
       .map(asset => [
         asset.assetId,
         asset.displayName,
-        asset.currentPath ?? '',
-        asset.relativePath ?? '',
+        assetSourceDisplayPath(asset),
       ].join('\u0000'))
       .join('\u0001'),
-    [activeRoot?.rootId, assets],
+    [assets],
   )
   const currentDirectoryPath = useMemo(() => {
     if (!activeRoot?.path) return null
@@ -156,7 +154,8 @@ function AssetBrowser({
     () => selectableDirectoryEntries.map(directoryEntrySelectionKey),
     [selectableDirectoryEntries],
   )
-  const visibleSelectionKeys = directoryListing ? directorySelectionKeys : sortedAssetSelectionKeys
+  const showingDirectory = sourceView === 'files' && Boolean(directoryListing)
+  const visibleSelectionKeys = showingDirectory ? directorySelectionKeys : sortedAssetSelectionKeys
   const visibleSelectionKeySet = useMemo(() => new Set(visibleSelectionKeys), [visibleSelectionKeys])
   const activeSelectedItemKeys = useMemo(
     () => selectedItemKeys.filter(selectionKey => visibleSelectionKeySet.has(selectionKey)),
@@ -193,6 +192,16 @@ function AssetBrowser({
     }
   }, [activeRoot?.path, activeRootAssetVersion, currentDirectoryPath])
 
+  useEffect(() => {
+    const previousIds = knownAssetIdsRef.current
+    const addedAssets = assets.filter(asset => !previousIds.has(asset.assetId))
+    knownAssetIdsRef.current = new Set(assets.map(asset => asset.assetId))
+    if (sourceView === 'files' && addedAssets.some(asset => asset.source.kind !== 'root-relative')) {
+      clearAssetSelection()
+      setSourceView('project')
+    }
+  }, [assets, sourceView])
+
   async function handleDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault()
     setIsNativeDropActive(false)
@@ -226,6 +235,7 @@ function AssetBrowser({
       })
     }
     onAssets(files)
+    if (files.length > 0) setSourceView('project')
   }
 
   function reportDomDropDiagnostic(event: DragEvent<HTMLElement>, type: string) {
@@ -244,6 +254,7 @@ function AssetBrowser({
 
   function handleFileInput(files: FileList | null, input: HTMLInputElement) {
     onAssets(files)
+    if (files && files.length > 0) setSourceView('project')
     input.value = ''
   }
 
@@ -253,19 +264,6 @@ function AssetBrowser({
     const collection = await collectAssetPathDrop([path], { recursive: false })
     const roots = collection.roots.filter(root => root.fromDirectoryDrop)
     if (roots.length > 0) onAssetRoots(roots)
-  }
-
-  function handleImportCurrentDirectory(recursive: boolean) {
-    if (!directoryListing) return
-    void collectAssetPathDrop([directoryListing.currentPath], { recursive, rootPath: activeRoot?.path })
-      .then(collection => onAssetRefs(collection.files))
-  }
-
-  function handleRootChange(rootId: string) {
-    const root = assetRoots.find(item => item.rootId === rootId) ?? null
-    clearAssetSelection()
-    setActiveRootId(root?.rootId ?? null)
-    setRequestedDirectoryPath(root?.path ?? null)
   }
 
   function handleDirectoryNavigate(path: string) {
@@ -370,9 +368,12 @@ function AssetBrowser({
         originalFileName: ref.name,
         displayName: ref.name,
         role: 'cell-material',
-        rootId: activeRoot?.rootId,
-        relativePath: ref.relativePath,
-        currentPath: ref.path,
+        binId: 'asset_bin_root',
+        source: ref.relativePath
+          ? { kind: 'root-relative', relativePath: ref.relativePath }
+          : ref.path
+            ? { kind: 'external-file', absolutePath: ref.path }
+            : { kind: 'unresolved' },
         fileSize: ref.size,
         modifiedAt: ref.lastModified === undefined ? undefined : new Date(ref.lastModified).toISOString(),
         thumbnailUrl: ref.objectUrl,
@@ -396,7 +397,7 @@ function AssetBrowser({
       setSelectedItemKeys([targetSelectionKey])
       setSelectionAnchorKey(targetSelectionKey)
     }
-    const targetAsset = resolvedAssets.find(asset => asset.relativePath === entry.relativePath) ?? resolvedAssets[0]
+    const targetAsset = resolvedAssets.find(asset => assetRelativePath(asset) === entry.relativePath) ?? resolvedAssets[0]
     setPreviewAssetId(targetAsset?.assetId ?? null)
     setDraggingAssetIds(assetIds)
     return assetIds
@@ -416,7 +417,7 @@ function AssetBrowser({
       setSelectedItemKeys([targetSelectionKey])
       setSelectionAnchorKey(targetSelectionKey)
     }
-    setPreviewAssetId(assets.find(asset => asset.relativePath === entry.relativePath)?.assetId ?? assets[0]!.assetId)
+    setPreviewAssetId(assets.find(asset => assetRelativePath(asset) === entry.relativePath)?.assetId ?? assets[0]!.assetId)
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
@@ -545,18 +546,25 @@ function AssetBrowser({
           />
         </div>
       </div>
-      <AssetFileBrowser
-        roots={assetRoots}
-        activeRoot={activeRoot}
-        listing={directoryListing}
-        loading={directoryLoading}
-        error={directoryError}
-        onRootChange={handleRootChange}
-        onOpenRoot={() => void handleOpenAssetRootDirectory()}
-        dropActive={isNativeDropActive}
-        onNavigate={handleDirectoryNavigate}
-        onImportCurrent={handleImportCurrentDirectory}
-      />
+      <div className="assetSourceTabs" role="tablist" aria-label="画像素材の参照元">
+        <button type="button" role="tab" aria-selected={sourceView === 'files'} className={sourceView === 'files' ? 'active' : ''} onClick={() => { clearAssetSelection(); setSourceView('files') }}>
+          {uiText.assets.sourceView.files}
+        </button>
+        <button type="button" role="tab" aria-selected={sourceView === 'project'} className={sourceView === 'project' ? 'active' : ''} onClick={() => { clearAssetSelection(); setSourceView('project') }}>
+          {uiText.assets.sourceView.project}
+        </button>
+      </div>
+      {sourceView === 'files' && (
+        <AssetFileBrowser
+          root={activeRoot}
+          listing={directoryListing}
+          loading={directoryLoading}
+          error={directoryError}
+          onOpenRoot={() => void handleOpenAssetRootDirectory()}
+          dropActive={isNativeDropActive}
+          onNavigate={handleDirectoryNavigate}
+        />
+      )}
       {activeSelectedItemKeys.length > 0 && (
         <div className="assetSelectionControls">
           <span>{uiText.assets.selectedCount(activeSelectedItemKeys.length)}</span>
@@ -566,11 +574,12 @@ function AssetBrowser({
         </div>
       )}
       <div className="assetBrowserItems" onClick={handleAssetBrowserItemClick}>
-        {directoryListing
+        {sourceView === 'files'
           ? (
             <>
-              {visibleDirectoryEntries.length === 0 && <p className="muted">{uiText.assets.folder.empty}</p>}
-              {visibleDirectoryEntries.map(entry => {
+              {!directoryListing && !directoryLoading && <p className="muted">{uiText.assets.root.unset}</p>}
+              {directoryListing && visibleDirectoryEntries.length === 0 && <p className="muted">{uiText.assets.folder.empty}</p>}
+              {(directoryListing ? visibleDirectoryEntries : []).map(entry => {
                 const asset = assetForDirectoryEntry(entry, activeRoot, assetsByRootRelativePath)
                 return (
                   <AssetDirectoryCard
@@ -642,7 +651,7 @@ function AssetBrowser({
                       type: 'dragstart',
                       target: 'registered-asset',
                       fileCount: assetIds.length,
-                      paths: [asset.currentPath ?? asset.originalFileName],
+                      paths: [assetSourceDisplayPath(asset)],
                       details: assetIds.length > 0 ? `assetId ${assetIds.join(', ')}` : 'assetIdなし',
                     })
                     return assetIds

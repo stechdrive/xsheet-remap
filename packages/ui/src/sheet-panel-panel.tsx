@@ -94,7 +94,6 @@ export function SheetPanel(props: {
   onAssetSheetSources: (assetIds: string[]) => void
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void
   onAssetFiles: (files: FileList | File[] | null) => void
-  onAssetFileRefs: (refs: FileRef[]) => void
   onAssetRoots: (roots: AssetRootCandidate[]) => void
   onEnsureAssetRefs: (refs: FileRef[]) => string[]
   onAssetNativePaths: (paths: string[], options?: { recursive?: boolean }) => void
@@ -707,11 +706,10 @@ export function SheetPanel(props: {
         <aside id="sheet-right-pane" className="sheetDock sheetDockRight" aria-label={uiText.assets.title} hidden={!paneLayout.right}>
           <div className="dockBody">
             <AssetTray
-              assetRoots={props.project.assetRoots}
+              assetRoot={props.project.assetRoot}
               assets={props.assets}
               registrationSummaries={assetRegistrationSummaryMap}
               onAssets={props.onAssetFiles}
-              onAssetRefs={props.onAssetFileRefs}
               onAssetRoots={props.onAssetRoots}
               onEnsureAssetRefs={props.onEnsureAssetRefs}
               onAssetSheetSources={props.onAssetSheetSources}

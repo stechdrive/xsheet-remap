@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
+import tempfile
 import time
 import unicodedata
 from typing import Any, Callable, Protocol
@@ -81,6 +83,28 @@ class CspImportAutomation(TrackSelectionMixin, DialogAutomationMixin, PaletteAut
         save_as_path: str | Path | None = None,
         close_after_save: bool = False,
     ) -> None:
+        for cut in manifest.cuts:
+            for track in cut.tracks:
+                for cel in track.cels:
+                    if cel.asset_path is None:
+                        log.add(
+                            "asset.skipped",
+                            cutId=cut.cut_id,
+                            trackId=track.track_id,
+                            cspCellName=cel.csp_cell_name,
+                            assetId=cel.asset_id,
+                            reason="no material source",
+                        )
+                    elif not cel.asset_path.is_file():
+                        log.add(
+                            "asset.skipped",
+                            cutId=cut.cut_id,
+                            trackId=track.track_id,
+                            cspCellName=cel.csp_cell_name,
+                            assetId=cel.asset_id,
+                            path=str(cel.asset_path),
+                            reason="material file not found",
+                        )
         plan = build_import_execution_plan(
             manifest,
             clip_path=clip_path,
@@ -600,35 +624,48 @@ class CspImportAutomation(TrackSelectionMixin, DialogAutomationMixin, PaletteAut
         log: OperationLog,
     ) -> None:
         log.add("track.import_batch_started", trackId=track.track_id, count=len(items))
-        self._ensure_batch_asset_names_match_csp_cell_names(track, items)
-        image_paths = tuple(Path(item["assetPath"]) for item in items)
         csp_cell_names = tuple(str(item["cspCellName"]) for item in items)
-        if self.profile.multi_image_import_enabled:
-            self._import_images(image_paths, log, track.track_id, csp_cell_names)
-            self._finish_imported_track_folder(track, manifest, log)
-        else:
-            for image_path, csp_cell_name in zip(image_paths, csp_cell_names, strict=True):
-                self._import_image(image_path, log, track.track_id, csp_cell_name)
+        with tempfile.TemporaryDirectory(prefix="xsheet-csp-import-") as staging_directory:
+            image_paths = self._stage_image_paths_for_csp_names(items, Path(staging_directory), log, track.track_id)
+            if self.profile.multi_image_import_enabled:
+                self._import_images(image_paths, log, track.track_id, csp_cell_names)
                 self._finish_imported_track_folder(track, manifest, log)
+            else:
+                for image_path, csp_cell_name in zip(image_paths, csp_cell_names, strict=True):
+                    self._import_image(image_path, log, track.track_id, csp_cell_name)
+                    self._finish_imported_track_folder(track, manifest, log)
         log.add("track.import_batch_finished", trackId=track.track_id, count=len(items))
 
-    def _ensure_batch_asset_names_match_csp_cell_names(
+    def _stage_image_paths_for_csp_names(
         self,
-        track: ImportTrack,
         items: tuple[dict[str, Any], ...],
-    ) -> None:
-        mismatches = [
-            (Path(item["assetPath"]).name, str(item["cspCellName"]))
-            for item in items
-            if Path(item["assetPath"]).stem != str(item["cspCellName"])
-        ]
-        if not mismatches:
-            return
-        details = ", ".join(f"{file_name} != {cell_name}" for file_name, cell_name in mismatches[:5])
-        if len(mismatches) > 5:
-            details += f", ... +{len(mismatches) - 5}"
-        raise AutomationError(
-            "CSP image import creates cel names from file names. "
-            f"Manifest asset file stems must match cspCellName: {track.track_id}: {details}"
-        )
-
+        staging_directory: Path,
+        log: OperationLog,
+        track_id: str,
+    ) -> tuple[Path, ...]:
+        staged: list[Path] = []
+        for item in items:
+            source = Path(item["assetPath"])
+            csp_cell_name = str(item["cspCellName"])
+            if source.stem == csp_cell_name:
+                staged.append(source)
+                continue
+            if re.search(r'[<>:"/\\|?*]', csp_cell_name) or csp_cell_name.endswith((" ", ".")):
+                raise AutomationError(f"CSP cel name cannot be used as a staging file name: {csp_cell_name}")
+            target = staging_directory / f"{csp_cell_name}{source.suffix}"
+            try:
+                os.link(source, target)
+                method = "hardlink"
+            except OSError:
+                shutil.copy2(source, target)
+                method = "copy"
+            staged.append(target)
+            log.add(
+                "asset.staged_for_csp_name",
+                trackId=track_id,
+                cspCellName=csp_cell_name,
+                sourcePath=str(source),
+                stagedPath=str(target),
+                method=method,
+            )
+        return tuple(staged)

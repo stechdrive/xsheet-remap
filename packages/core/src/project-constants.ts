@@ -7,4 +7,5 @@ export const DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME = '===== XSHEET IMPORT ST
 export const DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME = '===== XSHEET IMPORT END ====='
 export const MAX_CORRECTION_LAYERS = 10
 export const PROJECT_DOCUMENT_KIND = 'xsheet-remap-cut-group-project'
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 4
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 5
+export const ROOT_ASSET_BIN_ID = 'asset_bin_root'

@@ -1,5 +1,6 @@
 import type {
   CorrectionLayer,
+  AssetRoot,
   CspTrackSlot,
   CutAsset,
   CutGroupProjectDocument,
@@ -11,6 +12,7 @@ import type {
   StackGuideRegistration,
   ValidationIssue,
 } from './types'
+import { assetAbsolutePath, assetRelativePath } from './assets'
 import { NULL_CELL_CSP_CELL_NAME } from './types'
 import {
   activeCutProjectFromDocument,
@@ -32,8 +34,8 @@ export type CspImportManifestTrackKind =
   | 'memo'
   | 'separator'
 
-export interface CspImportManifestV3 {
-  schemaVersion: 3
+export interface CspImportManifestV4 {
+  schemaVersion: 4
   createdBy: {
     app: 'xsheet-remap'
     version?: string
@@ -90,8 +92,12 @@ export interface CspImportManifestTrack {
 
 export interface CspImportManifestCel {
   cspCellName: string
-  assetPath: string
   firstFrame: number
+  material?: {
+    assetId: string
+    pathKind: 'asset-root-relative' | 'absolute'
+    path: string
+  }
 }
 
 export interface CspImportPackageCutOutput {
@@ -113,7 +119,7 @@ export interface CspImportPackageBuildResult {
   outputDirectoryName: string
   manifestFileName: string
   assetRootPath?: string
-  manifest: CspImportManifestV3
+  manifest: CspImportManifestV4
   setupOutput?: CspImportPackageSetupOutput
   cutOutputs: CspImportPackageCutOutput[]
   issues: ValidationIssue[]
@@ -134,14 +140,9 @@ interface CutBuildInput {
   fileStem: string
 }
 
-interface AssetRootResolution {
-  rootId: string
-  path: string
-}
-
 interface ResolvedCelAsset {
   asset: CutAsset | undefined
-  assetPath?: string
+  material?: CspImportManifestCel['material']
 }
 
 interface SetupTrackSource {
@@ -183,8 +184,7 @@ export function buildCspImportPackage(
   }
   issues.push(...validateCutIdentities(cutInputs))
 
-  const usedAssetIds = collectCspImportAssetIds(cutInputs, issues)
-  const assetRoot = resolveCspImportAssetRoot(syncedDocument, cutProjects[0] ?? activeCutProjectFromDocument(syncedDocument), usedAssetIds, issues)
+  const assetRoot = resolveCspImportAssetRoot(syncedDocument, issues)
   const cuts = cutInputs.map((input, index) => buildManifestCut(input, index, assetRoot, issues))
   const setupOutput = cutInputs.length > 1
     ? {
@@ -192,8 +192,8 @@ export function buildCspImportPackage(
         exportPlan: buildSetupExportPlan(cutInputs),
       }
     : undefined
-  const manifest: CspImportManifestV3 = {
-    schemaVersion: 3,
+  const manifest: CspImportManifestV4 = {
+    schemaVersion: 4,
     createdBy: {
       app: 'xsheet-remap',
       ...(options.appVersion ? { version: options.appVersion } : {}),
@@ -230,7 +230,7 @@ function exportCutProjectsFromDocument(document: CutGroupProjectDocument): CutPr
 function buildManifestCut(
   input: CutBuildInput,
   order: number,
-  assetRoot: AssetRootResolution | undefined,
+  assetRoot: AssetRoot | undefined,
   issues: ValidationIssue[],
 ): CspImportManifestCut {
   const tracks = input.exportPlan.tracks
@@ -481,7 +481,7 @@ function buildManifestTrack(
   project: CutProject,
   track: ExportPlan['tracks'][number],
   profile: ExportProfile | undefined,
-  assetRoot: AssetRootResolution | undefined,
+  assetRoot: AssetRoot | undefined,
   issues: ValidationIssue[],
 ): CspImportManifestTrack | null {
   if (track.slotId) {
@@ -533,7 +533,7 @@ function buildSlotTrackCels(
   project: CutProject,
   track: ExportPlan['tracks'][number],
   slot: CspTrackSlot,
-  assetRoot: AssetRootResolution | undefined,
+  assetRoot: AssetRoot | undefined,
   issues: ValidationIssue[],
 ): CspImportManifestCel[] {
   const cels = new Map<string, CspImportManifestCel>()
@@ -542,12 +542,11 @@ function buildSlotTrackCels(
     if (!cspCellName || cspCellName === NULL_CELL_CSP_CELL_NAME) continue
     if (cels.has(cspCellName)) continue
     const binding = project.bindings.find(item => item.slotId === slot.slotId && item.cspCellName === cspCellName)
-    const resolved = resolveManifestCelAsset(project, binding?.assetId, assetRoot, cspCellName, issues, `${slot.slotId}/${cspCellName}`)
-    if (!resolved.assetPath) continue
+    const resolved = resolveManifestCelAsset(project, binding?.assetId, assetRoot, issues, `${slot.slotId}/${cspCellName}`)
     cels.set(cspCellName, {
       cspCellName,
-      assetPath: resolved.assetPath,
       firstFrame: frame.frame,
+      ...(resolved.material ? { material: resolved.material } : {}),
     })
   }
   return [...cels.values()]
@@ -558,12 +557,12 @@ function buildStackGuideTrackCels(
   track: ExportPlan['tracks'][number],
   label: StackGuideLabel,
   registration: StackGuideRegistration,
-  assetRoot: AssetRootResolution | undefined,
+  assetRoot: AssetRoot | undefined,
   issues: ValidationIssue[],
 ): CspImportManifestCel[] {
   const cspCellName = track.frames.find(frame => frame.value)?.value ?? stackGuideCspCellName(label, registration)
   if (!cspCellName || cspCellName === NULL_CELL_CSP_CELL_NAME) return []
-  if (registration.assetIds.length !== 1) {
+  if (registration.assetIds.length > 1) {
     issues.push(cspImportIssue(
       'cspImport.stackGuide.assetCount',
       `CSP自動登録では追加トラック「${label.label}」の画像素材は1件だけにしてください。`,
@@ -574,144 +573,64 @@ function buildStackGuideTrackCels(
     project,
     registration.assetIds[0],
     assetRoot,
-    cspCellName,
     issues,
     `${label.labelId}/${registration.registrationId}`,
   )
-  if (!resolved.assetPath) return []
   return [{
     cspCellName,
-    assetPath: resolved.assetPath,
     firstFrame: track.frames.find(frame => frame.value === cspCellName)?.frame ?? 0,
+    ...(resolved.material ? { material: resolved.material } : {}),
   }]
-}
-
-function collectCspImportAssetIds(cutInputs: CutBuildInput[], issues: ValidationIssue[]): Set<string> {
-  const assetIds = new Set<string>()
-  for (const input of cutInputs) {
-    for (const track of input.exportPlan.tracks) {
-      if (track.dummy) continue
-      if (track.slotId) {
-        for (const frame of track.frames) {
-          const cspCellName = frame.value
-          if (!cspCellName || cspCellName === NULL_CELL_CSP_CELL_NAME) continue
-          const binding = input.project.bindings.find(item => item.slotId === track.slotId && item.cspCellName === cspCellName)
-          if (!binding?.assetId) {
-            issues.push(cspImportIssue(
-              'cspImport.binding.assetMissing',
-              `CSP自動登録には画像素材が必要です: ${track.name} / ${cspCellName}`,
-            ))
-            continue
-          }
-          assetIds.add(binding.assetId)
-        }
-        continue
-      }
-      if (track.stackGuideLabelId) {
-        const label = input.project.stackGuideLabels.find(item => item.labelId === track.stackGuideLabelId)
-        const registration = label
-          ? stackGuideRegistrations(label).find(item => item.registrationId === track.stackGuideRegistrationId)
-          : undefined
-        for (const assetId of registration?.assetIds ?? []) assetIds.add(assetId)
-      }
-    }
-  }
-  return assetIds
 }
 
 function resolveCspImportAssetRoot(
   document: CutGroupProjectDocument,
-  project: CutProject,
-  usedAssetIds: Set<string>,
   issues: ValidationIssue[],
-): AssetRootResolution | undefined {
-  const pathRoots = project.assetRoots.filter(root => root.path)
-  if (pathRoots.length === 0) {
+): AssetRoot | undefined {
+  const root = document.assetRoot
+  if (!root?.path) {
     issues.push(cspImportIssue('cspImport.assetRoot.required', 'CSP自動登録にはパス付きのカットフォルダが必要です。'))
     return undefined
   }
-
-  const selected = document.cspImportAssetRootId
-    ? pathRoots.find(root => root.rootId === document.cspImportAssetRootId)
-    : undefined
-  if (!selected?.path) {
-    issues.push(cspImportIssue('cspImport.assetRoot.selectionRequired', 'CSP自動登録に使うカットフォルダを選択してください。'))
-    return undefined
-  }
-
-  for (const assetId of usedAssetIds) {
-    const asset = project.assets.find(item => item.assetId === assetId)
-    if (!asset) {
-      issues.push(cspImportIssue('cspImport.asset.missing', `画像素材が見つかりません: ${assetId}`))
-      continue
-    }
-    if (!assetRootRelativePath(project, asset, { rootId: selected.rootId, path: selected.path })) {
-      issues.push(cspImportIssue('cspImport.asset.outsideRoot', `画像素材が選択したカットフォルダの外にあります: ${asset.displayName}`))
-    }
-  }
-  return { rootId: selected.rootId, path: selected.path }
+  return root
 }
 
 function resolveManifestCelAsset(
   project: CutProject,
   assetId: string | undefined,
-  assetRoot: AssetRootResolution | undefined,
-  cspCellName: string,
+  assetRoot: AssetRoot | undefined,
   issues: ValidationIssue[],
   context: string,
 ): ResolvedCelAsset {
-  if (!assetId) {
-    issues.push(cspImportIssue('cspImport.asset.required', `CSP自動登録には画像素材が必要です: ${context}`))
-    return { asset: undefined }
-  }
+  if (!assetId) return { asset: undefined }
   const asset = project.assets.find(item => item.assetId === assetId)
   if (!asset) {
-    issues.push(cspImportIssue('cspImport.asset.missing', `画像素材が見つかりません: ${assetId}`))
+    issues.push(cspImportIssue('cspImport.asset.missing', `画像素材への参照を解決できません。キーのみ登録します: ${context}`, 'warning'))
     return { asset: undefined }
   }
-  if (!assetRoot) return { asset }
-  const assetPath = assetRootRelativePath(project, asset, assetRoot)
-  if (!assetPath) {
-    issues.push(cspImportIssue('cspImport.asset.outsideRoot', `画像素材がCSP自動登録用カットフォルダの外にあります: ${asset.displayName}`))
-    return { asset }
+  const relativePath = assetRelativePath(asset)
+  if (relativePath) {
+    return {
+      asset,
+      material: {
+        assetId,
+        pathKind: 'asset-root-relative',
+        path: normalizeManifestRelativePath(relativePath) ?? relativePath,
+      },
+    }
   }
-  if (fileStem(assetPath) !== cspCellName) {
-    issues.push(cspImportIssue(
-      'cspImport.asset.stemMismatch',
-      `CSPセル名と画像ファイル名を一致させてください: ${cspCellName} / ${assetPath}`,
-    ))
-    return { asset }
+  const absolutePath = assetAbsolutePath(asset, assetRoot)
+  if (absolutePath) {
+    return { asset, material: { assetId, pathKind: 'absolute', path: absolutePath } }
   }
-  return { asset, assetPath }
-}
-
-function assetRootRelativePath(project: CutProject, asset: CutAsset, assetRoot: AssetRootResolution): string | undefined {
-  if (asset.rootId === assetRoot.rootId && asset.relativePath) {
-    return normalizeManifestRelativePath(asset.relativePath)
-  }
-  const root = project.assetRoots.find(item => item.rootId === assetRoot.rootId)
-  if (!root?.path || !asset.currentPath) return undefined
-  return relativePathFromRoot(asset.currentPath, root.path)
-}
-
-function relativePathFromRoot(path: string, rootPath: string): string | undefined {
-  const normalizedPath = normalizePath(path)
-  const normalizedRoot = normalizePath(rootPath).replace(/\/+$/, '')
-  const pathKey = normalizedPath.toLowerCase()
-  const rootKey = normalizedRoot.toLowerCase()
-  if (pathKey === rootKey) return undefined
-  if (!pathKey.startsWith(`${rootKey}/`)) return undefined
-  return normalizeManifestRelativePath(normalizedPath.slice(normalizedRoot.length + 1))
+  issues.push(cspImportIssue('cspImport.asset.offline', `画像素材の実ファイルを解決できません。キーのみ登録します: ${asset.displayName}`, 'warning'))
+  return { asset }
 }
 
 function normalizeManifestRelativePath(path: string): string | undefined {
   const normalized = path.replace(/\\/g, '/').replace(/^\.\/+/, '')
   if (!normalized || normalized.startsWith('/') || normalized.split('/').some(part => part === '..' || part === '')) return undefined
   return normalized
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+/g, '/')
 }
 
 function uniqueCutFileStems(projects: CutProject[]): string[] {
@@ -846,16 +765,10 @@ function stackGuideTrackKind(label: Pick<StackGuideLabel, 'kind'>): CspImportMan
   return 'stack-guide'
 }
 
-function fileStem(path: string): string {
-  const name = path.replace(/\\/g, '/').split('/').pop() ?? path
-  const dotIndex = name.lastIndexOf('.')
-  return dotIndex > 0 ? name.slice(0, dotIndex) : name
-}
-
-function cspImportIssue(code: string, message: string): ValidationIssue {
+function cspImportIssue(code: string, message: string, severity: ValidationIssue['severity'] = 'error'): ValidationIssue {
   return {
     issueId: `${code}:${message}`,
-    severity: 'error',
+    severity,
     code,
     message,
     target: { entity: 'export' },

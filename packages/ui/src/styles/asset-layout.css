@@ -7,8 +7,8 @@
 }
 
 .assetTray {
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   overflow: hidden;
   border: 1px solid #c6c8c3;
@@ -85,6 +85,48 @@
   min-width: 0;
 }
 
+.assetSourceTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin-bottom: 6px;
+  padding: 2px;
+  border: 1px solid #c6cbc5;
+  border-radius: 6px;
+  background: #ecece7;
+}
+
+.assetSourceTabs button {
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 7px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.assetSourceTabs button.active {
+  border-color: #9eaaa2;
+  background: #fff;
+  color: #173a2b;
+}
+
+.assetLocationText {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 5px 7px;
+  border: 1px solid #c4c9c3;
+  border-radius: 5px;
+  background: #fff;
+  color: #26342c;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .assetBrowserIcon {
   display: block;
   width: 17px;
@@ -106,78 +148,6 @@
   padding: 0;
 }
 
-.assetRootSelectLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  width: min(180px, 38vw);
-  color: #5d6760;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.assetRootSelectLabel .assetBrowserIcon {
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  color: #315141;
-}
-
-.assetRootSelectLabel select {
-  min-width: 0;
-  width: 100%;
-  height: 30px;
-  padding: 3px 22px 3px 7px;
-  border: 1px solid #b9beb8;
-  border-radius: 6px;
-  background: #fff;
-  color: #243028;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.assetFileBrowserActions {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.assetLocationBar {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.assetBreadcrumb {
-  display: flex;
-  flex: 1 1 auto;
-  gap: 3px;
-  min-width: 0;
-  overflow-x: auto;
-  padding-bottom: 1px;
-}
-
-.assetBreadcrumb button {
-  min-height: 24px;
-  padding: 3px 7px;
-  border-color: #d6dad4;
-  background: #fff;
-  color: #2a392f;
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.assetBreadcrumb button:disabled {
-  border-color: #b7c6bb;
-  background: #dfe9e1;
-  color: #173a2b;
-}
-
 .assetFileBrowserMessage,
 .assetFileBrowserError {
   margin: 0;
@@ -197,6 +167,11 @@
   min-width: 0;
   color: #4e5a52;
   font-size: 12px;
+}
+
+.assetBrowserItems {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .assetSelectionControls span {
@@ -438,4 +413,3 @@
   padding: 4px 7px;
   white-space: nowrap;
 }
-

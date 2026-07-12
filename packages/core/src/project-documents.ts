@@ -1,10 +1,10 @@
-import type { Annotation, AssetRoot, CellBinding, CspTrackSlot, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimingKey } from './types'
+import type { Annotation, CellBinding, CspTrackSlot, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimingKey } from './types'
 import { sheetTemplatePresets, standardA3SheetTemplate, SHEET_TEMPLATE_SCHEMA_VERSION, type SheetTemplate } from './sheet-template'
 import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { migrateAnnotation } from './annotations'
 import { createDefaultSheetViewState, migrateSheetView } from './sheet-view'
 import { withoutUndefined } from './core-utils'
-import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME, DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION } from './project-constants'
+import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_IMPORT_STACK_END_SEPARATOR_NAME, DEFAULT_IMPORT_STACK_START_SEPARATOR_NAME, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations } from './project-shared'
 
@@ -31,8 +31,8 @@ export function createProjectDocumentFromCutProject(
     sheetTemplate,
     productionStages: project.productionStages,
     correctionLayers: project.correctionLayers,
-    assetRoots: project.assetRoots,
-    cspImportAssetRootId: preferredCspImportAssetRootId(project.assetRoots),
+    assetRoot: project.assetRoot,
+    assetBins: project.assetBins,
     assets: project.assets,
     registeredCells: sharedRegisteredCellCatalogFromProject(project),
     exportProfiles: project.exportProfiles,
@@ -54,7 +54,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     throw new Error('プロジェクトには1件以上のタイムシートが必要です。')
   }
   if (!Array.isArray(input.productionStages) || !Array.isArray(input.correctionLayers)
-    || !Array.isArray(input.assetRoots) || !Array.isArray(input.assets)
+    || !Array.isArray(input.assetBins) || !Array.isArray(input.assets)
     || !Array.isArray(input.exportProfiles) || !isRecord(input.registeredCells)) {
     throw new Error('プロジェクトの共有データが不正です。')
   }
@@ -71,9 +71,6 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     .sort((a, b) => a.order - b.order || a.cutId.localeCompare(b.cutId, 'ja'))
     .map((cut, order) => ({ ...cut, order }))
   const activeCutId = cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : cuts[0]!.cutId
-  const cspImportAssetRootId = document.cspImportAssetRootId && document.assetRoots.some(root => root.rootId === document.cspImportAssetRootId)
-    ? document.cspImportAssetRootId
-    : preferredCspImportAssetRootId(document.assetRoots)
   return {
     documentKind: PROJECT_DOCUMENT_KIND,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
@@ -84,8 +81,8 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     sheetTemplate: document.sheetTemplate,
     productionStages: document.productionStages,
     correctionLayers: document.correctionLayers,
-    assetRoots: document.assetRoots,
-    cspImportAssetRootId,
+    assetRoot: document.assetRoot,
+    assetBins: document.assetBins,
     assets: document.assets,
     registeredCells,
     exportProfiles: document.exportProfiles,
@@ -102,7 +99,7 @@ export function activeCutProjectFromDocument(documentInput: CutGroupProjectDocum
 export function updateActiveCutProjectInDocument(
   documentInput: CutGroupProjectDocument,
   activeProjectInput: CutProject,
-  options: { sheetTemplate?: SheetTemplate; cspImportAssetRootId?: string } = {},
+  options: { sheetTemplate?: SheetTemplate } = {},
 ): CutGroupProjectDocument {
   const document = parseProjectDocument(documentInput)
   const activeProject = migrateProject(activeProjectInput)
@@ -112,10 +109,6 @@ export function updateActiveCutProjectInDocument(
   const cuts = document.cuts.some(cut => cut.cutId === activeCutId)
     ? document.cuts.map(cut => cut.cutId === activeCutId ? activeCut : cut)
     : [...document.cuts, activeCut]
-  const requestedRootId = options.cspImportAssetRootId ?? document.cspImportAssetRootId
-  const cspImportAssetRootId = requestedRootId && activeProject.assetRoots.some(root => root.rootId === requestedRootId)
-    ? requestedRootId
-    : preferredCspImportAssetRootId(activeProject.assetRoots)
   return {
     ...document,
     projectId: activeProject.projectId,
@@ -125,8 +118,8 @@ export function updateActiveCutProjectInDocument(
     sheetTemplate: options.sheetTemplate ?? document.sheetTemplate,
     productionStages: activeProject.productionStages,
     correctionLayers: activeProject.correctionLayers,
-    assetRoots: activeProject.assetRoots,
-    cspImportAssetRootId,
+    assetRoot: activeProject.assetRoot,
+    assetBins: activeProject.assetBins,
     assets: activeProject.assets,
     registeredCells: sharedRegisteredCellCatalogFromProject(activeProject),
     exportProfiles: activeProject.exportProfiles,
@@ -198,7 +191,8 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
     },
     productionStages,
     correctionLayers,
-    assetRoots: input.assetRoots ?? [],
+    assetRoot: input.assetRoot,
+    assetBins: input.assetBins?.length ? input.assetBins : [{ binId: ROOT_ASSET_BIN_ID, name: 'プロジェクト素材', order: 0 }],
     assets: (input.assets ?? []).map(asset => ({
       ...asset,
       role: asset.role ?? 'cell-material',
@@ -231,7 +225,7 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
       ),
     })),
   }
-  return { ...project, schemaVersion: 1 }
+  return { ...project, schemaVersion: 2 }
 }
 
 function repairBlankAssetDropBindingNames(project: CutProject): CutProject {
@@ -399,7 +393,8 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
     sheetTemplateId: document.sheetTemplate.templateId,
     productionStages: document.productionStages,
     correctionLayers: document.correctionLayers,
-    assetRoots: document.assetRoots,
+    assetRoot: document.assetRoot,
+    assetBins: document.assetBins,
     assets: document.assets,
     sheetView: cut.sheetView,
     logicalSheet: { ...cut.logicalSheet, keys: document.registeredCells.keys.map(key => ({ ...key })) },
@@ -467,11 +462,6 @@ function isSheetTemplateInput(input: unknown): input is SheetTemplate {
     && isRecord(input.page)
     && isRecord(input.defaults)
     && Array.isArray(input.regions)
-}
-
-export function preferredCspImportAssetRootId(assetRoots: AssetRoot[]): string | undefined {
-  const pathRoots = assetRoots.filter(root => Boolean(root.path))
-  return pathRoots.length === 1 ? pathRoots[0]?.rootId : undefined
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {

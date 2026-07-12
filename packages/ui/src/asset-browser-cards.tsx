@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type MouseEvent } from 'react'
-import type { CutAsset } from '@xsheet-remap/core'
+import { assetSourceDisplayPath, type CutAsset } from '@xsheet-remap/core'
 import { type AssetDirectoryEntry } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { Tooltip, TooltipTarget } from './Tooltip'
@@ -178,7 +178,7 @@ export function AssetCard({
   onContextMenu?: (event: MouseEvent<HTMLElement>) => void
   onPreview: () => void
 }) {
-  const title = [asset.relativePath ?? asset.currentPath ?? asset.originalFileName, registration?.title].filter(Boolean).join('\n')
+  const title = [assetSourceDisplayPath(asset), registration?.title].filter(Boolean).join('\n')
   return (
     <article
       className={[

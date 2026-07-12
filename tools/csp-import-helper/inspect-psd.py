@@ -128,7 +128,8 @@ def load_expected_import(manifest_path: Path) -> ExpectedPsdImport:
                 if not isinstance(cel, dict):
                     continue
                 cel_name = str(cel.get("cspCellName", "")).strip()
-                asset_path = str(cel.get("assetPath", "")).strip()
+                material = cel.get("material")
+                asset_path = str(material.get("path", "")).strip() if isinstance(material, dict) else ""
                 if cel_name:
                     expected_track.cels.add(cel_name)
                 elif asset_path:

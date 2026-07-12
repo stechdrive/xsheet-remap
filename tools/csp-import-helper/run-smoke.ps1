@@ -103,7 +103,10 @@ $runExitCode = $LASTEXITCODE
 if ($Run -and $runExitCode -eq 0) {
   $manifestData = Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json
   $expectedImportCount = @(
-    $manifestData.cuts | ForEach-Object { $_.tracks } | ForEach-Object { $_.cels }
+    $manifestData.cuts |
+      ForEach-Object { $_.tracks } |
+      ForEach-Object { $_.cels } |
+      Where-Object { $null -ne $_.material }
   ).Count
   if (-not (Test-Path -LiteralPath $operationLogPath)) {
     Write-Error "CSP helper operation log was not created: $operationLogPath"

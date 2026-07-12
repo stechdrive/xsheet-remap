@@ -4,6 +4,7 @@ import { withoutUndefined } from './core-utils'
 import { validateProject } from './validation'
 import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE } from './project-constants'
 import { compareStackGuideExportTracksForProject, compareStackGuideLabelsForProject, correctionLayerIdForSlot, correctionLayerOrderById, defaultCorrectionLayerFileNameSuffix, defaultCorrectionLayerId, eventsForSlot, exportEventsForSlot, groupLabelForCorrectionLayer, groupLabelForSlot, isNullCellEvent, resolveCspCellName, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideGapIndex, stackGuideRegistrationForLayer, stackGuideRegistrations, stackGuideStackBand, stackGuideStackBandOrder, stageOrderForCorrectionLayer } from './project-shared'
+import { assetAbsolutePath } from './assets'
 
 export function buildNameNormalizationPlan(project: CutProject, options: NameNormalizationOptions): NameNormalizationPlan {
   const sheetRole = options.sheetRole
@@ -89,8 +90,11 @@ export function applyNameNormalizationPlan(
       return {
         ...asset,
         displayName: result.nextFileName,
-        currentPath: result.nextPath ?? asset.currentPath,
-        relativePath: asset.relativePath ? replacePathFileName(asset.relativePath, result.nextFileName) : asset.relativePath,
+        source: asset.source.kind === 'root-relative'
+          ? { ...asset.source, relativePath: replacePathFileName(asset.source.relativePath, result.nextFileName) }
+          : result.nextPath
+            ? { kind: 'external-file' as const, absolutePath: result.nextPath }
+            : asset.source,
       }
     }),
   }
@@ -576,7 +580,7 @@ function buildAssetRenamePlan(project: CutProject, items: NameNormalizationPlanI
 
       const currentFileName = asset.displayName || asset.originalFileName
       const nextFileName = `${representativeItem.nextCspCellName}${fileExtension(currentFileName)}`
-      const currentPath = asset.currentPath
+      const currentPath = assetAbsolutePath(asset, project.assetRoot)
       const nextPath = currentPath ? replacePathFileName(currentPath, nextFileName) : undefined
       const requestedNames = Array.from(new Set(assetItems.map(item => item.nextCspCellName))).sort(compareNaturalText)
       const warnings = [

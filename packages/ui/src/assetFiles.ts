@@ -1,4 +1,4 @@
-import type { CutAsset, SheetPageImageRef } from '@xsheet-remap/core'
+import { assetAbsolutePath, assetSourceDisplayPath, type CutAsset, type SheetPageImageRef } from '@xsheet-remap/core'
 import { ASSET_DRAG_MIME, ASSET_MULTI_DRAG_MIME, ASSET_TEXT_DRAG_PREFIX, REGISTERED_CELL_TEXT_DRAG_PREFIX } from './sheetConstants'
 import { compareFileNameLikeText } from './naturalSort'
 
@@ -121,7 +121,7 @@ export function sheetImageRefFromAsset(asset: CutAsset): SheetPageImageRef {
     name: asset.displayName || asset.originalFileName,
     size: asset.fileSize,
     lastModified: asset.modifiedAt ? new Date(asset.modifiedAt).getTime() : undefined,
-    path: asset.currentPath,
+    path: assetAbsolutePath(asset),
     contentHash: asset.contentHash,
   }
 }
@@ -185,5 +185,5 @@ function assetSortName(asset: CutAsset): string {
 }
 
 function assetPathSortName(asset: CutAsset): string {
-  return asset.relativePath ?? asset.currentPath ?? asset.originalFileName
+  return assetSourceDisplayPath(asset)
 }

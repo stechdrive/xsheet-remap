@@ -55,12 +55,13 @@ class ProgressPlanTests(unittest.TestCase):
             root = Path(tmp)
             package = root / "xsheet-csp-import"
             package.mkdir()
+            (root / "A_01.png").write_bytes(b"a")
             manifest_path = package / "csp-import.xci"
             (package / "C001.xdts").write_text("xdts", encoding="utf-8")
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "schemaVersion": 3,
+                        "schemaVersion": 4,
                         "assetRoot": "..",
                         "cuts": [
                             {
@@ -103,7 +104,11 @@ def _track(track_id: str, stage_label: str, target_folder_path: list[str], stack
         "stackOrder": stack_order,
         "stageLabel": stage_label,
         "targetFolderPath": target_folder_path,
-        "cels": [{"cspCellName": "A_01", "assetPath": "A_01.png"}],
+        "cels": [{
+            "cspCellName": "A_01",
+            "firstFrame": 0,
+            "material": {"assetId": "asset_A_01", "pathKind": "asset-root-relative", "path": "A_01.png"},
+        }],
     }
 
 

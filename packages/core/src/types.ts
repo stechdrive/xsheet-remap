@@ -144,20 +144,39 @@ export interface LogicalSheetWorkRange {
 }
 
 export interface AssetRoot {
-  rootId: Id
   label: string
-  path?: string
+  path: string
   handleKind: AssetRootHandleKind
 }
 
+export interface AssetBin {
+  binId: Id
+  parentBinId?: Id
+  name: string
+  order: number
+}
+
+export type AssetSource =
+  | {
+      kind: 'root-relative'
+      relativePath: string
+    }
+  | {
+      kind: 'external-file'
+      absolutePath: string
+    }
+  | {
+      kind: 'unresolved'
+      lastKnownPath?: string
+    }
+
 export interface CutAsset {
   assetId: Id
+  binId: Id
   originalFileName: string
   displayName: string
   role: AssetRole
-  rootId?: Id
-  relativePath?: string
-  currentPath?: string
+  source: AssetSource
   fileSize?: number
   modifiedAt?: string
   contentHash?: string
@@ -484,7 +503,8 @@ export interface CutProject {
   logicalSheet: LogicalSheet
   productionStages: ProductionStage[]
   correctionLayers: CorrectionLayer[]
-  assetRoots: AssetRoot[]
+  assetRoot?: AssetRoot
+  assetBins: AssetBin[]
   assets: CutAsset[]
   cspTrackSlots: CspTrackSlot[]
   bindings: CellBinding[]
@@ -532,8 +552,8 @@ export interface CutGroupProjectDocument {
   sheetTemplate: import('./sheet-template').SheetTemplate
   productionStages: ProductionStage[]
   correctionLayers: CorrectionLayer[]
-  assetRoots: AssetRoot[]
-  cspImportAssetRootId?: Id
+  assetRoot?: AssetRoot
+  assetBins: AssetBin[]
   assets: CutAsset[]
   registeredCells: SharedRegisteredCellCatalog
   exportProfiles: ExportProfile[]

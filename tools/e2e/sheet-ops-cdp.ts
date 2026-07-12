@@ -629,7 +629,7 @@ async function verifyAssetBrowserShell(): Promise<void> {
     const fileBrowser = browser?.querySelector<HTMLElement>('.assetFileBrowser')
     const controls = browser?.querySelector<HTMLElement>('.assetBrowserControls')
     const items = browser?.querySelector<HTMLElement>('.assetBrowserItems')
-    const rootButton = fileBrowser?.querySelector<HTMLElement>('[aria-label="カットフォルダを追加"]')
+    const rootButton = fileBrowser?.querySelector<HTMLElement>('[aria-label="カットフォルダを追加"], [aria-label="カットフォルダを変更"]')
     if (!browser || !header || !fileBrowser || !controls || !items || !rootButton) return false
     const browserRect = browser.getBoundingClientRect()
     const headerRect = header.getBoundingClientRect()
@@ -660,10 +660,10 @@ async function dropAssetFolderOnBrowser(folderPath: string): Promise<void> {
   if (!hasAssetBrowser) throw new Error('asset browser not found for folder drop')
   await dispatchDomFolderDropOnAssetBrowser(folderPath)
   await waitForPageCondition(() => {
-    const select = document.querySelector<HTMLSelectElement>('.assetRootSelectLabel select')
-    const names = Array.from(document.querySelectorAll<HTMLElement>('.assetBrowserItems .assetCard strong')).map(item => item.textContent?.trim() ?? '')
+    const location = document.querySelector<HTMLElement>('.assetLocationText')
+    const names = Array.from(document.querySelectorAll<HTMLElement>('.assetBrowserItems .assetDirectoryCard strong')).map(item => item.textContent?.trim() ?? '')
     const badges = Array.from(document.querySelectorAll<HTMLElement>('.assetBrowserItems .assetRegistrationBadge')).map(item => item.textContent?.trim() ?? '')
-    return Boolean(select && select.options.length >= 1)
+    return Boolean(location?.textContent?.trim())
       && names.includes('A1.png')
       && badges.includes('未登録')
   }, 'folder drop registers a cut folder and shows unregistered files in the asset browser')
@@ -878,9 +878,9 @@ async function dispatchDomFolderDropOnAssetBrowser(folderPath: string): Promise<
 async function recordAssetRootStateAfterCdpDrop(): Promise<void> {
   const hasRoot = await evaluatePage<boolean>(`
     (() => {
-    const select = document.querySelector<HTMLSelectElement>('.assetRootSelectLabel select')
+    const location = document.querySelector<HTMLElement>('.assetLocationText')
     const assetCards = Array.from(document.querySelectorAll<HTMLElement>('.assetCard'))
-    return Boolean(select && select.options.length >= 1 && assetCards.length >= 1)
+    return Boolean(location?.textContent?.trim() && assetCards.length >= 1)
     })()
   `)
   checks.push(hasRoot

@@ -18,11 +18,11 @@ FIXTURE_MANIFEST = (
 
 
 class ManifestTests(unittest.TestCase):
-    def test_loads_v3_shared_cut_fixture_and_builds_union_import_plan(self) -> None:
+    def test_loads_v4_shared_cut_fixture_and_builds_union_import_plan(self) -> None:
         manifest = load_manifest(FIXTURE_MANIFEST)
 
         self.assertEqual(validate_manifest_files(manifest), [])
-        self.assertEqual(manifest.schema_version, 3)
+        self.assertEqual(manifest.schema_version, 4)
         self.assertEqual(manifest.asset_root.name, "csp-import-v3-cut-group")
         self.assertIsNotNone(manifest.setup)
         self.assertEqual(manifest.stack_reference_xdts_path.name, "_setup.xdts")
@@ -81,7 +81,7 @@ class ManifestTests(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "schemaVersion": 3,
+                        "schemaVersion": 4,
                         "assetRoot": "..",
                         "cuts": [
                             _cut("cut_10", "C10", "C10.xdts", order=1),
@@ -96,7 +96,7 @@ class ManifestTests(unittest.TestCase):
 
             self.assertEqual([cut.cut_number for cut in manifest.cuts], ["C2", "C10"])
 
-    def test_reports_missing_files_before_automation(self) -> None:
+    def test_allows_missing_image_files_before_automation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             package = root / "xsheet-csp-import"
@@ -104,13 +104,14 @@ class ManifestTests(unittest.TestCase):
             (package / "C001.xdts").write_text("xdts", encoding="utf-8")
             manifest_path = package / "csp-import.xci"
             manifest_path.write_text(
-                json.dumps({"schemaVersion": 3, "assetRoot": "..", "cuts": [_cut("cut_1", "C001", "C001.xdts")]}),
+                json.dumps({"schemaVersion": 4, "assetRoot": "..", "cuts": [_cut("cut_1", "C001", "C001.xdts")]}),
                 encoding="utf-8",
             )
 
             manifest = load_manifest(manifest_path)
 
-            self.assertEqual(len(validate_manifest_files(manifest)), 1)
+            self.assertEqual(validate_manifest_files(manifest), [])
+            self.assertEqual(build_import_plan(manifest), [])
 
     def test_rejects_duplicate_timeline_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -121,14 +122,14 @@ class ManifestTests(unittest.TestCase):
             second["timelineName"] = first["timelineName"]
             manifest_path = package / "csp-import.xci"
             manifest_path.write_text(
-                json.dumps({"schemaVersion": 3, "assetRoot": "..", "cuts": [first, second]}),
+                json.dumps({"schemaVersion": 4, "assetRoot": "..", "cuts": [first, second]}),
                 encoding="utf-8",
             )
 
             with self.assertRaisesRegex(ManifestError, "duplicate timelineName"):
                 load_manifest(manifest_path)
 
-    def test_reports_asset_file_stems_that_do_not_match_csp_cell_names(self) -> None:
+    def test_allows_asset_file_stems_that_do_not_match_csp_cell_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             package = root / "xsheet-csp-import"
@@ -136,18 +137,18 @@ class ManifestTests(unittest.TestCase):
             (package / "C001.xdts").write_text("xdts", encoding="utf-8")
             (root / "rough.png").write_bytes(b"a")
             cut = _cut("cut_1", "C001", "C001.xdts")
-            cut["tracks"][0]["cels"][0]["assetPath"] = "rough.png"
+            cut["tracks"][0]["cels"][0]["material"]["path"] = "rough.png"
             manifest_path = package / "csp-import.xci"
             manifest_path.write_text(
-                json.dumps({"schemaVersion": 3, "assetRoot": "..", "cuts": [cut]}),
+                json.dumps({"schemaVersion": 4, "assetRoot": "..", "cuts": [cut]}),
                 encoding="utf-8",
             )
 
             manifest = load_manifest(manifest_path)
             errors = validate_manifest_files(manifest)
 
-            self.assertEqual(len(errors), 1)
-            self.assertIn("manifest asset file stem must match cspCellName", errors[0])
+            self.assertEqual(errors, [])
+            self.assertTrue(str(build_import_plan(manifest)[0]["assetPath"]).endswith("rough.png"))
 
     def test_loads_japanese_manifest_paths_and_names(self) -> None:
         with tempfile.TemporaryDirectory(prefix="日本語 パス ") as tmp:
@@ -164,10 +165,10 @@ class ManifestTests(unittest.TestCase):
             cut["tracks"][0]["xdtsTrackName"] = "あ"
             cut["tracks"][0]["targetFolderPath"] = ["あ"]
             cut["tracks"][0]["cels"][0]["cspCellName"] = "あ_01"
-            cut["tracks"][0]["cels"][0]["assetPath"] = "あ_01.png"
+            cut["tracks"][0]["cels"][0]["material"]["path"] = "あ_01.png"
             manifest_path = package / "csp-import.xci"
             manifest_path.write_text(
-                json.dumps({"schemaVersion": 3, "assetRoot": "../素材 画像", "cuts": [cut]}, ensure_ascii=False),
+                json.dumps({"schemaVersion": 4, "assetRoot": "../素材 画像", "cuts": [cut]}, ensure_ascii=False),
                 encoding="utf-8",
             )
 
@@ -208,7 +209,11 @@ def _cut(cut_id: str, cut_number: str, xdts: str, *, order: int = 0) -> dict[str
                 "kind": "cell",
                 "xdtsTrackName": "A",
                 "stackOrder": 10,
-                "cels": [{"cspCellName": "A_01", "assetPath": "A_01.png"}],
+                "cels": [{
+                    "cspCellName": "A_01",
+                    "firstFrame": 0,
+                    "material": {"assetId": "asset_A_01", "pathKind": "asset-root-relative", "path": "A_01.png"},
+                }],
             }
         ],
     }

@@ -526,9 +526,13 @@ export const uiText = {
       selectTitle: '表示するカットフォルダを切り替え',
       add: 'カットフォルダを追加',
       addTitle: 'カットフォルダを追加。フォルダをこのペインへドロップしても追加できます。',
+      change: 'カットフォルダを変更',
+      changeTitle: '現在のカットフォルダを変更',
+      unset: 'カットフォルダ未設定',
     },
     folder: {
       breadcrumb: '現在のフォルダ',
+      currentLocation: '現在のフォルダ',
       breadcrumbTitle: (label: string) => `${label}へ移動`,
       loading: 'フォルダを読み込み中',
       empty: 'このフォルダは空です。',
@@ -537,6 +541,10 @@ export const uiText = {
       importCurrent: 'このフォルダの画像を登録',
       importRecursive: '配下の画像を再帰登録',
       importOne: (name: string) => `${name}を画像素材に登録`,
+    },
+    sourceView: {
+      files: 'カットフォルダ',
+      project: 'プロジェクト素材',
     },
     view: {
       grid: 'サムネ',
@@ -706,7 +714,7 @@ export const uiText = {
     saveFailed: (message: string) => `書き出しに失敗しました。\n${message}`,
     cspImportPackageBlocked: (message: string) => `CSP自動登録を書き出せません。\n${message}`,
     cspImportAssetRootMissing: (path: string) => `CSP自動登録を書き出せません。\nカットフォルダが見つかりません。\n\n${path}\n\nプロジェクトファイルを別PCで開いた場合や、Google Driveの同期前は、画像素材フォルダを登録し直してください。`,
-    cspImportAssetFilesMissing: (count: number, paths: string[]) => `CSP自動登録を書き出せません。\n登録素材ファイルが見つかりません: ${count}件\n\n${paths.join('\n')}${count > paths.length ? `\n...ほか ${count - paths.length} 件` : ''}`,
+    cspImportAssetFilesMissing: (count: number, paths: string[]) => `登録素材ファイルが見つかりません: ${count}件\n\n${paths.join('\n')}${count > paths.length ? `\n...ほか ${count - paths.length} 件` : ''}\n\n該当画像の読み込みを省略し、XDTSのキーとCSPセル名のみで自動登録パッケージを書き出しますか？`,
     cspImportPackageSaved: (path: string) => `CSP自動登録を書き出しました。\n${path}`,
     trackPlan: {
       name: '名前',

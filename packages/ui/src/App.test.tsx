@@ -381,7 +381,6 @@ it('warns on project load when registered material files are missing on disk', a
       lastModified: 1,
     }, {
       role: 'cell-material',
-      rootId: rooted.root.rootId,
       relativePath: 'A_01.png',
     })
     const bound = upsertBinding(asset.project, {

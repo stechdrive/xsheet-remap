@@ -23,7 +23,8 @@ SUPPORTED_TRACK_KINDS = {
 @dataclass(frozen=True)
 class CelBinding:
     csp_cell_name: str
-    asset_path: Path
+    asset_path: Path | None
+    asset_id: str | None
     first_frame: int | None
 
 
@@ -41,7 +42,7 @@ class ImportTrack:
 
     @property
     def imports_assets(self) -> bool:
-        return self.kind != "separator" and len(self.cels) > 0
+        return self.kind != "separator" and any(cel.asset_path is not None and cel.asset_path.is_file() for cel in self.cels)
 
 
 @dataclass(frozen=True)
@@ -131,7 +132,7 @@ def load_manifest(path: str | Path) -> CspImportManifest:
         raise ManifestError("manifest root must be an object")
 
     schema_version = _required_int(raw, "schemaVersion")
-    if schema_version != 3:
+    if schema_version != 4:
         raise ManifestError(f"unsupported schemaVersion: {schema_version}")
 
     base_dir = manifest_path.parent
@@ -169,13 +170,8 @@ def validate_manifest_files(manifest: CspImportManifest) -> list[str]:
             errors.append(f"XDTS not found for {cut.cut_number}: {cut.xdts_path}")
         for track in cut.importable_tracks:
             for cel in track.cels:
-                if not cel.asset_path.is_file():
-                    errors.append(f"asset not found for {cut.cut_number}/{track.track_id}/{cel.csp_cell_name}: {cel.asset_path}")
-                elif cel.asset_path.stem != cel.csp_cell_name:
-                    errors.append(
-                        "manifest asset file stem must match cspCellName "
-                        f"for {cut.cut_number}/{track.track_id}/{cel.csp_cell_name}: {cel.asset_path.name}"
-                    )
+                if cel.asset_path is None or not cel.asset_path.is_file():
+                    continue
     errors.extend(_asset_conflict_errors(manifest.cuts))
     return errors
 
@@ -186,6 +182,8 @@ def build_import_plan(manifest: CspImportManifest) -> list[dict[str, Any]]:
         if not track.imports_assets:
             continue
         for cel in track.cels:
+            if cel.asset_path is None or not cel.asset_path.is_file():
+                continue
             plan.append(
                 {
                     "trackId": track.track_id,
@@ -315,40 +313,59 @@ def _parse_visible_row_index(raw: dict[str, Any], cut_index: int, index: int) ->
 def _parse_cel(raw: Any, assets_root: Path, cut_index: int, track_index: int, cel_index: int) -> CelBinding:
     if not isinstance(raw, dict):
         raise ManifestError(f"cuts[{cut_index}].tracks[{track_index}].cels[{cel_index}] must be an object")
-    asset_path = _resolve_path(assets_root, _required_str(raw, "assetPath"))
+    material = raw.get("material")
+    asset_path: Path | None = None
+    asset_id: str | None = None
+    if material is not None:
+        if not isinstance(material, dict):
+            raise ManifestError(f"cuts[{cut_index}].tracks[{track_index}].cels[{cel_index}].material must be an object")
+        path_kind = _required_str(material, "pathKind")
+        path_value = _required_str(material, "path")
+        if path_kind == "asset-root-relative":
+            asset_path = _resolve_path(assets_root, path_value)
+        elif path_kind == "absolute":
+            asset_path = Path(path_value).expanduser().resolve()
+        else:
+            raise ManifestError(f"cuts[{cut_index}].tracks[{track_index}].cels[{cel_index}].material.pathKind is unsupported: {path_kind}")
+        asset_id = _required_str(material, "assetId")
     first_frame = raw.get("firstFrame")
     if first_frame is not None and not isinstance(first_frame, int):
         raise ManifestError(f"cuts[{cut_index}].tracks[{track_index}].cels[{cel_index}].firstFrame must be an integer")
     return CelBinding(
         csp_cell_name=_required_str(raw, "cspCellName"),
         asset_path=asset_path,
+        asset_id=asset_id,
         first_frame=first_frame,
     )
 
 
 def _merge_import_tracks(cuts: tuple[CspImportCut, ...], *, strict: bool) -> tuple[ImportTrack, ...]:
     merged: dict[str, ImportTrack] = {}
-    cel_paths_by_key: dict[tuple[str, str], Path] = {}
+    cel_paths_by_key: dict[tuple[str, str], Path | None] = {}
 
     for cut in cuts:
         for track in cut.importable_tracks:
             existing = merged.get(track.track_id)
             cels = list(existing.cels if existing else ())
-            cel_names = {cel.csp_cell_name for cel in cels}
+            cel_indices = {cel.csp_cell_name: index for index, cel in enumerate(cels)}
             for cel in track.cels:
                 key = (track.track_id, cel.csp_cell_name)
                 previous_path = cel_paths_by_key.get(key)
-                if previous_path is not None and previous_path != cel.asset_path:
+                if previous_path is not None and cel.asset_path is not None and previous_path != cel.asset_path:
                     if strict:
                         raise ManifestError(
                             "same track/cspCellName points to multiple assets: "
                             f"{track.track_id}/{cel.csp_cell_name}: {previous_path} / {cel.asset_path}"
                         )
                     continue
-                cel_paths_by_key[key] = cel.asset_path
-                if cel.csp_cell_name not in cel_names:
+                if cel.asset_path is not None or key not in cel_paths_by_key:
+                    cel_paths_by_key[key] = cel.asset_path
+                existing_index = cel_indices.get(cel.csp_cell_name)
+                if existing_index is None:
                     cels.append(cel)
-                    cel_names.add(cel.csp_cell_name)
+                    cel_indices[cel.csp_cell_name] = len(cels) - 1
+                elif cels[existing_index].asset_path is None and cel.asset_path is not None:
+                    cels[existing_index] = cel
 
             if existing is None:
                 merged[track.track_id] = replace(track, cels=tuple(cels))
@@ -364,6 +381,8 @@ def _asset_conflict_errors(cuts: tuple[CspImportCut, ...]) -> list[str]:
     for cut in cuts:
         for track in cut.importable_tracks:
             for cel in track.cels:
+                if cel.asset_path is None or not cel.asset_path.is_file():
+                    continue
                 key = (track.track_id, cel.csp_cell_name)
                 previous_path = paths_by_key.get(key)
                 if previous_path is not None and previous_path != cel.asset_path:

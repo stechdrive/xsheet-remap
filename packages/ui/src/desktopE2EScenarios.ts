@@ -75,13 +75,11 @@ export function buildFullDefaultA3Scenario(fileRefs: FileRef[], renameResults: N
     ? registerAssetRoot(project, { label: 'desktop-e2e-assets', path: assetRootPath, handleKind: 'directory' })
     : null
   if (assetRootRegistration) project = assetRootRegistration.project
-  const assetRootId = assetRootRegistration?.root.rootId
   const assets = new Map<string, CutAsset>()
   for (const name of FULL_DEFAULT_A3_ASSET_NAMES) {
     const ref = assetRefs.get(name) as FileRef
     const registered = registerAsset(project, ref, {
       role: 'cell-material',
-      rootId: assetRootId,
       relativePath: ref.relativePath,
     })
     project = registered.project
@@ -184,7 +182,7 @@ export function buildFullDefaultA3Scenario(fileRefs: FileRef[], renameResults: N
   const initialPlan = buildExportPlan(project, 'import-stack')
   const initialXdts = exportXdts(initialPlan)
   const initialChecks = validateFullDefaultA3Plan(project, initialXdts)
-  if (assetRootId) {
+  if (assetRootRegistration) {
     initialChecks.push('registered all scenario materials under one asset root with project-relative paths')
   }
 

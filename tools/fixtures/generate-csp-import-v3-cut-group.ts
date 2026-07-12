@@ -128,7 +128,7 @@ async function main(): Promise<void> {
 
   await writeFixtureImages()
   const document = await buildFixtureDocument()
-  const packageBuild = buildCspImportPackage(document, { appVersion: 'fixture-v3-cut-group' })
+  const packageBuild = buildCspImportPackage(document, { appVersion: 'fixture-v4-cut-group' })
   const errors = packageBuild.issues.filter(issue => issue.severity === 'error')
   if (errors.length > 0) {
     throw new Error(`fixture package has validation errors:\n${errors.map(issue => issue.message).join('\n')}`)
@@ -199,7 +199,6 @@ async function buildFixtureDocument(): Promise<CutGroupProjectDocument> {
       lastModified: Date.UTC(2026, 0, 1),
     }, {
       role: 'cell-material',
-      rootId: registeredRoot.root.rootId,
       relativePath: asset.relativePath,
     })
     project = registered.project
@@ -306,10 +305,10 @@ async function verifyWrittenFixture(manifestFileName: string): Promise<void> {
       timelineName: string
       durationFrames: number
       files: { xdts: string }
-      tracks: Array<{ cels?: Array<{ cspCellName: string; assetPath: string }> }>
+      tracks: Array<{ cels?: Array<{ cspCellName: string; material?: { path: string } }> }>
     }>
   }
-  if (manifest.schemaVersion !== 3) throw new Error(`unexpected schemaVersion: ${manifest.schemaVersion ?? '(none)'}`)
+  if (manifest.schemaVersion !== 4) throw new Error(`unexpected schemaVersion: ${manifest.schemaVersion ?? '(none)'}`)
   if (manifest.assetRoot !== '..') throw new Error(`unexpected assetRoot: ${manifest.assetRoot ?? '(none)'}`)
   const setup = manifest.setup
   if (!setup || setup.xdts !== '_setup.xdts') throw new Error(`unexpected setup xdts: ${setup?.xdts ?? '(none)'}`)
@@ -356,11 +355,11 @@ async function verifyWrittenFixture(manifestFileName: string): Promise<void> {
     }
     for (const track of manifestCut.tracks) {
       for (const cel of track.cels ?? []) {
-        const assetPath = path.resolve(packageDirectory, manifest.assetRoot, cel.assetPath)
+        if (!cel.material) continue
+        const assetPath = cel.material.pathKind === 'absolute'
+          ? path.resolve(cel.material.path)
+          : path.resolve(packageDirectory, manifest.assetRoot, cel.material.path)
         await stat(assetPath)
-        if (path.parse(assetPath).name !== cel.cspCellName) {
-          throw new Error(`asset stem mismatch for ${expectedCut.cut}: ${cel.cspCellName} / ${assetPath}`)
-        }
       }
     }
   }
@@ -369,10 +368,10 @@ async function verifyWrittenFixture(manifestFileName: string): Promise<void> {
 async function writeReadme(): Promise<void> {
   await writeFile(
     path.join(fixtureRoot, 'README.md'),
-    `# CSP import v3 cut-group fixture
+    `# CSP import v4 cut-group fixture
 
 Generated test data for updating the CSP import helper from the legacy
-single-cut manifest shape to the current main-app schema v3 shape.
+single-cut manifest shape to the current main-app schema v4 shape.
 
 Regenerate from the repository root:
 
@@ -426,7 +425,7 @@ Each cut has its own CSP timeline name and duration. The cut number keeps its
 | C101B | 101B | 36f |
 | C101C | 101C | 48f |
 
-The manifest is schemaVersion 3 and is intended to exercise the helper's
+The manifest is schemaVersion 4 and is intended to exercise the helper's
 multi-cut XDTS import and cross-cut asset de-duplication path.
 The setup XDTS contains the union animation-folder stack for 作画, 演出, and
 作監. It deliberately repeats animation-folder names such as A under multiple

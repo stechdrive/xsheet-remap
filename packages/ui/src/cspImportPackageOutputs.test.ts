@@ -28,7 +28,6 @@ describe('cspImportPackageTextOutputs', () => {
       relativePath: 'materials/A_01.png',
     }, {
       role: 'cell-material',
-      rootId: withRoot.root.rootId,
       relativePath: 'materials/A_01.png',
     })
     const firstCut = upsertBinding(withAsset.project, {

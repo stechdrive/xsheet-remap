@@ -34,7 +34,6 @@ describe('CSP import package builder', () => {
       relativePath: 'materials/A_01.png',
     }, {
       role: 'cell-material',
-      rootId: withRoot.root.rootId,
       relativePath: 'materials/A_01.png',
     })
     const withSecondAsset = registerAsset(withAsset.project, {
@@ -43,7 +42,6 @@ describe('CSP import package builder', () => {
       relativePath: 'materials/B_01.png',
     }, {
       role: 'cell-material',
-      rootId: withRoot.root.rootId,
       relativePath: 'materials/B_01.png',
     })
     const firstCut = upsertBinding(withSecondAsset.project, {
@@ -70,7 +68,7 @@ describe('CSP import package builder', () => {
 
     expect(result.assetRootPath).toBe('D:\\cuts\\shared')
     expect(result.outputDirectoryName).toBe('xsheet-csp-import')
-    expect(result.manifest.schemaVersion).toBe(3)
+    expect(result.manifest.schemaVersion).toBe(4)
     expect(result.manifest.createdBy).toEqual({ app: 'xsheet-remap', version: '0.1.test' })
     expect(result.manifest.assetRoot).toBe('..')
     expect(result.manifest.outputClipFileName).toBe('SAMPLE_05_001_002.clip')
@@ -93,17 +91,21 @@ describe('CSP import package builder', () => {
       kind: 'cell',
       xdtsTrackName: 'A',
       targetFolderPath: ['LO', '作画'],
-      cels: [{ cspCellName: 'A_01', assetPath: 'materials/A_01.png', firstFrame: 0 }],
+      cels: [{
+        cspCellName: 'A_01',
+        firstFrame: 0,
+        material: { assetId: withAsset.asset.assetId, pathKind: 'asset-root-relative', path: 'materials/A_01.png' },
+      }],
     })
     expect(result.manifest.cuts[1]?.tracks[0]?.cels[0]).toMatchObject({
       cspCellName: 'A_01',
-      assetPath: 'materials/A_01.png',
       firstFrame: 11,
+      material: { pathKind: 'asset-root-relative', path: 'materials/A_01.png' },
     })
     expect(result.manifest.cuts[1]?.tracks[1]?.cels[0]).toMatchObject({
       cspCellName: 'B_01',
-      assetPath: 'materials/B_01.png',
       firstFrame: 17,
+      material: { pathKind: 'asset-root-relative', path: 'materials/B_01.png' },
     })
     expect(result.issues.filter(issue => issue.severity === 'error')).toEqual([])
   })
@@ -185,20 +187,16 @@ describe('CSP import package builder', () => {
     expect(result.issues.map(issue => issue.code)).toContain('cspImport.timelineName.duplicate')
   })
 
-  it('requires an explicit CSP asset root when the cut group has multiple roots', () => {
+  it('uses the latest explicitly selected cut folder as the single package root', () => {
     const firstRoot = registerAssetRoot(createDefaultProject(), { label: 'primary', path: 'D:\\cuts\\shared', handleKind: 'directory' })
     const secondRoot = registerAssetRoot(firstRoot.project, { label: 'reference', path: 'D:\\cuts\\reference', handleKind: 'directory' })
-    const document = createProjectDocumentFromCutProject(secondRoot.project)
-    const blocked = buildCspImportPackage(document)
-    const selectedDocument = updateActiveCutProjectInDocument(document, secondRoot.project, { cspImportAssetRootId: firstRoot.root.rootId })
-    const selected = buildCspImportPackage(selectedDocument)
+    const result = buildCspImportPackage(createProjectDocumentFromCutProject(secondRoot.project))
 
-    expect(blocked.issues.map(issue => issue.code)).toContain('cspImport.assetRoot.selectionRequired')
-    expect(selected.assetRootPath).toBe('D:\\cuts\\shared')
-    expect(selected.issues.map(issue => issue.code)).not.toContain('cspImport.assetRoot.selectionRequired')
+    expect(result.assetRootPath).toBe('D:\\cuts\\reference')
+    expect(result.issues.map(issue => issue.code)).not.toContain('cspImport.assetRoot.selectionRequired')
   })
 
-  it('reports asset roots and file names that are not safe for CSP image import', () => {
+  it('keeps source file names independent from CSP cell names', () => {
     const created = createOrSetEvent({ ...createDefaultProject(), cut: { cut: 'C001' } }, 'A', 1, 'action')
     const withRoot = registerAssetRoot(created.project, {
       label: 'materials',
@@ -211,7 +209,6 @@ describe('CSP import package builder', () => {
       relativePath: 'rough.png',
     }, {
       role: 'cell-material',
-      rootId: withRoot.root.rootId,
       relativePath: 'rough.png',
     })
     const project = upsertBinding(withAsset.project, {
@@ -224,8 +221,27 @@ describe('CSP import package builder', () => {
 
     const result = buildCspImportPackage(createProjectDocumentFromCutProject(project))
 
-    expect(result.issues.map(issue => issue.code)).toContain('cspImport.asset.stemMismatch')
-    expect(result.manifest.cuts[0]?.tracks[0]?.cels).toEqual([])
+    expect(result.issues.map(issue => issue.code)).not.toContain('cspImport.asset.stemMismatch')
+    expect(result.manifest.cuts[0]?.tracks[0]?.cels[0]).toMatchObject({
+      cspCellName: 'A_01',
+      material: { pathKind: 'asset-root-relative', path: 'rough.png' },
+    })
+  })
+
+  it('keeps key-only cells in the manifest without requiring image material', () => {
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const withRoot = registerAssetRoot(created.project, { label: 'materials', path: 'D:\\cuts\\shared' })
+    const project = upsertBinding(withRoot.project, {
+      slotId: 'slot_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A_01',
+      materialState: 'missing-ok',
+    })
+
+    const result = buildCspImportPackage(createProjectDocumentFromCutProject(project))
+
+    expect(result.manifest.cuts[0]?.tracks[0]?.cels).toEqual([{ cspCellName: 'A_01', firstFrame: 0 }])
+    expect(result.issues.filter(issue => issue.severity === 'error')).toEqual([])
   })
 
   it('builds setup XDTS tracks in project paper-track order across shared cuts', () => {
@@ -233,15 +249,15 @@ describe('CSP import package builder', () => {
       ...updateProjectPaperTracks(createDefaultProject(), ['A', 'B', 'C']),
       cut: { cut: 'C001', cspTimelineName: '001' },
     })
-    const firstCut = addBoundMaterial(withRoot.project, withRoot.rootId, 'C', 'layer_sakkan', 1, 'C_01')
+    const firstCut = addBoundMaterial(withRoot, 'C', 'layer_sakkan', 1, 'C_01')
     let document = createProjectDocumentFromCutProject(firstCut)
 
     document = addBlankSharedCutToProjectDocument(document, firstCut, { cut: { cut: 'C002', cspTimelineName: '002' } })
-    const secondCut = addBoundMaterial(activeCutProjectFromDocument(document), withRoot.rootId, 'B', 'layer_sakkan', 1, 'B_01')
+    const secondCut = addBoundMaterial(activeCutProjectFromDocument(document), 'B', 'layer_sakkan', 1, 'B_01')
     document = updateActiveCutProjectInDocument(document, secondCut)
 
     document = addBlankSharedCutToProjectDocument(document, secondCut, { cut: { cut: 'C003', cspTimelineName: '003' } })
-    const thirdCut = addBoundMaterial(activeCutProjectFromDocument(document), withRoot.rootId, 'A', 'layer_sakkan', 1, 'A_01')
+    const thirdCut = addBoundMaterial(activeCutProjectFromDocument(document), 'A', 'layer_sakkan', 1, 'A_01')
     document = updateActiveCutProjectInDocument(document, thirdCut)
 
     const result = buildCspImportPackage(document)
@@ -270,11 +286,11 @@ describe('CSP import package builder', () => {
       ...updateProjectPaperTracks(withOnlyEnshutsuLayer, ['A', 'B']),
       cut: { cut: 'C101', cspTimelineName: '101' },
     })
-    const firstCut = addBoundMaterial(withRoot.project, withRoot.rootId, 'B', 'layer_enshutsu', 1, 'B_01')
+    const firstCut = addBoundMaterial(withRoot, 'B', 'layer_enshutsu', 1, 'B_01')
     let document = createProjectDocumentFromCutProject(firstCut)
 
     document = addBlankSharedCutToProjectDocument(document, firstCut, { cut: { cut: 'C102', cspTimelineName: '102' } })
-    const secondCut = addBoundMaterial(activeCutProjectFromDocument(document), withRoot.rootId, 'A', 'layer_enshutsu', 1, 'A_01')
+    const secondCut = addBoundMaterial(activeCutProjectFromDocument(document), 'A', 'layer_enshutsu', 1, 'A_01')
     document = updateActiveCutProjectInDocument(document, secondCut)
 
     const result = buildCspImportPackage(document)
@@ -294,18 +310,17 @@ describe('CSP import package builder', () => {
   })
 })
 
-function projectWithMaterialRoot(project: CutProject): { project: CutProject; rootId: string } {
+function projectWithMaterialRoot(project: CutProject): CutProject {
   const registered = registerAssetRoot(project, {
     label: 'materials',
     path: 'D:\\cuts\\shared',
     handleKind: 'directory',
   })
-  return { project: registered.project, rootId: registered.root.rootId }
+  return registered.project
 }
 
 function addBoundMaterial(
   project: CutProject,
-  rootId: string,
   paperTrack: PaperTrackName,
   correctionLayerId: string,
   frame: number,
@@ -318,7 +333,6 @@ function addBoundMaterial(
     relativePath: `materials/${cspCellName}.png`,
   }, {
     role: 'cell-material',
-    rootId,
     relativePath: `materials/${cspCellName}.png`,
   })
   const slot = registered.project.cspTrackSlots.find(item =>

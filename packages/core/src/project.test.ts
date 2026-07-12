@@ -42,6 +42,7 @@ import {
   NULL_CELL_KEY_ID,
   redoHistory,
   registerAsset,
+  registerAssetRoot,
   registerAssetsToCspTrack,
   registerSheetSource,
   resolveSheetTemplatePageSize,
@@ -202,8 +203,8 @@ describe('core project commands', () => {
     project = {
       ...project,
       assets: [
-        { assetId: 'asset_sakuga', originalFileName: 'A1_sakuga.png', displayName: 'A1_sakuga.png', role: 'cell-material' },
-        { assetId: 'asset_enshutsu', originalFileName: 'A1_enshutsu.png', displayName: 'A1_enshutsu.png', role: 'cell-material' },
+        { assetId: 'asset_sakuga', binId: 'asset_bin_root', originalFileName: 'A1_sakuga.png', displayName: 'A1_sakuga.png', role: 'cell-material', source: { kind: 'unresolved' } },
+        { assetId: 'asset_enshutsu', binId: 'asset_bin_root', originalFileName: 'A1_enshutsu.png', displayName: 'A1_enshutsu.png', role: 'cell-material', source: { kind: 'unresolved' } },
       ],
     }
     project = upsertBinding(project, { slotId: 'slot_enshutsu_A', keyId: created.key.keyId, cspCellName: 'A1_enshutsu', materialState: 'assigned', assetId: 'asset_enshutsu' })
@@ -638,8 +639,8 @@ describe('core project commands', () => {
     project = {
       ...project,
       assets: [
-        { assetId: 'asset_sakuga_a3', originalFileName: 'A3.jpg', displayName: 'A3.jpg', role: 'cell-material' },
-        { assetId: 'asset_enshutsu_a4', originalFileName: 'A4_e.jpg', displayName: 'A4_e.jpg', role: 'cell-material' },
+        { assetId: 'asset_sakuga_a3', binId: 'asset_bin_root', originalFileName: 'A3.jpg', displayName: 'A3.jpg', role: 'cell-material', source: { kind: 'unresolved' } },
+        { assetId: 'asset_enshutsu_a4', binId: 'asset_bin_root', originalFileName: 'A4_e.jpg', displayName: 'A4_e.jpg', role: 'cell-material', source: { kind: 'unresolved' } },
       ],
     }
 
@@ -918,7 +919,7 @@ describe('core project commands', () => {
     ])
     expect(applied.assets.find(asset => asset.assetId === shared.asset.assetId)).toMatchObject({
       displayName: 'A_01.png',
-      currentPath: 'D:\\cut\\A_01.png',
+      source: { kind: 'external-file', absolutePath: 'D:\\cut\\A_01.png' },
     })
   })
 
@@ -1146,13 +1147,11 @@ describe('core project commands', () => {
       path: 'D:\\cut\\A1.png',
       relativePath: 'A1.png',
       contentHash: 'sha256:a1',
-    }, { role: 'cell-material', rootId: 'asset_root_cut', relativePath: 'A1.png' })
+    }, { role: 'cell-material' })
     expect(imported.project.assets).toHaveLength(1)
     expect(imported.asset.assetId).toBe(dropped.asset.assetId)
     expect(imported.asset).toMatchObject({
-      currentPath: 'D:\\cut\\A1.png',
-      rootId: 'asset_root_cut',
-      relativePath: 'A1.png',
+      source: { kind: 'external-file', absolutePath: 'D:\\cut\\A1.png' },
       contentHash: 'sha256:a1',
     })
   })
@@ -1168,20 +1167,16 @@ describe('core project commands', () => {
           : key),
       },
     }
-    const asset = registerAsset(blankKeyProject, {
+    const rootedProject = { ...blankKeyProject, assetRoot: { label: 'C001', path: 'D:\\cuts\\C001', handleKind: 'directory' as const } }
+    const asset = registerAsset(rootedProject, {
       name: 'scan_007.jpg',
       path: 'D:\\cuts\\C001\\scan_007.jpg',
       relativePath: 'scan_007.jpg',
     }, {
       role: 'cell-material',
-      rootId: 'asset_root_0001',
       relativePath: 'scan_007.jpg',
     })
-    const withRoot = {
-      ...asset.project,
-      assetRoots: [{ rootId: 'asset_root_0001', label: 'C001', path: 'D:\\cuts\\C001', handleKind: 'directory' as const }],
-    }
-    const withEvent = setEvent(withRoot, 'C', 1, created.key.keyId, 'action')
+    const withEvent = setEvent(asset.project, 'C', 1, created.key.keyId, 'action')
     const drifted = upsertBinding(withEvent, {
       slotId: 'slot_C',
       keyId: created.key.keyId,
@@ -1245,14 +1240,59 @@ describe('core project commands', () => {
     expect(second.project.assets).toHaveLength(2)
   })
 
-  it('migrates legacy assets to cell material assets', () => {
-    const legacy = {
-      ...createDefaultProject(),
-      assets: [{ assetId: 'asset_legacy', originalFileName: 'A1.png', displayName: 'A1.png' }],
-    }
-    const migrated = migrateProject(legacy as unknown as Parameters<typeof migrateProject>[0])
-    expect(migrated.assetRoots).toEqual([])
-    expect(migrated.assets[0]).toMatchObject({ assetId: 'asset_legacy', role: 'cell-material' })
+  it('keeps a direct-dropped file outside the primary root as an external source', () => {
+    const rooted = registerAssetRoot(createDefaultProject(), {
+      label: 'C001',
+      path: 'D:\\cuts\\C001',
+    })
+    const registered = registerAsset(rooted.project, {
+      name: 'A1.png',
+      path: 'E:\\references\\A1.png',
+      rootPath: 'E:\\references',
+      relativePath: 'A1.png',
+    }, { role: 'cell-material' })
+
+    expect(registered.asset.source).toEqual({
+      kind: 'external-file',
+      absolutePath: 'E:\\references\\A1.png',
+    })
+  })
+
+  it('preserves old root-relative files as external assets when the primary root changes', () => {
+    const firstRoot = registerAssetRoot(createDefaultProject(), { label: 'C001', path: 'D:\\cuts\\C001' })
+    const registered = registerAsset(firstRoot.project, {
+      name: 'A1.png',
+      path: 'D:\\cuts\\C001\\A1.png',
+    }, { role: 'cell-material' })
+    const changedRoot = registerAssetRoot(registered.project, { label: 'C002', path: 'D:\\cuts\\C002' })
+
+    expect(changedRoot.project.assets[0]?.source).toEqual({
+      kind: 'external-file',
+      absolutePath: 'D:\\cuts\\C001\\A1.png',
+    })
+  })
+
+  it('adopts an external asset as root-relative when its containing root is registered and scanned', () => {
+    const external = registerAsset(createDefaultProject(), {
+      name: 'A1.png',
+      path: 'D:\\cuts\\C001\\A1.png',
+    }, { role: 'cell-material' })
+    const rooted = registerAssetRoot(external.project, { label: 'C001', path: 'D:\\cuts\\C001' })
+    const rescanned = registerAsset(rooted.project, {
+      name: 'A1.png',
+      path: 'D:\\cuts\\C001\\A1.png',
+      rootPath: 'D:\\cuts\\C001',
+      relativePath: 'A1.png',
+    }, { role: 'cell-material' })
+
+    expect(rescanned.project.assets).toHaveLength(1)
+    expect(rescanned.asset.source).toEqual({ kind: 'root-relative', relativePath: 'A1.png' })
+  })
+
+  it('creates the root project-material bin in the current project schema', () => {
+    const migrated = migrateProject(createDefaultProject())
+    expect(migrated.assetRoot).toBeUndefined()
+    expect(migrated.assetBins).toEqual([{ binId: 'asset_bin_root', name: 'プロジェクト素材', order: 0 }])
   })
 
   it('roundtrips project JSON through migration without losing operational data', () => {

@@ -77,8 +77,12 @@ foreach ($entry in @(
       cels = @(
         [pscustomobject]@{
           cspCellName = "$($name)_01"
-          assetPath = "$($name)_01.png"
           firstFrame = 0
+          material = [pscustomobject]@{
+            assetId = "smoke.asset.$name"
+            pathKind = "asset-root-relative"
+            path = "$($name)_01.png"
+          }
         }
       )
     }
@@ -86,7 +90,7 @@ foreach ($entry in @(
 }
 
 $manifest = [pscustomobject]@{
-  schemaVersion = 3
+  schemaVersion = 4
   createdBy = [pscustomobject]@{
     app = "xsheet-remap"
     version = "dev"

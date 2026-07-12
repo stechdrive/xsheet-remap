@@ -37,12 +37,12 @@ export function AppShellView({ controller }: { controller: AppController }) {
     copySelectedTimingRange, pasteTimingClipboard, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
-    handleAssetNativePaths, handleAssetRootCandidates, handleEnsureAssetRefs, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
+    handleAssetNativePaths, handleAssetRootCandidates, handleEnsureAssetRefs, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
-    handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleCspImportAssetRootChange, handleSwitchProjectCut,
+    handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange,
@@ -359,7 +359,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onAssetSheetSources={assetIds => handleAssetSheetSources(assetIds, activePage?.pageId)}
             onAssetDrop={(files, hit, position) => void handleAssetFiles(files, hit, position)}
             onAssetFiles={files => void handleAssetFiles(files)}
-            onAssetFileRefs={handleAssetFileRefs}
             onAssetRoots={handleAssetRootCandidates}
             onEnsureAssetRefs={handleEnsureAssetRefs}
             onAssetNativePaths={(paths, options) => void handleAssetNativePaths(paths, null, undefined, options)}
@@ -442,13 +441,11 @@ export function AppShellView({ controller }: { controller: AppController }) {
         {panel === 'export' && (
           <ExportPanel
             project={project}
-            cspImportAssetRootId={projectDocumentSnapshot.cspImportAssetRootId}
             issues={issues}
             exportPlan={exportPlan}
             xdtsText={xdtsText}
             setTimingSourceRole={updateExportTimingSourceRole}
             updateExportProfile={updateExportProfile}
-            onCspImportAssetRootChange={handleCspImportAssetRootChange}
           />
         )}
       </main>
@@ -479,13 +476,11 @@ export function AppShellView({ controller }: { controller: AppController }) {
             </header>
             <ExportPanel
               project={project}
-              cspImportAssetRootId={projectDocumentSnapshot.cspImportAssetRootId}
               issues={issues}
               exportPlan={exportPlan}
               xdtsText={xdtsText}
               setTimingSourceRole={updateExportTimingSourceRole}
               updateExportProfile={updateExportProfile}
-              onCspImportAssetRootChange={handleCspImportAssetRootChange}
             />
           </section>
         </div>

@@ -31,23 +31,25 @@ describe('AssetBrowser', () => {
   it('keeps the asset list scroll position while dragging an asset card out', () => {
     const asset: CutAsset = {
       assetId: 'asset_drag_scroll_1',
+      binId: 'asset_bin_root',
       originalFileName: 'DragScroll_A.png',
       displayName: 'DragScroll_A.png',
       role: 'cell-material',
+      source: { kind: 'unresolved' },
       thumbnailUrl: 'blob:drag-scroll-a',
     }
 
     render(
       <AssetTray
-        assetRoots={[]}
         assets={[asset]}
         registrationSummaries={new Map()}
         onAssets={vi.fn()}
-        onAssetRefs={vi.fn()}
         onAssetRoots={vi.fn()}
         onEnsureAssetRefs={vi.fn(() => [])}
       />,
     )
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.assets.sourceView.project }))
 
     const card = screen.getByText('DragScroll_A.png').closest('.assetCard')
     const items = document.querySelector('.assetBrowserItems')
@@ -70,23 +72,25 @@ describe('AssetBrowser', () => {
   it('opens quick preview directly when the magnifier button is clicked on an unselected asset', async () => {
     const asset: CutAsset = {
       assetId: 'asset_quicklook_1',
+      binId: 'asset_bin_root',
       originalFileName: 'QuickLook_A.png',
       displayName: 'QuickLook_A.png',
       role: 'cell-material',
+      source: { kind: 'unresolved' },
       thumbnailUrl: 'blob:quicklook-a',
     }
 
     render(
       <AssetTray
-        assetRoots={[]}
         assets={[asset]}
         registrationSummaries={new Map()}
         onAssets={vi.fn()}
-        onAssetRefs={vi.fn()}
         onAssetRoots={vi.fn()}
         onEnsureAssetRefs={vi.fn(() => [])}
       />,
     )
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.assets.sourceView.project }))
 
     const card = screen.getByText('QuickLook_A.png').closest('.assetCard')
     if (!(card instanceof HTMLElement)) throw new Error('asset card not found')
@@ -120,7 +124,6 @@ describe('AssetBrowser', () => {
       })),
     })
     const root: AssetRoot = {
-      rootId: 'root_materials',
       label: 'materials',
       path: 'C:\\materials',
       handleKind: 'directory',
@@ -129,11 +132,10 @@ describe('AssetBrowser', () => {
 
     render(
       <AssetTray
-        assetRoots={[root]}
+        assetRoot={root}
         assets={[]}
         registrationSummaries={new Map()}
         onAssets={vi.fn()}
-        onAssetRefs={vi.fn()}
         onAssetRoots={vi.fn()}
         onEnsureAssetRefs={onEnsureAssetRefs}
       />,

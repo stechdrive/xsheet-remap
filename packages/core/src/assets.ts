@@ -1,5 +1,7 @@
 import type {
+  AssetBin,
   AssetRoot,
+  AssetSource,
   CutAsset,
   CutProject,
   FileRef,
@@ -7,16 +9,18 @@ import type {
   SheetSource,
 } from './types'
 import { nextId } from './core-utils'
+import { ROOT_ASSET_BIN_ID } from './project-constants'
 
 export function registerAsset(
   project: CutProject,
   file: FileRef,
-  options: { role?: CutAsset['role']; rootId?: string; relativePath?: string } = {},
+  options: { role?: CutAsset['role']; binId?: string; source?: AssetSource; relativePath?: string } = {},
 ): { project: CutProject; asset: CutAsset } {
   const role = options.role ?? 'cell-material'
-  const duplicate = findMatchingAsset(project.assets, file, { ...options, role })
+  const source = options.source ?? assetSourceForFile(project.assetRoot, file, options.relativePath)
+  const duplicate = findMatchingAsset(project.assets, file, { role, source, root: project.assetRoot })
   if (duplicate) {
-    const merged = mergeRegisteredAsset(duplicate, file, options)
+    const merged = mergeRegisteredAsset(duplicate, file, { ...options, source })
     if (merged === duplicate) return { project, asset: duplicate }
     return {
       project: {
@@ -29,12 +33,11 @@ export function registerAsset(
 
   const asset: CutAsset = {
     assetId: nextId('asset', project.assets.map(item => item.assetId)),
+    binId: options.binId ?? ROOT_ASSET_BIN_ID,
     originalFileName: file.name,
     displayName: file.name,
     role,
-    rootId: options.rootId,
-    relativePath: options.relativePath ?? file.relativePath,
-    currentPath: file.path,
+    source,
     fileSize: file.size,
     modifiedAt: fileModifiedAt(file),
     contentHash: file.contentHash,
@@ -43,16 +46,47 @@ export function registerAsset(
   return { project: { ...project, assets: [...project.assets, asset] }, asset }
 }
 
-export function registerAssetRoot(project: CutProject, input: { label: string; path?: string; handleKind?: AssetRoot['handleKind'] }): { project: CutProject; root: AssetRoot } {
-  const duplicate = project.assetRoots.find(root => input.path && root.path === input.path)
-  if (duplicate) return { project, root: duplicate }
+export function registerAssetRoot(project: CutProject, input: { label: string; path: string; handleKind?: AssetRoot['handleKind'] }): { project: CutProject; root: AssetRoot } {
+  if (samePath(project.assetRoot?.path, input.path)) return { project, root: project.assetRoot! }
   const root: AssetRoot = {
-    rootId: nextId('asset_root', project.assetRoots.map(item => item.rootId)),
     label: input.label,
     path: input.path,
-    handleKind: input.handleKind ?? (input.path ? 'directory' : 'manual-files'),
+    handleKind: input.handleKind ?? 'directory',
   }
-  return { project: { ...project, assetRoots: [...project.assetRoots, root] }, root }
+  const assets = project.assetRoot?.path
+    ? project.assets.map(asset => asset.source.kind === 'root-relative'
+      ? { ...asset, source: { kind: 'external-file' as const, absolutePath: assetAbsolutePath(asset, project.assetRoot)! } }
+      : asset)
+    : project.assets
+  return { project: { ...project, assetRoot: root, assets }, root }
+}
+
+export function createAssetBin(project: CutProject, input: { name: string; parentBinId?: string }): { project: CutProject; bin: AssetBin } {
+  const parentBinId = input.parentBinId ?? ROOT_ASSET_BIN_ID
+  if (!project.assetBins.some(bin => bin.binId === parentBinId)) throw new Error(`asset bin not found: ${parentBinId}`)
+  const siblings = project.assetBins.filter(bin => bin.parentBinId === parentBinId)
+  const bin: AssetBin = {
+    binId: nextId('asset_bin', project.assetBins.map(item => item.binId)),
+    parentBinId,
+    name: input.name.trim() || '新しいビン',
+    order: siblings.length,
+  }
+  return { project: { ...project, assetBins: [...project.assetBins, bin] }, bin }
+}
+
+export function assetRelativePath(asset: CutAsset): string | undefined {
+  return asset.source.kind === 'root-relative' ? asset.source.relativePath : undefined
+}
+
+export function assetAbsolutePath(asset: CutAsset, root?: AssetRoot): string | undefined {
+  if (asset.source.kind === 'external-file') return asset.source.absolutePath
+  if (asset.source.kind === 'unresolved') return asset.source.lastKnownPath
+  if (!root?.path) return undefined
+  return joinPath(root.path, asset.source.relativePath)
+}
+
+export function assetSourceDisplayPath(asset: CutAsset): string {
+  return assetRelativePath(asset) ?? assetAbsolutePath(asset) ?? asset.originalFileName
 }
 
 export function registerSheetSource(project: CutProject, imageRef: SheetPageImageRef, options: { assetId?: string } = {}): { project: CutProject; source: SheetSource } {
@@ -98,16 +132,16 @@ export function sameSheetImageRef(a: SheetPageImageRef, b: SheetPageImageRef): b
 function findMatchingAsset(
   assets: CutAsset[],
   file: FileRef,
-  options: { role: CutAsset['role']; rootId?: string; relativePath?: string },
+  options: { role: CutAsset['role']; source: AssetSource; root?: AssetRoot },
 ): CutAsset | undefined {
   const filePath = assetPathKey(file.path)
-  const relativePath = assetRelativePathKey(options.relativePath ?? file.relativePath)
+  const sourceKey = assetSourceKey(options.source)
   const roleMatches = (asset: CutAsset) => (asset.role ?? 'cell-material') === options.role
 
   const strongMatch = assets.find(asset => {
     if (!roleMatches(asset)) return false
-    if (filePath && assetPathKey(asset.currentPath) === filePath) return true
-    if (options.rootId && relativePath && asset.rootId === options.rootId && assetRelativePathKey(asset.relativePath) === relativePath) return true
+    if (filePath && assetPathKey(assetAbsolutePath(asset, options.root)) === filePath) return true
+    if (sourceKey && assetSourceKey(asset.source) === sourceKey) return true
     return false
   })
   if (strongMatch) return strongMatch
@@ -116,7 +150,7 @@ function findMatchingAsset(
 }
 
 function sameAssetFileMetadata(asset: CutAsset, file: FileRef): boolean {
-  if (asset.currentPath && file.path) return false
+  if (asset.source.kind !== 'unresolved' && file.path) return false
   const modifiedAt = fileModifiedAt(file)
   if (file.size === undefined || !modifiedAt) return false
   if (asset.originalFileName !== file.name || asset.fileSize !== file.size || asset.modifiedAt !== modifiedAt) return false
@@ -124,18 +158,56 @@ function sameAssetFileMetadata(asset: CutAsset, file: FileRef): boolean {
   return true
 }
 
-function mergeRegisteredAsset(asset: CutAsset, file: FileRef, options: { rootId?: string; relativePath?: string }): CutAsset {
+function mergeRegisteredAsset(asset: CutAsset, file: FileRef, options: { binId?: string; source: AssetSource }): CutAsset {
   const next: CutAsset = {
     ...asset,
-    rootId: asset.rootId ?? options.rootId,
-    relativePath: asset.relativePath ?? options.relativePath ?? file.relativePath,
-    currentPath: asset.currentPath ?? file.path,
+    binId: options.binId ?? asset.binId,
+    source: options.source.kind === 'unresolved' ? asset.source : options.source,
     fileSize: file.size ?? asset.fileSize,
     modifiedAt: fileModifiedAt(file) ?? asset.modifiedAt,
     contentHash: file.contentHash ?? asset.contentHash,
     thumbnailUrl: file.objectUrl ?? asset.thumbnailUrl,
   }
   return shallowEqualAsset(asset, next) ? asset : next
+}
+
+function assetSourceForFile(root: AssetRoot | undefined, file: FileRef, relativePath?: string): AssetSource {
+  const resolvedRelativePath = relativePath
+    ?? relativePathFromRoot(file.path, root?.path)
+    ?? (samePath(file.rootPath, root?.path) ? file.relativePath : undefined)
+  if (root?.path && resolvedRelativePath) {
+    return { kind: 'root-relative', relativePath: normalizeRelativePath(resolvedRelativePath) }
+  }
+  if (file.path) return { kind: 'external-file', absolutePath: file.path }
+  return { kind: 'unresolved' }
+}
+
+function relativePathFromRoot(path?: string, rootPath?: string): string | undefined {
+  if (!path || !rootPath) return undefined
+  const normalizedPath = path.replace(/\\/g, '/')
+  const normalizedRoot = rootPath.replace(/\\/g, '/').replace(/\/+$/, '')
+  if (normalizedPath.toLowerCase() === normalizedRoot.toLowerCase()) return undefined
+  if (!normalizedPath.toLowerCase().startsWith(`${normalizedRoot.toLowerCase()}/`)) return undefined
+  return normalizeRelativePath(normalizedPath.slice(normalizedRoot.length + 1))
+}
+
+function normalizeRelativePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^\.\/+/, '')
+}
+
+function assetSourceKey(source: AssetSource): string | undefined {
+  if (source.kind === 'root-relative') return `root:${assetRelativePathKey(source.relativePath)}`
+  const path = source.kind === 'external-file' ? source.absolutePath : source.lastKnownPath
+  return path ? `path:${assetPathKey(path)}` : undefined
+}
+
+function samePath(a?: string, b?: string): boolean {
+  return Boolean(a && b && assetPathKey(a) === assetPathKey(b))
+}
+
+function joinPath(root: string, relativePath: string): string {
+  const separator = root.includes('\\') ? '\\' : '/'
+  return `${root.replace(/[\\/]+$/, '')}${separator}${relativePath.replace(/^[\\/]+/, '').replace(/[\\/]/g, separator)}`
 }
 
 function fileModifiedAt(file: Pick<FileRef, 'lastModified'>): string | undefined {
@@ -157,9 +229,8 @@ function shallowEqualAsset(a: CutAsset, b: CutAsset): boolean {
     && a.originalFileName === b.originalFileName
     && a.displayName === b.displayName
     && a.role === b.role
-    && a.rootId === b.rootId
-    && a.relativePath === b.relativePath
-    && a.currentPath === b.currentPath
+    && a.binId === b.binId
+    && assetSourceKey(a.source) === assetSourceKey(b.source)
     && a.fileSize === b.fileSize
     && a.modifiedAt === b.modifiedAt
     && a.contentHash === b.contentHash

@@ -185,9 +185,11 @@ describe('CspLayerTree', () => {
       ...created.project,
       assets: [{
         assetId: 'asset_a1',
+        binId: 'asset_bin_root',
         originalFileName: 'A1.png',
         displayName: 'A1 reference.png',
         role: 'cell-material',
+        source: { kind: 'unresolved' },
       }],
     }, {
       slotId: 'slot_A',

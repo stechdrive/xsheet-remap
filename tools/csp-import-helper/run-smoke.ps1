@@ -1,7 +1,7 @@
 param(
   [string]$RunRoot = ".tmp\desktop-e2e\20260703-145307-129",
   [Alias("ExePath")]
-  [string]$LauncherPath = ".tmp\csp-import-helper-dist\xsheet-csp-import-helper\xsheet-csp-import-helper.bat",
+  [string]$LauncherPath = ".tmp\csp-import-helper-dist\xsheet-importer\xsheet-importer.exe",
   [switch]$Run,
   [switch]$ResetClip,
   [string]$ClipPath = $env:XSHEET_CSP_TEST_CLIP,
@@ -33,6 +33,55 @@ function Resolve-OutputPath([string]$PathValue) {
     return [System.IO.Path]::GetFullPath($PathValue)
   }
   return [System.IO.Path]::GetFullPath((Join-Path $repoRoot $PathValue))
+}
+
+function ConvertTo-ProcessArgument([AllowEmptyString()][string]$Value) {
+  if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') {
+    return $Value
+  }
+
+  $builder = New-Object System.Text.StringBuilder
+  [void]$builder.Append('"')
+  $backslashes = 0
+  foreach ($character in $Value.ToCharArray()) {
+    if ($character -eq [char]92) {
+      $backslashes += 1
+      continue
+    }
+    if ($character -eq [char]34) {
+      [void]$builder.Append((('\' * ($backslashes * 2 + 1)) -join ''))
+      [void]$builder.Append('"')
+    } else {
+      if ($backslashes -gt 0) {
+        [void]$builder.Append((('\' * $backslashes) -join ''))
+      }
+      [void]$builder.Append($character)
+    }
+    $backslashes = 0
+  }
+  if ($backslashes -gt 0) {
+    [void]$builder.Append((('\' * ($backslashes * 2)) -join ''))
+  }
+  [void]$builder.Append('"')
+  return $builder.ToString()
+}
+
+function Invoke-HelperLauncher([string]$Path, [string[]]$Arguments) {
+  $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+  $processInfo.FileName = $Path
+  $processInfo.Arguments = (($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join ' ')
+  $processInfo.UseShellExecute = $false
+  $processInfo.RedirectStandardOutput = $true
+  $processInfo.RedirectStandardError = $true
+  $processInfo.CreateNoWindow = $true
+
+  $process = [System.Diagnostics.Process]::Start($processInfo)
+  $standardOutput = $process.StandardOutput.ReadToEnd()
+  $standardError = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  if ($standardOutput) { [Console]::Out.Write($standardOutput) }
+  if ($standardError) { [Console]::Error.Write($standardError) }
+  return $process.ExitCode
 }
 
 $resolvedRunRoot = Resolve-InputPath $RunRoot
@@ -79,8 +128,8 @@ if (-not $Json) {
 if ($ProbeWindow) {
   $probeArgs = @("--manifest", $manifest, "--probe-window")
   if ($Json) { $probeArgs += "--json" }
-  & $resolvedLauncher @probeArgs
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  $probeExitCode = Invoke-HelperLauncher -Path $resolvedLauncher -Arguments $probeArgs
+  if ($probeExitCode -ne 0) { exit $probeExitCode }
 }
 
 $argsList = @("--manifest", $manifest, "--speed", $Speed)
@@ -99,8 +148,7 @@ if ($SaveAs) {
   if (-not $KeepClipOpen) { $argsList += "--close-after-save" }
 }
 
-& $resolvedLauncher @argsList
-$runExitCode = $LASTEXITCODE
+$runExitCode = Invoke-HelperLauncher -Path $resolvedLauncher -Arguments $argsList
 
 if ($Run -and $runExitCode -eq 0) {
   $manifestData = Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json

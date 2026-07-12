@@ -109,6 +109,12 @@ function syncVersion() {
     updateTomlPackageVersion(readFileSync(join(repoRoot, templateEditorCargoTomlPath), 'utf8'), version),
   )
 
+  const cspHelperLauncherCargoTomlPath = 'apps/csp-import-helper/launcher/Cargo.toml'
+  writeText(
+    cspHelperLauncherCargoTomlPath,
+    updateTomlPackageVersion(readFileSync(join(repoRoot, cspHelperLauncherCargoTomlPath), 'utf8'), version),
+  )
+
   const cargoLockPath = 'apps/desktop/src-tauri/Cargo.lock'
   writeText(
     cargoLockPath,
@@ -132,8 +138,20 @@ function syncVersion() {
   const templateEditorCargoLockPath = 'apps/template-editor/src-tauri/Cargo.lock'
   writeText(
     templateEditorCargoLockPath,
-    updateCargoLockPackageVersion(readFileSync(join(repoRoot, templateEditorCargoLockPath), 'utf8'), 'xsheet-template-editor', version),
+    updateCargoLockPackageVersion(readFileSync(join(repoRoot, templateEditorCargoLockPath), 'utf8'), 'xsheet-template', version),
   )
+
+  const cspHelperLauncherCargoLockPath = 'apps/csp-import-helper/launcher/Cargo.lock'
+  if (existsSync(join(repoRoot, cspHelperLauncherCargoLockPath))) {
+    writeText(
+      cspHelperLauncherCargoLockPath,
+      updateCargoLockPackageVersion(
+        readFileSync(join(repoRoot, cspHelperLauncherCargoLockPath), 'utf8'),
+        'xsheet-importer-launcher',
+        version,
+      ),
+    )
+  }
 
   writeText(
     'packages/ui/src/appVersion.ts',

@@ -12,7 +12,7 @@ const applicationTitle = isAssetPreviewWindow
   : appKind === 'remap'
     ? 'xsheet-remap'
     : appKind === 'template-editor'
-      ? 'xsheet-template-editor'
+      ? 'xsheet-template'
       : appKind === 'sheet-corrector'
         ? 'シート画像補正'
         : 'xsheet-editor'

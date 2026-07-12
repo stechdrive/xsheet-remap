@@ -514,7 +514,7 @@ export function AppHelpDialog({
               <li>
                 <strong>「書き出し」から「タイムシート/CSP自動登録」を保存する</strong>
                 <span>
-                  「タイムシート/CSP自動登録」を保存すると、ヘルパー用の登録ファイル（csp-import.xci）、XDTS、素材参照がカットフォルダ配下に作られます。csp-import.xciはクリスタではなく、CSP自動登録ヘルパーで選択します。
+                  「タイムシート/CSP自動登録」を保存すると、xsheet-importer用の登録ファイル（csp-import.xci）、XDTS、素材参照がカットフォルダ配下に作られます。csp-import.xciはクリスタではなく、xsheet-importerで選択します。
                 </span>
               </li>
             </ol>
@@ -543,7 +543,7 @@ export function AppHelpDialog({
           </article>}
         </div>
         <footer>
-          <p>CSP自動登録は、同梱のCSP自動登録ヘルパーがクリスタを操作して行います。csp-import.xciはヘルパー用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。</p>
+          <p>CSP自動登録は、同梱のxsheet-importerがクリスタを操作して行います。csp-import.xciはxsheet-importer用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。</p>
         </footer>
       </section>
     </div>

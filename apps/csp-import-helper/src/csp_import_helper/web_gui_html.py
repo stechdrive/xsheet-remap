@@ -140,7 +140,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   <main class="app" id="app">
     <section class="top">
       <div>
-        <h1>CSP自動登録ヘルパー</h1>
+        <h1>xsheet-importer</h1>
         <div class="version" id="version"></div>
       </div>
       <div class="top-actions">
@@ -236,11 +236,11 @@ HTML_TEMPLATE = r"""<!doctype html>
   </main>
 
   <div class="modal-backdrop" id="helpModal">
-    <div class="modal help-modal" role="dialog" aria-modal="true" aria-label="CSP自動登録ヘルパーの使い方">
+    <div class="modal help-modal" role="dialog" aria-modal="true" aria-label="xsheet-importerの使い方">
       <header>
         <div>
-          <h2>CSP自動登録ヘルパーの使い方</h2>
-          <p>CSPはCLIP STUDIO PAINT、つまりクリスタのことです。このヘルパーはクリスタを自動操作して、XDTSと画像素材を組み込みます。</p>
+          <h2>xsheet-importerの使い方</h2>
+          <p>CSPはCLIP STUDIO PAINT、つまりクリスタのことです。このアプリはクリスタを自動操作して、XDTSと画像素材を組み込みます。</p>
         </div>
         <button class="icon-button" id="helpClose" type="button" aria-label="ヘルプを閉じる" title="閉じる">
           <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
@@ -261,8 +261,8 @@ HTML_TEMPLATE = r"""<!doctype html>
         <section class="help-section">
           <h3>クリスタへ組み込む手順</h3>
           <ol>
-            <li><strong>xsheet-remapで「タイムシート/CSP自動登録」を書き出します。</strong> カットフォルダ内にヘルパー用の登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。</li>
-            <li><strong>この画面でCSP自動登録ヘルパー用ファイル(.xci)を選びます。</strong> .xciをこのウィンドウへドロップしても読み込めます。</li>
+            <li><strong>xsheet-remapで「タイムシート/CSP自動登録」を書き出します。</strong> カットフォルダ内にxsheet-importer用の登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。</li>
+            <li><strong>この画面でxsheet-importer用ファイル(.xci)を選びます。</strong> .xciをこのウィンドウへドロップしても読み込めます。</li>
             <li><strong>操作対象のクリスタファイル(.clip)を選びます。</strong> ヘルパーはこの.clipをクリスタで開いて処理します。</li>
             <li><strong>保存先を確認します。</strong> ファイル名込みの.clipパスにしてください。フォルダだけでは保存できません。</li>
             <li><strong>「開始」を押します。</strong> クリスタにXDTSを読み込み、必要な画像セルを登録し、最後に指定先へ別名保存します。</li>
@@ -277,14 +277,14 @@ HTML_TEMPLATE = r"""<!doctype html>
           <ul>
             <li>同梱のassets/xsheet-remap.lafを使う場合は、オートアクションパレットのメニューから「オートアクションセットを読み込み」を選び、xsheet-remap.lafを読み込むこと。</li>
             <li>乗算オートアクションを読み込んだ後、ファイル &gt; ショートカットキー設定から、設定領域 &gt; オートアクションを選び、読み込んだxsheet-remapオートアクションの「乗算」にCtrl+Alt+Lを割り当てていること。ワークスペース読み込みだけではオートアクションのショートカットは自動設定されません。</li>
-            <li>このオートアクションはレイヤー合成モードを乗算にするだけです。同じ内容のオートアクションを自分で作っている場合も、ヘルパーの「設定」にある「乗算オートアクション」と同じショートカットが割り当たっていれば使えます。</li>
+            <li>このオートアクションはレイヤー合成モードを乗算にするだけです。同じ内容のオートアクションを自分で作っている場合も、xsheet-importerの「設定」にある「乗算オートアクション」と同じショートカットが割り当たっていれば使えます。</li>
           </ul>
         </section>
         <section class="help-section">
           <h3>自動登録先のCLIPファイルを確認</h3>
           <ul>
             <li class="critical"><strong>最重要：素材の自動登録先となるCLIPファイル内で、既存のアニメーションフォルダーがすべて非表示になるようにしてください。</strong> アニメーションフォルダーを1つずつ非表示にする必要はありません。それらを含む親フォルダーを非表示にしても構いません。表示されたままのアニメーションフォルダーがあると、自動登録時のフォルダーの積み込みが崩れます。</li>
-            <li><strong>同じCLIPファイルで、タイムライン編集が有効になっていることを確認してください。</strong> ヘルパーはタイムライン編集が有効な状態を前提に処理を開始します。</li>
+            <li><strong>同じCLIPファイルで、タイムライン編集が有効になっていることを確認してください。</strong> xsheet-importerはタイムライン編集が有効な状態を前提に処理を開始します。</li>
           </ul>
         </section>
         <section class="help-section">
@@ -302,15 +302,15 @@ HTML_TEMPLATE = r"""<!doctype html>
         <section class="help-section">
           <h3>実行中の注意</h3>
           <ul>
-            <li><strong>自動登録中はマウス・キーボードを触らないでください。</strong> ヘルパーがクリスタを前面にして操作します。</li>
+            <li><strong>自動登録中はマウス・キーボードを触らないでください。</strong> xsheet-importerがクリスタを前面にして操作します。</li>
             <li>止めたい場合はCtrl+Alt+F12、またはCtrl+Alt+Pauseを押します。次の安全なチェック地点で停止します。</li>
-            <li>不明なクリスタのモーダルが出た場合、ヘルパーは無理に進めず停止します。ログと画面状態を確認してください。</li>
+            <li>不明なクリスタのモーダルが出た場合、xsheet-importerは無理に進めず停止します。ログと画面状態を確認してください。</li>
             <li>完了後は保存された.clipを開き、セル名、工程、BG/BOOK、撮影指示、メモの積み順を確認します。</li>
           </ul>
         </section>
       </div>
       <footer>
-        <p>csp-import.xciはヘルパー用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。必ずこのCSP自動登録ヘルパーから実行してください。</p>
+        <p>csp-import.xciはxsheet-importer用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。必ずxsheet-importerから実行してください。</p>
       </footer>
     </div>
   </div>
@@ -595,4 +595,3 @@ HTML_TEMPLATE = r"""<!doctype html>
 </body>
 </html>
 """
-

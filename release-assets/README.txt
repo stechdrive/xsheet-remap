@@ -11,7 +11,7 @@ xsheet-remap 配布物の使い分け
 CSP組み込み用アプリです。
 紙シート、素材、セル対応を整理し、XDTS・CSP自動登録データを出力します。
 
-■ xsheet-template-editor.exe
+■ xsheet-template.exe
 シートテンプレート作成アプリです。
 参照画像、ACTION・SOUND・CELL・CAMERA領域、情報欄、補正基準枠を編集して保存します。
 
@@ -20,8 +20,8 @@ CSP組み込み用アプリです。
 ダブルクリックすると、補正結果を確認しながら処理できます。
 画像やカットフォルダをこのEXEへドロップすると、バッチモードで自動PSD出力を開始します。
 
-■ xsheet-csp-import-helper.bat
-CSP自動登録ヘルパーです。
+■ xsheet-importer.exe
+CSP自動登録アプリです。
 xsheet-editor または xsheet-remap で「タイムシート/CSP自動登録」を出力した後に使います。
 ヘルパー画面で csp-import.xci と対象の .clip を指定し、「開始」を押すとCLIP STUDIO PAINTを自動操作します。
 
@@ -32,7 +32,7 @@ CLIP STUDIO PAINTのオートアクションパレットから読み込みます
 重要
 ----
 ・ZIP全体を展開してから使用してください。
-・xsheet-csp-import-helper.bat と csp-import-helper フォルダを分離しないでください。
+・xsheet-importer.exe と csp-import-helper フォルダを分離しないでください。
 ・csp-import-helper フォルダ内のファイルは直接起動しません。
 ・csp-import.xci はCLIP STUDIO PAINTへ直接読み込むファイルではありません。
 ・詳しい操作と事前準備は、各アプリ内のヘルプを確認してください。

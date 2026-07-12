@@ -43,7 +43,7 @@ function Get-BuildOutputBinaryFiles {
     "apps/editor/src-tauri/target/release/xsheet-editor.exe",
     "apps/desktop/src-tauri/target/release/xsheet-remap.exe",
     "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe",
-    "apps/template-editor/src-tauri/target/release/xsheet-template-editor.exe"
+    "apps/template-editor/src-tauri/target/release/xsheet-template.exe"
   )
 
   $paths |

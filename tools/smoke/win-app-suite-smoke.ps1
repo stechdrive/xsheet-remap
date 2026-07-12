@@ -11,7 +11,7 @@ if ($env:OS -ne "Windows_NT") {
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $sheetCorrectorTitle = -join ([char[]]@(0x30b7, 0x30fc, 0x30c8, 0x753b, 0x50cf, 0x88dc, 0x6b63))
-$helperTitle = "CSP" + (-join ([char[]]@(0x81ea, 0x52d5, 0x767b, 0x9332, 0x30d8, 0x30eb, 0x30d1, 0x30fc)))
+$helperTitle = "xsheet-importer"
 $previousDontWriteBytecode = $env:PYTHONDONTWRITEBYTECODE
 $env:PYTHONDONTWRITEBYTECODE = "1"
 Push-Location $repoRoot
@@ -43,9 +43,9 @@ try {
       MinHeight = 720
     },
     [pscustomobject]@{
-      Name = "xsheet-template-editor"
-      ExpectedTitle = "xsheet-template-editor"
-      ExePath = "apps/template-editor/src-tauri/target/release/xsheet-template-editor.exe"
+      Name = "xsheet-template"
+      ExpectedTitle = "xsheet-template"
+      ExePath = "apps/template-editor/src-tauri/target/release/xsheet-template.exe"
       ArgumentList = @()
       WorkingDirectory = "."
       MinWidth = 1024
@@ -61,11 +61,12 @@ try {
       MinHeight = 340
     },
     [pscustomobject]@{
-      Name = "xsheet-csp-import-helper"
+      Name = "xsheet-importer"
       ExpectedTitle = $helperTitle
       ExePath = "release-local/csp-import-helper/python/pythonw.exe"
       ArgumentList = @("-m", "csp_import_helper", "--gui")
       WorkingDirectory = "release-local"
+      CleanupExecutablePath = "release-local/csp-import-helper/python/pythonw.exe"
       MinWidth = 820
       MinHeight = 660
     }
@@ -73,13 +74,37 @@ try {
 
   foreach ($app in $apps) {
     Write-Host "[app-suite-smoke] checking $($app.Name)"
-    & (Join-Path $PSScriptRoot "win-desktop-smoke.ps1") `
-      -ExePath $app.ExePath `
-      -ExpectedTitle $app.ExpectedTitle `
-      -ArgumentList $app.ArgumentList `
-      -WorkingDirectory $app.WorkingDirectory `
-      -MinWidth $app.MinWidth `
-      -MinHeight $app.MinHeight
+    $cleanupExecutablePath = if ($app.PSObject.Properties.Name -contains "CleanupExecutablePath") {
+      [System.IO.Path]::GetFullPath((Join-Path $repoRoot $app.CleanupExecutablePath))
+    } else {
+      ""
+    }
+    $existingCleanupProcessIds = if ($cleanupExecutablePath) {
+      @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $cleanupExecutablePath } | ForEach-Object { [int]$_.ProcessId })
+    } else {
+      @()
+    }
+    try {
+      & (Join-Path $PSScriptRoot "win-desktop-smoke.ps1") `
+        -ExePath $app.ExePath `
+        -ExpectedTitle $app.ExpectedTitle `
+        -ArgumentList $app.ArgumentList `
+        -WorkingDirectory $app.WorkingDirectory `
+        -MinWidth $app.MinWidth `
+        -MinHeight $app.MinHeight
+    } finally {
+      if ($cleanupExecutablePath) {
+        Get-CimInstance Win32_Process |
+          Where-Object {
+            $_.ExecutablePath -eq $cleanupExecutablePath -and
+            $existingCleanupProcessIds -notcontains [int]$_.ProcessId
+          } |
+          ForEach-Object {
+            Write-Host "[app-suite-smoke] stopping test child pid=$($_.ProcessId) path=$($_.ExecutablePath)"
+            Stop-Process -Id $_.ProcessId -Force
+          }
+      }
+    }
   }
 
   Write-Host "[app-suite-smoke] all five applications passed"

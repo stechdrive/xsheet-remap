@@ -226,7 +226,7 @@ function Get-HelperLauncherVersion {
   }
 
   $text = (@($output) | ForEach-Object { [string]$_ }) -join "`n"
-  if ($text -match 'xsheet-csp-import-helper\s+([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)') {
+  if ($text -match 'xsheet-importer\s+([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)') {
     return $Matches[1]
   }
   if ($text -match '([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)') {
@@ -269,6 +269,7 @@ function Remove-StaleHelperFromRelease {
   ) -ForegroundColor Yellow
   Remove-ReleasePathSafely $LauncherPath
   Remove-ReleasePathSafely (Join-Path $releaseRoot "xsheet-csp-import-helper.exe")
+  Remove-ReleasePathSafely (Join-Path $releaseRoot "xsheet-csp-import-helper.bat")
   Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
   Remove-ReleasePathSafely (Join-Path $releaseRoot "csp-import-helper")
   return $null
@@ -287,11 +288,11 @@ function Copy-HelperDirectoryToReleaseRoot {
     throw "missing helper portable source: $sourcePath"
   }
 
-  $launcherName = "xsheet-csp-import-helper.bat"
+  $launcherName = "xsheet-importer.exe"
   $sourceLauncherPath = Join-Path $sourcePath $launcherName
   $sourceRuntimePath = Join-Path $sourcePath "csp-import-helper"
   if (-not (Test-Path -LiteralPath $sourceLauncherPath)) {
-    throw "missing helper BAT launcher in portable source: $sourceLauncherPath"
+    throw "missing native helper launcher in portable source: $sourceLauncherPath"
   }
   if (-not (Test-Path -LiteralPath $sourceRuntimePath)) {
     throw "missing helper runtime directory in portable source: $sourceRuntimePath"
@@ -299,11 +300,13 @@ function Copy-HelperDirectoryToReleaseRoot {
   $helperVersion = Assert-HelperLauncherVersion -LauncherPath $sourceLauncherPath -ExpectedVersion $expectedReleaseVersion
 
   $destinationLauncherPath = Join-Path $releaseRoot $launcherName
-  $destinationExePath = Join-Path $releaseRoot "xsheet-csp-import-helper.exe"
+  $destinationLegacyBatPath = Join-Path $releaseRoot "xsheet-csp-import-helper.bat"
+  $destinationLegacyExePath = Join-Path $releaseRoot "xsheet-csp-import-helper.exe"
   $destinationInternalPath = Join-Path $releaseRoot "_internal"
   $destinationRuntimePath = Join-Path $releaseRoot "csp-import-helper"
   Remove-ReleasePathSafely $destinationLauncherPath
-  Remove-ReleasePathSafely $destinationExePath
+  Remove-ReleasePathSafely $destinationLegacyBatPath
+  Remove-ReleasePathSafely $destinationLegacyExePath
   Remove-ReleasePathSafely $destinationInternalPath
   Remove-ReleasePathSafely $destinationRuntimePath
 
@@ -314,7 +317,7 @@ function Copy-HelperDirectoryToReleaseRoot {
 
   $Components.Add([pscustomobject]@{
     name = $ComponentName
-    type = "portable-python-bat"
+    type = "portable-python-native-launcher"
     status = $Status
     path = "."
     launcher = Get-ReleaseRelativePath $destinationLauncherPath
@@ -420,11 +423,13 @@ $desktopComponents = @(
     Destination = "xsheet-corrector.exe"
   },
   [pscustomobject]@{
-    Name = "xsheet-template-editor"
-    Source = "apps/template-editor/src-tauri/target/release/xsheet-template-editor.exe"
-    Destination = "xsheet-template-editor.exe"
+    Name = "xsheet-template"
+    Source = "apps/template-editor/src-tauri/target/release/xsheet-template.exe"
+    Destination = "xsheet-template.exe"
   }
 )
+
+Remove-ReleasePathSafely (Join-Path $releaseRoot "xsheet-template-editor.exe")
 
 foreach ($desktopComponent in $desktopComponents) {
   if ($SkipDesktop) {
@@ -442,29 +447,32 @@ foreach ($desktopComponent in $desktopComponents) {
 }
 
 $helperDistRoot = Join-Path $repoRoot ".tmp\csp-import-helper-dist"
-$helperSource = Join-Path $helperDistRoot "xsheet-csp-import-helper"
+$helperSource = Join-Path $helperDistRoot "xsheet-importer"
 $helperCliSource = Join-Path $helperDistRoot "xsheet-csp-import-helper-cli"
-$helperLauncherName = "xsheet-csp-import-helper.bat"
+$helperLauncherName = "xsheet-importer.exe"
 $helperLegacyExeName = "xsheet-csp-import-helper.exe"
+$helperLegacyBatName = "xsheet-csp-import-helper.bat"
 $helperLauncherPath = Join-Path $releaseRoot $helperLauncherName
 $helperLegacyExePath = Join-Path $releaseRoot $helperLegacyExeName
+$helperLegacyBatPath = Join-Path $releaseRoot $helperLegacyBatName
 $helperRuntimePath = Join-Path $releaseRoot "csp-import-helper"
 
 if (-not $SkipHelper) {
   if (Test-Path -LiteralPath $helperSource) {
     Copy-HelperDirectoryToReleaseRoot `
       -SourceDirectory $helperSource `
-      -ComponentName "xsheet-csp-import-helper" `
+      -ComponentName "xsheet-importer" `
       -Components $components
   } elseif ($RequireHelper) {
     throw "missing required CSP import helper portable source: $helperSource"
   } elseif (Test-Path -LiteralPath $helperLauncherPath) {
     $helperVersion = Assert-HelperLauncherVersion -LauncherPath $helperLauncherPath -ExpectedVersion $expectedReleaseVersion
     Remove-ReleasePathSafely $helperLegacyExePath
+    Remove-ReleasePathSafely $helperLegacyBatPath
     Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
     $components.Add([pscustomobject]@{
-      name = "xsheet-csp-import-helper"
-      type = "portable-python-bat"
+      name = "xsheet-importer"
+      type = "portable-python-native-launcher"
       status = "preserved"
       path = "."
       launcher = $helperLauncherName
@@ -473,6 +481,7 @@ if (-not $SkipHelper) {
     })
   } else {
     Remove-ReleasePathSafely $helperLegacyExePath
+    Remove-ReleasePathSafely $helperLegacyBatPath
     Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
     Write-Host "[local-package] helper portable source not found; skipping: $helperSource" -ForegroundColor Yellow
   }
@@ -494,11 +503,12 @@ if (-not $SkipHelper) {
   if (Test-Path -LiteralPath $helperLauncherPath) {
     $helperVersion = Remove-StaleHelperFromRelease -LauncherPath $helperLauncherPath -ExpectedVersion $expectedReleaseVersion
     if ($helperVersion) {
+      Remove-ReleasePathSafely $helperLegacyBatPath
       Remove-ReleasePathSafely $helperLegacyExePath
       Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
       $components.Add([pscustomobject]@{
-        name = "xsheet-csp-import-helper"
-        type = "portable-python-bat"
+        name = "xsheet-importer"
+        type = "portable-python-native-launcher"
         status = "preserved"
         path = "."
         launcher = Get-ReleaseRelativePath $helperLauncherPath
@@ -508,6 +518,7 @@ if (-not $SkipHelper) {
     }
   } else {
     Remove-ReleasePathSafely $helperLegacyExePath
+    Remove-ReleasePathSafely $helperLegacyBatPath
     Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
   }
 }
@@ -534,8 +545,8 @@ $checksumTargets = @(
   "xsheet-editor.exe",
   "xsheet-remap.exe",
   "xsheet-corrector.exe",
-  "xsheet-template-editor.exe",
-  "xsheet-csp-import-helper.bat",
+  "xsheet-template.exe",
+  "xsheet-importer.exe",
   "README.txt",
   "assets/xsheet-remap.laf",
   "csp-import-helper-cli/xsheet-csp-import-helper-cli.exe",

@@ -1,0 +1,20 @@
+[package]
+name = "xsheet-importer-launcher"
+version = "0.1.518"
+description = "Native launcher for xsheet-importer"
+authors = ["xsheet-remap contributors"]
+license = "MIT"
+edition = "2021"
+
+[[bin]]
+name = "xsheet-importer"
+path = "src/main.rs"
+
+[build-dependencies]
+embed-resource = "3.0.11"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true

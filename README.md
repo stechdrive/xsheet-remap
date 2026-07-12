@@ -14,11 +14,11 @@ xsheet-remapは、デジタルタイムシートの編集、紙シート画像�
 | --- | --- | --- |
 | `xsheet-editor.exe` | デジタルタイムシート全機能版 | 紙シート読込、タイミング編集、素材管理、テンプレート編集、各種出力 |
 | `xsheet-remap.exe` | CSP組み込み | 紙シート、素材、セル対応を整理し、XDTS・CSP自動登録データを出力 |
-| `xsheet-template-editor.exe` | シートテンプレート編集 | 参照画像、罫線領域、情報欄、補正基準枠を編集してテンプレートを保存 |
+| `xsheet-template.exe` | シートテンプレート編集 | 参照画像、罫線領域、情報欄、補正基準枠を編集してテンプレートを保存 |
 | `xsheet-corrector.exe` | シート画像補正 | スキャンしたシート画像の一括補正とPSD出力 |
-| `xsheet-csp-import-helper.bat` | CSP自動登録ヘルパー | 本体が出力した`.xci`と対象`.clip`を使い、CLIP STUDIO PAINTを自動操作 |
+| `xsheet-importer.exe` | CSP自動登録 | 本体が出力した`.xci`と対象`.clip`を使い、CLIP STUDIO PAINTを自動操作 |
 | `assets/xsheet-remap.laf` | 乗算オートアクション | CLIP STUDIO PAINTのオートアクションパレットから読み込むファイル。アプリではありません |
-| `csp-import-helper/` | ヘルパー実行環境 | BATが使用する同梱ランタイム。直接起動せず、BATと同じ場所に置いたまま使います |
+| `csp-import-helper/` | ヘルパー実行環境 | ヘルパーEXEが使用する同梱ランタイム。直接起動せず、EXEと同じ場所に置いたまま使います |
 
 ### 操作と起動するアプリ
 
@@ -26,15 +26,15 @@ xsheet-remapは、デジタルタイムシートの編集、紙シート画像�
 | --- | --- |
 | `xsheet-editor.exe`をダブルクリック | デジタルタイムシート全機能版が起動します |
 | `xsheet-remap.exe`をダブルクリック | CSP組み込みに絞った画面が起動します |
-| `xsheet-template-editor.exe`をダブルクリック | シートテンプレート専用エディタが起動します |
+| `xsheet-template.exe`をダブルクリック | シートテンプレート編集アプリが起動します |
 | `xsheet-corrector.exe`をダブルクリック | 補正内容を確認しながら処理する通常画面が起動します |
 | 画像やカットフォルダを`xsheet-corrector.exe`へドロップ | 補正ツールがバッチモードで起動し、自動PSD出力を開始します |
-| `xsheet-csp-import-helper.bat`をダブルクリック | CSP自動登録ヘルパーが起動します |
-| `.xci`または`.clip`をBATへドロップ | そのファイルを選択した状態でヘルパーが起動します。もう一方のファイルは画面で指定します |
-| ヘルパーで「開始」 | 対象`.clip`を開き、CLIP STUDIO PAINTの自動操作を開始します |
-| `xsheet-editor`または`xsheet-remap`で「タイムシート/CSP自動登録」を出力 | 登録用ファイルを出力します。ヘルパーは自動起動しません |
+| `xsheet-importer.exe`をダブルクリック | CSP自動登録アプリが起動します |
+| `.xci`または`.clip`を`xsheet-importer.exe`へドロップ | そのファイルを選択した状態で起動します。もう一方のファイルは画面で指定します |
+| `xsheet-importer`で「開始」 | 対象`.clip`を開き、CLIP STUDIO PAINTの自動操作を開始します |
+| `xsheet-editor`または`xsheet-remap`で「タイムシート/CSP自動登録」を出力 | 登録用ファイルを出力します。`xsheet-importer`は自動起動しません |
 
-`xsheet-csp-import-helper.bat`だけを別の場所へ移動すると動作しません。配布フォルダの構成を保ったまま使用してください。
+`xsheet-importer.exe`だけを別の場所へ移動すると動作しません。配布フォルダの構成を保ったまま使用してください。
 
 ## できること
 
@@ -45,7 +45,7 @@ xsheet-remapは、デジタルタイムシートの編集、紙シート画像�
 - 素材名をCSPで扱いやすい名前へ整える
 - ペン注釈やテキスト注釈をシート上に追加する
 - タイムシートをPNG/JPG/PSD/XDTSとして書き出す
-- CSP自動登録ヘルパー用の登録ファイルとXDTSを出力する
+- `xsheet-importer`用の登録ファイルとXDTSを出力する
 
 ## 基本の流れ
 
@@ -59,11 +59,11 @@ xsheet-remapは、デジタルタイムシートの編集、紙シート画像�
 
 ## CSP自動登録
 
-「タイムシート/CSP自動登録」を保存すると、CSP自動登録ヘルパー用の登録ファイル `csp-import.xci`、XDTS、素材参照が出力されます。
+「タイムシート/CSP自動登録」を保存すると、`xsheet-importer`用の登録ファイル `csp-import.xci`、XDTS、素材参照が出力されます。
 
-`csp-import.xci` はこのアプリ用のJSON系ファイルです。CLIP STUDIO PAINTで直接読み込むファイルではありません。CSPへ自動登録する場合は、同梱のCSP自動登録ヘルパーで `csp-import.xci` を選択します。
+`csp-import.xci` はこのアプリ用のJSON系ファイルです。CLIP STUDIO PAINTで直接読み込むファイルではありません。CSPへ自動登録する場合は、同梱の`xsheet-importer`で `csp-import.xci` を選択します。
 
-CSP自動登録ヘルパーを使う前に、CLIP STUDIO PAINTへ乗算オートアクションを用意してください。リリースZIPには `assets/xsheet-remap.laf` を同梱していますが、同じショートカットでレイヤー合成モードを乗算にする自作オートアクションでも使えます。
+`xsheet-importer`を使う前に、CLIP STUDIO PAINTへ乗算オートアクションを用意してください。リリースZIPには `assets/xsheet-remap.laf` を同梱していますが、同じショートカットでレイヤー合成モードを乗算にする自作オートアクションでも使えます。
 
 ## シート画像補正
 

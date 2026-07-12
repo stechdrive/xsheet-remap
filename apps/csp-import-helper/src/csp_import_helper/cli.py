@@ -234,7 +234,7 @@ def _print(as_json: bool, payload: dict[str, object]) -> None:
         return
     if payload.get("ok"):
         if payload.get("version"):
-            print(f"xsheet-csp-import-helper {payload['version']}")
+            print(f"xsheet-importer {payload['version']}")
             return
         if payload.get("dryRun"):
             print("dry-run import plan")

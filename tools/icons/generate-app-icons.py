@@ -195,6 +195,53 @@ def template_editor_icon(size: int) -> Image.Image:
     return image.resize((size, size), Image.Resampling.LANCZOS)
 
 
+def csp_import_helper_icon(size: int) -> Image.Image:
+    canvas = size * SCALE
+    factor = canvas / 128
+    image = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    tiny = size <= 24
+
+    draw_base(draw, factor, tiny)
+    draw.rounded_rectangle(
+        scaled_rect((27, 26, 69, 102), factor),
+        radius=round(6 * factor),
+        fill=PAPER,
+    )
+    paper_lines = (((37, 43), (59, 43)), ((37, 58), (55, 58)), ((37, 87), (59, 87)))
+    if tiny:
+        paper_lines = (((37, 46), (59, 46)), ((37, 86), (59, 86)))
+    for start, end in paper_lines:
+        draw.line(
+            scaled_points([start, end], factor),
+            fill=BASE,
+            width=max(1, round((7 if tiny else 5) * factor)),
+        )
+
+    draw.line(
+        scaled_points([(51, 72), (82, 72)], factor),
+        fill=ACCENT,
+        width=max(1, round((9 if tiny else 8) * factor)),
+    )
+    draw.line(
+        scaled_points([(75, 63), (85, 72), (75, 81)], factor),
+        fill=ACCENT,
+        width=max(1, round((9 if tiny else 8) * factor)),
+        joint="curve",
+    )
+    layer_lines = (((79, 39), (99, 39)), ((84, 51), (99, 51)), ((89, 91), (99, 91)))
+    if tiny:
+        layer_lines = (((81, 41), (99, 41)), ((88, 91), (99, 91)))
+    for start, end in layer_lines:
+        draw.line(
+            scaled_points([start, end], factor),
+            fill=PAPER,
+            width=max(1, round(7 * factor)),
+        )
+
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
 def png_bytes(image: Image.Image) -> bytes:
     output = io.BytesIO()
     image.save(output, format="PNG")
@@ -218,7 +265,7 @@ def save_ico(path: Path, images: dict[int, Image.Image]) -> None:
 
 
 def save_preview(path: Path, icon_sets: tuple[tuple[str, dict[int, Image.Image]], ...]) -> None:
-    preview = Image.new("RGBA", (1480, 260), "#171b1d")
+    preview = Image.new("RGBA", (40 + len(icon_sets) * 360, 260), "#171b1d")
     draw = ImageDraw.Draw(preview)
     for index, (label, images) in enumerate(icon_sets):
         origin_x = 40 + index * 360
@@ -235,18 +282,21 @@ def main() -> None:
     corrector_images = {size: corrector_icon(size) for size in SIZES}
     editor_images = {size: editor_icon(size) for size in SIZES}
     template_editor_images = {size: template_editor_icon(size) for size in SIZES}
+    csp_import_helper_images = {size: csp_import_helper_icon(size) for size in SIZES}
 
     save_ico(ROOT / "apps/desktop/src-tauri/icons/icon.ico", remap_images)
     save_ico(ROOT / "apps/sheet-corrector/src-tauri/icons/icon.ico", corrector_images)
     save_ico(ROOT / "apps/editor/src-tauri/icons/icon.ico", editor_images)
     save_ico(ROOT / "apps/template-editor/src-tauri/icons/icon.ico", template_editor_images)
+    save_ico(ROOT / "apps/csp-import-helper/launcher/icons/icon.ico", csp_import_helper_images)
     save_preview(
         ROOT / "design/icon-proposals/xsheet-icon-final-preview.png",
         (
             ("xsheet-remap", remap_images),
             ("xsheet-editor", editor_images),
-            ("xsheet-template-editor", template_editor_images),
+            ("xsheet-template", template_editor_images),
             ("xsheet-corrector", corrector_images),
+            ("xsheet-importer", csp_import_helper_images),
         ),
     )
 

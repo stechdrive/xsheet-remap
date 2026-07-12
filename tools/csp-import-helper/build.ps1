@@ -16,11 +16,13 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $appRoot = Join-Path $repoRoot "apps\csp-import-helper"
 $venvRoot = Join-Path $repoRoot ".tmp\csp-import-helper-build-venv"
 $distRoot = if ($OutputDir) { [System.IO.Path]::GetFullPath($OutputDir) } else { Join-Path $repoRoot ".tmp\csp-import-helper-dist" }
-$packageRoot = Join-Path $distRoot "xsheet-csp-import-helper"
+$packageRoot = Join-Path $distRoot "xsheet-importer"
 $runtimeRoot = Join-Path $packageRoot "csp-import-helper"
 $pythonRoot = Join-Path $runtimeRoot "python"
 $appOutputRoot = Join-Path $runtimeRoot "app"
 $sitePackagesRoot = Join-Path $runtimeRoot "site-packages"
+$launcherRoot = Join-Path $appRoot "launcher"
+$launcherTargetRoot = Join-Path $repoRoot ".tmp\csp-import-helper-launcher-target"
 $diagnosticModuleNames = @(
   "bidi",
   "cv2",
@@ -238,49 +240,40 @@ function Write-PythonPathFile {
   ) | Set-Content -LiteralPath $pthPath -Encoding ASCII
 }
 
-function Write-HelperLauncher {
-  $launcherPath = Join-Path $packageRoot "xsheet-csp-import-helper.bat"
-  $launcherLines = @(
-    "@echo off",
-    "setlocal",
-    "set ""HELPER_LAUNCHER_DIR=%~dp0""",
-    "set ""HELPER_ROOT=%HELPER_LAUNCHER_DIR%csp-import-helper""",
-    "set ""PYTHON_EXE=%HELPER_ROOT%\python\python.exe""",
-    "set ""PYTHONW_EXE=%HELPER_ROOT%\python\pythonw.exe""",
-    "set ""PYTHONDONTWRITEBYTECODE=1""",
-    "set ""PYTHONUTF8=1""",
-    "if not exist ""%PYTHON_EXE%"" (",
-    "  echo Missing helper Python runtime: ""%PYTHON_EXE%"" 1>&2",
-    "  exit /b 1",
-    ")",
-    "call :unblock_runtime",
-    "if /I ""%~1""==""--version"" goto cli",
-    "if /I ""%~1""==""--help"" goto cli",
-    "if /I ""%~1""==""-h"" goto cli",
-    "if /I ""%~1""==""/?"" goto cli",
-    "if /I ""%~1""==""--manifest"" goto cli",
-    "if /I ""%~1""==""--run"" goto cli",
-    "if /I ""%~1""==""--probe-window"" goto cli",
-    "if /I ""%~1""==""--calibrate-profile"" goto cli",
-    "if /I ""%~1""==""--json"" goto cli",
-    "if /I ""%~1""==""--gui"" goto gui",
-    ":gui",
-    "if not exist ""%PYTHONW_EXE%"" (",
-    "  echo Missing helper Python windowed runtime: ""%PYTHONW_EXE%"" 1>&2",
-    "  exit /b 1",
-    ")",
-    "start """" ""%PYTHONW_EXE%"" -m csp_import_helper %*",
-    "exit /b 0",
-    ":cli",
-    """%PYTHON_EXE%"" -m csp_import_helper %*",
-    "exit /b %ERRORLEVEL%",
-    ":unblock_runtime",
-    "where powershell.exe >nul 2>nul",
-    "if errorlevel 1 exit /b 0",
-    'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = ''SilentlyContinue''; $root = $env:HELPER_ROOT; $probe = Join-Path $root ''site-packages\pythonnet\runtime\Python.Runtime.dll''; if (Get-Item -LiteralPath $probe -Stream Zone.Identifier -ErrorAction SilentlyContinue) { Get-ChildItem -LiteralPath $root -Recurse -File | Unblock-File -ErrorAction SilentlyContinue }" >nul 2>nul',
-    "exit /b 0"
-  )
-  $launcherLines | Set-Content -LiteralPath $launcherPath -Encoding ASCII
+function Build-HelperLauncher {
+  $manifestPath = Join-Path $launcherRoot "Cargo.toml"
+  $lockPath = Join-Path $launcherRoot "Cargo.lock"
+  $iconPath = Join-Path $launcherRoot "icons\icon.ico"
+  if (-not (Test-Path -LiteralPath $manifestPath)) {
+    throw "missing native helper launcher manifest: $manifestPath"
+  }
+  if (-not (Test-Path -LiteralPath $lockPath)) {
+    throw "missing native helper launcher lock file: $lockPath"
+  }
+  if (-not (Test-Path -LiteralPath $iconPath)) {
+    throw "missing native helper launcher icon: $iconPath"
+  }
+
+  $previousCargoTargetDir = $env:CARGO_TARGET_DIR
+  $env:CARGO_TARGET_DIR = $launcherTargetRoot
+  try {
+    & cargo build --manifest-path $manifestPath --release --locked
+    if ($LASTEXITCODE -ne 0) {
+      throw "native helper launcher build failed"
+    }
+  } finally {
+    if ($null -eq $previousCargoTargetDir) {
+      Remove-Item Env:\CARGO_TARGET_DIR -ErrorAction SilentlyContinue
+    } else {
+      $env:CARGO_TARGET_DIR = $previousCargoTargetDir
+    }
+  }
+
+  $sourceLauncherPath = Join-Path $launcherTargetRoot "release\xsheet-importer.exe"
+  if (-not (Test-Path -LiteralPath $sourceLauncherPath)) {
+    throw "native helper launcher output not found: $sourceLauncherPath"
+  }
+  Copy-Item -LiteralPath $sourceLauncherPath -Destination (Join-Path $packageRoot "xsheet-importer.exe") -Force
 }
 
 function Write-SiteCustomize {
@@ -389,6 +382,7 @@ $pythonEmbedArchive = Resolve-PythonEmbedZip -PythonVersion $pythonInfo.Version
 
 New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
 Remove-DirectorySafely -Path $packageRoot -AllowedRoot $distRoot -Description "helper package"
+Remove-DirectorySafely -Path (Join-Path $distRoot "xsheet-csp-import-helper") -AllowedRoot $distRoot -Description "legacy helper package"
 Remove-DirectorySafely -Path (Join-Path $distRoot "xsheet-csp-import-helper-cli") -AllowedRoot $distRoot -Description "legacy helper CLI package"
 New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $pythonRoot | Out-Null
@@ -421,7 +415,7 @@ if ($IncludeOcrDiagnostics) {
 
 Remove-UnneededRuntimeFiles
 Remove-PythonCaches -Path $runtimeRoot
-Write-HelperLauncher
+Build-HelperLauncher
 Write-SiteCustomize
 
 $portablePython = Join-Path $pythonRoot "python.exe"
@@ -458,7 +452,7 @@ if ($CopyToLocalRelease) {
     SkipLeakCheck = $true
   }
   if ($IncludeCliInLocalRelease) {
-    Write-Host "[csp-import-helper] IncludeCliInLocalRelease is ignored for the portable BAT helper." -ForegroundColor Yellow
+    Write-Host "[csp-import-helper] IncludeCliInLocalRelease is ignored for the native launcher helper." -ForegroundColor Yellow
   }
   & (Join-Path $repoRoot "tools/release/local-package.ps1") @packageArgs
   if ($LASTEXITCODE -ne 0) {
@@ -466,4 +460,4 @@ if ($CopyToLocalRelease) {
   }
 }
 
-Write-Host "[csp-import-helper] built portable BAT helper: $packageRoot"
+Write-Host "[csp-import-helper] built portable native launcher helper: $packageRoot"

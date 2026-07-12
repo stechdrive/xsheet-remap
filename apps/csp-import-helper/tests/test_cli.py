@@ -78,7 +78,7 @@ class CliTests(unittest.TestCase):
         with patch("builtins.print") as print_mock:
             self.assertEqual(cli.main(["--version"]), 0)
 
-        print_mock.assert_called_once_with(f"xsheet-csp-import-helper {__version__}")
+        print_mock.assert_called_once_with(f"xsheet-importer {__version__}")
 
 
 if __name__ == "__main__":

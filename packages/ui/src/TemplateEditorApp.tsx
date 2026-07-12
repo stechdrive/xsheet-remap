@@ -85,7 +85,7 @@ export function TemplateEditorApp() {
     <div className="templateEditorAppShell">
       <header className="templateEditorAppHeader">
         <span className="topBrand">
-          <strong>xsheet-template-editor</strong>
+          <strong>xsheet-template</strong>
           <span className="appVersion">v{APP_VERSION}</span>
         </span>
         <button type="button" onClick={resetWorkspace}>リセット</button>

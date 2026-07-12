@@ -18,9 +18,9 @@ $desktopApps = @(
     RelativePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
   },
   [pscustomobject]@{
-    Name = "xsheet-template-editor"
+    Name = "xsheet-template"
     Workspace = "@xsheet-remap/template-editor"
-    RelativePath = "apps/template-editor/src-tauri/target/release/xsheet-template-editor.exe"
+    RelativePath = "apps/template-editor/src-tauri/target/release/xsheet-template.exe"
   },
   [pscustomobject]@{
     Name = "xsheet-corrector"

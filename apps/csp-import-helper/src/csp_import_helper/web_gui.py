@@ -126,7 +126,7 @@ def launch_gui(
 
 def _gui_startup_error_message(exc: Exception) -> str:
     return (
-        "CSP自動登録ヘルパーのGUIを起動できませんでした。\n\n"
+        "xsheet-importerのGUIを起動できませんでした。\n\n"
         "同梱ランタイムまたはWebView backendが利用できません。"
         "ZIPのブロックを解除して再展開するか、"
         "WebView2 Runtimeを更新してから再実行してください。\n\n"
@@ -142,7 +142,7 @@ def _show_gui_startup_error(exc: Exception) -> None:
     try:
         import ctypes
 
-        ctypes.windll.user32.MessageBoxW(None, message, "CSP自動登録ヘルパー", 0x10)
+        ctypes.windll.user32.MessageBoxW(None, message, "xsheet-importer", 0x10)
     except Exception:
         pass
 
@@ -215,7 +215,7 @@ class CspImportHelperWebGui:
 
         self.webview = webview
         self.window = webview.create_window(
-            f"CSP自動登録ヘルパー v{__version__}",
+            f"xsheet-importer v{__version__}",
             html=HTML,
             js_api=CspImportHelperWebApi(self),
             width=900,

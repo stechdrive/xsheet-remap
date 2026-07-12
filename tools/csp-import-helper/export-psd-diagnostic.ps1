@@ -5,6 +5,7 @@ param(
   [string]$PsdPath = "",
   [string]$Python = "",
   [string]$HelperPython = "",
+  [string]$Shortcut = "",
   [string]$VenvPath = ".tmp\csp-psd-diagnostic-venv",
   [ValidateSet("standard", "fast", "turbo")]
   [string]$Speed = "fast",
@@ -15,6 +16,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+$env:PYTHONDONTWRITEBYTECODE = "1"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
@@ -70,6 +72,9 @@ function Ensure-DiagnosticVenv([string]$VenvRoot, [string]$BasePython) {
 
 $manifestPath = Resolve-InputPath $Manifest -MustExist
 $clipResolved = Resolve-InputPath $ClipPath
+if (-not $SkipExport -and -not $Shortcut.Trim()) {
+  throw "PSD export requires -Shortcut matching a shortcut configured in CSP. Use -SkipExport to inspect an existing PSD."
+}
 if (-not $PsdPath) {
   if ($clipResolved) {
     $PsdPath = [System.IO.Path]::ChangeExtension($clipResolved, ".psd")
@@ -93,7 +98,12 @@ if (-not $SkipExport) {
   }
 
   $env:PYTHONPATH = Join-Path $repoRoot "apps\csp-import-helper\src"
-  $exportArgs = @((Join-Path $repoRoot "tools\csp-import-helper\export-psd-from-csp.py"), "--psd", $psdResolved, "--speed", $Speed)
+  $exportArgs = @(
+    (Join-Path $repoRoot "tools\csp-import-helper\export-psd-from-csp.py"),
+    "--psd", $psdResolved,
+    "--speed", $Speed,
+    "--shortcut", $Shortcut
+  )
   if ($Json) {
     $exportArgs += "--json"
   }

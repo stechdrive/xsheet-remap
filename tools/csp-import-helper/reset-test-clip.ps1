@@ -34,5 +34,16 @@ if ($CloseOpenDocument) {
 if ($DiscardOpenDocument) { $argsList += "--discard-open-document" }
 if ($Quiet) { $argsList += "--quiet" }
 
-& $Python @argsList
-exit $LASTEXITCODE
+$previousDontWriteBytecode = $env:PYTHONDONTWRITEBYTECODE
+try {
+  $env:PYTHONDONTWRITEBYTECODE = "1"
+  & $Python @argsList
+  $pythonExitCode = $LASTEXITCODE
+} finally {
+  if ($null -eq $previousDontWriteBytecode) {
+    Remove-Item Env:\PYTHONDONTWRITEBYTECODE -ErrorAction SilentlyContinue
+  } else {
+    $env:PYTHONDONTWRITEBYTECODE = $previousDontWriteBytecode
+  }
+}
+exit $pythonExitCode

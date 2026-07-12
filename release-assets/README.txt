@@ -1,15 +1,13 @@
 xsheet-remap 配布物の使い分け
 ================================
 
-迷ったら、まず全機能版の xsheet-editor.exe を起動してください。
+■ xsheet-remap.exe
+CSP組み込み用アプリです。
+紙シート、素材、セル対応を整理し、XDTS・CSP自動登録データを出力します。
 
 ■ xsheet-editor.exe
 デジタルタイムシートの全機能版です。
 紙シート読込、タイミング編集、素材管理、テンプレート編集、各種出力をまとめて行えます。
-
-■ xsheet-remap.exe
-CSP組み込み用アプリです。
-紙シート、素材、セル対応を整理し、XDTS・CSP自動登録データを出力します。
 
 ■ xsheet-template.exe
 シートテンプレート作成アプリです。
@@ -23,7 +21,7 @@ CSP組み込み用アプリです。
 ■ xsheet-importer.exe
 CSP自動登録アプリです。
 xsheet-editor または xsheet-remap で「タイムシート/CSP自動登録」を出力した後に使います。
-ヘルパー画面で csp-import.xci と対象の .clip を指定し、「開始」を押すとCLIP STUDIO PAINTを自動操作します。
+xsheet-importer画面で csp-import.xci と対象の .clip を指定し、「開始」を押すとCLIP STUDIO PAINTを自動操作します。
 
 ■ assets\xsheet-remap.laf
 乗算オートアクションです。アプリではありません。

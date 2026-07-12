@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--psd", required=True, help="Output PSD path")
     parser.add_argument("--profile", help="Optional CSP helper workspace profile JSON")
     parser.add_argument("--speed", choices=("standard", "fast", "turbo"), default="fast")
-    parser.add_argument("--shortcut", default="+%p", help="pywinauto shortcut for CSP PSD Save As")
+    parser.add_argument("--shortcut", required=True, help="Configured pywinauto shortcut for CSP PSD Save As")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 

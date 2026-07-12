@@ -106,6 +106,7 @@ if (!args.report) throw new Error('--report is required')
 if (!args.python) throw new Error('--python is required')
 if (!args['app-pid']) throw new Error('--app-pid is required')
 if (!args.folder) throw new Error('--folder is required')
+if (!args['multi-folder']) throw new Error('--multi-folder is required')
 if (!args['allowed-root']) throw new Error('--allowed-root is required')
 
 const checks: string[] = []
@@ -118,6 +119,7 @@ try {
   client = await CdpClient.connect(target.webSocketDebuggerUrl)
   await client.send('Runtime.enable')
   await waitForSheet()
+  await evaluatePage<void>('window.__xsheetDropDiagnostics = []')
   await ensurePaneExpandedWithRealMouse('sheet-left-pane')
   await ensurePaneExpandedWithRealMouse('sheet-right-pane')
   await setSheetZoomForRealMouse(60)
@@ -291,6 +293,16 @@ async function runRemapRealDndScenario(): Promise<void> {
   checks.push('selected unregistered asset-browser files with real Shift and Ctrl clicks')
   await realMouseClick(firstAssetScreen)
   await waitForAssetBrowserSelection(['A1.png'])
+
+  await runExplorerMultiDrop([
+    join(args['multi-folder'] as string, 'Multi_A1.png'),
+    join(args['multi-folder'] as string, 'Multi_A2.png'),
+  ], folderDropScreen)
+  await selectAssetRoot('multi-files')
+  await waitForAssetBrowserFilesMaterialized(['Multi_A1.png', 'Multi_A2.png'])
+  await selectAssetRoot('cut-folder')
+  await waitForAssetBrowserFile('A1.png')
+  checks.push('dragged multiple real Windows image files from Explorer onto the asset browser and registered every file')
 
   const assetClient = await assetCardPoint('A1.png')
   const assetScreen = await clientToScreen(assetClient)
@@ -769,6 +781,17 @@ async function runExplorerDrop(path: string, target: ScreenPoint): Promise<void>
   ])
 }
 
+async function runExplorerMultiDrop(paths: string[], target: ScreenPoint): Promise<void> {
+  await runMouseOp([
+    'drag-explorer-items',
+    ...paths.flatMap(path => ['--path', path]),
+    '--allowed-root', args['allowed-root'] as string,
+    '--to-x', String(target.x),
+    '--to-y', String(target.y),
+    '--app-pid', args['app-pid'] as string,
+  ])
+}
+
 async function runExplorerDropAndWait(
   path: string,
   target: ScreenPoint,
@@ -871,6 +894,43 @@ async function waitForAssetBrowserSelection(expectedFileNames: string[]): Promis
       })()
     `),
     `asset browser selection ${expected.join(', ')}`,
+  )
+}
+
+async function waitForAssetBrowserFilesMaterialized(expectedFileNames: string[]): Promise<void> {
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      (() => {
+        const expected = ${JSON.stringify(expectedFileNames)};
+        const cards = Array.from(document.querySelectorAll('.assetDirectoryCard'));
+        return expected.every(fileName => {
+          const card = cards.find(item => item.querySelector('.assetCardMeta strong')?.textContent?.trim() === fileName);
+          return Boolean(card?.dataset.assetId);
+        });
+      })()
+    `),
+    `asset browser files materialized: ${expectedFileNames.join(', ')}`,
+  )
+}
+
+async function selectAssetRoot(label: string): Promise<void> {
+  const selected = await evaluatePage<boolean>(`
+    (() => {
+      const select = document.querySelector('.assetRootSelectLabel select');
+      if (!(select instanceof HTMLSelectElement)) return false;
+      const option = Array.from(select.options).find(item => item.textContent?.trim() === ${JSON.stringify(label)});
+      if (!option) return false;
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `)
+  if (!selected) throw new Error(`asset root not found: ${label}`)
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      document.querySelector('.assetRootSelectLabel select')?.selectedOptions[0]?.textContent?.trim() === ${JSON.stringify(label)}
+    `),
+    `asset root selected: ${label}`,
   )
 }
 
@@ -1395,6 +1455,7 @@ async function pageDebug(): Promise<Record<string, unknown>> {
       assetCards: Array.from(document.querySelectorAll('.assetCard')).map(item => item.textContent?.trim()).slice(0, 20),
       rootOptions: Array.from(document.querySelectorAll('.assetRootSelectLabel option')).map(item => item.textContent?.trim()),
       assignedEvents: document.querySelectorAll('.assetAssignedEventRect').length,
+      dropDiagnostics: window.__xsheetDropDiagnostics ?? [],
       viewport: { innerWidth, innerHeight, screenX, screenY, outerWidth, outerHeight, devicePixelRatio },
     }))()
   `)

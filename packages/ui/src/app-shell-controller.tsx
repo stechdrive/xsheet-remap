@@ -31,6 +31,7 @@ import { applyCellStackOrder, automaticRegisteredCellCspName, cellStackOrderItem
 import { deleteRegisteredCellKey } from './app-stack-guides';
 import { calibrationCornersForTemplate, calibrationCornersFromPoints, imageExportFilterName, nextCutNumberLabel, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
 import { useAppShellState } from './app-shell-state'
+import { isAssetBrowserNativeDropTarget, nativeCspDropTarget } from './nativeFileDropTargets'
 
 export interface AppControllerOptions {
   appKind?: MainAppKind
@@ -234,21 +235,53 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   async function handleNativeFileDrop(paths: string[], position: { x: number; y: number }) {
     const clientPoints = clientPointCandidatesFromNativeDropPosition(position)
+    const pathStatuses = await statNativePaths(paths)
+    const directoryPaths = pathStatuses.filter(status => status.isDirectory).map(status => status.path)
+    const filePaths = pathStatuses.filter(status => status.isFile).map(status => status.path)
+    recordDropDiagnostic({
+      source: 'native-router',
+      type: 'paths',
+      target: 'classified',
+      paths,
+      position,
+      details: `入力 ${paths.length}件 / ファイル ${filePaths.length}件 / フォルダ ${directoryPaths.length}件`,
+    })
     const assetBrowserTarget = isAssetBrowserNativeDropTarget(clientPoints)
     if (assetBrowserTarget) {
-      const roots = await assetRootCandidatesFromNativePaths(paths)
+      const roots = await assetRootCandidatesFromNativePaths(directoryPaths)
+      const collection = filePaths.length > 0
+        ? await collectAssetPathDrop(filePaths, { recursive: false })
+        : { roots: [], files: [] }
       recordDropDiagnostic({
         source: 'native-router',
         type: 'route',
         target: 'asset-browser',
         paths,
         position,
-        details: `素材ブラウザ判定 / フォルダ候補 ${roots.length}件`,
+        details: `素材ブラウザ判定 / フォルダ候補 ${roots.length}件 / ファイル ${collection.files.length}件`,
       })
       handleAssetRootCandidates(roots)
+      const assetIds = handleAssetFileRefs(collection.files, null, position, collection.roots)
+      const registeredAssets = assetIds.map(assetId => {
+        const asset = projectRef.current.assets.find(item => item.assetId === assetId)
+        return asset ? {
+          assetId: asset.assetId,
+          rootId: asset.rootId,
+          relativePath: asset.relativePath,
+          currentPath: asset.currentPath,
+        } : { assetId, missing: true }
+      })
+      recordDropDiagnostic({
+        source: 'native-router',
+        type: 'registered',
+        target: 'asset-browser',
+        paths: filePaths,
+        position,
+        details: JSON.stringify(registeredAssets),
+      })
       return
     }
-    const directoryRoots = await assetRootCandidatesFromNativePaths(paths)
+    const directoryRoots = await assetRootCandidatesFromNativePaths(directoryPaths)
     if (directoryRoots.length > 0) {
       recordDropDiagnostic({
         source: 'native-router',
@@ -259,6 +292,41 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         details: `フォルダ候補 ${directoryRoots.length}件 / 座標に関係なく登録`,
       })
       handleAssetRootCandidates(directoryRoots)
+    }
+    if (filePaths.length === 0) return
+
+    const cspTarget = nativeCspDropTarget(clientPoints)
+    if (cspTarget) {
+      const collection = await collectAssetPathDrop(filePaths, { recursive: false })
+      const assetIds = handleAssetFileRefs(collection.files, null, position, collection.roots)
+      if (assetIds.length === 0) return
+      if (cspTarget.kind === 'cel') {
+        if (assetIds.length !== 1) {
+          setStatusHint('sheet-drop', '登録済みカードへ割り当てる画像素材は1件だけ選択してください。素材は素材ブラウザへ登録しました。')
+          return
+        }
+        handleAssignAssetToKey(assetIds[0]!, cspTarget.keyId, { slotId: cspTarget.slotId, position })
+        setStatusHint('sheet-drop', '画像素材をカードへ割り当てました。')
+      } else if (cspTarget.kind === 'paper-track') {
+        const result = handleRegisterAssetsToCspTrack(cspTarget.slotId, assetIds)
+        const duplicateNotice = result.duplicateCount > 0 ? ` ${result.duplicateCount}件は登録済みです。` : ''
+        setStatusHint('sheet-drop', `${result.addedCount}件のカードを追加しました。${duplicateNotice}`)
+      } else {
+        if (assetIds.length !== 1) {
+          setStatusHint('sheet-drop', 'BG／BOOK・撮影指示・メモへ割り当てる画像素材は1件だけ選択してください。素材は素材ブラウザへ登録しました。')
+          return
+        }
+        handleAssignAssetsToStackGuide(cspTarget.labelId, assetIds, cspTarget.correctionLayerId)
+        setStatusHint('sheet-drop', '画像素材を追加トラックへ割り当てました。')
+      }
+      recordDropDiagnostic({
+        source: 'native-router',
+        type: 'route',
+        target: `csp/${cspTarget.kind}`,
+        paths: filePaths,
+        position,
+        details: `${assetIds.length}件`,
+      })
       return
     }
     const sheetPoint = clientPoints.find(point => nativeSheetHitFromClientPoint(point.x, point.y)) ?? clientPoints[0] ?? position
@@ -267,24 +335,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       source: 'native-router',
       type: 'route',
       target: hit ? `${sheetRoleLabel(sheetRoleForHit(hit))} ${hit.paperTrack ?? '-'}` : 'sheet/no-hit',
-      paths,
+      paths: filePaths,
       position,
       details: hit ? `フレーム ${hit.frame + 1}` : 'シートヒットなし',
     })
-    void handleAssetNativePaths(paths, hit, sheetPoint, { recursive: false })
-  }
-
-  function isAssetBrowserNativeDropTarget(points: Array<{ x: number; y: number }>): boolean {
-    if (document.querySelector('.assetBrowser-dropActive')) return true
-    const browsers = Array.from(document.querySelectorAll<HTMLElement>('.assetBrowser'))
-    return points.some(point => {
-      const target = document.elementFromPoint(point.x, point.y)
-      if (target instanceof Element && target.closest('.assetBrowser')) return true
-      return browsers.some(browser => {
-        const rect = browser.getBoundingClientRect()
-        return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
-      })
-    })
+    void handleAssetNativePaths(filePaths, hit, sheetPoint, { recursive: false })
   }
 
   useEffect(() => {
@@ -294,7 +349,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   })
 
   function recordDropDiagnostic(report: DropDiagnosticReport) {
-    void report
+    const diagnosticWindow = window as Window & { __xsheetDropDiagnostics?: DropDiagnosticReport[] }
+    if (report.type !== 'over') diagnosticWindow.__xsheetDropDiagnostics?.push(report)
   }
 
   function handleNativeDragDropPayload(payload: NativeDragDropPayload, source: string) {
@@ -1091,6 +1147,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   async function handleAssetNativePaths(paths: string[], targetHit: SheetHit | null = null, position?: { x: number; y: number }, options: { recursive?: boolean } = {}) {
     if (paths.length === 0) return
     const collection = await collectAssetPathDrop(paths, { recursive: options.recursive ?? true })
+    if (targetHit && collection.files.length > 1) {
+      handleAssetFileRefs(collection.files, null, position, collection.roots)
+      setStatusHint('sheet-drop', '複数素材は1つのフレームへ直接登録できません。素材ブラウザへ全件登録しました。CSP列へドロップしてカードを作成してください。')
+      return
+    }
     handleAssetFileRefs(collection.files, targetHit, position, collection.roots)
   }
 
@@ -1147,8 +1208,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     return assetIds
   }
 
-  function handleAssetFileRefs(refs: FileRef[], targetHit: SheetHit | null = null, position?: { x: number; y: number }, rootCandidates: AssetRootCandidate[] = []) {
-    if (refs.length === 0) return
+  function handleAssetFileRefs(refs: FileRef[], targetHit: SheetHit | null = null, position?: { x: number; y: number }, rootCandidates: AssetRootCandidate[] = []): string[] {
+    if (refs.length === 0) return []
     const rooted = registerAssetRootsFromCandidates(projectRef.current, rootCandidates)
     const sourceProject = rooted.project
     const existingKey = keyAtHit(sourceProject, targetHit)
@@ -1167,13 +1228,15 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         keyId: existingKey.keyId,
         hit: targetHit,
       })
-      return
+      return [registered.asset.assetId]
     }
     let next = sourceProject
     let selectedAfterDrop: Selection | null = null
+    const assetIds: string[] = []
     for (const ref of refs) {
       const registered = registerMaterialAssetRef(next, ref)
       next = registered.project
+      assetIds.push(registered.asset.assetId)
       if (targetHit?.paperTrack) {
         const bound = bindAssetToHit(next, registered.asset, targetHit, activeCorrectionLayerId)
         next = bound.project
@@ -1188,6 +1251,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       setValueDraftActive(false)
     }
     commitProject(next)
+    return assetIds
   }
 
   function handleAssignAsset(assetId: string, targetHit: SheetHit | null, position?: { x: number; y: number }) {
@@ -1280,13 +1344,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     keyId: string,
     target: { position?: { x: number; y: number }; slotId?: string } = {},
   ) {
-    const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
+    const sourceProject = projectRef.current
+    const key = sourceProject.logicalSheet.keys.find(item => item.keyId === keyId)
     if (!key) return
     if (target.slotId) {
       assignAssetToKeySlot(assetId, keyId, target.slotId)
       return
     }
-    const options = processSlotsForKey(project, key)
+    const options = processSlotsForKey(sourceProject, key)
     if (options.length === 0) return
     const position = target.position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     setAssetDropMenu({
@@ -1299,11 +1364,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function assignAssetToKeySlot(assetId: string, keyId: string, slotId: string, hit?: SheetHit | null) {
-    const asset = project.assets.find(item => item.assetId === assetId)
-    const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
-    const slot = project.cspTrackSlots.find(item => item.slotId === slotId)
+    const sourceProject = projectRef.current
+    const asset = sourceProject.assets.find(item => item.assetId === assetId)
+    const key = sourceProject.logicalSheet.keys.find(item => item.keyId === keyId)
+    const slot = sourceProject.cspTrackSlots.find(item => item.slotId === slotId)
     if (!asset || !key || !slot) return
-    const binding = project.bindings.find(item => item.slotId === slotId && item.keyId === keyId)
+    const binding = sourceProject.bindings.find(item => item.slotId === slotId && item.keyId === keyId)
     const cspCellName = binding?.cspCellName ?? automaticRegisteredCellCspName(key, slot, asset)
     if (hit?.paperTrack) {
       setSelection({ hit, keyId })
@@ -1311,7 +1377,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       setValueDraftActive(false)
     }
     setAssetDropMenu(null)
-    commitProject(upsertBinding(project, {
+    commitProject(upsertBinding(sourceProject, {
       slotId,
       keyId,
       assetId,

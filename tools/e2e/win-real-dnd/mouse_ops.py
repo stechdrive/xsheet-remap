@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from pywinauto import Desktop, keyboard, mouse
-from win32api import GetMonitorInfo, GetSystemMetrics, MonitorFromPoint
+from win32api import EnumDisplayMonitors, GetMonitorInfo, GetSystemMetrics, MonitorFromPoint
 import win32gui
 import win32process
 
@@ -76,6 +76,15 @@ def main() -> int:
     explorer_parser.add_argument("--app-pid", type=int)
     explorer_parser.add_argument("--duration", type=float, default=1.0)
     explorer_parser.add_argument("--timeout", type=float, default=15.0)
+
+    explorer_multi_parser = subparsers.add_parser("drag-explorer-items", help="Open Explorer, select multiple files, and drag them to a screen coordinate.")
+    explorer_multi_parser.add_argument("--path", action="append", required=True)
+    explorer_multi_parser.add_argument("--allowed-root", required=True)
+    explorer_multi_parser.add_argument("--to-x", type=int, required=True)
+    explorer_multi_parser.add_argument("--to-y", type=int, required=True)
+    explorer_multi_parser.add_argument("--app-pid", type=int)
+    explorer_multi_parser.add_argument("--duration", type=float, default=1.0)
+    explorer_multi_parser.add_argument("--timeout", type=float, default=15.0)
 
     metrics_parser = subparsers.add_parser("window-client-metrics", help="Return the main app window client rectangle in physical screen coordinates.")
     metrics_parser.add_argument("--app-pid", type=int, required=True)
@@ -156,6 +165,27 @@ def main() -> int:
             "start": start,
             "target": [args.to_x, args.to_y],
             "explorerRect": explorer_rect,
+        })
+        return 0
+
+    if args.command == "drag-explorer-items":
+        source_paths = [resolved_path(path) for path in args.path]
+        allowed_root = resolved_path(args.allowed_root)
+        for source_path in source_paths:
+            assert_inside(source_path, allowed_root)
+        start, explorer_rect, selection = explorer_items_center(source_paths, args.timeout, (args.to_x, args.to_y))
+        drag_screen(start[0], start[1], args.to_x, args.to_y, args.duration)
+        time.sleep(0.4)
+        if args.app_pid:
+            focus_process_window(args.app_pid)
+        print_json({
+            "ok": True,
+            "command": args.command,
+            "sources": [str(path) for path in source_paths],
+            "start": start,
+            "target": [args.to_x, args.to_y],
+            "explorerRect": explorer_rect,
+            "selection": selection,
         })
         return 0
 
@@ -254,6 +284,55 @@ def explorer_item_center(path: Path, timeout: float, avoid_point: tuple[int, int
     raise RuntimeError(f"could not locate Explorer item {name!r} under {parent}: {last_error}; candidates={explorer_debug_snapshot(desktop)}")
 
 
+def explorer_items_center(paths: list[Path], timeout: float, avoid_point: tuple[int, int]):
+    if len(paths) < 2:
+        raise RuntimeError("drag-explorer-items requires at least two paths")
+    parent = paths[0].parent
+    if any(path.parent != parent for path in paths):
+        raise RuntimeError("all Explorer multi-drag paths must have the same parent")
+    subprocess.Popen(["explorer.exe", str(parent)])
+    time.sleep(0.2)
+    subprocess.Popen(["explorer.exe", f"/select,{str(paths[0])}"])
+    desktop = Desktop(backend="uia")
+    deadline = time.monotonic() + timeout
+    last_error: Exception | None = None
+
+    while time.monotonic() < deadline:
+        for window in desktop.windows(control_type="Window", visible_only=True):
+            try:
+                if not explorer_window_matches_parent(window, parent):
+                    continue
+                items = [find_descendant_by_title(window, path.name, "ListItem") for path in paths]
+                if any(item is None for item in items):
+                    continue
+                explorer_rect = place_window_away_from_point(window, avoid_point)
+                window.set_focus()
+                time.sleep(0.2)
+                items = [find_descendant_by_title(window, path.name, "ListItem") for path in paths]
+                if any(item is None for item in items):
+                    continue
+                selected_items = [item for item in items if item is not None]
+                selected_items[0].click_input()
+                keyboard.send_keys("^a")
+                time.sleep(0.15)
+                if not all(item.is_selected() for item in selected_items):
+                    raise RuntimeError("Explorer did not retain every requested item in its multi-selection")
+                if not all(item.is_selected() for item in selected_items):
+                    raise RuntimeError("Explorer multi-selection changed before dragging")
+                rect = selected_items[-1].rectangle()
+                selection = {
+                    "windowTitle": window.window_text(),
+                    "items": [item.window_text() for item in selected_items],
+                }
+                return (int((rect.left + rect.right) / 2), int((rect.top + rect.bottom) / 2)), explorer_rect, selection
+            except Exception as exc:
+                last_error = exc
+        time.sleep(0.25)
+
+    names = [path.name for path in paths]
+    raise RuntimeError(f"could not locate Explorer items {names!r} under {parent}: {last_error}; candidates={explorer_debug_snapshot(desktop)}")
+
+
 def place_window_away_from_point(window, point: tuple[int, int]) -> tuple[int, int, int, int] | None:
     try:
         x, y, width, height = explorer_window_rect_away_from_point(point)
@@ -269,19 +348,44 @@ def place_window_away_from_point(window, point: tuple[int, int]) -> tuple[int, i
 
 
 def explorer_window_rect_away_from_point(point: tuple[int, int]) -> tuple[int, int, int, int]:
-    screen_x, screen_y, screen_w, screen_h = monitor_work_area_for_point(point)
-    width = min(620, max(420, screen_w // 3))
-    height = min(460, max(340, screen_h // 3))
     margin = 32
-    candidates = [
-        (screen_x + margin, screen_y + margin, width, height),
-        (screen_x + screen_w - width - margin, screen_y + margin, width, height),
-        (screen_x + margin, screen_y + screen_h - height - margin, width, height),
-        (screen_x + screen_w - width - margin, screen_y + screen_h - height - margin, width, height),
-    ]
+    work_areas = monitor_work_areas()
+    candidates = []
+    for screen_x, screen_y, screen_w, screen_h in work_areas:
+        width = min(620, max(420, screen_w // 3))
+        height = min(720, max(520, screen_h - margin * 2))
+        candidates.extend([
+            (screen_x + margin, screen_y + margin, width, height),
+            (screen_x + screen_w - width - margin, screen_y + margin, width, height),
+        ])
     safe_candidates = [rect for rect in candidates if not rect_contains_point(rect, point)]
     best = max(safe_candidates or candidates, key=lambda rect: distance_sq(rect_center(rect), point))
     return tuple(int(value) for value in best)
+
+
+def monitor_work_areas() -> list[tuple[int, int, int, int]]:
+    areas: list[tuple[int, int, int, int]] = []
+    primary_areas: list[tuple[int, int, int, int]] = []
+    try:
+        for monitor, _device_context, _rect in EnumDisplayMonitors():
+            info = GetMonitorInfo(monitor)
+            left, top, right, bottom = info["Work"]
+            area = (left, top, right - left, bottom - top)
+            if area[2] > 0 and area[3] > 0 and area not in areas:
+                areas.append(area)
+                if info.get("Flags", 0) & 1:
+                    primary_areas.append(area)
+    except Exception:
+        pass
+    if primary_areas:
+        return primary_areas
+    if areas:
+        return areas
+    virtual_x = GetSystemMetrics(SM_XVIRTUALSCREEN)
+    virtual_y = GetSystemMetrics(SM_YVIRTUALSCREEN)
+    virtual_w = GetSystemMetrics(SM_CXVIRTUALSCREEN)
+    virtual_h = GetSystemMetrics(SM_CYVIRTUALSCREEN)
+    return [(virtual_x, virtual_y, virtual_w, virtual_h)]
 
 
 def monitor_work_area_for_point(point: tuple[int, int]) -> tuple[int, int, int, int]:
@@ -321,6 +425,14 @@ def likely_explorer_window(window, parent: Path) -> bool:
     # Explorer title text can be localized or shortened, so fall back to windows
     # that contain the selected item in their descendant tree.
     return bool(re.search(r"explorer|エクスプローラー", title, re.IGNORECASE))
+
+
+def explorer_window_matches_parent(window, parent: Path) -> bool:
+    try:
+        title = window.window_text() or ""
+    except Exception:
+        return False
+    return bool(parent.name and parent.name.lower() in title.lower())
 
 
 def explorer_debug_snapshot(desktop) -> list[dict[str, object]]:

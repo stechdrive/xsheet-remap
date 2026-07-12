@@ -57,6 +57,7 @@ $runRoot = Join-Path $artifactRootPath $runId
 $sourceRoot = Join-Path $runRoot "source"
 $cutFolder = Join-Path $sourceRoot "cut-folder"
 $directFileFolder = Join-Path $sourceRoot "direct-file"
+$multiFileFolder = Join-Path $sourceRoot "multi-files"
 $exportRoot = Join-Path $runRoot "exports"
 $profileRoot = Join-Path $runRoot "profile"
 $webViewRoot = Join-Path $profileRoot "webview2"
@@ -67,7 +68,7 @@ $resultPath = Join-Path $runRoot "result.json"
 $reportPath = Join-Path $runRoot "real-dnd-report.json"
 $summaryPath = Join-Path $runRoot "summary.json"
 
-@($runRoot, $sourceRoot, $cutFolder, $directFileFolder, $exportRoot, $profileRoot, $webViewRoot, $logRoot, $screenshotRoot, $tempRoot) |
+@($runRoot, $sourceRoot, $cutFolder, $directFileFolder, $multiFileFolder, $exportRoot, $profileRoot, $webViewRoot, $logRoot, $screenshotRoot, $tempRoot) |
   ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 
 function New-E2EImage {
@@ -168,6 +169,8 @@ New-E2EImage -Path (Join-Path $cutFolder "A1_e.png") -Label "A1_e" -Color "Misty
 New-E2EImage -Path (Join-Path $cutFolder "A2.png") -Label "A2" -Color "LightGreen"
 New-E2EImage -Path (Join-Path $cutFolder "sheet_001.png") -Label "SHEET" -Color "WhiteSmoke"
 New-E2EImage -Path (Join-Path $directFileFolder "Direct_A2.png") -Label "Direct A2" -Color "LightGreen"
+New-E2EImage -Path (Join-Path $multiFileFolder "Multi_A1.png") -Label "Multi A1" -Color "LightCyan"
+New-E2EImage -Path (Join-Path $multiFileFolder "Multi_A2.png") -Label "Multi A2" -Color "LightYellow"
 Close-TestExplorerWindows -RootPath $artifactRootPath
 
 $basePython = Resolve-Python -RequestedPython $PythonPath
@@ -201,6 +204,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
   runRoot = $runRoot
   cutFolder = $cutFolder
   directFile = Join-Path $directFileFolder "Direct_A2.png"
+  multiFileFolder = $multiFileFolder
   sourceRoot = $sourceRoot
   remoteDebugPort = $remoteDebugPort
   python = $venvPython
@@ -237,6 +241,7 @@ try {
     "--app-pid" "$($process.Id)" `
     "--folder" "$cutFolder" `
     "--direct-file" "$(Join-Path $directFileFolder "Direct_A2.png")" `
+    "--multi-folder" "$multiFileFolder" `
     "--allowed-root" "$runRoot" `
     "--result" "$resultPath" `
     "--report" "$reportPath"

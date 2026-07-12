@@ -483,7 +483,10 @@ export function CspLayerTree({
                       ].filter(Boolean).join(' ')}
                       data-csp-drop-kind={track.slotId ? 'track' : undefined}
                       data-csp-track-node-id={track.slotId ? track.nodeId : undefined}
-                      data-csp-correction-layer-id={track.slotId ? layer.layerId : undefined}
+                      data-csp-correction-layer-id={(track.slotId || track.stackGuideLabelId) ? layer.layerId : undefined}
+                      data-csp-native-drop-kind={acceptsPaperTrackAsset ? 'paper-track' : acceptsStackGuideAsset ? 'stack-guide' : undefined}
+                      data-csp-slot-id={track.slotId}
+                      data-csp-stack-guide-label-id={track.stackGuideLabelId}
                       onPointerDown={track.stackGuideLabelId ? event => {
                         const dragSource = event.currentTarget
                         startInternalPointerDrag(event, {

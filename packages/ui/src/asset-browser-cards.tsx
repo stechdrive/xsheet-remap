@@ -58,6 +58,7 @@ export function AssetDirectoryCard({
       tabIndex={0}
       draggable={false}
       aria-selected={isSelected}
+      data-asset-id={asset?.assetId}
       onPointerDown={event => {
         const dragSource = event.currentTarget
         if (!isFileAsset) return

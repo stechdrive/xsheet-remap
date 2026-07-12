@@ -37,6 +37,7 @@ import {
   migrateProject,
   parseProjectDocument,
   moveBindingToCorrectionLayer,
+  removeCellBinding,
   NULL_CELL_CSP_CELL_NAME,
   NULL_CELL_KEY_ID,
   redoHistory,
@@ -50,6 +51,7 @@ import {
   timingHitForFrame,
   undoHistory,
   updateKey,
+  updateOrMergeTimingKeyDisplayLabel,
   updateActiveCutProjectInDocument,
   switchActiveCutInProjectDocument,
   updateCorrectionLayers,
@@ -550,6 +552,78 @@ describe('core project commands', () => {
     expect(enshutsu.project.logicalSheet.keys).toHaveLength(sakuga.project.logicalSheet.keys.length)
     expect(enshutsu.project.bindings.filter(binding => binding.keyId === sakuga.addedKeyIds[0]).map(binding => binding.slotId))
       .toEqual(['slot_A', 'slot_enshutsu_A'])
+  })
+
+  it('aggregates process-specific assets into one logical cell and reuses it at multiple frames', () => {
+    const baseAsset = registerAsset(createDefaultProject(), { name: 'A1.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const correctionAsset = registerAsset(baseAsset.project, { name: 'A1_e.png', size: 101, lastModified: 2 }, { role: 'cell-material' })
+    const base = registerAssetsToCspTrack(correctionAsset.project, { slotId: 'slot_A', assetIds: [baseAsset.asset.assetId] })
+    const correction = registerAssetsToCspTrack(base.project, { slotId: 'slot_enshutsu_A', assetIds: [correctionAsset.asset.assetId] })
+
+    expect(correction.addedKeyIds).toEqual([base.addedKeyIds[0]])
+    expect(correction.project.logicalSheet.keys).toHaveLength(1)
+    expect(correction.project.bindings.map(binding => [binding.slotId, binding.keyId, binding.cspCellName])).toEqual([
+      ['slot_A', base.addedKeyIds[0], 'A1'],
+      ['slot_enshutsu_A', base.addedKeyIds[0], 'A1_e'],
+    ])
+
+    const firstUse = setEvent(correction.project, 'A', 1, base.addedKeyIds[0], 'action')
+    const reused = setEvent(firstUse, 'A', 24, base.addedKeyIds[0], 'action')
+    expect(reused.logicalSheet.events.map(event => [event.frame, event.keyId])).toEqual([
+      [1, base.addedKeyIds[0]],
+      [24, base.addedKeyIds[0]],
+    ])
+    expect(reused.logicalSheet.events.map(event => reused.logicalSheet.keys.find(key => key.keyId === event.keyId)?.displayLabel))
+      .toEqual(['1', '1'])
+
+    const plan = buildExportPlan(reused, 'import-stack')
+    expect(plan.tracks.find(track => track.slotId === 'slot_A')?.frames[0]).toEqual({ frame: 0, value: 'A1' })
+    expect(plan.tracks.find(track => track.slotId === 'slot_enshutsu_A')?.frames[0]).toEqual({ frame: 0, value: 'A1_e' })
+  })
+
+  it('matches normalized process names even when the correction asset is registered first', () => {
+    const correctionAsset = registerAsset(createDefaultProject(), { name: 'A_01_e.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const baseAsset = registerAsset(correctionAsset.project, { name: 'A1.png', size: 101, lastModified: 2 }, { role: 'cell-material' })
+    const correction = registerAssetsToCspTrack(baseAsset.project, { slotId: 'slot_enshutsu_A', assetIds: [correctionAsset.asset.assetId] })
+    const base = registerAssetsToCspTrack(correction.project, { slotId: 'slot_A', assetIds: [baseAsset.asset.assetId] })
+
+    expect(base.addedKeyIds).toEqual([correction.addedKeyIds[0]])
+    expect(base.project.logicalSheet.keys).toHaveLength(1)
+    expect(base.project.bindings.map(binding => binding.cspCellName)).toEqual(['A1', 'A_01_e'])
+  })
+
+  it('merges a process-specific key into the existing logical cell when its sheet label is corrected', () => {
+    const base = createKey(createDefaultProject(), 'A', '1', 'asset-drop', undefined, 'action')
+    const correction = createKey(base.project, 'A', '6', 'asset-drop', undefined, 'action')
+    let project = upsertBinding(correction.project, { slotId: 'slot_A', keyId: base.key.keyId, cspCellName: 'A1', materialState: 'assigned', assetId: 'asset_base' })
+    project = upsertBinding(project, { slotId: 'slot_enshutsu_A', keyId: correction.key.keyId, cspCellName: 'A1_e', materialState: 'assigned', assetId: 'asset_correction' })
+    project = setEvent(project, 'A', 1, correction.key.keyId, 'action')
+
+    const merged = updateOrMergeTimingKeyDisplayLabel(project, correction.key.keyId, '1')
+
+    expect(merged).toMatchObject({ keyId: base.key.keyId, merged: true })
+    expect(merged.project.logicalSheet.keys.map(key => [key.keyId, key.displayLabel])).toEqual([[base.key.keyId, '1']])
+    expect(merged.project.logicalSheet.events[0]?.keyId).toBe(base.key.keyId)
+    expect(merged.project.bindings.map(binding => [binding.slotId, binding.keyId])).toEqual([
+      ['slot_A', base.key.keyId],
+      ['slot_enshutsu_A', base.key.keyId],
+    ])
+  })
+
+  it('removes only one process binding and prunes an otherwise unused logical cell', () => {
+    const asset = registerAsset(createDefaultProject(), { name: 'A1.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
+    const base = registerAssetsToCspTrack(asset.project, { slotId: 'slot_A', assetIds: [asset.asset.assetId] })
+    const correction = registerAssetsToCspTrack(base.project, { slotId: 'slot_enshutsu_A', assetIds: [asset.asset.assetId] })
+    const correctionBinding = correction.project.bindings.find(binding => binding.slotId === 'slot_enshutsu_A')!
+    const withoutCorrection = removeCellBinding(correction.project, correctionBinding.bindingId)
+
+    expect(withoutCorrection.logicalSheet.keys).toHaveLength(1)
+    expect(withoutCorrection.bindings.map(binding => binding.slotId)).toEqual(['slot_A'])
+
+    const baseBinding = withoutCorrection.bindings[0]!
+    const withoutLastBinding = removeCellBinding(withoutCorrection, baseBinding.bindingId)
+    expect(withoutLastBinding.logicalSheet.keys).toEqual([])
+    expect(withoutLastBinding.bindings).toEqual([])
   })
 
   it('requires overwrite when moving a binding into an occupied correction layer', () => {

@@ -1,4 +1,4 @@
-import { clearAnnotations, clearAnnotationsForPage, type SheetViewMode, sheetTemplatePresets, updateKey, updateLogicalSheetSettings, updateSheetViewState } from '@xsheet-remap/core';
+import { clearAnnotations, clearAnnotationsForPage, type SheetViewMode, sheetTemplatePresets, updateLogicalSheetSettings, updateSheetViewState } from '@xsheet-remap/core';
 import { APP_VERSION } from './appVersion';
 import { uiText, viewModeLabels } from './i18n';
 import { LevelCorrectionDialog } from './LevelCorrectionDialog';
@@ -33,7 +33,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateExportTimingSourceRole, updateExportProfile, setSelectionFromRange,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect, handleJumpToKeyFirstUse,
-    handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteKey,
+    handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard, handleUpdateLogicalCellLabel,
     copySelectedTimingRange, pasteTimingClipboard, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
@@ -389,8 +389,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onApplySheetImageWarp={applySheetImageWarp}
             onUpdateTiming={updateTiming}
             onSetViewMode={viewMode => commitProject(updateSheetViewState(project, { viewMode }))}
-            onUpdateKey={(keyId, displayLabel) => commitProject(updateKey(project, keyId, { displayLabel, paperToken: displayLabel }))}
-            onDeleteKey={handleDeleteKey}
+            onUpdateKey={handleUpdateLogicalCellLabel}
+            onDeleteKey={handleDeleteCspCard}
             onUpdateKeyCspCellName={handleUpdateKeyCspCellName}
             onMoveKeyBindingProcess={handleMoveKeyBindingProcess}
             onCreateStackGuideLabel={handleCreateStackGuideLabel}

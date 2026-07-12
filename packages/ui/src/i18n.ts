@@ -404,6 +404,8 @@ export const uiText = {
     resetAutoName: '自動に戻す',
     resetAutoNameTitle: 'クリスタセル名を現在の素材と列から自動生成した名前に戻す',
     delete: '登録セルを削除',
+    deleteProcessCard: '工程カードを削除',
+    deleteProcessCardConfirm: (processLabel: string, cspCellName: string) => `${processLabel}の${cspCellName}を削除しますか？\n他工程のカードとタイムシート上のイベントは維持されます。`,
     deleteLabel: (label: string) => `${label} を削除`,
     deleteConfirm: (label: string, assetCount: number, eventCount = 0) => assetCount > 0
       ? `${label} には画像素材が${assetCount}件登録されています。\nこの登録セルを削除しますか？`

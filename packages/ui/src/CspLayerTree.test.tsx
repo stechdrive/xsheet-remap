@@ -235,7 +235,7 @@ describe('CspLayerTree', () => {
     expect(screen.getByText('A1 reference.png')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'A 1を削除' }))
-    expect(onDeleteKey).toHaveBeenCalledWith(created.key.keyId)
+    expect(onDeleteKey).toHaveBeenCalledWith(created.key.keyId, project.bindings[0]?.bindingId)
 
     const card = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
     if (!card) throw new Error('CSP cell card not found')

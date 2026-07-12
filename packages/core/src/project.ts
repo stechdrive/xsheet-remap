@@ -34,6 +34,8 @@ export { createDefaultProject, createProjectFromTemplate, createProjectFromTrack
 export type { CreateProjectOptions } from './project-model'
 export { createKey, findTimingKeyByDisplayLabel, setEvent, clearEvent, createOrSetEvent, createRecognizedEvent, upsertBinding, registerAssetsToCspTrack, moveBindingToCorrectionLayer, ensureDefaultBindingsForKey, updateKey } from './project-timing'
 export type { CreateRecognizedEventStatus, RegisterAssetsToCspTrackResult } from './project-timing'
+export { mergeTimingKeys, removeCellBinding, updateOrMergeTimingKeyDisplayLabel } from './project-logical-cells'
+export type { UpdateOrMergeTimingKeyResult } from './project-logical-cells'
 export { createStackGuideLabel, updateStackGuideLabel, deleteStackGuideLabel, updateStackGuideRegistration, assignAssetToStackGuideLabel, removeAssetFromStackGuideLabel } from './project-stack-guides'
 export { buildNameNormalizationPlan, applyNameNormalizationPlan, updateLogicalSheetSettings, buildExportPlan, buildAeRemapText } from './project-export'
 export { updateSlot, applyCommand, createProjectHistory, commitHistory, undoHistory, redoHistory } from './project-commands'

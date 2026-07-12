@@ -49,7 +49,7 @@ export function CspLayerTree({
   onSelectKey: (keyId: string | null) => void
   onJumpToFirstUse: (keyId: string) => void
   onUpdateKey: (keyId: string, displayLabel: string) => void
-  onDeleteKey: (keyId: string) => void | Promise<void>
+  onDeleteKey: (keyId: string, bindingId?: string) => void | Promise<void>
   activeCorrectionLayerId: string
   onUpdateCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
@@ -363,12 +363,12 @@ export function CspLayerTree({
               />
             </label>
             {asset && <span className="cspTreeAssetName" title={asset.displayName}>{asset.displayName}</span>}
-            <Tooltip label="登録セルを削除">
+            <Tooltip label={cel.bindingId ? 'この工程のカードを削除' : '登録セルを削除'}>
               <button
                 type="button"
                 className="cspTreeDeleteButton"
                 aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}を削除`}
-                onClick={() => onDeleteKey(cel.keyId!)}
+                onClick={() => onDeleteKey(cel.keyId!, cel.bindingId)}
               >
                 <DeleteIcon />
               </button>

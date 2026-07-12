@@ -179,7 +179,7 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     expect(preview?.value).toContain('A1_custom')
   })
 
-it('confirms before deleting a registered cell with image assets', async () => {
+it('removes one process card before deleting its shared logical cell', async () => {
     URL.createObjectURL = () => 'blob:asset-preview'
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
@@ -198,10 +198,15 @@ it('confirms before deleting a registered cell with image assets', async () => {
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
-    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteConfirm('1', 1))
+    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteProcessCardConfirm('作画', 'A1'))
     expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
 
     confirmSpy.mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
+    await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id].assigned')).toBeNull())
+    expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
+
     fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
     await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeNull())
     expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
@@ -304,7 +309,7 @@ it('chooses a process when an external image file is dropped onto an already reg
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
-    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteConfirm('1', 1, 1))
+    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteProcessCardConfirm('演出', 'A1'))
     expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
   })
 

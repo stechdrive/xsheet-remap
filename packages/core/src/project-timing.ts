@@ -2,6 +2,7 @@ import type { CellBinding, CutProject, PaperTrackName, SheetTimingRole, Timeline
 import { nextId, withoutUndefined } from './core-utils'
 import { DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
 import { assetFileBaseName, compareTimelineEvents, defaultCspCellName, ensurePaperTrack, isNullCellKeyId, nextDisplayLabel, normalizeTimingKeyDisplayLabel, sameEventTarget, sheetTimingRoleForKey, uniqueCspCellNameForSlot } from './project-shared'
+import { findReusableLogicalCellKeyForAsset } from './logical-cell-identity'
 
 export function createKey(
   project: CutProject,
@@ -207,21 +208,20 @@ export function registerAssetsToCspTrack(
       continue
     }
 
-    const reusableBinding = next.bindings.find(binding => {
-      if (binding.assetId !== assetId) return false
-      const key = next.logicalSheet.keys.find(item => item.keyId === binding.keyId)
-      if (!key || key.paperTrack !== slot.paperTrack || sheetTimingRoleForKey(key) !== sheetRole) return false
-      return !next.bindings.some(candidate => candidate.slotId === slot.slotId && candidate.keyId === key.keyId)
-    })
-    const reusableKey = reusableBinding
-      ? next.logicalSheet.keys.find(item => item.keyId === reusableBinding.keyId)
+    const reusable = findReusableLogicalCellKeyForAsset(next, slot, asset, sheetRole)
+    const targetBinding = reusable
+      ? next.bindings.find(binding => binding.slotId === slot.slotId && binding.keyId === reusable.key.keyId)
       : undefined
-    const created = reusableKey
-      ? { project: next, key: reusableKey }
+    if (targetBinding) {
+      duplicateKeyIds.push(reusable!.key.keyId)
+      continue
+    }
+    const created = reusable
+      ? { project: next, key: reusable.key }
       : createKey(next, slot.paperTrack, undefined, 'asset-drop', undefined, sheetRole)
     next = created.project
 
-    const desiredCspCellName = reusableBinding?.cspCellName || assetFileBaseName(asset) || defaultCspCellName(created.key.displayLabel, slot.paperTrack)
+    const desiredCspCellName = reusable?.sourceBindingCspCellName || assetFileBaseName(asset) || defaultCspCellName(created.key.displayLabel, slot.paperTrack)
     const cspCellName = uniqueCspCellNameForSlot(next, slot.slotId, desiredCspCellName)
     next = upsertBinding(next, {
       slotId: slot.slotId,

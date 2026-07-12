@@ -530,7 +530,7 @@ describe('core project commands', () => {
     expect(registered.project.bindings.filter(binding => binding.slotId === 'slot_A').map(binding => binding.assetId))
       .toEqual([firstAsset.asset.assetId, secondAsset.asset.assetId])
     expect(registered.project.logicalSheet.keys.filter(key => registered.addedKeyIds.includes(key.keyId)).map(key => key.displayLabel))
-      .toEqual(['1', '2'])
+      .toEqual(['', ''])
     expect(registered.project.logicalSheet.keys.filter(key => registered.addedKeyIds.includes(key.keyId)).map(sheetTimingRoleForKey))
       .toEqual(['action', 'action'])
 
@@ -543,53 +543,18 @@ describe('core project commands', () => {
     expect(repeated.project.bindings).toHaveLength(registered.project.bindings.length)
   })
 
-  it('reuses a logical card when the same asset is registered in another correction layer', () => {
+  it('keeps process cards unlinked even when the same asset is registered in another correction layer', () => {
     const asset = registerAsset(createDefaultProject(), { name: 'A1.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
     const sakuga = registerAssetsToCspTrack(asset.project, { slotId: 'slot_A', assetIds: [asset.asset.assetId] })
     const enshutsu = registerAssetsToCspTrack(sakuga.project, { slotId: 'slot_enshutsu_A', assetIds: [asset.asset.assetId] })
 
-    expect(enshutsu.addedKeyIds).toEqual([sakuga.addedKeyIds[0]])
-    expect(enshutsu.project.logicalSheet.keys).toHaveLength(sakuga.project.logicalSheet.keys.length)
-    expect(enshutsu.project.bindings.filter(binding => binding.keyId === sakuga.addedKeyIds[0]).map(binding => binding.slotId))
-      .toEqual(['slot_A', 'slot_enshutsu_A'])
-  })
-
-  it('aggregates process-specific assets into one logical cell and reuses it at multiple frames', () => {
-    const baseAsset = registerAsset(createDefaultProject(), { name: 'A1.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
-    const correctionAsset = registerAsset(baseAsset.project, { name: 'A1_e.png', size: 101, lastModified: 2 }, { role: 'cell-material' })
-    const base = registerAssetsToCspTrack(correctionAsset.project, { slotId: 'slot_A', assetIds: [baseAsset.asset.assetId] })
-    const correction = registerAssetsToCspTrack(base.project, { slotId: 'slot_enshutsu_A', assetIds: [correctionAsset.asset.assetId] })
-
-    expect(correction.addedKeyIds).toEqual([base.addedKeyIds[0]])
-    expect(correction.project.logicalSheet.keys).toHaveLength(1)
-    expect(correction.project.bindings.map(binding => [binding.slotId, binding.keyId, binding.cspCellName])).toEqual([
-      ['slot_A', base.addedKeyIds[0], 'A1'],
-      ['slot_enshutsu_A', base.addedKeyIds[0], 'A1_e'],
+    expect(enshutsu.addedKeyIds).toHaveLength(1)
+    expect(enshutsu.addedKeyIds[0]).not.toBe(sakuga.addedKeyIds[0])
+    expect(enshutsu.project.logicalSheet.keys.map(key => key.displayLabel)).toEqual(['', ''])
+    expect(enshutsu.project.bindings.map(binding => [binding.slotId, binding.keyId])).toEqual([
+      ['slot_A', sakuga.addedKeyIds[0]],
+      ['slot_enshutsu_A', enshutsu.addedKeyIds[0]],
     ])
-
-    const firstUse = setEvent(correction.project, 'A', 1, base.addedKeyIds[0], 'action')
-    const reused = setEvent(firstUse, 'A', 24, base.addedKeyIds[0], 'action')
-    expect(reused.logicalSheet.events.map(event => [event.frame, event.keyId])).toEqual([
-      [1, base.addedKeyIds[0]],
-      [24, base.addedKeyIds[0]],
-    ])
-    expect(reused.logicalSheet.events.map(event => reused.logicalSheet.keys.find(key => key.keyId === event.keyId)?.displayLabel))
-      .toEqual(['1', '1'])
-
-    const plan = buildExportPlan(reused, 'import-stack')
-    expect(plan.tracks.find(track => track.slotId === 'slot_A')?.frames[0]).toEqual({ frame: 0, value: 'A1' })
-    expect(plan.tracks.find(track => track.slotId === 'slot_enshutsu_A')?.frames[0]).toEqual({ frame: 0, value: 'A1_e' })
-  })
-
-  it('matches normalized process names even when the correction asset is registered first', () => {
-    const correctionAsset = registerAsset(createDefaultProject(), { name: 'A_01_e.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
-    const baseAsset = registerAsset(correctionAsset.project, { name: 'A1.png', size: 101, lastModified: 2 }, { role: 'cell-material' })
-    const correction = registerAssetsToCspTrack(baseAsset.project, { slotId: 'slot_enshutsu_A', assetIds: [correctionAsset.asset.assetId] })
-    const base = registerAssetsToCspTrack(correction.project, { slotId: 'slot_A', assetIds: [baseAsset.asset.assetId] })
-
-    expect(base.addedKeyIds).toEqual([correction.addedKeyIds[0]])
-    expect(base.project.logicalSheet.keys).toHaveLength(1)
-    expect(base.project.bindings.map(binding => binding.cspCellName)).toEqual(['A1', 'A_01_e'])
   })
 
   it('merges a process-specific key into the existing logical cell when its sheet label is corrected', () => {

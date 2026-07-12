@@ -1,4 +1,4 @@
-import { createKey, type CellBinding, type CutProject, type CspTrackSlot, type SheetHit, type SheetTimingRole, setEvent, sheetTimingRoleForKey, updateKey, upsertBinding, type TimingKey } from '@xsheet-remap/core'
+import { createKey, type CellBinding, type CutProject, type CspTrackSlot, type SheetHit, type SheetTimingRole, mergeTimingKeys, setEvent, sheetTimingRoleForEvent, sheetTimingRoleForKey, updateKey, upsertBinding, type TimingKey } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { type CellAssetPreviewItem, sortedCorrectionLayers } from './sheetAssets'
 import { clampNumber, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction'
@@ -232,6 +232,22 @@ export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string,
   if (!sourceKey) return { project, keyId: null }
   const sheetRole = sheetRoleForHit(hit)
   if (sheetTimingRoleForKey(sourceKey) !== sheetRole) return { project, keyId: null }
+
+  const targetEvent = project.logicalSheet.events.find(event =>
+    event.paperTrack === hit.paperTrack
+    && event.frame === hit.frame
+    && sheetTimingRoleForEvent(event) === sheetRole,
+  )
+  const targetKey = targetEvent
+    ? project.logicalSheet.keys.find(key => key.keyId === targetEvent.keyId)
+    : undefined
+  if (!sourceKey.displayLabel.trim() && targetKey && targetKey.keyId !== sourceKey.keyId) {
+    const merged = mergeTimingKeys(project, sourceKey.keyId, targetKey.keyId)
+    return {
+      project: setEvent(merged, hit.paperTrack, hit.frame, targetKey.keyId, sheetRole, { fontSizePx }),
+      keyId: targetKey.keyId,
+    }
+  }
 
   if (sourceKey.paperTrack === hit.paperTrack) {
     return {

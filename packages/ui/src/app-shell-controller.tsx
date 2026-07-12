@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createKey, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, findTimingKeyByDisplayLabel, type CorrectionLayer, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type ExportProfile, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateKey, updateOrMergeTimingKeyDisplayLabel, updateCorrectionLayers, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, hasBlockingIssues, validateProject, standardA3SheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, isNullLabel, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, parseProjectDocument, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
+import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createKey, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, findTimingKeyByDisplayLabel, type CorrectionLayer, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type ExportProfile, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateKey, updateOrMergeTimingKeyDisplayLabel, updateCorrectionLayers, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, hasBlockingIssues, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, isNullLabel, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, parseProjectDocument, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
 import { exportXdts } from '@xsheet-remap/xdts';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, readJsonFile, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeTextFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
@@ -260,7 +260,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         position,
         details: `素材ブラウザ判定 / フォルダ候補 ${roots.length}件 / ファイル ${collection.files.length}件`,
       })
-      handleAssetRootCandidates(roots)
+      await handleAssetRootCandidates(roots)
       const assetIds = handleAssetFileRefs(collection.files, null, position)
       const registeredAssets = assetIds.map(assetId => {
         const asset = projectRef.current.assets.find(item => item.assetId === assetId)
@@ -289,7 +289,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         position,
         details: `フォルダ候補 ${directoryRoots.length}件 / 座標に関係なく登録`,
       })
-      handleAssetRootCandidates(directoryRoots)
+      await handleAssetRootCandidates(directoryRoots)
     }
     if (filePaths.length === 0) return
 
@@ -1159,36 +1159,28 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     return collection.roots.filter(root => root.fromDirectoryDrop)
   }
 
-  function handleAssetRootCandidates(candidates: AssetRootCandidate[]) {
+  async function handleAssetRootCandidates(candidates: AssetRootCandidate[]) {
     if (candidates.length === 0) return
-    commitProject(registerAssetRootFromCandidate(projectRef.current, candidates[0]!).project)
-  }
-
-  function registerAssetRootFromCandidate(sourceProject: CutProject, candidate: AssetRootCandidate) {
-    return registerAssetRoot(sourceProject, {
-      label: candidate.label,
-      path: candidate.path,
-      handleKind: 'directory',
-    })
+    const candidate = candidates[0]!
+    try {
+      const collection = await collectAssetPathDrop([candidate.path], { recursive: true, rootPath: candidate.path })
+      const imageRefs = collection.files.filter(isImageFileRef)
+      const synchronized = synchronizeAssetRoot(projectRef.current, {
+        label: candidate.label,
+        path: candidate.path,
+        handleKind: 'directory',
+      }, imageRefs)
+      commitProject(synchronized.project)
+      setStatusHint('sheet-drop', `${candidate.label} をアセットルートに設定し、画像 ${imageRefs.length}件を同期しました。`)
+    } catch (error) {
+      setStatusHint('sheet-drop', `アセットルートを読み込めませんでした: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   function registerMaterialAssetRef(sourceProject: CutProject, ref: FileRef): { project: CutProject; asset: CutAsset } {
     return registerAsset(sourceProject, ref, {
       role: 'cell-material',
     })
-  }
-
-  function handleEnsureAssetRefs(refs: FileRef[]): string[] {
-    let next = projectRef.current
-    const assetIds: string[] = []
-    for (const ref of refs) {
-      if (!isImageFileRef(ref)) continue
-      const registered = registerMaterialAssetRef(next, ref)
-      next = registered.project
-      assetIds.push(registered.asset.assetId)
-    }
-    if (next !== projectRef.current) commitProject(next)
-    return assetIds
   }
 
   function handleAssetFileRefs(refs: FileRef[], targetHit: SheetHit | null = null, position?: { x: number; y: number }): string[] {
@@ -2254,7 +2246,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     copySelectedTimingRange, pasteTimingClipboard, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
-    handleAssetNativePaths, handleAssetRootCandidates, handleEnsureAssetRefs, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
+    handleAssetNativePaths, handleAssetRootCandidates, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,

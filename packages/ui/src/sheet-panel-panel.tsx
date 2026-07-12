@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type EditMode, type SheetRangeSelection, type SheetPageImage, type TimingClipboard, type WorkspaceStyle } from './appTypes'
@@ -95,7 +95,6 @@ export function SheetPanel(props: {
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void
   onAssetFiles: (files: FileList | File[] | null) => void
   onAssetRoots: (roots: AssetRootCandidate[]) => void
-  onEnsureAssetRefs: (refs: FileRef[]) => string[]
   onAssetNativePaths: (paths: string[], options?: { recursive?: boolean }) => void
   onDropDiagnostic: (report: DropDiagnosticReport) => void
   onAssetAssign: (assetId: string, hit: SheetHit | null, position?: { x: number; y: number }) => void
@@ -711,7 +710,6 @@ export function SheetPanel(props: {
               registrationSummaries={assetRegistrationSummaryMap}
               onAssets={props.onAssetFiles}
               onAssetRoots={props.onAssetRoots}
-              onEnsureAssetRefs={props.onEnsureAssetRefs}
               onAssetSheetSources={props.onAssetSheetSources}
               canUseAssetsAsSheetSources={sheetScanSources.length === 0}
               onDropDiagnostic={props.onDropDiagnostic}

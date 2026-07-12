@@ -5,25 +5,9 @@ import { AssetTray } from './AssetBrowser'
 import { uiText } from './i18n'
 import { subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 
-const adapterMocks = vi.hoisted(() => ({
-  tauriHost: false,
-  listAssetDirectory: vi.fn(),
-}))
-
-vi.mock('@xsheet-remap/adapters', async () => {
-  const actual = await vi.importActual<typeof import('@xsheet-remap/adapters')>('@xsheet-remap/adapters')
-  return {
-    ...actual,
-    isTauriHost: () => adapterMocks.tauriHost,
-    listAssetDirectory: adapterMocks.listAssetDirectory,
-  }
-})
-
 afterEach(() => {
   cleanup()
   window.localStorage.clear()
-  adapterMocks.tauriHost = false
-  adapterMocks.listAssetDirectory.mockReset()
   vi.restoreAllMocks()
 })
 
@@ -45,11 +29,8 @@ describe('AssetBrowser', () => {
         registrationSummaries={new Map()}
         onAssets={vi.fn()}
         onAssetRoots={vi.fn()}
-        onEnsureAssetRefs={vi.fn(() => [])}
       />,
     )
-
-    fireEvent.click(screen.getByRole('tab', { name: uiText.assets.sourceView.project }))
 
     const card = screen.getByText('DragScroll_A.png').closest('.assetCard')
     const items = document.querySelector('.assetBrowserItems')
@@ -86,11 +67,8 @@ describe('AssetBrowser', () => {
         registrationSummaries={new Map()}
         onAssets={vi.fn()}
         onAssetRoots={vi.fn()}
-        onEnsureAssetRefs={vi.fn(() => [])}
       />,
     )
-
-    fireEvent.click(screen.getByRole('tab', { name: uiText.assets.sourceView.project }))
 
     const card = screen.getByText('QuickLook_A.png').closest('.assetCard')
     if (!(card instanceof HTMLElement)) throw new Error('asset card not found')
@@ -107,39 +85,34 @@ describe('AssetBrowser', () => {
     expect(preview.querySelector('img')?.getAttribute('src')).toBe('blob:quicklook-a')
   })
 
-  it('selects unregistered directory files with Ctrl and Shift and resolves the selection when dragging', async () => {
-    adapterMocks.tauriHost = true
-    adapterMocks.listAssetDirectory.mockResolvedValue({
-      rootPath: 'C:\\materials',
-      currentPath: 'C:\\materials',
-      entries: ['A1.png', 'A2.png', 'A3.png'].map((name, index) => ({
-        name,
-        path: `C:\\materials\\${name}`,
-        relativePath: name,
-        kind: 'file' as const,
-        isSupportedImage: true,
-        size: index + 1,
-        lastModified: index + 1,
-        objectUrl: `asset://${name}`,
-      })),
-    })
+  it('reproduces root folders and drags a Ctrl/Shift selection with stable asset ids', async () => {
     const root: AssetRoot = {
       label: 'materials',
       path: 'C:\\materials',
       handleKind: 'directory',
     }
-    const onEnsureAssetRefs = vi.fn((refs: Array<{ name: string }>) => refs.map(ref => `asset_${ref.name.replace('.png', '')}`))
+    const assets: CutAsset[] = ['A1.png', 'A2.png', 'A3.png'].map((name, index) => ({
+      assetId: `asset_A${index + 1}`,
+      binId: 'asset_bin_root',
+      originalFileName: name,
+      displayName: name,
+      role: 'cell-material',
+      source: { kind: 'root-relative', relativePath: `LO/A/${name}` },
+      thumbnailUrl: `asset://${name}`,
+    }))
 
     render(
       <AssetTray
         assetRoot={root}
-        assets={[]}
+        assets={assets}
         registrationSummaries={new Map()}
         onAssets={vi.fn()}
         onAssetRoots={vi.fn()}
-        onEnsureAssetRefs={onEnsureAssetRefs}
       />,
     )
+
+    fireEvent.click(screen.getByText('LO'))
+    fireEvent.click(screen.getByText('A'))
 
     const card = async (name: string) => {
       const element = (await screen.findByText(name)).closest<HTMLElement>('.assetCard')
@@ -164,8 +137,6 @@ describe('AssetBrowser', () => {
     fireEvent.click(a3, { shiftKey: true })
     expect([a1, a2, a3].every(item => item.getAttribute('aria-selected') === 'true')).toBe(true)
     expect(screen.getByText('3件選択')).toBeTruthy()
-    expect(onEnsureAssetRefs).not.toHaveBeenCalled()
-
     const droppedPayloads: InternalDragPayload[] = []
     const unsubscribe = subscribeInternalDrag(detail => {
       if (detail.phase === 'drop') droppedPayloads.push(detail.payload)
@@ -175,8 +146,6 @@ describe('AssetBrowser', () => {
     fireEvent.pointerUp(window, { pointerId: 12, pointerType: 'mouse', button: 0, buttons: 0, clientX: 40, clientY: 20 })
     unsubscribe()
 
-    expect(onEnsureAssetRefs).toHaveBeenCalledTimes(1)
-    expect(onEnsureAssetRefs.mock.calls[0]?.[0].map(ref => ref.name)).toEqual(['A1.png', 'A2.png', 'A3.png'])
     expect(droppedPayloads).toEqual([{
       kind: 'asset',
       assetIds: ['asset_A1', 'asset_A2', 'asset_A3'],

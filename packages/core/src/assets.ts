@@ -61,6 +61,49 @@ export function registerAssetRoot(project: CutProject, input: { label: string; p
   return { project: { ...project, assetRoot: root, assets }, root }
 }
 
+export function synchronizeAssetRoot(
+  project: CutProject,
+  input: { label: string; path: string; handleKind?: AssetRoot['handleKind'] },
+  files: FileRef[],
+): { project: CutProject; root: AssetRoot; assetIds: string[] } {
+  const rooted = registerAssetRoot(project, input)
+  let nextProject = rooted.project
+  const seenRelativePaths = new Set<string>()
+  const assetIds: string[] = []
+
+  for (const file of files) {
+    const relativePath = file.relativePath
+      ?? relativePathFromRoot(file.path, rooted.root.path)
+    if (!relativePath) continue
+    const normalizedRelativePath = normalizeRelativePath(relativePath)
+    const registered = registerAsset(nextProject, file, {
+      role: 'cell-material',
+      relativePath: normalizedRelativePath,
+    })
+    nextProject = registered.project
+    seenRelativePaths.add(assetRelativePathKey(normalizedRelativePath)!.toLowerCase())
+    assetIds.push(registered.asset.assetId)
+  }
+
+  const assets = nextProject.assets.map(asset => {
+    if (asset.source.kind !== 'root-relative') return asset
+    const relativePathKey = assetRelativePathKey(asset.source.relativePath)!.toLowerCase()
+    if (seenRelativePaths.has(relativePathKey)) return asset
+    return {
+      ...asset,
+      source: {
+        kind: 'unresolved' as const,
+        lastKnownPath: assetAbsolutePath(asset, rooted.root),
+      },
+    }
+  })
+  if (assets.some((asset, index) => asset !== nextProject.assets[index])) {
+    nextProject = { ...nextProject, assets }
+  }
+
+  return { project: nextProject, root: rooted.root, assetIds }
+}
+
 export function createAssetBin(project: CutProject, input: { name: string; parentBinId?: string }): { project: CutProject; bin: AssetBin } {
   const parentBinId = input.parentBinId ?? ROOT_ASSET_BIN_ID
   if (!project.assetBins.some(bin => bin.binId === parentBinId)) throw new Error(`asset bin not found: ${parentBinId}`)

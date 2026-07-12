@@ -1,5 +1,5 @@
 import type { AssetRoot } from '@xsheet-remap/core'
-import { isTauriHost, type AssetDirectoryListing } from '@xsheet-remap/adapters'
+import { isTauriHost } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { Tooltip } from './Tooltip'
 import type { AssetSortDirection, AssetThumbnailSize, AssetViewMode } from './asset-browser-types'
@@ -79,80 +79,50 @@ export function AssetViewControls({
   )
 }
 
-export function AssetFileBrowser({
+export function AssetCatalogToolbar({
   root,
-  listing,
-  loading,
-  error,
+  locationLabel,
+  canNavigateUp,
   onOpenRoot,
-  onNavigate,
+  onNavigateUp,
+  onRescan,
   dropActive,
 }: {
   root: AssetRoot | null
-  listing: AssetDirectoryListing | null
-  loading: boolean
-  error: string | null
+  locationLabel: string
+  canNavigateUp: boolean
   onOpenRoot: () => void
-  onNavigate: (path: string) => void
+  onNavigateUp: () => void
+  onRescan: () => void
   dropActive: boolean
 }) {
   if (!isTauriHost()) return null
-  const location = listing ? relativeLocation(listing.rootPath, listing.currentPath) : root?.label ?? ''
   return (
-    <div className={dropActive ? 'assetFileBrowser assetFileBrowser-dropActive' : 'assetFileBrowser'}>
-      <div className="assetFileBrowserToolbar">
+    <div className={dropActive ? 'assetCatalogToolbar assetCatalogToolbar-dropActive' : 'assetCatalogToolbar'}>
+      <div className="assetCatalogToolbarRow">
         <Tooltip label={root ? uiText.assets.root.changeTitle : uiText.assets.root.addTitle}>
           <button type="button" className="iconOnlyButton" aria-label={root ? uiText.assets.root.change : uiText.assets.root.add} onClick={onOpenRoot}>
             <FolderPlusIcon />
           </button>
         </Tooltip>
-        {listing && (
-          <Tooltip label={listing.parentPath ? uiText.assets.folder.up : uiText.assets.folder.rootHere}>
-            <button
-              type="button"
-              className="iconOnlyButton"
-              aria-label={uiText.assets.folder.up}
-              disabled={!listing.parentPath}
-              onClick={() => {
-                if (listing.parentPath) onNavigate(listing.parentPath)
-              }}
-            >
+        <Tooltip label={canNavigateUp ? uiText.assets.folder.up : uiText.assets.folder.rootHere}>
+          <button type="button" className="iconOnlyButton" aria-label={uiText.assets.folder.up} disabled={!canNavigateUp} onClick={onNavigateUp}>
             <FolderUpIcon />
           </button>
+        </Tooltip>
+        <Tooltip label={locationLabel}>
+          <div className="assetLocationText" aria-label={uiText.assets.folder.currentLocation}>{locationLabel}</div>
+        </Tooltip>
+        {root && (
+          <Tooltip label={uiText.assets.root.rescanTitle}>
+            <button type="button" className="iconOnlyButton" aria-label={uiText.assets.root.rescan} onClick={onRescan}>
+              <RefreshIcon />
+            </button>
           </Tooltip>
         )}
-        <Tooltip label={listing?.currentPath ?? root?.path ?? uiText.assets.root.unset}>
-          <div className="assetLocationText" aria-label={uiText.assets.folder.currentLocation}>{location || uiText.assets.root.unset}</div>
-        </Tooltip>
       </div>
-      {loading && <p className="muted assetFileBrowserMessage">{uiText.assets.folder.loading}</p>}
-      {error && <p className="assetFileBrowserError">{error}</p>}
     </div>
   )
-}
-
-function relativeLocation(rootPath: string, currentPath: string): string {
-  const rootLabel = fileNameFromPath(rootPath) || rootPath
-  const normalizedRoot = normalizePathForDisplay(rootPath)
-  const normalizedCurrent = normalizePathForDisplay(currentPath)
-  if (normalizedCurrent === normalizedRoot) return rootLabel
-  const suffix = normalizedCurrent.startsWith(`${normalizedRoot}/`) ? normalizedCurrent.slice(normalizedRoot.length + 1) : ''
-  const parts = suffix.split('/').filter(Boolean)
-  return [rootLabel, ...parts].join(' / ')
-}
-
-function normalizePathForDisplay(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-export function isPathInsideRoot(path: string, rootPath: string): boolean {
-  const normalizedPath = normalizePathForDisplay(path)
-  const normalizedRoot = normalizePathForDisplay(rootPath)
-  return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`)
-}
-
-function fileNameFromPath(path: string): string {
-  return normalizePathForDisplay(path).split('/').filter(Boolean).pop() ?? ''
 }
 
 function SortDirectionIcon({ direction }: { direction: AssetSortDirection }) {
@@ -216,6 +186,15 @@ function FolderUpIcon() {
     <svg className="assetBrowserIcon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 7.5h7l2 2h9v8.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
       <path d="m12 16 3-3 3 3M15 13v6" />
+    </svg>
+  )
+}
+
+function RefreshIcon() {
+  return (
+    <svg className="assetBrowserIcon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 7v5h-5" />
+      <path d="M18.2 16a8 8 0 1 1 .5-8.5L20 12" />
     </svg>
   )
 }

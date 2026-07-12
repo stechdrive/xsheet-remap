@@ -529,6 +529,8 @@ export const uiText = {
       change: 'カットフォルダを変更',
       changeTitle: '現在のカットフォルダを変更',
       unset: 'カットフォルダ未設定',
+      rescan: 'アセットルートを再走査',
+      rescanTitle: 'アセットルート配下の画像とフォルダ構造を再読み込み',
     },
     folder: {
       breadcrumb: '現在のフォルダ',
@@ -542,9 +544,10 @@ export const uiText = {
       importRecursive: '配下の画像を再帰登録',
       importOne: (name: string) => `${name}を画像素材に登録`,
     },
-    sourceView: {
-      files: 'カットフォルダ',
-      project: 'プロジェクト素材',
+    catalog: {
+      external: '外部素材',
+      unresolved: '参照未解決',
+      root: 'プロジェクト素材',
     },
     view: {
       grid: 'サムネ',

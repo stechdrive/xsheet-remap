@@ -298,9 +298,8 @@ async function runRemapRealDndScenario(): Promise<void> {
     join(args['multi-folder'] as string, 'Multi_A1.png'),
     join(args['multi-folder'] as string, 'Multi_A2.png'),
   ], folderDropScreen)
-  await selectAssetSourceView('プロジェクト素材')
   await waitForAssetBrowserFilesMaterialized(['Multi_A1.png', 'Multi_A2.png'])
-  await selectAssetSourceView('カットフォルダ')
+  await navigateAssetCatalogUp()
   await waitForAssetBrowserFile('A1.png')
   checks.push('dragged multiple real Windows image files from Explorer onto the asset browser and registered every file')
 
@@ -872,7 +871,7 @@ async function waitForAssetBrowserFile(fileName: string): Promise<void> {
   await waitForPageCondition(
     () => evaluatePage<boolean>(`
       (() => {
-        const cards = Array.from(document.querySelectorAll('.assetDirectoryCard'));
+        const cards = Array.from(document.querySelectorAll('.assetCard:not(.assetCatalogFolderCard)'));
         const location = document.querySelector('.assetLocationText');
         return Boolean(location && cards.some(card => (card.textContent || '').includes(${JSON.stringify(fileName)})));
       })()
@@ -886,7 +885,7 @@ async function waitForAssetBrowserSelection(expectedFileNames: string[]): Promis
   await waitForPageCondition(
     () => evaluatePage<boolean>(`
       (() => {
-        const selected = Array.from(document.querySelectorAll('.assetDirectoryCard[aria-selected="true"]'))
+        const selected = Array.from(document.querySelectorAll('.assetCard[aria-selected="true"]'))
           .map(card => card.querySelector('.assetCardMeta strong')?.textContent?.trim() || '')
           .filter(Boolean)
           .sort();
@@ -902,7 +901,7 @@ async function waitForAssetBrowserFilesMaterialized(expectedFileNames: string[])
     () => evaluatePage<boolean>(`
       (() => {
         const expected = ${JSON.stringify(expectedFileNames)};
-        const cards = Array.from(document.querySelectorAll('.assetDirectoryCard, .assetCard'));
+        const cards = Array.from(document.querySelectorAll('.assetCard:not(.assetCatalogFolderCard)'));
         return expected.every(fileName => {
           const card = cards.find(item => item.querySelector('.assetCardMeta strong')?.textContent?.trim() === fileName);
           return Boolean(card);
@@ -913,23 +912,20 @@ async function waitForAssetBrowserFilesMaterialized(expectedFileNames: string[])
   )
 }
 
-async function selectAssetSourceView(label: string): Promise<void> {
-  const selected = await evaluatePage<boolean>(`
+async function navigateAssetCatalogUp(): Promise<void> {
+  const previousLocation = await evaluatePage<string>(`document.querySelector('.assetLocationText')?.textContent?.trim() || ''`)
+  const clicked = await evaluatePage<boolean>(`
     (() => {
-      const tab = Array.from(document.querySelectorAll('.assetSourceTabs [role="tab"]'))
-        .find(item => item.textContent?.trim() === ${JSON.stringify(label)});
-      if (!(tab instanceof HTMLButtonElement)) return false;
-      tab.click();
+      const button = document.querySelector('[aria-label="上のフォルダへ"]');
+      if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
+      button.click();
       return true;
     })()
   `)
-  if (!selected) throw new Error(`asset source view not found: ${label}`)
+  if (!clicked) throw new Error('asset catalog up button is unavailable')
   await waitForPageCondition(
-    () => evaluatePage<boolean>(`
-      Array.from(document.querySelectorAll('.assetSourceTabs [role="tab"]'))
-        .some(item => item.textContent?.trim() === ${JSON.stringify(label)} && item.getAttribute('aria-selected') === 'true')
-    `),
-    `asset source view selected: ${label}`,
+    () => evaluatePage<boolean>(`(document.querySelector('.assetLocationText')?.textContent?.trim() || '') !== ${JSON.stringify(previousLocation)}`),
+    'asset catalog navigated up',
   )
 }
 
@@ -1268,7 +1264,7 @@ async function cdpMouseClick(point: ClientPoint, button: 'left' | 'right' = 'lef
 async function assetCardPoint(fileName: string): Promise<ClientPoint> {
   return evaluatePage<ClientPoint>(`
     (() => {
-      const cards = Array.from(document.querySelectorAll('.assetDirectoryCard, .assetCard'));
+      const cards = Array.from(document.querySelectorAll('.assetCard:not(.assetCatalogFolderCard)'));
       const card = cards.find(item => (item.textContent || '').includes(${JSON.stringify(fileName)}));
       if (!card) throw new Error('asset card not found: ${escapeForSingleQuotedError(fileName)}');
       const rect = card.getBoundingClientRect();
@@ -1452,7 +1448,7 @@ async function pageDebug(): Promise<Record<string, unknown>> {
     (() => ({
       bodyText: document.body?.textContent?.slice(0, 1000) ?? '',
       assetCards: Array.from(document.querySelectorAll('.assetCard')).map(item => item.textContent?.trim()).slice(0, 20),
-      assetSourceTabs: Array.from(document.querySelectorAll('.assetSourceTabs [role="tab"]')).map(item => ({ label: item.textContent?.trim(), selected: item.getAttribute('aria-selected') })),
+      assetLocation: document.querySelector('.assetLocationText')?.textContent?.trim() ?? '',
       assignedEvents: document.querySelectorAll('.assetAssignedEventRect').length,
       dropDiagnostics: window.__xsheetDropDiagnostics ?? [],
       viewport: { innerWidth, innerHeight, screenX, screenY, outerWidth, outerHeight, devicePixelRatio },

@@ -626,14 +626,14 @@ async function verifyAssetBrowserShell(): Promise<void> {
   await waitForPageCondition(() => {
     const browser = document.querySelector<HTMLElement>('.assetBrowser')
     const header = browser?.querySelector<HTMLElement>('.assetBrowserHeader')
-    const fileBrowser = browser?.querySelector<HTMLElement>('.assetFileBrowser')
+    const catalogToolbar = browser?.querySelector<HTMLElement>('.assetCatalogToolbar')
     const controls = browser?.querySelector<HTMLElement>('.assetBrowserControls')
     const items = browser?.querySelector<HTMLElement>('.assetBrowserItems')
-    const rootButton = fileBrowser?.querySelector<HTMLElement>('[aria-label="カットフォルダを追加"], [aria-label="カットフォルダを変更"]')
-    if (!browser || !header || !fileBrowser || !controls || !items || !rootButton) return false
+    const rootButton = catalogToolbar?.querySelector<HTMLElement>('[aria-label="カットフォルダを追加"], [aria-label="カットフォルダを変更"]')
+    if (!browser || !header || !catalogToolbar || !controls || !items || !rootButton) return false
     const browserRect = browser.getBoundingClientRect()
     const headerRect = header.getBoundingClientRect()
-    const fileRect = fileBrowser.getBoundingClientRect()
+    const fileRect = catalogToolbar.getBoundingClientRect()
     const controlsRect = controls.getBoundingClientRect()
     const itemsRect = items.getBoundingClientRect()
     return headerRect.top >= browserRect.top
@@ -642,9 +642,8 @@ async function verifyAssetBrowserShell(): Promise<void> {
       && fileRect.top >= headerRect.bottom
       && itemsRect.top >= fileRect.bottom
       && headerRect.top - browserRect.top < 40
-      && !fileBrowser.querySelector('.assetFileBrowserMessage')
-  }, 'asset browser file browser shell is fixed at the top')
-  checks.push('verified the image asset pane keeps cut-folder and thumbnail controls fixed at the top')
+  }, 'asset browser catalog shell is fixed at the top')
+  checks.push('verified the image asset pane keeps catalog navigation and thumbnail controls fixed at the top')
 }
 
 async function dropAssetFolderOnBrowser(folderPath: string): Promise<void> {
@@ -661,13 +660,11 @@ async function dropAssetFolderOnBrowser(folderPath: string): Promise<void> {
   await dispatchDomFolderDropOnAssetBrowser(folderPath)
   await waitForPageCondition(() => {
     const location = document.querySelector<HTMLElement>('.assetLocationText')
-    const names = Array.from(document.querySelectorAll<HTMLElement>('.assetBrowserItems .assetDirectoryCard strong')).map(item => item.textContent?.trim() ?? '')
-    const badges = Array.from(document.querySelectorAll<HTMLElement>('.assetBrowserItems .assetRegistrationBadge')).map(item => item.textContent?.trim() ?? '')
+    const names = Array.from(document.querySelectorAll<HTMLElement>('.assetBrowserItems .assetCard:not(.assetCatalogFolderCard) strong')).map(item => item.textContent?.trim() ?? '')
     return Boolean(location?.textContent?.trim())
       && names.includes('A1.png')
-      && badges.includes('未登録')
-  }, 'folder drop registers a cut folder and shows unregistered files in the asset browser')
-  checks.push('dropped a folder onto the image asset pane and verified it appears as a cut-folder file view')
+  }, 'folder drop synchronizes a root and shows registered assets in the asset browser')
+  checks.push('dropped a folder onto the image asset pane and verified its assets appear in the unified catalog')
 }
 
 async function verifyStackGuidePlacementAndSharedCuts(): Promise<void> {

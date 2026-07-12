@@ -49,32 +49,29 @@
   padding: 6px;
 }
 
-.assetDirectoryCard.directory {
+.assetCatalogFolderCard.directory {
   cursor: pointer;
 }
 
-.assetDirectoryCard.unsupported {
-  cursor: default;
-  color: #747e78;
-}
-
-.assetDirectoryCard.unsupported .assetThumb {
-  opacity: 0.64;
-}
-
-.assetDirectoryCard.directory .assetThumb {
+.assetCatalogFolderCard.directory .assetThumb {
   background: #f3ebd8;
   color: #8f6d24;
 }
 
-.assetDirectoryCard .assetThumb > .assetBrowserIcon {
+.assetCatalogFolderCard .assetThumb > .assetBrowserIcon {
   width: 32px;
   height: 32px;
 }
 
-.assetDirectoryCard.list .assetThumb > .assetBrowserIcon {
+.assetCatalogFolderCard.list .assetThumb > .assetBrowserIcon {
   width: 24px;
   height: 24px;
+}
+
+.assetFolderCount {
+  color: #6b746e;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .assetCard:active {
@@ -937,4 +934,3 @@
   color: #66706a;
   font-size: 12px;
 }
-

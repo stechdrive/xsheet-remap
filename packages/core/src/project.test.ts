@@ -45,6 +45,7 @@ import {
   registerAssetRoot,
   registerAssetsToCspTrack,
   registerSheetSource,
+  synchronizeAssetRoot,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
   setEvent,
@@ -1287,6 +1288,47 @@ describe('core project commands', () => {
 
     expect(rescanned.project.assets).toHaveLength(1)
     expect(rescanned.asset.source).toEqual({ kind: 'root-relative', relativePath: 'A1.png' })
+  })
+
+  it('synchronizes a root scan with relative folder paths', () => {
+    const synchronized = synchronizeAssetRoot(createDefaultProject(), {
+      label: 'C001',
+      path: 'D:\\cuts\\C001',
+    }, [
+      { name: 'A1.png', path: 'D:\\cuts\\C001\\LO\\A\\A1.png', relativePath: 'LO\\A\\A1.png' },
+      { name: 'BG1.png', path: 'D:\\cuts\\C001\\BG\\BG1.png', relativePath: 'BG/BG1.png' },
+    ])
+
+    expect(synchronized.project.assets.map(asset => asset.source)).toEqual([
+      { kind: 'root-relative', relativePath: 'LO/A/A1.png' },
+      { kind: 'root-relative', relativePath: 'BG/BG1.png' },
+    ])
+  })
+
+  it('keeps missing root assets unresolved and restores their identity when they reappear', () => {
+    const first = synchronizeAssetRoot(createDefaultProject(), {
+      label: 'C001',
+      path: 'D:\\cuts\\C001',
+    }, [{ name: 'A1.png', path: 'D:\\cuts\\C001\\A\\A1.png', relativePath: 'A/A1.png' }])
+    const assetId = first.assetIds[0]
+
+    const missing = synchronizeAssetRoot(first.project, {
+      label: 'C001',
+      path: 'D:\\cuts\\C001',
+    }, [])
+    expect(missing.project.assets).toHaveLength(1)
+    expect(missing.project.assets[0]?.source).toEqual({
+      kind: 'unresolved',
+      lastKnownPath: 'D:\\cuts\\C001\\A\\A1.png',
+    })
+
+    const restored = synchronizeAssetRoot(missing.project, {
+      label: 'C001',
+      path: 'D:\\cuts\\C001',
+    }, [{ name: 'A1.png', path: 'D:\\cuts\\C001\\A\\A1.png', relativePath: 'A/A1.png' }])
+    expect(restored.project.assets).toHaveLength(1)
+    expect(restored.assetIds).toEqual([assetId])
+    expect(restored.project.assets[0]?.source).toEqual({ kind: 'root-relative', relativePath: 'A/A1.png' })
   })
 
   it('creates the root project-material bin in the current project schema', () => {

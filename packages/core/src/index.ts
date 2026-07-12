@@ -238,6 +238,7 @@ export {
   registerAsset,
   registerAssetRoot,
   registerSheetSource,
+  synchronizeAssetRoot,
 } from './assets'
 export {
   addAnnotation,

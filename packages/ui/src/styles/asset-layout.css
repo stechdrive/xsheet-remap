@@ -62,7 +62,7 @@
   height: var(--pane-header-icon-size);
 }
 
-.assetFileBrowser {
+.assetCatalogToolbar {
   display: grid;
   gap: 6px;
   margin-bottom: 8px;
@@ -72,44 +72,17 @@
   background: #f7f7f3;
 }
 
-.assetFileBrowser-dropActive {
+.assetCatalogToolbar-dropActive {
   border-color: #416b5a;
   background: #edf6ef;
   box-shadow: inset 0 0 0 2px rgb(65 107 90 / 0.16);
 }
 
-.assetFileBrowserToolbar {
+.assetCatalogToolbarRow {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-}
-
-.assetSourceTabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  margin-bottom: 6px;
-  padding: 2px;
-  border: 1px solid #c6cbc5;
-  border-radius: 6px;
-  background: #ecece7;
-}
-
-.assetSourceTabs button {
-  min-width: 0;
-  min-height: 28px;
-  padding: 4px 7px;
-  border-color: transparent;
-  background: transparent;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.assetSourceTabs button.active {
-  border-color: #9eaaa2;
-  background: #fff;
-  color: #173a2b;
 }
 
 .assetLocationText {
@@ -146,18 +119,6 @@
   min-width: 30px;
   height: 30px;
   padding: 0;
-}
-
-.assetFileBrowserMessage,
-.assetFileBrowserError {
-  margin: 0;
-  padding: 5px 2px;
-  font-size: 12px;
-}
-
-.assetFileBrowserError {
-  color: #8b2c2c;
-  font-weight: 800;
 }
 
 .assetSelectionControls {

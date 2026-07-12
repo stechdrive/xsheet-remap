@@ -1,0 +1,1041 @@
+import { describe, expect, it, vi } from 'vitest';
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsheet-remap/core';
+import { App } from './App';
+import { uiText } from './i18n';
+import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openStackGuideInsertMenu, registeredCellIdentityText, selectAppPanel, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+
+describe('App: sheet timing interactions', () => {
+it('assigns a registered cell card to a frame through pointer drag fallback', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+    const registeredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
+    if (!registeredCell) throw new Error('registered cell card not found')
+
+    const target = templateFramePoint('cell', 'B', 1)
+    fireEvent.pointerDown(registeredCell, { pointerId: 71, pointerType: 'mouse', button: 0, buttons: 1, clientX: 120, clientY: 180 })
+    fireEvent.pointerMove(window, { pointerId: 71, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
+    expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost')).toBeTruthy()
+    fireEvent.pointerUp(window, { pointerId: 71, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
+
+    await waitFor(() => expectSelectedHit('cell', 'B', 1))
+    expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost')).toBeNull()
+    expect(Array.from(document.querySelectorAll('.registeredCellCard')).map(registeredCellIdentityText)).toEqual(['CELL A', 'CELL B'])
+  })
+
+it('cancels BG/BOOK insertion mode before creating a label', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    openStackGuideInsertMenu(sheet, 'action', 3)
+    expect(screen.getByRole('menu', { name: uiText.stackGuides.insertMenuLabel })).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.add }))
+    await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
+    expect(screen.queryByLabelText(uiText.stackGuides.inputLabel)).toBeNull()
+
+    fireEvent.pointerDown(document.body)
+
+    await waitFor(() => expect(document.querySelector('.stackGuideGap.insertToolActive')).toBeNull())
+    expect(screen.queryByLabelText(uiText.stackGuides.inputLabel)).toBeNull()
+    expect(document.querySelector('.stackGuideSvgLabel')).toBeNull()
+  })
+
+it('creates an overlay paper track from the insertion handle menu', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    openStackGuideInsertMenu(sheet, 'action', 3)
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.addOverlayTrack }))
+    await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
+    const activeHandle = document.querySelector<HTMLButtonElement>('.stackGuideGap.insertToolActive .stackGuideInsertHandle')
+    if (!activeHandle) throw new Error('active stack guide insert handle not found')
+    fireEvent.click(activeHandle, templateStackGuideHeaderPoint('action', 3))
+    fireEvent.change(screen.getByLabelText(uiText.sheet.addOverlayTrackName), { target: { value: 'J' } })
+    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+
+    await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(true))
+    const overlayLabelText = Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).find(label => label.textContent === 'J')
+    expect(overlayLabelText?.getAttribute('transform')).toBe(`scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`)
+    const overlayHandle = document.querySelector<HTMLButtonElement>('.overlayPaperTrackDragHandle')
+    if (!overlayHandle) throw new Error('overlay paper track handle not found')
+    expect(overlayHandle.getAttribute('aria-label')).toBe(uiText.actions.overlayPaperTrackInputActive('J'))
+    fireEvent.pointerEnter(overlayHandle)
+    expectStatusHint('J追加セル列', 'ドラッグで位置移動')
+    fireEvent.pointerLeave(overlayHandle)
+    fireEvent.contextMenu(overlayHandle, { clientX: 500, clientY: 80 })
+    expect(screen.getByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeTruthy()
+    fireEvent.pointerDown(overlayHandle, { pointerId: 91, pointerType: 'mouse', button: 0, buttons: 1, clientX: 500, clientY: 80 })
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeNull())
+    fireEvent.pointerUp(window, { pointerId: 91, pointerType: 'mouse', button: 0, buttons: 0, clientX: 500, clientY: 80 })
+
+    const currentOverlayHandle = document.querySelector<HTMLButtonElement>('.overlayPaperTrackDragHandle')
+    if (!currentOverlayHandle) throw new Error('current overlay paper track handle not found')
+    fireEvent.contextMenu(currentOverlayHandle, { clientX: 500, clientY: 80 })
+    expect(screen.getByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeTruthy()
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.deleteOverlayPaperTrack }))
+
+    await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(false))
+    expect(confirmSpy).toHaveBeenCalled()
+  })
+
+it('adds a BG/BOOK label from the registered-cell plus menu and places it in the reserve slot before A', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    fireEvent.click(screen.getByLabelText(uiText.stackGuides.addMenu))
+    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.add }))
+    await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
+    const defaultTarget = document.querySelector<HTMLElement>('.stackGuideGap.insertToolActive')
+    expect(defaultTarget?.dataset.stackGuideRole).toBe('action')
+    expect(defaultTarget?.dataset.stackGuideSnapIndex).toBe('1')
+
+    const overlay = setStackGuideOverlayRect()
+    const reservePoint = templateStackGuideHeaderSnapPoint('action', 0)
+    fireEvent.pointerMove(overlay, { pointerId: 1, pointerType: 'mouse', clientX: reservePoint.x, clientY: reservePoint.y })
+    fireEvent.click(overlay, { clientX: reservePoint.x, clientY: reservePoint.y })
+    fireEvent.change(await screen.findByLabelText(uiText.stackGuides.inputLabel), { target: { value: 'BG' } })
+    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+
+    await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BG'))
+    const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')
+    if (!region?.grid) throw new Error('action region not found')
+    const expectedAnchorX = region.rect.x - region.rect.w / region.grid.columns.length
+    expect(stackGuideConnectorAnchorX('BG')).toBeCloseTo(expectedAnchorX, 4)
+  })
+
+it('moves the BG/BOOK insertion preview from the sheet body after starting from a header context menu', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    openStackGuideInsertMenu(sheet, 'action', 3)
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.add }))
+    await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
+
+    const overlay = setStackGuideOverlayRect()
+    const reservePoint = templateStackGuideBodySnapPoint('action', 0)
+    fireEvent.pointerMove(overlay, { pointerId: 1, pointerType: 'mouse', clientX: reservePoint.x, clientY: reservePoint.y })
+    fireEvent.click(overlay, { clientX: reservePoint.x, clientY: reservePoint.y })
+    fireEvent.change(await screen.findByLabelText(uiText.stackGuides.inputLabel), { target: { value: 'BOOK' } })
+    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+
+    await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BOOK'))
+    const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')
+    if (!region?.grid) throw new Error('action region not found')
+    const expectedAnchorX = region.rect.x - region.rect.w / region.grid.columns.length
+    expect(stackGuideConnectorAnchorX('BOOK')).toBeCloseTo(expectedAnchorX, 4)
+  })
+
+it('edits registered cell CSP names and assigns image assets by dropping onto the cell card', async () => {
+    URL.createObjectURL = () => 'blob:asset-preview'
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '1' })
+
+    const registeredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
+    if (!registeredCell) throw new Error('registered cell card not found')
+    const inputs = registeredCell.querySelectorAll('input')
+    expect(Array.from(inputs).map(input => input.value)).toEqual(['1', 'A1'])
+    fireEvent.change(inputs[1], { target: { value: 'A1_custom' } })
+    expect(registeredCell.querySelector('.cellNameMode')?.textContent).toBe(uiText.keys.manualName)
+
+    const assetInput = screen.getByLabelText(uiText.actions.addAssets)
+    const file = new File(['asset'], 'A1_ref.png', { type: 'image/png', lastModified: 1 })
+    fireEvent.change(assetInput, { target: { files: [file] } })
+    expect(await screen.findByText('A1_ref.png')).toBeTruthy()
+
+    dragInternalPointer(getAssetCardByName('A1_ref.png'), registeredCell)
+    const dropMenu = await screen.findByRole('menu')
+    expect(dropMenu.textContent).toContain(uiText.assetDrop.title)
+    expect(dropMenu.textContent).toContain('A1_ref.png')
+    fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('作画')) }))
+
+    expect(registeredCell.textContent).toContain('A1_ref.png')
+
+    selectAppPanel(uiText.nav.export)
+    const sourceSelect = screen.getByLabelText(uiText.export.timingSource)
+    fireEvent.change(sourceSelect, { target: { value: 'cell' } })
+    const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
+    expect(preview?.value).toContain('A1_custom')
+  })
+
+it('confirms before deleting a registered cell with image assets', async () => {
+    URL.createObjectURL = () => 'blob:asset-preview'
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '1' })
+
+    const assetInput = screen.getByLabelText(uiText.actions.addAssets)
+    fireEvent.change(assetInput, { target: { files: [new File(['asset'], 'A1_ref.png', { type: 'image/png', lastModified: 1 })] } })
+    expect(await screen.findByText('A1_ref.png')).toBeTruthy()
+
+    const registeredCell = document.querySelector('.registeredCellCard') as HTMLElement | null
+    if (!registeredCell) throw new Error('registered cell card not found')
+    dragInternalPointer(getAssetCardByName('A1_ref.png'), registeredCell)
+    fireEvent.click(await screen.findByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('作画')) }))
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    fireEvent.click(screen.getByRole('button', { name: uiText.keys.deleteLabel('CELL A 1') }))
+    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteConfirm('1', 1))
+    expect(document.querySelector('.registeredCellCard')).toBeTruthy()
+
+    confirmSpy.mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: uiText.keys.deleteLabel('CELL A 1') }))
+    await waitFor(() => expect(document.querySelector('.registeredCellCard')).toBeNull())
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
+  })
+
+it('chooses a process when an image asset is dropped onto an already registered frame', async () => {
+    URL.createObjectURL = () => 'blob:asset-preview'
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '1' })
+    expect(document.querySelector('.eventText')?.textContent).toBe('1')
+
+    const assetInput = screen.getByLabelText(uiText.actions.addAssets)
+    const file = new File(['asset'], 'A1_enshutsu.png', { type: 'image/png', lastModified: 1 })
+    fireEvent.change(assetInput, { target: { files: [file] } })
+    expect(await screen.findByText('A1_enshutsu.png')).toBeTruthy()
+
+    const viewport = sheet.closest('.sheetViewport')
+    if (!viewport) throw new Error('sheet viewport not found')
+    dragInternalPointer(getAssetCardByName('A1_enshutsu.png'), sheet, { toX: 255, toY: 290 })
+
+    const menu = await screen.findByRole('menu')
+    expect(menu.textContent).toContain(uiText.assetDrop.title)
+    expect(menu.textContent).toContain('A1_enshutsu.png')
+    fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('演出')) }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.querySelector('.eventText')?.textContent).toBe('1')
+
+    fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })
+    const previewPanel = await waitFor(() => {
+      const panel = document.querySelector('.cellAssetPreviewPanel') as HTMLElement | null
+      expect(panel).toBeTruthy()
+      return panel
+    })
+    expect(previewPanel?.textContent).toContain('演出')
+    expect(previewPanel?.textContent).toContain('A1')
+    expect(previewPanel?.textContent).not.toContain('A1_enshutsu.png')
+  })
+
+it('chooses a process when an external image file is dropped onto an already registered frame', async () => {
+    URL.createObjectURL = () => 'blob:asset-preview'
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '1' })
+    fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })
+    const file = new File(['asset'], 'A1_direct.png', { type: 'image/png', lastModified: 1 })
+    const dataTransfer = {
+      files: [file],
+      items: [],
+      types: ['Files'],
+      effectAllowed: 'copy',
+      dropEffect: 'none',
+      getData: () => '',
+    }
+    fireEvent.drop(sheet, {
+      clientX: 255,
+      clientY: 290,
+      dataTransfer,
+    })
+
+    const menu = await screen.findByRole('menu')
+    expect(menu.textContent).toContain(uiText.assetDrop.title)
+    expect(menu.textContent).toContain('A1_direct.png')
+    fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('演出')) }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })
+    const previewPanel = await waitFor(() => {
+      const panel = document.querySelector('.cellAssetPreviewPanel') as HTMLElement | null
+      expect(panel).toBeTruthy()
+      return panel
+    })
+    expect(previewPanel?.textContent).toContain('演出')
+    expect(previewPanel?.textContent).toContain('A1')
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    fireEvent.click(screen.getByRole('button', { name: uiText.keys.deleteLabel('CELL A 1') }))
+    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteConfirm('1', 1, 1))
+    expect(document.querySelector('.registeredCellCard')).toBeTruthy()
+  })
+
+it('drops image assets onto the first frame when dropped inside an active range', async () => {
+    URL.createObjectURL = () => 'blob:asset-preview'
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    dragTemplateDisplayFrames(sheet, 'cell', 'A', 1, 5, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
+
+    const target = templateFramePoint('cell', 'A', 5)
+    const file = new File(['asset'], 'A1_range_drop.png', { type: 'image/png', lastModified: 1 })
+    const dataTransfer = {
+      files: [file],
+      items: [],
+      types: ['Files'],
+      effectAllowed: 'copy',
+      dropEffect: 'none',
+      getData: () => '',
+    }
+    const dropEvent = createEvent.drop(sheet)
+    Object.defineProperty(dropEvent, 'clientX', { value: target.x })
+    Object.defineProperty(dropEvent, 'clientY', { value: target.y })
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer })
+    fireEvent(sheet, dropEvent)
+
+    await waitFor(() => expectSelectedHit('cell', 'A', 1))
+    expectCurrentFrame(1)
+    const previewPoint = templateFramePoint('cell', 'A', 1)
+    fireEvent.pointerMove(sheet, { clientX: previewPoint.x, clientY: previewPoint.y })
+    const previewPanel = await waitFor(() => {
+      const panel = document.querySelector('.cellAssetPreviewPanel') as HTMLElement | null
+      expect(panel).toBeTruthy()
+      return panel
+    })
+    expect(previewPanel?.textContent).toContain('A1_range_drop')
+  })
+
+it('moves a registered timeline event by Alt-dragging it to another frame', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+    expectSelectedHit('cell', 'A', 1)
+
+    const source = templateFramePoint('cell', 'A', 1)
+    const target = templateFramePoint('cell', 'A', 4)
+    const eventHandle = document.querySelector('.timelineEventHandle') as SVGGElement | null
+    if (!eventHandle) throw new Error('timeline event handle not found')
+    fireEvent.pointerDown(eventHandle, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 1, altKey: true, clientX: source.x, clientY: source.y })
+    fireEvent.pointerMove(eventHandle, { pointerId: 31, pointerType: 'mouse', buttons: 1, altKey: true, clientX: target.x, clientY: target.y })
+    fireEvent.pointerUp(eventHandle, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 0, altKey: true, clientX: target.x, clientY: target.y })
+
+    expectSelectedHit('cell', 'A', 4)
+    const targetHit = timingHitForFrame(standardA3SheetTemplate, 'cell', 'A', 4, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    if (!targetHit) throw new Error('target hit not found')
+    const targetRect = cellRectForHit(standardA3SheetTemplate, targetHit, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    if (!targetRect) throw new Error('target rect not found')
+    const eventRects = Array.from(document.querySelectorAll('.eventRect')) as SVGRectElement[]
+    expect(eventRects).toHaveLength(1)
+    expect(Number(eventRects[0].getAttribute('y'))).toBeCloseTo(targetRect.y, 6)
+  })
+
+it('selects a range when dragging from a registered timeline event without Alt', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+    expectSelectedHit('cell', 'A', 1)
+
+    const source = templateFramePoint('cell', 'A', 1)
+    const target = templateFramePoint('cell', 'A', 4)
+    const eventHandle = document.querySelector('.timelineEventHandle') as SVGGElement | null
+    if (!eventHandle) throw new Error('timeline event handle not found')
+    fireEvent.pointerDown(eventHandle, { pointerId: 32, pointerType: 'mouse', button: 0, buttons: 1, clientX: source.x, clientY: source.y })
+    fireEvent.pointerMove(eventHandle, { pointerId: 32, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
+    fireEvent.pointerUp(eventHandle, { pointerId: 32, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
+
+    await waitFor(() => expectSelectedRange('cell', 'A', 1, 4))
+    const sourceHit = timingHitForFrame(standardA3SheetTemplate, 'cell', 'A', 1, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    if (!sourceHit) throw new Error('source hit not found')
+    const sourceRect = cellRectForHit(standardA3SheetTemplate, sourceHit, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    if (!sourceRect) throw new Error('source rect not found')
+    const eventRects = Array.from(document.querySelectorAll('.eventRect')) as SVGRectElement[]
+    expect(eventRects).toHaveLength(1)
+    expect(Number(eventRects[0].getAttribute('y'))).toBeCloseTo(sourceRect.y, 6)
+  })
+
+it('moves a registered timeline event after a long press', async () => {
+    vi.useFakeTimers()
+    try {
+      render(<App />)
+      const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+      setSheetRect(sheet, 0, 0)
+
+      clickTemplateFrame(sheet, 'cell', 'A', 1)
+      fireEvent.keyDown(window, { key: '1' })
+      expectSelectedHit('cell', 'A', 1)
+
+      const source = templateFramePoint('cell', 'A', 1)
+      const target = templateFramePoint('cell', 'A', 4)
+      const eventHandle = document.querySelector('.timelineEventHandle') as SVGGElement | null
+      if (!eventHandle) throw new Error('timeline event handle not found')
+      fireEvent.pointerDown(eventHandle, { pointerId: 33, pointerType: 'mouse', button: 0, buttons: 1, clientX: source.x, clientY: source.y })
+      await act(async () => {
+        vi.advanceTimersByTime(340)
+      })
+      expect(eventHandle.classList.contains('timelineEventDragReady')).toBe(true)
+      fireEvent.pointerMove(eventHandle, { pointerId: 33, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
+      fireEvent.pointerUp(eventHandle, { pointerId: 33, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
+
+      expectSelectedHit('cell', 'A', 4)
+      const targetHit = timingHitForFrame(standardA3SheetTemplate, 'cell', 'A', 4, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+      if (!targetHit) throw new Error('target hit not found')
+      const targetRect = cellRectForHit(standardA3SheetTemplate, targetHit, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+      if (!targetRect) throw new Error('target rect not found')
+      const eventRects = Array.from(document.querySelectorAll('.eventRect')) as SVGRectElement[]
+      expect(eventRects).toHaveLength(1)
+      expect(Number(eventRects[0].getAttribute('y'))).toBeCloseTo(targetRect.y, 6)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+it('opens the sheet context menu on right click and prevents the browser menu', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    const menuEvent = createEvent.contextMenu(sheet, { clientX: 255, clientY: 290 })
+    fireEvent(sheet, menuEvent)
+    expect(menuEvent.defaultPrevented).toBe(true)
+    expect(screen.getByRole('menu')).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeNull()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.setNullCell }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.querySelector('.eventText')?.textContent).toBe('x')
+    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(0)
+  })
+
+it('selects and renames a paper track from the grid column header menu', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    const headerPoint = templateColumnHeaderPoint('cell', 'A')
+    clickSheet(sheet, headerPoint.x, headerPoint.y)
+    expectSelectedRange('cell', 'A', 1, 144)
+
+    fireEvent.contextMenu(sheet, { clientX: headerPoint.x, clientY: headerPoint.y })
+    expect(screen.getByRole('menu')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.selectPaperTrackColumn }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expectSelectedRange('cell', 'A', 1, 144)
+
+    fireEvent.contextMenu(sheet, { clientX: headerPoint.x, clientY: headerPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.renamePaperTrack }))
+    const nameInput = screen.getByLabelText(uiText.sheet.renameTrackName) as HTMLInputElement
+    expect(nameInput.value).toBe('A')
+
+    fireEvent.change(nameInput, { target: { value: 'AA' } })
+    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+
+    await waitFor(() => {
+      const columnLabels = Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)
+      expect(columnLabels).toContain('AA')
+      expect(columnLabels).not.toContain('A')
+    })
+  })
+
+it('clears frame hover previews and closes the paper track header menu on outside click', async () => {
+    URL.createObjectURL = () => 'blob:asset-preview'
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    const framePoint = templateFramePoint('cell', 'A', 1)
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+    fireEvent.pointerMove(sheet, { clientX: framePoint.x, clientY: framePoint.y })
+    const file = new File(['asset'], 'A1_preview.png', { type: 'image/png', lastModified: 1 })
+    fireEvent.drop(sheet, {
+      clientX: framePoint.x,
+      clientY: framePoint.y,
+      dataTransfer: {
+        files: [file],
+        items: [],
+        types: ['Files'],
+        effectAllowed: 'copy',
+        dropEffect: 'none',
+        getData: () => '',
+      },
+    })
+    const processMenu = await screen.findByRole('menu')
+    expect(processMenu.textContent).toContain(uiText.assetDrop.title)
+    fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(uiText.assetDrop.register('作画')) }))
+    await waitFor(() => expectSelectedHit('cell', 'A', 1))
+
+    fireEvent.pointerMove(sheet, { clientX: framePoint.x, clientY: framePoint.y })
+    await waitFor(() => expect(document.querySelector('.cellAssetPreviewPanel')).toBeTruthy())
+
+    const headerPoint = templateColumnHeaderPoint('cell', 'A')
+    fireEvent.contextMenu(sheet, { clientX: headerPoint.x, clientY: headerPoint.y })
+    expect(screen.getByRole('menu')).toBeTruthy()
+    expect(document.querySelector('.cellAssetPreviewPanel')).toBeNull()
+    expect(document.querySelector('.appTooltip')).toBeNull()
+
+    fireEvent.pointerDown(document.body, { pointerId: 98, pointerType: 'mouse', button: 0, buttons: 1, clientX: 8, clientY: 8 })
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+it('treats direct x input as a hidden reserved null-cell event', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: 'x' })
+
+    expect(document.querySelector('.eventText')?.textContent).toBe('x')
+    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(0)
+  })
+
+it('clears the current sheet cell selection with Escape', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 255, 290)
+    expect(document.querySelector('.selectedCellRect')).toBeTruthy()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(document.querySelector('.selectedCellRect')).toBeNull()
+    expect(screen.getByText(new RegExp(uiText.app.noCellSelected))).toBeTruthy()
+  })
+
+it('creates independent keys in ACTION and CELL grid positions', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 45, 290)
+    fireEvent.keyDown(window, { key: '1' })
+    expectSelectedHit('action', 'A', 1)
+    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(1)
+    expect(registeredCellIdentityText(document.querySelector('.registeredCellCard') as Element)).toBe('ACTION A')
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '1' })
+    expectSelectedHit('cell', 'A', 1)
+    const registeredCells = Array.from(document.querySelectorAll('.registeredCellCard'))
+    expect(registeredCells).toHaveLength(2)
+    expect(registeredCells.map(registeredCellIdentityText)).toEqual(['ACTION A', 'CELL A'])
+    expect(registeredCells.map(card => Array.from(card.querySelectorAll('input')).map(input => input.value))).toEqual([
+      ['1', 'A1'],
+      ['1', 'A1'],
+    ])
+  })
+
+it('groups registered cells and sorts them by column then first timeline use', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'action', 'B', 3)
+    fireEvent.keyDown(window, { key: '1' })
+    clickTemplateFrame(sheet, 'action', 'A', 20)
+    fireEvent.keyDown(window, { key: '2' })
+    clickTemplateFrame(sheet, 'action', 'A', 5)
+    fireEvent.keyDown(window, { key: '3' })
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: '4' })
+
+    const sectionByTitle = (title: string) => Array.from(document.querySelectorAll('.registeredCellSection'))
+      .find(section => section.getAttribute('data-section-title') === title)
+    const cardSummaries = (section: Element | undefined) => Array.from(section?.querySelectorAll('.registeredCellCard') ?? [])
+      .map(card => `${registeredCellIdentityText(card)} ${card.querySelector('.registeredCellFirstUse')?.textContent ?? ''}`)
+
+    expect(cardSummaries(sectionByTitle(uiText.keys.sections.action))).toEqual([
+      'ACTION A 0+5',
+      'ACTION A 0+20',
+      'ACTION B 0+3',
+    ])
+    expect(cardSummaries(sectionByTitle(uiText.keys.sections.cell))).toEqual([
+      'CELL A 0+1',
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.keys.sort.toDescending }))
+    expect(cardSummaries(sectionByTitle(uiText.keys.sections.action))).toEqual([
+      'ACTION B 0+3',
+      'ACTION A 0+20',
+      'ACTION A 0+5',
+    ])
+    expect(cardSummaries(sectionByTitle(uiText.keys.sections.cell))).toEqual([
+      'CELL A 0+1',
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.keys.view.list }))
+    expect(document.querySelectorAll('.registeredCellCard.compact')).toHaveLength(4)
+    expect(document.querySelector('.registeredCellCompactName')).toBeTruthy()
+    expect(document.querySelector('.registeredCellCard input')).toBeNull()
+  })
+
+it('defaults XDTS export to an import stack while keeping animation folder names unchanged', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 45, 290)
+    fireEvent.keyDown(window, { key: '1' })
+    selectAppPanel(uiText.nav.export)
+
+    const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
+    expect(preview?.value).toContain('===== XSHEET IMPORT START =====')
+    expect(preview?.value).toContain('===== 作画 =====')
+    expect(preview?.value).toContain('===== XSHEET IMPORT END =====')
+    expect(preview?.value).toContain('"A"')
+    expect(preview?.value).not.toContain('LO_作画_A')
+
+    fireEvent.change(screen.getByLabelText(uiText.export.importStart), { target: { value: '===== CUSTOM IMPORT START =====' } })
+    expect((document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null)?.value).toContain('===== CUSTOM IMPORT START =====')
+  })
+
+it('steps point-event range input by the selected range length', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    dragSheet(sheet, 255, 290, 255, 310)
+    expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
+    expectSelectedRange('cell', 'A', 1, 3)
+    expect((screen.getByRole('button', { name: uiText.sheet.textFontSize }) as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.keyDown(window, { key: '1' })
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1'])
+    expectSelectedRange('cell', 'A', 4, 6)
+
+    fireEvent.keyDown(window, { key: '2' })
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2'])
+    expectSelectedRange('cell', 'A', 7, 9)
+  })
+
+it('selects a CELL range across the left and right six-second sheet blocks', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    dragSheet(sheet, 255, 947, 744, 290)
+
+    expectSelectedRange('cell', 'A', 70, 73)
+    expect(document.querySelectorAll('.selectedRangeRect')).toHaveLength(2)
+  })
+
+it('keeps the starting CELL column locked while dragging a range across neighboring columns', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    dragSheet(sheet, 255, 290, 285, 310)
+
+    expectSelectedRange('cell', 'A', 1, 3)
+    expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
+  })
+
+it('selects a CELL range across visible sheet pages', async () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText(uiText.sheet.durationFrames), { target: { value: '6' } })
+
+    const firstSheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    const secondSheet = await screen.findByLabelText(uiText.sheet.canvasPageLabel(2))
+    setSheetRect(firstSheet, 0, 0)
+    setSheetRect(secondSheet, 0, 1100)
+
+    fireEvent.pointerDown(firstSheet, { pointerId: 13, pointerType: 'mouse', button: 0, buttons: 1, clientX: 744, clientY: 966 })
+    fireEvent.pointerMove(firstSheet, { pointerId: 13, pointerType: 'mouse', buttons: 1, clientX: 255, clientY: 1390 })
+    fireEvent.pointerUp(firstSheet, { pointerId: 13, pointerType: 'mouse', button: 0, buttons: 0, clientX: 255, clientY: 1390 })
+
+    expectSelectedRange('cell', 'A', 144, 145)
+    expect(document.querySelectorAll('.selectedRangeRect')).toHaveLength(2)
+  })
+
+it('suppresses native text selection while dragging a sheet range', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    const pointerDown = createEvent.pointerDown(sheet, { pointerId: 12, pointerType: 'mouse', button: 0, buttons: 1, clientX: 255, clientY: 290 })
+    fireEvent(sheet, pointerDown)
+    expect(pointerDown.defaultPrevented).toBe(true)
+    await waitFor(() => expect(document.body.classList.contains('sheetInteractionActive')).toBe(true))
+
+    fireEvent.pointerMove(sheet, { pointerId: 12, pointerType: 'mouse', buttons: 1, clientX: 255, clientY: 310 })
+    fireEvent.pointerUp(sheet, { pointerId: 12, pointerType: 'mouse', button: 0, buttons: 0, clientX: 255, clientY: 310 })
+
+    await waitFor(() => expect(document.body.classList.contains('sheetInteractionActive')).toBe(false))
+    expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
+  })
+
+it('clears selections that become hidden when pre-roll display is disabled', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    let preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
+    fireEvent.click(preRoll)
+    expect(preRoll.checked).toBe(true)
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '9' })
+    expectSelectedHit('cell', 'A', -23)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toContain('9')
+
+    preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
+    fireEvent.click(preRoll)
+    expect(preRoll.checked).toBe(false)
+    await waitFor(() => expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).not.toContain('9'))
+
+    fireEvent.keyDown(window, { key: '5' })
+    preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
+    fireEvent.click(preRoll)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['9'])
+  })
+
+it('selects SOUND ranges without rendering app-drawn SOUND grid lines', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    expect(document.querySelector('.gridOverlay-sound')).toBeNull()
+    dragSheet(sheet, 190, 290, 190, 310)
+
+    expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
+    expectSelectedRange('sound', 'sound_1', 1, 3)
+  })
+
+it('copies a selected timing range and repeats it across another range', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '1' })
+    clickSheet(sheet, 255, 300)
+    fireEvent.keyDown(window, { key: '2' })
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
+
+    dragSheet(sheet, 255, 290, 255, 300)
+    fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
+    dragSheet(sheet, 255, 328, 255, 357)
+    fireEvent.keyDown(window, { key: 'v', ctrlKey: true, shiftKey: true })
+
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(6)
+  })
+
+it('requires a target range for range repeat paste', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '1' })
+    clickSheet(sheet, 255, 300)
+    fireEvent.keyDown(window, { key: '2' })
+    dragSheet(sheet, 255, 290, 255, 300)
+    fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
+
+    fireEvent.contextMenu(sheet, { clientX: 255, clientY: 380 })
+    const pasteMenuItem = screen.getByRole('menuitem', { name: uiText.actions.pasteOverwrite }) as HTMLButtonElement
+    expect(pasteMenuItem.disabled).toBe(false)
+    const repeatMenuItem = screen.getByRole('menuitem', { name: uiText.actions.repeatPaste }) as HTMLButtonElement
+    expect(repeatMenuItem.disabled).toBe(true)
+
+    fireEvent.keyDown(window, { key: 'v', ctrlKey: true, shiftKey: true })
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
+  })
+
+it('copies a pre-roll range into the official cut while pre-roll is visible', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    fireEvent.click(screen.getByLabelText(uiText.sheet.preRoll))
+    clickTemplateDisplayFrame(sheet, 'cell', 'A', -23, 168, -23)
+    fireEvent.keyDown(window, { key: '9' })
+    clickTemplateDisplayFrame(sheet, 'cell', 'A', 1, 168, -23)
+    fireEvent.keyDown(window, { key: '1' })
+
+    dragTemplateDisplayFrames(sheet, 'cell', 'A', -23, 1, 168, -23)
+    expectSelectedRange('cell', 'A', -23, 1)
+    fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
+
+    clickTemplateDisplayFrame(sheet, 'cell', 'A', 2, 168, -23)
+    fireEvent.keyDown(window, { key: 'v', ctrlKey: true })
+
+    expectSelectedRange('cell', 'A', 2, 26)
+    expect(document.querySelectorAll('.eventRect').length).toBeGreaterThanOrEqual(3)
+  })
+
+it('overwrites, cuts, and inserts timing ranges from the sheet context menu', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+    clickTemplateFrame(sheet, 'cell', 'A', 2)
+    fireEvent.keyDown(window, { key: '2' })
+    clickTemplateFrame(sheet, 'cell', 'A', 4)
+    fireEvent.keyDown(window, { key: '4' })
+    dragSheet(sheet, 255, 290, 255, 300)
+    let menuPoint = templateFramePoint('cell', 'A', 1)
+    fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.copyRange }))
+
+    clickTemplateFrame(sheet, 'cell', 'A', 4)
+    menuPoint = templateFramePoint('cell', 'A', 4)
+    fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.pasteOverwrite }))
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2', '1', '2'])
+
+    dragSheet(sheet, 255, 290, 255, 300)
+    menuPoint = templateFramePoint('cell', 'A', 1)
+    fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.cutRange }))
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2'])
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    menuPoint = templateFramePoint('cell', 'A', 1)
+    fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.pasteInsert }))
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2', '1', '2'])
+  })
+
+it('shows post-roll after insert paste beyond the cut end and clips XDTS output to the official duration', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 143)
+    fireEvent.keyDown(window, { key: '7' })
+    clickTemplateFrame(sheet, 'cell', 'A', 144)
+    fireEvent.keyDown(window, { key: '8' })
+    dragTemplateDisplayFrames(sheet, 'cell', 'A', 143, 144, 144, 1)
+    fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
+
+    const menuPoint = templateFramePoint('cell', 'A', 144)
+    fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.pasteInsert }))
+
+    expect(screen.getByText(uiText.sheet.postRollFrames(2))).toBeTruthy()
+    expect(document.querySelectorAll('.eventRect').length).toBeGreaterThanOrEqual(4)
+
+    selectAppPanel(uiText.nav.export)
+    fireEvent.change(screen.getByLabelText(uiText.export.timingSource), { target: { value: 'cell' } })
+    const preview = document.querySelector('.xdtsPreview') as HTMLTextAreaElement | null
+    expect(preview?.value).toContain('"duration": 144')
+    expect(preview?.value).toContain('"frame": 142')
+    expect(preview?.value).toContain('"frame": 143')
+    expect(preview?.value).not.toContain('"frame": 144')
+    expect(preview?.value).not.toContain('"frame": 145')
+  })
+
+it('opens frame operation commands from the sheet context menu', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+    clickTemplateFrame(sheet, 'cell', 'A', 3)
+    fireEvent.keyDown(window, { key: '3' })
+
+    const insertPoint = templateFramePoint('cell', 'A', 2)
+    fireEvent.contextMenu(sheet, { clientX: insertPoint.x, clientY: insertPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.frameOperation.insert }))
+    const insertDialog = screen.getByRole('dialog', { name: uiText.frameOperation.dialogTitleInsert })
+    fireEvent.click(within(insertDialog).getByLabelText(uiText.frameOperation.targetCut))
+    expect((within(insertDialog).getByLabelText(uiText.frameOperation.extendDuration) as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(within(insertDialog).getByRole('button', { name: uiText.frameOperation.submitInsert }))
+
+    expect(screen.queryByRole('dialog', { name: uiText.frameOperation.dialogTitleInsert })).toBeNull()
+    expect(screen.getAllByText(/145F/).length).toBeGreaterThan(0)
+
+    dragTemplateDisplayFrames(sheet, 'cell', 'A', 1, 2, 145, 1)
+    const deletePoint = templateFramePoint('cell', 'A', 1)
+    fireEvent.contextMenu(sheet, { clientX: deletePoint.x, clientY: deletePoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.frameOperation.delete }))
+    const deleteDialog = screen.getByRole('dialog', { name: uiText.frameOperation.dialogTitleDelete })
+    expect((within(deleteDialog).getByLabelText(uiText.frameOperation.frameCount) as HTMLInputElement).disabled).toBe(true)
+    fireEvent.click(within(deleteDialog).getByRole('button', { name: uiText.frameOperation.submitDelete }))
+
+    expect(screen.queryByRole('dialog', { name: uiText.frameOperation.dialogTitleDelete })).toBeNull()
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
+    expect(document.querySelectorAll('.registeredCellCard')).toHaveLength(2)
+  })
+
+it('keeps timing visible when the active material registration process changes', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    sheet.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 1000,
+      width: 1000,
+      height: 1000,
+      toJSON: () => ({}),
+    })
+
+    clickSheet(sheet, 255, 290)
+    fireEvent.keyDown(window, { key: '1' })
+    expect(registeredCellIdentityText(document.querySelector('.registeredCellCard') as Element)).toBe('CELL A')
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
+
+    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
+    expect(registeredCellIdentityText(document.querySelector('.registeredCellCard') as Element)).toBe('CELL A')
+    expectSelectionStatus('演出', 'CELL', 'A', formatTestFramePosition(1))
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
+
+    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_sakuga' } })
+    expectSelectionStatus('作画', 'CELL', 'A', formatTestFramePosition(1))
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
+  })
+})

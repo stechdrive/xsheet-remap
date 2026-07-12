@@ -6,6 +6,8 @@ const root = process.cwd()
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs'])
 const ignoredDirectories = new Set(['node_modules', 'dist', 'dist-ts', 'target', 'gen', '.tmp', 'release-local'])
 const violations = []
+const implementationLineLimit = 2300
+const testLineLimit = 1800
 
 async function sourceFiles(relativeDirectory) {
   const directory = path.join(root, relativeDirectory)
@@ -25,6 +27,18 @@ async function checkImports(relativeDirectory, checks) {
     const source = await readFile(path.join(root, relativePath), 'utf8')
     for (const check of checks) {
       if (check.pattern.test(source)) violations.push(`${relativePath}: ${check.message}`)
+    }
+  }
+}
+
+async function checkFileSizes(relativeDirectory) {
+  for (const relativePath of await sourceFiles(relativeDirectory)) {
+    const source = await readFile(path.join(root, relativePath), 'utf8')
+    const lineCount = source.split(/\r?\n/).length
+    const isTest = /(?:^|[\\/])[^\\/]+\.test\.[^.]+$/.test(relativePath)
+    const limit = isTest ? testLineLimit : implementationLineLimit
+    if (lineCount > limit) {
+      violations.push(`${relativePath}: ${lineCount} lines exceeds the ${isTest ? 'test' : 'implementation'} limit of ${limit}`)
     }
   }
 }
@@ -50,6 +64,7 @@ for (const directory of ['apps', 'packages', 'tools']) {
       message: 'workspace packages must be imported through their public exports',
     },
   ])
+  await checkFileSizes(directory)
 }
 
 if (violations.length > 0) {

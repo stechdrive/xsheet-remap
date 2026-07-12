@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import '@xsheet-remap/ui/src/styles.css'
+import '@xsheet-remap/ui/styles.css'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('root element not found')
@@ -21,18 +21,18 @@ document.title = applicationTitle
 
 async function resolveApplication() {
   if (isAssetPreviewWindow) {
-    const { AssetPreviewWindow } = await import('@xsheet-remap/ui/src/assetPreview')
+    const { AssetPreviewWindow } = await import('@xsheet-remap/ui')
     return <AssetPreviewWindow />
   }
   if (appKind === 'sheet-corrector') {
-    const { SheetCorrectorApp } = await import('@xsheet-remap/ui/src/sheetCorrectorApp')
+    const { SheetCorrectorApp } = await import('@xsheet-remap/ui')
     return <SheetCorrectorApp />
   }
   if (appKind === 'template-editor') {
-    const { TemplateEditorApp } = await import('@xsheet-remap/ui/src/TemplateEditorApp')
+    const { TemplateEditorApp } = await import('@xsheet-remap/ui')
     return <TemplateEditorApp />
   }
-  const { EditorApp, RemapApp } = await import('@xsheet-remap/ui/src/App')
+  const { EditorApp, RemapApp } = await import('@xsheet-remap/ui')
   return appKind === 'remap' ? <RemapApp /> : <EditorApp />
 }
 

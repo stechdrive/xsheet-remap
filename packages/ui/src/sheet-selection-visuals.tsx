@@ -154,10 +154,12 @@ export function SelectedCellCue({
   rect: NormalizedRect
   surface: SheetSelectionSurface
 }) {
+  const boundary = rangeBoundaryRect(rect, surface)
   return (
     <g className="selectedCellOverlay">
       <rect className="selectedCellRect" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
-      <path className="selectedCellCorners" d={selectedCellCornerPath(rect, surface)} />
+      <rect className="selectedCellOutline" x={boundary.x} y={boundary.y} width={boundary.w} height={boundary.h} />
+      <path className="selectedCellCorners" d={selectedCellCornerPath(boundary, surface)} />
     </g>
   )
 }

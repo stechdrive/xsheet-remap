@@ -790,19 +790,28 @@
 }
 
 .selectedCellRect {
-  fill: rgb(194 24 91 / 0.055);
+  fill: rgb(194 24 91 / 0.16);
   stroke: none;
+  mix-blend-mode: multiply;
   pointer-events: none;
 }
 
+.selectedCellOutline,
 .selectedCellCorners {
   fill: none;
-  stroke: rgb(194 24 91 / 0.96);
   stroke-linecap: square;
   stroke-linejoin: miter;
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
+}
+
+.selectedCellOutline {
+  stroke: rgb(194 24 91 / 0.88);
+}
+
+.selectedCellCorners {
+  stroke: rgb(194 24 91 / 0.98);
 }
 
 .overlayPaperTrackColumn {

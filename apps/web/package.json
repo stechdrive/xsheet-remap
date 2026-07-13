@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/web",
-  "version": "0.1.525",
+  "version": "0.1.526",
   "private": true,
   "type": "module",
   "scripts": {

@@ -78,6 +78,8 @@ describe('sheet selection visuals', () => {
     expect(container.querySelector('.selectedRangeOutline')).toBeTruthy()
     expect(container.querySelector('.selectedRangeCorners')).toBeTruthy()
     expect(Number(container.querySelector('.selectedRangeOutline')?.getAttribute('x'))).toBeGreaterThan(rect.x)
+    expect(container.querySelector('.selectedCellOutline')).toBeTruthy()
+    expect(Number(container.querySelector('.selectedCellOutline')?.getAttribute('x'))).toBeGreaterThan(rect.x)
     expect(container.querySelector('.selectedCellCorners')).toBeTruthy()
     expect(container.querySelector('.selectedCellRect')?.getAttribute('stroke')).toBeNull()
   })

@@ -655,7 +655,7 @@ it('previews template edge drags locally and commits once on pointer up', async 
       toJSON: () => ({}),
     }))
     editor.getBoundingClientRect = getEditorRect
-    const verticalEdges = document.querySelectorAll<SVGLineElement>('.templateEdgeHit.vertical')
+    const verticalEdges = document.querySelectorAll<HTMLDivElement>('.templateDomEdgeGuide.vertical')
     expect(verticalEdges).toHaveLength(2)
     const rightEdge = verticalEdges[1]
     Object.defineProperty(rightEdge, 'setPointerCapture', { configurable: true, value: vi.fn() })

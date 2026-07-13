@@ -131,6 +131,7 @@ export type {
   SheetTemplateTextStyle,
   SheetTemplateTrackProjection,
   SheetTemplateUnderlay,
+  SheetTemplateUnderlayPlacement,
   SheetTrackAxisLayout,
   SheetTrackAxisLayoutType,
   SheetViewLayout,

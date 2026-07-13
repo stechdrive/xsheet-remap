@@ -1,5 +1,6 @@
 export const SHEET_ZOOM_MIN = 0.2
 export const SHEET_ZOOM_MAX = 3
+export const TEMPLATE_ZOOM_MAX = 32
 export const SHEET_ZOOM_WHEEL_FACTOR = 1.12
 export const WHEEL_LINE_SCROLL_PX = 40
 export const SHEET_WARP_PREVIEW_CANVAS_WIDTH = 900

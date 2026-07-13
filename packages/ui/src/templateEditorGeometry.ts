@@ -125,6 +125,13 @@ export type TemplateEditorTarget =
 
 export type TemplateEditorRectKey = 'x' | 'y' | 'w' | 'h'
 
+export type TemplatePixelEdges = {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
 const TEMPLATE_GRID_HEADER_ROLE_ORDER: SheetTemplateGridRole[] = ['action', 'sound', 'cell', 'camera', 'frame-guide', 'count-table', 'other']
 
 const GRID_ROW_LINE_WEIGHT_ORDER = {
@@ -136,12 +143,12 @@ const GRID_ROW_LINE_WEIGHT_ORDER = {
 
 const ZERO_RADIUS: NormalizedPoint = { x: 0, y: 0 }
 
-export function buildTemplateEditorRenderModel(template: SheetTemplate): TemplateEditorRenderModel {
+export function buildTemplateEditorRenderModel(template: SheetTemplate, durationFrames = template.defaults.durationFrames): TemplateEditorRenderModel {
   return {
-    chrome: buildTemplateChromeRenderModel(template),
+    chrome: buildTemplateChromeRenderModel(template, template.defaults.paperTracks, durationFrames),
     gridOverlays: template.regions
       .filter(region => region.type === 'exposure-grid')
-      .map(region => buildTemplateGridOverlayRenderModel(template, region))
+      .map(region => buildTemplateGridOverlayRenderModel(template, region, { durationFrames }))
       .filter((model): model is TemplateGridOverlayRenderModel => model !== null),
     calibrationTargetRect: calibrationTargetRectForTemplate(template),
   }
@@ -150,11 +157,11 @@ export function buildTemplateEditorRenderModel(template: SheetTemplate): Templat
 export function buildTemplateEditorRegionRenderModel(
   template: SheetTemplate,
   regionId: string,
+  durationFrames = template.defaults.durationFrames,
 ): TemplateEditorRegionRenderModel | null {
   const region = template.regions.find(item => item.regionId === regionId)
   if (!region) return null
   const paperTracks = template.defaults.paperTracks
-  const durationFrames = template.defaults.durationFrames
   const resolveOptions = { paperTracks }
   const header = region.type === 'exposure-grid' && region.grid
     ? buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames)
@@ -173,7 +180,7 @@ export function buildTemplateEditorRegionRenderModel(
       headers: header ? [header] : [],
     },
     gridOverlay: region.type === 'exposure-grid'
-      ? buildTemplateGridOverlayRenderModel(template, region)
+      ? buildTemplateGridOverlayRenderModel(template, region, { durationFrames })
       : null,
   }
 }
@@ -335,6 +342,44 @@ export function snapTemplateEditorPointToPagePixels(
     x: Math.round(point.x * page.widthPx) / page.widthPx,
     y: Math.round(point.y * page.heightPx) / page.heightPx,
   }
+}
+
+export function normalizedRectToPixelEdges(
+  rect: NormalizedRect,
+  page: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+): TemplatePixelEdges {
+  const widthPx = Math.max(1, Math.round(page.widthPx))
+  const heightPx = Math.max(1, Math.round(page.heightPx))
+  const left = clampInteger(Math.round(rect.x * widthPx), 0, widthPx)
+  const top = clampInteger(Math.round(rect.y * heightPx), 0, heightPx)
+  const right = clampInteger(Math.round((rect.x + rect.w) * widthPx), left, widthPx)
+  const bottom = clampInteger(Math.round((rect.y + rect.h) * heightPx), top, heightPx)
+  return { left, top, right, bottom }
+}
+
+export function pixelEdgesToNormalizedRect(
+  edges: TemplatePixelEdges,
+  page: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+): NormalizedRect {
+  const widthPx = Math.max(1, Math.round(page.widthPx))
+  const heightPx = Math.max(1, Math.round(page.heightPx))
+  const left = clampInteger(edges.left, 0, widthPx)
+  const top = clampInteger(edges.top, 0, heightPx)
+  const right = clampInteger(edges.right, left, widthPx)
+  const bottom = clampInteger(edges.bottom, top, heightPx)
+  return {
+    x: left / widthPx,
+    y: top / heightPx,
+    w: (right - left) / widthPx,
+    h: (bottom - top) / heightPx,
+  }
+}
+
+export function quantizeNormalizedRectToPagePixels(
+  rect: NormalizedRect,
+  page: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+): NormalizedRect {
+  return pixelEdgesToNormalizedRect(normalizedRectToPixelEdges(rect, page), page)
 }
 
 export function templateEditorRectPixelValue(
@@ -576,4 +621,8 @@ function clampNumber(value: number, min: number, max: number): number {
 
 function roundTemplateEditorPixelValue(value: number): number {
   return Math.round(value * 100) / 100
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)))
 }

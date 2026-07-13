@@ -1,4 +1,4 @@
-import type { SheetTemplate } from '@xsheet-remap/core'
+import type { SheetTemplate, SheetTemplateUnderlayPlacement } from '@xsheet-remap/core'
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings } from './levelCorrection'
 import { LevelCorrectionFilterDefinition } from './LevelCorrectionFilter'
 import { levelCorrectionFilterUrl, useLevelCorrectionFilterId } from './levelCorrectionFilterModel'
@@ -13,12 +13,14 @@ export function SheetImageLayer({
   template,
   forceRaw = false,
   preview = false,
+  placement,
 }: {
   imageUrl: string
   imageSettings: SheetImageSettings
   template: SheetTemplate
   forceRaw?: boolean
   preview?: boolean
+  placement?: SheetTemplateUnderlayPlacement
 }) {
   const warpedImageUrl = useWarpedSheetImageUrl(forceRaw ? null : imageUrl, imageSettings, template, preview ? 'preview' : 'final')
   const effectiveLevelCorrection = imageSettings.levelCorrection
@@ -59,10 +61,10 @@ export function SheetImageLayer({
       <image
         className={forceRaw ? 'sheetImage sheetImageRaw' : 'sheetImage'}
         href={imageUrl}
-        x={imageSettings.x}
-        y={imageSettings.y}
-        width={imageSettings.scale}
-        height={imageSettings.scale}
+        x={placement ? placement.offsetXPx / template.page.widthPx : imageSettings.x}
+        y={placement ? placement.offsetYPx / template.page.heightPx : imageSettings.y}
+        width={placement ? placement.renderedWidthPx / template.page.widthPx : imageSettings.scale}
+        height={placement ? placement.renderedHeightPx / template.page.heightPx : imageSettings.scale}
         preserveAspectRatio="none"
         opacity={imageSettings.opacity}
         filter={levelCorrectionFilter}

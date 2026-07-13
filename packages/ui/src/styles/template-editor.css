@@ -113,12 +113,41 @@
   -webkit-user-select: none;
 }
 
+.templateEditorZoomSurface {
+  position: relative;
+  flex: none;
+}
+
 .templateEditorCanvas {
   position: relative;
   display: block;
   max-width: none;
   background: #fbfbf8;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  transform-origin: 0 0;
+  contain: layout paint style;
+  isolation: isolate;
+}
+
+.templateEditorCanvas.smoothZoom .sheetImageRaw {
+  image-rendering: auto;
+}
+
+.templateEditorCanvas.pixelZoom .sheetImageRaw {
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.templateEditorCanvas.showPixelGrid::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background-image:
+    linear-gradient(to right, rgb(23 77 63 / 0.14) var(--template-grid-line, 0.125px), transparent var(--template-grid-line, 0.125px)),
+    linear-gradient(to bottom, rgb(23 77 63 / 0.14) var(--template-grid-line, 0.125px), transparent var(--template-grid-line, 0.125px));
+  background-size: var(--template-pixel-size, 8px) var(--template-pixel-size, 8px);
 }
 
 .templateEditorSvg,
@@ -132,17 +161,95 @@
 }
 
 .templateEditorSvg {
+  z-index: 3;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  contain: strict;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .templatePreviewSvg {
+  z-index: 0;
   pointer-events: none;
 }
 
 .templateStaticPreviewSvg {
   position: relative;
+  overflow: hidden;
+  contain: strict;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.templateActiveRegionSvg {
+  z-index: 1;
+  inset: auto;
+  contain: strict;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.templateHandleSvg {
+  position: absolute;
+  z-index: 5;
+  display: block;
+  max-width: none;
+  overflow: visible;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.templateEdgeGuides {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+}
+
+.templateDomEdgeGuide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  contain: strict;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+.templateDomEdgeGuide::after {
+  position: absolute;
+  content: '';
+  background: #d63d2e;
+  pointer-events: none;
+}
+
+.templateDomEdgeGuide.vertical {
+  cursor: col-resize;
+}
+
+.templateDomEdgeGuide.vertical::after {
+  top: 0;
+  left: 50%;
+  width: var(--template-guide-line-width, 1.25px);
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+.templateDomEdgeGuide.horizontal {
+  cursor: row-resize;
+}
+
+.templateDomEdgeGuide.horizontal::after {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: var(--template-guide-line-width, 1.25px);
+  transform: translateY(-50%);
+}
+
+.templateEdgeGuides.calibrationTarget .templateDomEdgeGuide::after {
+  background: #1767a8;
 }
 
 .templateEditorCaption {
@@ -157,6 +264,57 @@
   color: #315f50;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.templateCreateBackdrop {
+  z-index: 120;
+}
+
+.templateCreateDialog {
+  display: grid;
+  width: min(620px, calc(100vw - 40px));
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #aeb6af;
+  border-radius: 10px;
+  background: #fbfbf8;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.28);
+}
+
+.templateCreateDialog label,
+.templateCreateFields {
+  display: grid;
+  gap: 6px;
+}
+
+.templateCreateFields {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.templateCreateKindTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.templateCreateKindTabs .active {
+  border-color: #315f50;
+  background: #e2eee7;
+}
+
+.templateCreatePixelSize {
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.templateCreateActions {
+  justify-content: end;
+}
+
+.templateImageWarning {
+  color: #a12d20;
   font-weight: 700;
 }
 
@@ -206,14 +364,17 @@
   cursor: default;
 }
 
-.templateEditorHitSurface.interactive {
-  cursor: pointer;
-}
-
-.templateRegionHighlight {
-  fill: rgb(65 107 90 / 0.08);
-  stroke: transparent;
+.templateRegionHighlightOverlay {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  contain: strict;
+  background: rgb(65 107 90 / 0.08);
+  opacity: 0;
   pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform, opacity;
 }
 
 .templateCalibrationTargetOutline {
@@ -251,26 +412,21 @@
   pointer-events: none;
 }
 
-.templateEdgeGuide {
-  stroke: #d63d2e;
-  stroke-width: 1.25px;
-  vector-effect: non-scaling-stroke;
+.templatePixelEdgeBands {
+  display: none;
+  fill: rgb(214 61 46 / 0.36);
   pointer-events: none;
+  shape-rendering: crispEdges;
 }
 
-.templateEdgeHit {
-  stroke: transparent;
-  stroke-width: 18px;
-  vector-effect: non-scaling-stroke;
-  pointer-events: stroke;
+.templateEditorCanvas.preciseZoom .templatePixelEdgeBands {
+  display: block;
 }
 
-.templateEdgeHit.vertical,
 .templateHandleKnob.vertical {
   cursor: col-resize;
 }
 
-.templateEdgeHit.horizontal,
 .templateHandleKnob.horizontal {
   cursor: row-resize;
 }
@@ -290,10 +446,6 @@
 
 .templateEditHandles.calibrationTarget .templateSelectedRegion {
   fill: rgb(23 103 168 / 0.08);
-  stroke: #1767a8;
-}
-
-.templateEditHandles.calibrationTarget .templateEdgeGuide {
   stroke: #1767a8;
 }
 

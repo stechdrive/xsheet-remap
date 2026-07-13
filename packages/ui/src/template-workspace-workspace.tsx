@@ -5,15 +5,18 @@ import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './ap
 import { uiText } from './i18n'
 import { ProcessSettingsDialog } from './ProcessSettingsDialog'
 import { sortedCorrectionLayers } from './sheetAssets'
-import { SHEET_ZOOM_MAX, SHEET_ZOOM_MIN } from './sheetConstants'
+import { SHEET_ZOOM_MIN, TEMPLATE_ZOOM_MAX } from './sheetConstants'
 import { calibrationGridBoundsForTemplate, calibrationTargetRectForTemplate, defaultSheetImageSettings, resolveImageRefUrl } from './sheetImages'
-import { clampNumber, clampSheetZoom, fitZoomForViewport } from './sheetInteraction'
-import { cloneSheetTemplate, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, readFileAsDataUrl, type TemplateDraftKind } from './templateDrafts'
+import { clampNumber, fitZoomForViewport } from './sheetInteraction'
+import { cloneSheetTemplate, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, resolvePixelExactUnderlayPlacement, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
+import { readTemplateImageMetadata } from './templateImageMetadata'
 import { gridHeaderLabelForRole, gridHeaderRolesForTemplate, templateEditorNormalizedRectValue, templateEditorRectPixelValue, type TemplateEditorRectKey } from './templateEditorGeometry'
-import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, setTemplateCalibrationTargetRect, trackProjectionForRole, type TemplateGridRole } from './templateEditing'
+import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, resizePaperTrackLabels, setTemplateCalibrationTargetRect, trackProjectionForRole, type TemplateGridRole } from './templateEditing'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { METADATA_BINDING_OPTION_IDS, TEMPLATE_CALIBRATION_TARGET_ID, errorMessage, metadataBindingFromOptionId, metadataBindingOptionId, metadataBindingOptionLabel, sameNormalizedRect, standardCalibrationTargetRectForTemplate, type MetadataBindingOptionId } from './template-workspace-model'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
+import { TemplateCreateDialog, type DigitalTemplateCreateOptions, type PaperTemplateCreateOptions } from './TemplateCreateDialog'
+import { templatePaperPixelSize } from './templatePaper'
 
 export function TemplateWorkspace({
   project,
@@ -50,6 +53,8 @@ export function TemplateWorkspace({
   const [templateZoom, setTemplateZoom] = useState(1)
   const [dockWidth, setDockWidth] = useState(380)
   const [processSettingsOpen, setProcessSettingsOpen] = useState(false)
+  const [templateCreateOpen, setTemplateCreateOpen] = useState(false)
+  const isDigitalTemplate = template.templateKind === 'digital-native'
   const calibrationTargetRect = calibrationTargetRectForTemplate(template)
   const calibrationGridBounds = calibrationGridBoundsForTemplate(template)
   const hasExplicitCalibrationTarget = Boolean(template.calibration?.targetRect)
@@ -70,9 +75,20 @@ export function TemplateWorkspace({
   const templateReferenceImageSettings: SheetImageSettings = template.defaultUnderlay?.alignment
     ? { ...defaultSheetImageSettings(), ...template.defaultUnderlay.alignment }
     : defaultSheetImageSettings()
+  const referenceImageMetadata = template.defaultUnderlay?.imageRef.pixelWidth && template.defaultUnderlay.imageRef.pixelHeight
+    ? {
+        width: template.defaultUnderlay.imageRef.pixelWidth,
+        height: template.defaultUnderlay.imageRef.pixelHeight,
+        ppiX: template.defaultUnderlay.imageRef.ppiX,
+        ppiY: template.defaultUnderlay.imageRef.ppiY,
+      }
+    : null
+  const referenceDensityMatches = referenceImageMetadata
+    ? templateImageDensityMatches(template.page.dpi, referenceImageMetadata)
+    : null
 
   function setClampedTemplateZoom(value: number) {
-    setTemplateZoom(clampSheetZoom(value))
+    setTemplateZoom(clampNumber(value, SHEET_ZOOM_MIN, TEMPLATE_ZOOM_MAX))
   }
 
   function updateTemplateDraft(updater: (currentTemplate: SheetTemplate) => SheetTemplate) {
@@ -84,7 +100,8 @@ export function TemplateWorkspace({
 
   function replaceTemplateDraft(nextTemplate: SheetTemplate | null, nextTab: TemplateDetailTab) {
     if (!nextTemplate) return
-    const clonedTemplate = cloneSheetTemplate(isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate)
+    const sourceTemplate = isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate
+    const clonedTemplate = cloneSheetTemplate(quantizeTemplateGeometry(sourceTemplate))
     setDraftTemplate(clonedTemplate)
     setSelectedRegionId(clonedTemplate.regions[0]?.regionId ?? null)
     setDetailTab(nextTab)
@@ -121,11 +138,13 @@ export function TemplateWorkspace({
 
   function updateTemplatePage(updates: Partial<SheetTemplate['page']>) {
     updateTemplateDraft(currentTemplate => ({
-      ...currentTemplate,
-      page: {
-        ...currentTemplate.page,
-        ...updates,
-      },
+      ...quantizeTemplateGeometry({
+        ...currentTemplate,
+        page: {
+          ...currentTemplate.page,
+          ...updates,
+        },
+      }),
     }))
   }
 
@@ -369,6 +388,30 @@ export function TemplateWorkspace({
           },
         },
       })
+      void readTemplateImageMetadata(file, dataUrl).then(metadata => {
+        if (!metadata) return
+        setDraftTemplate(currentTemplate => {
+          if (currentTemplate.defaultUnderlay?.sourceId !== sourceId) return currentTemplate
+          return {
+            ...currentTemplate,
+            defaultUnderlay: {
+              ...currentTemplate.defaultUnderlay,
+              imageRef: {
+                ...currentTemplate.defaultUnderlay.imageRef,
+                pixelWidth: metadata.width,
+                pixelHeight: metadata.height,
+                ppiX: metadata.ppiX,
+                ppiY: metadata.ppiY,
+              },
+              placement: resolvePixelExactUnderlayPlacement(
+                currentTemplate.page.widthPx,
+                currentTemplate.page.heightPx,
+                metadata,
+              ),
+            },
+          }
+        })
+      })
     } catch (error) {
       window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))
     }
@@ -396,10 +439,90 @@ export function TemplateWorkspace({
     replaceTemplateDraft(created, 'reference')
   }
 
+  async function createPaperTemplateFromOptions(options: PaperTemplateCreateOptions) {
+    const page = templatePaperPixelSize(options.format, options.orientation, options.ppi)
+    let created = onCreateTemplateDraft('paper-standard')
+    created = quantizeTemplateGeometry({
+      ...created,
+      templateId: `paper-template-${Date.now().toString(36)}`,
+      name: options.name,
+      page: {
+        ...created.page,
+        ...page,
+        dpi: options.ppi,
+        format: options.format,
+        orientation: options.orientation,
+        isPhysical: true,
+      },
+      defaultUnderlay: undefined,
+    })
+    if (options.file) {
+      const dataUrl = await readFileAsDataUrl(options.file)
+      const metadata = await readTemplateImageMetadata(options.file, dataUrl)
+      if (metadata) {
+        created = {
+          ...created,
+          defaultUnderlay: {
+            sourceId: `template_reference_${Date.now().toString(36)}`,
+            label: options.file.name,
+            assetPath: dataUrl,
+            imageRef: {
+              name: options.file.name,
+              size: options.file.size,
+              lastModified: options.file.lastModified,
+              assetPath: dataUrl,
+              pixelWidth: metadata.width,
+              pixelHeight: metadata.height,
+              ppiX: metadata.ppiX,
+              ppiY: metadata.ppiY,
+            },
+            placement: resolvePixelExactUnderlayPlacement(page.widthPx, page.heightPx, metadata),
+          },
+        }
+      }
+    }
+    replaceTemplateDraft(created, options.file ? 'reference' : 'region')
+    setTemplateCreateOpen(false)
+  }
+
+  function createDigitalTemplateFromOptions(options: DigitalTemplateCreateOptions) {
+    const base = onCreateTemplateDraft('digital-standard')
+    const paperTracks = resizePaperTrackLabels(base.defaults.paperTracks, options.trackCount)
+    const withDefaults: SheetTemplate = {
+      ...base,
+      templateId: `digital-template-${Date.now().toString(36)}`,
+      name: options.name,
+      defaults: {
+        ...base.defaults,
+        fps: options.fps,
+        durationFrames: options.durationFrames,
+        paperTracks,
+      },
+    }
+    const created = {
+      ...withDefaults,
+      regions: withDefaults.regions.map(region => region.grid
+        ? {
+            ...region,
+            grid: {
+              ...region.grid,
+              rowCount: options.durationFrames,
+              frameEnd: (region.grid.frameStart ?? withDefaults.defaults.frameOrigin) + options.durationFrames - 1,
+              columns: region.grid.role === 'action' || region.grid.role === 'cell'
+                ? buildTemplateColumns(withDefaults, region.grid.role, options.trackCount, region.grid.columns)
+                : region.grid.columns,
+            },
+          }
+        : region),
+    }
+    replaceTemplateDraft(created, 'region')
+    setTemplateCreateOpen(false)
+  }
+
   const detailTabs: Array<[TemplateDetailTab, string]> = [
     ['region', uiText.template.detailTabs.region],
     ['display', uiText.template.detailTabs.display],
-    ['reference', uiText.template.detailTabs.reference],
+    ...(!isDigitalTemplate ? [['reference', uiText.template.detailTabs.reference] as [TemplateDetailTab, string]] : []),
     ['table', uiText.template.detailTabs.table],
     ['json', uiText.template.detailTabs.json],
   ]
@@ -436,6 +559,38 @@ export function TemplateWorkspace({
       <dd className="muted">001 -&gt; {formatSheetTemplateCutNumber(template, '001')} / OP -&gt; {formatSheetTemplateCutNumber(template, 'OP')}</dd>
       <dt>{uiText.template.viewLayout}</dt>
       <dd>{templateViewLayout.type} / {templateViewLayout.defaultViewMode ?? 'continuous'}{templateViewLayout.framesPerPage ? ` / ${templateViewLayout.framesPerPage}F` : ''}</dd>
+      {isDigitalTemplate ? (
+        <>
+          <dt>FPS</dt>
+          <dd><input className="numberInput" type="number" min="1" value={template.defaults.fps} onChange={event => updateTemplateDraft(current => ({ ...current, defaults: { ...current.defaults, fps: Math.max(1, Number(event.currentTarget.value)) } }))} /></dd>
+          <dt>初期フレーム数</dt>
+          <dd><input className="numberInput" type="number" min="1" value={template.defaults.durationFrames} onChange={event => {
+            const durationFrames = Math.max(1, Number(event.currentTarget.value))
+            updateTemplateDraft(current => ({
+              ...current,
+              defaults: { ...current.defaults, durationFrames },
+              regions: current.regions.map(region => region.grid ? { ...region, grid: { ...region.grid, rowCount: durationFrames, frameEnd: (region.grid.frameStart ?? current.defaults.frameOrigin) + durationFrames - 1 } } : region),
+            }))
+          }} /></dd>
+          <dt>CELLトラック数</dt>
+          <dd><input className="numberInput" type="number" min="1" value={template.defaults.paperTracks.length} onChange={event => {
+            const count = Math.max(1, Number(event.currentTarget.value))
+            updateTemplateDraft(current => {
+              const paperTracks = resizePaperTrackLabels(current.defaults.paperTracks, count)
+              const next = { ...current, defaults: { ...current.defaults, paperTracks } }
+              return {
+                ...next,
+                regions: next.regions.map(region => region.grid && (region.grid.role === 'action' || region.grid.role === 'cell')
+                  ? { ...region, grid: { ...region.grid, columns: buildTemplateColumns(next, region.grid.role, count, region.grid.columns) } }
+                  : region),
+              }
+            })
+          }} /></dd>
+          <dt>基準キャンバス</dt>
+          <dd>{template.page.widthPx} × {template.page.heightPx}px / 連続キャンバス</dd>
+        </>
+      ) : (
+        <>
       <dt>{uiText.template.pageFormat}</dt>
       <dd>
         <input value={template.page.format ?? ''} onChange={event => updateTemplatePage({ format: event.currentTarget.value || undefined })} />
@@ -499,6 +654,8 @@ export function TemplateWorkspace({
         </div>
         <p className="muted">{uiText.template.calibrationTargetHint}</p>
       </dd>
+        </>
+      )}
       <dt>{uiText.template.regions}</dt>
       <dd>{template.regions.length}</dd>
       <dt>{uiText.template.selectedRegion}</dt>
@@ -556,6 +713,20 @@ export function TemplateWorkspace({
             <dd>{template.defaultUnderlay.imageRef.name}</dd>
             <dt>{uiText.app.loaded}</dt>
             <dd>{template.defaultUnderlay.assetPath.startsWith('data:') ? uiText.template.referenceImageEmbedded : template.defaultUnderlay.assetPath}</dd>
+            {referenceImageMetadata && (
+              <>
+                <dt>元画像</dt>
+                <dd>{referenceImageMetadata.width} × {referenceImageMetadata.height}px</dd>
+                <dt>画像PPI</dt>
+                <dd>{referenceImageMetadata.ppiX && referenceImageMetadata.ppiY ? `${referenceImageMetadata.ppiX.toFixed(2)} × ${referenceImageMetadata.ppiY.toFixed(2)}` : '情報なし'}</dd>
+                <dt>配置</dt>
+                <dd className={referenceDensityMatches === false ? 'templateImageWarning' : ''}>
+                  {template.defaultUnderlay.placement?.mode === 'pixel-exact' ? '等倍・整数px中央配置' : '従来配置'}
+                  {template.defaultUnderlay.placement ? ` / X ${template.defaultUnderlay.placement.offsetXPx}px / Y ${template.defaultUnderlay.placement.offsetYPx}px` : ''}
+                  {referenceDensityMatches === false ? ' / テンプレートPPIと不一致' : ''}
+                </dd>
+              </>
+            )}
           </dl>
           )
         : <p className="muted">{uiText.template.noReferenceImage}</p>}
@@ -706,6 +877,7 @@ export function TemplateWorkspace({
           </Tooltip>
         </ToolbarGroup>
         <ToolbarGroup>
+          <button type="button" className="primary" onClick={() => setTemplateCreateOpen(true)}>新しいテンプレート</button>
           <ActionMenu
             label={uiText.actions.newTemplate}
             ariaLabel={uiText.actions.newTemplate}
@@ -800,7 +972,7 @@ export function TemplateWorkspace({
             <input
               type="range"
               min={SHEET_ZOOM_MIN * 100}
-              max={SHEET_ZOOM_MAX * 100}
+              max={TEMPLATE_ZOOM_MAX * 100}
               value={Math.round(templateZoom * 100)}
               onInput={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
               onChange={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
@@ -810,6 +982,10 @@ export function TemplateWorkspace({
           <Tooltip label={uiText.actions.zoomResetTitle}>
             <button onClick={() => setClampedTemplateZoom(1)}>{uiText.actions.zoomReset}</button>
           </Tooltip>
+          <button type="button" onClick={() => setClampedTemplateZoom(4)}>400%</button>
+          <button type="button" onClick={() => setClampedTemplateZoom(8)}>800%</button>
+          <button type="button" onClick={() => setClampedTemplateZoom(16)}>1600%</button>
+          <button type="button" onClick={() => setClampedTemplateZoom(32)}>3200%</button>
           <Tooltip label={uiText.actions.zoomFitTitle}>
             <button onClick={fitTemplateToViewport}>{uiText.actions.zoomFit}</button>
           </Tooltip>
@@ -822,6 +998,13 @@ export function TemplateWorkspace({
           onApply={layers => {
             if (onUpdateCorrectionLayers(layers)) setProcessSettingsOpen(false)
           }}
+        />
+      )}
+      {templateCreateOpen && (
+        <TemplateCreateDialog
+          onClose={() => setTemplateCreateOpen(false)}
+          onCreatePaper={options => { void createPaperTemplateFromOptions(options) }}
+          onCreateDigital={createDigitalTemplateFromOptions}
         />
       )}
       <div className="templateWorkspace" style={{ '--template-dock-width': `${dockWidth}px` } as WorkspaceStyle}>

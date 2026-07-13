@@ -6,25 +6,31 @@ export type TemplateRegionEdge = 'left' | 'right' | 'top' | 'bottom'
 export type TemplateGridRole = NonNullable<SheetTemplate['regions'][number]['grid']>['role']
 type EditableRect = SheetTemplate['regions'][number]['rect']
 
-export function updateTemplateRectEdge(rect: EditableRect, edge: TemplateRegionEdge, point: NormalizedPoint): EditableRect {
-  const minSize = 0.005
+export function updateTemplateRectEdge(
+  rect: EditableRect,
+  edge: TemplateRegionEdge,
+  point: NormalizedPoint,
+  page?: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+): EditableRect {
+  const minWidth = page ? 1 / Math.max(1, page.widthPx) : 0.005
+  const minHeight = page ? 1 / Math.max(1, page.heightPx) : 0.005
   const left = rect.x
   const right = rect.x + rect.w
   const top = rect.y
   const bottom = rect.y + rect.h
   if (edge === 'left') {
-    const x = clampNumber(point.x, 0, right - minSize)
+    const x = clampNumber(point.x, 0, right - minWidth)
     return { ...rect, x, w: right - x }
   }
   if (edge === 'right') {
-    const nextRight = clampNumber(point.x, left + minSize, 1)
+    const nextRight = clampNumber(point.x, left + minWidth, 1)
     return { ...rect, w: nextRight - left }
   }
   if (edge === 'top') {
-    const y = clampNumber(point.y, 0, bottom - minSize)
+    const y = clampNumber(point.y, 0, bottom - minHeight)
     return { ...rect, y, h: bottom - y }
   }
-  const nextBottom = clampNumber(point.y, top + minSize, 1)
+  const nextBottom = clampNumber(point.y, top + minHeight, 1)
   return { ...rect, h: nextBottom - top }
 }
 
@@ -33,7 +39,7 @@ export function updateTemplateRegionEdge(template: SheetTemplate, regionId: stri
     ...template,
     regions: template.regions.map(region => {
       if (region.regionId !== regionId) return region
-      return { ...region, rect: updateTemplateRectEdge(region.rect, edge, point) }
+      return { ...region, rect: updateTemplateRectEdge(region.rect, edge, point, template.page) }
     }),
   }
 }
@@ -63,7 +69,7 @@ export function updateTemplateCalibrationTargetRectEdge(
   edge: TemplateRegionEdge,
   point: NormalizedPoint,
 ): SheetTemplate {
-  return setTemplateCalibrationTargetRect(template, updateTemplateRectEdge(rect, edge, point))
+  return setTemplateCalibrationTargetRect(template, updateTemplateRectEdge(rect, edge, point, template.page))
 }
 
 export function defaultColumnCountForRole(template: SheetTemplate, role: TemplateGridRole): number {

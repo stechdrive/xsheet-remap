@@ -7,6 +7,9 @@ import {
   buildTemplateGridOverlayRenderModel,
   gridRowLineClassName,
   hitTestTemplateEditorTarget,
+  normalizedRectToPixelEdges,
+  pixelEdgesToNormalizedRect,
+  quantizeNormalizedRectToPagePixels,
   pointInExpandedNormalizedRect,
   snapTemplateEditorPointToPagePixels,
   templateEditorPointFromClientRect,
@@ -242,6 +245,16 @@ describe('template editor geometry', () => {
     expect(templateEditorRectPixelValue({ x: point.x, y: point.y, w: 173 / 1754, h: 71 / 2481 }, 'h', page)).toBe(71)
     expect(templateEditorNormalizedRectValue(173, 'w', page)).toBe(173 / 1754)
     expect(templateEditorNormalizedRectValue(71, 'h', page)).toBe(71 / 2481)
+  })
+
+  it('round-trips paper rectangles through integer half-open pixel edges', () => {
+    const page = { widthPx: 1754, heightPx: 2480 }
+    const source = { x: 35.4 / 1754, y: 47.49 / 2480, w: 1597.8 / 1754, h: 70.7 / 2480 }
+    const edges = normalizedRectToPixelEdges(source, page)
+
+    expect(edges).toEqual({ left: 35, top: 47, right: 1633, bottom: 118 })
+    expect(normalizedRectToPixelEdges(pixelEdgesToNormalizedRect(edges, page), page)).toEqual(edges)
+    expect(quantizeNormalizedRectToPagePixels(source, page)).toEqual(pixelEdgesToNormalizedRect(edges, page))
   })
 
   it('expands normalized rect hit areas by independent x and y radii', () => {

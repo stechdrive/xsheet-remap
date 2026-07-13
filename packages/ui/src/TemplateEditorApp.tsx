@@ -15,10 +15,10 @@ import {
   createPaperTemplateDraftFromImage,
   createTemplateDraft,
   readFileAsDataUrl,
-  readImageDimensionsFromDataUrl,
   templateJsonFileName,
   type TemplateDraftKind,
 } from './templateDrafts'
+import { readTemplateImageMetadata } from './templateImageMetadata'
 
 export function TemplateEditorApp() {
   const [template, setTemplate] = useState<SheetTemplate>(() => structuredClone(standardA3SheetTemplate))
@@ -49,7 +49,7 @@ export function TemplateEditorApp() {
     if (!file) return null
     try {
       const dataUrl = await readFileAsDataUrl(file)
-      const imageSize = await readImageDimensionsFromDataUrl(dataUrl)
+      const imageSize = await readTemplateImageMetadata(file, dataUrl)
       return createPaperTemplateDraftFromImage(file, dataUrl, imageSize)
     } catch (error) {
       window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))

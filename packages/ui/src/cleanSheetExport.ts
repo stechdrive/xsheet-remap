@@ -4,6 +4,7 @@ import {
   type AnnotationStroke,
   type AnnotationText,
   type CutProject,
+  type NormalizedRect,
   type SheetPage,
   type SheetTemplate,
 } from '@xsheet-remap/core'
@@ -26,6 +27,7 @@ import {
   buildTemplateChromeRenderModel,
   buildTemplateGridOverlayRenderModel,
   gridRowLineClassName,
+  normalizedRectToPixelEdges,
   type TemplateGridPathRenderModel,
 } from './templateEditorGeometry'
 import { sheetImageFileName } from './outputFileNames'
@@ -244,7 +246,12 @@ async function renderTemplateImageLayer(context: SheetExportLayerContext): Promi
   const sourceCanvas = createCanvas(context.pageSize.widthPx, context.pageSize.heightPx)
   const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true })
   if (!sourceContext) return blankTransparentImageData(context.width, context.height)
-  sourceContext.drawImage(image, 0, 0, context.pageSize.widthPx, context.pageSize.heightPx)
+  const placement = context.template.defaultUnderlay?.placement
+  if (placement?.mode === 'pixel-exact') {
+    sourceContext.drawImage(image, placement.offsetXPx, placement.offsetYPx)
+  } else {
+    sourceContext.drawImage(image, 0, 0, context.pageSize.widthPx, context.pageSize.heightPx)
+  }
   const pageLayer = sourceContext.getImageData(0, 0, context.pageSize.widthPx, context.pageSize.heightPx)
   return repeatPageLayer(context, pageLayer)
 }
@@ -338,12 +345,8 @@ function drawTemplateStaticChrome(
     if (region.type === 'memo-area') continue
     ctx.strokeStyle = '#416b5a'
     ctx.setLineDash([6, 4])
-    ctx.strokeRect(
-      region.rect.x * context.pageSize.widthPx,
-      offsetY + region.rect.y * context.pageSize.heightPx,
-      region.rect.w * context.pageSize.widthPx,
-      region.rect.h * context.pageSize.heightPx,
-    )
+    const pixelRect = projectedPixelRect(context, region.rect, offsetY)
+    ctx.strokeRect(pixelRect.x + 0.5, pixelRect.y + 0.5, Math.max(0, pixelRect.w - 1), Math.max(0, pixelRect.h - 1))
   }
   ctx.setLineDash([])
 }
@@ -454,10 +457,7 @@ function renderInputTextLayer(context: SheetExportLayerContext): ImageData {
     ctx.textBaseline = 'middle'
     for (const item of inputTextRenderItemsForPage(context, page)) {
       const rect = item.rect
-      const x = rect.x * context.pageSize.widthPx
-      const y = offsetY + rect.y * context.pageSize.heightPx
-      const w = rect.w * context.pageSize.widthPx
-      const h = rect.h * context.pageSize.heightPx
+      const { x, y, w, h } = projectedPixelRect(context, rect, offsetY)
       ctx.fillStyle = 'rgba(238, 247, 242, 0.78)'
       ctx.fillRect(x + 1, y + 1, w - 2, h - 2)
       ctx.fillStyle = '#113c2d'
@@ -466,6 +466,24 @@ function renderInputTextLayer(context: SheetExportLayerContext): ImageData {
     }
   }
   return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function projectedPixelRect(context: SheetExportLayerContext, rect: NormalizedRect, offsetY: number) {
+  if (context.template.templateKind === 'digital-native') {
+    return {
+      x: rect.x * context.pageSize.widthPx,
+      y: offsetY + rect.y * context.pageSize.heightPx,
+      w: rect.w * context.pageSize.widthPx,
+      h: rect.h * context.pageSize.heightPx,
+    }
+  }
+  const edges = normalizedRectToPixelEdges(rect, context.pageSize)
+  return {
+    x: edges.left,
+    y: offsetY + edges.top,
+    w: edges.right - edges.left,
+    h: edges.bottom - edges.top,
+  }
 }
 
 function renderOverlayTrackLayer(context: SheetExportLayerContext): ImageData {

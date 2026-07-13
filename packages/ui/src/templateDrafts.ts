@@ -1,5 +1,9 @@
-import { digitalStandardSheetTemplate, standardA3SheetTemplate, type SheetTemplate } from '@xsheet-remap/core'
+import { digitalStandardSheetTemplate, standardA3SheetTemplate, type SheetTemplate, type SheetTemplateUnderlayPlacement } from '@xsheet-remap/core'
 import { uiText } from './i18n'
+import { quantizeNormalizedRectToPagePixels } from './templateEditorGeometry'
+import type { TemplateImageMetadata } from './templateImageMetadata'
+
+export { readImageDimensionsFromDataUrl } from './templateImageMetadata'
 
 export type TemplateDraftKind = 'paper-standard' | 'digital-standard' | 'duplicate-current'
 
@@ -40,7 +44,7 @@ export function createTemplateDraft(kind: TemplateDraftKind, currentTemplate: Sh
 export function createPaperTemplateDraftFromImage(
   file: File,
   dataUrl: string,
-  imageSize: { width: number; height: number } | null,
+  imageSize: TemplateImageMetadata | null,
 ): SheetTemplate {
   const template = createTemplateDraftFromBase(standardA3SheetTemplate, {
     idBase: fileNameStem(file.name) || 'paper-template',
@@ -48,13 +52,7 @@ export function createPaperTemplateDraftFromImage(
   })
   return {
     ...template,
-    page: imageSize
-      ? {
-          ...template.page,
-          widthPx: imageSize.width,
-          heightPx: imageSize.height,
-        }
-      : template.page,
+    page: template.page,
     defaultUnderlay: {
       sourceId: `template_reference_${Date.now().toString(36)}`,
       label: file.name,
@@ -64,9 +62,43 @@ export function createPaperTemplateDraftFromImage(
         size: file.size,
         lastModified: file.lastModified,
         assetPath: dataUrl,
+        ...(imageSize ? {
+          pixelWidth: imageSize.width,
+          pixelHeight: imageSize.height,
+          ppiX: imageSize.ppiX,
+          ppiY: imageSize.ppiY,
+        } : {}),
       },
+      ...(imageSize ? { placement: resolvePixelExactUnderlayPlacement(template.page.widthPx, template.page.heightPx, imageSize, imageSize) } : {}),
     },
   }
+}
+
+export function resolvePixelExactUnderlayPlacement(
+  pageWidthPx: number,
+  pageHeightPx: number,
+  image: TemplateImageMetadata,
+  density: Pick<TemplateImageMetadata, 'ppiX' | 'ppiY'> = image,
+): SheetTemplateUnderlayPlacement {
+  const offsetXPx = centeredIntegerOffset(pageWidthPx, image.width)
+  const offsetYPx = centeredIntegerOffset(pageHeightPx, image.height)
+  return {
+    mode: 'pixel-exact',
+    sourceWidthPx: image.width,
+    sourceHeightPx: image.height,
+    offsetXPx,
+    offsetYPx,
+    renderedWidthPx: image.width,
+    renderedHeightPx: image.height,
+    ...(density.ppiX ? { ppiX: density.ppiX } : {}),
+    ...(density.ppiY ? { ppiY: density.ppiY } : {}),
+  }
+}
+
+export function templateImageDensityMatches(templatePpi: number | undefined, metadata: TemplateImageMetadata, tolerance = 0.002): boolean | null {
+  if (!templatePpi || !metadata.ppiX || !metadata.ppiY) return null
+  return relativeDifference(templatePpi, metadata.ppiX) <= tolerance
+    && relativeDifference(templatePpi, metadata.ppiY) <= tolerance
 }
 
 export function cloneSheetTemplate(template: SheetTemplate): SheetTemplate {
@@ -91,32 +123,24 @@ export function ensureEditableTemplateDraft(template: SheetTemplate): SheetTempl
 }
 
 export function finalizeTemplateDraftForApply(template: SheetTemplate): SheetTemplate {
-  return isModifiedBuiltInSheetTemplate(template)
+  const finalized = isModifiedBuiltInSheetTemplate(template)
     ? ensureEditableTemplateDraft(template)
     : cloneSheetTemplate(template)
+  return quantizeTemplateGeometry(finalized)
 }
 
-export function readImageDimensionsFromDataUrl(dataUrl: string): Promise<{ width: number; height: number } | null> {
-  if (typeof Image === 'undefined') return Promise.resolve(null)
-  return new Promise(resolve => {
-    const image = new Image()
-    let settled = false
-    const timeout = globalThis.setTimeout(() => finish(null), 1500)
-    function finish(size: { width: number; height: number } | null) {
-      if (settled) return
-      settled = true
-      globalThis.clearTimeout(timeout)
-      image.onload = null
-      image.onerror = null
-      resolve(size && size.width > 0 && size.height > 0 ? size : null)
-    }
-    image.onload = () => finish({
-      width: Math.max(1, Math.round(image.naturalWidth || image.width)),
-      height: Math.max(1, Math.round(image.naturalHeight || image.height)),
-    })
-    image.onerror = () => finish(null)
-    image.src = dataUrl
-  })
+export function quantizeTemplateGeometry(template: SheetTemplate): SheetTemplate {
+  if (template.templateKind === 'digital-native') return template
+  return {
+    ...template,
+    calibration: template.calibration?.targetRect
+      ? { ...template.calibration, targetRect: quantizeNormalizedRectToPagePixels(template.calibration.targetRect, template.page) }
+      : template.calibration,
+    regions: template.regions.map(region => ({
+      ...region,
+      rect: quantizeNormalizedRectToPagePixels(region.rect, template.page),
+    })),
+  }
 }
 
 export function templateJsonFileName(template: SheetTemplate): string {
@@ -163,4 +187,15 @@ function fileNameStem(fileName: string): string {
 function safeFileName(value: string): string {
   const safe = Array.from(value.trim(), char => (char.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(char)) ? '_' : char).join('').replace(/[. ]+$/g, '')
   return safe || 'template'
+}
+
+function centeredIntegerOffset(pageSize: number, imageSize: number): number {
+  const offset = imageSize >= pageSize
+    ? -Math.floor((imageSize - pageSize) / 2)
+    : Math.floor((pageSize - imageSize) / 2)
+  return offset === 0 ? 0 : offset
+}
+
+function relativeDifference(expected: number, actual: number): number {
+  return Math.abs(actual - expected) / Math.max(1, Math.abs(expected))
 }

@@ -373,6 +373,10 @@ export interface SheetPageImageRef {
   path?: string
   assetPath?: string
   contentHash?: string
+  pixelWidth?: number
+  pixelHeight?: number
+  ppiX?: number
+  ppiY?: number
 }
 
 export interface SheetSource {

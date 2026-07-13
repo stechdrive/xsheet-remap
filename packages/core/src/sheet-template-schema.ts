@@ -127,6 +127,19 @@ export interface SheetTemplateUnderlay {
   assetPath: string
   imageRef: SheetPageImageRef
   alignment?: Partial<SheetImageAlignment>
+  placement?: SheetTemplateUnderlayPlacement
+}
+
+export interface SheetTemplateUnderlayPlacement {
+  mode: 'pixel-exact' | 'fit'
+  sourceWidthPx: number
+  sourceHeightPx: number
+  offsetXPx: number
+  offsetYPx: number
+  renderedWidthPx: number
+  renderedHeightPx: number
+  ppiX?: number
+  ppiY?: number
 }
 
 export interface SheetTemplateCalibration {

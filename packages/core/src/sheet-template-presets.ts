@@ -114,6 +114,21 @@ export const standardA3DefaultUnderlay: SheetTemplateUnderlay = {
     name: 'timesheet.png',
     size: 153481,
     assetPath: 'templates/standard-a3/timesheet.png',
+    pixelWidth: STANDARD_A3_PAGE_WIDTH_PX,
+    pixelHeight: STANDARD_A3_PAGE_HEIGHT_PX,
+    ppiX: 150.0124,
+    ppiY: 150.0124,
+  },
+  placement: {
+    mode: 'pixel-exact',
+    sourceWidthPx: STANDARD_A3_PAGE_WIDTH_PX,
+    sourceHeightPx: STANDARD_A3_PAGE_HEIGHT_PX,
+    offsetXPx: 0,
+    offsetYPx: 0,
+    renderedWidthPx: STANDARD_A3_PAGE_WIDTH_PX,
+    renderedHeightPx: STANDARD_A3_PAGE_HEIGHT_PX,
+    ppiX: 150.0124,
+    ppiY: 150.0124,
   },
 }
 

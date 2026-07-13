@@ -23,7 +23,8 @@ import { normalizeRecognitionLabel, recognizeSheetPages } from './sheetRecogniti
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
-import { createPaperTemplateDraftFromImage, createTemplateDraft, readFileAsDataUrl, readImageDimensionsFromDataUrl, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
+import { createPaperTemplateDraftFromImage, createTemplateDraft, readFileAsDataUrl, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
+import { readTemplateImageMetadata } from './templateImageMetadata';
 import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, cspImportPackageAssetPaths, errorMessage, exportCutProjectsFromDocument, fileDialogInitialDirectory, formatFramePosition, formatFrameRangePosition, isImageFileRef, saveBinaryOutputs, saveTextOutputs, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
@@ -1632,7 +1633,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (!file) return null
     try {
       const dataUrl = await readFileAsDataUrl(file)
-      const imageSize = await readImageDimensionsFromDataUrl(dataUrl)
+      const imageSize = await readTemplateImageMetadata(file, dataUrl)
       return createPaperTemplateDraftFromImage(file, dataUrl, imageSize)
     } catch (error) {
       window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))

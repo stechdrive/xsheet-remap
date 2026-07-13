@@ -3,4 +3,4 @@ export { AutoCalibrationGuideOverlay, CalibrationQuadEditor, calibrationGuideMet
 export type { OverlayPaperTrackDrag } from './sheet-layers-overlay'
 export { OverlayPaperTrackLayer, OverlayPaperTrackInteractionLayer } from './sheet-layers-overlay'
 export { eventRectsForPage, shouldSuppressRectUnderActiveOverlay, rectForHit, frameOriginForPageHit, materializePageHit, nextOverlayTrackNameForUi, overlayHitFromPoint, overlayRangeRectForPage, overlayHitForFrame, overlayColumnRectForPage } from './sheet-layers-hit-geometry'
-export { updateTimelineEventFontSize, updateTextAnnotation, deleteTextAnnotation, cloneTextAnnotationForPaste, assetAssignedEventMarkerPoints, strokePath, isAnnotationStroke, nextAnnotationId } from './sheet-layers-annotation'
+export { updateTimelineEventFontSize, updateTextAnnotation, deleteTextAnnotation, cloneTextAnnotationForPaste, strokePath, isAnnotationStroke, nextAnnotationId } from './sheet-layers-annotation'

@@ -94,16 +94,6 @@ export function cloneTextAnnotationForPaste(
   }
 }
 
-export function assetAssignedEventMarkerPoints(rect: { x: number; y: number; w: number; h: number }) {
-  const markerW = rect.w * 0.38
-  const markerH = rect.h * 0.48
-  return [
-    `${rect.x + rect.w},${rect.y}`,
-    `${rect.x + rect.w},${rect.y + markerH}`,
-    `${rect.x + rect.w - markerW},${rect.y}`,
-  ].join(' ')
-}
-
 export function strokePath(stroke: AnnotationStroke): string {
   const [first, ...rest] = stroke.points
   if (!first) return ''

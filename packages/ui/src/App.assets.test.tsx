@@ -428,6 +428,8 @@ it('registers material assets in the CSP layer tree and reuses its cards on the 
 
     await waitFor(() => expectSelectedHit('cell', 'A', 1))
     expect(document.querySelector('.assetAssignedEventRect')).toBeTruthy()
+    expect(document.querySelector('.assetAssignedEventMarker')).toBeTruthy()
+    expect(document.querySelector('.selectedCellCorners')).toBeTruthy()
     const drawingCell = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeCel[data-csp-key-id]'))
       .find(cell => cell.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent === '作画')
     if (!drawingCell) throw new Error('drawing CSP cell was not rendered')

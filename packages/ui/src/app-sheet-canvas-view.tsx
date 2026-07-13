@@ -6,11 +6,12 @@ import { rangeRectsForPage } from './sheetInteraction';
 import { rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { SheetSvgText } from './SheetSvgText';
 import { SheetImageLayer } from './SheetTemplateLayers';
-import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, assetAssignedEventMarkerPoints, calibrationGuideMetrics, eventRectsForPage, isAnnotationStroke, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay, strokePath } from './app-sheet-layers';
+import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, calibrationGuideMetrics, eventRectsForPage, isAnnotationStroke, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay, strokePath } from './app-sheet-layers';
 import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { sheetContextMenuStyle } from './app-registered-cells';
 import type { SheetCanvasController } from './app-sheet-canvas-controller'
+import { AssetAssignedFrameCue, SelectedCellCue, SheetRangeCue, SheetRangePatternDefs, sheetRangePatternId } from './sheet-selection-visuals'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -70,7 +71,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             : null
           const showTemplateGuides = props.showTemplateGuides && !isCalibrating
           const displayImageSettings = { ...pageImage.settings, calibration: { ...(pageImage.settings.calibration ?? { enabled: false }), points: calibrationPoints } }
-          const rawHoverRect = !isCalibrating && hoveredHit?.pageId === page.pageId ? rectForHit(props.project, props.template, hoveredHit) : null
+          const hoverMatchesSelection = Boolean(hoveredHit && props.selectedHit && sameSheetHitCell(hoveredHit, props.selectedHit))
+          const rawHoverRect = !isCalibrating && !hoverMatchesSelection && hoveredHit?.pageId === page.pageId ? rectForHit(props.project, props.template, hoveredHit) : null
           const hoverTrack = hoveredHit?.paperTrack ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === hoveredHit.paperTrack) : undefined
           const hoverRect = rawHoverRect && !shouldSuppressRectUnderActiveOverlay(hoverTrack, rawHoverRect, activeOverlayColumn) ? rawHoverRect : null
           const rawSelectedRect = !isCalibrating && props.selectedHit?.pageId === page.pageId ? rectForHit(props.project, props.template, props.selectedHit) : null
@@ -89,6 +91,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               })
             : []
           const rangeRects = [...normalRangeRects, ...overlayRangeRects]
+          const rangePatternId = sheetRangePatternId(page.pageId)
+          const selectionSurface = { widthPx: sheetPageWidth, heightPx: sheetPageHeight }
 
           const pageAccessibleLabel = isContinuousCanvas
             ? uiText.sheet.surfaceCaption(page.frameStart, page.frameEnd)
@@ -140,6 +144,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   aria-label={isContinuousCanvas ? uiText.sheet.canvasSurfaceLabel : page.pageIndex === 0 ? uiText.sheet.canvasLabel : uiText.sheet.canvasPageLabel(page.pageIndex + 1)}
                 >
                   <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
+                  {!draftRange && rangeRects.length > 0 && (
+                    <SheetRangePatternDefs patternId={rangePatternId} surface={selectionSurface} />
+                  )}
                   {props.showTemplate && pageImage.imageUrl && (
                     <SheetImageLayer
                       imageUrl={pageImage.imageUrl}
@@ -184,13 +191,11 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     />
                   )}
                   {rangeRects.map((rect, index) => (
-                    <rect
+                    <SheetRangeCue
                       key={`${index}-${rect.x}-${rect.y}`}
-                      className={draftRange ? 'draftRangeRect' : 'selectedRangeRect'}
-                      x={rect.x}
-                      y={rect.y}
-                      width={rect.w}
-                      height={rect.h}
+                      rect={rect}
+                      draft={Boolean(draftRange)}
+                      patternId={rangePatternId}
                     />
                   ))}
                   {calibrationDebugOverlay && (
@@ -228,7 +233,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                         onPointerCancel={handleTimelineEventPointerCancel}
                       >
                         <rect className={hasAssetBinding ? 'eventRect assetAssignedEventRect' : 'eventRect'} x={rect.x} y={rect.y} width={rect.w} height={rect.h} rx="0.002" />
-                        {hasAssetBinding && <polygon className="assetAssignedEventMarker" points={assetAssignedEventMarkerPoints(rect)} />}
+                        {hasAssetBinding && <AssetAssignedFrameCue rect={rect} surface={selectionSurface} />}
                         {displayLabel.trim()
                           && (
                             <SheetSvgText
@@ -268,11 +273,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       strokeWidth={stroke.width}
                     />
                   ))}
-                  {selectedRect && (
-                    <g className="selectedCellOverlay">
-                      <rect className="selectedCellRect" x={selectedRect.x} y={selectedRect.y} width={selectedRect.w} height={selectedRect.h} />
-                    </g>
-                  )}
+                  {selectedRect && <SelectedCellCue rect={selectedRect} surface={selectionSurface} />}
                 </svg>
                 {!isCalibrating && textAnnotations.length > 0 && (
                   <AnnotationTextLayer

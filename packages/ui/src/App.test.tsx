@@ -756,6 +756,8 @@ it('selects a CELL grid position and creates a key from explicit input', () => {
     expect(document.querySelector('.sheetSvg .hoverCellRect')).toBeNull()
     clickSheet(sheet, 255, 290)
     expect(document.querySelector('.selectedCellRect')).toBeTruthy()
+    expect(document.querySelector('.selectedCellCorners')).toBeTruthy()
+    expect(document.querySelector('.hoverCellRect')).toBeNull()
     expectSelectedHit('cell', 'A', 1)
     expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
     expect(screen.queryByText('1 (key_0001)')).toBeNull()

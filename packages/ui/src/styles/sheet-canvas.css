@@ -638,17 +638,14 @@
 }
 
 .assetAssignedEventRect {
-  fill: rgb(255 190 54 / 0.24);
+  fill: rgb(255 174 43 / 0.07);
   stroke: none;
-  mix-blend-mode: multiply;
 }
 
 .assetAssignedEventMarker {
-  fill: rgb(255 141 0 / 0.42);
-  stroke: rgb(148 83 0 / 0.42);
-  stroke-width: 1px;
-  vector-effect: non-scaling-stroke;
-  mix-blend-mode: multiply;
+  fill: rgb(226 105 0 / 0.94);
+  stroke: none;
+  shape-rendering: geometricPrecision;
   pointer-events: none;
 }
 
@@ -703,8 +700,8 @@
   box-sizing: border-box;
   position: absolute;
   z-index: 3;
-  border: 1px solid rgb(173 107 0 / 0.62);
-  background: rgb(255 209 102 / 0.18);
+  border: 1px dashed rgb(0 132 98 / 0.82);
+  background: transparent;
   pointer-events: none;
 }
 
@@ -723,21 +720,36 @@
 }
 
 .selectedRangeRect {
-  fill: rgb(62 112 214 / 0.1);
-  stroke: rgb(23 75 214 / 0.58);
+  fill: transparent;
+  stroke: rgb(62 74 203 / 0.82);
+  stroke-dasharray: 4px 3px;
   stroke-linejoin: round;
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
-  mix-blend-mode: multiply;
+}
+
+.selectedRangePatternMark {
+  fill: none;
+  stroke: rgb(62 74 203 / 0.68);
+  stroke-linecap: round;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
 
 .selectedCellRect {
-  fill: rgb(62 112 214 / 0.1);
-  stroke: rgb(23 75 214 / 0.62);
-  stroke-linejoin: round;
+  fill: rgb(194 24 91 / 0.055);
+  stroke: none;
+  pointer-events: none;
+}
+
+.selectedCellCorners {
+  fill: none;
+  stroke: rgb(194 24 91 / 0.96);
+  stroke-linecap: square;
+  stroke-linejoin: miter;
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
-  mix-blend-mode: multiply;
   pointer-events: none;
 }
 
@@ -1394,4 +1406,3 @@
   opacity: 0.78;
   mix-blend-mode: multiply;
 }
-

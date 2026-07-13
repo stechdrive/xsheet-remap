@@ -706,6 +706,42 @@
   pointer-events: none;
 }
 
+.sheetDropTargetCue {
+  pointer-events: none;
+}
+
+.sheetDropTargetFill {
+  stroke: none;
+  mix-blend-mode: multiply;
+}
+
+.sheetDropTargetOutline,
+.sheetDropTargetCorners {
+  fill: none;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.sheetDropTargetCue[data-drop-validity='valid'] .sheetDropTargetFill {
+  fill: rgb(0 170 119 / 0.22);
+}
+
+.sheetDropTargetCue[data-drop-validity='valid'] .sheetDropTargetOutline,
+.sheetDropTargetCue[data-drop-validity='valid'] .sheetDropTargetCorners {
+  stroke: rgb(0 112 78 / 0.98);
+}
+
+.sheetDropTargetCue[data-drop-validity='invalid'] .sheetDropTargetFill {
+  fill: rgb(218 50 62 / 0.14);
+}
+
+.sheetDropTargetCue[data-drop-validity='invalid'] .sheetDropTargetOutline,
+.sheetDropTargetCue[data-drop-validity='invalid'] .sheetDropTargetCorners {
+  stroke: rgb(190 32 45 / 0.96);
+}
+
 .draftRangeRect,
 .selectedRangeRect,
 .draftRangeOutline,

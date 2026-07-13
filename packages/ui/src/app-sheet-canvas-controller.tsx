@@ -88,10 +88,16 @@ export type SheetCanvasProps = {
   onCalibrationPoints: (page: SheetPage, points: SheetCalibrationPointPair[], enabled?: boolean) => void
 }
 
+export type SheetDropTargetPreview = {
+  hit: SheetHit
+  validity: 'valid' | 'invalid'
+}
+
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftStroke, setDraftStroke] = useState<AnnotationStroke | null>(null)
   const [draftRange, setDraftRange] = useState<{ pointerId: number; anchor: SheetHit; focus: SheetHit; moved: boolean } | null>(null)
   const [hoveredHit, setHoveredHit] = useState<SheetHit | null>(null)
+  const [dropTargetPreview, setDropTargetPreview] = useState<SheetDropTargetPreview | null>(null)
   const [hoverPreviewAnchor, setHoverPreviewAnchor] = useState<{ x: number; y: number } | null>(null)
   const [textCursorBadge, setTextCursorBadge] = useState<{ pageId: string; x: number; y: number } | null>(null)
   const [contextMenu, setContextMenu] = useState<SheetContextMenuState | null>(null)
@@ -115,6 +121,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const activePageIndexRef = useRef(props.activePageIndex)
   const hoveredHitSignatureRef = useRef<string | null>(null)
   const hoveredHitHasPreviewRef = useRef(false)
+  const dropTargetPreviewRef = useRef<SheetDropTargetPreview | null>(null)
+  const dropTargetPreviewSignatureRef = useRef<string | null>(null)
   const hoverPreviewFrameRef = useRef<number | null>(null)
   const pendingHoverPreviewAnchorRef = useRef<{ x: number; y: number } | null>(null)
   const handledScrollRequestIdRef = useRef<number | null>(null)
@@ -134,7 +142,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     onStatusHint('overlay-paper-track', null)
   }, [onStatusHint])
   useEffect(() => {
-    const clearDropStatus = () => onStatusHint('sheet-drop', null)
+    const clearDropStatus = () => {
+      onStatusHint('sheet-drop', null)
+      dropTargetPreviewRef.current = null
+      dropTargetPreviewSignatureRef.current = null
+      setDropTargetPreview(null)
+    }
     window.addEventListener('dragend', clearDropStatus)
     window.addEventListener('drop', clearDropStatus)
     return () => {
@@ -362,7 +375,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function dropTargetFromClientPoint(clientX: number, clientY: number): { page: SheetPage; hit: SheetHit | null } | null {
     const target = pageHitFromClientPoint(clientX, clientY)
     if (!target || target.hit?.paperTrack) return target
-    if (hoveredHit?.paperTrack && hoveredHit.pageId === target.page.pageId) {
+    if (hoveredHitSignatureRef.current && hoveredHit?.paperTrack && hoveredHit.pageId === target.page.pageId) {
       return { page: target.page, hit: hoveredHit }
     }
     return target
@@ -377,10 +390,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const { payload, clientX, clientY, phase } = detail
     if (phase === 'cancel') {
       clearHover()
+      clearDropTargetPreview()
       setStackGuideDropPreview(null)
       return
     }
     if (payload.kind === 'stack-guide') {
+      clearDropTargetPreview()
       if (phase === 'start' || phase === 'move') updateStackGuideDropPreview(payload.labelId, clientX, clientY)
       if (phase === 'drop') moveStackGuideLabelFromPoint(payload.labelId, clientX, clientY)
       return
@@ -393,24 +408,31 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         props.onAssignAssetToStackGuideLabel(stackGuideElement.dataset.stackGuideLabelId!, payload.assetIds[0]!)
       }
       clearHover()
+      clearDropTargetPreview()
       return
     }
 
     const target = dropTargetFromClientPoint(clientX, clientY)
     const hit = dropHitForActiveRange(target?.hit ?? null)
     if (phase === 'start' || phase === 'move') {
-      if (target?.hit?.paperTrack) {
+      clearHover()
+      if (target && hit?.paperTrack) {
         props.setActivePageIndex(target.page.pageIndex)
-        updateHover(hit, { x: clientX, y: clientY })
+        const valid = payload.kind === 'registered-cell' || payload.assetIds.length === 1
+        updateDropTargetPreview(hit, valid ? 'valid' : 'invalid')
+      } else {
+        clearDropTargetPreview()
       }
       return
     }
-    if (phase !== 'drop' || !target?.hit?.paperTrack) {
+    if (phase !== 'drop' || !target || !hit?.paperTrack) {
       clearHover()
+      clearDropTargetPreview()
       return
     }
     props.setActivePageIndex(target.page.pageIndex)
     clearHover()
+    clearDropTargetPreview()
     if (payload.kind === 'asset') {
       props.onDropDiagnostic({
         source: 'asset-pointer',
@@ -761,6 +783,19 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function clearHover() {
     updateHover(null)
     setTextCursorBadge(null)
+  }
+
+  function updateDropTargetPreview(hit: SheetHit | null, validity: SheetDropTargetPreview['validity']) {
+    const next = hit?.paperTrack ? { hit, validity } : null
+    const signature = next ? `${hoverHitSignature(next.hit)}|${next.validity}` : null
+    if (dropTargetPreviewSignatureRef.current === signature) return
+    dropTargetPreviewSignatureRef.current = signature
+    dropTargetPreviewRef.current = next
+    setDropTargetPreview(next)
+  }
+
+  function clearDropTargetPreview() {
+    updateDropTargetPreview(null, 'valid')
   }
 
   function clearTimelineEventLongPressTimer() {
@@ -1461,13 +1496,18 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     event.stopPropagation()
     props.onStatusHint('sheet-drop', null)
     const dataTransfer = event.dataTransfer
+    const previewHit = dropTargetPreviewRef.current?.hit ?? null
+    clearDropTargetPreview()
     props.setActivePageIndex(page.pageIndex)
     if (moveStackGuideLabelFromDragData(dataTransfer, event.clientX, event.clientY)) {
       clearHover()
       return
     }
     const point = pointFromEvent(event)
-    const rawHit = hitFromPoint(point, page) ?? (hoveredHit?.pageId === page.pageId ? hoveredHit : null)
+    const fallbackHit = previewHit?.pageId === page.pageId
+      ? previewHit
+      : hoveredHit?.pageId === page.pageId ? hoveredHit : null
+    const rawHit = hitFromPoint(point, page) ?? fallbackHit
     const hit = dropHitForActiveRange(rawHit)
     props.onDropDiagnostic({
       source: 'sheet-dom',
@@ -1498,11 +1538,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     event.preventDefault()
     event.stopPropagation()
     autoScrollViewportForDrag(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))
+    clearHover()
     if (hasStackGuideDragPayload(event.dataTransfer)) {
       event.dataTransfer.dropEffect = 'move'
       const target = updateStackGuideDropPreview(stackGuideLabelIdFromDragData(event.dataTransfer) || undefined, event.clientX, event.clientY)
       props.onStatusHint('sheet-drop', target ? uiText.statusHints.dropStackGuide : uiText.statusHints.dropUnavailable)
-      clearHover()
+      clearDropTargetPreview()
       return
     }
     setStackGuideDropPreview(null)
@@ -1519,23 +1560,24 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (assetIds.length > 1 && hit) {
       event.dataTransfer.dropEffect = 'none'
       setDropStatusForHit(event.dataTransfer, hit, assetIds)
-      clearHover()
+      updateDropTargetPreview(hit, 'invalid')
       return
     }
     event.dataTransfer.dropEffect = 'copy'
     setDropStatusForHit(event.dataTransfer, hit, assetIds)
-    updateHover(hit, { x: event.clientX, y: event.clientY })
+    updateDropTargetPreview(hit, 'valid')
   }
 
   function handleViewportDragOver(event: DragEvent<HTMLDivElement>) {
     if (!hasSheetDropPayload(event.dataTransfer)) return
     event.preventDefault()
     autoScrollViewportForDrag(event, event.currentTarget)
+    clearHover()
     if (hasStackGuideDragPayload(event.dataTransfer)) {
       event.dataTransfer.dropEffect = 'move'
       const target = updateStackGuideDropPreview(stackGuideLabelIdFromDragData(event.dataTransfer) || undefined, event.clientX, event.clientY)
       props.onStatusHint('sheet-drop', target ? uiText.statusHints.dropStackGuide : uiText.statusHints.dropUnavailable)
-      clearHover()
+      clearDropTargetPreview()
       return
     }
     setStackGuideDropPreview(null)
@@ -1554,17 +1596,24 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (assetIds.length > 1 && hit) {
       event.dataTransfer.dropEffect = 'none'
       setDropStatusForHit(event.dataTransfer, hit, assetIds)
-      clearHover()
+      updateDropTargetPreview(hit, 'invalid')
       return
     }
     if (target) {
       props.setActivePageIndex(target.page.pageIndex)
       setDropStatusForHit(event.dataTransfer, hit, assetIds)
-      updateHover(hit, { x: event.clientX, y: event.clientY })
+      updateDropTargetPreview(hit, 'valid')
     } else {
       props.onStatusHint('sheet-drop', uiText.statusHints.dropUnavailable)
-      clearHover()
+      clearDropTargetPreview()
     }
+  }
+
+  function handleViewportDragLeave(event: DragEvent<HTMLDivElement>) {
+    const nextTarget = event.relatedTarget as Node | null
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return
+    props.onStatusHint('sheet-drop', null)
+    clearDropTargetPreview()
   }
 
   async function handleViewportDrop(event: DragEvent<HTMLDivElement>) {
@@ -1572,6 +1621,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     event.preventDefault()
     props.onStatusHint('sheet-drop', null)
     const dataTransfer = event.dataTransfer
+    clearDropTargetPreview()
     if (moveStackGuideLabelFromDragData(dataTransfer, event.clientX, event.clientY)) {
       clearHover()
       return
@@ -1686,7 +1736,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   ].filter(Boolean).join(' ')
 
     return {
-    props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit,
+    props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, activeOverlayPaperTrack, setActiveOverlayPaperTrack,
@@ -1697,7 +1747,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
-    handleViewportDragOver, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
+    handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, viewportClassName,
   }

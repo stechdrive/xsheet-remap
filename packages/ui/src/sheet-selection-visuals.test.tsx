@@ -2,6 +2,7 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   SelectedCellCue,
+  SheetDropTargetCue,
   SheetRangeBoundaryCue,
   SheetRangeFillCue,
   assetAssignedMarkerSize,
@@ -92,5 +93,29 @@ describe('sheet selection visuals', () => {
     expect(container.querySelector('.draftRangeRect')).toBeTruthy()
     expect(container.querySelector('.draftRangeOutline')).toBeTruthy()
     expect(container.querySelector('.selectedRangeCorners')).toBeNull()
+  })
+
+  it('renders valid and invalid drop targets as separate fill and one-pixel inset boundary cues', () => {
+    const surface = { widthPx: 1000, heightPx: 500 }
+    const { container, rerender } = render(
+      <svg>
+        <SheetDropTargetCue rect={rect} surface={surface} validity="valid" />
+      </svg>,
+    )
+
+    const validCue = container.querySelector('.sheetDropTargetCue')
+    const outline = container.querySelector('.sheetDropTargetOutline')
+    expect(validCue?.getAttribute('data-drop-validity')).toBe('valid')
+    expect(container.querySelector('.sheetDropTargetFill')).toBeTruthy()
+    expect(container.querySelector('.sheetDropTargetCorners')).toBeTruthy()
+    expect((Number(outline?.getAttribute('x')) - rect.x) * surface.widthPx).toBeCloseTo(1)
+    expect((Number(outline?.getAttribute('y')) - rect.y) * surface.heightPx).toBeCloseTo(1)
+
+    rerender(
+      <svg>
+        <SheetDropTargetCue rect={rect} surface={surface} validity="invalid" />
+      </svg>,
+    )
+    expect(container.querySelector('.sheetDropTargetCue')?.getAttribute('data-drop-validity')).toBe('invalid')
   })
 })

@@ -3,9 +3,75 @@ import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@t
 import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
+import { dispatchInternalDrag } from './internalDrag';
 import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
 
 describe('App: sheet timing interactions', () => {
+it('shows a dedicated cell cue for asset and CSP card drop targets', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    const target = templateFramePoint('cell', 'A', 1)
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+
+    act(() => dispatchInternalDrag({
+      sessionId: 'asset-preview',
+      phase: 'move',
+      payload: { kind: 'asset', assetIds: ['asset_0001'] },
+      clientX: target.x,
+      clientY: target.y,
+    }))
+    const assetCue = document.querySelector('.sheetDropTargetCue')
+    expect(assetCue?.getAttribute('data-drop-validity')).toBe('valid')
+    expect(document.querySelector('.sheetDropTargetFill')).toBeTruthy()
+    expect(document.querySelector('.selectedCellCorners')).toBeTruthy()
+    expect(document.querySelector('.hoverCellRect')).toBeNull()
+
+    act(() => dispatchInternalDrag({
+      sessionId: 'asset-preview',
+      phase: 'cancel',
+      payload: { kind: 'asset', assetIds: ['asset_0001'] },
+      clientX: target.x,
+      clientY: target.y,
+    }))
+    expect(document.querySelector('.sheetDropTargetCue')).toBeNull()
+
+    act(() => dispatchInternalDrag({
+      sessionId: 'card-preview',
+      phase: 'move',
+      payload: { kind: 'registered-cell', keyId: 'key_0001' },
+      clientX: target.x,
+      clientY: target.y,
+    }))
+    expect(document.querySelector('.sheetDropTargetCue')?.getAttribute('data-drop-validity')).toBe('valid')
+
+    act(() => dispatchInternalDrag({
+      sessionId: 'card-preview',
+      phase: 'cancel',
+      payload: { kind: 'registered-cell', keyId: 'key_0001' },
+      clientX: target.x,
+      clientY: target.y,
+    }))
+
+    act(() => dispatchInternalDrag({
+      sessionId: 'multi-asset-preview',
+      phase: 'move',
+      payload: { kind: 'asset', assetIds: ['asset_0001', 'asset_0002'] },
+      clientX: target.x,
+      clientY: target.y,
+    }))
+    expect(document.querySelector('.sheetDropTargetCue')?.getAttribute('data-drop-validity')).toBe('invalid')
+
+    act(() => dispatchInternalDrag({
+      sessionId: 'multi-asset-preview',
+      phase: 'cancel',
+      payload: { kind: 'asset', assetIds: ['asset_0001', 'asset_0002'] },
+      clientX: target.x,
+      clientY: target.y,
+    }))
+    expect(document.querySelector('.sheetDropTargetCue')).toBeNull()
+  })
+
 it('assigns a registered cell card to a frame through pointer drag fallback', async () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)

@@ -161,3 +161,22 @@ export function SelectedCellCue({
     </g>
   )
 }
+
+export function SheetDropTargetCue({
+  rect,
+  surface,
+  validity,
+}: {
+  rect: NormalizedRect
+  surface: SheetSelectionSurface
+  validity: 'valid' | 'invalid'
+}) {
+  const boundary = rangeBoundaryRect(rect, surface)
+  return (
+    <g className="sheetDropTargetCue" data-drop-validity={validity}>
+      <rect className="sheetDropTargetFill" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
+      <rect className="sheetDropTargetOutline" x={boundary.x} y={boundary.y} width={boundary.w} height={boundary.h} />
+      <path className="sheetDropTargetCorners" d={selectedCellCornerPath(boundary, surface)} />
+    </g>
+  )
+}

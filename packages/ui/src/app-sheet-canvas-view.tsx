@@ -11,11 +11,11 @@ import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { sheetContextMenuStyle } from './app-registered-cells';
 import type { SheetCanvasController } from './app-sheet-canvas-controller'
-import { AssetAssignedFrameCue, SelectedCellCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
+import { AssetAssignedFrameCue, SelectedCellCue, SheetDropTargetCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
-    props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit,
+    props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, activeOverlayPaperTrack, setActiveOverlayPaperTrack,
@@ -26,7 +26,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
-    handleViewportDragOver, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
+    handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, viewportClassName,
   } = controller
@@ -37,6 +37,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       className={viewportClassName}
       onPointerDown={handleViewportPointerDown}
       onDragOver={handleViewportDragOver}
+      onDragLeave={handleViewportDragLeave}
       onDrop={event => void handleViewportDrop(event)}
     >
       <div className={`sheetPageStack ${props.sheetView.viewMode}`}>
@@ -75,6 +76,15 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const rawHoverRect = !isCalibrating && !hoverMatchesSelection && hoveredHit?.pageId === page.pageId ? rectForHit(props.project, props.template, hoveredHit) : null
           const hoverTrack = hoveredHit?.paperTrack ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === hoveredHit.paperTrack) : undefined
           const hoverRect = rawHoverRect && !shouldSuppressRectUnderActiveOverlay(hoverTrack, rawHoverRect, activeOverlayColumn) ? rawHoverRect : null
+          const rawDropTargetRect = !isCalibrating && dropTargetPreview?.hit.pageId === page.pageId
+            ? rectForHit(props.project, props.template, dropTargetPreview.hit)
+            : null
+          const dropTargetTrack = dropTargetPreview?.hit.paperTrack
+            ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === dropTargetPreview.hit.paperTrack)
+            : undefined
+          const dropTargetRect = rawDropTargetRect && !shouldSuppressRectUnderActiveOverlay(dropTargetTrack, rawDropTargetRect, activeOverlayColumn)
+            ? rawDropTargetRect
+            : null
           const rawSelectedRect = !isCalibrating && props.selectedHit?.pageId === page.pageId ? rectForHit(props.project, props.template, props.selectedHit) : null
           const selectedTrack = props.selectedHit?.paperTrack ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === props.selectedHit?.paperTrack) : undefined
           const selectedRect = rawSelectedRect && !shouldSuppressRectUnderActiveOverlay(selectedTrack, rawSelectedRect, activeOverlayColumn) ? rawSelectedRect : null
@@ -278,6 +288,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     />
                   ))}
                   {selectedRect && <SelectedCellCue rect={selectedRect} surface={selectionSurface} />}
+                  {dropTargetRect && dropTargetPreview && (
+                    <SheetDropTargetCue rect={dropTargetRect} surface={selectionSurface} validity={dropTargetPreview.validity} />
+                  )}
                 </svg>
                 {!isCalibrating && textAnnotations.length > 0 && (
                   <AnnotationTextLayer

@@ -11,7 +11,7 @@ import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { sheetContextMenuStyle } from './app-registered-cells';
 import type { SheetCanvasController } from './app-sheet-canvas-controller'
-import { AssetAssignedFrameCue, SelectedCellCue, SheetRangeCue, SheetRangePatternDefs, sheetRangePatternId } from './sheet-selection-visuals'
+import { AssetAssignedFrameCue, SelectedCellCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -91,7 +91,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               })
             : []
           const rangeRects = [...normalRangeRects, ...overlayRangeRects]
-          const rangePatternId = sheetRangePatternId(page.pageId)
+          const rangeBoundaryRects = mergeAdjacentRangeRects(rangeRects)
           const selectionSurface = { widthPx: sheetPageWidth, heightPx: sheetPageHeight }
 
           const pageAccessibleLabel = isContinuousCanvas
@@ -144,9 +144,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   aria-label={isContinuousCanvas ? uiText.sheet.canvasSurfaceLabel : page.pageIndex === 0 ? uiText.sheet.canvasLabel : uiText.sheet.canvasPageLabel(page.pageIndex + 1)}
                 >
                   <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
-                  {!draftRange && rangeRects.length > 0 && (
-                    <SheetRangePatternDefs patternId={rangePatternId} surface={selectionSurface} />
-                  )}
                   {props.showTemplate && pageImage.imageUrl && (
                     <SheetImageLayer
                       imageUrl={pageImage.imageUrl}
@@ -191,11 +188,18 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     />
                   )}
                   {rangeRects.map((rect, index) => (
-                    <SheetRangeCue
+                    <SheetRangeFillCue
                       key={`${index}-${rect.x}-${rect.y}`}
                       rect={rect}
                       draft={Boolean(draftRange)}
-                      patternId={rangePatternId}
+                    />
+                  ))}
+                  {rangeBoundaryRects.map((rect, index) => (
+                    <SheetRangeBoundaryCue
+                      key={`boundary-${index}-${rect.x}-${rect.y}`}
+                      rect={rect}
+                      draft={Boolean(draftRange)}
+                      surface={selectionSurface}
                     />
                   ))}
                   {calibrationDebugOverlay && (

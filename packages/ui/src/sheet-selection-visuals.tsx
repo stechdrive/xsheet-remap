@@ -7,17 +7,11 @@ export type SheetSelectionSurface = {
 
 const ASSET_MARKER_SIZE_PX = 9
 const SELECTED_CORNER_SIZE_PX = 8
-const RANGE_PATTERN_TILE_PX = 8
+const RANGE_BOUNDARY_INSET_PX = 1
+const RANGE_MERGE_EPSILON = 0.00001
 
 function safeSurfaceSize(value: number): number {
   return Math.max(1, value)
-}
-
-export function sheetRangePatternId(pageId: string): string {
-  const encoded = Array.from(pageId, character => /[A-Za-z0-9_-]/.test(character)
-    ? character
-    : `_${character.codePointAt(0)?.toString(16) ?? '0'}_`).join('')
-  return `sheet-range-pattern-${encoded}`
 }
 
 export function assetAssignedMarkerSize(rect: NormalizedRect, surface: SheetSelectionSurface) {
@@ -60,38 +54,53 @@ export function selectedCellCornerPath(rect: NormalizedRect, surface: SheetSelec
   ].join(' ')
 }
 
-export function SheetRangePatternDefs({
-  patternId,
-  surface,
-}: {
-  patternId: string
-  surface: SheetSelectionSurface
-}) {
-  const width = safeSurfaceSize(surface.widthPx)
-  const height = safeSurfaceSize(surface.heightPx)
-  const tileWidth = RANGE_PATTERN_TILE_PX / width
-  const tileHeight = RANGE_PATTERN_TILE_PX / height
-  const slashPath = [
-    `M ${1.5 / width} ${6.5 / height}`,
-    `L ${4 / width} ${4 / height}`,
-  ].join(' ')
-  return (
-    <defs>
-      <pattern id={patternId} patternUnits="userSpaceOnUse" width={tileWidth} height={tileHeight}>
-        <path className="selectedRangePatternMark" d={slashPath} />
-      </pattern>
-    </defs>
-  )
+export function mergeAdjacentRangeRects(rects: NormalizedRect[]): NormalizedRect[] {
+  const sorted = rects
+    .filter(rect => rect.w > 0 && rect.h > 0)
+    .map(rect => ({ ...rect }))
+    .sort((left, right) => left.y - right.y || left.h - right.h || left.x - right.x)
+  const merged: NormalizedRect[] = []
+
+  for (const rect of sorted) {
+    const previous = merged.at(-1)
+    const sameVerticalSpan = previous
+      && Math.abs(previous.y - rect.y) <= RANGE_MERGE_EPSILON
+      && Math.abs(previous.h - rect.h) <= RANGE_MERGE_EPSILON
+    const touchesPrevious = previous
+      && rect.x <= previous.x + previous.w + RANGE_MERGE_EPSILON
+      && rect.x + rect.w >= previous.x - RANGE_MERGE_EPSILON
+    if (previous && sameVerticalSpan && touchesPrevious) {
+      const right = Math.max(previous.x + previous.w, rect.x + rect.w)
+      previous.x = Math.min(previous.x, rect.x)
+      previous.w = right - previous.x
+      continue
+    }
+    merged.push(rect)
+  }
+
+  return merged
 }
 
-export function SheetRangeCue({
+export function rangeBoundaryRect(
+  rect: NormalizedRect,
+  surface: SheetSelectionSurface,
+): NormalizedRect {
+  const insetX = Math.min(RANGE_BOUNDARY_INSET_PX / safeSurfaceSize(surface.widthPx), rect.w * 0.24)
+  const insetY = Math.min(RANGE_BOUNDARY_INSET_PX / safeSurfaceSize(surface.heightPx), rect.h * 0.24)
+  return {
+    x: rect.x + insetX,
+    y: rect.y + insetY,
+    w: Math.max(0, rect.w - insetX * 2),
+    h: Math.max(0, rect.h - insetY * 2),
+  }
+}
+
+export function SheetRangeFillCue({
   rect,
   draft,
-  patternId,
 }: {
   rect: NormalizedRect
   draft: boolean
-  patternId: string
 }) {
   return (
     <rect
@@ -100,8 +109,31 @@ export function SheetRangeCue({
       y={rect.y}
       width={rect.w}
       height={rect.h}
-      fill={draft ? undefined : `url(#${patternId})`}
     />
+  )
+}
+
+export function SheetRangeBoundaryCue({
+  rect,
+  draft,
+  surface,
+}: {
+  rect: NormalizedRect
+  draft: boolean
+  surface: SheetSelectionSurface
+}) {
+  const boundary = rangeBoundaryRect(rect, surface)
+  return (
+    <g className={draft ? 'draftRangeBoundary' : 'selectedRangeBoundary'}>
+      <rect
+        className={draft ? 'draftRangeOutline' : 'selectedRangeOutline'}
+        x={boundary.x}
+        y={boundary.y}
+        width={boundary.w}
+        height={boundary.h}
+      />
+      {!draft && <path className="selectedRangeCorners" d={selectedCellCornerPath(boundary, surface)} />}
+    </g>
   )
 }
 

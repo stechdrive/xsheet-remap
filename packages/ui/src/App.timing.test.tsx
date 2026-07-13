@@ -678,8 +678,8 @@ it('steps point-event range input by the selected range length', () => {
 
     dragSheet(sheet, 255, 290, 255, 310)
     expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
-    expect(document.querySelector('.selectedRangePatternMark')).toBeTruthy()
-    expect(document.querySelector('.selectedRangeRect')?.getAttribute('fill')).toMatch(/^url\(#sheet-range-pattern-/)
+    expect(document.querySelector('.selectedRangeOutline')).toBeTruthy()
+    expect(document.querySelector('.selectedRangeCorners')).toBeTruthy()
     expectSelectedRange('cell', 'A', 1, 3)
     expect((screen.getByRole('button', { name: uiText.sheet.textFontSize }) as HTMLButtonElement).disabled).toBe(true)
 

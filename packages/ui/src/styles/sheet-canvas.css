@@ -517,6 +517,7 @@
 
 .sheetSvg {
   display: block;
+  isolation: isolate;
   max-width: none;
   aspect-ratio: 1754 / 2481;
   font-family: var(--font-sheet-sans);
@@ -706,35 +707,50 @@
 }
 
 .draftRangeRect,
-.selectedRangeRect {
+.selectedRangeRect,
+.draftRangeOutline,
+.selectedRangeOutline,
+.selectedRangeCorners {
   pointer-events: none;
 }
 
 .draftRangeRect {
   fill: rgb(255 209 102 / 0.16);
-  stroke: rgb(173 107 0 / 0.62);
-  stroke-dasharray: 5px 3px;
-  stroke-width: 1px;
-  vector-effect: non-scaling-stroke;
+  stroke: none;
   mix-blend-mode: multiply;
 }
 
 .selectedRangeRect {
-  fill: transparent;
-  stroke: rgb(62 74 203 / 0.82);
-  stroke-dasharray: 4px 3px;
+  fill: rgb(55 137 235 / 0.2);
+  stroke: none;
+  mix-blend-mode: multiply;
+}
+
+.draftRangeOutline,
+.selectedRangeOutline {
+  fill: none;
   stroke-linejoin: round;
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
 }
 
-.selectedRangePatternMark {
+.draftRangeOutline {
+  stroke: rgb(173 107 0 / 0.82);
+  stroke-dasharray: 5px 3px;
+}
+
+.selectedRangeOutline {
+  stroke: rgb(21 94 220 / 0.96);
+  stroke-dasharray: 4px 3px;
+}
+
+.selectedRangeCorners {
   fill: none;
-  stroke: rgb(62 74 203 / 0.68);
-  stroke-linecap: round;
+  stroke: rgb(21 94 220 / 0.98);
+  stroke-linecap: square;
+  stroke-linejoin: miter;
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
-  pointer-events: none;
 }
 
 .selectedCellRect {

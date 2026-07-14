@@ -608,6 +608,7 @@ export function SheetCorrectorApp() {
   function markSelectedPrecisionEvaluated(points: SheetCalibrationPointPair[]) {
     if (!selectedItem) return
     updateDraftForPath(selectedItem.path, points, true, undefined, true)
+    setAutoCalibrationMessage('通常補正を適用しました。')
   }
 
   const detectCalibrationResultForItem = useCallback(async (
@@ -865,7 +866,7 @@ export function SheetCorrectorApp() {
       for (const item of dedupedTargets) {
         if (stopQueueRequestedRef.current) break
         const existingDraft = draftForTemplate(correctionDrafts[item.path], selectedTemplate.templateId)
-        if (existingDraft?.applied) {
+        if (existingDraft?.applied && existingDraft.precisionEvaluated) {
           keptCount += 1
           setQueueStates(current => {
             if (current[item.path] === 'exported') return current
@@ -877,13 +878,21 @@ export function SheetCorrectorApp() {
         }
         setQueueStates(current => ({ ...current, [item.path]: 'running' }))
         try {
-          const result = await detectCalibrationResultForItem(item)
-          if (!result) {
+          const points = existingDraft?.applied
+            ? existingDraft.points
+            : (await detectCalibrationResultForItem(item))?.points
+          if (!points) {
             reviewCount += 1
             setQueueStates(current => ({ ...current, [item.path]: 'review' }))
           } else {
+            const imageUrl = imageUrlForItem(item, browserFileUrls, nativeFileUrls)
+              ?? await createNativeSheetImageDataUrl(item)
+            if (!imageUrl) throw new Error('補正画像を読み込めませんでした。')
+            const precisionWarp = existingDraft?.precisionWarp
+              ?? await detectSheetPrecisionWarp(imageUrl, points, selectedTemplate)
+              ?? undefined
             correctedCount += 1
-            updateDraftForPath(item.path, result.points, true)
+            updateDraftForPath(item.path, points, true, precisionWarp, true)
             setQueueStates(current => ({ ...current, [item.path]: 'corrected' }))
           }
         } catch (error) {
@@ -903,10 +912,12 @@ export function SheetCorrectorApp() {
       stopQueueRequestedRef.current = false
     }
   }, [
+    browserFileUrls,
     correctionDrafts,
     detectCalibrationResultForItem,
+    nativeFileUrls,
     queueRunning,
-    selectedTemplate.templateId,
+    selectedTemplate,
     updateDraftForPath,
   ])
 
@@ -1442,10 +1453,9 @@ export function SheetCorrectorApp() {
           onClose={() => setCalibrationLoupeOpen(false)}
           autoDetectLabel="再検出"
           autoDetectOnOpen={!selectedDraft?.applied}
+          autoApplyOnOpen={!selectedDraft?.precisionEvaluated}
           commitOnPointChange={false}
           precisionCorrection={{
-            basicApplied: Boolean(selectedDraft?.applied),
-            appliedWarp: selectedDraft?.precisionWarp,
             onAnalyze: analyzeSelectedPrecisionWarp,
             onApply: applySelectedPrecisionWarp,
             onEvaluated: markSelectedPrecisionEvaluated,

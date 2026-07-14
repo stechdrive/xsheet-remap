@@ -23,6 +23,7 @@ export function CalibrationLoupeDialog({
   onClose,
   autoDetectLabel = uiText.actions.autoCalibration,
   autoDetectOnOpen = false,
+  autoApplyOnOpen = false,
   closeOnApply = false,
   commitOnPointChange = true,
   precisionCorrection,
@@ -38,11 +39,10 @@ export function CalibrationLoupeDialog({
   onClose: () => void
   autoDetectLabel?: string
   autoDetectOnOpen?: boolean
+  autoApplyOnOpen?: boolean
   closeOnApply?: boolean
   commitOnPointChange?: boolean
   precisionCorrection?: {
-    basicApplied: boolean
-    appliedWarp?: SheetPrecisionWarp
     onAnalyze: (points: SheetCalibrationPointPair[]) => Promise<SheetPrecisionWarp | null>
     onApply: (points: SheetCalibrationPointPair[], warp: SheetPrecisionWarp) => void
     onEvaluated?: (points: SheetCalibrationPointPair[]) => void
@@ -53,29 +53,49 @@ export function CalibrationLoupeDialog({
   const draftPointsRef = useRef(points)
   const [sourceSize, setSourceSize] = useState({ width: template.page.widthPx, height: template.page.heightPx })
   const [zoom, setZoom] = useState<CalibrationLoupeZoom>(CALIBRATION_LOUPE_DEFAULT_ZOOM)
-  const [basicApplied, setBasicApplied] = useState(precisionCorrection?.basicApplied ?? false)
-  const [precisionWarp, setPrecisionWarp] = useState<SheetPrecisionWarp | null>(precisionCorrection?.appliedWarp ?? null)
   const [precisionRunning, setPrecisionRunning] = useState(false)
-  const [precisionMessage, setPrecisionMessage] = useState<string | null>(
-    precisionCorrection?.appliedWarp ? 'テンプレート適応補正を適用済みです。' : null,
-  )
-  const didAutoDetectOnOpen = useRef(false)
+  const [processMessage, setProcessMessage] = useState<string | null>(null)
+  const didAutoProcessOnOpen = useRef(false)
 
-  const invalidatePrecisionCorrection = useCallback(() => {
-    if (!precisionCorrection) return
-    setBasicApplied(false)
-    setPrecisionWarp(null)
-    setPrecisionMessage('四隅を変更しました。基本補正をもう一度適用してください。')
-  }, [precisionCorrection])
+  const invalidatePrecisionCorrection = useCallback(() => setProcessMessage(null), [])
 
   const runAutoDetect = useCallback(async () => {
     const detectedPoints = await onAutoDetect()
-    if (!detectedPoints) return
+    if (!detectedPoints) return undefined
     draftPointsRef.current = detectedPoints
     setDraftPoints(detectedPoints)
     invalidatePrecisionCorrection()
     if (commitOnPointChange) onPoints?.(detectedPoints, false)
+    return detectedPoints
   }, [commitOnPointChange, invalidatePrecisionCorrection, onAutoDetect, onPoints])
+
+  const applyCurrentPoints = useCallback(async (pointsOverride?: SheetCalibrationPointPair[]) => {
+    if (precisionRunning) return
+    const pointsToApply = pointsOverride ?? draftPointsRef.current
+    setProcessMessage(precisionCorrection ? 'テンプレートに合わせて補正を計算しています...' : null)
+    onApply(pointsToApply)
+    if (!precisionCorrection) {
+      if (closeOnApply) onClose()
+      return
+    }
+    setPrecisionRunning(true)
+    try {
+      const warp = await precisionCorrection.onAnalyze(pointsToApply)
+      if (warp) {
+        precisionCorrection.onApply(pointsToApply, warp)
+        setProcessMessage('テンプレート適応補正を適用しました。')
+      } else {
+        precisionCorrection.onEvaluated?.(pointsToApply)
+        setProcessMessage('通常補正を適用しました。')
+      }
+    } catch {
+      precisionCorrection.onEvaluated?.(pointsToApply)
+      setProcessMessage('通常補正を適用しました。')
+    } finally {
+      setPrecisionRunning(false)
+      if (precisionCorrection.closeOnApply ?? closeOnApply) onClose()
+    }
+  }, [closeOnApply, onApply, onClose, precisionCorrection, precisionRunning])
 
   useEffect(() => {
     let cancelled = false
@@ -93,10 +113,13 @@ export function CalibrationLoupeDialog({
   }, [imageUrl])
 
   useEffect(() => {
-    if (!autoDetectOnOpen || didAutoDetectOnOpen.current) return
-    didAutoDetectOnOpen.current = true
-    void runAutoDetect()
-  }, [autoDetectOnOpen, runAutoDetect])
+    if ((!autoDetectOnOpen && !autoApplyOnOpen) || didAutoProcessOnOpen.current) return
+    didAutoProcessOnOpen.current = true
+    void (async () => {
+      const detectedPoints = autoDetectOnOpen ? await runAutoDetect() : draftPointsRef.current
+      if (autoApplyOnOpen && detectedPoints) await applyCurrentPoints(detectedPoints)
+    })()
+  }, [applyCurrentPoints, autoApplyOnOpen, autoDetectOnOpen, runAutoDetect])
 
   function updateSource(index: number, source: NormalizedPoint, commit = false) {
     const next = draftPointsRef.current.map((point, pointIndex) => (
@@ -108,41 +131,9 @@ export function CalibrationLoupeDialog({
     if (commit && commitOnPointChange) onPoints?.(next, false)
   }
 
-  async function applyCurrentPoints() {
-    if (precisionRunning) return
-    setBasicApplied(true)
-    setPrecisionWarp(null)
-    setPrecisionMessage(precisionCorrection ? 'テンプレートに合わせて局所補正を確認しています...' : null)
-    onApply(draftPointsRef.current)
-    if (!precisionCorrection) {
-      if (closeOnApply) onClose()
-      return
-    }
-    setPrecisionRunning(true)
-    try {
-      const warp = await precisionCorrection.onAnalyze(draftPointsRef.current)
-      if (warp) {
-        setPrecisionWarp(warp)
-        precisionCorrection.onApply(draftPointsRef.current, warp)
-        setPrecisionMessage(`テンプレート適応補正を適用しました。${precisionCorrectionSummary(warp)}`)
-      } else {
-        setPrecisionWarp(null)
-        precisionCorrection.onEvaluated?.(draftPointsRef.current)
-        setPrecisionMessage('通常補正を適用しました。局所補正は安全条件を満たさないため使用していません。')
-      }
-    } catch {
-      setPrecisionWarp(null)
-      precisionCorrection.onEvaluated?.(draftPointsRef.current)
-      setPrecisionMessage('通常補正を適用しました。局所補正は使用していません。')
-    } finally {
-      setPrecisionRunning(false)
-      if (precisionCorrection.closeOnApply ?? closeOnApply) onClose()
-    }
-  }
-
   return (
     <div className="assetQuickPreviewBackdrop calibrationLoupeBackdrop" role="dialog" aria-modal="true" aria-label={uiText.sheet.calibrationLoupeTitle}>
-      <section className={`calibrationLoupeDialog${precisionCorrection ? ' precisionEnabled' : ''}`}>
+      <section className="calibrationLoupeDialog">
         <header className="calibrationLoupeHeader">
           <div>
             <strong>{uiText.sheet.calibrationLoupeTitle}</strong>
@@ -167,24 +158,6 @@ export function CalibrationLoupeDialog({
             )
           })}
         </div>
-        {precisionCorrection && (
-          <section className="calibrationPrecisionPanel" aria-label="テンプレート適応補正">
-            <div className="calibrationPrecisionDescription">
-              <strong>テンプレート適応補正</strong>
-              <span>{precisionMessage ?? (basicApplied
-                ? 'テンプレート罫線の残差を解析し、紙の局所的なゆがみを補正します。'
-                : '補正の適用時に自動で安全性を確認します。')}</span>
-            </div>
-            {precisionWarp && (
-              <dl className="calibrationPrecisionMetrics">
-                <div><dt>対応点</dt><dd>{precisionWarp.diagnostics.inlierCount}</dd></div>
-                <div><dt>補正量</dt><dd>{precisionWarp.diagnostics.maxDisplacementPx.toFixed(1)} px</dd></div>
-                <div><dt>残差</dt><dd>{precisionWarp.diagnostics.rmsAfterPx.toFixed(2)} px</dd></div>
-                <div><dt>信頼度</dt><dd>{Math.round(precisionWarp.diagnostics.confidence * 100)}%</dd></div>
-              </dl>
-            )}
-          </section>
-        )}
         <footer className="calibrationLoupeFooter">
           <CalibrationLoupeSegmented<CalibrationLoupeZoom>
             value={zoom}
@@ -194,29 +167,23 @@ export function CalibrationLoupeDialog({
             ]}
             onChange={setZoom}
           />
-          {autoCalibrationMessage && <span className="muted">{autoCalibrationMessage}</span>}
+          {(processMessage || autoCalibrationMessage) && <span className="muted">{processMessage ?? autoCalibrationMessage}</span>}
           <span className="processSettingsFooterSpacer" />
           <Tooltip label="四隅合わせを閉じます。">
-            <button type="button" onClick={onClose}>{precisionCorrection ? '閉じる' : uiText.actions.cancel}</button>
+            <button type="button" onClick={onClose}>{uiText.actions.cancel}</button>
           </Tooltip>
           <Tooltip label="選択中のシート画像から四隅を再検出します。">
             <button type="button" disabled={autoCalibrationRunning} onClick={() => void runAutoDetect()}>
               {autoCalibrationRunning ? uiText.actions.autoCalibrationRunning : autoDetectLabel}
             </button>
           </Tooltip>
-          <Tooltip label={precisionCorrection ? '現在の四隅で通常補正を適用し、テンプレート適応補正を自動確認します。' : '現在の四隅で補正を適用します。'}>
-            <button type="button" disabled={precisionRunning} onClick={() => void applyCurrentPoints()}>{precisionRunning ? '補正を計算中...' : precisionCorrection ? '補正を適用' : uiText.actions.applyWarp}</button>
+          <Tooltip label={precisionCorrection ? '現在の四隅で通常補正とテンプレート適応補正を適用します。' : '現在の四隅で補正を適用します。'}>
+            <button type="button" disabled={precisionRunning} onClick={() => void applyCurrentPoints()}>{precisionRunning ? '補正を計算中...' : uiText.actions.applyWarp}</button>
           </Tooltip>
         </footer>
       </section>
     </div>
   )
-}
-
-function precisionCorrectionSummary(warp: SheetPrecisionWarp): string {
-  const diagnostics = warp.diagnostics
-  const pitchRatio = diagnostics.maxDisplacementPitchRatio
-  return `対応点 ${diagnostics.inlierCount}点 / 最大補正 ${diagnostics.maxDisplacementPx.toFixed(1)}px${pitchRatio === undefined ? '' : `（テンプレート基準ピッチ比 ${Math.round(pitchRatio * 100)}%）`} / 残差 ${diagnostics.rmsAfterPx.toFixed(2)}px`
 }
 
 function CalibrationLoupePanel({

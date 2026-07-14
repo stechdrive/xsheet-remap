@@ -97,7 +97,7 @@ export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
               </li>
               <li>
                 <strong>「要確認」が出た画像だけ直す</strong>
-                <span>左の「ファイル」で画像を選び、右上の「画像補正」を開いて「4点自動検出」または手動調整後に「変形適用」します。</span>
+                <span>左の「ファイル」で画像を選び、右上の「画像補正」を開きます。通常補正とテンプレート適応補正が自動実行され、必要なら四隅を手動調整して「変形適用」します。</span>
               </li>
             </ol>
           </article>
@@ -119,7 +119,7 @@ export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
               </li>
               <li>
                 <strong>右上の「画像補正」で四隅を合わせる</strong>
-                <span>開いた画面で「4点自動検出」を使い、ずれていれば四隅の拡大枠をドラッグします。最後に「変形適用」を押します。</span>
+                <span>開くと四隅検出からテンプレート適応補正まで自動実行されます。ずれていれば四隅の拡大枠をドラッグし、「変形適用」で補正を再実行します。</span>
               </li>
               <li>
                 <strong>左上の「出力」から「選択を出力」</strong>

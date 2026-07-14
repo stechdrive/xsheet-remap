@@ -1,15 +1,52 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { standardA3SheetTemplate, type SheetCalibrationPointPair } from '@xsheet-remap/core'
 import type { SheetPrecisionWarp } from './appTypes'
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 
+afterEach(cleanup)
+
 describe('CalibrationLoupeDialog precision correction', () => {
-  it('silently applies safe template-adaptive correction after normal correction', async () => {
+  it('automatically runs detection, normal correction, and template-adaptive correction on open', async () => {
     const onApply = vi.fn()
     const onApplyPrecision = vi.fn()
     const onAnalyze = vi.fn(async () => precisionWarp())
+    const detectedPoints = calibrationPoints().map(point => ({
+      ...point,
+      source: { x: point.source.x + 0.01, y: point.source.y + 0.01 },
+    }))
     render(
+      <CalibrationLoupeDialog
+        imageUrl="data:image/png;base64,unused"
+        template={standardA3SheetTemplate}
+        points={calibrationPoints()}
+        autoCalibrationRunning={false}
+        autoCalibrationMessage={null}
+        onAutoDetect={async () => detectedPoints}
+        onApply={onApply}
+        onClose={() => undefined}
+        autoDetectOnOpen
+        autoApplyOnOpen
+        precisionCorrection={{
+          onAnalyze,
+          onApply: onApplyPrecision,
+          closeOnApply: false,
+        }}
+      />,
+    )
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledWith(detectedPoints))
+    await waitFor(() => expect(onAnalyze).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onApplyPrecision).toHaveBeenCalledWith(detectedPoints, expect.objectContaining({ version: 1 })))
+    expect(screen.queryByRole('region', { name: 'テンプレート適応補正' })).toBeNull()
+    expect(screen.getByRole('button', { name: '変形適用' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'キャンセル' })).toBeTruthy()
+  })
+
+  it('uses normal correction and records evaluation when adaptive correction is unsafe', async () => {
+    const onApply = vi.fn()
+    const onEvaluated = vi.fn()
+    const view = render(
       <CalibrationLoupeDialog
         imageUrl="data:image/png;base64,unused"
         template={standardA3SheetTemplate}
@@ -20,18 +57,17 @@ describe('CalibrationLoupeDialog precision correction', () => {
         onApply={onApply}
         onClose={() => undefined}
         precisionCorrection={{
-          basicApplied: false,
-          onAnalyze,
-          onApply: onApplyPrecision,
+          onAnalyze: async () => null,
+          onApply: () => undefined,
+          onEvaluated,
           closeOnApply: false,
         }}
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '補正を適用' }))
-    expect(onApply).toHaveBeenCalledTimes(1)
-    await waitFor(() => expect(onAnalyze).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(onApplyPrecision).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ version: 1 })))
+    fireEvent.click(view.getByRole('button', { name: '変形適用' }))
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onEvaluated).toHaveBeenCalledWith(calibrationPoints()))
   })
 })
 

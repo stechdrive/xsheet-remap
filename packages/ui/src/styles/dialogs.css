@@ -92,10 +92,6 @@
   box-shadow: 0 18px 44px rgb(0 0 0 / 0.32);
 }
 
-.calibrationLoupeDialog.precisionEnabled {
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
-}
-
 .calibrationLoupeHeader,
 .calibrationLoupeFooter {
   display: flex;
@@ -133,67 +129,6 @@
   overflow: auto;
   padding: 12px;
   background: #e7e9e4;
-}
-
-.calibrationPrecisionPanel {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto auto;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-top: 1px solid #c8cec6;
-  background: #f3f5ef;
-}
-
-.calibrationPrecisionDescription {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.calibrationPrecisionDescription span {
-  color: #59615c;
-  font-size: 12px;
-}
-
-.calibrationPrecisionMetrics {
-  display: flex;
-  gap: 10px;
-  margin: 0;
-}
-
-.calibrationPrecisionMetrics div {
-  display: grid;
-  gap: 1px;
-  min-width: 58px;
-}
-
-.calibrationPrecisionMetrics dt {
-  color: #68716a;
-  font-size: 10px;
-}
-
-.calibrationPrecisionMetrics dd {
-  margin: 0;
-  color: #26342c;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.calibrationPrecisionActions {
-  display: flex;
-  gap: 6px;
-}
-
-@media (max-width: 820px) {
-  .calibrationPrecisionPanel {
-    grid-template-columns: 1fr;
-  }
-
-  .calibrationPrecisionMetrics,
-  .calibrationPrecisionActions {
-    justify-self: stretch;
-  }
 }
 
 .calibrationLoupePanel {

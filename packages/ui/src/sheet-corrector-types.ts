@@ -1,4 +1,5 @@
 import type { SheetCalibrationPointPair } from '@xsheet-remap/core'
+import type { SheetPrecisionWarp } from './appTypes'
 import type { SheetCorrectorImportSourceKind } from './sheetCorrectorImportRules'
 
 export type SheetCorrectorInput = {
@@ -14,6 +15,7 @@ export type SheetCorrectionDraft = {
   templateId: string
   points: SheetCalibrationPointPair[]
   applied: boolean
+  precisionWarp?: SheetPrecisionWarp
 }
 
 export type QueueState = 'idle' | 'running' | 'corrected' | 'exported' | 'review' | 'error'

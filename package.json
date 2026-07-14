@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.526",
+  "version": "0.1.527",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.7.0",
@@ -57,6 +57,7 @@
     "e2e:desktop:win:auto-calibration": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario auto-calibration",
     "e2e:desktop:win:auto-calibration:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario auto-calibration -Build",
     "e2e:sheet-corrector:calibration-eval": "tsx tools/e2e/sheet-corrector-calibration-eval.ts",
+    "e2e:sheet-corrector:precision-compare": "tsx tools/e2e/sheet-corrector-precision-compare.ts",
     "smoke:desktop:win": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke/win-desktop-smoke.ps1",
     "smoke:desktop:win:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke/win-desktop-smoke.ps1 -Build",
     "smoke:apps:win": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke/win-app-suite-smoke.ps1",

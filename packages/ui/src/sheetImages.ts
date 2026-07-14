@@ -13,6 +13,7 @@ import {
 import type { SheetImageSettings, SheetPageImage } from './appTypes'
 import { applyLevelCorrectionToImageData, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection'
 import { SHEET_WARP_PREVIEW_CANVAS_WIDTH } from './sheetConstants'
+import { preparePrecisionWarp } from './sheetPrecisionWarp'
 
 export function defaultSheetImageSettings(): SheetImageSettings {
   return defaultSheetImageAlignment()
@@ -104,19 +105,24 @@ export type SheetWarpTemplate = Pick<SheetTemplate, 'regions'> & {
 
 export function useWarpedSheetImageUrl(imageUrl: string | null, imageSettings: SheetImageSettings, template: SheetTemplate, quality: 'preview' | 'final'): string | null {
   const [warpedUrl, setWarpedUrl] = useState<{ key: string; url: string | null } | null>(null)
-  const calibrationKey = JSON.stringify(imageSettings.calibration ?? null)
+  const warpSettingsKey = JSON.stringify({
+    calibration: imageSettings.calibration ?? null,
+    precisionWarp: imageSettings.precisionWarp ?? null,
+  })
   const pageWidth = Math.max(1, Math.round(template.page.widthPx))
   const pageHeight = Math.max(1, Math.round(template.page.heightPx))
   const outputWidth = warpOutputWidth({ page: { widthPx: pageWidth, heightPx: pageHeight } }, quality)
-  const warpKey = imageUrl && hasEnabledCalibration(imageSettings) ? `${imageUrl}|${pageWidth}x${pageHeight}|${quality}|${calibrationKey}` : null
+  const warpKey = imageUrl && hasEnabledCalibration(imageSettings) ? `${imageUrl}|${pageWidth}x${pageHeight}|${quality}|${warpSettingsKey}` : null
   const warpRequest = useMemo(() => {
     if (!warpKey || !imageUrl) return null
+    const storedSettings = JSON.parse(warpSettingsKey) as Pick<SheetImageSettings, 'calibration' | 'precisionWarp'>
     return {
       key: warpKey,
       imageUrl,
       imageSettings: {
         ...defaultSheetImageSettings(),
-        calibration: JSON.parse(calibrationKey) as SheetImageSettings['calibration'],
+        calibration: storedSettings.calibration,
+        precisionWarp: storedSettings.precisionWarp,
       },
       template: {
         page: { widthPx: pageWidth, heightPx: pageHeight },
@@ -124,7 +130,7 @@ export function useWarpedSheetImageUrl(imageUrl: string | null, imageSettings: S
       },
       outputWidth,
     }
-  }, [calibrationKey, imageUrl, outputWidth, pageHeight, pageWidth, template.regions, warpKey])
+  }, [imageUrl, outputWidth, pageHeight, pageWidth, template.regions, warpKey, warpSettingsKey])
 
   useEffect(() => {
     if (!warpRequest) return
@@ -323,10 +329,32 @@ export function warpSheetImageData(image: HTMLImageElement, imageSettings: Sheet
   const outputContext = outputCanvas.getContext('2d')
   if (!outputContext) return null
   const outputData = outputContext.createImageData(outputWidth, outputHeight)
+  const precisionWarp = preparePrecisionWarp(imageSettings.precisionWarp, outputWidth, outputHeight)
 
   for (let y = 0; y < outputHeight; y += 1) {
+    const targetY = (y + 0.5) / outputHeight
+    const gridY = precisionWarp?.yIndices[y] ?? 0
+    const gridTy = precisionWarp?.yFractions[y] ?? 0
+    const fadeY = precisionWarp?.yFades[y] ?? 0
     for (let x = 0; x < outputWidth; x += 1) {
-      const source = applyHomography(homography, (x + 0.5) / outputWidth, (y + 0.5) / outputHeight)
+      let warpedTargetX = (x + 0.5) / outputWidth
+      let warpedTargetY = targetY
+      if (precisionWarp) {
+        const gridX = precisionWarp.xIndices[x]
+        const gridTx = precisionWarp.xFractions[x]
+        const fade = precisionWarp.xFades[x] * fadeY
+        const topLeft = (gridY * precisionWarp.columns + gridX) * 2
+        const topRight = topLeft + 2
+        const bottomLeft = topLeft + precisionWarp.columns * 2
+        const bottomRight = bottomLeft + 2
+        const topDx = precisionWarp.offsets[topLeft] + (precisionWarp.offsets[topRight] - precisionWarp.offsets[topLeft]) * gridTx
+        const topDy = precisionWarp.offsets[topLeft + 1] + (precisionWarp.offsets[topRight + 1] - precisionWarp.offsets[topLeft + 1]) * gridTx
+        const bottomDx = precisionWarp.offsets[bottomLeft] + (precisionWarp.offsets[bottomRight] - precisionWarp.offsets[bottomLeft]) * gridTx
+        const bottomDy = precisionWarp.offsets[bottomLeft + 1] + (precisionWarp.offsets[bottomRight + 1] - precisionWarp.offsets[bottomLeft + 1]) * gridTx
+        warpedTargetX += (topDx + (bottomDx - topDx) * gridTy) * fade
+        warpedTargetY += (topDy + (bottomDy - topDy) * gridTy) * fade
+      }
+      const source = applyHomography(homography, warpedTargetX, warpedTargetY)
       if (!source || source.x < 0 || source.x > 1 || source.y < 0 || source.y > 1) continue
       const color = sampleImageData(sourceData, source.x * (sourceWidth - 1), source.y * (sourceHeight - 1))
       const offset = (y * outputWidth + x) * 4

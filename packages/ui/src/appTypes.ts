@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { MaterialState, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimingKey } from '@xsheet-remap/core'
+import type { MaterialState, NormalizedRect, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimingKey } from '@xsheet-remap/core'
 
 export type Panel = 'sheet' | 'template'
 export type TimingExportKind = 'xdts' | 'csp-import'
@@ -11,7 +11,30 @@ export type TemplateDetailTab = 'region' | 'display' | 'reference' | 'table' | '
 export type EditMode = 'new' | 'pen' | 'eraser' | 'text' | 'calibrate'
 export type CalibrationPointKind = 'source' | 'target'
 export type CalibrationStage = CalibrationPointKind
-export type SheetImageSettings = SheetImageAlignment
+export type SheetPrecisionWarpDiagnostics = {
+  totalAnchorCount: number
+  matchedAnchorCount: number
+  inlierCount: number
+  coverage: number
+  confidence: number
+  rmsBeforePx: number
+  rmsAfterPx: number
+  maxDisplacementPx: number
+}
+
+export type SheetPrecisionWarp = {
+  version: 1
+  bounds: NormalizedRect
+  columns: number
+  rows: number
+  /** Interleaved normalized x/y inverse-warp offsets, row-major by control point. */
+  offsets: number[]
+  diagnostics: SheetPrecisionWarpDiagnostics
+}
+
+export type SheetImageSettings = SheetImageAlignment & {
+  precisionWarp?: SheetPrecisionWarp
+}
 
 export type WorkspaceStyle = CSSProperties & {
   '--sheet-left-dock-width'?: string

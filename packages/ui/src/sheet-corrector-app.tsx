@@ -4,6 +4,7 @@ import { APP_VERSION } from './appVersion'
 import { collectAssetFilesFromDrop, hasFileTransferPayload } from './assetFiles'
 import { compareFileNameLikeText } from './naturalSort'
 import { detectSheetCalibrationPoints, type AutoCalibrationResult } from './sheetAutoCalibration'
+import { detectSheetPrecisionWarp } from './sheetPrecisionCorrection'
 import { evaluateSheetCalibrationDiagnostic, type SheetCalibrationDiagnostic } from './sheetCalibrationDiagnostics'
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 import { calibrationPointsSignature } from './sheetCalibrationUtils'
@@ -16,6 +17,7 @@ import { defaultSheetCorrectorImportRules, matchSheetCorrectorImportCandidates, 
 import { SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE, SHEET_CORRECTOR_LOAD_TEMPLATE_VALUE, loadSheetCorrectorTemplateFile, loadStoredSheetCorrectorTemplatePath, saveStoredSheetCorrectorTemplatePath, sheetCorrectorExternalTemplateLabel, type SheetCorrectorExternalTemplate, type SheetCorrectorTemplateFile } from './sheetCorrectorTemplates'
 import { base64ToBytes, browserFilePath, compareSheetCorrectorInputs, configureSheetCorrectorBatchWindow, correctedOutputName, correctedPngDataUrl, correctedPsdBase64, correctionStateLabel, createNativeSheetImageDataUrl, dedupeFiles, dedupeSheetCorrectorInputs, dedupeStrings, downloadBytes, downloadDataUrl, draftForTemplate, emptySheetCorrectorProgressState, fileToBrowserInput, filterDraftsForTemplate, imageUrlForItem, isSupportedSheetImageFile, loadStoredSheetImportRules, objectUrlsForFiles, omitRecordKeys, openNativeSheetCorrectorTemplateFile, queueItemStateLabel, readNativeSheetCorrectorTemplatePath, replaceBrowserFileUrls, restoreSheetCorrectorMainWindow, revokeBrowserFileUrls, saveCurrentSheetCorrectorWindowState, saveStoredSheetImportRules, sheetCorrectorErrorMessage, templateOverlayImageUrl } from './sheet-corrector-model'
 import { SheetCorrectorBatchProgress, SheetCorrectorHelpDialog, SheetCorrectorImportRulesControl, SheetCorrectorItemList, SheetCorrectorProgressDialog, SheetCorrectorQueueIcon, SheetCorrectorSourcePreview } from './sheet-corrector-components'
+import type { SheetPrecisionWarp } from './appTypes'
 import type { QueueState, SheetCorrectionDraft, SheetCorrectorInput, SheetCorrectorProgressDialogState } from './sheet-corrector-types'
 
 type SheetCorrectorInputCollection = {
@@ -38,10 +40,24 @@ type NativeCollectSource = 'window-drop' | 'launch'
 
 type SheetCorrectorViewMode = 'pending' | 'main' | 'batch'
 
+type SheetPrecisionComparisonDiagnostic = {
+  path: string
+  name: string
+  calibration: {
+    confidence: number
+    detectedLineCount: number
+    method: AutoCalibrationResult['debugOverlay']['method']
+  } | null
+  precisionDiagnostics: SheetPrecisionWarp['diagnostics'] | null
+  basicPngDataUrl: string | null
+  precisionPngDataUrl: string | null
+}
+
 declare global {
   interface Window {
     __xsheetCorrectorDiagnostics?: {
       evaluateCalibrationFile: (path: string) => Promise<SheetCalibrationDiagnostic>
+      evaluatePrecisionComparisonFile: (path: string) => Promise<SheetPrecisionComparisonDiagnostic>
     }
   }
 }
@@ -57,7 +73,7 @@ const SHEET_CORRECTOR_TEMPLATE_PRESETS = sheetTemplatePresetsForImageCorrection(
 const DEFAULT_SHEET_CORRECTOR_TEMPLATE = SHEET_CORRECTOR_TEMPLATE_PRESETS[0]?.sheetTemplate ?? standardA3SheetTemplate
 
 export function SheetCorrectorApp() {
-  const [viewMode, setViewMode] = useState<SheetCorrectorViewMode>('pending')
+  const [viewMode, setViewMode] = useState<SheetCorrectorViewMode>(() => isTauriHost() ? 'pending' : 'main')
   const [importRules, setImportRules] = useState(loadStoredSheetImportRules)
   const [items, setItems] = useState<SheetCorrectorInput[]>([])
   const [browserFiles, setBrowserFiles] = useState<File[]>([])
@@ -130,10 +146,12 @@ export function SheetCorrectorApp() {
       enabled: selectedDraft?.applied ?? false,
       points: selectedPoints,
     },
-  }), [selectedDraft?.applied, selectedPoints])
+    precisionWarp: selectedDraft?.precisionWarp,
+  }), [selectedDraft?.applied, selectedDraft?.precisionWarp, selectedPoints])
   const warpedPreviewUrl = useWarpedSheetImageUrl(selectedImageUrl, selectedImageSettings, selectedTemplate, 'preview')
   const previewImageUrl = selectedDraft?.applied ? (warpedPreviewUrl ?? selectedImageUrl) : selectedImageUrl
-  const previewViewKey = selectedItem ? `${selectedItem.path}:${selectedTemplate.templateId}:${selectedDraft?.applied ? selectedCalibrationKey : 'raw'}` : null
+  const selectedPrecisionKey = selectedDraft?.precisionWarp ? JSON.stringify(selectedDraft.precisionWarp) : 'basic'
+  const previewViewKey = selectedItem ? `${selectedItem.path}:${selectedTemplate.templateId}:${selectedDraft?.applied ? `${selectedCalibrationKey}:${selectedPrecisionKey}` : 'raw'}` : null
   const templateImageUrl = useMemo(() => templateOverlayImageUrl(selectedTemplate), [selectedTemplate])
   const revokeBrowserPreviewUrls = useCallback(() => {
     const urls = browserFileUrlsRef.current
@@ -199,6 +217,52 @@ export function SheetCorrectorApp() {
           },
           standardA3SheetTemplate,
         )
+      },
+      evaluatePrecisionComparisonFile: async (path: string) => {
+        const normalizedPath = path.replace(/\\/g, '/')
+        const name = normalizedPath.split('/').pop() || path
+        if (disposed) throw new Error('sheet corrector diagnostics disposed')
+        const imageUrl = await nativeFileSource(path)
+        const calibration = await detectSheetCalibrationPoints(imageUrl, standardA3SheetTemplate)
+        if (!calibration) {
+          return {
+            path,
+            name,
+            calibration: null,
+            precisionDiagnostics: null,
+            basicPngDataUrl: null,
+            precisionPngDataUrl: null,
+          }
+        }
+        const levels = defaultLevelCorrectionSettings()
+        const basicPngDataUrl = await correctedPngDataUrl(
+          imageUrl,
+          calibration.points,
+          levels,
+          standardA3SheetTemplate,
+        )
+        const precisionWarp = await detectSheetPrecisionWarp(imageUrl, calibration.points, standardA3SheetTemplate)
+        const precisionPngDataUrl = precisionWarp
+          ? await correctedPngDataUrl(
+              imageUrl,
+              calibration.points,
+              levels,
+              standardA3SheetTemplate,
+              precisionWarp,
+            )
+          : null
+        return {
+          path,
+          name,
+          calibration: {
+            confidence: calibration.confidence,
+            detectedLineCount: calibration.detectedLineCount,
+            method: calibration.debugOverlay.method,
+          },
+          precisionDiagnostics: precisionWarp?.diagnostics ?? null,
+          basicPngDataUrl,
+          precisionPngDataUrl,
+        }
       },
     }
     return () => {
@@ -490,10 +554,15 @@ export function SheetCorrectorApp() {
     setLastSelectedPath(nextPrimaryPath)
   }
 
-  const updateDraftForPath = useCallback((path: string, points: SheetCalibrationPointPair[], applied: boolean) => {
+  const updateDraftForPath = useCallback((
+    path: string,
+    points: SheetCalibrationPointPair[],
+    applied: boolean,
+    precisionWarp?: SheetPrecisionWarp,
+  ) => {
     setCorrectionDrafts(current => ({
       ...current,
-      [path]: { templateId: selectedTemplate.templateId, points, applied },
+      [path]: { templateId: selectedTemplate.templateId, points, applied, precisionWarp },
     }))
   }, [selectedTemplate.templateId])
 
@@ -501,7 +570,19 @@ export function SheetCorrectorApp() {
     if (!selectedItem) return
     updateDraftForPath(selectedItem.path, pointsOverride ?? selectedPoints, true)
     setQueueStates(current => ({ ...current, [selectedItem.path]: 'corrected' }))
-    setAutoCalibrationMessage('補正を適用しました。')
+    setAutoCalibrationMessage('基本補正を適用しました。高精度補正を使用できます。')
+  }
+
+  async function analyzeSelectedPrecisionWarp(points: SheetCalibrationPointPair[]): Promise<SheetPrecisionWarp | null> {
+    if (!selectedItem || !selectedImageUrl) return null
+    return await detectSheetPrecisionWarp(selectedImageUrl, points, selectedTemplate)
+  }
+
+  function applySelectedPrecisionWarp(points: SheetCalibrationPointPair[], precisionWarp: SheetPrecisionWarp) {
+    if (!selectedItem) return
+    updateDraftForPath(selectedItem.path, points, true, precisionWarp)
+    setQueueStates(current => ({ ...current, [selectedItem.path]: 'corrected' }))
+    setAutoCalibrationMessage(`高精度補正を適用しました。対応点 ${precisionWarp.diagnostics.inlierCount}点 / 最大補正 ${precisionWarp.diagnostics.maxDisplacementPx.toFixed(1)}px`)
   }
 
   const detectCalibrationResultForItem = useCallback(async (
@@ -526,8 +607,9 @@ export function SheetCorrectorApp() {
     item: SheetCorrectorInput,
     imageUrl: string,
     points: SheetCalibrationPointPair[],
+    precisionWarp?: SheetPrecisionWarp,
   ): Promise<string | null> => {
-    const pngDataUrl = await correctedPngDataUrl(imageUrl, points, levelCorrectionSettings, selectedTemplate)
+    const pngDataUrl = await correctedPngDataUrl(imageUrl, points, levelCorrectionSettings, selectedTemplate, precisionWarp)
     if (!pngDataUrl) return null
     if (item.sourceKind === 'browser-file') {
       downloadDataUrl(pngDataUrl, correctedOutputName(item.name, 'png'))
@@ -543,6 +625,7 @@ export function SheetCorrectorApp() {
     item: SheetCorrectorInput,
     format: SheetCorrectorExportFormat,
     pointsOverride?: SheetCalibrationPointPair[],
+    precisionWarpOverride?: SheetPrecisionWarp,
     detectIfMissing = true,
     imageUrlOverrides?: Record<string, string>,
   ): Promise<string | null> => {
@@ -551,14 +634,16 @@ export function SheetCorrectorApp() {
     if (!imageUrl) return null
     const currentDraft = draftForTemplate(correctionDrafts[item.path], selectedTemplate.templateId)
     let points = pointsOverride ?? (currentDraft?.applied ? currentDraft.points : undefined)
+    let precisionWarp = precisionWarpOverride ?? (currentDraft?.applied ? currentDraft.precisionWarp : undefined)
     if (!points && detectIfMissing) {
       points = await detectCalibrationForItem(item, imageUrlOverrides) ?? undefined
       if (!points) return null
       updateDraftForPath(item.path, points, true)
+      precisionWarp = undefined
     }
     if (!points) return null
-    if (format === 'png') return exportCorrectedPngItem(item, imageUrl, points)
-    const psdBase64 = await correctedPsdBase64(item.name, imageUrl, templateImageUrl, points, levelCorrectionSettings, selectedTemplate)
+    if (format === 'png') return exportCorrectedPngItem(item, imageUrl, points, precisionWarp)
+    const psdBase64 = await correctedPsdBase64(item.name, imageUrl, templateImageUrl, points, levelCorrectionSettings, selectedTemplate, precisionWarp)
     if (!psdBase64) return null
     if (item.sourceKind === 'browser-file') {
       downloadBytes(base64ToBytes(psdBase64), correctedOutputName(item.name, 'psd'), 'image/vnd.adobe.photoshop')
@@ -664,8 +749,10 @@ export function SheetCorrectorApp() {
             imageUrlOverrides = { [item.path]: imageUrl }
           }
           let points: SheetCalibrationPointPair[] | undefined
+          let precisionWarp: SheetPrecisionWarp | undefined
           if (existingDraft?.applied) {
             points = existingDraft.points
+            precisionWarp = existingDraft.precisionWarp
           } else {
             const result = await detectCalibrationResultForItem(item, imageUrlOverrides)
             if (!result) {
@@ -676,7 +763,7 @@ export function SheetCorrectorApp() {
             points = result.points
             updateDraftForPath(item.path, points, true)
           }
-          const outputPath = await exportCorrectedItem(item, 'psd', points, false, imageUrlOverrides)
+          const outputPath = await exportCorrectedItem(item, 'psd', points, precisionWarp, false, imageUrlOverrides)
           if (outputPath) {
             exportedCount += 1
             setQueueStates(current => ({ ...current, [item.path]: 'exported' }))
@@ -948,6 +1035,7 @@ export function SheetCorrectorApp() {
     if (!templateRestoreReady) return undefined
     if (didLoadLaunchPaths.current) return
     didLoadLaunchPaths.current = true
+    if (!isTauriHost()) return undefined
     let cancelled = false
     void invokeDesktopCommand<string[]>('sheet_corrector_launch_paths')
       .then(paths => {
@@ -1324,9 +1412,15 @@ export function SheetCorrectorApp() {
           onApply={applySelectedWarp}
           onClose={() => setCalibrationLoupeOpen(false)}
           autoDetectLabel="再検出"
-          autoDetectOnOpen
-          closeOnApply
+          autoDetectOnOpen={!selectedDraft?.applied}
           commitOnPointChange={false}
+          precisionCorrection={{
+            basicApplied: Boolean(selectedDraft?.applied),
+            appliedWarp: selectedDraft?.precisionWarp,
+            onAnalyze: analyzeSelectedPrecisionWarp,
+            onApply: applySelectedPrecisionWarp,
+            closeOnApply: true,
+          }}
         />
       )}
     </main>

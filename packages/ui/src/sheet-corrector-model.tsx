@@ -1,6 +1,7 @@
 import { type SheetCalibrationPointPair, type SheetTemplate } from '@xsheet-remap/core'
 import { configureCurrentNativeWindow, currentNativeWindowBounds, invokeDesktopCommand } from '@xsheet-remap/adapters'
 import { compareFileNameLikeText } from './naturalSort'
+import type { SheetPrecisionWarp } from './appTypes'
 import { defaultSheetImageSettings, applyLevelCorrectionToDataUrl, loadImage, resolveImageRefUrl, warpSheetImage, warpSheetImageData } from './sheetImages'
 import { alphaComposite, writeRgbPsd } from './psdWriter'
 import { applyLevelCorrectionToImageData, type LevelCorrectionSettings } from './levelCorrection'
@@ -21,6 +22,7 @@ export function filterDraftsForTemplate(drafts: Record<string, SheetCorrectionDr
 }
 
 export function correctionStateLabel(draft: SheetCorrectionDraft | undefined): string {
+  if (draft?.applied && draft.precisionWarp) return '高精度補正済み'
   if (draft?.applied) return '補正済み'
   if (draft) return '調整中'
   return '未補正'
@@ -88,6 +90,7 @@ export async function correctedPngDataUrl(
   points: SheetCalibrationPointPair[],
   levelCorrection: LevelCorrectionSettings,
   template: SheetTemplate,
+  precisionWarp?: SheetPrecisionWarp,
 ): Promise<string | null> {
   const image = await loadImage(imageUrl)
   const pngDataUrl = warpSheetImage(
@@ -98,6 +101,7 @@ export async function correctedPngDataUrl(
         enabled: true,
         points,
       },
+      precisionWarp,
     },
     template,
     template.page.widthPx,
@@ -113,8 +117,9 @@ export async function correctedPsdBase64(
   points: SheetCalibrationPointPair[],
   levelCorrection: LevelCorrectionSettings,
   template: SheetTemplate,
+  precisionWarp?: SheetPrecisionWarp,
 ): Promise<string | null> {
-  const correctedImageData = await correctedSheetImageData(imageUrl, points, levelCorrection, template)
+  const correctedImageData = await correctedSheetImageData(imageUrl, points, levelCorrection, template, precisionWarp)
   if (!correctedImageData) return null
   const whiteLayer = solidWhiteImageData(correctedImageData.width, correctedImageData.height)
   const templateLayer = templateImageUrl
@@ -141,6 +146,7 @@ async function correctedSheetImageData(
   points: SheetCalibrationPointPair[],
   levelCorrection: LevelCorrectionSettings,
   template: SheetTemplate,
+  precisionWarp?: SheetPrecisionWarp,
 ): Promise<ImageData | null> {
   const image = await loadImage(imageUrl)
   const imageData = warpSheetImageData(
@@ -151,6 +157,7 @@ async function correctedSheetImageData(
         enabled: true,
         points,
       },
+      precisionWarp,
     },
     template,
     template.page.widthPx,

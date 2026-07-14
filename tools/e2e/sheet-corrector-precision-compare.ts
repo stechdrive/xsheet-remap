@@ -25,6 +25,12 @@ type ComparisonDiagnostic = {
     method: string
   } | null
   precisionDiagnostics: PrecisionDiagnostics | null
+  warpBackend: {
+    basic: 'webgl2' | 'cpu' | null
+    precision: 'webgl2' | 'cpu' | null
+    basicMs: number | null
+    precisionMs: number | null
+  }
   basicPngDataUrl: string | null
   precisionPngDataUrl: string | null
 }
@@ -145,6 +151,7 @@ try {
         name: diagnostic.name,
         calibration: diagnostic.calibration,
         precisionDiagnostics: diagnostic.precisionDiagnostics,
+        warpBackend: diagnostic.warpBackend,
         index: index + 1,
         basicImagePath: relativeOutputPath(basicImagePath),
         precisionImagePath: relativeOutputPath(precisionImagePath),
@@ -163,6 +170,7 @@ try {
         name: path.basename(filePath),
         calibration: null,
         precisionDiagnostics: null,
+        warpBackend: { basic: null, precision: null, basicMs: null, precisionMs: null },
         basicImagePath: null,
         precisionImagePath: null,
         error: message,

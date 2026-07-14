@@ -77,6 +77,31 @@ describe('sheet precision correction', () => {
     expect(displacement.y * 1400).toBeCloseTo(-0.75, 0)
     expect(warp?.diagnostics.coverage).toBe(1)
   })
+
+  it('requires broad support and rejects displacement beyond the template-relative safety cap', () => {
+    const bounds = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }
+    const sparse = distributedMatches(bounds, 5, 4, 2, -1)
+    expect(buildPrecisionWarpFromMatches(
+      sparse,
+      bounds,
+      1000,
+      1400,
+      sparse.length,
+      sparse.length,
+      { columnPx: 24, rowPx: 24 },
+    )).toBeNull()
+
+    const unsafe = distributedMatches(bounds, 9, 7, 6, 0)
+    expect(buildPrecisionWarpFromMatches(
+      unsafe,
+      bounds,
+      1000,
+      1400,
+      unsafe.length,
+      unsafe.length,
+      { columnPx: 24, rowPx: 24 },
+    )).toBeNull()
+  })
 })
 
 describe('precision warp sampling', () => {
@@ -131,4 +156,26 @@ function setBlack(image: ImageData, x: number, y: number) {
   image.data[offset + 1] = 0
   image.data[offset + 2] = 0
   image.data[offset + 3] = 255
+}
+
+function distributedMatches(
+  bounds: { x: number; y: number; w: number; h: number },
+  columns: number,
+  rows: number,
+  dxPx: number,
+  dyPx: number,
+): PrecisionControlMatch[] {
+  const matches: PrecisionControlMatch[] = []
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      matches.push({
+        x: bounds.x + bounds.w * ((column + 0.5) / columns),
+        y: bounds.y + bounds.h * ((row + 0.5) / rows),
+        dxPx,
+        dyPx,
+        confidence: 0.95,
+      })
+    }
+  }
+  return matches
 }

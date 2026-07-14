@@ -14,6 +14,14 @@ import type { SheetImageSettings, SheetPageImage } from './appTypes'
 import { applyLevelCorrectionToImageData, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection'
 import { SHEET_WARP_PREVIEW_CANVAS_WIDTH } from './sheetConstants'
 import { preparePrecisionWarp } from './sheetPrecisionWarp'
+import { renderSheetWarpWebGL } from './sheetImageWebGL'
+
+export type SheetWarpBackend = 'webgl2' | 'cpu'
+let lastSheetWarpBackend: SheetWarpBackend = 'cpu'
+
+export function getLastSheetWarpBackend(): SheetWarpBackend {
+  return lastSheetWarpBackend
+}
 
 export function defaultSheetImageSettings(): SheetImageSettings {
   return defaultSheetImageAlignment()
@@ -142,10 +150,10 @@ export function useWarpedSheetImageUrl(imageUrl: string | null, imageSettings: S
         if (cancelled) return
         frameId = window.requestAnimationFrame(() => {
           if (cancelled) return
-          setWarpedUrl({
-            key: warpRequest.key,
-            url: warpSheetImage(image, warpRequest.imageSettings, warpRequest.template, warpRequest.outputWidth),
-          })
+          void warpSheetImageAsync(image, warpRequest.imageSettings, warpRequest.template, warpRequest.outputWidth)
+            .then(url => {
+              if (!cancelled) setWarpedUrl({ key: warpRequest.key, url })
+            })
         })
       })
       .catch(() => {
@@ -222,7 +230,7 @@ export async function renderCorrectedSheetCanvas(
   context.fillRect(0, 0, width, height)
 
   if (hasEnabledCalibration(imageSettings)) {
-    const warped = warpSheetImageData(image, imageSettings, template, width)
+    const warped = await warpSheetImageDataAsync(image, imageSettings, template, width)
     if (!warped) throw new Error('シート画像の位置補正を適用できませんでした。')
     const warpedCanvas = document.createElement('canvas')
     warpedCanvas.width = width
@@ -294,6 +302,93 @@ export function warpSheetImage(image: HTMLImageElement, imageSettings: SheetImag
   if (!outputContext) return null
   outputContext.putImageData(outputData, 0, 0)
   return outputCanvas.toDataURL('image/png')
+}
+
+export async function warpSheetImageAsync(
+  image: HTMLImageElement,
+  imageSettings: SheetImageSettings,
+  template: SheetWarpTemplate,
+  outputWidth: number,
+): Promise<string | null> {
+  const gpuCanvas = createGpuWarpCanvas(image, imageSettings, template, outputWidth)
+  if (!gpuCanvas) {
+    lastSheetWarpBackend = 'cpu'
+    return warpSheetImage(image, imageSettings, template, outputWidth)
+  }
+  lastSheetWarpBackend = 'webgl2'
+  if (!imageSettings.levelCorrection?.enabled) {
+    const dataUrl = gpuCanvas.toDataURL('image/png')
+    releaseWebGLCanvas(gpuCanvas)
+    return dataUrl
+  }
+  const readback = readWebGLCanvas(gpuCanvas)
+  releaseWebGLCanvas(gpuCanvas)
+  if (!readback) {
+    lastSheetWarpBackend = 'cpu'
+    return warpSheetImage(image, imageSettings, template, outputWidth)
+  }
+  const { canvas, context } = readback
+  const corrected = applyLevelCorrectionToImageData(
+    context.getImageData(0, 0, canvas.width, canvas.height),
+    imageSettings.levelCorrection,
+  )
+  context.putImageData(corrected, 0, 0)
+  return canvas.toDataURL('image/png')
+}
+
+export async function warpSheetImageDataAsync(
+  image: HTMLImageElement,
+  imageSettings: SheetImageSettings,
+  template: SheetWarpTemplate,
+  outputWidth: number,
+): Promise<ImageData | null> {
+  const gpuCanvas = createGpuWarpCanvas(image, imageSettings, template, outputWidth)
+  if (!gpuCanvas) {
+    lastSheetWarpBackend = 'cpu'
+    return warpSheetImageData(image, imageSettings, template, outputWidth)
+  }
+  lastSheetWarpBackend = 'webgl2'
+  const readback = readWebGLCanvas(gpuCanvas)
+  releaseWebGLCanvas(gpuCanvas)
+  if (!readback) {
+    lastSheetWarpBackend = 'cpu'
+    return warpSheetImageData(image, imageSettings, template, outputWidth)
+  }
+  const imageData = readback.context.getImageData(0, 0, readback.canvas.width, readback.canvas.height)
+  return imageSettings.levelCorrection?.enabled
+    ? applyLevelCorrectionToImageData(imageData, imageSettings.levelCorrection)
+    : imageData
+}
+
+function createGpuWarpCanvas(
+  image: HTMLImageElement,
+  imageSettings: SheetImageSettings,
+  template: SheetWarpTemplate,
+  outputWidthInput: number,
+): HTMLCanvasElement | null {
+  const calibrationPoints = calibrationPointsForSettings(imageSettings, template)
+  const homography = computeHomography(
+    calibrationPoints.map(point => point.target),
+    calibrationPoints.map(point => point.source),
+  )
+  if (!homography) return null
+  const outputWidth = Math.max(1, Math.round(outputWidthInput))
+  const outputHeight = Math.max(1, Math.round(outputWidth * (template.page.heightPx / template.page.widthPx)))
+  return renderSheetWarpWebGL(image, homography, imageSettings.precisionWarp, outputWidth, outputHeight)
+}
+
+function readWebGLCanvas(source: HTMLCanvasElement): { canvas: HTMLCanvasElement; context: CanvasRenderingContext2D } | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = source.width
+  canvas.height = source.height
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) return null
+  context.drawImage(source, 0, 0)
+  return { canvas, context }
+}
+
+function releaseWebGLCanvas(canvas: HTMLCanvasElement): void {
+  canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context')?.loseContext()
 }
 
 export function warpSheetImageData(image: HTMLImageElement, imageSettings: SheetImageSettings, template: SheetWarpTemplate, outputWidth: number): ImageData | null {

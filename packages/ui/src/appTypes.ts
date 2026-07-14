@@ -20,6 +20,8 @@ export type SheetPrecisionWarpDiagnostics = {
   rmsBeforePx: number
   rmsAfterPx: number
   maxDisplacementPx: number
+  /** Maximum inverse-warp displacement relative to the template's local x/y grid pitch. */
+  maxDisplacementPitchRatio?: number
 }
 
 export type SheetPrecisionWarp = {

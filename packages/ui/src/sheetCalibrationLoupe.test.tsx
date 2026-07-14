@@ -5,7 +5,7 @@ import type { SheetPrecisionWarp } from './appTypes'
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 
 describe('CalibrationLoupeDialog precision correction', () => {
-  it('enables precision analysis only after applying the basic correction', async () => {
+  it('silently applies safe template-adaptive correction after normal correction', async () => {
     const onApply = vi.fn()
     const onApplyPrecision = vi.fn()
     const onAnalyze = vi.fn(async () => precisionWarp())
@@ -28,20 +28,10 @@ describe('CalibrationLoupeDialog precision correction', () => {
       />,
     )
 
-    const analyzeButton = screen.getByRole('button', { name: '格子を解析' }) as HTMLButtonElement
-    expect(analyzeButton.disabled).toBe(true)
-
-    fireEvent.click(screen.getByRole('button', { name: '基本補正を適用' }))
+    fireEvent.click(screen.getByRole('button', { name: '補正を適用' }))
     expect(onApply).toHaveBeenCalledTimes(1)
-    expect(analyzeButton.disabled).toBe(false)
-
-    fireEvent.click(analyzeButton)
     await waitFor(() => expect(onAnalyze).toHaveBeenCalledTimes(1))
-    const applyPrecisionButton = await screen.findByRole('button', { name: '高精度補正を適用' })
-    expect((applyPrecisionButton as HTMLButtonElement).disabled).toBe(false)
-
-    fireEvent.click(applyPrecisionButton)
-    expect(onApplyPrecision).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ version: 1 }))
+    await waitFor(() => expect(onApplyPrecision).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ version: 1 })))
   })
 })
 

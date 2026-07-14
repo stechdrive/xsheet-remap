@@ -2,6 +2,77 @@ import { type NormalizedPoint } from '@xsheet-remap/core'
 import { clampNumber } from './sheetInteraction'
 import { MIN_HORIZONTAL_SPAN_RATIO, MIN_PROJECTED_LINE_RATIO, type DetectedLine, type ScoredLine } from './sheet-auto-calibration-types'
 
+export type DarkPixelIntegralImage = {
+  width: number
+  height: number
+  stride: number
+  values: Uint32Array
+}
+
+export function buildDarkPixelIntegralImage(image: ImageData): DarkPixelIntegralImage {
+  const stride = image.width + 1
+  const values = new Uint32Array(stride * (image.height + 1))
+  for (let y = 0; y < image.height; y += 1) {
+    let rowTotal = 0
+    const outputRow = (y + 1) * stride
+    const previousRow = y * stride
+    for (let x = 0; x < image.width; x += 1) {
+      if (isDarkPixel(image, x, y)) rowTotal += 1
+      values[outputRow + x + 1] = values[previousRow + x + 1] + rowTotal
+    }
+  }
+  return { width: image.width, height: image.height, stride, values }
+}
+
+export function darkPixelsInIntegralRect(
+  integral: DarkPixelIntegralImage,
+  xStart: number,
+  yStart: number,
+  xEnd: number,
+  yEnd: number,
+): number {
+  const left = Math.max(0, Math.min(integral.width - 1, Math.round(Math.min(xStart, xEnd))))
+  const right = Math.max(0, Math.min(integral.width - 1, Math.round(Math.max(xStart, xEnd))))
+  const top = Math.max(0, Math.min(integral.height - 1, Math.round(Math.min(yStart, yEnd))))
+  const bottom = Math.max(0, Math.min(integral.height - 1, Math.round(Math.max(yStart, yEnd))))
+  const x0 = left
+  const x1 = right + 1
+  const y0 = top
+  const y1 = bottom + 1
+  const { stride, values } = integral
+  return values[y1 * stride + x1] - values[y0 * stride + x1] - values[y1 * stride + x0] + values[y0 * stride + x0]
+}
+
+export function darkRatioInHorizontalBandIntegral(
+  integral: DarkPixelIntegralImage,
+  y: number,
+  xStart: number,
+  xEnd: number,
+  radius: number,
+): number {
+  const center = Math.round(clampNumber(y, 0, integral.height - 1))
+  const top = Math.max(0, center - radius)
+  const bottom = Math.min(integral.height - 1, center + radius)
+  const start = Math.max(0, Math.min(integral.width - 1, Math.round(Math.min(xStart, xEnd))))
+  const end = Math.max(0, Math.min(integral.width - 1, Math.round(Math.max(xStart, xEnd))))
+  return darkPixelsInIntegralRect(integral, start, top, end, bottom) / Math.max(1, (bottom - top + 1) * (end - start + 1))
+}
+
+export function darkRatioInVerticalBandIntegral(
+  integral: DarkPixelIntegralImage,
+  x: number,
+  yStart: number,
+  yEnd: number,
+  radius: number,
+): number {
+  const center = Math.round(clampNumber(x, 0, integral.width - 1))
+  const left = Math.max(0, center - radius)
+  const right = Math.min(integral.width - 1, center + radius)
+  const start = Math.max(0, Math.min(integral.height - 1, Math.round(Math.min(yStart, yEnd))))
+  const end = Math.max(0, Math.min(integral.height - 1, Math.round(Math.max(yStart, yEnd))))
+  return darkPixelsInIntegralRect(integral, left, start, right, end) / Math.max(1, (right - left + 1) * (end - start + 1))
+}
+
 export function horizontalLineEndpoints(
   image: ImageData,
   y: number,

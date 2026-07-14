@@ -16,6 +16,7 @@ export type SheetCorrectionDraft = {
   points: SheetCalibrationPointPair[]
   applied: boolean
   precisionWarp?: SheetPrecisionWarp
+  precisionEvaluated?: boolean
 }
 
 export type QueueState = 'idle' | 'running' | 'corrected' | 'exported' | 'review' | 'error'

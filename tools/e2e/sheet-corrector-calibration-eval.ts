@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import net from 'node:net'
@@ -75,6 +76,8 @@ type HumanReviewFile = {
 
 type ReportItem = Omit<SheetCalibrationDiagnostic, 'images'> & {
   index: number
+  inputSha256: string
+  evaluationMs: number
   montagePath: string | null
   cornerImagePaths: Record<CornerId, string | null>
   autoCornerGrades: Record<CornerId, HumanCornerGrade | null>
@@ -210,7 +213,10 @@ try {
 
   const items: ReportItem[] = []
   for (const [index, filePath] of files.entries()) {
+    const inputSha256 = createHash('sha256').update(await readFile(filePath)).digest('hex')
+    const evaluationStartedAt = performance.now()
     const diagnostic = await evaluateFile(client, filePath)
+    const evaluationMs = Math.round((performance.now() - evaluationStartedAt) * 10) / 10
     const baseName = safeArtifactBaseName(index, diagnostic.name)
     const montagePath = diagnostic.images.montage
       ? await writeDataUrl(path.join(montageRoot, `${baseName}.png`), diagnostic.images.montage)
@@ -224,6 +230,8 @@ try {
     const reportItem: ReportItem = {
       ...diagnostic,
       index: index + 1,
+      inputSha256,
+      evaluationMs,
       montagePath: montagePath ? path.relative(outputRoot, montagePath).replace(/\\/g, '/') : null,
       cornerImagePaths: {
         tl: cornerImagePaths.tl ? path.relative(outputRoot, cornerImagePaths.tl).replace(/\\/g, '/') : null,

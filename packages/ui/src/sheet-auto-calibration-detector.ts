@@ -2,7 +2,7 @@ import { type NormalizedPoint, type SheetCalibrationPointPair, type SheetTemplat
 import { calibrationTargetRectForTemplate, defaultCalibrationPoints, loadImage } from './sheetImages'
 import { clampNumber } from './sheetInteraction'
 import opencvScriptUrl from '@techstark/opencv-js/dist/opencv.js?url'
-import { ProjectedLineResult, bestHorizontalLine, bestProjectedLine, bestVerticalLine, darkPixelsInColumn, darkPixelsInRow, intersectLines, isPlausibleCalibrationQuad, normalizePixelPoint, normalizedAxisAngleDeg } from './sheet-auto-calibration-projection'
+import { ProjectedLineResult, bestHorizontalLine, bestProjectedLine, bestVerticalLine, buildDarkPixelIntegralImage, darkPixelsInIntegralRect, intersectLines, isPlausibleCalibrationQuad, normalizePixelPoint, normalizedAxisAngleDeg } from './sheet-auto-calibration-projection'
 import { fitTemplateGridCalibration } from './sheet-auto-calibration-grid-fit'
 import { bestHorizontalSideSpan, refineHorizontalSpanCorner, stabilizeCornerSideExtents } from './sheet-auto-calibration-corners'
 import type { AutoCalibrationDebugOverlay, AutoCalibrationLocalCornerDebug, AutoCalibrationResult, DetectedLine, PixelPoint } from './sheet-auto-calibration-types'
@@ -323,6 +323,7 @@ function detectProjectionCalibrationCorners(
   localCornerMatches?: AutoCalibrationLocalCornerDebug[]
 } | null {
   const data = context.getImageData(0, 0, canvas.width, canvas.height)
+  const darkIntegral = buildDarkPixelIntegralImage(data)
   const left = Math.round(clampNumber(rect.left, 0, canvas.width - 1))
   const right = Math.round(clampNumber(rect.right, 0, canvas.width - 1))
   const top = Math.round(clampNumber(rect.top, 0, canvas.height - 1))
@@ -335,25 +336,25 @@ function detectProjectionCalibrationCorners(
     top,
     horizontalWindow,
     rectWidth,
-    y => darkPixelsInRow(data, y, left, right),
+    y => darkPixelsInIntegralRect(darkIntegral, left, y, right, y),
   )
   const projectedBottom = bestProjectedLine(
     bottom,
     horizontalWindow,
     rectWidth,
-    y => darkPixelsInRow(data, y, left, right),
+    y => darkPixelsInIntegralRect(darkIntegral, left, y, right, y),
   )
   const projectedLeft = bestProjectedLine(
     left,
     verticalWindow,
     rectHeight,
-    x => darkPixelsInColumn(data, x, top, bottom),
+    x => darkPixelsInIntegralRect(darkIntegral, x, top, x, bottom),
   )
   const projectedRight = bestProjectedLine(
     right,
     verticalWindow,
     rectHeight,
-    x => darkPixelsInColumn(data, x, top, bottom),
+    x => darkPixelsInIntegralRect(darkIntegral, x, top, x, bottom),
   )
   if (!projectedTop || !projectedBottom || !projectedLeft || !projectedRight) return null
   const spanCorners = detectHorizontalSpanCorners(data, rect, projectedTop, projectedBottom)
@@ -363,7 +364,7 @@ function detectProjectionCalibrationCorners(
     { x: projectedRight.position, y: projectedBottom.position },
     { x: projectedLeft.position, y: projectedBottom.position },
   ]
-  const gridFit = fitTemplateGridCalibration(data, rect, template, projectionPixelCorners)
+  const gridFit = fitTemplateGridCalibration(data, rect, template, projectionPixelCorners, darkIntegral)
   const pixelCorners = gridFit?.corners ?? projectionPixelCorners
   const corners = pixelCorners.map(point => normalizePixelPoint(point, canvas.width, canvas.height))
   const averageRatio = (projectedTop.ratio + projectedBottom.ratio + projectedLeft.ratio + projectedRight.ratio) / 4

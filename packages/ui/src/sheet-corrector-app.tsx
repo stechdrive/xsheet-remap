@@ -8,7 +8,7 @@ import { detectSheetPrecisionWarp } from './sheetPrecisionCorrection'
 import { evaluateSheetCalibrationDiagnostic, type SheetCalibrationDiagnostic } from './sheetCalibrationDiagnostics'
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 import { calibrationPointsSignature } from './sheetCalibrationUtils'
-import { defaultCalibrationPoints, defaultSheetImageSettings, useWarpedSheetImageUrl } from './sheetImages'
+import { defaultCalibrationPoints, defaultSheetImageSettings, getLastSheetWarpBackend, useWarpedSheetImageUrl } from './sheetImages'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { closeCurrentNativeWindow, invokeDesktopCommand, isTauriHost, nativeFileSource, subscribeNativeDragDrop, watchCurrentNativeWindowBounds } from '@xsheet-remap/adapters'
 import { LevelCorrectionDialog } from './LevelCorrectionDialog'
@@ -49,6 +49,12 @@ type SheetPrecisionComparisonDiagnostic = {
     method: AutoCalibrationResult['debugOverlay']['method']
   } | null
   precisionDiagnostics: SheetPrecisionWarp['diagnostics'] | null
+  warpBackend: {
+    basic: ReturnType<typeof getLastSheetWarpBackend> | null
+    precision: ReturnType<typeof getLastSheetWarpBackend> | null
+    basicMs: number | null
+    precisionMs: number | null
+  }
   basicPngDataUrl: string | null
   precisionPngDataUrl: string | null
 }
@@ -230,18 +236,23 @@ export function SheetCorrectorApp() {
             name,
             calibration: null,
             precisionDiagnostics: null,
+            warpBackend: { basic: null, precision: null, basicMs: null, precisionMs: null },
             basicPngDataUrl: null,
             precisionPngDataUrl: null,
           }
         }
         const levels = defaultLevelCorrectionSettings()
+        const basicStartedAt = performance.now()
         const basicPngDataUrl = await correctedPngDataUrl(
           imageUrl,
           calibration.points,
           levels,
           standardA3SheetTemplate,
         )
+        const basicMs = performance.now() - basicStartedAt
+        const basicBackend = getLastSheetWarpBackend()
         const precisionWarp = await detectSheetPrecisionWarp(imageUrl, calibration.points, standardA3SheetTemplate)
+        const precisionStartedAt = performance.now()
         const precisionPngDataUrl = precisionWarp
           ? await correctedPngDataUrl(
               imageUrl,
@@ -251,6 +262,8 @@ export function SheetCorrectorApp() {
               precisionWarp,
             )
           : null
+        const precisionMs = precisionWarp ? performance.now() - precisionStartedAt : null
+        const precisionBackend = precisionWarp ? getLastSheetWarpBackend() : null
         return {
           path,
           name,
@@ -260,6 +273,12 @@ export function SheetCorrectorApp() {
             method: calibration.debugOverlay.method,
           },
           precisionDiagnostics: precisionWarp?.diagnostics ?? null,
+          warpBackend: {
+            basic: basicBackend,
+            precision: precisionBackend,
+            basicMs,
+            precisionMs,
+          },
           basicPngDataUrl,
           precisionPngDataUrl,
         }
@@ -559,10 +578,11 @@ export function SheetCorrectorApp() {
     points: SheetCalibrationPointPair[],
     applied: boolean,
     precisionWarp?: SheetPrecisionWarp,
+    precisionEvaluated = Boolean(precisionWarp),
   ) => {
     setCorrectionDrafts(current => ({
       ...current,
-      [path]: { templateId: selectedTemplate.templateId, points, applied, precisionWarp },
+      [path]: { templateId: selectedTemplate.templateId, points, applied, precisionWarp, precisionEvaluated },
     }))
   }, [selectedTemplate.templateId])
 
@@ -570,7 +590,7 @@ export function SheetCorrectorApp() {
     if (!selectedItem) return
     updateDraftForPath(selectedItem.path, pointsOverride ?? selectedPoints, true)
     setQueueStates(current => ({ ...current, [selectedItem.path]: 'corrected' }))
-    setAutoCalibrationMessage('基本補正を適用しました。高精度補正を使用できます。')
+    setAutoCalibrationMessage('通常補正を適用しました。テンプレート適応補正を確認しています。')
   }
 
   async function analyzeSelectedPrecisionWarp(points: SheetCalibrationPointPair[]): Promise<SheetPrecisionWarp | null> {
@@ -582,7 +602,12 @@ export function SheetCorrectorApp() {
     if (!selectedItem) return
     updateDraftForPath(selectedItem.path, points, true, precisionWarp)
     setQueueStates(current => ({ ...current, [selectedItem.path]: 'corrected' }))
-    setAutoCalibrationMessage(`高精度補正を適用しました。対応点 ${precisionWarp.diagnostics.inlierCount}点 / 最大補正 ${precisionWarp.diagnostics.maxDisplacementPx.toFixed(1)}px`)
+    setAutoCalibrationMessage(`テンプレート適応補正を適用しました。対応点 ${precisionWarp.diagnostics.inlierCount}点 / 最大補正 ${precisionWarp.diagnostics.maxDisplacementPx.toFixed(1)}px`)
+  }
+
+  function markSelectedPrecisionEvaluated(points: SheetCalibrationPointPair[]) {
+    if (!selectedItem) return
+    updateDraftForPath(selectedItem.path, points, true, undefined, true)
   }
 
   const detectCalibrationResultForItem = useCallback(async (
@@ -642,6 +667,10 @@ export function SheetCorrectorApp() {
       precisionWarp = undefined
     }
     if (!points) return null
+    if (!precisionWarp && !currentDraft?.precisionEvaluated) {
+      precisionWarp = await detectSheetPrecisionWarp(imageUrl, points, selectedTemplate) ?? undefined
+      updateDraftForPath(item.path, points, true, precisionWarp, true)
+    }
     if (format === 'png') return exportCorrectedPngItem(item, imageUrl, points, precisionWarp)
     const psdBase64 = await correctedPsdBase64(item.name, imageUrl, templateImageUrl, points, levelCorrectionSettings, selectedTemplate, precisionWarp)
     if (!psdBase64) return null
@@ -1419,6 +1448,7 @@ export function SheetCorrectorApp() {
             appliedWarp: selectedDraft?.precisionWarp,
             onAnalyze: analyzeSelectedPrecisionWarp,
             onApply: applySelectedPrecisionWarp,
+            onEvaluated: markSelectedPrecisionEvaluated,
             closeOnApply: true,
           }}
         />

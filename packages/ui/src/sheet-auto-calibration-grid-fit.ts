@@ -1,7 +1,7 @@
 import { type SheetTemplate } from '@xsheet-remap/core'
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import { clampNumber } from './sheetInteraction'
-import { darkRatioInHorizontalBand, darkRatioInVerticalBand, localSupportGroups, projectedLinePositionForExpected } from './sheet-auto-calibration-projection'
+import { darkRatioInHorizontalBand, darkRatioInHorizontalBandIntegral, darkRatioInVerticalBand, darkRatioInVerticalBandIntegral, localSupportGroups, projectedLinePositionForExpected, type DarkPixelIntegralImage } from './sheet-auto-calibration-projection'
 import { averageNumber, boundaryOutsidePenalty, buildDarkDistanceMap, localCornerConfigs, matchLocalTemplateCorner, pixelRectFromCorners, pixelRectToCorners, scoreTemplateGridDistanceFitRect, segmentedHorizontalSupport, segmentedVerticalSupport, stabilizeLocalCornerMatches } from './sheet-auto-calibration-corners'
 import type { AutoCalibrationLocalCornerDebug, DarkDistanceMap, GridFitGuide, GridFitGuides, PixelPoint, PixelRect } from './sheet-auto-calibration-types'
 
@@ -16,6 +16,7 @@ export function fitTemplateGridCalibration(
   rect: { left: number; top: number; right: number; bottom: number },
   template: SheetTemplate,
   seedCorners: PixelPoint[],
+  darkIntegral?: DarkPixelIntegralImage,
 ): {
   corners: [PixelPoint, PixelPoint, PixelPoint, PixelPoint]
   confidence: number
@@ -54,7 +55,9 @@ export function fitTemplateGridCalibration(
     rect.top,
     seedTop,
     horizontalWindow,
-    position => darkRatioInHorizontalBand(image, position, approximateLeft, approximateRight, 1),
+    position => darkIntegral
+      ? darkRatioInHorizontalBandIntegral(darkIntegral, position, approximateLeft, approximateRight, 1)
+      : darkRatioInHorizontalBand(image, position, approximateLeft, approximateRight, 1),
     image.height - 1,
     5,
     'min',
@@ -64,7 +67,9 @@ export function fitTemplateGridCalibration(
     rect.bottom,
     seedBottom,
     horizontalWindow,
-    position => darkRatioInHorizontalBand(image, position, approximateLeft, approximateRight, 1),
+    position => darkIntegral
+      ? darkRatioInHorizontalBandIntegral(darkIntegral, position, approximateLeft, approximateRight, 1)
+      : darkRatioInHorizontalBand(image, position, approximateLeft, approximateRight, 1),
     image.height - 1,
     5,
     'max',
@@ -74,7 +79,9 @@ export function fitTemplateGridCalibration(
     rect.left,
     seedLeft,
     verticalWindow,
-    position => darkRatioInVerticalBand(image, position, approximateTop, approximateBottom, 1),
+    position => darkIntegral
+      ? darkRatioInVerticalBandIntegral(darkIntegral, position, approximateTop, approximateBottom, 1)
+      : darkRatioInVerticalBand(image, position, approximateTop, approximateBottom, 1),
     image.width - 1,
     7,
     'min',
@@ -84,7 +91,9 @@ export function fitTemplateGridCalibration(
     rect.right,
     seedRight,
     verticalWindow,
-    position => darkRatioInVerticalBand(image, position, approximateTop, approximateBottom, 1),
+    position => darkIntegral
+      ? darkRatioInVerticalBandIntegral(darkIntegral, position, approximateTop, approximateBottom, 1)
+      : darkRatioInVerticalBand(image, position, approximateTop, approximateBottom, 1),
     image.width - 1,
     7,
     'max',
@@ -100,7 +109,7 @@ export function fitTemplateGridCalibration(
           const width = right - left
           if (width < expectedWidth * 0.82 || width > expectedWidth * 1.16) continue
           const candidate = { left, top, right, bottom }
-          const score = scoreTemplateGridFitRect(image, distanceMap, rect, guides, candidate) -
+          const score = scoreTemplateGridFitRect(image, distanceMap, rect, guides, candidate, darkIntegral) -
             gridFitSeedBoundaryPenalty(candidate, seedBounds, expectedWidth, expectedHeight, seedBoundaryReliability)
           if (!best || score > best.score) {
             best = {
@@ -128,6 +137,7 @@ export function fitTemplateGridCalibration(
     expectedHeight,
     seedBounds,
     seedBoundaryReliability,
+    darkIntegral,
   )
   best = refineTemplateGridFitCorners(distanceMap, guides, best, expectedWidth, expectedHeight)
   return {
@@ -280,6 +290,7 @@ function scoreTemplateGridFitRect(
   expectedRect: { left: number; top: number; right: number; bottom: number },
   guides: GridFitGuides,
   candidate: { left: number; top: number; right: number; bottom: number },
+  darkIntegral?: DarkPixelIntegralImage,
 ): number {
   const width = Math.max(1, candidate.right - candidate.left)
   const height = Math.max(1, candidate.bottom - candidate.top)
@@ -287,13 +298,17 @@ function scoreTemplateGridFitRect(
   let totalWeight = 0
   for (const guide of guides.vertical) {
     const x = candidate.left + width * guide.ratio
-    const support = segmentedVerticalSupport(image, x, candidate.top, candidate.bottom, 1)
+    const support = darkIntegral
+      ? segmentedVerticalSupportIntegral(darkIntegral, x, candidate.top, candidate.bottom, 1)
+      : segmentedVerticalSupport(image, x, candidate.top, candidate.bottom, 1)
     weightedScore += support * guide.weight
     totalWeight += guide.weight
   }
   for (const guide of guides.horizontal) {
     const y = candidate.top + height * guide.ratio
-    const support = segmentedHorizontalSupport(image, y, candidate.left, candidate.right, 1)
+    const support = darkIntegral
+      ? segmentedHorizontalSupportIntegral(darkIntegral, y, candidate.left, candidate.right, 1)
+      : segmentedHorizontalSupport(image, y, candidate.left, candidate.right, 1)
     weightedScore += support * guide.weight
     totalWeight += guide.weight
   }
@@ -316,7 +331,9 @@ function scoreTemplateGridFitRect(
     Math.abs(candidate.top - expectedRect.top) / expectedHeight +
     Math.abs(candidate.bottom - expectedRect.bottom) / expectedHeight
   ) * 0.1
-  const outsidePenalty = boundaryOutsidePenalty(image, candidate)
+  const outsidePenalty = darkIntegral
+    ? boundaryOutsidePenaltyIntegral(darkIntegral, candidate)
+    : boundaryOutsidePenalty(image, candidate)
   return gridScore - localDistancePenalty - globalDistancePenalty - outsidePenalty
 }
 
@@ -330,10 +347,11 @@ function refineTemplateGridFitRect(
   expectedHeight: number,
   seedBounds: PixelRect,
   seedBoundaryReliability: number,
+  darkIntegral?: DarkPixelIntegralImage,
 ): TemplateGridFitCandidate {
   let rect = pixelRectFromCorners(initial.corners)
   let score = initial.score
-  const scoreRect = (candidate: PixelRect) => scoreTemplateGridFitRect(image, distanceMap, expectedRect, guides, candidate) -
+  const scoreRect = (candidate: PixelRect) => scoreTemplateGridFitRect(image, distanceMap, expectedRect, guides, candidate, darkIntegral) -
     gridFitSeedBoundaryPenalty(candidate, seedBounds, expectedWidth, expectedHeight, seedBoundaryReliability)
   const minWidth = expectedWidth * 0.82
   const maxWidth = expectedWidth * 1.16
@@ -377,6 +395,75 @@ function refineTemplateGridFitRect(
     corners: pixelRectToCorners(rect),
     score,
   }
+}
+
+function segmentedVerticalSupportIntegral(
+  integral: DarkPixelIntegralImage,
+  x: number,
+  yStart: number,
+  yEnd: number,
+  radius: number,
+): number {
+  const start = Math.max(0, Math.round(Math.min(yStart, yEnd)))
+  const end = Math.min(integral.height - 1, Math.round(Math.max(yStart, yEnd)))
+  const length = Math.max(1, end - start + 1)
+  const segments = Math.max(6, Math.min(24, Math.round(length / 90)))
+  let coverage = 0
+  let average = 0
+  for (let index = 0; index < segments; index += 1) {
+    const segmentStart = start + Math.round(length * (index / segments))
+    const segmentEnd = start + Math.round(length * ((index + 1) / segments)) - 1
+    const ratio = darkRatioInVerticalBandIntegral(integral, x, segmentStart, segmentEnd, radius)
+    average += clampNumber(ratio / 0.1, 0, 1)
+    if (ratio >= 0.018) coverage += 1
+  }
+  return (average / segments) * 0.42 + (coverage / segments) * 0.58
+}
+
+function segmentedHorizontalSupportIntegral(
+  integral: DarkPixelIntegralImage,
+  y: number,
+  xStart: number,
+  xEnd: number,
+  radius: number,
+): number {
+  const start = Math.max(0, Math.round(Math.min(xStart, xEnd)))
+  const end = Math.min(integral.width - 1, Math.round(Math.max(xStart, xEnd)))
+  const length = Math.max(1, end - start + 1)
+  const segments = Math.max(6, Math.min(24, Math.round(length / 90)))
+  let coverage = 0
+  let average = 0
+  for (let index = 0; index < segments; index += 1) {
+    const segmentStart = start + Math.round(length * (index / segments))
+    const segmentEnd = start + Math.round(length * ((index + 1) / segments)) - 1
+    const ratio = darkRatioInHorizontalBandIntegral(integral, y, segmentStart, segmentEnd, radius)
+    average += clampNumber(ratio / 0.1, 0, 1)
+    if (ratio >= 0.018) coverage += 1
+  }
+  return (average / segments) * 0.42 + (coverage / segments) * 0.58
+}
+
+function boundaryOutsidePenaltyIntegral(
+  integral: DarkPixelIntegralImage,
+  candidate: { left: number; top: number; right: number; bottom: number },
+): number {
+  const height = Math.max(1, candidate.bottom - candidate.top)
+  const width = Math.max(1, candidate.right - candidate.left)
+  const verticalProbe = clampNumber(height * 0.08, 70, 170)
+  const horizontalProbe = clampNumber(width * 0.06, 80, 180)
+  const verticalOvershoot = Math.max(
+    darkRatioInVerticalBandIntegral(integral, candidate.left, candidate.top - verticalProbe, candidate.top - 8, 1),
+    darkRatioInVerticalBandIntegral(integral, candidate.right, candidate.top - verticalProbe, candidate.top - 8, 1),
+    darkRatioInVerticalBandIntegral(integral, candidate.left, candidate.bottom + 8, candidate.bottom + verticalProbe, 1),
+    darkRatioInVerticalBandIntegral(integral, candidate.right, candidate.bottom + 8, candidate.bottom + verticalProbe, 1),
+  )
+  const horizontalOvershoot = Math.max(
+    darkRatioInHorizontalBandIntegral(integral, candidate.top, candidate.left - horizontalProbe, candidate.left - 8, 1),
+    darkRatioInHorizontalBandIntegral(integral, candidate.bottom, candidate.left - horizontalProbe, candidate.left - 8, 1),
+    darkRatioInHorizontalBandIntegral(integral, candidate.top, candidate.right + 8, candidate.right + horizontalProbe, 1),
+    darkRatioInHorizontalBandIntegral(integral, candidate.bottom, candidate.right + 8, candidate.right + horizontalProbe, 1),
+  )
+  return Math.max(0, verticalOvershoot - 0.035) * 0.25 + Math.max(0, horizontalOvershoot - 0.035) * 0.2
 }
 
 function refineTemplateGridFitCorners(

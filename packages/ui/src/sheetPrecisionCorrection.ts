@@ -27,6 +27,17 @@ export type PrecisionControlMatch = {
 const PRECISION_ANALYSIS_MAX_WIDTH = 1800
 const PRECISION_CONTROL_TARGET_X_PX = 180
 const PRECISION_CONTROL_TARGET_Y_PX = 150
+const PRECISION_SEARCH_RADIUS_PITCH_RATIO = 0.3
+const PRECISION_MAX_ACCEPTED_PITCH_RATIO = 0.2
+const PRECISION_MIN_INLIERS = 48
+const PRECISION_MIN_COVERAGE = 0.5
+const PRECISION_MIN_CONFIDENCE = 0.65
+const PRECISION_MIN_RESIDUAL_IMPROVEMENT = 0.15
+
+export type PrecisionGridPitch = {
+  columnPx: number
+  rowPx: number
+}
 
 export async function detectSheetPrecisionWarp(
   imageUrl: string,
@@ -52,8 +63,34 @@ export async function detectSheetPrecisionWarp(
   await yieldToBrowser()
   const anchors = precisionGuideAnchors(template, analysisWidth, analysisHeight)
   const matches = detectPrecisionControlMatches(rectified, anchors)
-  const inliers = filterPrecisionMatchOutliers(matches, analysisWidth, analysisHeight)
-  return buildPrecisionWarpFromMatches(inliers, bounds, analysisWidth, analysisHeight, anchors.length, matches.length)
+  const pitch = precisionGridPitch(template, analysisWidth, analysisHeight)
+  const plausibleMatches = pitch
+    ? matches.filter(match => normalizedPitchDisplacement(match.dxPx, match.dyPx, pitch) <= PRECISION_SEARCH_RADIUS_PITCH_RATIO)
+    : matches
+  const inliers = filterPrecisionMatchOutliers(plausibleMatches, analysisWidth, analysisHeight)
+  return buildPrecisionWarpFromMatches(inliers, bounds, analysisWidth, analysisHeight, anchors.length, matches.length, pitch)
+}
+
+export function precisionGridPitch(
+  template: SheetTemplate,
+  imageWidth: number,
+  imageHeight: number,
+): PrecisionGridPitch | null {
+  const columnPitches: number[] = []
+  const rowPitches: number[] = []
+  for (const region of template.regions) {
+    if (region.type !== 'exposure-grid' || !region.grid) continue
+    if (!['action', 'sound', 'cell', 'camera'].includes(region.grid.role)) continue
+    const layout = resolveSheetTemplateGridLayout(template, region, { paperTracks: template.defaults.paperTracks })
+    if (!layout || layout.columns.length === 0 || layout.frames.rowHeight <= 0) continue
+    columnPitches.push(...layout.columns.map(column => column.w * imageWidth).filter(value => value > 0))
+    rowPitches.push(layout.frames.rowHeight * imageHeight)
+  }
+  if (columnPitches.length === 0 || rowPitches.length === 0) return null
+  return {
+    columnPx: median(columnPitches),
+    rowPx: median(rowPitches),
+  }
 }
 
 export function precisionGuideAnchors(
@@ -81,7 +118,7 @@ export function precisionGuideAnchors(
     const rowHeightPx = layout.frames.rowHeight * imageHeight
     const horizontalSpanPx = clamp(minColumnWidthPx * 1.15, 20, 62)
     const verticalSpanPx = clamp(rowHeightPx * 2.25, 24, 62)
-    const searchRadiusPx = Math.round(clamp(Math.min(minColumnWidthPx, rowHeightPx) * 0.34, 4, 12))
+    const searchRadiusPx = Math.round(clamp(Math.min(minColumnWidthPx, rowHeightPx) * PRECISION_SEARCH_RADIUS_PITCH_RATIO, 4, 12))
     for (const x of xPositions) {
       for (const y of rowPositions) {
         const key = `${Math.round(x * imageWidth * 2)}:${Math.round(y * imageHeight * 2)}`
@@ -153,9 +190,12 @@ export function buildPrecisionWarpFromMatches(
   imageHeight: number,
   totalAnchorCount = matches.length,
   matchedAnchorCount = matches.length,
+  pitch?: PrecisionGridPitch | null,
 ): SheetPrecisionWarp | null {
   const coverage = precisionMatchCoverage(matches, bounds)
-  if (matches.length < 18 || coverage < 0.25) return null
+  const minimumInliers = pitch ? PRECISION_MIN_INLIERS : 18
+  const minimumCoverage = pitch ? PRECISION_MIN_COVERAGE : 0.25
+  if (matches.length < minimumInliers || coverage < minimumCoverage) return null
   const columns = Math.round(clamp(bounds.w * imageWidth / PRECISION_CONTROL_TARGET_X_PX + 1, 6, 12))
   const rows = Math.round(clamp(bounds.h * imageHeight / PRECISION_CONTROL_TARGET_Y_PX + 1, 8, 16))
   const nodeCount = columns * rows
@@ -202,20 +242,13 @@ export function buildPrecisionWarpFromMatches(
     current = next
   }
 
-  const maxObservedPx = Math.max(2, ...matches.map(match => Math.hypot(match.dxPx, match.dyPx)))
   const offsets = [...current]
   for (let index = 0; index < offsets.length; index += 2) {
     const dxPx = offsets[index] * imageWidth
     const dyPx = offsets[index + 1] * imageHeight
-    const magnitude = Math.hypot(dxPx, dyPx)
-    const limit = Math.min(14, maxObservedPx * 1.12)
-    if (magnitude > limit && magnitude > 0) {
-      const scale = limit / magnitude
-      offsets[index] *= scale
-      offsets[index + 1] *= scale
-    }
     if (Math.abs(offsets[index] * imageWidth) < 0.08) offsets[index] = 0
     if (Math.abs(offsets[index + 1] * imageHeight) < 0.08) offsets[index + 1] = 0
+    if (pitch && normalizedPitchDisplacement(dxPx, dyPx, pitch) > PRECISION_MAX_ACCEPTED_PITCH_RATIO) return null
   }
 
   const placeholderDiagnostics = {
@@ -242,6 +275,7 @@ export function buildPrecisionWarpFromMatches(
     return Math.hypot(match.dxPx - fitted.x * imageWidth, match.dyPx - fitted.y * imageHeight)
   }))
   const maxDisplacementPx = maximumNodeDisplacementPx(warp, imageWidth, imageHeight)
+  const maxDisplacementPitchRatio = pitch ? maximumNodeDisplacementPitchRatio(warp, imageWidth, imageHeight, pitch) : undefined
   const averageConfidence = average(matches.map(match => match.confidence))
   const confidence = clamp(
     averageConfidence * 0.58 + Math.min(1, matches.length / 80) * 0.22 + Math.min(1, coverage / 0.6) * 0.2,
@@ -257,9 +291,10 @@ export function buildPrecisionWarpFromMatches(
     rmsBeforePx,
     rmsAfterPx,
     maxDisplacementPx,
+    maxDisplacementPitchRatio,
   }
-  if (confidence < 0.3) return null
-  if (rmsBeforePx >= 0.45 && rmsAfterPx > rmsBeforePx * 0.94) return null
+  if (confidence < (pitch ? PRECISION_MIN_CONFIDENCE : 0.3)) return null
+  if (rmsBeforePx >= 0.45 && rmsAfterPx > rmsBeforePx * (pitch ? 1 - PRECISION_MIN_RESIDUAL_IMPROVEMENT : 0.94)) return null
   return warp
 }
 
@@ -445,6 +480,27 @@ function maximumNodeDisplacementPx(warp: SheetPrecisionWarp, imageWidth: number,
     maximum = Math.max(maximum, Math.hypot(warp.offsets[index] * imageWidth, warp.offsets[index + 1] * imageHeight))
   }
   return maximum
+}
+
+function maximumNodeDisplacementPitchRatio(
+  warp: SheetPrecisionWarp,
+  imageWidth: number,
+  imageHeight: number,
+  pitch: PrecisionGridPitch,
+): number {
+  let maximum = 0
+  for (let index = 0; index < warp.offsets.length; index += 2) {
+    maximum = Math.max(maximum, normalizedPitchDisplacement(
+      warp.offsets[index] * imageWidth,
+      warp.offsets[index + 1] * imageHeight,
+      pitch,
+    ))
+  }
+  return maximum
+}
+
+function normalizedPitchDisplacement(dxPx: number, dyPx: number, pitch: PrecisionGridPitch): number {
+  return Math.hypot(dxPx / Math.max(1, pitch.columnPx), dyPx / Math.max(1, pitch.rowPx))
 }
 
 function rootMeanSquare(values: number[]): number {

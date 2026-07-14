@@ -10,7 +10,7 @@ import {
 } from '@xsheet-remap/core'
 import { alphaComposite, writeRgbPsd, type PsdLayer } from './psdWriter'
 import type { SheetPageImage } from './appTypes'
-import { defaultSheetImageSettings, loadImage, resolveImageRefUrl, warpSheetImageData } from './sheetImages'
+import { defaultSheetImageSettings, loadImage, resolveImageRefUrl, warpSheetImageDataAsync } from './sheetImages'
 import { defaultLevelCorrectionSettings } from './levelCorrection'
 import {
   createSheetRenderModelContext,
@@ -212,7 +212,7 @@ async function renderPaperSheetLayer(context: SheetExportLayerContext): Promise<
     const pageImage = sheetScanPageImage(context, page.pageId)
     if (!pageImage.imageUrl) continue
     const image = await loadImage(pageImage.imageUrl)
-    const imageData = warpSheetImageData(image, pageImage.settings, context.template, context.pageSize.widthPx)
+    const imageData = await warpSheetImageDataAsync(image, pageImage.settings, context.template, context.pageSize.widthPx)
     if (!imageData) continue
     canvasContext.putImageData(imageData, 0, page.pageIndex * context.pageSize.heightPx)
   }

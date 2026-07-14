@@ -2,7 +2,7 @@ import { type SheetCalibrationPointPair, type SheetTemplate } from '@xsheet-rema
 import { configureCurrentNativeWindow, currentNativeWindowBounds, invokeDesktopCommand } from '@xsheet-remap/adapters'
 import { compareFileNameLikeText } from './naturalSort'
 import type { SheetPrecisionWarp } from './appTypes'
-import { defaultSheetImageSettings, applyLevelCorrectionToDataUrl, loadImage, resolveImageRefUrl, warpSheetImage, warpSheetImageData } from './sheetImages'
+import { defaultSheetImageSettings, applyLevelCorrectionToDataUrl, loadImage, resolveImageRefUrl, warpSheetImageAsync, warpSheetImageDataAsync } from './sheetImages'
 import { alphaComposite, writeRgbPsd } from './psdWriter'
 import { applyLevelCorrectionToImageData, type LevelCorrectionSettings } from './levelCorrection'
 import { LEGACY_SHEET_CORRECTOR_PATTERN_STORAGE_KEY, SHEET_CORRECTOR_IMPORT_RULES_STORAGE_KEY, defaultSheetCorrectorImportRules, parseStoredSheetCorrectorImportRules, type SheetCorrectorImportRule } from './sheetCorrectorImportRules'
@@ -22,7 +22,7 @@ export function filterDraftsForTemplate(drafts: Record<string, SheetCorrectionDr
 }
 
 export function correctionStateLabel(draft: SheetCorrectionDraft | undefined): string {
-  if (draft?.applied && draft.precisionWarp) return '高精度補正済み'
+  if (draft?.applied && draft.precisionWarp) return 'テンプレート適応補正済み'
   if (draft?.applied) return '補正済み'
   if (draft) return '調整中'
   return '未補正'
@@ -93,7 +93,7 @@ export async function correctedPngDataUrl(
   precisionWarp?: SheetPrecisionWarp,
 ): Promise<string | null> {
   const image = await loadImage(imageUrl)
-  const pngDataUrl = warpSheetImage(
+  const pngDataUrl = await warpSheetImageAsync(
     image,
     {
       ...defaultSheetImageSettings(),
@@ -149,7 +149,7 @@ async function correctedSheetImageData(
   precisionWarp?: SheetPrecisionWarp,
 ): Promise<ImageData | null> {
   const image = await loadImage(imageUrl)
-  const imageData = warpSheetImageData(
+  const imageData = await warpSheetImageDataAsync(
     image,
     {
       ...defaultSheetImageSettings(),

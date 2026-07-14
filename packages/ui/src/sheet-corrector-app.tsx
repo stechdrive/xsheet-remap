@@ -1453,7 +1453,6 @@ export function SheetCorrectorApp() {
           onClose={() => setCalibrationLoupeOpen(false)}
           autoDetectLabel="再検出"
           autoDetectOnOpen={!selectedDraft?.applied}
-          autoApplyOnOpen={!selectedDraft?.precisionEvaluated}
           commitOnPointChange={false}
           precisionCorrection={{
             onAnalyze: analyzeSelectedPrecisionWarp,

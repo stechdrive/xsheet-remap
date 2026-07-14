@@ -7,14 +7,16 @@ import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 afterEach(cleanup)
 
 describe('CalibrationLoupeDialog precision correction', () => {
-  it('automatically runs detection, normal correction, and template-adaptive correction on open', async () => {
+  it('shows automatic detection for review and waits for explicit apply', async () => {
     const onApply = vi.fn()
     const onApplyPrecision = vi.fn()
     const onAnalyze = vi.fn(async () => precisionWarp())
+    const onClose = vi.fn()
     const detectedPoints = calibrationPoints().map(point => ({
       ...point,
       source: { x: point.source.x + 0.01, y: point.source.y + 0.01 },
     }))
+    const onAutoDetect = vi.fn(async () => detectedPoints)
     render(
       <CalibrationLoupeDialog
         imageUrl="data:image/png;base64,unused"
@@ -22,11 +24,10 @@ describe('CalibrationLoupeDialog precision correction', () => {
         points={calibrationPoints()}
         autoCalibrationRunning={false}
         autoCalibrationMessage={null}
-        onAutoDetect={async () => detectedPoints}
+        onAutoDetect={onAutoDetect}
         onApply={onApply}
-        onClose={() => undefined}
+        onClose={onClose}
         autoDetectOnOpen
-        autoApplyOnOpen
         precisionCorrection={{
           onAnalyze,
           onApply: onApplyPrecision,
@@ -35,6 +36,14 @@ describe('CalibrationLoupeDialog precision correction', () => {
       />,
     )
 
+    await waitFor(() => expect(onAutoDetect).toHaveBeenCalledTimes(1))
+    expect(onApply).not.toHaveBeenCalled()
+    expect(onAnalyze).not.toHaveBeenCalled()
+    expect(onApplyPrecision).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: '四隅合わせ' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '変形適用' }))
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(detectedPoints))
     await waitFor(() => expect(onAnalyze).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(onApplyPrecision).toHaveBeenCalledWith(detectedPoints, expect.objectContaining({ version: 1 })))

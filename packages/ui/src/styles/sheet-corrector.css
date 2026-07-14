@@ -492,6 +492,12 @@
   font-size: 15px;
 }
 
+.sheetCorrectorHelpWorkflow h3 {
+  margin: 14px 0 6px;
+  color: #25382f;
+  font-size: 14px;
+}
+
 .sheetCorrectorHelpWorkflow p {
   margin: 0 0 10px;
   color: #526059;
@@ -506,6 +512,16 @@
   padding-left: 22px;
 }
 
+.sheetCorrectorHelpWorkflow ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 22px;
+  color: #405048;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .sheetCorrectorHelpWorkflow li {
   padding-left: 2px;
 }
@@ -513,6 +529,14 @@
 .sheetCorrectorHelpWorkflow li::marker {
   color: #2d6a57;
   font-weight: 700;
+}
+
+.sheetCorrectorHelpWorkflow .sheetCorrectorHelpNotice {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: #edf5ef;
+  color: #294638;
 }
 
 .sheetCorrectorHelpWorkflow li strong,
@@ -1387,4 +1411,3 @@
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
-

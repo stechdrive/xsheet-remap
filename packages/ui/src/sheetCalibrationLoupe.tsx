@@ -23,7 +23,6 @@ export function CalibrationLoupeDialog({
   onClose,
   autoDetectLabel = uiText.actions.autoCalibration,
   autoDetectOnOpen = false,
-  autoApplyOnOpen = false,
   closeOnApply = false,
   commitOnPointChange = true,
   precisionCorrection,
@@ -39,7 +38,6 @@ export function CalibrationLoupeDialog({
   onClose: () => void
   autoDetectLabel?: string
   autoDetectOnOpen?: boolean
-  autoApplyOnOpen?: boolean
   closeOnApply?: boolean
   commitOnPointChange?: boolean
   precisionCorrection?: {
@@ -113,13 +111,10 @@ export function CalibrationLoupeDialog({
   }, [imageUrl])
 
   useEffect(() => {
-    if ((!autoDetectOnOpen && !autoApplyOnOpen) || didAutoProcessOnOpen.current) return
+    if (!autoDetectOnOpen || didAutoProcessOnOpen.current) return
     didAutoProcessOnOpen.current = true
-    void (async () => {
-      const detectedPoints = autoDetectOnOpen ? await runAutoDetect() : draftPointsRef.current
-      if (autoApplyOnOpen && detectedPoints) await applyCurrentPoints(detectedPoints)
-    })()
-  }, [applyCurrentPoints, autoApplyOnOpen, autoDetectOnOpen, runAutoDetect])
+    void runAutoDetect()
+  }, [autoDetectOnOpen, runAutoDetect])
 
   function updateSource(index: number, source: NormalizedPoint, commit = false) {
     const next = draftPointsRef.current.map((point, pointIndex) => (

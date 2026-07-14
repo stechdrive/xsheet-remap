@@ -69,61 +69,66 @@ export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
       <section className="sheetCorrectorHelpDialog">
         <header>
           <div>
-            <strong>シートコレクターの使い方</strong>
-            <span>バッチ処理とカット毎の確認処理で、触る場所が少し違います。</span>
+            <strong>シート画像補正の使い方</strong>
+            <span>普段はアプリを開かず、タイムシート画像をドロップするだけで使えます。</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
         </header>
         <div className="sheetCorrectorHelpWorkflows">
           <article className="sheetCorrectorHelpWorkflow">
-            <h2>バッチ処理したい</h2>
-            <p>フォルダ内のシート画像をまとめて拾い、自動補正してPSDを書き出す流れです。</p>
+            <h2>まずは画像をドロップするだけ</h2>
+            <p>タイムシート画像をショートカットまたは「xsheet-corrector.exe」へドロップすると、自動で画像を補正してPSDを作成します。</p>
             <ol>
               <li>
-                <strong>左の「取込条件」を決める</strong>
-                <span>「条件を追加」でファイル名パターンを増やします。条件はフォルダ内画像だけに効きます。</span>
+                <strong>補正したい画像を選ぶ</strong>
+                <span>エクスプローラーでタイムシート画像を選択します。</span>
               </li>
               <li>
-                <strong>自動で全部処理するなら、フォルダや画像をEXEへドロップ</strong>
-                <span>エクスプローラーでカットフォルダや複数画像を「xsheet-corrector.exe」に重ねます。起動後に自動PSD出力が始まります。</span>
+                <strong>ショートカットまたはEXEへドロップ</strong>
+                <span>画像をそのまま重ねてドロップします。</span>
               </li>
               <li>
-                <strong>画面で確認してから処理するなら、フォルダを画面へドロップ</strong>
-                <span>左の「ファイル」に条件一致した画像が入ります。不要な行は右端の × で外します。</span>
+                <strong>処理が終わるまで待つ</strong>
+                <span>進捗画面に完了件数が表示されます。</span>
               </li>
               <li>
-                <strong>左上の「出力」から「全件を出力」</strong>
-                <span>未補正の画像は自動検出してからPSD出力します。補正済みの画像はその補正を使います。</span>
-              </li>
-              <li>
-                <strong>「要確認」が出た画像だけ直す</strong>
-                <span>左の「ファイル」で画像を選び、右上の「画像補正」を開きます。通常補正とテンプレート適応補正が自動実行され、必要なら四隅を手動調整して「変形適用」します。</span>
+                <strong>補正済みPSDを確認</strong>
+                <span>元画像と同じフォルダにPSDが作成されます。</span>
               </li>
             </ol>
+            <p className="sheetCorrectorHelpNotice">自動で補正できなかった画像がある場合は、処理完了後に「アプリで確認」から開いて調整できます。</p>
+            <h3>複数の画像もまとめて処理できます</h3>
+            <p>複数のタイムシート画像を選んでまとめてドロップできます。カットフォルダをそのままドロップして、フォルダ内の対象画像をまとめて処理することもできます。</p>
+            <p>フォルダから読み込む画像のファイル名条件は、アプリ画面の「取込条件」で変更できます。</p>
           </article>
           <article className="sheetCorrectorHelpWorkflow">
-            <h2>カット毎のシートを処理したい</h2>
-            <p>数枚ずつ見ながら、補正結果を確認してPSDを書き出す流れです。</p>
+            <h2>アプリ画面は確認・調整したいときに</h2>
+            <p>普段の自動処理では確認は不要です。次のような場合にアプリ画面を使います。</p>
+            <ul>
+              <li>補正結果を確認してからPSDを作りたい</li>
+              <li>自動検出された四隅を手動で調整したい</li>
+              <li>画像の濃淡を調整したい</li>
+              <li>使用するタイムシートテンプレートを変更したい</li>
+              <li>自動処理で「要確認」になった画像を直したい</li>
+              <li>フォルダから読み込む画像の条件を変更したい</li>
+            </ul>
+            <h3>画面で確認しながら処理する</h3>
             <ol>
               <li>
-                <strong>左上の +「キュー追加」または画面へ画像ドロップ</strong>
-                <span>画像を直接追加した場合、取込条件は使われません。複数画像をまとめて追加できます。</span>
+                <strong>画像またはフォルダを画面へドロップ</strong>
+                <span>追加した画像が左のファイル一覧に並びます。</span>
               </li>
               <li>
-                <strong>左の「ファイル」から1枚選ぶ</strong>
-                <span>選んだ画像が右のプレビューに出ます。Shiftクリックで範囲選択して、まとめて出力もできます。</span>
+                <strong>確認したい画像を選ぶ</strong>
+                <span>選んだ画像が右のプレビューに表示されます。</span>
               </li>
               <li>
-                <strong>右上でテンプレと表示を確認</strong>
-                <span>「テンプレ」を選び、「表示」とスライダーで赤い罫線の重なりを見やすくします。必要なら「レベル補正」を切り替えます。</span>
+                <strong>必要なら「画像補正」で調整</strong>
+                <span>四隅を確認・調整して「変形適用」を押します。</span>
               </li>
               <li>
-                <strong>右上の「画像補正」で四隅を合わせる</strong>
-                <span>開くと四隅検出からテンプレート適応補正まで自動実行されます。ずれていれば四隅の拡大枠をドラッグし、「変形適用」で補正を再実行します。</span>
-              </li>
-              <li>
-                <strong>左上の「出力」から「選択を出力」</strong>
-                <span>選択中の画像だけPSDにします。全部まとめてよければ「全件を出力」を使います。</span>
+                <strong>「出力」からPSDを作成</strong>
+                <span>選択中の画像または全画像をまとめて出力できます。</span>
               </li>
             </ol>
           </article>

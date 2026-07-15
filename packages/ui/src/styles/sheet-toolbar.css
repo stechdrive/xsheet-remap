@@ -611,6 +611,7 @@
 
 .cspTreeStage,
 .cspTreeLayer {
+  position: relative;
   margin: 0;
 }
 
@@ -634,21 +635,20 @@
 }
 
 .cspTreeSummaryLabel.isRenameActive {
-  color: #234f3e;
-  text-decoration: underline;
-  text-decoration-color: #7fa18f;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  visibility: hidden;
 }
 
 .cspTreeSummaryEditor {
-  padding: 3px 40px 4px 18px;
-  background: #f0f3f0;
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  right: 40px;
+  left: 18px;
+  min-width: 0;
 }
 
 .cspTreeStage > .cspTreeSummaryEditor {
-  padding-left: 14px;
-  background: #e8ede9;
+  right: 4px;
 }
 
 .cspTreeSummaryNameInput {

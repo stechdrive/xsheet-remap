@@ -447,7 +447,7 @@ it('registers material assets in the CSP layer tree and reuses its cards on the 
     const drawingCell = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeCel[data-csp-key-id]'))
       .find(cell => cell.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent === '作画')
     if (!drawingCell) throw new Error('drawing CSP cell was not rendered')
-    expect(drawingCell.querySelector('.cspTreeAssetState')?.getAttribute('title')).toBe('素材: BG_A1.png')
+    expect(drawingCell.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: BG_A1.png')
     expect(drawingCell.dataset.cspSheetRole).toBe('cell')
     fireEvent.doubleClick(drawingCell.querySelector('.cspTreeCelName')!)
     const cspNameInput = drawingCell.querySelector<HTMLInputElement>('.cspTreeCelNameInput')
@@ -468,7 +468,7 @@ it('registers material assets in the CSP layer tree and reuses its cards on the 
         .map(cell => cell.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent)
       expect(layerNames).toEqual(['演出', '作画'])
     })
-    expect(Array.from(document.querySelectorAll('.cspTreeAssetState')).map(item => item.getAttribute('title'))).toEqual(['素材: BG_A2.png', '素材: BG_A1.png'])
+    expect(Array.from(document.querySelectorAll('.cspTreeAssetState')).map(item => item.getAttribute('aria-label'))).toEqual(['素材: BG_A2.png', '素材: BG_A1.png'])
 
     const target = templateFramePoint('cell', 'B', 1)
     dragInternalPointer(drawingCell, sheet, { toX: target.x, toY: target.y })

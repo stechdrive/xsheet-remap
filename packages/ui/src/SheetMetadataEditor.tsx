@@ -7,6 +7,7 @@ import {
   type SheetTemplate,
 } from '@xsheet-remap/core'
 import { DurationFrameControl } from './app-navigation'
+import { TooltipTarget } from './Tooltip'
 
 type EditableMetadataRegion = SheetTemplate['regions'][number] & {
   binding: Extract<NonNullable<SheetTemplate['regions'][number]['binding']>, { target: 'cut-metadata' }>
@@ -89,30 +90,36 @@ export function SheetMetadataEditor({
   return (
     <div className="sheetMetadataEditorLayer" aria-label={`${page.pageIndex + 1}ページのシート情報編集`}>
       {regionLayouts.map(({ region, rect }) => (
-        <button
-          key={region.regionId}
-          type="button"
-          className="sheetMetadataEditHotspot"
-          style={rectStyle(rect, pageWidth, pageHeight)}
-          aria-label={`${region.label}を編集`}
-          aria-haspopup="dialog"
-          aria-expanded={editingRegionId === region.regionId}
-          aria-keyshortcuts="Enter F2"
-          title={`${region.label}: ダブルクリックまたはEnterで編集`}
-          onPointerDown={event => event.stopPropagation()}
-          onClick={event => event.stopPropagation()}
-          onDoubleClick={event => {
-            event.stopPropagation()
-            openEditor(region.regionId, event.currentTarget)
-          }}
-          onKeyDown={event => {
-            if (event.key === 'Enter' || event.key === 'F2' || event.key === ' ') {
-              event.preventDefault()
-              event.stopPropagation()
-              openEditor(region.regionId, event.currentTarget)
-            }
-          }}
-        />
+        <TooltipTarget key={region.regionId} label={`${region.label}: ダブルクリックまたはEnterで編集`} disabled={editingRegionId === region.regionId}>
+          {tooltipProps => (
+            <button
+              type="button"
+              className="sheetMetadataEditHotspot"
+              style={rectStyle(rect, pageWidth, pageHeight)}
+              aria-label={`${region.label}を編集`}
+              aria-haspopup="dialog"
+              aria-expanded={editingRegionId === region.regionId}
+              aria-keyshortcuts="Enter F2"
+              {...tooltipProps}
+              onPointerDown={event => {
+                tooltipProps.onPointerDown()
+                event.stopPropagation()
+              }}
+              onClick={event => event.stopPropagation()}
+              onDoubleClick={event => {
+                event.stopPropagation()
+                openEditor(region.regionId, event.currentTarget)
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === 'F2' || event.key === ' ') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openEditor(region.regionId, event.currentTarget)
+                }
+              }}
+            />
+          )}
+        </TooltipTarget>
       ))}
       {active && (
         <div

@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type Ke
 import { buildCspLayerTree, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
 import { startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
-import { Tooltip } from './Tooltip'
+import { Tooltip, TooltipTarget } from './Tooltip'
 
 export interface CspTreeAssetRegistrationResult {
   addedCount: number
@@ -333,8 +333,12 @@ export function CspLayerTree({
                 setNewTrackDraft(null)
               }}
             />
-            <button type="submit" aria-label="セル列を作成して素材を登録" title="確定">✓</button>
-            <button type="button" aria-label="セル列の作成をキャンセル" title="キャンセル" onClick={() => setNewTrackDraft(null)}>×</button>
+            <TooltipTarget label="確定">
+              {tooltipProps => <button type="submit" aria-label="セル列を作成して素材を登録" {...tooltipProps}>✓</button>}
+            </TooltipTarget>
+            <TooltipTarget label="キャンセル">
+              {tooltipProps => <button type="button" aria-label="セル列の作成をキャンセル" onClick={() => setNewTrackDraft(null)} {...tooltipProps}>×</button>}
+            </TooltipTarget>
           </form>
         )}
       </div>
@@ -417,8 +421,22 @@ export function CspLayerTree({
           />
         ) : <span className="cspTreeCelName">{cel.cspCellName}</span>}
         {showSheetLabel && <span className="cspTreeSheetLabel">シート: {cel.displayLabel}</span>}
-        {asset && !cel.keyId && <span className="cspTreeSheetLabel" title={asset.displayName}>{asset.displayName}</span>}
-        <span className="cspTreeAssetState" title={asset ? `素材: ${asset.displayName}` : '素材未割当'}>{asset ? '●' : '○'}</span>
+        {asset && !cel.keyId && (
+          <TooltipTarget label={asset.displayName}>
+            {tooltipProps => <span className="cspTreeSheetLabel" {...tooltipProps}>{asset.displayName}</span>}
+          </TooltipTarget>
+        )}
+        <TooltipTarget label={asset ? `素材: ${asset.displayName}` : '素材未割当'}>
+          {tooltipProps => (
+            <span
+              className="cspTreeAssetState"
+              aria-label={asset ? `素材: ${asset.displayName}` : '素材未割当'}
+              {...tooltipProps}
+            >
+              {asset ? '●' : '○'}
+            </span>
+          )}
+        </TooltipTarget>
         {selected && cel.keyId && (
           <div className="cspTreeCelActions" onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
             <Tooltip label={cel.bindingId ? 'この工程のカードを削除' : '登録セルを削除'}>
@@ -564,8 +582,12 @@ export function CspLayerTree({
                           setAuxiliaryDraft(current => current ? { ...current, label } : current)
                         }}
                       />
-                      <button type="submit" aria-label="追加を確定" title="追加を確定">✓</button>
-                      <button type="button" aria-label="追加をキャンセル" title="追加をキャンセル" onClick={() => setAuxiliaryDraft(null)}>×</button>
+                      <TooltipTarget label="追加を確定">
+                        {tooltipProps => <button type="submit" aria-label="追加を確定" {...tooltipProps}>✓</button>}
+                      </TooltipTarget>
+                      <TooltipTarget label="追加をキャンセル">
+                        {tooltipProps => <button type="button" aria-label="追加をキャンセル" onClick={() => setAuxiliaryDraft(null)} {...tooltipProps}>×</button>}
+                      </TooltipTarget>
                     </form>
                   )}
                   {layer.tracks.length === 0 && <p className="cspTreeNoTracks">トラックなし</p>}
@@ -668,8 +690,12 @@ export function CspLayerTree({
                               setNewCelDraft(null)
                             }}
                           />
-                          <button type="submit" aria-label="セルを追加" title="確定">✓</button>
-                          <button type="button" aria-label="セルの追加をキャンセル" title="キャンセル" onClick={() => setNewCelDraft(null)}>×</button>
+                          <TooltipTarget label="確定">
+                            {tooltipProps => <button type="submit" aria-label="セルを追加" {...tooltipProps}>✓</button>}
+                          </TooltipTarget>
+                          <TooltipTarget label="キャンセル">
+                            {tooltipProps => <button type="button" aria-label="セルの追加をキャンセル" onClick={() => setNewCelDraft(null)} {...tooltipProps}>×</button>}
+                          </TooltipTarget>
                         </form>
                       )}
                       {track.cels.length === 0 && newCelDraft?.slotId !== track.slotId && <span className="cspTreeNoCels">カードなし</span>}
@@ -860,29 +886,33 @@ function SummaryRenameTrigger({
   onBegin: () => void
 }) {
   return (
-    <span
-      className={[className, editing ? 'isRenameActive' : ''].filter(Boolean).join(' ')}
-      role="button"
-      tabIndex={0}
-      title={editTitle}
-      onClick={event => {
-        event.preventDefault()
-        event.stopPropagation()
-      }}
-      onDoubleClick={event => {
-        event.preventDefault()
-        event.stopPropagation()
-        onBegin()
-      }}
-      onKeyDown={event => {
-        if (event.key !== 'Enter' && event.key !== 'F2') return
-        event.preventDefault()
-        event.stopPropagation()
-        onBegin()
-      }}
-    >
-      {label}
-    </span>
+    <TooltipTarget label={editTitle} disabled={editing}>
+      {tooltipProps => (
+        <span
+          className={[className, editing ? 'isRenameActive' : ''].filter(Boolean).join(' ')}
+          role="button"
+          tabIndex={0}
+          {...tooltipProps}
+          onClick={event => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onDoubleClick={event => {
+            event.preventDefault()
+            event.stopPropagation()
+            onBegin()
+          }}
+          onKeyDown={event => {
+            if (event.key !== 'Enter' && event.key !== 'F2') return
+            event.preventDefault()
+            event.stopPropagation()
+            onBegin()
+          }}
+        >
+          {label}
+        </span>
+      )}
+    </TooltipTarget>
   )
 }
 
@@ -1005,24 +1035,28 @@ function InlineTreeLabel({
       onDoubleClick={event => event.stopPropagation()}
     />
   ) : (
-    <span
-      className={className}
-      role="button"
-      tabIndex={0}
-      title={editTitle}
-      onDoubleClick={event => {
-        event.preventDefault()
-        event.stopPropagation()
-        beginEditing()
-      }}
-      onKeyDown={event => {
-        if (event.key !== 'Enter' && event.key !== 'F2') return
-        event.preventDefault()
-        event.stopPropagation()
-        beginEditing()
-      }}
-    >
-      {label}
-    </span>
+    <TooltipTarget label={editTitle}>
+      {tooltipProps => (
+        <span
+          className={className}
+          role="button"
+          tabIndex={0}
+          {...tooltipProps}
+          onDoubleClick={event => {
+            event.preventDefault()
+            event.stopPropagation()
+            beginEditing()
+          }}
+          onKeyDown={event => {
+            if (event.key !== 'Enter' && event.key !== 'F2') return
+            event.preventDefault()
+            event.stopPropagation()
+            beginEditing()
+          }}
+        >
+          {label}
+        </span>
+      )}
+    </TooltipTarget>
   )
 }

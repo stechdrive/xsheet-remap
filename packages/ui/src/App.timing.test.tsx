@@ -246,7 +246,7 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     if (!cspNameInput) throw new Error('CSP cell name input not found')
     fireEvent.change(cspNameInput, { target: { value: 'A1_custom' } })
     fireEvent.keyDown(cspNameInput, { key: 'Enter' })
-    expect(assignedCell.querySelector('.cspTreeAssetState')?.getAttribute('title')).toBe('素材: A1_ref.png')
+    expect(assignedCell.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: A1_ref.png')
 
     const dialog = openTimingExportDialog()
     fireEvent.click(within(dialog).getByRole('button', { name: 'CELL' }))

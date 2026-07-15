@@ -92,32 +92,50 @@ button:disabled {
   overflow-wrap: break-word;
   pointer-events: none;
   white-space: pre-line;
-  transform: translateX(calc(-50% + var(--tooltip-shift-x, 0px)));
 }
 
-.appTooltip-top {
-  transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), -100%);
+.appTooltip-measuring {
+  visibility: hidden;
 }
 
 .appTooltip::after {
   content: "";
   position: absolute;
-  left: var(--tooltip-arrow-x, 50%);
   width: 7px;
   height: 7px;
   border-right: 1px solid rgb(21 32 28 / 0.22);
   border-bottom: 1px solid rgb(21 32 28 / 0.22);
   background: rgb(24 31 28 / 0.96);
-  transform: translateX(-50%) rotate(45deg);
+}
+
+.appTooltip-top::after,
+.appTooltip-bottom::after {
+  left: var(--tooltip-arrow-offset, 50%);
 }
 
 .appTooltip-top::after {
   bottom: -4px;
+  transform: translateX(-50%) rotate(45deg);
 }
 
 .appTooltip-bottom::after {
   top: -4px;
   transform: translateX(-50%) rotate(225deg);
+}
+
+.appTooltip-left::after,
+.appTooltip-right::after {
+  top: var(--tooltip-arrow-offset, 50%);
+}
+
+.appTooltip-left::after {
+  right: -4px;
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.appTooltip-right::after {
+  left: -4px;
+  transform: translateY(-50%) rotate(135deg);
 }
 
 input,

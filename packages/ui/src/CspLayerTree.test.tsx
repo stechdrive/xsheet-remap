@@ -391,7 +391,8 @@ describe('CspLayerTree', () => {
     if (!card) throw new Error('CSP cell card not found')
     expect(card.querySelector('[role="textbox"]')).toBeNull()
     expect(card.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
-    expect(card.querySelector('.cspTreeAssetState')?.getAttribute('title')).toBe('素材: A1 reference.png')
+    expect(card.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: A1 reference.png')
+    expect(card.querySelector('[title]')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'A 1を削除' }))
     expect(onDeleteKey).toHaveBeenCalledWith(created.key.keyId, project.bindings[0]?.bindingId)

@@ -357,7 +357,8 @@ it('edits cut metadata from a template-defined sheet region', () => {
     render(<App />)
     const editButton = screen.getByRole('button', { name: 'カットを編集' })
     expect(editButton.childElementCount).toBe(0)
-    expect(editButton.getAttribute('title')).toContain('ダブルクリック')
+    expect(editButton.getAttribute('title')).toBeNull()
+    expect(editButton.getAttribute('aria-keyshortcuts')).toBe('Enter F2')
     fireEvent.click(editButton)
     expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
 

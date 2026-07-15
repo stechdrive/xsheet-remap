@@ -136,99 +136,84 @@
   transform-origin: left center;
 }
 
-.assetDragImageShell {
+.internalDragPreviewShell {
   position: fixed;
   left: -10000px;
   top: -10000px;
-  --drag-image-clearance: 14px;
-  width: 114px;
-  height: 92px;
+  width: min(156px, calc(100vw - 16px));
+  height: 36px;
   pointer-events: none;
 }
 
-.assetDragImageShell.pointerDragGhost,
-.registeredCellDragImageShell.pointerDragGhost {
+.internalDragPreviewShell.pointerDragGhost {
   left: 0;
   top: 0;
   z-index: 100000;
   will-change: transform;
 }
 
-.assetDragImagePreview {
-  display: grid;
-  place-items: center;
-  width: 84px;
-  height: 62px;
-  margin: var(--drag-image-clearance) 0 0 var(--drag-image-clearance);
-  border: 1px solid rgb(36 109 153 / 0.35);
-  border-radius: 4px;
-  background: rgb(251 251 248 / 0.78);
-  box-shadow: 0 6px 14px rgb(0 0 0 / 0.16);
-  opacity: 0.62;
+.internalDragPreview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 4px 7px;
+  border: 1px solid rgb(42 94 72 / 0.72);
+  border-radius: 6px;
+  background: rgb(247 250 247 / 0.9);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.16);
+  opacity: 0.86;
   overflow: hidden;
 }
 
-.assetDragImagePreview img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+body.internalPointerDragActive[data-internal-drag-validity='valid'] .internalDragPreview {
+  border-color: #237251;
+  background: rgb(238 249 241 / 0.94);
+}
+
+body.internalPointerDragActive[data-internal-drag-validity='invalid'] .internalDragPreview {
+  border-color: #a8473e;
+  background: rgb(255 242 240 / 0.94);
+}
+
+.internalDragPreviewThumbnail {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
   background: #ecebe6;
+  object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
 }
 
-.assetDragImagePlaceholder {
-  padding: 4px;
-  color: #66706a;
-  font-size: 10px;
-  text-align: center;
+.internalDragPreviewText {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
 }
 
-.registeredCellDragImageShell {
-  position: fixed;
-  left: -10000px;
-  top: -10000px;
-  width: min(120px, calc(100vw - 16px));
-  height: 28px;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.registeredCellDragImagePreview {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  height: 100%;
-  padding: 3px 7px;
-  border: 1px solid rgb(42 94 72 / 0.72);
-  border-radius: 999px;
-  background: rgb(247 250 247 / 0.9);
-  box-shadow: 0 4px 10px rgb(0 0 0 / 0.16);
-  opacity: 0.82;
-}
-
-.registeredCellDragImagePreview strong,
-.registeredCellDragImagePreview span {
+.internalDragPreviewText strong,
+.internalDragPreviewText span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.registeredCellDragImagePreview strong {
+.internalDragPreviewText strong {
   color: #173a2b;
   font-size: 11px;
   line-height: 1;
 }
 
-.registeredCellDragImagePreview span {
-  flex: 1;
+.internalDragPreviewText span {
   color: #4e5a52;
   font-size: 9px;
   line-height: 1;
 }
-
 .sourceCard {
   display: grid;
   gap: 6px;

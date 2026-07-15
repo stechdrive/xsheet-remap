@@ -1,4 +1,3 @@
-import { uiText } from './i18n'
 import { dedupeStringList } from './assetFiles'
 import type { AssetSelectionIntent } from './asset-browser-types'
 
@@ -52,27 +51,4 @@ function assetRange(sortedAssetIds: string[], anchorAssetId: string, targetAsset
   const startIndex = Math.min(anchorIndex, targetIndex)
   const endIndex = Math.max(anchorIndex, targetIndex)
   return sortedAssetIds.slice(startIndex, endIndex + 1)
-}
-
-export function createAssetDragImage(source: HTMLElement) {
-  const shell = document.createElement('div')
-  shell.className = 'assetDragImageShell'
-
-  const preview = document.createElement('div')
-  preview.className = 'assetDragImagePreview'
-
-  const sourceImage = source.querySelector<HTMLImageElement>('img')
-  if (sourceImage) {
-    const image = sourceImage.cloneNode(true) as HTMLImageElement
-    image.alt = ''
-    preview.append(image)
-  } else {
-    const placeholder = document.createElement('div')
-    placeholder.className = 'assetDragImagePlaceholder'
-    placeholder.textContent = uiText.app.noPreview
-    preview.append(placeholder)
-  }
-
-  shell.append(preview)
-  return shell
 }

@@ -4,7 +4,6 @@ import { uiText } from './i18n'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { startInternalPointerDrag } from './internalDrag'
 import type { AssetRegistrationSummary, AssetViewMode } from './asset-browser-types'
-import { createAssetDragImage } from './asset-browser-model'
 
 export function AssetCard({
   asset,
@@ -56,7 +55,12 @@ export function AssetCard({
           onFinished: payload => {
             if (payload.kind === 'asset') onDragStateChange(false, payload.assetIds)
           },
-          createDragGhost: () => createAssetDragImage(dragSource),
+          createPreview: payload => ({
+            primaryText: payload.kind === 'asset' && payload.assetIds.length > 1 ? `${payload.assetIds.length}件の画像素材` : asset.displayName,
+            secondaryText: registration?.title ?? '画像素材',
+            thumbnailUrl: asset.thumbnailUrl,
+            itemCount: payload.kind === 'asset' ? payload.assetIds.length : 1,
+          }),
           sourceScrollElement: dragSource.closest<HTMLElement>('.assetBrowserItems'),
         })
       }}

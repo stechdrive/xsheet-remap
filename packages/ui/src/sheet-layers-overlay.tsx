@@ -2,13 +2,13 @@ import { useEffect, useRef } from 'react'
 import { type CutProject, type NormalizedRect, type PaperTrack, type SheetPage, type SheetTemplate, type SheetTimingRole, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, updatePaperTrack, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { gridRowLineClassName } from './templateEditorGeometry'
-import { clampNumber } from './sheetInteraction'
 import { TooltipTarget } from './Tooltip'
 import { SheetSvgText } from './SheetSvgText'
 import { StatusHintSource } from './app-foundation'
-import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, STACK_GUIDE_MAX_LANE, StackGuideLabelMetrics, estimatedLabelTextWidthPx, stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuideLabelBottomPx, stackGuideLabelMetrics, stackGuideNativeHeaderReachPx, stackGuidePlacements, stackGuideSvgGeometry } from './app-stack-guides'
+import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuidePlacements, stackGuideSvgGeometry } from './app-stack-guides'
 import { overlaySnapIndexFromPoint, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 import { overlayColumnRectForPage } from './sheet-layers-hit-geometry'
+import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 
 export type OverlayPaperTrackDrag = {
   paperTrack: string
@@ -52,6 +52,7 @@ export function OverlayPaperTrackLayer({
             <line className="overlayPaperTrackBorder" x1={column.rect.x + column.rect.w} x2={column.rect.x + column.rect.w} y1={column.rect.y} y2={column.rect.y + column.rect.h} />
             {lines}
             <g className="overlayPaperTrackLabel">
+              {label.truncated && <title>{label.fullText}</title>}
               <path className="overlayPaperTrackStem" d={`M ${label.stemX} ${column.rect.y} V ${label.labelBottomY} H ${label.labelAttachX}`} />
               <rect className="overlayPaperTrackLabelBox" x={label.labelX} y={label.labelY} width={label.labelWidth} height={label.labelHeight} rx={label.radiusX} ry={label.radiusY} />
               <SheetSvgText
@@ -63,8 +64,9 @@ export function OverlayPaperTrackLayer({
                 textAnchor="middle"
                 fontSizePx={label.fontSizePx}
                 pageSize={label.pageSize}
+                style={{ fontFamily: label.fontFamily, fontWeight: label.fontWeight }}
               >
-                {track.label}
+                {label.displayText}
               </SheetSvgText>
             </g>
           </g>
@@ -255,22 +257,7 @@ interface OverlayPaperTrackRenderItem {
   track: PaperTrack
   renderedTrack: PaperTrack
   column: OverlayBandSegment & { rect: NormalizedRect }
-  label: OverlayPaperTrackLabelGeometry
-}
-
-interface OverlayPaperTrackLabelGeometry {
-  stemX: number
-  labelX: number
-  labelY: number
-  labelAttachX: number
-  labelTextX: number
-  labelBottomY: number
-  labelWidth: number
-  labelHeight: number
-  fontSizePx: number
-  pageSize: { widthPx: number; heightPx: number }
-  radiusX: number
-  radiusY: number
+  label: OverlayAuxiliaryLabelGeometry
 }
 
 interface LabelLaneOccupancy {
@@ -296,11 +283,11 @@ function overlayPaperTrackRenderItems(
   const occupiedByRegion = new Map<string, LabelLaneOccupancy[]>()
 
   function occupiedLanesForRegion(region: SheetTemplate['regions'][number]) {
-    const bandKey = overlayPaperTrackLabelBandKey(template, region)
+    const bandKey = overlayAuxiliaryLabelBandKey(template, region)
     const existing = occupiedByRegion.get(bandKey)
     if (existing) return existing
     const occupied = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
-      .filter(anchorRegion => overlayPaperTrackLabelBandKey(template, anchorRegion) === bandKey)
+      .filter(anchorRegion => overlayAuxiliaryLabelBandKey(template, anchorRegion) === bandKey)
       .flatMap(anchorRegion => {
         const layout = resolveSheetTemplateGridLayout(template, anchorRegion, {
           paperTracks: templateTracks,
@@ -341,20 +328,18 @@ function overlayPaperTrackRenderItems(
     })
     if (!layout || layout.columns.length === 0) return []
     const rect = layout.rect
-    const metrics = overlayPaperTrackLabelMetrics(template)
-    const labelWidthPx = overlayPaperTrackLabelWidthPx(renderedTrack, metrics)
     const occupied = occupiedLanesForRegion(region)
     const highestStackGuideLane = occupied.reduce((highest, candidate) => candidate.source === 'stack-guide' ? Math.max(highest, candidate.lane) : highest, -1)
     let lane = highestStackGuideLane >= 0 ? Math.min(highestStackGuideLane + 1, STACK_GUIDE_MAX_LANE) : 0
-    let label = overlayPaperTrackLabelGeometry(template, rect, pageSize, renderedTrack, column, lane, metrics, labelWidthPx)
+    let label = overlayAuxiliaryLabelGeometry(template, rect, pageSize, renderedTrack, column, lane, STACK_GUIDE_MAX_LANE)
     while (
       lane < STACK_GUIDE_MAX_LANE
-      && occupied.some(candidate => candidate.lane === lane && labelLaneRangesOverlap(overlayPaperTrackLabelRangePx(label, pageSize), candidate))
+      && occupied.some(candidate => candidate.lane === lane && auxiliaryLabelRangesOverlap(auxiliaryLabelRangePx(label, pageSize.widthPx), candidate))
     ) {
       lane += 1
-      label = overlayPaperTrackLabelGeometry(template, rect, pageSize, renderedTrack, column, lane, metrics, labelWidthPx)
+      label = overlayAuxiliaryLabelGeometry(template, rect, pageSize, renderedTrack, column, lane, STACK_GUIDE_MAX_LANE)
     }
-    occupied.push({ ...overlayPaperTrackLabelRangePx(label, pageSize), lane, source: 'overlay-track' })
+    occupied.push({ ...auxiliaryLabelRangePx(label, pageSize.widthPx), lane, source: 'overlay-track' })
     return [{
       track,
       renderedTrack,
@@ -362,77 +347,4 @@ function overlayPaperTrackRenderItems(
       label,
     }]
   })
-}
-
-function labelLaneRangesOverlap(a: Pick<LabelLaneOccupancy, 'leftPx' | 'rightPx'>, b: Pick<LabelLaneOccupancy, 'leftPx' | 'rightPx'>) {
-  const marginPx = 4
-  return a.leftPx < b.rightPx + marginPx && b.leftPx < a.rightPx + marginPx
-}
-
-function overlayPaperTrackLabelRangePx(label: OverlayPaperTrackLabelGeometry, pageSize: { widthPx: number }) {
-  return {
-    leftPx: label.labelX * pageSize.widthPx,
-    rightPx: (label.labelX + label.labelWidth) * pageSize.widthPx,
-  }
-}
-
-function overlayPaperTrackLabelMetrics(template: SheetTemplate): StackGuideLabelMetrics {
-  const base = stackGuideLabelMetrics(template)
-  const textPaddingPx = Math.max(2, base.textPaddingPx * 0.72)
-  const fontSizePx = base.fontSizePx
-  return {
-    ...base,
-    labelHeightPx: Math.max(11, fontSizePx + 3),
-    minWidthPx: Math.max(13, fontSizePx * 0.72 + textPaddingPx * 2),
-    fontSizePx,
-    textPaddingPx,
-    estimatedCharWidthPx: Math.max(base.estimatedCharWidthPx * 0.9, fontSizePx * 0.54),
-    radiusPx: Math.max(1.5, base.radiusPx * 0.8),
-  }
-}
-
-function overlayPaperTrackLabelWidthPx(track: Pick<PaperTrack, 'label'>, metrics: StackGuideLabelMetrics) {
-  return Math.min(metrics.maxWidthPx, Math.max(metrics.minWidthPx, estimatedLabelTextWidthPx(track.label, metrics) + metrics.textPaddingPx * 2))
-}
-
-function overlayPaperTrackLabelBandKey(template: SheetTemplate, region: SheetTemplate['regions'][number]) {
-  return String(region.grid?.frameStart ?? template.defaults.frameOrigin)
-}
-
-function overlayPaperTrackLabelGeometry(
-  template: SheetTemplate,
-  rect: NormalizedRect,
-  pageSize: { widthPx: number; heightPx: number },
-  track: PaperTrack,
-  column: { rect: NormalizedRect },
-  lane: number,
-  metrics: StackGuideLabelMetrics,
-  labelWidthPx = overlayPaperTrackLabelWidthPx(track, metrics),
-): OverlayPaperTrackLabelGeometry {
-  const labelWidth = labelWidthPx / pageSize.widthPx
-  const labelHeight = metrics.labelHeightPx / pageSize.heightPx
-  const textPadding = metrics.textPaddingPx / pageSize.widthPx
-  const pageMargin = metrics.pageMarginPx / pageSize.widthPx
-  const poleGap = metrics.poleGapPx / pageSize.widthPx
-  const labelBottomOffset = (stackGuideNativeHeaderReachPx(template, rect, pageSize) + stackGuideLabelBottomPx(template, lane)) / pageSize.heightPx
-  const stemX = column.rect.x
-  const labelBottomY = rect.y - labelBottomOffset
-  const labelY = labelBottomY - labelHeight
-  const desiredLabelX = stemX + poleGap
-  const labelX = clampNumber(desiredLabelX, pageMargin, 1 - pageMargin - labelWidth)
-  const labelAttachX = labelX >= stemX ? labelX : labelX + labelWidth
-  return {
-    stemX,
-    labelX,
-    labelY,
-    labelAttachX,
-    labelTextX: labelX + textPadding,
-    labelBottomY,
-    labelWidth,
-    labelHeight,
-    fontSizePx: metrics.fontSizePx,
-    pageSize,
-    radiusX: metrics.radiusPx / pageSize.widthPx,
-    radiusY: metrics.radiusPx / pageSize.heightPx,
-  }
 }

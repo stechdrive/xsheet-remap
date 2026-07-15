@@ -9,6 +9,13 @@ export type InternalDragPayload =
 export type InternalDragPhase = 'start' | 'move' | 'drop' | 'cancel'
 export type InternalDragDropValidity = 'valid' | 'invalid' | null
 
+export interface InternalDragPreviewDescriptor {
+  primaryText: string
+  secondaryText?: string
+  thumbnailUrl?: string
+  itemCount?: number
+}
+
 export interface InternalDragDetail {
   sessionId: string
   phase: InternalDragPhase
@@ -23,6 +30,7 @@ const INTERNAL_DRAG_EVENT = 'xsheet-remap:internal-drag'
 const INTERNAL_DRAG_THRESHOLD_PX = 4
 let nextInternalDragSession = 1
 let activeDocumentDragSessionId: string | null = null
+let activeDocumentDragSource: { element: HTMLElement; previousInlineCursor: string } | null = null
 
 export function subscribeInternalDrag(handler: InternalDragHandler): () => void {
   const listener = (event: Event) => handler((event as CustomEvent<InternalDragDetail>).detail)
@@ -41,13 +49,14 @@ export function setInternalDragDropValidity(validity: InternalDragDropValidity):
   } else {
     delete document.body.dataset.internalDragValidity
   }
+  applyInternalDragSourceCursor(validity)
 }
 
 export function startInternalPointerDrag(
   event: ReactPointerEvent<HTMLElement>,
   input: {
     begin: () => InternalDragPayload | null
-    createDragGhost: () => HTMLElement
+    createPreview: (payload: InternalDragPayload) => InternalDragPreviewDescriptor
     onStarted?: (payload: InternalDragPayload) => void
     onFinished?: (payload: InternalDragPayload) => void
     sourceScrollElement?: HTMLElement | null
@@ -105,8 +114,10 @@ export function startInternalPointerDrag(
     dragGhost?.dispose()
     dragGhost = null
     source.classList.remove('internalPointerDragSource')
+    delete source.dataset.internalDragSource
     if (activeDocumentDragSessionId === sessionId) {
       activeDocumentDragSessionId = null
+      restoreInternalDragSourceCursor()
       document.body.classList.remove('internalPointerDragActive')
       delete document.body.dataset.internalDragKind
       delete document.body.dataset.internalDragValidity
@@ -136,12 +147,15 @@ export function startInternalPointerDrag(
       // Synthetic events and some embedded browser builds do not expose capture.
     }
     restoreSourceScroll()
-    dragGhost = createPointerDragGhost(input.createDragGhost(), pointerEvent.clientX, pointerEvent.clientY)
+    dragGhost = createPointerDragGhost(createInternalDragPreview(input.createPreview(payload), payload.kind), pointerEvent.clientX, pointerEvent.clientY)
     source.classList.add('internalPointerDragSource')
+    source.dataset.internalDragSource = 'true'
     activeDocumentDragSessionId = sessionId
+    activeDocumentDragSource = { element: source, previousInlineCursor: source.style.cursor }
     document.body.classList.add('internalPointerDragActive')
     document.body.dataset.internalDragKind = payload.kind
     delete document.body.dataset.internalDragValidity
+    applyInternalDragSourceCursor(null)
     input.onStarted?.(payload)
     emit('start', pointerEvent.clientX, pointerEvent.clientY)
     return true
@@ -184,22 +198,49 @@ export function startInternalPointerDrag(
   return true
 }
 
-export function createInternalDragCardImage(label: string, contextLabel: string): HTMLElement {
+export function createInternalDragPreview(descriptor: InternalDragPreviewDescriptor, kind: InternalDragPayload['kind']): HTMLElement {
   const shell = document.createElement('div')
-  shell.className = 'registeredCellDragImageShell'
+  shell.className = 'internalDragPreviewShell'
+  shell.dataset.internalDragPreviewKind = kind
 
   const preview = document.createElement('div')
-  preview.className = 'registeredCellDragImagePreview'
-  const title = document.createElement('strong')
-  title.textContent = label
-  preview.append(title)
-  if (contextLabel) {
-    const meta = document.createElement('span')
-    meta.textContent = contextLabel
-    preview.append(meta)
+  preview.className = 'internalDragPreview'
+  if (descriptor.thumbnailUrl) {
+    const image = document.createElement('img')
+    image.className = 'internalDragPreviewThumbnail'
+    image.src = descriptor.thumbnailUrl
+    image.alt = ''
+    image.draggable = false
+    preview.append(image)
   }
+  const text = document.createElement('span')
+  text.className = 'internalDragPreviewText'
+  const title = document.createElement('strong')
+  title.textContent = descriptor.primaryText
+  text.append(title)
+  const secondaryParts = [descriptor.secondaryText]
+  if ((descriptor.itemCount ?? 0) > 1) secondaryParts.push(`${descriptor.itemCount}件`)
+  const secondaryText = secondaryParts.filter(Boolean).join(' · ')
+  if (secondaryText) {
+    const meta = document.createElement('span')
+    meta.textContent = secondaryText
+    text.append(meta)
+  }
+  preview.append(text)
   shell.append(preview)
   return shell
+}
+
+function applyInternalDragSourceCursor(validity: InternalDragDropValidity) {
+  const source = activeDocumentDragSource?.element
+  if (!source) return
+  source.style.cursor = validity === 'valid' ? 'crosshair' : validity === 'invalid' ? 'not-allowed' : 'grabbing'
+}
+
+function restoreInternalDragSourceCursor() {
+  if (!activeDocumentDragSource) return
+  activeDocumentDragSource.element.style.cursor = activeDocumentDragSource.previousInlineCursor
+  activeDocumentDragSource = null
 }
 
 function normalizeInternalDragPayload(payload: InternalDragPayload | null): InternalDragPayload | null {

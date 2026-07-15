@@ -312,6 +312,12 @@ export {
 } from './sheet-template'
 export { hasBlockingIssues, validateProject } from './validation'
 export {
+  applyCellStackOrder,
+  cellStackOrderItems,
+  moveCellStackOrderItem,
+  type CellStackOrderItem,
+} from './project-cell-stack-order'
+export {
   buildCspLayerTree,
   cspTopToBottomFromXdtsBottomToTop,
   xdtsBottomToTopFromCspTopToBottom,

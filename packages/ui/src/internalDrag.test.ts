@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { dispatchInternalDrag, startInternalPointerDrag, subscribeInternalDrag, type InternalDragDetail } from './internalDrag'
+import { dispatchInternalDrag, setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag, type InternalDragDetail } from './internalDrag'
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -34,7 +34,6 @@ describe('internal drag', () => {
     document.body.append(source)
     const phases: string[] = []
     const unsubscribe = subscribeInternalDrag(detail => phases.push(detail.phase))
-    const ghost = document.createElement('div')
     const started = vi.fn()
     const finished = vi.fn()
 
@@ -47,7 +46,7 @@ describe('internal drag', () => {
       currentTarget: source,
     } as never, {
       begin: () => ({ kind: 'asset', assetIds: ['asset-a', 'asset-a'] }),
-      createDragGhost: () => ghost,
+      createPreview: payload => ({ primaryText: 'A1.png', secondaryText: '画像素材', itemCount: payload.kind === 'asset' ? payload.assetIds.length : 1 }),
       onStarted: started,
       onFinished: finished,
     })
@@ -55,6 +54,14 @@ describe('internal drag', () => {
     expect(phases).toEqual([])
     window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 7, clientX: 18, clientY: 12 }))
     expect(source.classList.contains('internalPointerDragSource')).toBe(true)
+    expect(source.dataset.internalDragSource).toBe('true')
+    expect(source.style.cursor).toBe('grabbing')
+    expect(document.querySelector('.internalDragPreviewShell.pointerDragGhost')?.textContent).toContain('A1.png')
+    setInternalDragDropValidity('valid')
+    expect(source.style.cursor).toBe('crosshair')
+    source.className = 'assetCard dragging'
+    expect(source.dataset.internalDragSource).toBe('true')
+    expect(source.style.cursor).toBe('crosshair')
     expect(document.body.classList.contains('internalPointerDragActive')).toBe(true)
     window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, clientX: 22, clientY: 16 }))
     unsubscribe()
@@ -64,6 +71,8 @@ describe('internal drag', () => {
     expect(finished).toHaveBeenCalledWith({ kind: 'asset', assetIds: ['asset-a'] })
     expect(document.querySelector('.pointerDragGhost')).toBeNull()
     expect(source.classList.contains('internalPointerDragSource')).toBe(false)
+    expect(source.dataset.internalDragSource).toBeUndefined()
+    expect(source.style.cursor).toBe('')
     expect(document.body.classList.contains('internalPointerDragActive')).toBe(false)
   })
 
@@ -86,7 +95,7 @@ describe('internal drag', () => {
       currentTarget: source,
     } as never, {
       begin: () => ({ kind: 'registered-cell', keyId: 'key-a' }),
-      createDragGhost: () => document.createElement('div'),
+      createPreview: () => ({ primaryText: 'A1', secondaryText: '作画' }),
       onFinished: finished,
       interactiveTargetSelector: 'button,input,select,textarea,a,[contenteditable="true"]',
     })).toBe(true)

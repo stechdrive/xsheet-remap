@@ -961,16 +961,17 @@
   cursor: grab;
 }
 
-.cspTreeCel.internalPointerDragSource {
+.cspTreeCel[data-internal-drag-source='true'],
+.assetCard[data-internal-drag-source='true'] {
   cursor: grabbing;
 }
 
-body.internalPointerDragActive[data-internal-drag-validity='valid'] .internalPointerDragSource,
+body.internalPointerDragActive[data-internal-drag-validity='valid'] [data-internal-drag-source='true'],
 body.internalPointerDragActive[data-internal-drag-validity='valid'] .sheetSvg {
   cursor: crosshair !important;
 }
 
-body.internalPointerDragActive[data-internal-drag-validity='invalid'] .internalPointerDragSource,
+body.internalPointerDragActive[data-internal-drag-validity='invalid'] [data-internal-drag-source='true'],
 body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg {
   cursor: not-allowed !important;
 }

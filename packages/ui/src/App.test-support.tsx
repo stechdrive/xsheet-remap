@@ -40,8 +40,7 @@ export const originalCreateObjectUrl = URL.createObjectURL
 
 afterEach(() => {
   cleanup()
-  document.querySelectorAll('.assetDragImageShell').forEach(element => element.remove())
-  document.querySelectorAll('.registeredCellDragImageShell').forEach(element => element.remove())
+  document.querySelectorAll('.internalDragPreviewShell').forEach(element => element.remove())
   Reflect.deleteProperty(window, '__xsheetRemapAssetDragIds')
   Reflect.deleteProperty(window, '__xsheetRemapRegisteredCellDragKeyId')
   URL.createObjectURL = originalCreateObjectUrl

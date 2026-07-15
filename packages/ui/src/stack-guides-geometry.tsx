@@ -1,9 +1,12 @@
 import { type CutProject, type NormalizedRect, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridFrames, stackGuideGapIndex } from '@xsheet-remap/core'
 import { STANDARD_A3_GRID_HEADER_HEIGHT, STANDARD_A3_GRID_HEADER_TOP_OFFSET } from './sheetConstants'
-import { templateGridHeaderFontSizePx } from './templateEditorGeometry'
 import { clampNumber } from './sheetInteraction'
 import { compareStackGuideLabelsForUi } from './app-foundation'
 import { overlayBandSegments } from './app-sheet-geometry'
+import { auxiliaryLabelBottomPx, auxiliaryLabelHeaderReachPx, auxiliaryLabelMetrics, auxiliaryLabelTextLayout, type AuxiliaryLabelMetrics } from './auxiliary-label-layout'
+
+export type { AuxiliaryLabelMetrics as StackGuideLabelMetrics } from './auxiliary-label-layout'
+export { estimatedLabelTextWidthPx } from './auxiliary-label-layout'
 
 export function overlayBandSegmentForRegion(template: SheetTemplate, project: CutProject, role: SheetTimingRole, regionId: string) {
   return overlayBandSegments(template, project, role).find(segment => segment.regionId === regionId) ?? null
@@ -38,48 +41,9 @@ const STACK_GUIDE_EDITOR_FORM_HEIGHT_PX = 36
 
 const STACK_GUIDE_EDITOR_EDGE_MARGIN_PX = 8
 
-const DEFAULT_STACK_GUIDE_LABEL_BASE_OFFSET_PX = 28
-
-const DEFAULT_STACK_GUIDE_LABEL_LANE_PITCH_PX = 20
-
-const DEFAULT_STACK_GUIDE_LABEL_HEIGHT_PX = 14
-
-const DEFAULT_STACK_GUIDE_LABEL_MIN_WIDTH_PX = 22
-
-const DEFAULT_STACK_GUIDE_LABEL_MAX_WIDTH_PX = 76
-
-const DEFAULT_STACK_GUIDE_LABEL_FONT_SIZE_PX = 10.5
-
-const DEFAULT_STACK_GUIDE_LABEL_PAGE_MARGIN_PX = 6
-
-const DEFAULT_STACK_GUIDE_LABEL_POLE_GAP_PX = 2
-
-const DEFAULT_STACK_GUIDE_LABEL_TEXT_PADDING_PX = 3
-
-const DEFAULT_STACK_GUIDE_LABEL_CONNECTOR_STROKE_PX = 4
-
-const DEFAULT_STACK_GUIDE_LABEL_CHAR_WIDTH_PX = 6
-
-const DEFAULT_STACK_GUIDE_LABEL_RADIUS_PX = 2
-
 const DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX = 3
 
 export const OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS = 650
-
-export interface StackGuideLabelMetrics {
-  baseOffsetPx: number
-  lanePitchPx: number
-  labelHeightPx: number
-  minWidthPx: number
-  maxWidthPx: number
-  fontSizePx: number
-  pageMarginPx: number
-  poleGapPx: number
-  textPaddingPx: number
-  connectorStrokePx: number
-  estimatedCharWidthPx: number
-  radiusPx: number
-}
 
 interface StackGuidePlacement {
   label: StackGuideLabel
@@ -128,13 +92,7 @@ export function stackGuideVisibleGapIndex(project: CutProject, label: StackGuide
 function compareStackGuidePlacementPriority(project: CutProject) {
   const fallback = compareStackGuideLabelsForUi(project)
   return (a: StackGuideLabel, b: StackGuideLabel): number =>
-    stackGuideLabelSequence(a.labelId) - stackGuideLabelSequence(b.labelId)
-    || fallback(a, b)
-}
-
-function stackGuideLabelSequence(labelId: string) {
-  const match = /_(\d+)$/.exec(labelId)
-  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER
+    fallback(a, b)
 }
 
 function stackGuideLabelWidthInGaps(template: SheetTemplate, label: StackGuideLabel, gapWidthPx: number) {
@@ -157,8 +115,7 @@ function stackGuideEditorLabelBottomPx(lane: number) {
 }
 
 export function stackGuideLabelBottomPx(template: SheetTemplate, lane: number) {
-  const metrics = stackGuideLabelMetrics(template)
-  return metrics.baseOffsetPx + Math.min(lane, STACK_GUIDE_MAX_LANE) * metrics.lanePitchPx
+  return auxiliaryLabelBottomPx(template, lane, STACK_GUIDE_MAX_LANE)
 }
 
 export function stackGuideEditorBottomPx(maxLane: number) {
@@ -183,8 +140,7 @@ export function stackGuideEditorShiftPx(anchorX: number, pageWidth: number) {
 }
 
 export function stackGuideHeaderReachPx(template: SheetTemplate, rect: NormalizedRect, pageHeightPx: number) {
-  const headerTopOffsetPx = STANDARD_A3_GRID_HEADER_TOP_OFFSET * template.page.heightPx
-  return Math.max(12, Math.min(rect.y * pageHeightPx, headerTopOffsetPx))
+  return auxiliaryLabelHeaderReachPx(template, rect, pageHeightPx)
 }
 
 export function stackGuideColumnHeaderHitPx(template: SheetTemplate, pageHeightPx: number) {
@@ -203,70 +159,21 @@ export function stackGuideGapWidthPx(template: SheetTemplate, rect: NormalizedRe
   return Math.max(1, averageColumnWidth * pageWidthPx)
 }
 
-export function stackGuideLabelMetrics(template: SheetTemplate): StackGuideLabelMetrics {
-  const style = template.style?.bgBookLabel
-  const targetFontSizePx = templateGridHeaderFontSizePx(template)
-  const rawFontSizePx = ptToTemplatePx(template, style?.fontSizePt, DEFAULT_STACK_GUIDE_LABEL_FONT_SIZE_PX)
-  const fontSizePx = Math.max(rawFontSizePx, targetFontSizePx)
-  const textPaddingPx = Math.max(mmToTemplatePx(template, style?.textPaddingMm, DEFAULT_STACK_GUIDE_LABEL_TEXT_PADDING_PX), fontSizePx * 0.22)
-  const labelHeightPx = Math.max(mmToTemplatePx(template, style?.labelHeightMm, DEFAULT_STACK_GUIDE_LABEL_HEIGHT_PX), fontSizePx + 4)
-  const minWidthPx = Math.max(mmToTemplatePx(template, style?.minWidthMm, DEFAULT_STACK_GUIDE_LABEL_MIN_WIDTH_PX), fontSizePx + textPaddingPx * 2)
-  const maxWidthPx = Math.max(mmToTemplatePx(template, style?.maxWidthMm, DEFAULT_STACK_GUIDE_LABEL_MAX_WIDTH_PX), minWidthPx, fontSizePx * 8)
-  const estimatedCharWidthPx = Math.max(mmToTemplatePx(template, style?.estimatedCharWidthMm, DEFAULT_STACK_GUIDE_LABEL_CHAR_WIDTH_PX), fontSizePx * 0.56)
-  return {
-    baseOffsetPx: mmToTemplatePx(template, style?.baseOffsetMm, DEFAULT_STACK_GUIDE_LABEL_BASE_OFFSET_PX),
-    lanePitchPx: Math.max(mmToTemplatePx(template, style?.lanePitchMm, DEFAULT_STACK_GUIDE_LABEL_LANE_PITCH_PX), labelHeightPx + 3),
-    labelHeightPx,
-    minWidthPx,
-    maxWidthPx,
-    fontSizePx,
-    pageMarginPx: mmToTemplatePx(template, style?.pageMarginMm, DEFAULT_STACK_GUIDE_LABEL_PAGE_MARGIN_PX),
-    poleGapPx: mmToTemplatePx(template, style?.poleGapMm, DEFAULT_STACK_GUIDE_LABEL_POLE_GAP_PX),
-    textPaddingPx,
-    connectorStrokePx: mmToTemplatePx(template, style?.connectorStrokeMm, DEFAULT_STACK_GUIDE_LABEL_CONNECTOR_STROKE_PX),
-    estimatedCharWidthPx,
-    radiusPx: mmToTemplatePx(template, style?.radiusMm, DEFAULT_STACK_GUIDE_LABEL_RADIUS_PX),
-  }
+export function stackGuideLabelMetrics(template: SheetTemplate): AuxiliaryLabelMetrics {
+  return auxiliaryLabelMetrics(template, 'stack-guide')
 }
 
-function stackGuideTemplateDpi(template: SheetTemplate): number | undefined {
-  return template.style?.bgBookLabel?.designDpi ?? template.page.dpi
-}
-
-function mmToTemplatePx(template: SheetTemplate, mm: number | undefined, fallbackPx: number): number {
-  const dpi = stackGuideTemplateDpi(template)
-  return mm !== undefined && dpi ? (mm * dpi) / 25.4 : fallbackPx
-}
-
-function ptToTemplatePx(template: SheetTemplate, pt: number | undefined, fallbackPx: number): number {
-  const dpi = stackGuideTemplateDpi(template)
-  return pt !== undefined && dpi ? (pt * dpi) / 72 : fallbackPx
-}
-
-function stackGuideLabelWidthPx(label: Pick<StackGuideLabel, 'label'>, metrics: StackGuideLabelMetrics) {
-  return Math.min(metrics.maxWidthPx, Math.max(metrics.minWidthPx, estimatedLabelTextWidthPx(label.label, metrics) + metrics.textPaddingPx * 2 + DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX))
-}
-
-export function estimatedLabelTextWidthPx(text: string, metrics: Pick<StackGuideLabelMetrics, 'fontSizePx' | 'estimatedCharWidthPx'>): number {
-  return Array.from(text).reduce((width, char) => width + estimatedLabelCharWidthPx(char, metrics), 0)
-}
-
-function estimatedLabelCharWidthPx(char: string, metrics: Pick<StackGuideLabelMetrics, 'fontSizePx' | 'estimatedCharWidthPx'>): number {
-  if (/[\u3000-\u9fff\u3040-\u30ff\uff00-\uffef]/u.test(char)) return metrics.fontSizePx * 0.92
-  if (/[ilI1|]/.test(char)) return metrics.fontSizePx * 0.34
-  if (/[MW@%]/.test(char)) return metrics.fontSizePx * 0.78
-  if (/[A-Z0-9]/.test(char)) return metrics.fontSizePx * 0.52
-  if (/[a-z]/.test(char)) return metrics.fontSizePx * 0.48
-  if (/\s/.test(char)) return metrics.fontSizePx * 0.32
-  return Math.min(metrics.estimatedCharWidthPx, metrics.fontSizePx * 0.56)
+function stackGuideLabelWidthPx(label: Pick<StackGuideLabel, 'label'>, metrics: AuxiliaryLabelMetrics) {
+  return auxiliaryLabelTextLayout(label.label, metrics, DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX).labelWidthPx
 }
 
 export function stackGuideSvgGeometry(template: SheetTemplate, rect: NormalizedRect, pageSize: { widthPx: number; heightPx: number }, label: StackGuideLabel, lane: number, columns: Array<{ paperTrack?: string; x?: number; w?: number }> = []) {
   const metrics = stackGuideLabelMetrics(template)
+  const textLayout = auxiliaryLabelTextLayout(label.label, metrics, DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX)
   const snapIndex = stackGuideVisibleSnapIndex(label, columns)
   const anchorX = stackGuideSnapX(rect, columns, snapIndex)
   const anchorY = rect.y
-  const labelWidth = stackGuideLabelWidthPx(label, metrics) / pageSize.widthPx
+  const labelWidth = textLayout.labelWidthPx / pageSize.widthPx
   const labelHeight = metrics.labelHeightPx / pageSize.heightPx
   const labelPoleGap = metrics.poleGapPx / pageSize.widthPx
   const labelTextPadding = metrics.textPaddingPx / pageSize.widthPx
@@ -287,7 +194,12 @@ export function stackGuideSvgGeometry(template: SheetTemplate, rect: NormalizedR
     labelBottomY,
     labelWidth,
     labelHeight,
-    fontSizePx: metrics.fontSizePx,
+    displayText: textLayout.displayText,
+    fullText: textLayout.fullText,
+    truncated: textLayout.truncated,
+    fontSizePx: textLayout.fontSizePx,
+    fontFamily: metrics.fontFamily,
+    fontWeight: metrics.fontWeight,
     radiusX: metrics.radiusPx / pageSize.widthPx,
     radiusY: metrics.radiusPx / pageSize.heightPx,
     connectorStrokeWidth: metrics.connectorStrokePx / pageSize.heightPx,

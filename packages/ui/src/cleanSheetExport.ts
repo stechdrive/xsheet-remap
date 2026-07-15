@@ -573,7 +573,12 @@ function drawOverlayPaperTracks(
         labelTextX: label.labelX + label.labelWidth / 2,
         labelWidth: label.labelWidth,
         labelHeight: label.labelHeight,
+        displayText: label.displayText,
+        fullText: label.fullText,
+        truncated: label.truncated,
         fontSizePx: label.fontSizePx,
+        fontFamily: label.fontFamily,
+        fontWeight: label.fontWeight,
         radiusX: label.radiusX,
         radiusY: label.radiusY,
         connectorStrokeWidth: 3 / context.pageSize.heightPx,
@@ -638,11 +643,11 @@ function drawFlagLabel(
   roundedRectPath(ctx, labelX, labelY, labelW, labelH, radius)
   ctx.fill()
   ctx.fillStyle = '#ffffff'
-  ctx.font = fontDeclaration(Math.max(8, geometry.fontSizePx), SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+  ctx.font = fontDeclaration(Math.max(8, geometry.fontSizePx), geometry.fontFamily, geometry.fontWeight)
   ctx.textBaseline = 'middle'
   ctx.textAlign = input.align === 'center' ? 'center' : 'left'
   const textX = input.align === 'center' ? labelX + labelW / 2 : geometry.labelTextX * pageWidth
-  ctx.fillText(input.label, textX, labelY + labelH / 2)
+  ctx.fillText(geometry.displayText, textX, labelY + labelH / 2)
 }
 
 function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

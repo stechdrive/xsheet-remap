@@ -159,7 +159,7 @@ try {
   const assetClient = await assetCardPoint('A1.png')
   const assetScreen = await clientToScreen(assetClient)
   const assetGhostMoveScreen = await clientToScreen({ x: assetClient.x + 90, y: assetClient.y + 22 })
-  await verifyPointerDragGhost(assetScreen, assetGhostMoveScreen, '.assetDragImageShell.pointerDragGhost', 'asset pointer drag ghost')
+  await verifyPointerDragGhost(assetScreen, assetGhostMoveScreen, '.internalDragPreviewShell.pointerDragGhost .internalDragPreview', 'asset pointer drag ghost')
   checks.push('showed a real-mouse asset drag ghost while dragging an asset card')
 
   const frameClient = await framePoint('cell', 'A', 1)
@@ -168,7 +168,7 @@ try {
   diagnostics.assetScreen = assetScreen
   diagnostics.frameClient = frameClient
   diagnostics.frameScreen = frameScreen
-  await realMouseDrag(assetScreen, frameScreen)
+  await realMouseDragInternalToSheet(assetScreen, frameScreen, frameClient, 'asset sheet drop', 'asset')
   await waitForAssetEventAt('cell', 'A', 1)
   checks.push('dragged an asset card with real mouse input and verified a registered material frame')
 
@@ -187,7 +187,7 @@ try {
   const registeredCellClient = await registeredCellCardPoint('A')
   const registeredCellScreen = await clientToScreen(registeredCellClient)
   const registeredCellGhostMoveScreen = await clientToScreen({ x: registeredCellClient.x + 90, y: registeredCellClient.y + 22 })
-  await verifyPointerDragGhost(registeredCellScreen, registeredCellGhostMoveScreen, '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragImagePreview', 'registered cell pointer drag ghost')
+  await verifyPointerDragGhost(registeredCellScreen, registeredCellGhostMoveScreen, '.internalDragPreviewShell.pointerDragGhost .internalDragPreview', 'registered cell pointer drag ghost')
   checks.push('showed a real-mouse registered-cell card drag ghost while dragging a registered cell card')
 
   const registeredCellTargetClient = await framePoint('cell', 'B', 1)
@@ -196,7 +196,13 @@ try {
   diagnostics.registeredCellScreen = registeredCellScreen
   diagnostics.registeredCellTargetClient = registeredCellTargetClient
   diagnostics.registeredCellTargetScreen = registeredCellTargetScreen
-  await realMouseDrag(registeredCellScreen, registeredCellTargetScreen)
+  await realMouseDragInternalToSheet(
+    registeredCellScreen,
+    registeredCellTargetScreen,
+    registeredCellTargetClient,
+    'registered-cell sheet drop',
+    'registered-cell',
+  )
   await waitForAssetEventAt('cell', 'B', 1)
   checks.push('dragged a registered cell card with real mouse input and verified a cloned material frame')
 
@@ -223,7 +229,13 @@ try {
   diagnostics.rangeDropAssetScreen = rangeDropAssetScreen
   diagnostics.rangeDropTargetClient = rangeDropTargetClient
   diagnostics.rangeDropTargetScreen = rangeDropTargetScreen
-  await realMouseDrag(rangeDropAssetScreen, rangeDropTargetScreen)
+  await realMouseDragInternalToSheet(
+    rangeDropAssetScreen,
+    rangeDropTargetScreen,
+    rangeDropTargetClient,
+    'asset selected-range sheet drop',
+    'asset',
+  )
   await waitForAssetEventAt('cell', 'A', 20)
   await waitForNoAssetEventAt('cell', 'A', 24)
   checks.push('dragged an asset card into an active real-mouse range and verified assignment to the range start')
@@ -314,7 +326,7 @@ async function runRegisteredCellRealDndScenario(): Promise<void> {
   await verifyPointerDragGhost(
     ghostSourceScreen,
     ghostMoveScreen,
-    '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragImagePreview',
+    '.internalDragPreviewShell.pointerDragGhost .internalDragPreview',
     'registered cell pointer drag ghost',
   )
   checks.push('showed and cleaned up the compact registered-cell drag ghost with real mouse input')
@@ -324,7 +336,7 @@ async function runRegisteredCellRealDndScenario(): Promise<void> {
   const targetScreen = await clientToScreen(targetClient)
   diagnostics.registeredCellSource = { client: sourceClient, screen: sourceScreen }
   diagnostics.registeredCellTarget = { client: targetClient, screen: targetScreen }
-  await realMouseDragRegisteredCellToSheet(sourceScreen, targetScreen)
+  await realMouseDragRegisteredCellToSheet(sourceScreen, targetScreen, targetClient)
   await waitForTimelineEventAt('action', 'A', 1)
   await waitForInternalPointerDragCleanup()
   await captureScreenshot('registered-cell-after')
@@ -395,7 +407,7 @@ async function runRemapRealDndScenario(): Promise<void> {
   const assetClient = await assetCardPoint('A1.png')
   const assetScreen = await clientToScreen(assetClient)
   const ghostScreen = await clientToScreen({ x: assetClient.x - 80, y: assetClient.y + 24 })
-  await verifyPointerDragGhost(assetScreen, ghostScreen, '.assetDragImageShell.pointerDragGhost', 'remap asset pointer drag ghost')
+  await verifyPointerDragGhost(assetScreen, ghostScreen, '.internalDragPreviewShell.pointerDragGhost .internalDragPreview', 'remap asset pointer drag ghost')
   checks.push('showed and cleaned up the remap asset drag ghost with real mouse input')
 
   await dragAssetToCspTrack('A1.png', 'BG1')
@@ -415,14 +427,14 @@ async function runRemapRealDndScenario(): Promise<void> {
   const cspCellClient = await cspTrackCelPoint('A')
   const cspCellScreen = await clientToScreen(cspCellClient)
   const cspGhostScreen = await clientToScreen({ x: cspCellClient.x - 40, y: cspCellClient.y + 8 })
-  await verifyPointerDragGhost(cspCellScreen, cspGhostScreen, '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragImagePreview', 'remap CSP cell pointer drag ghost')
+  await verifyPointerDragGhost(cspCellScreen, cspGhostScreen, '.internalDragPreviewShell.pointerDragGhost .internalDragPreview', 'remap CSP cell pointer drag ghost')
   const cspDropCellClient = await cspTrackCelPoint('A')
   const cspDropCellScreen = await clientToScreen(cspDropCellClient)
   const frameClient = await framePoint('action', 'A', 1)
   const frameScreen = await clientToScreen(frameClient)
   diagnostics.cspCellDropSource = { client: cspDropCellClient, screen: cspDropCellScreen }
   diagnostics.cspCellDropTarget = { client: frameClient, screen: frameScreen }
-  await realMouseDragRegisteredCellToSheet(cspDropCellScreen, frameScreen)
+  await realMouseDragRegisteredCellToSheet(cspDropCellScreen, frameScreen, frameClient)
   await waitForAssetEventAt('action', 'A', 1)
   checks.push('dragged a CSP layer-tree card onto a sheet frame with the real mouse and created the event')
 
@@ -607,7 +619,21 @@ async function realKeyPress(keys: string, preserveFocus = false): Promise<void> 
   ])
 }
 
-async function realMouseDragRegisteredCellToSheet(from: ScreenPoint, to: ScreenPoint): Promise<void> {
+async function realMouseDragRegisteredCellToSheet(
+  from: ScreenPoint,
+  to: ScreenPoint,
+  targetClient: ClientPoint,
+): Promise<void> {
+  await realMouseDragInternalToSheet(from, to, targetClient, 'registered cell sheet drop', 'registered-cell')
+}
+
+async function realMouseDragInternalToSheet(
+  from: ScreenPoint,
+  to: ScreenPoint,
+  targetClient: ClientPoint,
+  diagnosticKey: string,
+  expectedKind: 'asset' | 'registered-cell',
+): Promise<void> {
   let mouseIsDown = false
   try {
     await runMouseOp([
@@ -624,16 +650,27 @@ async function realMouseDragRegisteredCellToSheet(from: ScreenPoint, to: ScreenP
       '--duration', '0.8',
     ])
     await waitForPageCondition(
-      () => evaluatePage<boolean>(`Boolean(document.querySelector('.registeredCellDragImageShell.pointerDragGhost .registeredCellDragImagePreview'))`),
-      'registered cell ghost at sheet target',
+      () => evaluatePage<boolean>(`Boolean(document.querySelector('.internalDragPreviewShell.pointerDragGhost .internalDragPreview'))`),
+      `${diagnosticKey} ghost at sheet target`,
       3000,
     )
     await waitForPageCondition(
       () => evaluatePage<boolean>(`document.body.dataset.internalDragValidity === 'valid'`),
-      'registered cell valid sheet drop target',
+      `${diagnosticKey} valid sheet drop target`,
       3000,
     )
-    diagnostics.registeredCellDropValidity = await evaluatePage(`({ validity: document.body.dataset.internalDragValidity || '', dragKind: document.body.dataset.internalDragKind || '' })`)
+    const state = await currentInternalDragVisualState(targetClient)
+    diagnostics[diagnosticKey] = state
+    if (state.dragKind !== expectedKind) {
+      throw new Error(`${diagnosticKey} used the wrong drag kind: ${JSON.stringify(state)}`)
+    }
+    if (state.sourceCursor !== 'crosshair') {
+      throw new Error(`${diagnosticKey} should use the shared valid-target cursor: ${JSON.stringify(state)}`)
+    }
+    if (state.targetCursor !== 'crosshair') {
+      throw new Error(`${diagnosticKey} should expose the shared cursor over the actual sheet target: ${JSON.stringify(state)}`)
+    }
+    assertGhostDoesNotCoverPoint(state.ghostRect, targetClient, diagnosticKey)
   } finally {
     if (mouseIsDown) {
       await runMouseOp([
@@ -691,7 +728,7 @@ async function dragAssetCardToFrame(
   diagnostics[`${diagnosticKey}AssetScreen`] = assetScreen
   diagnostics[`${diagnosticKey}TargetClient`] = targetClient
   diagnostics[`${diagnosticKey}TargetScreen`] = targetScreen
-  await realMouseDrag(assetScreen, targetScreen)
+  await realMouseDragInternalToSheet(assetScreen, targetScreen, targetClient, diagnosticKey, 'asset')
   await waitForAssetEventAt(role, paperTrack, frame)
 }
 
@@ -830,7 +867,7 @@ async function verifyPointerDragGhost(from: ScreenPoint, moveTo: ScreenPoint, se
       label,
       3000,
     )
-    diagnostics[label] = await evaluatePage(`
+    const state = await evaluatePage<{ left: number; top: number; width: number; height: number; text: string } | null>(`
       (() => {
         const ghost = document.querySelector(${JSON.stringify(selector)});
         const root = ghost?.closest('.pointerDragGhost') || ghost;
@@ -838,6 +875,9 @@ async function verifyPointerDragGhost(from: ScreenPoint, moveTo: ScreenPoint, se
         return rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height, text: root.textContent?.trim().slice(0, 120) ?? '' } : null;
       })()
     `)
+    diagnostics[label] = state
+    if (!state?.text) throw new Error(`${label} did not expose a readable common preview label`)
+    assertGhostDoesNotCoverPoint(state, await screenToClient(moveTo), label)
   } finally {
     if (mouseIsDown) {
       await runMouseOp([
@@ -862,10 +902,54 @@ async function waitForInternalPointerDragCleanup(): Promise<void> {
       !document.body.classList.contains('internalPointerDragActive')
       && !document.querySelector('.pointerDragGhost')
       && !document.querySelector('.internalPointerDragSource')
+      && !document.querySelector('[data-internal-drag-source="true"]')
     `),
     'internal pointer drag cleanup',
     3000,
   )
+}
+
+async function currentInternalDragVisualState(targetClient: ClientPoint): Promise<{
+  validity: string
+  dragKind: string
+  sourceCursor: string
+  targetCursor: string
+  targetTag: string
+  ghostRect: { left: number; top: number; width: number; height: number } | null
+  ghostText: string
+}> {
+  return evaluatePage(`
+    (() => {
+      const source = document.querySelector('[data-internal-drag-source="true"]');
+      const target = document.elementFromPoint(${JSON.stringify(targetClient.x)}, ${JSON.stringify(targetClient.y)});
+      const ghost = document.querySelector('.internalDragPreviewShell.pointerDragGhost');
+      const rect = ghost?.getBoundingClientRect() || null;
+      return {
+        validity: document.body.dataset.internalDragValidity || '',
+        dragKind: document.body.dataset.internalDragKind || '',
+        sourceCursor: source instanceof Element ? getComputedStyle(source).cursor : '',
+        targetCursor: target instanceof Element ? getComputedStyle(target).cursor : '',
+        targetTag: target instanceof Element ? target.tagName : '',
+        ghostRect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null,
+        ghostText: ghost?.textContent?.trim().slice(0, 120) || '',
+      };
+    })()
+  `)
+}
+
+function assertGhostDoesNotCoverPoint(
+  rect: { left: number; top: number; width: number; height: number } | null,
+  point: ClientPoint,
+  label: string,
+): void {
+  if (!rect) throw new Error(`${label} did not expose the shared drag preview rectangle`)
+  const coversPoint = point.x >= rect.left
+    && point.x <= rect.left + rect.width
+    && point.y >= rect.top
+    && point.y <= rect.top + rect.height
+  if (coversPoint) {
+    throw new Error(`${label} drag preview covers the pointer/drop target: ${JSON.stringify({ rect, point })}`)
+  }
 }
 
 async function runMouseOpJson<T = unknown>(mouseArgs: string[]): Promise<T> {
@@ -1580,6 +1664,27 @@ async function clientToScreen(point: ClientPoint): Promise<ScreenPoint> {
     throw new Error(`screen point is outside the app client rectangle: ${JSON.stringify({ point, screenPoint, client: windowMetrics.client })}`)
   }
   return screenPoint
+}
+
+async function screenToClient(point: ScreenPoint): Promise<ClientPoint> {
+  const windowMetrics = await runMouseOpJson<WindowClientMetrics>(['window-client-metrics', '--app-pid', args['app-pid'] as string])
+  const metrics = await evaluatePage<ViewportMetrics>(`
+    (() => ({
+      screenX: window.screenX,
+      screenY: window.screenY,
+      outerWidth: window.outerWidth,
+      outerHeight: window.outerHeight,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    }))()
+  `)
+  const scaleX = windowMetrics.client.width / metrics.innerWidth
+  const scaleY = windowMetrics.client.height / metrics.innerHeight
+  return {
+    x: (point.x - windowMetrics.client.x) / scaleX,
+    y: (point.y - windowMetrics.client.y) / scaleY,
+  }
 }
 
 async function waitForPageCondition(predicate: () => boolean | Promise<boolean>, label: string, timeoutMs = 12000): Promise<void> {

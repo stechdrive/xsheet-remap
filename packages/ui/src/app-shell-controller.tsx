@@ -29,7 +29,7 @@ import { readTemplateImageMetadata } from './templateImageMetadata';
 import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, cspImportPackageAssetPaths, errorMessage, exportCutProjectsFromDocument, fileDialogInitialDirectory, formatFramePosition, formatFrameRangePosition, formatPaddedDurationTimecode, formatPaddedFrameTimecode, isImageFileRef, saveBinaryOutputs, saveTextOutputs, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
-import { applyCellStackOrder, automaticRegisteredCellCspName, cellStackOrderItems, firstTimelineUseForKey, registeredCellTrackOrder, updateNativeRegisteredCellPreviewIfOpen } from './app-registered-cells';
+import { automaticRegisteredCellCspName, firstTimelineUseForKey, moveCellStackOrderItem, registeredCellTrackOrder, updateNativeRegisteredCellPreviewIfOpen } from './app-registered-cells';
 import { setTimingValueAt } from './sheet-timing-input';
 import { calibrationCornersForTemplate, calibrationCornersFromPoints, imageExportFilterName, nextCutNumberLabel, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
 import { useAppShellState } from './app-shell-state'
@@ -1403,16 +1403,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  function handleMoveCspStackItem(itemId: string, direction: 'up' | 'down') {
-    const stackItems = cellStackOrderItems(project)
-    const currentIndex = stackItems.findIndex(item => item.id === itemId)
-    const targetIndex = currentIndex + (direction === 'up' ? 1 : -1)
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= stackItems.length) return
-    const nextIds = stackItems.map(item => item.id)
-    const [moved] = nextIds.splice(currentIndex, 1)
-    nextIds.splice(targetIndex, 0, moved)
-    commitProject(applyCellStackOrder(project, nextIds, true))
-  }
+  function handleMoveCspStackItem(itemId: string, direction: 'up' | 'down') { const next = moveCellStackOrderItem(project, itemId, direction, true); if (next) commitProject(next) }
 
   function handleCreateStackGuideLabel(input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) {
     try {

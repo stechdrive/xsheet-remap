@@ -530,6 +530,15 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BOOK2,3')
     expect(document.querySelector('.stackGuideSvgLabelText')?.getAttribute('transform')).toBe(`scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`)
     expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).some(label => label.textContent === 'BOOK2,3')).toBe(true)
+    const bookGuideBeforeMove = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
+      .find(label => label.textContent === 'BOOK2,3')
+    const connectorBeforeMove = bookGuideBeforeMove?.querySelector('.stackGuideSvgConnector')?.getAttribute('d')
+    fireEvent.click(screen.getByRole('button', { name: '全工程のBOOK2,3をCSPで上へ（シートで右へ）' }))
+    await waitFor(() => {
+      const movedGuide = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
+        .find(label => label.textContent === 'BOOK2,3')
+      expect(movedGuide?.querySelector('.stackGuideSvgConnector')?.getAttribute('d')).not.toBe(connectorBeforeMove)
+    })
 
     openStackGuideInsertMenu(sheet, 'cell', 2)
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.add }))
@@ -609,9 +618,9 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     const stackGuideAssetCard = getAssetCardByName('BOOK_CUT.png')
     fireEvent.pointerDown(stackGuideAssetCard, { pointerId: 73, pointerType: 'mouse', button: 0, buttons: 1, clientX: 120, clientY: 180 })
     fireEvent.pointerMove(window, { pointerId: 73, pointerType: 'mouse', buttons: 1, clientX: 360, clientY: 270 })
-    expect(document.querySelector('.assetDragImageShell.pointerDragGhost')).toBeTruthy()
+    expect(document.querySelector('.internalDragPreviewShell.pointerDragGhost')).toBeTruthy()
     fireEvent.pointerUp(window, { pointerId: 73, pointerType: 'mouse', button: 0, buttons: 0, clientX: 360, clientY: 270 })
-    expect(document.querySelector('.assetDragImageShell.pointerDragGhost')).toBeNull()
+    expect(document.querySelector('.internalDragPreviewShell.pointerDragGhost')).toBeNull()
     if (originalElementFromPoint) Object.defineProperty(document, 'elementFromPoint', originalElementFromPoint)
     else Reflect.deleteProperty(document, 'elementFromPoint')
     await waitFor(() => {

@@ -178,6 +178,7 @@ export function StackGuideSvgLayer({
                 event.stopPropagation()
               }}
             >
+              {geometry.truncated && <title>{geometry.fullText}</title>}
               <path className="stackGuideSvgConnector" d={`M ${geometry.anchorX} ${geometry.anchorY} V ${geometry.labelBottomY} H ${geometry.labelAttachX}`} strokeWidth={geometry.connectorStrokeWidth} />
               <rect
                 className="stackGuideSvgLabelBox"
@@ -197,8 +198,9 @@ export function StackGuideSvgLayer({
                 dominantBaseline="middle"
                 fontSizePx={geometry.fontSizePx}
                 pageSize={pageSize}
+                style={{ fontFamily: geometry.fontFamily, fontWeight: geometry.fontWeight }}
               >
-                {label.label}
+                {geometry.displayText}
               </SheetSvgText>
             </g>
           )

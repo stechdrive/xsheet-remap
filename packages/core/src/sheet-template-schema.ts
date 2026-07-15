@@ -188,6 +188,10 @@ export interface SheetTemplateBgBookLabelStyle {
   lanePitchMm?: number
   labelHeightMm?: number
   fontSizePt?: number
+  minFontSizePt?: number
+  fontFamily?: string
+  fontWeight?: number
+  shrinkToFit?: boolean
   minWidthMm?: number
   maxWidthMm?: number
   pageMarginMm?: number

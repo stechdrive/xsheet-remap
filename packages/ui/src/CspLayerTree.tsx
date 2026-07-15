@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { buildCspLayerTree, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
-import { createInternalDragCardImage, startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
+import { startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 import { Tooltip } from './Tooltip'
 
 export interface CspTreeAssetRegistrationResult {
@@ -371,7 +371,7 @@ export function CspLayerTree({
         onPointerDown={cel.keyId ? event => {
           startInternalPointerDrag(event, {
             begin: () => ({ kind: 'registered-cell', keyId: cel.keyId!, sourceSlotId: cel.bindingId ? track.slotId : undefined }),
-            createDragGhost: () => createInternalDragCardImage(cel.cspCellName, correctionLayerLabel ?? '未登録'),
+            createPreview: () => ({ primaryText: cel.cspCellName, secondaryText: correctionLayerLabel ?? '未登録' }),
             interactiveTargetSelector: 'button,input,select,textarea,a,[contenteditable="true"]',
             onStarted: () => {
               cancelPendingKeySelect()
@@ -592,7 +592,7 @@ export function CspLayerTree({
                       onPointerDown={track.stackGuideLabelId ? event => {
                         startInternalPointerDrag(event, {
                           begin: () => ({ kind: 'stack-guide', labelId: track.stackGuideLabelId! }),
-                          createDragGhost: () => createInternalDragCardImage(track.label, layer.label),
+                          createPreview: () => ({ primaryText: track.label, secondaryText: layer.label }),
                         })
                       } : undefined}
                     >

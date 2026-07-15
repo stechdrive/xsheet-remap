@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   resolveSheetTemplateRegionRect,
   type CutMetadataFieldId,
@@ -16,7 +16,6 @@ export function SheetMetadataEditor({
   project,
   template,
   page,
-  pageSize,
   pageWidth,
   pageHeight,
   displayDurationFrames,
@@ -27,7 +26,6 @@ export function SheetMetadataEditor({
   project: CutProject
   template: SheetTemplate
   page: SheetPage
-  pageSize: { widthPx: number; heightPx: number }
   pageWidth: number
   pageHeight: number
   displayDurationFrames: number
@@ -83,6 +81,11 @@ export function SheetMetadataEditor({
     if (restoreTriggerFocus) trigger?.focus()
   }
 
+  function openEditor(regionId: string, trigger: HTMLButtonElement) {
+    activeTriggerRef.current = trigger
+    setEditingRegionId(regionId)
+  }
+
   return (
     <div className="sheetMetadataEditorLayer" aria-label={`${page.pageIndex + 1}ページのシート情報編集`}>
       {regionLayouts.map(({ region, rect }) => (
@@ -90,22 +93,26 @@ export function SheetMetadataEditor({
           key={region.regionId}
           type="button"
           className="sheetMetadataEditHotspot"
-          style={hotspotStyle(rect, pageSize, pageWidth, pageHeight)}
+          style={rectStyle(rect, pageWidth, pageHeight)}
           aria-label={`${region.label}を編集`}
+          aria-haspopup="dialog"
           aria-expanded={editingRegionId === region.regionId}
-          title={`${region.label}を編集`}
-          onClick={event => {
+          aria-keyshortcuts="Enter F2"
+          title={`${region.label}: ダブルクリックまたはEnterで編集`}
+          onPointerDown={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
+          onDoubleClick={event => {
             event.stopPropagation()
-            if (editingRegionId === region.regionId) {
-              setEditingRegionId(null)
-              return
-            }
-            activeTriggerRef.current = event.currentTarget
-            setEditingRegionId(region.regionId)
+            openEditor(region.regionId, event.currentTarget)
           }}
-        >
-          <PencilIcon />
-        </button>
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === 'F2' || event.key === ' ') {
+              event.preventDefault()
+              event.stopPropagation()
+              openEditor(region.regionId, event.currentTarget)
+            }
+          }}
+        />
       ))}
       {active && (
         <div
@@ -183,43 +190,6 @@ function rectStyle(
   }
 }
 
-export function metadataEditIconSizePx(
-  rect: { w: number; h: number },
-  pageSize: { widthPx: number; heightPx: number },
-  displayedPageSize: { widthPx: number; heightPx: number },
-) {
-  const templateShortSide = Math.min(
-    rect.w * pageSize.widthPx,
-    rect.h * pageSize.heightPx,
-  )
-  const displayedShortSide = Math.min(
-    rect.w * displayedPageSize.widthPx,
-    rect.h * displayedPageSize.heightPx,
-  )
-  const templateSize = clamp(templateShortSide * 0.32, 20, 26)
-  const displayedSizeLimit = Math.max(16, displayedShortSide - 6)
-  return Math.round(Math.min(templateSize, displayedSizeLimit))
-}
-
-function hotspotStyle(
-  rect: { x: number; y: number; w: number; h: number },
-  pageSize: { widthPx: number; heightPx: number },
-  pageWidth: number,
-  pageHeight: number,
-): CSSProperties {
-  return {
-    ...rectStyle(rect, pageWidth, pageHeight),
-    '--metadata-edit-icon-size': `${metadataEditIconSizePx(rect, pageSize, {
-      widthPx: pageWidth,
-      heightPx: pageHeight,
-    })}px`,
-  } as CSSProperties
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
-}
-
 function popoverStyle(
   rect: { x: number; y: number; w: number; h: number },
   pageWidth: number,
@@ -233,13 +203,4 @@ function popoverStyle(
     ? below
     : Math.max(8, rect.y * pageHeight - height - 6)
   return { left: `${left}px`, top: `${top}px`, width: `${width}px` }
-}
-
-function PencilIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 20h4l11-11-4-4L4 16v4Z" />
-      <path d="m13.5 6.5 4 4" />
-    </svg>
-  )
 }

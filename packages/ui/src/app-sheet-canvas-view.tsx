@@ -314,7 +314,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     project={props.project}
                     template={props.template}
                     page={page}
-                    pageSize={sheetPageSize}
                     pageWidth={sheetPageWidth}
                     pageHeight={sheetPageHeight}
                     displayDurationFrames={displayDurationFrames}

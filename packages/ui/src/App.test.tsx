@@ -351,7 +351,12 @@ it('separates template lines and labels in the display menu', () => {
 it('edits cut metadata from a template-defined sheet region', () => {
     render(<App />)
     const editButton = screen.getByRole('button', { name: 'カットを編集' })
+    expect(editButton.childElementCount).toBe(0)
+    expect(editButton.getAttribute('title')).toContain('ダブルクリック')
     fireEvent.click(editButton)
+    expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
+
+    fireEvent.doubleClick(editButton)
     const dialog = screen.getByRole('dialog', { name: 'カットを編集' })
     expect(within(dialog).getAllByText('カット')).toHaveLength(1)
     const input = within(dialog).getByLabelText('カット')
@@ -369,19 +374,30 @@ it('edits cut metadata from a template-defined sheet region', () => {
     render(<App />)
     const editButton = screen.getByRole('button', { name: 'カットを編集' })
 
-    fireEvent.click(editButton)
+    fireEvent.doubleClick(editButton)
     expect(screen.getByRole('dialog', { name: 'カットを編集' })).not.toBeNull()
-    fireEvent.click(editButton)
-    expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
-
-    fireEvent.click(editButton)
     const outsideTarget = screen.getByLabelText(uiText.sheet.cutMetadata)
     fireEvent.pointerDown(outsideTarget)
     expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
 
-    fireEvent.click(editButton)
+    fireEvent.doubleClick(editButton)
     fireEvent.focusIn(outsideTarget)
     expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
+  })
+
+  it('opens template-defined metadata editing from the keyboard', () => {
+    render(<App />)
+    const editButton = screen.getByRole('button', { name: 'カットを編集' })
+
+    editButton.focus()
+    fireEvent.keyDown(editButton, { key: 'F2' })
+    const dialog = screen.getByRole('dialog', { name: 'カットを編集' })
+    fireEvent.keyDown(within(dialog).getByLabelText('カット'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
+    expect(document.activeElement).toBe(editButton)
+
+    fireEvent.keyDown(editButton, { key: 'Enter' })
+    expect(screen.getByRole('dialog', { name: 'カットを編集' })).not.toBeNull()
   })
 
 it('uses one page grid and one selected-page source editor for multipage sheets', async () => {

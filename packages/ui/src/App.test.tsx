@@ -352,6 +352,7 @@ it('edits cut metadata from a template-defined sheet region', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'カットを編集' }))
     const dialog = screen.getByRole('dialog', { name: 'カットを編集' })
+    expect(within(dialog).getAllByText('カット')).toHaveLength(1)
     fireEvent.change(within(dialog).getByLabelText('カット'), { target: { value: 'C042' } })
 
     expect(screen.getByLabelText(uiText.sheet.cutMetadata).textContent).toContain('C042')

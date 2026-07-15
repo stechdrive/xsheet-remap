@@ -92,10 +92,10 @@ export function SheetMetadataEditor({
               />
               )
             : (
-              <label className="sheetMetadataEditorField">
-                <span>{active.region.label}</span>
+              <div className="sheetMetadataEditorField">
                 <input
                   autoFocus
+                  aria-label={active.region.label}
                   value={metadataValue(project, active.region.binding.field, active.region.binding.customKey)}
                   onChange={event => onMetadataChange(
                     active.region.binding.field,
@@ -103,7 +103,7 @@ export function SheetMetadataEditor({
                     active.region.binding.customKey,
                   )}
                 />
-              </label>
+              </div>
               )}
         </div>
       )}

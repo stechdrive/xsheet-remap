@@ -7,6 +7,11 @@ const tauriMockState = vi.hoisted(() => ({
   missingPathKeys: new Set<string>(),
 }))
 
+export function enterTimingValue(value: string) {
+  for (const character of value) fireEvent.keyDown(window, { key: character })
+  fireEvent.keyDown(window, { key: 'Enter' })
+}
+
 export function markMissingTauriPath(path: string) {
   tauriMockState.missingPathKeys.add(path.replace(/\\/g, '/').toLocaleLowerCase())
 }

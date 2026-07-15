@@ -751,6 +751,19 @@
   pointer-events: none;
 }
 
+.timingDraftRect {
+  fill: rgb(239 248 242 / 0.96);
+  stroke: none;
+  pointer-events: none;
+}
+
+.timingDraftText {
+  fill: #0b5a3d;
+  font-weight: 800;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
 .timelineEventHandle,
 .timelineEventDragSource {
   pointer-events: none;

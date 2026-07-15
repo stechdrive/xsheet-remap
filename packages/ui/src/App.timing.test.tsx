@@ -4,7 +4,7 @@ import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsh
 import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
-import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
 
 describe('App: sheet timing interactions', () => {
 it('shows a dedicated cell cue for asset and CSP card drop targets', () => {
@@ -77,7 +77,7 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
     clickTemplateFrame(sheet, 'cell', 'A', 1)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as HTMLElement | null
     if (!registeredCell) throw new Error('registered cell card not found')
 
@@ -215,11 +215,12 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     })
 
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
 
     const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as HTMLElement | null
     if (!registeredCell) throw new Error('registered cell card not found')
-    expect(Array.from(registeredCell.querySelectorAll('input')).map(input => input.value)).toEqual(['1'])
+    expect(registeredCell.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
+    expect(registeredCell.querySelectorAll('input')).toHaveLength(0)
     expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
 
     const assetInput = screen.getByLabelText(uiText.actions.addAssets)
@@ -238,7 +239,7 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     if (!cspNameInput) throw new Error('CSP cell name input not found')
     fireEvent.change(cspNameInput, { target: { value: 'A1_custom' } })
     fireEvent.keyDown(cspNameInput, { key: 'Enter' })
-    expect(assignedCell.textContent).toContain('A1_ref.png')
+    expect(assignedCell.querySelector('.cspTreeAssetState')?.getAttribute('title')).toBe('素材: A1_ref.png')
 
     const dialog = openTimingExportDialog()
     fireEvent.click(within(dialog).getByRole('button', { name: 'CELL' }))
@@ -251,7 +252,7 @@ it('removes one process card before deleting its shared logical cell', async () 
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
 
     const assetInput = screen.getByLabelText(uiText.actions.addAssets)
     fireEvent.change(assetInput, { target: { files: [new File(['asset'], 'A1_ref.png', { type: 'image/png', lastModified: 1 })] } })
@@ -265,6 +266,7 @@ it('removes one process card before deleting its shared logical cell', async () 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const assignedProcessCard = document.querySelector<HTMLElement>('.cspTreeCel.assigned')
     if (!assignedProcessCard) throw new Error('assigned process card not found')
+    fireEvent.click(assignedProcessCard)
     fireEvent.click(within(assignedProcessCard).getByRole('button', { name: /1を削除$/ }))
     expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteProcessCardConfirm('作画', 'A1'))
     expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
@@ -297,7 +299,7 @@ it('chooses a process when an image asset is dropped onto an already registered 
     })
 
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     expect(document.querySelector('.eventText')?.textContent).toBe('1')
 
     const assetInput = screen.getByLabelText(uiText.actions.addAssets)
@@ -344,7 +346,7 @@ it('chooses a process when an external image file is dropped onto an already reg
     })
 
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     fireEvent.pointerMove(sheet, { clientX: 255, clientY: 290 })
     const file = new File(['asset'], 'A1_direct.png', { type: 'image/png', lastModified: 1 })
     const dataTransfer = {
@@ -426,8 +428,8 @@ it('moves a registered timeline event by Alt-dragging it to another frame', () =
     setSheetRect(sheet, 0, 0)
 
     clickTemplateFrame(sheet, 'cell', 'A', 1)
-    fireEvent.keyDown(window, { key: '1' })
-    expectSelectedHit('cell', 'A', 1)
+    enterTimingValue('1')
+    expectSelectedHit('cell', 'A', 2)
 
     const source = templateFramePoint('cell', 'A', 1)
     const target = templateFramePoint('cell', 'A', 4)
@@ -453,8 +455,8 @@ it('selects a range when dragging from a registered timeline event without Alt',
     setSheetRect(sheet, 0, 0)
 
     clickTemplateFrame(sheet, 'cell', 'A', 1)
-    fireEvent.keyDown(window, { key: '1' })
-    expectSelectedHit('cell', 'A', 1)
+    enterTimingValue('1')
+    expectSelectedHit('cell', 'A', 2)
 
     const source = templateFramePoint('cell', 'A', 1)
     const target = templateFramePoint('cell', 'A', 4)
@@ -482,8 +484,8 @@ it('moves a registered timeline event after a long press', async () => {
       setSheetRect(sheet, 0, 0)
 
       clickTemplateFrame(sheet, 'cell', 'A', 1)
-      fireEvent.keyDown(window, { key: '1' })
-      expectSelectedHit('cell', 'A', 1)
+      enterTimingValue('1')
+      expectSelectedHit('cell', 'A', 2)
 
       const source = templateFramePoint('cell', 'A', 1)
       const target = templateFramePoint('cell', 'A', 4)
@@ -576,7 +578,7 @@ it('clears frame hover previews and closes the paper track header menu on outsid
 
     const framePoint = templateFramePoint('cell', 'A', 1)
     clickTemplateFrame(sheet, 'cell', 'A', 1)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     fireEvent.pointerMove(sheet, { clientX: framePoint.x, clientY: framePoint.y })
     const file = new File(['asset'], 'A1_preview.png', { type: 'image/png', lastModified: 1 })
     fireEvent.drop(sheet, {
@@ -625,7 +627,7 @@ it('treats direct x input as a hidden reserved null-cell event', () => {
     })
 
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: 'x' })
+    enterTimingValue('x')
 
     expect(document.querySelector('.eventText')?.textContent).toBe('x')
     expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(0)
@@ -669,14 +671,14 @@ it('creates independent keys in ACTION and CELL grid positions', () => {
     })
 
     clickSheet(sheet, 45, 290)
-    fireEvent.keyDown(window, { key: '1' })
-    expectSelectedHit('action', 'A', 1)
+    enterTimingValue('1')
+    expectSelectedHit('action', 'A', 2)
     expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(1)
     expect(registeredCellIdentityText(document.querySelector('.cspTreeCel[data-csp-key-id]') as Element)).toBe('ACTION A')
 
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
-    expectSelectedHit('cell', 'A', 1)
+    enterTimingValue('1')
+    expectSelectedHit('cell', 'A', 2)
     const registeredCells = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
     expect(registeredCells).toHaveLength(2)
     expect(registeredCells.map(registeredCellIdentityText)).toEqual(['CELL A', 'ACTION A'])
@@ -690,13 +692,13 @@ it('groups CSP cells by column and keeps CSP top-to-bottom stacking order', () =
     setSheetRect(sheet, 0, 0)
 
     clickTemplateFrame(sheet, 'action', 'B', 3)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     clickTemplateFrame(sheet, 'action', 'A', 20)
-    fireEvent.keyDown(window, { key: '2' })
+    enterTimingValue('2')
     clickTemplateFrame(sheet, 'action', 'A', 5)
-    fireEvent.keyDown(window, { key: '3' })
+    enterTimingValue('3')
     clickTemplateFrame(sheet, 'cell', 'A', 1)
-    fireEvent.keyDown(window, { key: '4' })
+    enterTimingValue('4')
 
     const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
     expect(cards.map(registeredCellIdentityText)).toEqual(['ACTION B', 'CELL A', 'ACTION A', 'ACTION A'])
@@ -726,14 +728,14 @@ it('defaults XDTS export to the ACTION timeline and keeps protocol separators in
     })
 
     clickSheet(sheet, 45, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     const dialog = openTimingExportDialog()
     expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.queryByLabelText('読込開始')).toBeNull()
     expect(screen.queryByLabelText('読込終了')).toBeNull()
   })
 
-it('steps point-event range input by the selected range length', () => {
+it('keeps range input as a draft until Enter and then steps by the selected range length', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     sheet.getBoundingClientRect = () => ({
@@ -752,18 +754,53 @@ it('steps point-event range input by the selected range length', () => {
     expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
     expect(document.querySelector('.selectedRangeOutline')).toBeTruthy()
     expect(document.querySelector('.selectedRangeCorners')).toBeTruthy()
+    expect(document.querySelector('.selectedCellCorners')).toBeTruthy()
     expectSelectedRange('cell', 'A', 1, 3)
     expect((screen.getByRole('spinbutton', { name: uiText.sheet.textFontSize }) as HTMLInputElement).disabled).toBe(true)
 
     fireEvent.keyDown(window, { key: '1' })
-    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
-    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1'])
-    expectSelectedRange('cell', 'A', 4, 6)
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(0)
+    expect(document.querySelector('.timingDraftText')?.textContent).toBe('1')
+    expectSelectedRange('cell', 'A', 1, 3)
 
     fireEvent.keyDown(window, { key: '2' })
+    expect(document.querySelector('.timingDraftText')?.textContent).toBe('12')
+    expectSelectedRange('cell', 'A', 1, 3)
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['12'])
+    expectSelectedRange('cell', 'A', 4, 6)
+
+    enterTimingValue('2')
     expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
-    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2'])
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['12', '2'])
     expectSelectedRange('cell', 'A', 7, 9)
+  })
+
+it('edits a timing draft with Backspace, commits it on cell change, and cancels it with Escape', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: '1' })
+    fireEvent.keyDown(window, { key: '2' })
+    fireEvent.keyDown(window, { key: 'Backspace' })
+    expect(document.querySelector('.timingDraftText')?.textContent).toBe('1')
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 3)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1'])
+    expectSelectedHit('cell', 'A', 3)
+
+    fireEvent.keyDown(window, { key: '9' })
+    expect(document.querySelector('.timingDraftText')?.textContent).toBe('9')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(document.querySelector('.timingDraftText')).toBeNull()
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
+    expectSelectedHit('cell', 'A', 3)
   })
 
 it('selects a CELL range across the left and right six-second sheet blocks', () => {
@@ -843,8 +880,8 @@ it('clears selections that become hidden when pre-roll display is disabled', asy
     expect(preRoll.checked).toBe(true)
 
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '9' })
-    expectSelectedHit('cell', 'A', -23)
+    enterTimingValue('9')
+    expectSelectedHit('cell', 'A', -22)
     expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toContain('9')
 
     preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
@@ -852,7 +889,7 @@ it('clears selections that become hidden when pre-roll display is disabled', asy
     expect(preRoll.checked).toBe(false)
     await waitFor(() => expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).not.toContain('9'))
 
-    fireEvent.keyDown(window, { key: '5' })
+    enterTimingValue('5')
     preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
     fireEvent.click(preRoll)
     expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['9'])
@@ -896,9 +933,9 @@ it('copies a selected timing range and repeats it across another range', () => {
     })
 
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     clickSheet(sheet, 255, 300)
-    fireEvent.keyDown(window, { key: '2' })
+    enterTimingValue('2')
     expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
 
     dragSheet(sheet, 255, 290, 255, 300)
@@ -925,9 +962,9 @@ it('requires a target range for range repeat paste', () => {
     })
 
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     clickSheet(sheet, 255, 300)
-    fireEvent.keyDown(window, { key: '2' })
+    enterTimingValue('2')
     dragSheet(sheet, 255, 290, 255, 300)
     fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
 
@@ -948,9 +985,9 @@ it('copies a pre-roll range into the official cut while pre-roll is visible', ()
 
     fireEvent.click(screen.getByLabelText(uiText.sheet.preRoll))
     clickTemplateDisplayFrame(sheet, 'cell', 'A', -23, 168, -23)
-    fireEvent.keyDown(window, { key: '9' })
+    enterTimingValue('9')
     clickTemplateDisplayFrame(sheet, 'cell', 'A', 1, 168, -23)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
 
     dragTemplateDisplayFrames(sheet, 'cell', 'A', -23, 1, 168, -23)
     expectSelectedRange('cell', 'A', -23, 1)
@@ -969,11 +1006,11 @@ it('overwrites, cuts, and inserts timing ranges from the sheet context menu', ()
     setSheetRect(sheet, 0, 0)
 
     clickTemplateFrame(sheet, 'cell', 'A', 1)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     clickTemplateFrame(sheet, 'cell', 'A', 2)
-    fireEvent.keyDown(window, { key: '2' })
+    enterTimingValue('2')
     clickTemplateFrame(sheet, 'cell', 'A', 4)
-    fireEvent.keyDown(window, { key: '4' })
+    enterTimingValue('4')
     dragSheet(sheet, 255, 290, 255, 300)
     let menuPoint = templateFramePoint('cell', 'A', 1)
     fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
@@ -1004,9 +1041,9 @@ it('shows post-roll after insert paste beyond the cut end and clips XDTS output 
     setSheetRect(sheet, 0, 0)
 
     clickTemplateFrame(sheet, 'cell', 'A', 143)
-    fireEvent.keyDown(window, { key: '7' })
+    enterTimingValue('7')
     clickTemplateFrame(sheet, 'cell', 'A', 144)
-    fireEvent.keyDown(window, { key: '8' })
+    enterTimingValue('8')
     dragTemplateDisplayFrames(sheet, 'cell', 'A', 143, 144, 144, 1)
     fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
 
@@ -1028,9 +1065,9 @@ it('opens frame operation commands from the sheet context menu', () => {
     setSheetRect(sheet, 0, 0)
 
     clickTemplateFrame(sheet, 'cell', 'A', 1)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     clickTemplateFrame(sheet, 'cell', 'A', 3)
-    fireEvent.keyDown(window, { key: '3' })
+    enterTimingValue('3')
 
     const insertPoint = templateFramePoint('cell', 'A', 2)
     fireEvent.contextMenu(sheet, { clientX: insertPoint.x, clientY: insertPoint.y })
@@ -1073,7 +1110,7 @@ it('registers new timing at the active process without moving it when the destin
 
     fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as Element
     expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
     expect(registeredCell.closest('.cspTreeLayer')?.querySelector('.cspTreeSummaryLabel')?.textContent).toBe('演出')
@@ -1082,7 +1119,7 @@ it('registers new timing at the active process without moving it when the destin
 
     fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_sakuga' } })
     expect(registeredCell.closest('.cspTreeLayer')?.querySelector('.cspTreeSummaryLabel')?.textContent).toBe('演出')
-    expectSelectionStatus('作画', 'CELL', 'A', formatTestFramePosition(1))
+    expectSelectionStatus('作画', 'CELL', 'A', formatTestFramePosition(2))
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
   })
 })

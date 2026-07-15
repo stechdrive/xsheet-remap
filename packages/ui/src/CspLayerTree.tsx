@@ -22,8 +22,6 @@ export function CspLayerTree({
   exportProfileId,
   selectedKeyId,
   onSelectKey,
-  onJumpToFirstUse,
-  onUpdateKey,
   onDeleteKey,
   activeCorrectionLayerId,
   onUpdateCspCellName,
@@ -50,8 +48,6 @@ export function CspLayerTree({
   exportProfileId?: string
   selectedKeyId: string | null
   onSelectKey: (keyId: string | null) => void
-  onJumpToFirstUse: (keyId: string) => void
-  onUpdateKey: (keyId: string, displayLabel: string) => void
   onDeleteKey: (keyId: string, bindingId?: string) => void | Promise<void>
   activeCorrectionLayerId: string
   onUpdateCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
@@ -100,6 +96,25 @@ export function CspLayerTree({
     label: string
   } | null>(null)
   const treeRootRef = useRef<HTMLElement | null>(null)
+  const pendingKeySelectRef = useRef<number | null>(null)
+
+  useEffect(() => () => {
+    if (pendingKeySelectRef.current !== null) window.clearTimeout(pendingKeySelectRef.current)
+  }, [])
+
+  function cancelPendingKeySelect() {
+    if (pendingKeySelectRef.current === null) return
+    window.clearTimeout(pendingKeySelectRef.current)
+    pendingKeySelectRef.current = null
+  }
+
+  function scheduleKeySelect(keyId: string | null) {
+    cancelPendingKeySelect()
+    pendingKeySelectRef.current = window.setTimeout(() => {
+      pendingKeySelectRef.current = null
+      onSelectKey(keyId)
+    }, 250)
+  }
 
   function handleAssetDrop(assetIds: string[], keyId: string, slotId?: string) {
     if (assetIds.length !== 1) {
@@ -329,7 +344,6 @@ export function CspLayerTree({
     const assignmentSlotId = track.slotId ?? activeSlotIdForTrack(track)
     const editableBinding = Boolean(track.slotId && cel.keyId)
     const editableGuide = Boolean(track.stackGuideLabelId && correctionLayerId)
-    const hasTimelineUse = Boolean(cel.keyId && project.logicalSheet.events.some(event => event.keyId === cel.keyId))
     const showSheetLabel = Boolean(cel.keyId && cel.displayLabel?.trim() && cel.displayLabel.trim() !== cel.cspCellName.trim())
     const asset = cel.assetId ? assetsById.get(cel.assetId) : undefined
     const selected = cel.keyId === selectedKeyId
@@ -360,7 +374,15 @@ export function CspLayerTree({
             createDragGhost: () => createInternalDragCardImage(track.label, cel.cspCellName, dragSource),
           })
         } : undefined}
-        onClick={() => onSelectKey(cel.keyId ?? null)}
+        onClick={event => {
+          const target = event.target
+          if (target instanceof Element && target.closest('.cspTreeCelName')) {
+            scheduleKeySelect(cel.keyId ?? null)
+            return
+          }
+          cancelPendingKeySelect()
+          onSelectKey(cel.keyId ?? null)
+        }}
       >
         {(editableBinding || editableGuide) ? (
           <InlineTreeLabel
@@ -369,6 +391,7 @@ export function CspLayerTree({
             label={cel.cspCellName}
             inputAriaLabel={`${track.label}のCSPセル名`}
             editTitle="ダブルクリックでCSPセル名を編集"
+            onBeginEditing={cancelPendingKeySelect}
             onCommit={name => {
               if (track.slotId && cel.keyId) {
                 onUpdateCspCellName(cel.keyId, track.slotId, name)
@@ -382,40 +405,17 @@ export function CspLayerTree({
         {asset && !cel.keyId && <span className="cspTreeSheetLabel" title={asset.displayName}>{asset.displayName}</span>}
         <span className="cspTreeAssetState" title={asset ? `素材: ${asset.displayName}` : '素材未割当'}>{asset ? '●' : '○'}</span>
         {selected && cel.keyId && (
-          <div className="cspTreeCelDetails" onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
-            <label className="cspTreeSheetNameField">
-              <span>シート</span>
-              <input
-                aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}のシート表示名`}
-                value={cel.displayLabel ?? ''}
-                onChange={event => onUpdateKey(cel.keyId!, event.currentTarget.value)}
-              />
-            </label>
-            {asset && <span className="cspTreeAssetName" title={asset.displayName}>{asset.displayName}</span>}
-            <div className="cspTreeCelActions">
-              {hasTimelineUse && (
-                <Tooltip label="シート上の先頭使用位置へ移動">
-                  <button
-                    type="button"
-                    className="cspTreeJumpButton"
-                    aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}の先頭使用位置へ移動`}
-                    onClick={() => onJumpToFirstUse(cel.keyId!)}
-                  >
-                    <LocateIcon />
-                  </button>
-                </Tooltip>
-              )}
-              <Tooltip label={cel.bindingId ? 'この工程のカードを削除' : '登録セルを削除'}>
-                <button
-                  type="button"
-                  className="cspTreeDeleteButton"
-                  aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}を削除`}
-                  onClick={() => onDeleteKey(cel.keyId!, cel.bindingId)}
-                >
-                  <DeleteIcon />
-                </button>
-              </Tooltip>
-            </div>
+          <div className="cspTreeCelActions" onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
+            <Tooltip label={cel.bindingId ? 'この工程のカードを削除' : '登録セルを削除'}>
+              <button
+                type="button"
+                className="cspTreeDeleteButton"
+                aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}を削除`}
+                onClick={() => onDeleteKey(cel.keyId!, cel.bindingId)}
+              >
+                <DeleteIcon />
+              </button>
+            </Tooltip>
           </div>
         )}
         {assetDragOver && (
@@ -741,15 +741,6 @@ function DeleteIcon() {
   )
 }
 
-function LocateIcon() {
-  return (
-    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="6" />
-      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-    </svg>
-  )
-}
-
 interface CspInternalDropTarget {
   kind: 'cel' | 'track' | 'gap'
   celNodeId?: string
@@ -947,6 +938,7 @@ function InlineTreeLabel({
   inputClassName,
   inputAriaLabel,
   editTitle,
+  onBeginEditing,
   onCommit,
 }: {
   label: string
@@ -954,12 +946,14 @@ function InlineTreeLabel({
   inputClassName: string
   inputAriaLabel: string
   editTitle: string
+  onBeginEditing?: () => void
   onCommit: (name: string) => void
 }) {
   const [draft, setDraft] = useState(label)
   const [editing, setEditing] = useState(false)
 
   function beginEditing() {
+    onBeginEditing?.()
     setDraft(label)
     setEditing(true)
   }

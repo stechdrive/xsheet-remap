@@ -30,6 +30,8 @@ export type SheetCanvasProps = {
   runtimeSourceImageUrls: Record<string, string>
   recognitionCandidates: RecognitionCandidate[]
   selectedHit: SheetHit | null
+  timingDraftValue: string
+  timingDraftActive: boolean
   scrollRequest: SheetScrollRequest | null
   rangeSelection: SheetRangeSelection | null
   timingClipboard: TimingClipboard | null

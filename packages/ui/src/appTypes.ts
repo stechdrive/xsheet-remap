@@ -53,11 +53,6 @@ export interface SheetPageImage {
   settings: SheetImageSettings
 }
 
-export interface Selection {
-  hit: SheetHit | null
-  keyId: string | null
-}
-
 export interface SheetRangeSelection {
   role: SheetTemplateGrid['role']
   inputMode: SheetTemplateInputMode
@@ -72,6 +67,11 @@ export interface SheetRangeSelection {
   anchorHit: SheetHit
   focusHit: SheetHit
 }
+
+export type SheetSelection =
+  | { kind: 'none' }
+  | { kind: 'cell'; hit: SheetHit }
+  | { kind: 'range'; range: SheetRangeSelection }
 
 export interface TimingClipboard {
   role: 'action' | 'cell'

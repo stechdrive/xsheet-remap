@@ -42,6 +42,8 @@ export function SheetPanel(props: {
   recognitionCandidates: RecognitionCandidate[]
   selectedKeyId: string | null
   selectedHit: SheetHit | null
+  timingDraftValue: string
+  timingDraftActive: boolean
   scrollRequest: SheetScrollRequest | null
   rangeSelection: SheetRangeSelection | null
   timingClipboard: TimingClipboard | null
@@ -78,7 +80,6 @@ export function SheetPanel(props: {
   autoCalibrationOverlay: AutoCalibrationOverlayState | null
   onCellClick: (hit: SheetHit) => void
   onCellSelect: (hit: SheetHit) => void
-  onJumpToKeyFirstUse: (keyId: string) => void
   onRangeSelect: (range: SheetRangeSelection) => void
   onSetNullAtHit: (hit: SheetHit) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
@@ -120,7 +121,6 @@ export function SheetPanel(props: {
   onApplySheetImageWarp: (pointsOverride?: SheetCalibrationPointPair[]) => void
   onUpdateTiming: (updates: Parameters<typeof updateLogicalSheetSettings>[1]) => void
   onSetViewMode: (viewMode: SheetViewMode) => void
-  onUpdateKey: (keyId: string, displayLabel: string) => void
   onDeleteKey: (keyId: string) => void | Promise<void>
   onUpdateKeyCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
@@ -601,8 +601,6 @@ export function SheetPanel(props: {
               exportProfileId={props.exportProfileId}
               selectedKeyId={props.selectedKeyId}
               onSelectKey={props.onKeySelect}
-              onJumpToFirstUse={props.onJumpToKeyFirstUse}
-              onUpdateKey={props.onUpdateKey}
               onDeleteKey={props.onDeleteKey}
               activeCorrectionLayerId={props.activeCorrectionLayerId}
               onUpdateCspCellName={props.onUpdateKeyCspCellName}

@@ -4,7 +4,7 @@ import { standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
 import { defaultCalibrationPoints } from './sheetImages';
-import { clickActiveStackGuideInsertHandle, clickSheet, dragInternalPointer, dragStackGuideSvgLabel, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, dragInternalPointer, dragStackGuideSvgLabel, enterTimingValue, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 describe('App: viewport and assets', () => {
 it('zooms the sheet with Ctrl+wheel and viewport controls', () => {
@@ -370,7 +370,7 @@ it('resets the working project and clears history from the top bar', async () =>
       toJSON: () => ({}),
     })
     clickSheet(sheet, 255, 290)
-    fireEvent.keyDown(window, { key: '1' })
+    enterTimingValue('1')
     expect(document.querySelector('.eventText')?.textContent).toBe('1')
 
     const sourceInput = screen.getByLabelText(uiText.actions.loadSheetSourceFiles)
@@ -447,7 +447,7 @@ it('registers material assets in the CSP layer tree and reuses its cards on the 
     const drawingCell = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeCel[data-csp-key-id]'))
       .find(cell => cell.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent === '作画')
     if (!drawingCell) throw new Error('drawing CSP cell was not rendered')
-    expect(drawingCell.textContent).toContain('BG_A1.png')
+    expect(drawingCell.querySelector('.cspTreeAssetState')?.getAttribute('title')).toBe('素材: BG_A1.png')
     expect(drawingCell.dataset.cspSheetRole).toBe('cell')
     fireEvent.doubleClick(drawingCell.querySelector('.cspTreeCelName')!)
     const cspNameInput = drawingCell.querySelector<HTMLInputElement>('.cspTreeCelNameInput')
@@ -468,7 +468,7 @@ it('registers material assets in the CSP layer tree and reuses its cards on the 
         .map(cell => cell.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent)
       expect(layerNames).toEqual(['演出', '作画'])
     })
-    expect(Array.from(document.querySelectorAll('.cspTreeAssetName')).map(item => item.textContent)).toEqual(['BG_A2.png', 'BG_A1.png'])
+    expect(Array.from(document.querySelectorAll('.cspTreeAssetState')).map(item => item.getAttribute('title'))).toEqual(['素材: BG_A2.png', '素材: BG_A1.png'])
 
     const target = templateFramePoint('cell', 'B', 1)
     dragInternalPointer(drawingCell, sheet, { toX: target.x, toY: target.y })

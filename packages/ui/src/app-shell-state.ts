@@ -4,7 +4,7 @@ import {
   standardA3SheetTemplate, type AnnotationText, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
-import type { EditMode, Panel, Selection, SheetRangeSelection, TimingClipboard, TimingExportDialogState } from './appTypes'
+import type { EditMode, Panel, SheetSelection, TimingClipboard, TimingExportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
@@ -90,8 +90,8 @@ export function useAppShellState() {
   const [selectedTextAnnotationId, setSelectedTextAnnotationId] = useState<string | null>(null)
   const [editingTextAnnotationId, setEditingTextAnnotationId] = useState<string | null>(null)
   const [textAnnotationClipboard, setTextAnnotationClipboard] = useState<AnnotationText | null>(null)
-  const [selection, setSelection] = useState<Selection>({ hit: null, keyId: null })
-  const [rangeSelection, setRangeSelection] = useState<SheetRangeSelection | null>(null)
+  const [sheetSelection, setSheetSelection] = useState<SheetSelection>({ kind: 'none' })
+  const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null)
   const [sheetScrollRequest, setSheetScrollRequest] = useState<SheetScrollRequest | null>(null)
   const [timingClipboard, setTimingClipboard] = useState<TimingClipboard | null>(null)
   const [statusHints, setStatusHints] = useState<StatusHints>({})
@@ -117,8 +117,8 @@ export function useAppShellState() {
     showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
-    editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, selection, setSelection,
-    rangeSelection, setRangeSelection, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard, statusHints, setStatusHints,
+    editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
+    selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard, statusHints, setStatusHints,
     valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,

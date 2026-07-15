@@ -290,6 +290,25 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       strokeWidth={stroke.width}
                     />
                   ))}
+                  {selectedRect && props.timingDraftActive && (
+                    <g className="timingDraftOverlay" aria-label={`入力中: ${props.timingDraftValue}`}>
+                      <rect className="timingDraftRect" x={selectedRect.x} y={selectedRect.y} width={selectedRect.w} height={selectedRect.h} />
+                      {props.timingDraftValue && (
+                        <SheetSvgText
+                          className="timingDraftText"
+                          x={selectedRect.x + selectedRect.w / 2}
+                          y={selectedRect.y + selectedRect.h / 2}
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          alignmentBaseline="central"
+                          fontSizePx={clampTextFontSizePx(props.textFontSizePx)}
+                          pageSize={sheetPageSize}
+                        >
+                          {props.timingDraftValue}
+                        </SheetSvgText>
+                      )}
+                    </g>
+                  )}
                   {selectedRect && <SelectedCellCue rect={selectedRect} surface={selectionSurface} />}
                   {dropTargetRect && dropTargetPreview && (
                     <SheetDropTargetCue rect={dropTargetRect} surface={selectionSurface} validity={dropTargetPreview.validity} />

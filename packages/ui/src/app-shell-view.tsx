@@ -25,7 +25,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
-    selection, rangeSelection, sheetScrollRequest, timingClipboard, exportProfileId, sheetImageExportDraft,
+    selection, rangeSelection, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
@@ -33,9 +33,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
-    recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, setSelectionFromRange,
-    handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect, handleJumpToKeyFirstUse,
-    handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard, handleUpdateLogicalCellLabel,
+    recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, handleRangeSelect,
+    handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect,
+    handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
@@ -275,6 +275,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             recognitionCandidates={recognitionCandidates}
             selectedKeyId={selection.keyId}
             selectedHit={selection.hit}
+            timingDraftValue={valueDraft}
+            timingDraftActive={valueDraftActive}
             scrollRequest={sheetScrollRequest}
             rangeSelection={rangeSelection}
             timingClipboard={timingClipboard}
@@ -311,8 +313,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             autoCalibrationOverlay={autoCalibrationOverlay}
             onCellClick={handleCellClick}
             onCellSelect={handleCellSelect}
-            onJumpToKeyFirstUse={handleJumpToKeyFirstUse}
-            onRangeSelect={setSelectionFromRange}
+            onRangeSelect={handleRangeSelect}
             onSetNullAtHit={handleSetNullAtHit}
             onDeleteEventAtHit={handleDeleteEventAtHit}
             onKeySelect={handleKeySelect}
@@ -356,7 +357,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onApplySheetImageWarp={applySheetImageWarp}
             onUpdateTiming={updateTiming}
             onSetViewMode={viewMode => commitProject(updateSheetViewState(project, { viewMode }))}
-            onUpdateKey={handleUpdateLogicalCellLabel}
             onDeleteKey={handleDeleteCspCard}
             onUpdateKeyCspCellName={handleUpdateKeyCspCellName}
             onMoveKeyBindingProcess={handleMoveKeyBindingProcess}

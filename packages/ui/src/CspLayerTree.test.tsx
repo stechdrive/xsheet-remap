@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CspLayerTree } from './CspLayerTree'
 import { dispatchInternalDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 describe('CspLayerTree', () => {
   it('adds a material-unassigned card from a process track with a normalized name proposal', () => {
@@ -24,8 +27,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={onSelectKey}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_enshutsu"
         onUpdateCspCellName={vi.fn()}
@@ -81,8 +82,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -143,16 +142,14 @@ describe('CspLayerTree', () => {
     const onRenameProductionStage = vi.fn()
     const onRenameCorrectionLayer = vi.fn()
     const onUpdateCspCellName = vi.fn()
-    const onJumpToFirstUse = vi.fn()
+    const onSelectKey = vi.fn()
 
     render(
       <CspLayerTree
         project={project}
         exportProfileId="import-stack"
         selectedKeyId={created.key.keyId}
-        onSelectKey={vi.fn()}
-        onJumpToFirstUse={onJumpToFirstUse}
-        onUpdateKey={vi.fn()}
+        onSelectKey={onSelectKey}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={onUpdateCspCellName}
@@ -215,14 +212,22 @@ describe('CspLayerTree', () => {
     expect(directorDetails?.open).toBe(false)
 
     const cellLabel = screen.getByText('A1', { selector: '.cspTreeCelName' })
+    vi.useFakeTimers()
+    fireEvent.click(cellLabel)
+    fireEvent.click(cellLabel)
     fireEvent.doubleClick(cellLabel)
+    act(() => vi.advanceTimersByTime(300))
+    expect(onSelectKey).not.toHaveBeenCalled()
+    vi.useRealTimers()
     const cellInput = screen.getByLabelText('AのCSPセル名')
     fireEvent.change(cellInput, { target: { value: 'A1_custom' } })
     fireEvent.keyDown(cellInput, { key: 'Enter' })
     expect(onUpdateCspCellName).toHaveBeenCalledWith(created.key.keyId, 'slot_A', 'A1_custom')
 
-    fireEvent.click(screen.getByRole('button', { name: 'A 1の先頭使用位置へ移動' }))
-    expect(onJumpToFirstUse).toHaveBeenCalledWith(created.key.keyId)
+    const card = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
+    if (!card) throw new Error('CSP cell card not found')
+    fireEvent.click(card)
+    expect(onSelectKey).toHaveBeenCalledWith(created.key.keyId)
   })
 
   it('shows timeline-only keys as compact unregistered cards and registers them by track drop', () => {
@@ -236,8 +241,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -285,8 +288,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -327,7 +328,7 @@ describe('CspLayerTree', () => {
     })
   })
 
-  it('edits the selected sheet label, exposes its asset name, and deletes the card', () => {
+  it('shows the selected card in one row with a read-only sheet label, asset state, and delete action', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const project = upsertBinding({
       ...created.project,
@@ -346,7 +347,6 @@ describe('CspLayerTree', () => {
       assetId: 'asset_a1',
       materialState: 'assigned',
     })
-    const onUpdateKey = vi.fn()
     const onDeleteKey = vi.fn()
     const onAssignAsset = vi.fn()
 
@@ -356,8 +356,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={created.key.keyId}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={onUpdateKey}
         onDeleteKey={onDeleteKey}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -379,16 +377,15 @@ describe('CspLayerTree', () => {
       />,
     )
 
-    const sheetName = screen.getByRole('textbox', { name: 'A 1のシート表示名' })
-    fireEvent.change(sheetName, { target: { value: 'ア' } })
-    expect(onUpdateKey).toHaveBeenCalledWith(created.key.keyId, 'ア')
-    expect(screen.getByText('A1 reference.png')).toBeTruthy()
+    const card = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
+    if (!card) throw new Error('CSP cell card not found')
+    expect(card.querySelector('[role="textbox"]')).toBeNull()
+    expect(card.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
+    expect(card.querySelector('.cspTreeAssetState')?.getAttribute('title')).toBe('素材: A1 reference.png')
 
     fireEvent.click(screen.getByRole('button', { name: 'A 1を削除' }))
     expect(onDeleteKey).toHaveBeenCalledWith(created.key.keyId, project.bindings[0]?.bindingId)
 
-    const card = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
-    if (!card) throw new Error('CSP cell card not found')
     moveInternalOver(card, { kind: 'asset', assetIds: ['asset_replacement'] })
     expect(card.classList.contains('assetDragOver')).toBe(true)
     expect(card.textContent).toContain('A1の素材を差し替え')
@@ -419,8 +416,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -462,8 +457,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -518,8 +511,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -567,8 +558,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -608,8 +597,6 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
-        onJumpToFirstUse={vi.fn()}
-        onUpdateKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}

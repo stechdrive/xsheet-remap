@@ -1,6 +1,8 @@
 param(
   [ValidateSet("editor", "remap")]
   [string]$AppMode = "editor",
+  [ValidateSet("registered-cell", "explorer-import", "full")]
+  [string]$TestCase = "registered-cell",
   [string]$ExePath = "",
   [string]$ArtifactRoot = ".tmp/desktop-e2e-real-dnd",
   [string]$PythonPath = "python",
@@ -26,7 +28,13 @@ if (-not $ExePath) {
     "apps/editor/src-tauri/target/release/xsheet-editor.exe"
   }
 }
-$scenario = if ($AppMode -eq "remap") { "remap-real-dnd" } else { "real-dnd" }
+$scenario = if ($TestCase -eq "registered-cell") {
+  "registered-cell-real-dnd"
+} elseif ($AppMode -eq "remap" -and $TestCase -eq "full") {
+  "remap-real-dnd"
+} else {
+  "real-dnd"
+}
 
 if ($Build) {
   Write-Host "[real-dnd] building desktop executable..."
@@ -171,7 +179,9 @@ New-E2EImage -Path (Join-Path $cutFolder "sheet_001.png") -Label "SHEET" -Color 
 New-E2EImage -Path (Join-Path $directFileFolder "Direct_A2.png") -Label "Direct A2" -Color "LightGreen"
 New-E2EImage -Path (Join-Path $multiFileFolder "Multi_A1.png") -Label "Multi A1" -Color "LightCyan"
 New-E2EImage -Path (Join-Path $multiFileFolder "Multi_A2.png") -Label "Multi A2" -Color "LightYellow"
-Close-TestExplorerWindows -RootPath $artifactRootPath
+if ($TestCase -ne "registered-cell") {
+  Close-TestExplorerWindows -RootPath $artifactRootPath
+}
 
 $basePython = Resolve-Python -RequestedPython $PythonPath
 $venvPython = Ensure-RealDndVenv -BasePython $basePython
@@ -199,6 +209,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
 [pscustomobject]@{
   runId = $runId
   scenario = $scenario
+  testCase = $TestCase
   appMode = $AppMode
   exePath = $resolvedExePath
   runRoot = $runRoot
@@ -212,11 +223,13 @@ $manifestPath = Join-Path $runRoot "manifest.json"
 } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 
 Write-Host "[real-dnd] run root: $runRoot"
+Write-Host "[real-dnd] test case: $TestCase"
 Write-Host "[real-dnd] This test moves the real mouse. Do not use the desktop until it finishes." -ForegroundColor Yellow
 
 $process = $null
 $passed = $false
 $errorMessage = $null
+$failureKind = $null
 
 try {
   $process = Start-Process -FilePath $resolvedExePath -PassThru -WindowStyle Normal -WorkingDirectory $runRoot
@@ -236,6 +249,8 @@ try {
   $tsxPath = Join-Path $repoRoot "node_modules\.bin\tsx.cmd"
   & $tsxPath "tools/e2e/win-real-dnd/real-dnd-cdp.ts" `
     "--mode" "$AppMode" `
+    "--test-case" "$TestCase" `
+    "--scenario-id" "$scenario" `
     "--port" "$remoteDebugPort" `
     "--python" "$venvPython" `
     "--app-pid" "$($process.Id)" `
@@ -243,10 +258,16 @@ try {
     "--direct-file" "$(Join-Path $directFileFolder "Direct_A2.png")" `
     "--multi-folder" "$multiFileFolder" `
     "--allowed-root" "$runRoot" `
+    "--screenshot-root" "$screenshotRoot" `
     "--result" "$resultPath" `
     "--report" "$reportPath"
   $exitCode = $LASTEXITCODE
   if ($exitCode -ne 0) {
+    if (Test-Path -LiteralPath $resultPath) {
+      $failedResult = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+      $failureKind = $failedResult.failureKind
+      throw "real DnD scenario failed: $($failedResult.error)"
+    }
     throw "real DnD CDP scenario failed with exit code $exitCode"
   }
 
@@ -270,8 +291,10 @@ try {
   [pscustomobject]@{
     runId = $runId
     scenario = $scenario
+    testCase = $TestCase
     passed = $passed
     error = $errorMessage
+    failureKind = $failureKind
     processId = if ($process) { $process.Id } else { $null }
     manifest = $manifestPath
     result = if (Test-Path -LiteralPath $resultPath) { $resultPath } else { $null }
@@ -285,7 +308,9 @@ try {
     }
   }
 
-  Close-TestExplorerWindows -RootPath $artifactRootPath
+  if ($TestCase -ne "registered-cell") {
+    Close-TestExplorerWindows -RootPath $artifactRootPath
+  }
 
   foreach ($key in $environmentOverrides.Keys) {
     [Environment]::SetEnvironmentVariable($key, $previousEnvironment[$key], "Process")

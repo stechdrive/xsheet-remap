@@ -105,12 +105,19 @@ if (!args.result) throw new Error('--result is required')
 if (!args.report) throw new Error('--report is required')
 if (!args.python) throw new Error('--python is required')
 if (!args['app-pid']) throw new Error('--app-pid is required')
-if (!args.folder) throw new Error('--folder is required')
-if (!args['multi-folder']) throw new Error('--multi-folder is required')
-if (!args['allowed-root']) throw new Error('--allowed-root is required')
+if (!args['test-case']) throw new Error('--test-case is required')
+if (!args['scenario-id']) throw new Error('--scenario-id is required')
+if (!args['screenshot-root']) throw new Error('--screenshot-root is required')
+if (!['registered-cell', 'explorer-import', 'full'].includes(args['test-case'])) throw new Error(`unsupported --test-case: ${args['test-case']}`)
+if (args['test-case'] !== 'registered-cell') {
+  if (!args.folder) throw new Error('--folder is required')
+  if (!args['allowed-root']) throw new Error('--allowed-root is required')
+}
+if (args['test-case'] === 'full' && !args['multi-folder']) throw new Error('--multi-folder is required')
 
 const checks: string[] = []
 const diagnostics: Record<string, unknown> = {}
+const screenshots: string[] = []
 let client: CdpClient | null = null
 
 try {
@@ -118,15 +125,25 @@ try {
   if (!target.webSocketDebuggerUrl) throw new Error('CDP target did not expose a websocket URL')
   client = await CdpClient.connect(target.webSocketDebuggerUrl)
   await client.send('Runtime.enable')
+  await client.send('Page.enable')
   await waitForSheet()
   await evaluatePage<void>('window.__xsheetDropDiagnostics = []')
+  diagnostics.interactiveDesktop = await runMouseOpJson([
+    'desktop-preflight',
+    '--app-pid', args['app-pid'] as string,
+  ])
+  checks.push('confirmed an interactive Windows desktop and foreground input before running real-mouse assertions')
+
+  if (args['test-case'] === 'registered-cell') {
+    await runRegisteredCellRealDndScenario()
+  } else if (args['test-case'] === 'explorer-import') {
+    await runExplorerImportScenario()
+  } else if (args.mode === 'remap') {
+    await runRemapRealDndScenario()
+  } else {
   await ensurePaneExpandedWithRealMouse('sheet-left-pane')
   await ensurePaneExpandedWithRealMouse('sheet-right-pane')
   await setSheetZoomForRealMouse(60)
-
-  if (args.mode === 'remap') {
-    await runRemapRealDndScenario()
-  } else {
   const folderDropClient = await assetBrowserDropPoint()
   const folderDropScreen = await clientToScreen(folderDropClient)
   diagnostics.folderDropClient = folderDropClient
@@ -243,26 +260,98 @@ try {
   checks.push('normalized a registered cell with real material filename renaming in the desktop EXE')
   }
 
-  const scenario = args.mode === 'remap' ? 'remap-real-dnd' : 'real-dnd'
-  await writeJson(args.report, { passed: true, checks, diagnostics })
-  await writeJson(args.result, { passed: true, scenario, checks, artifacts: [args.report] })
+  const scenario = args['scenario-id'] as string
+  await writeJson(args.report, { passed: true, testCase: args['test-case'], checks, diagnostics })
+  await writeJson(args.result, { passed: true, scenario, testCase: args['test-case'], checks, artifacts: [args.report, ...screenshotArtifacts()] })
 } catch (error) {
+  if (client) {
+    await captureScreenshot('failure').catch(screenshotError => {
+      diagnostics.failureScreenshotError = errorMessage(screenshotError)
+    })
+  }
+  const kind = failureKind(error)
   const report = {
     passed: false,
+    testCase: args['test-case'],
+    failureKind: kind,
     checks,
     diagnostics,
     error: errorMessage(error),
     debug: client ? await pageDebug().catch(debugError => ({ debugError: errorMessage(debugError) })) : null,
   }
   await writeJson(args.report, report)
-  const scenario = args.mode === 'remap' ? 'remap-real-dnd' : 'real-dnd'
-  await writeJson(args.result, { passed: false, scenario, error: errorMessage(error), checks, artifacts: [args.report] })
+  const scenario = args['scenario-id'] as string
+  await writeJson(args.result, { passed: false, scenario, testCase: args['test-case'], failureKind: kind, error: errorMessage(error), checks, artifacts: [args.report, ...screenshotArtifacts()] })
   process.exitCode = 1
 } finally {
   client?.close()
 }
 
+async function runRegisteredCellRealDndScenario(): Promise<void> {
+  await ensurePaneExpandedWithRealMouse('sheet-left-pane')
+  await setSheetZoomForRealMouse(50)
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`Boolean(document.querySelector('.cspLayerTree .cspTreeCel[data-csp-paper-track="A"] .cspTreeCelName'))`),
+    'registered-cell real DnD fixture',
+  )
+
+  const sourceState = await registeredCellCardState('A')
+  diagnostics.registeredCellSourceState = sourceState
+  if (sourceState.cursor !== 'grab') {
+    throw new Error(`registered cell drag affordance should use a grab cursor, got ${JSON.stringify(sourceState.cursor)}`)
+  }
+
+  const targetClient = await framePoint('action', 'A', 1)
+  if (await timelineEventAt('action', 'A', 1)) {
+    throw new Error('registered-cell fixture unexpectedly already has an event at action A frame 1')
+  }
+  diagnostics.registeredCellTarget = { client: targetClient, screen: await clientToScreen(targetClient) }
+  await captureScreenshot('registered-cell-before')
+
+  const ghostSourceClient = await registeredCellCardPoint('A')
+  const ghostSourceScreen = await clientToScreen(ghostSourceClient)
+  const ghostMoveScreen = await clientToScreen({ x: ghostSourceClient.x + 56, y: ghostSourceClient.y + 18 })
+  await verifyPointerDragGhost(
+    ghostSourceScreen,
+    ghostMoveScreen,
+    '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragImagePreview',
+    'registered cell pointer drag ghost',
+  )
+  checks.push('showed and cleaned up the compact registered-cell drag ghost with real mouse input')
+
+  const sourceClient = await registeredCellCardPoint('A')
+  const sourceScreen = await clientToScreen(sourceClient)
+  const targetScreen = await clientToScreen(targetClient)
+  diagnostics.registeredCellSource = { client: sourceClient, screen: sourceScreen }
+  diagnostics.registeredCellTarget = { client: targetClient, screen: targetScreen }
+  await realMouseDragRegisteredCellToSheet(sourceScreen, targetScreen)
+  await waitForTimelineEventAt('action', 'A', 1)
+  await waitForInternalPointerDragCleanup()
+  await captureScreenshot('registered-cell-after')
+  checks.push('dragged a fixture-backed CSP registered-cell card onto action A frame 1 at 50% zoom with the real mouse')
+}
+
+async function runExplorerImportScenario(): Promise<void> {
+  await ensurePaneExpandedWithRealMouse('sheet-right-pane')
+  const folderDropClient = await assetBrowserDropPoint()
+  const folderDropScreen = await clientToScreen(folderDropClient)
+  diagnostics.folderDropClient = folderDropClient
+  diagnostics.folderDropScreen = folderDropScreen
+  await captureScreenshot('explorer-import-before')
+  await runExplorerDropAndWait(
+    args.folder as string,
+    folderDropScreen,
+    () => waitForAssetBrowserFile('A1.png'),
+    'asset browser folder import',
+  )
+  await captureScreenshot('explorer-import-after')
+  checks.push('dragged a real Windows folder from Explorer onto the asset browser and verified A1.png independently of CSP card dragging')
+}
+
 async function runRemapRealDndScenario(): Promise<void> {
+  await ensurePaneExpandedWithRealMouse('sheet-left-pane')
+  await ensurePaneExpandedWithRealMouse('sheet-right-pane')
+  await setSheetZoomForRealMouse(60)
   await waitForPageCondition(
     () => evaluatePage<boolean>(`Boolean(document.querySelector('.cspLayerTree') && document.querySelector('[aria-label^="BG1（"]') && document.querySelector('[aria-label^="SL1（"]') && document.querySelector('[aria-label^="MEMO1（"]'))`),
     'remap CSP layer tree fixture',
@@ -432,7 +521,7 @@ async function cspTrackCelPoint(trackLabel: string): Promise<ClientPoint> {
       const cel = track?.querySelector('.cspTreeCel[data-csp-key-id]');
       if (!cel) throw new Error('registered CSP cell not found: ${escapeForSingleQuotedError(trackLabel)}');
       cel.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const dragHandle = cel.querySelector('.cspTreeAssetState') || cel;
+      const dragHandle = cel.querySelector('.cspTreeCelName') || cel;
       const rect = dragHandle.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()
@@ -539,6 +628,12 @@ async function realMouseDragRegisteredCellToSheet(from: ScreenPoint, to: ScreenP
       'registered cell ghost at sheet target',
       3000,
     )
+    await waitForPageCondition(
+      () => evaluatePage<boolean>(`document.body.dataset.internalDragValidity === 'valid'`),
+      'registered cell valid sheet drop target',
+      3000,
+    )
+    diagnostics.registeredCellDropValidity = await evaluatePage(`({ validity: document.body.dataset.internalDragValidity || '', dragKind: document.body.dataset.internalDragKind || '' })`)
   } finally {
     if (mouseIsDown) {
       await runMouseOp([
@@ -761,12 +856,40 @@ async function verifyPointerDragGhost(from: ScreenPoint, moveTo: ScreenPoint, se
   )
 }
 
+async function waitForInternalPointerDragCleanup(): Promise<void> {
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      !document.body.classList.contains('internalPointerDragActive')
+      && !document.querySelector('.pointerDragGhost')
+      && !document.querySelector('.internalPointerDragSource')
+    `),
+    'internal pointer drag cleanup',
+    3000,
+  )
+}
+
 async function runMouseOpJson<T = unknown>(mouseArgs: string[]): Promise<T> {
   const script = fileURLToPath(new URL('./mouse_ops.py', import.meta.url))
-  const { stdout, stderr } = await execFileAsync(args.python as string, [script, ...mouseArgs], { windowsHide: false, maxBuffer: 1024 * 1024 })
-  if (stdout.trim()) diagnostics[`mouse:${checks.length}:${mouseArgs[0]}`] = stdout.trim()
-  if (stderr.trim()) diagnostics[`mouse-stderr:${checks.length}:${mouseArgs[0]}`] = stderr.trim()
-  return JSON.parse(stdout.trim().split(/\r?\n/).at(-1) || '{}') as T
+  try {
+    const { stdout, stderr } = await execFileAsync(args.python as string, [script, ...mouseArgs], { windowsHide: false, maxBuffer: 1024 * 1024 })
+    if (stdout.trim()) diagnostics[`mouse:${checks.length}:${mouseArgs[0]}`] = stdout.trim()
+    if (stderr.trim()) diagnostics[`mouse-stderr:${checks.length}:${mouseArgs[0]}`] = stderr.trim()
+    return JSON.parse(stdout.trim().split(/\r?\n/).at(-1) || '{}') as T
+  } catch (error) {
+    const processError = error as { stdout?: string; stderr?: string; message?: string }
+    const stdout = processError.stdout?.trim() ?? ''
+    const stderr = processError.stderr?.trim() ?? ''
+    if (stdout) diagnostics[`mouse:${checks.length}:${mouseArgs[0]}:failed`] = stdout
+    if (stderr) diagnostics[`mouse-stderr:${checks.length}:${mouseArgs[0]}:failed`] = stderr
+    let message = processError.message || `mouse operation failed: ${mouseArgs[0]}`
+    try {
+      const payload = JSON.parse(stdout.split(/\r?\n/).at(-1) || '{}') as { error?: string }
+      if (payload.error) message = payload.error
+    } catch {
+      // Preserve the process error when the helper could not emit JSON.
+    }
+    throw new Error(message)
+  }
 }
 
 async function runExplorerDrop(path: string, target: ScreenPoint): Promise<void> {
@@ -971,6 +1094,24 @@ async function registeredCellCardPoint(paperTrack: string): Promise<ClientPoint>
       const handle = card.querySelector('.cspTreeCelName') || card;
       const rect = handle.getBoundingClientRect();
       return { x: rect.left + Math.min(Math.max(rect.width / 2, 18), rect.width - 8), y: rect.top + rect.height / 2 };
+    })()
+  `)
+}
+
+async function registeredCellCardState(paperTrack: string): Promise<{ cursor: string; text: string; rect: { left: number; top: number; width: number; height: number } }> {
+  return evaluatePage(`
+    (() => {
+      const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'));
+      const card = cards.find(item => item.dataset.cspPaperTrack === ${JSON.stringify(paperTrack)});
+      if (!card) throw new Error('registered cell card not found: ${escapeForSingleQuotedError(paperTrack)}');
+      card.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const handle = card.querySelector('.cspTreeCelName') || card;
+      const rect = handle.getBoundingClientRect();
+      return {
+        cursor: getComputedStyle(handle).cursor,
+        text: handle.textContent?.trim() || '',
+        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      };
     })()
   `)
 }
@@ -1314,6 +1455,10 @@ async function waitForAssetEventAt(role: SheetTimingRole, paperTrack: string, fr
   await waitForPageCondition(async () => assetEventAt(role, paperTrack, frame), `${role} ${paperTrack} ${frame} asset event`)
 }
 
+async function waitForTimelineEventAt(role: SheetTimingRole, paperTrack: string, frame: number): Promise<void> {
+  await waitForPageCondition(async () => timelineEventAt(role, paperTrack, frame), `${role} ${paperTrack} ${frame} timeline event`)
+}
+
 async function waitForNoAssetEventAt(role: SheetTimingRole, paperTrack: string, frame: number): Promise<void> {
   await waitForPageCondition(async () => !(await assetEventAt(role, paperTrack, frame)), `${role} ${paperTrack} ${frame} no asset event`)
 }
@@ -1324,6 +1469,19 @@ async function assetEventAt(role: SheetTimingRole, paperTrack: string, frame: nu
     (() => {
       const target = ${JSON.stringify(target)};
       return Array.from(document.querySelectorAll('.assetAssignedEventRect')).some(item => {
+        const box = item.getBoundingClientRect();
+        return target.x >= box.left && target.x <= box.right && target.y >= box.top && target.y <= box.bottom;
+      });
+    })()
+  `)
+}
+
+async function timelineEventAt(role: SheetTimingRole, paperTrack: string, frame: number): Promise<boolean> {
+  const target = await framePoint(role, paperTrack, frame)
+  return evaluatePage<boolean>(`
+    (() => {
+      const target = ${JSON.stringify(target)};
+      return Array.from(document.querySelectorAll('.timelineEventHandle .eventRect')).some(item => {
         const box = item.getBoundingClientRect();
         return target.x >= box.left && target.x <= box.right && target.y >= box.top && target.y <= box.bottom;
       });
@@ -1407,12 +1565,21 @@ async function clientToScreen(point: ClientPoint): Promise<ScreenPoint> {
   `)
   const scaleX = windowMetrics.client.width / metrics.innerWidth
   const scaleY = windowMetrics.client.height / metrics.innerHeight
+  if (point.x < 0 || point.y < 0 || point.x > metrics.innerWidth || point.y > metrics.innerHeight) {
+    throw new Error(`client point is outside the visible WebView viewport: ${JSON.stringify({ point, metrics })}`)
+  }
   diagnostics.viewportMetrics = metrics
   diagnostics.windowClientMetrics = windowMetrics
-  return {
+  const screenPoint = {
     x: Math.round(windowMetrics.client.x + point.x * scaleX),
     y: Math.round(windowMetrics.client.y + point.y * scaleY),
   }
+  const clientRight = windowMetrics.client.x + windowMetrics.client.width
+  const clientBottom = windowMetrics.client.y + windowMetrics.client.height
+  if (screenPoint.x < windowMetrics.client.x || screenPoint.x > clientRight || screenPoint.y < windowMetrics.client.y || screenPoint.y > clientBottom) {
+    throw new Error(`screen point is outside the app client rectangle: ${JSON.stringify({ point, screenPoint, client: windowMetrics.client })}`)
+  }
+  return screenPoint
 }
 
 async function waitForPageCondition(predicate: () => boolean | Promise<boolean>, label: string, timeoutMs = 12000): Promise<void> {
@@ -1476,6 +1643,25 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
+async function captureScreenshot(label: string): Promise<string> {
+  if (!client) throw new Error('CDP client is not connected')
+  const fileName = `${label.replace(/[^a-z0-9_-]+/gi, '-')}.png`
+  const path = join(args['screenshot-root'] as string, fileName)
+  const response = await client.send<{ data: string }>('Page.captureScreenshot', {
+    format: 'png',
+    fromSurface: true,
+    captureBeyondViewport: false,
+  })
+  await writeFile(path, Buffer.from(response.data, 'base64'))
+  if (!screenshots.includes(path)) screenshots.push(path)
+  diagnostics.screenshots = [...screenshots]
+  return path
+}
+
+function screenshotArtifacts(): string[] {
+  return [...screenshots]
+}
+
 function parseArgs(argv: string[]): Record<string, string> {
   const values: Record<string, string> = {}
   for (let index = 0; index < argv.length; index += 1) {
@@ -1503,4 +1689,8 @@ function delay(ms: number): Promise<void> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function failureKind(error: unknown): 'environment' | 'assertion' {
+  return errorMessage(error).includes('E2E_ENVIRONMENT_UNAVAILABLE') ? 'environment' : 'assertion'
 }

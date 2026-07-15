@@ -17,6 +17,7 @@ import {
 } from './desktopE2EScenarios'
 
 export const REMAP_REAL_DND_SCENARIO_ID = 'remap-real-dnd'
+export const REGISTERED_CELL_REAL_DND_SCENARIO_ID = 'registered-cell-real-dnd'
 
 interface DesktopE2EConfig {
   scenario: string
@@ -45,7 +46,7 @@ interface DesktopE2EResult {
 export async function runDesktopE2EIfRequested(callbacks: DesktopE2ERunCallbacks): Promise<void> {
   const config = await getDesktopE2EConfig()
   if (!config || config.scenario === 'launch') return
-  if (config.scenario === REMAP_REAL_DND_SCENARIO_ID) {
+  if (config.scenario === REMAP_REAL_DND_SCENARIO_ID || config.scenario === REGISTERED_CELL_REAL_DND_SCENARIO_ID) {
     callbacks.applyProject(buildRemapRealDndProject(), standardA3SheetTemplate, 'sheet')
     return
   }

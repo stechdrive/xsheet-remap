@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+from ctypes import wintypes
 import json
 import os
 import re
@@ -28,6 +29,9 @@ SM_YVIRTUALSCREEN = 77
 SM_CXVIRTUALSCREEN = 78
 SM_CYVIRTUALSCREEN = 79
 MONITOR_DEFAULTTONEAREST = 2
+DESKTOP_READOBJECTS = 0x0001
+DESKTOP_SWITCHDESKTOP = 0x0100
+UOI_NAME = 2
 
 
 def main() -> int:
@@ -88,6 +92,9 @@ def main() -> int:
 
     metrics_parser = subparsers.add_parser("window-client-metrics", help="Return the main app window client rectangle in physical screen coordinates.")
     metrics_parser.add_argument("--app-pid", type=int, required=True)
+
+    preflight_parser = subparsers.add_parser("desktop-preflight", help="Verify that the app can receive real foreground mouse input.")
+    preflight_parser.add_argument("--app-pid", type=int, required=True)
 
     args = parser.parse_args()
     if args.command == "drag-screen":
@@ -203,11 +210,54 @@ def main() -> int:
         })
         return 0
 
+    if args.command == "desktop-preflight":
+        try:
+            desktop_name = input_desktop_name()
+            cursor_before = win32gui.GetCursorPos()
+            focus_process_window(args.app_pid)
+            mouse.move(coords=cursor_before)
+            time.sleep(0.1)
+            foreground = win32gui.GetForegroundWindow()
+            _, foreground_pid = win32process.GetWindowThreadProcessId(foreground)
+            if foreground_pid != args.app_pid:
+                raise RuntimeError(
+                    f"foreground process mismatch after activation: expected={args.app_pid}, actual={foreground_pid}"
+                )
+            print_json({
+                "ok": True,
+                "command": args.command,
+                "inputDesktop": desktop_name,
+                "cursor": list(cursor_before),
+                "foregroundPid": foreground_pid,
+            })
+            return 0
+        except Exception as exc:
+            raise RuntimeError(f"E2E_ENVIRONMENT_UNAVAILABLE: interactive Windows desktop preflight failed: {exc}") from exc
+
     raise AssertionError(f"unhandled command: {args.command}")
 
 
 def resolved_path(path: str) -> Path:
     return Path(path).expanduser().resolve(strict=True)
+
+
+def input_desktop_name() -> str:
+    user32 = ctypes.windll.user32
+    user32.OpenInputDesktop.restype = wintypes.HANDLE
+    desktop = user32.OpenInputDesktop(0, False, DESKTOP_READOBJECTS | DESKTOP_SWITCHDESKTOP)
+    if not desktop:
+        raise ctypes.WinError()
+    try:
+        needed = wintypes.DWORD(0)
+        user32.GetUserObjectInformationW(desktop, UOI_NAME, None, 0, ctypes.byref(needed))
+        if needed.value <= 0:
+            raise ctypes.WinError()
+        buffer = ctypes.create_unicode_buffer(max(1, needed.value // ctypes.sizeof(ctypes.c_wchar)))
+        if not user32.GetUserObjectInformationW(desktop, UOI_NAME, buffer, needed.value, ctypes.byref(needed)):
+            raise ctypes.WinError()
+        return buffer.value
+    finally:
+        user32.CloseDesktop(desktop)
 
 
 def assert_inside(path: Path, root: Path) -> None:

@@ -94,6 +94,11 @@ export function CspLayerTree({
   } | null>(null)
   const [newCelDraft, setNewCelDraft] = useState<{ slotId: string; cspCellName: string } | null>(null)
   const [dropNotice, setDropNotice] = useState<string | null>(null)
+  const [summaryRename, setSummaryRename] = useState<{
+    kind: 'stage' | 'layer'
+    id: string
+    label: string
+  } | null>(null)
   const treeRootRef = useRef<HTMLElement | null>(null)
 
   function handleAssetDrop(assetIds: string[], keyId: string, slotId?: string) {
@@ -465,17 +470,27 @@ export function CspLayerTree({
           <details className="cspTreeStage" key={stage.nodeId} open>
             <summary>
               {stage.stageId && onRenameProductionStage ? (
-                <InlineTreeLabel
+                <SummaryRenameTrigger
                   className="cspTreeSummaryLabel"
-                  inputClassName="cspTreeSummaryNameInput"
                   label={stage.label}
-                  inputAriaLabel={`${stage.label}の制作段階名`}
                   editTitle="ダブルクリックで制作段階名を編集"
-                  stopClickPropagation
-                  onCommit={label => onRenameProductionStage(stage.stageId!, label)}
+                  editing={summaryRename?.kind === 'stage' && summaryRename.id === stage.stageId}
+                  onBegin={() => setSummaryRename({ kind: 'stage', id: stage.stageId!, label: stage.label })}
                 />
               ) : stage.label}
             </summary>
+            {stage.stageId && summaryRename?.kind === 'stage' && summaryRename.id === stage.stageId && (
+              <SummaryRenameEditor
+                key={`stage:${stage.stageId}:${summaryRename.label}`}
+                label={summaryRename.label}
+                inputAriaLabel={`${summaryRename.label}の制作段階名`}
+                onCancel={() => setSummaryRename(null)}
+                onCommit={label => {
+                  onRenameProductionStage?.(stage.stageId!, label)
+                  setSummaryRename(null)
+                }}
+              />
+            )}
             {stage.layers.map(layer => (
               <div className="cspTreeLayerShell" key={layer.nodeId}>
                 <details className="cspTreeLayer" open>
@@ -487,17 +502,27 @@ export function CspLayerTree({
                     data-csp-gap-index={layer.layerId ? 0 : undefined}
                   >
                     {layer.layerId && onRenameCorrectionLayer ? (
-                      <InlineTreeLabel
+                      <SummaryRenameTrigger
                         className="cspTreeSummaryLabel"
-                        inputClassName="cspTreeSummaryNameInput"
                         label={layer.label}
-                        inputAriaLabel={`${layer.label}の工程名`}
                         editTitle="ダブルクリックで工程名を編集"
-                        stopClickPropagation
-                        onCommit={label => onRenameCorrectionLayer(layer.layerId!, label)}
+                        editing={summaryRename?.kind === 'layer' && summaryRename.id === layer.layerId}
+                        onBegin={() => setSummaryRename({ kind: 'layer', id: layer.layerId!, label: layer.label })}
                       />
                     ) : layer.label}
                   </summary>
+                  {layer.layerId && summaryRename?.kind === 'layer' && summaryRename.id === layer.layerId && (
+                    <SummaryRenameEditor
+                      key={`layer:${layer.layerId}:${summaryRename.label}`}
+                      label={summaryRename.label}
+                      inputAriaLabel={`${summaryRename.label}の工程名`}
+                      onCancel={() => setSummaryRename(null)}
+                      onCommit={label => {
+                        onRenameCorrectionLayer?.(layer.layerId!, label)
+                        setSummaryRename(null)
+                      }}
+                    />
+                  )}
                   {auxiliaryDraft && auxiliaryDraft.correctionLayerId === layer.layerId && (
                     <form
                       className="cspTreeAuxiliaryForm"
@@ -816,13 +841,96 @@ function suggestedPaperTrackName(project: CutProject, correctionLayerId: string,
   return `セル列${project.logicalSheet.paperTracks.length + 1}`
 }
 
+function SummaryRenameTrigger({
+  label,
+  className,
+  editTitle,
+  editing,
+  onBegin,
+}: {
+  label: string
+  className: string
+  editTitle: string
+  editing: boolean
+  onBegin: () => void
+}) {
+  return (
+    <span
+      className={[className, editing ? 'isRenameActive' : ''].filter(Boolean).join(' ')}
+      role="button"
+      tabIndex={0}
+      title={editTitle}
+      onClick={event => event.stopPropagation()}
+      onDoubleClick={event => {
+        event.preventDefault()
+        event.stopPropagation()
+        onBegin()
+      }}
+      onKeyDown={event => {
+        if (event.key !== 'Enter' && event.key !== 'F2') return
+        event.preventDefault()
+        event.stopPropagation()
+        onBegin()
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function SummaryRenameEditor({
+  label,
+  inputAriaLabel,
+  onCommit,
+  onCancel,
+}: {
+  label: string
+  inputAriaLabel: string
+  onCommit: (name: string) => void
+  onCancel: () => void
+}) {
+  const [draft, setDraft] = useState(label)
+  const cancelledRef = useRef(false)
+
+  function commit() {
+    if (cancelledRef.current) return
+    const name = draft.trim()
+    if (name && name !== label) onCommit(name)
+    else onCancel()
+  }
+
+  return (
+    <div className="cspTreeSummaryEditor" onClick={event => event.stopPropagation()}>
+      <input
+        autoFocus
+        className="cspTreeSummaryNameInput"
+        aria-label={inputAriaLabel}
+        value={draft}
+        onFocus={event => event.currentTarget.select()}
+        onChange={event => setDraft(event.currentTarget.value)}
+        onBlur={commit}
+        onKeyDown={event => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            event.currentTarget.blur()
+          } else if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            cancelledRef.current = true
+            onCancel()
+          }
+        }}
+      />
+    </div>
+  )
+}
+
 function InlineTreeLabel({
   label,
   className,
   inputClassName,
   inputAriaLabel,
   editTitle,
-  stopClickPropagation = false,
   onCommit,
 }: {
   label: string
@@ -830,7 +938,6 @@ function InlineTreeLabel({
   inputClassName: string
   inputAriaLabel: string
   editTitle: string
-  stopClickPropagation?: boolean
   onCommit: (name: string) => void
 }) {
   const [draft, setDraft] = useState(label)
@@ -879,7 +986,6 @@ function InlineTreeLabel({
       role="button"
       tabIndex={0}
       title={editTitle}
-      onClick={stopClickPropagation ? event => event.stopPropagation() : undefined}
       onDoubleClick={event => {
         event.preventDefault()
         event.stopPropagation()

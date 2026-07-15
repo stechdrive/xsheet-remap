@@ -633,11 +633,36 @@
   vertical-align: bottom;
 }
 
+.cspTreeSummaryLabel.isRenameActive {
+  color: #234f3e;
+  text-decoration: underline;
+  text-decoration-color: #7fa18f;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.cspTreeSummaryEditor {
+  padding: 3px 40px 4px 18px;
+  background: #f0f3f0;
+}
+
+.cspTreeStage > .cspTreeSummaryEditor {
+  padding-left: 14px;
+  background: #e8ede9;
+}
+
 .cspTreeSummaryNameInput {
-  width: min(100%, 180px);
+  display: block;
+  width: 100%;
   min-width: 0;
   height: 24px;
-  padding: 2px 5px;
+  padding: 3px 5px;
+  border: 2px solid #416b5a;
+  border-radius: 4px;
+  outline: none;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(65, 107, 90, 0.16);
+  color: #1f2421;
   font-weight: 800;
 }
 

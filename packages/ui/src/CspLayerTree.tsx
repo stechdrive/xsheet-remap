@@ -860,7 +860,10 @@ function SummaryRenameTrigger({
       role="button"
       tabIndex={0}
       title={editTitle}
-      onClick={event => event.stopPropagation()}
+      onClick={event => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
       onDoubleClick={event => {
         event.preventDefault()
         event.stopPropagation()
@@ -891,6 +894,8 @@ function SummaryRenameEditor({
 }) {
   const [draft, setDraft] = useState(label)
   const cancelledRef = useRef(false)
+  const editorRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   function commit() {
     if (cancelledRef.current) return
@@ -899,9 +904,20 @@ function SummaryRenameEditor({
     else onCancel()
   }
 
+  useEffect(() => {
+    function finishEditingOnOutsidePointer(event: PointerEvent) {
+      if (event.target instanceof Node && editorRef.current?.contains(event.target)) return
+      inputRef.current?.blur()
+    }
+
+    document.addEventListener('pointerdown', finishEditingOnOutsidePointer, true)
+    return () => document.removeEventListener('pointerdown', finishEditingOnOutsidePointer, true)
+  }, [])
+
   return (
-    <div className="cspTreeSummaryEditor" onClick={event => event.stopPropagation()}>
+    <div ref={editorRef} className="cspTreeSummaryEditor" onClick={event => event.stopPropagation()}>
       <input
+        ref={inputRef}
         autoFocus
         className="cspTreeSummaryNameInput"
         aria-label={inputAriaLabel}

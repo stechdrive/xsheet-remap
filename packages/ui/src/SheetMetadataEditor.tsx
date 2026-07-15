@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   resolveSheetTemplateRegionRect,
   type CutMetadataFieldId,
@@ -16,6 +16,7 @@ export function SheetMetadataEditor({
   project,
   template,
   page,
+  pageSize,
   pageWidth,
   pageHeight,
   displayDurationFrames,
@@ -26,6 +27,7 @@ export function SheetMetadataEditor({
   project: CutProject
   template: SheetTemplate
   page: SheetPage
+  pageSize: { widthPx: number; heightPx: number }
   pageWidth: number
   pageHeight: number
   displayDurationFrames: number
@@ -88,7 +90,7 @@ export function SheetMetadataEditor({
           key={region.regionId}
           type="button"
           className="sheetMetadataEditHotspot"
-          style={rectStyle(rect, pageWidth, pageHeight)}
+          style={hotspotStyle(rect, pageSize, pageWidth, pageHeight)}
           aria-label={`${region.label}を編集`}
           aria-expanded={editingRegionId === region.regionId}
           title={`${region.label}を編集`}
@@ -179,6 +181,43 @@ function rectStyle(
     width: `${rect.w * pageWidth}px`,
     height: `${rect.h * pageHeight}px`,
   }
+}
+
+export function metadataEditIconSizePx(
+  rect: { w: number; h: number },
+  pageSize: { widthPx: number; heightPx: number },
+  displayedPageSize: { widthPx: number; heightPx: number },
+) {
+  const templateShortSide = Math.min(
+    rect.w * pageSize.widthPx,
+    rect.h * pageSize.heightPx,
+  )
+  const displayedShortSide = Math.min(
+    rect.w * displayedPageSize.widthPx,
+    rect.h * displayedPageSize.heightPx,
+  )
+  const templateSize = clamp(templateShortSide * 0.32, 20, 26)
+  const displayedSizeLimit = Math.max(16, displayedShortSide - 6)
+  return Math.round(Math.min(templateSize, displayedSizeLimit))
+}
+
+function hotspotStyle(
+  rect: { x: number; y: number; w: number; h: number },
+  pageSize: { widthPx: number; heightPx: number },
+  pageWidth: number,
+  pageHeight: number,
+): CSSProperties {
+  return {
+    ...rectStyle(rect, pageWidth, pageHeight),
+    '--metadata-edit-icon-size': `${metadataEditIconSizePx(rect, pageSize, {
+      widthPx: pageWidth,
+      heightPx: pageHeight,
+    })}px`,
+  } as CSSProperties
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
 }
 
 function popoverStyle(

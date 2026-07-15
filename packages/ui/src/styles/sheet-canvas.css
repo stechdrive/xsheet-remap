@@ -236,7 +236,7 @@
   padding: 2px;
   border: 0;
   background: transparent;
-  color: rgb(32 84 65 / 0.46);
+  color: rgb(32 84 65 / 0.74);
   pointer-events: auto;
 }
 
@@ -250,17 +250,26 @@
 }
 
 .sheetMetadataEditHotspot svg {
-  width: 14px;
-  height: 14px;
-  padding: 2px;
-  border: 1px solid rgb(45 96 76 / 0.35);
-  border-radius: 4px;
-  background: rgb(255 255 255 / 0.82);
+  width: var(--metadata-edit-icon-size, 22px);
+  height: var(--metadata-edit-icon-size, 22px);
+  padding: clamp(2px, calc(var(--metadata-edit-icon-size, 22px) * 0.12), 3px);
+  border: 1px solid rgb(45 96 76 / 0.55);
+  border-radius: clamp(4px, calc(var(--metadata-edit-icon-size, 22px) * 0.22), 6px);
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.16);
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
+}
+
+.sheetMetadataEditHotspot:hover svg,
+.sheetMetadataEditHotspot:focus-visible svg,
+.sheetMetadataEditHotspot[aria-expanded="true"] svg {
+  border-color: #2a6951;
+  background: #f7fffa;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.22);
 }
 
 .sheetMetadataEditorPopover {

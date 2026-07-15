@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   resolveSheetTemplateRegionRect,
   type CutMetadataFieldId,
@@ -34,6 +34,8 @@ export function SheetMetadataEditor({
   onDurationChange: (frames: number) => void
 }) {
   const [editingRegionId, setEditingRegionId] = useState<string | null>(null)
+  const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const popoverRef = useRef<HTMLDivElement | null>(null)
   const regions = template.regions.filter((region): region is EditableMetadataRegion =>
     region.type === 'metadata-field'
     && region.usage === 'input'
@@ -49,6 +51,36 @@ export function SheetMetadataEditor({
   }))
   const active = regionLayouts.find(item => item.region.regionId === editingRegionId) ?? null
 
+  useEffect(() => {
+    if (!editingRegionId) return
+
+    function isInsideEditor(target: EventTarget | null) {
+      return target instanceof Node
+        && (popoverRef.current?.contains(target) || activeTriggerRef.current?.contains(target))
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!isInsideEditor(event.target)) setEditingRegionId(null)
+    }
+
+    function handleFocusIn(event: FocusEvent) {
+      if (!isInsideEditor(event.target)) setEditingRegionId(null)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    document.addEventListener('focusin', handleFocusIn, true)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+      document.removeEventListener('focusin', handleFocusIn, true)
+    }
+  }, [editingRegionId])
+
+  function closeEditor(restoreTriggerFocus: boolean) {
+    const trigger = activeTriggerRef.current
+    setEditingRegionId(null)
+    if (restoreTriggerFocus) trigger?.focus()
+  }
+
   return (
     <div className="sheetMetadataEditorLayer" aria-label={`${page.pageIndex + 1}ページのシート情報編集`}>
       {regionLayouts.map(({ region, rect }) => (
@@ -62,6 +94,11 @@ export function SheetMetadataEditor({
           title={`${region.label}を編集`}
           onClick={event => {
             event.stopPropagation()
+            if (editingRegionId === region.regionId) {
+              setEditingRegionId(null)
+              return
+            }
+            activeTriggerRef.current = event.currentTarget
             setEditingRegionId(region.regionId)
           }}
         >
@@ -70,18 +107,32 @@ export function SheetMetadataEditor({
       ))}
       {active && (
         <div
+          ref={popoverRef}
           className="sheetMetadataEditorPopover"
           role="dialog"
           aria-label={`${active.region.label}を編集`}
           style={popoverStyle(active.rect, pageWidth, pageHeight)}
           onPointerDown={event => event.stopPropagation()}
           onKeyDown={event => {
-            if (event.key === 'Escape') setEditingRegionId(null)
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.stopPropagation()
+              closeEditor(true)
+            }
+            if (
+              event.key === 'Enter'
+              && event.target instanceof HTMLInputElement
+              && !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault()
+              event.stopPropagation()
+              closeEditor(true)
+            }
           }}
         >
           <div className="sheetMetadataEditorHeader">
             <strong>{active.region.label}</strong>
-            <button type="button" aria-label={`${active.region.label}の編集を閉じる`} onClick={() => setEditingRegionId(null)}>×</button>
+            <button type="button" aria-label={`${active.region.label}の編集を閉じる`} onClick={() => closeEditor(true)}>×</button>
           </div>
           {active.region.binding.field === 'duration'
             ? (

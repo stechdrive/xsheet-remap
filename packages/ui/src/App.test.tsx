@@ -350,13 +350,38 @@ it('separates template lines and labels in the display menu', () => {
 
 it('edits cut metadata from a template-defined sheet region', () => {
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'カットを編集' }))
+    const editButton = screen.getByRole('button', { name: 'カットを編集' })
+    fireEvent.click(editButton)
     const dialog = screen.getByRole('dialog', { name: 'カットを編集' })
     expect(within(dialog).getAllByText('カット')).toHaveLength(1)
-    fireEvent.change(within(dialog).getByLabelText('カット'), { target: { value: 'C042' } })
+    const input = within(dialog).getByLabelText('カット')
+    fireEvent.change(input, { target: { value: 'C042' } })
 
     expect(screen.getByLabelText(uiText.sheet.cutMetadata).textContent).toContain('C042')
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toContain('C042')
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
+    expect(document.activeElement).toBe(editButton)
+  })
+
+  it('light-dismisses template-defined metadata editing', () => {
+    render(<App />)
+    const editButton = screen.getByRole('button', { name: 'カットを編集' })
+
+    fireEvent.click(editButton)
+    expect(screen.getByRole('dialog', { name: 'カットを編集' })).not.toBeNull()
+    fireEvent.click(editButton)
+    expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
+
+    fireEvent.click(editButton)
+    const outsideTarget = screen.getByLabelText(uiText.sheet.cutMetadata)
+    fireEvent.pointerDown(outsideTarget)
+    expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
+
+    fireEvent.click(editButton)
+    fireEvent.focusIn(outsideTarget)
+    expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
   })
 
 it('uses one page grid and one selected-page source editor for multipage sheets', async () => {

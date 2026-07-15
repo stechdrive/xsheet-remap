@@ -309,6 +309,10 @@
   font-weight: 700;
 }
 
+.sheetMetadataEditorPopover .durationControlWithoutLabel {
+  justify-content: center;
+}
+
 .textCursorBadge {
   position: absolute;
   z-index: 8;

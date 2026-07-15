@@ -400,6 +400,16 @@ it('edits cut metadata from a template-defined sheet region', () => {
     expect(screen.getByRole('dialog', { name: 'カットを編集' })).not.toBeNull()
   })
 
+  it('shows one duration label and focuses the seconds input in inline editing', () => {
+    render(<App />)
+    fireEvent.doubleClick(screen.getByRole('button', { name: '尺を編集' }))
+
+    const dialog = screen.getByRole('dialog', { name: '尺を編集' })
+    expect(within(dialog).getAllByText('尺')).toHaveLength(1)
+    expect(within(dialog).getByRole('group', { name: '尺' })).not.toBeNull()
+    expect(document.activeElement).toBe(within(dialog).getByLabelText(uiText.sheet.durationSeconds))
+  })
+
 it('uses one page grid and one selected-page source editor for multipage sheets', async () => {
     const project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 300 })
     const file = new File([JSON.stringify(createProjectDocumentFromCutProject(project))], 'multipage.json', { type: 'application/json' })
@@ -580,9 +590,11 @@ it('uses the template header label for the OCR target name', () => {
 
 it('edits the cut duration as seconds and frames with stepper buttons', () => {
     render(<App />)
-    openCutMetadataMenu()
+    const menu = openCutMetadataMenu()
     const secondsInput = screen.getByLabelText(uiText.sheet.durationSeconds) as HTMLInputElement
     const framesInput = screen.getByLabelText(uiText.sheet.durationFrames) as HTMLInputElement
+    expect(within(menu).getByText(uiText.sheet.duration)).toBeTruthy()
+    expect(within(menu).getByRole('group', { name: uiText.sheet.duration })).toBeTruthy()
     expect(screen.queryByText('シート設定')).toBeNull()
     expect(screen.queryByText('ページ画像')).toBeNull()
     expect(screen.queryByLabelText(uiText.sheet.fps)).toBeNull()

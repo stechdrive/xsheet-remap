@@ -221,10 +221,14 @@ export function DurationFrameControl({
   frames,
   fps,
   onChange,
+  showLabel = true,
+  autoFocus = false,
 }: {
   frames: number
   fps: number
   onChange: (frames: number) => void
+  showLabel?: boolean
+  autoFocus?: boolean
 }) {
   const labelId = useId()
   const safeFps = Math.max(1, Math.round(fps))
@@ -245,12 +249,18 @@ export function DurationFrameControl({
   }
 
   return (
-    <div className="compactControl durationControl">
-      <span id={labelId}>{uiText.sheet.duration}</span>
-      <span className="durationStepper" role="group" aria-labelledby={labelId}>
+    <div className={`compactControl durationControl${showLabel ? '' : ' durationControlWithoutLabel'}`}>
+      {showLabel && <span id={labelId}>{uiText.sheet.duration}</span>}
+      <span
+        className="durationStepper"
+        role="group"
+        aria-label={showLabel ? undefined : uiText.sheet.duration}
+        aria-labelledby={showLabel ? labelId : undefined}
+      >
         <DurationStepperUnit
           displayValue={formatDurationPart(seconds, 2)}
           max={999}
+          autoFocus={autoFocus}
           inputLabel={uiText.sheet.durationSeconds}
           upLabel={uiText.sheet.durationSecondsUp}
           downLabel={uiText.sheet.durationSecondsDown}
@@ -274,6 +284,7 @@ export function DurationFrameControl({
 
 function DurationStepperUnit({
   displayValue,
+  autoFocus = false,
   inputLabel,
   upLabel,
   downLabel,
@@ -282,6 +293,7 @@ function DurationStepperUnit({
   onStep,
 }: {
   displayValue: string
+  autoFocus?: boolean
   inputLabel: string
   upLabel: string
   downLabel: string
@@ -300,6 +312,7 @@ function DurationStepperUnit({
   return (
     <span className="durationUnitStepper">
       <input
+        autoFocus={autoFocus}
         className="durationInput"
         value={displayValue}
         inputMode="numeric"

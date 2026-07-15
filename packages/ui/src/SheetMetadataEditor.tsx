@@ -149,6 +149,8 @@ export function SheetMetadataEditor({
                 frames={project.logicalSheet.durationFrames}
                 fps={project.logicalSheet.fps}
                 onChange={onDurationChange}
+                showLabel={false}
+                autoFocus
               />
               )
             : (

@@ -302,16 +302,25 @@ it('registers sheet scan images in filename order and sets duration from the sca
     const pageJumpMenu = document.querySelector('.actionMenuPortalContent.pageJumpMenu') as HTMLElement | null
     if (!pageJumpMenu) throw new Error('page jump menu not found')
     expect(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(4) })).toBeTruthy()
-    const sourceSelects = Array.from(pageJumpMenu.querySelectorAll<HTMLSelectElement>('.pageJumpSourceSelect select'))
-    expect(sourceSelects).toHaveLength(4)
-    expect(sourceSelects.map(select => select.selectedOptions[0]?.textContent ?? '')).toEqual([
+    expect(pageJumpMenu.querySelectorAll('.pageJumpSourceSelect select')).toHaveLength(1)
+    const assignedSourceLabels = Array.from({ length: 4 }, (_, index) => {
+      fireEvent.click(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(index + 1) }))
+      const select = pageJumpMenu.querySelector<HTMLSelectElement>('.pageJumpSourceSelect select')
+      if (!select) throw new Error('selected-page source select not found')
+      return select.selectedOptions[0]?.textContent ?? ''
+    })
+    expect(assignedSourceLabels).toEqual([
       expect.stringContaining('_133_sheet_e.jpg'),
       expect.stringContaining('_133_sheet_e_2.jpg'),
       expect.stringContaining('sheet_01.png'),
       expect.stringContaining('sheet_02.png'),
     ])
-    fireEvent.change(sourceSelects[0], { target: { value: sourceSelects[1].value } })
-    expect(sourceSelects[0].selectedOptions[0]?.textContent).toContain('_133_sheet_e_2.jpg')
+    fireEvent.click(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(1) }))
+    const sourceSelect = pageJumpMenu.querySelector<HTMLSelectElement>('.pageJumpSourceSelect select')
+    const replacement = Array.from(sourceSelect?.options ?? []).find(option => option.textContent?.includes('_133_sheet_e_2.jpg'))
+    if (!sourceSelect || !replacement) throw new Error('replacement source option not found')
+    fireEvent.change(sourceSelect, { target: { value: replacement.value } })
+    expect(sourceSelect.selectedOptions[0]?.textContent).toContain('_133_sheet_e_2.jpg')
   })
 
 it('loads sheet scan images from the sheet input toolbar', async () => {

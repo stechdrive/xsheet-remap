@@ -219,6 +219,107 @@
   line-height: 0;
 }
 
+.sheetMetadataEditorLayer {
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sheetMetadataEditHotspot {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  min-width: 16px;
+  min-height: 16px;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: rgb(32 84 65 / 0.46);
+  pointer-events: auto;
+}
+
+.sheetMetadataEditHotspot:hover,
+.sheetMetadataEditHotspot:focus-visible,
+.sheetMetadataEditHotspot[aria-expanded="true"] {
+  outline: 1px solid rgb(42 105 81 / 0.55);
+  outline-offset: -1px;
+  background: rgb(226 241 234 / 0.2);
+  color: #235b46;
+}
+
+.sheetMetadataEditHotspot svg {
+  width: 14px;
+  height: 14px;
+  padding: 2px;
+  border: 1px solid rgb(45 96 76 / 0.35);
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.82);
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.sheetMetadataEditorPopover {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  gap: 10px;
+  min-height: 104px;
+  padding: 10px;
+  border: 1px solid #8d9a91;
+  border-radius: 8px;
+  background: #fbfbf8;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.22);
+  color: #202421;
+  font-family: var(--font-sheet-sans);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: auto;
+  user-select: text;
+}
+
+.sheetMetadataEditorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sheetMetadataEditorHeader button {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.sheetMetadataEditorField {
+  display: grid;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.sheetMetadataEditorField input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+}
+
+.sheetMetadataEditorPopover .durationControl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  font-weight: 700;
+}
+
 .textCursorBadge {
   position: absolute;
   z-index: 8;

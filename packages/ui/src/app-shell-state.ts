@@ -66,7 +66,7 @@ export function useAppShellState() {
   const template = workspaceHistory.present.template
   const [runtimeSourceImageUrls, setRuntimeSourceImageUrls] = useState<Record<string, string>>({})
   const [recognitionCandidates, setRecognitionCandidates] = useState<RecognitionCandidate[]>([])
-  const [recognitionRole, setRecognitionRole] = useState<SheetTimingRole>('cell')
+  const [recognitionRole, setRecognitionRole] = useState<SheetTimingRole>('action')
   const [recognitionRunning, setRecognitionRunning] = useState(false)
   const [recognitionProgress, setRecognitionProgress] = useState<{ completed: number; total: number } | null>(null)
   const [recognitionMessage, setRecognitionMessage] = useState<string | null>(null)
@@ -80,6 +80,8 @@ export function useAppShellState() {
   const [zoomMode, setZoomMode] = useState(false)
   const [showTemplate, setShowTemplate] = useState(true)
   const [showTemplateGuides, setShowTemplateGuides] = useState(true)
+  const [showTemplateLabels, setShowTemplateLabels] = useState(true)
+  const [showInputContent, setShowInputContent] = useState(true)
   const [showAnnotations, setShowAnnotations] = useState(true)
   const [penColor, setPenColor] = useState('#d52b2b')
   const [penWidth, setPenWidth] = useState(0.004)
@@ -112,7 +114,8 @@ export function useAppShellState() {
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
-    showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showAnnotations, setShowAnnotations, penColor, setPenColor,
+    showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,
+    showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, selection, setSelection,
     rangeSelection, setRangeSelection, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard, statusHints, setStatusHints,

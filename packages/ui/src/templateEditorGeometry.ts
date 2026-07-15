@@ -220,9 +220,12 @@ export function gridHeaderRolesForTemplate(template: SheetTemplate): SheetTempla
 
 export function gridHeaderLabelForRole(template: SheetTemplate, role: SheetTemplateGridRole): string {
   const labelOverrides = template.style?.gridHeader?.labelOverrides
-  return labelOverrides && role in labelOverrides
-    ? labelOverrides[role] ?? ''
-    : gridRoleLabel(role)
+  if (labelOverrides && role in labelOverrides) return labelOverrides[role] ?? ''
+  const regionLabel = template.regions.find(region =>
+    region.type === 'exposure-grid' && region.grid?.role === role,
+  )?.label
+  if (regionLabel?.trim()) return regionLabel.replace(/\s+\d+\s*-\s*\d+\s*$/, '').trim()
+  return gridRoleLabel(role)
 }
 
 export function templateGridHeaderFontSizePx(template: SheetTemplate): number {

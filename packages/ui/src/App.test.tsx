@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, upsertBinding, standardA3SheetTemplate } from '@xsheet-remap/core';
+import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
 import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
@@ -315,18 +315,64 @@ it('keeps only one top action menu open at a time', () => {
     expect(projectMenu.open).toBe(false)
   })
 
-it('shows a labeled OCR menu with only ACTION and CELL as user choices', () => {
+it('defaults OCR to the template-defined ACTION target', () => {
     render(<App />)
     const menu = screen.getByLabelText(uiText.recognition.menu)
     expect(menu.textContent).toContain('OCR')
     fireEvent.click(menu)
 
     const roleGroup = screen.getByRole('group', { name: uiText.recognition.targetField })
-    expect(within(roleGroup).getByRole('button', { name: uiText.sheetRoles.action })).toBeTruthy()
-    expect(within(roleGroup).getByRole('button', { name: uiText.sheetRoles.cell }).getAttribute('aria-pressed')).toBe('true')
+    expect(within(roleGroup).getByRole('button', { name: uiText.sheetRoles.action }).getAttribute('aria-pressed')).toBe('true')
+    expect(within(roleGroup).getByRole('button', { name: uiText.sheetRoles.cell }).getAttribute('aria-pressed')).toBe('false')
     expect((screen.getByRole('button', { name: uiText.actions.runOcrAllPages }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.queryByText('濃さ')).toBeNull()
     expect(screen.queryByText('記入率')).toBeNull()
+  })
+
+it('separates template lines and labels in the display menu', () => {
+    render(<App />)
+    expect(document.querySelectorAll('.gridLine').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('.templateHeaderText').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByLabelText(uiText.sheet.viewModeMenu))
+    const menu = document.querySelector('.actionMenuPortalContent.sheetLayerMenu')
+    if (!(menu instanceof HTMLElement)) throw new Error('sheet layer menu not found')
+    const lines = within(menu).getByLabelText(uiText.sheet.templateGuides)
+    const labels = within(menu).getByLabelText(uiText.sheet.templateLabels)
+
+    fireEvent.click(lines)
+    expect(document.querySelectorAll('.gridLine')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateHeaderText').length).toBeGreaterThan(0)
+
+    fireEvent.click(labels)
+    expect(document.querySelectorAll('.templateHeaderText')).toHaveLength(0)
+  })
+
+it('edits cut metadata from a template-defined sheet region', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'カットを編集' }))
+    const dialog = screen.getByRole('dialog', { name: 'カットを編集' })
+    fireEvent.change(within(dialog).getByLabelText('カット'), { target: { value: 'C042' } })
+
+    expect(screen.getByLabelText(uiText.sheet.cutMetadata).textContent).toContain('C042')
+    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toContain('C042')
+  })
+
+it('uses one page grid and one selected-page source editor for multipage sheets', async () => {
+    const project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 300 })
+    const file = new File([JSON.stringify(createProjectDocumentFromCutProject(project))], 'multipage.json', { type: 'application/json' })
+    render(<App />)
+    const menu = openAppNavigationMenu()
+    const input = within(menu).getByText(uiText.actions.loadProject).closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!input) throw new Error('project input not found')
+    fireEvent.change(input, { target: { files: [file] } })
+
+    const pageMenuTrigger = await screen.findByLabelText(uiText.sheet.activePage)
+    fireEvent.click(pageMenuTrigger)
+    const pageMenu = document.querySelector('.actionMenuPortalContent.pageJumpMenu')
+    if (!(pageMenu instanceof HTMLElement)) throw new Error('page menu not found')
+    expect(pageMenu.querySelectorAll('.pageJumpPageButton')).toHaveLength(3)
+    expect(pageMenu.querySelectorAll('.pageJumpSourceSelect select')).toHaveLength(1)
   })
 
 it('closes the app navigation menu when a file picker item is selected', async () => {
@@ -475,6 +521,19 @@ it('edits template grid header labels from the display tab', () => {
 
     fireEvent.change(soundInput, { target: { value: '' } })
     expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).not.toContain('SOUND')
+  })
+
+it('uses the template header label for the OCR target name', () => {
+    render(<App />)
+    selectAppPanel(uiText.nav.template)
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.display }))
+    fireEvent.change(screen.getByLabelText(uiText.template.gridHeaderLabelInput('ACTION')), { target: { value: '演技指示' } })
+    fireEvent.click(screen.getByRole('button', { name: uiText.template.applyDraft }))
+
+    selectAppPanel(uiText.nav.sheet)
+    fireEvent.click(screen.getByLabelText(uiText.recognition.menu))
+    const roleGroup = screen.getByRole('group', { name: uiText.recognition.targetField })
+    expect(within(roleGroup).getByRole('button', { name: '演技指示' }).getAttribute('aria-pressed')).toBe('true')
   })
 
 it('edits the cut duration as seconds and frames with stepper buttons', () => {

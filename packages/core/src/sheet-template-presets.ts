@@ -148,7 +148,10 @@ export const standardA3SheetTemplate: SheetTemplate = {
     },
     gridHeader: {
       labelOverrides: {
+        action: 'ACTION',
         sound: '',
+        cell: 'CELL',
+        camera: 'CAMERA',
       },
     },
     bgBookLabel: {
@@ -439,6 +442,14 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
   templateKind: 'digital-native',
   layoutMode: 'infinite-digital',
   style: {
+    gridHeader: {
+      labelOverrides: {
+        action: 'ACTION',
+        sound: 'SOUND',
+        cell: 'CELL',
+        camera: 'CAMERA',
+      },
+    },
     secondCounter: {
       visible: true,
     },

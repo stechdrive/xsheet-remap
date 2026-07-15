@@ -12,6 +12,7 @@ import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuid
 import { sheetContextMenuStyle } from './app-registered-cells';
 import type { SheetCanvasController } from './app-sheet-canvas-controller'
 import { AssetAssignedFrameCue, SelectedCellCue, SheetDropTargetCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
+import { SheetMetadataEditor } from './SheetMetadataEditor'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -70,7 +71,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const calibrationDebugOverlay = isCalibrating && props.autoCalibrationOverlay?.pageId === page.pageId
             ? props.autoCalibrationOverlay
             : null
-          const showTemplateGuides = props.showTemplateGuides && !isCalibrating
+          const showTemplateLines = props.showTemplateGuides && !isCalibrating
+          const showTemplateLabels = props.showTemplateLabels && !isCalibrating
+          const showInputContent = props.showInputContent && !isCalibrating
           const displayImageSettings = { ...pageImage.settings, calibration: { ...(pageImage.settings.calibration ?? { enabled: false }), points: calibrationPoints } }
           const hoverMatchesSelection = Boolean(hoveredHit && props.selectedHit && sameSheetHitCell(hoveredHit, props.selectedHit))
           const rawHoverRect = !isCalibrating && !hoverMatchesSelection && hoveredHit?.pageId === page.pageId ? rectForHit(props.project, props.template, hoveredHit) : null
@@ -163,11 +166,11 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       preview
                     />
                   )}
-                  {showTemplateGuides && <TemplateChrome template={props.template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} layoutOverrides={props.project.sheetView.layoutOverrides} />}
-                  {showTemplateGuides && props.template.regions.filter(region => region.type === 'exposure-grid').map(region => (
-                    <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={props.project.sheetView.layoutOverrides} />
+                  {(showTemplateLines || showTemplateLabels) && <TemplateChrome template={props.template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />}
+                  {(showTemplateLines || showTemplateLabels) && props.template.regions.filter(region => region.type === 'exposure-grid').map(region => (
+                    <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />
                   ))}
-                  {showTemplateGuides && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
+                  {showInputContent && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
                   {candidateRects.map(candidate => (
                     <rect
                       key={candidate.candidateId}
@@ -178,7 +181,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       height={candidate.bbox.h}
                     />
                   ))}
-                  {!isCalibrating && (
+                  {showTemplateLines && (
                     <WorkRangeOverlay
                       template={props.template}
                       page={page}
@@ -226,7 +229,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onHandlePointerDown={(event, index, kind) => handleCalibrationHandlePointerDown(event, page, pageImage.settings, index, kind)}
                     />
                   )}
-                  {eventRects.map(({ event, displayLabel, rect, hasAssetBinding, fontSizePx }) => {
+                  {showInputContent && eventRects.map(({ event, displayLabel, rect, hasAssetBinding, fontSizePx }) => {
                     const eventHit = timelineEventHitForPage(event, page)
                     const isDraggingEvent = Boolean(timelineEventDrag && sameSheetHitCell(timelineEventDrag.sourceHit, eventHit))
                     const pendingEventDrag = pendingTimelineEventDrag && sameSheetHitCell(pendingTimelineEventDrag.sourceHit, eventHit)
@@ -304,6 +307,19 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     onUpdate={props.onUpdateTextAnnotation}
                     onCommit={props.onCommitTextAnnotation}
                     onCancel={props.onCancelTextAnnotation}
+                  />
+                )}
+                {!isCalibrating && (
+                  <SheetMetadataEditor
+                    project={props.project}
+                    template={props.template}
+                    page={page}
+                    pageWidth={sheetPageWidth}
+                    pageHeight={sheetPageHeight}
+                    displayDurationFrames={displayDurationFrames}
+                    paperTracks={templateTrackNames}
+                    onMetadataChange={props.onMetadataChange}
+                    onDurationChange={props.onDurationChange}
                   />
                 )}
                 {props.editMode === 'text' && !props.editingTextAnnotationId && textCursorBadge?.pageId === page.pageId && (

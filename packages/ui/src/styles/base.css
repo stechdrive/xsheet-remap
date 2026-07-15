@@ -282,7 +282,7 @@ textarea,
 }
 
 .cutMetadataMenu > summary {
-  min-width: 126px;
+  min-width: 64px;
   height: 34px;
   padding: 0 8px;
   font-variant-numeric: tabular-nums;
@@ -290,7 +290,7 @@ textarea,
 }
 
 .cutMetadataSummary {
-  max-width: 110px;
+  max-width: 56px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

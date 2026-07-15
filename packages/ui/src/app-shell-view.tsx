@@ -21,8 +21,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
     template, templatePanelKey, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
     setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
-    zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides,
-    setShowTemplateGuides, showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
+    zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
+    showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
+    showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, sheetScrollRequest, timingClipboard, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
@@ -76,6 +77,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <div className="topActions">
           <CutMetadataActionMenu
             project={project}
+            template={template}
             onMetadataChange={handleUpdateCutMetadata}
             onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
           />
@@ -127,6 +129,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
                   progress={recognitionProgress}
                   message={recognitionMessage}
                   project={project}
+                  template={template}
                   disabled={!hasRecognitionSheetImages}
                   onSheetRoleChange={role => {
                     setRecognitionRole(role)
@@ -143,22 +146,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
                     setRecognitionMessage(null)
                   }}
                 />
-                <TooltipTarget label={uiText.sheet.paperSheetImageVisibleTitle}>
-                  {tooltipProps => (
-                    <label className="compactControl topCheckboxControl" {...tooltipProps}>
-                      <input type="checkbox" checked={showTemplate} onChange={event => setShowTemplate(event.currentTarget.checked)} />
-                      表示
-                    </label>
-                  )}
-                </TooltipTarget>
-                <TooltipTarget label={uiText.sheet.templateGuidesTitle}>
-                  {tooltipProps => (
-                    <label className="compactControl topCheckboxControl" {...tooltipProps}>
-                      <input type="checkbox" checked={showTemplateGuides && editMode !== 'calibrate'} disabled={editMode === 'calibrate'} onChange={event => setShowTemplateGuides(event.currentTarget.checked)} />
-                      罫線
-                    </label>
-                  )}
-                </TooltipTarget>
                 <TooltipTarget label={uiText.sheet.imageOpacityTitle}>
                   {tooltipProps => (
                     <label className="compactControl topOpacityControl" {...tooltipProps}>
@@ -205,7 +192,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
           )}
           <div className="topUtilityActions">
             {panel === 'sheet' && (
-              <ActionMenu label={<ViewModeIcon />} ariaLabel={uiText.sheet.viewModeMenu} tooltipLabel={uiText.sheet.viewModeMenuTitle} className="iconActionMenu topViewModeMenu" closeOnMenuItemClick>
+              <ActionMenu label={<ViewModeIcon />} ariaLabel={uiText.sheet.viewModeMenu} tooltipLabel={uiText.sheet.viewModeMenuTitle} className="iconActionMenu topViewModeMenu sheetLayerMenu" closeOnMenuItemClick>
                 <div className="viewModeMenuList">
                   {([
                     ['single-page', viewModeLabels['single-page']],
@@ -221,6 +208,29 @@ export function AppShellView({ controller }: { controller: AppController }) {
                       {label}
                     </button>
                   ))}
+                </div>
+                <div className="sheetLayerMenuList" data-action-menu-keep-open>
+                  <span className="actionMenuSectionLabel">描画レイヤー</span>
+                  <label className="compactControl">
+                    <input type="checkbox" checked={showTemplate} onChange={event => setShowTemplate(event.currentTarget.checked)} />
+                    {uiText.sheet.paperSheetImage}
+                  </label>
+                  <label className="compactControl">
+                    <input type="checkbox" checked={showTemplateGuides} onChange={event => setShowTemplateGuides(event.currentTarget.checked)} />
+                    {uiText.sheet.templateGuides}
+                  </label>
+                  <label className="compactControl">
+                    <input type="checkbox" checked={showTemplateLabels} onChange={event => setShowTemplateLabels(event.currentTarget.checked)} />
+                    {uiText.sheet.templateLabels}
+                  </label>
+                  <label className="compactControl">
+                    <input type="checkbox" checked={showInputContent} onChange={event => setShowInputContent(event.currentTarget.checked)} />
+                    {uiText.sheet.inputContent}
+                  </label>
+                  <label className="compactControl">
+                    <input type="checkbox" checked={showAnnotations} onChange={event => setShowAnnotations(event.currentTarget.checked)} />
+                    {uiText.sheet.annotations}
+                  </label>
                 </div>
               </ActionMenu>
             )}
@@ -278,11 +288,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onStatusHint={setStatusHint}
             suppressAssetPreview={assetDropMenu !== null}
             showTemplate={showTemplate}
-            setShowTemplate={setShowTemplate}
             showTemplateGuides={showTemplateGuides}
-            setShowTemplateGuides={setShowTemplateGuides}
+            showTemplateLabels={showTemplateLabels}
+            showInputContent={showInputContent}
             showAnnotations={showAnnotations}
-            setShowAnnotations={setShowAnnotations}
             penColor={penColor}
             setPenColor={setPenColor}
             penWidth={penWidth}
@@ -295,6 +304,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             hasSelectedTextTarget={hasSelectedTextTarget}
             textFontSizeDisabled={isTextFontSizeDisabled}
             onTextFontSizeChange={handleTextFontSizeChange}
+            onMetadataChange={handleUpdateCutMetadata}
+            onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
             autoCalibrationRunning={autoCalibrationRunning}
             autoCalibrationMessage={autoCalibrationMessage}
             autoCalibrationOverlay={autoCalibrationOverlay}

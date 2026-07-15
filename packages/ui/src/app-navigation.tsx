@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { type CutProject, type NormalizedRect, type CutGroupProjectDocument, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
+import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type CutGroupProjectDocument, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel } from './appTypes'
@@ -9,6 +9,7 @@ import { clampNumber } from './sheetInteraction'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { ActionMenu } from './AppControls'
 import { CalibrationPointKind, RegisteredCellSortDirection } from './app-foundation'
+import { gridHeaderLabelForRole } from './templateEditorGeometry'
 
 export function RecognitionActionMenu({
   candidates,
@@ -17,6 +18,7 @@ export function RecognitionActionMenu({
   progress,
   message,
   project,
+  template,
   disabled,
   onSheetRoleChange,
   onDetect,
@@ -32,6 +34,7 @@ export function RecognitionActionMenu({
   progress: { completed: number; total: number } | null
   message: string | null
   project: CutProject
+  template: SheetTemplate
   disabled: boolean
   onSheetRoleChange: (sheetRole: SheetTimingRole) => void
   onDetect: () => void
@@ -42,6 +45,9 @@ export function RecognitionActionMenu({
   onClear: () => void
 }) {
   const readyCount = candidates.filter(candidate => !recognitionCandidateHasConflict(project, candidate)).length
+  const availableRoles = (['action', 'cell'] as const).filter(role => template.regions.some(region =>
+    region.type === 'exposure-grid' && region.grid?.role === role,
+  ))
   return (
     <ActionMenu
       label={<span>OCR</span>}
@@ -51,7 +57,7 @@ export function RecognitionActionMenu({
     >
       <div className="recognitionMenuBody">
         <div className="recognitionRoleControl" role="group" aria-label={uiText.recognition.targetField}>
-          {(['action', 'cell'] as const).map(role => (
+          {availableRoles.map(role => (
             <button
               key={role}
               type="button"
@@ -60,7 +66,7 @@ export function RecognitionActionMenu({
               disabled={running}
               onClick={() => onSheetRoleChange(role)}
             >
-              {uiText.sheetRoles[role]}
+              {gridHeaderLabelForRole(template, role)}
             </button>
           ))}
         </div>
@@ -128,17 +134,24 @@ function recognitionCandidateHasConflict(project: CutProject, candidate: Recogni
 
 export function CutMetadataActionMenu({
   project,
+  template,
   onMetadataChange,
   onDurationChange,
 }: {
   project: CutProject
-  onMetadataChange: (field: 'title' | 'episode' | 'scene' | 'cut', value: string) => void
+  template: SheetTemplate
+  onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
 }) {
-  const safeFps = Math.max(1, Math.round(project.logicalSheet.fps))
-  const { seconds, frameRemainder } = durationParts(project.logicalSheet.durationFrames, safeFps)
   const cutLabel = project.cut.cut?.trim() || '---'
-  const summary = `${cutLabel}・${formatDurationPart(seconds, 2)}+${formatDurationPart(frameRemainder, 2)}`
+  const summary = cutLabel
+  const customFields = Array.from(new Map(template.regions.flatMap(region =>
+    region.binding?.target === 'cut-metadata'
+    && region.binding.field === 'custom'
+    && region.binding.customKey
+      ? [[region.binding.customKey, region.label] as const]
+      : [],
+  )).entries())
 
   return (
     <ActionMenu
@@ -178,6 +191,22 @@ export function CutMetadataActionMenu({
             />
           </label>
         </div>
+        <label className="cutMetadataMenuField">
+          <span>作業者</span>
+          <input
+            value={project.cut.worker ?? ''}
+            onChange={event => onMetadataChange('worker', event.currentTarget.value)}
+          />
+        </label>
+        {customFields.map(([customKey, label]) => (
+          <label key={customKey} className="cutMetadataMenuField">
+            <span>{label}</span>
+            <input
+              value={project.cut.custom?.[customKey] ?? ''}
+              onChange={event => onMetadataChange('custom', event.currentTarget.value, customKey)}
+            />
+          </label>
+        ))}
         <DurationFrameControl
           frames={project.logicalSheet.durationFrames}
           fps={project.logicalSheet.fps}

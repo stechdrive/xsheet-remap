@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type EditMode, type SheetRangeSelection, type SheetPageImage, type TimingClipboard, type WorkspaceStyle } from './appTypes'
@@ -55,11 +55,10 @@ export function SheetPanel(props: {
   onStatusHint: (source: StatusHintSource, text: string | null) => void
   suppressAssetPreview: boolean
   showTemplate: boolean
-  setShowTemplate: (value: boolean) => void
   showTemplateGuides: boolean
-  setShowTemplateGuides: (value: boolean) => void
+  showTemplateLabels: boolean
+  showInputContent: boolean
   showAnnotations: boolean
-  setShowAnnotations: (value: boolean) => void
   penColor: string
   setPenColor: (value: string) => void
   penWidth: number
@@ -72,6 +71,8 @@ export function SheetPanel(props: {
   hasSelectedTextTarget: boolean
   textFontSizeDisabled: boolean
   onTextFontSizeChange: (value: number) => void
+  onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
+  onDurationChange: (frames: number) => void
   autoCalibrationRunning: boolean
   autoCalibrationMessage: string | null
   autoCalibrationOverlay: AutoCalibrationOverlayState | null
@@ -419,28 +420,34 @@ export function SheetPanel(props: {
                 className="pageJumpMenu"
                 closeOnMenuItemClick
               >
-                <div className="pageJumpList">
-                  {props.sheetPages.map(page => {
-                    const pageState = props.project.sheetView.pages.find(item => item.pageId === page.pageId)
+                <div className="pageJumpPanel" data-action-menu-keep-open>
+                  <div className="pageJumpGrid" aria-label={uiText.sheet.pageSelection}>
+                    {props.sheetPages.map(page => (
+                      <Tooltip key={page.pageId} label={uiText.sheet.pageJumpTitle(page.pageIndex + 1)}>
+                        <button
+                          type="button"
+                          className={page.pageIndex === props.activePageIndex ? 'pageJumpPageButton active' : 'pageJumpPageButton'}
+                          aria-pressed={page.pageIndex === props.activePageIndex}
+                          onClick={() => props.setActivePageIndex(page.pageIndex)}
+                        >
+                          {uiText.sheet.pageTab(page.pageIndex + 1)}
+                        </button>
+                      </Tooltip>
+                    ))}
+                  </div>
+                  {activePage && (() => {
+                    const pageState = props.project.sheetView.pages.find(item => item.pageId === activePage.pageId)
                     const sourceId = pageState?.sourceId ?? ''
                     return (
-                      <div key={page.pageId} className={page.pageIndex === props.activePageIndex ? 'pageJumpRow active' : 'pageJumpRow'}>
-                        <Tooltip label={uiText.sheet.pageJumpTitle(page.pageIndex + 1)}>
-                          <button
-                            type="button"
-                            className="pageJumpPageButton"
-                            onClick={() => props.setActivePageIndex(page.pageIndex)}
-                          >
-                            {uiText.sheet.pageTab(page.pageIndex + 1)}
-                          </button>
-                        </Tooltip>
-                        <TooltipTarget label={uiText.sources.pageAssignmentTitle(page.pageIndex + 1)}>
+                      <div className="pageJumpEditor">
+                        <strong>{uiText.sources.pageAssignmentLabel(activePage.pageIndex + 1)}</strong>
+                        <TooltipTarget label={uiText.sources.pageAssignmentTitle(activePage.pageIndex + 1)}>
                           {tooltipProps => (
-                            <label className="pageJumpSourceSelect" data-action-menu-keep-open {...tooltipProps}>
+                            <label className="pageJumpSourceSelect" {...tooltipProps}>
                               <select
                                 value={sourceId}
-                                aria-label={uiText.sources.pageAssignmentLabel(page.pageIndex + 1)}
-                                onChange={event => props.onAssignSheetSource(page.pageId, event.currentTarget.value || null)}
+                                aria-label={uiText.sources.pageAssignmentLabel(activePage.pageIndex + 1)}
+                                onChange={event => props.onAssignSheetSource(activePage.pageId, event.currentTarget.value || null)}
                               >
                                 <option value="">{uiText.app.unassigned}</option>
                                 {sheetScanSources.map(source => (
@@ -455,14 +462,14 @@ export function SheetPanel(props: {
                             type="button"
                             className="pageJumpClearButton"
                             disabled={!sourceId}
-                            onClick={() => props.onAssignSheetSource(page.pageId, null)}
+                            onClick={() => props.onAssignSheetSource(activePage.pageId, null)}
                           >
                             {uiText.sources.clearAssignment}
                           </button>
                         </Tooltip>
                       </div>
                     )
-                  })}
+                  })()}
                   {sheetScanSources.length === 0 && (
                     <p className="pageJumpEmpty">{uiText.sources.empty}</p>
                   )}
@@ -559,14 +566,6 @@ export function SheetPanel(props: {
               <EraserToolIcon />
             </button>
           </Tooltip>
-          <TooltipTarget label={uiText.sheet.annotationVisibleTitle}>
-            {tooltipProps => (
-              <label className="compactControl annotationVisibilityToggle" {...tooltipProps}>
-                <input type="checkbox" checked={props.showAnnotations} onChange={event => props.setShowAnnotations(event.currentTarget.checked)} />
-                {uiText.sheet.annotationVisible}
-              </label>
-            )}
-          </TooltipTarget>
           <Tooltip label={uiText.sheet.penColor}>
             <input type="color" value={props.penColor} onChange={event => props.setPenColor(event.currentTarget.value)} />
           </Tooltip>

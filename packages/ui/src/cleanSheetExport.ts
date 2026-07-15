@@ -50,7 +50,16 @@ export type SheetImageExportResult = {
   pageIndex: number
 }
 
-type SheetExportLayerId = 'white' | 'paperSheet' | 'templateImage' | 'templateDrawing' | 'overlayTracks' | 'inputText' | 'annotations'
+type SheetExportLayerId =
+  | 'white'
+  | 'paperSheet'
+  | 'templateImage'
+  | 'templateLines'
+  | 'templateLabels'
+  | 'overlayTracks'
+  | 'inputText'
+  | 'annotationInk'
+  | 'annotationText'
 
 type SheetExportLayer = {
   id: SheetExportLayerId
@@ -189,10 +198,19 @@ async function renderSheetExportLayers(
   }
   if (options.includeTemplateDrawing) {
     layers.push({
-      id: 'templateDrawing',
-      name: 'アプリ描画',
+      id: 'templateLines',
+      name: 'テンプレ罫線',
       imageData: renderTemplateDrawingLayer(context, {
         includeStaticChrome: !options.includePaperSheet && !options.includeTemplateImage,
+        content: 'lines',
+      }),
+    })
+    layers.push({
+      id: 'templateLabels',
+      name: 'テンプレラベル',
+      imageData: renderTemplateDrawingLayer(context, {
+        includeStaticChrome: false,
+        content: 'labels',
       }),
     })
   }
@@ -200,7 +218,8 @@ async function renderSheetExportLayers(
     layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル', imageData: renderOverlayTrackLayer(context) })
   }
   layers.push({ id: 'inputText', name: '入力文字', imageData: renderInputTextLayer(context) })
-  layers.push({ id: 'annotations', name: '注釈', imageData: renderAnnotationLayer(context) })
+  layers.push({ id: 'annotationInk', name: '手描き注釈', imageData: renderAnnotationLayer(context, 'ink') })
+  layers.push({ id: 'annotationText', name: '注釈文字', imageData: renderAnnotationLayer(context, 'text') })
   return layers
 }
 
@@ -258,7 +277,7 @@ async function renderTemplateImageLayer(context: SheetExportLayerContext): Promi
 
 function renderTemplateDrawingLayer(
   context: SheetExportLayerContext,
-  options: { includeStaticChrome: boolean },
+  options: { includeStaticChrome: boolean; content: 'lines' | 'labels' },
 ): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -268,8 +287,12 @@ function renderTemplateDrawingLayer(
   })
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    if (options.includeStaticChrome) drawTemplateStaticChrome(ctx, context, chrome, offsetY)
-    drawTemplateGridHeaders(ctx, context, chrome, offsetY)
+    if (options.content === 'lines') {
+      if (options.includeStaticChrome) drawTemplateStaticChrome(ctx, context, chrome, offsetY)
+      drawTemplateGridHeaderLines(ctx, context, chrome, offsetY)
+    } else {
+      drawTemplateGridHeaderLabels(ctx, context, chrome, offsetY)
+    }
     for (const region of context.template.regions.filter(region => region.type === 'exposure-grid' && region.grid)) {
       const viewLayout = getSheetViewLayout(context.template)
       const frameOrigin = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
@@ -283,28 +306,31 @@ function renderTemplateDrawingLayer(
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
       if (model) {
-        for (const path of model.rowPaths) drawTemplateGridPath(ctx, context, path, offsetY)
-        if (model.columnPath) drawTemplateGridPath(ctx, context, model.columnPath, offsetY)
-        ctx.fillStyle = '#2a302c'
-        ctx.textBaseline = 'middle'
-        for (const label of model.labels) {
-          ctx.font = fontDeclaration(label.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-          ctx.textAlign = label.textAnchor === 'end' ? 'right' : 'left'
-          ctx.fillText(label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx)
+        if (options.content === 'lines') {
+          for (const path of model.rowPaths) drawTemplateGridPath(ctx, context, path, offsetY)
+          if (model.columnPath) drawTemplateGridPath(ctx, context, model.columnPath, offsetY)
+        } else {
+          ctx.fillStyle = '#2a302c'
+          ctx.textBaseline = 'middle'
+          for (const label of model.labels) {
+            ctx.font = fontDeclaration(label.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+            ctx.textAlign = label.textAnchor === 'end' ? 'right' : 'left'
+            ctx.fillText(label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx)
+          }
+          ctx.textBaseline = 'bottom'
+          for (const item of [...model.frameNumbers, ...model.secondCounters]) {
+            ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+            ctx.textAlign = item.textAnchor === 'end' ? 'right' : 'left'
+            ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
+          }
+          ctx.textAlign = 'center'
+          for (const item of model.bottomTrackLabels) {
+            ctx.globalAlpha = item.opacity
+            ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+            ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
+          }
+          ctx.globalAlpha = 1
         }
-        ctx.textBaseline = 'bottom'
-        for (const item of [...model.frameNumbers, ...model.secondCounters]) {
-          ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-          ctx.textAlign = item.textAnchor === 'end' ? 'right' : 'left'
-          ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
-        }
-        ctx.textAlign = 'center'
-        for (const item of model.bottomTrackLabels) {
-          ctx.globalAlpha = item.opacity
-          ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-          ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
-        }
-        ctx.globalAlpha = 1
       }
       const layout = resolveSheetTemplateGridLayout(context.template, region, {
         paperTracks: context.paperTracks,
@@ -312,7 +338,7 @@ function renderTemplateDrawingLayer(
         frameOrigin,
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
-      if (!layout) continue
+      if (!layout || options.content !== 'lines') continue
       const rect = layout.rect
       const x = rect.x * context.pageSize.widthPx
       const y = offsetY + rect.y * context.pageSize.heightPx
@@ -351,18 +377,15 @@ function drawTemplateStaticChrome(
   ctx.setLineDash([])
 }
 
-function drawTemplateGridHeaders(
+function drawTemplateGridHeaderLines(
   ctx: CanvasRenderingContext2D,
   context: SheetExportLayerContext,
   chrome: ReturnType<typeof buildTemplateChromeRenderModel>,
   offsetY: number,
 ) {
   ctx.strokeStyle = '#2f3430'
-  ctx.fillStyle = '#1f2421'
   ctx.lineWidth = 1
   ctx.setLineDash([])
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
   for (const header of chrome.headers) {
     ctx.strokeRect(
       header.rect.x * context.pageSize.widthPx,
@@ -370,6 +393,19 @@ function drawTemplateGridHeaders(
       header.rect.w * context.pageSize.widthPx,
       header.rect.h * context.pageSize.heightPx,
     )
+  }
+}
+
+function drawTemplateGridHeaderLabels(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  chrome: ReturnType<typeof buildTemplateChromeRenderModel>,
+  offsetY: number,
+) {
+  ctx.fillStyle = '#1f2421'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const header of chrome.headers) {
     if (header.label) {
       ctx.font = fontDeclaration(header.labelFontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.fillText(header.label, header.labelX * context.pageSize.widthPx, offsetY + header.labelY * context.pageSize.heightPx)
@@ -624,13 +660,13 @@ function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w:
   ctx.closePath()
 }
 
-function renderAnnotationLayer(context: SheetExportLayerContext): ImageData {
+function renderAnnotationLayer(context: SheetExportLayerContext, content: 'ink' | 'text'): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const stroke of context.project.annotations.filter((annotation): annotation is AnnotationStroke => annotation.kind !== 'text' && annotation.pageId === page.pageId && annotation.tool === 'pen')) {
+    if (content === 'ink') for (const stroke of context.project.annotations.filter((annotation): annotation is AnnotationStroke => annotation.kind !== 'text' && annotation.pageId === page.pageId && annotation.tool === 'pen')) {
       const [first, ...rest] = stroke.points
       if (!first) continue
       ctx.beginPath()
@@ -642,7 +678,7 @@ function renderAnnotationLayer(context: SheetExportLayerContext): ImageData {
       ctx.lineJoin = 'round'
       ctx.stroke()
     }
-    for (const annotation of context.project.annotations.filter((item): item is AnnotationText => item.kind === 'text' && item.pageId === page.pageId)) {
+    if (content === 'text') for (const annotation of context.project.annotations.filter((item): item is AnnotationText => item.kind === 'text' && item.pageId === page.pageId)) {
       const lines = annotationTextLines(annotation.text)
       if (lines.length === 0) continue
       const fontSize = resolveAnnotationTextFontSizePx(annotation, context.pageSize)

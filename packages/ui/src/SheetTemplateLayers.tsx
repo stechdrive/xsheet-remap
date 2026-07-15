@@ -73,22 +73,30 @@ export function SheetImageLayer({
   )
 }
 
-export function TemplateChromeLayer({ model }: { model: TemplateChromeRenderModel }) {
+export function TemplateChromeLayer({
+  model,
+  showLines = true,
+  showLabels = true,
+}: {
+  model: TemplateChromeRenderModel
+  showLines?: boolean
+  showLabels?: boolean
+}) {
   return (
     <g className="templateChrome" aria-hidden="true">
-      {model.showOuterFrame && <rect className="templateOuterFrame" x="0.02" y="0.019" width="0.96" height="0.952" />}
-      <g>
+      {showLines && model.showOuterFrame && <rect className="templateOuterFrame" x="0.02" y="0.019" width="0.96" height="0.952" />}
+      {showLines && <g>
         {model.referenceRegions.map(region => (
           <g key={region.regionId} className={`templateReferenceRegion ${region.type}`}>
             <rect className="templateReferenceBox" x={region.rect.x} y={region.rect.y} width={region.rect.w} height={region.rect.h} />
           </g>
         ))}
-      </g>
+      </g>}
       {model.headers.map(header => (
         <g key={header.regionId}>
-          <rect className="templateHeaderBox" style={{ fill: 'none' }} x={header.rect.x} y={header.rect.y} width={header.rect.w} height={header.rect.h} />
-          {header.label ? <SheetSvgText className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSizePx={header.labelFontSizePx} pageSize={model.pageSize}>{header.label}</SheetSvgText> : null}
-          {header.columns.map(column => (
+          {showLines && <rect className="templateHeaderBox" style={{ fill: 'none' }} x={header.rect.x} y={header.rect.y} width={header.rect.w} height={header.rect.h} />}
+          {showLabels && header.label ? <SheetSvgText className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSizePx={header.labelFontSizePx} pageSize={model.pageSize}>{header.label}</SheetSvgText> : null}
+          {showLabels && header.columns.map(column => (
             <SheetSvgText key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" fontSizePx={column.fontSizePx} pageSize={model.pageSize}>{column.label}</SheetSvgText>
           ))}
         </g>
@@ -97,14 +105,22 @@ export function TemplateChromeLayer({ model }: { model: TemplateChromeRenderMode
   )
 }
 
-export function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderModel }) {
+export function GridOverlayLayer({
+  model,
+  showLines = true,
+  showLabels = true,
+}: {
+  model: TemplateGridOverlayRenderModel
+  showLines?: boolean
+  showLabels?: boolean
+}) {
   return (
     <g className={`gridOverlay gridOverlay-${model.role}`}>
-      {model.rowPaths.map(path => (
+      {showLines && model.rowPaths.map(path => (
         <path key={path.className} className={path.className} d={path.d} />
       ))}
-      {model.columnPath && <path className={model.columnPath.className} d={model.columnPath.d} />}
-      {model.labels.map(label => (
+      {showLines && model.columnPath && <path className={model.columnPath.className} d={model.columnPath.d} />}
+      {showLabels && model.labels.map(label => (
         <SheetSvgText
           key={label.key}
           className="gridRowGuideLabel"
@@ -117,7 +133,7 @@ export function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderMo
           {label.text}
         </SheetSvgText>
       ))}
-      {model.frameNumbers.map(item => (
+      {showLabels && model.frameNumbers.map(item => (
         <SheetSvgText
           key={item.key}
           className="gridActionFrameNumber"
@@ -131,7 +147,7 @@ export function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderMo
           {item.text}
         </SheetSvgText>
       ))}
-      {model.secondCounters.map(item => (
+      {showLabels && model.secondCounters.map(item => (
         <SheetSvgText
           key={item.key}
           className="gridSecondCounter"
@@ -145,7 +161,7 @@ export function GridOverlayLayer({ model }: { model: TemplateGridOverlayRenderMo
           {item.text}
         </SheetSvgText>
       ))}
-      {model.bottomTrackLabels.map(item => (
+      {showLabels && model.bottomTrackLabels.map(item => (
         <SheetSvgText
           key={item.key}
           className="gridBottomTrackLabel"

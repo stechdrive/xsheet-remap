@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createKey, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, findTimingKeyByDisplayLabel, type CorrectionLayer, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateKey, updateOrMergeTimingKeyDisplayLabel, updateCorrectionLayers, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, isNullLabel, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, parseProjectDocument, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
+import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createKey, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, findTimingKeyByDisplayLabel, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateKey, updateOrMergeTimingKeyDisplayLabel, updateCorrectionLayers, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, isNullLabel, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, parseProjectDocument, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
 import { exportXdts } from '@xsheet-remap/xdts';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, readJsonFile, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeTextFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
+import { updateCutMetadata } from './cutMetadata';
 import { issueMessage, uiText } from './i18n';
 import { type Panel, type Selection, type SheetRangeSelection, type TimingClipboard } from './appTypes';
 import { defaultSheetImageExportOptions, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions } from './cleanSheetExport';
@@ -43,11 +44,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const appProfile = APP_PROFILES[appKind]
   const {
     history, setHistory, commitWorkspace, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
-    runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
+    runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole: storedRecognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
-    showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showAnnotations, setShowAnnotations, penColor, setPenColor,
+    showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,
+    showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, selection, setSelection,
     rangeSelection, setRangeSelection, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard, statusHints, setStatusHints,
@@ -58,6 +60,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   } = useAppShellState()
   const exportProfileId = 'import-stack'
   const templatePanelKey = useMemo(() => JSON.stringify(template), [template])
+  const recognitionRoles = (['action', 'cell'] as const).filter(role => template.regions.some(region =>
+    region.type === 'exposure-grid' && region.grid?.role === role,
+  ))
+  const recognitionRole: SheetTimingRole = recognitionRoles.includes(storedRecognitionRole as 'action' | 'cell')
+    ? storedRecognitionRole
+    : recognitionRoles[0] ?? 'action'
 
   const issues = useMemo(() => validateProject(project, project.exportProfiles.find(profile => profile.profileId === exportProfileId)), [project, exportProfileId])
   const projectDocumentSnapshot = useMemo(
@@ -1673,15 +1681,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  function handleUpdateCutMetadata(field: 'title' | 'episode' | 'scene' | 'cut', value: string) {
-    const trimmed = value.trim()
-    commitProject({
-      ...project,
-      cut: {
-        ...project.cut,
-        [field]: trimmed || undefined,
-      },
-    })
+  function handleUpdateCutMetadata(field: CutMetadataFieldId, value: string, customKey?: string) {
+    commitProject(updateCutMetadata(project, field, value, customKey))
   }
 
   function handleSwitchProjectCut(cutId: string) {
@@ -2262,8 +2263,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     template, templatePanelKey, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
     setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
-    zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides,
-    setShowTemplateGuides, showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
+    zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
+    showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
+    showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, sheetScrollRequest, timingClipboard, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,

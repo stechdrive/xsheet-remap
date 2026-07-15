@@ -114,17 +114,21 @@ export const TemplateChrome = memo(function TemplateChrome({
   paperTracks = template.defaults.paperTracks,
   durationFrames = template.defaults.durationFrames,
   layoutOverrides,
+  showLines = true,
+  showLabels = true,
 }: {
   template: SheetTemplate
   paperTracks?: string[]
   durationFrames?: number
   layoutOverrides?: CutProject['sheetView']['layoutOverrides']
+  showLines?: boolean
+  showLabels?: boolean
 }) {
   const model = useMemo(
     () => buildTemplateChromeRenderModel(template, paperTracks, durationFrames, { layoutOverrides }),
     [durationFrames, layoutOverrides, paperTracks, template],
   )
-  return <TemplateChromeLayer model={model} />
+  return <TemplateChromeLayer model={model} showLines={showLines} showLabels={showLabels} />
 })
 
 export const GridOverlay = memo(function GridOverlay({
@@ -135,6 +139,8 @@ export const GridOverlay = memo(function GridOverlay({
   frameOrigin = template.defaults.frameOrigin,
   pageFrameStart,
   layoutOverrides,
+  showLines = true,
+  showLabels = true,
 }: {
   template: SheetTemplate
   region: SheetTemplate['regions'][number]
@@ -143,12 +149,14 @@ export const GridOverlay = memo(function GridOverlay({
   frameOrigin?: number
   pageFrameStart?: number
   layoutOverrides?: CutProject['sheetView']['layoutOverrides']
+  showLines?: boolean
+  showLabels?: boolean
 }) {
   const model = useMemo(
     () => buildTemplateGridOverlayRenderModel(template, region, { paperTracks, durationFrames, frameOrigin, pageFrameStart, layoutOverrides }),
     [durationFrames, frameOrigin, layoutOverrides, pageFrameStart, paperTracks, region, template],
   )
-  return model ? <GridOverlayLayer model={model} /> : null
+  return model ? <GridOverlayLayer model={model} showLines={showLines} showLabels={showLabels} /> : null
 })
 
 export function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext; page: SheetPage }) {

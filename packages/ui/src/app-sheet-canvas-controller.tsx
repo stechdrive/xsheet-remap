@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
+import { type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type EditMode, type SheetRangeSelection, type SheetImageSettings, type TimingClipboard } from './appTypes';
 import { type DropDiagnosticReport } from './AssetBrowser';
@@ -41,6 +41,8 @@ export type SheetCanvasProps = {
   suppressAssetPreview: boolean
   showTemplate: boolean
   showTemplateGuides: boolean
+  showTemplateLabels: boolean
+  showInputContent: boolean
   showAnnotations: boolean
   penColor: string
   penWidth: number
@@ -85,6 +87,8 @@ export type SheetCanvasProps = {
   onCommitTextAnnotation: (annotationId: string, text: string) => void
   onCancelTextAnnotation: (annotationId: string) => void
   onCommitFocusedTextAnnotationDraft: () => void
+  onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
+  onDurationChange: (frames: number) => void
   onCalibrationPoints: (page: SheetPage, points: SheetCalibrationPointPair[], enabled?: boolean) => void
 }
 

@@ -61,6 +61,24 @@
   min-width: 156px;
 }
 
+.sheetLayerMenu.actionMenuContent {
+  min-width: 190px;
+}
+
+.sheetLayerMenuList {
+  display: grid;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid #d6dbd4;
+}
+
+.sheetLayerMenuList .compactControl {
+  min-height: 28px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 3px 4px;
+}
+
 .cutSwitchToolbarGroup {
   gap: 4px;
 }
@@ -154,29 +172,17 @@
   font-weight: 800;
 }
 
-.pageJumpList {
+.pageJumpPanel {
   display: grid;
-  gap: 4px;
-  width: min(340px, calc(100vw - 32px));
-  min-width: 240px;
-  max-height: min(320px, calc(100vh - 96px));
-  overflow-y: auto;
-  overflow-x: hidden;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  min-width: min(280px, calc(100vw - 32px));
 }
 
-.pageJumpRow {
+.pageJumpGrid {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  padding: 3px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-}
-
-.pageJumpRow.active {
-  border-color: #416b5a;
-  background: #edf4ee;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 5px;
 }
 
 .pageJumpPageButton,
@@ -191,16 +197,30 @@
   text-align: center;
 }
 
-.pageJumpRow.active .pageJumpPageButton {
+.pageJumpPageButton.active {
   border-color: #416b5a;
   background: #dce8df;
   color: #173528;
   font-weight: 800;
 }
 
+.pageJumpEditor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #d6dbd4;
+}
+
+.pageJumpEditor > strong {
+  grid-column: 1 / -1;
+  color: #3e4942;
+  font-size: 12px;
+}
+
 .pageJumpSourceSelect {
-  display: block;
-  align-items: center;
+  display: grid;
   min-width: 0;
   color: #58635c;
   font-size: 12px;
@@ -222,6 +242,21 @@
   margin: 2px 4px;
   color: #66716a;
   font-size: 12px;
+}
+
+@media (max-width: 520px), (max-height: 520px) {
+  .pageJumpMenu.actionMenuPortalContent {
+    inset: auto 8px 8px !important;
+    width: auto;
+    max-width: none;
+    max-height: calc(100vh - 16px);
+    border-radius: 12px;
+  }
+
+  .pageJumpPanel {
+    width: auto;
+    min-width: 0;
+  }
 }
 
 .calibrationStatus {

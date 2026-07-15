@@ -248,13 +248,29 @@ fn sheet_corrector_image_data_url(source_path: String) -> Result<String, String>
         return Err("対応していない画像形式です。".to_string());
     }
     let bytes = std::fs::read(&source).map_err(|error| error.to_string())?;
+    encode_sheet_image_data_url(&extension, bytes)
+}
+
+fn encode_sheet_image_data_url(extension: &str, bytes: Vec<u8>) -> Result<String, String> {
+    let (mime_type, bytes) = if extension == "tga" {
+        // WebView2 cannot display TGA data URLs, so hand the frontend a lossless PNG.
+        ("image/png", convert_tga_to_png(&bytes)?)
+    } else {
+        (image_mime_type(extension), bytes)
+    };
     use base64::Engine as _;
     let payload = base64::engine::general_purpose::STANDARD.encode(bytes);
-    Ok(format!(
-        "data:{};base64,{}",
-        image_mime_type(&extension),
-        payload
-    ))
+    Ok(format!("data:{mime_type};base64,{payload}"))
+}
+
+fn convert_tga_to_png(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let image = image::load_from_memory_with_format(bytes, image::ImageFormat::Tga)
+        .map_err(|error| format!("TGA画像を読み込めませんでした: {error}"))?;
+    let mut png = std::io::Cursor::new(Vec::new());
+    image
+        .write_to(&mut png, image::ImageFormat::Png)
+        .map_err(|error| format!("TGA画像をPNGへ変換できませんでした: {error}"))?;
+    Ok(png.into_inner())
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -420,5 +436,54 @@ fn image_mime_type(extension: &str) -> &'static str {
         "tif" | "tiff" => "image/tiff",
         "tga" => "image/x-tga",
         _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine as _;
+    use image::GenericImageView as _;
+
+    #[test]
+    fn converts_bottom_left_rle_true_color_tga_to_png_data_url() {
+        let mut tga = vec![0_u8; 18];
+        tga[2] = 10;
+        tga[12..14].copy_from_slice(&2_u16.to_le_bytes());
+        tga[14..16].copy_from_slice(&2_u16.to_le_bytes());
+        tga[16] = 32;
+        tga[17] = 0;
+        tga.extend_from_slice(&[0x81, 0, 0, 255, 255]);
+        tga.extend_from_slice(&[0x81, 0, 255, 0, 255]);
+
+        let data_url = encode_sheet_image_data_url("tga", tga).expect("TGA conversion");
+        let payload = data_url
+            .strip_prefix("data:image/png;base64,")
+            .expect("PNG data URL");
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .expect("base64 payload");
+        let decoded = image::load_from_memory_with_format(&png, image::ImageFormat::Png)
+            .expect("converted PNG");
+
+        assert_eq!(decoded.dimensions(), (2, 2));
+        assert_eq!(decoded.get_pixel(0, 0).0, [0, 255, 0, 255]);
+        assert_eq!(decoded.get_pixel(0, 1).0, [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn returns_a_tga_specific_error_for_invalid_data() {
+        let error = encode_sheet_image_data_url("tga", b"not a tga".to_vec())
+            .expect_err("invalid TGA must fail");
+
+        assert!(error.starts_with("TGA画像を読み込めませんでした:"));
+    }
+
+    #[test]
+    fn preserves_browser_supported_image_bytes() {
+        let bytes = vec![1, 2, 3, 4];
+        let data_url = encode_sheet_image_data_url("png", bytes).expect("PNG data URL");
+
+        assert_eq!(data_url, "data:image/png;base64,AQIDBA==");
     }
 }

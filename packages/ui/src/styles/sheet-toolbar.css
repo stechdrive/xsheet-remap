@@ -168,21 +168,29 @@
 
 .pageJumpMenu > summary {
   min-height: 28px;
-  padding: 4px 10px;
+  gap: 4px;
+  padding: 4px 7px;
   font-weight: 800;
+}
+
+.pageJumpMenu.actionMenuContent {
+  width: min(320px, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
+  overflow-x: hidden;
 }
 
 .pageJumpPanel {
   display: grid;
   gap: 10px;
-  width: min(360px, calc(100vw - 32px));
-  min-width: min(280px, calc(100vw - 32px));
+  width: 100%;
+  min-width: 0;
 }
 
 .pageJumpGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  grid-template-columns: repeat(auto-fill, 44px);
   gap: 5px;
+  justify-content: start;
 }
 
 .pageJumpPageButton,
@@ -193,6 +201,10 @@
 }
 
 .pageJumpPageButton {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  padding-inline: 4px;
   justify-content: center;
   text-align: center;
 }
@@ -206,7 +218,7 @@
 
 .pageJumpEditor {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 48px;
   align-items: end;
   gap: 6px;
   padding-top: 8px;
@@ -234,8 +246,14 @@
 }
 
 .pageJumpClearButton {
+  width: 48px;
   min-width: 48px;
   justify-content: center;
+}
+
+.pageJumpEditor > .appTooltipTrigger {
+  width: 48px;
+  min-width: 48px;
 }
 
 .pageJumpEmpty {
@@ -336,9 +354,17 @@
   font-weight: 700;
 }
 
+.processDestinationControl > span {
+  line-height: 20px;
+}
+
 .processDestinationControl select {
+  height: 30px;
   min-width: 72px;
   max-width: 110px;
+  padding: 4px 24px 4px 7px;
+  font-weight: 700;
+  line-height: 20px;
 }
 
 .textToolbarGroup {

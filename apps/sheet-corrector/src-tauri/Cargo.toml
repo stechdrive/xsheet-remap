@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-corrector"
-version = "0.1.535"
+version = "0.1.536"
 description = "Batch sheet image correction utility"
 authors = ["xsheet-remap contributors"]
 license = "MIT"

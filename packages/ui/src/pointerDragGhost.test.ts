@@ -34,7 +34,7 @@ function fixedRect(width: number, height: number): DOMRect {
 }
 
 describe('createPointerDragGhost', () => {
-  it('anchors the ghost shell at the pointer so CSS clearance controls the visible gap', () => {
+  it('keeps the ghost clear of the pointer for precise drop targeting', () => {
     installImmediateAnimationFrame()
     const element = document.createElement('div')
     element.getBoundingClientRect = () => fixedRect(114, 92)
@@ -42,7 +42,7 @@ describe('createPointerDragGhost', () => {
     const ghost = createPointerDragGhost(element, 120, 80)
 
     expect(element.classList.contains('pointerDragGhost')).toBe(true)
-    expect(element.style.transform).toBe('translate3d(120px, 80px, 0)')
+    expect(element.style.transform).toBe('translate3d(140px, 96px, 0)')
 
     ghost.dispose()
     expect(document.querySelector('.pointerDragGhost')).toBeNull()
@@ -57,7 +57,7 @@ describe('createPointerDragGhost', () => {
 
     const ghost = createPointerDragGhost(element, 230, 170)
 
-    expect(element.style.transform).toBe('translate3d(116px, 78px, 0)')
+    expect(element.style.transform).toBe('translate3d(96px, 62px, 0)')
     ghost.dispose()
   })
 })

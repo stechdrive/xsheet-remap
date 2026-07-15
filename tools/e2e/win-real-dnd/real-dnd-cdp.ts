@@ -170,7 +170,7 @@ try {
   const registeredCellClient = await registeredCellCardPoint('A')
   const registeredCellScreen = await clientToScreen(registeredCellClient)
   const registeredCellGhostMoveScreen = await clientToScreen({ x: registeredCellClient.x + 90, y: registeredCellClient.y + 22 })
-  await verifyPointerDragGhost(registeredCellScreen, registeredCellGhostMoveScreen, '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragCardClone', 'registered cell pointer drag ghost')
+  await verifyPointerDragGhost(registeredCellScreen, registeredCellGhostMoveScreen, '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragImagePreview', 'registered cell pointer drag ghost')
   checks.push('showed a real-mouse registered-cell card drag ghost while dragging a registered cell card')
 
   const registeredCellTargetClient = await framePoint('cell', 'B', 1)
@@ -326,7 +326,7 @@ async function runRemapRealDndScenario(): Promise<void> {
   const cspCellClient = await cspTrackCelPoint('A')
   const cspCellScreen = await clientToScreen(cspCellClient)
   const cspGhostScreen = await clientToScreen({ x: cspCellClient.x - 40, y: cspCellClient.y + 8 })
-  await verifyPointerDragGhost(cspCellScreen, cspGhostScreen, '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragCardClone', 'remap CSP cell pointer drag ghost')
+  await verifyPointerDragGhost(cspCellScreen, cspGhostScreen, '.registeredCellDragImageShell.pointerDragGhost .registeredCellDragImagePreview', 'remap CSP cell pointer drag ghost')
   const cspDropCellClient = await cspTrackCelPoint('A')
   const cspDropCellScreen = await clientToScreen(cspDropCellClient)
   const frameClient = await framePoint('action', 'A', 1)
@@ -535,7 +535,7 @@ async function realMouseDragRegisteredCellToSheet(from: ScreenPoint, to: ScreenP
       '--duration', '0.8',
     ])
     await waitForPageCondition(
-      () => evaluatePage<boolean>(`Boolean(document.querySelector('.registeredCellDragImageShell.pointerDragGhost .registeredCellDragCardClone'))`),
+      () => evaluatePage<boolean>(`Boolean(document.querySelector('.registeredCellDragImageShell.pointerDragGhost .registeredCellDragImagePreview'))`),
       'registered cell ghost at sheet target',
       3000,
     )
@@ -968,7 +968,7 @@ async function registeredCellCardPoint(paperTrack: string): Promise<ClientPoint>
       const card = cards.find(item => item.dataset.cspPaperTrack === ${JSON.stringify(paperTrack)});
       if (!card) throw new Error('registered cell card not found: ${escapeForSingleQuotedError(paperTrack)}');
       card.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const handle = card.querySelector('.cspTreeAssetState') || card.querySelector('.cspTreeSheetLabel') || card;
+      const handle = card.querySelector('.cspTreeCelName') || card;
       const rect = handle.getBoundingClientRect();
       return { x: rect.left + Math.min(Math.max(rect.width / 2, 18), rect.width - 8), y: rect.top + rect.height / 2 };
     })()

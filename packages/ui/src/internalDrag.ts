@@ -7,6 +7,7 @@ export type InternalDragPayload =
   | { kind: 'stack-guide'; labelId: string }
 
 export type InternalDragPhase = 'start' | 'move' | 'drop' | 'cancel'
+export type InternalDragDropValidity = 'valid' | 'invalid' | null
 
 export interface InternalDragDetail {
   sessionId: string
@@ -21,6 +22,7 @@ export type InternalDragHandler = (detail: InternalDragDetail) => void
 const INTERNAL_DRAG_EVENT = 'xsheet-remap:internal-drag'
 const INTERNAL_DRAG_THRESHOLD_PX = 4
 let nextInternalDragSession = 1
+let activeDocumentDragSessionId: string | null = null
 
 export function subscribeInternalDrag(handler: InternalDragHandler): () => void {
   const listener = (event: Event) => handler((event as CustomEvent<InternalDragDetail>).detail)
@@ -30,6 +32,15 @@ export function subscribeInternalDrag(handler: InternalDragHandler): () => void 
 
 export function dispatchInternalDrag(detail: InternalDragDetail): void {
   window.dispatchEvent(new CustomEvent(INTERNAL_DRAG_EVENT, { detail }))
+}
+
+export function setInternalDragDropValidity(validity: InternalDragDropValidity): void {
+  if (!document.body.classList.contains('internalPointerDragActive')) return
+  if (validity) {
+    document.body.dataset.internalDragValidity = validity
+  } else {
+    delete document.body.dataset.internalDragValidity
+  }
 }
 
 export function startInternalPointerDrag(
@@ -57,6 +68,9 @@ export function startInternalPointerDrag(
   const sessionId = `internal-drag-${nextInternalDragSession++}`
   let payload: InternalDragPayload | null = null
   let dragGhost: PointerDragGhost | null = null
+  let lastX = startX
+  let lastY = startY
+  let cleaned = false
 
   function restoreSourceScroll() {
     if (!scrollLock) return
@@ -64,21 +78,24 @@ export function startInternalPointerDrag(
     scrollLock.element.scrollTop = scrollLock.top
   }
 
-  function emit(phase: InternalDragPhase, pointerEvent: globalThis.PointerEvent) {
+  function emit(phase: InternalDragPhase, clientX: number, clientY: number) {
     if (!payload) return
     dispatchInternalDrag({
       sessionId,
       phase,
       payload,
-      clientX: pointerEvent.clientX,
-      clientY: pointerEvent.clientY,
+      clientX,
+      clientY,
     })
   }
 
   function cleanup() {
+    if (cleaned) return
+    cleaned = true
     window.removeEventListener('pointermove', handleMove)
     window.removeEventListener('pointerup', handleStop)
     window.removeEventListener('pointercancel', handleCancel)
+    window.removeEventListener('blur', handleWindowBlur)
     try {
       if (source.hasPointerCapture?.(pointerId)) source.releasePointerCapture?.(pointerId)
     } catch {
@@ -87,6 +104,20 @@ export function startInternalPointerDrag(
     restoreSourceScroll()
     dragGhost?.dispose()
     dragGhost = null
+    source.classList.remove('internalPointerDragSource')
+    if (activeDocumentDragSessionId === sessionId) {
+      activeDocumentDragSessionId = null
+      document.body.classList.remove('internalPointerDragActive')
+      delete document.body.dataset.internalDragKind
+      delete document.body.dataset.internalDragValidity
+    }
+  }
+
+  function finish(phase: 'drop' | 'cancel', clientX: number, clientY: number) {
+    const finishedPayload = payload
+    if (finishedPayload) emit(phase, clientX, clientY)
+    cleanup()
+    if (finishedPayload) input.onFinished?.(finishedPayload)
   }
 
   function ensureStarted(pointerEvent: globalThis.PointerEvent): boolean {
@@ -106,68 +137,65 @@ export function startInternalPointerDrag(
     }
     restoreSourceScroll()
     dragGhost = createPointerDragGhost(input.createDragGhost(), pointerEvent.clientX, pointerEvent.clientY)
+    source.classList.add('internalPointerDragSource')
+    activeDocumentDragSessionId = sessionId
+    document.body.classList.add('internalPointerDragActive')
+    document.body.dataset.internalDragKind = payload.kind
+    delete document.body.dataset.internalDragValidity
     input.onStarted?.(payload)
-    emit('start', pointerEvent)
+    emit('start', pointerEvent.clientX, pointerEvent.clientY)
     return true
   }
 
   function handleMove(pointerEvent: globalThis.PointerEvent) {
-    if (pointerEvent.pointerId !== pointerId || !ensureStarted(pointerEvent)) return
+    if (pointerEvent.pointerId !== pointerId) return
+    lastX = pointerEvent.clientX
+    lastY = pointerEvent.clientY
+    if (!ensureStarted(pointerEvent)) return
     pointerEvent.preventDefault()
     restoreSourceScroll()
     dragGhost?.move(pointerEvent.clientX, pointerEvent.clientY)
-    emit('move', pointerEvent)
+    emit('move', pointerEvent.clientX, pointerEvent.clientY)
   }
 
   function handleStop(pointerEvent: globalThis.PointerEvent) {
     if (pointerEvent.pointerId !== pointerId) return
-    if (payload) {
-      pointerEvent.preventDefault()
-      emit('drop', pointerEvent)
-    }
-    const finishedPayload = payload
-    cleanup()
-    if (finishedPayload) input.onFinished?.(finishedPayload)
+    lastX = pointerEvent.clientX
+    lastY = pointerEvent.clientY
+    if (payload) pointerEvent.preventDefault()
+    finish('drop', lastX, lastY)
   }
 
   function handleCancel(pointerEvent: globalThis.PointerEvent) {
     if (pointerEvent.pointerId !== pointerId) return
-    if (payload) emit('cancel', pointerEvent)
-    const finishedPayload = payload
-    cleanup()
-    if (finishedPayload) input.onFinished?.(finishedPayload)
+    lastX = pointerEvent.clientX
+    lastY = pointerEvent.clientY
+    finish('cancel', lastX, lastY)
+  }
+
+  function handleWindowBlur() {
+    finish('cancel', lastX, lastY)
   }
 
   window.addEventListener('pointermove', handleMove)
   window.addEventListener('pointerup', handleStop)
   window.addEventListener('pointercancel', handleCancel)
+  window.addEventListener('blur', handleWindowBlur)
   return true
 }
 
-export function createInternalDragCardImage(label: string, subLabel: string, source?: HTMLElement): HTMLElement {
+export function createInternalDragCardImage(label: string, contextLabel: string): HTMLElement {
   const shell = document.createElement('div')
   shell.className = 'registeredCellDragImageShell'
-
-  if (source) {
-    const card = source.cloneNode(true) as HTMLElement
-    card.classList.add('registeredCellDragCardClone')
-    card.removeAttribute('tabindex')
-    card.querySelectorAll<HTMLElement>('button, input, textarea, select').forEach(control => {
-      control.setAttribute('tabindex', '-1')
-      control.setAttribute('aria-hidden', 'true')
-    })
-    shell.append(card)
-    return shell
-  }
 
   const preview = document.createElement('div')
   preview.className = 'registeredCellDragImagePreview'
   const title = document.createElement('strong')
   title.textContent = label
   preview.append(title)
-  if (subLabel) {
+  if (contextLabel) {
     const meta = document.createElement('span')
-    meta.textContent = subLabel
+    meta.textContent = contextLabel
     preview.append(meta)
   }
   shell.append(preview)

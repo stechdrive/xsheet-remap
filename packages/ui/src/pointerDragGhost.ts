@@ -3,8 +3,8 @@ export type PointerDragGhost = {
   dispose: () => void
 }
 
-const POINTER_DRAG_GHOST_OFFSET_X = 0
-const POINTER_DRAG_GHOST_OFFSET_Y = 0
+const POINTER_DRAG_GHOST_OFFSET_X = 20
+const POINTER_DRAG_GHOST_OFFSET_Y = 16
 const POINTER_DRAG_GHOST_VIEWPORT_MARGIN = 8
 
 export function createPointerDragGhost(element: HTMLElement, clientX: number, clientY: number): PointerDragGhost {

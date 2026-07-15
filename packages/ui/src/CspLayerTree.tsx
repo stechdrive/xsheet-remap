@@ -97,6 +97,7 @@ export function CspLayerTree({
   } | null>(null)
   const treeRootRef = useRef<HTMLElement | null>(null)
   const pendingKeySelectRef = useRef<number | null>(null)
+  const suppressClickKeyRef = useRef<string | null>(null)
 
   useEffect(() => () => {
     if (pendingKeySelectRef.current !== null) window.clearTimeout(pendingKeySelectRef.current)
@@ -340,7 +341,7 @@ export function CspLayerTree({
     )
   }
 
-  function renderCelCard(track: CspLayerTreeTrack, cel: CspLayerTreeCel, correctionLayerId?: string) {
+  function renderCelCard(track: CspLayerTreeTrack, cel: CspLayerTreeCel, correctionLayerId?: string, correctionLayerLabel?: string) {
     const assignmentSlotId = track.slotId ?? activeSlotIdForTrack(track)
     const editableBinding = Boolean(track.slotId && cel.keyId)
     const editableGuide = Boolean(track.stackGuideLabelId && correctionLayerId)
@@ -368,13 +369,27 @@ export function CspLayerTree({
         data-csp-paper-track={track.paperTrack}
         data-csp-sheet-role={cel.sheetRole}
         onPointerDown={cel.keyId ? event => {
-          const dragSource = event.currentTarget
           startInternalPointerDrag(event, {
             begin: () => ({ kind: 'registered-cell', keyId: cel.keyId!, sourceSlotId: cel.bindingId ? track.slotId : undefined }),
-            createDragGhost: () => createInternalDragCardImage(track.label, cel.cspCellName, dragSource),
+            createDragGhost: () => createInternalDragCardImage(cel.cspCellName, correctionLayerLabel ?? '未登録'),
+            interactiveTargetSelector: 'button,input,select,textarea,a,[contenteditable="true"]',
+            onStarted: () => {
+              cancelPendingKeySelect()
+              suppressClickKeyRef.current = cel.keyId!
+            },
+            onFinished: () => {
+              window.setTimeout(() => {
+                if (suppressClickKeyRef.current === cel.keyId) suppressClickKeyRef.current = null
+              }, 0)
+            },
           })
         } : undefined}
         onClick={event => {
+          if (suppressClickKeyRef.current === cel.keyId) {
+            suppressClickKeyRef.current = null
+            cancelPendingKeySelect()
+            return
+          }
           const target = event.target
           if (target instanceof Element && target.closest('.cspTreeCelName')) {
             scheduleKeySelect(cel.keyId ?? null)
@@ -575,10 +590,9 @@ export function CspLayerTree({
                       data-csp-slot-id={track.slotId}
                       data-csp-stack-guide-label-id={track.stackGuideLabelId}
                       onPointerDown={track.stackGuideLabelId ? event => {
-                        const dragSource = event.currentTarget
                         startInternalPointerDrag(event, {
                           begin: () => ({ kind: 'stack-guide', labelId: track.stackGuideLabelId! }),
-                          createDragGhost: () => createInternalDragCardImage(layer.label, track.label, dragSource),
+                          createDragGhost: () => createInternalDragCardImage(track.label, layer.label),
                         })
                       } : undefined}
                     >
@@ -659,7 +673,7 @@ export function CspLayerTree({
                         </form>
                       )}
                       {track.cels.length === 0 && newCelDraft?.slotId !== track.slotId && <span className="cspTreeNoCels">カードなし</span>}
-                      {track.cels.map(cel => renderCelCard(track, cel, layer.layerId))}
+                      {track.cels.map(cel => renderCelCard(track, cel, layer.layerId, layer.label))}
                     </div>
                     {acceptsAsset && (
                       <div

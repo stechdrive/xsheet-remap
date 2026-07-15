@@ -961,6 +961,20 @@
   cursor: grab;
 }
 
+.cspTreeCel.internalPointerDragSource {
+  cursor: grabbing;
+}
+
+body.internalPointerDragActive[data-internal-drag-validity='valid'] .internalPointerDragSource,
+body.internalPointerDragActive[data-internal-drag-validity='valid'] .sheetSvg {
+  cursor: crosshair !important;
+}
+
+body.internalPointerDragActive[data-internal-drag-validity='invalid'] .internalPointerDragSource,
+body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg {
+  cursor: not-allowed !important;
+}
+
 .cspTreeCel.assetDragOver {
   border-color: #2372c4;
   outline: 2px solid #2372c4;

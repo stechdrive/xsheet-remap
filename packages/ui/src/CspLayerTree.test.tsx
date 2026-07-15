@@ -5,6 +5,7 @@ import { CspLayerTree } from './CspLayerTree'
 import { dispatchInternalDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 
 afterEach(() => {
+  window.dispatchEvent(new Event('blur'))
   cleanup()
   vi.useRealTimers()
 })
@@ -75,13 +76,14 @@ describe('CspLayerTree', () => {
       materialState: 'missing-ok',
     })
     const onRenamePaperTrack = vi.fn()
+    const onSelectKey = vi.fn()
 
     render(
       <CspLayerTree
         project={project}
         exportProfileId="import-stack"
         selectedKeyId={null}
-        onSelectKey={vi.fn()}
+        onSelectKey={onSelectKey}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onUpdateCspCellName={vi.fn()}
@@ -116,11 +118,18 @@ describe('CspLayerTree', () => {
     const unsubscribe = subscribeInternalDrag(detail => {
       if (detail.phase === 'drop') droppedPayloads.push(detail.payload)
     })
-    fireEvent.pointerDown(registeredCell, { pointerId: 10, pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 })
+    const registeredCellName = registeredCell.querySelector<HTMLElement>('.cspTreeCelName')
+    if (!registeredCellName) throw new Error('CSP cell name not found')
+    fireEvent.pointerDown(registeredCellName, { pointerId: 10, pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 })
+    fireEvent.pointerMove(window, { pointerId: 10, pointerType: 'mouse', buttons: 1, clientX: 13, clientY: 10 })
+    expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost')).toBeNull()
     fireEvent.pointerMove(window, { pointerId: 10, pointerType: 'mouse', buttons: 1, clientX: 20, clientY: 10 })
+    expect(document.querySelector('.registeredCellDragImagePreview')?.textContent).toBe(`${registeredCellName.textContent}作画`)
     fireEvent.pointerUp(window, { pointerId: 10, pointerType: 'mouse', button: 0, clientX: 30, clientY: 10 })
+    fireEvent.click(registeredCellName)
     unsubscribe()
     expect(droppedPayloads).toEqual([{ kind: 'registered-cell', keyId: second.key.keyId, sourceSlotId: 'slot_A' }])
+    expect(onSelectKey).not.toHaveBeenCalled()
 
     const trackLabel = document.querySelector<HTMLElement>('.cspTreeTrackName')
     if (!trackLabel) throw new Error('track label not found')
@@ -218,6 +227,7 @@ describe('CspLayerTree', () => {
     fireEvent.doubleClick(cellLabel)
     act(() => vi.advanceTimersByTime(300))
     expect(onSelectKey).not.toHaveBeenCalled()
+    expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost')).toBeNull()
     vi.useRealTimers()
     const cellInput = screen.getByLabelText('AのCSPセル名')
     fireEvent.change(cellInput, { target: { value: 'A1_custom' } })

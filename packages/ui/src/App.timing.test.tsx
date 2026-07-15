@@ -80,15 +80,22 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
     enterTimingValue('1')
     const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as HTMLElement | null
     if (!registeredCell) throw new Error('registered cell card not found')
+    const registeredCellName = registeredCell.querySelector<HTMLElement>('.cspTreeCelName')
+    if (!registeredCellName) throw new Error('registered cell name not found')
 
     const target = templateFramePoint('cell', 'B', 1)
-    fireEvent.pointerDown(registeredCell, { pointerId: 71, pointerType: 'mouse', button: 0, buttons: 1, clientX: 120, clientY: 180 })
+    fireEvent.pointerDown(registeredCellName, { pointerId: 71, pointerType: 'mouse', button: 0, buttons: 1, clientX: 120, clientY: 180 })
     fireEvent.pointerMove(window, { pointerId: 71, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
     expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost')).toBeTruthy()
+    expect(document.querySelector('.registeredCellDragImagePreview')?.textContent).toContain('A1')
+    expect(registeredCell.classList.contains('internalPointerDragSource')).toBe(true)
+    expect(document.body.dataset.internalDragValidity).toBe('valid')
+    expectStatusHint(uiText.statusHints.dropRegisteredCell(`CELL B ${formatTestFramePosition(1)}`))
     fireEvent.pointerUp(window, { pointerId: 71, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
 
     await waitFor(() => expectSelectedHit('cell', 'B', 1))
     expect(document.querySelector('.registeredCellDragImageShell.pointerDragGhost')).toBeNull()
+    expect(document.body.classList.contains('internalPointerDragActive')).toBe(false)
     expect(Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).map(registeredCellIdentityText)).toEqual(['CELL B', 'CELL A'])
   })
 

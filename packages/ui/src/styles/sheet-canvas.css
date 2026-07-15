@@ -827,12 +827,16 @@
   fill: none;
   stroke-linecap: square;
   stroke-linejoin: miter;
-  stroke-width: 1px;
+  stroke-width: 1.5px;
   vector-effect: non-scaling-stroke;
 }
 
+.sheetDropTargetCorners {
+  stroke-width: 2px;
+}
+
 .sheetDropTargetCue[data-drop-validity='valid'] .sheetDropTargetFill {
-  fill: rgb(0 170 119 / 0.22);
+  fill: rgb(0 170 119 / 0.06);
 }
 
 .sheetDropTargetCue[data-drop-validity='valid'] .sheetDropTargetOutline,

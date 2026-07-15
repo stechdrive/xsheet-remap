@@ -4,7 +4,7 @@ import { uiText } from './i18n';
 import { type EditMode, type SheetRangeSelection, type SheetImageSettings, type TimingClipboard } from './appTypes';
 import { type DropDiagnosticReport } from './AssetBrowser';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
-import { subscribeInternalDrag } from './internalDrag';
+import { setInternalDragDropValidity, subscribeInternalDrag } from './internalDrag';
 import { cellAssetPreviewItemsForHit, cellAssetPreviewPosition } from './sheetAssets';
 import { ASSET_MULTI_DRAG_MIME, ASSET_DRAG_MIME, REGISTERED_CELL_DRAG_MIME, STACK_GUIDE_DRAG_MIME, SHEET_ZOOM_WHEEL_FACTOR, STANDARD_A3_GRID_HEADER_HEIGHT, STANDARD_A3_GRID_HEADER_TOP_OFFSET } from './sheetConstants';
 import { createSheetRenderModelContext } from './sheetRenderModel';
@@ -378,6 +378,21 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     return fallback
   }
 
+  function pageHitUnderClientPoint(clientX: number, clientY: number): { page: SheetPage; hit: SheetHit | null } | null {
+    for (const page of visiblePages) {
+      const svg = svgForPage(page)
+      if (!svg) continue
+      const box = svg.getBoundingClientRect()
+      if (clientX < box.left || clientX > box.right || clientY < box.top || clientY > box.bottom) continue
+      const point = {
+        x: (clientX - box.left) / box.width,
+        y: (clientY - box.top) / box.height,
+      }
+      return { page, hit: hitFromPoint(point, page) }
+    }
+    return null
+  }
+
   function dropTargetFromClientPoint(clientX: number, clientY: number): { page: SheetPage; hit: SheetHit | null } | null {
     const target = pageHitFromClientPoint(clientX, clientY)
     if (!target || target.hit?.paperTrack) return target
@@ -398,27 +413,37 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       clearHover()
       clearDropTargetPreview()
       setStackGuideDropPreview(null)
+      setInternalDragDropValidity(null)
+      props.onStatusHint('sheet-drop', null)
       return
     }
     if (payload.kind === 'stack-guide') {
       clearDropTargetPreview()
       if (phase === 'start' || phase === 'move') updateStackGuideDropPreview(payload.labelId, clientX, clientY)
       if (phase === 'drop') moveStackGuideLabelFromPoint(payload.labelId, clientX, clientY)
+      if (phase === 'drop') setInternalDragDropValidity(null)
       return
     }
 
     const pointedElement = document.elementFromPoint?.(clientX, clientY)
     const stackGuideElement = pointedElement?.closest<HTMLElement>('.stackGuideSvgLabel[data-stack-guide-label-id]')
     if (stackGuideElement && payload.kind === 'asset') {
+      const valid = payload.assetIds.length === 1
+      setInternalDragDropValidity(valid ? 'valid' : 'invalid')
+      props.onStatusHint('sheet-drop', valid ? uiText.statusHints.dropStackGuide : uiText.statusHints.dropMultipleAssetsUnavailable)
       if (phase === 'drop' && payload.assetIds.length === 1) {
         props.onAssignAssetToStackGuideLabel(stackGuideElement.dataset.stackGuideLabelId!, payload.assetIds[0]!)
       }
       clearHover()
       clearDropTargetPreview()
+      if (phase === 'drop') {
+        setInternalDragDropValidity(null)
+        props.onStatusHint('sheet-drop', null)
+      }
       return
     }
 
-    const target = dropTargetFromClientPoint(clientX, clientY)
+    const target = pageHitUnderClientPoint(clientX, clientY)
     const hit = dropHitForActiveRange(target?.hit ?? null)
     if (phase === 'start' || phase === 'move') {
       clearHover()
@@ -426,19 +451,32 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         props.setActivePageIndex(target.page.pageIndex)
         const valid = payload.kind === 'registered-cell' || payload.assetIds.length === 1
         updateDropTargetPreview(hit, valid ? 'valid' : 'invalid')
+        setInternalDragDropValidity(valid ? 'valid' : 'invalid')
+        const targetLabel = sheetHitTargetLabel(props.project, hit)
+        props.onStatusHint('sheet-drop', valid
+          ? payload.kind === 'registered-cell'
+            ? uiText.statusHints.dropRegisteredCell(targetLabel)
+            : uiText.statusHints.dropAsset(targetLabel)
+          : uiText.statusHints.dropMultipleAssetsUnavailable)
       } else {
         clearDropTargetPreview()
+        setInternalDragDropValidity(target ? 'invalid' : null)
+        props.onStatusHint('sheet-drop', target ? uiText.statusHints.dropUnavailable : null)
       }
       return
     }
     if (phase !== 'drop' || !target || !hit?.paperTrack) {
       clearHover()
       clearDropTargetPreview()
+      setInternalDragDropValidity(null)
+      props.onStatusHint('sheet-drop', null)
       return
     }
     props.setActivePageIndex(target.page.pageIndex)
     clearHover()
     clearDropTargetPreview()
+    setInternalDragDropValidity(null)
+    props.onStatusHint('sheet-drop', null)
     if (payload.kind === 'asset') {
       props.onDropDiagnostic({
         source: 'asset-pointer',

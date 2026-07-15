@@ -449,10 +449,12 @@ it('registers material assets in the CSP layer tree and reuses its cards on the 
     if (!drawingCell) throw new Error('drawing CSP cell was not rendered')
     expect(drawingCell.textContent).toContain('BG_A1.png')
     expect(drawingCell.dataset.cspSheetRole).toBe('cell')
+    fireEvent.doubleClick(drawingCell.querySelector('.cspTreeCelName')!)
     const cspNameInput = drawingCell.querySelector<HTMLInputElement>('.cspTreeCelNameInput')
     if (!cspNameInput) throw new Error('CSP cell name input was not rendered')
     expect(cspNameInput.value).toBe('BG_A1')
     fireEvent.change(cspNameInput, { target: { value: 'BG_A1_custom' } })
+    fireEvent.keyDown(cspNameInput, { key: 'Enter' })
 
     fireEvent.change(assetInput, { target: { files: [new File(['asset-2'], 'BG_A2.png', { type: 'image/png', lastModified: 2 })] } })
     expect(await screen.findByText('BG_A2.png')).toBeTruthy()
@@ -527,7 +529,7 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     expect(Array.from(document.querySelectorAll('.stackGuideLabel')).some(label => label.textContent === 'BOOK2,3')).toBe(true)
     expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BOOK2,3')
     expect(document.querySelector('.stackGuideSvgLabelText')?.getAttribute('transform')).toBe(`scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`)
-    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).some(input => input.value === 'BOOK2,3')).toBe(true)
+    expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).some(label => label.textContent === 'BOOK2,3')).toBe(true)
 
     openStackGuideInsertMenu(sheet, 'cell', 2)
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.add }))
@@ -546,8 +548,8 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     dragInternalPointer(getAssetCardByName('BOOK2_3.png'), labelButton)
 
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')).toBeTruthy())
-    const stackGuideCard = Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
-      .find(input => input.value === 'BOOK2,3')?.closest<HTMLElement>('.cspTreeTrack')
+    const stackGuideCard = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+      .find(label => label.textContent === 'BOOK2,3')?.closest<HTMLElement>('.cspTreeTrack')
     if (!stackGuideCard) throw new Error('stack guide track not found')
     expect(stackGuideCard.textContent).toContain('BOOK2_3.png')
     expect(stackGuideCard.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('作画')
@@ -582,8 +584,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     fireEvent.change(assetInput, { target: { files: [file] } })
     expect(await screen.findByText('BOOK_CUT.png')).toBeTruthy()
 
-    const stackGuideCard = Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
-      .find(input => input.value === 'BOOK-CUT')?.closest<HTMLElement>('.cspTreeTrack')
+    const stackGuideCard = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+      .find(label => label.textContent === 'BOOK-CUT')?.closest<HTMLElement>('.cspTreeTrack')
     if (!stackGuideCard) throw new Error('stack guide track not found')
     const stackGuideDropZone = stackGuideCard.querySelector<HTMLElement>('.cspTreeAssetDropZone')
     if (!stackGuideDropZone) throw new Error('stack guide asset drop zone not found')
@@ -613,16 +615,16 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     if (originalElementFromPoint) Object.defineProperty(document, 'elementFromPoint', originalElementFromPoint)
     else Reflect.deleteProperty(document, 'elementFromPoint')
     await waitFor(() => {
-      expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
-        .find(input => input.value === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
+      expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+        .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
     })
 
     const firstCutLabel = Array.from(document.querySelectorAll('.stackGuideLabel')).find(label => label.textContent === 'BOOK-CUT')
     if (!firstCutLabel) throw new Error('first cut stack guide label was not rendered')
     dragInternalPointer(getAssetCardByName('BOOK_CUT.png'), firstCutLabel)
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')?.textContent).toBe('BOOK-CUT'))
-    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
-      .find(input => input.value === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
+    expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
 
     const addCutButton = document.querySelector<HTMLButtonElement>('.cutSwitchAddButton')
     if (!addCutButton) throw new Error('shared cut add button not found')
@@ -632,8 +634,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
       expect(select?.options.length).toBe(2)
       expect(select?.selectedOptions[0]?.textContent?.trim()).toBe('002')
     })
-    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
-      .find(input => input.value === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
+    expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
 
     dragStackGuideSvgLabel('BOOK-CUT', 'cell', 4)
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="cell"]')?.textContent).toBe('BOOK-CUT'))
@@ -645,8 +647,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     switchSharedCutByLabel('002')
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="cell"]')?.textContent).toBe('BOOK-CUT'))
     expect(Array.from(document.querySelectorAll('.stackGuideLabel[data-stack-guide-role="action"]')).some(label => label.textContent === 'BOOK-CUT')).toBe(false)
-    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
-      .find(input => input.value === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
+    expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
   })
 
 it('sorts image assets by natural filename order', async () => {

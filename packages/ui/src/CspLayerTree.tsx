@@ -31,6 +31,8 @@ export function CspLayerTree({
   onUpdateStackGuideRegistration,
   onUpdateStackGuideLabel,
   onDeleteStackGuideLabel,
+  onRenameProductionStage,
+  onRenameCorrectionLayer,
   onRenamePaperTrack,
   onMoveStackItem,
   onAssignAsset,
@@ -57,6 +59,8 @@ export function CspLayerTree({
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
   onUpdateStackGuideLabel: (labelId: string, updates: { label: string }) => void
   onDeleteStackGuideLabel: (labelId: string) => void
+  onRenameProductionStage?: (stageId: string, label: string) => void
+  onRenameCorrectionLayer?: (layerId: string, label: string) => void
   onRenamePaperTrack: (paperTrack: string, name: string) => void
   onMoveStackItem: (itemId: string, direction: 'up' | 'down') => void
   onAssignAsset: (assetId: string, keyId: string, slotId?: string) => void
@@ -320,6 +324,7 @@ export function CspLayerTree({
     const assignmentSlotId = track.slotId ?? activeSlotIdForTrack(track)
     const editableBinding = Boolean(track.slotId && cel.keyId)
     const editableGuide = Boolean(track.stackGuideLabelId && correctionLayerId)
+    const hasTimelineUse = Boolean(cel.keyId && project.logicalSheet.events.some(event => event.keyId === cel.keyId))
     const showSheetLabel = Boolean(cel.keyId && cel.displayLabel?.trim() && cel.displayLabel.trim() !== cel.cspCellName.trim())
     const asset = cel.assetId ? assetsById.get(cel.assetId) : undefined
     const selected = cel.keyId === selectedKeyId
@@ -351,19 +356,19 @@ export function CspLayerTree({
           })
         } : undefined}
         onClick={() => onSelectKey(cel.keyId ?? null)}
-        onDoubleClick={() => cel.keyId && onJumpToFirstUse(cel.keyId)}
       >
         {(editableBinding || editableGuide) ? (
-          <input
-            className="cspTreeCelNameInput"
-            aria-label={`${track.label}のCSPセル名`}
-            value={cel.cspCellName}
-            onClick={event => event.stopPropagation()}
-            onChange={event => {
+          <InlineTreeLabel
+            className="cspTreeCelName"
+            inputClassName="cspTreeCelNameInput"
+            label={cel.cspCellName}
+            inputAriaLabel={`${track.label}のCSPセル名`}
+            editTitle="ダブルクリックでCSPセル名を編集"
+            onCommit={name => {
               if (track.slotId && cel.keyId) {
-                onUpdateCspCellName(cel.keyId, track.slotId, event.currentTarget.value)
+                onUpdateCspCellName(cel.keyId, track.slotId, name)
               } else if (track.stackGuideLabelId && correctionLayerId) {
-                onUpdateStackGuideRegistration(track.stackGuideLabelId, correctionLayerId, event.currentTarget.value)
+                onUpdateStackGuideRegistration(track.stackGuideLabelId, correctionLayerId, name)
               }
             }}
           />
@@ -382,16 +387,30 @@ export function CspLayerTree({
               />
             </label>
             {asset && <span className="cspTreeAssetName" title={asset.displayName}>{asset.displayName}</span>}
-            <Tooltip label={cel.bindingId ? 'この工程のカードを削除' : '登録セルを削除'}>
-              <button
-                type="button"
-                className="cspTreeDeleteButton"
-                aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}を削除`}
-                onClick={() => onDeleteKey(cel.keyId!, cel.bindingId)}
-              >
-                <DeleteIcon />
-              </button>
-            </Tooltip>
+            <div className="cspTreeCelActions">
+              {hasTimelineUse && (
+                <Tooltip label="シート上の先頭使用位置へ移動">
+                  <button
+                    type="button"
+                    className="cspTreeJumpButton"
+                    aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}の先頭使用位置へ移動`}
+                    onClick={() => onJumpToFirstUse(cel.keyId!)}
+                  >
+                    <LocateIcon />
+                  </button>
+                </Tooltip>
+              )}
+              <Tooltip label={cel.bindingId ? 'この工程のカードを削除' : '登録セルを削除'}>
+                <button
+                  type="button"
+                  className="cspTreeDeleteButton"
+                  aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}を削除`}
+                  onClick={() => onDeleteKey(cel.keyId!, cel.bindingId)}
+                >
+                  <DeleteIcon />
+                </button>
+              </Tooltip>
+            </div>
           </div>
         )}
         {assetDragOver && (
@@ -444,7 +463,19 @@ export function CspLayerTree({
         {tree.stages.length === 0 && tree.unregisteredTracks.length === 0 && <p className="cspLayerTreeEmpty">登録済みのレイヤーはありません。</p>}
         {tree.stages.map(stage => (
           <details className="cspTreeStage" key={stage.nodeId} open>
-            <summary>{stage.label}</summary>
+            <summary>
+              {stage.stageId && onRenameProductionStage ? (
+                <InlineTreeLabel
+                  className="cspTreeSummaryLabel"
+                  inputClassName="cspTreeSummaryNameInput"
+                  label={stage.label}
+                  inputAriaLabel={`${stage.label}の制作段階名`}
+                  editTitle="ダブルクリックで制作段階名を編集"
+                  stopClickPropagation
+                  onCommit={label => onRenameProductionStage(stage.stageId!, label)}
+                />
+              ) : stage.label}
+            </summary>
             {stage.layers.map(layer => (
               <div className="cspTreeLayerShell" key={layer.nodeId}>
                 <details className="cspTreeLayer" open>
@@ -454,7 +485,19 @@ export function CspLayerTree({
                     data-csp-gap-id={layer.layerId ? `${layer.layerId}:0` : undefined}
                     data-csp-correction-layer-id={layer.layerId}
                     data-csp-gap-index={layer.layerId ? 0 : undefined}
-                  >{layer.label}</summary>
+                  >
+                    {layer.layerId && onRenameCorrectionLayer ? (
+                      <InlineTreeLabel
+                        className="cspTreeSummaryLabel"
+                        inputClassName="cspTreeSummaryNameInput"
+                        label={layer.label}
+                        inputAriaLabel={`${layer.label}の工程名`}
+                        editTitle="ダブルクリックで工程名を編集"
+                        stopClickPropagation
+                        onCommit={label => onRenameCorrectionLayer(layer.layerId!, label)}
+                      />
+                    ) : layer.label}
+                  </summary>
                   {auxiliaryDraft && auxiliaryDraft.correctionLayerId === layer.layerId && (
                     <form
                       className="cspTreeAuxiliaryForm"
@@ -516,18 +559,24 @@ export function CspLayerTree({
                     >
                     <div className="cspTreeTrackRow">
                       {track.paperTrack ? (
-                        <PaperTrackNameInput
+                        <InlineTreeLabel
                           key={`${track.paperTrack}:${track.label}`}
-                          paperTrack={track.paperTrack}
                           label={track.label}
-                          onCommit={onRenamePaperTrack}
+                          className="cspTreeTrackName"
+                          inputClassName="cspTreeTrackNameInput"
+                          inputAriaLabel={`${track.label}のセル列名`}
+                          editTitle="ダブルクリックでセル列名を編集"
+                          onCommit={label => onRenamePaperTrack(track.paperTrack!, label)}
                         />
                       ) : track.stackGuideLabelId ? (
-                        <StackGuideTrackNameInput
+                        <InlineTreeLabel
                           key={`${track.stackGuideLabelId}:${track.label}`}
-                          labelId={track.stackGuideLabelId}
                           label={track.label}
-                          onCommit={(labelId, label) => onUpdateStackGuideLabel(labelId, { label })}
+                          className="cspTreeTrackName"
+                          inputClassName="cspTreeTrackNameInput"
+                          inputAriaLabel={`${track.label}の追加トラック名`}
+                          editTitle="ダブルクリックで追加トラック名を編集"
+                          onCommit={label => onUpdateStackGuideLabel(track.stackGuideLabelId!, { label })}
                         />
                       ) : <span className="cspTreeTrackName">{track.label}</span>}
                       {track.stackItemId && <div className="cspTreeMoveButtons">
@@ -667,6 +716,15 @@ function DeleteIcon() {
   )
 }
 
+function LocateIcon() {
+  return (
+    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="6" />
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+    </svg>
+  )
+}
+
 interface CspInternalDropTarget {
   kind: 'cel' | 'track' | 'gap'
   celNodeId?: string
@@ -758,21 +816,36 @@ function suggestedPaperTrackName(project: CutProject, correctionLayerId: string,
   return `セル列${project.logicalSheet.paperTracks.length + 1}`
 }
 
-function PaperTrackNameInput({
-  paperTrack,
+function InlineTreeLabel({
   label,
+  className,
+  inputClassName,
+  inputAriaLabel,
+  editTitle,
+  stopClickPropagation = false,
   onCommit,
 }: {
-  paperTrack: string
   label: string
-  onCommit: (paperTrack: string, name: string) => void
+  className: string
+  inputClassName: string
+  inputAriaLabel: string
+  editTitle: string
+  stopClickPropagation?: boolean
+  onCommit: (name: string) => void
 }) {
   const [draft, setDraft] = useState(label)
+  const [editing, setEditing] = useState(false)
+
+  function beginEditing() {
+    setDraft(label)
+    setEditing(true)
+  }
 
   function commit() {
     const name = draft.trim()
-    if (name && name !== label) onCommit(paperTrack, name)
+    if (name && name !== label) onCommit(name)
     setDraft(label)
+    setEditing(false)
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -782,58 +855,44 @@ function PaperTrackNameInput({
     } else if (event.key === 'Escape') {
       event.preventDefault()
       setDraft(label)
-      event.currentTarget.blur()
+      setEditing(false)
     }
   }
 
-  return (
+  return editing ? (
     <input
-      className="cspTreeTrackNameInput"
-      aria-label={`${label}のセル列名`}
-      title="セル列名"
+      autoFocus
+      className={inputClassName}
+      aria-label={inputAriaLabel}
       value={draft}
+      onFocus={event => event.currentTarget.select()}
       onChange={event => setDraft(event.currentTarget.value)}
       onBlur={commit}
       onKeyDown={handleKeyDown}
+      onPointerDown={event => event.stopPropagation()}
+      onClick={event => event.stopPropagation()}
+      onDoubleClick={event => event.stopPropagation()}
     />
-  )
-}
-
-function StackGuideTrackNameInput({
-  labelId,
-  label,
-  onCommit,
-}: {
-  labelId: string
-  label: string
-  onCommit: (labelId: string, label: string) => void
-}) {
-  const [draft, setDraft] = useState(label)
-
-  function commit() {
-    const name = draft.trim()
-    if (name && name !== label) onCommit(labelId, name)
-    setDraft(label)
-  }
-
-  return (
-    <input
-      className="cspTreeTrackNameInput"
-      aria-label={`${label}の追加トラック名`}
-      title="追加トラック名"
-      value={draft}
-      onChange={event => setDraft(event.currentTarget.value)}
-      onBlur={commit}
-      onKeyDown={event => {
-        if (event.key === 'Enter') {
-          event.preventDefault()
-          event.currentTarget.blur()
-        } else if (event.key === 'Escape') {
-          event.preventDefault()
-          setDraft(label)
-          event.currentTarget.blur()
-        }
+  ) : (
+    <span
+      className={className}
+      role="button"
+      tabIndex={0}
+      title={editTitle}
+      onClick={stopClickPropagation ? event => event.stopPropagation() : undefined}
+      onDoubleClick={event => {
+        event.preventDefault()
+        event.stopPropagation()
+        beginEditing()
       }}
-    />
+      onKeyDown={event => {
+        if (event.key !== 'Enter' && event.key !== 'F2') return
+        event.preventDefault()
+        event.stopPropagation()
+        beginEditing()
+      }}
+    >
+      {label}
+    </span>
   )
 }

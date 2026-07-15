@@ -233,9 +233,11 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
       if (!cell) throw new Error('assigned CSP cell card not found')
       return cell
     })
+    fireEvent.doubleClick(assignedCell.querySelector('.cspTreeCelName')!)
     const cspNameInput = assignedCell.querySelector<HTMLInputElement>('.cspTreeCelNameInput')
     if (!cspNameInput) throw new Error('CSP cell name input not found')
     fireEvent.change(cspNameInput, { target: { value: 'A1_custom' } })
+    fireEvent.keyDown(cspNameInput, { key: 'Enter' })
     expect(assignedCell.textContent).toContain('A1_ref.png')
 
     const dialog = openTimingExportDialog()
@@ -261,7 +263,9 @@ it('removes one process card before deleting its shared logical cell', async () 
     await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id].assigned')).toBeTruthy())
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
+    const assignedProcessCard = document.querySelector<HTMLElement>('.cspTreeCel.assigned')
+    if (!assignedProcessCard) throw new Error('assigned process card not found')
+    fireEvent.click(within(assignedProcessCard).getByRole('button', { name: /1を削除$/ }))
     expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteProcessCardConfirm('作画', 'A1'))
     expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
 
@@ -372,7 +376,9 @@ it('chooses a process when an external image file is dropped onto an already reg
     expect(previewPanel?.textContent).toContain('A1')
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
+    const assignedProcessCard = document.querySelector<HTMLElement>('.cspTreeCel.assigned')
+    if (!assignedProcessCard) throw new Error('assigned process card not found')
+    fireEvent.click(within(assignedProcessCard).getByRole('button', { name: /1を削除$/ }))
     expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteProcessCardConfirm('演出', 'A1'))
     expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
   })
@@ -673,9 +679,9 @@ it('creates independent keys in ACTION and CELL grid positions', () => {
     expectSelectedHit('cell', 'A', 1)
     const registeredCells = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
     expect(registeredCells).toHaveLength(2)
-    expect(registeredCells.map(registeredCellIdentityText)).toEqual(['ACTION A', 'CELL A'])
-    expect(registeredCells.map(card => card.querySelector('.cspTreeCelName')?.textContent)).toEqual(['A1', 'A1'])
-    expect(registeredCells.map(card => Array.from(card.querySelectorAll('input')).map(input => input.value))).toEqual([[], ['1']])
+    expect(registeredCells.map(registeredCellIdentityText)).toEqual(['CELL A', 'ACTION A'])
+    expect(registeredCells.map(card => card.querySelector('.cspTreeCelName')?.textContent)).toEqual(['A1_2', 'A1'])
+    expect(document.querySelector('.cspTreeUnregisteredStage')).toBeNull()
   })
 
 it('groups CSP cells by column and keeps CSP top-to-bottom stacking order', () => {
@@ -693,12 +699,12 @@ it('groups CSP cells by column and keeps CSP top-to-bottom stacking order', () =
     fireEvent.keyDown(window, { key: '4' })
 
     const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
-    expect(cards.map(registeredCellIdentityText)).toEqual(['ACTION B', 'ACTION A', 'ACTION A', 'CELL A'])
+    expect(cards.map(registeredCellIdentityText)).toEqual(['ACTION B', 'CELL A', 'ACTION A', 'ACTION A'])
     expect(cards.map(card => card.querySelector('.cspTreeSheetLabel')?.textContent)).toEqual([
       'シート: 1',
+      'シート: 4',
       'シート: 2',
       'シート: 3',
-      'シート: 4',
     ])
     expect(document.querySelector('.registeredCellSection')).toBeNull()
     expect(screen.queryByRole('button', { name: uiText.keys.view.list })).toBeNull()
@@ -1047,10 +1053,10 @@ it('opens frame operation commands from the sheet context menu', () => {
 
     expect(screen.queryByRole('dialog', { name: uiText.frameOperation.dialogTitleDelete })).toBeNull()
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
-    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(1)
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(2)
   })
 
-it('keeps timing visible when the active material registration process changes', () => {
+it('registers new timing at the active process without moving it when the destination later changes', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     sheet.getBoundingClientRect = () => ({
@@ -1065,17 +1071,17 @@ it('keeps timing visible when the active material registration process changes',
       toJSON: () => ({}),
     })
 
+    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
     clickSheet(sheet, 255, 290)
     fireEvent.keyDown(window, { key: '1' })
-    expect(registeredCellIdentityText(document.querySelector('.cspTreeCel[data-csp-key-id]') as Element)).toBe('CELL A')
-    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
-
-    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
-    expect(registeredCellIdentityText(document.querySelector('.cspTreeCel[data-csp-key-id]') as Element)).toBe('CELL A')
-    expectSelectionStatus('演出', 'CELL', 'A', formatTestFramePosition(1))
+    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as Element
+    expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
+    expect(registeredCell.closest('.cspTreeLayer')?.querySelector('.cspTreeSummaryLabel')?.textContent).toBe('演出')
+    expect(document.querySelector('.cspTreeUnregisteredStage')).toBeNull()
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
 
     fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_sakuga' } })
+    expect(registeredCell.closest('.cspTreeLayer')?.querySelector('.cspTreeSummaryLabel')?.textContent).toBe('演出')
     expectSelectionStatus('作画', 'CELL', 'A', formatTestFramePosition(1))
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
   })

@@ -58,6 +58,7 @@ import {
   updateActiveCutProjectInDocument,
   switchActiveCutInProjectDocument,
   updateCorrectionLayers,
+  updateProductionStageLabel,
   updateLogicalSheetSettings,
   updatePaperTrack,
   updateProjectPaperTracks,
@@ -361,6 +362,15 @@ describe('core project commands', () => {
       ['slot_enshutsu_A', 'A_02_en'],
     ])
     expect(buildExportPlan(withCorrection, { profileId: 'import-stack', timingSourceRole: 'cell' }).tracks.map(track => track.name)).toContain('===== 演出修正 =====')
+  })
+
+  it('renames a production stage without changing its stable identity', () => {
+    const project = createDefaultProject()
+    const renamed = updateProductionStageLabel(project, 'stage_lo', '原画')
+
+    expect(renamed.productionStages[0]).toMatchObject({ stageId: 'stage_lo', label: '原画' })
+    expect(renamed.correctionLayers.every(layer => layer.stageId === 'stage_lo')).toBe(true)
+    expect(() => updateProductionStageLabel(project, 'stage_lo', '  ')).toThrow('制作段階名は空にできません')
   })
 
   it('blocks deleting correction layers that still have registrations', () => {

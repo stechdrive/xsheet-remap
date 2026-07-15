@@ -104,8 +104,9 @@ describe('CspLayerTree', () => {
       />,
     )
 
-    expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeCel input')).map(input => input.value))
+    expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeCelName')).map(item => item.textContent))
       .toEqual(['A2', 'A1'])
+    expect(document.querySelector('.cspTreeCelNameInput')).toBeNull()
     expect(screen.queryByText('パレット表示順')).toBeNull()
     expect(screen.queryByText('CSPパレット上端')).toBeNull()
     expect(document.querySelector('.cspTreeTrackOrder')).toBeNull()
@@ -122,10 +123,82 @@ describe('CspLayerTree', () => {
     unsubscribe()
     expect(droppedPayloads).toEqual([{ kind: 'registered-cell', keyId: second.key.keyId, sourceSlotId: 'slot_A' }])
 
+    const trackLabel = document.querySelector<HTMLElement>('.cspTreeTrackName')
+    if (!trackLabel) throw new Error('track label not found')
+    fireEvent.doubleClick(trackLabel)
     const trackName = screen.getByLabelText('Aのセル列名')
     fireEvent.change(trackName, { target: { value: 'LO' } })
-    fireEvent.blur(trackName)
+    fireEvent.keyDown(trackName, { key: 'Enter' })
     expect(onRenamePaperTrack).toHaveBeenCalledWith('A', 'LO')
+  })
+
+  it('renames stage, process, and CSP cell labels only after an explicit edit gesture', () => {
+    const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const project = upsertBinding(created.project, {
+      slotId: 'slot_A',
+      keyId: created.key.keyId,
+      cspCellName: 'A1',
+      materialState: 'unassigned',
+    })
+    const onRenameProductionStage = vi.fn()
+    const onRenameCorrectionLayer = vi.fn()
+    const onUpdateCspCellName = vi.fn()
+    const onJumpToFirstUse = vi.fn()
+
+    render(
+      <CspLayerTree
+        project={project}
+        exportProfileId="import-stack"
+        selectedKeyId={created.key.keyId}
+        onSelectKey={vi.fn()}
+        onJumpToFirstUse={onJumpToFirstUse}
+        onUpdateKey={vi.fn()}
+        onDeleteKey={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
+        onUpdateCspCellName={onUpdateCspCellName}
+        onMoveKeyBindingProcess={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
+        onRenameProductionStage={onRenameProductionStage}
+        onRenameCorrectionLayer={onRenameCorrectionLayer}
+        onRenamePaperTrack={vi.fn()}
+        onMoveStackItem={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
+        onRequestOverlayPaperTrack={vi.fn()}
+        onRequestStackGuideInsert={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    const stageLabel = screen.getByText('LO', { selector: '.cspTreeSummaryLabel' })
+    fireEvent.doubleClick(stageLabel)
+    const stageInput = screen.getByLabelText('LOの制作段階名')
+    fireEvent.change(stageInput, { target: { value: '原画' } })
+    fireEvent.keyDown(stageInput, { key: 'Enter' })
+    expect(onRenameProductionStage).toHaveBeenCalledWith('stage_lo', '原画')
+
+    const processLabel = screen.getByText('作画', { selector: '.cspTreeSummaryLabel' })
+    fireEvent.doubleClick(processLabel)
+    const processInput = screen.getByLabelText('作画の工程名')
+    fireEvent.change(processInput, { target: { value: '第一原画' } })
+    fireEvent.keyDown(processInput, { key: 'Enter' })
+    expect(onRenameCorrectionLayer).toHaveBeenCalledWith('layer_sakuga', '第一原画')
+
+    const cellLabel = screen.getByText('A1', { selector: '.cspTreeCelName' })
+    fireEvent.doubleClick(cellLabel)
+    const cellInput = screen.getByLabelText('AのCSPセル名')
+    fireEvent.change(cellInput, { target: { value: 'A1_custom' } })
+    fireEvent.keyDown(cellInput, { key: 'Enter' })
+    expect(onUpdateCspCellName).toHaveBeenCalledWith(created.key.keyId, 'slot_A', 'A1_custom')
+
+    fireEvent.click(screen.getByRole('button', { name: 'A 1の先頭使用位置へ移動' }))
+    expect(onJumpToFirstUse).toHaveBeenCalledWith(created.key.keyId)
   })
 
   it('shows timeline-only keys as compact unregistered cards and registers them by track drop', () => {

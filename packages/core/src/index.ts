@@ -222,11 +222,13 @@ export {
   updateActiveCutProjectInDocument,
   switchActiveCutInProjectDocument,
   updateCorrectionLayers,
+  updateProductionStageLabel,
   updatePaperTrack,
   updateLogicalSheetSettings,
   updateProjectPaperTracks,
   updateStackGuideLabel,
   updateStackGuideRegistration,
+  uniqueCspCellNameForSlot,
   upsertBinding,
 } from './project'
 export {

@@ -100,10 +100,31 @@ describe('sheet template layout', () => {
       closing: ']',
       separator: '・',
     })
-    expect(sharedRegion.rect.x * standardA3SheetTemplate.page.widthPx).toBeCloseTo(864)
+    expect(sharedRegion.rect.x * standardA3SheetTemplate.page.widthPx).toBeCloseTo(863)
+    expect(sharedRegion.rect.w * standardA3SheetTemplate.page.widthPx).toBeCloseTo(171)
     expect(sharedRegion.rect.y * standardA3SheetTemplate.page.heightPx).toBeCloseTo(198)
     expect(sharedRegion.rect.h * standardA3SheetTemplate.page.heightPx).toBeCloseTo(38)
     expect(sharedRegion.textStyle).toMatchObject({ fontSizePx: 13, lineHeightPx: 15, verticalAlign: 'top' })
+  })
+
+  it('matches A3 metadata regions to the pixel-exact underlay column borders', () => {
+    const expectedRects = {
+      top_title_field: { x: 35, w: 656 },
+      top_episode_field: { x: 691, w: 172 },
+      top_cut_field: { x: 863, w: 171 },
+      top_duration_field: { x: 1034, w: 256 },
+      top_worker_field: { x: 1290, w: 257 },
+      top_page_field: { x: 1547, w: 171 },
+    }
+
+    for (const [regionId, expected] of Object.entries(expectedRects)) {
+      const region = standardA3SheetTemplate.regions.find(item => item.regionId === regionId)
+      if (!region) throw new Error(`${regionId} not found`)
+      expect(region.rect.x * standardA3SheetTemplate.page.widthPx).toBeCloseTo(expected.x)
+      expect(region.rect.w * standardA3SheetTemplate.page.widthPx).toBeCloseTo(expected.w)
+      expect(region.rect.y * standardA3SheetTemplate.page.heightPx).toBeCloseTo(165)
+      expect(region.rect.h * standardA3SheetTemplate.page.heightPx).toBeCloseTo(71)
+    }
   })
 })
 

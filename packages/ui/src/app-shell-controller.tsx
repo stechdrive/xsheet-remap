@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createKey, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, findTimingKeyByDisplayLabel, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateKey, updateOrMergeTimingKeyDisplayLabel, updateCorrectionLayers, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, isNullLabel, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, parseProjectDocument, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
+import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateOrMergeTimingKeyDisplayLabel, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, parseProjectDocument, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
 import { exportXdts } from '@xsheet-remap/xdts';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, readJsonFile, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeTextFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
@@ -30,6 +30,7 @@ import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmi
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
 import { applyCellStackOrder, automaticRegisteredCellCspName, cellStackOrderItems, firstTimelineUseForKey, registeredCellTrackOrder, updateNativeRegisteredCellPreviewIfOpen } from './app-registered-cells';
+import { setTimingValueAt } from './sheet-timing-input';
 import { calibrationCornersForTemplate, calibrationCornersFromPoints, imageExportFilterName, nextCutNumberLabel, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
 import { useAppShellState } from './app-shell-state'
 import { isAssetBrowserNativeDropTarget, nativeCspDropTarget } from './nativeFileDropTargets'
@@ -491,42 +492,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     return sourceProject.logicalSheet.keys.find(item => item.keyId === keyId)?.displayLabel ?? ''
   }
 
-  function setTimingValueAt(sourceProject: CutProject, hit: SheetHit, rawValue: string, fontSizePx = activeTextFontSizePx): { project: CutProject; keyId: string | null } {
-    if (!hit.paperTrack) return { project: sourceProject, keyId: null }
-    const value = rawValue.trim()
-    const sheetRole = sheetRoleForHit(hit)
-    if (!value) {
-      return { project: clearEvent(sourceProject, hit.paperTrack, hit.frame, sheetRole), keyId: null }
-    }
-    if (isNullLabel(value)) {
-      return {
-        project: setEvent(sourceProject, hit.paperTrack, hit.frame, NULL_CELL_KEY_ID, sheetRole, { fontSizePx }),
-        keyId: NULL_CELL_KEY_ID,
-      }
-    }
-
-    const existingKeyId = eventKeyIdAtHit(hit, sourceProject)
-    const reusableKey = findTimingKeyByDisplayLabel(sourceProject, hit.paperTrack, value, sheetRole)
-    if (reusableKey && reusableKey.keyId !== existingKeyId) {
-      return {
-        project: setEvent(sourceProject, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx }),
-        keyId: reusableKey.keyId,
-      }
-    }
-    if (existingKeyId && !isNullCellKeyId(existingKeyId)) {
-      return {
-        project: updateKey(sourceProject, existingKeyId, { displayLabel: value, paperToken: value }),
-        keyId: existingKeyId,
-      }
-    }
-
-    const created = createKey(sourceProject, hit.paperTrack, value, 'manual', value, sheetRole)
-    return {
-      project: setEvent(created.project, hit.paperTrack, hit.frame, created.key.keyId, sheetRole, { fontSizePx }),
-      keyId: created.key.keyId,
-    }
-  }
-
   function setSelectionFromHit(hit: SheetHit, sourceProject: CutProject = project, keyIdOverride?: string | null) {
     const keyId = keyIdOverride === undefined ? eventKeyIdAtHit(hit, sourceProject) : keyIdOverride
     setRangeSelection(null)
@@ -584,7 +549,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     let next = { project, keyId: null as string | null }
     for (const paperTrack of rangePaperTracks(range)) {
       const startHit = timingHitForFrame(template, range.role, paperTrack, range.frameStart, sheetDisplayDurationFrames, sheetDisplayFrameStart, trackOrder)
-      if (startHit) next = setTimingValueAt(next.project, startHit, value, activeTextFontSizePx)
+      if (startHit) next = setTimingValueAt(next.project, startHit, value, activeTextFontSizePx, activeCorrectionLayerId)
     }
     commitProject(next.project)
     const nextRange = advance ? nextSteppedRange(range) : null
@@ -600,7 +565,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function applyTimingValue(hit: SheetHit | null, rawValue: string, draftActive = true) {
     if (!hit?.paperTrack) return
     const value = rawValue.trim()
-    const next = setTimingValueAt(project, hit, value, activeTextFontSizePx)
+    const next = setTimingValueAt(project, hit, value, activeTextFontSizePx, activeCorrectionLayerId)
     commitProject(next.project)
     setRangeSelection(null)
     setSelection({ hit, keyId: next.keyId })
@@ -1603,6 +1568,26 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
+  function handleRenameProductionStage(stageId: string, label: string) {
+    try {
+      const sourceProject = projectRef.current
+      commitProject(updateProductionStageLabel(sourceProject, stageId, label))
+    } catch (error) {
+      window.alert(errorMessage(error))
+    }
+  }
+
+  function handleRenameCorrectionLayer(layerId: string, label: string) {
+    try {
+      const sourceProject = projectRef.current
+      commitProject(updateCorrectionLayers(sourceProject, sourceProject.correctionLayers.map(layer =>
+        layer.layerId === layerId ? { ...layer, label } : layer,
+      )))
+    } catch (error) {
+      window.alert(errorMessage(error))
+    }
+  }
+
   async function handleLoadProject(files: FileList | null) {
     const file = files?.[0]
     if (!file) return
@@ -2285,7 +2270,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
-    handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
+    handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleTextAnnotation, handleSelectTextAnnotation,

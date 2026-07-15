@@ -221,10 +221,10 @@ export const standardA3SheetTemplate: SheetTemplate = {
       usage: 'reference',
       inputKind: 'annotation',
     },
-    metadataFieldRegion('top_title_field', 'タイトル', 'title', standardA3Rect(35, 165, 655, 71), STANDARD_A3_METADATA_TEXT_STYLE),
-    metadataFieldRegion('top_episode_field', '話数', 'episode', standardA3Rect(690, 165, 174, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+    metadataFieldRegion('top_title_field', 'タイトル', 'title', standardA3Rect(35, 165, 656, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+    metadataFieldRegion('top_episode_field', '話数', 'episode', standardA3Rect(691, 165, 172, 71), STANDARD_A3_METADATA_TEXT_STYLE),
     {
-      ...metadataFieldRegion('top_cut_field', 'カット', 'cut', standardA3Rect(864, 165, 173, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+      ...metadataFieldRegion('top_cut_field', 'カット', 'cut', standardA3Rect(863, 165, 171, 71), STANDARD_A3_METADATA_TEXT_STYLE),
       textStyleVariants: {
         sharedCutNumbersVisible: {
           verticalAlign: 'top',
@@ -232,7 +232,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
         },
       },
     },
-    sharedCutNumbersRegion('top_shared_cut_numbers_field', standardA3Rect(864, 198, 173, 38), {
+    sharedCutNumbersRegion('top_shared_cut_numbers_field', standardA3Rect(863, 198, 171, 38), {
       fontSizePx: 13,
       minFontSizePx: 8,
       lineHeightPx: 15,
@@ -242,9 +242,9 @@ export const standardA3SheetTemplate: SheetTemplate = {
       paddingPx: 2,
       shrinkToFit: true,
     }),
-    metadataFieldRegion('top_duration_field', '尺', 'duration', standardA3Rect(1037, 165, 258, 71), STANDARD_A3_METADATA_TEXT_STYLE),
-    metadataFieldRegion('top_worker_field', '作業者', 'worker', standardA3Rect(1295, 165, 259, 71), STANDARD_A3_METADATA_TEXT_STYLE),
-    metadataFieldRegion('top_page_field', 'ページ', 'page', standardA3Rect(1554, 165, 164, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+    metadataFieldRegion('top_duration_field', '尺', 'duration', standardA3Rect(1034, 165, 256, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+    metadataFieldRegion('top_worker_field', '作業者', 'worker', standardA3Rect(1290, 165, 257, 71), STANDARD_A3_METADATA_TEXT_STYLE),
+    metadataFieldRegion('top_page_field', 'ページ', 'page', standardA3Rect(1547, 165, 171, 71), STANDARD_A3_METADATA_TEXT_STYLE),
     {
       regionId: 'top_memo_area',
       type: 'memo-area',

@@ -124,6 +124,8 @@ export function SheetPanel(props: {
   onDeleteKey: (keyId: string) => void | Promise<void>
   onUpdateKeyCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
+  onRenameProductionStage: (stageId: string, label: string) => void
+  onRenameCorrectionLayer: (layerId: string, label: string) => void
   onCreateStackGuideLabel: (input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) => void
   onUpdateStackGuideLabel: (labelId: string, updates: StackGuideLabelUpdates) => void
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
@@ -371,7 +373,7 @@ export function SheetPanel(props: {
           </TooltipTarget>
         </ToolbarGroup>
         <ToolbarGroup className="sheetToolbarGroup processPaletteGroup">
-          <TooltipTarget label="シートへ直接配置する素材のCSP登録先">
+          <TooltipTarget label="新規入力キーとシートへ直接配置する素材のCSP登録先">
             {tooltipProps => (
               <label className="compactControl processDestinationControl" {...tooltipProps}>
                 <span>{uiText.sheet.registrationProcess}</span>
@@ -605,6 +607,8 @@ export function SheetPanel(props: {
               activeCorrectionLayerId={props.activeCorrectionLayerId}
               onUpdateCspCellName={props.onUpdateKeyCspCellName}
               onMoveKeyBindingProcess={props.onMoveKeyBindingProcess}
+              onRenameProductionStage={props.onRenameProductionStage}
+              onRenameCorrectionLayer={props.onRenameCorrectionLayer}
               onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
               onUpdateStackGuideLabel={props.onUpdateStackGuideLabel}
               onDeleteStackGuideLabel={props.onDeleteStackGuideLabel}

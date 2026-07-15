@@ -137,6 +137,23 @@ export function updateProjectPaperTracks(project: CutProject, labels: PaperTrack
   })
 }
 
+export function updateProductionStageLabel(project: CutProject, stageId: string, label: string): CutProject {
+  const normalizedLabel = label.trim()
+  if (!normalizedLabel) throw new Error('制作段階名は空にできません。')
+  if (!project.productionStages.some(stage => stage.stageId === stageId)) {
+    throw new Error(`production stage not found: ${stageId}`)
+  }
+  if (project.productionStages.some(stage => stage.stageId !== stageId && stage.label === normalizedLabel)) {
+    throw new Error(`制作段階名が重複しています: ${normalizedLabel}`)
+  }
+  return {
+    ...project,
+    productionStages: project.productionStages.map(stage =>
+      stage.stageId === stageId ? { ...stage, label: normalizedLabel } : stage,
+    ),
+  }
+}
+
 export function updateCorrectionLayers(project: CutProject, layers: CorrectionLayer[]): CutProject {
   const productionStages = project.productionStages.length > 0 ? project.productionStages : defaultProductionStages()
   const correctionLayers = normalizeCorrectionLayers(layers, productionStages, project.correctionLayers)

@@ -625,6 +625,22 @@
   font-weight: 800;
 }
 
+.cspTreeSummaryLabel {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.cspTreeSummaryNameInput {
+  width: min(100%, 180px);
+  min-width: 0;
+  height: 24px;
+  padding: 2px 5px;
+  font-weight: 800;
+}
+
 .cspTreeStage > summary {
   border-bottom: 1px solid #aeb8b0;
   background: #e8ede9;
@@ -835,11 +851,14 @@
 }
 
 .cspTreeMoveButtons button {
+  display: inline-grid;
+  place-items: center;
   width: 23px;
   min-width: 23px;
   height: 23px;
   min-height: 23px;
   padding: 0;
+  line-height: 1;
 }
 
 .cspTreeMoveButtons .topIconSvg {
@@ -951,7 +970,7 @@
 .cspTreeCelDetails {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px;
   padding-top: 3px;
@@ -978,17 +997,28 @@
   white-space: nowrap;
 }
 
-.cspTreeDeleteButton {
+.cspTreeCelActions {
   grid-column: 2;
   grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cspTreeDeleteButton,
+.cspTreeJumpButton {
+  display: inline-grid;
+  place-items: center;
   width: 24px;
   min-width: 24px;
   height: 24px;
   min-height: 24px;
   padding: 3px;
+  line-height: 1;
 }
 
 .cspTreeDeleteButton svg,
+.cspTreeJumpButton svg,
 .cspTreeTrackDeleteButton svg {
   width: 14px;
   height: 14px;

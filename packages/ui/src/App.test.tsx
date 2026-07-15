@@ -60,11 +60,11 @@ it('adds an empty paper track and a material-unassigned card from the CSP layer 
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
 
     await waitFor(() => {
-      expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).map(input => input.value))
+      expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).map(label => label.textContent))
         .toContain('J')
     })
     const emptyTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrack'))
-      .find(track => track.querySelector<HTMLInputElement>('.cspTreeTrackNameInput')?.value === 'J')
+      .find(track => track.querySelector<HTMLElement>('.cspTreeTrackName')?.textContent === 'J')
     expect(emptyTrack?.querySelector('.cspTreeNoCels')?.textContent).toBe('カードなし')
 
     fireEvent.click(screen.getByRole('button', { name: 'J（作画）にセルを追加' }))
@@ -74,7 +74,7 @@ it('adds an empty paper track and a material-unassigned card from the CSP layer 
 
     await waitFor(() => {
       const card = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
-      expect(card?.querySelector<HTMLInputElement>('.cspTreeCelNameInput')?.value).toBe('J_01')
+      expect(card?.querySelector<HTMLElement>('.cspTreeCelName')?.textContent).toBe('J_01')
       expect(card?.classList.contains('assigned')).toBe(false)
       expect(card?.querySelector<HTMLInputElement>('.cspTreeSheetNameField input')?.value).toBe('')
     })
@@ -97,8 +97,8 @@ it('keeps the selected correction layer when placing a BG or BOOK track from the
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
 
     await waitFor(() => {
-      const bgTrack = Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput'))
-        .find(track => track.value === 'BG1')
+      const bgTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+        .find(track => track.textContent === 'BG1')
       expect(bgTrack?.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('演出')
     })
     const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')
@@ -141,7 +141,7 @@ it('creates unplaced CSP cards by dropping multiple selected assets into a corre
       const track = screen.getByLabelText('A（作画）にカードを追加').closest('.cspTreeTrack')
       expect(track?.querySelectorAll('.cspTreeCel')).toHaveLength(2)
       expect(track?.querySelector('.cspTreeCelFrame')).toBeNull()
-      expect(Array.from(track?.querySelectorAll<HTMLInputElement>('.cspTreeCel input') ?? []).map(input => input.value)).toEqual(['A2', 'A1'])
+      expect(Array.from(track?.querySelectorAll<HTMLElement>('.cspTreeCelName') ?? []).map(label => label.textContent)).toEqual(['A2', 'A1'])
     })
 
     const addToTrack = screen.getByLabelText('A（作画）にカードを追加')
@@ -163,7 +163,7 @@ it('creates unplaced CSP cards by dropping multiple selected assets into a corre
 
   })
 
-it('binds a sheet-first key from the unregistered tree to the active CSP destination', async () => {
+it('registers a sheet-first key at the active CSP destination and assigns a material there', async () => {
     URL.createObjectURL = file => `blob:csp-unregistered-${(file as File).name}`
     render(<RemapApp />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
@@ -173,22 +173,24 @@ it('binds a sheet-first key from the unregistered tree to the active CSP destina
     clickTemplateFrame(sheet, 'action', 'A', 1)
     fireEvent.keyDown(window, { key: '1' })
 
-    const unregisteredCard = document.querySelector<HTMLElement>('.cspTreeCel.unregistered')
-    if (!unregisteredCard) throw new Error('unregistered CSP card not found')
-    expect(unregisteredCard.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
-    expect(unregisteredCard.querySelector('.cspTreeCelFrame')).toBeNull()
+    const registeredCard = screen.getByLabelText('A（演出）にカードを追加').closest('.cspTreeTrack')
+      ?.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
+    if (!registeredCard) throw new Error('registered CSP card not found')
+    expect(document.querySelector('.cspTreeCel.unregistered')).toBeNull()
+    expect(registeredCard.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
+    expect(registeredCard.querySelector('.cspTreeCelFrame')).toBeNull()
 
     const file = new File(['fix'], 'scan_001.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [file] } })
     expect(await screen.findByText('scan_001.png')).toBeTruthy()
 
-    dragInternalPointer(getAssetCardByName('scan_001.png'), unregisteredCard)
+    dragInternalPointer(getAssetCardByName('scan_001.png'), registeredCard)
 
     await waitFor(() => {
       expect(document.querySelector('.cspTreeCel.unregistered')).toBeNull()
       const track = screen.getByLabelText('A（演出）にカードを追加').closest('.cspTreeTrack')
       expect(track?.querySelector('.cspTreeCel.assigned')).toBeTruthy()
-      expect((track?.querySelector('.cspTreeCel input') as HTMLInputElement | null)?.value).toBe('A1')
+      expect(track?.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
     })
 
     fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))
@@ -209,7 +211,7 @@ it('keeps CSP track order and names synchronized with the paper sheet', async ()
     expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
 
     await waitFor(() => {
-      expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).map(input => input.value))
+      expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).map(label => label.textContent))
         .toEqual(['B', 'A'])
     })
 
@@ -223,16 +225,19 @@ it('keeps CSP track order and names synchronized with the paper sheet', async ()
 
     fireEvent.click(screen.getByRole('button', { name: '全工程のAをCSPで上へ（シートで右へ）' }))
     await waitFor(() => {
-      expect(Array.from(document.querySelectorAll<HTMLInputElement>('.cspTreeTrackNameInput')).map(input => input.value))
+      expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).map(label => label.textContent))
         .toEqual(['A', 'B'])
       expect(columnX('B')).toBeLessThan(columnX('A'))
     })
 
+    const trackLabel = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).find(label => label.textContent === 'A')
+    if (!trackLabel) throw new Error('A track label not found')
+    fireEvent.doubleClick(trackLabel)
     const trackName = screen.getByLabelText('Aのセル列名')
     fireEvent.change(trackName, { target: { value: 'LO' } })
-    fireEvent.blur(trackName)
+    fireEvent.keyDown(trackName, { key: 'Enter' })
     await waitFor(() => {
-      expect(screen.getByLabelText('LOのセル列名')).toBeTruthy()
+      expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).some(label => label.textContent === 'LO')).toBe(true)
       expect(Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)).toContain('LO')
       expect(Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)).not.toContain('A')
     })
@@ -877,7 +882,7 @@ it('selects a CELL grid position and creates a key from explicit input', () => {
 
     fireEvent.keyDown(window, { key: '1' })
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
-    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]')
+    const registeredCell = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
     expect(registeredCell).toBeTruthy()
     if (!registeredCell) throw new Error('registered cell card not found')
     expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
@@ -996,7 +1001,7 @@ it('reuses a registered cell when typing the same value in the same CELL column'
     expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
   })
 
-it('jumps to the first timeline use by double-clicking a CSP cell card', () => {
+it('jumps to the first timeline use from the selected CSP cell action', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -1004,13 +1009,14 @@ it('jumps to the first timeline use by double-clicking a CSP cell card', () => {
     clickTemplateFrame(sheet, 'cell', 'A', 24)
     fireEvent.keyDown(window, { key: '1' })
 
-    const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]')
+    const registeredCell = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
     expect(registeredCell).toBeTruthy()
     if (!registeredCell) throw new Error('registered cell card not found')
     expectSelectedHit('cell', 'A', 24)
     clickTemplateFrame(sheet, 'cell', 'B', 1)
     expectSelectedHit('cell', 'B', 1)
-    fireEvent.doubleClick(registeredCell)
+    fireEvent.click(registeredCell)
+    fireEvent.click(within(registeredCell).getByRole('button', { name: 'A 1の先頭使用位置へ移動' }))
     expectSelectedHit('cell', 'A', 24)
   })
 
@@ -1061,7 +1067,10 @@ it('deletes a registered cell from the registered cell pane', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
 
-    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteConfirm('1', 0, 1))
+    expect(confirmSpy).toHaveBeenNthCalledWith(1, uiText.keys.deleteProcessCardConfirm('作画', 'A1'))
+    await waitFor(() => expect(document.querySelector('.cspTreeCel.unregistered')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
+    expect(confirmSpy).toHaveBeenNthCalledWith(2, uiText.keys.deleteConfirm('1', 0, 1))
     await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeNull())
     expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
   })

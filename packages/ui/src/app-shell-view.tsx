@@ -43,7 +43,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
-    handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
+    handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleTextAnnotation, handleSelectTextAnnotation,
@@ -360,6 +360,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onDeleteKey={handleDeleteCspCard}
             onUpdateKeyCspCellName={handleUpdateKeyCspCellName}
             onMoveKeyBindingProcess={handleMoveKeyBindingProcess}
+            onRenameProductionStage={handleRenameProductionStage}
+            onRenameCorrectionLayer={handleRenameCorrectionLayer}
             onCreateStackGuideLabel={handleCreateStackGuideLabel}
             onUpdateStackGuideLabel={handleUpdateStackGuideLabel}
             onUpdateStackGuideRegistration={handleUpdateStackGuideRegistration}

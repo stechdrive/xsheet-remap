@@ -25,7 +25,7 @@ import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
 import { createPaperTemplateDraftFromImage, createTemplateDraft, readFileAsDataUrl, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
 import { readTemplateImageMetadata } from './templateImageMetadata';
-import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, cspImportPackageAssetPaths, errorMessage, exportCutProjectsFromDocument, fileDialogInitialDirectory, formatFramePosition, formatFrameRangePosition, isImageFileRef, saveBinaryOutputs, saveTextOutputs, timelineEventAtHit } from './app-foundation';
+import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, cspImportPackageAssetPaths, errorMessage, exportCutProjectsFromDocument, fileDialogInitialDirectory, formatFramePosition, formatFrameRangePosition, formatPaddedDurationTimecode, formatPaddedFrameTimecode, isImageFileRef, saveBinaryOutputs, saveTextOutputs, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
 import { applyCellStackOrder, automaticRegisteredCellCspName, cellStackOrderItems, firstTimelineUseForKey, registeredCellTrackOrder, updateNativeRegisteredCellPreviewIfOpen } from './app-registered-cells';
@@ -160,8 +160,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setPanel(nextPanel)
   }, [setPanel, setStatusHints])
   const activeStatusHint = activeStatusHintText(statusHints)
+  const rangeTimingStatus = rangeSelection
+    ? `${uiText.sheet.rangeStart} ${formatPaddedFrameTimecode(project, rangeSelection.frameStart)} / ${uiText.sheet.rangeEnd} ${formatPaddedFrameTimecode(project, rangeSelection.frameEnd)} / ${uiText.sheet.rangeDuration} ${formatPaddedDurationTimecode(project, rangeSelection.frameEnd - rangeSelection.frameStart + 1)}`
+    : null
   const statusSelectionText = rangeSummary
-    ? `${activeCorrectionLayer?.label ?? '-'} / ${rangeSummary}`
+    ? `${activeCorrectionLayer?.label ?? '-'} / ${rangeSummary} / ${rangeTimingStatus}`
     : selection.hit
       ? `${activeCorrectionLayer?.label ?? '-'} / ${sheetRoleLabel(sheetRoleForHit(selection.hit))} ${selection.hit.paperTrack ?? '-'} ${selectedFrameSummary}`
       : `${activeCorrectionLayer?.label ?? '-'} / ${uiText.app.noCellSelected}`

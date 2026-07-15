@@ -257,7 +257,7 @@ export function formatTestFramePosition(frame: number): string {
 }
 
 export function expectCurrentFrame(frame: number) {
-  expect(document.querySelector('.currentFrameBadge')?.textContent).toBe(formatTestFramePosition(frame))
+  expectSelectionStatus(formatTestFramePosition(frame))
 }
 
 export function expectSelectionStatus(...parts: string[]) {
@@ -276,14 +276,13 @@ export function expectSelectedHit(role: SheetTemplateGridRole, paperTrack: strin
 }
 
 export function expectSelectedRange(role: SheetTemplateGridRole, paperTrack: string, frameStart: number, frameEnd: number) {
-  expectSelectionStatus(role.toUpperCase(), paperTrack)
-  expect(document.querySelector('.rangeFrameInspector')?.classList.contains('empty')).toBe(false)
-  const values = Array.from(document.querySelectorAll('.rangeFrameInspectorValue')).map(element => element.textContent)
-  expect(values).toEqual([
+  expectSelectionStatus(
+    role.toUpperCase(),
+    paperTrack,
     formatTestFrameTimecode(frameStart),
     formatTestFrameTimecode(frameEnd),
     formatTestDurationTimecode(frameEnd - frameStart + 1),
-  ])
+  )
 }
 
 export type MockFileSystemEntry = {
@@ -369,6 +368,17 @@ export function openAppNavigationMenu(): HTMLElement {
   return content
 }
 
+export function openCutMetadataMenu(): HTMLElement {
+  const trigger = screen.getByLabelText(uiText.sheet.cutMetadata)
+  fireEvent.click(trigger)
+  const menu = trigger.closest('details')
+  if (!(menu instanceof HTMLElement)) throw new Error('cut metadata menu not found')
+  expect((menu as HTMLDetailsElement).open).toBe(true)
+  const content = document.querySelector('.actionMenuPortalContent.cutMetadataMenu')
+  if (!(content instanceof HTMLElement)) throw new Error('cut metadata menu content not found')
+  return content
+}
+
 export function selectAppPanel(label: string) {
   const menu = openAppNavigationMenu()
   fireEvent.click(within(menu).getByRole('button', { name: label }))
@@ -388,7 +398,7 @@ export function getZoomSlider(): HTMLInputElement {
 }
 
 export function getSheetOpacitySlider(): HTMLInputElement {
-  const opacity = document.querySelector('.topOpacityControl input[type="range"]') as HTMLInputElement | null
+  const opacity = document.querySelector('.topOpacityControl input[type="number"]') as HTMLInputElement | null
   if (!opacity) throw new Error('sheet opacity control not found')
   return opacity
 }

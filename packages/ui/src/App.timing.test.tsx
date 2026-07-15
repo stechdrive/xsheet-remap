@@ -4,7 +4,7 @@ import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsh
 import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
-import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
 
 describe('App: sheet timing interactions', () => {
 it('shows a dedicated cell cue for asset and CSP card drop targets', () => {
@@ -747,7 +747,7 @@ it('steps point-event range input by the selected range length', () => {
     expect(document.querySelector('.selectedRangeOutline')).toBeTruthy()
     expect(document.querySelector('.selectedRangeCorners')).toBeTruthy()
     expectSelectedRange('cell', 'A', 1, 3)
-    expect((screen.getByRole('button', { name: uiText.sheet.textFontSize }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('spinbutton', { name: uiText.sheet.textFontSize }) as HTMLInputElement).disabled).toBe(true)
 
     fireEvent.keyDown(window, { key: '1' })
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
@@ -784,6 +784,7 @@ it('keeps the starting CELL column locked while dragging a range across neighbor
 
 it('selects a CELL range across visible sheet pages', async () => {
     render(<App />)
+    openCutMetadataMenu()
     fireEvent.change(screen.getByLabelText(uiText.sheet.durationFrames), { target: { value: '6' } })
 
     const firstSheet = screen.getByLabelText(uiText.sheet.canvasLabel)

@@ -273,6 +273,11 @@ it('sets imported sheet images to 50% opacity and allows manual adjustment from 
     expect(opacity.disabled).toBe(false)
     expect(document.querySelector('.sheetSvg image')?.getAttribute('opacity')).toBe('0.5')
 
+    fireEvent.pointerDown(opacity, { pointerId: 21, pointerType: 'mouse', button: 0, clientX: 100 })
+    fireEvent.pointerMove(window, { pointerId: 21, pointerType: 'mouse', buttons: 1, clientX: 120 })
+    fireEvent.pointerUp(window, { pointerId: 21, pointerType: 'mouse', button: 0, clientX: 120 })
+    expect(document.querySelector('.sheetSvg image')?.getAttribute('opacity')).toBe('0.6')
+
     fireEvent.change(opacity, { target: { value: '40' } })
     const image = document.querySelector('.sheetSvg image') as SVGImageElement | null
     expect(image?.getAttribute('opacity')).toBe('0.4')

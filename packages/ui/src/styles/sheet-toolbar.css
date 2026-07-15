@@ -139,23 +139,12 @@
   white-space: nowrap;
 }
 
-.sheetFrameStatus {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1 1 380px;
-  min-width: 360px;
-  min-height: 36px;
-  overflow: hidden;
-  padding: 3px 5px;
-  border: 1px solid #d5d8d2;
-  border-radius: 6px;
-  background: #fbfbf8;
+.sheetPageToolbarGroup {
+  min-width: 48px;
 }
 
 .sheetPageTabs {
-  flex: 1 1 auto;
-  min-width: 84px;
+  min-width: 0;
   padding-bottom: 0;
 }
 
@@ -394,37 +383,12 @@
   opacity: 0.72;
 }
 
-.fontSizeDragValue,
-.fontSizeInput {
+.fontSizeNumericInput {
   width: 42px;
   height: 24px;
   padding: 1px 4px;
-  border: 1px solid #b8bdb9;
-  border-radius: 4px;
   background: #fbfbf8;
-  color: #1f2421;
-  font-variant-numeric: tabular-nums;
   font-weight: 800;
-  line-height: 1;
-  text-align: right;
-}
-
-.fontSizeDragValue {
-  cursor: ew-resize;
-}
-
-.textFontSizeControl.disabled .fontSizeDragValue {
-  cursor: not-allowed;
-}
-
-.fontSizeDragValue:hover,
-.fontSizeDragValue:focus-visible {
-  border-color: #416b5a;
-  background: #eef5ef;
-}
-
-.fontSizeInput {
-  background: #fff;
 }
 
 .fontSizeUnit {

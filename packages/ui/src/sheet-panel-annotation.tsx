@@ -7,7 +7,7 @@ import { clampNumber } from './sheetInteraction'
 import { TooltipTarget } from './Tooltip'
 import { SheetSvgText } from './SheetSvgText'
 import { sheetSvgTextX } from './sheetSvgTextGeometry'
-import { ActionMenu } from './AppControls'
+import { ActionMenu, ScrubbableNumberInput } from './AppControls'
 import { TextAnnotationUpdate } from './app-foundation'
 import { CheckSmallIcon, CloseSmallIcon } from './app-navigation'
 
@@ -308,34 +308,6 @@ export function FontSizeControl({
   onChange: (value: number) => void
 }) {
   const clampedValue = clampTextFontSizePx(value)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(String(clampedValue))
-
-  function startEditing() {
-    if (disabled) return
-    setDraft(String(clampedValue))
-    setEditing(true)
-  }
-
-  function commitDraft() {
-    if (disabled) {
-      setEditing(false)
-      return
-    }
-    const parsed = Number(draft)
-    if (Number.isFinite(parsed)) onChange(parsed)
-    setEditing(false)
-  }
-
-  function cancelDraft() {
-    setDraft(String(clampedValue))
-    setEditing(false)
-  }
-
-  function step(delta: number) {
-    if (disabled) return
-    onChange(clampedValue + delta)
-  }
 
   return (
     <TooltipTarget label={uiText.sheet.textFontSizeTitle}>
@@ -350,54 +322,17 @@ export function FontSizeControl({
           {...tooltipProps}
         >
           <span className="toolbarGroupLabel">{uiText.sheet.textFontSize}</span>
-          {editing
-            ? (
-              <input
-                className="fontSizeInput"
-                type="number"
-                min={TEXT_FONT_SIZE_MIN_PX}
-                max={TEXT_FONT_SIZE_MAX_PX}
-                value={draft}
-                autoFocus
-                disabled={disabled}
-                onChange={event => setDraft(event.currentTarget.value)}
-                onBlur={commitDraft}
-                onKeyDown={event => {
-                  event.stopPropagation()
-                  if (event.key === 'Enter') commitDraft()
-                  if (event.key === 'Escape') cancelDraft()
-                }}
-              />
-            )
-            : (
-              <button
-                type="button"
-                className="fontSizeDragValue"
-                aria-label={uiText.sheet.textFontSize}
-                disabled={disabled}
-                onPointerDown={event => {
-                  if (!disabled) beginFontSizeDrag(event, clampedValue, onChange)
-                }}
-                onDoubleClick={startEditing}
-                onKeyDown={event => {
-                  if (disabled) return
-                  if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
-                    event.preventDefault()
-                    step(event.shiftKey ? -10 : -1)
-                  }
-                  if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
-                    event.preventDefault()
-                    step(event.shiftKey ? 10 : 1)
-                  }
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    startEditing()
-                  }
-                }}
-              >
-                {clampedValue}
-              </button>
-            )}
+          <ScrubbableNumberInput
+            className="fontSizeNumericInput"
+            value={clampedValue}
+            min={TEXT_FONT_SIZE_MIN_PX}
+            max={TEXT_FONT_SIZE_MAX_PX}
+            pixelsPerStep={4}
+            ariaLabel={uiText.sheet.textFontSize}
+            ariaValueText={size => `${size}px`}
+            disabled={disabled}
+            onChange={onChange}
+          />
           <span className="fontSizeUnit">px</span>
           {!disabled && (
             <ActionMenu label={<span className="fontSizePresetTrigger" aria-hidden="true">▾</span>} ariaLabel={uiText.sheet.textFontSizePreset} className="fontSizePresetMenu" closeOnMenuItemClick>
@@ -419,37 +354,4 @@ export function FontSizeControl({
       )}
     </TooltipTarget>
   )
-}
-
-function beginFontSizeDrag(event: PointerEvent<HTMLElement>, startValue: number, onChange: (value: number) => void) {
-  if (event.pointerType === 'mouse' && event.button !== 0) return
-  event.preventDefault()
-  event.stopPropagation()
-  const startX = event.clientX
-  const previousCursor = document.body.style.cursor
-  const previousUserSelect = document.body.style.userSelect
-  document.body.style.cursor = 'ew-resize'
-  document.body.style.userSelect = 'none'
-  let lastValue = clampTextFontSizePx(startValue)
-
-  function onPointerMove(moveEvent: globalThis.PointerEvent) {
-    moveEvent.preventDefault()
-    const step = moveEvent.shiftKey ? 1 : moveEvent.altKey ? 0.05 : 0.25
-    const nextValue = clampTextFontSizePx(startValue + Math.round((moveEvent.clientX - startX) * step))
-    if (nextValue === lastValue) return
-    lastValue = nextValue
-    onChange(nextValue)
-  }
-
-  function stopDrag() {
-    window.removeEventListener('pointermove', onPointerMove)
-    window.removeEventListener('pointerup', stopDrag)
-    window.removeEventListener('pointercancel', stopDrag)
-    document.body.style.cursor = previousCursor
-    document.body.style.userSelect = previousUserSelect
-  }
-
-  window.addEventListener('pointermove', onPointerMove)
-  window.addEventListener('pointerup', stopDrag)
-  window.addEventListener('pointercancel', stopDrag)
 }

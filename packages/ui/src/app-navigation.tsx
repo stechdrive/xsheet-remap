@@ -44,7 +44,7 @@ export function RecognitionActionMenu({
   const readyCount = candidates.filter(candidate => !recognitionCandidateHasConflict(project, candidate)).length
   return (
     <ActionMenu
-      label={<><OcrIcon /><span>OCR</span></>}
+      label={<span>OCR</span>}
       ariaLabel={uiText.recognition.menu}
       tooltipLabel={uiText.recognition.menuTitle}
       className="sheetRecognitionMenu"
@@ -124,6 +124,68 @@ function recognitionCandidateHasConflict(project: CutProject, candidate: Recogni
   if (!event) return false
   const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
   return key?.displayLabel.trim().normalize('NFKC') !== candidate.normalizedLabel.trim().normalize('NFKC')
+}
+
+export function CutMetadataActionMenu({
+  project,
+  onMetadataChange,
+  onDurationChange,
+}: {
+  project: CutProject
+  onMetadataChange: (field: 'title' | 'episode' | 'scene' | 'cut', value: string) => void
+  onDurationChange: (frames: number) => void
+}) {
+  const safeFps = Math.max(1, Math.round(project.logicalSheet.fps))
+  const { seconds, frameRemainder } = durationParts(project.logicalSheet.durationFrames, safeFps)
+  const cutLabel = project.cut.cut?.trim() || '---'
+  const summary = `${cutLabel}・${formatDurationPart(seconds, 2)}+${formatDurationPart(frameRemainder, 2)}`
+
+  return (
+    <ActionMenu
+      label={<span className="cutMetadataSummary">{summary}</span>}
+      ariaLabel={uiText.sheet.cutMetadata}
+      tooltipLabel={uiText.sheet.cutMetadataTitle}
+      className="cutMetadataMenu"
+    >
+      <div className="cutMetadataMenuForm">
+        <label className="cutMetadataMenuField cutMetadataMenuTitleField">
+          <span>タイトル</span>
+          <input
+            value={project.cut.title ?? ''}
+            onChange={event => onMetadataChange('title', event.currentTarget.value)}
+          />
+        </label>
+        <div className="cutMetadataMenuFieldRow">
+          <label className="cutMetadataMenuField">
+            <span>話数</span>
+            <input
+              value={project.cut.episode ?? ''}
+              onChange={event => onMetadataChange('episode', event.currentTarget.value)}
+            />
+          </label>
+          <label className="cutMetadataMenuField">
+            <span>シーン</span>
+            <input
+              value={project.cut.scene ?? ''}
+              onChange={event => onMetadataChange('scene', event.currentTarget.value)}
+            />
+          </label>
+          <label className="cutMetadataMenuField">
+            <span>カット</span>
+            <input
+              value={project.cut.cut ?? ''}
+              onChange={event => onMetadataChange('cut', event.currentTarget.value)}
+            />
+          </label>
+        </div>
+        <DurationFrameControl
+          frames={project.logicalSheet.durationFrames}
+          fps={project.logicalSheet.fps}
+          onChange={onDurationChange}
+        />
+      </div>
+    </ActionMenu>
+  )
 }
 
 export function DurationFrameControl({
@@ -420,21 +482,6 @@ export function ViewModeIcon() {
   )
 }
 
-function OcrIcon() {
-  return (
-    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5 9V6.5A1.5 1.5 0 0 1 6.5 5H9" />
-      <path d="M15 5h2.5A1.5 1.5 0 0 1 19 6.5V9" />
-      <path d="M19 15v2.5a1.5 1.5 0 0 1-1.5 1.5H15" />
-      <path d="M9 19H6.5A1.5 1.5 0 0 1 5 17.5V15" />
-      <path d="M4 12h16" />
-      <path d="M8.2 10.2a2.6 2.6 0 0 1 4.9 0" />
-      <path d="M15.2 9.2h1.5a1.4 1.4 0 0 1 0 2.8h-1.5V9.2Z" />
-      <path d="m17.5 12 1.2 2.4" />
-    </svg>
-  )
-}
-
 export function DisplaySettingsIcon() {
   return (
     <svg className="topIconSvg displayTemplateIcon" viewBox="0 0 24 24" aria-hidden="true">
@@ -551,6 +598,8 @@ export function AppHelpDialog({
 }
 
 export function AppNavigationMenu({
+  appName,
+  appVersion,
   panels,
   panel,
   onSelect,
@@ -563,6 +612,8 @@ export function AppNavigationMenu({
   onSaveXdts,
   onSaveCspImportPackage,
 }: {
+  appName: string
+  appVersion: string
   panels: Panel[]
   panel: Panel
   onSelect: (panel: Panel) => void
@@ -649,6 +700,9 @@ export function AppNavigationMenu({
           </button>
         </Tooltip>
       ))}
+      <div className="appNavVersionLabel" aria-label={`${appName} バージョン ${appVersion}`}>
+        {appName} v{appVersion}
+      </div>
     </ActionMenu>
   )
 }

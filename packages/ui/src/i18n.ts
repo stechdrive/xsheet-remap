@@ -224,6 +224,8 @@ export const uiText = {
     durationSecondsUp: '尺を1秒増やす',
     durationFramesDown: '尺を1コマ減らす',
     durationFramesUp: '尺を1コマ増やす',
+    cutMetadata: 'カット情報',
+    cutMetadataTitle: 'タイトル、話数、シーン、カット、尺を編集',
     frames: 'フレーム',
     seconds: '秒',
     fps: 'FPS',

@@ -10,7 +10,7 @@ import { clampSheetZoom } from './sheetInteraction'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
-import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, formatFramePosition, formatPaddedDurationTimecode, formatPaddedFrameTimecode, initialSheetPaneLayout } from './app-foundation'
+import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
 import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
 import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
@@ -141,18 +141,6 @@ export function SheetPanel(props: {
   onMoveCspStackItem: (itemId: string, direction: 'up' | 'down') => void
 }) {
   const activePage = props.sheetPages[props.activePageIndex] ?? props.sheetPages[0]
-  const currentFrameBadge = props.rangeSelection
-    ? formatFramePosition(props.project, props.rangeSelection.focusFrame)
-    : props.selectedHit
-      ? formatFramePosition(props.project, props.selectedHit.frame)
-      : uiText.sheet.noFrameSelection
-  const rangeTimingSummary = props.rangeSelection
-    ? {
-        start: formatPaddedFrameTimecode(props.project, props.rangeSelection.frameStart),
-        end: formatPaddedFrameTimecode(props.project, props.rangeSelection.frameEnd),
-        duration: formatPaddedDurationTimecode(props.project, props.rangeSelection.frameEnd - props.rangeSelection.frameStart + 1),
-      }
-    : { start: '--+--', end: '--+--', duration: '--+--' }
   const [paneLayout, setPaneLayout] = useState<SheetPaneLayout>(() => initialSheetPaneLayout(props.appKind, props.collapseEditorPanes))
   const [zoomPaletteOpen, setZoomPaletteOpen] = useState(false)
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
@@ -376,7 +364,7 @@ export function SheetPanel(props: {
                   checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
                   onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
                 />
-                番号表示
+                表示
               </label>
             )}
           </TooltipTarget>
@@ -416,24 +404,7 @@ export function SheetPanel(props: {
             onChange={props.onTextFontSizeChange}
           />
         </ToolbarGroup>
-        <div className="sheetFrameStatus">
-          <span className={props.selectedHit || props.rangeSelection ? 'currentFrameBadge' : 'currentFrameBadge empty'}>
-            {currentFrameBadge}
-          </span>
-          <span className={props.rangeSelection ? 'rangeFrameInspector' : 'rangeFrameInspector empty'}>
-            <span className="rangeFrameInspectorItem">
-              <span className="rangeFrameInspectorLabel">{uiText.sheet.rangeStart}</span>
-              <span className="rangeFrameInspectorValue">{rangeTimingSummary.start}</span>
-            </span>
-            <span className="rangeFrameInspectorItem">
-              <span className="rangeFrameInspectorLabel">{uiText.sheet.rangeEnd}</span>
-              <span className="rangeFrameInspectorValue">{rangeTimingSummary.end}</span>
-            </span>
-            <span className="rangeFrameInspectorItem">
-              <span className="rangeFrameInspectorLabel">{uiText.sheet.rangeDuration}</span>
-              <span className="rangeFrameInspectorValue">{rangeTimingSummary.duration}</span>
-            </span>
-          </span>
+        <ToolbarGroup className="sheetToolbarGroup sheetPageToolbarGroup">
           <div className="pageTabs sheetPageTabs">
             {isContinuousCanvas && activePage && (
               <span className="pageTabsSurface">{uiText.sheet.surfaceTab(activePage.frameStart, activePage.frameEnd)}</span>
@@ -506,7 +477,7 @@ export function SheetPanel(props: {
               </Tooltip>
             )}
           </div>
-        </div>
+        </ToolbarGroup>
         {props.editMode === 'calibrate' && props.autoCalibrationMessage && (
           <span className="muted calibrationStatus">{props.autoCalibrationMessage}</span>
         )}

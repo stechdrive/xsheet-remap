@@ -5,14 +5,14 @@ import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
 import { ASSET_DRAG_MIME } from './sheetConstants';
-import { clickActiveStackGuideInsertHandle, clickSheet, clickTemplateFrame, dragInternalPointer, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, clickTemplateFrame, dragInternalPointer, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
 
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
     render(<App />)
     expect(screen.getByText('xsheet-editor')).toBeTruthy()
-    expect(screen.getByText(`v${APP_VERSION}`)).toBeTruthy()
     const appNavigationMenu = openAppNavigationMenu()
+    expect(within(appNavigationMenu).getByText(`xsheet-editor v${APP_VERSION}`)).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.actions.xdts })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: '認識' })).toBeNull()
@@ -479,6 +479,7 @@ it('edits template grid header labels from the display tab', () => {
 
 it('edits the cut duration as seconds and frames with stepper buttons', () => {
     render(<App />)
+    openCutMetadataMenu()
     const secondsInput = screen.getByLabelText(uiText.sheet.durationSeconds) as HTMLInputElement
     const framesInput = screen.getByLabelText(uiText.sheet.durationFrames) as HTMLInputElement
     expect(screen.queryByText('シート設定')).toBeNull()
@@ -505,6 +506,7 @@ it('edits the cut duration as seconds and frames with stepper buttons', () => {
 
 it('dims visible paper rows outside the cut duration without creating post-roll state', () => {
     render(<App />)
+    openCutMetadataMenu()
 
     expect(document.querySelectorAll('.inactiveFrameRect')).toHaveLength(0)
 
@@ -551,17 +553,15 @@ it('toggles shared cut numbers beside the cut switch even before another cut exi
 
     const initialToggle = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
     expect(initialToggle.disabled).toBe(false)
-    fireEvent.click(initialToggle)
     expect(initialToggle.checked).toBe(true)
-    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).not.toContain('[]')
     fireEvent.click(initialToggle)
+    expect(initialToggle.checked).toBe(false)
+    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).not.toContain('[]')
 
     fireEvent.click(document.querySelector('.cutSwitchAddButton') as HTMLButtonElement)
     const toggle = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
     expect(toggle.disabled).toBe(false)
-    expect(toggle.checked).toBe(false)
-
-    fireEvent.click(toggle)
+    expect(toggle.checked).toBe(true)
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toContain('[001]')
   })
 

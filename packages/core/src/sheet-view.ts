@@ -38,7 +38,7 @@ export function createDefaultSheetViewState(templateInput: string | Pick<SheetTe
     activePageId: 'page_1',
     sources: [],
     metadataDisplay: {
-      sharedCutNumbers: false,
+      sharedCutNumbers: true,
     },
     pages: [
       {

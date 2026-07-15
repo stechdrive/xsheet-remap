@@ -136,6 +136,44 @@ textarea,
   -webkit-user-select: text;
 }
 
+.scrubbableNumberInput {
+  appearance: textfield;
+  height: 26px;
+  min-width: 0;
+  padding: 2px 5px;
+  background: #fff;
+  color: #1f2421;
+  cursor: ew-resize;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+  text-align: right;
+  touch-action: none;
+}
+
+.scrubbableNumberInput::-webkit-inner-spin-button,
+.scrubbableNumberInput::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.scrubbableNumberInput:hover,
+.scrubbableNumberInput:focus-visible {
+  border-color: #416b5a;
+  background: #eef5ef;
+}
+
+.scrubbableNumberInput:focus {
+  cursor: text;
+}
+
+.scrubbableNumberInput:disabled {
+  border-color: #d4d8d3;
+  background: #eceeea;
+  color: #8a918c;
+  cursor: not-allowed;
+}
+
 .appShell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -214,12 +252,10 @@ textarea,
 .topActions {
   flex: 1 1 auto;
   min-width: 0;
-  justify-content: flex-end;
-  overflow-x: auto;
-  overflow-y: visible;
+  justify-content: flex-start;
+  overflow: visible;
   flex-wrap: nowrap;
   row-gap: 0;
-  scrollbar-width: thin;
 }
 
 .topActions > * {
@@ -238,42 +274,67 @@ textarea,
   white-space: nowrap;
 }
 
-.cutMetadataTopGroup {
+.topUtilityActions {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-height: 34px;
-  padding: 3px 5px;
-  border: 1px solid #d5d8d2;
-  border-radius: 6px;
-  background: #fbfbf8;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.cutMetadataMenu > summary {
+  min-width: 126px;
+  height: 34px;
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.cutMetadataSummary {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.topTextField {
-  display: inline-flex;
-  align-items: center;
+.cutMetadataMenu.actionMenuContent {
+  width: min(420px, calc(100vw - 24px));
+  max-width: min(420px, calc(100vw - 24px));
+}
+
+.cutMetadataMenuForm {
+  display: grid;
+  gap: 10px;
+}
+
+.cutMetadataMenuFieldRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cutMetadataMenuField {
+  display: grid;
   gap: 4px;
-  min-height: 28px;
+  min-width: 0;
   color: #3e4942;
   font-size: 12px;
   font-weight: 700;
 }
 
-.topTextField input {
-  height: 28px;
+.cutMetadataMenuField input {
+  width: 100%;
   min-width: 0;
-  width: 120px;
-  padding: 3px 6px;
-  border: 1px solid #b8bdb9;
-  border-radius: 4px;
-  background: #fff;
-  color: #202421;
-  font: inherit;
+  height: 30px;
 }
 
-.topTextField.compact input {
-  width: 64px;
+.cutMetadataMenuForm .durationControl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  color: #3e4942;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .topGroupLabel {
@@ -293,11 +354,12 @@ textarea,
 }
 
 .topOpacityControl {
+  gap: 4px;
   min-height: 28px;
 }
 
-.topOpacityControl input[type="range"] {
-  width: 90px;
+.topOpacityControl .scrubbableNumberInput {
+  width: 42px;
 }
 
 .topIconButton {
@@ -493,6 +555,17 @@ textarea,
   font-weight: 800;
 }
 
+.appNavVersionLabel {
+  margin: 8px -8px -8px;
+  padding: 8px 10px;
+  border-top: 1px solid #d6dbd4;
+  color: #707871;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .appNavFlyout {
   position: relative;
 }
@@ -652,4 +725,3 @@ textarea,
   padding: 10px;
   overflow: auto;
 }
-

@@ -6,11 +6,11 @@ import { roundForInput } from './sheetImages';
 import { sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
 import { Tooltip, TooltipTarget } from './Tooltip';
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe';
-import { ActionMenu } from './AppControls';
+import { ActionMenu, ScrubbableNumberInput } from './AppControls';
 import { TemplateWorkspace } from './TemplateWorkspace';
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
-import { AppHelpDialog, AppNavigationMenu, DurationFrameControl, HelpIcon, RecognitionActionMenu, RedoIcon, UndoIcon, ViewModeIcon } from './app-navigation';
+import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, RecognitionActionMenu, RedoIcon, UndoIcon, ViewModeIcon } from './app-navigation';
 import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
@@ -55,6 +55,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
       <header className="topBar">
         <div className="topIdentity">
           <AppNavigationMenu
+            appName={appProfile.appName}
+            appVersion={APP_VERSION}
             panels={appProfile.panels}
             panel={panel}
             onSelect={switchPanel}
@@ -69,62 +71,14 @@ export function AppShellView({ controller }: { controller: AppController }) {
           />
           <span className="topBrand">
             <strong>{appProfile.appName}</strong>
-            <span className="appVersion">v{APP_VERSION}</span>
           </span>
         </div>
         <div className="topActions">
-          <div className="cutMetadataTopGroup" aria-label="カット情報">
-            <TooltipTarget label={uiText.sheet.cutTitleTitle}>
-              {tooltipProps => (
-                <label className="topTextField" {...tooltipProps}>
-                  <span>タイトル</span>
-                  <input
-                    value={project.cut.title ?? ''}
-                    placeholder=""
-                    onChange={event => handleUpdateCutMetadata('title', event.currentTarget.value)}
-                  />
-                </label>
-              )}
-            </TooltipTarget>
-            <TooltipTarget label={uiText.sheet.cutEpisodeTitle}>
-              {tooltipProps => (
-                <label className="topTextField compact" {...tooltipProps}>
-                  <span>話数</span>
-                  <input
-                    value={project.cut.episode ?? ''}
-                    onChange={event => handleUpdateCutMetadata('episode', event.currentTarget.value)}
-                  />
-                </label>
-              )}
-            </TooltipTarget>
-            <TooltipTarget label="シーン・カット管理を行う作品だけ入力します。">
-              {tooltipProps => (
-                <label className="topTextField compact" {...tooltipProps}>
-                  <span>シーン</span>
-                  <input
-                    value={project.cut.scene ?? ''}
-                    onChange={event => handleUpdateCutMetadata('scene', event.currentTarget.value)}
-                  />
-                </label>
-              )}
-            </TooltipTarget>
-            <TooltipTarget label={uiText.sheet.cutNumberTitle}>
-              {tooltipProps => (
-                <label className="topTextField compact" {...tooltipProps}>
-                  <span>カット</span>
-                  <input
-                    value={project.cut.cut ?? ''}
-                    onChange={event => handleUpdateCutMetadata('cut', event.currentTarget.value)}
-                  />
-                </label>
-              )}
-            </TooltipTarget>
-            <DurationFrameControl
-              frames={project.logicalSheet.durationFrames}
-              fps={project.logicalSheet.fps}
-              onChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
-            />
-          </div>
+          <CutMetadataActionMenu
+            project={project}
+            onMetadataChange={handleUpdateCutMetadata}
+            onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
+          />
           {panel === 'sheet' && (
             <>
               <div className="paperSheetTopGroup" aria-label="紙シート">
@@ -209,15 +163,16 @@ export function AppShellView({ controller }: { controller: AppController }) {
                   {tooltipProps => (
                     <label className="compactControl topOpacityControl" {...tooltipProps}>
                       不透明度
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
+                      <ScrubbableNumberInput
                         value={Math.round(activePageImage.settings.opacity * 100)}
+                        min={0}
+                        max={100}
+                        pixelsPerStep={2}
+                        ariaLabel={uiText.sheet.imageOpacity}
+                        ariaValueText={value => `${value}%`}
                         disabled={!activePageImage.sourceId}
-                        onChange={event => updateActivePageAlignment({ opacity: Number(event.currentTarget.value) / 100 })}
+                        onChange={value => updateActivePageAlignment({ opacity: value / 100 })}
                       />
-                      <span className="zoomValue">{Math.round(activePageImage.settings.opacity * 100)}%</span>
                     </label>
                   )}
                 </TooltipTarget>
@@ -246,6 +201,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
                   }}
                 </TooltipTarget>
               </div>
+            </>
+          )}
+          <div className="topUtilityActions">
+            {panel === 'sheet' && (
               <ActionMenu label={<ViewModeIcon />} ariaLabel={uiText.sheet.viewModeMenu} tooltipLabel={uiText.sheet.viewModeMenuTitle} className="iconActionMenu topViewModeMenu" closeOnMenuItemClick>
                 <div className="viewModeMenuList">
                   {([
@@ -264,17 +223,17 @@ export function AppShellView({ controller }: { controller: AppController }) {
                   ))}
                 </div>
               </ActionMenu>
-            </>
-          )}
-          <Tooltip label={uiText.actions.undo}>
-            <button className="topIconButton" onClick={handleUndo} disabled={history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.redo}>
-            <button className="topIconButton" onClick={handleRedo} disabled={history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></button>
-          </Tooltip>
-          <Tooltip label={`${appProfile.appName}の基本操作と作業手順を開く`}>
-            <button className="topIconButton" type="button" onClick={() => setAppHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></button>
-          </Tooltip>
+            )}
+            <Tooltip label={uiText.actions.undo}>
+              <button className="topIconButton" onClick={handleUndo} disabled={history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></button>
+            </Tooltip>
+            <Tooltip label={uiText.actions.redo}>
+              <button className="topIconButton" onClick={handleRedo} disabled={history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></button>
+            </Tooltip>
+            <Tooltip label={`${appProfile.appName}の基本操作と作業手順を開く`}>
+              <button className="topIconButton" type="button" onClick={() => setAppHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></button>
+            </Tooltip>
+          </div>
         </div>
       </header>
 

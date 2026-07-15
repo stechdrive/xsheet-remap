@@ -469,15 +469,10 @@
 
 .sheetRecognitionMenu > summary {
   gap: 4px;
-  min-width: 74px;
+  min-width: 0;
   height: 34px;
-  padding: 0 8px;
-  font-weight: 800;
-}
-
-.sheetRecognitionMenu > summary svg {
-  width: 20px;
-  height: 20px;
+  padding: 0 7px;
+  font-weight: 400;
 }
 
 .recognitionRoleControl {

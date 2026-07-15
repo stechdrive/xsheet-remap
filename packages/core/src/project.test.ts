@@ -1413,8 +1413,15 @@ describe('core project commands', () => {
     const migrated = migrateProject(oldJson)
     expect(migrated.sheetView.templateId).toBe('standard-a3-timesheet-v2')
     expect(migrated.sheetView.viewMode).toBe('continuous')
-    expect(migrated.sheetView.metadataDisplay).toEqual({ sharedCutNumbers: false })
+    expect(migrated.sheetView.metadataDisplay).toEqual({ sharedCutNumbers: true })
     expect(migrated.sheetView.pages[0].alignment.corners.br).toEqual({ x: 1, y: 1 })
+  })
+
+  it('preserves an explicit shared cut number display preference', () => {
+    const project = createDefaultProject()
+    project.sheetView.metadataDisplay.sharedCutNumbers = false
+    const migrated = migrateProject(JSON.parse(JSON.stringify(project)))
+    expect(migrated.sheetView.metadataDisplay).toEqual({ sharedCutNumbers: false })
   })
 
   it('migrates legacy per-page image refs into sheet sources', () => {

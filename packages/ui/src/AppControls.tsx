@@ -166,6 +166,203 @@ export function ToolbarGroup({ children, className = '' }: { children: ReactNode
   return <div className={`toolbarGroup ${className}`.trim()}>{children}</div>
 }
 
+export function ScrubbableNumberInput({
+  value,
+  min,
+  max,
+  step = 1,
+  pixelsPerStep = 2,
+  ariaLabel,
+  ariaValueText,
+  disabled = false,
+  className = '',
+  onChange,
+}: {
+  value: number
+  min: number
+  max: number
+  step?: number
+  pixelsPerStep?: number
+  ariaLabel: string
+  ariaValueText?: (value: number) => string
+  disabled?: boolean
+  className?: string
+  onChange: (value: number) => void
+}) {
+  const normalizedValue = normalizeScrubbableNumber(value, min, max, step)
+  const [focused, setFocused] = useState(false)
+  const [draft, setDraft] = useState(String(normalizedValue))
+  const focusStartValueRef = useRef(normalizedValue)
+  const skipNextBlurCommitRef = useRef(false)
+
+  function commitDraft() {
+    if (!draft.trim()) {
+      setDraft(String(normalizedValue))
+      return
+    }
+    const parsed = Number(draft)
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(normalizedValue))
+      return
+    }
+    const nextValue = normalizeScrubbableNumber(parsed, min, max, step)
+    setDraft(String(nextValue))
+    if (nextValue !== normalizedValue) onChange(nextValue)
+  }
+
+  function updateFromInput(rawValue: string) {
+    setDraft(rawValue)
+    if (!rawValue.trim()) return
+    const parsed = Number(rawValue)
+    if (!Number.isFinite(parsed)) return
+    const nextValue = normalizeScrubbableNumber(parsed, min, max, step)
+    if (nextValue !== normalizedValue) onChange(nextValue)
+  }
+
+  function stepBy(direction: number, coarse: boolean) {
+    if (disabled) return
+    const nextValue = normalizeScrubbableNumber(
+      normalizedValue + direction * step * (coarse ? 10 : 1),
+      min,
+      max,
+      step,
+    )
+    setDraft(String(nextValue))
+    if (nextValue !== normalizedValue) onChange(nextValue)
+  }
+
+  return (
+    <input
+      type="number"
+      className={`scrubbableNumberInput ${className}`.trim()}
+      min={min}
+      max={max}
+      step={step}
+      value={focused ? draft : String(normalizedValue)}
+      inputMode="numeric"
+      aria-label={ariaLabel}
+      aria-valuetext={ariaValueText?.(normalizedValue)}
+      disabled={disabled}
+      onFocus={event => {
+        focusStartValueRef.current = normalizedValue
+        skipNextBlurCommitRef.current = false
+        setFocused(true)
+        setDraft(String(normalizedValue))
+        event.currentTarget.select()
+      }}
+      onBlur={() => {
+        if (skipNextBlurCommitRef.current) skipNextBlurCommitRef.current = false
+        else commitDraft()
+        setFocused(false)
+      }}
+      onChange={event => updateFromInput(event.currentTarget.value)}
+      onKeyDown={event => {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
+          event.preventDefault()
+          stepBy(-1, event.shiftKey)
+        }
+        if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
+          event.preventDefault()
+          stepBy(1, event.shiftKey)
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          event.currentTarget.blur()
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          const startValue = focusStartValueRef.current
+          skipNextBlurCommitRef.current = true
+          setDraft(String(startValue))
+          if (startValue !== normalizedValue) onChange(startValue)
+          event.currentTarget.blur()
+        }
+      }}
+      onPointerDown={event => beginScrubbableNumberDrag({
+        event,
+        startValue: normalizedValue,
+        min,
+        max,
+        step,
+        pixelsPerStep,
+        onChange: nextValue => {
+          setDraft(String(nextValue))
+          onChange(nextValue)
+        },
+      })}
+    />
+  )
+}
+
+function beginScrubbableNumberDrag({
+  event,
+  startValue,
+  min,
+  max,
+  step,
+  pixelsPerStep,
+  onChange,
+}: {
+  event: PointerEvent<HTMLInputElement>
+  startValue: number
+  min: number
+  max: number
+  step: number
+  pixelsPerStep: number
+  onChange: (value: number) => void
+}) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  const input = event.currentTarget
+  const startX = event.clientX
+  const previousCursor = document.body.style.cursor
+  const previousUserSelect = document.body.style.userSelect
+  let dragging = false
+  let lastValue = startValue
+
+  function onPointerMove(moveEvent: globalThis.PointerEvent) {
+    const deltaX = moveEvent.clientX - startX
+    if (!dragging && Math.abs(deltaX) < 3) return
+    if (!dragging) {
+      dragging = true
+      input.blur()
+      document.body.style.cursor = 'ew-resize'
+      document.body.style.userSelect = 'none'
+    }
+    moveEvent.preventDefault()
+    const coarseMultiplier = moveEvent.shiftKey ? 10 : 1
+    const deltaSteps = Math.round(deltaX / Math.max(1, pixelsPerStep))
+    const nextValue = normalizeScrubbableNumber(
+      startValue + deltaSteps * step * coarseMultiplier,
+      min,
+      max,
+      step,
+    )
+    if (nextValue === lastValue) return
+    lastValue = nextValue
+    onChange(nextValue)
+  }
+
+  function stopDrag() {
+    window.removeEventListener('pointermove', onPointerMove)
+    window.removeEventListener('pointerup', stopDrag)
+    window.removeEventListener('pointercancel', stopDrag)
+    document.body.style.cursor = previousCursor
+    document.body.style.userSelect = previousUserSelect
+  }
+
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', stopDrag)
+  window.addEventListener('pointercancel', stopDrag)
+}
+
+function normalizeScrubbableNumber(value: number, min: number, max: number, step: number): number {
+  const safeStep = Number.isFinite(step) && step > 0 ? step : 1
+  const safeValue = Number.isFinite(value) ? value : min
+  const steppedValue = min + Math.round((safeValue - min) / safeStep) * safeStep
+  const precision = Math.max(0, (String(safeStep).split('.')[1] ?? '').length)
+  return Number(clampNumber(steppedValue, min, max).toFixed(precision))
+}
+
 export function PanelResizeHandle({
   label,
   value,

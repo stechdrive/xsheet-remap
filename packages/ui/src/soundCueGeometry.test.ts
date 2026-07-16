@@ -40,4 +40,58 @@ describe('SOUND cue geometry', () => {
     expect(dialogue.truncatedText).toBe(true)
     expect(dialogue.textGlyphs.map(glyph => glyph.value)).toContain('…')
   })
+
+  it('places the label outside the interval by default while keeping dialogue inside', () => {
+    const layout = buildSoundCueTextLayout(
+      { x: 0.2, y: 0.3, w: 0.04, h: 0.1 },
+      { widthPx: 1000, heightPx: 1000 },
+      'アキラ',
+      '走れ！',
+      { regionRect: { x: 0.1, y: 0.1, w: 0.3, h: 0.6 } },
+    )
+    expect(layout.labelPlacement).toBe('outside')
+    expect(layout.labelOrientation).toBe('horizontal')
+    expect(layout.labelBoundsPx!.yPx + layout.labelBoundsPx!.heightPx).toBeLessThan(300)
+    expect(layout.labelGlyphs.every(glyph => glyph.yPx < 300)).toBe(true)
+    expect(layout.textGlyphs.every(glyph => glyph.yPx > 300)).toBe(true)
+  })
+
+  it('uses an outside vertical label when the horizontal area is occupied', () => {
+    const layout = buildSoundCueTextLayout(
+      { x: 0.2, y: 0.3, w: 0.04, h: 0.1 },
+      { widthPx: 1000, heightPx: 1000 },
+      'アキラ',
+      '走れ！',
+      {
+        regionRect: { x: 0.1, y: 0.1, w: 0.3, h: 0.6 },
+        occupiedRects: [{ x: 0.195, y: 0.282, w: 0.014, h: 0.012 }],
+      },
+    )
+    expect(layout.labelPlacement).toBe('outside')
+    expect(layout.labelOrientation).toBe('vertical')
+    expect(layout.labelGlyphs.map(glyph => glyph.value).join('')).toBe('アキラ')
+  })
+
+  it('falls back inside when neither outside orientation has enough free space', () => {
+    const crowded = buildSoundCueTextLayout(
+      { x: 0.2, y: 0.3, w: 0.04, h: 0.1 },
+      { widthPx: 1000, heightPx: 1000 },
+      'アキラ',
+      '走れ！',
+      {
+        regionRect: { x: 0.1, y: 0.1, w: 0.3, h: 0.6 },
+        occupiedRects: [{ x: 0.19, y: 0.24, w: 0.06, h: 0.06 }],
+      },
+    )
+    expect(crowded.labelPlacement).toBe('inside')
+
+    const atRegionStart = buildSoundCueTextLayout(
+      { x: 0.2, y: 0.1, w: 0.04, h: 0.1 },
+      { widthPx: 1000, heightPx: 1000 },
+      'アキラ',
+      '走れ！',
+      { regionRect: { x: 0.1, y: 0.1, w: 0.3, h: 0.6 } },
+    )
+    expect(atRegionStart.labelPlacement).toBe('inside')
+  })
 })

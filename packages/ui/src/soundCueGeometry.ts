@@ -15,12 +15,29 @@ export interface SoundCueTextGlyph {
   yPx: number
 }
 
+export interface SoundCueTextBounds {
+  xPx: number
+  yPx: number
+  widthPx: number
+  heightPx: number
+}
+
+export interface SoundCueTextLayoutOptions {
+  fontSizePx?: number
+  minFontSizePx?: number
+  regionRect?: NormalizedRect
+  occupiedRects?: NormalizedRect[]
+  occupiedLabelBoundsPx?: SoundCueTextBounds[]
+}
+
 export interface SoundCueTextLayout {
   labelOrientation: 'horizontal' | 'vertical'
+  labelPlacement: 'outside' | 'inside'
   labelFontSizePx: number
   textFontSizePx: number
   labelGlyphs: SoundCueTextGlyph[]
   textGlyphs: SoundCueTextGlyph[]
+  labelBoundsPx?: SoundCueTextBounds
   overflowLabel: boolean
   truncatedText: boolean
 }
@@ -39,31 +56,91 @@ export function buildSoundCueTextLayout(
   pageSize: { widthPx: number; heightPx: number },
   label: string,
   text: string,
-  typography: { fontSizePx?: number; minFontSizePx?: number } = {},
+  options: SoundCueTextLayoutOptions = {},
 ): SoundCueTextLayout {
   const leftPx = rect.x * pageSize.widthPx
   const topPx = rect.y * pageSize.heightPx
   const widthPx = Math.max(1, rect.w * pageSize.widthPx)
   const heightPx = Math.max(1, rect.h * pageSize.heightPx)
-  const baseFontSizePx = Math.max(6, typography.fontSizePx ?? 14)
-  const minFontSizePx = Math.max(5, Math.min(baseFontSizePx, typography.minFontSizePx ?? 6))
+  const baseFontSizePx = Math.max(6, options.fontSizePx ?? 14)
+  const minFontSizePx = Math.max(5, Math.min(baseFontSizePx, options.minFontSizePx ?? 6))
   const horizontalLabelWidth = graphemes(label).length * baseFontSizePx * 0.62
-  const labelOrientation = horizontalLabelWidth <= Math.max(0, widthPx - 4) ? 'horizontal' : 'vertical'
-  const labelFontSizePx = Math.max(minFontSizePx, Math.min(baseFontSizePx, widthPx * 0.72))
+  const insideLabelOrientation = horizontalLabelWidth <= Math.max(0, widthPx - 4) ? 'horizontal' : 'vertical'
+  let labelOrientation: SoundCueTextLayout['labelOrientation'] = insideLabelOrientation
+  let labelPlacement: SoundCueTextLayout['labelPlacement'] = 'inside'
+  let labelFontSizePx = Math.max(minFontSizePx, Math.min(baseFontSizePx, widthPx * 0.72))
   const labelValues = graphemes(label)
   const labelGlyphs: SoundCueTextGlyph[] = []
   let contentTopPx = topPx + 2
   let overflowLabel = false
+  let labelBoundsPx: SoundCueTextBounds | undefined
 
-  if (labelValues.length > 0 && labelOrientation === 'horizontal') {
-    labelGlyphs.push({ value: label, xPx: leftPx + widthPx / 2, yPx: topPx + labelFontSizePx })
-    contentTopPx = topPx + labelFontSizePx * 1.35
-  } else if (labelValues.length > 0) {
-    const stepPx = labelFontSizePx * 1.02
-    labelValues.forEach((value, index) => {
-      labelGlyphs.push({ value, xPx: leftPx + widthPx / 2, yPx: topPx + labelFontSizePx + index * stepPx })
-    })
-    contentTopPx = topPx + labelValues.length * stepPx + 2
+  if (labelValues.length > 0 && options.regionRect) {
+    const regionBounds = normalizedRectToTextBounds(options.regionRect, pageSize)
+    const occupiedBounds = [
+      ...(options.occupiedRects ?? []).map(item => normalizedRectToTextBounds(item, pageSize)),
+      ...(options.occupiedLabelBoundsPx ?? []),
+    ]
+    const outsideGapPx = 2
+    const horizontalHeightPx = baseFontSizePx * 1.2 + 2
+    const horizontalWidthPx = horizontalLabelWidth + 4
+    if (horizontalWidthPx <= regionBounds.widthPx) {
+      const minCenterX = regionBounds.xPx + horizontalWidthPx / 2
+      const maxCenterX = regionBounds.xPx + regionBounds.widthPx - horizontalWidthPx / 2
+      const centerX = clamp(leftPx + widthPx / 2, minCenterX, maxCenterX)
+      const candidate = {
+        xPx: centerX - horizontalWidthPx / 2,
+        yPx: topPx - outsideGapPx - horizontalHeightPx,
+        widthPx: horizontalWidthPx,
+        heightPx: horizontalHeightPx,
+      }
+      if (fitsWithin(candidate, regionBounds) && !intersectsAny(candidate, occupiedBounds)) {
+        labelOrientation = 'horizontal'
+        labelPlacement = 'outside'
+        labelFontSizePx = baseFontSizePx
+        labelBoundsPx = candidate
+        labelGlyphs.push({ value: label, xPx: centerX, yPx: topPx - outsideGapPx - 2 })
+      }
+    }
+    if (labelPlacement === 'inside') {
+      const verticalFontSizePx = Math.max(minFontSizePx, Math.min(baseFontSizePx, widthPx * 0.72))
+      const verticalStepPx = verticalFontSizePx * 1.02
+      const verticalHeightPx = verticalFontSizePx + Math.max(0, labelValues.length - 1) * verticalStepPx + 2
+      const verticalWidthPx = verticalFontSizePx + 4
+      const centerX = clamp(
+        leftPx + widthPx / 2,
+        regionBounds.xPx + verticalWidthPx / 2,
+        regionBounds.xPx + regionBounds.widthPx - verticalWidthPx / 2,
+      )
+      const candidate = {
+        xPx: centerX - verticalWidthPx / 2,
+        yPx: topPx - outsideGapPx - verticalHeightPx,
+        widthPx: verticalWidthPx,
+        heightPx: verticalHeightPx,
+      }
+      if (fitsWithin(candidate, regionBounds) && !intersectsAny(candidate, occupiedBounds)) {
+        labelOrientation = 'vertical'
+        labelPlacement = 'outside'
+        labelFontSizePx = verticalFontSizePx
+        labelBoundsPx = candidate
+        labelValues.forEach((value, index) => {
+          labelGlyphs.push({ value, xPx: centerX, yPx: candidate.yPx + verticalFontSizePx + index * verticalStepPx })
+        })
+      }
+    }
+  }
+
+  if (labelPlacement === 'inside') {
+    if (labelValues.length > 0 && labelOrientation === 'horizontal') {
+      labelGlyphs.push({ value: label, xPx: leftPx + widthPx / 2, yPx: topPx + labelFontSizePx })
+      contentTopPx = topPx + labelFontSizePx * 1.35
+    } else if (labelValues.length > 0) {
+      const stepPx = labelFontSizePx * 1.02
+      labelValues.forEach((value, index) => {
+        labelGlyphs.push({ value, xPx: leftPx + widthPx / 2, yPx: topPx + labelFontSizePx + index * stepPx })
+      })
+      contentTopPx = topPx + labelValues.length * stepPx + 2
+    }
     overflowLabel = contentTopPx > topPx + heightPx
   }
 
@@ -86,13 +163,48 @@ export function buildSoundCueTextLayout(
   }
   return {
     labelOrientation,
+    labelPlacement,
     labelFontSizePx,
     textFontSizePx,
     labelGlyphs,
     textGlyphs,
+    ...(labelBoundsPx ? { labelBoundsPx } : {}),
     overflowLabel,
     truncatedText,
   }
+}
+
+function normalizedRectToTextBounds(
+  rect: NormalizedRect,
+  pageSize: { widthPx: number; heightPx: number },
+): SoundCueTextBounds {
+  return {
+    xPx: rect.x * pageSize.widthPx,
+    yPx: rect.y * pageSize.heightPx,
+    widthPx: rect.w * pageSize.widthPx,
+    heightPx: rect.h * pageSize.heightPx,
+  }
+}
+
+function fitsWithin(inner: SoundCueTextBounds, outer: SoundCueTextBounds): boolean {
+  return inner.xPx >= outer.xPx
+    && inner.yPx >= outer.yPx
+    && inner.xPx + inner.widthPx <= outer.xPx + outer.widthPx
+    && inner.yPx + inner.heightPx <= outer.yPx + outer.heightPx
+}
+
+function intersectsAny(candidate: SoundCueTextBounds, obstacles: SoundCueTextBounds[]): boolean {
+  const gapPx = 1
+  return obstacles.some(obstacle => (
+    candidate.xPx < obstacle.xPx + obstacle.widthPx + gapPx
+    && candidate.xPx + candidate.widthPx + gapPx > obstacle.xPx
+    && candidate.yPx < obstacle.yPx + obstacle.heightPx + gapPx
+    && candidate.yPx + candidate.heightPx + gapPx > obstacle.yPx
+  ))
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function compactMiddle(values: string[], capacity: number): string[] {

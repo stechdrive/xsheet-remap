@@ -1,4 +1,4 @@
-import type { PointerEvent } from 'react'
+import { useId, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
@@ -38,6 +38,7 @@ export function SoundCueLayer({
   onPointerEnter: (event: PointerEvent<SVGGElement>, cueId: string) => void
   onPointerLeave: () => void
 }) {
+  const clipIdPrefix = `sound-cue-clip-${useId().replace(/:/g, '')}`
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
   const segments = cues
     .flatMap(cue => soundCueSegmentsForPage(template, page, cue, { paperTracks, layoutOverrides })
@@ -47,7 +48,9 @@ export function SoundCueLayer({
       || left.cue.cueId.localeCompare(right.cue.cueId))
   const occupiedLabelBoundsPx = [] as NonNullable<ReturnType<typeof buildSoundCueTextLayout>['labelBoundsPx']>[]
   const textLayouts = new Map<string, ReturnType<typeof buildSoundCueTextLayout>>()
+  const textClipIds = new Map<string, string>()
   segments.forEach(({ cue, segment, key }) => {
+    textClipIds.set(key, `${clipIdPrefix}-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`)
     const typography = template.regions.find(region => region.regionId === segment.regionId)?.grid?.typography
     const textLayout = buildSoundCueTextLayout(
       segment.rect,
@@ -67,6 +70,20 @@ export function SoundCueLayer({
   })
   return (
     <g className="soundCueLayer">
+      <defs>
+        {segments.map(({ segment, key }) => (
+          <clipPath key={key} id={textClipIds.get(key)} clipPathUnits="userSpaceOnUse">
+            <rect
+              className="soundCueHorizontalClip"
+              data-region-id={segment.regionId}
+              x={segment.regionRect.x}
+              y={-1}
+              width={segment.regionRect.w}
+              height={3}
+            />
+          </clipPath>
+        ))}
+      </defs>
       {segments.map(({ cue, segment, key }) => {
         const selected = selectedCueId === cue.cueId
         const textLayout = textLayouts.get(key)!
@@ -100,30 +117,32 @@ export function SoundCueLayer({
             />
             {segment.startsCue && <line className="soundCueCap" x1={segment.rect.x} y1={segment.rect.y} x2={segment.rect.x + segment.rect.w} y2={segment.rect.y} />}
             {segment.endsCue && <line className="soundCueCap" x1={segment.rect.x} y1={segment.rect.y + segment.rect.h} x2={segment.rect.x + segment.rect.w} y2={segment.rect.y + segment.rect.h} />}
-            <g
-              transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}
-              className={`soundCueText ${textLayout.labelPlacement}${textLayout.overflowLabel ? ' overflow' : ''}`}
-            >
-              {textLayout.labelGlyphs.map((glyph, index) => (
-                <text
-                  key={`label-${index}`}
-                  className="soundCueLabel"
-                  x={glyph.xPx}
-                  y={glyph.yPx}
-                  fontSize={textLayout.labelFontSizePx}
-                  textAnchor="middle"
-                >{glyph.value}</text>
-              ))}
-              {textLayout.textGlyphs.map((glyph, index) => (
-                <text
-                  key={`text-${index}`}
-                  className="soundCueDialogue"
-                  x={glyph.xPx}
-                  y={glyph.yPx}
-                  fontSize={textLayout.textFontSizePx}
-                  textAnchor="middle"
-                >{glyph.value}</text>
-              ))}
+            <g className="soundCueTextClip" clipPath={`url(#${textClipIds.get(key)})`}>
+              <g
+                transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}
+                className={`soundCueText ${textLayout.labelPlacement}${textLayout.overflowLabel ? ' overflow' : ''}`}
+              >
+                {textLayout.labelGlyphs.map((glyph, index) => (
+                  <text
+                    key={`label-${index}`}
+                    className="soundCueLabel"
+                    x={glyph.xPx}
+                    y={glyph.yPx}
+                    fontSize={textLayout.labelFontSizePx}
+                    textAnchor="middle"
+                  >{glyph.value}</text>
+                ))}
+                {textLayout.textGlyphs.map((glyph, index) => (
+                  <text
+                    key={`text-${index}`}
+                    className="soundCueDialogue"
+                    x={glyph.xPx}
+                    y={glyph.yPx}
+                    fontSize={textLayout.textFontSizePx}
+                    textAnchor="middle"
+                  >{glyph.value}</text>
+                ))}
+              </g>
             </g>
             {selected && segment.startsCue && (
               <rect

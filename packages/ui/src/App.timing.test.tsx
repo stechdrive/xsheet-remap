@@ -983,7 +983,11 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
     await waitFor(() => expect(document.querySelectorAll('.soundCue')).toHaveLength(1))
     let cue = document.querySelector<SVGGElement>('.soundCue')!
     expect(cue.dataset).toMatchObject({ soundCueId: 'cue_1', soundLaneId: 'sound_lane_1', frameStart: '1', frameEnd: '6' })
-    expect(cue.querySelector('.soundCueText.inside')).toBeTruthy()
+    expect(cue.querySelector('.soundCueText.outside')).toBeTruthy()
+    const horizontalClip = document.querySelector<SVGRectElement>('.soundCueHorizontalClip[data-region-id="left_sound_grid"]')!
+    expect(Number(horizontalClip.getAttribute('x'))).toBeCloseTo(soundRegion.rect.x)
+    expect(Number(horizontalClip.getAttribute('width'))).toBeCloseTo(soundRegion.rect.w)
+    expect(Number(horizontalClip.getAttribute('y'))).toBeLessThan(soundRegion.rect.y)
     fireEvent.pointerEnter(cue, { clientX: x, clientY: frameY(1) })
     expect(screen.getByRole('tooltip').textContent).toContain('走れ！')
     fireEvent.pointerLeave(cue)

@@ -34,6 +34,7 @@ import { sheetImageFileName } from './outputFileNames'
 import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
 import { buildCameraCuePageLayouts, cameraFadePolygonForSegment, cameraOverlapPathsForSegment } from './cameraCueGeometry'
+import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, textFontDeclaration } from './textMetrics'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -78,7 +79,7 @@ type SheetExportLayerContext = SheetRenderModelContext & {
   runtimeSourceImageUrls: Record<string, string>
 }
 
-const SHEET_CANVAS_FONT_FAMILY = '"LINE Seed JP", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif'
+const SHEET_CANVAS_FONT_FAMILY = SHEET_TEXT_FONT_FAMILY
 const TEMPLATE_CANVAS_FONT_FAMILY = SHEET_CANVAS_FONT_FAMILY
 const SHEET_EVENT_FONT_WEIGHT = 800
 const SHEET_LABEL_FONT_WEIGHT = 700
@@ -543,6 +544,7 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
+  const textMeasurement = createCanvasTextMeasurementProvider(() => ctx)
   const cues = context.project.timedRangeCues.filter(cue => cue.role === 'sound')
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
@@ -567,8 +569,21 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
           context.pageSize,
           segment.startsCue ? cue.label : '',
           cue.text,
-          { fontSizePx: typography?.cellFontSizePx, minFontSizePx: typography?.cellMinFontSizePx },
+          {
+            fontSizePx: typography?.cellFontSizePx,
+            minFontSizePx: typography?.cellMinFontSizePx,
+            regionRect: segment.regionRect,
+            fontFamily: SHEET_CANVAS_FONT_FAMILY,
+            labelFontWeight: 850,
+            textMeasurement,
+          },
         )
+        const textClipLeft = segment.regionRect.x * context.pageSize.widthPx
+        const textClipWidth = segment.regionRect.w * context.pageSize.widthPx
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(textClipLeft, offsetY, textClipWidth, context.pageSize.heightPx)
+        ctx.clip()
         ctx.textAlign = 'center'
         ctx.textBaseline = 'alphabetic'
         for (const glyph of textLayout.labelGlyphs) {
@@ -577,6 +592,7 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
         for (const glyph of textLayout.textGlyphs) {
           drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650)
         }
+        ctx.restore()
       }
     }
   }
@@ -971,7 +987,7 @@ async function imageDataToBytes(imageData: ImageData, mimeType: string, quality?
 }
 
 function fontDeclaration(sizePx: number, family: string, weight: number): string {
-  return `${weight} ${sizePx}px ${family}`
+  return textFontDeclaration({ family, sizePx, weight })
 }
 
 async function waitForSheetExportFonts(): Promise<void> {

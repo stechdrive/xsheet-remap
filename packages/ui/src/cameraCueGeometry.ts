@@ -7,6 +7,7 @@ import type {
   TimedRangeCue,
 } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
+import { splitTextGraphemes } from './textMetrics'
 
 export type CameraCueSegment = TimedRangeCueSegment
 
@@ -77,7 +78,7 @@ export function cameraCueLabelLayoutForPage(
   const typography = template.regions.find(region => region.regionId === segment.regionId)?.grid?.typography
   const fontSizePx = Math.max(7, typography?.cellFontSizePx ?? 12)
   const label = cue.label.trim()
-  const values = graphemes(label)
+  const values = splitTextGraphemes(label)
   const anchor = {
     x: segment.rect.x + segment.rect.w / 2,
     y: segment.rect.y + (Math.max(segment.frameStart, Math.min(segment.frameEnd, anchorFrame)) - segment.frameStart + 0.5) * segment.rowHeight,
@@ -244,7 +245,7 @@ function horizontalLayout(
 ): CameraCueLabelLayout {
   const widthPx = rect.w * pageSize.widthPx
   const capacity = Math.max(2, Math.floor((widthPx - 8) / (fontSizePx * 0.62)))
-  const lines = wrapGraphemes(graphemes(value), capacity)
+  const lines = wrapGraphemes(splitTextGraphemes(value), capacity)
   const lineHeight = fontSizePx * 1.2
   const topPx = rect.y * pageSize.heightPx + Math.max(fontSizePx, (rect.h * pageSize.heightPx - lines.length * lineHeight) / 2 + fontSizePx)
   return {
@@ -303,11 +304,4 @@ function uniqueRects(values: NormalizedRect[]): NormalizedRect[] {
     && Math.abs(other.y - value.y) < 0.000001
     && Math.abs(other.w - value.w) < 0.000001
     && Math.abs(other.h - value.h) < 0.000001) === index)
-}
-
-function graphemes(value: string): string[] {
-  if (!value) return []
-  const Segmenter = typeof Intl !== 'undefined' ? Intl.Segmenter : undefined
-  if (Segmenter) return [...new Segmenter('ja', { granularity: 'grapheme' }).segment(value)].map(item => item.segment)
-  return Array.from(value)
 }

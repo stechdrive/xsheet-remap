@@ -756,7 +756,7 @@
 }
 
 .soundCue {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .soundCueBody {
@@ -765,7 +765,7 @@
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   cursor: grab;
-  pointer-events: all;
+  pointer-events: fill;
 }
 
 .soundCue:hover .soundCueBody {
@@ -796,6 +796,10 @@
 
 .soundCueText {
   font-family: var(--font-sheet-sans);
+  pointer-events: none;
+}
+
+.soundCueTextClip {
   pointer-events: none;
 }
 

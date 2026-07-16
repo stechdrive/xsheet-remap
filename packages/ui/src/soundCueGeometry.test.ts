@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
+import { createCanvasTextMeasurementProvider } from './textMetrics'
 
 describe('SOUND cue geometry', () => {
   it('splits an interval at the two A3 SOUND regions while preserving one lane', () => {
@@ -84,14 +85,40 @@ describe('SOUND cue geometry', () => {
       },
     )
     expect(crowded.labelPlacement).toBe('inside')
+  })
 
+  it('allows vertical overflow while keeping outside label bounds inside the SOUND column horizontally', () => {
     const atRegionStart = buildSoundCueTextLayout(
       { x: 0.2, y: 0.1, w: 0.04, h: 0.1 },
       { widthPx: 1000, heightPx: 1000 },
-      'アキラ',
+      'とても長いキャラクター名',
       '走れ！',
       { regionRect: { x: 0.1, y: 0.1, w: 0.3, h: 0.6 } },
     )
-    expect(atRegionStart.labelPlacement).toBe('inside')
+    expect(atRegionStart.labelPlacement).toBe('outside')
+    expect(atRegionStart.labelBoundsPx!.yPx).toBeLessThan(100)
+    expect(atRegionStart.labelBoundsPx!.xPx).toBeGreaterThanOrEqual(100)
+    expect(atRegionStart.labelBoundsPx!.xPx + atRegionStart.labelBoundsPx!.widthPx).toBeLessThanOrEqual(400)
+  })
+
+  it('uses measured font width instead of a character-count estimate when choosing orientation', () => {
+    const textMeasurement = createCanvasTextMeasurementProvider(() => ({
+      font: '',
+      measureText: () => ({ width: 80, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 2 }) as TextMetrics,
+    }))
+    const layout = buildSoundCueTextLayout(
+      { x: 0.2, y: 0.3, w: 0.03, h: 0.1 },
+      { widthPx: 1000, heightPx: 1000 },
+      'WW',
+      '',
+      {
+        regionRect: { x: 0.18, y: 0.1, w: 0.06, h: 0.6 },
+        textMeasurement,
+      },
+    )
+
+    expect(layout.labelPlacement).toBe('outside')
+    expect(layout.labelOrientation).toBe('vertical')
+    expect(layout.labelGlyphs.map(glyph => glyph.value)).toEqual(['W', 'W'])
   })
 })

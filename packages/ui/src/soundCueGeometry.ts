@@ -6,6 +6,12 @@ import {
   type TimedRangeCue,
 } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
+import {
+  SHEET_TEXT_FONT_FAMILY,
+  sharedTextMeasurementProvider,
+  splitTextGraphemes,
+  type TextMeasurementProvider,
+} from './textMetrics'
 
 export type SoundCueSegment = TimedRangeCueSegment
 
@@ -28,6 +34,9 @@ export interface SoundCueTextLayoutOptions {
   regionRect?: NormalizedRect
   occupiedRects?: NormalizedRect[]
   occupiedLabelBoundsPx?: SoundCueTextBounds[]
+  fontFamily?: string
+  labelFontWeight?: number
+  textMeasurement?: TextMeasurementProvider
 }
 
 export interface SoundCueTextLayout {
@@ -64,12 +73,19 @@ export function buildSoundCueTextLayout(
   const heightPx = Math.max(1, rect.h * pageSize.heightPx)
   const baseFontSizePx = Math.max(6, options.fontSizePx ?? 14)
   const minFontSizePx = Math.max(5, Math.min(baseFontSizePx, options.minFontSizePx ?? 6))
-  const horizontalLabelWidth = graphemes(label).length * baseFontSizePx * 0.62
+  const textMeasurement = options.textMeasurement ?? sharedTextMeasurementProvider
+  const fontFamily = options.fontFamily ?? SHEET_TEXT_FONT_FAMILY
+  const labelFontWeight = options.labelFontWeight ?? 850
+  const horizontalLabelWidth = textMeasurement.measure(label, {
+    family: fontFamily,
+    sizePx: baseFontSizePx,
+    weight: labelFontWeight,
+  }).widthPx
   const insideLabelOrientation = horizontalLabelWidth <= Math.max(0, widthPx - 4) ? 'horizontal' : 'vertical'
   let labelOrientation: SoundCueTextLayout['labelOrientation'] = insideLabelOrientation
   let labelPlacement: SoundCueTextLayout['labelPlacement'] = 'inside'
   let labelFontSizePx = Math.max(minFontSizePx, Math.min(baseFontSizePx, widthPx * 0.72))
-  const labelValues = graphemes(label)
+  const labelValues = splitTextGraphemes(label)
   const labelGlyphs: SoundCueTextGlyph[] = []
   let contentTopPx = topPx + 2
   let overflowLabel = false
@@ -94,7 +110,7 @@ export function buildSoundCueTextLayout(
         widthPx: horizontalWidthPx,
         heightPx: horizontalHeightPx,
       }
-      if (fitsWithin(candidate, regionBounds) && !intersectsAny(candidate, occupiedBounds)) {
+      if (fitsHorizontallyWithin(candidate, regionBounds) && !intersectsAny(candidate, occupiedBounds)) {
         labelOrientation = 'horizontal'
         labelPlacement = 'outside'
         labelFontSizePx = baseFontSizePx
@@ -118,7 +134,7 @@ export function buildSoundCueTextLayout(
         widthPx: verticalWidthPx,
         heightPx: verticalHeightPx,
       }
-      if (fitsWithin(candidate, regionBounds) && !intersectsAny(candidate, occupiedBounds)) {
+      if (fitsHorizontallyWithin(candidate, regionBounds) && !intersectsAny(candidate, occupiedBounds)) {
         labelOrientation = 'vertical'
         labelPlacement = 'outside'
         labelFontSizePx = verticalFontSizePx
@@ -144,7 +160,7 @@ export function buildSoundCueTextLayout(
     overflowLabel = contentTopPx > topPx + heightPx
   }
 
-  const textValues = graphemes(text.replace(/\r?\n/g, ''))
+  const textValues = splitTextGraphemes(text.replace(/\r?\n/g, ''))
   const textGlyphs: SoundCueTextGlyph[] = []
   const availableHeightPx = Math.max(0, topPx + heightPx - contentTopPx - 2)
   const capacity = Math.max(0, Math.floor(availableHeightPx / minFontSizePx))
@@ -186,11 +202,9 @@ function normalizedRectToTextBounds(
   }
 }
 
-function fitsWithin(inner: SoundCueTextBounds, outer: SoundCueTextBounds): boolean {
+function fitsHorizontallyWithin(inner: SoundCueTextBounds, outer: SoundCueTextBounds): boolean {
   return inner.xPx >= outer.xPx
-    && inner.yPx >= outer.yPx
     && inner.xPx + inner.widthPx <= outer.xPx + outer.widthPx
-    && inner.yPx + inner.heightPx <= outer.yPx + outer.heightPx
 }
 
 function intersectsAny(candidate: SoundCueTextBounds, obstacles: SoundCueTextBounds[]): boolean {
@@ -215,11 +229,4 @@ function compactMiddle(values: string[], capacity: number): string[] {
   const headCount = Math.ceil((capacity - 1) / 2)
   const tailCount = Math.floor((capacity - 1) / 2)
   return [...values.slice(0, headCount), '…', ...values.slice(values.length - tailCount)]
-}
-
-function graphemes(value: string): string[] {
-  if (!value) return []
-  const Segmenter = typeof Intl !== 'undefined' ? Intl.Segmenter : undefined
-  if (Segmenter) return [...new Segmenter('ja', { granularity: 'grapheme' }).segment(value)].map(item => item.segment)
-  return Array.from(value)
 }

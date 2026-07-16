@@ -1,6 +1,7 @@
 import type { NormalizedRect, PaperTrack, SheetTemplate } from '@xsheet-remap/core'
 import { STANDARD_A3_GRID_HEADER_TOP_OFFSET } from './sheetConstants'
 import { templateGridHeaderFontSizePx } from './templateEditorGeometry'
+import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider } from './textMetrics'
 
 const DEFAULT_BASE_OFFSET_PX = 28
 const DEFAULT_LANE_PITCH_PX = 20
@@ -16,7 +17,7 @@ const DEFAULT_CONNECTOR_STROKE_PX = 4
 const DEFAULT_ESTIMATED_CHAR_WIDTH_PX = 6
 const DEFAULT_RADIUS_PX = 2
 
-export const SHEET_AUXILIARY_LABEL_FONT_FAMILY = '"LINE Seed JP", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif'
+export const SHEET_AUXILIARY_LABEL_FONT_FAMILY = SHEET_TEXT_FONT_FAMILY
 export const SHEET_AUXILIARY_LABEL_FONT_WEIGHT = 700
 
 export type AuxiliaryLabelVariant = 'stack-guide' | 'overlay-track'
@@ -68,9 +69,6 @@ export interface OverlayAuxiliaryLabelGeometry {
   radiusX: number
   radiusY: number
 }
-
-let measurementContext: OffscreenCanvasRenderingContext2D | null | undefined
-const measuredTextCache = new Map<string, number>()
 
 export function auxiliaryLabelMetrics(template: SheetTemplate, variant: AuxiliaryLabelVariant): AuxiliaryLabelMetrics {
   const style = template.style?.bgBookLabel
@@ -233,28 +231,12 @@ export function estimatedLabelTextWidthPx(
 }
 
 function measureAuxiliaryLabelTextPx(text: string, metrics: AuxiliaryLabelMetrics, fontSizePx: number): number {
-  const context = resolveMeasurementContext()
-  if (!context) return estimatedLabelTextWidthAtSizePx(text, metrics, fontSizePx)
-  const cacheKey = `${metrics.fontWeight}|${fontSizePx.toFixed(3)}|${metrics.fontFamily}|${text}`
-  const cached = measuredTextCache.get(cacheKey)
-  if (cached !== undefined) return cached
-  context.font = `${metrics.fontWeight} ${fontSizePx}px ${metrics.fontFamily}`
-  const width = context.measureText(text).width
-  if (!Number.isFinite(width) || width <= 0) return estimatedLabelTextWidthAtSizePx(text, metrics, fontSizePx)
-  measuredTextCache.set(cacheKey, width)
-  return width
-}
-
-function resolveMeasurementContext(): OffscreenCanvasRenderingContext2D | null {
-  if (measurementContext !== undefined) return measurementContext
-  try {
-    measurementContext = typeof OffscreenCanvas === 'function'
-      ? new OffscreenCanvas(1, 1).getContext('2d')
-      : null
-  } catch {
-    measurementContext = null
-  }
-  return measurementContext
+  const measured = sharedTextMeasurementProvider.measure(text, {
+    family: metrics.fontFamily,
+    sizePx: fontSizePx,
+    weight: metrics.fontWeight,
+  })
+  return measured.exact ? measured.widthPx : estimatedLabelTextWidthAtSizePx(text, metrics, fontSizePx)
 }
 
 function ellipsizeAuxiliaryLabel(text: string, maxWidthPx: number, metrics: AuxiliaryLabelMetrics, fontSizePx: number): string {

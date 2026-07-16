@@ -1,4 +1,4 @@
-import type { Annotation, CellBinding, CspTrackSlot, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimingKey } from './types'
+import type { Annotation, CellBinding, CspTrackSlot, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimelineInkMemo, TimingKey } from './types'
 import { sheetTemplatePresets, standardA3SheetTemplate, SHEET_TEMPLATE_SCHEMA_VERSION, type SheetTemplate } from './sheet-template'
 import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { migrateAnnotation } from './annotations'
@@ -211,6 +211,7 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
       },
     } as CutProject)),
     annotations: (input.annotations ?? []).map(annotation => migrateAnnotation(annotation, input.sheetTemplateId ?? base.sheetTemplateId ?? standardA3SheetTemplate.templateId)),
+    timelineMemos: input.timelineMemos ?? [],
     timedRangeCues: input.timedRangeCues ?? [],
     exportProfiles: (input.exportProfiles ?? base.exportProfiles).map(profile => ({
       ...profile,
@@ -327,6 +328,7 @@ function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMet
       events: [],
     },
     annotations: [],
+    timelineMemos: [],
     timedRangeCues: [],
   }
 }
@@ -362,6 +364,7 @@ export function cutSheetFromProject(project: CutProject, cutId: string, order: n
     cspTrackSlots: project.cspTrackSlots,
     stackGuideLabelPlacements: stackGuideLabelPlacementsFromProject(project),
     annotations: project.annotations,
+    timelineMemos: project.timelineMemos,
     timedRangeCues: project.timedRangeCues,
   }
 }
@@ -394,6 +397,7 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
     bindings: document.registeredCells.bindings.map(binding => ({ ...binding })),
     stackGuideLabels: document.registeredCells.stackGuideLabels.map(label => cloneStackGuideLabel(label)),
     annotations: cut.annotations,
+    timelineMemos: cut.timelineMemos,
     timedRangeCues: cut.timedRangeCues,
     exportProfiles: document.exportProfiles,
   })
@@ -426,6 +430,7 @@ function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSh
     cspTrackSlots: input.cspTrackSlots as CspTrackSlot[],
     stackGuideLabelPlacements: input.stackGuideLabelPlacements as StackGuideLabelPlacementState[],
     annotations: input.annotations as Annotation[],
+    timelineMemos: Array.isArray(input.timelineMemos) ? input.timelineMemos as TimelineInkMemo[] : [],
     timedRangeCues: input.timedRangeCues as TimedRangeCue[],
   }
 }

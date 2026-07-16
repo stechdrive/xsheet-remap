@@ -5,7 +5,7 @@ export function addAnnotation(project: CutProject, annotation: Annotation): CutP
 }
 
 export function clearAnnotations(project: CutProject): CutProject {
-  return { ...project, annotations: [] }
+  return { ...project, annotations: [], timelineMemos: [] }
 }
 
 export function clearAnnotationsForPage(project: CutProject, pageId: string): CutProject {

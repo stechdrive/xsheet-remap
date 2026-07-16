@@ -311,6 +311,50 @@ export interface AnnotationText {
 
 export type Annotation = AnnotationStroke | AnnotationText
 
+export type TimelineMemoRole = 'action' | 'cell' | 'sound' | 'camera'
+
+export interface TimelineMemoAnchor {
+  role: TimelineMemoRole
+  frame: FrameIndex
+  paperTrack?: PaperTrackName
+  laneId?: Id
+}
+
+export interface TimelineMemoPlacement {
+  /** Timeline offset from the anchor to the memo canvas top edge, in frames. */
+  frameOffset: number
+  /** Horizontal offset from the anchor column edge, measured in frame-row-height units. */
+  crossOffsetUnits: number
+  /** Canvas width measured in frame-row-height units. */
+  widthUnits: number
+  /** Canvas height measured in logical frames. */
+  heightFrames: number
+}
+
+export interface TimelineMemoPoint {
+  /** Horizontal position inside the memo canvas, in frame-row-height units. */
+  x: number
+  /** Vertical position inside the memo canvas, in frame units. */
+  y: number
+  pressure?: number
+}
+
+export interface TimelineMemoStroke {
+  strokeId: Id
+  color: string
+  /** Stroke width measured in frame-row-height units. */
+  widthUnits: number
+  points: TimelineMemoPoint[]
+}
+
+export interface TimelineInkMemo {
+  memoId: Id
+  anchor: TimelineMemoAnchor
+  placement: TimelineMemoPlacement
+  strokes: TimelineMemoStroke[]
+  order: number
+}
+
 export type CameraInstructionShape = 'range' | 'fade-in' | 'fade-out' | 'overlap'
 
 /**
@@ -528,6 +572,7 @@ export interface CutProject {
   bindings: CellBinding[]
   stackGuideLabels: StackGuideLabel[]
   annotations: Annotation[]
+  timelineMemos: TimelineInkMemo[]
   timedRangeCues: TimedRangeCue[]
   exportProfiles: ExportProfile[]
 }
@@ -557,6 +602,7 @@ export interface CutSheetDocument {
   cspTrackSlots: CspTrackSlot[]
   stackGuideLabelPlacements: StackGuideLabelPlacementState[]
   annotations: Annotation[]
+  timelineMemos: TimelineInkMemo[]
   timedRangeCues: TimedRangeCue[]
 }
 
@@ -586,7 +632,7 @@ export interface ValidationIssue {
   code: string
   message: string
   target?: {
-    entity: 'project' | 'sheet' | 'key' | 'event' | 'cue' | 'asset' | 'binding' | 'slot' | 'export'
+    entity: 'project' | 'sheet' | 'key' | 'event' | 'cue' | 'memo' | 'asset' | 'binding' | 'slot' | 'export'
     id?: string
   }
 }

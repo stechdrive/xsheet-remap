@@ -208,6 +208,9 @@ export const standardA3SheetTemplate: SheetTemplate = {
     orientation: 'portrait',
     coordinateSpace: 'normalized',
   },
+  annotationDefaults: {
+    timelineMemo: { defaultWidthMm: 35, singleFrameHeightFrames: 12 },
+  },
   defaults: {
     fps: 24,
     durationFrames: 144,
@@ -488,6 +491,9 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
     format: 'digital',
     orientation: 'portrait',
     coordinateSpace: 'normalized',
+  },
+  annotationDefaults: {
+    timelineMemo: { defaultWidthPx: 225, singleFrameHeightFrames: 12 },
   },
   defaults: {
     fps: 24,

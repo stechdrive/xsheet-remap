@@ -1650,6 +1650,62 @@
   pointer-events: none;
 }
 
+.timelineMemoSegment {
+  color: #16634f;
+}
+
+.timelineMemoHitArea,
+.timelineMemoDrawSurface {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.timelineMemoStroke {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.timelineMemoStroke.draft {
+  opacity: 0.72;
+}
+
+.timelineMemoBounds {
+  fill: rgb(36 121 94 / 0.035);
+  stroke: currentColor;
+  stroke-width: 1.25px;
+  stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.timelineMemoDrawSurface {
+  cursor: crosshair;
+}
+
+.timelineMemoMoveHandle,
+.timelineMemoResizeHandle {
+  color: #fff;
+  fill: #24795e;
+  stroke: #fff;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  cursor: move;
+}
+
+.timelineMemoMoveHandle path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.timelineMemoResizeHandle {
+  cursor: nwse-resize;
+}
+
 .annotationTextLayer {
   position: absolute;
   inset: 0;

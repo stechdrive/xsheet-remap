@@ -6,6 +6,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
   const keyIds = new Set(project.logicalSheet.keys.map(key => key.keyId))
   const assetIds = new Set(project.assets.map(asset => asset.assetId))
   const slotIds = new Set(project.cspTrackSlots.map(slot => slot.slotId))
+  const paperTracks = new Set(project.logicalSheet.paperTracks.map(track => track.paperTrack))
   const sheetSourceIds = new Set(project.sheetView.sources.map(source => source.sourceId))
   const displayStartFrame = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayEndFrame = logicalSheetDisplayFrameEnd(project.logicalSheet)
@@ -72,6 +73,28 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
           issues.push(issue('error', 'cue.camera.labelPlacement.invalid', `camera cue ${cue.cueId} has an invalid label placement`, 'cue', cue.cueId))
         }
       }
+    }
+  }
+
+  for (const memo of project.timelineMemos ?? []) {
+    const anchor = memo.anchor
+    if ((anchor.role === 'action' || anchor.role === 'cell') && (!anchor.paperTrack || !paperTracks.has(anchor.paperTrack))) {
+      issues.push(issue('error', 'memo.paperTrack.missing', `memo ${memo.memoId} references missing paper track ${anchor.paperTrack ?? ''}`, 'memo', memo.memoId))
+    }
+    if ((anchor.role === 'sound' || anchor.role === 'camera') && (!anchor.laneId || !timedRangeLaneIdsByRole.get(anchor.role)?.has(anchor.laneId))) {
+      issues.push(issue('error', 'memo.lane.missing', `memo ${memo.memoId} references missing lane ${anchor.laneId ?? ''}`, 'memo', memo.memoId))
+    }
+    if (anchor.frame < displayStartFrame || anchor.frame > displayEndFrame) {
+      issues.push(issue('error', 'memo.frame.outsideDuration', `memo ${memo.memoId} anchor is outside the cut duration`, 'memo', memo.memoId))
+    }
+    const placement = memo.placement
+    if (![placement.frameOffset, placement.crossOffsetUnits, placement.widthUnits, placement.heightFrames].every(Number.isFinite)
+      || placement.widthUnits <= 0 || placement.heightFrames <= 0) {
+      issues.push(issue('error', 'memo.placement.invalid', `memo ${memo.memoId} has invalid placement`, 'memo', memo.memoId))
+    }
+    if (memo.strokes.some(stroke => !Number.isFinite(stroke.widthUnits) || stroke.widthUnits <= 0
+      || stroke.points.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y)))) {
+      issues.push(issue('error', 'memo.stroke.invalid', `memo ${memo.memoId} has invalid ink geometry`, 'memo', memo.memoId))
     }
   }
 

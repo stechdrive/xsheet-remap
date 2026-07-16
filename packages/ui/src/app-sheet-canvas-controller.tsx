@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type CameraInstruction, type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
+import { type CameraInstruction, type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, type TimelineMemoPlacement, type TimelineMemoStroke, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetImageSettings, type SoundCueClipboard, type TimingClipboard } from './appTypes';
 import { type DropDiagnosticReport } from './AssetBrowser';
@@ -37,7 +37,7 @@ export type SheetCanvasProps = {
   recognitionCandidates: RecognitionCandidate[]
   selectedHit: SheetHit | null
   selectedSoundCueId: string | null
-  selectedCameraCueId: string | null
+  selectedCameraCueId: string | null; selectedTimelineMemoId: string | null
   timingDraftValue: string
   timingDraftActive: boolean
   scrollRequest: SheetScrollRequest | null
@@ -89,6 +89,8 @@ export type SheetCanvasProps = {
   onDeleteCameraCues: () => void
   onPasteCameraCues: (mode: 'overwrite' | 'insert') => void
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
+  onCreateTimelineMemo: (hit: SheetHit) => void; onSelectTimelineMemo: (memoId: string | null) => void; onDeleteTimelineMemo: (memoId: string) => void
+  onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void; onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onTemplateImage: (files: FileList | File[] | null) => void
   onAssetSheetSources: (assetIds: string[]) => void
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void
@@ -1824,7 +1826,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       return
     }
     const hit = rangeHitFromPoint(point, page)
-    const soundCueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-sound-cue-id]') : null
+    const timelineMemoElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-timeline-memo-id]') : null; const soundCueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-sound-cue-id]') : null
     const cameraCueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-camera-cue-id]') : null
     const soundCueId = soundCueElement?.dataset.soundCueId
     const cameraCueId = cameraCueElement?.dataset.cameraCueId
@@ -1847,6 +1849,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       x: event.clientX,
       y: event.clientY,
       hit,
+      timelineMemoId: timelineMemoElement?.dataset.timelineMemoId,
       snapIndex,
       sheetRole,
       insertAfterPaperTrack: hit?.paperTrack,
@@ -2236,11 +2239,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const contextProcessMoveOptions = contextProcessMove ? processMoveOptionsForSlot(props.project, contextProcessMove.slot, contextProcessMove.binding.keyId) : []
   const soundContext = contextMenu?.hit?.role === 'sound' || Boolean(props.selectedSoundCueId)
   const cameraContext = contextMenu?.hit?.role === 'camera' || Boolean(props.selectedCameraCueId)
-  const timedRangeContext = soundContext || cameraContext
-  const frameOperationContext = contextMenu?.hit?.role === 'action'
-    || contextMenu?.hit?.role === 'cell'
-    || contextMenu?.hit?.role === 'sound'
-    || contextMenu?.hit?.role === 'camera'
+  const timedRangeContext = soundContext || cameraContext; const timelineMemoContext = Boolean(contextMenu?.timelineMemoId)
+  const frameOperationContext = contextMenu?.hit?.role === 'action' || contextMenu?.hit?.role === 'cell' || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera'
   const canCopyContextRange = soundContext
     ? Boolean(props.selectedSoundCueId || props.rangeSelection?.role === 'sound')
     : cameraContext
@@ -2256,7 +2256,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const canPasteContextRepeatToEnd = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-to-end', contextPaperTrackOrder)
   const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera')
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
-  const sheetContextMenuItemCount = (timedRangeContext ? 9 : 12) + contextProcessMoveItemCount
+  const sheetContextMenuItemCount = (timelineMemoContext ? 2 : timedRangeContext ? 10 : 13) + contextProcessMoveItemCount
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null
@@ -2292,7 +2292,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
-    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, viewportClassName,
+    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   }
 }
 

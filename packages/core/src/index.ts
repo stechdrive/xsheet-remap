@@ -18,6 +18,12 @@ export type {
   AnnotationRegionAnchor,
   AnnotationTimelineAnchor,
   AnnotationViewSurfaceAnchor,
+  TimelineInkMemo,
+  TimelineMemoAnchor,
+  TimelineMemoPlacement,
+  TimelineMemoPoint,
+  TimelineMemoRole,
+  TimelineMemoStroke,
   CameraInstruction,
   CameraInstructionShape,
   CameraLabelPlacement,
@@ -242,6 +248,17 @@ export {
   uniqueCspCellNameForSlot,
   upsertBinding,
 } from './project'
+export {
+  addTimelineMemo,
+  appendTimelineMemoStroke,
+  deleteTimelineMemo,
+  deleteTimelineMemoAnchors,
+  insertTimelineMemoAnchors,
+  nextTimelineMemoId,
+  nextTimelineMemoStrokeId,
+  updateTimelineMemo,
+  updateTimelineMemoPlacement,
+} from './timeline-memo'
 export type { CutTimelineFrameEdit, TimedRangeCueInput, TimedRangeCueUpdates } from './project'
 export {
   assignSheetSourceToPage,

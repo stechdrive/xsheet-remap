@@ -969,12 +969,26 @@ describe('core project commands', () => {
   it('migrates partial project JSON into a current project shape', () => {
     const migrated = migrateProject({ projectId: 'old', logicalSheet: { ...createDefaultProject().logicalSheet, keys: [], events: [] } })
     expect(migrated.annotations).toEqual([])
+    expect(migrated.timelineMemos).toEqual([])
     expect(migrated.timedRangeCues).toEqual([])
     expect(migrated.productionStages).toHaveLength(1)
   })
 
   it('rejects obsolete single-cut project files', () => {
     expect(() => parseProjectDocument(createDefaultProject())).toThrow('対応していないプロジェクトファイル')
+  })
+
+  it('round-trips timeline memo anchors, canvas placement, and ink with the active cut', () => {
+    const source = createDefaultProject()
+    source.timelineMemos = [{
+      memoId: 'timeline_memo_1',
+      anchor: { role: 'action', frame: 70, paperTrack: 'A' },
+      placement: { frameOffset: 0, crossOffsetUnits: 1, widthUnits: 10, heightFrames: 8 },
+      strokes: [{ strokeId: 'stroke_1', color: '#123456', widthUnits: 0.2, points: [{ x: 1, y: 1 }, { x: 8, y: 7 }] }],
+      order: 1,
+    }]
+    const restored = activeCutProjectFromDocument(parseProjectDocument(createProjectDocumentFromCutProject(source)))
+    expect(restored.timelineMemos).toEqual(source.timelineMemos)
   })
 
   it('preserves inactive cuts while keeping production metadata canonical', () => {

@@ -1,6 +1,7 @@
 import { logicalSheetOfficialFrameEnd } from './logical-sheet'
 import { compareTimelineEvents } from './project-shared'
 import { replaceTimedRangeCues } from './timed-range'
+import { deleteTimelineMemoAnchors, insertTimelineMemoAnchors } from './timeline-memo'
 import type { CameraInstruction, CutProject, TimedRangeCue } from './types'
 
 export type CutTimelineFrameEdit =
@@ -34,6 +35,7 @@ function insertCutTimelineFrames(project: CutProject, requestedFrame: number, re
       durationFrames: Math.max(1, Math.round(project.logicalSheet.durationFrames) + frameCount),
       events,
     },
+    timelineMemos: insertTimelineMemoAnchors(project.timelineMemos, atFrame, frameCount),
   }
   return replaceTimedRangeCues(resized, cues)
 }
@@ -63,6 +65,7 @@ function deleteCutTimelineFrames(project: CutProject, requestedStart: number, re
       durationFrames: Math.max(1, Math.round(project.logicalSheet.durationFrames) - frameCount),
       events,
     },
+    timelineMemos: deleteTimelineMemoAnchors(project.timelineMemos, frameStart, frameEnd, frameCount),
   }
   return replaceTimedRangeCues(resized, cues)
 }

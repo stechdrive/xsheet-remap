@@ -35,6 +35,7 @@ import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotati
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
 import { buildCameraCuePageLayouts, cameraFadePolygonForSegment, cameraOverlapPathsForSegment } from './cameraCueGeometry'
 import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, textFontDeclaration } from './textMetrics'
+import { timelineMemoPointToPagePoint, timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment } from './timelineMemoGeometry'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -894,6 +895,30 @@ function renderAnnotationLayer(context: SheetExportLayerContext, content: 'ink' 
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
       ctx.stroke()
+    }
+    if (content === 'ink') for (const memo of context.project.timelineMemos.slice().sort((left, right) => left.order - right.order)) {
+      for (const segment of timelineMemoSegmentsForPage(context.template, page, memo, {
+        paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+        layoutOverrides: context.project.sheetView.layoutOverrides,
+      })) {
+        for (const stroke of memo.strokes) {
+          const points = timelineMemoStrokePointsForSegment(segment, stroke.points)
+          const [first, ...rest] = points
+          if (!first) continue
+          const firstPoint = timelineMemoPointToPagePoint(segment, first)
+          ctx.beginPath()
+          ctx.moveTo(firstPoint.x * context.pageSize.widthPx, offsetY + firstPoint.y * context.pageSize.heightPx)
+          for (const point of rest) {
+            const rendered = timelineMemoPointToPagePoint(segment, point)
+            ctx.lineTo(rendered.x * context.pageSize.widthPx, offsetY + rendered.y * context.pageSize.heightPx)
+          }
+          ctx.strokeStyle = stroke.color
+          ctx.lineWidth = Math.max(1, stroke.widthUnits * segment.rowHeightY * context.pageSize.heightPx)
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
+          ctx.stroke()
+        }
+      }
     }
     if (content === 'text') for (const annotation of context.project.annotations.filter((item): item is AnnotationText => item.kind === 'text' && item.pageId === page.pageId)) {
       const lines = annotationTextLines(annotation.text)

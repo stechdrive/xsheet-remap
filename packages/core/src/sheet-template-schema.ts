@@ -296,6 +296,15 @@ export interface SheetTemplate {
     orientation?: 'portrait' | 'landscape'
     coordinateSpace: 'normalized'
   }
+  annotationDefaults?: {
+    timelineMemo?: {
+      /** Used only while creating a memo on a physical template. */
+      defaultWidthMm?: number
+      /** Used only while creating a memo when a native-pixel width is preferred. */
+      defaultWidthPx?: number
+      singleFrameHeightFrames?: number
+    }
+  }
   defaults: {
     fps: number
     durationFrames: number

@@ -111,7 +111,7 @@ let client: CdpClient | null = null
 let previewClient: CdpClient | null = null
 const e2ePageFrames = standardA3SheetTemplate.defaults.durationFrames
 let e2eDurationFrames = e2ePageFrames
-const scenarioId = args['ripple-only'] === 'true' ? 'timeline-ripple' : args['sound-only'] === 'true' ? 'sound-ops' : 'sheet-ops'
+const scenarioId = args['memo-only'] === 'true' ? 'timeline-memo' : args['ripple-only'] === 'true' ? 'timeline-ripple' : args['sound-only'] === 'true' ? 'sound-ops' : 'sheet-ops'
 
 try {
   const target = await waitForCdpTarget(port, target => !target.url.includes('window=asset-preview'), 'main CDP target')
@@ -122,7 +122,9 @@ try {
   await client.send('Input.setIgnoreInputEvents', { ignore: false })
 
   await waitForSheet()
-  if (args['sound-only'] === 'true') {
+  if (args['memo-only'] === 'true') {
+    await verifyTimelineMemoEditing()
+  } else if (args['sound-only'] === 'true') {
     await verifySoundCueEditing()
   } else if (args['ripple-only'] === 'true') {
     await verifyTimelineRippleEditing()
@@ -371,6 +373,43 @@ async function verifySoundCueEditing(): Promise<void> {
   await keyboardShortcut('v')
   await waitForSoundCueAt('sound_lane_1', 35, 40, 'E2E効果音')
   checks.push('created, edited, moved, resized, undid, copied, and pasted a template-mapped SOUND interval')
+}
+
+async function verifyTimelineMemoEditing(): Promise<void> {
+  await rightClickFrame('action', 'A', 70)
+  await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'timeline memo create menu')
+  await clickMenuItem('メモを追加')
+  await waitForPageCondition(() => document.querySelectorAll('.timelineMemoSegment.selected').length === 2, 'A3 six-second wrap memo segments')
+
+  const draw = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoDrawSurface', 0.2, 0.25, 0.8, 0.75)
+  await mouseDrag(draw.start, draw.end)
+  await waitForPageCondition(() => document.querySelectorAll('.timelineMemoStroke:not(.draft)').length >= 1, 'timeline memo ink')
+  checks.push('created a range-sized handwritten memo and drew ink with mouse events')
+
+  const beforeWidth = await evaluatePage<number>(`Number(document.querySelector('.timelineMemoSegment.selected .timelineMemoBounds')?.getAttribute('width') ?? 0)`)
+  const resize = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoResizeHandle', 0.5, 0.5, 4.5, 3.5)
+  await mouseDrag(resize.start, resize.end)
+  await waitForCondition(async () => (await evaluatePage<number>(`Number(document.querySelector('.timelineMemoSegment.selected .timelineMemoBounds')?.getAttribute('width') ?? 0)`)) > beforeWidth, 5000, 'timeline memo resized')
+  checks.push('resized the logical memo canvas with its persistent bounding handle')
+
+  await clickFrame('action', 'A', 20)
+  await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), 'timeline memo edit exit')
+  await keyPress('4')
+  await keyPress('Enter')
+  await waitForEventAt('action', 'A', 20, '4')
+  checks.push('left memo editing on an outside click and continued ordinary frame input')
+
+  await dropSheetSourcesForMultiPage()
+  e2eDurationFrames = e2ePageFrames * 2
+  await waitForSheetPageCount(2)
+  await rightClickFrame('action', 'A', 146)
+  await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'page 2 memo create menu')
+  await clickMenuItem('メモを追加')
+  await waitForPageCondition(() => Boolean(document.querySelector('svg.sheetSvg[data-page-id="page_2"] .timelineMemoSegment.selected')), 'page 2 anchored memo')
+  const pageTwoDraw = await selectorInsetDrag('svg.sheetSvg[data-page-id="page_2"] .timelineMemoDrawSurface', 0.2, 0.25, 0.78, 0.75)
+  await mouseDrag(pageTwoDraw.start, pageTwoDraw.end)
+  await waitForPageCondition(() => Boolean(document.querySelector('svg.sheetSvg[data-page-id="page_2"] .timelineMemoStroke:not(.draft)')), 'page 2 memo ink')
+  checks.push('created and drew a separately anchored memo on page 2')
 }
 
 async function verifyCameraCueInputHandoff(): Promise<void> {
@@ -800,6 +839,24 @@ async function centerOfSelector(selector: string): Promise<ClientPoint> {
   `)
   if (!point) throw new Error(`visible element not found: ${selector}`)
   return point
+}
+
+async function selectorInsetDrag(selector: string, startX: number, startY: number, endX: number, endY: number): Promise<{ start: ClientPoint; end: ClientPoint }> {
+  const points = await evaluatePage<{ start: ClientPoint; end: ClientPoint } | null>(`
+    (() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) return null;
+      element.scrollIntoView({ block: 'center', inline: 'center' });
+      const box = element.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) return null;
+      return {
+        start: { x: box.left + box.width * ${JSON.stringify(startX)}, y: box.top + box.height * ${JSON.stringify(startY)} },
+        end: { x: box.left + box.width * ${JSON.stringify(endX)}, y: box.top + box.height * ${JSON.stringify(endY)} },
+      };
+    })()
+  `)
+  if (!points) throw new Error(`visible drag surface not found: ${selector}`)
+  return points
 }
 
 async function waitForSelector(selector: string): Promise<void> {
@@ -1378,7 +1435,7 @@ async function assetEventAt(role: SheetTimingRole, paperTrack: string, frame: nu
 
 async function clientPointForFrame(role: SheetTimingRole, paperTrack: string, frame: number, bias: CellPointBias = { xRatio: 0.5, yRatio: 0.5 }): Promise<ClientPoint> {
   const { pageId, rect } = templateFrameLocationForFrame(role, paperTrack, frame)
-  await scrollSheetPageIntoView(pageId)
+  await scrollSheetRectIntoView(pageId, rect)
   const box = await sheetPageBox(pageId)
   return pointForRect(box, rect, bias)
 }
@@ -1396,7 +1453,12 @@ async function clientPointsForSamePage(
   const start = templateFrameLocationForFrame(startRole, startTrack, startFrame)
   const end = templateFrameLocationForFrame(endRole, endTrack, endFrame)
   if (start.pageId !== end.pageId) throw new Error(`cross-page drag is not supported in this scenario: ${startFrame}-${endFrame}`)
-  await scrollSheetPageIntoView(start.pageId)
+  await scrollSheetRectIntoView(start.pageId, {
+    x: Math.min(start.rect.x, end.rect.x),
+    y: Math.min(start.rect.y, end.rect.y),
+    w: Math.max(start.rect.x + start.rect.w, end.rect.x + end.rect.w) - Math.min(start.rect.x, end.rect.x),
+    h: Math.max(start.rect.y + start.rect.h, end.rect.y + end.rect.h) - Math.min(start.rect.y, end.rect.y),
+  })
   const box = await sheetPageBox(start.pageId)
   return [pointForRect(box, start.rect, startBias), pointForRect(box, end.rect, endBias)]
 }
@@ -1416,7 +1478,7 @@ async function clientPointForTimedRangeFrame(
   bias: CellPointBias = { xRatio: 0.5, yRatio: 0.5 },
 ): Promise<ClientPoint> {
   const { pageId, rect } = templateTimedRangeFrameLocation(role, laneId, frame)
-  await scrollSheetPageIntoView(pageId)
+  await scrollSheetRectIntoView(pageId, rect)
   const box = await sheetPageBox(pageId)
   return pointForRect(box, rect, bias)
 }
@@ -1425,7 +1487,11 @@ async function clientPointsForTimedRange(role: 'sound' | 'camera', laneId: strin
   const start = templateTimedRangeFrameLocation(role, laneId, frameStart)
   const end = templateTimedRangeFrameLocation(role, laneId, frameEnd)
   if (start.pageId !== end.pageId) throw new Error(`cross-page ${role.toUpperCase()} drag is not supported in this scenario: ${frameStart}-${frameEnd}`)
-  await scrollSheetPageIntoView(start.pageId)
+  await scrollSheetRectIntoView(start.pageId, {
+    x: Math.min(start.rect.x, end.rect.x), y: Math.min(start.rect.y, end.rect.y),
+    w: Math.max(start.rect.x + start.rect.w, end.rect.x + end.rect.w) - Math.min(start.rect.x, end.rect.x),
+    h: Math.max(start.rect.y + start.rect.h, end.rect.y + end.rect.h) - Math.min(start.rect.y, end.rect.y),
+  })
   const box = await sheetPageBox(start.pageId)
   return [
     pointForRect(box, start.rect, { xRatio: 0.5, yRatio: 0.5 }),
@@ -1440,6 +1506,32 @@ async function scrollSheetPageIntoView(pageId: string): Promise<void> {
       const sheet = document.querySelector(${JSON.stringify(pageSelector)});
       if (!sheet) throw new Error('sheet SVG not found: ${pageId}');
       sheet.scrollIntoView({ block: 'center', inline: 'center' });
+    })()
+  `)
+  await delay(100)
+}
+
+async function scrollSheetRectIntoView(pageId: string, rect: NormalizedRect): Promise<void> {
+  await scrollSheetPageIntoView(pageId)
+  const pageSelector = `svg.sheetSvg[data-page-id="${cssEscape(pageId)}"]`
+  await evaluatePage<void>(`
+    (() => {
+      const sheet = document.querySelector(${JSON.stringify(pageSelector)});
+      const viewport = sheet?.closest('.sheetViewport');
+      if (!sheet || !viewport) return;
+      const pageBox = sheet.getBoundingClientRect();
+      const viewportBox = viewport.getBoundingClientRect();
+      const target = {
+        left: pageBox.left + ${JSON.stringify(rect.x)} * pageBox.width,
+        top: pageBox.top + ${JSON.stringify(rect.y)} * pageBox.height,
+        right: pageBox.left + ${JSON.stringify(rect.x + rect.w)} * pageBox.width,
+        bottom: pageBox.top + ${JSON.stringify(rect.y + rect.h)} * pageBox.height,
+      };
+      const inset = 48;
+      if (target.top < viewportBox.top + inset) viewport.scrollTop += target.top - viewportBox.top - inset;
+      else if (target.bottom > viewportBox.bottom - inset) viewport.scrollTop += target.bottom - viewportBox.bottom + inset;
+      if (target.left < viewportBox.left + inset) viewport.scrollLeft += target.left - viewportBox.left - inset;
+      else if (target.right > viewportBox.right - inset) viewport.scrollLeft += target.right - viewportBox.right + inset;
     })()
   `)
   await delay(100)

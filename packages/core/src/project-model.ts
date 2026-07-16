@@ -71,6 +71,7 @@ export function createProjectFromTrackLabels(
     bindings: [],
     stackGuideLabels: [],
     annotations: [],
+    timelineMemos: [],
     timedRangeCues: [],
     exportProfiles,
   }

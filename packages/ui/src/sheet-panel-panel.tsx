@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoStroke, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TimingClipboard, type WorkspaceStyle } from './appTypes'
@@ -111,6 +111,10 @@ export function SheetPanel(props: {
   onDeleteCameraCues: () => void
   onPasteCameraCues: (mode: 'overwrite' | 'insert') => void
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
+  onCreateTimelineMemo: (hit: SheetHit) => string | null
+  onDeleteTimelineMemo: (memoId: string) => void
+  onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void
+  onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onClearSelection: () => void
   onTemplateImage: (files: FileList | File[] | null) => void
   onAssignSheetSource: (pageId: string, sourceId: string | null) => void
@@ -170,6 +174,10 @@ export function SheetPanel(props: {
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
   const [normalizationOpen, setNormalizationOpen] = useState(false)
+  const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
+  const activeTimelineMemoId = selectedTimelineMemoId && props.project.timelineMemos.some(memo => memo.memoId === selectedTimelineMemoId)
+    ? selectedTimelineMemoId
+    : null
   const zoomPaletteRef = useRef<HTMLDivElement>(null)
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
@@ -193,6 +201,25 @@ export function SheetPanel(props: {
     [props.template, displayDurationFrames, props.project.sheetView.layoutOverrides, templatePaperTrackNames],
   )
   const assetRegistrationSummaryMap = useMemo(() => assetRegistrationSummaries(props.project), [props.project])
+
+  useEffect(() => {
+    if (!activeTimelineMemoId) return
+    const closeOutside = (event: globalThis.PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null
+      const memoElement = target?.closest('[data-timeline-memo-id]')
+      if (memoElement?.getAttribute('data-timeline-memo-id') === activeTimelineMemoId || target?.closest('.sheetContextMenu')) return
+      setSelectedTimelineMemoId(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedTimelineMemoId(null)
+    }
+    window.addEventListener('pointerdown', closeOutside, true)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.removeEventListener('pointerdown', closeOutside, true)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [activeTimelineMemoId])
 
   useEffect(() => {
     try {
@@ -670,6 +697,16 @@ export function SheetPanel(props: {
         />
         <SheetCanvas
           {...props}
+          selectedTimelineMemoId={activeTimelineMemoId}
+          onCreateTimelineMemo={hit => {
+            const memoId = props.onCreateTimelineMemo(hit)
+            setSelectedTimelineMemoId(memoId)
+          }}
+          onSelectTimelineMemo={setSelectedTimelineMemoId}
+          onDeleteTimelineMemo={memoId => {
+            props.onDeleteTimelineMemo(memoId)
+            setSelectedTimelineMemoId(null)
+          }}
           setZoom={setClampedZoom}
           onCreateStackGuideLabel={props.onCreateStackGuideLabel}
           onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}

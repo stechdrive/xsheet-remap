@@ -15,6 +15,7 @@ import { AssetAssignedFrameCue, SelectedCellCue, SheetDropTargetCue, SheetRangeB
 import { SheetMetadataEditor } from './SheetMetadataEditor'
 import { SoundCueLayer } from './SoundCueLayer'
 import { CameraCueLayer } from './CameraCueLayer'
+import { TimelineMemoLayer } from './TimelineMemoLayer'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -35,7 +36,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
-    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, viewportClassName,
+    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   } = controller
   const hoveredSoundCue = props.project.timedRangeCues.find(cue => cue.cueId === hoveredSoundCueId) ?? null
   const soundCueHoverStyle = soundCueHoverAnchor ? {
@@ -342,6 +343,21 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onClearPreview={() => setStackGuideDropPreview(null)}
                     />
                   )}
+                  {!isCalibrating && props.showAnnotations && (
+                    <TimelineMemoLayer
+                      memos={props.project.timelineMemos}
+                      template={props.template}
+                      page={page}
+                      paperTracks={templateTrackNames}
+                      layoutOverrides={props.project.sheetView.layoutOverrides}
+                      pageSize={sheetPageSize}
+                      selectedMemoId={props.selectedTimelineMemoId}
+                      penColor={props.penColor}
+                      penWidth={props.penWidth}
+                      onAppendStroke={props.onAppendTimelineMemoStroke}
+                      onUpdatePlacement={props.onUpdateTimelineMemoPlacement}
+                    />
+                  )}
                   {strokes.map(stroke => (
                     <path
                       key={stroke.annotationId}
@@ -476,7 +492,12 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           onPointerDown={event => event.stopPropagation()}
           onContextMenu={event => event.preventDefault()}
         >
-          {soundContext ? (
+          {timelineMemoContext ? (
+            <>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSelectTimelineMemo(contextMenu.timelineMemoId ?? null))}>メモを編集</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => contextMenu.timelineMemoId && props.onDeleteTimelineMemo(contextMenu.timelineMemoId))}>メモを削除</button>
+            </>
+          ) : soundContext ? (
             <>
               <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCopySoundCues)}>{uiText.actions.copyRange}</button>
               <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutSoundCues)}>{uiText.actions.cutRange}</button>
@@ -511,7 +532,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
             </>
           )}
-          {frameOperationContext && (
+          {!timelineMemoContext && contextMenu.hit && (
+            <>
+              <div className="sheetContextMenuTitle">手書きメモ</div>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onCreateTimelineMemo(contextMenu.hit as SheetHit))}>メモを追加</button>
+            </>
+          )}
+          {!timelineMemoContext && frameOperationContext && (
             <>
               <div className="sheetContextMenuTitle">{uiText.frameOperation.title}</div>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenFrameOperation('insert', contextMenu.hit as SheetHit))}>{uiText.frameOperation.insert}</button>

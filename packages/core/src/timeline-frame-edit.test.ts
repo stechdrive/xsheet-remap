@@ -80,6 +80,41 @@ describe('cut timeline frame editing', () => {
     expect(edited).toBe(source)
     expect(edited.annotations).toEqual([annotation])
   })
+
+  it('moves timeline memo anchors on insert without slicing their canvas or ink', () => {
+    const source = timelineFixture()
+    source.timelineMemos = [{
+      memoId: 'timeline_memo_1',
+      anchor: { role: 'action', frame: 8, paperTrack: 'A' },
+      placement: { frameOffset: -1, crossOffsetUnits: 2, widthUnits: 12, heightFrames: 18 },
+      strokes: [{ strokeId: 'stroke_1', color: '#d52b2b', widthUnits: 0.2, points: [{ x: 1, y: 1 }, { x: 4, y: 9 }] }],
+      order: 1,
+    }]
+
+    const edited = applyCutTimelineFrameEdit(source, { kind: 'insert', atFrame: 6, frameCount: 3 })
+
+    expect(edited.timelineMemos[0]).toEqual({
+      ...source.timelineMemos[0],
+      anchor: { ...source.timelineMemos[0]!.anchor, frame: 11 },
+    })
+  })
+
+  it('deletes a memo only when its anchor frame is removed and shifts later anchors', () => {
+    const source = timelineFixture()
+    const makeMemo = (memoId: string, frame: number) => ({
+      memoId,
+      anchor: { role: 'cell' as const, frame, paperTrack: 'A' },
+      placement: { frameOffset: -2, crossOffsetUnits: 0, widthUnits: 10, heightFrames: 24 },
+      strokes: [],
+      order: frame,
+    })
+    source.timelineMemos = [makeMemo('before', 4), makeMemo('anchored-inside', 7), makeMemo('after', 12)]
+
+    const edited = applyCutTimelineFrameEdit(source, { kind: 'delete', frameStart: 6, frameCount: 3 })
+
+    expect(edited.timelineMemos.map(memo => [memo.memoId, memo.anchor.frame])).toEqual([['before', 4], ['after', 9]])
+    expect(edited.timelineMemos[0]?.placement.heightFrames).toBe(24)
+  })
 })
 
 function timelineFixture() {

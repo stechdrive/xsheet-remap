@@ -53,7 +53,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
-    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleTextAnnotation, handleSelectTextAnnotation,
+    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   } = controller
@@ -350,6 +350,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onDeleteCameraCues={handleDeleteEvent}
             onPasteCameraCues={pasteSelectedCameraCueRange}
             onOpenFrameOperation={openFrameOperationDialog}
+            onCreateTimelineMemo={handleCreateTimelineMemo}
+            onDeleteTimelineMemo={handleDeleteTimelineMemo}
+            onUpdateTimelineMemoPlacement={handleUpdateTimelineMemoPlacement}
+            onAppendTimelineMemoStroke={handleAppendTimelineMemoStroke}
             onClearSelection={handleClearSelection}
             onTemplateImage={files => void handleSheetSourceFiles(files, activePage?.pageId)}
             onAssignSheetSource={handleAssignSheetSource}

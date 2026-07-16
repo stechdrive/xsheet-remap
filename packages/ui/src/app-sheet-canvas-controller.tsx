@@ -123,15 +123,17 @@ export type SheetDropTargetPreview = {
   validity: 'valid' | 'invalid'
 }
 
+type DraftRangeInteraction = {
+  pointerId: number
+  anchor: SheetHit
+  focus: SheetHit
+  moved: boolean
+  preserveRangeOnClick?: SheetRangeSelection
+}
+
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftStroke, setDraftStroke] = useState<AnnotationStroke | null>(null)
-  const [draftRange, setDraftRange] = useState<{
-    pointerId: number
-    anchor: SheetHit
-    focus: SheetHit
-    moved: boolean
-    preserveRangeOnClick?: SheetRangeSelection
-  } | null>(null)
+  const [draftRange, setDraftRangeState] = useState<DraftRangeInteraction | null>(null)
   const [hoveredHit, setHoveredHit] = useState<SheetHit | null>(null)
   const [dropTargetPreview, setDropTargetPreview] = useState<SheetDropTargetPreview | null>(null)
   const [hoverPreviewAnchor, setHoverPreviewAnchor] = useState<{ x: number; y: number } | null>(null)
@@ -179,6 +181,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const [isPanning, setIsPanning] = useState(false)
   const spacePanReadyRef = useRef(false)
   const panningRef = useRef(false)
+  const draftRangeRef = useRef<DraftRangeInteraction | null>(null)
+  const commitDraftRangeFromPointerRef = useRef<(pointerId: number, clientX: number, clientY: number) => boolean>(() => false)
+  const cancelDraftRangeInteractionRef = useRef<() => void>(() => undefined)
   const viewportRef = useRef<HTMLDivElement>(null)
   const sheetSvgRefs = useRef<Record<string, SVGSVGElement | null>>({})
   const activePageIndexRef = useRef(props.activePageIndex)
@@ -196,10 +201,47 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const cameraCueDragRef = useRef<typeof cameraCueDrag>(null)
   const onStatusHint = props.onStatusHint
 
+  function setDraftRange(next: DraftRangeInteraction | null | ((current: DraftRangeInteraction | null) => DraftRangeInteraction | null)) {
+    const resolved = typeof next === 'function' ? next(draftRangeRef.current) : next
+    draftRangeRef.current = resolved
+    setDraftRangeState(resolved)
+  }
+
+  function cancelDraftRangeInteraction() {
+    setDraftRange(null)
+    props.onStatusHint('sheet-drag', null)
+  }
+
+  commitDraftRangeFromPointerRef.current = commitDraftRangeFromPointer
+  cancelDraftRangeInteractionRef.current = cancelDraftRangeInteraction
+
   useEffect(() => {
     hoveredHitSignatureRef.current = null
     hoveredHitHasPreviewRef.current = false
   }, [props.project])
+  useEffect(() => {
+    const finishDraftRange = (event: globalThis.PointerEvent) => {
+      const activeDraftRange = draftRangeRef.current
+      if (!activeDraftRange || activeDraftRange.pointerId !== event.pointerId) return
+      commitDraftRangeFromPointerRef.current(event.pointerId, event.clientX, event.clientY)
+    }
+    const cancelDraftRange = (event: globalThis.PointerEvent) => {
+      const activeDraftRange = draftRangeRef.current
+      if (!activeDraftRange || activeDraftRange.pointerId !== event.pointerId) return
+      cancelDraftRangeInteractionRef.current()
+    }
+    const cancelDraftRangeOnBlur = () => {
+      if (draftRangeRef.current) cancelDraftRangeInteractionRef.current()
+    }
+    window.addEventListener('pointerup', finishDraftRange, true)
+    window.addEventListener('pointercancel', cancelDraftRange, true)
+    window.addEventListener('blur', cancelDraftRangeOnBlur)
+    return () => {
+      window.removeEventListener('pointerup', finishDraftRange, true)
+      window.removeEventListener('pointercancel', cancelDraftRange, true)
+      window.removeEventListener('blur', cancelDraftRangeOnBlur)
+    }
+  }, [])
   useEffect(() => () => {
     onStatusHint('sheet-hover', null)
     onStatusHint('sheet-drop', null)
@@ -977,8 +1019,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function updateDraftRangeFromClientPoint(pointerId: number, clientX: number, clientY: number, fallbackPage?: SheetPage) {
-    if (!draftRange || draftRange.pointerId !== pointerId) return false
-    const target = lockedRangeHitFromClientPoint(clientX, clientY, draftRange.anchor)
+    const currentDraftRange = draftRangeRef.current
+    if (!currentDraftRange || currentDraftRange.pointerId !== pointerId) return false
+    const target = lockedRangeHitFromClientPoint(clientX, clientY, currentDraftRange.anchor)
     if (target) setActivePageIndexIfNeeded(target.page.pageIndex)
     let hit = target?.hit ?? null
     if (!hit && fallbackPage) {
@@ -991,7 +1034,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         }, fallbackPage)
       }
     }
-    const range = hit ? rangeFromHits(draftRange.anchor, hit) : null
+    const range = hit ? rangeFromHits(currentDraftRange.anchor, hit) : null
     if (hit && range) {
       const focusHit = hit
       setDraftRange(current => current
@@ -1025,22 +1068,23 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function commitDraftRangeFromPointer(pointerId: number, clientX: number, clientY: number) {
-    if (!draftRange || draftRange.pointerId !== pointerId) return false
-    const target = lockedRangeHitFromClientPoint(clientX, clientY, draftRange.anchor)
-    const focusHit = target?.hit && rangeFromHits(draftRange.anchor, target.hit)
+    const currentDraftRange = draftRangeRef.current
+    if (!currentDraftRange || currentDraftRange.pointerId !== pointerId) return false
+    const target = lockedRangeHitFromClientPoint(clientX, clientY, currentDraftRange.anchor)
+    const focusHit = target?.hit && rangeFromHits(currentDraftRange.anchor, target.hit)
       ? target.hit
-      : draftRange.focus
-    const range = rangeFromHits(draftRange.anchor, focusHit)
-    const moved = draftRange.moved
-      || focusHit.frame !== draftRange.anchor.frame
-      || focusHit.paperTrack !== draftRange.anchor.paperTrack
-      || focusHit.role !== draftRange.anchor.role
-    if (!moved && draftRange.preserveRangeOnClick) {
-      props.onRangeSelect(draftRange.preserveRangeOnClick)
+      : currentDraftRange.focus
+    const range = rangeFromHits(currentDraftRange.anchor, focusHit)
+    const moved = currentDraftRange.moved
+      || focusHit.frame !== currentDraftRange.anchor.frame
+      || focusHit.paperTrack !== currentDraftRange.anchor.paperTrack
+      || focusHit.role !== currentDraftRange.anchor.role
+    if (!moved && currentDraftRange.preserveRangeOnClick) {
+      props.onRangeSelect(currentDraftRange.preserveRangeOnClick)
     } else if (range && (moved || !range.paperTrack)) {
       props.onRangeSelect(range)
-    } else if (draftRange.anchor.paperTrack) {
-      props.onCellClick(draftRange.anchor)
+    } else if (currentDraftRange.anchor.paperTrack) {
+      props.onCellClick(currentDraftRange.anchor)
     } else if (range) {
       props.onRangeSelect(range)
     }
@@ -1323,6 +1367,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (!range) return
     event.preventDefault()
     event.stopPropagation()
+    cancelDraftRangeInteraction()
     if (hit.role === 'sound') props.onSoundRangeEdit(range)
     else props.onCameraRangeEdit(range)
   }
@@ -1460,14 +1505,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function handleTimelineEventPointerMove(event: PointerEvent<SVGGElement>) {
-    const handlesThisPointer = (draftRange && draftRange.pointerId === event.pointerId)
+    const activeDraftRange = draftRangeRef.current
+    const handlesThisPointer = (activeDraftRange && activeDraftRange.pointerId === event.pointerId)
       || (pendingTimelineEventDrag && pendingTimelineEventDrag.pointerId === event.pointerId)
       || (timelineEventDrag && timelineEventDrag.pointerId === event.pointerId)
     if (!handlesThisPointer) return
     event.preventDefault()
     event.stopPropagation()
     const viewport = event.currentTarget.closest<HTMLElement>('.sheetViewport')
-    if (draftRange && draftRange.pointerId === event.pointerId) {
+    if (activeDraftRange && activeDraftRange.pointerId === event.pointerId) {
       autoScrollViewportForDrag(event, viewport)
       updateDraftRangeFromClientPoint(event.pointerId, event.clientX, event.clientY)
       return
@@ -1505,7 +1551,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function handleTimelineEventPointerUp(event: PointerEvent<SVGGElement>) {
-    if (draftRange && draftRange.pointerId === event.pointerId) {
+    const activeDraftRange = draftRangeRef.current
+    if (activeDraftRange && activeDraftRange.pointerId === event.pointerId) {
       event.preventDefault()
       event.stopPropagation()
       commitDraftRangeFromPointer(event.pointerId, event.clientX, event.clientY)
@@ -1538,11 +1585,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function handleTimelineEventPointerCancel(event: PointerEvent<SVGGElement>) {
-    if (draftRange && draftRange.pointerId === event.pointerId) {
+    const activeDraftRange = draftRangeRef.current
+    if (activeDraftRange && activeDraftRange.pointerId === event.pointerId) {
       event.preventDefault()
       event.stopPropagation()
-      setDraftRange(null)
-      props.onStatusHint('sheet-drag', null)
+      cancelDraftRangeInteraction()
       return
     }
     if (pendingTimelineEventDrag && pendingTimelineEventDrag.pointerId === event.pointerId) {
@@ -1629,7 +1676,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     } else if (textCursorBadge) {
       setTextCursorBadge(null)
     }
-    if (draftRange && draftRange.pointerId === event.pointerId) {
+    const activeDraftRange = draftRangeRef.current
+    if (activeDraftRange && activeDraftRange.pointerId === event.pointerId) {
       updateDraftRangeFromClientPoint(event.pointerId, event.clientX, event.clientY, page)
       return
     }
@@ -1873,7 +1921,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
 
   function handlePointerUp(event: PointerEvent<SVGSVGElement>) {
     if (panningRef.current) return
-    if (draftRange && draftRange.pointerId === event.pointerId) {
+    const activeDraftRange = draftRangeRef.current
+    if (activeDraftRange && activeDraftRange.pointerId === event.pointerId) {
       commitDraftRangeFromPointer(event.pointerId, event.clientX, event.clientY)
       return
     }

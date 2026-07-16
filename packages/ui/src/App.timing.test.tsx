@@ -6,6 +6,15 @@ import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
 import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
 
+function dispatchBatchedPointerClick(target: Element, pointerId: number, clientX: number, clientY: number, releaseTarget: EventTarget = target) {
+  const pointerDown = createEvent.pointerDown(target, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX, clientY })
+  const pointerUp = createEvent.pointerUp(target, { pointerId, pointerType: 'mouse', button: 0, buttons: 0, clientX, clientY })
+  act(() => {
+    target.dispatchEvent(pointerDown)
+    releaseTarget.dispatchEvent(pointerUp)
+  })
+}
+
 describe('App: sheet timing interactions', () => {
 it('shows a dedicated cell cue for asset and CSP card drop targets', () => {
     render(<App />)
@@ -924,7 +933,7 @@ it('selects SOUND ranges without rendering app-drawn SOUND grid lines', () => {
   expectSelectedRange('sound', 'sound_1', 1, 3)
 })
 
-it('preserves a selected SOUND range through the click sequence that opens it by double-click', () => {
+it('preserves a selected SOUND range through double-click and releases native pointer state after closing', async () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -937,8 +946,7 @@ it('preserves a selected SOUND range through the click sequence that opens it by
     expectSelectedRange('sound', 'sound_1', 1, 6)
 
     for (const pointerId of [91, 92]) {
-      fireEvent.pointerDown(sheet, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(3) })
-      fireEvent.pointerUp(sheet, { pointerId, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(3) })
+      dispatchBatchedPointerClick(sheet, pointerId, x, frameY(3))
       expectSelectedRange('sound', 'sound_1', 1, 6)
     }
     fireEvent.doubleClick(sheet, { button: 0, clientX: x, clientY: frameY(3) })
@@ -947,6 +955,13 @@ it('preserves a selected SOUND range through the click sequence that opens it by
     expect((screen.getByLabelText('SOUND開始フレーム') as HTMLInputElement).value).toBe('1')
     expect((screen.getByLabelText('SOUNDデュレーション秒') as HTMLInputElement).value).toBe('0')
     expect((screen.getByLabelText('SOUNDデュレーションコマ') as HTMLInputElement).value).toBe('6')
+    fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }))
+
+    const cellFrame = templateFramePoint('cell', 'A', 20)
+    dispatchBatchedPointerClick(sheet, 93, cellFrame.x, cellFrame.y, window)
+    await waitFor(() => expectSelectedHit('cell', 'A', 20))
+    expect(document.querySelector('.draftRangeRect')).toBeNull()
+    expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
 })
 
 it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', async () => {
@@ -1020,8 +1035,7 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     dragSheet(sheet, x, frameY(1), x, frameY(12))
     expectSelectedRange('camera', 'camera_1', 1, 12)
     for (const pointerId of [101, 102]) {
-      fireEvent.pointerDown(sheet, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(5) })
-      fireEvent.pointerUp(sheet, { pointerId, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(5) })
+      dispatchBatchedPointerClick(sheet, pointerId, x, frameY(5))
       expectSelectedRange('camera', 'camera_1', 1, 12)
     }
     fireEvent.doubleClick(sheet, { button: 0, clientX: x, clientY: frameY(5) })
@@ -1044,35 +1058,38 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     expect(Array.from(cue.querySelectorAll('.cameraCueEndpointLabel')).map(item => item.textContent)).toEqual(['A', 'B'])
     expect(screen.queryByRole('dialog', { name: 'CAMERA指示を追加' })).toBeNull()
 
-    clickTemplateFrame(sheet, 'action', 'A', 20)
+    const actionFrame = templateFramePoint('action', 'A', 20)
+    dispatchBatchedPointerClick(sheet, 103, actionFrame.x, actionFrame.y, window)
     await waitFor(() => expectSelectedHit('action', 'A', 20))
+    expect(document.querySelector('.draftRangeRect')).toBeNull()
+    expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
     cue = document.querySelector<SVGGElement>('.cameraCue')!
     let shapeHit = cue.querySelector<SVGPolylineElement>('.cameraCueShapeHit')!
-    fireEvent.pointerDown(shapeHit, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
-    fireEvent.pointerUp(cue, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerDown(shapeHit, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerUp(cue, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(2) })
     await waitFor(() => expect(document.querySelector('.cameraCuePivotHandle')).toBeTruthy())
 
     cue = document.querySelector<SVGGElement>('.cameraCue')!
     shapeHit = cue.querySelector<SVGPolylineElement>('.cameraCueShapeHit')!
-    fireEvent.pointerDown(shapeHit, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
-    fireEvent.pointerMove(cue, { pointerId: 104, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(20) })
+    fireEvent.pointerDown(shapeHit, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerMove(cue, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(20) })
     cue = document.querySelector<SVGGElement>('.cameraCue')!
-    fireEvent.pointerUp(cue, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
+    fireEvent.pointerUp(cue, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
     await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '19', frameEnd: '30' }))
 
     cue = document.querySelector<SVGGElement>('.cameraCue')!
     const pivot = cue.querySelector<SVGEllipseElement>('.cameraCuePivotHandle')!
-    fireEvent.pointerDown(pivot, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
-    fireEvent.pointerMove(cue, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(28) })
+    fireEvent.pointerDown(pivot, { pointerId: 106, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
+    fireEvent.pointerMove(cue, { pointerId: 106, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(28) })
     cue = document.querySelector<SVGGElement>('.cameraCue')!
-    fireEvent.pointerUp(cue, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(28) })
+    fireEvent.pointerUp(cue, { pointerId: 106, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(28) })
 
     const labelGroup = document.querySelector<SVGGElement>('.cameraCueLabel')!
     const labelHit = labelGroup.querySelector<SVGRectElement>('.cameraCueLabelHit')!
-    fireEvent.pointerDown(labelHit, { pointerId: 106, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
-    fireEvent.pointerMove(labelGroup, { pointerId: 106, pointerType: 'mouse', buttons: 1, clientX: x + laneWidth * 2000, clientY: frameY(27) })
+    fireEvent.pointerDown(labelHit, { pointerId: 107, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
+    fireEvent.pointerMove(labelGroup, { pointerId: 107, pointerType: 'mouse', buttons: 1, clientX: x + laneWidth * 2000, clientY: frameY(27) })
     const movedLabelGroup = document.querySelector<SVGGElement>('.cameraCueLabel')!
-    fireEvent.pointerUp(movedLabelGroup, { pointerId: 106, pointerType: 'mouse', button: 0, buttons: 0, clientX: x + laneWidth * 2000, clientY: frameY(27) })
+    fireEvent.pointerUp(movedLabelGroup, { pointerId: 107, pointerType: 'mouse', button: 0, buttons: 0, clientX: x + laneWidth * 2000, clientY: frameY(27) })
     await waitFor(() => expect(document.querySelector('.cameraCueLabel')?.classList.contains('manual')).toBe(true))
 
     fireEvent.doubleClick(document.querySelector<SVGGElement>('.cameraCue')!)

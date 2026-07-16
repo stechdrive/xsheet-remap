@@ -94,6 +94,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const {
     selectedTimedRangeCue, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue,
     soundCueController, cameraCueController,
+    handleTimedRangeKeyDown,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue, copySelectedCameraCueRange, pasteSelectedCameraCueRange,
   } = createAppTimedRangeControllers({
@@ -2125,8 +2126,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         handleCutTextAnnotation()
         return
       }
-      if (cameraCueController.handleKeyDown(event)) return
-      if (soundCueController.handleKeyDown(event)) return
+      if (handleTimedRangeKeyDown(event)) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && rangeSelection) {
         event.preventDefault()
         copySelectedTimingRange('copy')

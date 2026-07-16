@@ -75,6 +75,15 @@ export function createAppTimedRangeControllers(options: AppTimedRangeControllers
       setClipboard: options.setCameraClipboard,
       setDialog: options.setCameraDialog,
     })
+  function handleTimedRangeKeyDown(event: KeyboardEvent): boolean {
+    if (selectedCameraCueId || options.rangeSelection?.role === 'camera') {
+      return cameraCueController.handleKeyDown(event)
+    }
+    if (selectedSoundCueId || options.rangeSelection?.role === 'sound') {
+      return soundCueController.handleKeyDown(event)
+    }
+    return false
+  }
   return {
     selectedTimedRangeCue,
     selectedSoundCueId,
@@ -97,5 +106,6 @@ export function createAppTimedRangeControllers(options: AppTimedRangeControllers
     handleTransformCameraCue: cameraCueController.transform,
     copySelectedCameraCueRange: cameraCueController.copySelection,
     pasteSelectedCameraCueRange: cameraCueController.pasteSelection,
+    handleTimedRangeKeyDown,
   }
 }

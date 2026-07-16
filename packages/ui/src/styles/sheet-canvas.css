@@ -860,7 +860,7 @@
 
 .cameraCue,
 .cameraCueLabel {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .cameraCueShapeHit {
@@ -942,7 +942,7 @@
   fill: rgb(255 255 255 / 0.001);
   stroke: none;
   cursor: grab;
-  pointer-events: all;
+  pointer-events: fill;
 }
 
 .cameraCueEdgeHandle {
@@ -958,7 +958,7 @@
   stroke-width: 2px;
   vector-effect: non-scaling-stroke;
   cursor: ns-resize;
-  pointer-events: all;
+  pointer-events: fill;
 }
 
 .cameraCueLabelResizeHandle {
@@ -967,7 +967,7 @@
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   cursor: nwse-resize;
-  pointer-events: all;
+  pointer-events: fill;
 }
 
 .timingDraftRect {

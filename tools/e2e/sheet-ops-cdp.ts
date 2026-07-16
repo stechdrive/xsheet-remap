@@ -152,20 +152,27 @@ try {
   await waitForSheetPageCount(2)
   await clickFrame('cell', 'A', e2ePageFrames + 1)
   await keyPress('9')
+  await waitForNoEventAt('cell', 'A', e2ePageFrames + 1, '9')
+  await keyPress('Enter')
   await waitForEventAt('cell', 'A', e2ePageFrames + 1, '9')
   checks.push('dropped two sheet images, created a multi-page sheet, and verified timing input on page 2')
 
   await verifySoundCueEditing()
+  await verifyCameraCueInputHandoff()
 
   await dragRange('cell', 'A', 1, 3)
   await waitForPageCondition(() => Boolean(document.querySelector('.selectedRangeRect')))
   await waitForSelectedRange('cell', 'A', 1, 3)
   await keyPress('1')
+  await waitForNoEventAt('cell', 'A', 1, '1')
+  await keyPress('Enter')
   await waitForEventAt('cell', 'A', 1, '1')
   checks.push('selected a CELL range with a CDP mouse drag and created a timing event from the value input')
 
   await clickFrame('cell', 'B', 2)
   await keyPress('2')
+  await waitForNoEventAt('cell', 'B', 2, '2')
+  await keyPress('Enter')
   await waitForEventAt('cell', 'B', 2, '2')
   await dragRangeBetweenTracks('cell', 'A', 1, 'B', 3)
   await waitForSelectedRangeTracks('cell', ['A', 'B'], 1, 3)
@@ -208,6 +215,8 @@ try {
   await clickFrame('cell', 'A', 6)
   await waitForSelectedFrame('cell', 'A', 6)
   await keyPress('2')
+  await waitForNoEventAt('cell', 'A', 6, '2')
+  await keyPress('Enter')
   await waitForEventAt('cell', 'A', 6, '2')
   await dragTimelineEvent('cell', 'A', 6, 'cell', 'A', 8)
   await waitForEventAt('cell', 'A', 8, '2')
@@ -360,6 +369,25 @@ async function verifySoundCueEditing(): Promise<void> {
   checks.push('created, edited, moved, resized, undid, copied, and pasted a template-mapped SOUND interval')
 }
 
+async function verifyCameraCueInputHandoff(): Promise<void> {
+  const [start, end] = await clientPointsForTimedRange('camera', 'camera_lane_1', 1, 4)
+  await mouseDrag(start, end)
+  await keyPress('Enter')
+  await waitForSelector('[role="dialog"][aria-label="CAMERA指示を追加"]')
+  await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E PAN')
+  await clickButtonByText('追加')
+  await waitForCameraCueAt('camera_lane_1', 1, 4, 'E2E PAN')
+
+  await clickFrame('action', 'A', 8)
+  await keyPress('1')
+  await keyPress('Enter')
+  await waitForEventAt('action', 'A', 8, '1')
+  await waitForSelectedFrame('action', 'A', 9)
+  const editorReopened = await evaluatePage<boolean>('Boolean(document.querySelector(\'[role="dialog"][aria-label="CAMERA指示を編集"]\'))')
+  if (editorReopened) throw new Error('CAMERA editor reopened instead of accepting ACTION timing input')
+  checks.push('created a CAMERA cue, switched to ACTION input, and committed a value without reopening the cue editor')
+}
+
 async function clickFrame(role: SheetTimingRole, paperTrack: string, frame: number): Promise<void> {
   const point = await clientPointForFrame(role, paperTrack, frame)
   await mouseClick(point)
@@ -411,7 +439,7 @@ async function dragRangeBetweenTracks(
 }
 
 async function dragSoundRange(laneId: string, frameStart: number, frameEnd: number): Promise<void> {
-  const [start, end] = await clientPointsForSoundRange(laneId, frameStart, frameEnd)
+  const [start, end] = await clientPointsForTimedRange('sound', laneId, frameStart, frameEnd)
   await mouseDrag(start, end)
 }
 
@@ -421,7 +449,7 @@ async function doubleClickSoundFrame(laneId: string, frame: number): Promise<voi
 }
 
 async function dragSoundCueBody(laneId: string, sourceFrame: number, targetFrame: number): Promise<void> {
-  const [source, target] = await clientPointsForSoundRange(laneId, sourceFrame, targetFrame)
+  const [source, target] = await clientPointsForTimedRange('sound', laneId, sourceFrame, targetFrame)
   await mouseDrag(source, target)
 }
 
@@ -843,8 +871,8 @@ async function rightClickStackGuideHeader(role: SheetTimingRole, gapIndex: numbe
 }
 
 async function dragStackGuideLabelToHeader(label: string, role: SheetTimingRole, gapIndex: number): Promise<void> {
-  const source = await stackGuideLabelPoint(label)
   const target = await stackGuideHeaderPoint(role, gapIndex)
+  const source = await stackGuideLabelPoint(label)
   await mouseDrag(source, target)
 }
 
@@ -871,7 +899,6 @@ async function stackGuideLabelPoint(label: string): Promise<ClientPoint> {
       const labels = Array.from(document.querySelectorAll('.stackGuideSvgLabel'));
       const label = labels.find(item => item.textContent?.trim() === ${JSON.stringify(label)});
       if (!label) return null;
-      label.scrollIntoView({ block: 'center', inline: 'center' });
       const labelBox = label.querySelector('.stackGuideSvgLabelBox');
       const box = (labelBox || label).getBoundingClientRect();
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
@@ -1166,6 +1193,13 @@ async function waitForSoundCueAt(laneId: string, frameStart: number, frameEnd: n
   `), 5000, `${laneId} SOUND ${frameStart}-${frameEnd} ${label}`)
 }
 
+async function waitForCameraCueAt(laneId: string, frameStart: number, frameEnd: number, label: string): Promise<void> {
+  await waitForCondition(async () => evaluatePage<boolean>(`
+    Array.from(document.querySelectorAll('.cameraCue[data-camera-lane-id="${cssEscape(laneId)}"][data-frame-start="${frameStart}"][data-frame-end="${frameEnd}"]'))
+      .some(cue => cue.getAttribute('aria-label')?.replace(/\\s+/g, '').includes(${JSON.stringify(label.replace(/\s+/g, ''))}))
+  `), 5000, `${laneId} CAMERA ${frameStart}-${frameEnd} ${label}`)
+}
+
 async function waitForSelectedRange(role: SheetTimingRole, paperTrack: string, frameStart: number, frameEnd: number): Promise<void> {
   const expected = templateRangeLocationForFrame(role, paperTrack, frameStart, frameEnd)
   await waitForCondition(async () => {
@@ -1238,16 +1272,16 @@ async function clientPointForSoundFrame(
   frame: number,
   bias: CellPointBias = { xRatio: 0.5, yRatio: 0.5 },
 ): Promise<ClientPoint> {
-  const { pageId, rect } = templateSoundFrameLocation(laneId, frame)
+  const { pageId, rect } = templateTimedRangeFrameLocation('sound', laneId, frame)
   await scrollSheetPageIntoView(pageId)
   const box = await sheetPageBox(pageId)
   return pointForRect(box, rect, bias)
 }
 
-async function clientPointsForSoundRange(laneId: string, frameStart: number, frameEnd: number): Promise<[ClientPoint, ClientPoint]> {
-  const start = templateSoundFrameLocation(laneId, frameStart)
-  const end = templateSoundFrameLocation(laneId, frameEnd)
-  if (start.pageId !== end.pageId) throw new Error(`cross-page SOUND drag is not supported in this scenario: ${frameStart}-${frameEnd}`)
+async function clientPointsForTimedRange(role: 'sound' | 'camera', laneId: string, frameStart: number, frameEnd: number): Promise<[ClientPoint, ClientPoint]> {
+  const start = templateTimedRangeFrameLocation(role, laneId, frameStart)
+  const end = templateTimedRangeFrameLocation(role, laneId, frameEnd)
+  if (start.pageId !== end.pageId) throw new Error(`cross-page ${role.toUpperCase()} drag is not supported in this scenario: ${frameStart}-${frameEnd}`)
   await scrollSheetPageIntoView(start.pageId)
   const box = await sheetPageBox(start.pageId)
   return [
@@ -1308,16 +1342,16 @@ function templateFrameLocationForFrame(role: SheetTimingRole, paperTrack: string
   }
 }
 
-function templateSoundFrameLocation(laneId: string, frame: number): FrameLocation {
+function templateTimedRangeFrameLocation(role: 'sound' | 'camera', laneId: string, frame: number): FrameLocation {
   const pageIndex = Math.floor((frame - standardA3SheetTemplate.defaults.frameOrigin) / e2ePageFrames)
   const pageFrameStart = pageIndex * e2ePageFrames + standardA3SheetTemplate.defaults.frameOrigin
   const localFrame = frame - pageFrameStart + standardA3SheetTemplate.defaults.frameOrigin
   for (const region of standardA3SheetTemplate.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== 'sound') continue
+    if (region.type !== 'exposure-grid' || region.grid?.role !== role) continue
     const layout = resolveSheetTemplateGridLayout(standardA3SheetTemplate, region, {
       durationFrames: e2ePageFrames,
       frameOrigin: standardA3SheetTemplate.defaults.frameOrigin,
-      role: 'sound',
+      role,
     })
     if (!layout || localFrame < layout.frames.frameStart || localFrame > layout.frames.frameEnd) continue
     const columnIndex = layout.columns.findIndex(column => column.timelineLaneId === laneId)
@@ -1326,7 +1360,7 @@ function templateSoundFrameLocation(laneId: string, frame: number): FrameLocatio
     if (!rect) continue
     return { pageId: `page_${pageIndex + 1}`, rect }
   }
-  throw new Error(`template SOUND hit not found: ${laneId} ${frame}`)
+  throw new Error(`template ${role.toUpperCase()} hit not found: ${laneId} ${frame}`)
 }
 
 function templateRangeLocationForFrame(role: SheetTimingRole, paperTrack: string, frameStart: number, frameEnd: number): FrameLocation {
@@ -1448,6 +1482,12 @@ async function pageDebug(): Promise<Record<string, unknown>> {
           y: Number(rect.getAttribute('y')),
           w: Number(rect.getAttribute('width')),
           h: Number(rect.getAttribute('height')),
+        })),
+        cameraCues: Array.from(document.querySelectorAll('.cameraCue')).map(cue => ({
+          laneId: cue.dataset.cameraLaneId ?? '',
+          frameStart: cue.dataset.frameStart ?? '',
+          frameEnd: cue.dataset.frameEnd ?? '',
+          label: cue.getAttribute('aria-label') ?? '',
         })),
         events: Array.from(document.querySelectorAll('.timelineEventHandle, .timelineEventDragSource')).flatMap(handle => {
           const rect = handle.querySelector('.eventRect');

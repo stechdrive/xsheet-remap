@@ -988,6 +988,15 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
     expect(screen.getByRole('tooltip').textContent).toContain('走れ！')
     fireEvent.pointerLeave(cue)
 
+    const cellFrame = templateFramePoint('cell', 'A', 20)
+    fireEvent.pointerDown(sheet, { pointerId: 80, pointerType: 'mouse', button: 0, buttons: 1, clientX: cellFrame.x, clientY: cellFrame.y })
+    await waitFor(() => expectSelectedHit('cell', 'A', 20))
+    enterTimingValue('2')
+    await waitFor(() => expectSelectedHit('cell', 'A', 21))
+    expect(Array.from(document.querySelectorAll('.eventText')).some(item => item.textContent === '2')).toBe(true)
+    expect(screen.queryByRole('dialog', { name: 'SOUND区間を編集' })).toBeNull()
+    expect(document.querySelector('.draftRangeRect')).toBeNull()
+
     fireEvent.doubleClick(cue)
     expect((screen.getByLabelText('SOUNDラベル') as HTMLInputElement).value).toBe('アキラ')
     fireEvent.change(screen.getByLabelText('SOUNDラベル'), { target: { value: 'SE' } })
@@ -1061,8 +1070,13 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     expect(screen.queryByRole('dialog', { name: 'CAMERA指示を追加' })).toBeNull()
 
     const actionFrame = templateFramePoint('action', 'A', 20)
-    dispatchBatchedPointerClick(sheet, 103, actionFrame.x, actionFrame.y, window)
+    fireEvent.pointerDown(sheet, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 1, clientX: actionFrame.x, clientY: actionFrame.y })
     await waitFor(() => expectSelectedHit('action', 'A', 20))
+    expect(document.querySelector('.draftRangeRect')).toBeTruthy()
+    enterTimingValue('1')
+    await waitFor(() => expectSelectedHit('action', 'A', 21))
+    expect(Array.from(document.querySelectorAll('.eventText')).some(item => item.textContent === '1')).toBe(true)
+    expect(screen.queryByRole('dialog', { name: 'CAMERA指示を編集' })).toBeNull()
     expect(document.querySelector('.draftRangeRect')).toBeNull()
     expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
     cue = document.querySelector<SVGGElement>('.cameraCue')!

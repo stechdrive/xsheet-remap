@@ -131,6 +131,7 @@ function AnnotationTextItem({
     if (event.pointerType === 'mouse' && event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
+    onSelect(annotation.annotationId)
     event.currentTarget.setPointerCapture(event.pointerId)
     dragRef.current = {
       pointerId: event.pointerId,

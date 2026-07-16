@@ -924,6 +924,31 @@ it('selects SOUND ranges without rendering app-drawn SOUND grid lines', () => {
   expectSelectedRange('sound', 'sound_1', 1, 3)
 })
 
+it('preserves a selected SOUND range through the click sequence that opens it by double-click', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    const soundRegion = standardA3SheetTemplate.regions.find(region => region.regionId === 'left_sound_grid')
+    if (!soundRegion?.grid) throw new Error('SOUND region not found')
+    const x = (soundRegion.rect.x + soundRegion.rect.w / soundRegion.grid.columns.length / 2) * 1000
+    const frameY = (frame: number) => (soundRegion.rect.y + soundRegion.rect.h * ((frame - 1 + 0.5) / soundRegion.grid!.rowCount)) * 1000
+
+    dragSheet(sheet, x, frameY(1), x, frameY(6))
+    expectSelectedRange('sound', 'sound_1', 1, 6)
+
+    for (const pointerId of [91, 92]) {
+      fireEvent.pointerDown(sheet, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(3) })
+      fireEvent.pointerUp(sheet, { pointerId, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(3) })
+      expectSelectedRange('sound', 'sound_1', 1, 6)
+    }
+    fireEvent.doubleClick(sheet, { button: 0, clientX: x, clientY: frameY(3) })
+
+    expect(screen.getByRole('dialog', { name: 'SOUND区間を追加' })).toBeTruthy()
+    expect((screen.getByLabelText('SOUND開始フレーム') as HTMLInputElement).value).toBe('1')
+    expect((screen.getByLabelText('SOUNDデュレーション秒') as HTMLInputElement).value).toBe('0')
+    expect((screen.getByLabelText('SOUNDデュレーションコマ') as HTMLInputElement).value).toBe('6')
+})
+
 it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', async () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)

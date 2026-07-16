@@ -113,7 +113,13 @@ export type SheetDropTargetPreview = {
 
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftStroke, setDraftStroke] = useState<AnnotationStroke | null>(null)
-  const [draftRange, setDraftRange] = useState<{ pointerId: number; anchor: SheetHit; focus: SheetHit; moved: boolean } | null>(null)
+  const [draftRange, setDraftRange] = useState<{
+    pointerId: number
+    anchor: SheetHit
+    focus: SheetHit
+    moved: boolean
+    preserveRangeOnClick?: SheetRangeSelection
+  } | null>(null)
   const [hoveredHit, setHoveredHit] = useState<SheetHit | null>(null)
   const [dropTargetPreview, setDropTargetPreview] = useState<SheetDropTargetPreview | null>(null)
   const [hoverPreviewAnchor, setHoverPreviewAnchor] = useState<{ x: number; y: number } | null>(null)
@@ -221,6 +227,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       props.project.logicalSheet.paperTracks.some(track => track.paperTrack === paperTrack && track.source === 'overlay'),
     )
     return rangeSelectionFromHits(props.template, anchorHit, focusHit, usesOverlayTrack ? rangeTrackOrder(sheetRoleForHit(anchorHit)) : templateTrackNames)
+  }
+  const selectedSoundRangeContainingHit = (hit: SheetHit): SheetRangeSelection | null => {
+    const range = props.rangeSelection
+    if (range?.role !== 'sound' || hit.role !== 'sound') return null
+    if (hit.frame < range.frameStart || hit.frame > range.frameEnd) return null
+    return rangeFromHits(range.anchorHit, hit) ? range : null
   }
   const visiblePages = props.sheetView.viewMode === 'single-page'
     ? props.sheetPages.filter(page => page.pageIndex === props.activePageIndex)
@@ -993,7 +1005,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       || focusHit.frame !== draftRange.anchor.frame
       || focusHit.paperTrack !== draftRange.anchor.paperTrack
       || focusHit.role !== draftRange.anchor.role
-    if (range && (moved || !range.paperTrack)) {
+    if (!moved && draftRange.preserveRangeOnClick) {
+      props.onRangeSelect(draftRange.preserveRangeOnClick)
+    } else if (range && (moved || !range.paperTrack)) {
       props.onRangeSelect(range)
     } else if (draftRange.anchor.paperTrack) {
       props.onCellClick(draftRange.anchor)
@@ -1122,7 +1136,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (props.editMode !== 'new') return
     const hit = rangeHitFromPoint(pointFromEvent(event), page)
     if (hit?.role !== 'sound') return
-    const range = rangeFromHits(hit, hit)
+    const range = selectedSoundRangeContainingHit(hit) ?? rangeFromHits(hit, hit)
     if (!range) return
     event.preventDefault()
     event.stopPropagation()
@@ -1195,7 +1209,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const hit = rangeHitFromPoint(point, page)
     if (hit) {
       event.currentTarget.setPointerCapture?.(event.pointerId)
-      setDraftRange({ pointerId: event.pointerId, anchor: hit, focus: hit, moved: false })
+      setDraftRange({
+        pointerId: event.pointerId,
+        anchor: hit,
+        focus: hit,
+        moved: false,
+        preserveRangeOnClick: selectedSoundRangeContainingHit(hit) ?? undefined,
+      })
       props.onStatusHint('sheet-drag', uiText.statusHints.rangeDragging)
       return
     }

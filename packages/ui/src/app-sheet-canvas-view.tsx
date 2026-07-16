@@ -465,7 +465,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           <strong>{hoveredCameraCue.label}</strong>
           <span>{hoveredCameraCue.frameStart}–{hoveredCameraCue.frameEnd}F / {hoveredCameraCue.camera?.shape ?? 'range'}</span>
           {(hoveredCameraCue.camera?.startLabel || hoveredCameraCue.camera?.endLabel) && <span>{hoveredCameraCue.camera?.startLabel || '―'} → {hoveredCameraCue.camera?.endLabel || '―'}</span>}
-          {hoveredCameraCue.text && <p>{hoveredCameraCue.text}</p>}
         </div>
       )}
       {hoverPreviewPosition && <CellAssetPreview position={hoverPreviewPosition} items={hoverPreviewItems} />}

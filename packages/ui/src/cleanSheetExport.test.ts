@@ -4,8 +4,9 @@ import {
   createDefaultProject,
   registerSheetSource,
   standardA3SheetTemplate,
+  createTimedRangeCue,
 } from '@xsheet-remap/core'
-import { defaultSheetImageExportOptions } from './cleanSheetExport'
+import { defaultSheetImageExportOptions, timedRangeCueExportLayerIds } from './cleanSheetExport'
 
 describe('clean sheet export options', () => {
   it('combines the template image and app drawing for a clean sheet export', () => {
@@ -27,5 +28,17 @@ describe('clean sheet export options', () => {
       includeTemplateImage: false,
       includeTemplateDrawing: true,
     })
+  })
+
+  it('adds dedicated deliverable layers for SOUND and CAMERA instructions', () => {
+    const sound = createTimedRangeCue(createDefaultProject(), {
+      role: 'sound', laneId: 'sound_lane_1', frameStart: 1, frameEnd: 12, label: 'アキラ', text: '走れ！',
+    }).project
+    const camera = createTimedRangeCue(sound, {
+      role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 12, label: 'PAN',
+      camera: { shape: 'range', startLabel: 'A', endLabel: 'B' },
+    }).project
+
+    expect(timedRangeCueExportLayerIds(camera)).toEqual(['soundCues', 'cameraCues'])
   })
 })

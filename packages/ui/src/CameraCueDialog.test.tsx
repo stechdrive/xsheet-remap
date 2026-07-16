@@ -23,10 +23,12 @@ describe('CameraCueDialog', () => {
     fireEvent.change(screen.getByLabelText('CAMERA終了キュー'), { target: { value: 'B' } })
     fireEvent.change(screen.getByLabelText('CAMERAデュレーションコマ'), { target: { value: '12' } })
     fireEvent.change(screen.getByLabelText('CAMERA交差フレーム'), { target: { value: '8' } })
+    expect(screen.queryByLabelText('CAMERA補足')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '追加' }))
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       laneId: 'camera_lane_1', frameStart: 1, frameEnd: 12, label: 'OL',
       camera: expect.objectContaining({ shape: 'overlap', startLabel: 'A', endLabel: 'B', pivotFrame: 8 }),
     }))
+    expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('text')
   })
 })

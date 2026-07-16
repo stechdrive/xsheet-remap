@@ -99,7 +99,7 @@ function normalizeCue(project: CutProject, cue: TimedRangeCue): TimedRangeCue {
     frameStart,
     frameEnd,
     label: cue.label.trim(),
-    text: cue.text.trim(),
+    text: cue.role === 'camera' ? '' : cue.text.trim(),
     camera: cue.role === 'camera' ? normalizeCameraInstruction({ ...cue, frameStart, frameEnd }) : undefined,
     source: cue.source ?? 'manual',
   }

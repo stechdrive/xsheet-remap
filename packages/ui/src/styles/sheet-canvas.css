@@ -863,14 +863,17 @@
   pointer-events: auto;
 }
 
-.cameraCueHitBody {
-  fill: rgb(255 255 255 / 0.001);
+.cameraCueShapeHit {
+  fill: none;
   stroke: transparent;
+  stroke-width: 10px;
+  vector-effect: non-scaling-stroke;
   cursor: grab;
-  pointer-events: all;
+  pointer-events: stroke;
 }
 
-.cameraCueHitBody:active {
+.cameraCueShapeHit:active,
+.cameraCueLabelHit:active {
   cursor: grabbing;
 }
 
@@ -918,24 +921,28 @@
   pointer-events: none;
 }
 
-.cameraCueLabelBody {
-  fill: rgb(255 255 252 / 0.72);
-  stroke: rgb(47 95 76 / 0.28);
+.cameraCueLabelConnector {
+  fill: none;
+  stroke: rgb(47 95 76 / 0.72);
   stroke-width: 1px;
-  vector-effect: non-scaling-stroke;
-  cursor: move;
-  pointer-events: all;
-}
-
-.cameraCueLabel:not(.manual) .cameraCueLabelBody {
-  fill: rgb(255 255 252 / 0.44);
   stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
 
-.cameraCueLabel.selected .cameraCueLabelBody {
+.cameraCueLabelBody {
   fill: rgb(237 246 255 / 0.9);
   stroke: rgb(21 94 220 / 0.98);
   stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.cameraCueLabelHit {
+  fill: rgb(255 255 255 / 0.001);
+  stroke: none;
+  cursor: grab;
+  pointer-events: all;
 }
 
 .cameraCueEdgeHandle {

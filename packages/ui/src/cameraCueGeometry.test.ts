@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
-import { cameraCueLabelLayoutForPage, cameraCueSegmentsForPage } from './cameraCueGeometry'
+import { buildCameraCuePageLayouts, cameraCueLabelLayoutForPage, cameraCueSegmentsForPage } from './cameraCueGeometry'
 
 describe('CAMERA cue geometry', () => {
   const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
@@ -26,6 +26,8 @@ describe('CAMERA cue geometry', () => {
     const segments = cameraCueSegmentsForPage(standardA3SheetTemplate, page, cue, { paperTracks })
     const automatic = cameraCueLabelLayoutForPage(standardA3SheetTemplate, page, cue, { widthPx: 1754, heightPx: 2481 }, segments)
     expect(automatic?.orientation).toBe('vertical')
+    expect(automatic?.rect).not.toEqual(segments[0]!.rect)
+    expect((automatic?.rect.w ?? 0) * (automatic?.rect.h ?? 0)).toBeLessThan(segments[0]!.rect.w * segments[0]!.rect.h)
 
     const manualCue: TimedRangeCue = {
       ...cue,
@@ -35,5 +37,17 @@ describe('CAMERA cue geometry', () => {
     expect(manual).toMatchObject({ orientation: 'horizontal', manual: true })
     expect(manual?.rect.x).toBeCloseTo(segments[0]!.regionRect.x + segments[0]!.regionRect.w * 0.5)
     expect(manual?.rect.h).toBeCloseTo(segments[0]!.rowHeight * 5)
+  })
+
+  it('places a fade instruction outside its shape and returns a connector to the cue', () => {
+    const cue: TimedRangeCue = {
+      cueId: 'cue_fade', role: 'camera', laneId: 'camera_lane_2', frameStart: 1, frameEnd: 18, label: 'FI撮影指示', text: '', source: 'manual',
+      camera: { shape: 'fade-in', startLabel: '', endLabel: '' },
+    }
+    const layout = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [cue], { widthPx: 1754, heightPx: 2481 }, { paperTracks })[0]
+    expect(layout?.segments).toHaveLength(1)
+    expect(layout?.label).not.toBeNull()
+    expect(layout?.label?.rect).not.toEqual(layout?.segments[0]?.rect)
+    expect(layout?.label?.connector).toBeTruthy()
   })
 })

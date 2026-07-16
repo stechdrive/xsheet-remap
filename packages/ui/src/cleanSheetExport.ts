@@ -32,6 +32,8 @@ import {
 } from './templateEditorGeometry'
 import { sheetImageFileName } from './outputFileNames'
 import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
+import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
+import { buildCameraCuePageLayouts, cameraFadePolygonForSegment, cameraOverlapPathsForSegment } from './cameraCueGeometry'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -58,8 +60,12 @@ type SheetExportLayerId =
   | 'templateLabels'
   | 'overlayTracks'
   | 'inputText'
+  | 'soundCues'
+  | 'cameraCues'
   | 'annotationInk'
   | 'annotationText'
+
+export type TimedRangeCueExportLayerId = Extract<SheetExportLayerId, 'soundCues' | 'cameraCues'>
 
 type SheetExportLayer = {
   id: SheetExportLayerId
@@ -218,9 +224,20 @@ async function renderSheetExportLayers(
     layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル', imageData: renderOverlayTrackLayer(context) })
   }
   layers.push({ id: 'inputText', name: '入力文字', imageData: renderInputTextLayer(context) })
+  for (const id of timedRangeCueExportLayerIds(context.project)) {
+    if (id === 'soundCues') layers.push({ id, name: 'SOUND指示', imageData: renderSoundCueLayer(context) })
+    else layers.push({ id, name: 'CAMERA指示', imageData: renderCameraCueLayer(context) })
+  }
   layers.push({ id: 'annotationInk', name: '手描き注釈', imageData: renderAnnotationLayer(context, 'ink') })
   layers.push({ id: 'annotationText', name: '注釈文字', imageData: renderAnnotationLayer(context, 'text') })
   return layers
+}
+
+export function timedRangeCueExportLayerIds(project: CutProject): TimedRangeCueExportLayerId[] {
+  const ids: TimedRangeCueExportLayerId[] = []
+  if (project.timedRangeCues.some(cue => cue.role === 'sound')) ids.push('soundCues')
+  if (project.timedRangeCues.some(cue => cue.role === 'camera')) ids.push('cameraCues')
+  return ids
 }
 
 async function renderPaperSheetLayer(context: SheetExportLayerContext): Promise<ImageData> {
@@ -520,6 +537,185 @@ function projectedPixelRect(context: SheetExportLayerContext, rect: NormalizedRe
     w: edges.right - edges.left,
     h: edges.bottom - edges.top,
   }
+}
+
+function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  const cues = context.project.timedRangeCues.filter(cue => cue.role === 'sound')
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const cue of cues) {
+      for (const segment of soundCueSegmentsForPage(context.template, page, cue, {
+        paperTracks: context.paperTracks,
+        layoutOverrides: context.project.sheetView.layoutOverrides,
+      })) {
+        const rect = projectedPixelRect(context, segment.rect, offsetY)
+        ctx.fillStyle = 'rgba(37, 121, 94, 0.16)'
+        ctx.strokeStyle = 'rgba(25, 91, 70, 0.74)'
+        ctx.lineWidth = 1
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
+        ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
+        ctx.strokeStyle = 'rgba(18, 82, 62, 0.98)'
+        ctx.lineWidth = 3
+        if (segment.startsCue) drawCanvasLine(ctx, rect.x, rect.y, rect.x + rect.w, rect.y)
+        if (segment.endsCue) drawCanvasLine(ctx, rect.x, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h)
+        const typography = context.template.regions.find(region => region.regionId === segment.regionId)?.grid?.typography
+        const textLayout = buildSoundCueTextLayout(
+          segment.rect,
+          context.pageSize,
+          segment.startsCue ? cue.label : '',
+          cue.text,
+          { fontSizePx: typography?.cellFontSizePx, minFontSizePx: typography?.cellMinFontSizePx },
+        )
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'alphabetic'
+        for (const glyph of textLayout.labelGlyphs) {
+          drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.labelFontSizePx, 850)
+        }
+        for (const glyph of textLayout.textGlyphs) {
+          drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650)
+        }
+      }
+    }
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  const cues = context.project.timedRangeCues.filter(cue => cue.role === 'camera')
+  const pageWidth = context.pageSize.widthPx
+  const pageHeight = context.pageSize.heightPx
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * pageHeight
+    const layouts = buildCameraCuePageLayouts(context.template, page, cues, context.pageSize, {
+      paperTracks: context.paperTracks,
+      layoutOverrides: context.project.sheetView.layoutOverrides,
+    })
+    for (const { cue, segments } of layouts) {
+      const camera = cue.camera ?? { shape: 'range' as const, startLabel: '', endLabel: '' }
+      for (const segment of segments) {
+        const centerX = (segment.rect.x + segment.rect.w / 2) * pageWidth
+        const top = offsetY + segment.rect.y * pageHeight
+        const bottom = offsetY + (segment.rect.y + segment.rect.h) * pageHeight
+        ctx.strokeStyle = 'rgba(22, 67, 52, 0.96)'
+        ctx.fillStyle = 'rgba(55, 112, 87, 0.08)'
+        ctx.lineWidth = 1.5
+        if (camera.shape === 'range') drawCanvasLine(ctx, centerX, top, centerX, bottom)
+        if (camera.shape === 'fade-in' || camera.shape === 'fade-out') {
+          drawNormalizedPolygon(ctx, cameraFadePolygonForSegment(cue, segment, camera.shape), pageWidth, pageHeight, offsetY, true)
+        }
+        if (camera.shape === 'overlap') {
+          for (const path of cameraOverlapPathsForSegment(cue, segment)) {
+            drawNormalizedPolyline(ctx, path, pageWidth, pageHeight, offsetY)
+          }
+        }
+        if (camera.shape === 'range' && segment.startsCue) {
+          drawCanvasPolygon(ctx, [[centerX - 5, top], [centerX + 5, top], [centerX, top + 9]], '#194f3c')
+        }
+        if (camera.shape === 'range' && segment.endsCue) {
+          drawCanvasPolygon(ctx, [[centerX - 5, bottom], [centerX + 5, bottom], [centerX, bottom - 9]], '#194f3c')
+        }
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
+        if (segment.startsCue && camera.startLabel) drawCueText(ctx, camera.startLabel, centerX + 7.5, top + 5.4, 11, 850)
+        if (segment.endsCue && camera.endLabel) drawCueText(ctx, camera.endLabel, centerX + 7.5, bottom - 2.25, 11, 850)
+      }
+    }
+    for (const { label } of layouts) {
+      if (!label) continue
+      if (label.connector) {
+        ctx.save()
+        ctx.strokeStyle = 'rgba(47, 95, 76, 0.72)'
+        ctx.lineWidth = 1
+        ctx.setLineDash([2, 2])
+        drawCanvasLine(
+          ctx,
+          label.connector.from.x * pageWidth,
+          offsetY + label.connector.from.y * pageHeight,
+          label.connector.to.x * pageWidth,
+          offsetY + label.connector.to.y * pageHeight,
+        )
+        ctx.restore()
+      }
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      for (const glyph of label.glyphs) drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, label.fontSizePx, 850)
+    }
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function drawCueText(
+  ctx: CanvasRenderingContext2D,
+  value: string,
+  x: number,
+  y: number,
+  fontSizePx: number,
+  fontWeight: number,
+) {
+  ctx.font = fontDeclaration(fontSizePx, SHEET_CANVAS_FONT_FAMILY, fontWeight)
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 3
+  ctx.strokeStyle = 'rgba(255, 255, 252, 0.94)'
+  ctx.strokeText(value, x, y)
+  ctx.fillStyle = '#173f32'
+  ctx.fillText(value, x, y)
+}
+
+function drawCanvasLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
+  ctx.beginPath()
+  ctx.moveTo(x1, y1)
+  ctx.lineTo(x2, y2)
+  ctx.stroke()
+}
+
+function drawNormalizedPolygon(
+  ctx: CanvasRenderingContext2D,
+  points: Array<{ x: number; y: number }>,
+  pageWidth: number,
+  pageHeight: number,
+  offsetY: number,
+  fill: boolean,
+) {
+  const first = points[0]
+  if (!first) return
+  ctx.beginPath()
+  ctx.moveTo(first.x * pageWidth, offsetY + first.y * pageHeight)
+  for (const point of points.slice(1)) ctx.lineTo(point.x * pageWidth, offsetY + point.y * pageHeight)
+  ctx.closePath()
+  if (fill) ctx.fill()
+  ctx.stroke()
+}
+
+function drawNormalizedPolyline(
+  ctx: CanvasRenderingContext2D,
+  points: Array<{ x: number; y: number }>,
+  pageWidth: number,
+  pageHeight: number,
+  offsetY: number,
+) {
+  const first = points[0]
+  if (!first) return
+  ctx.beginPath()
+  ctx.moveTo(first.x * pageWidth, offsetY + first.y * pageHeight)
+  for (const point of points.slice(1)) ctx.lineTo(point.x * pageWidth, offsetY + point.y * pageHeight)
+  ctx.stroke()
+}
+
+function drawCanvasPolygon(ctx: CanvasRenderingContext2D, points: Array<[number, number]>, fillStyle: string) {
+  const first = points[0]
+  if (!first) return
+  ctx.beginPath()
+  ctx.moveTo(first[0], first[1])
+  for (const point of points.slice(1)) ctx.lineTo(point[0], point[1])
+  ctx.closePath()
+  ctx.fillStyle = fillStyle
+  ctx.fill()
 }
 
 function renderOverlayTrackLayer(context: SheetExportLayerContext): ImageData {

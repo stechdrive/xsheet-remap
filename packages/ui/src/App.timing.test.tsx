@@ -1039,30 +1039,40 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     let cue = document.querySelector<SVGGElement>('.cameraCue')!
     expect(cue.dataset).toMatchObject({ cameraCueId: 'cue_1', cameraLaneId: 'camera_lane_1', frameStart: '1', frameEnd: '12' })
     expect(cue.classList.contains('overlap')).toBe(true)
-    expect(cue.querySelectorAll('polyline')).toHaveLength(2)
+    expect(cue.querySelectorAll('.cameraCueStroke')).toHaveLength(2)
     expect(cue.querySelector('.cameraCuePivotHandle')).toBeTruthy()
     expect(Array.from(cue.querySelectorAll('.cameraCueEndpointLabel')).map(item => item.textContent)).toEqual(['A', 'B'])
+    expect(screen.queryByRole('dialog', { name: 'CAMERA指示を追加' })).toBeNull()
 
-    const body = cue.querySelector<SVGRectElement>('.cameraCueHitBody')!
-    fireEvent.pointerDown(body, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
-    fireEvent.pointerMove(cue, { pointerId: 103, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(20) })
+    clickTemplateFrame(sheet, 'action', 'A', 20)
+    await waitFor(() => expectSelectedHit('action', 'A', 20))
     cue = document.querySelector<SVGGElement>('.cameraCue')!
-    fireEvent.pointerUp(cue, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
+    let shapeHit = cue.querySelector<SVGPolylineElement>('.cameraCueShapeHit')!
+    fireEvent.pointerDown(shapeHit, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerUp(cue, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(2) })
+    await waitFor(() => expect(document.querySelector('.cameraCuePivotHandle')).toBeTruthy())
+
+    cue = document.querySelector<SVGGElement>('.cameraCue')!
+    shapeHit = cue.querySelector<SVGPolylineElement>('.cameraCueShapeHit')!
+    fireEvent.pointerDown(shapeHit, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerMove(cue, { pointerId: 104, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(20) })
+    cue = document.querySelector<SVGGElement>('.cameraCue')!
+    fireEvent.pointerUp(cue, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
     await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '19', frameEnd: '30' }))
 
     cue = document.querySelector<SVGGElement>('.cameraCue')!
     const pivot = cue.querySelector<SVGEllipseElement>('.cameraCuePivotHandle')!
-    fireEvent.pointerDown(pivot, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
-    fireEvent.pointerMove(cue, { pointerId: 104, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(28) })
+    fireEvent.pointerDown(pivot, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
+    fireEvent.pointerMove(cue, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(28) })
     cue = document.querySelector<SVGGElement>('.cameraCue')!
-    fireEvent.pointerUp(cue, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(28) })
+    fireEvent.pointerUp(cue, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(28) })
 
     const labelGroup = document.querySelector<SVGGElement>('.cameraCueLabel')!
-    const labelBody = labelGroup.querySelector<SVGRectElement>('.cameraCueLabelBody')!
-    fireEvent.pointerDown(labelBody, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
-    fireEvent.pointerMove(labelGroup, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x + laneWidth * 2000, clientY: frameY(27) })
+    const labelHit = labelGroup.querySelector<SVGRectElement>('.cameraCueLabelHit')!
+    fireEvent.pointerDown(labelHit, { pointerId: 106, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
+    fireEvent.pointerMove(labelGroup, { pointerId: 106, pointerType: 'mouse', buttons: 1, clientX: x + laneWidth * 2000, clientY: frameY(27) })
     const movedLabelGroup = document.querySelector<SVGGElement>('.cameraCueLabel')!
-    fireEvent.pointerUp(movedLabelGroup, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 0, clientX: x + laneWidth * 2000, clientY: frameY(27) })
+    fireEvent.pointerUp(movedLabelGroup, { pointerId: 106, pointerType: 'mouse', button: 0, buttons: 0, clientX: x + laneWidth * 2000, clientY: frameY(27) })
     await waitFor(() => expect(document.querySelector('.cameraCueLabel')?.classList.contains('manual')).toBe(true))
 
     fireEvent.doubleClick(document.querySelector<SVGGElement>('.cameraCue')!)

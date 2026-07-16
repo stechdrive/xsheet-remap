@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { CameraInstruction, CameraInstructionShape, LogicalTimelineLane, TimedRangeCue } from '@xsheet-remap/core'
 import type { CameraCueDialogState } from './appTypes'
 
@@ -8,7 +8,6 @@ export interface CameraCueDialogSubmit {
   frameStart: number
   frameEnd: number
   label: string
-  text: string
   camera: CameraInstruction
 }
 
@@ -36,7 +35,6 @@ export function CameraCueDialog({ state, cue, lane, fps, frameMin, frameMax, onS
   const initialCamera = cue?.camera
   const [shape, setShape] = useState<CameraInstructionShape>(initialCamera?.shape ?? 'range')
   const [label, setLabel] = useState(cue?.label ?? '')
-  const [text, setText] = useState(cue?.text ?? '')
   const [startLabel, setStartLabel] = useState(initialCamera?.startLabel ?? '')
   const [endLabel, setEndLabel] = useState(initialCamera?.endLabel ?? '')
   const [frameStart, setFrameStart] = useState(initialFrameStart)
@@ -85,7 +83,6 @@ export function CameraCueDialog({ state, cue, lane, fps, frameMin, frameMax, onS
       frameStart,
       frameEnd,
       label: normalizedLabel,
-      text: text.trim(),
       camera: {
         shape,
         startLabel: startLabel.trim(),
@@ -94,13 +91,6 @@ export function CameraCueDialog({ state, cue, lane, fps, frameMin, frameMax, onS
         labelPlacement,
       },
     })
-  }
-
-  function handleTextKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault()
-      event.currentTarget.form?.requestSubmit()
-    }
   }
 
   return (
@@ -128,10 +118,6 @@ export function CameraCueDialog({ state, cue, lane, fps, frameMin, frameMax, onS
             <label><span>開始キュー（任意）</span><input aria-label="CAMERA開始キュー" value={startLabel} onChange={event => setStartLabel(event.currentTarget.value)} placeholder="A" /></label>
             <label><span>終了キュー（任意）</span><input aria-label="CAMERA終了キュー" value={endLabel} onChange={event => setEndLabel(event.currentTarget.value)} placeholder="B" /></label>
           </div>
-          <label>
-            <span>補足</span>
-            <textarea aria-label="CAMERA補足" value={text} rows={3} onChange={event => setText(event.currentTarget.value)} onKeyDown={handleTextKeyDown} placeholder="追加の撮影指示など" />
-          </label>
           <div className="soundCueTimingFields">
             <label><span>開始フレーム</span><input type="number" aria-label="CAMERA開始フレーム" min={frameMin} max={frameMax} value={frameStart} onChange={event => setFrameStart(Math.max(frameMin, Math.min(frameMax, Math.round(Number(event.currentTarget.value)))))} /></label>
             <fieldset>
@@ -150,7 +136,7 @@ export function CameraCueDialog({ state, cue, lane, fps, frameMin, frameMax, onS
               <button type="button" onClick={() => setLabelPlacement(undefined)}>自動配置に戻す</button>
             </div>
           )}
-          <small>区間と中間点はシート上でもドラッグ編集できます。補足欄は Ctrl+Enter で確定します。</small>
+          <small>指示文は成果物のシート上に表示されます。区間と中間点はシート上でもドラッグ編集できます。</small>
         </div>
         <footer className="soundCueDialogFooter">
           <button type="button" onClick={onCancel}>キャンセル</button>

@@ -79,6 +79,7 @@ describe('timed range cues', () => {
       frameStart: 20,
       frameEnd: 10,
       label: '  PAN  ',
+      text: '  成果物に出ない旧補足  ',
       camera: {
         shape: 'overlap',
         startLabel: ' A ',
@@ -92,6 +93,7 @@ describe('timed range cues', () => {
       frameStart: 10,
       frameEnd: 20,
       label: 'PAN',
+      text: '',
       camera: {
         shape: 'overlap',
         startLabel: 'A',

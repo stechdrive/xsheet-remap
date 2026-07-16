@@ -1657,6 +1657,35 @@
   color: #16634f;
 }
 
+.timelineMemoAnchorCue {
+  color: #13745c;
+  pointer-events: none;
+}
+
+.timelineMemoAnchorCue.selected {
+  color: #084c3b;
+}
+
+.timelineMemoAnchorMarker,
+.timelineMemoAnchorConnector {
+  fill: currentColor;
+  pointer-events: none;
+  shape-rendering: geometricPrecision;
+}
+
+.timelineMemoAnchorMarker {
+  opacity: 0.92;
+}
+
+.timelineMemoAnchorCue.selected .timelineMemoAnchorMarker {
+  opacity: 1;
+}
+
+.timelineMemoAnchorConnector {
+  color: #13745c;
+  opacity: 0.58;
+}
+
 .timelineMemoHitArea,
 .timelineMemoDrawSurface {
   fill: none;

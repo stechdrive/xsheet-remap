@@ -351,6 +351,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       paperTracks={templateTrackNames}
                       layoutOverrides={props.project.sheetView.layoutOverrides}
                       pageSize={sheetPageSize}
+                      surface={selectionSurface}
                       selectedMemoId={props.selectedTimelineMemoId}
                       penColor={props.penColor}
                       penWidth={props.penWidth}

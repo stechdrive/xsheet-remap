@@ -1,7 +1,8 @@
 import { createDefaultProject, createSheetPages, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
 import { describe, expect, it } from 'vitest'
+import { assetAssignedMarkerPoints } from './sheet-selection-visuals'
 import { createTimelineMemoForHit } from './timelineMemoEditing'
-import { timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment } from './timelineMemoGeometry'
+import { timelineMemoAnchorCellForPage, timelineMemoAnchorConnectorPoints, timelineMemoAnchorMarkerRect, timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment } from './timelineMemoGeometry'
 
 function memo(frame: number, heightFrames: number): TimelineInkMemo {
   return {
@@ -30,6 +31,41 @@ describe('timeline memo geometry', () => {
     const pages = createSheetPages(standardA3SheetTemplate, 288, 1)
     expect(timelineMemoSegmentsForPage(standardA3SheetTemplate, pages[0]!, memo(146, 4), { paperTracks: ['A'] })).toHaveLength(0)
     expect(timelineMemoSegmentsForPage(standardA3SheetTemplate, pages[1]!, memo(146, 4), { paperTracks: ['A'] })).toHaveLength(1)
+    expect(timelineMemoAnchorCellForPage(standardA3SheetTemplate, pages[0]!, memo(146, 4), { paperTracks: ['A'] })).toBeNull()
+    expect(timelineMemoAnchorCellForPage(standardA3SheetTemplate, pages[1]!, memo(146, 4), { paperTracks: ['A'] })?.pageId).toBe('page_2')
+  })
+
+  it('keeps the anchor cue on the logical frame when the memo canvas moves', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const moved = { ...memo(70, 8), placement: { ...memo(70, 8).placement, frameOffset: 5, crossOffsetUnits: 3 } }
+    const anchor = timelineMemoAnchorCellForPage(standardA3SheetTemplate, page, moved, { paperTracks: ['A'] })
+    const startSegment = timelineMemoSegmentsForPage(standardA3SheetTemplate, page, moved, { paperTracks: ['A'] }).find(segment => segment.startsMemo)
+    expect(anchor?.regionId).toBe('left_action_grid')
+    expect(startSegment?.regionId).toBe('right_action_grid')
+  })
+
+  it('places the memo cue on the left without colliding with the asset flag on the right', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const cell = timelineMemoAnchorCellForPage(standardA3SheetTemplate, page, memo(10, 8), { paperTracks: ['A'] })!.rect
+    const surface = { widthPx: 877, heightPx: 1241 }
+    const memoMarker = timelineMemoAnchorMarkerRect(cell, surface)
+    const assetXs = assetAssignedMarkerPoints(cell, surface).split(' ').map(point => Number(point.split(',')[0]))
+    expect(memoMarker.x).toBe(cell.x)
+    expect(memoMarker.x + memoMarker.w).toBeLessThan(Math.min(...assetXs))
+    expect(memoMarker.w * surface.widthPx).toBeLessThanOrEqual(3)
+    expect(memoMarker.h * surface.heightPx).toBeLessThanOrEqual(9)
+  })
+
+  it('draws a selected connector only after the memo canvas leaves its anchor cell', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const source = memo(10, 8)
+    const anchorCell = timelineMemoAnchorCellForPage(standardA3SheetTemplate, page, source, { paperTracks: ['A'] })!
+    const marker = timelineMemoAnchorMarkerRect(anchorCell.rect, { widthPx: 877, heightPx: 1241 })
+    const originalRect = timelineMemoSegmentsForPage(standardA3SheetTemplate, page, source, { paperTracks: ['A'] })[0]!.rect
+    const moved = { ...source, placement: { ...source.placement, frameOffset: 8, crossOffsetUnits: 3 } }
+    const movedRect = timelineMemoSegmentsForPage(standardA3SheetTemplate, page, moved, { paperTracks: ['A'] })[0]!.rect
+    expect(timelineMemoAnchorConnectorPoints(marker, originalRect, { widthPx: 877, heightPx: 1241 })).toBeNull()
+    expect(timelineMemoAnchorConnectorPoints(marker, movedRect, { widthPx: 877, heightPx: 1241 })?.split(' ')).toHaveLength(4)
   })
 
   it('clips a stroke into each wrap segment while retaining logical points', () => {

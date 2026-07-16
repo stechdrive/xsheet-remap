@@ -1,6 +1,9 @@
 import { useMemo, useRef, useState, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetViewLayoutOverrides, TimelineInkMemo, TimelineMemoPlacement, TimelineMemoPoint, TimelineMemoStroke } from '@xsheet-remap/core'
 import {
+  timelineMemoAnchorCellForPage,
+  timelineMemoAnchorConnectorPoints,
+  timelineMemoAnchorMarkerRect,
   timelineMemoPointFromPagePoint,
   timelineMemoSegmentsForPage,
   timelineMemoStrokePath,
@@ -24,6 +27,7 @@ export function TimelineMemoLayer({
   paperTracks,
   layoutOverrides,
   pageSize,
+  surface,
   selectedMemoId,
   penColor,
   penWidth,
@@ -36,6 +40,7 @@ export function TimelineMemoLayer({
   paperTracks: string[]
   layoutOverrides?: SheetViewLayoutOverrides
   pageSize: { widthPx: number; heightPx: number }
+  surface: { widthPx: number; heightPx: number }
   selectedMemoId: string | null
   penColor: string
   penWidth: number
@@ -52,6 +57,30 @@ export function TimelineMemoLayer({
   const handleH = 18 / Math.max(1, pageSize.heightPx)
   const edgeW = 1.25 / Math.max(1, pageSize.widthPx)
   const edgeH = 1.25 / Math.max(1, pageSize.heightPx)
+  const renderedMemoSegments = renderedMemos.map(memo => ({
+    memo,
+    segments: timelineMemoSegmentsForPage(template, page, memo, { paperTracks, layoutOverrides }),
+  }))
+  const anchorGroups = new Map<string, {
+    anchorCell: NonNullable<ReturnType<typeof timelineMemoAnchorCellForPage>>
+    anchorFrame: number
+    memoIds: string[]
+  }>()
+  for (const memo of renderedMemos) {
+    const anchorCell = timelineMemoAnchorCellForPage(template, page, memo, { paperTracks, layoutOverrides })
+    if (!anchorCell) continue
+    const key = [anchorCell.regionId, memo.anchor.role, memo.anchor.frame, memo.anchor.paperTrack ?? '', memo.anchor.laneId ?? ''].join(':')
+    const existing = anchorGroups.get(key)
+    if (existing) existing.memoIds.push(memo.memoId)
+    else anchorGroups.set(key, { anchorCell, anchorFrame: memo.anchor.frame, memoIds: [memo.memoId] })
+  }
+  const selectedRender = renderedMemoSegments.find(item => item.memo.memoId === selectedMemoId)
+  const selectedAnchorGroup = [...anchorGroups.values()].find(group => selectedMemoId && group.memoIds.includes(selectedMemoId))
+  const selectedStartSegment = selectedRender?.segments.find(segment => segment.startsMemo)
+  const selectedAnchorMarker = selectedAnchorGroup ? timelineMemoAnchorMarkerRect(selectedAnchorGroup.anchorCell.rect, surface) : null
+  const selectedConnectorPoints = selectedAnchorMarker && selectedStartSegment
+    ? timelineMemoAnchorConnectorPoints(selectedAnchorMarker, selectedStartSegment.rect, surface)
+    : null
 
   function begin(event: PointerEvent<SVGElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment, mode: MemoInteraction['mode']) {
     if (memo.memoId !== selectedMemoId) return
@@ -128,7 +157,7 @@ export function TimelineMemoLayer({
 
   return (
     <g className="timelineMemoLayer" aria-label="タイムライン手書きメモ">
-      {renderedMemos.flatMap(memo => timelineMemoSegmentsForPage(template, page, memo, { paperTracks, layoutOverrides }).map(segment => {
+      {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
         const selected = memo.memoId === selectedMemoId
         const draftPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'draw' ? interaction.points : null
         return (
@@ -187,6 +216,30 @@ export function TimelineMemoLayer({
           </g>
         )
       }))}
+      {selectedConnectorPoints && <polygon className="timelineMemoAnchorConnector" points={selectedConnectorPoints} />}
+      {[...anchorGroups.entries()].map(([key, group]) => {
+        const marker = timelineMemoAnchorMarkerRect(group.anchorCell.rect, surface)
+        const selected = Boolean(selectedMemoId && group.memoIds.includes(selectedMemoId))
+        const memoCount = group.memoIds.length
+        return (
+          <g
+            key={key}
+            className={selected ? 'timelineMemoAnchorCue selected' : 'timelineMemoAnchorCue'}
+            data-timeline-memo-anchor-frame={group.anchorFrame}
+            data-timeline-memo-count={memoCount}
+            aria-label={memoCount === 1 ? '手書きメモのアンカー' : `手書きメモのアンカー ${memoCount}件`}
+          >
+            <rect
+              className="timelineMemoAnchorMarker"
+              x={marker.x}
+              y={marker.y}
+              width={marker.w}
+              height={marker.h}
+              rx={Math.min(marker.w, marker.h) * 0.32}
+            />
+          </g>
+        )
+      })}
     </g>
   )
 }

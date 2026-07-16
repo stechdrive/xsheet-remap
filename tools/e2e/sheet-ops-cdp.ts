@@ -380,6 +380,20 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'timeline memo create menu')
   await clickMenuItem('メモを追加')
   await waitForPageCondition(() => document.querySelectorAll('.timelineMemoSegment.selected').length === 2, 'A3 six-second wrap memo segments')
+  await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoAnchorCue.selected[data-timeline-memo-anchor-frame="70"] .timelineMemoAnchorMarker')), 'timeline memo anchor cue')
+  const anchorCuePlacement = await evaluatePage<{ markerLeft: number; markerRight: number; cellLeft: number; cellCenter: number }>(`
+    (() => {
+      const marker = document.querySelector('.timelineMemoAnchorCue[data-timeline-memo-anchor-frame="70"] .timelineMemoAnchorMarker');
+      const memo = document.querySelector('.timelineMemoSegment.selected');
+      if (!marker || !memo) throw new Error('timeline memo anchor geometry is unavailable');
+      const markerRect = marker.getBoundingClientRect();
+      const memoRect = memo.getBoundingClientRect();
+      return { markerLeft: markerRect.left, markerRight: markerRect.right, cellLeft: memoRect.left, cellCenter: memoRect.left + memoRect.width / 2 };
+    })()
+  `)
+  if (anchorCuePlacement.markerLeft < anchorCuePlacement.cellLeft - 1 || anchorCuePlacement.markerRight >= anchorCuePlacement.cellCenter) {
+    throw new Error('timeline memo anchor cue is not confined to the left side of its frame')
+  }
   const draw = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoDrawSurface', 0.2, 0.25, 0.8, 0.75)
   const drawSurfaceReceivesInput = await evaluatePage<boolean>(`
     [${JSON.stringify(draw.start)}, ${JSON.stringify(draw.end)}].every(point =>
@@ -410,6 +424,7 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   if (!exitMemoTargetIsOutside) throw new Error('timeline memo hit area obstructs a frame outside its visible bounds')
   await mouseClick(exitMemoPoint)
   await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), 'timeline memo edit exit')
+  await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoAnchorCue:not(.selected)[data-timeline-memo-anchor-frame="70"]')), 'persistent timeline memo anchor cue')
   await keyPress('4')
   await keyPress('Enter')
   await waitForEventAt('action', 'A', 20, '4')
@@ -422,6 +437,9 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'page 2 memo create menu')
   await clickMenuItem('メモを追加')
   await waitForPageCondition(() => Boolean(document.querySelector('svg.sheetSvg[data-page-id="page_2"] .timelineMemoSegment.selected')), 'page 2 anchored memo')
+  await waitForPageCondition(() => Boolean(document.querySelector('svg.sheetSvg[data-page-id="page_2"] .timelineMemoAnchorCue[data-timeline-memo-anchor-frame="146"]')), 'page 2 timeline memo anchor cue')
+  const pageOneHasPageTwoAnchor = await evaluatePage<boolean>('Boolean(document.querySelector(\'svg.sheetSvg[data-page-id="page_1"] .timelineMemoAnchorCue[data-timeline-memo-anchor-frame="146"]\'))')
+  if (pageOneHasPageTwoAnchor) throw new Error('page 2 timeline memo anchor cue leaked onto page 1')
   const pageTwoDraw = await selectorInsetDrag('svg.sheetSvg[data-page-id="page_2"] .timelineMemoDrawSurface', 0.2, 0.25, 0.78, 0.75)
   await mouseDrag(pageTwoDraw.start, pageTwoDraw.end)
   await waitForPageCondition(() => Boolean(document.querySelector('svg.sheetSvg[data-page-id="page_2"] .timelineMemoStroke:not(.draft)')), 'page 2 memo ink')

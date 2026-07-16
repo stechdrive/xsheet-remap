@@ -1,6 +1,7 @@
 import {
   getSheetViewLayout,
   resolveSheetTemplateGridLayout,
+  sheetGridCellRect,
   type NormalizedPoint,
   type NormalizedRect,
   type SheetPage,
@@ -21,6 +22,96 @@ export interface TimelineMemoSegment {
   memoYEnd: number
   startsMemo: boolean
   endsMemo: boolean
+}
+
+export interface TimelineMemoAnchorCell {
+  memoId: string
+  regionId: string
+  pageId: string
+  rect: NormalizedRect
+}
+
+export interface TimelineMemoDisplaySurface {
+  widthPx: number
+  heightPx: number
+}
+
+export function timelineMemoAnchorCellForPage(
+  template: SheetTemplate,
+  page: SheetPage,
+  memo: TimelineInkMemo,
+  options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
+): TimelineMemoAnchorCell | null {
+  if (memo.anchor.frame < page.frameStart || memo.anchor.frame > page.frameEnd) return null
+  const frameOrigin = timelineMemoFrameOriginForPage(template, page)
+  for (const region of template.regions) {
+    if (region.type !== 'exposure-grid' || region.grid?.role !== memo.anchor.role) continue
+    const layout = resolveSheetTemplateGridLayout(template, region, {
+      paperTracks: options.paperTracks,
+      durationFrames: page.frameEnd - page.frameStart + 1,
+      frameOrigin,
+      layoutOverrides: options.layoutOverrides,
+    })
+    if (!layout) continue
+    const columnIndex = layout.columns.findIndex(item => memo.anchor.paperTrack
+      ? item.paperTrack === memo.anchor.paperTrack
+      : item.timelineLaneId === memo.anchor.laneId)
+    if (columnIndex < 0) continue
+    const regionStart = page.frameStart + layout.frames.frameStart - frameOrigin
+    const rowIndex = memo.anchor.frame - regionStart
+    if (rowIndex < 0 || rowIndex >= layout.frames.rowCount) continue
+    const rect = sheetGridCellRect(layout, columnIndex, rowIndex)
+    if (!rect) continue
+    return {
+      memoId: memo.memoId,
+      regionId: region.regionId,
+      pageId: page.pageId,
+      rect,
+    }
+  }
+  return null
+}
+
+export function timelineMemoAnchorMarkerRect(
+  cellRect: NormalizedRect,
+  surface: TimelineMemoDisplaySurface,
+): NormalizedRect {
+  const width = Math.min(cellRect.w * 0.28, 3 / Math.max(1, surface.widthPx))
+  const height = Math.min(cellRect.h * 0.68, 9 / Math.max(1, surface.heightPx))
+  return {
+    x: cellRect.x,
+    y: cellRect.y + (cellRect.h - height) / 2,
+    w: width,
+    h: height,
+  }
+}
+
+export function timelineMemoAnchorConnectorPoints(
+  markerRect: NormalizedRect,
+  memoRect: NormalizedRect,
+  surface: TimelineMemoDisplaySurface,
+): string | null {
+  const from = {
+    x: markerRect.x + markerRect.w / 2,
+    y: markerRect.y + markerRect.h / 2,
+  }
+  const to = {
+    x: clamp(from.x, memoRect.x, memoRect.x + memoRect.w),
+    y: clamp(from.y, memoRect.y, memoRect.y + memoRect.h),
+  }
+  const dxPx = (to.x - from.x) * Math.max(1, surface.widthPx)
+  const dyPx = (to.y - from.y) * Math.max(1, surface.heightPx)
+  const lengthPx = Math.hypot(dxPx, dyPx)
+  if (lengthPx < 1) return null
+  const halfWidthPx = 0.75
+  const offsetX = (-dyPx / lengthPx) * halfWidthPx / Math.max(1, surface.widthPx)
+  const offsetY = (dxPx / lengthPx) * halfWidthPx / Math.max(1, surface.heightPx)
+  return [
+    `${from.x + offsetX},${from.y + offsetY}`,
+    `${to.x + offsetX},${to.y + offsetY}`,
+    `${to.x - offsetX},${to.y - offsetY}`,
+    `${from.x - offsetX},${from.y - offsetY}`,
+  ].join(' ')
 }
 
 export function timelineMemoSegmentsForPage(

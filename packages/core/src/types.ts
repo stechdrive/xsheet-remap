@@ -311,6 +311,33 @@ export interface AnnotationText {
 
 export type Annotation = AnnotationStroke | AnnotationText
 
+export type CameraInstructionShape = 'range' | 'fade-in' | 'fade-out' | 'overlap'
+
+/**
+ * A label box is stored in logical CAMERA-region coordinates so it follows
+ * zoom, template geometry, page changes, and temporal cue moves.
+ */
+export interface CameraLabelPlacement {
+  mode: 'manual'
+  /** Frame offset from the instruction start used as the box's top edge. */
+  frameOffset: number
+  /** Horizontal position and width relative to the complete CAMERA region. */
+  xRatio: number
+  widthRatio: number
+  /** Box height expressed in logical sheet frames. */
+  heightFrames: number
+}
+
+export interface CameraInstruction {
+  shape: CameraInstructionShape
+  startLabel: string
+  endLabel: string
+  /** Crossing frame for overlap instructions. */
+  pivotFrame?: FrameIndex
+  /** Omitted while the renderer is responsible for automatic placement. */
+  labelPlacement?: CameraLabelPlacement
+}
+
 export interface TimedRangeCue {
   cueId: Id
   role: TimedRangeRole
@@ -319,6 +346,7 @@ export interface TimedRangeCue {
   laneId: Id
   label: string
   text: string
+  camera?: CameraInstruction
   source?: 'manual' | 'recognition' | 'import'
 }
 

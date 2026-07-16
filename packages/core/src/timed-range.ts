@@ -1,5 +1,5 @@
 import { logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart } from './logical-sheet'
-import type { CutProject, TimedRangeCue, TimedRangeRole } from './types'
+import type { CameraInstruction, CutProject, TimedRangeCue, TimedRangeRole } from './types'
 
 export interface TimedRangeCueInput {
   role: TimedRangeRole
@@ -8,6 +8,7 @@ export interface TimedRangeCueInput {
   frameEnd: number
   label: string
   text?: string
+  camera?: CameraInstruction
   source?: TimedRangeCue['source']
 }
 
@@ -17,6 +18,7 @@ export interface TimedRangeCueUpdates {
   frameEnd?: number
   label?: string
   text?: string
+  camera?: CameraInstruction
 }
 
 export function createTimedRangeCue(project: CutProject, input: TimedRangeCueInput): { project: CutProject; cue: TimedRangeCue } {
@@ -28,6 +30,7 @@ export function createTimedRangeCue(project: CutProject, input: TimedRangeCueInp
     frameEnd: input.frameEnd,
     label: input.label,
     text: input.text ?? '',
+    camera: input.camera,
     source: input.source ?? 'manual',
   })
   return {
@@ -97,7 +100,33 @@ function normalizeCue(project: CutProject, cue: TimedRangeCue): TimedRangeCue {
     frameEnd,
     label: cue.label.trim(),
     text: cue.text.trim(),
+    camera: cue.role === 'camera' ? normalizeCameraInstruction({ ...cue, frameStart, frameEnd }) : undefined,
     source: cue.source ?? 'manual',
+  }
+}
+
+function normalizeCameraInstruction(cue: TimedRangeCue): CameraInstruction {
+  const input = cue.camera
+  const shape = input?.shape ?? 'range'
+  const pivotFrame = shape === 'overlap'
+    ? clamp(Math.round(input?.pivotFrame ?? (cue.frameStart + cue.frameEnd) / 2), cue.frameStart, cue.frameEnd)
+    : undefined
+  const labelXRatio = input?.labelPlacement ? clamp(input.labelPlacement.xRatio, 0, 0.95) : 0
+  const labelPlacement = input?.labelPlacement
+    ? {
+        mode: 'manual' as const,
+        frameOffset: clamp(Math.round(input.labelPlacement.frameOffset), 0, Math.max(0, cue.frameEnd - cue.frameStart)),
+        xRatio: labelXRatio,
+        widthRatio: clamp(input.labelPlacement.widthRatio, 0.05, 1 - labelXRatio),
+        heightFrames: Math.max(1, Math.round(input.labelPlacement.heightFrames)),
+      }
+    : undefined
+  return {
+    shape,
+    startLabel: input?.startLabel.trim() ?? '',
+    endLabel: input?.endLabel.trim() ?? '',
+    pivotFrame,
+    labelPlacement,
   }
 }
 
@@ -120,6 +149,7 @@ function sameCue(left: TimedRangeCue, right: TimedRangeCue): boolean {
     && left.frameEnd === right.frameEnd
     && left.label === right.label
     && left.text === right.text
+    && JSON.stringify(left.camera) === JSON.stringify(right.camera)
     && left.source === right.source
 }
 

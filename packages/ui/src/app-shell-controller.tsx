@@ -35,7 +35,7 @@ import { calibrationCornersForTemplate, calibrationCornersFromPoints, imageExpor
 import { useAppShellState } from './app-shell-state'
 import { isAssetBrowserNativeDropTarget, nativeCspDropTarget } from './nativeFileDropTargets'
 import { deleteCspTreeCardWithConfirmation } from './csp-logical-cell-actions'
-import { createSoundCueController } from './app-sound-cue-controller'
+import { createAppTimedRangeControllers } from './app-timed-range-controllers'
 import { buildSelectionPresentation, inputHitForRange } from './app-selection-presentation'
 
 export interface AppControllerOptions {
@@ -56,7 +56,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
-    soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory, statusHints, setStatusHints,
+    soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
+    cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog, statusHints, setStatusHints,
     valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
@@ -89,32 +90,21 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const sheetDisplayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const sheetPages = useMemo(() => createSheetPages(template, sheetDisplayDurationFrames, sheetDisplayFrameStart), [template, sheetDisplayDurationFrames, sheetDisplayFrameStart])
   const rangeSelection = sheetSelection.kind === 'range' ? sheetSelection.range : null
-  const selectedSoundCueId = sheetSelection.kind === 'cue' ? sheetSelection.cueId : null
-  const soundCueController = createSoundCueController({
-    project, template, rangeSelection,
-    getProject: () => projectRef.current,
-    selectedCueId: selectedSoundCueId,
-    clipboard: soundCueClipboard,
-    frameMin: sheetDisplayFrameStart, frameMax: sheetDisplayFrameEnd,
-    commitProject, commitTimingDraft,
-    clearSelection: clearSelectionState,
-    selectRange: setSelectionFromRange,
-    setSelectedTextAnnotationId, setSelectedKeyId, setSheetSelection,
-    setValueDraft, setValueDraftActive,
-    setClipboard: setSoundCueClipboard,
-    setDialog: setSoundCueDialog,
-    setLabelHistory: setSoundLabelHistory,
-  })
-  const selectedSoundCue = soundCueController.selectedCue
+  const selectedTimedRangeCueId = sheetSelection.kind === 'cue' ? sheetSelection.cueId : null
   const {
-    selectCue: handleSoundCueSelect,
-    openEditor: openSoundCueEditor,
-    openEditorForRange: openSoundCueEditorForRange,
-    submitDialog: submitSoundCueDialog,
-    transform: handleTransformSoundCue,
-    copySelection: copySelectedSoundCueRange,
-    pasteSelection: pasteSelectedSoundCueRange,
-  } = soundCueController
+    selectedTimedRangeCue, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue,
+    soundCueController, cameraCueController,
+    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
+    handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue, copySelectedCameraCueRange, pasteSelectedCameraCueRange,
+  } = createAppTimedRangeControllers({
+    project, getProject: () => projectRef.current, template, rangeSelection, selectedCueId: selectedTimedRangeCueId,
+    soundClipboard: soundCueClipboard, cameraClipboard: cameraCueClipboard,
+    frameMin: sheetDisplayFrameStart, frameMax: sheetDisplayFrameEnd, commitProject, commitTimingDraft,
+    clearSelection: clearSelectionState, selectRange: setSelectionFromRange,
+    setSelectedTextAnnotationId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive,
+    setSoundClipboard: setSoundCueClipboard, setSoundDialog: setSoundCueDialog, setSoundLabelHistory,
+    setCameraClipboard: setCameraCueClipboard, setCameraDialog: setCameraCueDialog,
+  })
   const selectedHit = sheetSelection.kind === 'cell'
     ? sheetSelection.hit
     : sheetSelection.kind === 'range'
@@ -170,7 +160,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const { selectedFrameSummary, statusSelectionText, statusFallbackHint } = buildSelectionPresentation({
     project,
     rangeSelection,
-    selectedCue: selectedSoundCue,
+    selectedCue: selectedTimedRangeCue,
     selectedHit: selection.hit,
     correctionLayerLabel: activeCorrectionLayer?.label ?? '-',
     panel,
@@ -215,12 +205,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }, [project, projectRef])
 
   useEffect(() => {
-    if (!selectedSoundCueId || selectedSoundCue) return
+    if (!selectedTimedRangeCueId || selectedTimedRangeCue) return
     setSheetSelection({ kind: 'none' })
     setSelectedKeyId(null)
     setValueDraft('')
     setValueDraftActive(false)
-  }, [selectedSoundCue, selectedSoundCueId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive])
+  }, [selectedTimedRangeCue, selectedTimedRangeCueId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive])
 
   useEffect(() => {
     if (!selectedKey || isNullCellKeyId(selectedKey.keyId)) return
@@ -723,6 +713,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleDeleteEvent() {
+    if (cameraCueController.deleteSelection()) return
     if (soundCueController.deleteSelection()) return
     if (isPointEventRange(rangeSelection)) {
       const next = clearTimingRange(project, rangeSelection)
@@ -2134,6 +2125,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         handleCutTextAnnotation()
         return
       }
+      if (cameraCueController.handleKeyDown(event)) return
       if (soundCueController.handleKeyDown(event)) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && rangeSelection) {
         event.preventDefault()
@@ -2266,8 +2258,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
-    selection, rangeSelection, selectedSoundCueId, selectedSoundCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
-    soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, exportProfileId, sheetImageExportDraft,
+    selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
+    soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
+    cameraCueClipboard, cameraCueDialog, setCameraCueDialog, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
     projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
@@ -2278,8 +2271,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
+    handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
-    copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
+    copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
+    copySelectedCameraCueRange, pasteSelectedCameraCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,

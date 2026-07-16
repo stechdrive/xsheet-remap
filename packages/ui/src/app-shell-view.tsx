@@ -15,6 +15,7 @@ import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
 import { SoundCueDialog } from './SoundCueDialog'
+import { CameraCueDialog } from './CameraCueDialog'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -26,8 +27,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
     showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
-    selection, rangeSelection, selectedSoundCueId, selectedSoundCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
-    soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, exportProfileId, sheetImageExportDraft,
+    selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
+    soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
+    cameraCueClipboard, cameraCueDialog, setCameraCueDialog, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
@@ -38,8 +40,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
+    handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
-    copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
+    copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
+    copySelectedCameraCueRange, pasteSelectedCameraCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleAssignAsset, handleAssignRegisteredCell,
@@ -279,12 +283,14 @@ export function AppShellView({ controller }: { controller: AppController }) {
             selectedKeyId={selection.keyId}
             selectedHit={selection.hit}
             selectedSoundCueId={selectedSoundCueId}
+            selectedCameraCueId={selectedCameraCueId}
             timingDraftValue={valueDraft}
             timingDraftActive={valueDraftActive}
             scrollRequest={sheetScrollRequest}
             rangeSelection={rangeSelection}
             timingClipboard={timingClipboard}
             soundCueClipboard={soundCueClipboard}
+            cameraCueClipboard={cameraCueClipboard}
             activeCorrectionLayerId={activeCorrectionLayerId}
             setActiveCorrectionLayerId={handleActiveCorrectionLayerChange}
             editMode={editMode}
@@ -323,6 +329,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSoundCueEdit={openSoundCueEditor}
             onSoundRangeEdit={openSoundCueEditorForRange}
             onSoundCueTransform={handleTransformSoundCue}
+            onCameraCueSelect={handleCameraCueSelect}
+            onCameraCueEdit={openCameraCueEditor}
+            onCameraRangeEdit={openCameraCueEditorForRange}
+            onCameraCueTransform={handleTransformCameraCue}
             onSetNullAtHit={handleSetNullAtHit}
             onDeleteEventAtHit={handleDeleteEventAtHit}
             onKeySelect={handleKeySelect}
@@ -335,6 +345,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onCutSoundCues={() => copySelectedSoundCueRange('cut')}
             onDeleteSoundCues={handleDeleteEvent}
             onPasteSoundCues={pasteSelectedSoundCueRange}
+            onCopyCameraCues={() => copySelectedCameraCueRange('copy')}
+            onCutCameraCues={() => copySelectedCameraCueRange('cut')}
+            onDeleteCameraCues={handleDeleteEvent}
+            onPasteCameraCues={pasteSelectedCameraCueRange}
             onOpenFrameOperation={openFrameOperationDialog}
             onClearSelection={handleClearSelection}
             onTemplateImage={files => void handleSheetSourceFiles(files, activePage?.pageId)}
@@ -449,6 +463,24 @@ export function AppShellView({ controller }: { controller: AppController }) {
             labelHistory={soundLabelHistory}
             onSubmit={submitSoundCueDialog}
             onCancel={() => setSoundCueDialog(null)}
+          />
+        )
+      })()}
+
+      {cameraCueDialog && (() => {
+        const lane = project.logicalSheet.timelineSections
+          .find(section => section.role === 'camera')
+          ?.lanes?.find(item => item.laneId === cameraCueDialog.laneId) ?? null
+        return (
+          <CameraCueDialog
+            state={cameraCueDialog}
+            cue={cameraCueDialog.cueId === selectedCameraCue?.cueId ? selectedCameraCue : null}
+            lane={lane}
+            fps={project.logicalSheet.fps}
+            frameMin={project.logicalSheet.frameOrigin}
+            frameMax={project.logicalSheet.frameOrigin + project.logicalSheet.durationFrames - 1}
+            onSubmit={submitCameraCueDialog}
+            onCancel={() => setCameraCueDialog(null)}
           />
         )
       })()}

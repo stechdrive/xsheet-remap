@@ -63,10 +63,36 @@
 }
 
 .soundCueDialogBody input,
-.soundCueDialogBody textarea {
+.soundCueDialogBody textarea,
+.soundCueDialogBody select {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
+}
+
+.cameraCueEndpointFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cameraCueEndpointFields label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cameraCueManualPlacementNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 9px;
+  border: 1px solid #b8c9c0;
+  border-radius: 6px;
+  background: #f0f6f2;
+  font-size: 12px;
 }
 
 .soundCueDialogBody textarea {
@@ -121,6 +147,10 @@
 
 @media (max-width: 560px) {
   .soundCueTimingFields {
+    grid-template-columns: 1fr;
+  }
+
+  .cameraCueEndpointFields {
     grid-template-columns: 1fr;
   }
 }

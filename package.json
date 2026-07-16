@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.550",
+  "version": "0.1.551",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.7.0",

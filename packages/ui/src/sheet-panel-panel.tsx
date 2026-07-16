@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
-import { type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TimingClipboard, type WorkspaceStyle } from './appTypes'
+import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TimingClipboard, type WorkspaceStyle } from './appTypes'
+import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
 import { AssetTray, type DropDiagnosticReport } from './AssetBrowser'
 import { sortedCorrectionLayers } from './sheetAssets'
 import { SHEET_ZOOM_MAX, SHEET_ZOOM_MIN } from './sheetConstants'
@@ -43,12 +44,14 @@ export function SheetPanel(props: {
   selectedKeyId: string | null
   selectedHit: SheetHit | null
   selectedSoundCueId: string | null
+  selectedCameraCueId: string | null
   timingDraftValue: string
   timingDraftActive: boolean
   scrollRequest: SheetScrollRequest | null
   rangeSelection: SheetRangeSelection | null
   timingClipboard: TimingClipboard | null
   soundCueClipboard: SoundCueClipboard | null
+  cameraCueClipboard: CameraCueClipboard | null
   activeCorrectionLayerId: string
   setActiveCorrectionLayerId: (value: string) => void
   editMode: EditMode
@@ -87,6 +90,10 @@ export function SheetPanel(props: {
   onSoundCueEdit: (cueId: string) => void
   onSoundRangeEdit: (range: SheetRangeSelection) => void
   onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
+  onCameraCueSelect: (cueId: string) => void
+  onCameraCueEdit: (cueId: string) => void
+  onCameraRangeEdit: (range: SheetRangeSelection) => void
+  onCameraCueTransform: (cueId: string, updates: CameraCueTransformUpdates) => void
   onSetNullAtHit: (hit: SheetHit) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
   onKeySelect: (keyId: string | null) => void
@@ -99,6 +106,10 @@ export function SheetPanel(props: {
   onCutSoundCues: () => void
   onDeleteSoundCues: () => void
   onPasteSoundCues: (mode: 'overwrite' | 'insert') => void
+  onCopyCameraCues: () => void
+  onCutCameraCues: () => void
+  onDeleteCameraCues: () => void
+  onPasteCameraCues: (mode: 'overwrite' | 'insert') => void
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
   onClearSelection: () => void
   onTemplateImage: (files: FileList | File[] | null) => void

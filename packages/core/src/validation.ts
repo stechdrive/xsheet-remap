@@ -60,6 +60,19 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     if (cue.frameStart < displayStartFrame || (!project.logicalSheet.allowNegativeFrames && cue.frameStart < project.logicalSheet.frameOrigin)) {
       issues.push(issue('error', 'cue.frame.beforeOrigin', `cue ${cue.cueId} is before the sheet origin`, 'cue', cue.cueId))
     }
+    if (cue.role === 'camera') {
+      if (!cue.camera) {
+        issues.push(issue('error', 'cue.camera.missing', `camera cue ${cue.cueId} has no instruction geometry`, 'cue', cue.cueId))
+      } else {
+        if (cue.camera.shape === 'overlap' && (cue.camera.pivotFrame === undefined || cue.camera.pivotFrame < cue.frameStart || cue.camera.pivotFrame > cue.frameEnd)) {
+          issues.push(issue('error', 'cue.camera.pivot.invalid', `camera cue ${cue.cueId} has an invalid overlap pivot`, 'cue', cue.cueId))
+        }
+        const placement = cue.camera.labelPlacement
+        if (placement && (placement.frameOffset < 0 || placement.xRatio < 0 || placement.widthRatio <= 0 || placement.xRatio + placement.widthRatio > 1 || placement.heightFrames < 1)) {
+          issues.push(issue('error', 'cue.camera.labelPlacement.invalid', `camera cue ${cue.cueId} has an invalid label placement`, 'cue', cue.cueId))
+        }
+      }
+    }
   }
 
   for (const binding of project.bindings) {

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
+import { type CameraInstruction, type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
 import { uiText } from './i18n';
-import { type EditMode, type SheetRangeSelection, type SheetImageSettings, type SoundCueClipboard, type TimingClipboard } from './appTypes';
+import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetImageSettings, type SoundCueClipboard, type TimingClipboard } from './appTypes';
 import { type DropDiagnosticReport } from './AssetBrowser';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
 import { setInternalDragDropValidity, subscribeInternalDrag } from './internalDrag';
@@ -17,8 +17,10 @@ import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole, 
 import { autoScrollViewportForDrag, scrollSheetHitIntoView } from './sheet-panel-viewport';
 import { defaultExportAfterTrackForInsertAfter, exportPreviousPaperTrackName, isInteractiveKeyboardTarget, overlayExportPlacementAfterTrack, stackGuideInsertTargetFromPoint, stackGuidePlacementTargetFromPointer, stackGuidePlacementUpdateFromPointer } from './app-stack-guides';
 import { singleMovableBindingForHit } from './app-registered-cells';
-import { soundLaneIdForHit } from './soundCueEditing';
 import type { SoundCueDragMode } from './SoundCueLayer';
+import type { CameraCueDragGeometry, CameraCueDragMode } from './CameraCueLayer';
+import { timedRangeLaneIdForHit, type EditableTimedRangeRole } from './timedRangeCueEditing';
+import type { CameraCueTransformUpdates } from './app-camera-cue-controller';
 
 export type SheetCanvasProps = {
   project: CutProject
@@ -33,12 +35,14 @@ export type SheetCanvasProps = {
   recognitionCandidates: RecognitionCandidate[]
   selectedHit: SheetHit | null
   selectedSoundCueId: string | null
+  selectedCameraCueId: string | null
   timingDraftValue: string
   timingDraftActive: boolean
   scrollRequest: SheetScrollRequest | null
   rangeSelection: SheetRangeSelection | null
   timingClipboard: TimingClipboard | null
   soundCueClipboard: SoundCueClipboard | null
+  cameraCueClipboard: CameraCueClipboard | null
   editMode: EditMode
   zoom: number
   setZoom: (value: number) => void
@@ -64,6 +68,10 @@ export type SheetCanvasProps = {
   onSoundCueEdit: (cueId: string) => void
   onSoundRangeEdit: (range: SheetRangeSelection) => void
   onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
+  onCameraCueSelect: (cueId: string) => void
+  onCameraCueEdit: (cueId: string) => void
+  onCameraRangeEdit: (range: SheetRangeSelection) => void
+  onCameraCueTransform: (cueId: string, updates: CameraCueTransformUpdates) => void
   onSetNullAtHit: (hit: SheetHit) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
   onCopyRange: () => void
@@ -74,6 +82,10 @@ export type SheetCanvasProps = {
   onCutSoundCues: () => void
   onDeleteSoundCues: () => void
   onPasteSoundCues: (mode: 'overwrite' | 'insert') => void
+  onCopyCameraCues: () => void
+  onCutCameraCues: () => void
+  onDeleteCameraCues: () => void
+  onPasteCameraCues: (mode: 'overwrite' | 'insert') => void
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
   onTemplateImage: (files: FileList | File[] | null) => void
   onAssetSheetSources: (assetIds: string[]) => void
@@ -145,6 +157,21 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   } | null>(null)
   const [hoveredSoundCueId, setHoveredSoundCueId] = useState<string | null>(null)
   const [soundCueHoverAnchor, setSoundCueHoverAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [cameraCueDrag, setCameraCueDrag] = useState<{
+    pointerId: number
+    mode: CameraCueDragMode
+    origin: TimedRangeCue
+    preview: TimedRangeCue
+    grabOffsetFrames: number
+    startX: number
+    startY: number
+    moved: boolean
+    labelGeometry?: CameraCueDragGeometry
+    labelPointerOffset?: { x: number; frames: number }
+    labelOriginPlacement?: NonNullable<CameraInstruction['labelPlacement']>
+  } | null>(null)
+  const [hoveredCameraCueId, setHoveredCameraCueId] = useState<string | null>(null)
+  const [cameraCueHoverAnchor, setCameraCueHoverAnchor] = useState<{ x: number; y: number } | null>(null)
   const [pendingTimelineEventDrag, setPendingTimelineEventDrag] = useState<{ pointerId: number; sourceHit: SheetHit; startX: number; startY: number; ready: boolean } | null>(null)
   const [activeOverlayPaperTrack, setActiveOverlayPaperTrack] = useState<string | null>(null)
   const [draftCalibration, setDraftCalibration] = useState<{ pageId: string; points: SheetCalibrationPointPair[] } | null>(null)
@@ -166,6 +193,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const timelineEventLongPressTimerRef = useRef<number | null>(null)
   const stackGuideInsertRequestIdRef = useRef(0)
   const soundCueDragRef = useRef<typeof soundCueDrag>(null)
+  const cameraCueDragRef = useRef<typeof cameraCueDrag>(null)
   const onStatusHint = props.onStatusHint
 
   useEffect(() => {
@@ -192,7 +220,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       window.removeEventListener('drop', clearDropStatus)
     }
   }, [onStatusHint])
-  const hasActiveSheetInteraction = Boolean(draftStroke || draftRange || timelineEventDrag || pendingTimelineEventDrag || soundCueDrag || isPanning)
+  const hasActiveSheetInteraction = Boolean(draftStroke || draftRange || timelineEventDrag || pendingTimelineEventDrag || soundCueDrag || cameraCueDrag || isPanning)
   const zoom = props.zoom
   const setZoom = props.setZoom
   const sheetViewLayout = getSheetViewLayout(props.template)
@@ -228,12 +256,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     )
     return rangeSelectionFromHits(props.template, anchorHit, focusHit, usesOverlayTrack ? rangeTrackOrder(sheetRoleForHit(anchorHit)) : templateTrackNames)
   }
-  const selectedSoundRangeContainingHit = (hit: SheetHit): SheetRangeSelection | null => {
+  const selectedTimedRangeContainingHit = (hit: SheetHit, role: EditableTimedRangeRole): SheetRangeSelection | null => {
     const range = props.rangeSelection
-    if (range?.role !== 'sound' || hit.role !== 'sound') return null
+    if (range?.role !== role || hit.role !== role) return null
     if (hit.frame < range.frameStart || hit.frame > range.frameEnd) return null
     return rangeFromHits(range.anchorHit, hit) ? range : null
   }
+  const selectedSoundRangeContainingHit = (hit: SheetHit) => selectedTimedRangeContainingHit(hit, 'sound')
+  const selectedCameraRangeContainingHit = (hit: SheetHit) => selectedTimedRangeContainingHit(hit, 'camera')
   const visiblePages = props.sheetView.viewMode === 'single-page'
     ? props.sheetPages.filter(page => page.pageIndex === props.activePageIndex)
     : props.sheetPages
@@ -1019,7 +1049,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     return true
   }
 
-  function soundHitFromClientPoint(clientX: number, clientY: number): { page: SheetPage; hit: SheetHit; laneId: string } | null {
+  function timedRangeHitFromClientPoint(clientX: number, clientY: number, role: EditableTimedRangeRole): {
+    page: SheetPage
+    hit: SheetHit
+    laneId: string
+    point: NormalizedPoint
+    regionRect: { x: number; y: number; w: number; h: number }
+    rowHeight: number
+  } | null {
     for (const page of visiblePages) {
       const svg = svgForPage(page)
       if (!svg) continue
@@ -1031,16 +1068,27 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         durationFrames: page.frameEnd - page.frameStart + 1,
         frameOrigin: frameOriginForPageHit(props.template, page),
         layoutOverrides: props.project.sheetView.layoutOverrides,
-        role: 'sound',
+        role,
       })
       if (!localHit) return null
       const hit = materializePageHit(props.template, localHit, page)
-      const laneId = soundLaneIdForHit(props.template, hit)
+      const laneId = timedRangeLaneIdForHit(props.template, role, hit)
       if (!laneId || hit.frame > page.frameEnd) return null
-      return { page, hit, laneId }
+      const region = props.template.regions.find(item => item.regionId === hit.regionId)
+      const layout = region ? resolveSheetTemplateGridLayout(props.template, region, {
+        paperTracks: templateTrackNames,
+        durationFrames: page.frameEnd - page.frameStart + 1,
+        frameOrigin: frameOriginForPageHit(props.template, page),
+        layoutOverrides: props.project.sheetView.layoutOverrides,
+      }) : null
+      if (!layout) return null
+      return { page, hit, laneId, point, regionRect: layout.rect, rowHeight: layout.frames.rowHeight }
     }
     return null
   }
+
+  const soundHitFromClientPoint = (clientX: number, clientY: number) => timedRangeHitFromClientPoint(clientX, clientY, 'sound')
+  const cameraHitFromClientPoint = (clientX: number, clientY: number) => timedRangeHitFromClientPoint(clientX, clientY, 'camera')
 
   function handleSoundCuePointerDown(event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: SoundCueDragMode) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
@@ -1132,15 +1180,151 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setSoundCueHoverAnchor(null)
   }
 
-  function handleSoundRangeDoubleClick(event: MouseEvent<SVGSVGElement>, page: SheetPage) {
+  function handleCameraCuePointerDown(event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: CameraCueDragMode, geometry?: CameraCueDragGeometry) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    clearHover()
+    setHoveredCameraCueId(null)
+    setCameraCueHoverAnchor(null)
+    props.onCameraCueSelect(cue.cueId)
+    const pointed = cameraHitFromClientPoint(event.clientX, event.clientY)
+    const grabOffsetFrames = pointed ? clampNumber(pointed.hit.frame - cue.frameStart, 0, cue.frameEnd - cue.frameStart) : 0
+    const labelLayout = geometry?.labelLayout
+    const labelPointerOffset = pointed && labelLayout
+      ? { x: pointed.point.x - labelLayout.rect.x, frames: (pointed.point.y - labelLayout.rect.y) / Math.max(0.000001, labelLayout.rowHeight) }
+      : undefined
+    const inferredFrameStart = pointed && labelLayout
+      ? Math.round(pointed.hit.frame - (pointed.point.y - labelLayout.rect.y) / Math.max(0.000001, labelLayout.rowHeight))
+      : cue.frameStart
+    const labelOriginPlacement = labelLayout
+      ? {
+          mode: 'manual' as const,
+          frameOffset: clampNumber(inferredFrameStart - cue.frameStart, 0, cue.frameEnd - cue.frameStart),
+          xRatio: clampNumber((labelLayout.rect.x - labelLayout.regionRect.x) / Math.max(0.000001, labelLayout.regionRect.w), 0, 0.95),
+          widthRatio: clampNumber(labelLayout.rect.w / Math.max(0.000001, labelLayout.regionRect.w), 0.05, 1),
+          heightFrames: Math.max(1, Math.round(labelLayout.rect.h / Math.max(0.000001, labelLayout.rowHeight))),
+        }
+      : undefined
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    const nextDrag = {
+      pointerId: event.pointerId,
+      mode,
+      origin: cue,
+      preview: cue,
+      grabOffsetFrames,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      labelGeometry: geometry,
+      labelPointerOffset,
+      labelOriginPlacement,
+    }
+    cameraCueDragRef.current = nextDrag
+    setCameraCueDrag(nextDrag)
+    const hint = mode === 'move' ? 'CAMERA区間を移動中'
+      : mode === 'resize-start' || mode === 'resize-end' ? 'CAMERA区間の長さを変更中'
+        : mode === 'pivot' ? 'CAMERA交差位置を変更中'
+          : mode === 'move-label' ? 'CAMERAラベルを移動中'
+            : 'CAMERAラベルの大きさを変更中'
+    props.onStatusHint('sheet-drag', hint)
+  }
+
+  function handleCameraCuePointerMove(event: PointerEvent<SVGGElement>) {
+    const currentDrag = cameraCueDragRef.current
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return
+    event.preventDefault()
+    event.stopPropagation()
+    autoScrollViewportForDrag(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))
+    const pointed = cameraHitFromClientPoint(event.clientX, event.clientY)
+    if (!pointed) return
+    setActivePageIndexIfNeeded(pointed.page.pageIndex)
+    const moved = currentDrag.moved || Math.abs(event.clientX - currentDrag.startX) >= 3 || Math.abs(event.clientY - currentDrag.startY) >= 3
+    const origin = currentDrag.origin
+    const duration = origin.frameEnd - origin.frameStart + 1
+    let laneId = origin.laneId
+    let frameStart = origin.frameStart
+    let frameEnd = origin.frameEnd
+    let camera = origin.camera ?? { shape: 'range' as const, startLabel: '', endLabel: '' }
+
+    if (currentDrag.mode === 'move') {
+      frameStart = clampNumber(pointed.hit.frame - currentDrag.grabOffsetFrames, displayFrameStart, displayFrameEnd - duration + 1)
+      frameEnd = frameStart + duration - 1
+      laneId = pointed.laneId
+      const delta = frameStart - origin.frameStart
+      if (camera.pivotFrame !== undefined) camera = { ...camera, pivotFrame: camera.pivotFrame + delta }
+    } else if (currentDrag.mode === 'resize-start') {
+      frameStart = clampNumber(pointed.hit.frame, displayFrameStart, origin.frameEnd)
+      if (camera.pivotFrame !== undefined) camera = { ...camera, pivotFrame: clampNumber(camera.pivotFrame, frameStart, frameEnd) }
+    } else if (currentDrag.mode === 'resize-end') {
+      frameEnd = clampNumber(pointed.hit.frame, origin.frameStart, displayFrameEnd)
+      if (camera.pivotFrame !== undefined) camera = { ...camera, pivotFrame: clampNumber(camera.pivotFrame, frameStart, frameEnd) }
+    } else if (currentDrag.mode === 'pivot') {
+      camera = { ...camera, pivotFrame: clampNumber(pointed.hit.frame, origin.frameStart, origin.frameEnd) }
+    } else if (currentDrag.labelOriginPlacement && currentDrag.labelGeometry?.labelLayout) {
+      const placement = currentDrag.labelOriginPlacement
+      if (currentDrag.mode === 'move-label') {
+        const widthRatio = clampNumber(placement.widthRatio, 0.05, 1)
+        const pointerOffset = currentDrag.labelPointerOffset ?? { x: 0, frames: 0 }
+        const xRatio = clampNumber((pointed.point.x - pointerOffset.x - pointed.regionRect.x) / Math.max(0.000001, pointed.regionRect.w), 0, 1 - widthRatio)
+        const boxFrameStart = Math.round(pointed.hit.frame - pointerOffset.frames)
+        camera = { ...camera, labelPlacement: { ...placement, frameOffset: clampNumber(boxFrameStart - origin.frameStart, 0, origin.frameEnd - origin.frameStart), xRatio, widthRatio } }
+      } else {
+        const boxFrameStart = origin.frameStart + placement.frameOffset
+        const widthRatio = clampNumber((pointed.point.x - pointed.regionRect.x) / Math.max(0.000001, pointed.regionRect.w) - placement.xRatio, 0.05, 1 - placement.xRatio)
+        const heightFrames = Math.max(1, pointed.hit.frame - boxFrameStart + 1)
+        camera = { ...camera, labelPlacement: { ...placement, widthRatio, heightFrames } }
+      }
+    }
+    const nextDrag = { ...currentDrag, moved, preview: { ...origin, laneId, frameStart, frameEnd, camera } }
+    cameraCueDragRef.current = nextDrag
+    setCameraCueDrag(nextDrag)
+  }
+
+  function finishCameraCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) {
+    const current = cameraCueDragRef.current
+    if (!current || current.pointerId !== event.pointerId) return
+    event.preventDefault()
+    event.stopPropagation()
+    cameraCueDragRef.current = null
+    setCameraCueDrag(null)
+    props.onStatusHint('sheet-drag', null)
+    if (!cancelled && current.moved) {
+      props.onCameraCueTransform(current.origin.cueId, {
+        laneId: current.preview.laneId,
+        frameStart: current.preview.frameStart,
+        frameEnd: current.preview.frameEnd,
+        camera: current.preview.camera,
+      })
+    } else {
+      props.onCameraCueSelect(current.origin.cueId)
+    }
+  }
+
+  function handleCameraCuePointerEnter(event: PointerEvent<SVGGElement>, cueId: string) {
+    if (cameraCueDragRef.current) return
+    setHoveredCameraCueId(cueId)
+    setCameraCueHoverAnchor({ x: event.clientX, y: event.clientY })
+  }
+
+  function handleCameraCuePointerLeave() {
+    if (cameraCueDragRef.current) return
+    setHoveredCameraCueId(null)
+    setCameraCueHoverAnchor(null)
+  }
+
+  function handleTimedRangeDoubleClick(event: MouseEvent<SVGSVGElement>, page: SheetPage) {
     if (props.editMode !== 'new') return
     const hit = rangeHitFromPoint(pointFromEvent(event), page)
-    if (hit?.role !== 'sound') return
-    const range = selectedSoundRangeContainingHit(hit) ?? rangeFromHits(hit, hit)
+    if (hit?.role !== 'sound' && hit?.role !== 'camera') return
+    const range = hit.role === 'sound'
+      ? selectedSoundRangeContainingHit(hit) ?? rangeFromHits(hit, hit)
+      : selectedCameraRangeContainingHit(hit) ?? rangeFromHits(hit, hit)
     if (!range) return
     event.preventDefault()
     event.stopPropagation()
-    props.onSoundRangeEdit(range)
+    if (hit.role === 'sound') props.onSoundRangeEdit(range)
+    else props.onCameraRangeEdit(range)
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>, page: SheetPage) {
@@ -1214,7 +1398,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         anchor: hit,
         focus: hit,
         moved: false,
-        preserveRangeOnClick: selectedSoundRangeContainingHit(hit) ?? undefined,
+        preserveRangeOnClick: hit.role === 'sound'
+          ? selectedSoundRangeContainingHit(hit) ?? undefined
+          : hit.role === 'camera'
+            ? selectedCameraRangeContainingHit(hit) ?? undefined
+            : undefined,
       })
       props.onStatusHint('sheet-drag', uiText.statusHints.rangeDragging)
       return
@@ -1524,11 +1712,18 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       return
     }
     const hit = rangeHitFromPoint(point, page)
-    const cueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-sound-cue-id]') : null
-    const cueId = cueElement?.dataset.soundCueId
-    if (cueId) {
-      props.onSoundCueSelect(cueId)
+    const soundCueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-sound-cue-id]') : null
+    const cameraCueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-camera-cue-id]') : null
+    const soundCueId = soundCueElement?.dataset.soundCueId
+    const cameraCueId = cameraCueElement?.dataset.cameraCueId
+    if (soundCueId) {
+      props.onSoundCueSelect(soundCueId)
+    } else if (cameraCueId) {
+      props.onCameraCueSelect(cameraCueId)
     } else if (hit?.role === 'sound') {
+      const range = rangeFromHits(hit, hit)
+      if (range) props.onRangeSelect(range)
+    } else if (hit?.role === 'camera') {
       const range = rangeFromHits(hit, hit)
       if (range) props.onRangeSelect(range)
     } else if (hit?.paperTrack && !rangeContainsHit(props.rangeSelection, hit)) {
@@ -1929,9 +2124,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const contextProcessMove = contextMenu?.hit ? singleMovableBindingForHit(props.project, contextMenu.hit) : null
   const contextProcessMoveOptions = contextProcessMove ? processMoveOptionsForSlot(props.project, contextProcessMove.slot, contextProcessMove.binding.keyId) : []
   const soundContext = contextMenu?.hit?.role === 'sound' || Boolean(props.selectedSoundCueId)
+  const cameraContext = contextMenu?.hit?.role === 'camera' || Boolean(props.selectedCameraCueId)
+  const timedRangeContext = soundContext || cameraContext
   const canCopyContextRange = soundContext
     ? Boolean(props.selectedSoundCueId || props.rangeSelection?.role === 'sound')
-    : isPointEventRangeForUi(props.rangeSelection)
+    : cameraContext
+      ? Boolean(props.selectedCameraCueId || props.rangeSelection?.role === 'camera')
+      : isPointEventRangeForUi(props.rangeSelection)
   const contextPasteRole = props.rangeSelection?.role === 'action' || props.rangeSelection?.role === 'cell'
     ? props.rangeSelection.role
     : props.selectedHit ? sheetRoleForHit(props.selectedHit) : 'cell'
@@ -1940,9 +2139,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const canPasteContextInsert = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'insert', contextPaperTrackOrder)
   const canPasteContextRepeatRange = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-range', contextPaperTrackOrder)
   const canPasteContextRepeatToEnd = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-to-end', contextPaperTrackOrder)
-  const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound')
+  const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera')
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
-  const sheetContextMenuItemCount = (soundContext ? 6 : 12) + contextProcessMoveItemCount
+  const sheetContextMenuItemCount = (timedRangeContext ? 6 : 12) + contextProcessMoveItemCount
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null
@@ -1965,18 +2164,20 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
+    cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight,
     overlayTracks, sheetRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
-    selectPaperTrackColumn, handlePointerDown, handleSoundRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
+    selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
+    handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
-    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, viewportClassName,
+    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, viewportClassName,
   }
 }
 

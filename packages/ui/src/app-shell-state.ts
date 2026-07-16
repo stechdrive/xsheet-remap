@@ -4,7 +4,7 @@ import {
   standardA3SheetTemplate, type AnnotationText, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
-import type { EditMode, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingExportDialogState } from './appTypes'
+import type { CameraCueClipboard, CameraCueDialogState, EditMode, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingExportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
@@ -97,6 +97,8 @@ export function useAppShellState() {
   const [timingClipboard, setTimingClipboard] = useState<TimingClipboard | null>(null)
   const [soundCueClipboard, setSoundCueClipboard] = useState<SoundCueClipboard | null>(null)
   const [soundCueDialog, setSoundCueDialog] = useState<SoundCueDialogState | null>(null)
+  const [cameraCueClipboard, setCameraCueClipboard] = useState<CameraCueClipboard | null>(null)
+  const [cameraCueDialog, setCameraCueDialog] = useState<CameraCueDialogState | null>(null)
   const [soundLabelHistory, setSoundLabelHistory] = useState<string[]>(loadSoundLabelHistory)
   const [statusHints, setStatusHints] = useState<StatusHints>({})
   const [valueDraft, setValueDraft] = useState('')
@@ -125,7 +127,8 @@ export function useAppShellState() {
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
-    soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory, statusHints, setStatusHints,
+    soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
+    cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog, statusHints, setStatusHints,
     valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,

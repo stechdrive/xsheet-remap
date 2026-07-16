@@ -14,6 +14,7 @@ import type { SheetCanvasController } from './app-sheet-canvas-controller'
 import { AssetAssignedFrameCue, SelectedCellCue, SheetDropTargetCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
 import { SheetMetadataEditor } from './SheetMetadataEditor'
 import { SoundCueLayer } from './SoundCueLayer'
+import { CameraCueLayer } from './CameraCueLayer'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -21,23 +22,30 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
+    cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight,
     overlayTracks, sheetRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
-    selectPaperTrackColumn, handlePointerDown, handleSoundRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
+    selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
+    handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
-    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, viewportClassName,
+    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, viewportClassName,
   } = controller
   const hoveredSoundCue = props.project.timedRangeCues.find(cue => cue.cueId === hoveredSoundCueId) ?? null
   const soundCueHoverStyle = soundCueHoverAnchor ? {
     left: `${Math.max(8, Math.min(soundCueHoverAnchor.x + 14, (typeof window === 'undefined' ? 1024 : window.innerWidth) - 268))}px`,
     top: `${Math.max(8, Math.min(soundCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
+  } : undefined
+  const hoveredCameraCue = props.project.timedRangeCues.find(cue => cue.cueId === hoveredCameraCueId) ?? null
+  const cameraCueHoverStyle = cameraCueHoverAnchor ? {
+    left: `${Math.max(8, Math.min(cameraCueHoverAnchor.x + 14, (typeof window === 'undefined' ? 1024 : window.innerWidth) - 268))}px`,
+    top: `${Math.max(8, Math.min(cameraCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
   } : undefined
 
   return (
@@ -117,6 +125,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const soundCues = props.project.timedRangeCues
             .filter(cue => cue.role === 'sound')
             .map(cue => soundCueDrag?.origin.cueId === cue.cueId ? soundCueDrag.preview : cue)
+          const cameraCues = props.project.timedRangeCues
+            .filter(cue => cue.role === 'camera')
+            .map(cue => cameraCueDrag?.origin.cueId === cue.cueId ? cameraCueDrag.preview : cue)
 
           const pageAccessibleLabel = isContinuousCanvas
             ? uiText.sheet.surfaceCaption(page.frameStart, page.frameEnd)
@@ -151,7 +162,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   }}
                   style={{ width: `${sheetPageWidth}px`, height: `${sheetPageHeight}px` }}
                   onPointerDown={event => handlePointerDown(event, page)}
-                  onDoubleClick={event => handleSoundRangeDoubleClick(event, page)}
+                  onDoubleClick={event => handleTimedRangeDoubleClick(event, page)}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={() => {
@@ -244,6 +255,25 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onDoubleClick={props.onSoundCueEdit}
                       onPointerEnter={handleSoundCuePointerEnter}
                       onPointerLeave={handleSoundCuePointerLeave}
+                    />
+                  )}
+                  {showInputContent && (
+                    <CameraCueLayer
+                      cues={cameraCues}
+                      template={props.template}
+                      page={page}
+                      paperTracks={templateTrackNames}
+                      layoutOverrides={props.project.sheetView.layoutOverrides}
+                      pageSize={sheetPageSize}
+                      surface={selectionSurface}
+                      selectedCueId={props.selectedCameraCueId}
+                      onPointerDown={handleCameraCuePointerDown}
+                      onPointerMove={handleCameraCuePointerMove}
+                      onPointerUp={event => finishCameraCuePointer(event)}
+                      onPointerCancel={event => finishCameraCuePointer(event, true)}
+                      onDoubleClick={props.onCameraCueEdit}
+                      onPointerEnter={handleCameraCuePointerEnter}
+                      onPointerLeave={handleCameraCuePointerLeave}
                     />
                   )}
                   {calibrationDebugOverlay && (
@@ -430,6 +460,14 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           {hoveredSoundCue.text && <p>{hoveredSoundCue.text}</p>}
         </div>
       )}
+      {hoveredCameraCue && cameraCueHoverStyle && !cameraCueDrag && (
+        <div className="soundCueHoverCard" style={cameraCueHoverStyle} role="tooltip">
+          <strong>{hoveredCameraCue.label}</strong>
+          <span>{hoveredCameraCue.frameStart}–{hoveredCameraCue.frameEnd}F / {hoveredCameraCue.camera?.shape ?? 'range'}</span>
+          {(hoveredCameraCue.camera?.startLabel || hoveredCameraCue.camera?.endLabel) && <span>{hoveredCameraCue.camera?.startLabel || '―'} → {hoveredCameraCue.camera?.endLabel || '―'}</span>}
+          {hoveredCameraCue.text && <p>{hoveredCameraCue.text}</p>}
+        </div>
+      )}
       {hoverPreviewPosition && <CellAssetPreview position={hoverPreviewPosition} items={hoverPreviewItems} />}
       {contextMenu && hasSheetContextMenuItems && (
         <div
@@ -449,6 +487,17 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                 ? props.onSoundCueEdit(props.selectedSoundCueId)
                 : props.rangeSelection?.role === 'sound' ? props.onSoundRangeEdit(props.rangeSelection) : undefined)}>区間を編集</button>
               <button role="menuitem" onClick={() => runContextMenuAction(props.onDeleteSoundCues)}>区間を削除</button>
+            </>
+          ) : cameraContext ? (
+            <>
+              <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCopyCameraCues)}>{uiText.actions.copyRange}</button>
+              <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutCameraCues)}>{uiText.actions.cutRange}</button>
+              <button role="menuitem" disabled={!props.cameraCueClipboard} onClick={() => runContextMenuAction(() => props.onPasteCameraCues('overwrite'))}>{uiText.actions.pasteOverwrite}</button>
+              <button role="menuitem" disabled={!props.cameraCueClipboard} onClick={() => runContextMenuAction(() => props.onPasteCameraCues('insert'))}>{uiText.actions.pasteInsert}</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.selectedCameraCueId
+                ? props.onCameraCueEdit(props.selectedCameraCueId)
+                : props.rangeSelection?.role === 'camera' ? props.onCameraRangeEdit(props.rangeSelection) : undefined)}>撮影指示を編集</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(props.onDeleteCameraCues)}>撮影指示を削除</button>
             </>
           ) : (
             <>

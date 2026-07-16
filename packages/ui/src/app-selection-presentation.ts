@@ -79,7 +79,7 @@ export function buildSelectionPresentation({
   const statusSelectionText = rangeSummary
     ? `${correctionLayerLabel} / ${rangeSummary} / ${rangeTimingStatus}`
     : selectedCue
-      ? `SOUND / ${selectedCue.label} / ${selectedFrameSummary}`
+      ? `${selectedCue.role.toUpperCase()} / ${selectedCue.label} / ${selectedFrameSummary}`
       : selectedHit
         ? `${correctionLayerLabel} / ${sheetRoleLabel(sheetRoleForHit(selectedHit))} ${selectedHit.paperTrack ?? '-'} ${selectedFrameSummary}`
         : `${correctionLayerLabel} / ${uiText.app.noCellSelected}`

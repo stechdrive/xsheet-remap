@@ -72,6 +72,43 @@ describe('timed range cues', () => {
     expect(deleteTimedRangeCue(updated, created.cue.cueId).timedRangeCues).toEqual([])
   })
 
+  it('normalizes semantic CAMERA geometry and logical manual label placement', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'camera',
+      laneId: 'camera_lane_1',
+      frameStart: 20,
+      frameEnd: 10,
+      label: '  PAN  ',
+      camera: {
+        shape: 'overlap',
+        startLabel: ' A ',
+        endLabel: ' B ',
+        pivotFrame: 30,
+        labelPlacement: { mode: 'manual', frameOffset: 99, xRatio: 0.9, widthRatio: 0.8, heightFrames: 2.4 },
+      },
+    })
+    expect(created.cue).toMatchObject({
+      role: 'camera',
+      frameStart: 10,
+      frameEnd: 20,
+      label: 'PAN',
+      camera: {
+        shape: 'overlap',
+        startLabel: 'A',
+        endLabel: 'B',
+        pivotFrame: 20,
+        labelPlacement: { mode: 'manual', frameOffset: 10, xRatio: 0.9, heightFrames: 2 },
+      },
+    })
+    expect(created.cue.camera?.labelPlacement?.widthRatio).toBeCloseTo(0.1)
+
+    const faded = updateTimedRangeCue(created.project, created.cue.cueId, {
+      camera: { ...created.cue.camera!, shape: 'fade-in' },
+    })
+    expect(faded.timedRangeCues[0]?.camera?.pivotFrame).toBeUndefined()
+    expect(validateProject(faded).filter(issue => issue.code.startsWith('cue.camera.'))).toEqual([])
+  })
+
   it('rejects missing lanes and validation reports invalid stored lane references', () => {
     const project = createDefaultProject()
     expect(() => createTimedRangeCue(project, {

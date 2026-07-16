@@ -854,6 +854,115 @@
   white-space: pre-wrap;
 }
 
+.cameraCueLayer {
+  pointer-events: none;
+}
+
+.cameraCue,
+.cameraCueLabel {
+  pointer-events: auto;
+}
+
+.cameraCueHitBody {
+  fill: rgb(255 255 255 / 0.001);
+  stroke: transparent;
+  cursor: grab;
+  pointer-events: all;
+}
+
+.cameraCueHitBody:active {
+  cursor: grabbing;
+}
+
+.cameraCueStroke,
+.cameraCueFade {
+  fill: none;
+  stroke: rgb(22 67 52 / 0.96);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.cameraCueFade {
+  fill: rgb(55 112 87 / 0.08);
+}
+
+.cameraCueMarker {
+  fill: #194f3c;
+  stroke: rgb(255 255 252 / 0.92);
+  stroke-width: 1px;
+  paint-order: stroke fill;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.cameraCue.selected .cameraCueStroke,
+.cameraCue.selected .cameraCueFade {
+  stroke: rgb(21 94 220 / 1);
+  stroke-width: 2.25px;
+}
+
+.cameraCue.selected .cameraCueMarker {
+  fill: rgb(21 94 220 / 1);
+}
+
+.cameraCueEndpointLabel,
+.cameraCueLabelText {
+  fill: #173f32;
+  font-family: var(--font-sheet-sans);
+  font-weight: 850;
+  paint-order: stroke fill;
+  stroke: rgb(255 255 252 / 0.94);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.cameraCueLabelBody {
+  fill: rgb(255 255 252 / 0.72);
+  stroke: rgb(47 95 76 / 0.28);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  cursor: move;
+  pointer-events: all;
+}
+
+.cameraCueLabel:not(.manual) .cameraCueLabelBody {
+  fill: rgb(255 255 252 / 0.44);
+  stroke-dasharray: 2 2;
+}
+
+.cameraCueLabel.selected .cameraCueLabelBody {
+  fill: rgb(237 246 255 / 0.9);
+  stroke: rgb(21 94 220 / 0.98);
+  stroke-width: 2px;
+}
+
+.cameraCueEdgeHandle {
+  fill: rgb(255 255 255 / 0.001);
+  stroke: none;
+  pointer-events: fill;
+  cursor: ns-resize;
+}
+
+.cameraCuePivotHandle {
+  fill: #fff;
+  stroke: rgb(21 94 220 / 1);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  cursor: ns-resize;
+  pointer-events: all;
+}
+
+.cameraCueLabelResizeHandle {
+  fill: rgb(21 94 220 / 0.9);
+  stroke: #fff;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  cursor: nwse-resize;
+  pointer-events: all;
+}
+
 .timingDraftRect {
   fill: rgb(239 248 242 / 0.96);
   stroke: none;

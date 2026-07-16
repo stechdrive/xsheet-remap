@@ -74,8 +74,8 @@ export type SheetSelection =
   | { kind: 'range'; range: SheetRangeSelection }
   | { kind: 'cue'; cueId: string }
 
-export interface SoundCueClipboard {
-  role: 'sound'
+export interface TimedRangeCueClipboard<Role extends 'sound' | 'camera'> {
+  role: Role
   sourceLaneId: string
   sourceFrameStart: number
   sourceFrameEnd: number
@@ -87,11 +87,23 @@ export interface SoundCueClipboard {
     frameEndOffset: number
     label: string
     text: string
+    camera?: TimedRangeCue['camera']
     source?: TimedRangeCue['source']
   }>
 }
 
+export type SoundCueClipboard = TimedRangeCueClipboard<'sound'>
+export type CameraCueClipboard = TimedRangeCueClipboard<'camera'>
+
 export interface SoundCueDialogState {
+  mode: 'create' | 'edit'
+  cueId?: string
+  laneId: string
+  frameStart: number
+  frameEnd: number
+}
+
+export interface CameraCueDialogState {
   mode: 'create' | 'edit'
   cueId?: string
   laneId: string

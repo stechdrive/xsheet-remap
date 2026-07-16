@@ -1007,6 +1007,76 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
     ])
   })
 
+it('creates and edits semantic CAMERA instructions while preserving selected ranges on double-click', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    const cameraRegion = standardA3SheetTemplate.regions.find(region => region.regionId === 'left_camera_grid')
+    if (!cameraRegion?.grid) throw new Error('CAMERA region not found')
+    const laneWidth = cameraRegion.rect.w / cameraRegion.grid.columns.length
+    const x = (cameraRegion.rect.x + laneWidth / 2) * 1000
+    const frameY = (frame: number) => (cameraRegion.rect.y + cameraRegion.rect.h * ((frame - 1 + 0.5) / cameraRegion.grid!.rowCount)) * 1000
+
+    dragSheet(sheet, x, frameY(1), x, frameY(12))
+    expectSelectedRange('camera', 'camera_1', 1, 12)
+    for (const pointerId of [101, 102]) {
+      fireEvent.pointerDown(sheet, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(5) })
+      fireEvent.pointerUp(sheet, { pointerId, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(5) })
+      expectSelectedRange('camera', 'camera_1', 1, 12)
+    }
+    fireEvent.doubleClick(sheet, { button: 0, clientX: x, clientY: frameY(5) })
+    expect(screen.getByRole('dialog', { name: 'CAMERA指示を追加' })).toBeTruthy()
+    expect((screen.getByLabelText('CAMERA開始フレーム') as HTMLInputElement).value).toBe('1')
+    expect((screen.getByLabelText('CAMERAデュレーションコマ') as HTMLInputElement).value).toBe('12')
+    fireEvent.change(screen.getByLabelText('CAMERA描画種別'), { target: { value: 'overlap' } })
+    fireEvent.change(screen.getByLabelText('CAMERA指示'), { target: { value: 'OL' } })
+    fireEvent.change(screen.getByLabelText('CAMERA開始キュー'), { target: { value: 'A' } })
+    fireEvent.change(screen.getByLabelText('CAMERA終了キュー'), { target: { value: 'B' } })
+    fireEvent.change(screen.getByLabelText('CAMERA交差フレーム'), { target: { value: '6' } })
+    fireEvent.click(screen.getByRole('button', { name: '追加' }))
+
+    await waitFor(() => expect(document.querySelectorAll('.cameraCue')).toHaveLength(1))
+    let cue = document.querySelector<SVGGElement>('.cameraCue')!
+    expect(cue.dataset).toMatchObject({ cameraCueId: 'cue_1', cameraLaneId: 'camera_lane_1', frameStart: '1', frameEnd: '12' })
+    expect(cue.classList.contains('overlap')).toBe(true)
+    expect(cue.querySelectorAll('polyline')).toHaveLength(2)
+    expect(cue.querySelector('.cameraCuePivotHandle')).toBeTruthy()
+    expect(Array.from(cue.querySelectorAll('.cameraCueEndpointLabel')).map(item => item.textContent)).toEqual(['A', 'B'])
+
+    const body = cue.querySelector<SVGRectElement>('.cameraCueHitBody')!
+    fireEvent.pointerDown(body, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerMove(cue, { pointerId: 103, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(20) })
+    cue = document.querySelector<SVGGElement>('.cameraCue')!
+    fireEvent.pointerUp(cue, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '19', frameEnd: '30' }))
+
+    cue = document.querySelector<SVGGElement>('.cameraCue')!
+    const pivot = cue.querySelector<SVGEllipseElement>('.cameraCuePivotHandle')!
+    fireEvent.pointerDown(pivot, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
+    fireEvent.pointerMove(cue, { pointerId: 104, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(28) })
+    cue = document.querySelector<SVGGElement>('.cameraCue')!
+    fireEvent.pointerUp(cue, { pointerId: 104, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(28) })
+
+    const labelGroup = document.querySelector<SVGGElement>('.cameraCueLabel')!
+    const labelBody = labelGroup.querySelector<SVGRectElement>('.cameraCueLabelBody')!
+    fireEvent.pointerDown(labelBody, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
+    fireEvent.pointerMove(labelGroup, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x + laneWidth * 2000, clientY: frameY(27) })
+    const movedLabelGroup = document.querySelector<SVGGElement>('.cameraCueLabel')!
+    fireEvent.pointerUp(movedLabelGroup, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 0, clientX: x + laneWidth * 2000, clientY: frameY(27) })
+    await waitFor(() => expect(document.querySelector('.cameraCueLabel')?.classList.contains('manual')).toBe(true))
+
+    fireEvent.doubleClick(document.querySelector<SVGGElement>('.cameraCue')!)
+    expect((screen.getByLabelText('CAMERA交差フレーム') as HTMLInputElement).value).toBe('28')
+    expect(screen.getByRole('button', { name: '自動配置に戻す' })).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('CAMERA描画種別'), { target: { value: 'fade-in' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新' }))
+    await waitFor(() => expect(document.querySelector('.cameraCue')?.classList.contains('fade-in')).toBe(true))
+    expect(document.querySelector('.cameraCueFade')).toBeTruthy()
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    await waitFor(() => expect(document.querySelector('.cameraCue')?.classList.contains('overlap')).toBe(true))
+  })
+
 it('copies a selected timing range and repeats it across another range', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)

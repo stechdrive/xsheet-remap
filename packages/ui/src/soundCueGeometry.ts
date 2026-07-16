@@ -1,24 +1,13 @@
 import {
-  resolveSheetTemplateGridLayout,
-  sheetGridCellRect,
   type NormalizedRect,
   type SheetPage,
   type SheetTemplate,
   type SheetViewLayoutOverrides,
   type TimedRangeCue,
 } from '@xsheet-remap/core'
+import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
 
-export interface SoundCueSegment {
-  cueId: string
-  regionId: string
-  laneId: string
-  frameStart: number
-  frameEnd: number
-  rect: NormalizedRect
-  rowHeight: number
-  startsCue: boolean
-  endsCue: boolean
-}
+export type SoundCueSegment = TimedRangeCueSegment
 
 export interface SoundCueTextGlyph {
   value: string
@@ -42,42 +31,7 @@ export function soundCueSegmentsForPage(
   cue: TimedRangeCue,
   options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): SoundCueSegment[] {
-  if (cue.role !== 'sound' || cue.frameEnd < page.frameStart || cue.frameStart > page.frameEnd) return []
-  const localCueStart = cue.frameStart - page.frameStart + template.defaults.frameOrigin
-  const localCueEnd = cue.frameEnd - page.frameStart + template.defaults.frameOrigin
-  const segments: SoundCueSegment[] = []
-  for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== 'sound') continue
-    const layout = resolveSheetTemplateGridLayout(template, region, {
-      paperTracks: options.paperTracks,
-      durationFrames: page.frameEnd - page.frameStart + 1,
-      frameOrigin: template.defaults.frameOrigin,
-      layoutOverrides: options.layoutOverrides,
-    })
-    if (!layout) continue
-    const columnIndex = layout.columns.findIndex(column => column.timelineLaneId === cue.laneId)
-    if (columnIndex < 0) continue
-    const localStart = Math.max(localCueStart, layout.frames.frameStart)
-    const localEnd = Math.min(localCueEnd, layout.frames.frameEnd)
-    if (localEnd < localStart) continue
-    const rowIndex = localStart - layout.frames.frameStart
-    const firstRect = sheetGridCellRect(layout, columnIndex, rowIndex)
-    if (!firstRect) continue
-    const globalStart = page.frameStart + (localStart - template.defaults.frameOrigin)
-    const globalEnd = page.frameStart + (localEnd - template.defaults.frameOrigin)
-    segments.push({
-      cueId: cue.cueId,
-      regionId: region.regionId,
-      laneId: cue.laneId,
-      frameStart: globalStart,
-      frameEnd: globalEnd,
-      rect: { ...firstRect, h: layout.frames.rowHeight * (localEnd - localStart + 1) },
-      rowHeight: layout.frames.rowHeight,
-      startsCue: globalStart === cue.frameStart,
-      endsCue: globalEnd === cue.frameEnd,
-    })
-  }
-  return segments
+  return timedRangeCueSegmentsForPage(template, page, cue, 'sound', options)
 }
 
 export function buildSoundCueTextLayout(

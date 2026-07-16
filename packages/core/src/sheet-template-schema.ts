@@ -1,6 +1,6 @@
 import type { CutMetadataFieldId, Id, LogicalTimelineSectionRole, PaperTrackName, SheetImageAlignment, SheetPageImageRef, SheetViewLayoutOverrides, SheetViewMode } from './types'
 
-export const SHEET_TEMPLATE_SCHEMA_VERSION = 2
+export const SHEET_TEMPLATE_SCHEMA_VERSION = 3
 
 export interface NormalizedRect {
   x: number
@@ -13,6 +13,7 @@ export interface SheetTemplateColumn {
   columnId: string
   label: string
   paperTrack?: PaperTrackName
+  timelineLaneId?: Id
   xdtsEligible?: boolean
 }
 

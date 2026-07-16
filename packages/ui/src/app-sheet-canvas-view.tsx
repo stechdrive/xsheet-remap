@@ -13,24 +13,32 @@ import { sheetContextMenuStyle } from './app-registered-cells';
 import type { SheetCanvasController } from './app-sheet-canvas-controller'
 import { AssetAssignedFrameCue, SelectedCellCue, SheetDropTargetCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
 import { SheetMetadataEditor } from './SheetMetadataEditor'
+import { SoundCueLayer } from './SoundCueLayer'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
     props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, overlayTrackDrag,
-    setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, activeOverlayPaperTrack, setActiveOverlayPaperTrack,
+    setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
+    activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight,
     overlayTracks, sheetRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
-    selectPaperTrackColumn, handlePointerDown, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
+    selectPaperTrackColumn, handlePointerDown, handleSoundRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
+    handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
-    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, viewportClassName,
+    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, viewportClassName,
   } = controller
+  const hoveredSoundCue = props.project.timedRangeCues.find(cue => cue.cueId === hoveredSoundCueId) ?? null
+  const soundCueHoverStyle = soundCueHoverAnchor ? {
+    left: `${Math.max(8, Math.min(soundCueHoverAnchor.x + 14, (typeof window === 'undefined' ? 1024 : window.innerWidth) - 268))}px`,
+    top: `${Math.max(8, Math.min(soundCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
+  } : undefined
 
   return (
     <div
@@ -106,6 +114,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const rangeRects = [...normalRangeRects, ...overlayRangeRects]
           const rangeBoundaryRects = mergeAdjacentRangeRects(rangeRects)
           const selectionSurface = { widthPx: sheetPageWidth, heightPx: sheetPageHeight }
+          const soundCues = props.project.timedRangeCues
+            .filter(cue => cue.role === 'sound')
+            .map(cue => soundCueDrag?.origin.cueId === cue.cueId ? soundCueDrag.preview : cue)
 
           const pageAccessibleLabel = isContinuousCanvas
             ? uiText.sheet.surfaceCaption(page.frameStart, page.frameEnd)
@@ -140,6 +151,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   }}
                   style={{ width: `${sheetPageWidth}px`, height: `${sheetPageHeight}px` }}
                   onPointerDown={event => handlePointerDown(event, page)}
+                  onDoubleClick={event => handleSoundRangeDoubleClick(event, page)}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={() => {
@@ -215,6 +227,25 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       surface={selectionSurface}
                     />
                   ))}
+                  {showInputContent && (
+                    <SoundCueLayer
+                      cues={soundCues}
+                      template={props.template}
+                      page={page}
+                      paperTracks={templateTrackNames}
+                      layoutOverrides={props.project.sheetView.layoutOverrides}
+                      pageSize={sheetPageSize}
+                      surface={selectionSurface}
+                      selectedCueId={props.selectedSoundCueId}
+                      onPointerDown={handleSoundCuePointerDown}
+                      onPointerMove={handleSoundCuePointerMove}
+                      onPointerUp={event => finishSoundCuePointer(event)}
+                      onPointerCancel={event => finishSoundCuePointer(event, true)}
+                      onDoubleClick={props.onSoundCueEdit}
+                      onPointerEnter={handleSoundCuePointerEnter}
+                      onPointerLeave={handleSoundCuePointerLeave}
+                    />
+                  )}
                   {calibrationDebugOverlay && (
                     <AutoCalibrationGuideOverlay
                       overlay={calibrationDebugOverlay}
@@ -392,6 +423,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           )
         })}
       </div>
+      {hoveredSoundCue && soundCueHoverStyle && !soundCueDrag && (
+        <div className="soundCueHoverCard" style={soundCueHoverStyle} role="tooltip">
+          <strong>{hoveredSoundCue.label}</strong>
+          <span>{hoveredSoundCue.frameStart}–{hoveredSoundCue.frameEnd}F</span>
+          {hoveredSoundCue.text && <p>{hoveredSoundCue.text}</p>}
+        </div>
+      )}
       {hoverPreviewPosition && <CellAssetPreview position={hoverPreviewPosition} items={hoverPreviewItems} />}
       {contextMenu && hasSheetContextMenuItems && (
         <div
@@ -401,18 +439,33 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           onPointerDown={event => event.stopPropagation()}
           onContextMenu={event => event.preventDefault()}
         >
-          <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCopyRange)}>{uiText.actions.copyRange}</button>
-          <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutRange)}>{uiText.actions.cutRange}</button>
-          <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutRangeRipple)}>{uiText.actions.cutRangeRipple}</button>
-          <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite'))}>{uiText.actions.pasteOverwrite}</button>
-          <button role="menuitem" disabled={!canPasteContextInsert} onClick={() => runContextMenuAction(() => props.onPasteTiming('insert'))}>{uiText.actions.pasteInsert}</button>
-          <button role="menuitem" disabled={!canPasteContextRepeatRange} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-range'))}>{uiText.actions.repeatPaste}</button>
-          <button role="menuitem" disabled={!canPasteContextRepeatToEnd} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-to-end'))}>{uiText.actions.repeatPasteToEnd}</button>
-          <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetNullAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.setNullCell}</button>
-          <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
-          <div className="sheetContextMenuTitle">{uiText.frameOperation.title}</div>
-          <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenFrameOperation('insert', contextMenu.hit as SheetHit))}>{uiText.frameOperation.insert}</button>
-          <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenFrameOperation('delete', contextMenu.hit as SheetHit))}>{uiText.frameOperation.delete}</button>
+          {soundContext ? (
+            <>
+              <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCopySoundCues)}>{uiText.actions.copyRange}</button>
+              <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutSoundCues)}>{uiText.actions.cutRange}</button>
+              <button role="menuitem" disabled={!props.soundCueClipboard} onClick={() => runContextMenuAction(() => props.onPasteSoundCues('overwrite'))}>{uiText.actions.pasteOverwrite}</button>
+              <button role="menuitem" disabled={!props.soundCueClipboard} onClick={() => runContextMenuAction(() => props.onPasteSoundCues('insert'))}>{uiText.actions.pasteInsert}</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.selectedSoundCueId
+                ? props.onSoundCueEdit(props.selectedSoundCueId)
+                : props.rangeSelection?.role === 'sound' ? props.onSoundRangeEdit(props.rangeSelection) : undefined)}>区間を編集</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(props.onDeleteSoundCues)}>区間を削除</button>
+            </>
+          ) : (
+            <>
+              <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCopyRange)}>{uiText.actions.copyRange}</button>
+              <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutRange)}>{uiText.actions.cutRange}</button>
+              <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutRangeRipple)}>{uiText.actions.cutRangeRipple}</button>
+              <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite'))}>{uiText.actions.pasteOverwrite}</button>
+              <button role="menuitem" disabled={!canPasteContextInsert} onClick={() => runContextMenuAction(() => props.onPasteTiming('insert'))}>{uiText.actions.pasteInsert}</button>
+              <button role="menuitem" disabled={!canPasteContextRepeatRange} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-range'))}>{uiText.actions.repeatPaste}</button>
+              <button role="menuitem" disabled={!canPasteContextRepeatToEnd} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-to-end'))}>{uiText.actions.repeatPasteToEnd}</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetNullAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.setNullCell}</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
+              <div className="sheetContextMenuTitle">{uiText.frameOperation.title}</div>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenFrameOperation('insert', contextMenu.hit as SheetHit))}>{uiText.frameOperation.insert}</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenFrameOperation('delete', contextMenu.hit as SheetHit))}>{uiText.frameOperation.delete}</button>
+            </>
+          )}
           {contextProcessMove && contextProcessMoveOptions.length > 0 && (
             <>
               <div className="sheetContextMenuTitle">{uiText.processMove.title}</div>

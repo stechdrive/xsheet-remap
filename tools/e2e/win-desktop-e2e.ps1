@@ -23,7 +23,7 @@ if ($env:OS -ne "Windows_NT") {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
 
-$supportedScenarios = @("launch", "full-default-a3", "sheet-ops", "auto-calibration")
+$supportedScenarios = @("launch", "full-default-a3", "sheet-ops", "sound-ops", "auto-calibration")
 if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }
@@ -278,7 +278,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
 $summaryPath = Join-Path $runRoot "summary.json"
 $scenarioResultPath = Join-Path $runRoot "result.json"
 $screenshotPath = Join-Path $screenshotRoot "launch.png"
-$remoteDebugPort = if ($Scenario -eq "sheet-ops" -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
+$remoteDebugPort = if ($Scenario -eq "sheet-ops" -or $Scenario -eq "sound-ops" -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
 $previousEnvironment = @{}
 $environmentOverrides = @{
   "XSHEET_REMAP_E2E" = "1"
@@ -367,23 +367,29 @@ try {
     throw "desktop process exited during the ${StableSeconds}s stability window. Exit code: $($process.ExitCode)"
   }
 
-  if ($Scenario -eq "sheet-ops") {
-    $sheetOpsReportPath = Join-Path $runRoot "sheet-ops-report.json"
+  if ($Scenario -eq "sheet-ops" -or $Scenario -eq "sound-ops") {
+    $sheetOpsReportPath = Join-Path $runRoot "$Scenario-report.json"
     $sheetOpsAssetPath = Join-Path $assetRoot "A1.png"
     $sheetOpsSecondaryAssetPath = Join-Path $assetRoot "A2.png"
     $sheetOpsSourcePath = Join-Path $assetRoot "sheet_001.png"
     $sheetOpsSecondarySourcePath = Join-Path $assetRoot "sheet_002.png"
     $tsxPath = Join-Path $repoRoot "node_modules\.bin\tsx.cmd"
-    Write-Host "[desktop-e2e] running sheet-ops CDP scenario on port $remoteDebugPort"
-    & $tsxPath "tools/e2e/sheet-ops-cdp.ts" `
-      "--port" "$remoteDebugPort" `
-      "--result" "$scenarioResultPath" `
-      "--report" "$sheetOpsReportPath" `
-      "--asset" "$sheetOpsAssetPath" `
-      "--asset-secondary" "$sheetOpsSecondaryAssetPath" `
-      "--asset-root" "$assetRoot" `
-      "--sheet-source" "$sheetOpsSourcePath" `
-      "--sheet-source-secondary" "$sheetOpsSecondarySourcePath"
+    Write-Host "[desktop-e2e] running $Scenario CDP scenario on port $remoteDebugPort"
+    $sheetOpsArguments = @(
+      "tools/e2e/sheet-ops-cdp.ts",
+      "--port", "$remoteDebugPort",
+      "--result", "$scenarioResultPath",
+      "--report", "$sheetOpsReportPath",
+      "--asset", "$sheetOpsAssetPath",
+      "--asset-secondary", "$sheetOpsSecondaryAssetPath",
+      "--asset-root", "$assetRoot",
+      "--sheet-source", "$sheetOpsSourcePath",
+      "--sheet-source-secondary", "$sheetOpsSecondarySourcePath"
+    )
+    if ($Scenario -eq "sound-ops") {
+      $sheetOpsArguments += @("--sound-only", "true")
+    }
+    & $tsxPath @sheetOpsArguments
     $sheetOpsExitCode = $LASTEXITCODE
     if ($sheetOpsExitCode -ne 0 -and -not (Test-Path -LiteralPath $scenarioResultPath)) {
       throw "sheet-ops CDP scenario failed before writing result.json. Exit code: $sheetOpsExitCode"
@@ -435,7 +441,7 @@ try {
       throw "desktop e2e scenario did not write result.json within ${TimeoutSeconds}s"
     }
 
-    $scenarioResult = Get-Content -LiteralPath $scenarioResultPath -Raw | ConvertFrom-Json
+    $scenarioResult = Get-Content -LiteralPath $scenarioResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if (-not $scenarioResult.passed) {
       $scenarioError = if ($scenarioResult.error) { $scenarioResult.error } else { "unknown scenario failure" }
       throw "desktop e2e scenario failed: $scenarioError"

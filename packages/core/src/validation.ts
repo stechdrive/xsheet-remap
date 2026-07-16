@@ -9,6 +9,10 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
   const sheetSourceIds = new Set(project.sheetView.sources.map(source => source.sourceId))
   const displayStartFrame = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayEndFrame = logicalSheetDisplayFrameEnd(project.logicalSheet)
+  const timedRangeLaneIdsByRole = new Map<string, Set<string>>(project.logicalSheet.timelineSections.map(section => [
+    section.role,
+    new Set(section.lanes?.map(lane => lane.laneId) ?? []),
+  ]))
 
   if (project.logicalSheet.fps <= 0) {
     issues.push(issue('error', 'sheet.fps.invalid', 'fps must be greater than zero', 'sheet', 'logicalSheet'))
@@ -44,6 +48,9 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
   }
 
   for (const cue of project.timedRangeCues ?? []) {
+    if (!cue.laneId || !timedRangeLaneIdsByRole.get(cue.role)?.has(cue.laneId)) {
+      issues.push(issue('error', 'cue.lane.missing', `cue ${cue.cueId} references missing lane ${cue.laneId}`, 'cue', cue.cueId))
+    }
     if (cue.frameEnd < cue.frameStart) {
       issues.push(issue('error', 'cue.range.invalid', `cue ${cue.cueId} ends before it starts`, 'cue', cue.cueId))
     }

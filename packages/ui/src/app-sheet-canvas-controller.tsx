@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
+import { type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
 import { uiText } from './i18n';
-import { type EditMode, type SheetRangeSelection, type SheetImageSettings, type TimingClipboard } from './appTypes';
+import { type EditMode, type SheetRangeSelection, type SheetImageSettings, type SoundCueClipboard, type TimingClipboard } from './appTypes';
 import { type DropDiagnosticReport } from './AssetBrowser';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
 import { setInternalDragDropValidity, subscribeInternalDrag } from './internalDrag';
@@ -17,6 +17,8 @@ import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole, 
 import { autoScrollViewportForDrag, scrollSheetHitIntoView } from './sheet-panel-viewport';
 import { defaultExportAfterTrackForInsertAfter, exportPreviousPaperTrackName, isInteractiveKeyboardTarget, overlayExportPlacementAfterTrack, stackGuideInsertTargetFromPoint, stackGuidePlacementTargetFromPointer, stackGuidePlacementUpdateFromPointer } from './app-stack-guides';
 import { singleMovableBindingForHit } from './app-registered-cells';
+import { soundLaneIdForHit } from './soundCueEditing';
+import type { SoundCueDragMode } from './SoundCueLayer';
 
 export type SheetCanvasProps = {
   project: CutProject
@@ -30,11 +32,13 @@ export type SheetCanvasProps = {
   runtimeSourceImageUrls: Record<string, string>
   recognitionCandidates: RecognitionCandidate[]
   selectedHit: SheetHit | null
+  selectedSoundCueId: string | null
   timingDraftValue: string
   timingDraftActive: boolean
   scrollRequest: SheetScrollRequest | null
   rangeSelection: SheetRangeSelection | null
   timingClipboard: TimingClipboard | null
+  soundCueClipboard: SoundCueClipboard | null
   editMode: EditMode
   zoom: number
   setZoom: (value: number) => void
@@ -56,12 +60,20 @@ export type SheetCanvasProps = {
   onCellClick: (hit: SheetHit) => void
   onCellSelect: (hit: SheetHit) => void
   onRangeSelect: (range: SheetRangeSelection) => void
+  onSoundCueSelect: (cueId: string) => void
+  onSoundCueEdit: (cueId: string) => void
+  onSoundRangeEdit: (range: SheetRangeSelection) => void
+  onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
   onSetNullAtHit: (hit: SheetHit) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
   onCopyRange: () => void
   onCutRange: () => void
   onCutRangeRipple: () => void
   onPasteTiming: (mode: 'overwrite' | 'insert' | 'repeat-range' | 'repeat-to-end') => void
+  onCopySoundCues: () => void
+  onCutSoundCues: () => void
+  onDeleteSoundCues: () => void
+  onPasteSoundCues: (mode: 'overwrite' | 'insert') => void
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
   onTemplateImage: (files: FileList | File[] | null) => void
   onAssetSheetSources: (assetIds: string[]) => void
@@ -115,6 +127,18 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const [paperTrackEditor, setPaperTrackEditor] = useState<PaperTrackEditorState | null>(null)
   const [overlayTrackDrag, setOverlayTrackDrag] = useState<OverlayPaperTrackDrag | null>(null)
   const [timelineEventDrag, setTimelineEventDrag] = useState<{ pointerId: number; sourceHit: SheetHit; currentHit: SheetHit | null; startX: number; startY: number; moved: boolean } | null>(null)
+  const [soundCueDrag, setSoundCueDrag] = useState<{
+    pointerId: number
+    mode: SoundCueDragMode
+    origin: TimedRangeCue
+    preview: TimedRangeCue
+    grabOffsetFrames: number
+    startX: number
+    startY: number
+    moved: boolean
+  } | null>(null)
+  const [hoveredSoundCueId, setHoveredSoundCueId] = useState<string | null>(null)
+  const [soundCueHoverAnchor, setSoundCueHoverAnchor] = useState<{ x: number; y: number } | null>(null)
   const [pendingTimelineEventDrag, setPendingTimelineEventDrag] = useState<{ pointerId: number; sourceHit: SheetHit; startX: number; startY: number; ready: boolean } | null>(null)
   const [activeOverlayPaperTrack, setActiveOverlayPaperTrack] = useState<string | null>(null)
   const [draftCalibration, setDraftCalibration] = useState<{ pageId: string; points: SheetCalibrationPointPair[] } | null>(null)
@@ -135,6 +159,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const previousOverlayTrackNamesRef = useRef<Set<string>>(new Set())
   const timelineEventLongPressTimerRef = useRef<number | null>(null)
   const stackGuideInsertRequestIdRef = useRef(0)
+  const soundCueDragRef = useRef<typeof soundCueDrag>(null)
   const onStatusHint = props.onStatusHint
 
   useEffect(() => {
@@ -161,7 +186,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       window.removeEventListener('drop', clearDropStatus)
     }
   }, [onStatusHint])
-  const hasActiveSheetInteraction = Boolean(draftStroke || draftRange || timelineEventDrag || pendingTimelineEventDrag || isPanning)
+  const hasActiveSheetInteraction = Boolean(draftStroke || draftRange || timelineEventDrag || pendingTimelineEventDrag || soundCueDrag || isPanning)
   const zoom = props.zoom
   const setZoom = props.setZoom
   const sheetViewLayout = getSheetViewLayout(props.template)
@@ -980,6 +1005,130 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     return true
   }
 
+  function soundHitFromClientPoint(clientX: number, clientY: number): { page: SheetPage; hit: SheetHit; laneId: string } | null {
+    for (const page of visiblePages) {
+      const svg = svgForPage(page)
+      if (!svg) continue
+      const box = svg.getBoundingClientRect()
+      if (clientX < box.left || clientX > box.right || clientY < box.top || clientY > box.bottom) continue
+      const point = { x: (clientX - box.left) / box.width, y: (clientY - box.top) / box.height }
+      const localHit = hitTestSheetTemplate(props.template, point, {
+        paperTracks: templateTrackNames,
+        durationFrames: page.frameEnd - page.frameStart + 1,
+        frameOrigin: frameOriginForPageHit(props.template, page),
+        layoutOverrides: props.project.sheetView.layoutOverrides,
+        role: 'sound',
+      })
+      if (!localHit) return null
+      const hit = materializePageHit(props.template, localHit, page)
+      const laneId = soundLaneIdForHit(props.template, hit)
+      if (!laneId || hit.frame > page.frameEnd) return null
+      return { page, hit, laneId }
+    }
+    return null
+  }
+
+  function handleSoundCuePointerDown(event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: SoundCueDragMode) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    clearHover()
+    setHoveredSoundCueId(null)
+    setSoundCueHoverAnchor(null)
+    props.onSoundCueSelect(cue.cueId)
+    const pointed = soundHitFromClientPoint(event.clientX, event.clientY)
+    const grabOffsetFrames = pointed
+      ? clampNumber(pointed.hit.frame - cue.frameStart, 0, cue.frameEnd - cue.frameStart)
+      : 0
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    const nextDrag = {
+      pointerId: event.pointerId,
+      mode,
+      origin: cue,
+      preview: cue,
+      grabOffsetFrames,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    }
+    soundCueDragRef.current = nextDrag
+    setSoundCueDrag(nextDrag)
+    props.onStatusHint('sheet-drag', mode === 'move' ? 'SOUND区間を移動中' : 'SOUND区間の長さを変更中')
+  }
+
+  function handleSoundCuePointerMove(event: PointerEvent<SVGGElement>) {
+    const currentDrag = soundCueDragRef.current
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return
+    event.preventDefault()
+    event.stopPropagation()
+    autoScrollViewportForDrag(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))
+    const pointed = soundHitFromClientPoint(event.clientX, event.clientY)
+    if (!pointed) return
+    setActivePageIndexIfNeeded(pointed.page.pageIndex)
+    const moved = currentDrag.moved
+      || Math.abs(event.clientX - currentDrag.startX) >= 3
+      || Math.abs(event.clientY - currentDrag.startY) >= 3
+    const origin = currentDrag.origin
+    const duration = origin.frameEnd - origin.frameStart + 1
+    let frameStart = origin.frameStart
+    let frameEnd = origin.frameEnd
+    let laneId = origin.laneId
+    if (currentDrag.mode === 'move') {
+      frameStart = clampNumber(pointed.hit.frame - currentDrag.grabOffsetFrames, displayFrameStart, displayFrameEnd - duration + 1)
+      frameEnd = frameStart + duration - 1
+      laneId = pointed.laneId
+    } else if (currentDrag.mode === 'resize-start') {
+      frameStart = clampNumber(pointed.hit.frame, displayFrameStart, origin.frameEnd)
+    } else {
+      frameEnd = clampNumber(pointed.hit.frame, origin.frameStart, displayFrameEnd)
+    }
+    const nextDrag = { ...currentDrag, moved, preview: { ...currentDrag.origin, laneId, frameStart, frameEnd } }
+    soundCueDragRef.current = nextDrag
+    setSoundCueDrag(nextDrag)
+  }
+
+  function finishSoundCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) {
+    const current = soundCueDragRef.current
+    if (!current || current.pointerId !== event.pointerId) return
+    event.preventDefault()
+    event.stopPropagation()
+    soundCueDragRef.current = null
+    setSoundCueDrag(null)
+    props.onStatusHint('sheet-drag', null)
+    if (!cancelled && current.moved) {
+      props.onSoundCueTransform(current.origin.cueId, {
+        laneId: current.preview.laneId,
+        frameStart: current.preview.frameStart,
+        frameEnd: current.preview.frameEnd,
+      })
+    } else {
+      props.onSoundCueSelect(current.origin.cueId)
+    }
+  }
+
+  function handleSoundCuePointerEnter(event: PointerEvent<SVGGElement>, cueId: string) {
+    if (soundCueDragRef.current) return
+    setHoveredSoundCueId(cueId)
+    setSoundCueHoverAnchor({ x: event.clientX, y: event.clientY })
+  }
+
+  function handleSoundCuePointerLeave() {
+    if (soundCueDragRef.current) return
+    setHoveredSoundCueId(null)
+    setSoundCueHoverAnchor(null)
+  }
+
+  function handleSoundRangeDoubleClick(event: MouseEvent<SVGSVGElement>, page: SheetPage) {
+    if (props.editMode !== 'new') return
+    const hit = rangeHitFromPoint(pointFromEvent(event), page)
+    if (hit?.role !== 'sound') return
+    const range = rangeFromHits(hit, hit)
+    if (!range) return
+    event.preventDefault()
+    event.stopPropagation()
+    props.onSoundRangeEdit(range)
+  }
+
   function handlePointerDown(event: PointerEvent<SVGSVGElement>, page: SheetPage) {
     if (beginViewportPan(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
@@ -1354,11 +1503,20 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       })
       return
     }
-    const hit = hitFromPoint(point, page)
-    if (hit?.paperTrack && !rangeContainsHit(props.rangeSelection, hit)) props.onCellSelect(hit)
+    const hit = rangeHitFromPoint(point, page)
+    const cueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-sound-cue-id]') : null
+    const cueId = cueElement?.dataset.soundCueId
+    if (cueId) {
+      props.onSoundCueSelect(cueId)
+    } else if (hit?.role === 'sound') {
+      const range = rangeFromHits(hit, hit)
+      if (range) props.onRangeSelect(range)
+    } else if (hit?.paperTrack && !rangeContainsHit(props.rangeSelection, hit)) {
+      props.onCellSelect(hit)
+    }
     clearHover()
-    const sheetRole = hit ? sheetRoleForHit(hit) : 'cell'
-    const snapIndex = overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole)
+    const sheetRole = hit?.role === 'action' || hit?.role === 'cell' ? sheetRoleForHit(hit) : undefined
+    const snapIndex = sheetRole === undefined ? undefined : overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole)
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
@@ -1750,7 +1908,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
 
   const contextProcessMove = contextMenu?.hit ? singleMovableBindingForHit(props.project, contextMenu.hit) : null
   const contextProcessMoveOptions = contextProcessMove ? processMoveOptionsForSlot(props.project, contextProcessMove.slot, contextProcessMove.binding.keyId) : []
-  const canCopyContextRange = isPointEventRangeForUi(props.rangeSelection)
+  const soundContext = contextMenu?.hit?.role === 'sound' || Boolean(props.selectedSoundCueId)
+  const canCopyContextRange = soundContext
+    ? Boolean(props.selectedSoundCueId || props.rangeSelection?.role === 'sound')
+    : isPointEventRangeForUi(props.rangeSelection)
   const contextPasteRole = props.rangeSelection?.role === 'action' || props.rangeSelection?.role === 'cell'
     ? props.rangeSelection.role
     : props.selectedHit ? sheetRoleForHit(props.selectedHit) : 'cell'
@@ -1759,9 +1920,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const canPasteContextInsert = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'insert', contextPaperTrackOrder)
   const canPasteContextRepeatRange = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-range', contextPaperTrackOrder)
   const canPasteContextRepeatToEnd = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-to-end', contextPaperTrackOrder)
-  const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack)
+  const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound')
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
-  const sheetContextMenuItemCount = 12 + contextProcessMoveItemCount
+  const sheetContextMenuItemCount = (soundContext ? 6 : 12) + contextProcessMoveItemCount
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null
@@ -1783,17 +1944,19 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, overlayTrackDrag,
-    setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, activeOverlayPaperTrack, setActiveOverlayPaperTrack,
+    setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
+    activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight,
     overlayTracks, sheetRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
-    selectPaperTrackColumn, handlePointerDown, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
+    selectPaperTrackColumn, handlePointerDown, handleSoundRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
+    handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
-    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, viewportClassName,
+    overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, viewportClassName,
   }
 }
 

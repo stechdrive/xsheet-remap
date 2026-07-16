@@ -1,4 +1,4 @@
-import type { CorrectionLayer, CutMetadata, CutProject, ExportProfile, LogicalSheet, LogicalTimelineSection, PaperTrack, PaperTrackName, ProductionStage, SheetTimingRole } from './types'
+import type { CorrectionLayer, CutMetadata, CutProject, ExportProfile, LogicalSheet, LogicalTimelineLane, LogicalTimelineSection, LogicalTimelineSectionRole, PaperTrack, PaperTrackName, ProductionStage, SheetTimingRole } from './types'
 import { getSheetTemplatePaperTracks, withSheetTemplatePaperTracks, standardA3SheetTemplate, standardA3SheetTemplatePreset, type SheetTemplate } from './sheet-template'
 import { defaultLogicalSheetWorkRange } from './logical-sheet'
 import { createDefaultSheetViewState } from './sheet-view'
@@ -40,7 +40,7 @@ export function createProjectFromTrackLabels(
     allowNegativeFrames: true,
     workRange: defaultLogicalSheetWorkRange(template),
     paperTracks,
-    timelineSections: defaultTimelineSections(),
+    timelineSections: defaultTimelineSections(template),
     keys: [],
     events: [],
   }
@@ -55,7 +55,7 @@ export function createProjectFromTrackLabels(
     },
   ]
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     projectId: options.projectId ?? 'project_sample',
     cut: options.cut ?? { cut: '001' },
     studioPresetId: options.studioPresetId,
@@ -82,7 +82,7 @@ export function createPaperTracks(labels: PaperTrackName[]): PaperTrack[] {
   return normalized.map((label, order) => ({ paperTrack: label, label, order, source: 'template' }))
 }
 
-export function defaultTimelineSections(): LogicalTimelineSection[] {
+export function defaultTimelineSections(template: SheetTemplate = standardA3SheetTemplate): LogicalTimelineSection[] {
   return [
     {
       sectionId: 'section_action',
@@ -101,7 +101,7 @@ export function defaultTimelineSections(): LogicalTimelineSection[] {
       inputMode: 'timed-range',
       trackAxis: 'fixed-lanes',
       frameAxis: 'shared-logical-frames',
-      laneLabels: ['S1', 'S2', 'S3', 'S4'],
+      lanes: timelineLanesForTemplate(template, 'sound', 4),
     },
     {
       sectionId: 'section_cell',
@@ -120,9 +120,70 @@ export function defaultTimelineSections(): LogicalTimelineSection[] {
       inputMode: 'timed-range',
       trackAxis: 'fixed-lanes',
       frameAxis: 'shared-logical-frames',
-      laneLabels: ['1', '2', '3', '4'],
+      lanes: timelineLanesForTemplate(template, 'camera', 4),
     },
   ]
+}
+
+function timelineLanesForTemplate(
+  template: SheetTemplate,
+  role: Extract<LogicalTimelineSectionRole, 'sound' | 'camera'>,
+  fallbackCount: number,
+): LogicalTimelineLane[] {
+  const lanes = new Map<string, LogicalTimelineLane>()
+  for (const region of template.regions) {
+    if (region.grid?.role !== role) continue
+    region.grid.columns.forEach((column, index) => {
+      const laneId = column.timelineLaneId ?? `${role}_lane_${index + 1}`
+      const existing = lanes.get(laneId)
+      if (existing) {
+        if (!existing.label && column.label.trim()) existing.label = column.label.trim()
+        return
+      }
+      lanes.set(laneId, {
+        laneId,
+        label: column.label.trim() || (role === 'sound' ? `S${lanes.size + 1}` : String(lanes.size + 1)),
+        order: lanes.size,
+      })
+    })
+  }
+  if (lanes.size > 0) return [...lanes.values()]
+  return Array.from({ length: fallbackCount }, (_, index) => ({
+    laneId: `${role}_lane_${index + 1}`,
+    label: role === 'sound' ? `S${index + 1}` : String(index + 1),
+    order: index,
+  }))
+}
+
+export function updateProjectTimelineSectionsFromTemplate(project: CutProject, template: SheetTemplate): CutProject {
+  const replacements = new Map<LogicalTimelineSectionRole, LogicalTimelineLane[]>([
+    ['sound', timelineLanesForTemplate(template, 'sound', 4)],
+    ['camera', timelineLanesForTemplate(template, 'camera', 4)],
+  ])
+  const laneRemapByRole = new Map<string, Map<string, string>>()
+  const timelineSections = project.logicalSheet.timelineSections.map(section => {
+    const lanes = replacements.get(section.role)
+    if (!lanes) return section
+    const nextIds = new Set(lanes.map(lane => lane.laneId))
+    const oldLanes = [...(section.lanes ?? [])].sort((a, b) => a.order - b.order)
+    const nextLanes = [...lanes].sort((a, b) => a.order - b.order)
+    laneRemapByRole.set(section.role, new Map(oldLanes.flatMap((lane, index) => {
+      const replacement = nextLanes[index]
+      return replacement && !nextIds.has(lane.laneId) ? [[lane.laneId, replacement.laneId]] : []
+    })))
+    return { ...section, lanes }
+  })
+  return {
+    ...project,
+    logicalSheet: {
+      ...project.logicalSheet,
+      timelineSections,
+    },
+    timedRangeCues: project.timedRangeCues.map(cue => {
+      const laneId = laneRemapByRole.get(cue.role)?.get(cue.laneId)
+      return laneId ? { ...cue, laneId } : cue
+    }),
+  }
 }
 
 export function updateProjectPaperTracks(project: CutProject, labels: PaperTrackName[]): CutProject {

@@ -217,7 +217,7 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
       cspCellNamePolicy: profile.cspCellNamePolicy ?? DEFAULT_CSP_CELL_NAME_POLICY,
     })),
   }
-  return { ...project, schemaVersion: 2 }
+  return { ...project, schemaVersion: 3 }
 }
 
 function repairBlankAssetDropBindingNames(project: CutProject): CutProject {

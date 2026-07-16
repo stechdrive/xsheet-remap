@@ -11,12 +11,14 @@ const actionColumns = createPaperTrackColumns('action', standardA3DefaultPaperTr
 const soundColumns = Array.from({ length: 4 }, (_, index) => ({
   columnId: `sound_${index + 1}`,
   label: '',
+  timelineLaneId: `sound_lane_${index + 1}`,
   xdtsEligible: false,
 }))
 
 const cameraColumns = Array.from({ length: 6 }, (_, index) => ({
   columnId: `camera_${index + 1}`,
   label: '',
+  timelineLaneId: `camera_lane_${index + 1}`,
   xdtsEligible: false,
 }))
 
@@ -408,12 +410,14 @@ const digitalCellColumns = createPaperTrackColumns('cell', standardA3DefaultPape
 const digitalSoundColumns = Array.from({ length: 4 }, (_, index) => ({
   columnId: `digital_sound_${index + 1}`,
   label: `S${index + 1}`,
+  timelineLaneId: `sound_lane_${index + 1}`,
   xdtsEligible: false,
 }))
 
 const digitalCameraColumns = Array.from({ length: 4 }, (_, index) => ({
   columnId: `digital_camera_${index + 1}`,
   label: String(index + 1),
+  timelineLaneId: `camera_lane_${index + 1}`,
   xdtsEligible: false,
 }))
 

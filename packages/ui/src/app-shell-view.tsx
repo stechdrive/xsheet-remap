@@ -14,6 +14,7 @@ import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, Reco
 import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
+import { SoundCueDialog } from './SoundCueDialog'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -25,7 +26,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
     showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
-    selection, rangeSelection, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard, exportProfileId, sheetImageExportDraft,
+    selection, rangeSelection, selectedSoundCueId, selectedSoundCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
+    soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
@@ -35,8 +37,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect,
+    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
-    copySelectedTimingRange, pasteTimingClipboard, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
+    copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleAssignAsset, handleAssignRegisteredCell,
@@ -275,11 +278,13 @@ export function AppShellView({ controller }: { controller: AppController }) {
             recognitionCandidates={recognitionCandidates}
             selectedKeyId={selection.keyId}
             selectedHit={selection.hit}
+            selectedSoundCueId={selectedSoundCueId}
             timingDraftValue={valueDraft}
             timingDraftActive={valueDraftActive}
             scrollRequest={sheetScrollRequest}
             rangeSelection={rangeSelection}
             timingClipboard={timingClipboard}
+            soundCueClipboard={soundCueClipboard}
             activeCorrectionLayerId={activeCorrectionLayerId}
             setActiveCorrectionLayerId={handleActiveCorrectionLayerChange}
             editMode={editMode}
@@ -314,6 +319,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onCellClick={handleCellClick}
             onCellSelect={handleCellSelect}
             onRangeSelect={handleRangeSelect}
+            onSoundCueSelect={handleSoundCueSelect}
+            onSoundCueEdit={openSoundCueEditor}
+            onSoundRangeEdit={openSoundCueEditorForRange}
+            onSoundCueTransform={handleTransformSoundCue}
             onSetNullAtHit={handleSetNullAtHit}
             onDeleteEventAtHit={handleDeleteEventAtHit}
             onKeySelect={handleKeySelect}
@@ -322,6 +331,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onCutRange={() => copySelectedTimingRange('cut', false)}
             onCutRangeRipple={() => copySelectedTimingRange('cut', true)}
             onPasteTiming={pasteTimingClipboard}
+            onCopySoundCues={() => copySelectedSoundCueRange('copy')}
+            onCutSoundCues={() => copySelectedSoundCueRange('cut')}
+            onDeleteSoundCues={handleDeleteEvent}
+            onPasteSoundCues={pasteSelectedSoundCueRange}
             onOpenFrameOperation={openFrameOperationDialog}
             onClearSelection={handleClearSelection}
             onTemplateImage={files => void handleSheetSourceFiles(files, activePage?.pageId)}
@@ -421,6 +434,25 @@ export function AppShellView({ controller }: { controller: AppController }) {
         />
       )}
 
+      {soundCueDialog && (() => {
+        const lane = project.logicalSheet.timelineSections
+          .find(section => section.role === 'sound')
+          ?.lanes?.find(item => item.laneId === soundCueDialog.laneId) ?? null
+        return (
+          <SoundCueDialog
+            state={soundCueDialog}
+            cue={soundCueDialog.cueId === selectedSoundCue?.cueId ? selectedSoundCue : null}
+            lane={lane}
+            fps={project.logicalSheet.fps}
+            frameMin={project.logicalSheet.frameOrigin}
+            frameMax={project.logicalSheet.frameOrigin + project.logicalSheet.durationFrames - 1}
+            labelHistory={soundLabelHistory}
+            onSubmit={submitSoundCueDialog}
+            onCancel={() => setSoundCueDialog(null)}
+          />
+        )
+      })()}
+
       {sheetLevelCorrectionDialogOpen && (
         <LevelCorrectionDialog
           title="紙シートのレベル補正"
@@ -470,9 +502,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
           <dt>{uiText.inspector.frame}</dt>
           <dd>{selectedFrameSummary}</dd>
           <dt>{uiText.inspector.track}</dt>
-          <dd>{rangeSelection ? rangeSelection.paperTrack ?? rangeSelection.columnId : selection.hit?.paperTrack ?? '-'}</dd>
+          <dd>{selectedSoundCue ? selectedSoundCue.laneId : rangeSelection ? rangeSelection.paperTrack ?? rangeSelection.columnId : selection.hit?.paperTrack ?? '-'}</dd>
           <dt>{uiText.inspector.sheetRole}</dt>
-          <dd>{rangeSelection ? rangeSelection.role.toUpperCase() : selection.hit ? sheetRoleLabel(sheetRoleForHit(selection.hit)) : '-'}</dd>
+          <dd>{selectedSoundCue ? 'SOUND' : rangeSelection ? rangeSelection.role.toUpperCase() : selection.hit ? sheetRoleLabel(sheetRoleForHit(selection.hit)) : '-'}</dd>
           <dt>{uiText.inspector.process}</dt>
           <dd>{activeCorrectionLayer?.label ?? '-'}</dd>
           <dt>{uiText.inspector.key}</dt>

@@ -1466,9 +1466,10 @@ describe('core project commands', () => {
       timedRangeCues: [{
         cueId: 'cue_camera_1',
         role: 'camera' as const,
-        kind: 'ol' as const,
         frameStart: 48,
         frameEnd: 24,
+        laneId: 'camera_lane_1',
+        label: 'OL',
         text: 'OL',
       }],
     }

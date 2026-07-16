@@ -12,20 +12,6 @@ export const NULL_CELL_KEY_ID = '__null_cell__'
 export const NULL_CELL_DISPLAY_LABEL = 'x'
 export const NULL_CELL_CSP_CELL_NAME = 'SYMBOL_NULL_CELL'
 export type TimedRangeRole = 'sound' | 'camera' | 'action' | 'other'
-export type TimedRangeCueKind =
-  | 'dialogue'
-  | 'se'
-  | 'music'
-  | 'ol'
-  | 'fi'
-  | 'fo'
-  | 'pan'
-  | 'tu'
-  | 'tb'
-  | 'book'
-  | 'effect'
-  | 'note'
-  | 'other'
 export type AssetRole = 'cell-material' | 'timesheet-scan' | 'reference' | 'unknown'
 export type AssetRootHandleKind = 'directory' | 'manual-files' | 'unknown'
 export type StackGuideLabelKind = 'background' | 'book' | 'reference' | 'camera-note' | 'memo' | 'other'
@@ -78,6 +64,12 @@ export type LogicalTimelineSectionInputMode = 'point-event' | 'timed-range' | 'f
 export type LogicalTimelineSectionTrackAxis = 'paper-tracks' | 'fixed-lanes' | 'free'
 export type LogicalTimelineSectionFrameAxis = 'shared-logical-frames'
 
+export interface LogicalTimelineLane {
+  laneId: Id
+  label: string
+  order: number
+}
+
 export interface LogicalTimelineSection {
   sectionId: Id
   role: LogicalTimelineSectionRole
@@ -86,7 +78,7 @@ export interface LogicalTimelineSection {
   inputMode: LogicalTimelineSectionInputMode
   trackAxis: LogicalTimelineSectionTrackAxis
   frameAxis: LogicalTimelineSectionFrameAxis
-  laneLabels?: string[]
+  lanes?: LogicalTimelineLane[]
 }
 
 export interface ProductionStage {
@@ -322,13 +314,11 @@ export type Annotation = AnnotationStroke | AnnotationText
 export interface TimedRangeCue {
   cueId: Id
   role: TimedRangeRole
-  kind: TimedRangeCueKind
   frameStart: FrameIndex
   frameEnd: FrameIndex
-  laneId?: Id
-  character?: string
+  laneId: Id
+  label: string
   text: string
-  params?: Record<string, string | number | boolean>
   source?: 'manual' | 'recognition' | 'import'
 }
 

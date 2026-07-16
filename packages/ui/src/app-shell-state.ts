@@ -1,13 +1,14 @@
-import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
   commitHistory, createDefaultProject, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId,
   standardA3SheetTemplate, type AnnotationText, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
-import type { EditMode, Panel, SheetSelection, TimingClipboard, TimingExportDialogState } from './appTypes'
+import type { EditMode, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingExportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
+import { loadSoundLabelHistory, saveSoundLabelHistory } from './soundCueEditing'
 
 interface WorkspaceHistorySnapshot {
   project: CutProject
@@ -94,6 +95,9 @@ export function useAppShellState() {
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null)
   const [sheetScrollRequest, setSheetScrollRequest] = useState<SheetScrollRequest | null>(null)
   const [timingClipboard, setTimingClipboard] = useState<TimingClipboard | null>(null)
+  const [soundCueClipboard, setSoundCueClipboard] = useState<SoundCueClipboard | null>(null)
+  const [soundCueDialog, setSoundCueDialog] = useState<SoundCueDialogState | null>(null)
+  const [soundLabelHistory, setSoundLabelHistory] = useState<string[]>(loadSoundLabelHistory)
   const [statusHints, setStatusHints] = useState<StatusHints>({})
   const [valueDraft, setValueDraft] = useState('')
   const [valueDraftActive, setValueDraftActive] = useState(false)
@@ -108,6 +112,8 @@ export function useAppShellState() {
   const nativeDragDropPayloadHandlerRef = useRef<(payload: NativeDragDropPayload, source: string) => void>(() => undefined)
   const nativeFileDropDedupeRef = useRef<{ signature: string; timestamp: number } | null>(null)
 
+  useEffect(() => saveSoundLabelHistory(soundLabelHistory), [soundLabelHistory])
+
   return {
     history, setHistory, commitWorkspace, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
@@ -118,7 +124,8 @@ export function useAppShellState() {
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
-    selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard, statusHints, setStatusHints,
+    selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
+    soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory, statusHints, setStatusHints,
     valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,

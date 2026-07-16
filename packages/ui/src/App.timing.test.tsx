@@ -921,7 +921,65 @@ it('selects SOUND ranges without rendering app-drawn SOUND grid lines', () => {
     dragSheet(sheet, 190, 290, 190, 310)
 
     expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
-    expectSelectedRange('sound', 'sound_1', 1, 3)
+  expectSelectedRange('sound', 'sound_1', 1, 3)
+})
+
+it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    const soundRegion = standardA3SheetTemplate.regions.find(region => region.regionId === 'left_sound_grid')
+    if (!soundRegion?.grid) throw new Error('SOUND region not found')
+    const x = (soundRegion.rect.x + soundRegion.rect.w / soundRegion.grid.columns.length / 2) * 1000
+    const frameY = (frame: number) => (soundRegion.rect.y + soundRegion.rect.h * ((frame - 1 + 0.5) / soundRegion.grid!.rowCount)) * 1000
+
+    dragSheet(sheet, x, frameY(1), x, frameY(6))
+    fireEvent.keyDown(window, { key: 'Enter' })
+    expect(screen.getByRole('dialog', { name: 'SOUND区間を追加' })).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('SOUNDラベル'), { target: { value: 'アキラ' } })
+    fireEvent.change(screen.getByLabelText('SOUND内容'), { target: { value: '走れ！' } })
+    fireEvent.click(screen.getByRole('button', { name: '追加' }))
+
+    await waitFor(() => expect(document.querySelectorAll('.soundCue')).toHaveLength(1))
+    let cue = document.querySelector<SVGGElement>('.soundCue')!
+    expect(cue.dataset).toMatchObject({ soundCueId: 'cue_1', soundLaneId: 'sound_lane_1', frameStart: '1', frameEnd: '6' })
+    fireEvent.pointerEnter(cue, { clientX: x, clientY: frameY(1) })
+    expect(screen.getByRole('tooltip').textContent).toContain('走れ！')
+    fireEvent.pointerLeave(cue)
+
+    fireEvent.doubleClick(cue)
+    expect((screen.getByLabelText('SOUNDラベル') as HTMLInputElement).value).toBe('アキラ')
+    fireEvent.change(screen.getByLabelText('SOUNDラベル'), { target: { value: 'SE' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新' }))
+    await waitFor(() => expect(document.querySelector('.soundCueLabel')?.textContent).toBe('SE'))
+
+    cue = document.querySelector<SVGGElement>('.soundCue')!
+    const body = cue.querySelector<SVGRectElement>('.soundCueBody')!
+    fireEvent.pointerDown(body, { pointerId: 81, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerMove(cue, { pointerId: 81, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(11) })
+    cue = document.querySelector<SVGGElement>('.soundCue')!
+    fireEvent.pointerUp(cue, { pointerId: 81, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(11) })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.soundCue')?.dataset).toMatchObject({ frameStart: '10', frameEnd: '15' }))
+
+    cue = document.querySelector<SVGGElement>('.soundCue')!
+    const endHandle = cue.querySelector<SVGRectElement>('.soundCueEdgeHandle.end')!
+    fireEvent.pointerDown(endHandle, { pointerId: 82, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(15) })
+    fireEvent.pointerMove(cue, { pointerId: 82, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(20) })
+    cue = document.querySelector<SVGGElement>('.soundCue')!
+    fireEvent.pointerUp(cue, { pointerId: 82, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.soundCue')?.dataset.frameEnd).toBe('20'))
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.soundCue')?.dataset.frameEnd).toBe('15'))
+
+    fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
+    dragSheet(sheet, x, frameY(30), x, frameY(35))
+    fireEvent.keyDown(window, { key: 'v', ctrlKey: true })
+    await waitFor(() => expect(document.querySelectorAll('.soundCue')).toHaveLength(2))
+    expect(Array.from(document.querySelectorAll<SVGGElement>('.soundCue')).map(item => [item.dataset.frameStart, item.dataset.frameEnd])).toEqual([
+      ['10', '15'],
+      ['30', '35'],
+    ])
   })
 
 it('copies a selected timing range and repeats it across another range', () => {

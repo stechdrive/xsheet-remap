@@ -1,6 +1,8 @@
 import { writeFile } from 'node:fs/promises'
 import {
   cellRectForHit,
+  resolveSheetTemplateGridLayout,
+  sheetGridCellRect,
   timingHitForFrame,
   standardA3SheetTemplate,
   type NormalizedRect,
@@ -119,6 +121,9 @@ try {
   await client.send('Input.setIgnoreInputEvents', { ignore: false })
 
   await waitForSheet()
+  if (args['sound-only'] === 'true') {
+    await verifySoundCueEditing()
+  } else {
   await verifyTopMenuBehavior()
   await verifyAssetBrowserShell()
   await dropAssetFolderOnBrowser(args['asset-root'] ?? '')
@@ -149,6 +154,8 @@ try {
   await keyPress('9')
   await waitForEventAt('cell', 'A', e2ePageFrames + 1, '9')
   checks.push('dropped two sheet images, created a multi-page sheet, and verified timing input on page 2')
+
+  await verifySoundCueEditing()
 
   await dragRange('cell', 'A', 1, 3)
   await waitForPageCondition(() => Boolean(document.querySelector('.selectedRangeRect')))
@@ -249,6 +256,7 @@ try {
   await waitForPreviewText('A1')
   await waitForPreviewTextMissing('A2')
   checks.push('updated the open native material preview from a material-assigned sheet frame selection')
+  }
 
   const report: SheetOpsReport = {
     checks,
@@ -323,6 +331,35 @@ async function dropSheetSourcesForMultiPage(): Promise<void> {
   await setFileInputFiles('.paperSheetTopGroup input[type="file"]', sheetSources)
 }
 
+async function verifySoundCueEditing(): Promise<void> {
+  await dragSoundRange('sound_lane_1', 10, 15)
+  await keyPress('Enter')
+  await waitForSelector('[role="dialog"][aria-label="SOUND区間を追加"]')
+  await setReactFieldValue('[aria-label="SOUNDラベル"]', 'E2E話者')
+  await setReactFieldValue('[aria-label="SOUND内容"]', 'E2Eセリフ')
+  await clickButtonByText('追加')
+  await waitForSoundCueAt('sound_lane_1', 10, 15, 'E2E話者')
+
+  await doubleClickSoundFrame('sound_lane_1', 10)
+  await waitForSelector('[role="dialog"][aria-label="SOUND区間を編集"]')
+  await setReactFieldValue('[aria-label="SOUNDラベル"]', 'E2E効果音')
+  await clickButtonByText('更新')
+  await waitForSoundCueAt('sound_lane_1', 10, 15, 'E2E効果音')
+
+  await dragSoundCueBody('sound_lane_1', 10, 20)
+  await waitForSoundCueAt('sound_lane_1', 20, 25, 'E2E効果音')
+  await resizeSelectedSoundCueEnd('sound_lane_1', 30)
+  await waitForSoundCueAt('sound_lane_1', 20, 30, 'E2E効果音')
+  await keyboardShortcut('z')
+  await waitForSoundCueAt('sound_lane_1', 20, 25, 'E2E効果音')
+
+  await keyboardShortcut('c')
+  await dragSoundRange('sound_lane_1', 35, 40)
+  await keyboardShortcut('v')
+  await waitForSoundCueAt('sound_lane_1', 35, 40, 'E2E効果音')
+  checks.push('created, edited, moved, resized, undid, copied, and pasted a template-mapped SOUND interval')
+}
+
 async function clickFrame(role: SheetTimingRole, paperTrack: string, frame: number): Promise<void> {
   const point = await clientPointForFrame(role, paperTrack, frame)
   await mouseClick(point)
@@ -371,6 +408,27 @@ async function dragRangeBetweenTracks(
     { xRatio: 0.5, yRatio: 0.5 },
   )
   await mouseDrag(start, end)
+}
+
+async function dragSoundRange(laneId: string, frameStart: number, frameEnd: number): Promise<void> {
+  const [start, end] = await clientPointsForSoundRange(laneId, frameStart, frameEnd)
+  await mouseDrag(start, end)
+}
+
+async function doubleClickSoundFrame(laneId: string, frame: number): Promise<void> {
+  const point = await clientPointForSoundFrame(laneId, frame)
+  await mouseDoubleClick(point)
+}
+
+async function dragSoundCueBody(laneId: string, sourceFrame: number, targetFrame: number): Promise<void> {
+  const [source, target] = await clientPointsForSoundRange(laneId, sourceFrame, targetFrame)
+  await mouseDrag(source, target)
+}
+
+async function resizeSelectedSoundCueEnd(laneId: string, targetFrame: number): Promise<void> {
+  const source = await centerOfSelector('.soundCue.selected .soundCueEdgeHandle.end')
+  const target = await clientPointForSoundFrame(laneId, targetFrame)
+  await mouseDrag(source, target)
 }
 
 async function dragTimelineEvent(
@@ -475,6 +533,34 @@ async function mouseClick(point: ClientPoint, button: 'left' | 'right' = 'left')
   })
 }
 
+async function mouseDoubleClick(point: ClientPoint): Promise<void> {
+  await clientSend('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: point.x,
+    y: point.y,
+    button: 'none',
+    buttons: 0,
+  })
+  for (let clickCount = 1; clickCount <= 2; clickCount += 1) {
+    await clientSend('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: point.x,
+      y: point.y,
+      button: 'left',
+      buttons: 1,
+      clickCount,
+    })
+    await clientSend('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: point.x,
+      y: point.y,
+      button: 'left',
+      buttons: 0,
+      clickCount,
+    })
+  }
+}
+
 async function mouseDrag(start: ClientPoint, end: ClientPoint, options: { modifiers?: number } = {}): Promise<void> {
   const modifiers = options.modifiers ?? 0
   await clientSend('Input.dispatchMouseEvent', {
@@ -533,6 +619,60 @@ async function setFileInputFiles(selector: string, files: string[]): Promise<voi
       input.dispatchEvent(new Event('change', { bubbles: true }));
     })()
   `)
+}
+
+async function setReactFieldValue(selector: string, value: string): Promise<void> {
+  await evaluatePage<void>(`
+    (() => {
+      const field = document.querySelector(${JSON.stringify(selector)});
+      if (!(field instanceof HTMLInputElement) && !(field instanceof HTMLTextAreaElement)) {
+        throw new Error('editable field not found: ${selector}');
+      }
+      const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+      if (!setter) throw new Error('native value setter not found: ${selector}');
+      setter.call(field, ${JSON.stringify(value)});
+      field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(value)} }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    })()
+  `)
+}
+
+async function clickButtonByText(label: string): Promise<void> {
+  const point = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const button = Array.from(document.querySelectorAll('button'))
+        .find(item => item.textContent?.trim() === ${JSON.stringify(label)} && item.getBoundingClientRect().width > 0);
+      if (!button) return null;
+      const box = button.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    })()
+  `)
+  if (!point) throw new Error(`button not found: ${label}`)
+  await mouseClick(point)
+}
+
+async function centerOfSelector(selector: string): Promise<ClientPoint> {
+  const point = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) return null;
+      const box = element.getBoundingClientRect();
+      return box.width > 0 && box.height > 0
+        ? { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+        : null;
+    })()
+  `)
+  if (!point) throw new Error(`visible element not found: ${selector}`)
+  return point
+}
+
+async function waitForSelector(selector: string): Promise<void> {
+  await waitForCondition(
+    () => evaluatePage<boolean>(`Boolean(document.querySelector(${JSON.stringify(selector)}))`),
+    5000,
+    selector,
+  )
 }
 
 async function clickActionMenuSummary(ariaLabel: string): Promise<void> {
@@ -598,7 +738,7 @@ async function verifyTopMenuBehavior(): Promise<void> {
   await mouseClick(await viewportOutsideMenusPoint())
   await waitForNoActionMenu('hamburger menu closes from outside click')
 
-  await clickActionMenuSummary('表示方法')
+  await clickActionMenuSummary('表示レイヤー')
   await waitForPageCondition(() => {
     const menu = document.querySelector<HTMLElement>('.actionMenuPortalContent.topViewModeMenu')
     const list = menu?.querySelector<HTMLElement>('.viewModeMenuList')
@@ -649,12 +789,7 @@ async function verifyAssetBrowserShell(): Promise<void> {
 async function dropAssetFolderOnBrowser(folderPath: string): Promise<void> {
   if (!folderPath) throw new Error('--asset-root is required for dropAssetFolderOnBrowser')
   const hasAssetBrowser = await evaluatePage<boolean>(`
-    (() => {
-      const browser = document.querySelector('.assetBrowser')
-      if (!browser) return false
-      const rect = browser.getBoundingClientRect()
-      return rect.width > 0 && rect.height > 0
-    })()
+    Boolean(document.querySelector('.assetBrowser'))
   `)
   if (!hasAssetBrowser) throw new Error('asset browser not found for folder drop')
   await dispatchDomFolderDropOnAssetBrowser(folderPath)
@@ -1024,6 +1159,13 @@ async function waitForNoAssetEventAt(role: SheetTimingRole, paperTrack: string, 
   await waitForCondition(async () => !(await assetEventAt(role, paperTrack, frame)), 5000, `${paperTrack}${frame} no asset`)
 }
 
+async function waitForSoundCueAt(laneId: string, frameStart: number, frameEnd: number, label: string): Promise<void> {
+  await waitForCondition(async () => evaluatePage<boolean>(`
+    Array.from(document.querySelectorAll('.soundCue[data-sound-lane-id="${cssEscape(laneId)}"][data-frame-start="${frameStart}"][data-frame-end="${frameEnd}"]'))
+      .some(cue => cue.textContent?.replace(/\\s+/g, '').includes(${JSON.stringify(label)}))
+  `), 5000, `${laneId} SOUND ${frameStart}-${frameEnd} ${label}`)
+}
+
 async function waitForSelectedRange(role: SheetTimingRole, paperTrack: string, frameStart: number, frameEnd: number): Promise<void> {
   const expected = templateRangeLocationForFrame(role, paperTrack, frameStart, frameEnd)
   await waitForCondition(async () => {
@@ -1091,6 +1233,29 @@ async function clientPointsForSamePage(
   return [pointForRect(box, start.rect, startBias), pointForRect(box, end.rect, endBias)]
 }
 
+async function clientPointForSoundFrame(
+  laneId: string,
+  frame: number,
+  bias: CellPointBias = { xRatio: 0.5, yRatio: 0.5 },
+): Promise<ClientPoint> {
+  const { pageId, rect } = templateSoundFrameLocation(laneId, frame)
+  await scrollSheetPageIntoView(pageId)
+  const box = await sheetPageBox(pageId)
+  return pointForRect(box, rect, bias)
+}
+
+async function clientPointsForSoundRange(laneId: string, frameStart: number, frameEnd: number): Promise<[ClientPoint, ClientPoint]> {
+  const start = templateSoundFrameLocation(laneId, frameStart)
+  const end = templateSoundFrameLocation(laneId, frameEnd)
+  if (start.pageId !== end.pageId) throw new Error(`cross-page SOUND drag is not supported in this scenario: ${frameStart}-${frameEnd}`)
+  await scrollSheetPageIntoView(start.pageId)
+  const box = await sheetPageBox(start.pageId)
+  return [
+    pointForRect(box, start.rect, { xRatio: 0.5, yRatio: 0.5 }),
+    pointForRect(box, end.rect, { xRatio: 0.5, yRatio: 0.5 }),
+  ]
+}
+
 async function scrollSheetPageIntoView(pageId: string): Promise<void> {
   const pageSelector = `svg.sheetSvg[data-page-id="${cssEscape(pageId)}"]`
   await evaluatePage<void>(`
@@ -1141,6 +1306,27 @@ function templateFrameLocationForFrame(role: SheetTimingRole, paperTrack: string
     pageId: hit.pageId ?? 'page_1',
     rect,
   }
+}
+
+function templateSoundFrameLocation(laneId: string, frame: number): FrameLocation {
+  const pageIndex = Math.floor((frame - standardA3SheetTemplate.defaults.frameOrigin) / e2ePageFrames)
+  const pageFrameStart = pageIndex * e2ePageFrames + standardA3SheetTemplate.defaults.frameOrigin
+  const localFrame = frame - pageFrameStart + standardA3SheetTemplate.defaults.frameOrigin
+  for (const region of standardA3SheetTemplate.regions) {
+    if (region.type !== 'exposure-grid' || region.grid?.role !== 'sound') continue
+    const layout = resolveSheetTemplateGridLayout(standardA3SheetTemplate, region, {
+      durationFrames: e2ePageFrames,
+      frameOrigin: standardA3SheetTemplate.defaults.frameOrigin,
+      role: 'sound',
+    })
+    if (!layout || localFrame < layout.frames.frameStart || localFrame > layout.frames.frameEnd) continue
+    const columnIndex = layout.columns.findIndex(column => column.timelineLaneId === laneId)
+    if (columnIndex < 0) continue
+    const rect = sheetGridCellRect(layout, columnIndex, localFrame - layout.frames.frameStart)
+    if (!rect) continue
+    return { pageId: `page_${pageIndex + 1}`, rect }
+  }
+  throw new Error(`template SOUND hit not found: ${laneId} ${frame}`)
 }
 
 function templateRangeLocationForFrame(role: SheetTimingRole, paperTrack: string, frameStart: number, frameEnd: number): FrameLocation {

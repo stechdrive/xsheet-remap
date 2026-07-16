@@ -264,14 +264,14 @@ try {
   $exitCode = $LASTEXITCODE
   if ($exitCode -ne 0) {
     if (Test-Path -LiteralPath $resultPath) {
-      $failedResult = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+      $failedResult = Get-Content -LiteralPath $resultPath -Raw -Encoding UTF8 | ConvertFrom-Json
       $failureKind = $failedResult.failureKind
       throw "real DnD scenario failed: $($failedResult.error)"
     }
     throw "real DnD CDP scenario failed with exit code $exitCode"
   }
 
-  $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+  $result = Get-Content -LiteralPath $resultPath -Raw -Encoding UTF8 | ConvertFrom-Json
   if (-not $result.passed) {
     throw "real DnD scenario failed: $($result.error)"
   }

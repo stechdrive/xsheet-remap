@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.548",
+  "version": "0.1.549",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.7.0",
@@ -50,6 +50,7 @@
     "e2e:desktop:win:full:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario full-default-a3 -Build",
     "e2e:desktop:win:sheet-ops": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sheet-ops",
     "e2e:desktop:win:sheet-ops:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sheet-ops -Build",
+    "e2e:desktop:win:sound-ops": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sound-ops",
     "e2e:desktop:win:real-dnd": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-real-dnd.ps1 -TestCase registered-cell",
     "e2e:desktop:win:real-dnd:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-real-dnd.ps1 -TestCase registered-cell -Build",
     "e2e:desktop:win:explorer-import": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-real-dnd.ps1 -TestCase explorer-import",

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { MaterialState, NormalizedRect, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimingKey } from '@xsheet-remap/core'
+import type { MaterialState, NormalizedRect, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimedRangeCue, TimingKey } from '@xsheet-remap/core'
 
 export type Panel = 'sheet' | 'template'
 export type TimingExportKind = 'xdts' | 'csp-import'
@@ -72,6 +72,32 @@ export type SheetSelection =
   | { kind: 'none' }
   | { kind: 'cell'; hit: SheetHit }
   | { kind: 'range'; range: SheetRangeSelection }
+  | { kind: 'cue'; cueId: string }
+
+export interface SoundCueClipboard {
+  role: 'sound'
+  sourceLaneId: string
+  sourceFrameStart: number
+  sourceFrameEnd: number
+  spanFrames: number
+  mode: 'copy' | 'cut'
+  sourceCueIds: string[]
+  items: Array<{
+    frameStartOffset: number
+    frameEndOffset: number
+    label: string
+    text: string
+    source?: TimedRangeCue['source']
+  }>
+}
+
+export interface SoundCueDialogState {
+  mode: 'create' | 'edit'
+  cueId?: string
+  laneId: string
+  frameStart: number
+  frameEnd: number
+}
 
 export interface TimingClipboard {
   role: 'action' | 'cell'

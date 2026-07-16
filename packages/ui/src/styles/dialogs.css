@@ -8,6 +8,123 @@
   line-height: 1;
 }
 
+.soundCueDialogBackdrop {
+  z-index: 2140;
+}
+
+.soundCueDialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+  border: 1px solid #28372f;
+  border-radius: 8px;
+  background: #fbfbf8;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.32);
+}
+
+.soundCueDialogHeader,
+.soundCueDialogFooter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #d4d8d0;
+}
+
+.soundCueDialogHeader {
+  justify-content: space-between;
+}
+
+.soundCueDialogHeader > div {
+  display: grid;
+  gap: 2px;
+}
+
+.soundCueDialogHeader span {
+  color: #5a665f;
+  font-size: 11px;
+}
+
+.soundCueDialogBody {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 12px;
+}
+
+.soundCueDialogBody > label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.soundCueDialogBody input,
+.soundCueDialogBody textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.soundCueDialogBody textarea {
+  min-height: 108px;
+  resize: vertical;
+}
+
+.soundCueDialogBody small {
+  color: #69736d;
+  font-size: 10px;
+}
+
+.soundCueTimingFields {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 1.4fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.soundCueTimingFields > label,
+.soundCueTimingFields fieldset label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.soundCueTimingFields fieldset {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr);
+  gap: 7px;
+  align-items: end;
+  min-width: 0;
+  margin: 0;
+  padding: 7px 8px 8px;
+  border: 1px solid #cbd2cc;
+  border-radius: 5px;
+}
+
+.soundCueTimingFields legend {
+  padding: 0 3px;
+  color: #455149;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.soundCueDialogFooter {
+  justify-content: flex-end;
+  border-top: 1px solid #d4d8d0;
+  border-bottom: 0;
+}
+
+@media (max-width: 560px) {
+  .soundCueTimingFields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .frameOperationBody {
   display: grid;
   gap: 12px;

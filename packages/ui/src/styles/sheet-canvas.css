@@ -751,6 +751,109 @@
   pointer-events: none;
 }
 
+.soundCueLayer {
+  pointer-events: none;
+}
+
+.soundCue {
+  pointer-events: auto;
+}
+
+.soundCueBody {
+  fill: rgb(37 121 94 / 0.16);
+  stroke: rgb(25 91 70 / 0.74);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  cursor: grab;
+  pointer-events: all;
+}
+
+.soundCue:hover .soundCueBody {
+  fill: rgb(37 121 94 / 0.24);
+  stroke: rgb(18 82 62 / 0.96);
+}
+
+.soundCue.selected .soundCueBody {
+  fill: rgb(26 114 202 / 0.19);
+  stroke: rgb(21 94 220 / 0.98);
+  stroke-width: 2px;
+}
+
+.soundCueBody:active {
+  cursor: grabbing;
+}
+
+.soundCueCap {
+  stroke: rgb(18 82 62 / 0.98);
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.soundCue.selected .soundCueCap {
+  stroke: rgb(21 94 220 / 1);
+}
+
+.soundCueText {
+  font-family: var(--font-sheet-sans);
+  pointer-events: none;
+}
+
+.soundCueLabel,
+.soundCueDialogue {
+  fill: #173f32;
+  dominant-baseline: alphabetic;
+  paint-order: stroke fill;
+  stroke: rgb(255 255 252 / 0.86);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+}
+
+.soundCueLabel {
+  font-weight: 850;
+}
+
+.soundCueDialogue {
+  font-weight: 650;
+}
+
+.soundCueEdgeHandle {
+  fill: rgb(255 255 255 / 0.001);
+  stroke: none;
+  pointer-events: fill;
+  cursor: ns-resize;
+}
+
+.soundCueHoverCard {
+  position: fixed;
+  z-index: 1250;
+  display: grid;
+  gap: 3px;
+  width: min(248px, calc(100vw - 16px));
+  max-height: 160px;
+  overflow: hidden;
+  padding: 7px 9px;
+  border: 1px solid #71877a;
+  border-radius: 6px;
+  background: rgb(255 255 251 / 0.98);
+  box-shadow: 0 8px 22px rgb(20 28 24 / 0.2);
+  color: #1f3027;
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.soundCueHoverCard span {
+  color: #5c6b63;
+  font-size: 10px;
+}
+
+.soundCueHoverCard p {
+  margin: 2px 0 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
 .timingDraftRect {
   fill: rgb(239 248 242 / 0.96);
   stroke: none;

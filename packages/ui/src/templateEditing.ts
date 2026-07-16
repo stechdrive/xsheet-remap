@@ -110,6 +110,9 @@ export function buildTemplateColumns(
       columnId: existingColumn?.columnId ?? `${role}_${index + 1}`,
       label: existingColumn?.label ?? label,
       paperTrack: role === 'action' || role === 'cell' ? existingColumn?.paperTrack ?? label : existingColumn?.paperTrack,
+      timelineLaneId: role === 'sound' || role === 'camera'
+        ? existingColumn?.timelineLaneId ?? `${role}_lane_${index + 1}`
+        : undefined,
       xdtsEligible: role === 'cell',
     }
   })

@@ -78,10 +78,10 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
             {camera.shape === 'range' && <line className="cameraCueStroke" x1={centerX} y1={segment.rect.y} x2={centerX} y2={segment.rect.y + segment.rect.h} />}
             {(camera.shape === 'fade-in' || camera.shape === 'fade-out') && <path className="cameraCueFade" d={buildFadePath(cue, segment, camera.shape)} />}
             {overlapPaths?.map((points, index) => <polyline key={index} className="cameraCueStroke" points={points.map(point => `${point.x},${point.y}`).join(' ')} />)}
-            {segment.startsCue && (
+            {camera.shape === 'range' && segment.startsCue && (
               <polygon className="cameraCueMarker start" points={`${centerX - markerWidth / 2},${segment.rect.y} ${centerX + markerWidth / 2},${segment.rect.y} ${centerX},${segment.rect.y + markerHeight}`} />
             )}
-            {segment.endsCue && (
+            {camera.shape === 'range' && segment.endsCue && (
               <polygon className="cameraCueMarker end" points={`${centerX - markerWidth / 2},${segment.rect.y + segment.rect.h} ${centerX + markerWidth / 2},${segment.rect.y + segment.rect.h} ${centerX},${segment.rect.y + segment.rect.h - markerHeight}`} />
             )}
             {segment.startsCue && camera.startLabel && <EndpointLabel value={camera.startLabel} x={centerX + markerWidth * 0.75} y={segment.rect.y + markerHeight * 0.6} pageSize={pageSize} />}

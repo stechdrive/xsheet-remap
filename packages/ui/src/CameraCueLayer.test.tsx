@@ -37,8 +37,9 @@ describe('CameraCueLayer', () => {
     expect(container.querySelectorAll('.cameraCue.fade-out .cameraCueFade')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.overlap polyline')).toHaveLength(2)
     expect(container.querySelector('.cameraCuePivotHandle')).toBeTruthy()
-    expect(container.querySelectorAll('.cameraCueMarker.start')).toHaveLength(4)
-    expect(container.querySelectorAll('.cameraCueMarker.end')).toHaveLength(4)
+    expect(container.querySelectorAll('.cameraCue.range .cameraCueMarker.start')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCue.range .cameraCueMarker.end')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCue.fade-in .cameraCueMarker, .cameraCue.fade-out .cameraCueMarker, .cameraCue.overlap .cameraCueMarker')).toHaveLength(0)
   })
 })
 

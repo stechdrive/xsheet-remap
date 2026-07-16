@@ -20,6 +20,7 @@ import { singleMovableBindingForHit } from './app-registered-cells';
 import type { SoundCueDragMode } from './SoundCueLayer';
 import type { CameraCueDragGeometry, CameraCueDragMode } from './CameraCueLayer';
 import { timedRangeLaneIdForHit, type EditableTimedRangeRole } from './timedRangeCueEditing';
+import { frameOperationRangeContainsHit } from './frameOperations'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller';
 import { releasePointerCaptureForElements, type DraftRangeInteraction, type PendingTimelineEventInteraction, type TimelineEventDragInteraction } from './sheet-pointer-session';
 
@@ -1827,16 +1828,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const cameraCueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-camera-cue-id]') : null
     const soundCueId = soundCueElement?.dataset.soundCueId
     const cameraCueId = cameraCueElement?.dataset.cameraCueId
-    if (soundCueId) {
+    if (soundCueId && !(hit && frameOperationRangeContainsHit(props.rangeSelection, hit))) {
       props.onSoundCueSelect(soundCueId)
-    } else if (cameraCueId) {
+    } else if (cameraCueId && !(hit && frameOperationRangeContainsHit(props.rangeSelection, hit))) {
       props.onCameraCueSelect(cameraCueId)
-    } else if (hit?.role === 'sound') {
-      const range = rangeFromHits(hit, hit)
-      if (range) props.onRangeSelect(range)
-    } else if (hit?.role === 'camera') {
-      const range = rangeFromHits(hit, hit)
-      if (range) props.onRangeSelect(range)
+    } else if (hit?.role === 'sound' || hit?.role === 'camera') {
+      if (!frameOperationRangeContainsHit(props.rangeSelection, hit)) {
+        const range = rangeFromHits(hit, hit)
+        if (range) props.onRangeSelect(range)
+      }
     } else if (hit?.paperTrack && !rangeContainsHit(props.rangeSelection, hit)) {
       props.onCellSelect(hit)
     }
@@ -2237,6 +2237,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const soundContext = contextMenu?.hit?.role === 'sound' || Boolean(props.selectedSoundCueId)
   const cameraContext = contextMenu?.hit?.role === 'camera' || Boolean(props.selectedCameraCueId)
   const timedRangeContext = soundContext || cameraContext
+  const frameOperationContext = contextMenu?.hit?.role === 'action'
+    || contextMenu?.hit?.role === 'cell'
+    || contextMenu?.hit?.role === 'sound'
+    || contextMenu?.hit?.role === 'camera'
   const canCopyContextRange = soundContext
     ? Boolean(props.selectedSoundCueId || props.rangeSelection?.role === 'sound')
     : cameraContext
@@ -2252,7 +2256,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const canPasteContextRepeatToEnd = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-to-end', contextPaperTrackOrder)
   const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera')
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
-  const sheetContextMenuItemCount = (timedRangeContext ? 6 : 12) + contextProcessMoveItemCount
+  const sheetContextMenuItemCount = (timedRangeContext ? 9 : 12) + contextProcessMoveItemCount
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null
@@ -2278,7 +2282,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
-    displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight,
+    displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,

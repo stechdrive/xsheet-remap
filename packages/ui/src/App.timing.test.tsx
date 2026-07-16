@@ -1281,7 +1281,7 @@ it('opens frame operation commands from the sheet context menu', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.frameOperation.insert }))
     const insertDialog = screen.getByRole('dialog', { name: uiText.frameOperation.dialogTitleInsert })
     fireEvent.click(within(insertDialog).getByLabelText(uiText.frameOperation.targetCut))
-    expect((within(insertDialog).getByLabelText(uiText.frameOperation.extendDuration) as HTMLInputElement).checked).toBe(true)
+    expect(within(insertDialog).queryByText('尺を延ばす')).toBeNull()
     fireEvent.click(within(insertDialog).getByRole('button', { name: uiText.frameOperation.submitInsert }))
 
     expect(screen.queryByRole('dialog', { name: uiText.frameOperation.dialogTitleInsert })).toBeNull()
@@ -1293,11 +1293,93 @@ it('opens frame operation commands from the sheet context menu', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.frameOperation.delete }))
     const deleteDialog = screen.getByRole('dialog', { name: uiText.frameOperation.dialogTitleDelete })
     expect((within(deleteDialog).getByLabelText(uiText.frameOperation.frameCount) as HTMLInputElement).disabled).toBe(true)
+    fireEvent.click(within(deleteDialog).getByLabelText(uiText.frameOperation.targetCut))
     fireEvent.click(within(deleteDialog).getByRole('button', { name: uiText.frameOperation.submitDelete }))
 
     expect(screen.queryByRole('dialog', { name: uiText.frameOperation.dialogTitleDelete })).toBeNull()
+    expect(screen.getAllByText(/143F/).length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
     expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(2)
+  })
+
+it('ripples ACTION, CELL, SOUND, and CAMERA together from every frame-bearing context menu', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    const soundRegion = standardA3SheetTemplate.regions.find(region => region.regionId === 'left_sound_grid')
+    const cameraRegion = standardA3SheetTemplate.regions.find(region => region.regionId === 'left_camera_grid')
+    if (!soundRegion?.grid || !cameraRegion?.grid) throw new Error('timed range regions not found')
+    const timedPoint = (region: typeof soundRegion, frame: number) => ({
+      x: (region.rect.x + region.rect.w / region.grid!.columns.length / 2) * 1000,
+      y: (region.rect.y + region.rect.h * ((frame - 1 + 0.5) / region.grid!.rowCount)) * 1000,
+    })
+
+    const soundStart = timedPoint(soundRegion, 4)
+    const soundEnd = timedPoint(soundRegion, 8)
+    dragSheet(sheet, soundStart.x, soundStart.y, soundEnd.x, soundEnd.y)
+    fireEvent.keyDown(window, { key: 'Enter' })
+    fireEvent.change(screen.getByLabelText('SOUNDラベル'), { target: { value: 'RIPPLE SOUND' } })
+    fireEvent.click(screen.getByRole('button', { name: '追加' }))
+
+    const cameraStart = timedPoint(cameraRegion, 6)
+    const cameraEnd = timedPoint(cameraRegion, 10)
+    dragSheet(sheet, cameraStart.x, cameraStart.y, cameraEnd.x, cameraEnd.y)
+    fireEvent.keyDown(window, { key: 'Enter' })
+    fireEvent.change(screen.getByLabelText('CAMERA描画種別'), { target: { value: 'overlap' } })
+    fireEvent.change(screen.getByLabelText('CAMERA指示'), { target: { value: 'RIPPLE CAMERA' } })
+    fireEvent.change(screen.getByLabelText('CAMERA交差フレーム'), { target: { value: '8' } })
+    fireEvent.click(screen.getByRole('button', { name: '追加' }))
+
+    clickTemplateFrame(sheet, 'action', 'A', 2)
+    enterTimingValue('1')
+    clickTemplateFrame(sheet, 'cell', 'B', 8)
+    enterTimingValue('2')
+
+    const insertPoint = timedPoint(soundRegion, 6)
+    fireEvent.contextMenu(sheet, { clientX: insertPoint.x, clientY: insertPoint.y })
+    expect(screen.getByRole('menuitem', { name: uiText.frameOperation.insert })).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.frameOperation.insert }))
+    const insertDialog = screen.getByRole('dialog', { name: uiText.frameOperation.dialogTitleInsert })
+    expect(within(insertDialog).queryByLabelText(uiText.frameOperation.targetCut)).toBeNull()
+    fireEvent.change(within(insertDialog).getByLabelText(uiText.frameOperation.frameCount), { target: { value: '3' } })
+    fireEvent.click(within(insertDialog).getByRole('button', { name: uiText.frameOperation.submitInsert }))
+
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.soundCue')?.dataset).toMatchObject({ frameStart: '4', frameEnd: '11' }))
+    expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '9', frameEnd: '13' })
+    expect(Array.from(document.querySelectorAll('.eventText')).map(item => item.textContent)).toEqual(['1', '2'])
+    expect(screen.getAllByText(/147F/).length).toBeGreaterThan(0)
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.soundCue')?.dataset).toMatchObject({ frameStart: '4', frameEnd: '8' }))
+    expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '6', frameEnd: '10' })
+    expect(screen.getAllByText(/144F/).length).toBeGreaterThan(0)
+
+    fireEvent.keyDown(window, { key: 'y', ctrlKey: true })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '9', frameEnd: '13' }))
+
+    const deleteStart = timedPoint(cameraRegion, 9)
+    const deleteEnd = timedPoint(cameraRegion, 13)
+    dragSheet(sheet, deleteStart.x, deleteStart.y, deleteEnd.x, deleteEnd.y)
+    expectSelectedRange('camera', 'camera_1', 9, 13)
+    const cameraCueHit = document.querySelector('.cameraCueShapeHit')
+    if (!cameraCueHit) throw new Error('camera cue hit target not found')
+    fireEvent.contextMenu(cameraCueHit, { clientX: deleteStart.x, clientY: deleteStart.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.frameOperation.delete }))
+    const deleteDialog = screen.getByRole('dialog', { name: uiText.frameOperation.dialogTitleDelete })
+    expect((within(deleteDialog).getByLabelText(uiText.frameOperation.frameCount) as HTMLInputElement).value).toBe('5')
+    expect((within(deleteDialog).getByLabelText(uiText.frameOperation.frameCount) as HTMLInputElement).disabled).toBe(true)
+    fireEvent.click(within(deleteDialog).getByRole('button', { name: uiText.frameOperation.submitDelete }))
+
+    await waitFor(() => expect(document.querySelector('.cameraCue')).toBeNull())
+    expect(document.querySelector<SVGGElement>('.soundCue')?.dataset).toMatchObject({ frameStart: '4', frameEnd: '8' })
+    expect(Array.from(document.querySelectorAll('.eventText')).map(item => item.textContent)).toEqual(['1'])
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(2)
+    expect(screen.getAllByText(/142F/).length).toBeGreaterThan(0)
+
+    const actionPoint = templateFramePoint('action', 'A', 20)
+    fireEvent.pointerDown(sheet, { pointerId: 120, pointerType: 'mouse', button: 0, buttons: 1, clientX: actionPoint.x, clientY: actionPoint.y })
+    enterTimingValue('3')
+    await waitFor(() => expect(Array.from(document.querySelectorAll('.eventText')).map(item => item.textContent)).toContain('3'))
   })
 
 it('registers new timing at the active process without moving it when the destination later changes', () => {

@@ -25,7 +25,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
-    displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight,
+    displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
@@ -509,6 +509,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               <button role="menuitem" disabled={!canPasteContextRepeatToEnd} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-to-end'))}>{uiText.actions.repeatPasteToEnd}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetNullAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.setNullCell}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
+            </>
+          )}
+          {frameOperationContext && (
+            <>
               <div className="sheetContextMenuTitle">{uiText.frameOperation.title}</div>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenFrameOperation('insert', contextMenu.hit as SheetHit))}>{uiText.frameOperation.insert}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenFrameOperation('delete', contextMenu.hit as SheetHit))}>{uiText.frameOperation.delete}</button>

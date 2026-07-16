@@ -111,6 +111,7 @@ let client: CdpClient | null = null
 let previewClient: CdpClient | null = null
 const e2ePageFrames = standardA3SheetTemplate.defaults.durationFrames
 let e2eDurationFrames = e2ePageFrames
+const scenarioId = args['ripple-only'] === 'true' ? 'timeline-ripple' : args['sound-only'] === 'true' ? 'sound-ops' : 'sheet-ops'
 
 try {
   const target = await waitForCdpTarget(port, target => !target.url.includes('window=asset-preview'), 'main CDP target')
@@ -123,6 +124,8 @@ try {
   await waitForSheet()
   if (args['sound-only'] === 'true') {
     await verifySoundCueEditing()
+  } else if (args['ripple-only'] === 'true') {
+    await verifyTimelineRippleEditing()
   } else {
   await verifyTopMenuBehavior()
   await verifyAssetBrowserShell()
@@ -267,6 +270,7 @@ try {
   checks.push('updated the open native material preview from a material-assigned sheet frame selection')
   }
 
+  if (args.screenshot) await capturePageScreenshot(args.screenshot)
   const report: SheetOpsReport = {
     checks,
     finalEvents: await evaluatePage<EventSnapshot[]>(snapshotEventsExpression()),
@@ -274,9 +278,9 @@ try {
   await writeJson(args.report, report)
   await writeJson(args.result, {
     passed: true,
-    scenario: 'sheet-ops',
+    scenario: scenarioId,
     checks,
-    artifacts: [args.report],
+    artifacts: [args.report, args.screenshot].filter(Boolean),
   })
 } catch (error) {
   const report = {
@@ -288,7 +292,7 @@ try {
   await writeJson(args.report, report)
   await writeJson(args.result, {
     passed: false,
-    scenario: 'sheet-ops',
+    scenario: scenarioId,
     error: errorMessage(error),
     checks,
     artifacts: [args.report],
@@ -388,6 +392,103 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
   checks.push('created a CAMERA cue, switched to ACTION input, and committed a value without reopening the cue editor')
 }
 
+async function verifyTimelineRippleEditing(): Promise<void> {
+  await clickFrame('action', 'A', 2)
+  await keyPress('1')
+  await keyPress('Enter')
+  await waitForEventAt('action', 'A', 2, '1')
+  await clickFrame('cell', 'B', 8)
+  await keyPress('2')
+  await keyPress('Enter')
+  await waitForEventAt('cell', 'B', 8, '2')
+
+  await dragSoundRange('sound_lane_1', 4, 8)
+  await keyPress('Enter')
+  await waitForSelector('[role="dialog"][aria-label="SOUND区間を追加"]')
+  await setReactFieldValue('[aria-label="SOUNDラベル"]', 'RIPPLE SOUND')
+  await clickButtonByText('追加')
+  await waitForSoundCueAt('sound_lane_1', 4, 8, 'RIPPLE SOUND')
+
+  const [cameraStart, cameraEnd] = await clientPointsForTimedRange('camera', 'camera_lane_1', 6, 10)
+  await mouseDrag(cameraStart, cameraEnd)
+  await keyPress('Enter')
+  await waitForSelector('[role="dialog"][aria-label="CAMERA指示を追加"]')
+  await setReactFieldValue('[aria-label="CAMERA指示"]', 'RIPPLE CAMERA')
+  await clickButtonByText('追加')
+  await waitForCameraCueAt('camera_lane_1', 6, 10, 'RIPPLE CAMERA')
+
+  await rightClickTimedRangeFrame('sound', 'sound_lane_1', 6)
+  await clickMenuItem('挿入')
+  await waitForSelector('[role="dialog"][aria-label="フレームを挿入"]')
+  const insertIsWholeCut = await evaluatePage<boolean>(`
+    (() => {
+      const dialog = document.querySelector('[role="dialog"][aria-label="フレームを挿入"]');
+      return Boolean(dialog?.textContent?.includes('カット全体') && !dialog.querySelector('input[name="frameOperationScope"]'));
+    })()
+  `)
+  if (!insertIsWholeCut) throw new Error('SOUND frame operation was not fixed to the whole cut')
+  await setReactFieldValue('.frameOperationInputRow input', '3')
+  await clickButtonByText('挿入')
+  e2eDurationFrames += 3
+  await waitForSoundCueAt('sound_lane_1', 4, 11, 'RIPPLE SOUND')
+  await waitForCameraCueAt('camera_lane_1', 9, 13, 'RIPPLE CAMERA')
+  await waitForEventAt('action', 'A', 2, '1')
+  await waitForEventAt('cell', 'B', 11, '2')
+  await waitForPageCondition(() => document.body.textContent?.includes('147F') ?? false, '147F cut duration after ripple insert')
+  checks.push('inserted three frames from SOUND and rippled ACTION, CELL, SOUND, CAMERA, and the cut duration')
+
+  await keyboardShortcut('z')
+  e2eDurationFrames -= 3
+  await waitForSoundCueAt('sound_lane_1', 4, 8, 'RIPPLE SOUND')
+  await waitForCameraCueAt('camera_lane_1', 6, 10, 'RIPPLE CAMERA')
+  await waitForEventAt('cell', 'B', 8, '2')
+  await waitForPageCondition(() => document.body.textContent?.includes('144F') ?? false, '144F cut duration after ripple undo')
+  await keyboardShortcut('y')
+  e2eDurationFrames += 3
+  await waitForSoundCueAt('sound_lane_1', 4, 11, 'RIPPLE SOUND')
+  await waitForCameraCueAt('camera_lane_1', 9, 13, 'RIPPLE CAMERA')
+  await waitForEventAt('cell', 'B', 11, '2')
+  checks.push('undid and redid the complete multi-lane ripple insert as one history entry')
+
+  const deleteStart = await clientPointForTimedRangeFrame('camera', 'camera_lane_1', 9, { xRatio: 0.15, yRatio: 0.5 })
+  const deleteEnd = await clientPointForTimedRangeFrame('camera', 'camera_lane_1', 13, { xRatio: 0.15, yRatio: 0.5 })
+  await mouseDrag(deleteStart, deleteEnd)
+  await waitForSelectedTimedRange('camera', 'camera_lane_1', 9, 13)
+  await rightClickTimedRangeFrame('camera', 'camera_lane_1', 9)
+  await clickMenuItem('削除')
+  await waitForSelector('[role="dialog"][aria-label="フレームを削除"]')
+  const deleteRangeIsLocked = await evaluatePage<boolean>(`
+    (() => {
+      const input = document.querySelector('.frameOperationInputRow input');
+      return input instanceof HTMLInputElement && input.value === '5' && input.disabled;
+    })()
+  `)
+  if (!deleteRangeIsLocked) throw new Error('CAMERA selected range was not preserved for whole-cut deletion')
+  await clickButtonByText('削除')
+  e2eDurationFrames -= 5
+  await waitForNoCameraCue('camera_lane_1', 'RIPPLE CAMERA')
+  await waitForSoundCueAt('sound_lane_1', 4, 8, 'RIPPLE SOUND')
+  await waitForNoEventAt('cell', 'B', 11, '2')
+  await waitForPageCondition(() => document.body.textContent?.includes('142F') ?? false, '142F cut duration after ripple delete')
+  const registeredCardCount = await evaluatePage<number>(`document.querySelectorAll('.cspTreeCel[data-csp-key-id]').length`)
+  if (registeredCardCount !== 2) throw new Error(`ripple deletion removed registered cards: ${registeredCardCount}`)
+
+  await keyboardShortcut('z')
+  e2eDurationFrames += 5
+  await waitForCameraCueAt('camera_lane_1', 9, 13, 'RIPPLE CAMERA')
+  await waitForEventAt('cell', 'B', 11, '2')
+  await keyboardShortcut('y')
+  e2eDurationFrames -= 5
+  await waitForNoCameraCue('camera_lane_1', 'RIPPLE CAMERA')
+  checks.push('deleted a CAMERA-selected span, removed covered cues, contracted crossing cues, retained cards, and verified undo/redo')
+
+  await clickFrame('action', 'A', 20)
+  await keyPress('3')
+  await keyPress('Enter')
+  await waitForEventAt('action', 'A', 20, '3')
+  checks.push('continued normal ACTION input after the frame-operation dialog closed')
+}
+
 async function clickFrame(role: SheetTimingRole, paperTrack: string, frame: number): Promise<void> {
   const point = await clientPointForFrame(role, paperTrack, frame)
   await mouseClick(point)
@@ -396,6 +497,12 @@ async function clickFrame(role: SheetTimingRole, paperTrack: string, frame: numb
 async function rightClickFrame(role: SheetTimingRole, paperTrack: string, frame: number): Promise<void> {
   const point = await clientPointForFrame(role, paperTrack, frame)
   await mouseClick(point, 'right')
+}
+
+async function rightClickTimedRangeFrame(role: 'sound' | 'camera', laneId: string, frame: number): Promise<void> {
+  const point = await clientPointForTimedRangeFrame(role, laneId, frame)
+  await mouseClick(point, 'right')
+  await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')))
 }
 
 async function dragRange(
@@ -1187,9 +1294,10 @@ async function waitForNoAssetEventAt(role: SheetTimingRole, paperTrack: string, 
 }
 
 async function waitForSoundCueAt(laneId: string, frameStart: number, frameEnd: number, label: string): Promise<void> {
+  const normalizedLabel = label.replace(/\s+/g, '')
   await waitForCondition(async () => evaluatePage<boolean>(`
     Array.from(document.querySelectorAll('.soundCue[data-sound-lane-id="${cssEscape(laneId)}"][data-frame-start="${frameStart}"][data-frame-end="${frameEnd}"]'))
-      .some(cue => cue.textContent?.replace(/\\s+/g, '').includes(${JSON.stringify(label)}))
+      .some(cue => cue.textContent?.replace(/\\s+/g, '').includes(${JSON.stringify(normalizedLabel)}))
   `), 5000, `${laneId} SOUND ${frameStart}-${frameEnd} ${label}`)
 }
 
@@ -1200,12 +1308,38 @@ async function waitForCameraCueAt(laneId: string, frameStart: number, frameEnd: 
   `), 5000, `${laneId} CAMERA ${frameStart}-${frameEnd} ${label}`)
 }
 
+async function waitForNoCameraCue(laneId: string, label: string): Promise<void> {
+  await waitForCondition(async () => evaluatePage<boolean>(`
+    !Array.from(document.querySelectorAll('.cameraCue[data-camera-lane-id="${cssEscape(laneId)}"]'))
+      .some(cue => cue.getAttribute('aria-label')?.replace(/\\s+/g, '').includes(${JSON.stringify(label.replace(/\s+/g, ''))}))
+  `), 5000, `${laneId} no CAMERA ${label}`)
+}
+
 async function waitForSelectedRange(role: SheetTimingRole, paperTrack: string, frameStart: number, frameEnd: number): Promise<void> {
   const expected = templateRangeLocationForFrame(role, paperTrack, frameStart, frameEnd)
   await waitForCondition(async () => {
     const rects = await evaluatePage<RectSnapshot[]>(snapshotRectsExpression('.selectedRangeRect'))
     return rects.some(rect => rect.pageId === expected.pageId && rectMatches(rect, expected.rect))
   }, 5000, `${paperTrack} selected ${frameStart}-${frameEnd}`)
+}
+
+async function waitForSelectedTimedRange(role: 'sound' | 'camera', laneId: string, frameStart: number, frameEnd: number): Promise<void> {
+  const start = templateTimedRangeFrameLocation(role, laneId, frameStart)
+  const end = templateTimedRangeFrameLocation(role, laneId, frameEnd)
+  if (start.pageId !== end.pageId) throw new Error(`cross-page ${role.toUpperCase()} selection is not supported in this scenario`)
+  const expected = {
+    pageId: start.pageId,
+    rect: {
+      x: start.rect.x,
+      y: start.rect.y,
+      w: start.rect.w,
+      h: end.rect.y + end.rect.h - start.rect.y,
+    },
+  }
+  await waitForCondition(async () => {
+    const rects = await evaluatePage<RectSnapshot[]>(snapshotRectsExpression('.selectedRangeRect'))
+    return rects.some(rect => rect.pageId === expected.pageId && rectMatches(rect, expected.rect))
+  }, 5000, `${laneId} selected ${frameStart}-${frameEnd}`)
 }
 
 async function waitForSelectedRangeTracks(role: SheetTimingRole, paperTracks: string[], frameStart: number, frameEnd: number): Promise<void> {
@@ -1272,7 +1406,16 @@ async function clientPointForSoundFrame(
   frame: number,
   bias: CellPointBias = { xRatio: 0.5, yRatio: 0.5 },
 ): Promise<ClientPoint> {
-  const { pageId, rect } = templateTimedRangeFrameLocation('sound', laneId, frame)
+  return clientPointForTimedRangeFrame('sound', laneId, frame, bias)
+}
+
+async function clientPointForTimedRangeFrame(
+  role: 'sound' | 'camera',
+  laneId: string,
+  frame: number,
+  bias: CellPointBias = { xRatio: 0.5, yRatio: 0.5 },
+): Promise<ClientPoint> {
+  const { pageId, rect } = templateTimedRangeFrameLocation(role, laneId, frame)
   await scrollSheetPageIntoView(pageId)
   const box = await sheetPageBox(pageId)
   return pointForRect(box, rect, bias)
@@ -1521,6 +1664,11 @@ async function previewPageDebug(): Promise<Record<string, unknown>> {
 async function clientSend<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
   if (!client) throw new Error('CDP client is not connected')
   return client.send<T>(method, params)
+}
+
+async function capturePageScreenshot(path: string): Promise<void> {
+  const result = await clientSend<{ data: string }>('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
+  await writeFile(path, Buffer.from(result.data, 'base64'))
 }
 
 async function waitForCondition<T>(

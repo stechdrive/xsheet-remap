@@ -162,6 +162,7 @@ export {
   assignAssetToStackGuideLabel,
   applyNameNormalizationPlan,
   applyCommand,
+  applyCutTimelineFrameEdit,
   activeCutProjectFromDocument,
   buildExportPlan,
   buildAeRemapText,
@@ -241,7 +242,7 @@ export {
   uniqueCspCellNameForSlot,
   upsertBinding,
 } from './project'
-export type { TimedRangeCueInput, TimedRangeCueUpdates } from './project'
+export type { CutTimelineFrameEdit, TimedRangeCueInput, TimedRangeCueUpdates } from './project'
 export {
   assignSheetSourceToPage,
   createDefaultSheetViewState,

@@ -1,12 +1,12 @@
 import type { CSSProperties } from 'react'
-import { activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
+import { activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type LogicalTimelineSectionRole, type SheetHit, type SheetCalibrationPointPair, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
 import { isTauriHost, saveBinaryFile, saveTextFile, statNativePaths, writeBinaryFile, writeTextFile, type SaveTextFileOptions } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel, type SheetRangeSelection } from './appTypes'
 import { isCellMaterialAsset } from './sheetAssets'
 import { REGISTERED_CELL_TEXT_DRAG_PREFIX } from './sheetConstants'
 import { clampNumber, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction'
-import { type TimelineDeleteDurationPolicy, type TimelineFrameEditScope, type TimelineInsertDurationPolicy } from './timingEditing'
+import { type TimelineFrameEditScope } from './timingEditing'
 import { type AutoCalibrationDebugOverlay } from './sheetAutoCalibration'
 import { compareNaturalFileNameText } from './naturalSort'
 
@@ -131,7 +131,7 @@ export type FrameOperationKind = 'insert' | 'delete'
 
 export type FrameOperationDialogState = {
   kind: FrameOperationKind
-  role: SheetTimingRole
+  role: LogicalTimelineSectionRole
   paperTrack: string
   paperTracks: string[]
   frameStart: number
@@ -143,7 +143,6 @@ export type FrameOperationDialogState = {
 export type FrameOperationSubmit = {
   scope: TimelineFrameEditScope
   frameCount: number
-  durationPolicy: TimelineInsertDurationPolicy | TimelineDeleteDurationPolicy
 }
 
 export interface SheetContextMenuState {

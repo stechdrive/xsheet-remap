@@ -19,7 +19,7 @@ import { clampTextFontSizePx, defaultTimingTextFontSizePx, resolveTimingTextFont
 import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
 import { calibrationPointsForSettings, getSheetPageImage, serializableImageRef } from './sheetImages';
 import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, nextTimingHit, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
-import { buildTimingClipboard, clearTimingRange, deleteTimelineFrames, insertTimelineFrames, isPointEventRangeForUi, pasteResultRange, pasteTimingClipboardToProject, rangeContainsHit, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget, type TimelineDeleteDurationPolicy, type TimelineInsertDurationPolicy } from './timingEditing';
+import { buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, pasteResultRange, pasteTimingClipboardToProject, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget } from './timingEditing';
 import { normalizeRecognitionLabel, recognizeSheetPages } from './sheetRecognition';
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
@@ -36,6 +36,7 @@ import { useAppShellState } from './app-shell-state'
 import { isAssetBrowserNativeDropTarget, nativeCspDropTarget } from './nativeFileDropTargets'
 import { deleteCspTreeCardWithConfirmation } from './csp-logical-cell-actions'
 import { createAppTimedRangeControllers } from './app-timed-range-controllers'
+import { applyFrameOperationToProject, frameOperationDialogStateForHit, pointRoleForFrameOperation } from './frameOperations'
 import { buildSelectionPresentation, inputHitForRange } from './app-selection-presentation'
 
 export interface AppControllerOptions {
@@ -767,52 +768,22 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function openFrameOperationDialog(kind: FrameOperationKind, hit: SheetHit) {
-    if (!hit.paperTrack) return
-    const role = sheetRoleForHit(hit)
-    const sourceRange = isPointEventRange(rangeSelection)
-      && rangeSelection.role === role
-      && rangeContainsHit(rangeSelection, hit)
-      && hit.frame >= rangeSelection.frameStart
-      && hit.frame <= rangeSelection.frameEnd
-      ? rangeSelection
-      : null
-    setFrameOperationDialog({
-      kind,
-      role,
-      paperTrack: hit.paperTrack,
-      paperTracks: sourceRange ? rangePaperTracks(sourceRange) : [hit.paperTrack],
-      frameStart: sourceRange?.frameStart ?? hit.frame,
-      frameEnd: sourceRange?.frameEnd ?? hit.frame,
-      sourceHit: hit,
-      sourceRange,
-    })
+    const state = frameOperationDialogStateForHit(kind, hit, rangeSelection)
+    if (state) setFrameOperationDialog(state)
   }
 
   function applyFrameOperation(input: FrameOperationSubmit) {
     if (!frameOperationDialog) return
     const frameCount = Math.max(1, Math.round(input.frameCount))
-    const next = frameOperationDialog.kind === 'insert'
-      ? insertTimelineFrames(project, {
-          scope: input.scope,
-          role: frameOperationDialog.role,
-          paperTrack: frameOperationDialog.paperTrack,
-          paperTracks: frameOperationDialog.paperTracks,
-          atFrame: frameOperationDialog.frameStart,
-          frameCount,
-          durationPolicy: input.durationPolicy as TimelineInsertDurationPolicy,
-        })
-      : deleteTimelineFrames(project, {
-          scope: input.scope,
-          role: frameOperationDialog.role,
-          paperTrack: frameOperationDialog.paperTrack,
-          paperTracks: frameOperationDialog.paperTracks,
-          frameStart: frameOperationDialog.frameStart,
-          frameCount,
-          durationPolicy: input.durationPolicy as TimelineDeleteDurationPolicy,
-        })
+    const pointRole = pointRoleForFrameOperation(frameOperationDialog)
+    const next = applyFrameOperationToProject(project, frameOperationDialog, input)
     commitProject(next)
     setFrameOperationDialog(null)
-    setSelectionToFrameSpan(next, frameOperationDialog.role, frameOperationDialog.paperTracks, frameOperationDialog.frameStart, frameOperationDialog.kind === 'insert' ? frameCount : 1)
+    if (pointRole) {
+      setSelectionToFrameSpan(next, pointRole, frameOperationDialog.paperTracks, frameOperationDialog.frameStart, frameOperationDialog.kind === 'insert' ? frameCount : 1)
+    } else {
+      clearSelectionState()
+    }
   }
 
   function setSelectionToFrameSpan(sourceProject: CutProject, role: SheetTimingRole, paperTracks: string[], frameStart: number, spanFrames: number) {

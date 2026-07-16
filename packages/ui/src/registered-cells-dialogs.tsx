@@ -5,10 +5,9 @@ import { uiText } from './i18n'
 import { type SheetRangeSelection } from './appTypes'
 import { hasPaperSheetImages, type SheetImageExportOptions } from './cleanSheetExport'
 import { sortedCorrectionLayers } from './sheetAssets'
-import { sheetRoleLabel } from './sheetInteraction'
-import { type TimelineDeleteDurationPolicy, type TimelineFrameEditScope, type TimelineInsertDurationPolicy } from './timingEditing'
+import { type TimelineFrameEditScope } from './timingEditing'
 import { Tooltip, TooltipTarget } from './Tooltip'
-import { FrameOperationDialogState, FrameOperationKind, FrameOperationSubmit, errorMessage, formatFramePosition } from './app-foundation'
+import { FrameOperationDialogState, FrameOperationSubmit, errorMessage, formatFramePosition } from './app-foundation'
 import { defaultNameNormalizationTarget, nameNormalizationOptionsForTarget, nameNormalizationTargetOptions, type NameNormalizationTarget } from './registered-cells-model'
 
 export function FrameOperationDialog({
@@ -24,25 +23,19 @@ export function FrameOperationDialog({
 }) {
   const selectedSpanFrames = Math.max(1, state.frameEnd - state.frameStart + 1)
   const deleteUsesSelectedRange = state.kind === 'delete' && state.sourceRange !== null
+  const hasPointTrackScope = (state.role === 'action' || state.role === 'cell') && state.paperTracks.length > 0
   const trackScope: TimelineFrameEditScope = state.paperTracks.length > 1 ? 'tracks' : 'track'
-  const [scope, setScope] = useState<TimelineFrameEditScope>(trackScope)
+  const [scope, setScope] = useState<TimelineFrameEditScope>(hasPointTrackScope ? trackScope : 'cut')
   const [frameCount, setFrameCount] = useState(selectedSpanFrames)
-  const [durationPolicy, setDurationPolicy] = useState<TimelineInsertDurationPolicy | TimelineDeleteDurationPolicy>(() => defaultFrameOperationDurationPolicy(state.kind, trackScope))
   const title = state.kind === 'insert' ? uiText.frameOperation.dialogTitleInsert : uiText.frameOperation.dialogTitleDelete
   const hint = state.kind === 'insert' ? uiText.frameOperation.insertHint : uiText.frameOperation.deleteHint
   const sanitizedFrameCount = Math.max(1, Math.round(frameCount))
-
-  function updateScope(nextScope: TimelineFrameEditScope) {
-    setScope(nextScope)
-    setDurationPolicy(defaultFrameOperationDurationPolicy(state.kind, nextScope))
-  }
 
   function submit(event: FormEvent) {
     event.preventDefault()
     onSubmit({
       scope,
       frameCount: sanitizedFrameCount,
-      durationPolicy,
     })
   }
 
@@ -65,19 +58,21 @@ export function FrameOperationDialog({
                   selectedSpanFrames,
                 )
               : uiText.frameOperation.startFrame(formatFramePosition(project, state.frameStart))}</span>
-            <span>{sheetRoleLabel(state.role)} {state.paperTracks.join(', ')}</span>
+            <span>{frameOperationRoleLabel(state.role)} {scope === 'cut' ? uiText.frameOperation.targetCut : state.paperTracks.join(', ')}</span>
           </div>
-          <fieldset className="frameOperationFieldset">
-            <legend>{uiText.frameOperation.target}</legend>
-            <label>
-              <input type="radio" name="frameOperationScope" value={trackScope} checked={scope === trackScope} onChange={() => updateScope(trackScope)} />
-              {state.paperTracks.length > 1 ? uiText.frameOperation.targetTracks : uiText.frameOperation.targetTrack}
-            </label>
-            <label>
-              <input type="radio" name="frameOperationScope" value="cut" checked={scope === 'cut'} onChange={() => updateScope('cut')} />
-              {uiText.frameOperation.targetCut}
-            </label>
-          </fieldset>
+          {hasPointTrackScope && (
+            <fieldset className="frameOperationFieldset">
+              <legend>{uiText.frameOperation.target}</legend>
+              <label>
+                <input type="radio" name="frameOperationScope" value={trackScope} checked={scope === trackScope} onChange={() => setScope(trackScope)} />
+                {state.paperTracks.length > 1 ? uiText.frameOperation.targetTracks : uiText.frameOperation.targetTrack}
+              </label>
+              <label>
+                <input type="radio" name="frameOperationScope" value="cut" checked={scope === 'cut'} onChange={() => setScope('cut')} />
+                {uiText.frameOperation.targetCut}
+              </label>
+            </fieldset>
+          )}
           <label className="frameOperationInputRow">
             <span>{uiText.frameOperation.frameCount}</span>
             <input
@@ -89,42 +84,6 @@ export function FrameOperationDialog({
               onChange={event => setFrameCount(Number(event.currentTarget.value))}
             />
           </label>
-          <fieldset className="frameOperationFieldset">
-            <legend>{uiText.frameOperation.durationPolicy}</legend>
-            <label>
-              <input
-                type="radio"
-                name="frameOperationDuration"
-                value="preserve"
-                checked={durationPolicy === 'preserve'}
-                onChange={() => setDurationPolicy('preserve')}
-              />
-              {uiText.frameOperation.preserveDuration}
-            </label>
-            {state.kind === 'insert' ? (
-              <label>
-                <input
-                  type="radio"
-                  name="frameOperationDuration"
-                  value="extend"
-                  checked={durationPolicy === 'extend'}
-                  onChange={() => setDurationPolicy('extend')}
-                />
-                {uiText.frameOperation.extendDuration}
-              </label>
-            ) : (
-              <label>
-                <input
-                  type="radio"
-                  name="frameOperationDuration"
-                  value="shrink"
-                  checked={durationPolicy === 'shrink'}
-                  onChange={() => setDurationPolicy('shrink')}
-                />
-                {uiText.frameOperation.shrinkDuration}
-              </label>
-            )}
-          </fieldset>
         </div>
         <footer className="frameOperationFooter">
           <button type="button" onClick={onClose}>{uiText.actions.cancel}</button>
@@ -136,9 +95,8 @@ export function FrameOperationDialog({
   )
 }
 
-function defaultFrameOperationDurationPolicy(kind: FrameOperationKind, scope: TimelineFrameEditScope): TimelineInsertDurationPolicy | TimelineDeleteDurationPolicy {
-  if (kind === 'insert') return scope === 'cut' ? 'extend' : 'preserve'
-  return scope === 'cut' ? 'shrink' : 'preserve'
+function frameOperationRoleLabel(role: FrameOperationDialogState['role']): string {
+  return uiText.sheetRoles[role]
 }
 
 export function NameNormalizationDialog({

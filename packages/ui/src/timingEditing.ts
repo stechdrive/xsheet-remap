@@ -1,4 +1,5 @@
 import {
+  applyCutTimelineFrameEdit,
   clearEvent,
   createKey,
   isNullCellKeyId,
@@ -212,6 +213,7 @@ export function rippleDeleteTimingRange(project: CutProject, range: SheetRangeSe
 export function insertTimelineFrames(project: CutProject, input: TimelineInsertFramesInput): CutProject {
   const frameCount = normalizedFrameCount(input.frameCount)
   const atFrame = Math.round(input.atFrame)
+  if (input.scope === 'cut') return applyCutTimelineFrameEdit(project, { kind: 'insert', atFrame, frameCount })
   const shifted = shiftTimelineEvents(project, input.scope, input.role, input.paperTrack, input.paperTracks, atFrame, frameCount)
   const resized = input.durationPolicy === 'extend'
     ? updateLogicalSheetSettings(shifted, { durationFrames: Math.max(1, Math.round(shifted.logicalSheet.durationFrames) + frameCount) })
@@ -222,6 +224,7 @@ export function insertTimelineFrames(project: CutProject, input: TimelineInsertF
 export function deleteTimelineFrames(project: CutProject, input: TimelineDeleteFramesInput): CutProject {
   const frameCount = normalizedFrameCount(input.frameCount)
   const frameStart = Math.round(input.frameStart)
+  if (input.scope === 'cut') return applyCutTimelineFrameEdit(project, { kind: 'delete', frameStart, frameCount })
   const frameEnd = frameStart + frameCount - 1
   const deleted = {
     ...project,

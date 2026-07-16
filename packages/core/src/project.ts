@@ -46,4 +46,6 @@ export { applyCommand, createProjectHistory, commitHistory, undoHistory, redoHis
 export { createDefaultProjectDocument, createProjectDocumentFromCutProject, parseProjectDocument, activeCutProjectFromDocument, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, addBlankSharedCutToProjectDocument, migrateProject } from './project-documents'
 export { createTimedRangeCue, deleteTimedRangeCue, replaceTimedRangeCues, timedRangeCuesIntersecting, timedRangeLaneIds, updateTimedRangeCue } from './timed-range'
 export type { TimedRangeCueInput, TimedRangeCueUpdates } from './timed-range'
+export { applyCutTimelineFrameEdit } from './timeline-frame-edit'
+export type { CutTimelineFrameEdit } from './timeline-frame-edit'
 export { nextDisplayLabel, stackGuideGapIndex, stackGuideCspCellName, stackGuideRegistrations, stackGuideRegistrationForLayer, stackGuideStackBand, defaultCorrectionLayerId, sheetTimingRoleForEvent, sheetTimingRoleForKey, defaultCspCellName, resolveCspCellName, uniqueCspCellNameForSlot, isNullLabel, isNullCellKeyId, isNullCellEvent } from './project-shared'

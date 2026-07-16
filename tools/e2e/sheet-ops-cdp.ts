@@ -380,19 +380,35 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'timeline memo create menu')
   await clickMenuItem('メモを追加')
   await waitForPageCondition(() => document.querySelectorAll('.timelineMemoSegment.selected').length === 2, 'A3 six-second wrap memo segments')
-
   const draw = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoDrawSurface', 0.2, 0.25, 0.8, 0.75)
+  const drawSurfaceReceivesInput = await evaluatePage<boolean>(`
+    [${JSON.stringify(draw.start)}, ${JSON.stringify(draw.end)}].every(point =>
+      Boolean(document.elementFromPoint(point.x, point.y)?.closest('.timelineMemoDrawSurface'))
+    )
+  `)
+  if (!drawSurfaceReceivesInput) throw new Error('timeline memo handles obstruct the transparent drawing surface')
   await mouseDrag(draw.start, draw.end)
   await waitForPageCondition(() => document.querySelectorAll('.timelineMemoStroke:not(.draft)').length >= 1, 'timeline memo ink')
   checks.push('created a range-sized handwritten memo and drew ink with mouse events')
 
   const beforeWidth = await evaluatePage<number>(`Number(document.querySelector('.timelineMemoSegment.selected .timelineMemoBounds')?.getAttribute('width') ?? 0)`)
   const resize = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoResizeHandle', 0.5, 0.5, 4.5, 3.5)
+  const resizeHandleReceivesInput = await evaluatePage<boolean>(`(() => { const point = ${JSON.stringify(resize.start)}; return Boolean(document.elementFromPoint(point.x, point.y)?.closest('.timelineMemoResizeHandle')); })()`)
+  if (!resizeHandleReceivesInput) throw new Error('timeline memo resize handle does not receive pointer input')
   await mouseDrag(resize.start, resize.end)
   await waitForCondition(async () => (await evaluatePage<number>(`Number(document.querySelector('.timelineMemoSegment.selected .timelineMemoBounds')?.getAttribute('width') ?? 0)`)) > beforeWidth, 5000, 'timeline memo resized')
   checks.push('resized the logical memo canvas with its persistent bounding handle')
 
-  await clickFrame('action', 'A', 20)
+  const exitMemoPoint = await clientPointForFrame('action', 'A', 20)
+  const exitMemoTargetIsOutside = await evaluatePage<boolean>(`
+    (() => {
+      const point = ${JSON.stringify(exitMemoPoint)};
+      const target = document.elementFromPoint(point.x, point.y);
+      return !target?.closest('[data-timeline-memo-id]');
+    })()
+  `)
+  if (!exitMemoTargetIsOutside) throw new Error('timeline memo hit area obstructs a frame outside its visible bounds')
+  await mouseClick(exitMemoPoint)
   await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), 'timeline memo edit exit')
   await keyPress('4')
   await keyPress('Enter')
@@ -846,9 +862,8 @@ async function selectorInsetDrag(selector: string, startX: number, startY: numbe
     (() => {
       const element = document.querySelector(${JSON.stringify(selector)});
       if (!element) return null;
-      element.scrollIntoView({ block: 'center', inline: 'center' });
       const box = element.getBoundingClientRect();
-      if (box.width <= 0 || box.height <= 0) return null;
+      if (box.width <= 0 || box.height <= 0 || box.right <= 0 || box.bottom <= 0 || box.left >= window.innerWidth || box.top >= window.innerHeight) return null;
       return {
         start: { x: box.left + box.width * ${JSON.stringify(startX)}, y: box.top + box.height * ${JSON.stringify(startY)} },
         end: { x: box.left + box.width * ${JSON.stringify(endX)}, y: box.top + box.height * ${JSON.stringify(endY)} },
@@ -1222,6 +1237,18 @@ async function waitForNoActionMenu(label: string): Promise<void> {
 }
 
 async function clickMenuItem(label: string): Promise<void> {
+  const itemAvailable = await evaluatePage<boolean>(`
+    (() => {
+      const menu = document.querySelector('[role="menu"]');
+      const button = menu ? Array.from(menu.querySelectorAll('button[role="menuitem"]'))
+        .find(item => item.textContent?.trim() === ${JSON.stringify(label)} && !item.disabled) : null;
+      if (!button) return false;
+      button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      return true;
+    })()
+  `)
+  if (!itemAvailable) throw new Error(`menu item not found or disabled: ${label}`)
+  await delay(50)
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
       const menu = document.querySelector('[role="menu"]');
@@ -1233,7 +1260,7 @@ async function clickMenuItem(label: string): Promise<void> {
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     })()
   `)
-  if (!point) throw new Error(`menu item not found or disabled: ${label}`)
+  if (!point) throw new Error(`menu item is not visible: ${label}`)
   await mouseClick(point)
 }
 

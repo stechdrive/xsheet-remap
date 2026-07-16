@@ -1426,7 +1426,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function handlePointerDown(event: PointerEvent<SVGSVGElement>, page: SheetPage) {
     if (beginViewportPan(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
-    event.preventDefault()
+    event.preventDefault(); if (props.selectedTimelineMemoId) props.onSelectTimelineMemo(null)
     setContextMenu(null)
     setPaperTrackHeaderMenu(null)
     setOverlayPaperTrackMenu(null)

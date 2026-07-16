@@ -1440,6 +1440,9 @@
   display: grid;
   min-width: 154px;
   max-width: min(280px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   border: 1px solid #8f9792;
   border-radius: 6px;
@@ -1656,8 +1659,8 @@
 
 .timelineMemoHitArea,
 .timelineMemoDrawSurface {
-  fill: transparent;
-  pointer-events: all;
+  fill: none;
+  pointer-events: fill;
 }
 
 .timelineMemoStroke {
@@ -1672,11 +1675,13 @@
 }
 
 .timelineMemoBounds {
-  fill: rgb(36 121 94 / 0.035);
-  stroke: currentColor;
-  stroke-width: 1.25px;
-  stroke-dasharray: 5 3;
-  vector-effect: non-scaling-stroke;
+  fill: none;
+  pointer-events: none;
+}
+
+.timelineMemoBoundsEdge {
+  fill: currentColor;
+  opacity: 0.76;
   pointer-events: none;
 }
 
@@ -1688,17 +1693,11 @@
 .timelineMemoResizeHandle {
   color: #fff;
   fill: #24795e;
-  stroke: #fff;
-  stroke-width: 1.5px;
-  vector-effect: non-scaling-stroke;
   cursor: move;
 }
 
-.timelineMemoMoveHandle path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5px;
-  vector-effect: non-scaling-stroke;
+.timelineMemoMoveHandleGlyph {
+  fill: currentColor;
   pointer-events: none;
 }
 

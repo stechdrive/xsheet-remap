@@ -50,6 +50,8 @@ export function TimelineMemoLayer({
     .map(memo => interaction?.memo.memoId === memo.memoId ? { ...memo, placement: interaction.previewPlacement } : memo), [interaction, memos])
   const handleW = 18 / Math.max(1, pageSize.widthPx)
   const handleH = 18 / Math.max(1, pageSize.heightPx)
+  const edgeW = 1.25 / Math.max(1, pageSize.widthPx)
+  const edgeH = 1.25 / Math.max(1, pageSize.heightPx)
 
   function begin(event: PointerEvent<SVGElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment, mode: MemoInteraction['mode']) {
     if (memo.memoId !== selectedMemoId) return
@@ -140,7 +142,13 @@ export function TimelineMemoLayer({
               const path = timelineMemoStrokePath(segment, draftPoints)
               return path ? <path className="timelineMemoStroke draft" d={path} stroke={penColor} strokeWidth={Math.max(penWidth, 0.001)} /> : null
             })()}
-            {selected && <rect className="timelineMemoBounds" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />}
+            {selected && <g className="timelineMemoBoundsEdges">
+              <rect className="timelineMemoBounds" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
+              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={edgeH} />
+              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y + segment.rect.h - edgeH} width={segment.rect.w} height={edgeH} />
+              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
+              <rect className="timelineMemoBoundsEdge" x={segment.rect.x + segment.rect.w - edgeW} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
+            </g>}
             {selected && <rect
               className="timelineMemoDrawSurface"
               x={segment.rect.x + handleW}
@@ -161,7 +169,8 @@ export function TimelineMemoLayer({
               onPointerCancel={event => finish(event, true)}
             >
               <rect x={segment.rect.x} y={segment.rect.y} width={handleW} height={handleH} />
-              <path d={`M ${segment.rect.x + handleW * 0.2} ${segment.rect.y + handleH * 0.5} H ${segment.rect.x + handleW * 0.8} M ${segment.rect.x + handleW * 0.5} ${segment.rect.y + handleH * 0.2} V ${segment.rect.y + handleH * 0.8}`} />
+              <rect className="timelineMemoMoveHandleGlyph" x={segment.rect.x + handleW * 0.2} y={segment.rect.y + handleH * 0.45} width={handleW * 0.6} height={handleH * 0.1} />
+              <rect className="timelineMemoMoveHandleGlyph" x={segment.rect.x + handleW * 0.45} y={segment.rect.y + handleH * 0.2} width={handleW * 0.1} height={handleH * 0.6} />
             </g>}
             {selected && segment.endsMemo && <rect
               className="timelineMemoResizeHandle"

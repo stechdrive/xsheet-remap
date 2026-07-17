@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
 import {
   CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO,
+  CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO,
+  CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO,
   buildCameraCuePageLayouts,
   cameraCueLabelLayoutForPage,
   cameraCueSegmentsForPage,
+  cameraOverlapFillPolygonsForSegment,
   cameraOverlapPivotMarkForSegment,
   cameraOverlapPivotPosition,
   cameraOverlapPathsForSegment,
+  cameraRangeMarkerGeometryForSegment,
 } from './cameraCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 
@@ -50,6 +54,10 @@ describe('CAMERA cue geometry', () => {
     expect(manual).toMatchObject({ orientation: 'horizontal', manual: true, overflow: false })
     expect(manual?.rect.x).toBeCloseTo(segments[0]!.regionRect.x + segments[0]!.regionRect.w * 0.5)
     expect(manual?.rect.h).toBeCloseTo(segments[0]!.rowHeight * 5)
+    expect(manual?.connector?.to).toEqual({
+      x: manual!.rect.x + manual!.rect.w / 2,
+      y: manual!.rect.y + manual!.rect.h / 2,
+    })
   })
 
   it('keeps a fade label inside its interval and permits overlap with its own drawing', () => {
@@ -132,6 +140,26 @@ describe('CAMERA cue geometry', () => {
     expect(mark.y).toBeCloseTo(pivotY)
     expect((mark.x1 + mark.x2) / 2).toBeCloseTo(centerX)
     expect((mark.x2 - mark.x1) / segment.rect.w).toBeCloseTo(CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO)
+    const fills = cameraOverlapFillPolygonsForSegment(cue, segment)
+    expect(fills).toHaveLength(2)
+    expect(fills[0]).toEqual([forward[0], reverse[0], reverse[1], forward[1]])
+    expect(fills[1]).toEqual([forward[1], reverse[1], reverse[2], forward[2]])
+  })
+
+  it('sizes range endpoint triangles from the resolved template grid', () => {
+    const cue: TimedRangeCue = {
+      cueId: 'cue_marker', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 12,
+      label: 'PAN', text: '', source: 'manual', camera: { shape: 'range', startLabel: '', endLabel: '' },
+    }
+    const segment = cameraCueSegmentsForPage(standardA3SheetTemplate, page, cue, { paperTracks })[0]!
+    const marker = cameraRangeMarkerGeometryForSegment(segment, { widthPx: 1754, heightPx: 2481 })
+    expect(marker.height / segment.rowHeight).toBeCloseTo(CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO)
+    expect(marker.width / segment.rect.w).toBeLessThanOrEqual(CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO + 0.000001)
+    expect(marker.start).toHaveLength(3)
+    expect(marker.end).toHaveLength(3)
+    expect(marker.start[2]!.x).toBeCloseTo(segment.rect.x + segment.rect.w / 2)
+    expect(marker.end[2]!.x).toBeCloseTo(segment.rect.x + segment.rect.w / 2)
+    expect(marker.start[2]!.y - segment.rect.y).toBeLessThanOrEqual(segment.rowHeight)
   })
 
   it('draws an odd overlap at the center of its anchor frame', () => {

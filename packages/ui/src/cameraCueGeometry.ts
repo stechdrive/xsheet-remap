@@ -54,6 +54,9 @@ interface ScoredCameraCueLabelCandidate {
 const LABEL_HORIZONTAL_PADDING_PX = 8
 const LABEL_VERTICAL_PADDING_PX = 4
 export const CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO = 0.65
+export const CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO = 0.85
+export const CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO = 0.72
+const CAMERA_RANGE_MARKER_MAX_ASPECT_RATIO = 1.2
 
 export function cameraCueSegmentsForPage(
   template: SheetTemplate,
@@ -202,6 +205,51 @@ export function cameraOverlapPathsForSegment(cue: TimedRangeCue, segment: Camera
       return { x: segment.rect.x + segment.rect.w * xRatio, y: segment.rect.y + segment.rect.h * yRatio }
     })
   })
+}
+
+export function cameraOverlapFillPolygonsForSegment(cue: TimedRangeCue, segment: CameraCueSegment): NormalizedPoint[][] {
+  const [forward = [], reverse = []] = cameraOverlapPathsForSegment(cue, segment)
+  const polygonCount = Math.min(forward.length, reverse.length) - 1
+  return Array.from({ length: Math.max(0, polygonCount) }, (_, index) => [
+    forward[index]!,
+    reverse[index]!,
+    reverse[index + 1]!,
+    forward[index + 1]!,
+  ])
+}
+
+export function cameraRangeMarkerGeometryForSegment(
+  segment: CameraCueSegment,
+  pageSize: { widthPx: number; heightPx: number },
+): { width: number; height: number; start: NormalizedPoint[]; end: NormalizedPoint[] } {
+  const pageWidth = Math.max(1, pageSize.widthPx)
+  const pageHeight = Math.max(1, pageSize.heightPx)
+  const laneWidthPx = segment.rect.w * pageWidth
+  const rowHeightPx = segment.rowHeight * pageHeight
+  const heightPx = Math.min(rowHeightPx, rowHeightPx * CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO)
+  const widthPx = Math.min(
+    laneWidthPx * CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO,
+    heightPx * CAMERA_RANGE_MARKER_MAX_ASPECT_RATIO,
+  )
+  const width = widthPx / pageWidth
+  const height = heightPx / pageHeight
+  const centerX = segment.rect.x + segment.rect.w / 2
+  const top = segment.rect.y
+  const bottom = segment.rect.y + segment.rect.h
+  return {
+    width,
+    height,
+    start: [
+      { x: centerX - width / 2, y: top },
+      { x: centerX + width / 2, y: top },
+      { x: centerX, y: top + height },
+    ],
+    end: [
+      { x: centerX - width / 2, y: bottom },
+      { x: centerX + width / 2, y: bottom },
+      { x: centerX, y: bottom - height },
+    ],
+  }
 }
 
 export function cameraOverlapPivotPosition(cue: TimedRangeCue): number {
@@ -400,8 +448,8 @@ function connectorForRect(anchor: NormalizedPoint, rect: NormalizedRect): Camera
   return {
     from: anchor,
     to: {
-      x: Math.max(rect.x, Math.min(rect.x + rect.w, anchor.x)),
-      y: Math.max(rect.y, Math.min(rect.y + rect.h, anchor.y)),
+      x: rect.x + rect.w / 2,
+      y: rect.y + rect.h / 2,
     },
   }
 }

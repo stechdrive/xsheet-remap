@@ -3,11 +3,14 @@ import type { SheetPage, SheetTemplate, SheetViewLayoutOverrides, TimedRangeCue 
 import {
   buildCameraCuePageLayouts,
   cameraFadePolygonForSegment,
+  cameraOverlapFillPolygonsForSegment,
   cameraOverlapPivotMarkForSegment,
   cameraOverlapPathsForSegment,
+  cameraRangeMarkerGeometryForSegment,
   type CameraCueLabelLayout,
 } from './cameraCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
+import { SheetTransformHandle } from './SheetTransformHandle'
 
 export type CameraCueDragMode = 'move' | 'resize-start' | 'resize-end' | 'pivot' | 'move-label' | 'resize-label'
 
@@ -34,8 +37,6 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
 }) {
   const pageLayouts = buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, layoutOverrides })
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
-  const markerWidth = 10 / Math.max(1, surface.widthPx)
-  const markerHeight = 9 / Math.max(1, surface.heightPx)
   const pivotRadiusX = 5 / Math.max(1, surface.widthPx)
   const pivotRadiusY = 5 / Math.max(1, surface.heightPx)
 
@@ -50,7 +51,9 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
           : null
         const fadePath = fadePoints ? `${fadePoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')} Z` : null
         const overlapPaths = camera.shape === 'overlap' ? cameraOverlapPathsForSegment(cue, segment) : null
+        const overlapFillPolygons = camera.shape === 'overlap' ? cameraOverlapFillPolygonsForSegment(cue, segment) : null
         const overlapPivotMark = camera.shape === 'overlap' ? cameraOverlapPivotMarkForSegment(cue, segment) : null
+        const marker = cameraRangeMarkerGeometryForSegment(segment, pageSize)
         return (
           <g
             key={`${cue.cueId}:${segment.regionId}:${segment.frameStart}`}
@@ -74,20 +77,21 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
           >
             {camera.shape === 'range' && <line className="cameraCueStroke" x1={centerX} y1={segment.rect.y} x2={centerX} y2={segment.rect.y + segment.rect.h} />}
             {camera.shape === 'range' && <line className="cameraCueShapeHit" x1={centerX} y1={segment.rect.y} x2={centerX} y2={segment.rect.y + segment.rect.h} onPointerDown={event => onPointerDown(event, cue, 'move')} />}
-            {fadePath && <path className="cameraCueFade" d={fadePath} />}
+            {fadePath && <path className="cameraCueFade cameraCueFill" d={fadePath} />}
             {fadePath && <path className="cameraCueShapeHit" d={fadePath} onPointerDown={event => onPointerDown(event, cue, 'move')} />}
+            {overlapFillPolygons?.map((points, index) => <polygon key={`fill-${index}`} className="cameraCueOverlapFill cameraCueFill" points={pointList(points)} />)}
             {overlapPaths?.map((points, index) => <polyline key={`stroke-${index}`} className="cameraCueStroke" points={points.map(point => `${point.x},${point.y}`).join(' ')} />)}
             {overlapPaths?.map((points, index) => <polyline key={`hit-${index}`} className="cameraCueShapeHit" points={points.map(point => `${point.x},${point.y}`).join(' ')} onPointerDown={event => onPointerDown(event, cue, 'move')} />)}
             {overlapPivotMark && <line className="cameraCuePivotMarkHalo" x1={overlapPivotMark.x1} y1={overlapPivotMark.y} x2={overlapPivotMark.x2} y2={overlapPivotMark.y} />}
             {overlapPivotMark && <line className="cameraCuePivotMark" x1={overlapPivotMark.x1} y1={overlapPivotMark.y} x2={overlapPivotMark.x2} y2={overlapPivotMark.y} />}
             {camera.shape === 'range' && segment.startsCue && (
-              <polygon className="cameraCueMarker start" points={`${centerX - markerWidth / 2},${segment.rect.y} ${centerX + markerWidth / 2},${segment.rect.y} ${centerX},${segment.rect.y + markerHeight}`} />
+              <polygon className="cameraCueMarker start" points={pointList(marker.start)} />
             )}
             {camera.shape === 'range' && segment.endsCue && (
-              <polygon className="cameraCueMarker end" points={`${centerX - markerWidth / 2},${segment.rect.y + segment.rect.h} ${centerX + markerWidth / 2},${segment.rect.y + segment.rect.h} ${centerX},${segment.rect.y + segment.rect.h - markerHeight}`} />
+              <polygon className="cameraCueMarker end" points={pointList(marker.end)} />
             )}
-            {segment.startsCue && camera.startLabel && <EndpointLabel value={camera.startLabel} x={centerX + markerWidth * 0.75} y={segment.rect.y + markerHeight * 0.6} pageSize={pageSize} />}
-            {segment.endsCue && camera.endLabel && <EndpointLabel value={camera.endLabel} x={centerX + markerWidth * 0.75} y={segment.rect.y + segment.rect.h - markerHeight * 0.25} pageSize={pageSize} />}
+            {segment.startsCue && camera.startLabel && <EndpointLabel value={camera.startLabel} x={centerX + marker.width * 0.75} y={segment.rect.y + marker.height * 0.6} pageSize={pageSize} />}
+            {segment.endsCue && camera.endLabel && <EndpointLabel value={camera.endLabel} x={centerX + marker.width * 0.75} y={segment.rect.y + segment.rect.h - marker.height * 0.25} pageSize={pageSize} />}
             {selected && overlapPivotMark && (
               <ellipse
                 className="cameraCuePivotHandle"
@@ -107,8 +111,6 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
         if (!layout) return null
         const cueId = cue.cueId
         const selected = selectedCueId === cueId
-        const resizeWidth = 9 / Math.max(1, surface.widthPx)
-        const resizeHeight = 9 / Math.max(1, surface.heightPx)
         const clipId = `camera-cue-label-clip-${safeSvgId(page.pageId)}-${safeSvgId(cueId)}`
         return (
           <g
@@ -137,9 +139,14 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
                 {layout.glyphs.map((glyph, index) => <text key={index} x={glyph.xPx} y={glyph.yPx} fontSize={layout.fontSizePx} textAnchor="middle">{glyph.value}</text>)}
               </g>
             </g>
-            {selected && (
-              <rect className="cameraCueLabelResizeHandle" x={layout.rect.x + layout.rect.w - resizeWidth} y={layout.rect.y + layout.rect.h - resizeHeight} width={resizeWidth} height={resizeHeight} onPointerDown={event => onPointerDown(event, cue, 'resize-label', { labelLayout: layout })} />
-            )}
+            {selected && <SheetTransformHandle
+              rect={layout.rect}
+              surface={surface}
+              kind="resize"
+              className="cameraCueLabelResizeHandle"
+              label="CAMERAラベルの大きさを変更"
+              onPointerDown={event => onPointerDown(event, cue, 'resize-label', { labelLayout: layout })}
+            />}
           </g>
         )
       })}
@@ -153,4 +160,8 @@ function EndpointLabel({ value, x, y, pageSize }: { value: string; x: number; y:
 
 function safeSvgId(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '-')
+}
+
+function pointList(points: Array<{ x: number; y: number }>): string {
+  return points.map(point => `${point.x},${point.y}`).join(' ')
 }

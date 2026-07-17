@@ -891,7 +891,13 @@
 }
 
 .cameraCueFade {
-  fill: rgb(55 112 87 / 0.08);
+  fill: rgb(55 112 87 / 0.13);
+}
+
+.cameraCueOverlapFill {
+  fill: rgb(55 112 87 / 0.13);
+  stroke: none;
+  pointer-events: none;
 }
 
 .cameraCueMarker {
@@ -909,6 +915,10 @@
   stroke-width: 2.25px;
 }
 
+.cameraCue.selected .cameraCueFill {
+  fill: rgb(21 94 220 / 0.12);
+}
+
 .cameraCue.selected .cameraCueMarker {
   fill: rgb(21 94 220 / 1);
 }
@@ -922,12 +932,12 @@
 
 .cameraCuePivotMarkHalo {
   stroke: rgb(255 255 252 / 0.96);
-  stroke-width: 4px;
+  stroke-width: 5px;
 }
 
 .cameraCuePivotMark {
   stroke: rgb(22 67 52 / 0.98);
-  stroke-width: 2px;
+  stroke-width: 3px;
 }
 
 .cameraCue.selected .cameraCuePivotMark {
@@ -995,17 +1005,8 @@
   pointer-events: fill;
 }
 
-.cameraCueLabelResizeHandle {
-  fill: rgb(21 94 220 / 0.9);
-  stroke: #fff;
-  stroke-width: 1px;
-  vector-effect: non-scaling-stroke;
-  cursor: nwse-resize;
-  pointer-events: fill;
-}
-
-.cameraCueLabel.overflow .cameraCueLabelResizeHandle {
-  fill: #b45309;
+.cameraCueLabel.overflow .sheetTransformHandle {
+  color: #b45309;
 }
 
 .timingDraftRect {
@@ -1778,49 +1779,53 @@
   cursor: cell;
 }
 
-.timelineMemoMoveHandle,
-.timelineMemoResizeHandle {
+.sheetTransformHandle {
+  color: #0d5fc6;
+  pointer-events: all;
+}
+
+.sheetTransformHandle.move {
   cursor: move;
 }
 
-.timelineMemoHandleHitArea {
-  fill: transparent;
+.sheetTransformHandle.resize {
+  cursor: nwse-resize;
+}
+
+.sheetTransformHandleHitArea {
+  fill: rgb(255 255 255 / 0.001);
   pointer-events: fill;
 }
 
-.timelineMemoMoveHandleVisual {
+.sheetTransformHandleMoveVisual {
   fill: rgb(255 255 252 / 0.92);
-  stroke: #24795e;
+  stroke: currentColor;
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
 
-.timelineMemoMoveHandleGrip {
-  stroke: #24795e;
+.sheetTransformHandleMoveGrip {
+  stroke: currentColor;
   stroke-width: 1px;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
 
-.timelineMemoMoveHandle:hover .timelineMemoMoveHandleVisual,
-.timelineMemoMoveHandle:focus .timelineMemoMoveHandleVisual {
-  fill: #24795e;
+.sheetTransformHandle.move:hover .sheetTransformHandleMoveVisual,
+.sheetTransformHandle.move:focus .sheetTransformHandleMoveVisual {
+  fill: currentColor;
 }
 
-.timelineMemoMoveHandle:hover .timelineMemoMoveHandleGrip,
-.timelineMemoMoveHandle:focus .timelineMemoMoveHandleGrip {
+.sheetTransformHandle.move:hover .sheetTransformHandleMoveGrip,
+.sheetTransformHandle.move:focus .sheetTransformHandleMoveGrip {
   stroke: #fff;
 }
 
-.timelineMemoResizeHandle {
-  cursor: nwse-resize;
-}
-
-.timelineMemoResizeHandleVisual {
+.sheetTransformHandleResizeVisual {
   fill: none;
-  stroke: #24795e;
+  stroke: currentColor;
   stroke-width: 1.5px;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -1828,9 +1833,8 @@
   pointer-events: none;
 }
 
-.timelineMemoResizeHandle:hover .timelineMemoResizeHandleVisual,
-.timelineMemoResizeHandle:focus .timelineMemoResizeHandleVisual {
-  stroke: #0d5fc6;
+.sheetTransformHandle.resize:hover .sheetTransformHandleResizeVisual,
+.sheetTransformHandle.resize:focus .sheetTransformHandleResizeVisual {
   stroke-width: 2px;
 }
 

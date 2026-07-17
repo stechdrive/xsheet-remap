@@ -33,7 +33,14 @@ import {
 import { sheetImageFileName } from './outputFileNames'
 import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
-import { buildCameraCuePageLayouts, cameraFadePolygonForSegment, cameraOverlapPivotMarkForSegment, cameraOverlapPathsForSegment } from './cameraCueGeometry'
+import {
+  buildCameraCuePageLayouts,
+  cameraFadePolygonForSegment,
+  cameraOverlapFillPolygonsForSegment,
+  cameraOverlapPivotMarkForSegment,
+  cameraOverlapPathsForSegment,
+  cameraRangeMarkerGeometryForSegment,
+} from './cameraCueGeometry'
 import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, textFontDeclaration } from './textMetrics'
 import {
   timelineMemoAnchorCellForPage,
@@ -682,13 +689,16 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         const top = offsetY + segment.rect.y * pageHeight
         const bottom = offsetY + (segment.rect.y + segment.rect.h) * pageHeight
         ctx.strokeStyle = 'rgba(22, 67, 52, 0.96)'
-        ctx.fillStyle = 'rgba(55, 112, 87, 0.08)'
+        ctx.fillStyle = 'rgba(55, 112, 87, 0.13)'
         ctx.lineWidth = 1.5
         if (camera.shape === 'range') drawCanvasLine(ctx, centerX, top, centerX, bottom)
         if (camera.shape === 'fade-in' || camera.shape === 'fade-out') {
           drawNormalizedPolygon(ctx, cameraFadePolygonForSegment(cue, segment, camera.shape), pageWidth, pageHeight, offsetY, true)
         }
         if (camera.shape === 'overlap') {
+          for (const polygon of cameraOverlapFillPolygonsForSegment(cue, segment)) {
+            drawNormalizedPolygon(ctx, polygon, pageWidth, pageHeight, offsetY, true, false)
+          }
           for (const path of cameraOverlapPathsForSegment(cue, segment)) {
             drawNormalizedPolyline(ctx, path, pageWidth, pageHeight, offsetY)
           }
@@ -696,24 +706,25 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
           if (pivotMark) {
             ctx.save()
             ctx.strokeStyle = 'rgba(255, 255, 252, 0.96)'
-            ctx.lineWidth = 4
+            ctx.lineWidth = 5
             drawCanvasLine(ctx, pivotMark.x1 * pageWidth, offsetY + pivotMark.y * pageHeight, pivotMark.x2 * pageWidth, offsetY + pivotMark.y * pageHeight)
             ctx.strokeStyle = 'rgba(22, 67, 52, 0.98)'
-            ctx.lineWidth = 2
+            ctx.lineWidth = 3
             drawCanvasLine(ctx, pivotMark.x1 * pageWidth, offsetY + pivotMark.y * pageHeight, pivotMark.x2 * pageWidth, offsetY + pivotMark.y * pageHeight)
             ctx.restore()
           }
         }
+        const marker = cameraRangeMarkerGeometryForSegment(segment, context.pageSize)
         if (camera.shape === 'range' && segment.startsCue) {
-          drawCanvasPolygon(ctx, [[centerX - 5, top], [centerX + 5, top], [centerX, top + 9]], '#194f3c')
+          drawCanvasPolygon(ctx, marker.start.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), '#194f3c')
         }
         if (camera.shape === 'range' && segment.endsCue) {
-          drawCanvasPolygon(ctx, [[centerX - 5, bottom], [centerX + 5, bottom], [centerX, bottom - 9]], '#194f3c')
+          drawCanvasPolygon(ctx, marker.end.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), '#194f3c')
         }
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
-        if (segment.startsCue && camera.startLabel) drawCueText(ctx, camera.startLabel, centerX + 7.5, top + 5.4, 11, 850)
-        if (segment.endsCue && camera.endLabel) drawCueText(ctx, camera.endLabel, centerX + 7.5, bottom - 2.25, 11, 850)
+        if (segment.startsCue && camera.startLabel) drawCueText(ctx, camera.startLabel, centerX + marker.width * pageWidth * 0.75, top + marker.height * pageHeight * 0.6, 11, 850)
+        if (segment.endsCue && camera.endLabel) drawCueText(ctx, camera.endLabel, centerX + marker.width * pageWidth * 0.75, bottom - marker.height * pageHeight * 0.25, 11, 850)
       }
     }
     for (const { label } of layouts) {
@@ -781,6 +792,7 @@ function drawNormalizedPolygon(
   pageHeight: number,
   offsetY: number,
   fill: boolean,
+  stroke = true,
 ) {
   const first = points[0]
   if (!first) return
@@ -789,7 +801,7 @@ function drawNormalizedPolygon(
   for (const point of points.slice(1)) ctx.lineTo(point.x * pageWidth, offsetY + point.y * pageHeight)
   ctx.closePath()
   if (fill) ctx.fill()
-  ctx.stroke()
+  if (stroke) ctx.stroke()
 }
 
 function drawNormalizedPolyline(

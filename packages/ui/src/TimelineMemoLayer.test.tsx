@@ -172,9 +172,11 @@ describe('TimelineMemoLayer anchor cues', () => {
       </svg>,
     )
     expect(container.querySelector('.timelineMemoDrawSurface')).toBeNull()
-    expect(container.querySelector('.timelineMemoMoveHandleVisual')).toBeTruthy()
-    expect(container.querySelectorAll('.timelineMemoMoveHandleGrip')).toHaveLength(3)
-    expect(container.querySelector('.timelineMemoResizeHandleVisual')).toBeTruthy()
+    expect(container.querySelector('.timelineMemoMoveHandle.sheetTransformHandle.move')).toBeTruthy()
+    expect(container.querySelector('.sheetTransformHandleMoveVisual')).toBeTruthy()
+    expect(container.querySelectorAll('.sheetTransformHandleMoveGrip')).toHaveLength(3)
+    expect(container.querySelector('.timelineMemoResizeHandle.sheetTransformHandle.resize')).toBeTruthy()
+    expect(container.querySelector('.sheetTransformHandleResizeVisual')).toBeTruthy()
     expect(container.querySelector('.timelineMemoMoveHandleGlyph')).toBeNull()
 
     rerender(

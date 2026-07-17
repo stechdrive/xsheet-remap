@@ -111,15 +111,20 @@ let client: CdpClient | null = null
 let previewClient: CdpClient | null = null
 const e2ePageFrames = standardA3SheetTemplate.defaults.durationFrames
 let e2eDurationFrames = e2ePageFrames
-const scenarioId = args['memo-only'] === 'true'
-  ? 'timeline-memo'
-  : args['ripple-only'] === 'true'
-    ? 'timeline-ripple'
-    : args['sound-only'] === 'true'
-      ? 'sound-ops'
-      : args['camera-only'] === 'true'
-        ? 'camera-ops'
-        : 'sheet-ops'
+const sheetOpsScenarioIds = [
+  'shell-layout',
+  'stack-guides',
+  'multipage-timing',
+  'timing-edit',
+  'asset-drop',
+  'asset-preview',
+  'sound-ops',
+  'camera-ops',
+  'timeline-ripple',
+  'timeline-memo',
+] as const
+type SheetOpsScenarioId = typeof sheetOpsScenarioIds[number]
+const scenarioId = parseSheetOpsScenarioId(args.scenario)
 
 try {
   const target = await waitForCdpTarget(port, target => !target.url.includes('window=asset-preview'), 'main CDP target')
@@ -130,157 +135,7 @@ try {
   await client.send('Input.setIgnoreInputEvents', { ignore: false })
 
   await waitForSheet()
-  if (args['memo-only'] === 'true') {
-    await verifyTimelineMemoEditing()
-  } else if (args['sound-only'] === 'true') {
-    await verifySoundCueEditing()
-  } else if (args['camera-only'] === 'true') {
-    await verifyCameraCueInputHandoff()
-  } else if (args['ripple-only'] === 'true') {
-    await verifyTimelineRippleEditing()
-  } else {
-  await verifyTopMenuBehavior()
-  await verifyAssetBrowserShell()
-  await dropAssetFolderOnBrowser(args['asset-root'] ?? '')
-  await verifyStackGuidePlacementAndSharedCuts()
-  await clickActionMenuSummary('表示設定')
-  await waitForPageCondition(() => {
-    const menu = document.querySelector<HTMLElement>('.actionMenuPortalContent.sheetDisplaySettingsMenu')
-    if (!menu) return false
-    const templateButtons = Array.from(menu.querySelectorAll('button')).map(button => button.textContent?.trim() ?? '')
-    const rect = menu.getBoundingClientRect()
-    return rect.width > 0
-      && rect.height > 0
-      && rect.left >= 0
-      && rect.top >= 0
-      && rect.right <= window.innerWidth
-      && rect.bottom <= window.innerHeight
-      && templateButtons.some(label => label.includes('A3標準'))
-      && templateButtons.some(label => label.includes('デジタル標準'))
-      && !menu.querySelector('select')
-  })
-  await keyPress('Escape')
-  checks.push('opened the direct display-template menu inside the viewport')
-
-  await dropSheetSourcesForMultiPage()
-  e2eDurationFrames = e2ePageFrames * 2
-  await waitForSheetPageCount(2)
-  await clickFrame('cell', 'A', e2ePageFrames + 1)
-  await keyPress('9')
-  await waitForNoEventAt('cell', 'A', e2ePageFrames + 1, '9')
-  await keyPress('Enter')
-  await waitForEventAt('cell', 'A', e2ePageFrames + 1, '9')
-  checks.push('dropped two sheet images, created a multi-page sheet, and verified timing input on page 2')
-
-  await verifySoundCueEditing()
-  await verifyCameraCueInputHandoff()
-
-  await dragRange('cell', 'A', 1, 3)
-  await waitForPageCondition(() => Boolean(document.querySelector('.selectedRangeRect')))
-  await waitForSelectedRange('cell', 'A', 1, 3)
-  await keyPress('1')
-  await waitForNoEventAt('cell', 'A', 1, '1')
-  await keyPress('Enter')
-  await waitForEventAt('cell', 'A', 1, '1')
-  checks.push('selected a CELL range with a CDP mouse drag and created a timing event from the value input')
-
-  await clickFrame('cell', 'B', 2)
-  await keyPress('2')
-  await waitForNoEventAt('cell', 'B', 2, '2')
-  await keyPress('Enter')
-  await waitForEventAt('cell', 'B', 2, '2')
-  await dragRangeBetweenTracks('cell', 'A', 1, 'B', 3)
-  await waitForSelectedRangeTracks('cell', ['A', 'B'], 1, 3)
-  await keyboardShortcut('c')
-  await clickFrame('cell', 'C', 30)
-  await waitForSelectedFrame('cell', 'C', 30)
-  await keyboardShortcut('v')
-  await waitForEventAt('cell', 'C', 30, '1')
-  await waitForEventAt('cell', 'D', 31, '2')
-  checks.push('copied a multi-track CELL rectangle and pasted it to the next two tracks')
-
-  await dragRange('cell', 'A', 1, 3)
-  await waitForSelectedRange('cell', 'A', 1, 3)
-  await keyboardShortcut('c')
-  await dragRange('cell', 'B', 10, 15)
-  await waitForSelectedRange('cell', 'B', 10, 15)
-  await rightClickFrame('cell', 'B', 10)
-  await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')))
-  await clickMenuItem('選択範囲内にリピート貼り付け')
-  await waitForEventAt('cell', 'B', 10, '1')
-  await waitForEventAt('cell', 'B', 13, '1')
-  await waitForNoEventAt('cell', 'B', 12, '1')
-  await waitForNoEventAt('cell', 'B', 15, '1')
-  checks.push('copied a sparse timing range and repeated it across a selected range')
-
-  await clickFrame('cell', 'B', 20)
-  await waitForSelectedFrame('cell', 'B', 20)
-  await keyboardShortcut('v')
-  await waitForEventAt('cell', 'B', 20, '1')
-  await waitForNoEventAt('cell', 'B', 22, '1')
-  checks.push('pasted a copied timing range from a single target cell')
-
-  await dragRange('cell', 'B', 22, 20)
-  await waitForSelectedRange('cell', 'B', 20, 22)
-  await keyboardShortcut('x')
-  await waitForNoEventAt('cell', 'B', 20, '1')
-  await waitForNoEventAt('cell', 'B', 22, '1')
-  checks.push('cut a selected timing range')
-
-  await clickFrame('cell', 'A', 6)
-  await waitForSelectedFrame('cell', 'A', 6)
-  await keyPress('2')
-  await waitForNoEventAt('cell', 'A', 6, '2')
-  await keyPress('Enter')
-  await waitForEventAt('cell', 'A', 6, '2')
-  await dragTimelineEvent('cell', 'A', 6, 'cell', 'A', 8)
-  await waitForEventAt('cell', 'A', 8, '2')
-  await waitForNoEventAt('cell', 'A', 6, '2')
-  checks.push('moved an existing timeline event by CDP Alt-drag')
-
-  await rightClickFrame('cell', 'A', 8)
-  await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')))
-  await clickMenuItem('キーを削除')
-  await waitForNoEventAt('cell', 'A', 8, '2')
-  checks.push('deleted a timeline event from the sheet context menu')
-
-  await dragRange('cell', 'A', 20, 24)
-  await waitForSelectedRange('cell', 'A', 20, 24)
-  await dropAssetFile('cell', 'A', 24, args.asset ?? '')
-  await waitForAssetEventAt('cell', 'A', 20)
-  await waitForNoAssetEventAt('cell', 'A', 24)
-  await recordAssetRootStateAfterCdpDrop()
-  checks.push('dropped an image inside an active range and assigned it to the range start frame')
-
-  await openAssetBrowserPreviewByName('A1.png')
-  previewClient = await connectPreviewWindow(port)
-  await waitForSelectedRegisteredCellCard('A')
-  await waitForPreviewText('A1')
-  checks.push('opened the native material preview for a registered cell')
-
-  await clickAssetBrowserCardByName('A1_e.png')
-  await waitForPreviewText('A1_e.png')
-  await waitForPreviewTextMissing('A1.png')
-  checks.push('updated the open native material preview from an unregistered cut-folder material selection')
-
-  const secondaryAsset = args.assetSecondary ?? args['asset-secondary'] ?? ''
-  if (!secondaryAsset) throw new Error('--asset-secondary is required for preview sync checks')
-  await dropAssetFile('cell', 'B', 30, secondaryAsset)
-  await waitForAssetEventAt('cell', 'B', 30)
-  checks.push('created a second registered cell from an OS file drop')
-
-  await clickRegisteredCellCardByTrack('B')
-  await waitForSelectedRegisteredCellCard('B')
-  await waitForPreviewText('A2')
-  await waitForPreviewTextMissing('A1_e.png')
-  checks.push('updated the open native material preview from registered cell card selection')
-
-  await clickFrame('cell', 'A', 20)
-  await waitForSelectedRegisteredCellCard('A')
-  await waitForPreviewText('A1')
-  await waitForPreviewTextMissing('A2')
-  checks.push('updated the open native material preview from a material-assigned sheet frame selection')
-  }
+  await runSheetOpsScenario(scenarioId)
 
   if (args.screenshot) await capturePageScreenshot(args.screenshot)
   const report: SheetOpsReport = {
@@ -295,6 +150,12 @@ try {
     artifacts: [args.report, args.screenshot].filter(Boolean),
   })
 } catch (error) {
+  const failureArtifacts = [args.report]
+  if (client && args['failure-screenshot']) {
+    await capturePageScreenshot(args['failure-screenshot'])
+      .then(() => failureArtifacts.push(args['failure-screenshot']))
+      .catch(() => undefined)
+  }
   const report = {
     checks,
     error: errorMessage(error),
@@ -307,7 +168,7 @@ try {
     scenario: scenarioId,
     error: errorMessage(error),
     checks,
-    artifacts: [args.report],
+    artifacts: failureArtifacts,
   })
   process.exitCode = 1
 } finally {
@@ -347,6 +208,209 @@ async function waitForSheetPageCount(pageCount: number): Promise<void> {
     10000,
     `${pageCount} sheet pages`,
   )
+}
+
+function parseSheetOpsScenarioId(value: string | undefined): SheetOpsScenarioId {
+  if (value && (sheetOpsScenarioIds as readonly string[]).includes(value)) return value as SheetOpsScenarioId
+  throw new Error(`--scenario must be one of: ${sheetOpsScenarioIds.join(', ')}`)
+}
+
+async function runSheetOpsScenario(scenario: SheetOpsScenarioId): Promise<void> {
+  switch (scenario) {
+    case 'shell-layout':
+      await verifyShellLayoutScenario()
+      return
+    case 'stack-guides':
+      await verifyStackGuidePlacementAndSharedCuts()
+      return
+    case 'multipage-timing':
+      await verifyMultiPageTimingScenario()
+      return
+    case 'timing-edit':
+      await verifyTimingEditingScenario()
+      return
+    case 'asset-drop':
+      await verifyAssetDropScenario()
+      return
+    case 'asset-preview':
+      await verifyAssetPreviewScenario()
+      return
+    case 'sound-ops':
+      await verifySoundCueEditing()
+      return
+    case 'camera-ops':
+      await verifyCameraCueInputHandoff()
+      return
+    case 'timeline-ripple':
+      await verifyTimelineRippleEditing()
+      return
+    case 'timeline-memo':
+      await verifyTimelineMemoEditing()
+  }
+}
+
+async function verifyShellLayoutScenario(): Promise<void> {
+  await verifyTopMenuBehavior()
+  await verifyAssetBrowserShell()
+  await clickActionMenuSummary('表示設定')
+  await waitForPageCondition(() => {
+    const menu = document.querySelector<HTMLElement>('.actionMenuPortalContent.sheetDisplaySettingsMenu')
+    if (!menu) return false
+    const templateButtons = Array.from(menu.querySelectorAll('button')).map(button => button.textContent?.trim() ?? '')
+    const rect = menu.getBoundingClientRect()
+    return rect.width > 0
+      && rect.height > 0
+      && rect.left >= 0
+      && rect.top >= 0
+      && rect.right <= window.innerWidth
+      && rect.bottom <= window.innerHeight
+      && templateButtons.some(label => label.includes('A3標準'))
+      && templateButtons.some(label => label.includes('デジタル標準'))
+      && !menu.querySelector('select')
+  }, 'display-template menu visible inside the viewport')
+  await keyPress('Escape')
+  await waitForNoActionMenu('display-template menu closes with Escape')
+  checks.push('opened the direct display-template menu inside the viewport and closed it with Escape')
+}
+
+async function verifyMultiPageTimingScenario(): Promise<void> {
+  await dropSheetSourcesForMultiPage()
+  e2eDurationFrames = e2ePageFrames * 2
+  await waitForSheetPageCount(2)
+  await clickFrame('cell', 'A', e2ePageFrames + 1)
+  await keyPress('9')
+  await waitForNoEventAt('cell', 'A', e2ePageFrames + 1, '9')
+  await keyPress('Enter')
+  await waitForEventAt('cell', 'A', e2ePageFrames + 1, '9')
+  await waitForSelectedFrame('cell', 'A', e2ePageFrames + 2)
+  checks.push('dropped two sheet images, created a multi-page sheet, committed input on page 2, and advanced one frame')
+}
+
+async function verifyTimingEditingScenario(): Promise<void> {
+  await dragRange('cell', 'A', 1, 3)
+  await waitForPageCondition(() => Boolean(document.querySelector('.selectedRangeRect')), 'visible CELL selection range')
+  await waitForSelectedRange('cell', 'A', 1, 3)
+  await keyPress('1')
+  await waitForNoEventAt('cell', 'A', 1, '1')
+  await keyPress('Enter')
+  await waitForEventAt('cell', 'A', 1, '1')
+  await waitForSelectedFrame('cell', 'A', 4)
+  checks.push('committed a CELL range value only on Enter and advanced by the selected range length')
+
+  await clickFrame('cell', 'B', 2)
+  await keyPress('2')
+  await waitForNoEventAt('cell', 'B', 2, '2')
+  await keyPress('Enter')
+  await waitForEventAt('cell', 'B', 2, '2')
+  await dragRangeBetweenTracks('cell', 'A', 1, 'B', 3)
+  await waitForSelectedRangeTracks('cell', ['A', 'B'], 1, 3)
+  await keyboardShortcut('c')
+  await clickFrame('cell', 'C', 30)
+  await waitForSelectedFrame('cell', 'C', 30)
+  await keyboardShortcut('v')
+  await waitForEventAt('cell', 'C', 30, '1')
+  await waitForEventAt('cell', 'D', 31, '2')
+  await waitForNoEventAt('cell', 'C', 31, '2')
+  checks.push('copied a multi-track CELL rectangle while preserving track and frame offsets')
+
+  await dragRange('cell', 'A', 1, 3)
+  await waitForSelectedRange('cell', 'A', 1, 3)
+  await keyboardShortcut('c')
+  await dragRange('cell', 'B', 10, 15)
+  await waitForSelectedRange('cell', 'B', 10, 15)
+  await rightClickFrame('cell', 'B', 10)
+  await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'timing repeat context menu')
+  await clickMenuItem('選択範囲内にリピート貼り付け')
+  await waitForEventAt('cell', 'B', 10, '1')
+  await waitForEventAt('cell', 'B', 13, '1')
+  await waitForNoEventAt('cell', 'B', 12, '1')
+  await waitForNoEventAt('cell', 'B', 15, '1')
+  checks.push('repeated a sparse copied range without filling its empty frames')
+
+  await clickFrame('cell', 'B', 20)
+  await waitForSelectedFrame('cell', 'B', 20)
+  await keyboardShortcut('v')
+  await waitForEventAt('cell', 'B', 20, '1')
+  await waitForNoEventAt('cell', 'B', 22, '1')
+  checks.push('pasted a copied timing range from a single target cell')
+
+  await dragRange('cell', 'B', 22, 20)
+  await waitForSelectedRange('cell', 'B', 20, 22)
+  await keyboardShortcut('x')
+  await waitForNoEventAt('cell', 'B', 20, '1')
+  await waitForNoEventAt('cell', 'B', 22, '1')
+  checks.push('cut only the selected timing range')
+
+  await clickFrame('cell', 'A', 6)
+  await waitForSelectedFrame('cell', 'A', 6)
+  await keyPress('2')
+  await waitForNoEventAt('cell', 'A', 6, '2')
+  await keyPress('Enter')
+  await waitForEventAt('cell', 'A', 6, '2')
+  await dragTimelineEvent('cell', 'A', 6, 'cell', 'A', 8)
+  await waitForEventAt('cell', 'A', 8, '2')
+  await waitForNoEventAt('cell', 'A', 6, '2')
+  checks.push('moved an existing timeline event without leaving a duplicate at its source')
+
+  await rightClickFrame('cell', 'A', 8)
+  await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'timing delete context menu')
+  await clickMenuItem('キーを削除')
+  await waitForNoEventAt('cell', 'A', 8, '2')
+  checks.push('deleted a timeline event from the sheet context menu')
+}
+
+async function verifyAssetDropScenario(): Promise<void> {
+  const primaryAsset = requireArg('asset')
+  const secondaryAsset = requireArg('asset-secondary')
+  await dragRange('cell', 'A', 20, 24)
+  await waitForSelectedRange('cell', 'A', 20, 24)
+  await dropAssetFile('cell', 'A', 24, primaryAsset)
+  await waitForAssetEventAt('cell', 'A', 20)
+  await waitForNoAssetEventAt('cell', 'A', 24)
+  await waitForSelectedRegisteredCellCard('A')
+  await recordAssetRootStateAfterCdpDrop()
+  checks.push('assigned a dropped asset to the active range start and selected its registered card')
+
+  await dropAssetFile('cell', 'B', 30, secondaryAsset)
+  await waitForAssetEventAt('cell', 'B', 30)
+  await waitForSelectedRegisteredCellCard('B')
+  await waitForAssetEventAt('cell', 'A', 20)
+  checks.push('created an independent second registered cell without altering the first assignment')
+}
+
+async function verifyAssetPreviewScenario(): Promise<void> {
+  const primaryAsset = requireArg('asset')
+  const secondaryAsset = requireArg('asset-secondary')
+  await verifyAssetBrowserShell()
+  await dropAssetFolderOnBrowser(requireArg('asset-root'))
+  await dragRange('cell', 'A', 20, 24)
+  await dropAssetFile('cell', 'A', 24, primaryAsset)
+  await waitForAssetEventAt('cell', 'A', 20)
+  await waitForSelectedRegisteredCellCard('A')
+
+  await openAssetBrowserPreviewByName('A1.png')
+  previewClient = await connectPreviewWindow(port)
+  await waitForPreviewText('A1')
+  checks.push('opened the native material preview from a visible quick-preview control')
+
+  await clickAssetBrowserCardByName('A1_e.png')
+  await waitForPreviewText('A1_e.png')
+  await waitForPreviewTextMissing('A1.png')
+  checks.push('updated the open preview from an unregistered catalog material selection')
+
+  await dropAssetFile('cell', 'B', 30, secondaryAsset)
+  await waitForAssetEventAt('cell', 'B', 30)
+  await clickRegisteredCellCardByTrack('B')
+  await waitForSelectedRegisteredCellCard('B')
+  await waitForPreviewText('A2')
+  await waitForPreviewTextMissing('A1_e.png')
+  checks.push('updated the open preview from a registered CSP card selection')
+
+  await clickFrame('cell', 'A', 20)
+  await waitForSelectedRegisteredCellCard('A')
+  await waitForPreviewText('A1')
+  await waitForPreviewTextMissing('A2')
+  checks.push('synchronized the preview and CSP card from a material-assigned sheet frame')
 }
 
 async function dropSheetSourcesForMultiPage(): Promise<void> {
@@ -1064,6 +1128,7 @@ async function verifyTopMenuBehavior(): Promise<void> {
 }
 
 async function verifyAssetBrowserShell(): Promise<void> {
+  await ensureAssetBrowserPaneOpen()
   await waitForPageCondition(() => {
     const browser = document.querySelector<HTMLElement>('.assetBrowser')
     const header = browser?.querySelector<HTMLElement>('.assetBrowserHeader')
@@ -1077,7 +1142,10 @@ async function verifyAssetBrowserShell(): Promise<void> {
     const fileRect = catalogToolbar.getBoundingClientRect()
     const controlsRect = controls.getBoundingClientRect()
     const itemsRect = items.getBoundingClientRect()
-    return headerRect.top >= browserRect.top
+    return browserRect.width > 0
+      && browserRect.height > 0
+      && !browser.closest('aside')?.hasAttribute('hidden')
+      && headerRect.top >= browserRect.top
       && controlsRect.top >= headerRect.top
       && controlsRect.bottom <= headerRect.bottom + 1
       && fileRect.top >= headerRect.bottom
@@ -1085,6 +1153,23 @@ async function verifyAssetBrowserShell(): Promise<void> {
       && headerRect.top - browserRect.top < 40
   }, 'asset browser catalog shell is fixed at the top')
   checks.push('verified the image asset pane keeps catalog navigation and thumbnail controls fixed at the top')
+}
+
+async function ensureAssetBrowserPaneOpen(): Promise<void> {
+  const expanded = await evaluatePage<boolean>(`
+    document.querySelector('button[aria-label="画像素材"]')?.getAttribute('aria-expanded') === 'true'
+  `)
+  if (!expanded) await mouseClick(await centerOfSelector('button[aria-label="画像素材"]'))
+  await waitForPageCondition(() => {
+    const toggle = document.querySelector('button[aria-label="画像素材"]')
+    const pane = document.querySelector<HTMLElement>('#sheet-right-pane')
+    if (!toggle || !pane) return false
+    const rect = pane.getBoundingClientRect()
+    return toggle.getAttribute('aria-expanded') === 'true'
+      && !pane.hasAttribute('hidden')
+      && rect.width > 0
+      && rect.height > 0
+  }, 'visible image asset pane')
 }
 
 async function dropAssetFolderOnBrowser(folderPath: string): Promise<void> {
@@ -1359,18 +1444,40 @@ async function clickMenuItem(label: string): Promise<void> {
 }
 
 async function openAssetBrowserPreviewByName(fileName: string): Promise<void> {
-  const point = await evaluatePage<ClientPoint | null>(`
+  const cardPoint = await evaluatePage<ClientPoint | null>(`
     (() => {
       const cards = Array.from(document.querySelectorAll('.assetBrowserItems .assetCard'));
       const card = cards.find(item => item.querySelector('strong')?.textContent?.trim() === ${JSON.stringify(fileName)});
-      const button = card?.querySelector('.assetQuickPreviewButton');
-      if (!button) return null;
-      button.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const box = button.getBoundingClientRect();
+      if (!card) return null;
+      card.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const box = card.getBoundingClientRect();
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     })()
   `)
-  if (!point) throw new Error(`asset preview button not found: ${fileName}`)
+  if (!cardPoint) throw new Error(`asset card not found for preview: ${fileName}`)
+  await clientSend('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: cardPoint.x,
+    y: cardPoint.y,
+    button: 'none',
+    buttons: 0,
+  })
+  const point = await waitForCondition(
+    () => evaluatePage<ClientPoint | null>(`
+      (() => {
+        const cards = Array.from(document.querySelectorAll('.assetBrowserItems .assetCard'));
+        const card = cards.find(item => item.querySelector('strong')?.textContent?.trim() === ${JSON.stringify(fileName)});
+        const button = card?.querySelector('.assetQuickPreviewButton');
+        if (!button) return null;
+        const box = button.getBoundingClientRect();
+        if (box.width <= 0 || box.height <= 0 || box.left < 0 || box.top < 0 || box.right > window.innerWidth || box.bottom > window.innerHeight) return null;
+        const point = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        return document.elementFromPoint(point.x, point.y)?.closest('.assetQuickPreviewButton') === button ? point : null;
+      })()
+    `),
+    5000,
+    `visible asset preview button ${fileName}`,
+  )
   await mouseClick(point)
 }
 
@@ -1909,6 +2016,12 @@ function closeTo(actual: number, expected: number): boolean {
 
 function cssEscape(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+function requireArg(name: string): string {
+  const value = args[name]
+  if (!value) throw new Error(`--${name} is required for ${scenarioId}`)
+  return value
 }
 
 function parseArgs(rawArgs: string[]): Record<string, string> {

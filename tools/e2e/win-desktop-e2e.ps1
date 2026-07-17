@@ -23,7 +23,19 @@ if ($env:OS -ne "Windows_NT") {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
 
-$supportedScenarios = @("launch", "full-default-a3", "sheet-ops", "camera-ops", "sound-ops", "timeline-ripple", "timeline-memo", "auto-calibration")
+$sheetOpsScenarios = @(
+  "shell-layout",
+  "stack-guides",
+  "multipage-timing",
+  "timing-edit",
+  "asset-drop",
+  "asset-preview",
+  "sound-ops",
+  "camera-ops",
+  "timeline-ripple",
+  "timeline-memo"
+)
+$supportedScenarios = @("launch", "full-default-a3", "auto-calibration") + $sheetOpsScenarios
 if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }
@@ -278,7 +290,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
 $summaryPath = Join-Path $runRoot "summary.json"
 $scenarioResultPath = Join-Path $runRoot "result.json"
 $screenshotPath = Join-Path $screenshotRoot "launch.png"
-$remoteDebugPort = if ($Scenario -eq "sheet-ops" -or $Scenario -eq "camera-ops" -or $Scenario -eq "sound-ops" -or $Scenario -eq "timeline-ripple" -or $Scenario -eq "timeline-memo" -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
+$remoteDebugPort = if (($sheetOpsScenarios -contains $Scenario) -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
 $previousEnvironment = @{}
 $environmentOverrides = @{
   "XSHEET_REMAP_E2E" = "1"
@@ -367,7 +379,7 @@ try {
     throw "desktop process exited during the ${StableSeconds}s stability window. Exit code: $($process.ExitCode)"
   }
 
-  if ($Scenario -eq "sheet-ops" -or $Scenario -eq "camera-ops" -or $Scenario -eq "sound-ops" -or $Scenario -eq "timeline-ripple" -or $Scenario -eq "timeline-memo") {
+  if ($sheetOpsScenarios -contains $Scenario) {
     $sheetOpsReportPath = Join-Path $runRoot "$Scenario-report.json"
     $sheetOpsAssetPath = Join-Path $assetRoot "A1.png"
     $sheetOpsSecondaryAssetPath = Join-Path $assetRoot "A2.png"
@@ -378,32 +390,17 @@ try {
     $sheetOpsArguments = @(
       "tools/e2e/sheet-ops-cdp.ts",
       "--port", "$remoteDebugPort",
+      "--scenario", "$Scenario",
       "--result", "$scenarioResultPath",
       "--report", "$sheetOpsReportPath",
       "--asset", "$sheetOpsAssetPath",
       "--asset-secondary", "$sheetOpsSecondaryAssetPath",
       "--asset-root", "$assetRoot",
       "--sheet-source", "$sheetOpsSourcePath",
-      "--sheet-source-secondary", "$sheetOpsSecondarySourcePath"
+      "--sheet-source-secondary", "$sheetOpsSecondarySourcePath",
+      "--screenshot", (Join-Path $screenshotRoot "$Scenario-final.png"),
+      "--failure-screenshot", (Join-Path $screenshotRoot "$Scenario-failure.png")
     )
-    if ($Scenario -eq "sound-ops") {
-      $sheetOpsArguments += @("--sound-only", "true")
-    }
-    if ($Scenario -eq "camera-ops") {
-      $sheetOpsArguments += @("--camera-only", "true")
-    }
-    if ($Scenario -eq "timeline-ripple") {
-      $sheetOpsArguments += @(
-        "--ripple-only", "true",
-        "--screenshot", (Join-Path $screenshotRoot "timeline-ripple-final.png")
-      )
-    }
-    if ($Scenario -eq "timeline-memo") {
-      $sheetOpsArguments += @(
-        "--memo-only", "true",
-        "--screenshot", (Join-Path $screenshotRoot "timeline-memo-final.png")
-      )
-    }
     & $tsxPath @sheetOpsArguments
     $sheetOpsExitCode = $LASTEXITCODE
     if ($sheetOpsExitCode -ne 0 -and -not (Test-Path -LiteralPath $scenarioResultPath)) {
@@ -491,6 +488,8 @@ try {
     screenshotCaptured = $screenshotCaptured
     screenshot = if (Test-Path -LiteralPath $screenshotPath) { $screenshotPath } else { $null }
     manifest = $manifestPath
+    checks = if ($scenarioResult -and ($scenarioResult.PSObject.Properties.Name -contains "checks")) { @($scenarioResult.checks) } else { @() }
+    artifacts = if ($scenarioResult -and ($scenarioResult.PSObject.Properties.Name -contains "artifacts")) { @($scenarioResult.artifacts) } else { @() }
     cspValidation = if ($scenarioResult -and ($scenarioResult.PSObject.Properties.Name -contains "cspValidation")) { $scenarioResult.cspValidation } else { $null }
   }
   $summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $summaryPath -Encoding UTF8

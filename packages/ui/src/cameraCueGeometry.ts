@@ -6,6 +6,7 @@ import type {
   SheetViewLayoutOverrides,
   TimedRangeCue,
 } from '@xsheet-remap/core'
+import { clampCameraOverlapPivotAnchorFrame, defaultCameraOverlapPivotAnchorFrame } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import {
@@ -52,6 +53,7 @@ interface ScoredCameraCueLabelCandidate {
 
 const LABEL_HORIZONTAL_PADDING_PX = 8
 const LABEL_VERTICAL_PADDING_PX = 4
+export const CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO = 0.65
 
 export function cameraCueSegmentsForPage(
   template: SheetTemplate,
@@ -185,7 +187,7 @@ export function cameraFadePolygonForSegment(
 export function cameraOverlapPathsForSegment(cue: TimedRangeCue, segment: CameraCueSegment): NormalizedPoint[][] {
   const startBoundary = cue.frameStart
   const endBoundary = cue.frameEnd + 1
-  const pivotBoundary = Math.max(startBoundary, Math.min(endBoundary, (cue.camera?.pivotFrame ?? Math.round((cue.frameStart + cue.frameEnd) / 2)) + 0.5))
+  const pivotBoundary = cameraOverlapPivotPosition(cue)
   const segmentStart = segment.frameStart
   const segmentEnd = segment.frameEnd + 1
   return [false, true].map(reverse => {
@@ -200,6 +202,33 @@ export function cameraOverlapPathsForSegment(cue: TimedRangeCue, segment: Camera
       return { x: segment.rect.x + segment.rect.w * xRatio, y: segment.rect.y + segment.rect.h * yRatio }
     })
   })
+}
+
+export function cameraOverlapPivotPosition(cue: TimedRangeCue): number {
+  const duration = cue.frameEnd - cue.frameStart + 1
+  const anchorFrame = clampCameraOverlapPivotAnchorFrame(
+    cue.camera?.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(cue.frameStart, cue.frameEnd),
+    cue.frameStart,
+    cue.frameEnd,
+  )
+  return anchorFrame + (duration % 2 === 0 ? 1 : 0.5)
+}
+
+export function cameraOverlapPivotMarkForSegment(
+  cue: TimedRangeCue,
+  segment: CameraCueSegment,
+): { x1: number; x2: number; y: number } | null {
+  if (cue.camera?.shape !== 'overlap') return null
+  const pivotPosition = cameraOverlapPivotPosition(cue)
+  const ownerFrame = Number.isInteger(pivotPosition) ? pivotPosition - 1 : Math.floor(pivotPosition)
+  if (ownerFrame < segment.frameStart || ownerFrame > segment.frameEnd) return null
+  const centerX = segment.rect.x + segment.rect.w / 2
+  const halfWidth = segment.rect.w * CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO / 2
+  return {
+    x1: centerX - halfWidth,
+    x2: centerX + halfWidth,
+    y: segment.rect.y + (pivotPosition - segment.frameStart) * segment.rowHeight,
+  }
 }
 
 function cameraCueLabelVariants(
@@ -265,14 +294,13 @@ function cameraCueProtectedCrossings(
   fontSizePx: number,
 ): NormalizedRect[] {
   if (cue.camera?.shape !== 'overlap') return []
-  const pivotFrame = cue.camera.pivotFrame ?? Math.round((cue.frameStart + cue.frameEnd) / 2)
   return segments.flatMap(segment => {
-    if (pivotFrame < segment.frameStart || pivotFrame > segment.frameEnd) return []
-    const pivotY = segment.rect.y + (pivotFrame - segment.frameStart + 0.5) * segment.rowHeight
+    const pivotMark = cameraOverlapPivotMarkForSegment(cue, segment)
+    if (!pivotMark) return []
     const clearance = Math.max(segment.rowHeight * 1.5, (fontSizePx + 6) / pageSize.heightPx)
     return [{
       x: segment.rect.x,
-      y: pivotY - clearance / 2,
+      y: pivotMark.y - clearance / 2,
       w: segment.rect.w,
       h: clearance,
     }]

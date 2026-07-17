@@ -39,6 +39,8 @@ describe('CameraCueLayer', () => {
     expect(container.querySelectorAll('.cameraCueShapeHit')).toHaveLength(5)
     expect(container.querySelector('.cameraCueHitBody')).toBeNull()
     expect(container.querySelector('.cameraCuePivotHandle')).toBeTruthy()
+    expect(container.querySelectorAll('.cameraCue.overlap .cameraCuePivotMarkHalo')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCue.overlap .cameraCuePivotMark')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.range .cameraCueMarker.start')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.range .cameraCueMarker.end')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.fade-in .cameraCueMarker, .cameraCue.fade-out .cameraCueMarker, .cameraCue.overlap .cameraCueMarker')).toHaveLength(0)
@@ -81,6 +83,6 @@ describe('CameraCueLayer', () => {
   })
 })
 
-function cameraCue(cueId: string, laneId: string, frameStart: number, frameEnd: number, shape: 'range' | 'fade-in' | 'fade-out' | 'overlap', pivotFrame?: number): TimedRangeCue {
-  return { cueId, role: 'camera', laneId, frameStart, frameEnd, label: shape, text: '', source: 'manual', camera: { shape, startLabel: 'A', endLabel: 'B', pivotFrame } }
+function cameraCue(cueId: string, laneId: string, frameStart: number, frameEnd: number, shape: 'range' | 'fade-in' | 'fade-out' | 'overlap', pivotAnchorFrame?: number): TimedRangeCue {
+  return { cueId, role: 'camera', laneId, frameStart, frameEnd, label: shape, text: '', source: 'manual', camera: { shape, startLabel: 'A', endLabel: 'B', pivotAnchorFrame } }
 }

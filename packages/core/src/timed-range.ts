@@ -108,8 +108,12 @@ function normalizeCue(project: CutProject, cue: TimedRangeCue): TimedRangeCue {
 function normalizeCameraInstruction(cue: TimedRangeCue): CameraInstruction {
   const input = cue.camera
   const shape = input?.shape ?? 'range'
-  const pivotFrame = shape === 'overlap'
-    ? clamp(Math.round(input?.pivotFrame ?? (cue.frameStart + cue.frameEnd) / 2), cue.frameStart, cue.frameEnd)
+  const pivotAnchorFrame = shape === 'overlap'
+    ? clampCameraOverlapPivotAnchorFrame(
+        input?.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(cue.frameStart, cue.frameEnd),
+        cue.frameStart,
+        cue.frameEnd,
+      )
     : undefined
   const labelXRatio = input?.labelPlacement ? clamp(input.labelPlacement.xRatio, 0, 0.95) : 0
   const labelPlacement = input?.labelPlacement
@@ -125,9 +129,26 @@ function normalizeCameraInstruction(cue: TimedRangeCue): CameraInstruction {
     shape,
     startLabel: input?.startLabel.trim() ?? '',
     endLabel: input?.endLabel.trim() ?? '',
-    pivotFrame,
+    pivotAnchorFrame,
     labelPlacement,
   }
+}
+
+export function defaultCameraOverlapPivotAnchorFrame(frameStart: number, frameEnd: number): number {
+  const start = Math.min(Math.round(frameStart), Math.round(frameEnd))
+  const end = Math.max(Math.round(frameStart), Math.round(frameEnd))
+  return Math.floor((start + end) / 2)
+}
+
+export function clampCameraOverlapPivotAnchorFrame(anchorFrame: number, frameStart: number, frameEnd: number): number {
+  const start = Math.min(Math.round(frameStart), Math.round(frameEnd))
+  const end = Math.max(Math.round(frameStart), Math.round(frameEnd))
+  const duration = end - start + 1
+  const max = duration % 2 === 0 ? Math.max(start, end - 1) : end
+  const requested = Number.isFinite(anchorFrame)
+    ? Math.round(anchorFrame)
+    : defaultCameraOverlapPivotAnchorFrame(start, end)
+  return clamp(requested, start, max)
 }
 
 function nextCueId(cues: TimedRangeCue[]): string {

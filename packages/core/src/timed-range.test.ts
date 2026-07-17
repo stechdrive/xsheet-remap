@@ -84,7 +84,7 @@ describe('timed range cues', () => {
         shape: 'overlap',
         startLabel: ' A ',
         endLabel: ' B ',
-        pivotFrame: 30,
+        pivotAnchorFrame: 30,
         labelPlacement: { mode: 'manual', frameOffset: 99, xRatio: 0.9, widthRatio: 0.8, heightFrames: 2.4 },
       },
     })
@@ -98,7 +98,7 @@ describe('timed range cues', () => {
         shape: 'overlap',
         startLabel: 'A',
         endLabel: 'B',
-        pivotFrame: 20,
+        pivotAnchorFrame: 20,
         labelPlacement: { mode: 'manual', frameOffset: 10, xRatio: 0.9, heightFrames: 2 },
       },
     })
@@ -107,7 +107,7 @@ describe('timed range cues', () => {
     const faded = updateTimedRangeCue(created.project, created.cue.cueId, {
       camera: { ...created.cue.camera!, shape: 'fade-in' },
     })
-    expect(faded.timedRangeCues[0]?.camera?.pivotFrame).toBeUndefined()
+    expect(faded.timedRangeCues[0]?.camera?.pivotAnchorFrame).toBeUndefined()
     expect(validateProject(faded).filter(issue => issue.code.startsWith('cue.camera.'))).toEqual([])
   })
 

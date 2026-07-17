@@ -27,7 +27,7 @@ describe('CameraCueDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '追加' }))
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       laneId: 'camera_lane_1', frameStart: 1, frameEnd: 12, label: 'OL',
-      camera: expect.objectContaining({ shape: 'overlap', startLabel: 'A', endLabel: 'B', pivotFrame: 8 }),
+      camera: expect.objectContaining({ shape: 'overlap', startLabel: 'A', endLabel: 'B', pivotAnchorFrame: 8 }),
     }))
     expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('text')
   })

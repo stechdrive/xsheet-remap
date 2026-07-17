@@ -913,6 +913,27 @@
   fill: rgb(21 94 220 / 1);
 }
 
+.cameraCuePivotMarkHalo,
+.cameraCuePivotMark {
+  fill: none;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.cameraCuePivotMarkHalo {
+  stroke: rgb(255 255 252 / 0.96);
+  stroke-width: 4px;
+}
+
+.cameraCuePivotMark {
+  stroke: rgb(22 67 52 / 0.98);
+  stroke-width: 2px;
+}
+
+.cameraCue.selected .cameraCuePivotMark {
+  stroke: rgb(21 94 220 / 1);
+}
+
 .cameraCueEndpointLabel,
 .cameraCueLabelText {
   fill: #173f32;

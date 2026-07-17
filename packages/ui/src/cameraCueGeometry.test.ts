@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
 import {
+  CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO,
   buildCameraCuePageLayouts,
   cameraCueLabelLayoutForPage,
   cameraCueSegmentsForPage,
+  cameraOverlapPivotMarkForSegment,
+  cameraOverlapPivotPosition,
   cameraOverlapPathsForSegment,
 } from './cameraCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
@@ -102,13 +105,15 @@ describe('CAMERA cue geometry', () => {
     expect(layout.fontSizePx).toBe(defaultTimingTextFontSizePx(standardA3SheetTemplate, 'cell'))
   })
 
-  it('draws a 24-frame overlap with exactly one crossing at the editable pivot', () => {
+  it('draws an even overlap on the boundary after its anchor with a 0.65-grid pivot mark', () => {
     const cue = overlapCue(1, 24, 12)
     const segment = cameraCueSegmentsForPage(standardA3SheetTemplate, page, cue, { paperTracks })[0]!
     const [forward = [], reverse = []] = cameraOverlapPathsForSegment(cue, segment)
+    const mark = cameraOverlapPivotMarkForSegment(cue, segment)!
     const centerX = segment.rect.x + segment.rect.w / 2
-    const pivotY = segment.rect.y + (cue.camera!.pivotFrame! - segment.frameStart + 0.5) * segment.rowHeight
+    const pivotY = segment.rect.y + 12 * segment.rowHeight
 
+    expect(cameraOverlapPivotPosition(cue)).toBe(13)
     expect(forward).toHaveLength(3)
     expect(reverse).toHaveLength(3)
     expect(forward.map(point => point.x)).toEqual([
@@ -124,6 +129,23 @@ describe('CAMERA cue geometry', () => {
     expect(forward[1]).toEqual({ x: centerX, y: pivotY })
     expect(reverse[1]).toEqual({ x: centerX, y: pivotY })
     expect(sharedPathPoints(forward, reverse)).toEqual([{ x: centerX, y: pivotY }])
+    expect(mark.y).toBeCloseTo(pivotY)
+    expect((mark.x1 + mark.x2) / 2).toBeCloseTo(centerX)
+    expect((mark.x2 - mark.x1) / segment.rect.w).toBeCloseTo(CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO)
+  })
+
+  it('draws an odd overlap at the center of its anchor frame', () => {
+    const cue = overlapCue(1, 23, 12)
+    const segment = cameraCueSegmentsForPage(standardA3SheetTemplate, page, cue, { paperTracks })[0]!
+    const [forward = [], reverse = []] = cameraOverlapPathsForSegment(cue, segment)
+    const mark = cameraOverlapPivotMarkForSegment(cue, segment)!
+    const centerX = segment.rect.x + segment.rect.w / 2
+    const pivotY = segment.rect.y + 11.5 * segment.rowHeight
+
+    expect(cameraOverlapPivotPosition(cue)).toBe(12.5)
+    expect(forward[1]).toEqual({ x: centerX, y: pivotY })
+    expect(reverse[1]).toEqual({ x: centerX, y: pivotY })
+    expect(mark.y).toBeCloseTo(pivotY)
   })
 
   it('preserves one logical overlap crossing when A3 columns and pages clip the instruction', () => {
@@ -174,7 +196,7 @@ describe('CAMERA cue geometry', () => {
   })
 })
 
-function overlapCue(frameStart: number, frameEnd: number, pivotFrame: number): TimedRangeCue {
+function overlapCue(frameStart: number, frameEnd: number, pivotAnchorFrame: number): TimedRangeCue {
   return {
     cueId: `cue_overlap_${frameStart}_${frameEnd}`,
     role: 'camera',
@@ -184,7 +206,7 @@ function overlapCue(frameStart: number, frameEnd: number, pivotFrame: number): T
     label: 'OL',
     text: '',
     source: 'manual',
-    camera: { shape: 'overlap', startLabel: '', endLabel: '', pivotFrame },
+    camera: { shape: 'overlap', startLabel: '', endLabel: '', pivotAnchorFrame },
   }
 }
 

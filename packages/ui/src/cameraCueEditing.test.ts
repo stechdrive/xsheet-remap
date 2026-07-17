@@ -15,7 +15,7 @@ describe('CAMERA cue editing helpers', () => {
       frameStart: 10,
       frameEnd: 20,
       label: 'OL',
-      camera: { shape: 'overlap', startLabel: 'A', endLabel: 'B', pivotFrame: 14 },
+      camera: { shape: 'overlap', startLabel: 'A', endLabel: 'B', pivotAnchorFrame: 14 },
     })
     const clipboard = buildCameraCueClipboard(created.project, {
       laneId: 'camera_lane_1', frameStart: 10, frameEnd: 20, mode: 'copy', cueId: created.cue.cueId,
@@ -24,7 +24,7 @@ describe('CAMERA cue editing helpers', () => {
     const pasted = pasteCameraCueClipboard(created.project, clipboard!, { laneId: 'camera_lane_2', frameStart: 30 }, 'overwrite')
     expect(pasted.project.timedRangeCues.at(-1)).toMatchObject({
       role: 'camera', laneId: 'camera_lane_2', frameStart: 30, frameEnd: 40,
-      camera: { shape: 'overlap', pivotFrame: 34 },
+      camera: { shape: 'overlap', pivotAnchorFrame: 34 },
     })
   })
 })

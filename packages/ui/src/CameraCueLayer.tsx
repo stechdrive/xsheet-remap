@@ -3,6 +3,7 @@ import type { SheetPage, SheetTemplate, SheetViewLayoutOverrides, TimedRangeCue 
 import {
   buildCameraCuePageLayouts,
   cameraFadePolygonForSegment,
+  cameraOverlapPivotMarkForSegment,
   cameraOverlapPathsForSegment,
   type CameraCueLabelLayout,
 } from './cameraCueGeometry'
@@ -49,6 +50,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
           : null
         const fadePath = fadePoints ? `${fadePoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')} Z` : null
         const overlapPaths = camera.shape === 'overlap' ? cameraOverlapPathsForSegment(cue, segment) : null
+        const overlapPivotMark = camera.shape === 'overlap' ? cameraOverlapPivotMarkForSegment(cue, segment) : null
         return (
           <g
             key={`${cue.cueId}:${segment.regionId}:${segment.frameStart}`}
@@ -76,6 +78,8 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
             {fadePath && <path className="cameraCueShapeHit" d={fadePath} onPointerDown={event => onPointerDown(event, cue, 'move')} />}
             {overlapPaths?.map((points, index) => <polyline key={`stroke-${index}`} className="cameraCueStroke" points={points.map(point => `${point.x},${point.y}`).join(' ')} />)}
             {overlapPaths?.map((points, index) => <polyline key={`hit-${index}`} className="cameraCueShapeHit" points={points.map(point => `${point.x},${point.y}`).join(' ')} onPointerDown={event => onPointerDown(event, cue, 'move')} />)}
+            {overlapPivotMark && <line className="cameraCuePivotMarkHalo" x1={overlapPivotMark.x1} y1={overlapPivotMark.y} x2={overlapPivotMark.x2} y2={overlapPivotMark.y} />}
+            {overlapPivotMark && <line className="cameraCuePivotMark" x1={overlapPivotMark.x1} y1={overlapPivotMark.y} x2={overlapPivotMark.x2} y2={overlapPivotMark.y} />}
             {camera.shape === 'range' && segment.startsCue && (
               <polygon className="cameraCueMarker start" points={`${centerX - markerWidth / 2},${segment.rect.y} ${centerX + markerWidth / 2},${segment.rect.y} ${centerX},${segment.rect.y + markerHeight}`} />
             )}
@@ -84,11 +88,11 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
             )}
             {segment.startsCue && camera.startLabel && <EndpointLabel value={camera.startLabel} x={centerX + markerWidth * 0.75} y={segment.rect.y + markerHeight * 0.6} pageSize={pageSize} />}
             {segment.endsCue && camera.endLabel && <EndpointLabel value={camera.endLabel} x={centerX + markerWidth * 0.75} y={segment.rect.y + segment.rect.h - markerHeight * 0.25} pageSize={pageSize} />}
-            {selected && camera.shape === 'overlap' && camera.pivotFrame !== undefined && camera.pivotFrame >= segment.frameStart && camera.pivotFrame <= segment.frameEnd && (
+            {selected && overlapPivotMark && (
               <ellipse
                 className="cameraCuePivotHandle"
-                cx={centerX}
-                cy={segment.rect.y + (camera.pivotFrame - segment.frameStart + 0.5) * segment.rowHeight}
+                cx={(overlapPivotMark.x1 + overlapPivotMark.x2) / 2}
+                cy={overlapPivotMark.y}
                 rx={pivotRadiusX}
                 ry={pivotRadiusY}
                 onPointerDown={event => onPointerDown(event, cue, 'pivot')}

@@ -559,6 +559,11 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
     const pivot = forward[1]
     const reversePivot = reverse[1]
     if (!pivot || !reversePivot) return false
+    const pivotMark = cue.querySelector<SVGLineElement>('.cameraCuePivotMark')
+    const markX1 = Number(pivotMark?.getAttribute('x1'))
+    const markX2 = Number(pivotMark?.getAttribute('x2'))
+    const markY1 = Number(pivotMark?.getAttribute('y1'))
+    const markY2 = Number(pivotMark?.getAttribute('y2'))
     const expectedCenter = ((forward[0]?.x ?? 0) + (forward[2]?.x ?? 0)) / 2
     const singleCenteredCrossing = Math.abs(pivot.x - reversePivot.x) < 0.0000001
       && Math.abs(pivot.y - reversePivot.y) < 0.0000001
@@ -584,6 +589,13 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
     }
     const cueTop = Math.min(forward[0]?.y ?? Number.NaN, reverse[0]?.y ?? Number.NaN)
     const cueBottom = Math.max(forward[2]?.y ?? Number.NaN, reverse[2]?.y ?? Number.NaN)
+    const laneWidth = Math.abs((forward[2]?.x ?? Number.NaN) - (forward[0]?.x ?? Number.NaN))
+    const expectedPivotGridLineY = cueTop + (cueBottom - cueTop) * 12 / 24
+    const pivotIsOnFrameBoundary = Math.abs(pivot.y - expectedPivotGridLineY) < 0.0000001
+    const pivotMarkIsCentered = Math.abs((markX1 + markX2) / 2 - pivot.x) < 0.0000001
+      && Math.abs(markY1 - pivot.y) < 0.0000001
+      && Math.abs(markY2 - pivot.y) < 0.0000001
+      && Math.abs((markX2 - markX1) / laneWidth - 0.65) < 0.000001
     const labelCenterY = labelRect.y + labelRect.h / 2
     const labelProgress = (labelCenterY - cueTop) / Math.max(0.0000001, cueBottom - cueTop)
     const contained = labelRect.x >= regionRect.x - 0.0000001
@@ -593,13 +605,15 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
     const pivotCovered = pivot.x >= labelRect.x && pivot.x <= labelRect.x + labelRect.w
       && pivot.y >= labelRect.y && pivot.y <= labelRect.y + labelRect.h
     return singleCenteredCrossing
+      && pivotIsOnFrameBoundary
+      && pivotMarkIsCentered
       && Number(labelText?.getAttribute('font-size')) === 18
       && label?.dataset.cameraLabelOverflow === 'false'
       && contained
       && labelProgress >= 0.2
       && labelProgress <= 0.45
       && !pivotCovered
-  }, 'single-center OL crossing with a contained, start-biased, template-sized CAMERA label')
+  }, 'frame-boundary OL crossing with a 0.65-grid pivot mark and contained CAMERA label')
 
   await clickFrame('action', 'A', 8)
   await keyPress('1')
@@ -608,7 +622,7 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
   await waitForSelectedFrame('action', 'A', 9)
   const editorReopened = await evaluatePage<boolean>('Boolean(document.querySelector(\'[role="dialog"][aria-label="CAMERA指示を編集"]\'))')
   if (editorReopened) throw new Error('CAMERA editor reopened instead of accepting ACTION timing input')
-  checks.push('created a 24-frame OL with one centered crossing and a contained start-biased label, then continued ACTION input')
+  checks.push('created a 24-frame OL on the frame boundary with a 0.65-grid pivot mark, then continued ACTION input')
 }
 
 async function verifyTimelineRippleEditing(): Promise<void> {

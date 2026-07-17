@@ -65,7 +65,14 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
       if (!cue.camera) {
         issues.push(issue('error', 'cue.camera.missing', `camera cue ${cue.cueId} has no instruction geometry`, 'cue', cue.cueId))
       } else {
-        if (cue.camera.shape === 'overlap' && (cue.camera.pivotFrame === undefined || cue.camera.pivotFrame < cue.frameStart || cue.camera.pivotFrame > cue.frameEnd)) {
+        if (cue.camera.shape === 'overlap' && (
+          cue.camera.pivotAnchorFrame === undefined
+          || !Number.isInteger(cue.camera.pivotAnchorFrame)
+          || cue.camera.pivotAnchorFrame < cue.frameStart
+          || cue.camera.pivotAnchorFrame > ((cue.frameEnd - cue.frameStart + 1) % 2 === 0
+            ? Math.max(cue.frameStart, cue.frameEnd - 1)
+            : cue.frameEnd)
+        )) {
           issues.push(issue('error', 'cue.camera.pivot.invalid', `camera cue ${cue.cueId} has an invalid overlap pivot`, 'cue', cue.cueId))
         }
         const placement = cue.camera.labelPlacement

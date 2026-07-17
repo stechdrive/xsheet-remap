@@ -105,9 +105,9 @@ export function pasteTimedRangeCueClipboard<Role extends EditableTimedRangeRole>
       const frameStart = Math.min(maxFrame, cue.frameStart + clipboard.spanFrames)
       const frameEnd = Math.min(maxFrame, cue.frameEnd + clipboard.spanFrames)
       const frameDelta = frameStart - cue.frameStart
-      const camera = cue.camera?.pivotFrame === undefined
+      const camera = cue.camera?.pivotAnchorFrame === undefined
         ? cue.camera
-        : { ...cue.camera, pivotFrame: cue.camera.pivotFrame + frameDelta }
+        : { ...cue.camera, pivotAnchorFrame: cue.camera.pivotAnchorFrame + frameDelta }
       return { ...cue, frameStart: Math.min(frameStart, frameEnd), frameEnd, camera }
     })
     next = replaceTimedRangeCues(next, shifted)
@@ -118,9 +118,9 @@ export function pasteTimedRangeCueClipboard<Role extends EditableTimedRangeRole>
     const frameStart = targetStart + item.frameStartOffset
     if (frameStart > maxFrame) continue
     const frameDelta = frameStart - (clipboard.sourceFrameStart + item.frameStartOffset)
-    const camera = item.camera?.pivotFrame === undefined
+    const camera = item.camera?.pivotAnchorFrame === undefined
       ? item.camera
-      : { ...item.camera, pivotFrame: item.camera.pivotFrame + frameDelta }
+      : { ...item.camera, pivotAnchorFrame: item.camera.pivotAnchorFrame + frameDelta }
     const result = createTimedRangeCue(next, {
       role: clipboard.role,
       laneId: target.laneId,

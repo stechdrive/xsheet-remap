@@ -376,8 +376,12 @@ export interface CameraInstruction {
   shape: CameraInstructionShape
   startLabel: string
   endLabel: string
-  /** Crossing frame for overlap instructions. */
-  pivotFrame?: FrameIndex
+  /**
+   * Frame anchoring the crossing of an overlap instruction. Even-duration
+   * instructions cross on the boundary after this frame; odd-duration
+   * instructions cross at this frame's center.
+   */
+  pivotAnchorFrame?: FrameIndex
   /** Omitted while the renderer is responsible for automatic placement. */
   labelPlacement?: CameraLabelPlacement
 }

@@ -33,7 +33,7 @@ import {
 import { sheetImageFileName } from './outputFileNames'
 import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
-import { buildCameraCuePageLayouts, cameraFadePolygonForSegment, cameraOverlapPathsForSegment } from './cameraCueGeometry'
+import { buildCameraCuePageLayouts, cameraFadePolygonForSegment, cameraOverlapPivotMarkForSegment, cameraOverlapPathsForSegment } from './cameraCueGeometry'
 import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, textFontDeclaration } from './textMetrics'
 import {
   timelineMemoAnchorCellForPage,
@@ -691,6 +691,17 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         if (camera.shape === 'overlap') {
           for (const path of cameraOverlapPathsForSegment(cue, segment)) {
             drawNormalizedPolyline(ctx, path, pageWidth, pageHeight, offsetY)
+          }
+          const pivotMark = cameraOverlapPivotMarkForSegment(cue, segment)
+          if (pivotMark) {
+            ctx.save()
+            ctx.strokeStyle = 'rgba(255, 255, 252, 0.96)'
+            ctx.lineWidth = 4
+            drawCanvasLine(ctx, pivotMark.x1 * pageWidth, offsetY + pivotMark.y * pageHeight, pivotMark.x2 * pageWidth, offsetY + pivotMark.y * pageHeight)
+            ctx.strokeStyle = 'rgba(22, 67, 52, 0.98)'
+            ctx.lineWidth = 2
+            drawCanvasLine(ctx, pivotMark.x1 * pageWidth, offsetY + pivotMark.y * pageHeight, pivotMark.x2 * pageWidth, offsetY + pivotMark.y * pageHeight)
+            ctx.restore()
           }
         }
         if (camera.shape === 'range' && segment.startsCue) {

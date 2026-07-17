@@ -99,8 +99,8 @@ export function createCameraCueController(options: CameraCueControllerOptions) {
     const movesWholeRange = updates.frameStart !== undefined
       && updates.frameEnd !== undefined
       && frameEnd - cue.frameEnd === movedBy
-    const camera = updates.camera ?? (movesWholeRange && cue.camera?.pivotFrame !== undefined
-      ? { ...cue.camera, pivotFrame: cue.camera.pivotFrame + movedBy }
+    const camera = updates.camera ?? (movesWholeRange && cue.camera?.pivotAnchorFrame !== undefined
+      ? { ...cue.camera, pivotAnchorFrame: cue.camera.pivotAnchorFrame + movedBy }
       : cue.camera)
     const next = updateTimedRangeCue(sourceProject, cueId, { ...updates, camera })
     if (next !== sourceProject) options.commitProject(next)

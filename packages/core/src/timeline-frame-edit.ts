@@ -1,6 +1,6 @@
 import { logicalSheetOfficialFrameEnd } from './logical-sheet'
 import { compareTimelineEvents } from './project-shared'
-import { replaceTimedRangeCues } from './timed-range'
+import { clampCameraOverlapPivotAnchorFrame, replaceTimedRangeCues } from './timed-range'
 import { deleteTimelineMemoAnchors, insertTimelineMemoAnchors } from './timeline-memo'
 import type { CameraInstruction, CutProject, TimedRangeCue } from './types'
 
@@ -87,13 +87,17 @@ function insertIntoCamera(
   frameCount: number,
 ): CameraInstruction {
   const camera = cue.camera as CameraInstruction
-  const pivotFrame = camera.pivotFrame === undefined
+  const pivotAnchorFrame = camera.pivotAnchorFrame === undefined
     ? undefined
-    : insertPoint(camera.pivotFrame, atFrame, frameCount)
+    : clampCameraOverlapPivotAnchorFrame(
+        insertPoint(camera.pivotAnchorFrame, atFrame, frameCount),
+        nextCueRange.start,
+        nextCueRange.end,
+      )
   const labelPlacement = camera.labelPlacement
     ? placementAfterInsert(cue, nextCueRange, atFrame, frameCount)
     : undefined
-  return { ...camera, pivotFrame, labelPlacement }
+  return { ...camera, pivotAnchorFrame, labelPlacement }
 }
 
 function placementAfterInsert(
@@ -132,13 +136,17 @@ function deleteFromCamera(
   frameCount: number,
 ): CameraInstruction {
   const camera = cue.camera as CameraInstruction
-  const pivotFrame = camera.pivotFrame === undefined
+  const pivotAnchorFrame = camera.pivotAnchorFrame === undefined
     ? undefined
-    : clamp(deletePoint(camera.pivotFrame, frameStart, frameEnd, frameCount, nextCueRange), nextCueRange.start, nextCueRange.end)
+    : clampCameraOverlapPivotAnchorFrame(
+        deletePoint(camera.pivotAnchorFrame, frameStart, frameEnd, frameCount, nextCueRange),
+        nextCueRange.start,
+        nextCueRange.end,
+      )
   const labelPlacement = camera.labelPlacement
     ? placementAfterDelete(cue, nextCueRange, frameStart, frameEnd, frameCount)
     : undefined
-  return { ...camera, pivotFrame, labelPlacement }
+  return { ...camera, pivotAnchorFrame, labelPlacement }
 }
 
 function placementAfterDelete(

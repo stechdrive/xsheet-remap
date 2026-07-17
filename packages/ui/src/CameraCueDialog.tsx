@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import type { CameraInstruction, CameraInstructionShape, LogicalTimelineLane, TimedRangeCue } from '@xsheet-remap/core'
+import {
+  defaultCameraOverlapPivotAnchorFrame,
+  type CameraInstruction,
+  type CameraInstructionShape,
+  type LogicalTimelineLane,
+  type TimedRangeCue,
+} from '@xsheet-remap/core'
 import type { CameraCueDialogState } from './appTypes'
 
 export interface CameraCueDialogSubmit {
@@ -33,19 +39,23 @@ export function CameraCueDialog({ state, cue, lane, fps, frameMin, frameMax, onS
   const initialFrameEnd = cue?.frameEnd ?? state.frameEnd
   const initialDuration = Math.max(1, initialFrameEnd - initialFrameStart + 1)
   const initialCamera = cue?.camera
+  const initialPivotAnchor = initialCamera?.pivotAnchorFrame
+    ?? defaultCameraOverlapPivotAnchorFrame(initialFrameStart, initialFrameEnd)
   const [shape, setShape] = useState<CameraInstructionShape>(initialCamera?.shape ?? 'range')
   const [label, setLabel] = useState(cue?.label ?? '')
   const [startLabel, setStartLabel] = useState(initialCamera?.startLabel ?? '')
   const [endLabel, setEndLabel] = useState(initialCamera?.endLabel ?? '')
   const [frameStart, setFrameStart] = useState(initialFrameStart)
   const [durationFrames, setDurationFrames] = useState(initialDuration)
-  const [pivotOffset, setPivotOffset] = useState(Math.max(0, (initialCamera?.pivotFrame ?? Math.round((initialFrameStart + initialFrameEnd) / 2)) - initialFrameStart))
+  const [pivotAnchorOffset, setPivotAnchorOffset] = useState(Math.max(0, initialPivotAnchor - initialFrameStart))
   const [labelPlacement, setLabelPlacement] = useState(initialCamera?.labelPlacement)
   const instructionInputRef = useRef<HTMLInputElement>(null)
   const seconds = Math.floor(durationFrames / safeFps)
   const frames = durationFrames % safeFps
   const frameEnd = Math.min(frameMax, frameStart + durationFrames - 1)
-  const pivotFrame = Math.max(frameStart, Math.min(frameEnd, frameStart + pivotOffset))
+  const evenDuration = (frameEnd - frameStart + 1) % 2 === 0
+  const pivotAnchorMax = evenDuration ? Math.max(frameStart, frameEnd - 1) : frameEnd
+  const pivotAnchorFrame = Math.max(frameStart, Math.min(pivotAnchorMax, frameStart + pivotAnchorOffset))
   const laneLabel = lane?.label || state.laneId
   const dialogTitle = state.mode === 'edit' ? 'CAMERA指示を編集' : 'CAMERA指示を追加'
 
@@ -87,7 +97,7 @@ export function CameraCueDialog({ state, cue, lane, fps, frameMin, frameMax, onS
         shape,
         startLabel: startLabel.trim(),
         endLabel: endLabel.trim(),
-        pivotFrame: shape === 'overlap' ? pivotFrame : undefined,
+        pivotAnchorFrame: shape === 'overlap' ? pivotAnchorFrame : undefined,
         labelPlacement,
       },
     })
@@ -128,7 +138,17 @@ export function CameraCueDialog({ state, cue, lane, fps, frameMin, frameMax, onS
             </fieldset>
           </div>
           {shape === 'overlap' && (
-            <label><span>交差フレーム</span><input type="number" aria-label="CAMERA交差フレーム" min={frameStart} max={frameEnd} value={pivotFrame} onChange={event => setPivotOffset(Math.round(Number(event.currentTarget.value)) - frameStart)} /></label>
+            <label>
+              <span>{evenDuration ? '交差位置（このフレーム後）' : '交差位置（フレーム中央）'}</span>
+              <input
+                type="number"
+                aria-label="CAMERA交差フレーム"
+                min={frameStart}
+                max={pivotAnchorMax}
+                value={pivotAnchorFrame}
+                onChange={event => setPivotAnchorOffset(Math.round(Number(event.currentTarget.value)) - frameStart)}
+              />
+            </label>
           )}
           {labelPlacement && (
             <div className="cameraCueManualPlacementNotice">

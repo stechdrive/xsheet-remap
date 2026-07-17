@@ -1,8 +1,8 @@
 import { createDefaultProject, createSheetPages, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
 import { describe, expect, it } from 'vitest'
-import { assetAssignedMarkerPoints } from './sheet-selection-visuals'
+import { assetAssignedMarkerPoints, assetAssignedMarkerSize } from './sheet-selection-visuals'
 import { createTimelineMemoForHit } from './timelineMemoEditing'
-import { timelineMemoAnchorCellForPage, timelineMemoAnchorConnectorPoints, timelineMemoAnchorMarkerRect, timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment } from './timelineMemoGeometry'
+import { timelineMemoAnchorCellForPage, timelineMemoAnchorConnectorPoints, timelineMemoAnchorHitRect, timelineMemoAnchorMarkerRect, timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment } from './timelineMemoGeometry'
 
 function memo(frame: number, heightFrames: number): TimelineInkMemo {
   return {
@@ -44,16 +44,25 @@ describe('timeline memo geometry', () => {
     expect(startSegment?.regionId).toBe('right_action_grid')
   })
 
-  it('places the memo cue on the left without colliding with the asset flag on the right', () => {
+  it('uses the shared corner-marker size on the left without colliding with the asset flag on the right', () => {
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const cell = timelineMemoAnchorCellForPage(standardA3SheetTemplate, page, memo(10, 8), { paperTracks: ['A'] })!.rect
     const surface = { widthPx: 877, heightPx: 1241 }
     const memoMarker = timelineMemoAnchorMarkerRect(cell, surface)
+    const memoHit = timelineMemoAnchorHitRect(cell, surface)
+    const assetMarker = assetAssignedMarkerSize(cell, surface)
     const assetXs = assetAssignedMarkerPoints(cell, surface).split(' ').map(point => Number(point.split(',')[0]))
     expect(memoMarker.x).toBe(cell.x)
+    expect(memoMarker.y).toBe(cell.y)
     expect(memoMarker.x + memoMarker.w).toBeLessThan(Math.min(...assetXs))
-    expect(memoMarker.w * surface.widthPx).toBeLessThanOrEqual(3)
-    expect(memoMarker.h * surface.heightPx).toBeLessThanOrEqual(9)
+    expect(memoMarker.w).toBe(assetMarker.width)
+    expect(memoMarker.h).toBe(assetMarker.height)
+    expect(memoHit.w).toBeGreaterThanOrEqual(memoMarker.w)
+    expect(memoHit.h).toBeGreaterThanOrEqual(memoMarker.h)
+    expect(memoHit.w * surface.widthPx).toBeCloseTo(14)
+    expect(memoHit.h * surface.heightPx).toBeCloseTo(14)
+    expect(memoHit.w * surface.widthPx).toBeLessThanOrEqual(16)
+    expect(memoHit.h * surface.heightPx).toBeLessThanOrEqual(16)
   })
 
   it('draws a selected connector only after the memo canvas leaves its anchor cell', () => {

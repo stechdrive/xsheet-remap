@@ -219,7 +219,11 @@ export function SheetPanel(props: {
     const closeOutside = (event: globalThis.PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null
       const memoElement = target?.closest('[data-timeline-memo-id]')
-      if (memoElement?.getAttribute('data-timeline-memo-id') === activeTimelineMemoId || target?.closest('.sheetContextMenu, .annotationFloatingPalette')) return
+      const memoAnchorElement = target?.closest('[data-timeline-memo-ids]')
+      const anchorMemoIds = (memoAnchorElement?.getAttribute('data-timeline-memo-ids') ?? '').split(/\s+/).filter(Boolean)
+      if (memoElement?.getAttribute('data-timeline-memo-id') === activeTimelineMemoId
+        || anchorMemoIds.includes(activeTimelineMemoId)
+        || target?.closest('.sheetContextMenu, .annotationFloatingPalette')) return
       endTimelineMemoEdit()
     }
     const closeOnEscape = (event: KeyboardEvent) => {

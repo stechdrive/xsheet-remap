@@ -4,12 +4,14 @@ import type { EditMode } from './appTypes'
 import {
   timelineMemoAnchorCellForPage,
   timelineMemoAnchorConnectorPoints,
+  timelineMemoAnchorHitRect,
   timelineMemoAnchorMarkerRect,
   timelineMemoPointFromPagePoint,
   timelineMemoSegmentsForPage,
   timelineMemoStrokePath,
   type TimelineMemoSegment,
 } from './timelineMemoGeometry'
+import { sheetCellCornerTrianglePoints } from './sheetCellCornerMarker'
 
 type MemoInteraction = {
   pointerId: number
@@ -60,8 +62,12 @@ export function TimelineMemoLayer({
     .slice()
     .sort((left, right) => left.order - right.order)
     .map(memo => interaction?.memo.memoId === memo.memoId ? { ...memo, placement: interaction.previewPlacement } : memo), [interaction, memos])
-  const handleW = 18 / Math.max(1, pageSize.widthPx)
-  const handleH = 18 / Math.max(1, pageSize.heightPx)
+  const handleW = 16 / Math.max(1, pageSize.widthPx)
+  const handleH = 16 / Math.max(1, pageSize.heightPx)
+  const moveGripW = 10 / Math.max(1, pageSize.widthPx)
+  const moveGripH = 8 / Math.max(1, pageSize.heightPx)
+  const resizeMarkW = 9 / Math.max(1, pageSize.widthPx)
+  const resizeMarkH = 9 / Math.max(1, pageSize.heightPx)
   const edgeW = 1.25 / Math.max(1, pageSize.widthPx)
   const edgeH = 1.25 / Math.max(1, pageSize.heightPx)
   const renderedMemoSegments = renderedMemos.map(memo => ({
@@ -177,12 +183,25 @@ export function TimelineMemoLayer({
         const draftPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'draw' ? interaction.points : null
         const eraserPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'erase' ? interaction.points : null
         const drawingToolActive = editMode === 'pen' || editMode === 'eraser'
+        const hitW = Math.min(segment.rect.w, handleW)
+        const hitH = Math.min(segment.rect.h, handleH)
+        const gripW = Math.min(segment.rect.w, moveGripW)
+        const gripH = Math.min(segment.rect.h, moveGripH)
+        const gripX = segment.rect.x + Math.max(0, (hitW - gripW) / 2)
+        const gripY = segment.rect.y + Math.max(0, (hitH - gripH) / 2)
+        const resizeW = Math.min(segment.rect.w, resizeMarkW)
+        const resizeH = Math.min(segment.rect.h, resizeMarkH)
+        const resizeRight = segment.rect.x + segment.rect.w - Math.min(2 / Math.max(1, pageSize.widthPx), resizeW * 0.2)
+        const resizeBottom = segment.rect.y + segment.rect.h - Math.min(2 / Math.max(1, pageSize.heightPx), resizeH * 0.2)
         return (
           <g key={`${memo.memoId}:${segment.regionId}`} data-timeline-memo-id={memo.memoId} className={selected ? 'timelineMemoSegment selected' : 'timelineMemoSegment'}>
-            <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
+            {selected && <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />}
             {memo.strokes.map(stroke => {
               const path = timelineMemoStrokePath(segment, stroke.points)
-              return path ? <path key={stroke.strokeId} className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} /> : null
+              return path ? <g key={stroke.strokeId}>
+                {!selected && <path className="timelineMemoStrokeHit" d={path} />}
+                <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />
+              </g> : null
             })}
             {draftPoints && (() => {
               const path = timelineMemoStrokePath(segment, draftPoints)
@@ -201,9 +220,9 @@ export function TimelineMemoLayer({
             </g>}
             {selected && drawingToolActive && <rect
               className={editMode === 'eraser' ? 'timelineMemoDrawSurface eraser' : 'timelineMemoDrawSurface'}
-              x={segment.rect.x + handleW}
+              x={segment.rect.x}
               y={segment.rect.y}
-              width={Math.max(0, segment.rect.w - handleW)}
+              width={segment.rect.w}
               height={segment.rect.h}
               onPointerDown={event => begin(event, memo, segment, editMode === 'eraser' ? 'erase' : 'draw')}
               onPointerMove={move}
@@ -218,46 +237,57 @@ export function TimelineMemoLayer({
               onPointerUp={finish}
               onPointerCancel={event => finish(event, true)}
             >
-              <rect x={segment.rect.x} y={segment.rect.y} width={handleW} height={handleH} />
-              <rect className="timelineMemoMoveHandleGlyph" x={segment.rect.x + handleW * 0.2} y={segment.rect.y + handleH * 0.45} width={handleW * 0.6} height={handleH * 0.1} />
-              <rect className="timelineMemoMoveHandleGlyph" x={segment.rect.x + handleW * 0.45} y={segment.rect.y + handleH * 0.2} width={handleW * 0.1} height={handleH * 0.6} />
+              <title>メモを移動</title>
+              <rect className="timelineMemoHandleHitArea" x={segment.rect.x} y={segment.rect.y} width={hitW} height={hitH} />
+              <rect className="timelineMemoMoveHandleVisual" x={gripX} y={gripY} width={gripW} height={gripH} rx={Math.min(gripW, gripH) * 0.34} />
+              {[0.3, 0.5, 0.7].map(ratio => <line
+                key={ratio}
+                className="timelineMemoMoveHandleGrip"
+                x1={gripX + gripW * 0.25}
+                y1={gripY + gripH * ratio}
+                x2={gripX + gripW * 0.75}
+                y2={gripY + gripH * ratio}
+              />)}
             </g>}
-            {selected && segment.endsMemo && <rect
+            {selected && segment.endsMemo && <g
               className="timelineMemoResizeHandle"
               aria-label="メモの大きさを変更"
-              x={segment.rect.x + segment.rect.w - handleW}
-              y={segment.rect.y + segment.rect.h - handleH}
-              width={handleW}
-              height={handleH}
               onPointerDown={event => begin(event, memo, segment, 'resize')}
               onPointerMove={move}
               onPointerUp={finish}
               onPointerCancel={event => finish(event, true)}
-            />}
+            >
+              <title>メモの大きさを変更</title>
+              <rect className="timelineMemoHandleHitArea" x={segment.rect.x + segment.rect.w - hitW} y={segment.rect.y + segment.rect.h - hitH} width={hitW} height={hitH} />
+              <path className="timelineMemoResizeHandleVisual" d={`M ${resizeRight - resizeW} ${resizeBottom} H ${resizeRight} V ${resizeBottom - resizeH}`} />
+            </g>}
           </g>
         )
       }))}
       {selectedConnectorPoints && <polygon className="timelineMemoAnchorConnector" points={selectedConnectorPoints} />}
       {[...anchorGroups.entries()].map(([key, group]) => {
-        const marker = timelineMemoAnchorMarkerRect(group.anchorCell.rect, surface)
+        const hitRect = timelineMemoAnchorHitRect(group.anchorCell.rect, surface)
         const selected = Boolean(selectedMemoId && group.memoIds.includes(selectedMemoId))
         const memoCount = group.memoIds.length
         return (
           <g
             key={key}
             className={selected ? 'timelineMemoAnchorCue selected' : 'timelineMemoAnchorCue'}
+            data-timeline-memo-id={selectedMemoId && group.memoIds.includes(selectedMemoId) ? selectedMemoId : undefined}
+            data-timeline-memo-ids={group.memoIds.join(' ')}
             data-timeline-memo-anchor-frame={group.anchorFrame}
             data-timeline-memo-count={memoCount}
             aria-label={memoCount === 1 ? '手書きメモのアンカー' : `手書きメモのアンカー ${memoCount}件`}
           >
+            <title>{memoCount === 1 ? '手書きメモ' : `手書きメモ ${memoCount}件`}</title>
             <rect
-              className="timelineMemoAnchorMarker"
-              x={marker.x}
-              y={marker.y}
-              width={marker.w}
-              height={marker.h}
-              rx={Math.min(marker.w, marker.h) * 0.32}
+              className="timelineMemoAnchorHitArea"
+              x={hitRect.x}
+              y={hitRect.y}
+              width={hitRect.w}
+              height={hitRect.h}
             />
+            <polygon className="timelineMemoAnchorMarker" points={sheetCellCornerTrianglePoints(group.anchorCell.rect, surface, 'top-left')} />
           </g>
         )
       })}

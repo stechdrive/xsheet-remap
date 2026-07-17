@@ -48,6 +48,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     left: `${Math.max(8, Math.min(cameraCueHoverAnchor.x + 14, (typeof window === 'undefined' ? 1024 : window.innerWidth) - 268))}px`,
     top: `${Math.max(8, Math.min(cameraCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
   } : undefined
+  const contextTimelineMemoIds = contextMenu?.timelineMemoIds ?? []
 
   return (
     <div
@@ -496,12 +497,20 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           onPointerDown={event => event.stopPropagation()}
           onContextMenu={event => event.preventDefault()}
         >
-          {timelineMemoContext ? (
+          {timelineMemoContext && (
             <>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSelectTimelineMemo(contextMenu.timelineMemoId ?? null))}>メモを編集</button>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => contextMenu.timelineMemoId && props.onDeleteTimelineMemo(contextMenu.timelineMemoId))}>メモを削除</button>
+              <div className="sheetContextMenuTitle">手書きメモ</div>
+              {contextTimelineMemoIds.flatMap((memoId, index) => {
+                const suffix = contextTimelineMemoIds.length > 1 ? ` ${index + 1}` : ''
+                return [
+                  <button key={`${memoId}:edit`} role="menuitem" onClick={() => runContextMenuAction(() => props.onSelectTimelineMemo(memoId))}>メモ{suffix}を編集</button>,
+                  <button key={`${memoId}:delete`} role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteTimelineMemo(memoId))}>メモ{suffix}を削除</button>,
+                ]
+              })}
             </>
-          ) : soundContext ? (
+          )}
+          {timelineMemoContext && <div className="sheetContextMenuTitle">背面のシート操作</div>}
+          {soundContext ? (
             <>
               <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCopySoundCues)}>{uiText.actions.copyRange}</button>
               <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutSoundCues)}>{uiText.actions.cutRange}</button>
@@ -542,7 +551,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onCreateTimelineMemo(contextMenu.hit as SheetHit))}>メモを追加</button>
             </>
           )}
-          {!timelineMemoContext && frameOperationContext && (
+          {frameOperationContext && (
             <>
               <div className="sheetContextMenuTitle">{uiText.frameOperation.title}</div>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenFrameOperation('insert', contextMenu.hit as SheetHit))}>{uiText.frameOperation.insert}</button>

@@ -10,6 +10,7 @@ import {
   type TimelineInkMemo,
   type TimelineMemoPoint,
 } from '@xsheet-remap/core'
+import { sheetCellCornerMarkerHitRect, sheetCellCornerMarkerRect } from './sheetCellCornerMarker'
 
 export interface TimelineMemoSegment {
   memoId: string
@@ -76,14 +77,14 @@ export function timelineMemoAnchorMarkerRect(
   cellRect: NormalizedRect,
   surface: TimelineMemoDisplaySurface,
 ): NormalizedRect {
-  const width = Math.min(cellRect.w * 0.28, 3 / Math.max(1, surface.widthPx))
-  const height = Math.min(cellRect.h * 0.68, 9 / Math.max(1, surface.heightPx))
-  return {
-    x: cellRect.x,
-    y: cellRect.y + (cellRect.h - height) / 2,
-    w: width,
-    h: height,
-  }
+  return sheetCellCornerMarkerRect(cellRect, surface, 'top-left')
+}
+
+export function timelineMemoAnchorHitRect(
+  cellRect: NormalizedRect,
+  surface: TimelineMemoDisplaySurface,
+): NormalizedRect {
+  return sheetCellCornerMarkerHitRect(cellRect, surface, 'top-left')
 }
 
 export function timelineMemoAnchorConnectorPoints(

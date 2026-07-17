@@ -8,6 +8,7 @@ import {
   type CutProject,
   type SheetHit,
   type SheetTemplate,
+  type TimedRangeCue,
   type TimelineInkMemo,
   type TimelineMemoRole,
 } from '@xsheet-remap/core'
@@ -15,6 +16,44 @@ import type { SheetRangeSelection } from './appTypes'
 import { timedRangeLaneIdForHit } from './timedRangeCueEditing'
 
 const MEMO_ROLES = new Set<TimelineMemoRole>(['action', 'cell', 'sound', 'camera'])
+
+export function timelineMemoIdsFromElement(target: Element | null): string[] | undefined {
+  const anchor = target?.closest<HTMLElement>('[data-timeline-memo-ids]')
+  const anchorIds = (anchor?.dataset.timelineMemoIds ?? '').split(/\s+/).filter(Boolean)
+  if (anchorIds.length > 0) return anchorIds
+  const memoId = target?.closest<HTMLElement>('[data-timeline-memo-id]')?.dataset.timelineMemoId
+  return memoId ? [memoId] : undefined
+}
+
+export function timedRangeCueForMemoContext(
+  project: CutProject,
+  template: SheetTemplate,
+  hit: SheetHit | null,
+  memoIds: readonly string[] | undefined,
+): TimedRangeCue | undefined {
+  if (!memoIds?.length || !hit || (hit.role !== 'sound' && hit.role !== 'camera')) return undefined
+  const laneId = timedRangeLaneIdForHit(template, hit.role, hit)
+  return laneId
+    ? project.timedRangeCues.find(cue => cue.role === hit.role && cue.laneId === laneId && cue.frameStart <= hit.frame && cue.frameEnd >= hit.frame)
+    : undefined
+}
+
+export function resolveTimelineMemoContextTargets(
+  target: Element | null,
+  project: CutProject,
+  template: SheetTemplate,
+  hit: SheetHit | null,
+) {
+  const timelineMemoIds = timelineMemoIdsFromElement(target)
+  const coveredTimedCue = timedRangeCueForMemoContext(project, template, hit, timelineMemoIds)
+  return {
+    timelineMemoIds,
+    soundCueId: target?.closest<HTMLElement>('[data-sound-cue-id]')?.dataset.soundCueId
+      ?? (coveredTimedCue?.role === 'sound' ? coveredTimedCue.cueId : undefined),
+    cameraCueId: target?.closest<HTMLElement>('[data-camera-cue-id]')?.dataset.cameraCueId
+      ?? (coveredTimedCue?.role === 'camera' ? coveredTimedCue.cueId : undefined),
+  }
+}
 
 export function createTimelineMemoForHit(
   project: CutProject,

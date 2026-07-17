@@ -512,6 +512,34 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), 'timeline memo edit exit')
   await waitForPageCondition(() => Boolean(document.querySelector('.annotationFloatingPalette[data-annotation-target="sheet"]')), 'sheet annotation target restored')
   await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoAnchorCue:not(.selected)[data-timeline-memo-anchor-frame="70"]')), 'persistent timeline memo anchor cue')
+  const unselectedMemoOwnsOnlyInk = await evaluatePage<boolean>(`
+    !document.querySelector('.timelineMemoSegment:not(.selected) .timelineMemoHitArea')
+      && Boolean(document.querySelector('.timelineMemoSegment:not(.selected) .timelineMemoStrokeHit'))
+  `)
+  if (!unselectedMemoOwnsOnlyInk) throw new Error('unselected timeline memo still owns its transparent canvas')
+  await mouseClick(await centerOfSelector('.timelineMemoAnchorCue[data-timeline-memo-anchor-frame="70"] .timelineMemoAnchorHitArea'), 'right')
+  await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'timeline memo anchor context menu')
+  const contextMenuKeepsSheetActions = await evaluatePage<boolean>(`
+    (() => {
+      const menu = document.querySelector('[role="menu"]');
+      const labels = Array.from(menu?.querySelectorAll('[role="menuitem"]') ?? []).map(item => item.textContent?.trim());
+      return labels.includes('メモを編集') && labels.includes('メモを削除') && labels.includes('挿入') && labels.includes('削除');
+    })()
+  `)
+  if (!contextMenuKeepsSheetActions) throw new Error('timeline memo context menu hides the underlying sheet actions')
+  await clickMenuItem('メモを編集')
+  await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoSegment.selected')), 'timeline memo re-entry from anchor')
+  await waitForPageCondition(() => Boolean(document.querySelector('.annotationFloatingPalette[data-annotation-target="timeline-memo"]')), 'timeline memo tools restored after re-entry')
+  const refinedHandlesVisible = await evaluatePage<boolean>(`
+    Boolean(document.querySelector('.timelineMemoMoveHandleVisual'))
+      && document.querySelectorAll('.timelineMemoMoveHandleGrip').length === 3
+      && Boolean(document.querySelector('.timelineMemoResizeHandleVisual'))
+      && !document.querySelector('.timelineMemoMoveHandleGlyph')
+  `)
+  if (!refinedHandlesVisible) throw new Error('refined timeline memo move and resize handles are unavailable')
+  await mouseClick(exitMemoPoint)
+  await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), 'timeline memo second edit exit')
+  checks.push('re-entered memo editing from the shared-size anchor while preserving underlying sheet actions')
   await mouseClick(exitMemoPoint)
   await keyPress('4')
   await keyPress('Enter')

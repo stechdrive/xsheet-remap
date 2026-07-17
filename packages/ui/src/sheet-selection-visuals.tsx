@@ -1,11 +1,11 @@
 import type { NormalizedRect } from '@xsheet-remap/core'
+import { sheetCellCornerMarkerRect, sheetCellCornerMarkerSize } from './sheetCellCornerMarker'
 
 export type SheetSelectionSurface = {
   widthPx: number
   heightPx: number
 }
 
-const ASSET_MARKER_SIZE_PX = 9
 const SELECTED_CORNER_SIZE_PX = 8
 const RANGE_BOUNDARY_INSET_PX = 1
 const RANGE_MERGE_EPSILON = 0.00001
@@ -15,21 +15,18 @@ function safeSurfaceSize(value: number): number {
 }
 
 export function assetAssignedMarkerSize(rect: NormalizedRect, surface: SheetSelectionSurface) {
-  return {
-    width: Math.min(rect.w * 0.46, ASSET_MARKER_SIZE_PX / safeSurfaceSize(surface.widthPx)),
-    height: Math.min(rect.h * 0.52, ASSET_MARKER_SIZE_PX / safeSurfaceSize(surface.heightPx)),
-  }
+  return sheetCellCornerMarkerSize(rect, surface)
 }
 
 export function assetAssignedMarkerPoints(rect: NormalizedRect, surface: SheetSelectionSurface): string {
-  const { width, height } = assetAssignedMarkerSize(rect, surface)
-  const right = rect.x + rect.w
-  const bottom = rect.y + height
+  const marker = sheetCellCornerMarkerRect(rect, surface, 'top-right')
+  const right = marker.x + marker.w
+  const bottom = marker.y + marker.h
   return [
-    `${right - width},${rect.y}`,
-    `${right},${rect.y}`,
+    `${marker.x},${marker.y}`,
+    `${right},${marker.y}`,
     `${right},${bottom}`,
-    `${right - width * 0.34},${rect.y + height * 0.62}`,
+    `${right - marker.w * 0.34},${marker.y + marker.h * 0.62}`,
   ].join(' ')
 }
 

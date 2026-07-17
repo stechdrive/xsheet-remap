@@ -149,7 +149,7 @@ export interface SheetContextMenuState {
   x: number
   y: number
   hit: SheetHit | null
-  timelineMemoId?: string
+  timelineMemoIds?: string[]
   snapIndex?: number
   sheetRole?: SheetTimingRole
   insertAfterPaperTrack?: string

@@ -20,6 +20,7 @@ import { singleMovableBindingForHit } from './app-registered-cells';
 import type { SoundCueDragMode } from './SoundCueLayer';
 import type { CameraCueDragGeometry, CameraCueDragMode } from './CameraCueLayer';
 import { timedRangeLaneIdForHit, type EditableTimedRangeRole } from './timedRangeCueEditing';
+import { resolveTimelineMemoContextTargets } from './timelineMemoEditing';
 import { frameOperationRangeContainsHit } from './frameOperations'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller';
 import { releasePointerCaptureForElements, type DraftRangeInteraction, type PendingTimelineEventInteraction, type TimelineEventDragInteraction } from './sheet-pointer-session';
@@ -1826,10 +1827,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       return
     }
     const hit = rangeHitFromPoint(point, page)
-    const timelineMemoElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-timeline-memo-id]') : null; const soundCueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-sound-cue-id]') : null
-    const cameraCueElement = event.target instanceof Element ? event.target.closest<SVGGElement>('[data-camera-cue-id]') : null
-    const soundCueId = soundCueElement?.dataset.soundCueId
-    const cameraCueId = cameraCueElement?.dataset.cameraCueId
+    const { timelineMemoIds, soundCueId, cameraCueId } = resolveTimelineMemoContextTargets(event.target instanceof Element ? event.target : null, props.project, props.template, hit)
     if (soundCueId && !(hit && frameOperationRangeContainsHit(props.rangeSelection, hit))) {
       props.onSoundCueSelect(soundCueId)
     } else if (cameraCueId && !(hit && frameOperationRangeContainsHit(props.rangeSelection, hit))) {
@@ -1849,7 +1847,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       x: event.clientX,
       y: event.clientY,
       hit,
-      timelineMemoId: timelineMemoElement?.dataset.timelineMemoId,
+      timelineMemoIds,
       snapIndex,
       sheetRole,
       insertAfterPaperTrack: hit?.paperTrack,
@@ -2239,7 +2237,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const contextProcessMoveOptions = contextProcessMove ? processMoveOptionsForSlot(props.project, contextProcessMove.slot, contextProcessMove.binding.keyId) : []
   const soundContext = contextMenu?.hit?.role === 'sound' || Boolean(props.selectedSoundCueId)
   const cameraContext = contextMenu?.hit?.role === 'camera' || Boolean(props.selectedCameraCueId)
-  const timedRangeContext = soundContext || cameraContext; const timelineMemoContext = Boolean(contextMenu?.timelineMemoId)
+  const timedRangeContext = soundContext || cameraContext
+  const timelineMemoContext = Boolean(contextMenu?.timelineMemoIds?.length)
   const frameOperationContext = contextMenu?.hit?.role === 'action' || contextMenu?.hit?.role === 'cell' || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera'
   const canCopyContextRange = soundContext
     ? Boolean(props.selectedSoundCueId || props.rangeSelection?.role === 'sound')
@@ -2256,7 +2255,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const canPasteContextRepeatToEnd = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-to-end', contextPaperTrackOrder)
   const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera')
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
-  const sheetContextMenuItemCount = (timelineMemoContext ? 2 : timedRangeContext ? 10 : 13) + contextProcessMoveItemCount
+  const timelineMemoItemCount = (contextMenu?.timelineMemoIds?.length ?? 0) * 2
+  const sheetContextMenuItemCount = (timedRangeContext ? 10 : 13) + timelineMemoItemCount + contextProcessMoveItemCount
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null

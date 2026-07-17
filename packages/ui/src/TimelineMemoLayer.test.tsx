@@ -41,8 +41,11 @@ describe('TimelineMemoLayer anchor cues', () => {
     const cues = container.querySelectorAll('.timelineMemoAnchorCue')
     expect(cues).toHaveLength(1)
     expect(cues[0]?.getAttribute('data-timeline-memo-count')).toBe('2')
+    expect(cues[0]?.getAttribute('data-timeline-memo-ids')).toBe('memo_1 memo_2')
     expect(cues[0]?.getAttribute('data-timeline-memo-anchor-frame')).toBe('10')
     expect(cues[0]?.querySelectorAll('.timelineMemoAnchorMarker')).toHaveLength(1)
+    expect(cues[0]?.querySelector('.timelineMemoAnchorMarker')?.tagName.toLowerCase()).toBe('polygon')
+    expect(cues[0]?.querySelectorAll('.timelineMemoAnchorHitArea')).toHaveLength(1)
   })
 
   it('shows a connector only while a displaced memo is selected', () => {
@@ -122,6 +125,10 @@ describe('TimelineMemoLayer anchor cues', () => {
       </svg>,
     )
     expect(container.querySelector('.timelineMemoDrawSurface')).toBeNull()
+    expect(container.querySelector('.timelineMemoMoveHandleVisual')).toBeTruthy()
+    expect(container.querySelectorAll('.timelineMemoMoveHandleGrip')).toHaveLength(3)
+    expect(container.querySelector('.timelineMemoResizeHandleVisual')).toBeTruthy()
+    expect(container.querySelector('.timelineMemoMoveHandleGlyph')).toBeNull()
 
     rerender(
       <svg viewBox="0 0 1 1">
@@ -151,5 +158,41 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(onEraseStroke).toHaveBeenCalledTimes(1)
     expect(onEraseStroke.mock.calls[0]?.[0]).toBe(selected.memoId)
     expect(onEraseStroke.mock.calls[0]?.[2]).toBeGreaterThan(0)
+  })
+
+  it('releases an unselected transparent canvas while keeping ink and the anchor targetable', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const source = memo('memo_1')
+    source.strokes = [{
+      strokeId: 'stroke_1',
+      color: '#111',
+      widthUnits: 0.2,
+      points: [{ x: 1, y: 1 }, { x: 5, y: 5 }],
+    }]
+    const { container } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[source]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
+          selectedMemoId={null}
+          editMode="new"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+
+    expect(container.querySelector('.timelineMemoHitArea')).toBeNull()
+    expect(container.querySelector('.timelineMemoStrokeHit')).toBeTruthy()
+    expect(container.querySelector('.timelineMemoAnchorHitArea')).toBeTruthy()
   })
 })

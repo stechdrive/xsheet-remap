@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type CameraInstruction, type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
+import { type CameraInstruction, type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetImageSettings, type SoundCueClipboard, type TimingClipboard } from './appTypes';
 import { type DropDiagnosticReport } from './AssetBrowser';
@@ -1321,6 +1321,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const hint = mode === 'move' ? 'CAMERA区間を移動中'
       : mode === 'resize-start' || mode === 'resize-end' ? 'CAMERA区間の長さを変更中'
         : mode === 'pivot' ? 'CAMERA交差位置を変更中'
+          : mode === 'point' ? 'CAMERA中間点を移動中'
           : mode === 'move-label' ? 'CAMERAラベルを移動中'
             : 'CAMERAラベルの大きさを変更中'
     props.onStatusHint('sheet-drag', hint)
@@ -1341,7 +1342,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     let laneId = origin.laneId
     let frameStart = origin.frameStart
     let frameEnd = origin.frameEnd
-    let camera = origin.camera ?? { shape: 'range' as const, startLabel: '', endLabel: '' }
+    let camera = origin.camera ?? { shape: 'range' as const, points: [] }
 
     if (currentDrag.mode === 'move') {
       frameStart = clampNumber(pointed.hit.frame - currentDrag.grabOffsetFrames, displayFrameStart, displayFrameEnd - duration + 1)
@@ -1351,12 +1352,22 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       if (camera.pivotAnchorFrame !== undefined) camera = { ...camera, pivotAnchorFrame: camera.pivotAnchorFrame + delta }
     } else if (currentDrag.mode === 'resize-start') {
       frameStart = clampNumber(pointed.hit.frame, displayFrameStart, origin.frameEnd)
-      if (camera.pivotAnchorFrame !== undefined) camera = { ...camera, pivotAnchorFrame: clampCameraOverlapPivotAnchorFrame(camera.pivotAnchorFrame, frameStart, frameEnd) }
+      camera = transformCameraInstructionRange(camera, origin.frameStart, origin.frameEnd, frameStart, frameEnd)
     } else if (currentDrag.mode === 'resize-end') {
       frameEnd = clampNumber(pointed.hit.frame, origin.frameStart, displayFrameEnd)
-      if (camera.pivotAnchorFrame !== undefined) camera = { ...camera, pivotAnchorFrame: clampCameraOverlapPivotAnchorFrame(camera.pivotAnchorFrame, frameStart, frameEnd) }
+      camera = transformCameraInstructionRange(camera, origin.frameStart, origin.frameEnd, frameStart, frameEnd)
     } else if (currentDrag.mode === 'pivot') {
       camera = { ...camera, pivotAnchorFrame: clampCameraOverlapPivotAnchorFrame(pointed.hit.frame, origin.frameStart, origin.frameEnd) }
+    } else if (currentDrag.mode === 'point' && currentDrag.labelGeometry?.pointId) {
+      const points = resolveCameraInstructionPoints(camera, origin.frameStart, origin.frameEnd)
+      const pointIndex = points.findIndex(point => point.pointId === currentDrag.labelGeometry?.pointId)
+      const point = points[pointIndex]
+      if (point?.role === 'intermediate') {
+        const previousOffset = points.slice(0, pointIndex).reverse().find(item => item.frameOffset < point.frameOffset)?.frameOffset ?? 0
+        const nextOffset = points.slice(pointIndex + 1).find(item => item.frameOffset > point.frameOffset)?.frameOffset ?? duration - 1
+        const frameOffset = clampNumber(pointed.hit.frame - origin.frameStart, previousOffset + 1, nextOffset - 1)
+        camera = { ...camera, points: points.map(item => item.pointId === point.pointId ? { ...item, frameOffset } : item) }
+      }
     } else if (currentDrag.labelOriginPlacement && currentDrag.labelGeometry?.labelLayout) {
       const placement = currentDrag.labelOriginPlacement
       if (currentDrag.mode === 'move-label') {

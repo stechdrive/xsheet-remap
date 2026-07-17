@@ -5,8 +5,9 @@ import type {
   SheetTemplate,
   SheetViewLayoutOverrides,
   TimedRangeCue,
+  CameraInstructionPoint,
 } from '@xsheet-remap/core'
-import { clampCameraOverlapPivotAnchorFrame, defaultCameraOverlapPivotAnchorFrame } from '@xsheet-remap/core'
+import { clampCameraOverlapPivotAnchorFrame, defaultCameraOverlapPivotAnchorFrame, resolveCameraInstructionPoints } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import {
@@ -37,6 +38,17 @@ export interface CameraCuePageLayout {
   label: CameraCueLabelLayout | null
 }
 
+export interface CameraCuePointLayout {
+  point: CameraInstructionPoint
+  frame: number
+  anchor: NormalizedPoint
+  rect: NormalizedRect
+  regionRect: NormalizedRect
+  fontSizePx: number
+  textXpx: number
+  textYpx: number
+}
+
 interface CameraCueLabelVariant {
   orientation: CameraCueLabelLayout['orientation']
   widthPx: number
@@ -65,6 +77,52 @@ export function cameraCueSegmentsForPage(
   options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): CameraCueSegment[] {
   return timedRangeCueSegmentsForPage(template, page, cue, 'camera', options)
+}
+
+export function cameraCuePointLayoutsForPage(
+  template: SheetTemplate,
+  cue: TimedRangeCue,
+  segments: CameraCueSegment[],
+  pageSize: { widthPx: number; heightPx: number },
+): CameraCuePointLayout[] {
+  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
+  const font: TextFontSpec = { family: SHEET_TEXT_FONT_FAMILY, sizePx: fontSizePx, weight: 850 }
+  return resolveCameraInstructionPoints(cue.camera, cue.frameStart, cue.frameEnd).flatMap(point => {
+    const frame = cue.frameStart + point.frameOffset
+    const segment = segments.find(item => frame >= item.frameStart && frame <= item.frameEnd)
+    if (!segment) return []
+    const anchor = {
+      x: segment.rect.x + segment.rect.w / 2,
+      y: segment.rect.y + (frame - segment.frameStart + 0.5) * segment.rowHeight,
+    }
+    const measured = sharedTextMeasurementProvider.measure(point.label, font)
+    const width = Math.min(segment.regionRect.w, (measured.widthPx + 8) / pageSize.widthPx)
+    const height = Math.min(segment.rowHeight, Math.max(fontSizePx * 1.35, 12) / pageSize.heightPx)
+    const gap = Math.min(segment.rect.w * 0.12, 5 / pageSize.widthPx)
+    const rightX = anchor.x + gap
+    const leftX = anchor.x - gap - width
+    const x = rightX + width <= segment.regionRect.x + segment.regionRect.w
+      ? rightX
+      : leftX >= segment.regionRect.x
+        ? leftX
+        : Math.max(segment.regionRect.x, Math.min(segment.regionRect.x + segment.regionRect.w - width, rightX))
+    const rect = {
+      x,
+      y: Math.max(segment.regionRect.y, Math.min(segment.regionRect.y + segment.regionRect.h - height, anchor.y - height / 2)),
+      w: width,
+      h: height,
+    }
+    return [{
+      point,
+      frame,
+      anchor,
+      rect,
+      regionRect: segment.regionRect,
+      fontSizePx,
+      textXpx: (rect.x + rect.w / 2) * pageSize.widthPx,
+      textYpx: (rect.y + rect.h / 2) * pageSize.heightPx + fontSizePx * 0.34,
+    }]
+  })
 }
 
 export function buildCameraCuePageLayouts(

@@ -6,16 +6,18 @@ import {
   cameraOverlapFillPolygonsForSegment,
   cameraOverlapPivotMarkForSegment,
   cameraOverlapPathsForSegment,
+  cameraCuePointLayoutsForPage,
   cameraRangeMarkerGeometryForSegment,
   type CameraCueLabelLayout,
 } from './cameraCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { SheetTransformHandle } from './SheetTransformHandle'
 
-export type CameraCueDragMode = 'move' | 'resize-start' | 'resize-end' | 'pivot' | 'move-label' | 'resize-label'
+export type CameraCueDragMode = 'move' | 'resize-start' | 'resize-end' | 'pivot' | 'move-label' | 'resize-label' | 'point'
 
 export interface CameraCueDragGeometry {
   labelLayout?: CameraCueLabelLayout
+  pointId?: string
 }
 
 export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverrides, pageSize, surface, selectedCueId, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onDoubleClick, onPointerEnter, onPointerLeave }: {
@@ -45,7 +47,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
       {pageLayouts.flatMap(({ cue, segments }) => segments.map(segment => {
         const selected = selectedCueId === cue.cueId
         const centerX = segment.rect.x + segment.rect.w / 2
-        const camera = cue.camera ?? { shape: 'range' as const, startLabel: '', endLabel: '' }
+        const camera = cue.camera ?? { shape: 'range' as const, points: [] }
         const fadePoints = camera.shape === 'fade-in' || camera.shape === 'fade-out'
           ? cameraFadePolygonForSegment(cue, segment, camera.shape)
           : null
@@ -90,8 +92,6 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
             {camera.shape === 'range' && segment.endsCue && (
               <polygon className="cameraCueMarker end" points={pointList(marker.end)} />
             )}
-            {segment.startsCue && camera.startLabel && <EndpointLabel value={camera.startLabel} x={centerX + marker.width * 0.75} y={segment.rect.y + marker.height * 0.6} pageSize={pageSize} />}
-            {segment.endsCue && camera.endLabel && <EndpointLabel value={camera.endLabel} x={centerX + marker.width * 0.75} y={segment.rect.y + segment.rect.h - marker.height * 0.25} pageSize={pageSize} />}
             {selected && overlapPivotMark && (
               <ellipse
                 className="cameraCuePivotHandle"
@@ -104,6 +104,46 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
             )}
             {selected && segment.startsCue && <rect className="cameraCueEdgeHandle start" x={segment.rect.x} y={segment.rect.y - edgeHeight / 2} width={segment.rect.w} height={edgeHeight} onPointerDown={event => onPointerDown(event, cue, 'resize-start')} />}
             {selected && segment.endsCue && <rect className="cameraCueEdgeHandle end" x={segment.rect.x} y={segment.rect.y + segment.rect.h - edgeHeight / 2} width={segment.rect.w} height={edgeHeight} onPointerDown={event => onPointerDown(event, cue, 'resize-end')} />}
+          </g>
+        )
+      }))}
+      {pageLayouts.flatMap(({ cue, segments }) => cameraCuePointLayoutsForPage(template, cue, segments, pageSize).map(layout => {
+        const selected = selectedCueId === cue.cueId
+        const movable = layout.point.role === 'intermediate'
+        const clipId = `camera-point-clip-${safeSvgId(page.pageId)}-${safeSvgId(cue.cueId)}-${safeSvgId(layout.point.pointId)}`
+        return (
+          <g
+            key={`point:${cue.cueId}:${layout.point.pointId}`}
+            className={`cameraCuePoint ${layout.point.role}${selected ? ' selected' : ''}${movable ? ' movable' : ''}`}
+            data-camera-cue-id={cue.cueId}
+            data-camera-point-id={layout.point.pointId}
+            data-camera-point-frame={layout.frame}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
+            onLostPointerCapture={onPointerCancel}
+            onPointerEnter={event => onPointerEnter(event, cue.cueId)}
+            onPointerLeave={onPointerLeave}
+            onDoubleClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+              onDoubleClick(cue.cueId)
+            }}
+          >
+            <defs><clipPath id={clipId}><rect x={layout.regionRect.x} y={layout.regionRect.y} width={layout.regionRect.w} height={layout.regionRect.h} /></clipPath></defs>
+            <line className="cameraCuePointConnector" x1={layout.anchor.x} y1={layout.anchor.y} x2={layout.rect.x + layout.rect.w / 2} y2={layout.anchor.y} />
+            {selected && movable && <rect className="cameraCuePointBody" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} />}
+            <rect
+              className="cameraCuePointHit"
+              x={layout.rect.x}
+              y={layout.rect.y}
+              width={layout.rect.w}
+              height={layout.rect.h}
+              onPointerDown={movable ? event => onPointerDown(event, cue, 'point', { pointId: layout.point.pointId }) : undefined}
+            />
+            <g clipPath={`url(#${clipId})`} transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`} className="cameraCueEndpointLabel">
+              <text x={layout.textXpx} y={layout.textYpx} fontSize={layout.fontSizePx} textAnchor="middle">{layout.point.label}</text>
+            </g>
           </g>
         )
       }))}
@@ -152,10 +192,6 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
       })}
     </g>
   )
-}
-
-function EndpointLabel({ value, x, y, pageSize }: { value: string; x: number; y: number; pageSize: { widthPx: number; heightPx: number } }) {
-  return <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`} className="cameraCueEndpointLabel"><text x={x * pageSize.widthPx} y={y * pageSize.heightPx} fontSize={11}>{value}</text></g>
 }
 
 function safeSvgId(value: string): string {

@@ -956,6 +956,41 @@
   pointer-events: none;
 }
 
+.cameraCuePoint {
+  pointer-events: none;
+}
+
+.cameraCuePointConnector {
+  fill: none;
+  stroke: rgb(47 95 76 / 0.82);
+  stroke-width: 1.25px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.cameraCuePointBody {
+  fill: rgb(237 246 255 / 0.88);
+  stroke: rgb(21 94 220 / 0.92);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.cameraCuePointHit {
+  fill: rgb(255 255 255 / 0.001);
+  stroke: none;
+  pointer-events: none;
+}
+
+.cameraCuePoint.movable .cameraCuePointHit {
+  pointer-events: fill;
+  cursor: ns-resize;
+}
+
+.cameraCuePoint.movable .cameraCuePointHit:active {
+  cursor: ns-resize;
+}
+
 .cameraCueLabelConnector {
   fill: none;
   stroke: rgb(47 95 76 / 0.72);

@@ -3,6 +3,7 @@ import {
   createTimedRangeCue,
   deleteTimedRangeCue,
   updateTimedRangeCue,
+  transformCameraInstructionRange,
   type CameraInstruction,
   type CutProject,
   type SheetTemplate,
@@ -16,6 +17,7 @@ import {
   deleteCameraCuesInRange,
   pasteCameraCueClipboard,
 } from './cameraCueEditing'
+import { recordCameraInstructionHistory, recordCameraPointLabelHistory } from './cameraCueEditing'
 import { timedRangeCueForId } from './timedRangeCueEditing'
 
 export interface CameraCueTransformUpdates {
@@ -45,6 +47,8 @@ interface CameraCueControllerOptions {
   setValueDraftActive: Dispatch<SetStateAction<boolean>>
   setClipboard: Dispatch<SetStateAction<CameraCueClipboard | null>>
   setDialog: Dispatch<SetStateAction<CameraCueDialogState | null>>
+  setInstructionHistory: Dispatch<SetStateAction<string[]>>
+  setPointLabelHistory: Dispatch<SetStateAction<string[]>>
 }
 
 export function createCameraCueController(options: CameraCueControllerOptions) {
@@ -86,6 +90,11 @@ export function createCameraCueController(options: CameraCueControllerOptions) {
       options.commitProject(created.project)
       options.setSheetSelection({ kind: 'cue', cueId: created.cue.cueId })
     }
+    options.setInstructionHistory(current => recordCameraInstructionHistory(current, input.label))
+    options.setPointLabelHistory(current => recordCameraPointLabelHistory(
+      current,
+      input.camera.points?.map(point => point.label) ?? [],
+    ))
     options.setDialog(null)
   }
 
@@ -95,12 +104,9 @@ export function createCameraCueController(options: CameraCueControllerOptions) {
     if (!cue || cue.role !== 'camera') return
     const frameStart = updates.frameStart ?? cue.frameStart
     const frameEnd = updates.frameEnd ?? cue.frameEnd
-    const movedBy = frameStart - cue.frameStart
-    const movesWholeRange = updates.frameStart !== undefined
-      && updates.frameEnd !== undefined
-      && frameEnd - cue.frameEnd === movedBy
-    const camera = updates.camera ?? (movesWholeRange && cue.camera?.pivotAnchorFrame !== undefined
-      ? { ...cue.camera, pivotAnchorFrame: cue.camera.pivotAnchorFrame + movedBy }
+    const rangeChanged = frameStart !== cue.frameStart || frameEnd !== cue.frameEnd
+    const camera = updates.camera ?? (rangeChanged && cue.camera
+      ? transformCameraInstructionRange(cue.camera, cue.frameStart, cue.frameEnd, frameStart, frameEnd)
       : cue.camera)
     const next = updateTimedRangeCue(sourceProject, cueId, { ...updates, camera })
     if (next !== sourceProject) options.commitProject(next)

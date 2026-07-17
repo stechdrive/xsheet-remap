@@ -6,6 +6,7 @@ import {
   CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO,
   buildCameraCuePageLayouts,
   cameraCueLabelLayoutForPage,
+  cameraCuePointLayoutsForPage,
   cameraCueSegmentsForPage,
   cameraOverlapFillPolygonsForSegment,
   cameraOverlapPivotMarkForSegment,
@@ -221,6 +222,26 @@ describe('CAMERA cue geometry', () => {
     const custom = cameraCueLabelLayoutForPage(customTemplate, customPage, cue, { widthPx: 1754, heightPx: 2481 }, customSegments)
     expect(custom?.fontSizePx).toBe(defaultTimingTextFontSizePx(customTemplate, 'cell'))
     expect(custom?.fontSizePx).toBe(26)
+  })
+
+  it('anchors CAMERA point labels to exact frames and clamps them inside the CAMERA region', () => {
+    const cue: TimedRangeCue = {
+      cueId: 'cue_points', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24, label: 'PAN', text: '', source: 'manual',
+      camera: {
+        shape: 'range',
+        points: [
+          { pointId: 'start', role: 'start', frameOffset: 0, label: 'START' },
+          { pointId: 'mid', role: 'intermediate', frameOffset: 11, label: 'MID' },
+          { pointId: 'end', role: 'end', frameOffset: 23, label: 'END' },
+        ],
+      },
+    }
+    const segments = cameraCueSegmentsForPage(standardA3SheetTemplate, page, cue, { paperTracks })
+    const layouts = cameraCuePointLayoutsForPage(standardA3SheetTemplate, cue, segments, { widthPx: 1754, heightPx: 2481 })
+    expect(layouts.map(layout => layout.frame)).toEqual([1, 12, 24])
+    expect(layouts.every(layout => layout.fontSizePx === defaultTimingTextFontSizePx(standardA3SheetTemplate, 'cell'))).toBe(true)
+    expect(layouts.every(layout => layout.rect.x >= layout.regionRect.x
+      && layout.rect.x + layout.rect.w <= layout.regionRect.x + layout.regionRect.w)).toBe(true)
   })
 })
 

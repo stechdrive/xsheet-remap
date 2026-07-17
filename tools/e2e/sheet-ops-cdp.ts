@@ -618,10 +618,26 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
   const [start, end] = await clientPointsForTimedRange('camera', 'camera_lane_1', 1, 24)
   await mouseDrag(start, end)
   await keyPress('Enter')
-  await waitForSelector('[role="dialog"][aria-label="CAMERA指示を追加"]')
-  await setReactSelectValue('[aria-label="CAMERA描画種別"]', 'overlap')
+  await waitForSelector('[role="dialog"][aria-label="撮影指示"]')
+  await waitForPageCondition(() => {
+    const dialog = document.querySelector('[role="dialog"][aria-label="撮影指示"]')
+    if (!dialog) return false
+    const radios = Array.from(dialog.querySelectorAll<HTMLElement>('[role="radio"]'))
+    const builtIns = Array.from(dialog.querySelectorAll<HTMLOptionElement>('datalist option')).map(option => option.value)
+    return dialog.querySelector('header strong')?.textContent?.trim() === '撮影指示'
+      && radios.length === 4
+      && radios.every(radio => radio.getBoundingClientRect().width > 0 && radio.getBoundingClientRect().height > 0)
+      && !dialog.querySelector('select')
+      && !dialog.querySelector('[aria-label="CAMERA開始フレーム"]')
+      && ['OL', 'TU', 'TB', 'SL', 'DTU', 'DTB', 'PAN', 'FI', 'FO', 'WI', 'WO', 'Follow', '画ブレ'].every(value => builtIns.includes(value))
+  }, 'compact CAMERA dialog with four direct shape buttons and pinned instruction values')
+  await mouseClick(await centerOfSelector('[role="radio"][aria-label="オーバーラップ"]'))
   await waitForSelector('[aria-label="CAMERA交差フレーム"]')
   await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E OL')
+  await setReactFieldValue('[aria-label="CAMERA開始点"]', 'A')
+  await setReactFieldValue('[aria-label="CAMERA終了点"]', 'B')
+  await clickButtonByText('＋ 中間点')
+  await setReactFieldValue('[aria-label="CAMERA中間点1"]', 'MID')
   await setReactFieldValue('[aria-label="CAMERA交差フレーム"]', '12')
   await clickButtonByText('追加')
   await waitForCameraCueAt('camera_lane_1', 1, 24, 'E2E OL')
@@ -684,6 +700,21 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
       && labelRect.y + labelRect.h <= regionRect.y + regionRect.h + 0.0000001
     const pivotCovered = pivot.x >= labelRect.x && pivot.x <= labelRect.x + labelRect.w
       && pivot.y >= labelRect.y && pivot.y <= labelRect.y + labelRect.h
+    const pointFrames = Array.from(document.querySelectorAll<SVGGElement>(`.cameraCuePoint[data-camera-cue-id="${cueId}"]`))
+      .map(point => Number(point.dataset.cameraPointFrame))
+    const pointsContained = Array.from(document.querySelectorAll<SVGGElement>(`.cameraCuePoint[data-camera-cue-id="${cueId}"]`)).every(point => {
+      const text = point.querySelector<SVGTextElement>('text')
+      const clip = point.querySelector<SVGRectElement>('clipPath rect')
+      const hit = point.querySelector<SVGRectElement>('.cameraCuePointHit')
+      if (!text || !clip || !hit) return false
+      const hitX = Number(hit.getAttribute('x'))
+      const hitW = Number(hit.getAttribute('width'))
+      const clipX = Number(clip.getAttribute('x'))
+      const clipW = Number(clip.getAttribute('width'))
+      return hitX >= clipX - 0.0000001
+        && hitX + hitW <= clipX + clipW + 0.0000001
+        && Number(text.getAttribute('font-size')) === 18
+    })
     return singleCenteredCrossing
       && pivotIsOnFrameBoundary
       && pivotMarkIsCentered
@@ -693,16 +724,31 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
       && labelProgress >= 0.2
       && labelProgress <= 0.45
       && !pivotCovered
+      && JSON.stringify(pointFrames) === JSON.stringify([1, 12, 24])
+      && pointsContained
   }, 'frame-boundary OL crossing with a 0.65-grid pivot mark and contained CAMERA label')
+
+  const intermediateStart = await centerOfSelector('.cameraCuePoint.intermediate .cameraCuePointHit')
+  const intermediateTarget = await clientPointForTimedRangeFrame('camera', 'camera_lane_1', 16)
+  await mouseDrag(intermediateStart, intermediateTarget)
+  await waitForPageCondition(() => document.querySelector<SVGGElement>('.cameraCuePoint.intermediate')?.dataset.cameraPointFrame === '16', 'CAMERA intermediate point snapped to frame 16')
+  const historyStored = await evaluatePage<boolean>(`
+    (() => {
+      const instructions = JSON.parse(localStorage.getItem('xsheet:camera-instruction-history') ?? '[]');
+      const points = JSON.parse(localStorage.getItem('xsheet:camera-point-label-history') ?? '[]');
+      return instructions[0] === 'E2E OL' && ['A', 'MID', 'B'].every(value => points.includes(value));
+    })()
+  `)
+  if (!historyStored) throw new Error('CAMERA instruction or point-label MRU history was not persisted')
 
   await clickFrame('action', 'A', 8)
   await keyPress('1')
   await keyPress('Enter')
   await waitForEventAt('action', 'A', 8, '1')
   await waitForSelectedFrame('action', 'A', 9)
-  const editorReopened = await evaluatePage<boolean>('Boolean(document.querySelector(\'[role="dialog"][aria-label="CAMERA指示を編集"]\'))')
+  const editorReopened = await evaluatePage<boolean>('Boolean(document.querySelector(\'[role="dialog"][aria-label="撮影指示"]\'))')
   if (editorReopened) throw new Error('CAMERA editor reopened instead of accepting ACTION timing input')
-  checks.push('created a 24-frame OL on the frame boundary with a 0.65-grid pivot mark, then continued ACTION input')
+  checks.push('created a 24-frame OL with compact shape controls, pinned/MRU inputs, exact draggable point labels, and continued ACTION input')
 }
 
 async function verifyTimelineRippleEditing(): Promise<void> {
@@ -1081,20 +1127,6 @@ async function setReactFieldValue(selector: string, value: string): Promise<void
       if (!setter) throw new Error('native value setter not found: ${selector}');
       setter.call(field, ${JSON.stringify(value)});
       field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(value)} }));
-      field.dispatchEvent(new Event('change', { bubbles: true }));
-    })()
-  `)
-}
-
-async function setReactSelectValue(selector: string, value: string): Promise<void> {
-  await evaluatePage<void>(`
-    (() => {
-      const field = document.querySelector(${JSON.stringify(selector)});
-      if (!(field instanceof HTMLSelectElement)) throw new Error('select field not found: ${selector}');
-      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-      if (!setter) throw new Error('native select value setter not found: ${selector}');
-      setter.call(field, ${JSON.stringify(value)});
-      field.dispatchEvent(new Event('input', { bubbles: true }));
       field.dispatchEvent(new Event('change', { bubbles: true }));
     })()
   `)

@@ -1054,13 +1054,15 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
       expectSelectedRange('camera', 'camera_1', 1, 12)
     }
     fireEvent.doubleClick(sheet, { button: 0, clientX: x, clientY: frameY(5) })
-    expect(screen.getByRole('dialog', { name: 'CAMERA指示を追加' })).toBeTruthy()
-    expect((screen.getByLabelText('CAMERA開始フレーム') as HTMLInputElement).value).toBe('1')
-    expect((screen.getByLabelText('CAMERAデュレーションコマ') as HTMLInputElement).value).toBe('12')
-    fireEvent.change(screen.getByLabelText('CAMERA描画種別'), { target: { value: 'overlap' } })
+    expect(screen.getByRole('dialog', { name: '撮影指示' })).toBeTruthy()
+    expect(screen.queryByLabelText('CAMERA開始フレーム')).toBeNull()
+    expect((screen.getByLabelText('尺 コマ') as HTMLInputElement).value).toBe('12')
+    fireEvent.click(screen.getByRole('radio', { name: 'オーバーラップ' }))
     fireEvent.change(screen.getByLabelText('CAMERA指示'), { target: { value: 'OL' } })
-    fireEvent.change(screen.getByLabelText('CAMERA開始キュー'), { target: { value: 'A' } })
-    fireEvent.change(screen.getByLabelText('CAMERA終了キュー'), { target: { value: 'B' } })
+    fireEvent.change(screen.getByLabelText('CAMERA開始点'), { target: { value: 'A' } })
+    fireEvent.change(screen.getByLabelText('CAMERA終了点'), { target: { value: 'B' } })
+    fireEvent.click(screen.getByRole('button', { name: '＋ 中間点' }))
+    fireEvent.change(screen.getByLabelText('CAMERA中間点1'), { target: { value: 'MID' } })
     fireEvent.change(screen.getByLabelText('CAMERA交差フレーム'), { target: { value: '6' } })
     fireEvent.click(screen.getByRole('button', { name: '追加' }))
 
@@ -1070,8 +1072,8 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     expect(cue.classList.contains('overlap')).toBe(true)
     expect(cue.querySelectorAll('.cameraCueStroke')).toHaveLength(2)
     expect(cue.querySelector('.cameraCuePivotHandle')).toBeTruthy()
-    expect(Array.from(cue.querySelectorAll('.cameraCueEndpointLabel')).map(item => item.textContent)).toEqual(['A', 'B'])
-    expect(screen.queryByRole('dialog', { name: 'CAMERA指示を追加' })).toBeNull()
+    expect(Array.from(document.querySelectorAll('.cameraCueEndpointLabel')).map(item => item.textContent)).toEqual(['A', 'MID', 'B'])
+    expect(screen.queryByRole('dialog', { name: '撮影指示' })).toBeNull()
 
     const actionFrame = templateFramePoint('action', 'A', 20)
     fireEvent.pointerDown(sheet, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 1, clientX: actionFrame.x, clientY: actionFrame.y })
@@ -1080,7 +1082,7 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     enterTimingValue('1')
     await waitFor(() => expectSelectedHit('action', 'A', 21))
     expect(Array.from(document.querySelectorAll('.eventText')).some(item => item.textContent === '1')).toBe(true)
-    expect(screen.queryByRole('dialog', { name: 'CAMERA指示を編集' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: '撮影指示' })).toBeNull()
     expect(document.querySelector('.draftRangeRect')).toBeNull()
     expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
     cue = document.querySelector<SVGGElement>('.cameraCue')!
@@ -1096,6 +1098,16 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     cue = document.querySelector<SVGGElement>('.cameraCue')!
     fireEvent.pointerUp(cue, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
     await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '19', frameEnd: '30' }))
+
+    let intermediatePoint = document.querySelector<SVGGElement>('.cameraCuePoint.intermediate')!
+    expect(intermediatePoint.dataset.cameraPointFrame).toBe('24')
+    const intermediateHit = intermediatePoint.querySelector<SVGRectElement>('.cameraCuePointHit')!
+    fireEvent.pointerDown(intermediateHit, { pointerId: 108, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(24) })
+    intermediatePoint = document.querySelector<SVGGElement>('.cameraCuePoint.intermediate')!
+    fireEvent.pointerMove(intermediatePoint, { pointerId: 108, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(26) })
+    intermediatePoint = document.querySelector<SVGGElement>('.cameraCuePoint.intermediate')!
+    fireEvent.pointerUp(intermediatePoint, { pointerId: 108, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(26) })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCuePoint.intermediate')?.dataset.cameraPointFrame).toBe('26'))
 
     cue = document.querySelector<SVGGElement>('.cameraCue')!
     const pivot = cue.querySelector<SVGEllipseElement>('.cameraCuePivotHandle')!
@@ -1115,7 +1127,7 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     fireEvent.doubleClick(document.querySelector<SVGGElement>('.cameraCue')!)
     expect((screen.getByLabelText('CAMERA交差フレーム') as HTMLInputElement).value).toBe('28')
     expect(screen.getByRole('button', { name: '自動配置に戻す' })).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('CAMERA描画種別'), { target: { value: 'fade-in' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'フェードイン・ワイプイン' }))
     fireEvent.click(screen.getByRole('button', { name: '更新' }))
     await waitFor(() => expect(document.querySelector('.cameraCue')?.classList.contains('fade-in')).toBe(true))
     expect(document.querySelector('.cameraCueFade')).toBeTruthy()
@@ -1325,7 +1337,7 @@ it('ripples ACTION, CELL, SOUND, and CAMERA together from every frame-bearing co
     const cameraEnd = timedPoint(cameraRegion, 10)
     dragSheet(sheet, cameraStart.x, cameraStart.y, cameraEnd.x, cameraEnd.y)
     fireEvent.keyDown(window, { key: 'Enter' })
-    fireEvent.change(screen.getByLabelText('CAMERA描画種別'), { target: { value: 'overlap' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'オーバーラップ' }))
     fireEvent.change(screen.getByLabelText('CAMERA指示'), { target: { value: 'RIPPLE CAMERA' } })
     fireEvent.change(screen.getByLabelText('CAMERA交差フレーム'), { target: { value: '8' } })
     fireEvent.click(screen.getByRole('button', { name: '追加' }))

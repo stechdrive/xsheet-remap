@@ -35,6 +35,7 @@ import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotati
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
 import {
   buildCameraCuePageLayouts,
+  cameraCuePointLayoutsForPage,
   cameraFadePolygonForSegment,
   cameraOverlapFillPolygonsForSegment,
   cameraOverlapPivotMarkForSegment,
@@ -683,7 +684,7 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
       layoutOverrides: context.project.sheetView.layoutOverrides,
     })
     for (const { cue, segments } of layouts) {
-      const camera = cue.camera ?? { shape: 'range' as const, startLabel: '', endLabel: '' }
+      const camera = cue.camera ?? { shape: 'range' as const, points: [] }
       for (const segment of segments) {
         const centerX = (segment.rect.x + segment.rect.w / 2) * pageWidth
         const top = offsetY + segment.rect.y * pageHeight
@@ -721,10 +722,30 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         if (camera.shape === 'range' && segment.endsCue) {
           drawCanvasPolygon(ctx, marker.end.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), '#194f3c')
         }
-        ctx.textAlign = 'left'
+      }
+      for (const point of cameraCuePointLayoutsForPage(context.template, cue, segments, context.pageSize)) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(
+          point.regionRect.x * pageWidth,
+          offsetY + point.regionRect.y * pageHeight,
+          point.regionRect.w * pageWidth,
+          point.regionRect.h * pageHeight,
+        )
+        ctx.clip()
+        ctx.strokeStyle = 'rgba(47, 95, 76, 0.82)'
+        ctx.lineWidth = 1.25
+        drawCanvasLine(
+          ctx,
+          point.anchor.x * pageWidth,
+          offsetY + point.anchor.y * pageHeight,
+          (point.rect.x + point.rect.w / 2) * pageWidth,
+          offsetY + point.anchor.y * pageHeight,
+        )
+        ctx.textAlign = 'center'
         ctx.textBaseline = 'alphabetic'
-        if (segment.startsCue && camera.startLabel) drawCueText(ctx, camera.startLabel, centerX + marker.width * pageWidth * 0.75, top + marker.height * pageHeight * 0.6, 11, 850)
-        if (segment.endsCue && camera.endLabel) drawCueText(ctx, camera.endLabel, centerX + marker.width * pageWidth * 0.75, bottom - marker.height * pageHeight * 0.25, 11, 850)
+        drawCueText(ctx, point.point.label, point.textXpx, offsetY + point.textYpx, point.fontSizePx, 850)
+        ctx.restore()
       }
     }
     for (const { label } of layouts) {

@@ -1,5 +1,5 @@
 import { logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart } from './logical-sheet'
-import type { CameraInstruction, CutProject, TimedRangeCue, TimedRangeRole } from './types'
+import type { CameraInstruction, CameraInstructionPoint, CameraInstructionPointRole, CutProject, TimedRangeCue, TimedRangeRole } from './types'
 
 export interface TimedRangeCueInput {
   role: TimedRangeRole
@@ -127,11 +127,88 @@ function normalizeCameraInstruction(cue: TimedRangeCue): CameraInstruction {
     : undefined
   return {
     shape,
-    startLabel: input?.startLabel.trim() ?? '',
-    endLabel: input?.endLabel.trim() ?? '',
+    points: resolveCameraInstructionPoints(input, cue.frameStart, cue.frameEnd),
     pivotAnchorFrame,
     labelPlacement,
   }
+}
+
+export function resolveCameraInstructionPoints(
+  camera: CameraInstruction | null | undefined,
+  frameStart: number,
+  frameEnd: number,
+): CameraInstructionPoint[] {
+  const duration = Math.max(1, Math.round(frameEnd) - Math.round(frameStart) + 1)
+  const legacyPoints: CameraInstructionPoint[] = [
+    camera?.startLabel?.trim()
+      ? { pointId: 'point_start', role: 'start', frameOffset: 0, label: camera.startLabel.trim() }
+      : null,
+    camera?.endLabel?.trim()
+      ? { pointId: 'point_end', role: 'end', frameOffset: duration - 1, label: camera.endLabel.trim() }
+      : null,
+  ].filter((point): point is CameraInstructionPoint => point !== null)
+  const source = camera?.points?.length ? camera.points : legacyPoints
+  const usedIds = new Set<string>()
+  const usedIntermediateOffsets = new Set<number>()
+  let hasStart = false
+  let hasEnd = false
+  const normalized: CameraInstructionPoint[] = []
+  for (const raw of source) {
+    const label = raw.label.trim()
+    const role: CameraInstructionPointRole = raw.role === 'start' || raw.role === 'end' ? raw.role : 'intermediate'
+    if (!label || (role === 'start' && hasStart) || (role === 'end' && hasEnd)) continue
+    if (role === 'intermediate' && duration < 3) continue
+    const frameOffset = role === 'start'
+      ? 0
+      : role === 'end'
+        ? duration - 1
+        : clamp(Math.round(raw.frameOffset), 1, duration - 2)
+    if (role === 'intermediate' && usedIntermediateOffsets.has(frameOffset)) continue
+    let pointId = raw.pointId.trim() || `point_${normalized.length + 1}`
+    while (usedIds.has(pointId)) pointId = `${pointId}_${normalized.length + 1}`
+    usedIds.add(pointId)
+    if (role === 'start') hasStart = true
+    if (role === 'end') hasEnd = true
+    if (role === 'intermediate') usedIntermediateOffsets.add(frameOffset)
+    normalized.push({ pointId, role, frameOffset, label })
+    if (normalized.length >= duration) break
+  }
+  return normalized.sort((left, right) => left.frameOffset - right.frameOffset
+    || pointRoleOrder(left.role) - pointRoleOrder(right.role))
+}
+
+export function transformCameraInstructionRange(
+  camera: CameraInstruction,
+  previousFrameStart: number,
+  previousFrameEnd: number,
+  nextFrameStart: number,
+  nextFrameEnd: number,
+): CameraInstruction {
+  const movedBy = nextFrameStart - previousFrameStart
+  const movedWholeRange = nextFrameEnd - previousFrameEnd === movedBy
+  const points = movedWholeRange
+    ? resolveCameraInstructionPoints(camera, previousFrameStart, previousFrameEnd)
+    : resolveCameraInstructionPoints({
+        ...camera,
+        points: resolveCameraInstructionPoints(camera, previousFrameStart, previousFrameEnd).flatMap(point => {
+          if (point.role !== 'intermediate') return [point]
+          const absoluteFrame = previousFrameStart + point.frameOffset
+          if (absoluteFrame <= nextFrameStart || absoluteFrame >= nextFrameEnd) return []
+          return [{ ...point, frameOffset: absoluteFrame - nextFrameStart }]
+        }),
+      }, nextFrameStart, nextFrameEnd)
+  const pivotAnchorFrame = camera.pivotAnchorFrame === undefined
+    ? undefined
+    : clampCameraOverlapPivotAnchorFrame(
+        movedWholeRange ? camera.pivotAnchorFrame + movedBy : camera.pivotAnchorFrame,
+        nextFrameStart,
+        nextFrameEnd,
+      )
+  return { ...camera, points, startLabel: undefined, endLabel: undefined, pivotAnchorFrame }
+}
+
+function pointRoleOrder(role: CameraInstructionPointRole): number {
+  return role === 'start' ? 0 : role === 'intermediate' ? 1 : 2
 }
 
 export function defaultCameraOverlapPivotAnchorFrame(frameStart: number, frameEnd: number): number {

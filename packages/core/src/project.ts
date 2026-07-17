@@ -49,9 +49,11 @@ export {
   defaultCameraOverlapPivotAnchorFrame,
   deleteTimedRangeCue,
   replaceTimedRangeCues,
+  resolveCameraInstructionPoints,
   clampCameraOverlapPivotAnchorFrame,
   timedRangeCuesIntersecting,
   timedRangeLaneIds,
+  transformCameraInstructionRange,
   updateTimedRangeCue,
 } from './timed-range'
 export type { TimedRangeCueInput, TimedRangeCueUpdates } from './timed-range'

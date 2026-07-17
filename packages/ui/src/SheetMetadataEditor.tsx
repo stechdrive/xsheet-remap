@@ -6,7 +6,7 @@ import {
   type SheetPage,
   type SheetTemplate,
 } from '@xsheet-remap/core'
-import { DurationFrameControl } from './app-navigation'
+import { DurationFrameControl } from './DurationFrameControl'
 import { TooltipTarget } from './Tooltip'
 
 type EditableMetadataRegion = SheetTemplate['regions'][number] & {

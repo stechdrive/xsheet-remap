@@ -7,6 +7,12 @@ import {
 } from '@xsheet-remap/core'
 import type { SheetRangeSelection, SoundCueClipboard } from './appTypes'
 import {
+  loadRecentValueHistory,
+  normalizeRecentValueHistory,
+  recordRecentValue,
+  saveRecentValueHistory,
+} from './recentValueHistory'
+import {
   buildTimedRangeCueClipboard,
   cutTimedRangeCuesToClipboard,
   deleteTimedRangeCuesInRange,
@@ -61,38 +67,19 @@ export function cueAfterDelete(project: CutProject, cueId: string): CutProject {
 }
 
 export function normalizeSoundLabelHistory(values: readonly string[]): string[] {
-  const seen = new Set<string>()
-  const normalized: string[] = []
-  for (const raw of values) {
-    const value = raw.trim()
-    const identity = value.toLocaleLowerCase('ja-JP')
-    if (!value || seen.has(identity)) continue
-    seen.add(identity)
-    normalized.push(value)
-    if (normalized.length >= SOUND_LABEL_HISTORY_LIMIT) break
-  }
-  return normalized
+  return normalizeRecentValueHistory(values, SOUND_LABEL_HISTORY_LIMIT)
 }
 
 export function recordSoundLabelHistory(history: readonly string[], label: string): string[] {
-  return normalizeSoundLabelHistory([label, ...history])
+  return recordRecentValue(history, label, SOUND_LABEL_HISTORY_LIMIT)
 }
 
 export function loadSoundLabelHistory(): string[] {
-  try {
-    const stored = window.localStorage.getItem(SOUND_LABEL_HISTORY_STORAGE_KEY)
-    return stored ? normalizeSoundLabelHistory(JSON.parse(stored) as string[]) : []
-  } catch {
-    return []
-  }
+  return loadRecentValueHistory(SOUND_LABEL_HISTORY_STORAGE_KEY, SOUND_LABEL_HISTORY_LIMIT)
 }
 
 export function saveSoundLabelHistory(history: readonly string[]): void {
-  try {
-    window.localStorage.setItem(SOUND_LABEL_HISTORY_STORAGE_KEY, JSON.stringify(normalizeSoundLabelHistory(history)))
-  } catch {
-    // Optional in restricted browser contexts.
-  }
+  saveRecentValueHistory(SOUND_LABEL_HISTORY_STORAGE_KEY, history, SOUND_LABEL_HISTORY_LIMIT)
 }
 
 export function cueForId(project: CutProject, cueId: string | null | undefined): TimedRangeCue | null {

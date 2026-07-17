@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createTimedRangeCue, standardA3SheetTemplate } from '@xsheet-remap/core'
-import { buildCameraCueClipboard, cameraLaneIdForHit, pasteCameraCueClipboard } from './cameraCueEditing'
+import {
+  CAMERA_INSTRUCTION_BUILT_INS,
+  buildCameraCueClipboard,
+  cameraLaneIdForHit,
+  pasteCameraCueClipboard,
+  recordCameraInstructionHistory,
+  recordCameraPointLabelHistory,
+} from './cameraCueEditing'
+import { recentValuesWithPinned } from './recentValueHistory'
 
 describe('CAMERA cue editing helpers', () => {
   it('maps both A3 CAMERA halves to the same stable logical lane', () => {
@@ -26,5 +34,14 @@ describe('CAMERA cue editing helpers', () => {
       role: 'camera', laneId: 'camera_lane_2', frameStart: 30, frameEnd: 40,
       camera: { shape: 'overlap', pivotAnchorFrame: 34 },
     })
+  })
+
+  it('keeps CAMERA histories in MRU order while pinned instructions remain available', () => {
+    expect(recordCameraInstructionHistory(['PAN', 'TU'], 'tu')).toEqual(['tu', 'PAN'])
+    expect(recordCameraPointLabelHistory(['A'], ['B', 'A'])).toEqual(['A', 'B'])
+    const visible = recentValuesWithPinned(['独自指示', 'OL'], CAMERA_INSTRUCTION_BUILT_INS, 64)
+    expect(visible.slice(0, 2)).toEqual(['独自指示', 'OL'])
+    expect(visible).toContain('画ブレ')
+    expect(visible.filter(value => value === 'OL')).toHaveLength(1)
   })
 })

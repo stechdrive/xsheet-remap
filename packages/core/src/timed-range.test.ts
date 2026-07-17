@@ -96,8 +96,10 @@ describe('timed range cues', () => {
       text: '',
       camera: {
         shape: 'overlap',
-        startLabel: 'A',
-        endLabel: 'B',
+        points: [
+          { pointId: 'point_start', role: 'start', frameOffset: 0, label: 'A' },
+          { pointId: 'point_end', role: 'end', frameOffset: 10, label: 'B' },
+        ],
         pivotAnchorFrame: 20,
         labelPlacement: { mode: 'manual', frameOffset: 10, xRatio: 0.9, heightFrames: 2 },
       },

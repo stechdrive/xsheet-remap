@@ -372,10 +372,25 @@ export interface CameraLabelPlacement {
   heightFrames: number
 }
 
+export type CameraInstructionPointRole = 'start' | 'intermediate' | 'end'
+
+/** A short label anchored to an exact frame inside a CAMERA instruction. */
+export interface CameraInstructionPoint {
+  pointId: Id
+  role: CameraInstructionPointRole
+  /** Zero-based frame offset from the instruction start. */
+  frameOffset: number
+  label: string
+}
+
 export interface CameraInstruction {
   shape: CameraInstructionShape
-  startLabel: string
-  endLabel: string
+  /** Empty endpoint labels are omitted. Intermediate points are user movable. */
+  points?: CameraInstructionPoint[]
+  /** @deprecated Normalized into points when older in-memory data is encountered. */
+  startLabel?: string
+  /** @deprecated Normalized into points when older in-memory data is encountered. */
+  endLabel?: string
   /**
    * Frame anchoring the crossing of an overlap instruction. Even-duration
    * instructions cross on the boundary after this frame; odd-duration

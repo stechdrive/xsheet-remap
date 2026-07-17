@@ -1,6 +1,6 @@
 import { logicalSheetOfficialFrameEnd } from './logical-sheet'
 import { compareTimelineEvents } from './project-shared'
-import { clampCameraOverlapPivotAnchorFrame, replaceTimedRangeCues } from './timed-range'
+import { clampCameraOverlapPivotAnchorFrame, replaceTimedRangeCues, resolveCameraInstructionPoints } from './timed-range'
 import { deleteTimelineMemoAnchors, insertTimelineMemoAnchors } from './timeline-memo'
 import type { CameraInstruction, CutProject, TimedRangeCue } from './types'
 
@@ -97,7 +97,14 @@ function insertIntoCamera(
   const labelPlacement = camera.labelPlacement
     ? placementAfterInsert(cue, nextCueRange, atFrame, frameCount)
     : undefined
-  return { ...camera, pivotAnchorFrame, labelPlacement }
+  const points = resolveCameraInstructionPoints({
+    ...camera,
+    points: resolveCameraInstructionPoints(camera, cue.frameStart, cue.frameEnd).map(point => {
+      const nextFrame = insertPoint(cue.frameStart + point.frameOffset, atFrame, frameCount)
+      return { ...point, frameOffset: nextFrame - nextCueRange.start }
+    }),
+  }, nextCueRange.start, nextCueRange.end)
+  return { ...camera, points, startLabel: undefined, endLabel: undefined, pivotAnchorFrame, labelPlacement }
 }
 
 function placementAfterInsert(
@@ -146,7 +153,16 @@ function deleteFromCamera(
   const labelPlacement = camera.labelPlacement
     ? placementAfterDelete(cue, nextCueRange, frameStart, frameEnd, frameCount)
     : undefined
-  return { ...camera, pivotAnchorFrame, labelPlacement }
+  const points = resolveCameraInstructionPoints({
+    ...camera,
+    points: resolveCameraInstructionPoints(camera, cue.frameStart, cue.frameEnd).flatMap(point => {
+      const absoluteFrame = cue.frameStart + point.frameOffset
+      if (point.role === 'intermediate' && absoluteFrame >= frameStart && absoluteFrame <= frameEnd) return []
+      const nextFrame = deletePoint(absoluteFrame, frameStart, frameEnd, frameCount, nextCueRange)
+      return [{ ...point, frameOffset: nextFrame - nextCueRange.start }]
+    }),
+  }, nextCueRange.start, nextCueRange.end)
+  return { ...camera, points, startLabel: undefined, endLabel: undefined, pivotAnchorFrame, labelPlacement }
 }
 
 function placementAfterDelete(

@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { LogicalTimelineLane, TimedRangeCue } from '@xsheet-remap/core'
 import type { SoundCueDialogState } from './appTypes'
+import { HistoryInput } from './HistoryInput'
 
 export interface SoundCueDialogSubmit {
   cueId?: string
@@ -45,7 +46,6 @@ export function SoundCueDialog({
   const frameEnd = Math.min(frameMax, frameStart + durationFrames - 1)
   const laneLabel = lane?.label || state.laneId
   const dialogTitle = state.mode === 'edit' ? 'SOUND区間を編集' : 'SOUND区間を追加'
-  const historyId = `sound-label-history-${useId().replace(/:/g, '')}`
 
   useEffect(() => {
     labelInputRef.current?.focus()
@@ -105,17 +105,15 @@ export function SoundCueDialog({
         <div className="soundCueDialogBody">
           <label>
             <span>ラベル</span>
-            <input
-              ref={labelInputRef}
+            <HistoryInput
+              inputRef={labelInputRef}
               aria-label="SOUNDラベル"
-              list={historyId}
               value={label}
               onChange={event => setLabel(event.currentTarget.value)}
+              history={labelHistory}
+              historyLimit={24}
               required
             />
-            <datalist id={historyId}>
-              {labelHistory.map(value => <option key={value} value={value} />)}
-            </datalist>
           </label>
           <label>
             <span>内容</span>

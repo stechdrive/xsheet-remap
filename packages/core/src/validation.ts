@@ -79,6 +79,30 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
         if (placement && (placement.frameOffset < 0 || placement.xRatio < 0 || placement.widthRatio <= 0 || placement.xRatio + placement.widthRatio > 1 || placement.heightFrames < 1)) {
           issues.push(issue('error', 'cue.camera.labelPlacement.invalid', `camera cue ${cue.cueId} has an invalid label placement`, 'cue', cue.cueId))
         }
+        const duration = cue.frameEnd - cue.frameStart + 1
+        const points = cue.camera.points ?? []
+        const pointIds = new Set<string>()
+        const intermediateOffsets = new Set<number>()
+        const startPoints = points.filter(point => point.role === 'start')
+        const endPoints = points.filter(point => point.role === 'end')
+        const invalidPoint = points.some(point => {
+          const duplicateId = pointIds.has(point.pointId)
+          pointIds.add(point.pointId)
+          const duplicateIntermediate = point.role === 'intermediate' && intermediateOffsets.has(point.frameOffset)
+          if (point.role === 'intermediate') intermediateOffsets.add(point.frameOffset)
+          const expectedOffset = point.role === 'start' ? 0 : point.role === 'end' ? duration - 1 : point.frameOffset
+          return duplicateId
+            || duplicateIntermediate
+            || !point.pointId
+            || !point.label.trim()
+            || !Number.isInteger(point.frameOffset)
+            || point.frameOffset !== expectedOffset
+            || point.frameOffset < 0
+            || point.frameOffset >= duration
+        })
+        if (invalidPoint || startPoints.length > 1 || endPoints.length > 1 || points.length > duration) {
+          issues.push(issue('error', 'cue.camera.points.invalid', `camera cue ${cue.cueId} has invalid instruction points`, 'cue', cue.cueId))
+        }
       }
     }
   }

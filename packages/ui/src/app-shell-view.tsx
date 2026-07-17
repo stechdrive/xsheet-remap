@@ -29,7 +29,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
-    cameraCueClipboard, cameraCueDialog, setCameraCueDialog, exportProfileId, sheetImageExportDraft,
+    cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
@@ -474,17 +474,15 @@ export function AppShellView({ controller }: { controller: AppController }) {
       })()}
 
       {cameraCueDialog && (() => {
-        const lane = project.logicalSheet.timelineSections
-          .find(section => section.role === 'camera')
-          ?.lanes?.find(item => item.laneId === cameraCueDialog.laneId) ?? null
         return (
           <CameraCueDialog
             state={cameraCueDialog}
             cue={cameraCueDialog.cueId === selectedCameraCue?.cueId ? selectedCameraCue : null}
-            lane={lane}
             fps={project.logicalSheet.fps}
             frameMin={project.logicalSheet.frameOrigin}
             frameMax={project.logicalSheet.frameOrigin + project.logicalSheet.durationFrames - 1}
+            instructionHistory={cameraInstructionHistory}
+            pointLabelHistory={cameraPointLabelHistory}
             onSubmit={submitCameraCueDialog}
             onCancel={() => setCameraCueDialog(null)}
           />

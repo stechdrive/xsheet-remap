@@ -19,6 +19,9 @@ describe('cut timeline frame editing', () => {
       frameEnd: 13,
       camera: {
         pivotAnchorFrame: 10,
+        points: expect.arrayContaining([
+          { pointId: 'point_mid', role: 'intermediate', frameOffset: 6, label: 'MID' },
+        ]),
         labelPlacement: { frameOffset: 5, heightFrames: 3 },
       },
     })
@@ -128,6 +131,11 @@ function timelineFixture() {
     role: 'camera', laneId: 'camera_lane_1', frameStart: 4, frameEnd: 10, label: 'CAMERA',
     camera: {
       shape: 'overlap', startLabel: 'A', endLabel: 'B', pivotAnchorFrame: 7,
+      points: [
+        { pointId: 'point_start', role: 'start', frameOffset: 0, label: 'A' },
+        { pointId: 'point_mid', role: 'intermediate', frameOffset: 3, label: 'MID' },
+        { pointId: 'point_end', role: 'end', frameOffset: 6, label: 'B' },
+      ],
       labelPlacement: { mode: 'manual', frameOffset: 2, xRatio: 0.1, widthRatio: 0.8, heightFrames: 3 },
     },
   }).project

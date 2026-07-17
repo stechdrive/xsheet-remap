@@ -1,4 +1,4 @@
-import { type AnnotationStroke, type AnnotationText, type SheetHit } from '@xsheet-remap/core';
+import { resolveCameraInstructionPoints, type AnnotationStroke, type AnnotationText, type SheetHit } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
 import { getSheetPageImage } from './sheetImages';
@@ -44,6 +44,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     top: `${Math.max(8, Math.min(soundCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
   } : undefined
   const hoveredCameraCue = props.project.timedRangeCues.find(cue => cue.cueId === hoveredCameraCueId) ?? null
+  const hoveredCameraPoints = hoveredCameraCue
+    ? resolveCameraInstructionPoints(hoveredCameraCue.camera, hoveredCameraCue.frameStart, hoveredCameraCue.frameEnd)
+    : []
   const cameraCueHoverStyle = cameraCueHoverAnchor ? {
     left: `${Math.max(8, Math.min(cameraCueHoverAnchor.x + 14, (typeof window === 'undefined' ? 1024 : window.innerWidth) - 268))}px`,
     top: `${Math.max(8, Math.min(cameraCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
@@ -485,7 +488,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
         <div className="soundCueHoverCard" style={cameraCueHoverStyle} role="tooltip">
           <strong>{hoveredCameraCue.label}</strong>
           <span>{hoveredCameraCue.frameStart}–{hoveredCameraCue.frameEnd}F / {hoveredCameraCue.camera?.shape ?? 'range'}</span>
-          {(hoveredCameraCue.camera?.startLabel || hoveredCameraCue.camera?.endLabel) && <span>{hoveredCameraCue.camera?.startLabel || '―'} → {hoveredCameraCue.camera?.endLabel || '―'}</span>}
+          {hoveredCameraPoints.length > 0 && <span>{hoveredCameraPoints.map(point => point.label).join(' → ')}</span>}
         </div>
       )}
       {hoverPreviewPosition && <CellAssetPreview position={hoverPreviewPosition} items={hoverPreviewItems} />}

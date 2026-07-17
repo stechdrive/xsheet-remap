@@ -60,7 +60,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
-    cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog, statusHints, setStatusHints,
+    cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog,
+    cameraInstructionHistory, setCameraInstructionHistory, cameraPointLabelHistory, setCameraPointLabelHistory,
+    statusHints, setStatusHints,
     valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
@@ -108,6 +110,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSelectedTextAnnotationId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive,
     setSoundClipboard: setSoundCueClipboard, setSoundDialog: setSoundCueDialog, setSoundLabelHistory,
     setCameraClipboard: setCameraCueClipboard, setCameraDialog: setCameraCueDialog,
+    setCameraInstructionHistory, setCameraPointLabelHistory,
   })
   const selectedHit = sheetSelection.kind === 'cell'
     ? sheetSelection.hit
@@ -2266,7 +2269,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
-    cameraCueClipboard, cameraCueDialog, setCameraCueDialog, exportProfileId, sheetImageExportDraft,
+    cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
     projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,

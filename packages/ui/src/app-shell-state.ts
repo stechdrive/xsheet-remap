@@ -9,6 +9,12 @@ import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
 import { loadSoundLabelHistory, saveSoundLabelHistory } from './soundCueEditing'
+import {
+  loadCameraInstructionHistory,
+  loadCameraPointLabelHistory,
+  saveCameraInstructionHistory,
+  saveCameraPointLabelHistory,
+} from './cameraCueEditing'
 
 interface WorkspaceHistorySnapshot {
   project: CutProject
@@ -100,6 +106,8 @@ export function useAppShellState() {
   const [cameraCueClipboard, setCameraCueClipboard] = useState<CameraCueClipboard | null>(null)
   const [cameraCueDialog, setCameraCueDialog] = useState<CameraCueDialogState | null>(null)
   const [soundLabelHistory, setSoundLabelHistory] = useState<string[]>(loadSoundLabelHistory)
+  const [cameraInstructionHistory, setCameraInstructionHistory] = useState<string[]>(loadCameraInstructionHistory)
+  const [cameraPointLabelHistory, setCameraPointLabelHistory] = useState<string[]>(loadCameraPointLabelHistory)
   const [statusHints, setStatusHints] = useState<StatusHints>({})
   const [valueDraft, setValueDraft] = useState('')
   const [valueDraftActive, setValueDraftActive] = useState(false)
@@ -115,6 +123,8 @@ export function useAppShellState() {
   const nativeFileDropDedupeRef = useRef<{ signature: string; timestamp: number } | null>(null)
 
   useEffect(() => saveSoundLabelHistory(soundLabelHistory), [soundLabelHistory])
+  useEffect(() => saveCameraInstructionHistory(cameraInstructionHistory), [cameraInstructionHistory])
+  useEffect(() => saveCameraPointLabelHistory(cameraPointLabelHistory), [cameraPointLabelHistory])
 
   return {
     history, setHistory, commitWorkspace, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
@@ -128,7 +138,9 @@ export function useAppShellState() {
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
-    cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog, statusHints, setStatusHints,
+    cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog,
+    cameraInstructionHistory, setCameraInstructionHistory, cameraPointLabelHistory, setCameraPointLabelHistory,
+    statusHints, setStatusHints,
     valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,

@@ -1,15 +1,14 @@
-import { useId } from 'react'
 import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type CutGroupProjectDocument, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel } from './appTypes'
 import { type SheetImageExportFormat } from './cleanSheetExport'
 import { calibrationTargetRectForTemplate } from './sheetImages'
-import { clampNumber } from './sheetInteraction'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { ActionMenu } from './AppControls'
 import { CalibrationPointKind, RegisteredCellSortDirection } from './app-foundation'
 import { gridHeaderLabelForRole } from './templateEditorGeometry'
+import { DurationFrameControl } from './DurationFrameControl'
 
 export function RecognitionActionMenu({
   candidates,
@@ -215,146 +214,6 @@ export function CutMetadataActionMenu({
       </div>
     </ActionMenu>
   )
-}
-
-export function DurationFrameControl({
-  frames,
-  fps,
-  onChange,
-  showLabel = true,
-  autoFocus = false,
-}: {
-  frames: number
-  fps: number
-  onChange: (frames: number) => void
-  showLabel?: boolean
-  autoFocus?: boolean
-}) {
-  const labelId = useId()
-  const safeFps = Math.max(1, Math.round(fps))
-  const { seconds, frameRemainder } = durationParts(frames, safeFps)
-
-  function setDurationParts(nextSeconds: number, nextFrameRemainder: number) {
-    const clampedSeconds = clampNumber(Math.round(nextSeconds), 0, 999)
-    const clampedRemainder = clampNumber(Math.round(nextFrameRemainder), 0, safeFps - 1)
-    onChange(Math.max(1, clampedSeconds * safeFps + clampedRemainder))
-  }
-
-  function stepSeconds(delta: number) {
-    onChange(clampDurationFrames(frames + delta * safeFps, safeFps))
-  }
-
-  function stepFrames(delta: number) {
-    onChange(clampDurationFrames(frames + delta, safeFps))
-  }
-
-  return (
-    <div className={`compactControl durationControl${showLabel ? '' : ' durationControlWithoutLabel'}`}>
-      {showLabel && <span id={labelId}>{uiText.sheet.duration}</span>}
-      <span
-        className="durationStepper"
-        role="group"
-        aria-label={showLabel ? undefined : uiText.sheet.duration}
-        aria-labelledby={showLabel ? labelId : undefined}
-      >
-        <DurationStepperUnit
-          displayValue={formatDurationPart(seconds, 2)}
-          max={999}
-          autoFocus={autoFocus}
-          inputLabel={uiText.sheet.durationSeconds}
-          upLabel={uiText.sheet.durationSecondsUp}
-          downLabel={uiText.sheet.durationSecondsDown}
-          onInput={value => setDurationParts(value, frameRemainder)}
-          onStep={stepSeconds}
-        />
-        <span className="durationSeparator" aria-hidden="true">+</span>
-        <DurationStepperUnit
-          displayValue={formatDurationPart(frameRemainder, 2)}
-          max={safeFps - 1}
-          inputLabel={uiText.sheet.durationFrames}
-          upLabel={uiText.sheet.durationFramesUp}
-          downLabel={uiText.sheet.durationFramesDown}
-          onInput={value => setDurationParts(seconds, value)}
-          onStep={stepFrames}
-        />
-      </span>
-    </div>
-  )
-}
-
-function DurationStepperUnit({
-  displayValue,
-  autoFocus = false,
-  inputLabel,
-  upLabel,
-  downLabel,
-  max,
-  onInput,
-  onStep,
-}: {
-  displayValue: string
-  autoFocus?: boolean
-  inputLabel: string
-  upLabel: string
-  downLabel: string
-  max: number
-  onInput: (value: number) => void
-  onStep: (delta: number) => void
-}) {
-  function handleInput(rawValue: string) {
-    const normalized = rawValue
-      .replace(/[０-９]/g, character => String.fromCharCode(character.charCodeAt(0) - 0xfee0))
-      .replace(/\D/g, '')
-    const value = normalized ? Number(normalized) : 0
-    onInput(clampNumber(value, 0, max))
-  }
-
-  return (
-    <span className="durationUnitStepper">
-      <input
-        autoFocus={autoFocus}
-        className="durationInput"
-        value={displayValue}
-        inputMode="numeric"
-        aria-label={inputLabel}
-        onChange={event => handleInput(event.currentTarget.value)}
-        onKeyDown={event => {
-          if (event.key === 'ArrowUp') {
-            event.preventDefault()
-            onStep(1)
-          }
-          if (event.key === 'ArrowDown') {
-            event.preventDefault()
-            onStep(-1)
-          }
-        }}
-      />
-      <span className="durationArrowStack">
-        <button type="button" className="durationArrowButton" aria-label={upLabel} onClick={() => onStep(1)}>
-          ▲
-        </button>
-        <button type="button" className="durationArrowButton" aria-label={downLabel} onClick={() => onStep(-1)}>
-          ▼
-        </button>
-      </span>
-    </span>
-  )
-}
-
-function durationParts(frames: number, fps: number): { seconds: number; frameRemainder: number } {
-  const safeFrames = Math.max(1, Math.round(frames))
-  return {
-    seconds: Math.floor(safeFrames / fps),
-    frameRemainder: safeFrames % fps,
-  }
-}
-
-function clampDurationFrames(frames: number, fps: number): number {
-  return clampNumber(Math.round(frames), 1, 999 * fps + fps - 1)
-}
-
-function formatDurationPart(value: number, minDigits: number): string {
-  return String(Math.max(0, Math.round(value))).padStart(minDigits, '0')
 }
 
 export function RegisteredCellSortIcon({ direction }: { direction: RegisteredCellSortDirection }) {

@@ -35,6 +35,8 @@ interface AppTimedRangeControllersOptions {
   setSoundLabelHistory: Dispatch<SetStateAction<string[]>>
   setCameraClipboard: Dispatch<SetStateAction<CameraCueClipboard | null>>
   setCameraDialog: Dispatch<SetStateAction<CameraCueDialogState | null>>
+  setCameraInstructionHistory: Dispatch<SetStateAction<string[]>>
+  setCameraPointLabelHistory: Dispatch<SetStateAction<string[]>>
 }
 
 export function createAppTimedRangeControllers(options: AppTimedRangeControllersOptions) {
@@ -74,6 +76,8 @@ export function createAppTimedRangeControllers(options: AppTimedRangeControllers
       clipboard: options.cameraClipboard,
       setClipboard: options.setCameraClipboard,
       setDialog: options.setCameraDialog,
+      setInstructionHistory: options.setCameraInstructionHistory,
+      setPointLabelHistory: options.setCameraPointLabelHistory,
     })
   function handleTimedRangeKeyDown(event: KeyboardEvent): boolean {
     if (selectedCameraCueId || options.rangeSelection?.role === 'camera') {

@@ -517,7 +517,8 @@ async function verifyTimelineMemoEditing(): Promise<void> {
       && Boolean(document.querySelector('.timelineMemoSegment:not(.selected) .timelineMemoStrokeHit'))
   `)
   if (!unselectedMemoOwnsOnlyInk) throw new Error('unselected timeline memo still owns its transparent canvas')
-  await mouseClick(await centerOfSelector('.timelineMemoAnchorCue[data-timeline-memo-anchor-frame="70"] .timelineMemoAnchorHitArea'), 'right')
+  await clientPointForFrame('action', 'A', 70)
+  await mouseClick(await inputPointForSelector('.timelineMemoAnchorCue[data-timeline-memo-anchor-frame="70"] .timelineMemoAnchorHitArea'), 'right')
   await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'timeline memo anchor context menu')
   const contextMenuKeepsSheetActions = await evaluatePage<boolean>(`
     (() => {
@@ -537,10 +538,11 @@ async function verifyTimelineMemoEditing(): Promise<void> {
       && !document.querySelector('.timelineMemoMoveHandleGlyph')
   `)
   if (!refinedHandlesVisible) throw new Error('refined timeline memo move and resize handles are unavailable')
-  await mouseClick(exitMemoPoint)
+  const resumedExitMemoPoint = await clientPointForFrame('action', 'A', 20)
+  await mouseClick(resumedExitMemoPoint)
   await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), 'timeline memo second edit exit')
   checks.push('re-entered memo editing from the shared-size anchor while preserving underlying sheet actions')
-  await mouseClick(exitMemoPoint)
+  await mouseClick(resumedExitMemoPoint)
   await keyPress('4')
   await keyPress('Enter')
   await waitForEventAt('action', 'A', 20, '4')
@@ -1075,6 +1077,30 @@ async function centerOfSelector(selector: string): Promise<ClientPoint> {
   `)
   if (!point) throw new Error(`visible element not found: ${selector}`)
   return point
+}
+
+async function inputPointForSelector(selector: string): Promise<ClientPoint> {
+  const result = await evaluatePage<{ point: ClientPoint; receivesInput: boolean } | null>(`
+    (() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) return null;
+      const box = element.getBoundingClientRect();
+      const point = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      if (
+        box.width <= 0
+        || box.height <= 0
+        || point.x < 0
+        || point.y < 0
+        || point.x >= window.innerWidth
+        || point.y >= window.innerHeight
+      ) return { point, receivesInput: false };
+      const target = document.elementFromPoint(point.x, point.y);
+      return { point, receivesInput: target === element || Boolean(element.contains(target)) };
+    })()
+  `)
+  if (!result) throw new Error(`input element not found: ${selector}`)
+  if (!result.receivesInput) throw new Error(`element does not receive input at its center: ${selector}`)
+  return result.point
 }
 
 async function hoverSelector(selector: string): Promise<void> {

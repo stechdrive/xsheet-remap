@@ -9,6 +9,7 @@ export function DurationFrameControl({
   showLabel = true,
   autoFocus = false,
   maxFrames,
+  label = uiText.sheet.duration,
 }: {
   frames: number
   fps: number
@@ -16,6 +17,7 @@ export function DurationFrameControl({
   showLabel?: boolean
   autoFocus?: boolean
   maxFrames?: number
+  label?: string
 }) {
   const labelId = useId()
   const safeFps = Math.max(1, Math.round(fps))
@@ -34,20 +36,20 @@ export function DurationFrameControl({
 
   return (
     <div className={`compactControl durationControl${showLabel ? '' : ' durationControlWithoutLabel'}`}>
-      {showLabel && <span id={labelId}>{uiText.sheet.duration}</span>}
+      {showLabel && <span id={labelId}>{label}</span>}
       <span
         className="durationStepper"
         role="group"
-        aria-label={showLabel ? undefined : uiText.sheet.duration}
+        aria-label={showLabel ? undefined : label}
         aria-labelledby={showLabel ? labelId : undefined}
       >
         <DurationStepperUnit
           displayValue={formatDurationPart(seconds, 2)}
           max={999}
           autoFocus={autoFocus}
-          inputLabel={uiText.sheet.durationSeconds}
-          upLabel={uiText.sheet.durationSecondsUp}
-          downLabel={uiText.sheet.durationSecondsDown}
+          inputLabel={`${label} 秒`}
+          upLabel={`${label}を1秒増やす`}
+          downLabel={`${label}を1秒減らす`}
           onInput={value => setDurationParts(value, frameRemainder)}
           onStep={delta => step(delta * safeFps)}
         />
@@ -55,9 +57,9 @@ export function DurationFrameControl({
         <DurationStepperUnit
           displayValue={formatDurationPart(frameRemainder, 2)}
           max={safeFps - 1}
-          inputLabel={uiText.sheet.durationFrames}
-          upLabel={uiText.sheet.durationFramesUp}
-          downLabel={uiText.sheet.durationFramesDown}
+          inputLabel={`${label} コマ`}
+          upLabel={`${label}を1コマ増やす`}
+          downLabel={`${label}を1コマ減らす`}
           onInput={value => setDurationParts(seconds, value)}
           onStep={step}
         />

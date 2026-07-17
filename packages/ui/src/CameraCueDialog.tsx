@@ -16,7 +16,6 @@ import {
 } from './cameraCueEditing'
 import { DurationFrameControl } from './DurationFrameControl'
 import { HistoryInput } from './HistoryInput'
-import { Tooltip } from './Tooltip'
 
 export interface CameraCueDialogSubmit {
   cueId?: string
@@ -85,7 +84,6 @@ export function CameraCueDialog({
   const pointCount = (startLabel.trim() ? 1 : 0)
     + intermediatePoints.filter(point => point.label.trim()).length
     + (endLabel.trim() ? 1 : 0)
-  const instructionMissing = !label.trim()
   const tooManyPointLabels = pointCount > durationFrames
 
   useEffect(() => {
@@ -133,10 +131,6 @@ export function CameraCueDialog({
   function submit(event: FormEvent) {
     event.preventDefault()
     const normalizedLabel = label.trim()
-    if (!normalizedLabel) {
-      instructionInputRef.current?.focus()
-      return
-    }
     const points: CameraInstructionPoint[] = [
       ...(startLabel.trim() ? [{ pointId: 'point_start', role: 'start' as const, frameOffset: 0, label: startLabel.trim() }] : []),
       ...intermediatePoints.filter(point => point.label.trim()).map(point => ({ ...point, label: point.label.trim() })),
@@ -167,18 +161,17 @@ export function CameraCueDialog({
         <div className="soundCueDialogBody cameraCueDialogBody">
           <div className="cameraShapePicker" role="radiogroup" aria-label="CAMERA描画種別">
             {shapeOptions.map(option => (
-              <Tooltip key={option.value} label={option.label}>
-                <button
-                  type="button"
-                  className={shape === option.value ? 'cameraShapeButton selected' : 'cameraShapeButton'}
-                  role="radio"
-                  aria-label={option.label}
-                  aria-checked={shape === option.value}
-                  onClick={() => setShape(option.value)}
-                >
-                  <CameraShapeIcon shape={option.value} />
-                </button>
-              </Tooltip>
+              <button
+                key={option.value}
+                type="button"
+                className={shape === option.value ? 'cameraShapeButton selected' : 'cameraShapeButton'}
+                role="radio"
+                aria-label={option.label}
+                aria-checked={shape === option.value}
+                onClick={() => setShape(option.value)}
+              >
+                <CameraShapeIcon shape={option.value} />
+              </button>
             ))}
           </div>
           <label>
@@ -197,12 +190,12 @@ export function CameraCueDialog({
           <div className="cameraCueTimingRow">
             <span><small>開始</small>{formatLogicalSheetFrameTimecode(frameStart, frameMin, safeFps)}</span>
             <span><small>終了</small>{formatLogicalSheetFrameTimecode(frameEnd, frameMin, safeFps)}</span>
-            <DurationFrameControl frames={durationFrames} fps={safeFps} maxFrames={maxDuration} onChange={updateDuration} />
+            <DurationFrameControl frames={durationFrames} fps={safeFps} maxFrames={maxDuration} label="長さ" onChange={updateDuration} />
           </div>
           <div className="cameraPointEditor">
             <PointLabelRow
-              kindLabel="開始点"
-              ariaLabel="CAMERA開始点"
+              kindLabel="開始ラベル"
+              ariaLabel="CAMERA開始ラベル"
               value={startLabel}
               history={pointLabelHistory}
               onChange={setStartLabel}
@@ -212,11 +205,11 @@ export function CameraCueDialog({
               const next = intermediatePoints[index + 1]?.frameOffset ?? durationFrames - 1
               return (
                 <div className="cameraIntermediatePointRow" key={point.pointId}>
-                  <span>中間点</span>
+                  <span>中間ラベル</span>
                   <span className="cameraPointPosition">
                     <input
                       type="number"
-                      aria-label={`CAMERA中間点${index + 1}位置`}
+                      aria-label={`CAMERA中間ラベル${index + 1}位置`}
                       min={frameStart + previous + 1}
                       max={frameStart + next - 1}
                       value={frameStart + point.frameOffset}
@@ -227,25 +220,26 @@ export function CameraCueDialog({
                     <output>{formatLogicalSheetFrameTimecode(frameStart + point.frameOffset, frameMin, safeFps)}</output>
                   </span>
                   <HistoryInput
-                    aria-label={`CAMERA中間点${index + 1}`}
+                    aria-label={`CAMERA中間ラベル${index + 1}`}
                     value={point.label}
                     history={pointLabelHistory}
                     historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
+                    placeholder="任意"
                     onChange={event => updateIntermediatePoint(point.pointId, { label: event.currentTarget.value })}
                   />
-                  <button type="button" className="dialogIconButton compact" aria-label={`中間点${index + 1}を削除`} onClick={() => setIntermediatePoints(current => current.filter(item => item.pointId !== point.pointId))}>×</button>
+                  <button type="button" className="dialogIconButton compact" aria-label={`中間ラベル${index + 1}を削除`} onClick={() => setIntermediatePoints(current => current.filter(item => item.pointId !== point.pointId))}>×</button>
                 </div>
               )
             })}
-            <button type="button" className="cameraAddPointButton" disabled={!canAddIntermediate} onClick={addIntermediatePoint}>＋ 中間点</button>
+            <button type="button" className="cameraAddPointButton" disabled={!canAddIntermediate} onClick={addIntermediatePoint}>＋ 中間ラベル</button>
             <PointLabelRow
-              kindLabel="終了点"
-              ariaLabel="CAMERA終了点"
+              kindLabel="終了ラベル"
+              ariaLabel="CAMERA終了ラベル"
               value={endLabel}
               history={pointLabelHistory}
               onChange={setEndLabel}
             />
-            {tooManyPointLabels && <span className="cameraPointValidation" role="alert">位置ラベル数を尺のコマ数以下にしてください。</span>}
+            {tooManyPointLabels && <span className="cameraPointValidation" role="alert">位置ラベル数を区間のコマ数以下にしてください。</span>}
           </div>
           {shape === 'overlap' && (
             <label className="cameraPivotField">
@@ -270,7 +264,7 @@ export function CameraCueDialog({
         </div>
         <footer className="soundCueDialogFooter">
           <button type="button" onClick={onCancel}>キャンセル</button>
-          <button type="submit" className="primaryButton" disabled={instructionMissing || tooManyPointLabels}>{state.mode === 'edit' ? '更新' : '追加'}</button>
+          <button type="submit" className="primaryButton" disabled={tooManyPointLabels}>{state.mode === 'edit' ? '更新' : '追加'}</button>
         </footer>
       </form>
     </div>
@@ -292,6 +286,7 @@ function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange }: {
         value={value}
         history={history}
         historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
+        placeholder="任意"
         onChange={event => onChange(event.currentTarget.value)}
       />
     </label>
@@ -302,7 +297,7 @@ function CameraShapeIcon({ shape }: { shape: CameraInstructionShape }) {
   if (shape === 'range') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M18 4v16M14 7l4-4 4 4M14 17l4 4 4-4" /></svg>
   if (shape === 'fade-in') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M18 3L6 21h24Z" /></svg>
   if (shape === 'fade-out') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M6 3h24L18 21Z" /></svg>
-  return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M7 3l22 18M29 3L7 21M12 12h12" /></svg>
+  return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M7 3H29L18 12Z M7 21H29L18 12Z" /></svg>
 }
 
 function suggestedShapeForInstruction(value: string): CameraInstructionShape | null {

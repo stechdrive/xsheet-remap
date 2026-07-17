@@ -96,10 +96,6 @@
   gap: 6px;
 }
 
-.cameraShapePicker .appTooltipTrigger {
-  display: block;
-}
-
 .cameraShapeButton {
   display: grid;
   place-items: center;

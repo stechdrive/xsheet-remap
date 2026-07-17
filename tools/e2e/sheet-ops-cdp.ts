@@ -624,20 +624,30 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
     if (!dialog) return false
     const radios = Array.from(dialog.querySelectorAll<HTMLElement>('[role="radio"]'))
     const builtIns = Array.from(dialog.querySelectorAll<HTMLOptionElement>('datalist option')).map(option => option.value)
+    const instruction = dialog.querySelector<HTMLInputElement>('[aria-label="CAMERA指示"]')
+    const addButton = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === '追加')
+    const overlapPath = dialog.querySelector<SVGPathElement>('[role="radio"][aria-label="オーバーラップ"] path')
     return dialog.querySelector('header strong')?.textContent?.trim() === '撮影指示'
       && radios.length === 4
       && radios.every(radio => radio.getBoundingClientRect().width > 0 && radio.getBoundingClientRect().height > 0)
+      && !dialog.querySelector('.cameraShapePicker .appTooltipTrigger')
+      && overlapPath?.getAttribute('d') === 'M7 3H29L18 12Z M7 21H29L18 12Z'
       && !dialog.querySelector('select')
       && !dialog.querySelector('[aria-label="CAMERA開始フレーム"]')
+      && instruction?.required === false
+      && addButton?.disabled === false
+      && Boolean(dialog.querySelector('[aria-label="長さ コマ"]'))
+      && Boolean(dialog.querySelector('[aria-label="CAMERA開始ラベル"]'))
+      && Boolean(dialog.querySelector('[aria-label="CAMERA終了ラベル"]'))
       && ['OL', 'TU', 'TB', 'SL', 'DTU', 'DTB', 'PAN', 'FI', 'FO', 'WI', 'WO', 'Follow', '画ブレ'].every(value => builtIns.includes(value))
-  }, 'compact CAMERA dialog with four direct shape buttons and pinned instruction values')
+  }, 'compact CAMERA dialog with shape-only submission, closed OL icon, and clear labels')
   await mouseClick(await centerOfSelector('[role="radio"][aria-label="オーバーラップ"]'))
   await waitForSelector('[aria-label="CAMERA交差フレーム"]')
   await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E OL')
-  await setReactFieldValue('[aria-label="CAMERA開始点"]', 'A')
-  await setReactFieldValue('[aria-label="CAMERA終了点"]', 'B')
-  await clickButtonByText('＋ 中間点')
-  await setReactFieldValue('[aria-label="CAMERA中間点1"]', 'MID')
+  await setReactFieldValue('[aria-label="CAMERA開始ラベル"]', 'A')
+  await setReactFieldValue('[aria-label="CAMERA終了ラベル"]', 'B')
+  await clickButtonByText('＋ 中間ラベル')
+  await setReactFieldValue('[aria-label="CAMERA中間ラベル1"]', 'MID')
   await setReactFieldValue('[aria-label="CAMERA交差フレーム"]', '12')
   await clickButtonByText('追加')
   await waitForCameraCueAt('camera_lane_1', 1, 24, 'E2E OL')

@@ -1,8 +1,36 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CameraCueDialog } from './CameraCueDialog'
 
+afterEach(cleanup)
+
 describe('CameraCueDialog', () => {
+  it('disables submission without using native required validation when the instruction is blank', () => {
+    render(
+      <CameraCueDialog
+        state={{ mode: 'create', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 6 }}
+        cue={null}
+        fps={24}
+        frameMin={1}
+        frameMax={144}
+        instructionHistory={[]}
+        pointLabelHistory={[]}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    const instruction = screen.getByLabelText('CAMERA指示')
+    const submit = screen.getByRole('button', { name: '追加' }) as HTMLButtonElement
+    expect(instruction.hasAttribute('required')).toBe(false)
+    expect(submit.disabled).toBe(true)
+
+    fireEvent.change(instruction, { target: { value: '   ' } })
+    expect(submit.disabled).toBe(true)
+    fireEvent.change(instruction, { target: { value: 'PAN' } })
+    expect(submit.disabled).toBe(false)
+  })
+
   it('submits shape, endpoint cues, duration, and overlap pivot in logical frames', () => {
     const onSubmit = vi.fn()
     render(

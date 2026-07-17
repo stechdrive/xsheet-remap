@@ -85,6 +85,7 @@ export function CameraCueDialog({
   const pointCount = (startLabel.trim() ? 1 : 0)
     + intermediatePoints.filter(point => point.label.trim()).length
     + (endLabel.trim() ? 1 : 0)
+  const instructionMissing = !label.trim()
   const tooManyPointLabels = pointCount > durationFrames
 
   useEffect(() => {
@@ -190,7 +191,6 @@ export function CameraCueDialog({
               history={instructionHistory}
               pinned={CAMERA_INSTRUCTION_BUILT_INS}
               historyLimit={CAMERA_INSTRUCTION_HISTORY_LIMIT}
-              required
               placeholder="PAN、TU、OLなど"
             />
           </label>
@@ -270,7 +270,7 @@ export function CameraCueDialog({
         </div>
         <footer className="soundCueDialogFooter">
           <button type="button" onClick={onCancel}>キャンセル</button>
-          <button type="submit" className="primaryButton" disabled={tooManyPointLabels}>{state.mode === 'edit' ? '更新' : '追加'}</button>
+          <button type="submit" className="primaryButton" disabled={instructionMissing || tooManyPointLabels}>{state.mode === 'edit' ? '更新' : '追加'}</button>
         </footer>
       </form>
     </div>

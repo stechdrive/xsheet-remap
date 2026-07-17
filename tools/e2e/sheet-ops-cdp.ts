@@ -381,6 +381,7 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   await clickMenuItem('メモを追加')
   await waitForPageCondition(() => document.querySelectorAll('.timelineMemoSegment.selected').length === 2, 'A3 six-second wrap memo segments')
   await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoAnchorCue.selected[data-timeline-memo-anchor-frame="70"] .timelineMemoAnchorMarker')), 'timeline memo anchor cue')
+  await waitForPageCondition(() => Boolean(document.querySelector('.annotationFloatingPalette[data-annotation-target="timeline-memo"] button[aria-label="選択メモに描画"][aria-pressed="true"]')), 'memo-targeted pen session')
   const anchorCuePlacement = await evaluatePage<{ markerLeft: number; markerRight: number; cellLeft: number; cellCenter: number }>(`
     (() => {
       const marker = document.querySelector('.timelineMemoAnchorCue[data-timeline-memo-anchor-frame="70"] .timelineMemoAnchorMarker');
@@ -403,7 +404,18 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   if (!drawSurfaceReceivesInput) throw new Error('timeline memo handles obstruct the transparent drawing surface')
   await mouseDrag(draw.start, draw.end)
   await waitForPageCondition(() => document.querySelectorAll('.timelineMemoStroke:not(.draft)').length >= 1, 'timeline memo ink')
-  checks.push('created a range-sized handwritten memo and drew ink with mouse events')
+  checks.push('created a range-sized handwritten memo and entered its pen session automatically')
+
+  const inkBeforeErase = await evaluatePage<string>(`Array.from(document.querySelectorAll('.timelineMemoStroke:not(.draft)')).map(path => path.getAttribute('d')).join('|')`)
+  await hoverSelector('.annotationFloatingPalette[data-annotation-target="timeline-memo"]')
+  await waitForSelector('button[aria-label="選択メモ内を消去"]')
+  await mouseClick(await centerOfSelector('button[aria-label="選択メモ内を消去"]'))
+  await waitForPageCondition(() => Boolean(document.querySelector('.annotationFloatingPalette[data-annotation-target="timeline-memo"] button[aria-label="選択メモ内を消去"][aria-pressed="true"]')), 'memo-targeted eraser session')
+  const erase = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoDrawSurface.eraser', 0.46, 0.78, 0.54, 0.22)
+  await mouseDrag(erase.start, erase.end)
+  await waitForCondition(async () => (await evaluatePage<string>(`Array.from(document.querySelectorAll('.timelineMemoStroke:not(.draft)')).map(path => path.getAttribute('d')).join('|')`)) !== inkBeforeErase, 5000, 'timeline memo ink erased')
+  await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoSegment.selected')), 'memo remains selected after erasing')
+  checks.push('kept the memo target while switching to the shared eraser and erased only memo ink')
 
   const beforeWidth = await evaluatePage<number>(`Number(document.querySelector('.timelineMemoSegment.selected .timelineMemoBounds')?.getAttribute('width') ?? 0)`)
   const resize = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoResizeHandle', 0.5, 0.5, 4.5, 3.5)
@@ -424,7 +436,9 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   if (!exitMemoTargetIsOutside) throw new Error('timeline memo hit area obstructs a frame outside its visible bounds')
   await mouseClick(exitMemoPoint)
   await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), 'timeline memo edit exit')
+  await waitForPageCondition(() => Boolean(document.querySelector('.annotationFloatingPalette[data-annotation-target="sheet"]')), 'sheet annotation target restored')
   await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoAnchorCue:not(.selected)[data-timeline-memo-anchor-frame="70"]')), 'persistent timeline memo anchor cue')
+  await mouseClick(exitMemoPoint)
   await keyPress('4')
   await keyPress('Enter')
   await waitForEventAt('action', 'A', 20, '4')
@@ -873,6 +887,17 @@ async function centerOfSelector(selector: string): Promise<ClientPoint> {
   `)
   if (!point) throw new Error(`visible element not found: ${selector}`)
   return point
+}
+
+async function hoverSelector(selector: string): Promise<void> {
+  const point = await centerOfSelector(selector)
+  await clientSend('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: point.x,
+    y: point.y,
+    button: 'none',
+    buttons: 0,
+  })
 }
 
 async function selectorInsetDrag(selector: string, startX: number, startY: number, endX: number, endY: number): Promise<{ start: ClientPoint; end: ClientPoint }> {

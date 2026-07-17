@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoStroke, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TimingClipboard, type WorkspaceStyle } from './appTypes'
@@ -115,6 +115,8 @@ export function SheetPanel(props: {
   onDeleteTimelineMemo: (memoId: string) => void
   onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void
   onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
+  onEraseTimelineMemoStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
+  onClearTimelineMemoStrokes: (memoId: string) => void
   onClearSelection: () => void
   onTemplateImage: (files: FileList | File[] | null) => void
   onAssignSheetSource: (pageId: string, sourceId: string | null) => void
@@ -175,9 +177,19 @@ export function SheetPanel(props: {
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
   const [normalizationOpen, setNormalizationOpen] = useState(false)
   const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
+  const editMode = props.editMode
+  const setEditMode = props.setEditMode
   const activeTimelineMemoId = selectedTimelineMemoId && props.project.timelineMemos.some(memo => memo.memoId === selectedTimelineMemoId)
     ? selectedTimelineMemoId
     : null
+  const beginTimelineMemoEdit = useCallback((memoId: string) => {
+    setSelectedTimelineMemoId(memoId)
+    setEditMode('pen')
+  }, [setEditMode])
+  const endTimelineMemoEdit = useCallback(() => {
+    setSelectedTimelineMemoId(null)
+    if (editMode === 'pen' || editMode === 'eraser') setEditMode('new')
+  }, [editMode, setEditMode])
   const zoomPaletteRef = useRef<HTMLDivElement>(null)
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
@@ -207,11 +219,11 @@ export function SheetPanel(props: {
     const closeOutside = (event: globalThis.PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null
       const memoElement = target?.closest('[data-timeline-memo-id]')
-      if (memoElement?.getAttribute('data-timeline-memo-id') === activeTimelineMemoId || target?.closest('.sheetContextMenu')) return
-      setSelectedTimelineMemoId(null)
+      if (memoElement?.getAttribute('data-timeline-memo-id') === activeTimelineMemoId || target?.closest('.sheetContextMenu, .annotationFloatingPalette')) return
+      endTimelineMemoEdit()
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelectedTimelineMemoId(null)
+      if (event.key === 'Escape') endTimelineMemoEdit()
     }
     window.addEventListener('pointerdown', closeOutside, true)
     window.addEventListener('keydown', closeOnEscape)
@@ -219,7 +231,19 @@ export function SheetPanel(props: {
       window.removeEventListener('pointerdown', closeOutside, true)
       window.removeEventListener('keydown', closeOnEscape)
     }
-  }, [activeTimelineMemoId])
+  }, [activeTimelineMemoId, endTimelineMemoEdit])
+
+  useEffect(() => {
+    if (!selectedTimelineMemoId || activeTimelineMemoId) return
+    const timer = window.setTimeout(endTimelineMemoEdit, 0)
+    return () => window.clearTimeout(timer)
+  }, [activeTimelineMemoId, endTimelineMemoEdit, selectedTimelineMemoId])
+
+  useEffect(() => {
+    if (!activeTimelineMemoId || editMode === 'new' || editMode === 'pen' || editMode === 'eraser') return
+    const timer = window.setTimeout(() => setSelectedTimelineMemoId(null), 0)
+    return () => window.clearTimeout(timer)
+  }, [activeTimelineMemoId, editMode])
 
   useEffect(() => {
     try {
@@ -591,26 +615,35 @@ export function SheetPanel(props: {
             </Tooltip>
           </div>
         </div>
-        <div className="annotationFloatingPalette" aria-label={uiText.sheet.annotationGroup}>
-          <span className="annotationPaletteTrigger" aria-hidden="true"><PenToolIcon /></span>
-          <span className="toolbarGroupLabel annotationPaletteTitle">{uiText.sheet.annotationGroup}</span>
-          <Tooltip label={uiText.sheet.penTool}>
+        <div
+          className={activeTimelineMemoId ? 'annotationFloatingPalette timelineMemoTarget' : 'annotationFloatingPalette'}
+          aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
+          data-annotation-target={activeTimelineMemoId ? 'timeline-memo' : 'sheet'}
+        >
+          <span className="annotationPaletteTrigger" aria-hidden="true">
+            <PenToolIcon />
+            {activeTimelineMemoId && <span className="annotationTargetBadge">{uiText.sheet.timelineMemoTargetShort}</span>}
+          </span>
+          <span className="toolbarGroupLabel annotationPaletteTitle">
+            {activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
+          </span>
+          <Tooltip label={activeTimelineMemoId ? uiText.sheet.timelineMemoPenTool : uiText.sheet.penTool}>
             <button
               type="button"
               className={props.editMode === 'pen' ? 'activeToolButton' : ''}
               aria-pressed={props.editMode === 'pen'}
-              aria-label={uiText.sheet.penTool}
+              aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoPenTool : uiText.sheet.penTool}
               onClick={() => props.setEditMode(props.editMode === 'pen' ? 'new' : 'pen')}
             >
               <PenToolIcon />
             </button>
           </Tooltip>
-          <Tooltip label={uiText.sheet.eraserTool}>
+          <Tooltip label={activeTimelineMemoId ? uiText.sheet.timelineMemoEraserTool : uiText.sheet.eraserTool}>
             <button
               type="button"
               className={props.editMode === 'eraser' ? 'activeToolButton' : ''}
               aria-pressed={props.editMode === 'eraser'}
-              aria-label={uiText.sheet.eraserTool}
+              aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoEraserTool : uiText.sheet.eraserTool}
               onClick={() => props.setEditMode(props.editMode === 'eraser' ? 'new' : 'eraser')}
             >
               <EraserToolIcon />
@@ -630,16 +663,22 @@ export function SheetPanel(props: {
             </label>
           </ActionMenu>
           <ActionMenu label={<TrashIcon />} ariaLabel={uiText.actions.clearInk} tooltipLabel={uiText.actions.clearInkTitle} className="annotationClearMenu" closeOnMenuItemClick>
-            <button
-              type="button"
-              disabled={!activePage}
-              onClick={() => {
-                if (activePage) props.onClearPageAnnotations(activePage.pageId)
-              }}
-            >
-              {uiText.actions.clearPageInk}
-            </button>
-            <button type="button" onClick={props.onClearAllAnnotations}>{uiText.actions.clearAllInk}</button>
+            {activeTimelineMemoId ? (
+              <button type="button" onClick={() => props.onClearTimelineMemoStrokes(activeTimelineMemoId)}>{uiText.sheet.clearTimelineMemoInk}</button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={!activePage}
+                  onClick={() => {
+                    if (activePage) props.onClearPageAnnotations(activePage.pageId)
+                  }}
+                >
+                  {uiText.actions.clearPageInk}
+                </button>
+                <button type="button" onClick={props.onClearAllAnnotations}>{uiText.actions.clearAllInk}</button>
+              </>
+            )}
           </ActionMenu>
         </div>
         <aside id="sheet-left-pane" className="sheetDock sheetDockLeft" aria-label="CSPレイヤー構成" hidden={!paneLayout.left}>
@@ -700,12 +739,12 @@ export function SheetPanel(props: {
           selectedTimelineMemoId={activeTimelineMemoId}
           onCreateTimelineMemo={hit => {
             const memoId = props.onCreateTimelineMemo(hit)
-            setSelectedTimelineMemoId(memoId)
+            if (memoId) beginTimelineMemoEdit(memoId)
           }}
-          onSelectTimelineMemo={setSelectedTimelineMemoId}
+          onSelectTimelineMemo={memoId => memoId ? beginTimelineMemoEdit(memoId) : endTimelineMemoEdit()}
           onDeleteTimelineMemo={memoId => {
             props.onDeleteTimelineMemo(memoId)
-            setSelectedTimelineMemoId(null)
+            endTimelineMemoEdit()
           }}
           setZoom={setClampedZoom}
           onCreateStackGuideLabel={props.onCreateStackGuideLabel}

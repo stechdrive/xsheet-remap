@@ -251,8 +251,10 @@ export {
 export {
   addTimelineMemo,
   appendTimelineMemoStroke,
+  clearTimelineMemoStrokes,
   deleteTimelineMemo,
   deleteTimelineMemoAnchors,
+  eraseTimelineMemoStrokes,
   insertTimelineMemoAnchors,
   nextTimelineMemoId,
   nextTimelineMemoStrokeId,

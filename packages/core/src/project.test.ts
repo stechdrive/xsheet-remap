@@ -17,6 +17,7 @@ import {
   buildAeRemapText,
   buildCspImportPackage,
   createAlphabeticTrackLabels,
+  clearAnnotations,
   createDefaultProject,
   createKey,
   createUnplacedCspCard,
@@ -1164,6 +1165,29 @@ describe('core project commands', () => {
     const cleared = clearAnnotationsForPage(project, 'page_1')
 
     expect(cleared.annotations).toEqual([expect.objectContaining({ annotationId: 'anno_page_2', pageId: 'page_2' })])
+  })
+
+  it('clears free annotations without deleting anchored timeline memos', () => {
+    const project = createDefaultProject()
+    project.annotations = [{
+      annotationId: 'anno_1',
+      pageId: 'page_1',
+      tool: 'pen',
+      color: '#000',
+      width: 0.01,
+      points: [{ x: 0.1, y: 0.1 }],
+    }]
+    project.timelineMemos = [{
+      memoId: 'memo_1',
+      anchor: { role: 'action', frame: 1, paperTrack: 'A' },
+      placement: { frameOffset: 0, crossOffsetUnits: 0, widthUnits: 8, heightFrames: 8 },
+      strokes: [],
+      order: 1,
+    }]
+
+    const cleared = clearAnnotations(project)
+    expect(cleared.annotations).toEqual([])
+    expect(cleared.timelineMemos).toEqual(project.timelineMemos)
   })
 
   it('keeps cell materials and timesheet scans as separate asset roles', () => {

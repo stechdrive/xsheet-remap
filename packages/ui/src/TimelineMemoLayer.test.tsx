@@ -1,5 +1,5 @@
 import { createSheetPages, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
-import { render } from '@testing-library/react'
+import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 
@@ -27,9 +27,12 @@ describe('TimelineMemoLayer anchor cues', () => {
           pageSize={pageSize}
           surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
           selectedMemoId={null}
+          editMode="new"
           penColor="#111"
           penWidth={0.002}
+          eraserWidth={0.018}
           onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
@@ -56,9 +59,12 @@ describe('TimelineMemoLayer anchor cues', () => {
           pageSize={pageSize}
           surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
           selectedMemoId={displaced.memoId}
+          editMode="pen"
           penColor="#111"
           penWidth={0.002}
+          eraserWidth={0.018}
           onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
@@ -76,14 +82,74 @@ describe('TimelineMemoLayer anchor cues', () => {
           pageSize={pageSize}
           surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
           selectedMemoId={null}
+          editMode="new"
           penColor="#111"
           penWidth={0.002}
+          eraserWidth={0.018}
           onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
     )
     expect(container.querySelector('.timelineMemoAnchorConnector')).toBeNull()
     expect(container.querySelector('.timelineMemoAnchorCue')).toBeTruthy()
+  })
+
+  it('routes the selected memo surface through the active annotation tool', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const selected = memo('memo_1')
+    const onEraseStroke = vi.fn()
+    const { container, rerender } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[selected]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
+          selectedMemoId={selected.memoId}
+          editMode="new"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={onEraseStroke}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+    expect(container.querySelector('.timelineMemoDrawSurface')).toBeNull()
+
+    rerender(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[selected]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
+          selectedMemoId={selected.memoId}
+          editMode="eraser"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={onEraseStroke}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+    const eraserSurface = container.querySelector<SVGRectElement>('.timelineMemoDrawSurface.eraser')
+    expect(eraserSurface).toBeTruthy()
+    Object.defineProperty(eraserSurface, 'setPointerCapture', { value: vi.fn() })
+    fireEvent.pointerDown(eraserSurface as SVGRectElement, { pointerId: 7, clientX: 10, clientY: 10 })
+    fireEvent.pointerUp(eraserSurface as SVGRectElement, { pointerId: 7, clientX: 10, clientY: 10 })
+    expect(onEraseStroke).toHaveBeenCalledTimes(1)
+    expect(onEraseStroke.mock.calls[0]?.[0]).toBe(selected.memoId)
+    expect(onEraseStroke.mock.calls[0]?.[2]).toBeGreaterThan(0)
   })
 })

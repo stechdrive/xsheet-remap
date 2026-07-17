@@ -53,7 +53,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
-    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleTextAnnotation, handleSelectTextAnnotation,
+    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   } = controller
@@ -354,6 +354,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onDeleteTimelineMemo={handleDeleteTimelineMemo}
             onUpdateTimelineMemoPlacement={handleUpdateTimelineMemoPlacement}
             onAppendTimelineMemoStroke={handleAppendTimelineMemoStroke}
+            onEraseTimelineMemoStroke={handleEraseTimelineMemoStroke}
+            onClearTimelineMemoStrokes={handleClearTimelineMemoStrokes}
             onClearSelection={handleClearSelection}
             onTemplateImage={files => void handleSheetSourceFiles(files, activePage?.pageId)}
             onAssignSheetSource={handleAssignSheetSource}

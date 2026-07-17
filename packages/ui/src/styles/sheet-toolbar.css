@@ -1261,6 +1261,17 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   padding: 6px;
 }
 
+.annotationFloatingPalette.timelineMemoTarget {
+  width: 54px;
+  border-color: rgb(19 116 92 / 0.72);
+  background: rgb(239 248 243 / 0.96);
+}
+
+.annotationFloatingPalette.timelineMemoTarget:hover,
+.annotationFloatingPalette.timelineMemoTarget:focus-within {
+  width: 82px;
+}
+
 .annotationPaletteTrigger {
   display: grid;
   place-items: center;
@@ -1272,6 +1283,18 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
+}
+
+.timelineMemoTarget .annotationPaletteTrigger {
+  display: flex;
+  width: 44px;
+  gap: 3px;
+}
+
+.annotationTargetBadge {
+  font-size: 9px;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
 }
 
 .annotationFloatingPalette .topIconSvg {

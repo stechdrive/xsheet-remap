@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetViewLayoutOverrides, TimelineInkMemo, TimelineMemoPlacement, TimelineMemoPoint, TimelineMemoStroke } from '@xsheet-remap/core'
+import type { EditMode } from './appTypes'
 import {
   timelineMemoAnchorCellForPage,
   timelineMemoAnchorConnectorPoints,
@@ -12,7 +13,7 @@ import {
 
 type MemoInteraction = {
   pointerId: number
-  mode: 'draw' | 'move' | 'resize'
+  mode: 'draw' | 'erase' | 'move' | 'resize'
   memo: TimelineInkMemo
   segment: TimelineMemoSegment
   startClient: { x: number; y: number }
@@ -29,9 +30,12 @@ export function TimelineMemoLayer({
   pageSize,
   surface,
   selectedMemoId,
+  editMode,
   penColor,
   penWidth,
+  eraserWidth,
   onAppendStroke,
+  onEraseStroke,
   onUpdatePlacement,
 }: {
   memos: readonly TimelineInkMemo[]
@@ -42,9 +46,12 @@ export function TimelineMemoLayer({
   pageSize: { widthPx: number; heightPx: number }
   surface: { widthPx: number; heightPx: number }
   selectedMemoId: string | null
+  editMode: EditMode
   penColor: string
   penWidth: number
+  eraserWidth: number
   onAppendStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
+  onEraseStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
   onUpdatePlacement: (memoId: string, placement: TimelineMemoPlacement) => void
 }) {
   const [interaction, setInteraction] = useState<MemoInteraction | null>(null)
@@ -106,7 +113,7 @@ export function TimelineMemoLayer({
     if (!current || current.pointerId !== event.pointerId) return
     event.preventDefault()
     event.stopPropagation()
-    if (current.mode === 'draw') {
+    if (current.mode === 'draw' || current.mode === 'erase') {
       const points = [...current.points, timelineMemoPointFromPagePoint(current.segment, pagePoint(event))]
       const next = { ...current, points }
       interactionRef.current = next
@@ -152,6 +159,14 @@ export function TimelineMemoLayer({
       }
       return
     }
+    if (current.mode === 'erase') {
+      onEraseStroke(
+        current.memo.memoId,
+        current.points,
+        Math.max(0.04, eraserWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
+      )
+      return
+    }
     onUpdatePlacement(current.memo.memoId, current.previewPlacement)
   }
 
@@ -160,6 +175,8 @@ export function TimelineMemoLayer({
       {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
         const selected = memo.memoId === selectedMemoId
         const draftPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'draw' ? interaction.points : null
+        const eraserPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'erase' ? interaction.points : null
+        const drawingToolActive = editMode === 'pen' || editMode === 'eraser'
         return (
           <g key={`${memo.memoId}:${segment.regionId}`} data-timeline-memo-id={memo.memoId} className={selected ? 'timelineMemoSegment selected' : 'timelineMemoSegment'}>
             <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
@@ -171,6 +188,10 @@ export function TimelineMemoLayer({
               const path = timelineMemoStrokePath(segment, draftPoints)
               return path ? <path className="timelineMemoStroke draft" d={path} stroke={penColor} strokeWidth={Math.max(penWidth, 0.001)} /> : null
             })()}
+            {eraserPoints && (() => {
+              const path = timelineMemoStrokePath(segment, eraserPoints)
+              return path ? <path className="timelineMemoEraserPreview" d={path} strokeWidth={Math.max(eraserWidth, 0.001)} /> : null
+            })()}
             {selected && <g className="timelineMemoBoundsEdges">
               <rect className="timelineMemoBounds" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
               <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={edgeH} />
@@ -178,13 +199,13 @@ export function TimelineMemoLayer({
               <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
               <rect className="timelineMemoBoundsEdge" x={segment.rect.x + segment.rect.w - edgeW} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
             </g>}
-            {selected && <rect
-              className="timelineMemoDrawSurface"
+            {selected && drawingToolActive && <rect
+              className={editMode === 'eraser' ? 'timelineMemoDrawSurface eraser' : 'timelineMemoDrawSurface'}
               x={segment.rect.x + handleW}
               y={segment.rect.y}
               width={Math.max(0, segment.rect.w - handleW)}
               height={segment.rect.h}
-              onPointerDown={event => begin(event, memo, segment, 'draw')}
+              onPointerDown={event => begin(event, memo, segment, editMode === 'eraser' ? 'erase' : 'draw')}
               onPointerMove={move}
               onPointerUp={finish}
               onPointerCancel={event => finish(event, true)}

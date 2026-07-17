@@ -1703,6 +1703,14 @@
   opacity: 0.72;
 }
 
+.timelineMemoEraserPreview {
+  fill: none;
+  stroke: rgb(36 121 94 / 0.56);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .timelineMemoBounds {
   fill: none;
   pointer-events: none;
@@ -1716,6 +1724,10 @@
 
 .timelineMemoDrawSurface {
   cursor: crosshair;
+}
+
+.timelineMemoDrawSurface.eraser {
+  cursor: cell;
 }
 
 .timelineMemoMoveHandle,

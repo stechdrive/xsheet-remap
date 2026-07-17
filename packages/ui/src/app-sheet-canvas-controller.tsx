@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type CameraInstruction, type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, type TimelineMemoPlacement, type TimelineMemoStroke, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
+import { type CameraInstruction, type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, getSheetViewLayout, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetImageSettings, type SoundCueClipboard, type TimingClipboard } from './appTypes';
 import { type DropDiagnosticReport } from './AssetBrowser';
@@ -90,7 +90,7 @@ export type SheetCanvasProps = {
   onPasteCameraCues: (mode: 'overwrite' | 'insert') => void
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
   onCreateTimelineMemo: (hit: SheetHit) => void; onSelectTimelineMemo: (memoId: string | null) => void; onDeleteTimelineMemo: (memoId: string) => void
-  onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void; onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
+  onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void; onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void; onEraseTimelineMemoStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
   onTemplateImage: (files: FileList | File[] | null) => void
   onAssetSheetSources: (assetIds: string[]) => void
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void
@@ -1426,7 +1426,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function handlePointerDown(event: PointerEvent<SVGSVGElement>, page: SheetPage) {
     if (beginViewportPan(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
-    event.preventDefault(); if (props.selectedTimelineMemoId) props.onSelectTimelineMemo(null)
+    event.preventDefault(); if (props.selectedTimelineMemoId) { props.onSelectTimelineMemo(null); return }
     setContextMenu(null)
     setPaperTrackHeaderMenu(null)
     setOverlayPaperTrackMenu(null)

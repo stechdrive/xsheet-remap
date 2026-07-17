@@ -1,11 +1,12 @@
 import type { Annotation, AnnotationPoint, AnnotationStroke, AnnotationText, CutProject } from './types'
+import { splitPolylineByEraser } from './polyline-eraser'
 
 export function addAnnotation(project: CutProject, annotation: Annotation): CutProject {
   return { ...project, annotations: [...project.annotations, annotation] }
 }
 
 export function clearAnnotations(project: CutProject): CutProject {
-  return { ...project, annotations: [], timelineMemos: [] }
+  return project.annotations.length ? { ...project, annotations: [] } : project
 }
 
 export function clearAnnotationsForPage(project: CutProject, pageId: string): CutProject {
@@ -90,52 +91,8 @@ function isAnnotationText(annotation: Annotation): annotation is AnnotationText 
 }
 
 function splitAnnotationStroke(stroke: AnnotationStroke, eraserPoints: AnnotationPoint[], eraserWidth: number): AnnotationPoint[][] | null {
-  if (stroke.points.length === 0) return []
   const threshold = Math.max(0, eraserWidth / 2 + stroke.width / 2)
-  const thresholdSq = threshold * threshold
-  if (stroke.points.length === 1) {
-    return isPointNearEraser(stroke.points[0], eraserPoints, thresholdSq) ? [] : null
-  }
-
-  const pointErased = stroke.points.map(point => isPointNearEraser(point, eraserPoints, thresholdSq))
-  const parts: AnnotationPoint[][] = []
-  let current: AnnotationPoint[] = []
-  let anyErased = pointErased.some(Boolean)
-
-  for (let index = 0; index < stroke.points.length - 1; index += 1) {
-    const a = stroke.points[index]
-    const b = stroke.points[index + 1]
-    const segmentErased = pointErased[index]
-      || pointErased[index + 1]
-      || isSegmentNearEraser(a, b, eraserPoints, thresholdSq)
-    if (segmentErased) {
-      anyErased = true
-      if (current.length >= 2) parts.push(current)
-      current = []
-      continue
-    }
-    if (current.length === 0) current.push(a)
-    current.push(b)
-  }
-
-  if (current.length >= 2) parts.push(current)
-  return anyErased ? parts : null
-}
-
-function isPointNearEraser(point: AnnotationPoint, eraserPoints: AnnotationPoint[], thresholdSq: number): boolean {
-  if (eraserPoints.length === 1) return distanceSq(point, eraserPoints[0]) <= thresholdSq
-  for (let index = 0; index < eraserPoints.length - 1; index += 1) {
-    if (pointToSegmentDistanceSq(point, eraserPoints[index], eraserPoints[index + 1]) <= thresholdSq) return true
-  }
-  return false
-}
-
-function isSegmentNearEraser(a: AnnotationPoint, b: AnnotationPoint, eraserPoints: AnnotationPoint[], thresholdSq: number): boolean {
-  if (eraserPoints.length === 1) return pointToSegmentDistanceSq(eraserPoints[0], a, b) <= thresholdSq
-  for (let index = 0; index < eraserPoints.length - 1; index += 1) {
-    if (segmentDistanceSq(a, b, eraserPoints[index], eraserPoints[index + 1]) <= thresholdSq) return true
-  }
-  return false
+  return splitPolylineByEraser(stroke.points, eraserPoints, threshold)
 }
 
 function nextAnnotationPartId(existingIds: Set<string>, baseId: string, partIndex: number): string {
@@ -147,53 +104,4 @@ function nextAnnotationPartId(existingIds: Set<string>, baseId: string, partInde
   }
   existingIds.add(candidate)
   return candidate
-}
-
-function distanceSq(a: AnnotationPoint, b: AnnotationPoint): number {
-  const dx = a.x - b.x
-  const dy = a.y - b.y
-  return dx * dx + dy * dy
-}
-
-function pointToSegmentDistanceSq(point: AnnotationPoint, a: AnnotationPoint, b: AnnotationPoint): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lengthSq = dx * dx + dy * dy
-  if (lengthSq === 0) return distanceSq(point, a)
-  const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSq))
-  return distanceSq(point, { x: a.x + t * dx, y: a.y + t * dy })
-}
-
-function segmentDistanceSq(a: AnnotationPoint, b: AnnotationPoint, c: AnnotationPoint, d: AnnotationPoint): number {
-  if (segmentsIntersect(a, b, c, d)) return 0
-  return Math.min(
-    pointToSegmentDistanceSq(a, c, d),
-    pointToSegmentDistanceSq(b, c, d),
-    pointToSegmentDistanceSq(c, a, b),
-    pointToSegmentDistanceSq(d, a, b),
-  )
-}
-
-function segmentsIntersect(a: AnnotationPoint, b: AnnotationPoint, c: AnnotationPoint, d: AnnotationPoint): boolean {
-  const abC = orientation(a, b, c)
-  const abD = orientation(a, b, d)
-  const cdA = orientation(c, d, a)
-  const cdB = orientation(c, d, b)
-  if (abC === 0 && onSegment(a, c, b)) return true
-  if (abD === 0 && onSegment(a, d, b)) return true
-  if (cdA === 0 && onSegment(c, a, d)) return true
-  if (cdB === 0 && onSegment(c, b, d)) return true
-  return (abC > 0) !== (abD > 0) && (cdA > 0) !== (cdB > 0)
-}
-
-function orientation(a: AnnotationPoint, b: AnnotationPoint, c: AnnotationPoint): number {
-  const value = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
-  return Math.abs(value) < 1e-12 ? 0 : value
-}
-
-function onSegment(a: AnnotationPoint, b: AnnotationPoint, c: AnnotationPoint): boolean {
-  return b.x >= Math.min(a.x, c.x) - 1e-12
-    && b.x <= Math.max(a.x, c.x) + 1e-12
-    && b.y >= Math.min(a.y, c.y) - 1e-12
-    && b.y <= Math.max(a.y, c.y) + 1e-12
 }

@@ -1,4 +1,5 @@
-import type { CutProject, TimelineInkMemo, TimelineMemoPlacement, TimelineMemoStroke } from './types'
+import type { CutProject, TimelineInkMemo, TimelineMemoPlacement, TimelineMemoPoint, TimelineMemoStroke } from './types'
+import { splitPolylineByEraser } from './polyline-eraser'
 
 export function addTimelineMemo(project: CutProject, memo: TimelineInkMemo): CutProject {
   return { ...project, timelineMemos: [...project.timelineMemos, memo] }
@@ -27,6 +28,34 @@ export function appendTimelineMemoStroke(project: CutProject, memoId: string, st
   return memo ? updateTimelineMemo(project, memoId, { strokes: [...memo.strokes, normalizeTimelineMemoStroke(stroke, memo.placement)] }) : project
 }
 
+export function eraseTimelineMemoStrokes(
+  project: CutProject,
+  input: { memoId: string; points: TimelineMemoPoint[]; widthUnits: number },
+): CutProject {
+  if (input.points.length === 0 || input.widthUnits <= 0) return project
+  const memo = project.timelineMemos.find(item => item.memoId === input.memoId)
+  if (!memo) return project
+  const existingIds = new Set(memo.strokes.map(stroke => stroke.strokeId))
+  let changed = false
+  const strokes = memo.strokes.flatMap(stroke => {
+    const threshold = Math.max(0, input.widthUnits / 2 + stroke.widthUnits / 2)
+    const parts = splitPolylineByEraser(stroke.points, input.points, threshold)
+    if (parts === null) return [stroke]
+    changed = true
+    return parts.map((points, index) => ({
+      ...stroke,
+      strokeId: index === 0 ? stroke.strokeId : nextTimelineMemoStrokePartId(existingIds, stroke.strokeId, index),
+      points,
+    }))
+  })
+  return changed ? updateTimelineMemo(project, input.memoId, { strokes }) : project
+}
+
+export function clearTimelineMemoStrokes(project: CutProject, memoId: string): CutProject {
+  const memo = project.timelineMemos.find(item => item.memoId === memoId)
+  return memo?.strokes.length ? updateTimelineMemo(project, memoId, { strokes: [] }) : project
+}
+
 export function deleteTimelineMemo(project: CutProject, memoId: string): CutProject {
   const timelineMemos = project.timelineMemos.filter(memo => memo.memoId !== memoId)
   return timelineMemos.length === project.timelineMemos.length ? project : { ...project, timelineMemos }
@@ -44,6 +73,17 @@ export function nextTimelineMemoStrokeId(memo: TimelineInkMemo): string {
   let index = memo.strokes.length + 1
   while (used.has(`${memo.memoId}_stroke_${index}`)) index += 1
   return `${memo.memoId}_stroke_${index}`
+}
+
+function nextTimelineMemoStrokePartId(existingIds: Set<string>, baseId: string, partIndex: number): string {
+  let serial = partIndex
+  let candidate = `${baseId}_part_${serial}`
+  while (existingIds.has(candidate)) {
+    serial += 1
+    candidate = `${baseId}_part_${serial}`
+  }
+  existingIds.add(candidate)
+  return candidate
 }
 
 export function insertTimelineMemoAnchors(memos: readonly TimelineInkMemo[], atFrame: number, frameCount: number): TimelineInkMemo[] {

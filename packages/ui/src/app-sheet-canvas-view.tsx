@@ -353,9 +353,12 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       pageSize={sheetPageSize}
                       surface={selectionSurface}
                       selectedMemoId={props.selectedTimelineMemoId}
+                      editMode={props.editMode}
                       penColor={props.penColor}
                       penWidth={props.penWidth}
+                      eraserWidth={props.eraserWidth}
                       onAppendStroke={props.onAppendTimelineMemoStroke}
+                      onEraseStroke={props.onEraseTimelineMemoStroke}
                       onUpdatePlacement={props.onUpdateTimelineMemoPlacement}
                     />
                   )}

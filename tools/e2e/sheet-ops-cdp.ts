@@ -111,7 +111,15 @@ let client: CdpClient | null = null
 let previewClient: CdpClient | null = null
 const e2ePageFrames = standardA3SheetTemplate.defaults.durationFrames
 let e2eDurationFrames = e2ePageFrames
-const scenarioId = args['memo-only'] === 'true' ? 'timeline-memo' : args['ripple-only'] === 'true' ? 'timeline-ripple' : args['sound-only'] === 'true' ? 'sound-ops' : 'sheet-ops'
+const scenarioId = args['memo-only'] === 'true'
+  ? 'timeline-memo'
+  : args['ripple-only'] === 'true'
+    ? 'timeline-ripple'
+    : args['sound-only'] === 'true'
+      ? 'sound-ops'
+      : args['camera-only'] === 'true'
+        ? 'camera-ops'
+        : 'sheet-ops'
 
 try {
   const target = await waitForCdpTarget(port, target => !target.url.includes('window=asset-preview'), 'main CDP target')
@@ -126,6 +134,8 @@ try {
     await verifyTimelineMemoEditing()
   } else if (args['sound-only'] === 'true') {
     await verifySoundCueEditing()
+  } else if (args['camera-only'] === 'true') {
+    await verifyCameraCueInputHandoff()
   } else if (args['ripple-only'] === 'true') {
     await verifyTimelineRippleEditing()
   } else {
@@ -461,13 +471,40 @@ async function verifyTimelineMemoEditing(): Promise<void> {
 }
 
 async function verifyCameraCueInputHandoff(): Promise<void> {
-  const [start, end] = await clientPointsForTimedRange('camera', 'camera_lane_1', 1, 4)
+  const [start, end] = await clientPointsForTimedRange('camera', 'camera_lane_1', 1, 24)
   await mouseDrag(start, end)
   await keyPress('Enter')
   await waitForSelector('[role="dialog"][aria-label="CAMERA指示を追加"]')
-  await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E PAN')
+  await setReactSelectValue('[aria-label="CAMERA描画種別"]', 'overlap')
+  await waitForSelector('[aria-label="CAMERA交差フレーム"]')
+  await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E OL')
+  await setReactFieldValue('[aria-label="CAMERA交差フレーム"]', '12')
   await clickButtonByText('追加')
-  await waitForCameraCueAt('camera_lane_1', 1, 4, 'E2E PAN')
+  await waitForCameraCueAt('camera_lane_1', 1, 24, 'E2E OL')
+  await waitForPageCondition(() => {
+    const cue = document.querySelector<SVGGElement>('.cameraCue.overlap[data-camera-lane-id="camera_lane_1"][data-frame-start="1"][data-frame-end="24"]')
+    if (!cue) return false
+    const paths = Array.from(cue.querySelectorAll<SVGPolylineElement>('.cameraCueStroke')).map(polyline =>
+      (polyline.getAttribute('points') ?? '').trim().split(/\s+/).map(value => {
+        const [x = Number.NaN, y = Number.NaN] = value.split(',').map(Number)
+        return { x, y }
+      }),
+    )
+    if (paths.length !== 2 || paths.some(path => path.length !== 3)) return false
+    const [forward = [], reverse = []] = paths
+    const pivot = forward[1]
+    const reversePivot = reverse[1]
+    if (!pivot || !reversePivot) return false
+    const expectedCenter = ((forward[0]?.x ?? 0) + (forward[2]?.x ?? 0)) / 2
+    const singleCenteredCrossing = Math.abs(pivot.x - reversePivot.x) < 0.0000001
+      && Math.abs(pivot.y - reversePivot.y) < 0.0000001
+      && Math.abs(pivot.x - expectedCenter) < 0.0000001
+      && (forward[0]?.x ?? 0) < pivot.x && pivot.x < (forward[2]?.x ?? 0)
+      && (reverse[0]?.x ?? 0) > reversePivot.x && reversePivot.x > (reverse[2]?.x ?? 0)
+    const cueId = cue.dataset.cameraCueId
+    const labelText = cueId ? document.querySelector<SVGTextElement>(`.cameraCueLabel[data-camera-cue-id="${cueId}"] .cameraCueLabelText text`) : null
+    return singleCenteredCrossing && Number(labelText?.getAttribute('font-size')) === 18
+  }, 'single-center OL crossing and template-sized CAMERA label')
 
   await clickFrame('action', 'A', 8)
   await keyPress('1')
@@ -476,7 +513,7 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
   await waitForSelectedFrame('action', 'A', 9)
   const editorReopened = await evaluatePage<boolean>('Boolean(document.querySelector(\'[role="dialog"][aria-label="CAMERA指示を編集"]\'))')
   if (editorReopened) throw new Error('CAMERA editor reopened instead of accepting ACTION timing input')
-  checks.push('created a CAMERA cue, switched to ACTION input, and committed a value without reopening the cue editor')
+  checks.push('created a 24-frame OL with one centered crossing and template-sized label, then continued ACTION input')
 }
 
 async function verifyTimelineRippleEditing(): Promise<void> {
@@ -855,6 +892,20 @@ async function setReactFieldValue(selector: string, value: string): Promise<void
       if (!setter) throw new Error('native value setter not found: ${selector}');
       setter.call(field, ${JSON.stringify(value)});
       field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(value)} }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    })()
+  `)
+}
+
+async function setReactSelectValue(selector: string, value: string): Promise<void> {
+  await evaluatePage<void>(`
+    (() => {
+      const field = document.querySelector(${JSON.stringify(selector)});
+      if (!(field instanceof HTMLSelectElement)) throw new Error('select field not found: ${selector}');
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+      if (!setter) throw new Error('native select value setter not found: ${selector}');
+      setter.call(field, ${JSON.stringify(value)});
+      field.dispatchEvent(new Event('input', { bubbles: true }));
       field.dispatchEvent(new Event('change', { bubbles: true }));
     })()
   `)

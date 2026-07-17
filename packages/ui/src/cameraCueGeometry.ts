@@ -7,6 +7,7 @@ import type {
   TimedRangeCue,
 } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
+import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import { splitTextGraphemes } from './textMetrics'
 
 export type CameraCueSegment = TimedRangeCueSegment
@@ -75,8 +76,7 @@ export function cameraCueLabelLayoutForPage(
     ?? segments.find(item => item.startsCue)
     ?? segments[0]
   if (!segment) return null
-  const typography = template.regions.find(region => region.regionId === segment.regionId)?.grid?.typography
-  const fontSizePx = Math.max(7, typography?.cellFontSizePx ?? 12)
+  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
   const label = cue.label.trim()
   const values = splitTextGraphemes(label)
   const anchor = {
@@ -181,7 +181,7 @@ export function cameraOverlapPathsForSegment(cue: TimedRangeCue, segment: Camera
       const firstHalf = boundary <= pivotBoundary
       const denominator = Math.max(0.5, firstHalf ? pivotBoundary - startBoundary : endBoundary - pivotBoundary)
       const progress = Math.max(0, Math.min(1, firstHalf ? (boundary - startBoundary) / denominator : (boundary - pivotBoundary) / denominator))
-      const base = firstHalf ? progress : 1 - progress
+      const base = firstHalf ? progress * 0.5 : 0.5 + progress * 0.5
       const xRatio = reverse ? 1 - base : base
       const yRatio = (boundary - segmentStart) / Math.max(1, segmentEnd - segmentStart)
       return { x: segment.rect.x + segment.rect.w * xRatio, y: segment.rect.y + segment.rect.h * yRatio }

@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.563",
+  "version": "0.1.564",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.7.0",
@@ -50,6 +50,8 @@
     "e2e:desktop:win:full:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario full-default-a3 -Build",
     "e2e:desktop:win:sheet-ops": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sheet-ops",
     "e2e:desktop:win:sheet-ops:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sheet-ops -Build",
+    "e2e:desktop:win:camera-ops": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario camera-ops",
+    "e2e:desktop:win:camera-ops:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario camera-ops -Build",
     "e2e:desktop:win:sound-ops": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sound-ops",
     "e2e:desktop:win:timeline-ripple": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario timeline-ripple",
     "e2e:desktop:win:timeline-ripple:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario timeline-ripple -Build",

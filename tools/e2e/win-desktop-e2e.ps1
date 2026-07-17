@@ -23,7 +23,7 @@ if ($env:OS -ne "Windows_NT") {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
 
-$supportedScenarios = @("launch", "full-default-a3", "sheet-ops", "sound-ops", "timeline-ripple", "timeline-memo", "auto-calibration")
+$supportedScenarios = @("launch", "full-default-a3", "sheet-ops", "camera-ops", "sound-ops", "timeline-ripple", "timeline-memo", "auto-calibration")
 if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }
@@ -278,7 +278,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
 $summaryPath = Join-Path $runRoot "summary.json"
 $scenarioResultPath = Join-Path $runRoot "result.json"
 $screenshotPath = Join-Path $screenshotRoot "launch.png"
-$remoteDebugPort = if ($Scenario -eq "sheet-ops" -or $Scenario -eq "sound-ops" -or $Scenario -eq "timeline-ripple" -or $Scenario -eq "timeline-memo" -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
+$remoteDebugPort = if ($Scenario -eq "sheet-ops" -or $Scenario -eq "camera-ops" -or $Scenario -eq "sound-ops" -or $Scenario -eq "timeline-ripple" -or $Scenario -eq "timeline-memo" -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
 $previousEnvironment = @{}
 $environmentOverrides = @{
   "XSHEET_REMAP_E2E" = "1"
@@ -367,7 +367,7 @@ try {
     throw "desktop process exited during the ${StableSeconds}s stability window. Exit code: $($process.ExitCode)"
   }
 
-  if ($Scenario -eq "sheet-ops" -or $Scenario -eq "sound-ops" -or $Scenario -eq "timeline-ripple" -or $Scenario -eq "timeline-memo") {
+  if ($Scenario -eq "sheet-ops" -or $Scenario -eq "camera-ops" -or $Scenario -eq "sound-ops" -or $Scenario -eq "timeline-ripple" -or $Scenario -eq "timeline-memo") {
     $sheetOpsReportPath = Join-Path $runRoot "$Scenario-report.json"
     $sheetOpsAssetPath = Join-Path $assetRoot "A1.png"
     $sheetOpsSecondaryAssetPath = Join-Path $assetRoot "A2.png"
@@ -388,6 +388,9 @@ try {
     )
     if ($Scenario -eq "sound-ops") {
       $sheetOpsArguments += @("--sound-only", "true")
+    }
+    if ($Scenario -eq "camera-ops") {
+      $sheetOpsArguments += @("--camera-only", "true")
     }
     if ($Scenario -eq "timeline-ripple") {
       $sheetOpsArguments += @(

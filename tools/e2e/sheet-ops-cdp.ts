@@ -469,6 +469,30 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   if (anchorCuePlacement.markerLeft < anchorCuePlacement.cellLeft - 1 || anchorCuePlacement.markerRight >= anchorCuePlacement.cellCenter) {
     throw new Error('timeline memo anchor cue is not confined to the left side of its frame')
   }
+  const selectedAnchorIsVisualOnly = await evaluatePage<boolean>(`
+    !document.querySelector('.timelineMemoAnchorCue.selected .timelineMemoAnchorHitArea')
+  `)
+  if (!selectedAnchorIsVisualOnly) throw new Error('selected timeline memo anchor still owns pointer input')
+  const beforeMove = await selectedTimelineMemoGeometry()
+  const memoMove = await selectorInsetDrag('.timelineMemoMoveHandle .timelineMemoHandleHitArea', 0.5, 0.5, 1.5, 0.5)
+  const moveHandleReceivesInput = await evaluatePage<boolean>(`
+    (() => {
+      const point = ${JSON.stringify(memoMove.start)};
+      return Boolean(document.elementFromPoint(point.x, point.y)?.closest('.timelineMemoMoveHandle'));
+    })()
+  `)
+  if (!moveHandleReceivesInput) throw new Error('timeline memo move handle does not receive pointer input')
+  await mouseDrag(memoMove.start, memoMove.end)
+  await waitForCondition(async () => {
+    const current = await selectedTimelineMemoGeometry()
+    return current.memoLeft > beforeMove.memoLeft + 4
+  }, 5000, 'timeline memo moved')
+  const afterMove = await selectedTimelineMemoGeometry()
+  if (Math.abs(afterMove.anchorLeft - beforeMove.anchorLeft) > 1 || Math.abs(afterMove.anchorTop - beforeMove.anchorTop) > 1) {
+    throw new Error('timeline memo anchor moved with its canvas')
+  }
+  if (!afterMove.connectorVisible) throw new Error('timeline memo connector is unavailable after moving its canvas')
+  checks.push('moved the handwritten memo from its initially overlapping anchor while keeping the logical frame fixed')
   const draw = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoDrawSurface', 0.2, 0.25, 0.8, 0.75)
   const drawSurfaceReceivesInput = await evaluatePage<boolean>(`
     [${JSON.stringify(draw.start)}, ${JSON.stringify(draw.end)}].every(point =>
@@ -562,6 +586,32 @@ async function verifyTimelineMemoEditing(): Promise<void> {
   await mouseDrag(pageTwoDraw.start, pageTwoDraw.end)
   await waitForPageCondition(() => Boolean(document.querySelector('svg.sheetSvg[data-page-id="page_2"] .timelineMemoStroke:not(.draft)')), 'page 2 memo ink')
   checks.push('created and drew a separately anchored memo on page 2')
+}
+
+async function selectedTimelineMemoGeometry(): Promise<{
+  memoLeft: number
+  memoTop: number
+  anchorLeft: number
+  anchorTop: number
+  connectorVisible: boolean
+}> {
+  return evaluatePage(`
+    (() => {
+      const handle = document.querySelector('.timelineMemoMoveHandle');
+      const bounds = handle?.closest('.timelineMemoSegment')?.querySelector('.timelineMemoBounds');
+      const anchor = document.querySelector('.timelineMemoAnchorCue.selected .timelineMemoAnchorMarker');
+      if (!bounds || !anchor) throw new Error('selected timeline memo geometry is unavailable');
+      const memoBox = bounds.getBoundingClientRect();
+      const anchorBox = anchor.getBoundingClientRect();
+      return {
+        memoLeft: memoBox.left,
+        memoTop: memoBox.top,
+        anchorLeft: anchorBox.left,
+        anchorTop: anchorBox.top,
+        connectorVisible: Boolean(document.querySelector('.timelineMemoAnchorConnector')),
+      };
+    })()
+  `)
 }
 
 async function verifyCameraCueInputHandoff(): Promise<void> {

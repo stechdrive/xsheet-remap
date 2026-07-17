@@ -73,6 +73,7 @@ describe('TimelineMemoLayer anchor cues', () => {
       </svg>,
     )
     expect(container.querySelector('.timelineMemoAnchorCue.selected')).toBeTruthy()
+    expect(container.querySelector('.timelineMemoAnchorCue.selected .timelineMemoAnchorHitArea')).toBeNull()
     expect(container.querySelector('.timelineMemoAnchorConnector')).toBeTruthy()
 
     rerender(
@@ -97,6 +98,52 @@ describe('TimelineMemoLayer anchor cues', () => {
     )
     expect(container.querySelector('.timelineMemoAnchorConnector')).toBeNull()
     expect(container.querySelector('.timelineMemoAnchorCue')).toBeTruthy()
+    expect(container.querySelector('.timelineMemoAnchorHitArea')).toBeTruthy()
+  })
+
+  it('moves the selected memo canvas while keeping its anchor on the logical frame', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const selected = memo('memo_1')
+    const onUpdatePlacement = vi.fn()
+    const { container } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[selected]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
+          selectedMemoId={selected.memoId}
+          editMode="pen"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
+          onUpdatePlacement={onUpdatePlacement}
+        />
+      </svg>,
+    )
+    const svg = container.querySelector('svg')
+    const handle = container.querySelector<SVGGElement>('.timelineMemoMoveHandle')
+    expect(svg).toBeTruthy()
+    expect(handle).toBeTruthy()
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(handle, 'setPointerCapture', { value: vi.fn() })
+
+    fireEvent.pointerDown(handle as SVGGElement, { pointerId: 9, clientX: 10, clientY: 20 })
+    fireEvent.pointerMove(handle as SVGGElement, { pointerId: 9, clientX: 110, clientY: 70 })
+    fireEvent.pointerUp(handle as SVGGElement, { pointerId: 9, clientX: 110, clientY: 70 })
+
+    expect(onUpdatePlacement).toHaveBeenCalledTimes(1)
+    const placement = onUpdatePlacement.mock.calls[0]?.[1]
+    expect(placement.crossOffsetUnits).toBeGreaterThan(selected.placement.crossOffsetUnits)
+    expect(placement.frameOffset).toBeGreaterThan(selected.placement.frameOffset)
+    expect(container.querySelector('.timelineMemoAnchorCue')?.getAttribute('data-timeline-memo-anchor-frame')).toBe('10')
   })
 
   it('routes the selected memo surface through the active annotation tool', () => {

@@ -280,13 +280,13 @@ export function TimelineMemoLayer({
             aria-label={memoCount === 1 ? '手書きメモのアンカー' : `手書きメモのアンカー ${memoCount}件`}
           >
             <title>{memoCount === 1 ? '手書きメモ' : `手書きメモ ${memoCount}件`}</title>
-            <rect
+            {!selected && <rect
               className="timelineMemoAnchorHitArea"
               x={hitRect.x}
               y={hitRect.y}
               width={hitRect.w}
               height={hitRect.h}
-            />
+            />}
             <polygon className="timelineMemoAnchorMarker" points={sheetCellCornerTrianglePoints(group.anchorCell.rect, surface, 'top-left')} />
           </g>
         )

@@ -8,7 +8,12 @@ import type {
 } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
-import { splitTextGraphemes } from './textMetrics'
+import {
+  SHEET_TEXT_FONT_FAMILY,
+  sharedTextMeasurementProvider,
+  splitTextGraphemes,
+  type TextFontSpec,
+} from './textMetrics'
 
 export type CameraCueSegment = TimedRangeCueSegment
 
@@ -22,6 +27,7 @@ export interface CameraCueLabelLayout {
   glyphs: Array<{ value: string; xPx: number; yPx: number }>
   connector?: { from: NormalizedPoint; to: NormalizedPoint }
   manual: boolean
+  overflow: boolean
 }
 
 export interface CameraCuePageLayout {
@@ -29,6 +35,23 @@ export interface CameraCuePageLayout {
   segments: CameraCueSegment[]
   label: CameraCueLabelLayout | null
 }
+
+interface CameraCueLabelVariant {
+  orientation: CameraCueLabelLayout['orientation']
+  widthPx: number
+  heightPx: number
+  lines: string[]
+  overflow: boolean
+}
+
+interface ScoredCameraCueLabelCandidate {
+  rect: NormalizedRect
+  variant: CameraCueLabelVariant
+  score: number
+}
+
+const LABEL_HORIZONTAL_PADDING_PX = 8
+const LABEL_VERTICAL_PADDING_PX = 4
 
 export function cameraCueSegmentsForPage(
   template: SheetTemplate,
@@ -47,11 +70,19 @@ export function buildCameraCuePageLayouts(
   options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): CameraCuePageLayout[] {
   const cueSegments = new Map(cues.map(cue => [cue.cueId, cameraCueSegmentsForPage(template, page, cue, options)]))
-  const shapeObstacles = cues.flatMap(cue => (cueSegments.get(cue.cueId) ?? []).map(segment => cameraCueShapeObstacle(cue, segment, pageSize)))
+  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
+  const protectedCrossings = cues.flatMap(cue => cameraCueProtectedCrossings(cue, cueSegments.get(cue.cueId) ?? [], pageSize, fontSizePx))
   const occupiedLabels: NormalizedRect[] = []
   return cues.map(cue => {
     const segments = cueSegments.get(cue.cueId) ?? []
-    const label = cameraCueLabelLayoutForPage(template, page, cue, pageSize, segments, [...shapeObstacles, ...occupiedLabels])
+    const label = cameraCueLabelLayoutForPage(
+      template,
+      page,
+      cue,
+      pageSize,
+      segments,
+      [...protectedCrossings, ...occupiedLabels],
+    )
     if (label) occupiedLabels.push(label.rect)
     return { cue, segments, label }
   })
@@ -67,21 +98,19 @@ export function cameraCueLabelLayoutForPage(
 ): CameraCueLabelLayout | null {
   if (cue.role !== 'camera' || !cue.label.trim() || segments.length === 0) return null
   const camera = cue.camera
-  const anchorFrame = camera?.labelPlacement
-    ? cue.frameStart + camera.labelPlacement.frameOffset
-    : camera?.shape === 'overlap' && camera.pivotFrame !== undefined
-      ? camera.pivotFrame
-      : Math.round((cue.frameStart + cue.frameEnd) / 2)
-  const segment = segments.find(item => anchorFrame >= item.frameStart && anchorFrame <= item.frameEnd)
+  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
+  const font: TextFontSpec = { family: SHEET_TEXT_FONT_FAMILY, sizePx: fontSizePx, weight: 850 }
+  const label = cue.label.trim()
+  const values = splitTextGraphemes(label)
+  const preferredFrame = preferredCameraLabelFrame(template, cue, segments[0]!)
+  const segment = segments.find(item => preferredFrame >= item.frameStart && preferredFrame <= item.frameEnd)
     ?? segments.find(item => item.startsCue)
     ?? segments[0]
   if (!segment) return null
-  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
-  const label = cue.label.trim()
-  const values = splitTextGraphemes(label)
+  const anchorFrame = Math.max(segment.frameStart, Math.min(segment.frameEnd, preferredFrame))
   const anchor = {
     x: segment.rect.x + segment.rect.w / 2,
-    y: segment.rect.y + (Math.max(segment.frameStart, Math.min(segment.frameEnd, anchorFrame)) - segment.frameStart + 0.5) * segment.rowHeight,
+    y: segment.rect.y + (anchorFrame - segment.frameStart + 0.5) * segment.rowHeight,
   }
 
   if (camera?.labelPlacement) {
@@ -95,56 +124,40 @@ export function cameraCueLabelLayoutForPage(
       w: segment.regionRect.w * placement.widthRatio,
       h: segment.rowHeight * placement.heightFrames,
     }, segment.regionRect)
-    return horizontalLayout(cue.cueId, label, rect, segment, pageSize, fontSizePx, true, anchor)
+    return horizontalLayout(cue.cueId, label, rect, segment, pageSize, font, true, anchor)
   }
 
-  const verticalRect = {
-    w: Math.min(segment.regionRect.w, Math.max((fontSizePx * 1.35 + 6) / pageSize.widthPx, segment.rect.w * 0.34)),
-    h: Math.min(segment.regionRect.h, (values.length * fontSizePx * 1.02 + 6) / pageSize.heightPx),
-  }
-  const horizontalWidthPx = Math.min(segment.regionRect.w * pageSize.widthPx * 0.62, Math.max(54, Math.min(190, values.length * fontSizePx * 0.62 + 14)))
-  const horizontalRect = {
-    w: Math.min(segment.regionRect.w, Math.max(segment.rect.w * 1.5, horizontalWidthPx / pageSize.widthPx)),
-    h: 0,
-  }
-  const lineCapacity = Math.max(2, Math.floor((horizontalRect.w * pageSize.widthPx - 10) / (fontSizePx * 0.62)))
-  const lineCount = Math.max(1, Math.ceil(values.length / lineCapacity))
-  horizontalRect.h = Math.min(segment.regionRect.h, Math.max(segment.rowHeight * 2, (lineCount * fontSizePx * 1.25 + 8) / pageSize.heightPx))
-
-  const verticalCandidates = labelCandidates(segment, anchor, verticalRect.w, verticalRect.h, camera?.shape ?? 'range')
-  const horizontalCandidates = labelCandidates(segment, anchor, horizontalRect.w, horizontalRect.h, camera?.shape ?? 'range')
-  const candidates = [
-    ...verticalCandidates.map(rect => ({ rect, orientation: 'vertical' as const })),
-    ...horizontalCandidates.map(rect => ({ rect, orientation: 'horizontal' as const })),
+  const variants = cameraCueLabelVariants(label, values, segment, pageSize, font)
+  const protectedObstacles = [
+    ...obstacles,
+    ...cameraCueProtectedCrossings(cue, segments, pageSize, fontSizePx),
   ]
-  let best: { rect: NormalizedRect; orientation: 'vertical' | 'horizontal'; score: number } | null = null
-  for (const candidate of candidates) {
-    const rect = clampRectToRegion(candidate.rect, segment.regionRect)
-    const overlap = obstacles.reduce((total, obstacle) => total + intersectionArea(rect, obstacle), 0)
-    const distance = Math.abs(rect.x + rect.w / 2 - anchor.x) + Math.abs(rect.y + rect.h / 2 - anchor.y) * 0.35
-    const score = overlap * 100_000 + distance
-    if (!best || score < best.score) best = { ...candidate, rect, score }
-    if (overlap < 0.0000001) break
+  let best: ScoredCameraCueLabelCandidate | null = null
+  for (const variant of variants) {
+    const width = Math.min(segment.regionRect.w, variant.widthPx / pageSize.widthPx)
+    const height = Math.min(segment.regionRect.h, variant.heightPx / pageSize.heightPx)
+    for (const candidate of labelCandidates(segment, anchor, width, height)) {
+      const rect = clampRectToRegion(candidate, segment.regionRect)
+      const area = Math.max(0.000000001, rect.w * rect.h)
+      const protectedOverlap = protectedObstacles.reduce((total, obstacle) => total + intersectionArea(rect, obstacle), 0) / area
+      const outsideCue = verticalOutsideRatio(rect, segment.rect)
+      const xDistance = Math.abs(rect.x + rect.w / 2 - anchor.x) / Math.max(0.000001, segment.regionRect.w)
+      const yDistance = Math.abs(rect.y + rect.h / 2 - anchor.y) / Math.max(0.000001, segment.regionRect.h)
+      const verticalFitsCue = variant.orientation === 'vertical' && height <= segment.rect.h + 0.0000001
+      const orientationPenalty = verticalFitsCue ? 0 : variant.orientation === 'horizontal' ? 2 : 4
+      const score = (variant.overflow ? 1_000_000 : 0)
+        + protectedOverlap * 100_000
+        + outsideCue * 5_000
+        + xDistance * 12
+        + yDistance * 20
+        + orientationPenalty
+      if (!best || score < best.score) best = { rect, variant, score }
+    }
   }
   if (!best) return null
-  return best.orientation === 'vertical'
-    ? verticalLayout(cue.cueId, values, best.rect, segment, pageSize, fontSizePx, anchor)
-    : horizontalLayout(cue.cueId, label, best.rect, segment, pageSize, fontSizePx, false, anchor)
-}
-
-export function cameraCueShapeObstacle(
-  cue: TimedRangeCue,
-  segment: CameraCueSegment,
-  pageSize: { widthPx: number; heightPx: number },
-): NormalizedRect {
-  if (cue.camera?.shape !== 'range') return segment.rect
-  const clearance = Math.min(segment.rect.w, Math.max(8 / pageSize.widthPx, segment.rect.w * 0.18))
-  return {
-    x: segment.rect.x + (segment.rect.w - clearance) / 2,
-    y: segment.rect.y,
-    w: clearance,
-    h: segment.rect.h,
-  }
+  return best.variant.orientation === 'vertical'
+    ? verticalLayout(cue.cueId, values, best.rect, segment, pageSize, font, anchor, best.variant.overflow)
+    : horizontalLayout(cue.cueId, label, best.rect, segment, pageSize, font, false, anchor)
 }
 
 export function cameraFadePolygonForSegment(
@@ -189,18 +202,100 @@ export function cameraOverlapPathsForSegment(cue: TimedRangeCue, segment: Camera
   })
 }
 
+function cameraCueLabelVariants(
+  label: string,
+  values: string[],
+  segment: CameraCueSegment,
+  pageSize: { widthPx: number; heightPx: number },
+  font: TextFontSpec,
+): CameraCueLabelVariant[] {
+  const regionWidthPx = segment.regionRect.w * pageSize.widthPx
+  const regionHeightPx = segment.regionRect.h * pageSize.heightPx
+  const laneWidthPx = segment.rect.w * pageSize.widthPx
+  const lineHeightPx = font.sizePx * 1.12
+  const verticalTextHeightPx = Math.max(font.sizePx, (values.length - 1) * lineHeightPx + font.sizePx)
+  const widestGlyphPx = values.reduce((width, value) => Math.max(width, sharedTextMeasurementProvider.measure(value, font).widthPx), 0)
+  const verticalWidthPx = Math.min(regionWidthPx, Math.max(laneWidthPx * 0.72, widestGlyphPx + LABEL_HORIZONTAL_PADDING_PX))
+  const verticalHeightPx = Math.min(regionHeightPx, verticalTextHeightPx + LABEL_VERTICAL_PADDING_PX)
+  const verticalOverflow = widestGlyphPx + LABEL_HORIZONTAL_PADDING_PX > regionWidthPx + 0.01
+    || verticalTextHeightPx + LABEL_VERTICAL_PADDING_PX > regionHeightPx + 0.01
+  const fullTextWidthPx = sharedTextMeasurementProvider.measure(label, font).widthPx + LABEL_HORIZONTAL_PADDING_PX
+  const compactWidthPx = Math.min(regionWidthPx, Math.max(laneWidthPx * 2.25, Math.min(fullTextWidthPx, regionWidthPx * 0.66)))
+  const widths = uniqueNumbers([compactWidthPx, regionWidthPx])
+  return [
+    {
+      orientation: 'vertical',
+      widthPx: verticalWidthPx,
+      heightPx: verticalHeightPx,
+      lines: values,
+      overflow: verticalOverflow,
+    },
+    ...widths.map(widthPx => {
+      const lines = wrapGraphemesByWidth(values, Math.max(1, widthPx - LABEL_HORIZONTAL_PADDING_PX), font)
+      const textHeightPx = Math.max(font.sizePx, (lines.length - 1) * font.sizePx * 1.2 + font.sizePx)
+      return {
+        orientation: 'horizontal' as const,
+        widthPx,
+        heightPx: Math.min(regionHeightPx, Math.max(segment.rowHeight * pageSize.heightPx, textHeightPx + LABEL_VERTICAL_PADDING_PX)),
+        lines,
+        overflow: textHeightPx + LABEL_VERTICAL_PADDING_PX > regionHeightPx + 0.01
+          || lines.some(line => sharedTextMeasurementProvider.measure(line, font).widthPx > widthPx - LABEL_HORIZONTAL_PADDING_PX + 0.01),
+      }
+    }),
+  ]
+}
+
+function preferredCameraLabelFrame(template: SheetTemplate, cue: TimedRangeCue, segment: CameraCueSegment): number {
+  const grid = template.regions.find(region => region.regionId === segment.regionId)?.grid
+  const majorFrames = Math.max(1, grid?.majorLineEvery ?? 6)
+  const pageBreakFrames = Math.max(majorFrames, grid?.pageBreakEvery ?? majorFrames * 4)
+  const duration = Math.max(1, cue.frameEnd - cue.frameStart + 1)
+  const progress = duration <= majorFrames
+    ? 0.5
+    : duration <= pageBreakFrames
+      ? interpolate(0.5, 0.38, (duration - majorFrames) / Math.max(1, pageBreakFrames - majorFrames))
+      : interpolate(0.38, 0.33, Math.min(1, (duration - pageBreakFrames) / pageBreakFrames))
+  return cue.frameStart + (duration - 1) * progress
+}
+
+function cameraCueProtectedCrossings(
+  cue: TimedRangeCue,
+  segments: CameraCueSegment[],
+  pageSize: { widthPx: number; heightPx: number },
+  fontSizePx: number,
+): NormalizedRect[] {
+  if (cue.camera?.shape !== 'overlap') return []
+  const pivotFrame = cue.camera.pivotFrame ?? Math.round((cue.frameStart + cue.frameEnd) / 2)
+  return segments.flatMap(segment => {
+    if (pivotFrame < segment.frameStart || pivotFrame > segment.frameEnd) return []
+    const pivotY = segment.rect.y + (pivotFrame - segment.frameStart + 0.5) * segment.rowHeight
+    const clearance = Math.max(segment.rowHeight * 1.5, (fontSizePx + 6) / pageSize.heightPx)
+    return [{
+      x: segment.rect.x,
+      y: pivotY - clearance / 2,
+      w: segment.rect.w,
+      h: clearance,
+    }]
+  })
+}
+
 function labelCandidates(
   segment: CameraCueSegment,
   anchor: NormalizedPoint,
   width: number,
   height: number,
-  shape: NonNullable<TimedRangeCue['camera']>['shape'],
 ): NormalizedRect[] {
-  const centeredY = anchor.y - height / 2
-  const xValues = shape === 'range'
-    ? [segment.rect.x, segment.rect.x + segment.rect.w - width, segment.rect.x - width, segment.rect.x + segment.rect.w]
-    : [segment.rect.x - width, segment.rect.x + segment.rect.w, segment.regionRect.x, segment.regionRect.x + segment.regionRect.w - width]
-  const yValues = [centeredY, segment.rect.y - height, segment.rect.y + segment.rect.h, centeredY - height, centeredY + height]
+  const region = segment.regionRect
+  const xStep = Math.max(0.000001, segment.rect.w / 2)
+  const xValues = [segment.rect.x + segment.rect.w / 2 - width / 2]
+  for (let x = region.x; x <= region.x + region.w - width + 0.0000001; x += xStep) xValues.push(x)
+  xValues.push(region.x + region.w - width)
+
+  const yValues = [anchor.y - height / 2, segment.rect.y, segment.rect.y + segment.rect.h - height]
+  for (let frame = segment.frameStart; frame <= segment.frameEnd; frame += 1) {
+    const centerY = segment.rect.y + (frame - segment.frameStart + 0.5) * segment.rowHeight
+    yValues.push(centerY - height / 2)
+  }
   return uniqueRects(xValues.flatMap(x => yValues.map(y => ({ x, y, w: width, h: height }))))
 }
 
@@ -210,19 +305,21 @@ function verticalLayout(
   rect: NormalizedRect,
   segment: CameraCueSegment,
   pageSize: { widthPx: number; heightPx: number },
-  fontSizePx: number,
+  font: TextFontSpec,
   anchor: NormalizedPoint,
+  overflow: boolean,
 ): CameraCueLabelLayout {
-  const step = fontSizePx * 1.02
-  const contentHeight = Math.max(fontSizePx, values.length * step)
-  const top = rect.y * pageSize.heightPx + Math.max(fontSizePx, (rect.h * pageSize.heightPx - contentHeight) / 2 + fontSizePx)
+  const step = font.sizePx * 1.12
+  const metrics = sharedTextMeasurementProvider.measure(values[0] ?? '', font)
+  const contentHeight = Math.max(font.sizePx, (values.length - 1) * step + metrics.ascentPx + metrics.descentPx)
+  const top = rect.y * pageSize.heightPx + Math.max(metrics.ascentPx, (rect.h * pageSize.heightPx - contentHeight) / 2 + metrics.ascentPx)
   return {
     cueId,
     rect,
     regionRect: segment.regionRect,
     rowHeight: segment.rowHeight,
     orientation: 'vertical',
-    fontSizePx,
+    fontSizePx: font.sizePx,
     glyphs: values.map((value, index) => ({
       value,
       xPx: (rect.x + rect.w / 2) * pageSize.widthPx,
@@ -230,6 +327,7 @@ function verticalLayout(
     })),
     connector: connectorForRect(anchor, rect),
     manual: false,
+    overflow,
   }
 }
 
@@ -239,22 +337,25 @@ function horizontalLayout(
   rect: NormalizedRect,
   segment: CameraCueSegment,
   pageSize: { widthPx: number; heightPx: number },
-  fontSizePx: number,
+  font: TextFontSpec,
   manual: boolean,
   anchor: NormalizedPoint,
 ): CameraCueLabelLayout {
   const widthPx = rect.w * pageSize.widthPx
-  const capacity = Math.max(2, Math.floor((widthPx - 8) / (fontSizePx * 0.62)))
-  const lines = wrapGraphemes(splitTextGraphemes(value), capacity)
-  const lineHeight = fontSizePx * 1.2
-  const topPx = rect.y * pageSize.heightPx + Math.max(fontSizePx, (rect.h * pageSize.heightPx - lines.length * lineHeight) / 2 + fontSizePx)
+  const lines = wrapGraphemesByWidth(splitTextGraphemes(value), Math.max(1, widthPx - LABEL_HORIZONTAL_PADDING_PX), font)
+  const lineHeight = font.sizePx * 1.2
+  const metrics = sharedTextMeasurementProvider.measure(lines[0] ?? '', font)
+  const contentHeight = Math.max(font.sizePx, (lines.length - 1) * lineHeight + metrics.ascentPx + metrics.descentPx)
+  const topPx = rect.y * pageSize.heightPx + Math.max(metrics.ascentPx, (rect.h * pageSize.heightPx - contentHeight) / 2 + metrics.ascentPx)
+  const overflow = contentHeight + LABEL_VERTICAL_PADDING_PX > rect.h * pageSize.heightPx + 0.01
+    || lines.some(line => sharedTextMeasurementProvider.measure(line, font).widthPx > widthPx - LABEL_HORIZONTAL_PADDING_PX + 0.01)
   return {
     cueId,
     rect,
     regionRect: segment.regionRect,
     rowHeight: segment.rowHeight,
     orientation: 'horizontal',
-    fontSizePx,
+    fontSizePx: font.sizePx,
     glyphs: lines.map((line, index) => ({
       value: line,
       xPx: (rect.x + rect.w / 2) * pageSize.widthPx,
@@ -262,6 +363,7 @@ function horizontalLayout(
     })),
     connector: connectorForRect(anchor, rect),
     manual,
+    overflow,
   }
 }
 
@@ -276,10 +378,20 @@ function connectorForRect(anchor: NormalizedPoint, rect: NormalizedRect): Camera
   }
 }
 
-function wrapGraphemes(values: string[], capacity: number): string[] {
+function wrapGraphemesByWidth(values: string[], maxWidthPx: number, font: TextFontSpec): string[] {
   const lines: string[] = []
-  for (let index = 0; index < values.length; index += capacity) lines.push(values.slice(index, index + capacity).join(''))
-  return lines.length > 0 ? lines : ['']
+  let line = ''
+  for (const value of values) {
+    const candidate = `${line}${value}`
+    if (line && sharedTextMeasurementProvider.measure(candidate, font).widthPx > maxWidthPx) {
+      lines.push(line)
+      line = value
+    } else {
+      line = candidate
+    }
+  }
+  if (line || lines.length === 0) lines.push(line)
+  return lines
 }
 
 function clampRectToRegion(rect: NormalizedRect, region: NormalizedRect): NormalizedRect {
@@ -293,6 +405,12 @@ function clampRectToRegion(rect: NormalizedRect, region: NormalizedRect): Normal
   }
 }
 
+function verticalOutsideRatio(rect: NormalizedRect, cueRect: NormalizedRect): number {
+  const above = Math.max(0, cueRect.y - rect.y)
+  const below = Math.max(0, rect.y + rect.h - (cueRect.y + cueRect.h))
+  return (above + below) / Math.max(0.000001, rect.h)
+}
+
 function intersectionArea(left: NormalizedRect, right: NormalizedRect): number {
   const width = Math.max(0, Math.min(left.x + left.w, right.x + right.w) - Math.max(left.x, right.x))
   const height = Math.max(0, Math.min(left.y + left.h, right.y + right.h) - Math.max(left.y, right.y))
@@ -304,4 +422,12 @@ function uniqueRects(values: NormalizedRect[]): NormalizedRect[] {
     && Math.abs(other.y - value.y) < 0.000001
     && Math.abs(other.w - value.w) < 0.000001
     && Math.abs(other.h - value.h) < 0.000001) === index)
+}
+
+function uniqueNumbers(values: number[]): number[] {
+  return values.filter((value, index) => values.findIndex(other => Math.abs(other - value) < 0.01) === index)
+}
+
+function interpolate(start: number, end: number, progress: number): number {
+  return start + (end - start) * Math.max(0, Math.min(1, progress))
 }

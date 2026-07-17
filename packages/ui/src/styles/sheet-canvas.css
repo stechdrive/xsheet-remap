@@ -942,6 +942,15 @@
   pointer-events: none;
 }
 
+.cameraCueLabel.overflow.selected .cameraCueLabelBody {
+  fill: rgb(255 244 225 / 0.92);
+  stroke: #b45309;
+}
+
+.cameraCueLabel.overflow .cameraCueLabelText {
+  fill: #8a3f00;
+}
+
 .cameraCueLabelHit {
   fill: rgb(255 255 255 / 0.001);
   stroke: none;
@@ -972,6 +981,10 @@
   vector-effect: non-scaling-stroke;
   cursor: nwse-resize;
   pointer-events: fill;
+}
+
+.cameraCueLabel.overflow .cameraCueLabelResizeHandle {
+  fill: #b45309;
 }
 
 .timingDraftRect {

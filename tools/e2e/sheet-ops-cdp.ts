@@ -566,9 +566,40 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
       && (forward[0]?.x ?? 0) < pivot.x && pivot.x < (forward[2]?.x ?? 0)
       && (reverse[0]?.x ?? 0) > reversePivot.x && reversePivot.x > (reverse[2]?.x ?? 0)
     const cueId = cue.dataset.cameraCueId
-    const labelText = cueId ? document.querySelector<SVGTextElement>(`.cameraCueLabel[data-camera-cue-id="${cueId}"] .cameraCueLabelText text`) : null
-    return singleCenteredCrossing && Number(labelText?.getAttribute('font-size')) === 18
-  }, 'single-center OL crossing and template-sized CAMERA label')
+    const label = cueId ? document.querySelector<SVGGElement>(`.cameraCueLabel[data-camera-cue-id="${cueId}"]`) : null
+    const labelText = label?.querySelector<SVGTextElement>('.cameraCueLabelText text')
+    const labelHit = label?.querySelector<SVGRectElement>('.cameraCueLabelHit')
+    const region = label?.querySelector<SVGRectElement>('clipPath rect')
+    const labelRect = {
+      x: Number(labelHit?.getAttribute('x')),
+      y: Number(labelHit?.getAttribute('y')),
+      w: Number(labelHit?.getAttribute('width')),
+      h: Number(labelHit?.getAttribute('height')),
+    }
+    const regionRect = {
+      x: Number(region?.getAttribute('x')),
+      y: Number(region?.getAttribute('y')),
+      w: Number(region?.getAttribute('width')),
+      h: Number(region?.getAttribute('height')),
+    }
+    const cueTop = Math.min(forward[0]?.y ?? Number.NaN, reverse[0]?.y ?? Number.NaN)
+    const cueBottom = Math.max(forward[2]?.y ?? Number.NaN, reverse[2]?.y ?? Number.NaN)
+    const labelCenterY = labelRect.y + labelRect.h / 2
+    const labelProgress = (labelCenterY - cueTop) / Math.max(0.0000001, cueBottom - cueTop)
+    const contained = labelRect.x >= regionRect.x - 0.0000001
+      && labelRect.y >= regionRect.y - 0.0000001
+      && labelRect.x + labelRect.w <= regionRect.x + regionRect.w + 0.0000001
+      && labelRect.y + labelRect.h <= regionRect.y + regionRect.h + 0.0000001
+    const pivotCovered = pivot.x >= labelRect.x && pivot.x <= labelRect.x + labelRect.w
+      && pivot.y >= labelRect.y && pivot.y <= labelRect.y + labelRect.h
+    return singleCenteredCrossing
+      && Number(labelText?.getAttribute('font-size')) === 18
+      && label?.dataset.cameraLabelOverflow === 'false'
+      && contained
+      && labelProgress >= 0.2
+      && labelProgress <= 0.45
+      && !pivotCovered
+  }, 'single-center OL crossing with a contained, start-biased, template-sized CAMERA label')
 
   await clickFrame('action', 'A', 8)
   await keyPress('1')
@@ -577,7 +608,7 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
   await waitForSelectedFrame('action', 'A', 9)
   const editorReopened = await evaluatePage<boolean>('Boolean(document.querySelector(\'[role="dialog"][aria-label="CAMERA指示を編集"]\'))')
   if (editorReopened) throw new Error('CAMERA editor reopened instead of accepting ACTION timing input')
-  checks.push('created a 24-frame OL with one centered crossing and template-sized label, then continued ACTION input')
+  checks.push('created a 24-frame OL with one centered crossing and a contained start-biased label, then continued ACTION input')
 }
 
 async function verifyTimelineRippleEditing(): Promise<void> {

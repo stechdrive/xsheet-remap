@@ -32,20 +32,24 @@ describe('CAMERA cue geometry', () => {
     const segments = cameraCueSegmentsForPage(standardA3SheetTemplate, page, cue, { paperTracks })
     const automatic = cameraCueLabelLayoutForPage(standardA3SheetTemplate, page, cue, { widthPx: 1754, heightPx: 2481 }, segments)
     expect(automatic?.orientation).toBe('vertical')
+    expect(automatic?.overflow).toBe(false)
     expect(automatic?.rect).not.toEqual(segments[0]!.rect)
     expect((automatic?.rect.w ?? 0) * (automatic?.rect.h ?? 0)).toBeLessThan(segments[0]!.rect.w * segments[0]!.rect.h)
+    expect(rectIsContainedBy(automatic!.rect, automatic!.regionRect)).toBe(true)
+    expect(verticalProgress(automatic!.rect, segments[0]!.rect)).toBeGreaterThanOrEqual(0.25)
+    expect(verticalProgress(automatic!.rect, segments[0]!.rect)).toBeLessThanOrEqual(0.45)
 
     const manualCue: TimedRangeCue = {
       ...cue,
       camera: { ...cue.camera!, labelPlacement: { mode: 'manual', frameOffset: 4, xRatio: 0.5, widthRatio: 0.4, heightFrames: 5 } },
     }
     const manual = cameraCueLabelLayoutForPage(standardA3SheetTemplate, page, manualCue, { widthPx: 1754, heightPx: 2481 }, segments)
-    expect(manual).toMatchObject({ orientation: 'horizontal', manual: true })
+    expect(manual).toMatchObject({ orientation: 'horizontal', manual: true, overflow: false })
     expect(manual?.rect.x).toBeCloseTo(segments[0]!.regionRect.x + segments[0]!.regionRect.w * 0.5)
     expect(manual?.rect.h).toBeCloseTo(segments[0]!.rowHeight * 5)
   })
 
-  it('places a fade instruction outside its shape and returns a connector to the cue', () => {
+  it('keeps a fade label inside its interval and permits overlap with its own drawing', () => {
     const cue: TimedRangeCue = {
       cueId: 'cue_fade', role: 'camera', laneId: 'camera_lane_2', frameStart: 1, frameEnd: 18, label: 'FI撮影指示', text: '', source: 'manual',
       camera: { shape: 'fade-in', startLabel: '', endLabel: '' },
@@ -54,7 +58,48 @@ describe('CAMERA cue geometry', () => {
     expect(layout?.segments).toHaveLength(1)
     expect(layout?.label).not.toBeNull()
     expect(layout?.label?.rect).not.toEqual(layout?.segments[0]?.rect)
-    expect(layout?.label?.connector).toBeTruthy()
+    expect(intersectionArea(layout!.label!.rect, layout!.segments[0]!.rect)).toBeGreaterThan(0)
+    expect(verticalProgress(layout!.label!.rect, layout!.segments[0]!.rect)).toBeGreaterThanOrEqual(0.25)
+    expect(verticalProgress(layout!.label!.rect, layout!.segments[0]!.rect)).toBeLessThanOrEqual(0.5)
+    expect(rectIsContainedBy(layout!.label!.rect, layout!.label!.regionRect)).toBe(true)
+  })
+
+  it('uses a one-line layout for a short interval without treating it as overflow', () => {
+    const cue: TimedRangeCue = {
+      cueId: 'cue_short', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 2,
+      label: 'PAN', text: '', source: 'manual', camera: { shape: 'range', startLabel: '', endLabel: '' },
+    }
+    const layout = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [cue], { widthPx: 1754, heightPx: 2481 }, { paperTracks })[0]!
+    expect(layout.label).toMatchObject({ orientation: 'horizontal', overflow: false })
+    expect(verticalProgress(layout.label!.rect, layout.segments[0]!.rect)).toBeCloseTo(0.5)
+    expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
+  })
+
+  it('protects the single OL crossing while placing its label toward the start side', () => {
+    const cue = { ...overlapCue(1, 24, 12), label: 'E2E OL' }
+    const layout = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [cue], { widthPx: 1754, heightPx: 2481 }, { paperTracks })[0]!
+    const segment = layout.segments[0]!
+    const label = layout.label!
+    const pivot = cameraOverlapPathsForSegment(cue, segment)[0]![1]!
+
+    expect(label.orientation).toBe('vertical')
+    expect(label.overflow).toBe(false)
+    expect(rectContainsPoint(label.rect, pivot)).toBe(false)
+    expect(verticalProgress(label.rect, segment.rect)).toBeGreaterThanOrEqual(0.2)
+    expect(verticalProgress(label.rect, segment.rect)).toBeLessThanOrEqual(0.45)
+    expect(rectIsContainedBy(label.rect, label.regionRect)).toBe(true)
+  })
+
+  it('reports impossible text without allowing its box to leave the CAMERA region', () => {
+    const cue: TimedRangeCue = {
+      cueId: 'cue_overflow', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24,
+      label: '非常に長いCAMERA指示'.repeat(100), text: '', source: 'manual',
+      camera: { shape: 'range', startLabel: '', endLabel: '' },
+    }
+    const layout = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [cue], { widthPx: 1754, heightPx: 2481 }, { paperTracks })[0]!.label!
+    expect(layout.overflow).toBe(true)
+    expect(rectIsContainedBy(layout.rect, layout.regionRect)).toBe(true)
+    expect(layout.fontSizePx).toBe(defaultTimingTextFontSizePx(standardA3SheetTemplate, 'cell'))
   })
 
   it('draws a 24-frame overlap with exactly one crossing at the editable pivot', () => {
@@ -151,4 +196,25 @@ function sharedPathPoints(
     Math.abs(candidate.x - point.x) < 0.0000001
     && Math.abs(candidate.y - point.y) < 0.0000001,
   ))
+}
+
+function verticalProgress(rect: { y: number; h: number }, cueRect: { y: number; h: number }): number {
+  return (rect.y + rect.h / 2 - cueRect.y) / cueRect.h
+}
+
+function rectIsContainedBy(rect: { x: number; y: number; w: number; h: number }, region: { x: number; y: number; w: number; h: number }): boolean {
+  return rect.x >= region.x - 0.0000001
+    && rect.y >= region.y - 0.0000001
+    && rect.x + rect.w <= region.x + region.w + 0.0000001
+    && rect.y + rect.h <= region.y + region.h + 0.0000001
+}
+
+function rectContainsPoint(rect: { x: number; y: number; w: number; h: number }, point: { x: number; y: number }): boolean {
+  return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h
+}
+
+function intersectionArea(left: { x: number; y: number; w: number; h: number }, right: { x: number; y: number; w: number; h: number }): number {
+  const width = Math.max(0, Math.min(left.x + left.w, right.x + right.w) - Math.max(left.x, right.x))
+  const height = Math.max(0, Math.min(left.y + left.h, right.y + right.h) - Math.max(left.y, right.y))
+  return width * height
 }

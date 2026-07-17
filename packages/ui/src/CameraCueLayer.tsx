@@ -105,11 +105,13 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
         const selected = selectedCueId === cueId
         const resizeWidth = 9 / Math.max(1, surface.widthPx)
         const resizeHeight = 9 / Math.max(1, surface.heightPx)
+        const clipId = `camera-cue-label-clip-${safeSvgId(page.pageId)}-${safeSvgId(cueId)}`
         return (
           <g
             key={`label:${cueId}`}
-            className={`cameraCueLabel${selected ? ' selected' : ''}${layout.manual ? ' manual' : ''}`}
+            className={`cameraCueLabel${selected ? ' selected' : ''}${layout.manual ? ' manual' : ''}${layout.overflow ? ' overflow' : ''}`}
             data-camera-cue-id={cueId}
+            data-camera-label-overflow={layout.overflow ? 'true' : 'false'}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
@@ -117,11 +119,19 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
             onPointerEnter={event => onPointerEnter(event, cueId)}
             onPointerLeave={onPointerLeave}
           >
+            <defs>
+              <clipPath id={clipId}>
+                <rect x={layout.regionRect.x} y={layout.regionRect.y} width={layout.regionRect.w} height={layout.regionRect.h} />
+              </clipPath>
+            </defs>
+            {layout.overflow && <title>CAMERA欄に指示全文を表示できません。指示を短くするか、アンカー付きメモで補足してください。</title>}
             {layout.connector && <line className="cameraCueLabelConnector" x1={layout.connector.from.x} y1={layout.connector.from.y} x2={layout.connector.to.x} y2={layout.connector.to.y} />}
             {selected && <rect className="cameraCueLabelBody" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} />}
             <rect className="cameraCueLabelHit" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} onPointerDown={event => onPointerDown(event, cue, 'move-label', { labelLayout: layout })} onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); onDoubleClick(cueId) }} />
-            <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`} className="cameraCueLabelText">
-              {layout.glyphs.map((glyph, index) => <text key={index} x={glyph.xPx} y={glyph.yPx} fontSize={layout.fontSizePx} textAnchor="middle">{glyph.value}</text>)}
+            <g clipPath={`url(#${clipId})`}>
+              <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`} className="cameraCueLabelText">
+                {layout.glyphs.map((glyph, index) => <text key={index} x={glyph.xPx} y={glyph.yPx} fontSize={layout.fontSizePx} textAnchor="middle">{glyph.value}</text>)}
+              </g>
             </g>
             {selected && (
               <rect className="cameraCueLabelResizeHandle" x={layout.rect.x + layout.rect.w - resizeWidth} y={layout.rect.y + layout.rect.h - resizeHeight} width={resizeWidth} height={resizeHeight} onPointerDown={event => onPointerDown(event, cue, 'resize-label', { labelLayout: layout })} />
@@ -135,4 +145,8 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
 
 function EndpointLabel({ value, x, y, pageSize }: { value: string; x: number; y: number; pageSize: { widthPx: number; heightPx: number } }) {
   return <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`} className="cameraCueEndpointLabel"><text x={x * pageSize.widthPx} y={y * pageSize.heightPx} fontSize={11}>{value}</text></g>
+}
+
+function safeSvgId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '-')
 }

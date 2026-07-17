@@ -44,6 +44,40 @@ describe('CameraCueLayer', () => {
     expect(container.querySelectorAll('.cameraCue.fade-in .cameraCueMarker, .cameraCue.fade-out .cameraCueMarker, .cameraCue.overlap .cameraCueMarker')).toHaveLength(0)
     expect(container.querySelectorAll('.cameraCueLabelHit')).toHaveLength(4)
     expect(container.querySelectorAll('.cameraCueLabelBody')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCueLabel defs rect')).toHaveLength(4)
+    expect(container.querySelectorAll('.cameraCueLabel[data-camera-label-overflow="false"]')).toHaveLength(4)
+    expect(container.querySelectorAll('.cameraCueLabelText[clip-path]')).toHaveLength(0)
+    expect(container.querySelectorAll('.cameraCueLabel [clip-path] .cameraCueLabelText')).toHaveLength(4)
+  })
+
+  it('marks an unavoidably overflowing label while clipping it to the CAMERA region', () => {
+    const cue = cameraCue('cue_overflow', 'camera_lane_1', 1, 24, 'range')
+    cue.label = '非常に長いCAMERA指示'.repeat(100)
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const { container } = render(
+      <svg>
+        <CameraCueLayer
+          cues={[cue]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={createDefaultProject().logicalSheet.paperTracks.map(track => track.paperTrack)}
+          pageSize={{ widthPx: 1754, heightPx: 2481 }}
+          surface={{ widthPx: 1000, heightPx: 1000 }}
+          selectedCueId="cue_overflow"
+          onPointerDown={vi.fn()}
+          onPointerMove={vi.fn()}
+          onPointerUp={vi.fn()}
+          onPointerCancel={vi.fn()}
+          onDoubleClick={vi.fn()}
+          onPointerEnter={vi.fn()}
+          onPointerLeave={vi.fn()}
+        />
+      </svg>,
+    )
+    const label = container.querySelector('.cameraCueLabel[data-camera-label-overflow="true"]')
+    expect(label?.classList.contains('overflow')).toBe(true)
+    expect(label?.querySelector('title')?.textContent).toContain('アンカー付きメモ')
+    expect(label?.querySelector('[clip-path]')).toBeTruthy()
   })
 })
 

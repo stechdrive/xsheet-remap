@@ -723,7 +723,17 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
       }
       ctx.textAlign = 'center'
       ctx.textBaseline = 'alphabetic'
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(
+        label.regionRect.x * pageWidth,
+        offsetY + label.regionRect.y * pageHeight,
+        label.regionRect.w * pageWidth,
+        label.regionRect.h * pageHeight,
+      )
+      ctx.clip()
       for (const glyph of label.glyphs) drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, label.fontSizePx, 850)
+      ctx.restore()
     }
   }
   return ctx.getImageData(0, 0, context.width, context.height)

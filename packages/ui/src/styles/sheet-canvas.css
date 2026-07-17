@@ -1868,8 +1868,8 @@
   padding: 2px 4px;
   border: 1px solid #2d6a57;
   border-radius: 4px;
-  background: rgb(255 255 255 / 0.94);
-  box-shadow: 0 6px 16px rgb(0 0 0 / 0.14);
+  background: transparent;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.72);
   font-weight: 700;
   resize: both;
   user-select: text;

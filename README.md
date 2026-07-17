@@ -73,6 +73,8 @@ xsheet-remapは、デジタルタイムシートの編集、紙シート画像�
 
 確認用にはPNG/JPG/PSD、CSP連携用にはXDTSまたはCSP自動登録出力を使います。CSP自動登録出力では素材画像そのものをコピーせず、登録ファイルからカットフォルダ内の既存素材を参照します。
 
+PSDでは、紙シート画像、テンプレート罫線、テンプレートラベル、追加トラック、カット情報、ACTION/CELL入力、SOUND指示、CAMERA指示、通常の手描き注釈、タイムラインメモ、注釈文字を用途別レイヤーとして出力します。紙シート画像の表示不透明度は画素へ焼き込まずPSDレイヤー属性に保持するため、画像編集ソフトで100%へ戻せます。
+
 ## 開発用ビルドと配布
 
 `npm run build:desktop`、`npm run build:csp-helper`、`npm run package:local`、`npm run build:all-local`は、成果物をリポジトリ内の`release-local/`に生成します。これらのコマンドは、`XSHEET_RELEASE_COPY_DIR`が設定されていても外部フォルダへコピーしません。

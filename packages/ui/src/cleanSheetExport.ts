@@ -35,7 +35,14 @@ import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotati
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
 import { buildCameraCuePageLayouts, cameraFadePolygonForSegment, cameraOverlapPathsForSegment } from './cameraCueGeometry'
 import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, textFontDeclaration } from './textMetrics'
-import { timelineMemoPointToPagePoint, timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment } from './timelineMemoGeometry'
+import {
+  timelineMemoAnchorCellForPage,
+  timelineMemoAnchorConnectorPoints,
+  timelineMemoAnchorMarkerRect,
+  timelineMemoPointToPagePoint,
+  timelineMemoSegmentsForPage,
+  timelineMemoStrokePointsForSegment,
+} from './timelineMemoGeometry'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -61,10 +68,12 @@ type SheetExportLayerId =
   | 'templateLines'
   | 'templateLabels'
   | 'overlayTracks'
-  | 'inputText'
+  | 'metadataText'
+  | 'timingInput'
   | 'soundCues'
   | 'cameraCues'
   | 'annotationInk'
+  | 'timelineMemoInk'
   | 'annotationText'
 
 export type TimedRangeCueExportLayerId = Extract<SheetExportLayerId, 'soundCues' | 'cameraCues'>
@@ -74,7 +83,10 @@ type SheetExportLayer = {
   name: string
   imageData: ImageData
   opacity?: number
+  opacityByPage?: Record<string, number>
 }
+
+export type SheetExportLayerDescriptor = Omit<SheetExportLayer, 'imageData'>
 
 type SheetExportLayerContext = SheetRenderModelContext & {
   runtimeSourceImageUrls: Record<string, string>
@@ -136,6 +148,7 @@ export async function renderSheetImageExports(
   for (const page of context.pages) {
     const pageLayers = layers.map(layer => ({
       ...layer,
+      opacity: layer.opacityByPage?.[page.pageId] ?? layer.opacity,
       imageData: cropImageData(layer.imageData, 0, page.pageIndex * context.pageSize.heightPx, context.pageSize.widthPx, context.pageSize.heightPx),
     }))
     const composite = compositeLayers(pageLayers)
@@ -195,44 +208,83 @@ async function renderSheetExportLayers(
   context: SheetExportLayerContext,
   options: SheetImageExportOptions,
 ): Promise<SheetExportLayer[]> {
-  const layers: SheetExportLayer[] = [
-    { id: 'white', name: '白地', imageData: solidWhiteImageData(context.width, context.height) },
-  ]
-  if (options.includeTemplateImage && context.template.defaultUnderlay) {
-    layers.push({ id: 'templateImage', name: 'テンプレ画像', imageData: await renderTemplateImageLayer(context) })
-  }
+  const descriptors = sheetExportLayerDescriptorsForContext(context, options)
+  return Promise.all(descriptors.map(async descriptor => ({
+    ...descriptor,
+    imageData: await renderSheetExportLayer(context, options, descriptor.id),
+  })))
+}
+
+export function sheetExportLayerDescriptors(
+  project: CutProject,
+  template: SheetTemplate,
+  options: SheetImageExportOptions,
+  renderOptions: { cutGroup?: SheetRenderCutGroupContext } = {},
+): SheetExportLayerDescriptor[] {
+  const context = createLayerContext(project, template, {}, renderOptions)
+  return sheetExportLayerDescriptorsForContext(context, normalizeExportOptions(project, options))
+}
+
+function sheetExportLayerDescriptorsForContext(
+  context: SheetExportLayerContext,
+  options: SheetImageExportOptions,
+): SheetExportLayerDescriptor[] {
+  const layers: SheetExportLayerDescriptor[] = [{ id: 'white', name: '白地' }]
+  if (options.includeTemplateImage && context.template.defaultUnderlay) layers.push({ id: 'templateImage', name: 'テンプレ画像' })
   if (options.includePaperSheet) {
-    layers.push({ id: 'paperSheet', name: '紙シート画像', imageData: await renderPaperSheetLayer(context) })
+    layers.push({
+      id: 'paperSheet',
+      name: '紙シート画像',
+      opacityByPage: Object.fromEntries(context.pages.map(page => [
+        page.pageId,
+        psdOpacityByte(sheetScanPageImage(context, page.pageId).settings.opacity),
+      ])),
+    })
   }
   if (options.includeTemplateDrawing) {
-    layers.push({
-      id: 'templateLines',
-      name: 'テンプレ罫線',
-      imageData: renderTemplateDrawingLayer(context, {
-        includeStaticChrome: !options.includePaperSheet && !options.includeTemplateImage,
-        content: 'lines',
-      }),
-    })
-    layers.push({
-      id: 'templateLabels',
-      name: 'テンプレラベル',
-      imageData: renderTemplateDrawingLayer(context, {
-        includeStaticChrome: false,
-        content: 'labels',
-      }),
-    })
+    layers.push({ id: 'templateLines', name: 'テンプレ罫線' })
+    layers.push({ id: 'templateLabels', name: 'テンプレラベル' })
   }
-  if (hasOverlayRenderContent(context)) {
-    layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル', imageData: renderOverlayTrackLayer(context) })
-  }
-  layers.push({ id: 'inputText', name: '入力文字', imageData: renderInputTextLayer(context) })
+  if (hasOverlayRenderContent(context)) layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル' })
+  layers.push({ id: 'metadataText', name: 'カット情報' })
+  layers.push({ id: 'timingInput', name: 'ACTION/CELL入力' })
   for (const id of timedRangeCueExportLayerIds(context.project)) {
-    if (id === 'soundCues') layers.push({ id, name: 'SOUND指示', imageData: renderSoundCueLayer(context) })
-    else layers.push({ id, name: 'CAMERA指示', imageData: renderCameraCueLayer(context) })
+    layers.push({ id, name: id === 'soundCues' ? 'SOUND指示' : 'CAMERA指示' })
   }
-  layers.push({ id: 'annotationInk', name: '手描き注釈', imageData: renderAnnotationLayer(context, 'ink') })
-  layers.push({ id: 'annotationText', name: '注釈文字', imageData: renderAnnotationLayer(context, 'text') })
+  layers.push({ id: 'annotationInk', name: '手描き注釈' })
+  layers.push({ id: 'timelineMemoInk', name: 'タイムラインメモ' })
+  layers.push({ id: 'annotationText', name: '注釈文字' })
   return layers
+}
+
+async function renderSheetExportLayer(
+  context: SheetExportLayerContext,
+  options: SheetImageExportOptions,
+  id: SheetExportLayerId,
+): Promise<ImageData> {
+  if (id === 'white') return solidWhiteImageData(context.width, context.height)
+  if (id === 'templateImage') return renderTemplateImageLayer(context)
+  if (id === 'paperSheet') return renderPaperSheetLayer(context)
+  if (id === 'templateLines') {
+    return renderTemplateDrawingLayer(context, {
+      includeStaticChrome: !options.includePaperSheet && !options.includeTemplateImage,
+      content: 'lines',
+    })
+  }
+  if (id === 'templateLabels') return renderTemplateDrawingLayer(context, { includeStaticChrome: false, content: 'labels' })
+  if (id === 'overlayTracks') return renderOverlayTrackLayer(context)
+  if (id === 'metadataText') return renderMetadataTextLayer(context)
+  if (id === 'timingInput') return renderTimingInputLayer(context)
+  if (id === 'soundCues') return renderSoundCueLayer(context)
+  if (id === 'cameraCues') return renderCameraCueLayer(context)
+  if (id === 'annotationInk') return renderSheetAnnotationInkLayer(context)
+  if (id === 'timelineMemoInk') return renderTimelineMemoLayer(context)
+  return renderAnnotationTextLayer(context)
+}
+
+export function psdOpacityByte(value: number): number {
+  const normalized = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1
+  return Math.round(normalized * 255)
 }
 
 export function timedRangeCueExportLayerIds(project: CutProject): TimedRangeCueExportLayerId[] {
@@ -489,7 +541,7 @@ function drawInactiveRange(
   ctx.fillStyle = '#202421'
 }
 
-function renderInputTextLayer(context: SheetExportLayerContext): ImageData {
+function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
@@ -508,6 +560,16 @@ function renderInputTextLayer(context: SheetExportLayerContext): ImageData {
         )
       })
     }
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     for (const item of inputTextRenderItemsForPage(context, page)) {
@@ -878,13 +940,13 @@ function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w:
   ctx.closePath()
 }
 
-function renderAnnotationLayer(context: SheetExportLayerContext, content: 'ink' | 'text'): ImageData {
+function renderSheetAnnotationInkLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    if (content === 'ink') for (const stroke of context.project.annotations.filter((annotation): annotation is AnnotationStroke => annotation.kind !== 'text' && annotation.pageId === page.pageId && annotation.tool === 'pen')) {
+    for (const stroke of context.project.annotations.filter((annotation): annotation is AnnotationStroke => annotation.kind !== 'text' && annotation.pageId === page.pageId && annotation.tool === 'pen')) {
       const [first, ...rest] = stroke.points
       if (!first) continue
       ctx.beginPath()
@@ -896,11 +958,56 @@ function renderAnnotationLayer(context: SheetExportLayerContext, content: 'ink' 
       ctx.lineJoin = 'round'
       ctx.stroke()
     }
-    if (content === 'ink') for (const memo of context.project.timelineMemos.slice().sort((left, right) => left.order - right.order)) {
-      for (const segment of timelineMemoSegmentsForPage(context.template, page, memo, {
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  const surface = { widthPx: context.pageSize.widthPx, heightPx: context.pageSize.heightPx }
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const memo of context.project.timelineMemos.slice().sort((left, right) => left.order - right.order)) {
+      const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
         paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
         layoutOverrides: context.project.sheetView.layoutOverrides,
-      })) {
+      })
+      const anchorCell = timelineMemoAnchorCellForPage(context.template, page, memo, {
+        paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+        layoutOverrides: context.project.sheetView.layoutOverrides,
+      })
+      if (anchorCell) {
+        const marker = timelineMemoAnchorMarkerRect(anchorCell.rect, surface)
+        const markerX = marker.x * context.pageSize.widthPx
+        const markerY = offsetY + marker.y * context.pageSize.heightPx
+        const markerW = marker.w * context.pageSize.widthPx
+        const markerH = marker.h * context.pageSize.heightPx
+        ctx.fillStyle = '#2d6a57'
+        ctx.strokeStyle = '#2d6a57'
+        ctx.lineWidth = 1
+        roundedRectPath(ctx, markerX, markerY, markerW, markerH, Math.min(markerW, markerH) * 0.32)
+        ctx.fill()
+        const firstSegment = segments[0]
+        if (firstSegment) {
+          const connector = timelineMemoAnchorConnectorPoints(marker, firstSegment.rect, surface)
+          if (connector) {
+            drawNormalizedPolygon(
+              ctx,
+              connector.split(' ').map(point => {
+                const [x = 0, y = 0] = point.split(',').map(Number)
+                return { x, y }
+              }),
+              context.pageSize.widthPx,
+              context.pageSize.heightPx,
+              offsetY,
+              true,
+            )
+          }
+        }
+      }
+      for (const segment of segments) {
         for (const stroke of memo.strokes) {
           const points = timelineMemoStrokePointsForSegment(segment, stroke.points)
           const [first, ...rest] = points
@@ -920,7 +1027,17 @@ function renderAnnotationLayer(context: SheetExportLayerContext, content: 'ink' 
         }
       }
     }
-    if (content === 'text') for (const annotation of context.project.annotations.filter((item): item is AnnotationText => item.kind === 'text' && item.pageId === page.pageId)) {
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const annotation of context.project.annotations.filter((item): item is AnnotationText => item.kind === 'text' && item.pageId === page.pageId)) {
       const lines = annotationTextLines(annotation.text)
       if (lines.length === 0) continue
       const fontSize = resolveAnnotationTextFontSizePx(annotation, context.pageSize)

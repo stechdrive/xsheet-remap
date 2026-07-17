@@ -1072,7 +1072,13 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     expect(cue.classList.contains('overlap')).toBe(true)
     expect(cue.querySelectorAll('.cameraCueStroke')).toHaveLength(2)
     expect(cue.querySelector('.cameraCuePivotHandle')).toBeTruthy()
-    expect(Array.from(document.querySelectorAll('.cameraCueEndpointLabel')).map(item => item.textContent)).toEqual(['A', 'MID', 'B'])
+    const endpointLabels = Array.from(document.querySelectorAll<SVGGElement>('.cameraCueEndpointLabel'))
+    expect(endpointLabels.map(item => item.textContent)).toEqual(['A', 'MID', 'B'])
+    expect(endpointLabels.every(item =>
+      item.hasAttribute('clip-path')
+      && !item.hasAttribute('transform')
+      && item.querySelector(':scope > g[transform] > text'),
+    )).toBe(true)
     expect(screen.queryByRole('dialog', { name: '撮影指示' })).toBeNull()
 
     const actionFrame = templateFramePoint('action', 'A', 20)

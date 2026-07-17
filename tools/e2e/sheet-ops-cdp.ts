@@ -8,6 +8,7 @@ import {
   type NormalizedRect,
   type SheetTimingRole,
 } from '@xsheet-remap/core'
+import { assertSelectorsContributePaint } from './visual-paint-contract'
 
 interface ClientPoint {
   x: number
@@ -737,6 +738,16 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
       && JSON.stringify(pointFrames) === JSON.stringify([1, 12, 24])
       && pointsContained
   }, 'frame-boundary OL crossing with a 0.65-grid pivot mark and contained CAMERA label')
+
+  const pointLabelPixels = await assertSelectorsContributePaint({
+    evaluate: evaluatePage,
+    captureScreenshot: capturePageScreenshotData,
+  }, {
+    selector: '.cameraCueEndpointLabel text',
+    expectedCount: 3,
+    label: 'CAMERA start, intermediate, and end point labels',
+  })
+  checks.push(`CAMERA point labels contributed visible compositor pixels: ${pointLabelPixels.join(', ')}`)
 
   const intermediateStart = await centerOfSelector('.cameraCuePoint.intermediate .cameraCuePointHit')
   const intermediateTarget = await clientPointForTimedRangeFrame('camera', 'camera_lane_1', 16)
@@ -2178,8 +2189,12 @@ async function clientSend<T>(method: string, params: Record<string, unknown> = {
 }
 
 async function capturePageScreenshot(path: string): Promise<void> {
+  await writeFile(path, Buffer.from(await capturePageScreenshotData(), 'base64'))
+}
+
+async function capturePageScreenshotData(): Promise<string> {
   const result = await clientSend<{ data: string }>('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
-  await writeFile(path, Buffer.from(result.data, 'base64'))
+  return result.data
 }
 
 async function waitForCondition<T>(

@@ -141,8 +141,10 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
               height={layout.rect.h}
               onPointerDown={movable ? event => onPointerDown(event, cue, 'point', { pointId: layout.point.pointId }) : undefined}
             />
-            <g clipPath={`url(#${clipId})`} transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`} className="cameraCueEndpointLabel">
-              <text x={layout.textXpx} y={layout.textYpx} fontSize={layout.fontSizePx} textAnchor="middle">{layout.point.label}</text>
+            <g clipPath={`url(#${clipId})`} className="cameraCueEndpointLabel">
+              <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}>
+                <text x={layout.textXpx} y={layout.textYpx} fontSize={layout.fontSizePx} textAnchor="middle">{layout.point.label}</text>
+              </g>
             </g>
           </g>
         )

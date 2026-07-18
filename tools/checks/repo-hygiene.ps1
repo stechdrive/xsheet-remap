@@ -1,5 +1,6 @@
 param(
   [switch]$IncludeBuildOutput,
+  [switch]$IncludeDevOutput,
   [switch]$IncludeHelperBuildOutput,
   [switch]$IncludeLocalRelease
 )
@@ -40,10 +41,10 @@ function Get-BuildOutputTextFiles {
 
 function Get-BuildOutputBinaryFiles {
   $paths = @(
-    "apps/editor/src-tauri/target/release/xsheet-editor.exe",
-    "apps/desktop/src-tauri/target/release/xsheet-remap.exe",
-    "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe",
-    "apps/template-editor/src-tauri/target/release/xsheet-template.exe"
+    ".cache/cargo-target/release/xsheet-editor.exe",
+    ".cache/cargo-target/release/xsheet-remap.exe",
+    ".cache/cargo-target/release/xsheet-corrector.exe",
+    ".cache/cargo-target/release/xsheet-template.exe"
   )
 
   $paths |
@@ -131,6 +132,12 @@ $outputOnlyPatterns | ForEach-Object { $binaryPatterns.Add($_) }
 
 function Get-OutputScanRoots {
   $roots = New-Object System.Collections.Generic.List[string]
+  if ($IncludeDevOutput) {
+    $devOutputPath = Join-Path $repoRoot "dev-local"
+    if (Test-Path -LiteralPath $devOutputPath) {
+      $roots.Add($devOutputPath)
+    }
+  }
   if ($IncludeHelperBuildOutput) {
     $helperDistPath = Join-Path $repoRoot ".tmp/csp-import-helper-dist"
     if (Test-Path -LiteralPath $helperDistPath) {

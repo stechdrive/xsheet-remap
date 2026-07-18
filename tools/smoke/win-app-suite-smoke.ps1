@@ -17,9 +17,9 @@ $env:PYTHONDONTWRITEBYTECODE = "1"
 Push-Location $repoRoot
 try {
   if ($Build) {
-    npm run build:desktop
+    npm run build:dev:all
     if ($LASTEXITCODE -ne 0) {
-      throw "desktop suite build failed with exit code $LASTEXITCODE"
+      throw "desktop development suite build failed with exit code $LASTEXITCODE"
     }
   }
 
@@ -27,7 +27,7 @@ try {
     [pscustomobject]@{
       Name = "xsheet-editor"
       ExpectedTitle = "xsheet-editor"
-      ExePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe"
+      ExePath = "dev-local/xsheet-editor.exe"
       ArgumentList = @()
       WorkingDirectory = "."
       MinWidth = 1024
@@ -36,7 +36,7 @@ try {
     [pscustomobject]@{
       Name = "xsheet-remap"
       ExpectedTitle = "xsheet-remap"
-      ExePath = "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
+      ExePath = "dev-local/xsheet-remap.exe"
       ArgumentList = @()
       WorkingDirectory = "."
       MinWidth = 1024
@@ -45,7 +45,7 @@ try {
     [pscustomobject]@{
       Name = "xsheet-template"
       ExpectedTitle = "xsheet-template"
-      ExePath = "apps/template-editor/src-tauri/target/release/xsheet-template.exe"
+      ExePath = "dev-local/xsheet-template.exe"
       ArgumentList = @()
       WorkingDirectory = "."
       MinWidth = 1024
@@ -54,7 +54,7 @@ try {
     [pscustomobject]@{
       Name = "xsheet-corrector"
       ExpectedTitle = $sheetCorrectorTitle
-      ExePath = "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe"
+      ExePath = "dev-local/xsheet-corrector.exe"
       ArgumentList = @()
       WorkingDirectory = "."
       MinWidth = 460

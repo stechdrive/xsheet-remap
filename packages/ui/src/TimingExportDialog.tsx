@@ -8,6 +8,7 @@ export function TimingExportDialog({
   assetRootPath,
   issues,
   onChangeRole,
+  onChangeOptions,
   onCancel,
   onConfirm,
 }: {
@@ -16,6 +17,7 @@ export function TimingExportDialog({
   assetRootPath?: string
   issues: ValidationIssue[]
   onChangeRole: (role: SheetTimingRole) => void
+  onChangeOptions: (updates: Partial<Pick<TimingExportDialogState, 'includeSound' | 'includeCamera'>>) => void
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -27,10 +29,10 @@ export function TimingExportDialog({
   const cellLabel = template.style?.gridHeader?.labelOverrides?.cell || 'CELL'
 
   return (
-    <div className="assetQuickPreviewBackdrop exportSettingsBackdrop" role="dialog" aria-modal="true" aria-label={state.kind === 'csp-import' ? 'タイムシート/CSP自動登録' : 'XDTS書き出し'} onPointerDown={onCancel}>
+    <div className="assetQuickPreviewBackdrop exportSettingsBackdrop" role="dialog" aria-modal="true" aria-label={state.kind === 'csp-import' ? 'CSP自動登録データを書き出す…' : 'XDTSを書き出す…'} onPointerDown={onCancel}>
       <section className="timingExportDialog" onPointerDown={event => event.stopPropagation()}>
         <header>
-          <strong>{state.kind === 'csp-import' ? 'タイムシート/CSP自動登録' : 'XDTS書き出し'}</strong>
+          <strong>{state.kind === 'csp-import' ? 'CSP自動登録データを書き出す' : 'XDTSを書き出す'}</strong>
           <button type="button" aria-label="閉じる" onClick={onCancel}>×</button>
         </header>
         <div className="timingExportDialogBody">
@@ -41,6 +43,12 @@ export function TimingExportDialog({
               <button type="button" className={state.timingSourceRole === 'cell' ? 'active' : ''} aria-pressed={state.timingSourceRole === 'cell'} onClick={() => onChangeRole('cell')}>{cellLabel}</button>
             </div>
           </fieldset>
+          {state.kind === 'xdts' && (
+            <div className="xdtsImportOptions">
+              <label><input type="checkbox" checked={state.includeSound} onChange={event => onChangeOptions({ includeSound: event.currentTarget.checked })} /> SOUNDを含める</label>
+              <label><input type="checkbox" checked={state.includeCamera} onChange={event => onChangeOptions({ includeCamera: event.currentTarget.checked })} /> CAMERAを含める</label>
+            </div>
+          )}
           {state.kind === 'csp-import' && (
             <label className="timingExportPathField">
               <span>カットフォルダ</span>

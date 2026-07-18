@@ -505,6 +505,8 @@ export function AppNavigationMenu({
   panel,
   onSelect,
   onLoadProject,
+  onLoadXdts,
+  onLoadTemplate,
   onSaveProject,
   onSaveProjectAs,
   onSaveTemplate,
@@ -519,6 +521,8 @@ export function AppNavigationMenu({
   panel: Panel
   onSelect: (panel: Panel) => void
   onLoadProject: (files: FileList | null) => void
+  onLoadXdts: (files: FileList | null) => void
+  onLoadTemplate: (files: FileList | null) => void
   onSaveProject: () => void
   onSaveProjectAs: () => void
   onSaveTemplate: () => void
@@ -530,17 +534,20 @@ export function AppNavigationMenu({
   return (
     <ActionMenu label={<MenuIcon />} ariaLabel={uiText.nav.menu} tooltipLabel={uiText.nav.menuTitle} className="appNavMenu iconActionMenu" closeOnMenuItemClick>
       <div className="appNavFlyout">
-        <Tooltip label={uiText.nav.fileMenuTitle}>
+        <Tooltip label="プロジェクトの新規作成・読込・保存">
           <button type="button" className="appNavMenuItem appNavFlyoutTrigger" data-action-menu-keep-open>
-            ファイル
+            プロジェクト
           </button>
         </Tooltip>
         <div className="appNavFlyoutMenu">
+          <Tooltip label={uiText.actions.resetAppTitle}>
+            <button type="button" className="appNavMenuItem" onClick={onResetApp}>新規プロジェクト</button>
+          </Tooltip>
           <TooltipTarget label={uiText.actions.loadProjectTitle}>
             {tooltipProps => (
               <label className="fileButton appNavMenuItem" {...tooltipProps}>
-                {uiText.actions.loadProject}
-                <input type="file" accept=".json,application/json" onChange={event => onLoadProject(event.currentTarget.files)} />
+                プロジェクトを開く…
+                <input type="file" accept=".json,application/json" onChange={event => { onLoadProject(event.currentTarget.files); event.currentTarget.value = '' }} />
               </label>
             )}
           </TooltipTarget>
@@ -548,11 +555,31 @@ export function AppNavigationMenu({
             <button type="button" className="appNavMenuItem" onClick={onSaveProject}>{uiText.actions.saveProject}</button>
           </Tooltip>
           <Tooltip label={uiText.actions.projectJsonTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onSaveProjectAs}>{uiText.actions.projectJson}</button>
+            <button type="button" className="appNavMenuItem" onClick={onSaveProjectAs}>名前を付けて保存…</button>
           </Tooltip>
-          <Tooltip label={uiText.actions.templateJsonTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onSaveTemplate}>{uiText.actions.templateJson}</button>
-          </Tooltip>
+        </div>
+      </div>
+      <div className="appNavFlyout">
+        <Tooltip label="外部データを現在のプロジェクトへ読み込む">
+          <button type="button" className="appNavMenuItem appNavFlyoutTrigger" data-action-menu-keep-open>読み込み</button>
+        </Tooltip>
+        <div className="appNavFlyoutMenu">
+          <TooltipTarget label="XDTSのキーと任意のSOUND/CAMERA指示を読み込む">
+            {tooltipProps => (
+              <label className="fileButton appNavMenuItem" {...tooltipProps}>
+                XDTSを読み込む…
+                <input type="file" accept=".xdts,text/plain,application/json" onChange={event => { onLoadXdts(event.currentTarget.files); event.currentTarget.value = '' }} />
+              </label>
+            )}
+          </TooltipTarget>
+          <TooltipTarget label="検証したシートテンプレートJSONを現在のプロジェクトへ適用する">
+            {tooltipProps => (
+              <label className="fileButton appNavMenuItem" {...tooltipProps}>
+                シートテンプレートを読み込む…
+                <input type="file" accept=".json,application/json" onChange={event => { onLoadTemplate(event.currentTarget.files); event.currentTarget.value = '' }} />
+              </label>
+            )}
+          </TooltipTarget>
         </div>
       </div>
       <div className="appNavFlyout">
@@ -563,7 +590,7 @@ export function AppNavigationMenu({
         </Tooltip>
         <div className="appNavFlyoutMenu appNavExportFlyoutMenu">
           <div className="imageExportMenuGroup appNavImageExportGroup" aria-label={uiText.actions.imageExportMenuTitle}>
-            <div className="imageExportMenuLabel">{uiText.actions.imageExportMenu}</div>
+            <div className="imageExportMenuLabel">タイムシート画像</div>
             <div className="imageExportFormatButtons">
               {(['jpg', 'png', 'psd'] as SheetImageExportFormat[]).map(format => {
                 const label = format.toUpperCase()
@@ -578,16 +605,16 @@ export function AppNavigationMenu({
             </div>
           </div>
           <Tooltip label={uiText.actions.xdtsTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onSaveXdts}>{uiText.actions.xdts}</button>
+            <button type="button" className="appNavMenuItem" onClick={onSaveXdts}>XDTSを書き出す…</button>
           </Tooltip>
           <Tooltip label={uiText.actions.cspImportPackageTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onSaveCspImportPackage}>{uiText.actions.cspImportPackage}</button>
+            <button type="button" className="appNavMenuItem" onClick={onSaveCspImportPackage}>CSP自動登録データを書き出す…</button>
+          </Tooltip>
+          <Tooltip label={uiText.actions.templateJsonTitle}>
+            <button type="button" className="appNavMenuItem" onClick={onSaveTemplate}>シートテンプレート（JSON）を書き出す…</button>
           </Tooltip>
         </div>
       </div>
-      <Tooltip label={uiText.actions.resetAppTitle}>
-        <button type="button" className="appNavMenuItem" onClick={onResetApp}>{uiText.actions.resetApp}</button>
-      </Tooltip>
       <div className="appNavSectionLabel">ワークスペース</div>
       {panels.map(item => (
         <Tooltip key={item} label={uiText.nav.workspaceItemTitle(panelLabel(item))}>

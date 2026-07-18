@@ -408,26 +408,91 @@ Copy-Item -LiteralPath $releaseGuideSource -Destination $releaseGuidePath -Force
 
 $desktopComponents = @(
   [pscustomobject]@{
+    Key = "editor"
     Name = "xsheet-editor"
-    Source = "apps/editor/src-tauri/target/release/xsheet-editor.exe"
+    Source = ".cache/cargo-target/release/xsheet-editor.exe"
     Destination = "xsheet-editor.exe"
   },
   [pscustomobject]@{
+    Key = "remap"
     Name = "xsheet-remap"
-    Source = "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
+    Source = ".cache/cargo-target/release/xsheet-remap.exe"
     Destination = "xsheet-remap.exe"
   },
   [pscustomobject]@{
+    Key = "corrector"
     Name = "xsheet-corrector"
-    Source = "apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe"
+    Source = ".cache/cargo-target/release/xsheet-corrector.exe"
     Destination = "xsheet-corrector.exe"
   },
   [pscustomobject]@{
+    Key = "template"
     Name = "xsheet-template"
-    Source = "apps/template-editor/src-tauri/target/release/xsheet-template.exe"
+    Source = ".cache/cargo-target/release/xsheet-template.exe"
     Destination = "xsheet-template.exe"
   }
 )
+
+function Assert-CoherentDesktopBuildState {
+  param(
+    [object[]]$DesktopComponents,
+    [string]$ExpectedVersion
+  )
+
+  $statePath = Join-Path $repoRoot "dev-local\build-state.json"
+  if (-not (Test-Path -LiteralPath $statePath)) {
+    throw "desktop build state is missing: $statePath. Run npm run build:desktop before packaging."
+  }
+
+  try {
+    $state = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
+  } catch {
+    throw "desktop build state is unreadable: $statePath. Run npm run build:desktop before packaging."
+  }
+
+  if ([string]$state.mode -ne "coherent") {
+    throw "desktop outputs are $($state.mode), not a coherent four-app build. Run npm run build:desktop before packaging."
+  }
+  if (-not $state.applications) {
+    throw "desktop build state has no application records. Run npm run build:desktop before packaging."
+  }
+
+  $sessionIds = New-Object System.Collections.Generic.List[string]
+  foreach ($component in $DesktopComponents) {
+    $stateProperty = $state.applications.PSObject.Properties[$component.Key]
+    if (-not $stateProperty) {
+      throw "desktop build state is missing $($component.Key). Run npm run build:desktop before packaging."
+    }
+
+    $applicationState = $stateProperty.Value
+    if ([string]$applicationState.version -ne $ExpectedVersion) {
+      throw "$($component.Name) build version $($applicationState.version) does not match $ExpectedVersion. Run npm run build:desktop before packaging."
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$applicationState.buildSessionId)) {
+      throw "$($component.Name) has no desktop build session. Run npm run build:desktop before packaging."
+    }
+    $sessionIds.Add([string]$applicationState.buildSessionId)
+
+    $sourcePath = Join-Path $repoRoot $component.Source
+    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+      throw "missing desktop build output: $sourcePath"
+    }
+    $actualHash = Get-Sha256Hex $sourcePath
+    if ($actualHash -ne [string]$applicationState.sha256) {
+      throw "$($component.Name) output changed after its recorded build session. Run npm run build:desktop before packaging."
+    }
+  }
+
+  if (@($sessionIds | Sort-Object -Unique).Count -ne 1) {
+    throw "desktop outputs were produced by different build sessions. Run npm run build:desktop before packaging."
+  }
+}
+
+if (-not $SkipDesktop) {
+  Assert-CoherentDesktopBuildState `
+    -DesktopComponents $desktopComponents `
+    -ExpectedVersion $expectedReleaseVersion
+}
 
 Remove-ReleasePathSafely (Join-Path $releaseRoot "xsheet-template-editor.exe")
 

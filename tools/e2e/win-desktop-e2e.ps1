@@ -1,5 +1,5 @@
 param(
-  [string]$ExePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe",
+  [string]$ExePath = "dev-local/xsheet-editor.exe",
   [string]$Scenario = "launch",
   [string]$FixtureSource = "",
   [string]$ArtifactRoot = ".tmp/desktop-e2e",
@@ -41,10 +41,10 @@ if (-not ($supportedScenarios -contains $Scenario)) {
 }
 
 if ($Build) {
-  Write-Host "[desktop-e2e] building desktop executable..."
-  npm run build:desktop
+  Write-Host "[desktop-e2e] building the editor development executable..."
+  npm run build:dev:editor
   if ($LASTEXITCODE -ne 0) {
-    throw "desktop build failed with exit code $LASTEXITCODE"
+    throw "editor development build failed with exit code $LASTEXITCODE"
   }
 }
 

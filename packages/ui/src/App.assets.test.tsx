@@ -355,6 +355,7 @@ it('loads a material asset as the paper sheet from the asset browser context men
 
 it('resets the working project and clears history from the top bar', async () => {
     URL.createObjectURL = file => `blob:${(file as File).name}`
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<App />)
 
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
@@ -381,11 +382,12 @@ it('resets the working project and clears history from the top bar', async () =>
     const appNavigationMenu = openAppNavigationMenu()
     fireEvent.click(within(appNavigationMenu).getByRole('button', { name: uiText.actions.resetApp }))
 
-    expect(document.querySelector('.eventText')).toBeNull()
+    await waitFor(() => expect(document.querySelector('.eventText')).toBeNull())
     expect(sheetImageHrefs()).not.toContain('blob:reset_sheet.png')
     expect(screen.queryByText(uiText.sources.dropOnSheet)).toBeNull()
     expect((screen.getByRole('button', { name: uiText.actions.undo }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: uiText.actions.redo }) as HTMLButtonElement).disabled).toBe(true)
+    confirm.mockRestore()
   })
 
 it('edits sheet warp quadrilateral handles and applies template targets', async () => {

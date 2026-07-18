@@ -16,6 +16,7 @@ import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
 import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
+import { XdtsImportDialog } from './XdtsImportDialog'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -31,13 +32,13 @@ export function AppShellView({ controller }: { controller: AppController }) {
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
-    setTimingExportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
+    setTimingExportDialog, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
-    recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, handleRangeSelect,
+    recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
@@ -50,7 +51,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
-    handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleApplyTemplateDraft, handleCreateTemplateDraft,
+    handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
@@ -69,6 +70,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             panel={panel}
             onSelect={switchPanel}
             onLoadProject={files => void handleLoadProject(files)}
+            onLoadXdts={files => void handleLoadXdts(files)}
+            onLoadTemplate={files => void handleImportTemplate(files)}
             onSaveProject={() => void handleSaveProjectJson()}
             onSaveProjectAs={() => void handleSaveProjectJson({ saveAs: true })}
             onSaveTemplate={() => void handleSaveTemplateJson()}
@@ -449,8 +452,19 @@ export function AppShellView({ controller }: { controller: AppController }) {
           assetRootPath={project.assetRoot?.path}
           issues={timingExportPlan.validation}
           onChangeRole={updateTimingExportRole}
+          onChangeOptions={updateTimingExportOptions}
           onCancel={() => setTimingExportDialog(null)}
           onConfirm={confirmTimingExport}
+        />
+      )}
+
+      {xdtsImportDialog && (
+        <XdtsImportDialog
+          state={xdtsImportDialog}
+          template={template}
+          onChange={updateXdtsImportDialog}
+          onCancel={() => setXdtsImportDialog(null)}
+          onConfirm={confirmXdtsImport}
         />
       )}
 

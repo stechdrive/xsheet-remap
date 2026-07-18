@@ -269,9 +269,9 @@ try {
 
 function parseArgs(rawArgs: string[]): ParsedArgs {
   const defaults: ParsedArgs = {
-    exe: path.join(repoRoot, 'apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe'),
+    exe: path.join(repoRoot, 'dev-local/xsheet-corrector.exe'),
     inputs: [],
-    out: path.join(repoRoot, 'reference-local/calibration-evals/<timestamp>'),
+    out: path.join(repoRoot, '.tmp', 'sheet-corrector-calibration-evals', '<timestamp>'),
     pattern: '*sheet*.jpg',
     review: null,
     keepOpen: false,

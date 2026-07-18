@@ -10,6 +10,36 @@ export interface XdtsTrack {
   frames: XdtsFrame[]
 }
 
+export type XdtsKnownFieldId = 0 | 3 | 5
+
+export interface XdtsRangeCue {
+  fieldId: 3 | 5
+  name: string
+  trackNo: number
+  frameStart: number
+  frameEnd: number
+  values: string[]
+}
+
+export interface XdtsUnknownField {
+  fieldId: number
+  names: string[]
+  tracks: Array<{
+    trackNo: number
+    frames: Array<{ frameIndex: number; values: string[] }>
+  }>
+}
+
+export interface XdtsTimeTable {
+  name: string
+  duration: number
+  fps: number
+  tracks: XdtsTrack[]
+  dialogueCues: XdtsRangeCue[]
+  cameraCues: XdtsRangeCue[]
+  unknownFields: XdtsUnknownField[]
+}
+
 export interface XdtsData {
   tracks: XdtsTrack[]
   version: number
@@ -17,6 +47,7 @@ export interface XdtsData {
   timeTableName: string
   duration: number
   fps: number
+  timeTables: XdtsTimeTable[]
 }
 
 export const XDTS_TEXT_HEADER = 'exchangeDigitalTimeSheet Save Data'

@@ -1124,6 +1124,20 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   padding: 5px;
 }
 
+.timingExportDialog > header > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.timingExportDialog > header > div > span {
+  overflow: hidden;
+  color: #667069;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .timingExportDialogBody {
   display: grid;
   gap: 12px;
@@ -1157,8 +1171,31 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   gap: 5px;
 }
 
-.timingExportPathField input {
+.timingExportPathField input,
+.timingExportPathField select {
   width: 100%;
+}
+
+.xdtsImportOptions {
+  display: grid;
+  gap: 7px;
+}
+
+.xdtsImportOptions label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.xdtsImportOptions input {
+  flex: 0 0 auto;
+}
+
+.xdtsImportSummary {
+  margin: 0;
+  color: #4d5751;
+  font-size: 12px;
 }
 
 .timingExportIssues {

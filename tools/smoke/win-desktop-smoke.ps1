@@ -1,5 +1,5 @@
 param(
-  [string]$ExePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe",
+  [string]$ExePath = "dev-local/xsheet-editor.exe",
   [string]$ExpectedTitle = "xsheet-editor",
   [string[]]$ArgumentList = @(),
   [string]$WorkingDirectory = "",
@@ -21,10 +21,10 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $repoRoot
 
 if ($Build) {
-  Write-Host "[desktop-smoke] building desktop executable..."
-  npm run build:desktop
+  Write-Host "[desktop-smoke] building the editor development executable..."
+  npm run build:dev:editor
   if ($LASTEXITCODE -ne 0) {
-    throw "desktop build failed with exit code $LASTEXITCODE"
+    throw "editor development build failed with exit code $LASTEXITCODE"
   }
 }
 

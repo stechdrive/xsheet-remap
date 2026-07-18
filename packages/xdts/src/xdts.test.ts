@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { buildExportPlan, createDefaultProject, createOrSetEvent, standardA3SheetTemplate, upsertBinding } from '@xsheet-remap/core'
-import { exportXdts, parseXdts, patchXdtsValue, resolveCellsAtFrameByTrackNo } from './index'
+import { buildExportPlan, createDefaultProject, createOrSetEvent, createTimedRangeCue, sheetTimingRoleForEvent, standardA3SheetTemplate, upsertBinding } from '@xsheet-remap/core'
+import { DEFAULT_XDTS_IMPORT_OPTIONS, exportProjectXdts, exportXdts, importXdtsIntoProject, parseXdts, patchXdtsValue, resolveCellsAtFrameByTrackNo } from './index'
 
 describe('XDTS parse/export', () => {
   it('parses the public duplicate-name minimal fixture', () => {
@@ -119,7 +119,94 @@ describe('XDTS parse/export', () => {
     const golden = readFixture('export-single-a.xdts')
     expect(text).toBe(golden)
   })
+
+  it('keeps multiple tables and parses dialogue/camera ranges without flattening them', () => {
+    const parsed = parseXdts(fullFieldFixture())
+    expect(parsed.timeTables).toHaveLength(2)
+    expect(parsed.timeTables[0]).toMatchObject({ name: 'main', duration: 24, fps: 24 })
+    expect(parsed.timeTables[0]?.dialogueCues[0]).toMatchObject({
+      fieldId: 3, trackNo: 0, frameStart: 2, frameEnd: 4, values: ['アキ', 'テストです'],
+    })
+    expect(parsed.timeTables[0]?.cameraCues[0]).toMatchObject({
+      fieldId: 5, trackNo: 0, frameStart: 8, frameEnd: 9, values: ['OL', '0.5'],
+    })
+    expect(parsed.timeTables[1]?.tracks[0]?.frames[0]).toEqual({ frameIndex: 0, cellName: 'B1' })
+  })
+
+  it('imports keys, SOUND and CAMERA as one complete project value', () => {
+    const source = createDefaultProject()
+    const parsed = parseXdts(fullFieldFixture())
+    const result = importXdtsIntoProject(source, parsed, {
+      ...DEFAULT_XDTS_IMPORT_OPTIONS,
+      targetRole: 'cell',
+      applyCutIdentity: true,
+    })
+    const importedEvent = result.project.logicalSheet.events.find(event => event.frame === source.logicalSheet.frameOrigin)
+    const importedKey = result.project.logicalSheet.keys.find(key => key.keyId === importedEvent?.keyId)
+    expect(importedKey?.displayLabel).toBe('A1')
+    expect(importedEvent && sheetTimingRoleForEvent(importedEvent)).toBe('cell')
+    expect(result.project.timedRangeCues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'sound', label: 'アキ', text: 'テストです', source: 'import' }),
+      expect.objectContaining({ role: 'camera', label: 'OL', camera: expect.objectContaining({ shape: 'overlap' }), source: 'import' }),
+    ]))
+    expect(result.project.cut).toMatchObject({ scene: '7', cut: '12' })
+    expect(result.warnings.some(message => message.includes('CAMERA座標'))).toBe(true)
+  })
+
+  it('exports standalone SOUND/CAMERA fields while keeping cell-only export version 5', () => {
+    let project = createDefaultProject()
+    const soundLane = project.logicalSheet.timelineSections.find(section => section.role === 'sound')?.lanes?.[0]
+    const cameraLane = project.logicalSheet.timelineSections.find(section => section.role === 'camera')?.lanes?.[0]
+    expect(soundLane && cameraLane).toBeTruthy()
+    project = createTimedRangeCue(project, {
+      role: 'sound', laneId: soundLane!.laneId, frameStart: 1, frameEnd: 3, label: 'アキ', text: '台詞',
+    }).project
+    project = createTimedRangeCue(project, {
+      role: 'camera', laneId: cameraLane!.laneId, frameStart: 4, frameEnd: 7, label: 'FI', camera: { shape: 'fade-in' },
+    }).project
+    const plan = buildExportPlan(project)
+    expect(JSON.parse(exportXdts(plan).split('\n').slice(1).join('\n')).version).toBe(5)
+    const parsed = parseXdts(exportProjectXdts(plan, project))
+    expect(parsed.version).toBe(10)
+    expect(parsed.timeTables[0]?.dialogueCues[0]).toMatchObject({ frameStart: 0, frameEnd: 2, values: ['アキ', '台詞'] })
+    expect(parsed.timeTables[0]?.cameraCues[0]).toMatchObject({ frameStart: 3, frameEnd: 6, values: ['FI'] })
+  })
 })
+
+function fullFieldFixture(): string {
+  return `exchangeDigitalTimeSheet Save Data
+{
+  "version": 10,
+  "header": { "cut": "12", "scene": "7" },
+  "timeTables": [
+    {
+      "name": "main", "duration": 24, "frameRate": 24,
+      "timeTableHeaders": [
+        { "fieldId": 0, "names": ["A"] },
+        { "fieldId": 3, "names": ["SOUND"] },
+        { "fieldId": 5, "names": ["CAMERA"] }
+      ],
+      "fields": [
+        { "fieldId": 0, "tracks": [{ "trackNo": 0, "frames": [{ "frame": 0, "data": [{ "values": ["A1"] }] }] }] },
+        { "fieldId": 3, "tracks": [{ "trackNo": 0, "frames": [
+          { "frame": 2, "data": [{ "values": ["アキ", "テストです"] }] },
+          { "frame": 3, "data": [{ "values": ["SYMBOL_HYPHEN"] }] },
+          { "frame": 4, "data": [{ "values": ["SYMBOL_HYPHEN"] }] }
+        ] }] },
+        { "fieldId": 5, "tracks": [{ "trackNo": 0, "frames": [
+          { "frame": 8, "data": [{ "values": ["OL", "0.5"] }] },
+          { "frame": 9, "data": [{ "values": ["SYMBOL_HYPHEN"] }] }
+        ] }] }
+      ]
+    },
+    {
+      "name": "sub", "duration": 12, "frameRate": 24,
+      "timeTableHeaders": [{ "fieldId": 0, "names": ["B"] }],
+      "fields": [{ "fieldId": 0, "tracks": [{ "trackNo": 0, "frames": [{ "frame": 0, "data": [{ "values": ["B1"] }] }] }] }]
+    }
+  ]
+}`
+}
 
 function readFixture(fileName: string): string {
   return readFileSync(join(process.cwd(), 'fixtures', 'xdts', fileName), 'utf8')

@@ -1,11 +1,25 @@
 import type { CSSProperties } from 'react'
 import type { MaterialState, NormalizedRect, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimedRangeCue, TimingKey } from '@xsheet-remap/core'
+import type { XdtsData, XdtsImportConflictMode } from '@xsheet-remap/xdts'
 
 export type Panel = 'sheet' | 'template'
 export type TimingExportKind = 'xdts' | 'csp-import'
 export interface TimingExportDialogState {
   kind: TimingExportKind
   timingSourceRole: 'action' | 'cell'
+  includeSound: boolean
+  includeCamera: boolean
+}
+export interface XdtsImportDialogState {
+  fileName: string
+  data: XdtsData
+  tableIndex: number
+  targetRole: 'action' | 'cell'
+  includeSound: boolean
+  includeCamera: boolean
+  conflictMode: XdtsImportConflictMode
+  applyCutIdentity: boolean
+  expandDuration: boolean
 }
 export type TemplateDetailTab = 'region' | 'display' | 'reference' | 'table' | 'json'
 export type EditMode = 'new' | 'pen' | 'eraser' | 'text' | 'calibrate'

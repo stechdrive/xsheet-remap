@@ -1,5 +1,5 @@
 param(
-  [string]$ExePath = "apps/editor/src-tauri/target/release/xsheet-editor.exe",
+  [string]$ExePath = "dev-local/xsheet-editor.exe",
   [string]$ArtifactRoot = ".tmp/desktop-e2e",
   [int]$TimeoutSeconds = 45,
   [switch]$Build,
@@ -17,10 +17,10 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
 
 if ($Build) {
-  Write-Host "[sheet-ops-suite] building desktop executables once before leaf scenarios..."
-  npm run build:desktop
+  Write-Host "[sheet-ops-suite] building the editor development executable once before leaf scenarios..."
+  npm run build:dev:editor
   if ($LASTEXITCODE -ne 0) {
-    throw "desktop build failed with exit code $LASTEXITCODE"
+    throw "editor development build failed with exit code $LASTEXITCODE"
   }
 }
 

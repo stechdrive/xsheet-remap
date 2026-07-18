@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type CameraInstruction, type CutProject, type CutMetadataFieldId, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NormalizedPoint, type PaperTrack, type CutGroupProjectDocument, type SheetHit, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type RecognitionCandidate, type StackGuideLabel, type TimedRangeCue, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, updatePaperTrack, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
+import { type AnnotationStroke, type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
 import { uiText } from './i18n';
-import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetImageSettings, type SoundCueClipboard, type TimingClipboard } from './appTypes';
-import { type DropDiagnosticReport } from './AssetBrowser';
+import { type SheetRangeSelection, type SheetImageSettings } from './appTypes';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
 import { setInternalDragDropValidity, subscribeInternalDrag } from './internalDrag';
 import { cellAssetPreviewItemsForHit, cellAssetPreviewPosition } from './sheetAssets';
@@ -11,7 +10,7 @@ import { createSheetRenderModelContext } from './sheetRenderModel';
 import { calibrationPointsForSettings, clampPoint, viewportToRawImagePoint } from './sheetImages';
 import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel, nativeVerticalWheelDelta } from './sheetInteraction';
 import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell } from './timingEditing';
-import { AutoCalibrationOverlayState, CalibrationPointKind, FrameOperationKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, SheetScrollRequest, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertContext, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, StackGuideLabelUpdates, StatusHintSource, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, TextAnnotationUpdate, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
+import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
 import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitForFrame, overlayHitFromPoint, processMoveOptionsForSlot } from './app-sheet-layers';
 import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
 import { autoScrollViewportForDrag, scrollSheetHitIntoView } from './sheet-panel-viewport';
@@ -22,111 +21,8 @@ import type { CameraCueDragGeometry, CameraCueDragMode } from './CameraCueLayer'
 import { timedRangeLaneIdForHit, type EditableTimedRangeRole } from './timedRangeCueEditing';
 import { resolveTimelineMemoContextTargets } from './timelineMemoEditing';
 import { frameOperationRangeContainsHit } from './frameOperations'
-import type { CameraCueTransformUpdates } from './app-camera-cue-controller';
 import { releasePointerCaptureForElements, type DraftRangeInteraction, type PendingTimelineEventInteraction, type TimelineEventDragInteraction } from './sheet-pointer-session';
-
-export type SheetCanvasProps = {
-  project: CutProject
-  template: SheetTemplate
-  projectCuts: CutGroupProjectDocument['cuts']
-  activeCutId: string
-  sheetPages: SheetPage[]
-  activePageIndex: number
-  setActivePageIndex: (pageIndex: number) => void
-  sheetView: SheetViewState
-  runtimeSourceImageUrls: Record<string, string>
-  recognitionCandidates: RecognitionCandidate[]
-  selectedHit: SheetHit | null
-  selectedSoundCueId: string | null
-  selectedCameraCueId: string | null; selectedTimelineMemoId: string | null
-  timingDraftValue: string
-  timingDraftActive: boolean
-  scrollRequest: SheetScrollRequest | null
-  rangeSelection: SheetRangeSelection | null
-  timingClipboard: TimingClipboard | null
-  soundCueClipboard: SoundCueClipboard | null
-  cameraCueClipboard: CameraCueClipboard | null
-  editMode: EditMode
-  zoom: number
-  setZoom: (value: number) => void
-  zoomMode: boolean
-  onStatusHint: (source: StatusHintSource, text: string | null) => void
-  suppressAssetPreview: boolean
-  showTemplate: boolean
-  showTemplateGuides: boolean
-  showTemplateLabels: boolean
-  showInputContent: boolean
-  showAnnotations: boolean
-  penColor: string
-  penWidth: number
-  eraserWidth: number
-  textFontSizePx: number
-  selectedTextAnnotationId: string | null
-  editingTextAnnotationId: string | null
-  autoCalibrationOverlay: AutoCalibrationOverlayState | null
-  onCellClick: (hit: SheetHit) => void
-  onCellSelect: (hit: SheetHit) => void
-  onRangeSelect: (range: SheetRangeSelection) => void
-  onSoundCueSelect: (cueId: string) => void
-  onSoundCueEdit: (cueId: string) => void
-  onSoundRangeEdit: (range: SheetRangeSelection) => void
-  onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
-  onCameraCueSelect: (cueId: string) => void
-  onCameraCueEdit: (cueId: string) => void
-  onCameraRangeEdit: (range: SheetRangeSelection) => void
-  onCameraCueTransform: (cueId: string, updates: CameraCueTransformUpdates) => void
-  onSetNullAtHit: (hit: SheetHit) => void
-  onDeleteEventAtHit: (hit: SheetHit) => void
-  onCopyRange: () => void
-  onCutRange: () => void
-  onCutRangeRipple: () => void
-  onPasteTiming: (mode: 'overwrite' | 'insert' | 'repeat-range' | 'repeat-to-end') => void
-  onCopySoundCues: () => void
-  onCutSoundCues: () => void
-  onDeleteSoundCues: () => void
-  onPasteSoundCues: (mode: 'overwrite' | 'insert') => void
-  onCopyCameraCues: () => void
-  onCutCameraCues: () => void
-  onDeleteCameraCues: () => void
-  onPasteCameraCues: (mode: 'overwrite' | 'insert') => void
-  onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
-  onCreateTimelineMemo: (hit: SheetHit) => void; onSelectTimelineMemo: (memoId: string | null) => void; onDeleteTimelineMemo: (memoId: string) => void
-  onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void; onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void; onEraseTimelineMemoStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
-  onTemplateImage: (files: FileList | File[] | null) => void
-  onAssetSheetSources: (assetIds: string[]) => void
-  onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void
-  onAssetAssign: (assetId: string, hit: SheetHit | null, position?: { x: number; y: number }) => void
-  onRegisteredCellAssign: (keyId: string, hit: SheetHit | null) => void
-  onDropDiagnostic: (report: DropDiagnosticReport) => void
-  onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit) => void
-  onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
-  onEraseAnnotation: (pageId: string, points: AnnotationPoint[], width: number) => void
-  onCreateStackGuideLabel: (input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) => void
-  onUpdateStackGuideLabel: (labelId: string, updates: StackGuideLabelUpdates) => void
-  onAssignAssetToStackGuideLabel: (labelId: string, assetId: string, correctionLayerId?: string) => void
-  onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
-  onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
-  onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
-  stackGuideInsertTool: StackGuideInsertContext | null
-  onStackGuideInsertToolConsumed: () => void
-  onClearSelection: () => void
-  onAnnotation: (stroke: AnnotationStroke) => void
-  onTextAnnotation: (annotation: AnnotationText) => void
-  onSelectTextAnnotation: (annotationId: string) => void
-  onEditTextAnnotation: (annotationId: string) => void
-  onUpdateTextAnnotation: (annotationId: string, updates: TextAnnotationUpdate) => void
-  onCommitTextAnnotation: (annotationId: string, text: string) => void
-  onCancelTextAnnotation: (annotationId: string) => void
-  onCommitFocusedTextAnnotationDraft: () => void
-  onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
-  onDurationChange: (frames: number) => void
-  onCalibrationPoints: (page: SheetPage, points: SheetCalibrationPointPair[], enabled?: boolean) => void
-}
-
-export type SheetDropTargetPreview = {
-  hit: SheetHit
-  validity: 'valid' | 'invalid'
-}
+import type { SheetCanvasProps, SheetDropTargetPreview } from './app-sheet-canvas-types';
 
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftStroke, setDraftStroke] = useState<AnnotationStroke | null>(null)

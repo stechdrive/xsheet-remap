@@ -202,9 +202,9 @@ try {
 
 function parseArgs(rawArgs: string[]) {
   const result = {
-    exe: path.join(repoRoot, 'apps/sheet-corrector/src-tauri/target/release/xsheet-corrector.exe'),
+    exe: path.join(repoRoot, 'dev-local/xsheet-corrector.exe'),
     input: '',
-    out: path.join(repoRoot, 'reference-local', 'precision-comparisons', timestampId()),
+    out: path.join(repoRoot, '.tmp', 'sheet-corrector-precision-comparisons', timestampId()),
     pattern: '*sheet*.jpg',
   }
   for (let index = 0; index < rawArgs.length; index += 1) {

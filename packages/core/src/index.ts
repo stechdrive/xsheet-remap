@@ -324,6 +324,7 @@ export {
   defaultSheetTemplatePresetCapabilities,
   isSheetTemplateImageCorrectionCapable,
   localizeFrameToSheetPage,
+  parseSheetTemplate,
   resolveSheetTemplateGridColumns,
   resolveSheetTemplateGridFrames,
   resolveSheetTemplateGridLayout,

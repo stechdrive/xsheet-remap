@@ -77,7 +77,32 @@ PSDでは、紙シート画像、テンプレート罫線、テンプレート�
 
 ## 開発用ビルドと配布
 
-`npm run build:desktop`、`npm run build:csp-helper`、`npm run package:local`、`npm run build:all-local`は、成果物をリポジトリ内の`release-local/`に生成します。これらのコマンドは、`XSHEET_RELEASE_COPY_DIR`が設定されていても外部フォルダへコピーしません。
+日常の実機テストでは、対象アプリだけをビルドしてリポジトリ内の`dev-local/`へ集約します。
+
+```powershell
+npm run build:dev:editor
+npm run build:dev:remap
+npm run build:dev:template
+npm run build:dev:corrector
+npm run build:dev:all
+```
+
+各コマンドは`dev-local/xsheet-*.exe`のうち対象だけを更新します。`dev-local/build-state.json`には、EXEごとのバージョン、コミット、ビルドセッション、SHA-256が記録されます。E2Eとデスクトップスモークテストも、既定ではこのフォルダのEXEを使用します。
+
+`release-local/`は、全アプリが同じビルドセッションで作られた配布成果物専用です。`npm run build:desktop`は4本すべてを再ビルドして`release-local/`を更新し、同じ4本を`dev-local/`にも同期します。`npm run build:all-local`はさらにCSP Importerと配布ZIPを生成します。部分ビルド後に`npm run package:local`を直接実行しても、4本のビルド状態と実ファイルのハッシュが一致しなければ停止します。
+
+4本のTauriアプリは`.cache/cargo-target/`のCargo成果物を共有します。各ビルド後には対象アプリの古いbuild-script出力を自動整理し、アプリ別`target/`への依存物重複とコミットごとのWebリソース蓄積を防ぎます。Cargoの並列数は既定で最大8に制限し、多コア環境での過剰な同時コンパイルも防ぎます（必要なら`CARGO_BUILD_JOBS`で上書きできます）。容量確認と手動クリーンアップには次を使います。
+
+```powershell
+npm run disk:report
+npm run clean:generated            # 削除対象のプレビュー
+npm run clean:generated:apply      # 旧targetと.tmpを削除
+npm run clean:generated:all:apply  # 共有Cargoキャッシュも含めて削除
+```
+
+`.tmp/`は再生成可能なテスト成果物です。校正評価・精度比較も既定では`.tmp/`へ出力されます。長期保存する必要があるスクリーンショットや評価結果だけを、選別して`reference-local/`へ移してからクリーンアップします。
+
+これらのコマンドは、`XSHEET_RELEASE_COPY_DIR`が設定されていても外部フォルダへコピーしません。
 
 生成済みの配布ZIPとチェックサムを受け渡し先へコピーするときだけ、`npm run publish:handoff`を実行します。コピー先は`XSHEET_RELEASE_COPY_DIR`または`tools/release/publish-handoff.ps1`の`-DestinationDir`で指定します。このコマンドが外部へコピーするのは`xsheet-remap.zip`と`xsheet-remap.zip.sha256`だけです。
 

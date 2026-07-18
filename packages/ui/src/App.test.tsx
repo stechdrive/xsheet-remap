@@ -33,6 +33,41 @@ it('renders the main workspace shell', () => {
     expect(screen.queryByRole('tablist', { name: uiText.sheet.sideDock })).toBeNull()
   })
 
+it('loads XDTS through the import menu with ACTION as the default destination', async () => {
+    render(<App />)
+    const xdts = `exchangeDigitalTimeSheet Save Data
+{"version":10,"header":{"cut":"2","scene":"1"},"timeTables":[{"name":"main","duration":24,"frameRate":24,"timeTableHeaders":[{"fieldId":0,"names":["A"]}],"fields":[{"fieldId":0,"tracks":[{"trackNo":0,"frames":[{"frame":0,"data":[{"values":["A1"]}]}]}]}]}]}`
+    const menu = openAppNavigationMenu()
+    const input = within(menu).getByText('XDTSを読み込む…').closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+    fireEvent.change(input!, { target: { files: [new File([xdts], 'sample.xdts', { type: 'text/plain' })] } })
+
+    const dialog = await screen.findByRole('dialog', { name: 'XDTSを読み込む' })
+    expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(dialog).getByRole('button', { name: '読み込む' }))
+
+    await waitFor(() => expect(document.querySelector('.eventText')?.textContent).toBe('A1'))
+  })
+
+it('validates and applies a sheet template loaded from the import menu', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<App />)
+    const importedTemplate = {
+      ...structuredClone(standardA3SheetTemplate),
+      templateId: 'test-imported-template',
+      name: '読込テストテンプレート',
+    }
+    const menu = openAppNavigationMenu()
+    const input = within(menu).getByText('シートテンプレートを読み込む…').closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+    fireEvent.change(input!, { target: { files: [new File([JSON.stringify(importedTemplate)], 'template.json', { type: 'application/json' })] } })
+
+    await waitFor(() => expect(confirm).toHaveBeenCalled())
+    selectAppPanel(uiText.nav.template)
+    await waitFor(() => expect((screen.getByLabelText(uiText.template.name) as HTMLInputElement).value).toBe('読込テストテンプレート'))
+    confirm.mockRestore()
+  })
+
 it('provides a focused CSP remap shell without template authoring navigation', () => {
     render(<RemapApp />)
     expect(screen.getByText('xsheet-remap')).toBeTruthy()

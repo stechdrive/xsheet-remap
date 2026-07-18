@@ -392,7 +392,7 @@ export function openTimingExportDialog(kind: 'xdts' | 'csp-import' = 'xdts'): HT
   const menu = openAppNavigationMenu()
   const command = kind === 'csp-import' ? uiText.actions.cspImportPackage : uiText.actions.xdts
   fireEvent.click(within(menu).getByRole('button', { name: command }))
-  return screen.getByRole('dialog', { name: kind === 'csp-import' ? uiText.actions.cspImportPackage : 'XDTS書き出し' })
+  return screen.getByRole('dialog', { name: kind === 'csp-import' ? uiText.actions.cspImportPackage : uiText.actions.xdts })
 }
 
 export function getZoomSlider(): HTMLInputElement {

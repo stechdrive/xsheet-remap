@@ -23,9 +23,9 @@ Set-Location $repoRoot
 
 if (-not $ExePath) {
   $ExePath = if ($AppMode -eq "remap") {
-    "apps/desktop/src-tauri/target/release/xsheet-remap.exe"
+    "dev-local/xsheet-remap.exe"
   } else {
-    "apps/editor/src-tauri/target/release/xsheet-editor.exe"
+    "dev-local/xsheet-editor.exe"
   }
 }
 $scenario = if ($TestCase -eq "registered-cell") {
@@ -37,10 +37,11 @@ $scenario = if ($TestCase -eq "registered-cell") {
 }
 
 if ($Build) {
-  Write-Host "[real-dnd] building desktop executable..."
-  npm run build:desktop
+  $buildScript = if ($AppMode -eq "remap") { "build:dev:remap" } else { "build:dev:editor" }
+  Write-Host "[real-dnd] building the $AppMode development executable..."
+  npm run $buildScript
   if ($LASTEXITCODE -ne 0) {
-    throw "desktop build failed with exit code $LASTEXITCODE"
+    throw "$AppMode development build failed with exit code $LASTEXITCODE"
   }
 }
 

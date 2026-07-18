@@ -18,7 +18,9 @@ dist-ts/
 build/
 target/
 coverage/
+.pytest_cache/
 .cache/
+.cargo-target/
 .tmp/
 tmp/
 temp/
@@ -48,6 +50,7 @@ private/
 scratch/
 exports/
 captures/
+dev-local/
 release-local/
 data/raw/
 data/private/

@@ -246,7 +246,7 @@ function Assert-HelperLauncherVersion {
   if ($actualVersion -ne $ExpectedVersion) {
     throw (
       "CSP import helper version mismatch: expected $ExpectedVersion, got $actualVersion at $LauncherPath. " +
-      "Run npm run build:csp-helper or npm run build:all-local to refresh the helper."
+      "Run npm run build:csp-helper or npm run build:release:all to refresh the helper."
     )
   }
   return $actualVersion
@@ -441,35 +441,35 @@ function Assert-CoherentDesktopBuildState {
 
   $statePath = Join-Path $repoRoot "dev-local\build-state.json"
   if (-not (Test-Path -LiteralPath $statePath)) {
-    throw "desktop build state is missing: $statePath. Run npm run build:desktop before packaging."
+    throw "desktop build state is missing: $statePath. Run npm run build:release:desktop before packaging."
   }
 
   try {
     $state = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
   } catch {
-    throw "desktop build state is unreadable: $statePath. Run npm run build:desktop before packaging."
+    throw "desktop build state is unreadable: $statePath. Run npm run build:release:desktop before packaging."
   }
 
   if ([string]$state.mode -ne "coherent") {
-    throw "desktop outputs are $($state.mode), not a coherent four-app build. Run npm run build:desktop before packaging."
+    throw "desktop outputs are $($state.mode), not a coherent four-app build. Run npm run build:release:desktop before packaging."
   }
   if (-not $state.applications) {
-    throw "desktop build state has no application records. Run npm run build:desktop before packaging."
+    throw "desktop build state has no application records. Run npm run build:release:desktop before packaging."
   }
 
   $sessionIds = New-Object System.Collections.Generic.List[string]
   foreach ($component in $DesktopComponents) {
     $stateProperty = $state.applications.PSObject.Properties[$component.Key]
     if (-not $stateProperty) {
-      throw "desktop build state is missing $($component.Key). Run npm run build:desktop before packaging."
+      throw "desktop build state is missing $($component.Key). Run npm run build:release:desktop before packaging."
     }
 
     $applicationState = $stateProperty.Value
     if ([string]$applicationState.version -ne $ExpectedVersion) {
-      throw "$($component.Name) build version $($applicationState.version) does not match $ExpectedVersion. Run npm run build:desktop before packaging."
+      throw "$($component.Name) build version $($applicationState.version) does not match $ExpectedVersion. Run npm run build:release:desktop before packaging."
     }
     if ([string]::IsNullOrWhiteSpace([string]$applicationState.buildSessionId)) {
-      throw "$($component.Name) has no desktop build session. Run npm run build:desktop before packaging."
+      throw "$($component.Name) has no desktop build session. Run npm run build:release:desktop before packaging."
     }
     $sessionIds.Add([string]$applicationState.buildSessionId)
 
@@ -479,12 +479,12 @@ function Assert-CoherentDesktopBuildState {
     }
     $actualHash = Get-Sha256Hex $sourcePath
     if ($actualHash -ne [string]$applicationState.sha256) {
-      throw "$($component.Name) output changed after its recorded build session. Run npm run build:desktop before packaging."
+      throw "$($component.Name) output changed after its recorded build session. Run npm run build:release:desktop before packaging."
     }
   }
 
   if (@($sessionIds | Sort-Object -Unique).Count -ne 1) {
-    throw "desktop outputs were produced by different build sessions. Run npm run build:desktop before packaging."
+    throw "desktop outputs were produced by different build sessions. Run npm run build:release:desktop before packaging."
   }
 }
 

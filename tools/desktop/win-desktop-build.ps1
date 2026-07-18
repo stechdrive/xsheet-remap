@@ -1,7 +1,9 @@
 param(
-  [ValidateSet("all", "editor", "remap", "template", "corrector")]
-  [string]$Target = "all",
-  [switch]$Development,
+  [Parameter(Mandatory = $true)]
+  [ValidateSet("development", "release")]
+  [string]$Mode,
+  [Parameter(Mandatory = $true)]
+  [string]$Target,
   [switch]$SkipLeakCheck
 )
 
@@ -12,6 +14,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $cargoTargetRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot ".cache\cargo-target"))
 $devRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "dev-local"))
 $releaseRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "release-local"))
+$buildLockPath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot ".cache\desktop-build.lock"))
 $desktopApps = @(
   [pscustomobject]@{
     Key = "editor"
@@ -39,8 +42,25 @@ $desktopApps = @(
   }
 )
 
-if (-not $Development -and $Target -ne "all") {
-  throw "partial builds are development-only. Use -Development with -Target $Target."
+$allowedTargets = @("all", "editor", "remap", "template", "corrector")
+$targetKeys = @(
+  $Target.Split(",", [System.StringSplitOptions]::RemoveEmptyEntries) |
+    ForEach-Object { $_.Trim().ToLowerInvariant() } |
+    Sort-Object -Unique
+)
+if ($targetKeys.Count -eq 0) {
+  throw "at least one desktop build target is required"
+}
+$invalidTargets = @($targetKeys | Where-Object { $_ -notin $allowedTargets })
+if ($invalidTargets.Count -gt 0) {
+  throw "unknown desktop build target(s): $($invalidTargets -join ', '). Allowed: editor, remap, template, corrector, all."
+}
+if ($targetKeys -contains "all" -and $targetKeys.Count -gt 1) {
+  throw "target 'all' cannot be combined with individual desktop targets"
+}
+$isDevelopment = $Mode -eq "development"
+if (-not $isDevelopment -and ($targetKeys.Count -ne 1 -or $targetKeys[0] -ne "all")) {
+  throw "release desktop builds require target 'all'; partial builds are development-only"
 }
 
 foreach ($app in $desktopApps) {
@@ -54,10 +74,10 @@ foreach ($app in $desktopApps) {
   }
 }
 
-$selectedApps = if ($Target -eq "all") {
+$selectedApps = if ($targetKeys -contains "all") {
   @($desktopApps)
 } else {
-  @($desktopApps | Where-Object { $_.Key -eq $Target })
+  @($desktopApps | Where-Object { $_.Key -in $targetKeys })
 }
 
 function Add-RustPathRemapFlag {
@@ -227,6 +247,20 @@ $env:CARGO_ENCODED_RUSTFLAGS = (@(
   $rustFlags
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join $encodedRustFlagSeparator
 
+$buildLock = $null
+try {
+  New-Item -ItemType Directory -Path (Split-Path -Parent $buildLockPath) -Force | Out-Null
+  $buildLock = [System.IO.File]::Open(
+    $buildLockPath,
+    [System.IO.FileMode]::OpenOrCreate,
+    [System.IO.FileAccess]::ReadWrite,
+    [System.IO.FileShare]::None
+  )
+} catch [System.IO.IOException] {
+  throw "another desktop build is already running for this repository; wait for it to finish before starting a new build"
+}
+
+Write-Host "[desktop-build] mode=$Mode targets=$($targetKeys -join ',')"
 Push-Location $repoRoot
 try {
   if (-not $SkipLeakCheck) {
@@ -267,7 +301,7 @@ try {
 
   Update-DevelopmentLaunchpad -Apps $selectedApps -BuildSessionId $buildSessionId
 
-  if (-not $Development) {
+  if (-not $isDevelopment) {
     & (Join-Path $repoRoot "tools/release/local-package.ps1") -SkipHelper -SkipLeakCheck
     if ($LASTEXITCODE -ne 0) {
       throw "local release copy failed for desktop outputs"
@@ -295,4 +329,7 @@ try {
   $env:CARGO_ENCODED_RUSTFLAGS = $existingEncodedRustFlags
   $env:CARGO_TARGET_DIR = $existingCargoTargetDir
   $env:CARGO_BUILD_JOBS = $existingCargoBuildJobs
+  if ($buildLock) {
+    $buildLock.Dispose()
+  }
 }

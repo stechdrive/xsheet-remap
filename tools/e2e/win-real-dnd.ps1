@@ -37,9 +37,8 @@ $scenario = if ($TestCase -eq "registered-cell") {
 }
 
 if ($Build) {
-  $buildScript = if ($AppMode -eq "remap") { "build:dev:remap" } else { "build:dev:editor" }
   Write-Host "[real-dnd] building the $AppMode development executable..."
-  npm run $buildScript
+  npm run build:dev -- --target $AppMode
   if ($LASTEXITCODE -ne 0) {
     throw "$AppMode development build failed with exit code $LASTEXITCODE"
   }

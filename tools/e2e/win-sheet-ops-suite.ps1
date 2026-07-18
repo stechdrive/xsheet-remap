@@ -18,7 +18,7 @@ Set-Location $repoRoot
 
 if ($Build) {
   Write-Host "[sheet-ops-suite] building the editor development executable once before leaf scenarios..."
-  npm run build:dev:editor
+  npm run build:dev -- --target editor
   if ($LASTEXITCODE -ne 0) {
     throw "editor development build failed with exit code $LASTEXITCODE"
   }

@@ -54,10 +54,10 @@ function Get-Sha256Hex {
 }
 
 if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) {
-  throw "missing local release ZIP: $zipPath. Run npm run build:all-local first."
+  throw "missing local release ZIP: $zipPath. Run npm run build:release:all first."
 }
 if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
-  throw "missing local release ZIP checksum: $checksumPath. Run npm run build:all-local first."
+  throw "missing local release ZIP checksum: $checksumPath. Run npm run build:release:all first."
 }
 
 $checksumText = (Get-Content -LiteralPath $checksumPath -Raw -Encoding UTF8).Trim()

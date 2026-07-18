@@ -43,7 +43,7 @@ if (-not ($supportedScenarios -contains $Scenario)) {
 
 if ($Build) {
   Write-Host "[desktop-e2e] building the editor development executable..."
-  npm run build:dev:editor
+  npm run build:dev -- --target editor
   if ($LASTEXITCODE -ne 0) {
     throw "editor development build failed with exit code $LASTEXITCODE"
   }

@@ -80,16 +80,16 @@ PSDでは、紙シート画像、テンプレート罫線、テンプレート�
 日常の実機テストでは、対象アプリだけをビルドしてリポジトリ内の`dev-local/`へ集約します。
 
 ```powershell
-npm run build:dev:editor
-npm run build:dev:remap
-npm run build:dev:template
-npm run build:dev:corrector
-npm run build:dev:all
+npm run build:dev -- --target editor
+npm run build:dev -- --target remap
+npm run build:dev -- --target template
+npm run build:dev -- --target corrector
+npm run build:dev -- --target editor,template  # 複数対象も明示可能
 ```
 
-各コマンドは`dev-local/xsheet-*.exe`のうち対象だけを更新します。`dev-local/build-state.json`には、EXEごとのバージョン、コミット、ビルドセッション、SHA-256が記録されます。E2Eとデスクトップスモークテストも、既定ではこのフォルダのEXEを使用します。
+開発ビルドは`--target`を必須とし、対象が省略されても4本全部へ拡大しません。指定した`dev-local/xsheet-*.exe`だけを更新します。`dev-local/build-state.json`には、EXEごとのバージョン、コミット、ビルドセッション、SHA-256が記録されます。E2Eとデスクトップスモークテストも、既定ではこのフォルダのEXEを使用します。
 
-`release-local/`は、全アプリが同じビルドセッションで作られた配布成果物専用です。`npm run build:desktop`は4本すべてを再ビルドして`release-local/`を更新し、同じ4本を`dev-local/`にも同期します。`npm run build:all-local`はさらにCSP Importerと配布ZIPを生成します。部分ビルド後に`npm run package:local`を直接実行しても、4本のビルド状態と実ファイルのハッシュが一致しなければ停止します。
+`release-local/`は、全アプリが同じビルドセッションで作られた配布成果物専用です。`npm run build:release:desktop`は4本すべてを再ビルドして`release-local/`を更新し、同じ4本を`dev-local/`にも同期します。`npm run build:release:all`はさらにCSP Importerと配布ZIPを生成します。部分ビルド後に`npm run package:local`を直接実行しても、4本のビルド状態と実ファイルのハッシュが一致しなければ停止します。
 
 4本のTauriアプリは`.cache/cargo-target/`のCargo成果物を共有します。各ビルド後には対象アプリの古いbuild-script出力を自動整理し、アプリ別`target/`への依存物重複とコミットごとのWebリソース蓄積を防ぎます。Cargoの並列数は既定で最大8に制限し、多コア環境での過剰な同時コンパイルも防ぎます（必要なら`CARGO_BUILD_JOBS`で上書きできます）。容量確認と手動クリーンアップには次を使います。
 

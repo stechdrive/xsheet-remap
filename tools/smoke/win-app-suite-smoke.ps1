@@ -17,7 +17,7 @@ $env:PYTHONDONTWRITEBYTECODE = "1"
 Push-Location $repoRoot
 try {
   if ($Build) {
-    npm run build:dev:all
+    npm run build:dev -- --target all
     if ($LASTEXITCODE -ne 0) {
       throw "desktop development suite build failed with exit code $LASTEXITCODE"
     }

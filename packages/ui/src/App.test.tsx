@@ -701,7 +701,8 @@ it('renders the default paper template chrome and grid lines', () => {
     render(<App />)
     const paperTextTransform = `scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`
     expect(screen.getByLabelText(uiText.sheet.canvasLabel).getAttribute('preserveAspectRatio')).toBe('none')
-    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toHaveLength(6)
     expect(headerLabels).not.toContain('SOUND')
@@ -710,7 +711,7 @@ it('renders the default paper template chrome and grid lines', () => {
     expect(document.querySelectorAll('.templateReferenceText')).toHaveLength(0)
     expect(document.querySelectorAll('.gridLine, .gridLineMajor').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridOverlay-action, .gridOverlay-cell, .gridOverlay-camera').length).toBeGreaterThan(0)
-    expect(document.querySelector('.gridOverlay-sound')).toBeNull()
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(2)
     expect(Array.from(document.querySelectorAll('.gridSecondCounter')).map(element => element.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toEqual(['001', '06+00', '1/1'])
     expect(document.querySelector('.templateHeaderText')?.getAttribute('transform')).toBe(paperTextTransform)
@@ -749,6 +750,7 @@ it('keeps template creation as a draft until apply or cancel', () => {
 
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(0)
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
@@ -761,8 +763,9 @@ it('keeps template creation as a draft until apply or cancel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: uiText.template.cancelDraft }))
     expect(screen.getByText(uiText.template.builtInProtected)).toBeTruthy()
-    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
-    expect(document.querySelector('.gridOverlay-sound')).toBeNull()
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(2)
 
     fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
     fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))
@@ -786,11 +789,13 @@ it('undoes and redoes an applied template with the synchronized project history'
     const redo = screen.getByRole('button', { name: uiText.actions.redo }) as HTMLButtonElement
     expect(undo.disabled).toBe(false)
     fireEvent.click(undo)
-    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
 
     expect(redo.disabled).toBe(false)
     fireEvent.click(redo)
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(0)
   })
 
 it('edits selected template rectangles in source-image pixels', () => {
@@ -883,12 +888,14 @@ it('shows context operation hints in the bottom status bar', () => {
 it('omits the fixed paper outer frame for the digital standard template', () => {
     render(<App />)
     const digitalTextTransform = `scale(${1 / digitalStandardSheetTemplate.page.widthPx} ${1 / digitalStandardSheetTemplate.page.heightPx})`
-    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(1)
+    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
     fireEvent.click(screen.getByRole('button', { name: 'デジタル標準' }))
 
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(0)
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()

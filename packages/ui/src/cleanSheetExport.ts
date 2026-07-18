@@ -116,7 +116,7 @@ export function defaultSheetImageExportOptions(
   return {
     format,
     includePaperSheet,
-    includeTemplateImage: !includePaperSheet && Boolean(template.defaultUnderlay),
+    includeTemplateImage: !includePaperSheet && Boolean(template.defaultUnderlay) && template.defaultUnderlayUsage !== 'reference-only',
     includeTemplateDrawing: true,
   }
 }
@@ -240,7 +240,7 @@ function sheetExportLayerDescriptorsForContext(
   options: SheetImageExportOptions,
 ): SheetExportLayerDescriptor[] {
   const layers: SheetExportLayerDescriptor[] = [{ id: 'white', name: '白地' }]
-  if (options.includeTemplateImage && context.template.defaultUnderlay) layers.push({ id: 'templateImage', name: 'テンプレ画像' })
+  if (options.includeTemplateImage && context.template.defaultUnderlay && context.template.defaultUnderlayUsage !== 'reference-only') layers.push({ id: 'templateImage', name: 'テンプレ画像' })
   if (options.includePaperSheet) {
     layers.push({
       id: 'paperSheet',
@@ -256,7 +256,7 @@ function sheetExportLayerDescriptorsForContext(
     layers.push({ id: 'templateLabels', name: 'テンプレラベル' })
   }
   if (hasOverlayRenderContent(context)) layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル' })
-  layers.push({ id: 'metadataText', name: 'カット情報' })
+  layers.push({ id: 'metadataText', name: 'シート情報' })
   layers.push({ id: 'timingInput', name: 'ACTION/CELL入力' })
   for (const id of timedRangeCueExportLayerIds(context.project)) {
     layers.push({ id, name: id === 'soundCues' ? 'SOUND指示' : 'CAMERA指示' })
@@ -455,6 +455,13 @@ function drawTemplateStaticChrome(
     const pixelRect = projectedPixelRect(context, region.rect, offsetY)
     ctx.strokeRect(pixelRect.x + 0.5, pixelRect.y + 0.5, Math.max(0, pixelRect.w - 1), Math.max(0, pixelRect.h - 1))
   }
+  for (const box of chrome.formBoxes) {
+    const pixelRect = projectedPixelRect(context, box.rect, offsetY)
+    ctx.strokeStyle = box.style.color
+    ctx.lineWidth = box.style.widthPx
+    ctx.setLineDash(box.style.dashPx)
+    ctx.strokeRect(pixelRect.x, pixelRect.y, pixelRect.w, pixelRect.h)
+  }
   ctx.setLineDash([])
 }
 
@@ -474,6 +481,20 @@ function drawTemplateGridHeaderLines(
       header.rect.w * context.pageSize.widthPx,
       header.rect.h * context.pageSize.heightPx,
     )
+    if (header.columnHeaderRect.h > 0) {
+      ctx.strokeRect(
+        header.columnHeaderRect.x * context.pageSize.widthPx,
+        offsetY + header.columnHeaderRect.y * context.pageSize.heightPx,
+        header.columnHeaderRect.w * context.pageSize.widthPx,
+        header.columnHeaderRect.h * context.pageSize.heightPx,
+      )
+      ctx.beginPath()
+      for (const x of header.columnBoundaries) {
+        ctx.moveTo(x * context.pageSize.widthPx, offsetY + header.columnHeaderRect.y * context.pageSize.heightPx)
+        ctx.lineTo(x * context.pageSize.widthPx, offsetY + (header.columnHeaderRect.y + header.columnHeaderRect.h) * context.pageSize.heightPx)
+      }
+      ctx.stroke()
+    }
   }
 }
 
@@ -485,6 +506,13 @@ function drawTemplateGridHeaderLabels(
 ) {
   ctx.fillStyle = '#1f2421'
   ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const label of chrome.formLabels) {
+    ctx.font = fontDeclaration(label.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, label.fontWeight)
+    ctx.textAlign = label.textAnchor === 'start' ? 'left' : label.textAnchor === 'end' ? 'right' : 'center'
+    ctx.textBaseline = label.dominantBaseline === 'hanging' ? 'top' : label.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
+    ctx.fillText(label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx)
+  }
   ctx.textBaseline = 'middle'
   for (const header of chrome.headers) {
     if (header.label) {
@@ -506,15 +534,16 @@ function drawTemplateGridPath(
   offsetY: number,
 ) {
   const style = templateGridCanvasStyle(path.className)
-  ctx.strokeStyle = style.stroke
-  ctx.lineWidth = style.lineWidth
-  ctx.setLineDash([])
+  ctx.strokeStyle = path.style?.color ?? style.stroke
+  ctx.lineWidth = path.style?.widthPx ?? style.lineWidth
+  ctx.setLineDash(path.style?.dashPx ?? [])
   ctx.beginPath()
   for (const segment of path.segments) {
     ctx.moveTo(segment.x1 * context.pageSize.widthPx, offsetY + segment.y1 * context.pageSize.heightPx)
     ctx.lineTo(segment.x2 * context.pageSize.widthPx, offsetY + segment.y2 * context.pageSize.heightPx)
   }
   ctx.stroke()
+  ctx.setLineDash([])
 }
 
 function templateGridCanvasStyle(className: string): { stroke: string; lineWidth: number } {

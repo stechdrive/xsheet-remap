@@ -310,10 +310,24 @@
   font-weight: 700;
 }
 
-.sheetMetadataEditorField input {
+.sheetMetadataEditorField input,
+.sheetMetadataEditorField select,
+.sheetMetadataEditorField textarea {
   width: 100%;
   min-width: 0;
   height: 32px;
+}
+
+.sheetMetadataEditorField textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.sheetMetadataEditorCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
 }
 
 .sheetMetadataEditorPopover .durationControl {
@@ -671,6 +685,11 @@
   fill: none;
 }
 
+.templateFormBox {
+  fill: none;
+  pointer-events: none;
+}
+
 .templateSmallText,
 .templateHeaderText,
 .templateColumnText,
@@ -678,6 +697,12 @@
   fill: #1f2421;
   font-family: var(--font-sheet-sans);
   font-weight: 700;
+  pointer-events: none;
+}
+
+.templateFormLabel {
+  fill: #1f2421;
+  font-family: var(--font-sheet-sans);
   pointer-events: none;
 }
 

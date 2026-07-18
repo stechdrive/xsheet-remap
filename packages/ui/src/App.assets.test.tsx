@@ -208,7 +208,7 @@ it('pans the sheet with Space drag and middle mouse drag', () => {
     fireEvent.pointerUp(window, { pointerId: 2, pointerType: 'mouse', clientX: 130, clientY: 90 })
   })
 
-it('renders the paper template image at full opacity before a sheet scan is assigned', () => {
+it('renders the structural paper template without an image underlay before a sheet scan is assigned', () => {
     render(<App />)
     const opacity = getSheetOpacitySlider()
     const image = document.querySelector('.sheetSvg image') as SVGImageElement | null
@@ -216,8 +216,8 @@ it('renders the paper template image at full opacity before a sheet scan is assi
 
     expect(opacity.value).toBe('100')
     expect(opacity.disabled).toBe(true)
-    expect(image?.getAttribute('href')).toContain('timesheet.png')
-    expect(image?.getAttribute('opacity')).toBe('1')
+    expect(image).toBeNull()
+    expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
     expect(screen.getByRole('figure', { name: pageLabel })).toBeTruthy()
     expect(screen.queryByText(pageLabel)).toBeNull()
   })
@@ -391,7 +391,12 @@ it('resets the working project and clears history from the top bar', async () =>
   })
 
 it('edits sheet warp quadrilateral handles and applies template targets', async () => {
+    URL.createObjectURL = file => `blob:${(file as File).name}`
     render(<App />)
+    const sourceInput = screen.getByLabelText(uiText.actions.loadSheetSourceFiles)
+    const page = new File(['page'], 'warp_sheet.png', { type: 'image/png', lastModified: 1 })
+    fireEvent.change(sourceInput, { target: { files: [page] } })
+    await waitFor(() => expect(sheetImageHrefs()).toContain('blob:warp_sheet.png'))
     expect(document.querySelector('.templateChrome')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: uiText.sheet.imageCorrection }))
     await waitFor(() => expect(screen.getByRole('dialog', { name: uiText.sheet.calibrationLoupeTitle })).toBeTruthy())

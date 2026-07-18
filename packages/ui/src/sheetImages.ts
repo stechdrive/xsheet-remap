@@ -78,10 +78,10 @@ export function calibrationPointLabel(index: number): string {
   return `${index + 1}`
 }
 
-export function getSheetPageImage(sheetView: SheetViewState, runtimeImageUrls: Record<string, string>, pageId: string, template?: Pick<SheetTemplate, 'defaultUnderlay' | 'templateKind'>): SheetPageImage {
+export function getSheetPageImage(sheetView: SheetViewState, runtimeImageUrls: Record<string, string>, pageId: string, template?: Pick<SheetTemplate, 'defaultUnderlay' | 'defaultUnderlayUsage' | 'templateKind'>): SheetPageImage {
   const page = sheetView.pages.find(item => item.pageId === pageId)
   const source = page?.sourceId ? sheetView.sources.find(item => item.sourceId === page.sourceId && item.kind === 'sheet-scan') : undefined
-  const defaultUnderlay = template?.defaultUnderlay
+  const defaultUnderlay = template?.defaultUnderlayUsage === 'reference-only' ? undefined : template?.defaultUnderlay
   const defaultUnderlayImageRef = defaultUnderlay
     ? { ...defaultUnderlay.imageRef, assetPath: defaultUnderlay.assetPath }
     : undefined
@@ -91,6 +91,10 @@ export function getSheetPageImage(sheetView: SheetViewState, runtimeImageUrls: R
   const templateUnderlaySettings = defaultUnderlayImageRef && isPaperTemplateKind(template)
     ? { ...defaultUnderlaySettings, opacity: 1 }
     : defaultUnderlaySettings
+  const emptyPageSettings = {
+    ...(page?.alignment ?? defaultSheetImageSettings()),
+    opacity: 1,
+  }
   return {
     imageUrl: source
       ? runtimeImageUrls[source.sourceId] ?? resolveImageRefUrl(source.imageRef)
@@ -99,7 +103,7 @@ export function getSheetPageImage(sheetView: SheetViewState, runtimeImageUrls: R
     imageRef: source?.imageRef ?? page?.imageRef ?? defaultUnderlayImageRef,
     settings: source
       ? page?.alignment ?? defaultSheetImageSettings()
-      : defaultUnderlayImageRef ? templateUnderlaySettings : page?.alignment ?? defaultSheetImageSettings(),
+      : defaultUnderlayImageRef ? templateUnderlaySettings : page?.imageRef ? page.alignment : emptyPageSettings,
   }
 }
 

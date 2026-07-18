@@ -10,6 +10,7 @@ import type {
   SheetHit,
   SheetPage,
   SheetTemplate,
+  SheetTemplateFieldDefinition,
   SheetTimingRole,
   SheetViewState,
   StackGuideLabel,
@@ -127,6 +128,7 @@ export type SheetCanvasProps = {
   onCommitFocusedTextAnnotationDraft: () => void
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
+  onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean) => void
   onCalibrationPoints: (page: SheetPage, points: SheetCalibrationPointPair[], enabled?: boolean) => void
 }
 

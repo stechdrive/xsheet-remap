@@ -948,7 +948,7 @@ it('clears selections that become hidden when pre-roll display is disabled', asy
     expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['9'])
   })
 
-it('selects SOUND ranges without rendering app-drawn SOUND grid lines', () => {
+it('selects SOUND ranges while rendering only the template-defined dotted columns', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     sheet.getBoundingClientRect = () => ({
@@ -963,7 +963,8 @@ it('selects SOUND ranges without rendering app-drawn SOUND grid lines', () => {
       toJSON: () => ({}),
     })
 
-    expect(document.querySelector('.gridOverlay-sound')).toBeNull()
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(2)
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineRow')).toHaveLength(0)
     dragSheet(sheet, 190, 290, 190, 310)
 
     expect(document.querySelector('.selectedRangeRect')).toBeTruthy()

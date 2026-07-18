@@ -12,6 +12,9 @@ import {
   type SheetTemplateGrid,
   type SheetTemplateGridRole,
   type SheetTemplateGridRowLabelRule,
+  type SheetTemplateFieldDefinition,
+  type SheetTemplateLineStyle,
+  type SheetTemplateTextStyle,
 } from '@xsheet-remap/core'
 import {
   STANDARD_A3_GRID_HEADER_HEIGHT,
@@ -37,6 +40,41 @@ export type TemplateGridHeaderRenderModel = {
   labelY: number
   labelFontSizePx: number
   columns: TemplateGridHeaderColumnRenderModel[]
+  columnHeaderRect: NormalizedRect
+  columnBoundaries: number[]
+}
+
+export type TemplateLineRenderStyle = Required<Pick<SheetTemplateLineStyle, 'pattern' | 'color' | 'widthPx'>> & {
+  dashPx: number[]
+}
+
+export type TemplateFormBoxRenderModel = {
+  key: string
+  rect: NormalizedRect
+  style: TemplateLineRenderStyle
+}
+
+export type TemplateFormLabelRenderModel = {
+  key: string
+  text: string
+  rect: NormalizedRect
+  x: number
+  y: number
+  textAnchor: 'start' | 'middle' | 'end'
+  dominantBaseline: 'hanging' | 'central' | 'text-after-edge'
+  fontSizePx: number
+  fontWeight: number
+}
+
+export type TemplateFormFieldRenderModel = {
+  key: string
+  regionId: string
+  fieldId: string
+  rect: NormalizedRect
+  definition: SheetTemplateFieldDefinition
+  textStyle: SheetTemplateTextStyle
+  editable: boolean
+  sourceFieldIds?: string[]
 }
 
 export type TemplateReferenceRegionRenderModel = {
@@ -50,12 +88,16 @@ export type TemplateChromeRenderModel = {
   showOuterFrame: boolean
   referenceRegions: TemplateReferenceRegionRenderModel[]
   headers: TemplateGridHeaderRenderModel[]
+  formBoxes: TemplateFormBoxRenderModel[]
+  formLabels: TemplateFormLabelRenderModel[]
+  formFields: TemplateFormFieldRenderModel[]
 }
 
 export type TemplateGridPathRenderModel = {
   className: string
   d: string
   segments: TemplateGridLineSegment[]
+  style?: TemplateLineRenderStyle
 }
 
 export type TemplateGridLineSegment = {
@@ -166,11 +208,12 @@ export function buildTemplateEditorRegionRenderModel(
   const header = region.type === 'exposure-grid' && region.grid
     ? buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames)
     : null
+  const form = buildTemplateFormRenderModels(template, region, paperTracks, durationFrames, resolveOptions)
   return {
     chrome: {
       pageSize: resolveSheetTemplatePageSize(template, durationFrames, resolveOptions),
       showOuterFrame: false,
-      referenceRegions: region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored'
+      referenceRegions: !region.form && region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored'
         ? [{
             regionId: region.regionId,
             type: region.type,
@@ -178,6 +221,9 @@ export function buildTemplateEditorRegionRenderModel(
           }]
         : [],
       headers: header ? [header] : [],
+      formBoxes: form.boxes,
+      formLabels: form.labels,
+      formFields: form.fields,
     },
     gridOverlay: region.type === 'exposure-grid'
       ? buildTemplateGridOverlayRenderModel(template, region, { durationFrames })
@@ -193,11 +239,12 @@ export function buildTemplateChromeRenderModel(
 ): TemplateChromeRenderModel {
   const resolveOptions = { ...options, paperTracks }
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, resolveOptions)
+  const forms = template.regions.map(region => buildTemplateFormRenderModels(template, region, paperTracks, durationFrames, resolveOptions))
   return {
     pageSize,
-    showOuterFrame: template.templateKind !== 'digital-native',
+    showOuterFrame: template.templateKind !== 'digital-native' && template.style?.outerFrame?.visible !== false,
     referenceRegions: template.regions
-      .filter(region => region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored')
+      .filter(region => !region.form && region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored')
       .map(region => ({
         regionId: region.regionId,
         type: region.type,
@@ -207,7 +254,253 @@ export function buildTemplateChromeRenderModel(
       .filter(region => region.type === 'exposure-grid' && region.grid)
       .map(region => buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames, options))
       .filter((model): model is TemplateGridHeaderRenderModel => model !== null),
+    formBoxes: forms.flatMap(form => form.boxes),
+    formLabels: forms.flatMap(form => form.labels),
+    formFields: forms.flatMap(form => form.fields),
   }
+}
+
+export function buildTemplateFormRenderModels(
+  template: SheetTemplate,
+  region: SheetTemplate['regions'][number],
+  paperTracks = template.defaults.paperTracks,
+  durationFrames = template.defaults.durationFrames,
+  options: SheetTemplateLayoutResolveOptions = {},
+): {
+  boxes: TemplateFormBoxRenderModel[]
+  labels: TemplateFormLabelRenderModel[]
+  fields: TemplateFormFieldRenderModel[]
+} {
+  const form = region.form
+  if (!form || region.usage === 'ignored') return { boxes: [], labels: [], fields: [] }
+  const regionRect = resolveSheetTemplateRegionRect(template, region, durationFrames, { ...options, paperTracks })
+  const pageSize = resolveSheetTemplatePageSize(template, durationFrames, { ...options, paperTracks })
+  const borderStyle = normalizeTemplateLineStyle(form.borderStyle)
+  const cells = form.projection
+    ? projectedTrackCountCells(template, region.regionId, form.projection, paperTracks)
+    : [...(form.cells ?? [])]
+  const rowWeights = form.projection
+    ? projectedTrackCountRowWeights(form.rows, paperTracks.length)
+    : form.rows
+  const columnEdges = weightedEdges(form.columns, regionRect.x, regionRect.w)
+  const rowEdges = weightedEdges(rowWeights, regionRect.y, regionRect.h)
+  const occupied = new Set<string>()
+  for (const cell of cells) {
+    for (let row = cell.row; row < cell.row + (cell.rowSpan ?? 1); row += 1) {
+      for (let column = cell.column; column < cell.column + (cell.columnSpan ?? 1); column += 1) {
+        occupied.add(`${row}:${column}`)
+      }
+    }
+  }
+  if (form.fillEmptyCells) {
+    for (let row = 0; row < rowWeights.length; row += 1) {
+      for (let column = 0; column < form.columns.length; column += 1) {
+        if (!occupied.has(`${row}:${column}`)) {
+          cells.push({ cellId: `auto_${row}_${column}`, row, column, kind: 'spacer' })
+        }
+      }
+    }
+  }
+  const boxes: TemplateFormBoxRenderModel[] = []
+  const labels: TemplateFormLabelRenderModel[] = []
+  const fields: TemplateFormFieldRenderModel[] = []
+  for (const cell of cells) {
+    const rect = formCellRect(cell.row, cell.column, cell.rowSpan ?? 1, cell.columnSpan ?? 1, rowEdges, columnEdges)
+    if (!rect) continue
+    if (cell.border !== false) {
+      boxes.push({ key: `${region.regionId}:${cell.cellId}`, rect, style: normalizeTemplateLineStyle(cell.borderStyle, borderStyle) })
+    }
+    if (cell.kind === 'label' && cell.label) {
+      labels.push(templateFormLabel(`${region.regionId}:${cell.cellId}`, cell.label, rect, cell.textStyle, pageSize))
+    }
+    if (cell.kind === 'field' && cell.fieldId) {
+      const definition = fieldDefinitionForCell(template, region.regionId, cell.fieldId, cell.label)
+      const isProjectedTotal = Boolean(form.projection && cell.fieldId.startsWith(`${form.projection.fieldPrefix}.total.`))
+      const totalSuffix = isProjectedTotal ? cell.fieldId.split('.').at(-1) : undefined
+      fields.push({
+        key: `${region.regionId}:${cell.cellId}`,
+        regionId: region.regionId,
+        fieldId: cell.fieldId,
+        rect,
+        definition,
+        textStyle: cell.textStyle ?? {},
+        editable: !isProjectedTotal,
+        sourceFieldIds: isProjectedTotal && totalSuffix
+          ? paperTracks.map(paperTrack => `${form.projection!.fieldPrefix}.${paperTrack}.${totalSuffix}`)
+          : undefined,
+      })
+    }
+  }
+  return { boxes, labels, fields }
+}
+
+function projectedTrackCountCells(
+  template: SheetTemplate,
+  regionId: string,
+  projection: NonNullable<NonNullable<SheetTemplate['regions'][number]['form']>['projection']>,
+  paperTracks: string[],
+): NonNullable<NonNullable<SheetTemplate['regions'][number]['form']>['cells']> {
+  const cells: NonNullable<NonNullable<SheetTemplate['regions'][number]['form']>['cells']> = [
+    { cellId: 'count_header_spacer', row: 0, column: 0, kind: 'spacer' },
+    ...projection.columns.map((column, index) => ({
+      cellId: `count_header_${column.columnId}`,
+      row: 0,
+      column: index + 1,
+      kind: 'label' as const,
+      label: column.label,
+      textStyle: { fontSizePx: 10, minFontSizePx: 7, fontWeight: 700, horizontalAlign: 'center' as const, verticalAlign: 'middle' as const, paddingPx: 2, shrinkToFit: true },
+    })),
+    { cellId: 'count_name', row: 1, column: 0, kind: 'label', label: projection.nameLabel ?? 'NAME' },
+    ...projection.columns.map((column, index) => ({ cellId: `count_name_blank_${column.columnId}`, row: 1, column: index + 1, kind: 'spacer' as const })),
+  ]
+  paperTracks.forEach((paperTrack, trackIndex) => {
+    const row = trackIndex + 2
+    cells.push({ cellId: `count_track_${trackIndex}`, row, column: 0, kind: 'label', label: paperTrack })
+    projection.columns.forEach((column, columnIndex) => {
+      cells.push({
+        cellId: `count_${trackIndex}_${column.columnId}`,
+        row,
+        column: columnIndex + 1,
+        kind: 'field',
+        fieldId: `${projection.fieldPrefix}.${paperTrack}.${column.fieldSuffix}`,
+        label: `${paperTrack} ${column.label}`,
+      })
+    })
+  })
+  const totalRow = paperTracks.length + 2
+  cells.push({ cellId: 'count_total_label', row: totalRow, column: 0, kind: 'label', label: projection.totalLabel ?? '計' })
+  projection.columns.forEach((column, columnIndex) => {
+    cells.push({
+      cellId: `count_total_${column.columnId}`,
+      row: totalRow,
+      column: columnIndex + 1,
+      kind: 'field',
+      fieldId: `${projection.fieldPrefix}.total.${column.fieldSuffix}`,
+      label: `${projection.totalLabel ?? '計'} ${column.label}`,
+    })
+  })
+  void template
+  void regionId
+  return cells
+}
+
+function projectedTrackCountRowWeights(defaultRows: number[], trackCount: number): number[] {
+  const header = defaultRows[0] ?? 24
+  const name = defaultRows[1] ?? 47
+  const total = defaultRows.at(-1) ?? 47
+  const defaultTrackRows = defaultRows.slice(2, -1)
+  const averageTrack = defaultTrackRows.length > 0
+    ? defaultTrackRows.reduce((sum, value) => sum + value, 0) / defaultTrackRows.length
+    : 24
+  return [header, name, ...Array.from({ length: trackCount }, () => averageTrack), total]
+}
+
+function fieldDefinitionForCell(
+  template: SheetTemplate,
+  regionId: string,
+  fieldId: string,
+  label?: string,
+): SheetTemplateFieldDefinition {
+  const explicit = template.fields?.find(field => field.fieldId === fieldId)
+  if (explicit) return explicit
+  const projection = template.regions.find(region => region.regionId === regionId)?.form?.projection
+  return {
+    fieldId,
+    label: label ?? fieldId,
+    scope: projection?.scope ?? 'revision',
+    valueType: projection ? 'number' : 'text',
+  }
+}
+
+function formCellRect(
+  row: number,
+  column: number,
+  rowSpan: number,
+  columnSpan: number,
+  rowEdges: number[],
+  columnEdges: number[],
+): NormalizedRect | null {
+  const left = columnEdges[column]
+  const right = columnEdges[column + columnSpan]
+  const top = rowEdges[row]
+  const bottom = rowEdges[row + rowSpan]
+  if (left === undefined || right === undefined || top === undefined || bottom === undefined) return null
+  return { x: left, y: top, w: right - left, h: bottom - top }
+}
+
+function weightedEdges(weights: number[], start: number, span: number): number[] {
+  const total = weights.reduce((sum, weight) => sum + Math.max(0, weight), 0) || 1
+  const edges = [start]
+  let consumed = 0
+  for (const weight of weights) {
+    consumed += Math.max(0, weight)
+    edges.push(start + span * consumed / total)
+  }
+  return edges
+}
+
+function templateFormLabel(
+  key: string,
+  text: string,
+  rect: NormalizedRect,
+  style: SheetTemplateTextStyle = {},
+  pageSize: SheetSvgPageSize,
+): TemplateFormLabelRenderModel {
+  const paddingPx = Math.max(0, style.paddingPx ?? 2)
+  const align = style.horizontalAlign ?? 'center'
+  const vertical = style.verticalAlign ?? 'middle'
+  const xPadding = paddingPx / pageSize.widthPx
+  const yPadding = paddingPx / pageSize.heightPx
+  return {
+    key,
+    text,
+    rect,
+    x: align === 'left' ? rect.x + xPadding : align === 'right' ? rect.x + rect.w - xPadding : rect.x + rect.w / 2,
+    y: vertical === 'top' ? rect.y + yPadding : vertical === 'bottom' ? rect.y + rect.h - yPadding : rect.y + rect.h / 2,
+    textAnchor: align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle',
+    dominantBaseline: vertical === 'top' ? 'hanging' : vertical === 'bottom' ? 'text-after-edge' : 'central',
+    fontSizePx: style.fontSizePx ?? 10,
+    fontWeight: style.fontWeight ?? 700,
+  }
+}
+
+export function normalizeTemplateLineStyle(
+  style: SheetTemplateLineStyle | undefined,
+  fallback?: TemplateLineRenderStyle,
+): TemplateLineRenderStyle {
+  const pattern = style?.pattern ?? fallback?.pattern ?? 'solid'
+  const widthPx = style?.widthPx ?? lineWeightWidth(style?.weight) ?? fallback?.widthPx ?? 1
+  const dashPx = style?.dashPx ?? (pattern === 'dotted' ? [1, Math.max(2, widthPx * 2.5)] : pattern === 'dashed' ? [6, 4] : [])
+  return {
+    pattern,
+    color: style?.color ?? fallback?.color ?? '#2f3430',
+    widthPx,
+    dashPx,
+  }
+}
+
+function lineWeightWidth(weight: SheetTemplateLineStyle['weight']): number | undefined {
+  if (weight === 'strong') return 2.6
+  if (weight === 'medium') return 1.8
+  if (weight === 'regular') return 1.25
+  if (weight === 'thin') return 0.8
+  return undefined
+}
+
+function gridLineRuleIndexes(
+  rule: NonNullable<SheetTemplateGrid['lineRules']>[number],
+  boundaryCount: number,
+): number[] {
+  let indexes: number[]
+  if (rule.target === 'indexes') indexes = rule.indexes ?? []
+  else if (rule.target === 'inner') indexes = Array.from({ length: Math.max(0, boundaryCount - 1) }, (_, index) => index + 1)
+  else if (rule.target === 'outer') indexes = boundaryCount === 0 ? [0] : [0, boundaryCount]
+  else indexes = Array.from({ length: boundaryCount + 1 }, (_, index) => index)
+  const every = Math.max(1, Math.round(rule.every ?? 1))
+  const offset = Math.round(rule.offset ?? 0)
+  return [...new Set(indexes)]
+    .filter(index => Number.isInteger(index) && index >= 0 && index <= boundaryCount && (index - offset) % every === 0)
+    .sort((a, b) => a - b)
 }
 
 export function gridHeaderRolesForTemplate(template: SheetTemplate): SheetTemplateGridRole[] {
@@ -252,14 +545,15 @@ export function buildTemplateGridOverlayRenderModel(
   options: TemplateGridOverlayOptions = {},
 ): TemplateGridOverlayRenderModel | null {
   if (!region.grid) return null
-  if (region.grid.role === 'sound' && template.templateKind !== 'digital-native') return null
   const layout = resolveSheetTemplateGridLayout(template, region, options)
   if (!layout) return null
   const rect = layout.rect
   const pageSize = layout.pageSize
   const frames = layout.frames
   const rowPaths = new Map<string, TemplateGridLineSegment[]>()
-  const renderHorizontalLines = !(template.templateKind === 'digital-native' && region.grid.role === 'sound')
+  const explicitPaths: TemplateGridPathRenderModel[] = []
+  const hasExplicitLineRules = Boolean(region.grid.lineRules?.length)
+  const renderHorizontalLines = !hasExplicitLineRules && !(template.templateKind === 'digital-native' && region.grid.role === 'sound')
   if (renderHorizontalLines) {
     for (let row = 0; row <= frames.rowCount; row += 1) {
       const y = sheetGridRowY(layout, row)
@@ -273,7 +567,24 @@ export function buildTemplateGridOverlayRenderModel(
     ...layout.columns.map(column => column.x),
     layout.columns.at(-1) ? layout.columns.at(-1)!.x + layout.columns.at(-1)!.w : rect.x + rect.w,
   ]
-  const columnPath = columnLines.length > 0
+  if (hasExplicitLineRules) {
+    for (const [ruleIndex, rule] of region.grid.lineRules!.entries()) {
+      const boundaryCount = rule.axis === 'row' ? frames.rowCount : Math.max(0, columnLines.length - 1)
+      const indexes = gridLineRuleIndexes(rule, boundaryCount)
+      const segments = indexes.map(index => rule.axis === 'row'
+        ? { x1: rect.x, y1: sheetGridRowY(layout, index), x2: rect.x + rect.w, y2: sheetGridRowY(layout, index) }
+        : { x1: columnLines[index]!, y1: rect.y, x2: columnLines[index]!, y2: rect.y + rect.h })
+      if (segments.length === 0) continue
+      explicitPaths.push({
+        className: `gridLine gridLineCustom gridLine${rule.axis === 'row' ? 'Row' : 'Column'}`,
+        d: segments.map(segment => `M ${segment.x1} ${segment.y1} L ${segment.x2} ${segment.y2}`).join(' '),
+        segments,
+        style: normalizeTemplateLineStyle(rule.style),
+      })
+      void ruleIndex
+    }
+  }
+  const columnPath = !hasExplicitLineRules && columnLines.length > 0
     ? {
         className: 'gridLine gridLineColumn',
         d: columnLines.map(x => `M ${x} ${rect.y} V ${rect.y + rect.h}`).join(' '),
@@ -313,11 +624,11 @@ export function buildTemplateGridOverlayRenderModel(
     regionId: region.regionId,
     role: region.grid.role,
     pageSize,
-    rowPaths: Array.from(rowPaths, ([className, segments]) => ({
+    rowPaths: [...Array.from(rowPaths, ([className, segments]) => ({
       className,
       d: segments.map(segment => `M ${segment.x1} ${segment.y1} H ${segment.x2}`).join(' '),
       segments,
-    })),
+    })), ...explicitPaths],
     columnPath,
     labels,
     frameNumbers,
@@ -456,24 +767,33 @@ function buildTemplateGridHeaderRenderModel(
   if (!layout) return null
   const rect = layout.rect
   const pageSize = layout.pageSize
-  const headerTopOffset = (STANDARD_A3_GRID_HEADER_TOP_OFFSET * template.page.heightPx) / pageSize.heightPx
-  const headerHeight = (STANDARD_A3_GRID_HEADER_HEIGHT * template.page.heightPx) / pageSize.heightPx
+  const headerTopOffsetPx = region.grid.header?.topOffsetPx ?? STANDARD_A3_GRID_HEADER_TOP_OFFSET * template.page.heightPx
+  const headerHeightPx = region.grid.header?.heightPx ?? STANDARD_A3_GRID_HEADER_HEIGHT * template.page.heightPx
+  const columnHeightPx = region.grid.header?.columnHeightPx ?? Math.max(0, headerTopOffsetPx - headerHeightPx)
+  const headerTopOffset = headerTopOffsetPx / pageSize.heightPx
+  const headerHeight = headerHeightPx / pageSize.heightPx
+  const columnHeight = columnHeightPx / pageSize.heightPx
   const y = rect.y - headerTopOffset
   const columnBaselineOffset = (0.0025 * template.page.heightPx) / pageSize.heightPx
   return {
     regionId: region.regionId,
     rect: { x: rect.x, y, w: rect.w, h: headerHeight },
-    label: gridHeaderLabelForRole(template, region.grid.role),
+    label: region.grid.header?.showLabel === false ? '' : gridHeaderLabelForRole(template, region.grid.role),
     labelX: rect.x + rect.w / 2,
     labelY: y + headerHeight / 2,
     labelFontSizePx: templateGridHeaderFontSizePx(template),
     columns: layout.columns.map(column => ({
       columnId: column.columnId,
-      label: column.label,
+      label: region.grid?.header?.showColumnLabels === false ? '' : column.label,
       x: column.x + column.w / 2,
       y: rect.y - columnBaselineOffset,
       fontSizePx: templateGridColumnFontSizePx(template),
     })),
+    columnHeaderRect: { x: rect.x, y: rect.y - columnHeight, w: rect.w, h: columnHeight },
+    columnBoundaries: [
+      ...layout.columns.map(column => column.x),
+      layout.columns.at(-1) ? layout.columns.at(-1)!.x + layout.columns.at(-1)!.w : rect.x + rect.w,
+    ],
   }
 }
 

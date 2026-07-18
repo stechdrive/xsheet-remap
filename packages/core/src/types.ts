@@ -579,6 +579,22 @@ export interface NameNormalizationPlan {
   warnings: string[]
 }
 
+export type SheetFormFieldValue =
+  | { kind: 'text'; value: string }
+  | { kind: 'number'; value: number | null }
+  | { kind: 'boolean'; value: boolean }
+  | { kind: 'choice'; value: string }
+  | { kind: 'date'; value: string }
+  | { kind: 'duration'; frames: number }
+
+export type SheetFormFieldValues = Record<Id, SheetFormFieldValue>
+
+export interface SheetFormData {
+  production: SheetFormFieldValues
+  cut: SheetFormFieldValues
+  revision: SheetFormFieldValues
+}
+
 export interface NameNormalizationAssetRenameResult {
   assetId: Id
   renamed: boolean
@@ -591,6 +607,7 @@ export interface CutProject {
   schemaVersion: number
   projectId: Id
   cut: CutMetadata
+  sheetFormData: SheetFormData
   studioPresetId?: string
   sheetTemplateId?: string
   sheetView: SheetViewState
@@ -613,6 +630,7 @@ export interface ProductionMetadata {
   title?: string
   episode?: string
   custom?: Record<string, string>
+  sheetFields?: SheetFormFieldValues
 }
 
 export interface CutSheetMetadata {
@@ -621,6 +639,7 @@ export interface CutSheetMetadata {
   cspTimelineName?: string
   worker?: string
   custom?: Record<string, string>
+  sheetFields?: SheetFormFieldValues
 }
 
 export type CutSheetLogicalSheet = Omit<LogicalSheet, 'keys'>
@@ -638,6 +657,7 @@ export interface SheetRevisionDocument {
   protected?: boolean
   reference?: SheetRevisionReference
   metadata: Pick<CutSheetMetadata, 'worker' | 'custom'>
+  sheetFields: SheetFormFieldValues
   sheetView: SheetViewState
   logicalSheet: CutSheetLogicalSheet
   cspTrackSlots: CspTrackSlot[]

@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   resolveSheetTemplateRegionRect,
+  sheetFormFieldValueText,
   type CutMetadataFieldId,
   type CutProject,
   type SheetPage,
   type SheetTemplate,
+  type SheetTemplateFieldDefinition,
 } from '@xsheet-remap/core'
 import { DurationFrameControl } from './DurationFrameControl'
 import { TooltipTarget } from './Tooltip'
+import { buildTemplateChromeRenderModel } from './templateEditorGeometry'
 
 type EditableMetadataRegion = SheetTemplate['regions'][number] & {
   binding: Extract<NonNullable<SheetTemplate['regions'][number]['binding']>, { target: 'cut-metadata' }>
@@ -23,6 +26,7 @@ export function SheetMetadataEditor({
   paperTracks,
   onMetadataChange,
   onDurationChange,
+  onFormFieldChange,
 }: {
   project: CutProject
   template: SheetTemplate
@@ -33,6 +37,7 @@ export function SheetMetadataEditor({
   paperTracks: string[]
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
+  onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean) => void
 }) {
   const [editingRegionId, setEditingRegionId] = useState<string | null>(null)
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -50,7 +55,13 @@ export function SheetMetadataEditor({
       layoutOverrides: project.sheetView.layoutOverrides,
     }),
   }))
-  const active = regionLayouts.find(item => item.region.regionId === editingRegionId) ?? null
+  const formFields = buildTemplateChromeRenderModel(template, paperTracks, displayDurationFrames, {
+    layoutOverrides: project.sheetView.layoutOverrides,
+  }).formFields.filter(field => field.editable)
+  const activeMetadata = regionLayouts.find(item => item.region.regionId === editingRegionId) ?? null
+  const activeForm = formFields.find(field => field.key === editingRegionId) ?? null
+  const activeRect = activeMetadata?.rect ?? activeForm?.rect ?? null
+  const activeLabel = activeMetadata?.region.label ?? activeForm?.definition.label ?? ''
 
   useEffect(() => {
     if (!editingRegionId) return
@@ -121,13 +132,45 @@ export function SheetMetadataEditor({
           )}
         </TooltipTarget>
       ))}
-      {active && (
+      {formFields.map(field => (
+        <TooltipTarget key={field.key} label={`${field.definition.label}: ダブルクリックまたはEnterで編集`} disabled={editingRegionId === field.key}>
+          {tooltipProps => (
+            <button
+              type="button"
+              className="sheetMetadataEditHotspot sheetFormEditHotspot"
+              style={rectStyle(field.rect, pageWidth, pageHeight)}
+              aria-label={`${field.definition.label}を編集`}
+              aria-haspopup="dialog"
+              aria-expanded={editingRegionId === field.key}
+              aria-keyshortcuts="Enter F2"
+              {...tooltipProps}
+              onPointerDown={event => {
+                tooltipProps.onPointerDown()
+                event.stopPropagation()
+              }}
+              onClick={event => event.stopPropagation()}
+              onDoubleClick={event => {
+                event.stopPropagation()
+                openEditor(field.key, event.currentTarget)
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === 'F2' || event.key === ' ') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openEditor(field.key, event.currentTarget)
+                }
+              }}
+            />
+          )}
+        </TooltipTarget>
+      ))}
+      {activeRect && (activeMetadata || activeForm) && (
         <div
           ref={popoverRef}
           className="sheetMetadataEditorPopover"
           role="dialog"
-          aria-label={`${active.region.label}を編集`}
-          style={popoverStyle(active.rect, pageWidth, pageHeight)}
+          aria-label={`${activeLabel}を編集`}
+          style={popoverStyle(activeRect, pageWidth, pageHeight)}
           onPointerDown={event => event.stopPropagation()}
           onKeyDown={event => {
             if (event.key === 'Escape') {
@@ -147,10 +190,10 @@ export function SheetMetadataEditor({
           }}
         >
           <div className="sheetMetadataEditorHeader">
-            <strong>{active.region.label}</strong>
-            <button type="button" aria-label={`${active.region.label}の編集を閉じる`} onClick={() => closeEditor(true)}>×</button>
+            <strong>{activeLabel}</strong>
+            <button type="button" aria-label={`${activeLabel}の編集を閉じる`} onClick={() => closeEditor(true)}>×</button>
           </div>
-          {active.region.binding.field === 'duration'
+          {activeMetadata?.region.binding.field === 'duration'
             ? (
               <DurationFrameControl
                 frames={project.logicalSheet.durationFrames}
@@ -160,22 +203,75 @@ export function SheetMetadataEditor({
                 autoFocus
               />
               )
-            : (
+            : activeMetadata
+              ? (
               <div className="sheetMetadataEditorField">
                 <input
                   autoFocus
-                  aria-label={active.region.label}
-                  value={metadataValue(project, active.region.binding.field, active.region.binding.customKey)}
+                  aria-label={activeMetadata.region.label}
+                  value={metadataValue(project, activeMetadata.region.binding.field, activeMetadata.region.binding.customKey)}
                   onChange={event => onMetadataChange(
-                    active.region.binding.field,
+                    activeMetadata.region.binding.field,
                     event.currentTarget.value,
-                    active.region.binding.customKey,
+                    activeMetadata.region.binding.customKey,
                   )}
                 />
               </div>
-              )}
+                )
+              : activeForm
+                ? <SheetFormFieldControl project={project} field={activeForm} onChange={onFormFieldChange} />
+                : null}
         </div>
       )}
+    </div>
+  )
+}
+
+function SheetFormFieldControl({
+  project,
+  field,
+  onChange,
+}: {
+  project: CutProject
+  field: ReturnType<typeof buildTemplateChromeRenderModel>['formFields'][number]
+  onChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean) => void
+}) {
+  const value = project.sheetFormData[field.definition.scope][field.fieldId]
+  const text = sheetFormFieldValueText(value)
+  if (field.definition.valueType === 'boolean') {
+    return (
+      <label className="sheetMetadataEditorCheckbox">
+        <input autoFocus type="checkbox" checked={value?.kind === 'boolean' && value.value} onChange={event => onChange(field.definition, event.currentTarget.checked)} />
+        <span>チェック</span>
+      </label>
+    )
+  }
+  if (field.definition.valueType === 'choice') {
+    return (
+      <div className="sheetMetadataEditorField">
+        <select autoFocus aria-label={field.definition.label} value={text} onChange={event => onChange(field.definition, event.currentTarget.value)}>
+          <option value="" />
+          {field.definition.choices?.map(choice => <option key={choice} value={choice}>{choice}</option>)}
+        </select>
+      </div>
+    )
+  }
+  if (field.definition.valueType === 'multiline') {
+    return (
+      <div className="sheetMetadataEditorField">
+        <textarea autoFocus aria-label={field.definition.label} value={text} onChange={event => onChange(field.definition, event.currentTarget.value)} />
+      </div>
+    )
+  }
+  return (
+    <div className="sheetMetadataEditorField">
+      <input
+        autoFocus
+        type={field.definition.valueType === 'number' || field.definition.valueType === 'duration' ? 'number' : field.definition.valueType === 'date' ? 'date' : 'text'}
+        aria-label={field.definition.label}
+        value={text}
+        onChange={event => onChange(field.definition, event.currentTarget.value)}
+      />
     </div>
   )
 }

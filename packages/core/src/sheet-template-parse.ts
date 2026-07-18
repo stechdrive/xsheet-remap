@@ -3,7 +3,7 @@ import { SHEET_TEMPLATE_SCHEMA_VERSION, type NormalizedRect, type SheetTemplate,
 /** Validates an external JSON value before it becomes an editable sheet template. */
 export function parseSheetTemplate(input: unknown): SheetTemplate {
   if (!isRecord(input)) throw new Error('シートテンプレートJSONではありません。')
-  if (input.schemaVersion !== SHEET_TEMPLATE_SCHEMA_VERSION) {
+  if (input.schemaVersion !== SHEET_TEMPLATE_SCHEMA_VERSION && input.schemaVersion !== 3) {
     throw new Error(`対応していないシートテンプレートバージョンです: ${String(input.schemaVersion)}`)
   }
   if (!nonEmptyString(input.templateId) || !nonEmptyString(input.name)) {
@@ -35,7 +35,10 @@ export function parseSheetTemplate(input: unknown): SheetTemplate {
     if (regionIds.has(region.regionId)) throw new Error(`領域IDが重複しています: ${region.regionId}`)
     regionIds.add(region.regionId)
   }
-  return input as unknown as SheetTemplate
+  return {
+    ...(input as unknown as SheetTemplate),
+    schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
+  }
 }
 
 function validateRegion(input: unknown, index: number): asserts input is SheetTemplateRegion {

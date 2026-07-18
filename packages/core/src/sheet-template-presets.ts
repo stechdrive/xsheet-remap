@@ -1,6 +1,6 @@
 import type { CutMetadataFieldId } from './types'
 import { createAlphabeticTrackLabels, createPaperTrackColumns } from './sheet-template-layout'
-import { NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFrameProjection, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
+import { NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFieldDefinition, SheetTemplateFormCell, SheetTemplateFrameProjection, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
 
 export const standardA3DefaultPaperTracks = createAlphabeticTrackLabels(9)
 
@@ -47,6 +47,55 @@ const STANDARD_A3_METADATA_TEXT_STYLE: SheetTemplateTextStyle = {
   verticalAlign: 'middle',
   paddingPx: 8,
   shrinkToFit: true,
+}
+
+const STANDARD_A3_GRID_HEADER = { topOffsetPx: 71, heightPx: 48, columnHeightPx: 23 }
+
+const STANDARD_A3_FORM_BORDER = { weight: 'thin' as const, pattern: 'solid' as const, color: '#2f3430', widthPx: 1 }
+
+const STANDARD_A3_PROCESS_FIELDS: SheetTemplateFieldDefinition[] = [
+  ['process.original', '原図', 'revision', 'text'],
+  ['process.direction.rough', '演出（前）', 'revision', 'text'],
+  ['process.supervision.rough', '監督（前）', 'revision', 'text'],
+  ['process.animationDirector.rough', '作監（前）', 'revision', 'text'],
+  ['process.chiefAnimationDirector.rough', '総作監（前）', 'revision', 'text'],
+  ['process.direction.final', '演出', 'revision', 'text'],
+  ['process.supervision.final', '監督', 'revision', 'text'],
+  ['process.animationDirector.final', '作監', 'revision', 'text'],
+  ['process.chiefAnimationDirector.final', '総作監', 'revision', 'text'],
+  ['process.videoCheck', '動画検査', 'revision', 'text'],
+  ['process.colorDesign', '色指定', 'revision', 'text'],
+  ['process.colorCheck', '色検査', 'revision', 'text'],
+  ['material.cgCell', 'CGセル', 'revision', 'text'],
+  ['material.cgBg', 'CG BG', 'revision', 'text'],
+  ['effect.2d', '2D', 'revision', 'text'],
+  ['effect.special', '特効', 'revision', 'text'],
+  ['output.sizeX', 'サイズ X', 'cut', 'number'],
+  ['output.sizeY', 'サイズ Y', 'cut', 'number'],
+  ['output.dpi', '解像度 DPI', 'cut', 'number'],
+].map(([fieldId, label, scope, valueType]) => ({ fieldId, label, scope, valueType } as SheetTemplateFieldDefinition))
+
+function formLabelCell(
+  cellId: string,
+  row: number,
+  column: number,
+  label: string,
+  columnSpan = 1,
+  textStyle: SheetTemplateTextStyle = { fontSizePx: 10, minFontSizePx: 7, fontWeight: 700, horizontalAlign: 'center', verticalAlign: 'middle', paddingPx: 2, shrinkToFit: true },
+): SheetTemplateFormCell {
+  return { cellId, row, column, columnSpan, kind: 'label', label, textStyle }
+}
+
+function formFieldCell(cellId: string, row: number, column: number, fieldId: string, columnSpan = 1): SheetTemplateFormCell {
+  return {
+    cellId,
+    row,
+    column,
+    columnSpan,
+    kind: 'field',
+    fieldId,
+    textStyle: { fontSizePx: 13, minFontSizePx: 7, fontWeight: 700, horizontalAlign: 'center', verticalAlign: 'middle', paddingPx: 2, shrinkToFit: true },
+  }
 }
 
 function standardA3Rect(x: number, y: number, w: number, h: number): NormalizedRect {
@@ -141,7 +190,9 @@ export const standardA3SheetTemplate: SheetTemplate = {
   templateKind: 'japanese-a3-paper',
   layoutMode: 'fixed-page',
   defaultUnderlay: standardA3DefaultUnderlay,
+  defaultUnderlayUsage: 'reference-only',
   style: {
+    outerFrame: { visible: false },
     bottomTrackLabels: {
       visible: true,
     },
@@ -217,14 +268,79 @@ export const standardA3SheetTemplate: SheetTemplate = {
     frameOrigin: 1,
     paperTracks: standardA3DefaultPaperTracks,
   },
+  fields: STANDARD_A3_PROCESS_FIELDS,
   regions: [
     {
       regionId: 'top_process_check_area',
-      type: 'process-check-area',
+      type: 'form-table',
       label: '工程チェック欄',
       rect: standardA3Rect(35, 47, 1598, 71),
-      usage: 'reference',
-      inputKind: 'annotation',
+      usage: 'input',
+      inputKind: 'text',
+      form: {
+        columns: [57, 57, 57, 58, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57.5, 57.5, 71, 71, 143],
+        rows: [23, 48],
+        fillEmptyCells: true,
+        borderStyle: STANDARD_A3_FORM_BORDER,
+        cells: [
+          formLabelCell('process_label_original', 0, 0, '原図'),
+          formLabelCell('process_label_direction_rough', 0, 2, '演出'),
+          formLabelCell('process_label_supervision_rough', 0, 3, '監督'),
+          formLabelCell('process_label_animation_director_rough', 0, 4, '作監'),
+          formLabelCell('process_label_chief_animation_director_rough', 0, 5, '総作監'),
+          formLabelCell('process_label_direction_final', 0, 10, '演出'),
+          formLabelCell('process_label_supervision_final', 0, 11, '監督'),
+          formLabelCell('process_label_animation_director_final', 0, 12, '作監'),
+          formLabelCell('process_label_chief_animation_director_final', 0, 13, '総作監'),
+          formLabelCell('process_label_video_check', 0, 15, '動画検査', 2),
+          formLabelCell('process_label_color', 0, 17, '色指定・検査', 2),
+          formLabelCell('process_label_cg', 0, 19, 'CG素材', 2),
+          formLabelCell('process_label_effect', 0, 21, '2D・特効', 2),
+          formLabelCell('process_label_size', 0, 23, 'サイズ', 2),
+          formLabelCell('process_label_dpi', 0, 25, '解像度'),
+          formFieldCell('process_field_original', 1, 0, 'process.original'),
+          formFieldCell('process_field_direction_rough', 1, 2, 'process.direction.rough'),
+          formFieldCell('process_field_supervision_rough', 1, 3, 'process.supervision.rough'),
+          formFieldCell('process_field_animation_director_rough', 1, 4, 'process.animationDirector.rough'),
+          formFieldCell('process_field_chief_animation_director_rough', 1, 5, 'process.chiefAnimationDirector.rough'),
+          formFieldCell('process_field_direction_final', 1, 10, 'process.direction.final'),
+          formFieldCell('process_field_supervision_final', 1, 11, 'process.supervision.final'),
+          formFieldCell('process_field_animation_director_final', 1, 12, 'process.animationDirector.final'),
+          formFieldCell('process_field_chief_animation_director_final', 1, 13, 'process.chiefAnimationDirector.final'),
+          formFieldCell('process_field_video_check', 1, 15, 'process.videoCheck', 2),
+          formFieldCell('process_field_color_design', 1, 17, 'process.colorDesign'),
+          formFieldCell('process_field_color_check', 1, 18, 'process.colorCheck'),
+          formFieldCell('process_field_cg_cell', 1, 19, 'material.cgCell'),
+          formFieldCell('process_field_cg_bg', 1, 20, 'material.cgBg'),
+          formFieldCell('process_field_2d', 1, 21, 'effect.2d'),
+          formFieldCell('process_field_special', 1, 22, 'effect.special'),
+          formFieldCell('process_field_size_x', 1, 23, 'output.sizeX'),
+          formFieldCell('process_field_size_y', 1, 24, 'output.sizeY'),
+          formFieldCell('process_field_dpi', 1, 25, 'output.dpi'),
+        ],
+      },
+    },
+    {
+      regionId: 'top_metadata_form',
+      type: 'form-table',
+      label: 'カット情報見出し',
+      rect: standardA3Rect(35, 141, 1683, 95),
+      usage: 'render-only',
+      form: {
+        columns: [656, 172, 171, 256, 257, 171],
+        rows: [24, 71],
+        fillEmptyCells: true,
+        borderStyle: STANDARD_A3_FORM_BORDER,
+        cells: [
+          formLabelCell('metadata_label_title', 0, 0, 'TITLE'),
+          formLabelCell('metadata_label_episode', 0, 1, 'NO.'),
+          formLabelCell('metadata_label_cut', 0, 2, 'CUT'),
+          formLabelCell('metadata_label_time', 0, 3, 'TIME'),
+          formLabelCell('metadata_label_worker', 0, 4, 'NAME'),
+          formLabelCell('metadata_label_page', 0, 5, 'PAGE'),
+          ...Array.from({ length: 6 }, (_, column) => ({ cellId: `metadata_value_${column}`, row: 1, column, kind: 'spacer' as const })),
+        ],
+      },
     },
     metadataFieldRegion('top_title_field', 'タイトル', 'title', standardA3Rect(35, 165, 656, 71), STANDARD_A3_METADATA_TEXT_STYLE),
     metadataFieldRegion('top_episode_field', '話数', 'episode', standardA3Rect(691, 165, 172, 71), STANDARD_A3_METADATA_TEXT_STYLE),
@@ -263,6 +379,14 @@ export const standardA3SheetTemplate: SheetTemplate = {
         layerId: 'memo',
         intent: 'memo',
       },
+      form: {
+        columns: [1],
+        rows: [24, 307],
+        cells: [{
+          ...formLabelCell('memo_label', 0, 0, 'MEMO', 1, { fontSizePx: 10, fontWeight: 700, horizontalAlign: 'left', verticalAlign: 'middle', paddingPx: 2 }),
+          border: false,
+        }],
+      },
     },
     {
       regionId: 'top_shooting_notes_area',
@@ -276,14 +400,54 @@ export const standardA3SheetTemplate: SheetTemplate = {
         layerId: 'camera-note',
         intent: 'camera-note',
       },
+      form: {
+        columns: [200],
+        rows: [24, 118, 47, 118, 24],
+        borderStyle: STANDARD_A3_FORM_BORDER,
+        cells: [
+          { ...formLabelCell('shooting_notes_label', 0, 0, '撮影画面処理', 1, { fontSizePx: 10, fontWeight: 700, horizontalAlign: 'left', verticalAlign: 'middle', paddingPx: 2 }), border: false },
+          { cellId: 'shooting_notes_box_1', row: 1, column: 0, kind: 'annotation' },
+          { cellId: 'shooting_notes_box_2', row: 3, column: 0, kind: 'annotation' },
+        ],
+      },
     },
     {
       regionId: 'top_count_table_area',
       type: 'count-table',
       label: '二原・動画・ペイント集計',
       rect: standardA3Rect(1405, 259, 313, 331),
-      usage: 'reference',
+      usage: 'input',
       inputKind: 'number',
+      form: {
+        columns: [57, 85, 86, 85],
+        rows: [24, 47, 24, 23, 24, 24, 23, 24, 24, 23, 47],
+        borderStyle: STANDARD_A3_FORM_BORDER,
+        projection: {
+          source: 'logical-paper-tracks',
+          nameLabel: 'NAME',
+          totalLabel: '計',
+          fieldPrefix: 'count',
+          scope: 'revision',
+          columns: [
+            { columnId: 'secondary', label: '二原', fieldSuffix: 'secondary' },
+            { columnId: 'video', label: '動画', fieldSuffix: 'video' },
+            { columnId: 'paint', label: 'ペイント', fieldSuffix: 'paint' },
+          ],
+        },
+      },
+    },
+    {
+      regionId: 'main_grid_outer_frame',
+      type: 'form-table',
+      label: 'タイムライン外枠',
+      rect: standardA3Rect(35, 637, 1683, 1772),
+      usage: 'render-only',
+      form: {
+        columns: [1],
+        rows: [1],
+        borderStyle: STANDARD_A3_FORM_BORDER,
+        cells: [{ cellId: 'main_grid_outer_box', row: 0, column: 0, kind: 'spacer' }],
+      },
     },
     {
       regionId: 'left_action_grid',
@@ -294,7 +458,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'main_action',
-      grid: { role: 'action', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: actionColumns },
+      grid: { role: 'action', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: actionColumns },
     },
     {
       regionId: 'left_sound_grid',
@@ -305,7 +469,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, columns: soundColumns },
+      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, lineRules: [{ axis: 'column', target: 'all', style: { pattern: 'dotted', widthPx: 1, color: '#727872' } }], columns: soundColumns },
     },
     {
       regionId: 'left_cell_grid',
@@ -316,7 +480,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'main_cell',
-      grid: { role: 'cell', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: cellColumns },
+      grid: { role: 'cell', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: cellColumns },
     },
     {
       regionId: 'left_camera_grid',
@@ -327,7 +491,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'camera',
       inputMode: 'timed-range',
       flowGroupId: 'main_camera',
-      grid: { role: 'camera', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, columns: cameraColumns },
+      grid: { role: 'camera', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, columns: cameraColumns },
     },
     {
       regionId: 'right_action_grid',
@@ -338,7 +502,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'main_action',
-      grid: { role: 'action', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: actionColumns },
+      grid: { role: 'action', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: actionColumns },
     },
     {
       regionId: 'right_sound_grid',
@@ -349,7 +513,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, columns: soundColumns },
+      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, lineRules: [{ axis: 'column', target: 'all', style: { pattern: 'dotted', widthPx: 1, color: '#727872' } }], columns: soundColumns },
     },
     {
       regionId: 'right_cell_grid',
@@ -360,7 +524,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'timing-event',
       inputMode: 'point-event',
       flowGroupId: 'main_cell',
-      grid: { role: 'cell', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: cellColumns },
+      grid: { role: 'cell', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }, typography: STANDARD_A3_TIMING_GRID_TYPOGRAPHY, columns: cellColumns },
     },
     {
       regionId: 'right_camera_grid',
@@ -371,7 +535,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'camera',
       inputMode: 'timed-range',
       flowGroupId: 'main_camera',
-      grid: { role: 'camera', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, columns: cameraColumns },
+      grid: { role: 'camera', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, columns: cameraColumns },
     },
   ],
 }

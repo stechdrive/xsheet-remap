@@ -15,11 +15,11 @@ import {
 } from './cleanSheetExport'
 
 describe('clean sheet export options', () => {
-  it('combines the template image and app drawing for a clean sheet export', () => {
+  it('uses the structured A3 drawing without the reference-only tracing image', () => {
     expect(defaultSheetImageExportOptions(createDefaultProject(), standardA3SheetTemplate, 'png')).toEqual({
       format: 'png',
       includePaperSheet: false,
-      includeTemplateImage: true,
+      includeTemplateImage: false,
       includeTemplateDrawing: true,
     })
   })
@@ -53,10 +53,9 @@ describe('clean sheet export options', () => {
       includeTemplateDrawing: true,
     }).map(({ id, name }) => [id, name])).toEqual([
       ['white', '白地'],
-      ['templateImage', 'テンプレ画像'],
       ['templateLines', 'テンプレ罫線'],
       ['templateLabels', 'テンプレラベル'],
-      ['metadataText', 'カット情報'],
+      ['metadataText', 'シート情報'],
       ['timingInput', 'ACTION/CELL入力'],
       ['soundCues', 'SOUND指示'],
       ['cameraCues', 'CAMERA指示'],

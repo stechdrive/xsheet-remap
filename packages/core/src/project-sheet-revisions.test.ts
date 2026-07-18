@@ -12,6 +12,7 @@ import {
   switchActiveSheetRevisionInProjectDocument,
   updateActiveCutProjectInDocument,
   updateLogicalSheetSettings,
+  updateSheetFormField,
 } from './index'
 
 describe('project sheet history', () => {
@@ -42,6 +43,24 @@ describe('project sheet history', () => {
     document = deleteSheetRevisionInProjectDocument(document, 'sheet_revision_1')
     expect(activeSheetRevisionFromDocument(document).reference).toBeUndefined()
     expect(() => deleteSheetRevisionInProjectDocument(document, 'sheet_revision_2')).toThrow('最後のシート')
+  })
+
+  it('copies revision fields on duplicate and clears only revision fields on blank history', () => {
+    let original = updateSheetFormField(createDefaultProject(), { fieldId: 'production.code', scope: 'production', valueType: 'text' }, 'P')
+    original = updateSheetFormField(original, { fieldId: 'output.sizeX', scope: 'cut', valueType: 'number' }, 1920)
+    original = updateSheetFormField(original, { fieldId: 'process.check', scope: 'revision', valueType: 'text' }, '作画')
+    let document = createProjectDocumentFromCutProject(original)
+
+    document = addSheetRevisionToProjectDocument(document, original, { name: '演出', mode: 'duplicate' })
+    expect(activeCutProjectFromDocument(document).sheetFormData).toEqual(original.sheetFormData)
+
+    const duplicate = activeCutProjectFromDocument(document)
+    document = addSheetRevisionToProjectDocument(document, duplicate, { name: '監督', mode: 'blank' })
+    expect(activeCutProjectFromDocument(document).sheetFormData).toEqual({
+      production: original.sheetFormData.production,
+      cut: original.sheetFormData.cut,
+      revision: {},
+    })
   })
 
   it('migrates schema 6 single-sheet documents into unnamed history', () => {

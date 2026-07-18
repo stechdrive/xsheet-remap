@@ -92,9 +92,41 @@ export function TemplateChromeLayer({
           </g>
         ))}
       </g>}
+      {showLines && model.formBoxes.map(box => (
+        <rect
+          key={box.key}
+          className="templateFormBox"
+          x={box.rect.x}
+          y={box.rect.y}
+          width={box.rect.w}
+          height={box.rect.h}
+          style={svgLineStyle(box.style)}
+        />
+      ))}
+      {showLabels && model.formLabels.map(label => (
+        <SheetSvgText
+          key={label.key}
+          className="templateFormLabel"
+          x={label.x}
+          y={label.y}
+          textAnchor={label.textAnchor}
+          dominantBaseline={label.dominantBaseline}
+          fontSizePx={label.fontSizePx}
+          fontWeight={label.fontWeight}
+          pageSize={model.pageSize}
+        >
+          {label.text}
+        </SheetSvgText>
+      ))}
       {model.headers.map(header => (
         <g key={header.regionId}>
           {showLines && <rect className="templateHeaderBox" style={{ fill: 'none' }} x={header.rect.x} y={header.rect.y} width={header.rect.w} height={header.rect.h} />}
+          {showLines && header.columnHeaderRect.h > 0 && (
+            <>
+              <rect className="templateHeaderBox" x={header.columnHeaderRect.x} y={header.columnHeaderRect.y} width={header.columnHeaderRect.w} height={header.columnHeaderRect.h} />
+              <path className="templateThinLine" d={header.columnBoundaries.map(x => `M ${x} ${header.columnHeaderRect.y} V ${header.columnHeaderRect.y + header.columnHeaderRect.h}`).join(' ')} />
+            </>
+          )}
           {showLabels && header.label ? <SheetSvgText className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSizePx={header.labelFontSizePx} pageSize={model.pageSize}>{header.label}</SheetSvgText> : null}
           {showLabels && header.columns.map(column => (
             <SheetSvgText key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" fontSizePx={column.fontSizePx} pageSize={model.pageSize}>{column.label}</SheetSvgText>
@@ -117,9 +149,9 @@ export function GridOverlayLayer({
   return (
     <g className={`gridOverlay gridOverlay-${model.role}`}>
       {showLines && model.rowPaths.map(path => (
-        <path key={path.className} className={path.className} d={path.d} />
+        <path key={`${path.className}:${path.d}`} className={path.className} d={path.d} style={path.style ? svgLineStyle(path.style) : undefined} />
       ))}
-      {showLines && model.columnPath && <path className={model.columnPath.className} d={model.columnPath.d} />}
+      {showLines && model.columnPath && <path className={model.columnPath.className} d={model.columnPath.d} style={model.columnPath.style ? svgLineStyle(model.columnPath.style) : undefined} />}
       {showLabels && model.labels.map(label => (
         <SheetSvgText
           key={label.key}
@@ -178,4 +210,14 @@ export function GridOverlayLayer({
       ))}
     </g>
   )
+}
+
+function svgLineStyle(style: { color: string; widthPx: number; dashPx: number[] }) {
+  return {
+    fill: 'none',
+    stroke: style.color,
+    strokeWidth: `${style.widthPx}px`,
+    strokeDasharray: style.dashPx.length > 0 ? style.dashPx.map(value => `${value}px`).join(' ') : undefined,
+    vectorEffect: 'non-scaling-stroke' as const,
+  }
 }

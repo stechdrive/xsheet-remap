@@ -1,5 +1,5 @@
 import type { Annotation, CellBinding, CspTrackSlot, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetRevisionDocument, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimelineInkMemo, TimingKey } from './types'
-import { sheetTemplatePresets, standardA3SheetTemplate, SHEET_TEMPLATE_SCHEMA_VERSION, type SheetTemplate } from './sheet-template'
+import { parseSheetTemplate, sheetTemplatePresets, standardA3SheetTemplate, type SheetTemplate } from './sheet-template'
 import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { migrateAnnotation } from './annotations'
 import { createDefaultSheetViewState, migrateSheetView } from './sheet-view'
@@ -8,6 +8,7 @@ import { DEFAULT_CSP_CELL_NAME_POLICY, LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION, P
 import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations, timingEventValueKind } from './project-shared'
 import { parseProjectExtensions } from './project-archive'
+import { normalizeSheetFormData, normalizeSheetFormFieldValues } from './sheet-form-data'
 
 export function createDefaultProjectDocument(): CutGroupProjectDocument {
   return createProjectDocumentFromCutProject(createDefaultProject(), { sheetTemplate: standardA3SheetTemplate })
@@ -50,7 +51,17 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     || Number(input.schemaVersion) > PROJECT_DOCUMENT_SCHEMA_VERSION) {
     throw new Error(`対応していないプロジェクトバージョンです: ${String(input.schemaVersion)}`)
   }
-  if (!isRecord(input.production) || !isSheetTemplateInput(input.sheetTemplate)) {
+  if (!isRecord(input.production) || !isRecord(input.sheetTemplate)) {
+    throw new Error('プロジェクトの制作情報またはシートテンプレートが不正です。')
+  }
+  let sheetTemplate: SheetTemplate
+  try {
+    const incomingTemplateVersion = input.sheetTemplate.schemaVersion
+    const parsedTemplate = parseSheetTemplate(input.sheetTemplate)
+    sheetTemplate = incomingTemplateVersion === 3 && parsedTemplate.templateId === standardA3SheetTemplate.templateId
+      ? standardA3SheetTemplate
+      : parsedTemplate
+  } catch {
     throw new Error('プロジェクトの制作情報またはシートテンプレートが不正です。')
   }
   if (!Array.isArray(input.cuts) || input.cuts.length === 0) {
@@ -67,6 +78,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     title: stringValue(document.production.title),
     episode: stringValue(document.production.episode),
     custom: isStringRecord(document.production.custom) ? { ...document.production.custom } : undefined,
+    sheetFields: normalizeSheetFormFieldValues(document.production.sheetFields),
   }
   const registeredCells = sharedRegisteredCellCatalogFromInput(document.registeredCells)
   const cuts = document.cuts
@@ -82,7 +94,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     activeCutId,
     production,
     studioPresetId: document.studioPresetId,
-    sheetTemplate: document.sheetTemplate,
+    sheetTemplate,
     productionStages: document.productionStages,
     correctionLayers: document.correctionLayers,
     assetRoot: document.assetRoot,
@@ -314,6 +326,7 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
   const project: CutProject = {
     ...base,
     ...input,
+    sheetFormData: normalizeSheetFormData(input.sheetFormData),
     logicalSheet: {
       ...base.logicalSheet,
       ...input.logicalSheet,
@@ -384,6 +397,7 @@ export function productionMetadataFromProject(project: CutProject, fallback: Pro
     ...fallback,
     title: project.cut.title ?? fallback.title,
     episode: project.cut.episode ?? fallback.episode,
+    sheetFields: { ...(fallback.sheetFields ?? {}), ...project.sheetFormData.production },
   }
 }
 
@@ -459,6 +473,11 @@ function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMet
         custom: cutInput.custom,
       }),
     },
+    sheetFormData: {
+      production: { ...baseProject.sheetFormData.production },
+      cut: {},
+      revision: {},
+    },
     sheetView: createDefaultSheetViewState(baseProject.sheetTemplateId ?? baseProject.sheetView.templateId),
     logicalSheet: {
       ...baseProject.logicalSheet,
@@ -514,6 +533,7 @@ function sheetRevisionFromProject(
     order,
     ...previous,
     metadata: withoutUndefined({ worker: project.cut.worker, custom: project.cut.custom }),
+    sheetFields: { ...project.sheetFormData.revision },
     sheetView: project.sheetView,
     logicalSheet,
     cspTrackSlots: project.cspTrackSlots,
@@ -524,11 +544,12 @@ function sheetRevisionFromProject(
   }
 }
 
-function cutSheetMetadataFromProject(project: Pick<CutProject, 'cut'>): CutSheetMetadata {
+function cutSheetMetadataFromProject(project: Pick<CutProject, 'cut' | 'sheetFormData'>): CutSheetMetadata {
   return withoutUndefined({
     scene: project.cut.scene,
     cut: project.cut.cut,
     cspTimelineName: project.cut.cspTimelineName,
+    sheetFields: { ...project.sheetFormData.cut },
   })
 }
 
@@ -538,6 +559,11 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
   const base = migrateProject({
     projectId: document.projectId,
     cut: cutMetadataWithProduction(cut.metadata, revision.metadata, document.production),
+    sheetFormData: {
+      production: normalizeSheetFormFieldValues(document.production.sheetFields),
+      cut: normalizeSheetFormFieldValues(cut.metadata.sheetFields),
+      revision: normalizeSheetFormFieldValues(revision.sheetFields),
+    },
     studioPresetId: document.studioPresetId,
     sheetTemplateId: document.sheetTemplate.templateId,
     productionStages: document.productionStages,
@@ -569,6 +595,7 @@ function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSh
     scene: stringValue(input.metadata.scene),
     cut: stringValue(input.metadata.cut),
     cspTimelineName: stringValue(input.metadata.cspTimelineName),
+    sheetFields: normalizeSheetFormFieldValues(input.metadata.sheetFields),
   }
   const revisions = Array.isArray(input.revisions)
     ? input.revisions.map((revision, index) => normalizeSheetRevisionDocument(revision, index))
@@ -608,6 +635,7 @@ function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): 
       worker: stringValue(input.metadata.worker),
       custom: isStringRecord(input.metadata.custom) ? { ...input.metadata.custom } : undefined,
     },
+    sheetFields: normalizeSheetFormFieldValues(input.sheetFields),
     sheetView: input.sheetView as unknown as SheetViewState,
     logicalSheet: input.logicalSheet as unknown as SheetRevisionDocument['logicalSheet'],
     cspTrackSlots: input.cspTrackSlots as CspTrackSlot[],
@@ -632,6 +660,7 @@ function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>): S
       worker: stringValue(metadata.worker),
       custom: isStringRecord(metadata.custom) ? { ...metadata.custom } : undefined,
     },
+    sheetFields: normalizeSheetFormFieldValues(input.sheetFields),
     sheetView: input.sheetView,
     logicalSheet: input.logicalSheet,
     cspTrackSlots: input.cspTrackSlots,
@@ -717,6 +746,7 @@ function duplicateRevisionFromSource(source: SheetRevisionDocument, revisionId: 
 function blankRevisionFromSource(source: SheetRevisionDocument, revisionId: string, order: number, name: string): SheetRevisionDocument {
   return {
     ...duplicateRevisionFromSource(source, revisionId, order, name),
+    sheetFields: {},
     logicalSheet: { ...cloneRevision(source).logicalSheet, events: [] },
     annotations: [],
     timelineMemos: [],
@@ -730,16 +760,6 @@ function cloneRevision(revision: SheetRevisionDocument): SheetRevisionDocument {
 
 function isCutGroupProjectDocumentInput(input: unknown): input is Partial<CutGroupProjectDocument> {
   return isRecord(input) && input.documentKind === PROJECT_DOCUMENT_KIND
-}
-
-function isSheetTemplateInput(input: unknown): input is SheetTemplate {
-  return isRecord(input)
-    && input.schemaVersion === SHEET_TEMPLATE_SCHEMA_VERSION
-    && typeof input.templateId === 'string'
-    && typeof input.name === 'string'
-    && isRecord(input.page)
-    && isRecord(input.defaults)
-    && Array.isArray(input.regions)
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {

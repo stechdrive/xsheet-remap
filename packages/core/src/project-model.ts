@@ -4,6 +4,7 @@ import { defaultLogicalSheetWorkRange } from './logical-sheet'
 import { createDefaultSheetViewState } from './sheet-view'
 import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, isSpecialTimingEvent, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
 import { DEFAULT_CSP_CELL_NAME_POLICY, ROOT_ASSET_BIN_ID } from './project-constants'
+import { createEmptySheetFormData } from './sheet-form-data'
 
 export interface CreateProjectOptions {
   projectId?: string
@@ -58,6 +59,7 @@ export function createProjectFromTrackLabels(
     schemaVersion: 3,
     projectId: options.projectId ?? 'project_sample',
     cut: options.cut ?? { cut: '001' },
+    sheetFormData: createEmptySheetFormData(),
     studioPresetId: options.studioPresetId,
     sheetTemplateId: options.sheetTemplateId ?? template.templateId,
     sheetView: createDefaultSheetViewState(template),

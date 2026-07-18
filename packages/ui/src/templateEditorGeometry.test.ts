@@ -32,6 +32,9 @@ describe('template editor geometry', () => {
           showOuterFrame: false,
           referenceRegions: full.chrome.referenceRegions.filter(item => item.regionId === region.regionId),
           headers: full.chrome.headers.filter(item => item.regionId === region.regionId),
+          formBoxes: full.chrome.formBoxes.filter(item => item.key.startsWith(`${region.regionId}:`)),
+          formLabels: full.chrome.formLabels.filter(item => item.key.startsWith(`${region.regionId}:`)),
+          formFields: full.chrome.formFields.filter(item => item.regionId === region.regionId),
         })
         expect(active?.gridOverlay).toEqual(full.gridOverlays.find(item => item.regionId === region.regionId) ?? null)
       }
@@ -198,11 +201,24 @@ describe('template editor geometry', () => {
     expect(grid?.frameNumbers[0].fontSizePx).toBeGreaterThan(0)
   })
 
-  it('omits paper SOUND overlays as before', () => {
+  it('draws paper SOUND as four dotted columns without horizontal frame lines', () => {
     const region = standardA3SheetTemplate.regions.find(item => item.grid?.role === 'sound')
     expect(region?.grid).toBeTruthy()
 
-    expect(buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, region!)).toBeNull()
+    const model = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, region!)
+    expect(model).not.toBeNull()
+    expect(model?.columnPath).toBeNull()
+    expect(model?.rowPaths).toHaveLength(1)
+    expect(model?.rowPaths[0]?.segments).toHaveLength(5)
+    expect(model?.rowPaths[0]?.style).toMatchObject({ pattern: 'dotted', widthPx: 1 })
+  })
+
+  it('projects A3 process and count fields into editable form cells', () => {
+    const model = buildTemplateChromeRenderModel(standardA3SheetTemplate)
+    expect(model.formFields.some(field => field.fieldId === 'process.animationDirector.final' && field.definition.scope === 'revision')).toBe(true)
+    expect(model.formFields.some(field => field.fieldId === 'output.sizeX' && field.definition.scope === 'cut')).toBe(true)
+    expect(model.formFields.filter(field => field.fieldId.startsWith('count.') && field.editable)).toHaveLength(27)
+    expect(model.formFields.filter(field => field.fieldId.startsWith('count.total.') && !field.editable)).toHaveLength(3)
   })
 
   it('hit-tests calibration target edges before template regions without blocking the target interior', () => {

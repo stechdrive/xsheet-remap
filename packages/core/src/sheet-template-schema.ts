@@ -1,6 +1,6 @@
 import type { CutMetadataFieldId, Id, LogicalTimelineSectionRole, PaperTrackName, SheetImageAlignment, SheetPageImageRef, SheetViewLayoutOverrides, SheetViewMode } from './types'
 
-export const SHEET_TEMPLATE_SCHEMA_VERSION = 3
+export const SHEET_TEMPLATE_SCHEMA_VERSION = 4
 
 export interface NormalizedRect {
   x: number
@@ -46,6 +46,33 @@ export interface SheetTemplateGridTypography {
   shrinkToFit?: boolean
 }
 
+export type SheetTemplateLinePattern = 'solid' | 'dotted' | 'dashed'
+
+export interface SheetTemplateLineStyle {
+  weight?: SheetTemplateGridRowLineWeight
+  pattern?: SheetTemplateLinePattern
+  color?: string
+  widthPx?: number
+  dashPx?: number[]
+}
+
+export interface SheetTemplateGridLineStyleRule {
+  axis: 'row' | 'column'
+  target: 'all' | 'inner' | 'outer' | 'indexes'
+  indexes?: number[]
+  every?: number
+  offset?: number
+  style?: SheetTemplateLineStyle
+}
+
+export interface SheetTemplateGridHeader {
+  topOffsetPx?: number
+  heightPx?: number
+  columnHeightPx?: number
+  showLabel?: boolean
+  showColumnLabels?: boolean
+}
+
 export interface SheetTemplateTrackProjection {
   source: 'logical-paper-tracks'
   startIndex?: number
@@ -88,12 +115,71 @@ export interface SheetTemplateGrid {
   pageBreakEvery?: number
   rowLineRules?: SheetTemplateGridRowLineRule[]
   rowLabelRules?: SheetTemplateGridRowLabelRule[]
+  /** When present, these rules replace the legacy automatic row/column line set. */
+  lineRules?: SheetTemplateGridLineStyleRule[]
+  header?: SheetTemplateGridHeader
   trackProjection?: SheetTemplateTrackProjection
   frameProjection?: SheetTemplateFrameProjection
   columnSizing?: SheetTemplateGridColumnSizing
   rowSizing?: SheetTemplateGridRowSizing
   typography?: SheetTemplateGridTypography
   columns: SheetTemplateColumn[]
+}
+
+export type SheetTemplateFieldScope = 'production' | 'cut' | 'revision'
+
+export type SheetTemplateFieldValueType = 'text' | 'multiline' | 'number' | 'boolean' | 'choice' | 'date' | 'duration'
+
+export interface SheetTemplateFieldDefinition {
+  fieldId: string
+  label: string
+  scope: SheetTemplateFieldScope
+  valueType: SheetTemplateFieldValueType
+  choices?: string[]
+  defaultValue?: string | number | boolean
+  builtinBinding?: {
+    target: 'cut-metadata'
+    field: CutMetadataFieldId
+    customKey?: string
+  }
+}
+
+export interface SheetTemplateFormCell {
+  cellId: string
+  row: number
+  column: number
+  rowSpan?: number
+  columnSpan?: number
+  kind: 'label' | 'field' | 'annotation' | 'spacer'
+  label?: string
+  fieldId?: string
+  border?: boolean
+  borderStyle?: SheetTemplateLineStyle
+  textStyle?: SheetTemplateTextStyle
+}
+
+export interface SheetTemplateTrackCountColumn {
+  columnId: string
+  label: string
+  fieldSuffix: string
+}
+
+export interface SheetTemplateTrackCountProjection {
+  source: 'logical-paper-tracks'
+  nameLabel?: string
+  totalLabel?: string
+  fieldPrefix: string
+  scope: SheetTemplateFieldScope
+  columns: SheetTemplateTrackCountColumn[]
+}
+
+export interface SheetTemplateForm {
+  columns: number[]
+  rows: number[]
+  fillEmptyCells?: boolean
+  cells?: SheetTemplateFormCell[]
+  borderStyle?: SheetTemplateLineStyle
+  projection?: SheetTemplateTrackCountProjection
 }
 
 export type SheetTemplateInputMode = 'point-event' | 'timed-range' | 'free-annotation' | 'reference'
@@ -156,6 +242,7 @@ export interface SheetTemplateRegion {
     | 'frame-guide'
     | 'count-table'
     | 'process-check-area'
+    | 'form-table'
     | 'annotation-area'
     | 'decorative'
   label: string
@@ -170,6 +257,7 @@ export interface SheetTemplateRegion {
   textStyleVariants?: {
     sharedCutNumbersVisible?: SheetTemplateTextStyle
   }
+  form?: SheetTemplateForm
 }
 
 export interface SheetTemplateTextStyle {
@@ -216,6 +304,7 @@ export interface SheetTemplateBottomTrackLabelsStyle {
 }
 
 export interface SheetTemplateStyle {
+  outerFrame?: { visible: boolean }
   bgBookLabel?: SheetTemplateBgBookLabelStyle
   bottomTrackLabels?: SheetTemplateBottomTrackLabelsStyle
   gridHeader?: SheetTemplateGridHeaderStyle
@@ -279,6 +368,8 @@ export interface SheetTemplate {
   layoutMode?: 'fixed-page' | 'paged-digital' | 'infinite-digital'
   naming?: SheetTemplateNaming
   defaultUnderlay?: SheetTemplateUnderlay
+  /** A reference-only underlay is available to template authoring/correction, but is not the canonical sheet drawing. */
+  defaultUnderlayUsage?: 'canvas' | 'reference-only'
   style?: SheetTemplateStyle
   calibration?: SheetTemplateCalibration
   viewLayout?: SheetViewLayout
@@ -311,6 +402,7 @@ export interface SheetTemplate {
     frameOrigin: number
     paperTracks: PaperTrackName[]
   }
+  fields?: SheetTemplateFieldDefinition[]
   regions: SheetTemplateRegion[]
 }
 

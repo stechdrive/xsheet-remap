@@ -367,6 +367,43 @@ export function TemplateWorkspace({
     setSelectedRegionId(regionId)
   }
 
+  function addFormRegion() {
+    const editableTemplate = ensureEditableTemplateDraft(template)
+    const index = editableTemplate.regions.filter(region => region.form).length + 1
+    const regionId = `custom_form_${editableTemplate.regions.length + 1}`
+    const fieldIds = [`custom.form.${index}.left`, `custom.form.${index}.right`]
+    const region: SheetTemplate['regions'][number] = {
+      regionId,
+      type: 'form-table',
+      label: `入力表 ${index}`,
+      rect: { x: 0.1, y: 0.08, w: 0.4, h: 0.08 },
+      usage: 'input',
+      inputKind: 'text',
+      form: {
+        columns: [1, 1],
+        rows: [1, 2],
+        fillEmptyCells: true,
+        borderStyle: { weight: 'thin', pattern: 'solid', widthPx: 1 },
+        cells: [
+          { cellId: 'label_left', row: 0, column: 0, kind: 'label', label: '項目1' },
+          { cellId: 'label_right', row: 0, column: 1, kind: 'label', label: '項目2' },
+          { cellId: 'field_left', row: 1, column: 0, kind: 'field', fieldId: fieldIds[0] },
+          { cellId: 'field_right', row: 1, column: 1, kind: 'field', fieldId: fieldIds[1] },
+        ],
+      },
+    }
+    setDraftTemplate({
+      ...editableTemplate,
+      fields: [
+        ...(editableTemplate.fields ?? []),
+        { fieldId: fieldIds[0], label: '項目1', scope: 'revision', valueType: 'text' },
+        { fieldId: fieldIds[1], label: '項目2', scope: 'revision', valueType: 'text' },
+      ],
+      regions: [...editableTemplate.regions, region],
+    })
+    setSelectedRegionId(regionId)
+  }
+
   async function handleLoadReferenceImage(files: FileList | null) {
     const file = files?.[0]
     if (!file) return
@@ -943,6 +980,9 @@ export function TemplateWorkspace({
         <ToolbarGroup>
           <Tooltip label={uiText.actions.addMetadataRegionTitle}>
             <button onClick={addMetadataRegion}>{uiText.actions.addMetadataRegion}</button>
+          </Tooltip>
+          <Tooltip label="罫線と入力欄を持つ構造化された表を追加します">
+            <button onClick={addFormRegion}>入力表を追加</button>
           </Tooltip>
           <Tooltip label={uiText.actions.addActionRegionTitle}>
             <button onClick={() => addGridRegion('action')}>{uiText.actions.addActionRegion}</button>

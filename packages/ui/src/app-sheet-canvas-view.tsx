@@ -449,6 +449,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     paperTracks={templateTrackNames}
                     onMetadataChange={props.onMetadataChange}
                     onDurationChange={props.onDurationChange}
+                    onFormFieldChange={props.onFormFieldChange}
                   />
                 )}
                 {props.editMode === 'text' && !props.editingTextAnnotationId && textCursorBadge?.pageId === page.pageId && (

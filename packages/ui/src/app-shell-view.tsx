@@ -1,4 +1,4 @@
-import { clearAnnotations, clearAnnotationsForPage, type SheetViewMode, sheetTemplatePresets, updateLogicalSheetSettings, updateSheetViewState } from '@xsheet-remap/core';
+import { clearAnnotations, clearAnnotationsForPage, type SheetViewMode, sheetTemplatePresets, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { APP_VERSION } from './appVersion';
 import { uiText, viewModeLabels } from './i18n';
 import { LevelCorrectionDialog } from './LevelCorrectionDialog';
@@ -353,6 +353,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onTextFontSizeChange={handleTextFontSizeChange}
             onMetadataChange={handleUpdateCutMetadata}
             onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
+            onFormFieldChange={(definition, value) => commitProject(updateSheetFormField(project, definition, value))}
             autoCalibrationRunning={autoCalibrationRunning}
             autoCalibrationMessage={autoCalibrationMessage}
             autoCalibrationOverlay={autoCalibrationOverlay}

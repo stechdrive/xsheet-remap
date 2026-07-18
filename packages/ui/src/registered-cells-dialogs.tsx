@@ -262,7 +262,7 @@ export function SheetImageExportDialog({
   onExport: (options: SheetImageExportOptions) => Promise<void>
 }) {
   const hasPaper = hasPaperSheetImages(project)
-  const hasTemplateImage = Boolean(template.defaultUnderlay)
+  const hasTemplateImage = Boolean(template.defaultUnderlay) && template.defaultUnderlayUsage !== 'reference-only'
   const [options, setOptions] = useState(() => normalizeSheetImageExportDialogOptions(initialOptions, hasPaper, hasTemplateImage))
   const [isSaving, setIsSaving] = useState(false)
 

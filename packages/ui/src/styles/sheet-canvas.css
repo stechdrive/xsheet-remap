@@ -2008,8 +2008,7 @@
 .timelineMemoText {
   paint-order: stroke fill;
   stroke: rgb(255 255 252 / 0.9);
-  stroke-width: 2px;
-  vector-effect: non-scaling-stroke;
+  stroke-width: 0.0012;
   pointer-events: visiblePainted;
   cursor: text;
 }

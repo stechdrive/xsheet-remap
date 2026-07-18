@@ -67,13 +67,20 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await createAnchoredMemoWithInkAndText('action', 4, 'ACTIONコメント', () => rightClickFrame('action', 'A', 4))
   await createAnchoredMemoWithInkAndText('sound', 10, 'セリフコメント', () => rightClickTimedRangeFrame('sound', 'sound_lane_1', 10))
   await createAnchoredMemoWithInkAndText('camera', 20, '撮影コメント', () => rightClickTimedRangeFrame('camera', 'camera_lane_1', 20))
-  const memoTextClipContract = await evaluatePage<{ directTextClips: number; clipPaths: number; viewports: number; textLayers: number }>(`({
+  const memoTextClipContract = await evaluatePage<{ directTextClips: number; clipPaths: number; viewports: number; textLayers: number; textStrokeWidths: number[] }>(`({
     directTextClips: document.querySelectorAll('.timelineMemoText[clip-path]').length,
     clipPaths: document.querySelectorAll('.timelineMemoLayer clipPath').length,
     viewports: document.querySelectorAll('.timelineMemoTextViewport').length,
-    textLayers: document.querySelectorAll('.timelineMemoTextLayer').length,
+    textLayers: document.querySelectorAll('.timelineMemoTextLayer[clip-path]').length,
+    textStrokeWidths: Array.from(document.querySelectorAll('.timelineMemoText')).map(element => Number.parseFloat(getComputedStyle(element).strokeWidth)),
   })`)
-  if (memoTextClipContract.directTextClips !== 0 || memoTextClipContract.clipPaths !== 0 || memoTextClipContract.viewports !== 0 || memoTextClipContract.textLayers < 3) {
+  if (
+    memoTextClipContract.directTextClips !== 0
+    || memoTextClipContract.clipPaths < 3
+    || memoTextClipContract.viewports !== 0
+    || memoTextClipContract.textLayers < 3
+    || memoTextClipContract.textStrokeWidths.some(width => !Number.isFinite(width) || width > 0.01)
+  ) {
     throw new Error(`timeline memo text clipping can obscure the sheet background: ${JSON.stringify(memoTextClipContract)}`)
   }
   checks.push('created text and handwritten anchored comments for ACTION, SOUND, and CAMERA content')

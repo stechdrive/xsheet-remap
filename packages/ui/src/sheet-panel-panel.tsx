@@ -18,7 +18,7 @@ import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, Text
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
-import { SheetHistoryBar } from './SheetHistoryBar'
+import { SheetHistoryRail } from './SheetHistoryRail'
 
 export function SheetPanel(props: {
   appKind: MainAppKind
@@ -578,17 +578,6 @@ export function SheetPanel(props: {
           <span className="muted calibrationStatus">{props.autoCalibrationMessage}</span>
         )}
       </div>
-      <SheetHistoryBar
-        revisions={props.sheetRevisions}
-        activeRevisionId={props.activeSheetRevisionId}
-        processSuggestions={props.project.correctionLayers.map(layer => layer.label).filter(Boolean)}
-        onSwitch={props.onSwitchSheetRevision}
-        onAdd={props.onAddSheetRevision}
-        onRename={props.onRenameSheetRevision}
-        onToggleProtected={props.onToggleSheetRevisionProtected}
-        onToggleSourceReference={props.onToggleSheetRevisionSourceReference}
-        onDelete={props.onDeleteSheetRevision}
-      />
       <div
         className={[
           'sheetWorkspace',
@@ -600,6 +589,7 @@ export function SheetPanel(props: {
           '--sheet-right-dock-width': paneLayout.right ? `${paneLayout.rightWidth}px` : '0px',
           '--sheet-left-resizer-width': '16px',
           '--sheet-right-resizer-width': '16px',
+          '--sheet-history-rail-width': '42px',
         } as WorkspaceStyle}
       >
         <div
@@ -760,28 +750,41 @@ export function SheetPanel(props: {
           }}
           onChange={leftWidth => setPaneLayout(current => ({ ...current, leftWidth }))}
         />
-        <SheetCanvas
-          {...props}
-          selectedTimelineMemoId={activeTimelineMemoId}
-          onCreateTimelineMemo={hit => {
-            const memoId = props.onCreateTimelineMemo(hit)
-            if (memoId) beginTimelineMemoEdit(memoId)
-          }}
-          onSelectTimelineMemo={memoId => memoId ? beginTimelineMemoEdit(memoId) : endTimelineMemoEdit()}
-          onDeleteTimelineMemo={memoId => {
-            props.onDeleteTimelineMemo(memoId)
-            endTimelineMemoEdit()
-          }}
-          setZoom={setClampedZoom}
-          onCreateStackGuideLabel={props.onCreateStackGuideLabel}
-          onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}
-          onMoveTimelineEvent={props.onMoveTimelineEvent}
-          onAddOverlayPaperTrack={props.onAddOverlayPaperTrack}
-          onUpdatePaperTrack={props.onUpdatePaperTrack}
-          onDeleteOverlayPaperTrack={props.onDeleteOverlayPaperTrack}
-          stackGuideInsertTool={stackGuideInsertTool}
-          onStackGuideInsertToolConsumed={() => setStackGuideInsertTool(null)}
-        />
+        <div className="sheetViewportFrame">
+          <SheetHistoryRail
+            revisions={props.sheetRevisions}
+            activeRevisionId={props.activeSheetRevisionId}
+            processSuggestions={props.project.correctionLayers.map(layer => layer.label).filter(Boolean)}
+            onSwitch={props.onSwitchSheetRevision}
+            onAdd={props.onAddSheetRevision}
+            onRename={props.onRenameSheetRevision}
+            onToggleProtected={props.onToggleSheetRevisionProtected}
+            onToggleSourceReference={props.onToggleSheetRevisionSourceReference}
+            onDelete={props.onDeleteSheetRevision}
+          />
+          <SheetCanvas
+            {...props}
+            selectedTimelineMemoId={activeTimelineMemoId}
+            onCreateTimelineMemo={hit => {
+              const memoId = props.onCreateTimelineMemo(hit)
+              if (memoId) beginTimelineMemoEdit(memoId)
+            }}
+            onSelectTimelineMemo={memoId => memoId ? beginTimelineMemoEdit(memoId) : endTimelineMemoEdit()}
+            onDeleteTimelineMemo={memoId => {
+              props.onDeleteTimelineMemo(memoId)
+              endTimelineMemoEdit()
+            }}
+            setZoom={setClampedZoom}
+            onCreateStackGuideLabel={props.onCreateStackGuideLabel}
+            onAssignAssetToStackGuideLabel={props.onAssignAssetToStackGuideLabel}
+            onMoveTimelineEvent={props.onMoveTimelineEvent}
+            onAddOverlayPaperTrack={props.onAddOverlayPaperTrack}
+            onUpdatePaperTrack={props.onUpdatePaperTrack}
+            onDeleteOverlayPaperTrack={props.onDeleteOverlayPaperTrack}
+            stackGuideInsertTool={stackGuideInsertTool}
+            onStackGuideInsertToolConsumed={() => setStackGuideInsertTool(null)}
+          />
+        </div>
         <PanelResizeHandle
           label={uiText.layout.resizeImageAssetPane}
           min={SHEET_RIGHT_PANE_MIN_WIDTH}

@@ -256,9 +256,10 @@ async function runSheetOpsScenario(scenario: SheetOpsScenarioId): Promise<void> 
 
 async function verifySheetHistoryScenario(): Promise<void> {
   await waitForPageCondition(() => {
-    const bar = document.querySelector('.sheetHistoryBar')
+    const rail = document.querySelector('.sheetHistoryRail')
     const tabs = document.querySelectorAll('.sheetHistoryTab')
-    return bar?.textContent?.includes('シート履歴') === true
+    return rail?.getAttribute('aria-label') === 'シート履歴'
+      && document.querySelector('.sheetHistoryTabs')?.getAttribute('aria-orientation') === 'vertical'
       && tabs.length === 1
       && tabs[0]?.getAttribute('aria-label') === '現在のシート'
   }, 'unnamed initial sheet history tab')

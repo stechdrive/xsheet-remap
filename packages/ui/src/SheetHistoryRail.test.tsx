@@ -1,17 +1,17 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDefaultProjectDocument } from '@xsheet-remap/core'
-import { SheetHistoryBar } from './SheetHistoryBar'
+import { SheetHistoryRail } from './SheetHistoryRail'
 
 afterEach(cleanup)
 
-describe('SheetHistoryBar', () => {
+describe('SheetHistoryRail', () => {
   it('shows the unnamed first sheet as an accessible tab and switches directly', () => {
     const document = createDefaultProjectDocument()
     const revision = document.cuts[0]!.revisions[0]!
     const onSwitch = vi.fn()
     render(
-      <SheetHistoryBar
+      <SheetHistoryRail
         revisions={[revision, { ...revision, revisionId: 'sheet_revision_2', order: 1, name: '演出' }]}
         activeRevisionId={revision.revisionId}
         processSuggestions={['作画', '演出']}
@@ -24,6 +24,8 @@ describe('SheetHistoryBar', () => {
       />,
     )
     expect(screen.getAllByRole('tab')).toHaveLength(2)
+    expect(screen.getByRole('tablist', { name: 'シート履歴' }).getAttribute('aria-orientation')).toBe('vertical')
+    expect(screen.getByRole('button', { name: 'シートを追加' }).closest('[role="tablist"]')).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: '演出' }))
     expect(onSwitch).toHaveBeenCalledWith('sheet_revision_2')
   })
@@ -32,7 +34,7 @@ describe('SheetHistoryBar', () => {
     const revision = createDefaultProjectDocument().cuts[0]!.revisions[0]!
     const onAdd = vi.fn()
     render(
-      <SheetHistoryBar
+      <SheetHistoryRail
         revisions={[revision]}
         activeRevisionId={revision.revisionId}
         processSuggestions={[]}

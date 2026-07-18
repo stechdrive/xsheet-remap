@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent } f
 import type { SheetRevisionDocument } from '@xsheet-remap/core'
 import { Tooltip } from './Tooltip'
 
-type SheetHistoryBarProps = {
+type SheetHistoryRailProps = {
   revisions: SheetRevisionDocument[]
   activeRevisionId: string
   processSuggestions: string[]
@@ -16,14 +16,13 @@ type SheetHistoryBarProps = {
 
 type ContextState = { revisionId: string; x: number; y: number } | null
 
-export function SheetHistoryBar(props: SheetHistoryBarProps) {
+export function SheetHistoryRail(props: SheetHistoryRailProps) {
   const [addOpen, setAddOpen] = useState(false)
   const [name, setName] = useState('')
   const [mode, setMode] = useState<'duplicate' | 'blank'>('duplicate')
   const [showSourceReference, setShowSourceReference] = useState(true)
   const [context, setContext] = useState<ContextState>(null)
   const contextRef = useRef<HTMLDivElement | null>(null)
-  const activeRevision = props.revisions.find(revision => revision.revisionId === props.activeRevisionId) ?? props.revisions[0]
   const contextRevision = context
     ? props.revisions.find(revision => revision.revisionId === context.revisionId)
     : undefined
@@ -75,9 +74,8 @@ export function SheetHistoryBar(props: SheetHistoryBarProps) {
   }
 
   return (
-    <div className="sheetHistoryBar" aria-label="シート履歴">
-      <span className="sheetHistoryLabel">シート履歴</span>
-      <div className="sheetHistoryTabs" role="tablist" aria-label="シート履歴">
+    <div className="sheetHistoryRail" aria-label="シート履歴">
+      <div className="sheetHistoryTabs" role="tablist" aria-label="シート履歴" aria-orientation="vertical">
         {props.revisions.map((revision, index) => {
           const active = revision.revisionId === props.activeRevisionId
           const reference = revision.reference
@@ -104,12 +102,13 @@ export function SheetHistoryBar(props: SheetHistoryBarProps) {
               {overflowFrames > 0 && <span className="sheetHistoryReferenceOverflow">下敷き +{overflowFrames}K</span>}
             </button>
           )
-          return revision.name ? tab : <Tooltip key={revision.revisionId} label={index === 0 ? '現在のシート' : '名前のないシート'}>{tab}</Tooltip>
+          const tooltipLabel = revision.name || (index === 0 ? '現在のシート' : '名前のないシート')
+          return <Tooltip key={revision.revisionId} label={tooltipLabel}>{tab}</Tooltip>
         })}
+        <Tooltip label="シートを追加">
+          <button type="button" className="sheetHistoryAddButton" onClick={openAdd} aria-label="シートを追加">＋</button>
+        </Tooltip>
       </div>
-      <Tooltip label="シートを追加">
-        <button type="button" className="sheetHistoryAddButton" onClick={openAdd} aria-label="シートを追加">＋</button>
-      </Tooltip>
 
       {context && contextRevision && (
         <div
@@ -182,7 +181,6 @@ export function SheetHistoryBar(props: SheetHistoryBarProps) {
           </form>
         </div>
       )}
-      {activeRevision?.protected && <span className="sheetHistoryProtectedNotice">編集保護中</span>}
     </div>
   )
 }

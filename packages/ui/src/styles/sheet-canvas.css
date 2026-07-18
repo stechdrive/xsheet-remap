@@ -18,17 +18,33 @@
   grid-column: 2;
 }
 
-.sheetWorkspace > .sheetViewport {
+.sheetWorkspace > .sheetViewport,
+.sheetWorkspace > .sheetViewportFrame {
   grid-column: 3;
 }
 
 .sheetWorkspace > .sheetViewport + .panelResizeRail,
-.sheetWorkspace > .sheetViewport + .panelResizeHandle {
+.sheetWorkspace > .sheetViewport + .panelResizeHandle,
+.sheetWorkspace > .sheetViewportFrame + .panelResizeRail,
+.sheetWorkspace > .sheetViewportFrame + .panelResizeHandle {
   grid-column: 4;
 }
 
 .sheetWorkspace > .sheetDockRight {
   grid-column: 5;
+}
+
+.sheetViewportFrame {
+  display: grid;
+  grid-template-columns: var(--sheet-history-rail-width, 42px) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sheetViewportFrame > .sheetViewport {
+  min-width: 0;
+  min-height: 0;
 }
 
 .templateDock {

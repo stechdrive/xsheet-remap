@@ -15,6 +15,7 @@ export function AnnotationTextLayer({
   annotations,
   selectedAnnotationId,
   editingAnnotationId,
+  inputBlocked = false,
   pageSize,
   zoom,
   onSelect,
@@ -26,6 +27,7 @@ export function AnnotationTextLayer({
   annotations: AnnotationText[]
   selectedAnnotationId: string | null
   editingAnnotationId: string | null
+  inputBlocked?: boolean
   pageSize: AnnotationTextPageSize
   zoom: number
   onSelect: (annotationId: string) => void
@@ -35,7 +37,7 @@ export function AnnotationTextLayer({
   onCancel: (annotationId: string) => void
 }) {
   return (
-    <div className="annotationTextLayer">
+    <div className={inputBlocked ? 'annotationTextLayer inputBlocked' : 'annotationTextLayer'}>
       {annotations.map(annotation => (
         <AnnotationTextItem
           key={annotation.annotationId}

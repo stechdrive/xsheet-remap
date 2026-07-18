@@ -96,4 +96,28 @@ describe('SheetMetadataEditor page fields', () => {
     expect(editor.classList.contains('sheetInlineMultilineTextarea')).toBe(false)
     expect(screen.getByRole('dialog', { name: 'MEMOを編集' }).classList.contains('sheetMetadataEditorPopover')).toBe(true)
   })
+
+  it('withdraws all metadata hotspots while another sheet interaction owns the pointer', () => {
+    const project = createDefaultProject()
+    const [page] = createSheetPages(standardA3SheetTemplate, project.logicalSheet.durationFrames)
+
+    render(
+      <SheetMetadataEditor
+        project={project}
+        template={standardA3SheetTemplate}
+        page={page!}
+        pageWidth={877}
+        pageHeight={1241}
+        displayDurationFrames={project.logicalSheet.durationFrames}
+        paperTracks={standardA3SheetTemplate.defaults.paperTracks}
+        interactionBlocked
+        onMetadataChange={vi.fn()}
+        onDurationChange={vi.fn()}
+        onFormFieldChange={vi.fn()}
+      />,
+    )
+
+    expect(document.querySelector('.sheetMetadataEditorLayer')?.classList.contains('interactionBlocked')).toBe(true)
+    expect((screen.getByRole('button', { name: 'MEMOを編集' }) as HTMLButtonElement).disabled).toBe(true)
+  })
 })

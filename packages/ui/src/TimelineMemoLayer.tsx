@@ -84,6 +84,8 @@ export function TimelineMemoLayer({
   const anchorGroups = new Map<string, {
     anchorCell: NonNullable<ReturnType<typeof timelineMemoAnchorCellForPage>>
     anchorFrame: number
+    anchorRole: TimelineInkMemo['anchor']['role']
+    anchorPaperTrack?: string
     presentation: SheetMemoAnchorPresentation
     memoIds: string[]
   }>()
@@ -93,7 +95,14 @@ export function TimelineMemoLayer({
     const key = [anchorCell.regionId, memo.anchor.role, memo.anchor.frame, memo.anchor.paperTrack ?? '', memo.anchor.laneId ?? ''].join(':')
     const existing = anchorGroups.get(key)
     if (existing) existing.memoIds.push(memo.memoId)
-    else anchorGroups.set(key, { anchorCell, anchorFrame: memo.anchor.frame, presentation: memoAnchorPresentation(memo), memoIds: [memo.memoId] })
+    else anchorGroups.set(key, {
+      anchorCell,
+      anchorFrame: memo.anchor.frame,
+      anchorRole: memo.anchor.role,
+      anchorPaperTrack: memo.anchor.paperTrack,
+      presentation: memoAnchorPresentation(memo),
+      memoIds: [memo.memoId],
+    })
   }
   const selectedRender = renderedMemoSegments.find(item => item.memo.memoId === selectedMemoId)
   const selectedAnchorGroup = [...anchorGroups.values()].find(group => selectedMemoId && group.memoIds.includes(selectedMemoId))
@@ -359,6 +368,8 @@ export function TimelineMemoLayer({
             data-timeline-memo-id={selectedMemoId && group.memoIds.includes(selectedMemoId) ? selectedMemoId : undefined}
             data-timeline-memo-ids={group.memoIds.join(' ')}
             data-timeline-memo-anchor-frame={group.anchorFrame}
+            data-timeline-memo-anchor-role={group.anchorRole}
+            data-timeline-memo-anchor-track={group.anchorPaperTrack}
             data-timeline-memo-count={memoCount}
             aria-label={memoCount === 1 ? 'メモのアンカー' : `メモのアンカー ${memoCount}件`}
           >

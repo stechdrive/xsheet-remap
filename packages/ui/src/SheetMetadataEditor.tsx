@@ -27,6 +27,7 @@ export function SheetMetadataEditor({
   pageHeight,
   displayDurationFrames,
   paperTracks,
+  interactionBlocked = false,
   onMetadataChange,
   onDurationChange,
   onFormFieldChange,
@@ -38,6 +39,7 @@ export function SheetMetadataEditor({
   pageHeight: number
   displayDurationFrames: number
   paperTracks: string[]
+  interactionBlocked?: boolean
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
   onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean, pageId: string) => void
@@ -175,9 +177,16 @@ export function SheetMetadataEditor({
   }
 
   return (
-    <div className="sheetMetadataEditorLayer" aria-label={`${page.pageIndex + 1}ページのシート情報編集`}>
+    <div
+      className={[
+        'sheetMetadataEditorLayer',
+        interactionBlocked ? 'interactionBlocked' : '',
+        editingRegionId ? 'editing' : '',
+      ].filter(Boolean).join(' ')}
+      aria-label={`${page.pageIndex + 1}ページのシート情報編集`}
+    >
       {regionLayouts.map(({ region, rect }) => (
-        <TooltipTarget key={region.regionId} label={`${region.label}: ダブルクリックまたはEnterで編集`} disabled={editingRegionId === region.regionId}>
+        <TooltipTarget key={region.regionId} label={`${region.label}: ダブルクリックまたはEnterで編集`} disabled={interactionBlocked || editingRegionId === region.regionId}>
           {tooltipProps => (
             <button
               type="button"
@@ -187,6 +196,7 @@ export function SheetMetadataEditor({
               aria-haspopup="dialog"
               aria-expanded={editingRegionId === region.regionId}
               aria-keyshortcuts="Enter F2"
+              disabled={interactionBlocked}
               {...tooltipProps}
               onPointerDown={event => {
                 tooltipProps.onPointerDown()
@@ -223,7 +233,7 @@ export function SheetMetadataEditor({
           ? `${field.definition.label}: 文字が欄内に収まりません。ダブルクリックまたはEnterで編集`
           : `${field.definition.label}: ダブルクリックまたはEnterで編集`
         return (
-        <TooltipTarget key={field.key} label={tooltipLabel} disabled={editingRegionId === field.key}>
+        <TooltipTarget key={field.key} label={tooltipLabel} disabled={interactionBlocked || editingRegionId === field.key}>
           {tooltipProps => (
             <button
               type="button"
@@ -234,6 +244,7 @@ export function SheetMetadataEditor({
               aria-haspopup="dialog"
               aria-expanded={editingRegionId === field.key}
               aria-keyshortcuts="Enter F2"
+              disabled={interactionBlocked}
               {...tooltipProps}
               onPointerDown={event => {
                 tooltipProps.onPointerDown()

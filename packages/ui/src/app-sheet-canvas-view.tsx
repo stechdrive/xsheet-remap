@@ -19,6 +19,7 @@ import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { TimingEventSymbol } from './TimingEventSymbol'
 import { continuationRenderItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
+import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -55,6 +56,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     top: `${Math.max(8, Math.min(cameraCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
   } : undefined
   const contextTimelineMemoIds = contextMenu?.timelineMemoIds ?? []
+  const interactionOwner = resolveSheetInteractionOwner({
+    editMode: props.editMode,
+    selectedTimelineMemoId: props.selectedTimelineMemoId,
+    editingTextAnnotationId: props.editingTextAnnotationId,
+  })
+  const pageAnnotationCaptureActive = interactionOwner === 'page-annotation'
+  const semanticHotspotsBlocked = isDirectAnnotationMode(props.editMode)
 
   return (
     <div
@@ -150,6 +158,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             >
               <div
                 className="sheetPageSurface"
+                data-sheet-interaction-owner={interactionOwner}
                 style={{ width: `${sheetPageWidth}px`, height: `${sheetPageHeight}px` }}
               >
                 <svg
@@ -431,6 +440,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     annotations={textAnnotations}
                     selectedAnnotationId={props.selectedTextAnnotationId}
                     editingAnnotationId={props.editingTextAnnotationId}
+                    inputBlocked={semanticHotspotsBlocked && interactionOwner !== 'page-text-editor'}
                     pageSize={sheetPageSize}
                     zoom={zoom}
                     onSelect={props.onSelectTextAnnotation}
@@ -449,10 +459,37 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     pageHeight={sheetPageHeight}
                     displayDurationFrames={displayDurationFrames}
                     paperTracks={templateTrackNames}
+                    interactionBlocked={semanticHotspotsBlocked}
                     onMetadataChange={props.onMetadataChange}
                     onDurationChange={props.onDurationChange}
                     onFormFieldChange={props.onFormFieldChange}
                   />
+                )}
+                {!isCalibrating && pageAnnotationCaptureActive && (
+                  <svg
+                    viewBox="0 0 1 1"
+                    preserveAspectRatio="none"
+                    className="pageAnnotationInputSurface"
+                    data-page-id={page.pageId}
+                    data-annotation-tool={props.editMode}
+                    style={{ width: `${sheetPageWidth}px`, height: `${sheetPageHeight}px` }}
+                    onPointerDown={event => handlePointerDown(event, page)}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={() => {
+                      setDraftStroke(null)
+                      setDraftRange(null)
+                      setTimelineEventDrag(null)
+                      props.onStatusHint('sheet-drag', null)
+                      clearHover()
+                    }}
+                    onPointerLeave={clearHover}
+                    onDragStart={event => event.preventDefault()}
+                    onContextMenu={event => event.preventDefault()}
+                    aria-label={`${page.pageIndex + 1}ページの注釈入力`}
+                  >
+                    <rect x="0" y="0" width="1" height="1" fill="transparent" />
+                  </svg>
                 )}
                 {props.editMode === 'text' && !props.editingTextAnnotationId && textCursorBadge?.pageId === page.pageId && (
                   <div

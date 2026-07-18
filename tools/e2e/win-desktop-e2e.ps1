@@ -34,6 +34,7 @@ $sheetOpsScenarios = @(
   "camera-ops",
   "timeline-ripple",
   "timeline-memo"
+  "annotation-interactions"
   "sheet-history"
 )
 $supportedScenarios = @("launch", "full-default-a3", "auto-calibration") + $sheetOpsScenarios

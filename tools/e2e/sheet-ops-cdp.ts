@@ -9,6 +9,8 @@ import {
   type SheetTimingRole,
 } from '@xsheet-remap/core'
 import { assertSelectorsContributePaint } from './visual-paint-contract'
+import { verifyAnnotationInteractionScenario } from './scenarios/annotation-interactions'
+import { CdpClient } from './cdp-client'
 
 interface ClientPoint {
   x: number
@@ -53,54 +55,6 @@ interface CdpListTarget {
   webSocketDebuggerUrl?: string
 }
 
-interface CdpResponse<T = unknown> {
-  id?: number
-  result?: T
-  error?: { message: string; data?: string }
-}
-
-class CdpClient {
-  private nextId = 1
-  private pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
-
-  private constructor(private readonly socket: WebSocket) {
-    socket.addEventListener('message', event => {
-      const message = JSON.parse(String(event.data)) as CdpResponse
-      if (typeof message.id !== 'number') return
-      const pending = this.pending.get(message.id)
-      if (!pending) return
-      this.pending.delete(message.id)
-      if (message.error) {
-        pending.reject(new Error(`${message.error.message}${message.error.data ? `: ${message.error.data}` : ''}`))
-      } else {
-        pending.resolve(message.result)
-      }
-    })
-  }
-
-  static connect(url: string): Promise<CdpClient> {
-    return new Promise((resolve, reject) => {
-      const socket = new WebSocket(url)
-      socket.addEventListener('open', () => resolve(new CdpClient(socket)), { once: true })
-      socket.addEventListener('error', () => reject(new Error(`failed to connect CDP websocket: ${url}`)), { once: true })
-    })
-  }
-
-  send<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const id = this.nextId
-    this.nextId += 1
-    const payload = JSON.stringify({ id, method, params })
-    return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: value => resolve(value as T), reject })
-      this.socket.send(payload)
-    })
-  }
-
-  close(): void {
-    this.socket.close()
-  }
-}
-
 const args = parseArgs(process.argv.slice(2))
 const port = Number(args.port)
 if (!Number.isInteger(port) || port <= 0) throw new Error('--port is required')
@@ -123,6 +77,7 @@ const sheetOpsScenarioIds = [
   'camera-ops',
   'timeline-ripple',
   'timeline-memo',
+  'annotation-interactions',
   'sheet-history',
 ] as const
 type SheetOpsScenarioId = typeof sheetOpsScenarioIds[number]
@@ -248,6 +203,35 @@ async function runSheetOpsScenario(scenario: SheetOpsScenarioId): Promise<void> 
       return
     case 'timeline-memo':
       await verifyTimelineMemoEditing()
+      return
+    case 'annotation-interactions':
+      await verifyAnnotationInteractionScenario({
+        checks,
+        clickFrame,
+        keyPress,
+        waitForEventAt,
+        dragSoundRange,
+        waitForSelector,
+        setReactFieldValue,
+        clickButtonByText,
+        waitForSoundCueAt,
+        clientPointsForTimedRange,
+        mouseDrag,
+        waitForCameraCueAt,
+        rightClickFrame,
+        rightClickTimedRangeFrame,
+        evaluatePage,
+        waitForPageCondition,
+        clickMenuItem,
+        selectorInsetDrag,
+        hoverSelector,
+        centerOfSelector,
+        inputPointForSelector,
+        waitForCondition,
+        mouseClick,
+        mouseDoubleClick,
+        clientSend,
+      })
       return
     case 'sheet-history':
       await verifySheetHistoryScenario()

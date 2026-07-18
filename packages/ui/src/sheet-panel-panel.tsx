@@ -8,7 +8,7 @@ import { AssetTray, type DropDiagnosticReport } from './AssetBrowser'
 import { sortedCorrectionLayers } from './sheetAssets'
 import { SHEET_ZOOM_MAX, SHEET_ZOOM_MIN } from './sheetConstants'
 import { clampSheetZoom } from './sheetInteraction'
-import { Tooltip, TooltipTarget } from './Tooltip'
+import { Tooltip, TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
@@ -19,6 +19,7 @@ import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
 import { SheetHistoryRail } from './SheetHistoryRail'
+import { suppressSheetTooltips } from './sheetInteractionOwnership'
 
 export function SheetPanel(props: {
   appKind: MainAppKind
@@ -404,6 +405,7 @@ export function SheetPanel(props: {
   }, [autoFitZoomEnabled, displayDurationFrames, props.template, sheetPageSize, updateSheetZoom])
 
   return (
+    <TooltipSuppressionProvider suppressed={suppressSheetTooltips(editMode)}>
     <section className="panel sheetLayout">
       <div className="sheetToolbar">
         <ToolbarGroup className="sheetToolbarGroup sheetTimingGroup">
@@ -911,6 +913,7 @@ export function SheetPanel(props: {
         />
       )}
     </section>
+    </TooltipSuppressionProvider>
   )
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.589",
+  "version": "0.1.590",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.7.0",
@@ -67,6 +67,8 @@
     "e2e:desktop:win:timeline-ripple:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario timeline-ripple -Build",
     "e2e:desktop:win:timeline-memo": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario timeline-memo",
     "e2e:desktop:win:timeline-memo:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario timeline-memo -Build",
+    "e2e:desktop:win:annotation-interactions": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario annotation-interactions",
+    "e2e:desktop:win:annotation-interactions:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario annotation-interactions -Build",
     "e2e:desktop:win:sheet-history": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sheet-history",
     "e2e:desktop:win:sheet-history:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario sheet-history -Build",
     "e2e:desktop:win:real-dnd": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-real-dnd.ps1 -TestCase registered-cell",

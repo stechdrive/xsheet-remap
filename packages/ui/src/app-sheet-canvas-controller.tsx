@@ -1092,6 +1092,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
 
   function handleSoundCuePointerDown(event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: SoundCueDragMode) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
+    if (props.editMode === 'pen' || props.editMode === 'eraser' || props.editMode === 'text' || props.editMode === 'calibrate') return
     event.preventDefault()
     event.stopPropagation()
     clearHover()
@@ -1182,6 +1183,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
 
   function handleCameraCuePointerDown(event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: CameraCueDragMode, geometry?: CameraCueDragGeometry) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
+    if (props.editMode === 'pen' || props.editMode === 'eraser' || props.editMode === 'text' || props.editMode === 'calibrate') return
     event.preventDefault()
     event.stopPropagation()
     clearHover()
@@ -1448,7 +1450,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     page: SheetPage,
   ) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
-    if (props.editMode === 'pen' || props.editMode === 'eraser' || props.editMode === 'calibrate') return
+    if (props.editMode === 'pen' || props.editMode === 'eraser' || props.editMode === 'text' || props.editMode === 'calibrate') return
     if (spacePanReadyRef.current) return
     const sourceHit = timelineEventHitForPage(timelineEvent, page)
     if (!sourceHit?.paperTrack) return

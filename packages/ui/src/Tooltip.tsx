@@ -1,5 +1,7 @@
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -41,6 +43,23 @@ type TooltipTargetProps = {
   disabled?: boolean
 }
 
+const TooltipSuppressionContext = createContext(false)
+
+export function TooltipSuppressionProvider({
+  suppressed,
+  children,
+}: {
+  suppressed: boolean
+  children: ReactNode
+}) {
+  const parentSuppressed = useContext(TooltipSuppressionContext)
+  return (
+    <TooltipSuppressionContext.Provider value={parentSuppressed || suppressed}>
+      {children}
+    </TooltipSuppressionContext.Provider>
+  )
+}
+
 export type TooltipTriggerProps = {
   'aria-describedby'?: string
   onPointerEnter: (event: PointerEvent<HTMLElement>) => void
@@ -78,6 +97,8 @@ export function TooltipTarget({ label, children, delayMs = TOOLTIP_DELAY_MS, dis
 }
 
 function useTooltip(label: string, delayMs: number, disabled: boolean) {
+  const contextSuppressed = useContext(TooltipSuppressionContext)
+  const isDisabled = disabled || contextSuppressed
   const tooltipId = useId()
   const showTimerRef = useRef<number | null>(null)
   const [anchorRect, setAnchorRect] = useState<TooltipAnchorRect | null>(null)
@@ -95,18 +116,21 @@ function useTooltip(label: string, delayMs: number, disabled: boolean) {
 
   const showForElement = useCallback((element: HTMLElement) => {
     clearShowTimer()
-    if (!label || disabled) return
+    if (!label || isDisabled) return
     showTimerRef.current = window.setTimeout(() => {
       showTimerRef.current = null
       setAnchorRect(element.getBoundingClientRect())
     }, delayMs)
-  }, [clearShowTimer, delayMs, disabled, label])
+  }, [clearShowTimer, delayMs, isDisabled, label])
 
   useEffect(() => () => clearShowTimer(), [clearShowTimer])
 
   useEffect(() => {
-    if (disabled || !label) clearShowTimer()
-  }, [clearShowTimer, disabled, label])
+    if (!isDisabled && label) return undefined
+    clearShowTimer()
+    const dismissTimer = window.setTimeout(() => setAnchorRect(null), 0)
+    return () => window.clearTimeout(dismissTimer)
+  }, [clearShowTimer, isDisabled, label])
 
   useEffect(() => {
     if (!anchorRect) return undefined
@@ -127,7 +151,7 @@ function useTooltip(label: string, delayMs: number, disabled: boolean) {
     }
   }, [anchorRect, hide])
 
-  const tooltip = anchorRect && !disabled
+  const tooltip = anchorRect && !isDisabled
     ? createPortal(
       <TooltipBubble id={tooltipId} label={label} anchorRect={anchorRect} />,
       document.body,
@@ -137,7 +161,7 @@ function useTooltip(label: string, delayMs: number, disabled: boolean) {
   return {
     tooltip,
     triggerProps: {
-      'aria-describedby': anchorRect && !disabled ? tooltipId : undefined,
+      'aria-describedby': anchorRect && !isDisabled ? tooltipId : undefined,
       onPointerEnter: (event: PointerEvent<HTMLElement>) => showForElement(event.currentTarget),
       onPointerLeave: hide,
       onPointerDown: hide,

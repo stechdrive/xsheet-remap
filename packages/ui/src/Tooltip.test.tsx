@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { calculateTooltipPosition, TooltipTarget } from './Tooltip'
+import { calculateTooltipPosition, TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
 
 afterEach(() => {
   cleanup()
@@ -97,6 +97,31 @@ describe('TooltipTarget', () => {
     act(() => vi.runAllTimers())
 
     expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('dismisses an open tooltip immediately when an interaction suppresses the subtree', () => {
+    vi.useFakeTimers()
+    const { rerender } = render(
+      <TooltipSuppressionProvider suppressed={false}>
+        <TooltipTarget label="操作中は隠す" delayMs={0}>
+          {tooltipProps => <button type="button" {...tooltipProps}>対象</button>}
+        </TooltipTarget>
+      </TooltipSuppressionProvider>,
+    )
+    fireEvent.pointerEnter(screen.getByRole('button', { name: '対象' }))
+    act(() => vi.runAllTimers())
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+
+    rerender(
+      <TooltipSuppressionProvider suppressed>
+        <TooltipTarget label="操作中は隠す" delayMs={0}>
+          {tooltipProps => <button type="button" {...tooltipProps}>対象</button>}
+        </TooltipTarget>
+      </TooltipSuppressionProvider>,
+    )
+
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(screen.getByRole('button', { name: '対象' }).hasAttribute('aria-describedby')).toBe(false)
   })
 })
 

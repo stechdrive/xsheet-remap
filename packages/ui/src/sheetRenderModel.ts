@@ -7,12 +7,12 @@ import {
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   logicalSheetOfficialFrameEnd,
-  NULL_CELL_DISPLAY_LABEL,
-  isNullCellKeyId,
+  isSpecialTimingEvent,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
   sheetTimingRoleForEvent,
+  timingEventValueKind,
   stackGuideStackBand,
   timingHitForFrame,
   type CutProject,
@@ -23,6 +23,7 @@ import {
   type SheetTemplate,
   type SheetTemplateGridRowLineRule,
   type SheetTimingRole,
+  type TimelineEventValueKind,
 } from '@xsheet-remap/core'
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
@@ -53,9 +54,19 @@ export type SheetInputTextRenderItem = {
   keyId: string
   paperTrack: string
   frame: number
+  kind: TimelineEventValueKind
   text: string
   fontSizePx: number
   rect: NormalizedRect
+}
+
+export type SheetContinuationRenderItem = {
+  eventId: string
+  paperTrack: string
+  role: SheetTimingRole
+  kind: 'straight' | 'wave'
+  points: Array<{ x: number; y: number }>
+  strokeWidth: number
 }
 
 export type SheetMetadataTextRenderItem = {
@@ -162,8 +173,9 @@ export function hasOverlayRenderContent(context: SheetRenderModelContext): boole
 export function inputTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetInputTextRenderItem[] {
   return context.project.logicalSheet.events.flatMap(event => {
     const key = context.project.logicalSheet.keys.find(key => key.keyId === event.keyId)
-    if (!key && !isNullCellKeyId(event.keyId)) return []
+    if (!key && !isSpecialTimingEvent(event)) return []
     const sheetRole = sheetTimingRoleForEvent(event)
+    const kind = timingEventValueKind(event)
     const track = context.project.logicalSheet.paperTracks.find(item => item.paperTrack === event.paperTrack)
     const rect = track?.source === 'overlay'
       ? overlayCellRectForFrame(context, track, event.frame, page)
@@ -174,11 +186,59 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
       keyId: event.keyId,
       paperTrack: event.paperTrack,
       frame: event.frame,
-      text: isNullCellKeyId(event.keyId) ? NULL_CELL_DISPLAY_LABEL : key?.displayLabel ?? '',
+      kind,
+      text: kind === 'cell' ? key?.displayLabel ?? '' : '',
       fontSizePx: resolveTimingTextFontSizePx(context.template, sheetRole, event.fontSizePx),
       rect,
     }]
   })
+}
+
+export function continuationRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetContinuationRenderItem[] {
+  const items: SheetContinuationRenderItem[] = []
+  for (const role of ['action', 'cell'] as const) {
+    if (!context.project.sheetView.continuationDisplay[role]) continue
+    for (const paperTrack of context.project.logicalSheet.paperTracks.map(track => track.paperTrack)) {
+      const events = context.project.logicalSheet.events
+        .filter(event => event.paperTrack === paperTrack && sheetTimingRoleForEvent(event) === role)
+        .sort((left, right) => left.frame - right.frame)
+      for (let index = 0; index < events.length; index += 1) {
+        const event = events[index]!
+        const valueKind = timingEventValueKind(event)
+        if (valueKind === 'inbetween' || valueKind === 'reverse') continue
+        const nextFrame = events[index + 1]?.frame ?? context.officialFrameEnd + 1
+        const frameEnd = Math.min(context.officialFrameEnd, nextFrame - 1)
+        if (frameEnd - event.frame + 1 < 4) continue
+        const rects: Array<{ frame: number; rect: NormalizedRect }> = []
+        for (let frame = event.frame + 1; frame <= frameEnd; frame += 1) {
+          const rect = eventRectForTrackFrame(context, role, paperTrack, frame, page)
+          if (rect) rects.push({ frame, rect })
+        }
+        for (const segment of contiguousContinuationSegments(rects)) {
+          const first = segment[0]?.rect
+          const last = segment.at(-1)?.rect
+          if (!first || !last) continue
+          const centerX = first.x + first.w / 2
+          const startY = first.y + first.h / 2
+          const endY = last.y + last.h / 2
+          const cellSize = Math.min(first.w, first.h)
+          const strokeWidth = Math.max(0.00045, Math.min(0.0015, cellSize * 0.075))
+          const points = valueKind === 'blank'
+            ? waveContinuationPoints(centerX, startY, endY, first.w, first.h)
+            : [{ x: centerX, y: startY }, { x: centerX, y: endY }]
+          items.push({
+            eventId: event.eventId,
+            paperTrack,
+            role,
+            kind: valueKind === 'blank' ? 'wave' : 'straight',
+            points,
+            strokeWidth,
+          })
+        }
+      }
+    }
+  }
+  return items
 }
 
 export function metadataTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetMetadataTextRenderItem[] {
@@ -666,6 +726,60 @@ function standardEventRectForPage(
   return cellRectForHit(context.template, hit, context.displayDurationFrames, context.displayFrameStart, {
     paperTracks: context.paperTracks,
     layoutOverrides: context.project.sheetView.layoutOverrides,
+  })
+}
+
+function eventRectForTrackFrame(
+  context: SheetRenderModelContext,
+  role: SheetTimingRole,
+  paperTrack: string,
+  frame: number,
+  page: SheetPage,
+): NormalizedRect | null {
+  const track = context.project.logicalSheet.paperTracks.find(item => item.paperTrack === paperTrack)
+  if (track?.source === 'overlay') return overlayCellRectForFrame(context, track, frame, page)
+  const hit = timingHitForFrame(
+    context.template,
+    role,
+    paperTrack,
+    frame,
+    context.displayDurationFrames,
+    context.displayFrameStart,
+    context.paperTracks,
+  )
+  if (!hit || hit.pageId !== page.pageId) return null
+  return cellRectForHit(context.template, hit, context.displayDurationFrames, context.displayFrameStart, {
+    paperTracks: context.paperTracks,
+    layoutOverrides: context.project.sheetView.layoutOverrides,
+  })
+}
+
+function contiguousContinuationSegments(items: Array<{ frame: number; rect: NormalizedRect }>): Array<Array<{ frame: number; rect: NormalizedRect }>> {
+  const segments: Array<Array<{ frame: number; rect: NormalizedRect }>> = []
+  for (const item of items) {
+    const current = segments.at(-1)
+    const previous = current?.at(-1)
+    const sameColumn = previous && Math.abs((previous.rect.x + previous.rect.w / 2) - (item.rect.x + item.rect.w / 2)) < 0.00001
+    if (!previous || item.frame !== previous.frame + 1 || !sameColumn) {
+      segments.push([item])
+    } else if (current) {
+      current.push(item)
+    }
+  }
+  return segments
+}
+
+function waveContinuationPoints(centerX: number, startY: number, endY: number, cellWidth: number, cellHeight: number): Array<{ x: number; y: number }> {
+  if (endY <= startY) return [{ x: centerX, y: startY }]
+  const amplitude = Math.min(cellWidth * 0.16, cellHeight * 0.28)
+  const pitch = Math.max(cellHeight * 0.9, 0.0001)
+  const steps = Math.max(4, Math.ceil((endY - startY) / pitch) * 4)
+  return Array.from({ length: steps + 1 }, (_, index) => {
+    const ratio = index / steps
+    return {
+      x: centerX + Math.sin(ratio * Math.PI * steps / 2) * amplitude,
+      y: startY + (endY - startY) * ratio,
+    }
   })
 }
 

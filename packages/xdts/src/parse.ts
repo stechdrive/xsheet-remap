@@ -78,17 +78,24 @@ export function parseXdts(text: string): XdtsData {
         for (const frame of track.frames ?? []) {
           const rawValue = frame.data?.[0]?.values?.[0]
           if (rawValue === undefined) continue
-          if (rawValue === SYMBOL_HYPHEN || rawValue === SYMBOL_TICK_1 || rawValue === SYMBOL_TICK_2) continue
+          if (rawValue === SYMBOL_HYPHEN) continue
           frames.push({
             frameIndex: frame.frame ?? 0,
-            cellName: rawValue === SYMBOL_NULL_CELL ? null : rawValue,
+            cellName: rawValue === SYMBOL_NULL_CELL || rawValue === SYMBOL_TICK_1 || rawValue === SYMBOL_TICK_2 ? null : rawValue,
+            valueKind: rawValue === SYMBOL_NULL_CELL
+              ? 'blank'
+              : rawValue === SYMBOL_TICK_1
+                ? 'inbetween'
+                : rawValue === SYMBOL_TICK_2
+                  ? 'reverse'
+                  : 'cell',
           })
         }
         frames.sort((a, b) => a.frameIndex - b.frameIndex)
         tracks.push({
           name: names[trackNo] ?? `Track${trackNo}`,
           trackNo,
-          cellNames: unique(frames.flatMap(frame => (frame.cellName ? [frame.cellName] : []))),
+          cellNames: unique(frames.flatMap(frame => (frame.valueKind === 'cell' && frame.cellName ? [frame.cellName] : []))),
           frames,
         })
       }

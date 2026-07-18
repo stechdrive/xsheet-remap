@@ -1,7 +1,7 @@
-import type { CellBinding, CutProject, PaperTrackName, SheetTimingRole, TimelineEvent, TimingKey } from './types'
+import type { CellBinding, CutProject, PaperTrackName, SheetTimingRole, TimelineEvent, TimingKey, TimingSpecialMarker } from './types'
 import { nextId, withoutUndefined } from './core-utils'
 import { DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
-import { assetFileBaseName, compareTimelineEvents, defaultCspCellName, ensurePaperTrack, isNullCellKeyId, nextDisplayLabel, normalizeTimingKeyDisplayLabel, sameEventTarget, sequenceCspCellName, sheetTimingRoleForKey, uniqueCspCellNameForSlot } from './project-shared'
+import { assetFileBaseName, compareTimelineEvents, defaultCspCellName, ensurePaperTrack, isSpecialTimingKeyId, nextDisplayLabel, normalizeTimingKeyDisplayLabel, sameEventTarget, sequenceCspCellName, sheetTimingRoleForKey, timingEventValueKindForKeyId, timingSpecialMarkerKeyId, uniqueCspCellNameForSlot } from './project-shared'
 
 export function createKey(
   project: CutProject,
@@ -60,7 +60,7 @@ export function setEvent(
   options: { fontSizePx?: number; source?: TimelineEvent['source'] } = {},
 ): CutProject {
   ensurePaperTrack(project, paperTrack)
-  if (!isNullCellKeyId(keyId)) {
+  if (!isSpecialTimingKeyId(keyId)) {
     const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
     if (!key) throw new Error(`key not found: ${keyId}`)
     if (key.paperTrack !== paperTrack) throw new Error(`key ${keyId} does not belong to paperTrack ${paperTrack}`)
@@ -72,6 +72,7 @@ export function setEvent(
     sheetRole,
     frame,
     keyId,
+    valueKind: timingEventValueKindForKeyId(keyId),
     ...(typeof options.fontSizePx === 'number' && Number.isFinite(options.fontSizePx) ? { fontSizePx: options.fontSizePx } : {}),
     source: options.source ?? 'manual',
   }
@@ -80,6 +81,17 @@ export function setEvent(
     .concat(event)
     .sort(compareTimelineEvents)
   return { ...project, logicalSheet: { ...project.logicalSheet, events } }
+}
+
+export function setTimingSpecialEvent(
+  project: CutProject,
+  paperTrack: PaperTrackName,
+  frame: number,
+  marker: TimingSpecialMarker,
+  sheetRole: SheetTimingRole = DEFAULT_SHEET_TIMING_ROLE,
+  options: { fontSizePx?: number; source?: TimelineEvent['source'] } = {},
+): CutProject {
+  return setEvent(project, paperTrack, frame, timingSpecialMarkerKeyId(marker), sheetRole, options)
 }
 
 export function clearEvent(

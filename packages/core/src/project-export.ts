@@ -4,7 +4,7 @@ import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { withoutUndefined } from './core-utils'
 import { validateProject } from './validation'
 import { CSP_IMPORT_STACK_END_SEPARATOR_NAME, CSP_IMPORT_STACK_START_SEPARATOR_NAME, DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE } from './project-constants'
-import { compareStackGuideExportTracksForProject, compareStackGuideLabelsForProject, correctionLayerIdForSlot, correctionLayerOrderById, correctionLayerFileNameSuffix, defaultCorrectionLayerId, eventsForSlot, exportEventsForSlot, groupLabelForCorrectionLayer, groupLabelForSlot, isNullCellEvent, resolveCspCellName, sanitizeFileBaseName, sequenceCspCellName, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideGapIndex, stackGuideRegistrationForLayer, stackGuideRegistrations, stackGuideStackBand, stackGuideStackBandOrder, stageOrderForCorrectionLayer } from './project-shared'
+import { compareStackGuideExportTracksForProject, compareStackGuideLabelsForProject, correctionLayerIdForSlot, correctionLayerOrderById, correctionLayerFileNameSuffix, defaultCorrectionLayerId, eventsForSlot, exportEventsForSlot, groupLabelForCorrectionLayer, groupLabelForSlot, isSpecialTimingEvent, resolveCspCellName, sanitizeFileBaseName, sequenceCspCellName, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideGapIndex, stackGuideRegistrationForLayer, stackGuideRegistrations, stackGuideStackBand, stackGuideStackBandOrder, stageOrderForCorrectionLayer } from './project-shared'
 import { assetAbsolutePath } from './assets'
 import { resolveCutExportIdentity } from './project-export-identity'
 
@@ -192,7 +192,7 @@ function buildDirectExportTracks(
       const binding = project.bindings.find(item => item.slotId === slot.slotId && item.keyId === event.keyId)
       return {
         frame: event.frame - project.logicalSheet.frameOrigin,
-        value: key || binding || isNullCellEvent(event)
+        value: key || binding || isSpecialTimingEvent(event)
           ? resolveCspCellName({ slot, key, binding, event, policy: cspCellNamePolicy })
           : null,
       }
@@ -388,7 +388,7 @@ function buildImportStackFramesForSlot(
     const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
     const binding = project.bindings.find(item => item.slotId === slot.slotId && item.keyId === event.keyId)
     const hasSelectedBinding = project.bindings.some(item => item.keyId === event.keyId && selectedSlotIds.has(item.slotId))
-    const nextValue = isNullCellEvent(event)
+    const nextValue = isSpecialTimingEvent(event)
       ? slotLayerId === defaultLayerId
         ? resolveCspCellName({ slot, key, binding, event, policy: cspCellNamePolicy })
         : undefined
@@ -643,7 +643,7 @@ function representativePaperTrackForAssetItems(items: NameNormalizationPlanItem[
 function columnRegistrationCounts(project: CutProject, sheetRole: SheetTimingRole): Map<string, number> {
   const usedKeysByTrack = new Map<string, Set<string>>()
   for (const event of project.logicalSheet.events) {
-    if (sheetTimingRoleForEvent(event) !== sheetRole || isNullCellEvent(event)) continue
+    if (sheetTimingRoleForEvent(event) !== sheetRole || isSpecialTimingEvent(event)) continue
     const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
     if (!key) continue
     const current = usedKeysByTrack.get(event.paperTrack) ?? new Set<string>()
@@ -715,7 +715,7 @@ export function buildAeRemapText(
   for (const event of eventsForSlot(project, slot, sheetRole)) {
     const binding = project.bindings.find(item => item.slotId === slot.slotId && item.keyId === event.keyId)
     const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
-    const cspCellName = key || binding || isNullCellEvent(event)
+    const cspCellName = key || binding || isSpecialTimingEvent(event)
       ? resolveCspCellName({ slot, key, binding, event, policy: cspCellNamePolicy })
       : ''
     lines.push(`${event.frame}\t${cspCellName}\t${key?.keyId ?? event.keyId}`)

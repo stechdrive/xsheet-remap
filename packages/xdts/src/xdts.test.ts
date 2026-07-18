@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { buildExportPlan, createDefaultProject, createOrSetEvent, createTimedRangeCue, sheetTimingRoleForEvent, standardA3SheetTemplate, upsertBinding } from '@xsheet-remap/core'
+import { buildExportPlan, createDefaultProject, createOrSetEvent, createTimedRangeCue, setTimingSpecialEvent, sheetTimingRoleForEvent, standardA3SheetTemplate, upsertBinding } from '@xsheet-remap/core'
 import { DEFAULT_XDTS_IMPORT_OPTIONS, exportProjectXdts, exportXdts, importXdtsIntoProject, parseXdts, patchXdtsValue, resolveCellsAtFrameByTrackNo } from './index'
 
 describe('XDTS parse/export', () => {
@@ -23,7 +23,7 @@ describe('XDTS parse/export', () => {
     const text = exportXdts(buildExportPlan(project, { profileId: 'direct' }))
     const parsed = parseXdts(text)
     expect(parsed.tracks[0]).toMatchObject({ name: 'A', trackNo: 0 })
-    expect(parsed.tracks[0].frames[0]).toEqual({ frameIndex: 0, cellName: 'A1' })
+    expect(parsed.tracks[0].frames[0]).toEqual({ frameIndex: 0, cellName: 'A1', valueKind: 'cell' })
   })
 
   it('writes project cut identity into the XDTS header and time table name', () => {
@@ -64,7 +64,7 @@ describe('XDTS parse/export', () => {
     expect(resolveCellsAtFrameByTrackNo(parsed.tracks, 8).get(0)).toBe('A1')
   })
 
-  it('ignores XDTS continuation symbols while preserving explicit null cells', () => {
+  it('ignores derived continuation symbols while preserving explicit timing symbols', () => {
     const text = `exchangeDigitalTimeSheet Save Data
 {
   "version": 5,
@@ -85,7 +85,8 @@ describe('XDTS parse/export', () => {
                 { "frame": 0, "data": [{ "values": ["A1"] }] },
                 { "frame": 1, "data": [{ "values": ["SYMBOL_HYPHEN"] }] },
                 { "frame": 2, "data": [{ "values": ["SYMBOL_TICK_1"] }] },
-                { "frame": 3, "data": [{ "values": ["SYMBOL_NULL_CELL"] }] }
+                { "frame": 3, "data": [{ "values": ["SYMBOL_NULL_CELL"] }] },
+                { "frame": 4, "data": [{ "values": ["SYMBOL_TICK_2"] }] }
               ]
             }
           ]
@@ -96,8 +97,10 @@ describe('XDTS parse/export', () => {
 }
 `
     expect(parseXdts(text).tracks[0].frames).toEqual([
-      { frameIndex: 0, cellName: 'A1' },
-      { frameIndex: 3, cellName: null },
+      { frameIndex: 0, cellName: 'A1', valueKind: 'cell' },
+      { frameIndex: 2, cellName: null, valueKind: 'inbetween' },
+      { frameIndex: 3, cellName: null, valueKind: 'blank' },
+      { frameIndex: 4, cellName: null, valueKind: 'reverse' },
     ])
   })
 
@@ -130,7 +133,23 @@ describe('XDTS parse/export', () => {
     expect(parsed.timeTables[0]?.cameraCues[0]).toMatchObject({
       fieldId: 5, trackNo: 0, frameStart: 8, frameEnd: 9, values: ['OL', '0.5'],
     })
-    expect(parsed.timeTables[1]?.tracks[0]?.frames[0]).toEqual({ frameIndex: 0, cellName: 'B1' })
+    expect(parsed.timeTables[1]?.tracks[0]?.frames[0]).toEqual({ frameIndex: 0, cellName: 'B1', valueKind: 'cell' })
+  })
+
+  it('round-trips null, inbetween, and reverse-sheet events without creating cell keys', () => {
+    let project = createDefaultProject()
+    project = setTimingSpecialEvent(project, 'A', 1, 'blank', 'action')
+    project = setTimingSpecialEvent(project, 'A', 2, 'inbetween', 'action')
+    project = setTimingSpecialEvent(project, 'A', 3, 'reverse', 'action')
+    const parsed = parseXdts(exportXdts(buildExportPlan(withDirectExportProfile(project))))
+    expect(parsed.tracks[0]?.frames.slice(0, 3)).toEqual([
+      { frameIndex: 0, cellName: null, valueKind: 'blank' },
+      { frameIndex: 1, cellName: null, valueKind: 'inbetween' },
+      { frameIndex: 2, cellName: null, valueKind: 'reverse' },
+    ])
+    const imported = importXdtsIntoProject(createDefaultProject(), parsed, DEFAULT_XDTS_IMPORT_OPTIONS).project
+    expect(imported.logicalSheet.events.slice(0, 3).map(event => event.valueKind)).toEqual(['blank', 'inbetween', 'reverse'])
+    expect(imported.logicalSheet.keys).toHaveLength(0)
   })
 
   it('imports keys, SOUND and CAMERA as one complete project value', () => {

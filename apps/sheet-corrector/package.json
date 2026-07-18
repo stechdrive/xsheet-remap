@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/sheet-corrector",
-  "version": "0.1.581",
+  "version": "0.1.582",
   "private": true,
   "type": "module",
   "scripts": {

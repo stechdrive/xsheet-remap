@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoPlacement, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke } from '@xsheet-remap/core';
-import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
+import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
@@ -19,7 +19,7 @@ import { runDesktopE2EIfRequested } from './desktopE2E';
 import { clampTextFontSizePx, defaultTimingTextFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout';
 import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
 import { calibrationPointsForSettings, getSheetPageImage, serializableImageRef } from './sheetImages';
-import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, nextTimingHit, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
+import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, nextTimingHit, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
 import { buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, pasteResultRange, pasteTimingClipboardToProject, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget } from './timingEditing';
 import { normalizeRecognitionLabel, recognizeSheetPages } from './sheetRecognition';
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
@@ -169,8 +169,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const activeCalibrationPoints = activePage ? calibrationPointsForSettings(activePageImage.settings, template) : []
   const activeCalibrationPointsKey = calibrationPointsSignature(activeCalibrationPoints)
   const selectedKeySummary = selection.keyId
-    ? isNullCellKeyId(selection.keyId)
-      ? NULL_CELL_DISPLAY_LABEL
+    ? isSpecialTimingKeyId(selection.keyId)
+      ? keyDisplayLabelForId(selection.keyId)
       : selectedKey ? `${selectedKey.displayLabel} (${selectedKey.keyId})` : '-'
     : '-'
   const selectedTextAnnotation = selectedTextAnnotationId
@@ -234,7 +234,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }, [selectedTimedRangeCue, selectedTimedRangeCueId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive])
 
   useEffect(() => {
-    if (!selectedKey || isNullCellKeyId(selectedKey.keyId)) return
+    if (!selectedKey || isSpecialTimingKeyId(selectedKey.keyId)) return
     void updateNativeRegisteredCellPreviewIfOpen(project, selectedKey)
   }, [project, selectedKey])
 
@@ -521,13 +521,15 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function keyAtHit(sourceProject: CutProject, hit: SheetHit | null): TimingKey | null {
     const keyId = eventKeyIdAtHit(hit, sourceProject)
-    if (!keyId || isNullCellKeyId(keyId)) return null
+    if (!keyId || isSpecialTimingKeyId(keyId)) return null
     return sourceProject.logicalSheet.keys.find(key => key.keyId === keyId) ?? null
   }
 
   function keyDisplayLabelForId(keyId: string | null | undefined, sourceProject: CutProject = project): string {
     if (!keyId) return ''
-    if (isNullCellKeyId(keyId)) return NULL_CELL_DISPLAY_LABEL
+    if (keyId === NULL_CELL_KEY_ID) return NULL_CELL_DISPLAY_LABEL
+    if (keyId === INBETWEEN_KEY_ID) return '/'
+    if (keyId === REVERSE_SHEET_KEY_ID) return '.'
     return sourceProject.logicalSheet.keys.find(item => item.keyId === keyId)?.displayLabel ?? ''
   }
 
@@ -640,27 +642,24 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const sourceProject = commitTimingDraft(false)
     setSelectionFromRange(range, sourceProject)
   }
-
   function handleCellClick(hit: SheetHit) {
     if (!hit.paperTrack) return
     const sourceProject = commitTimingDraft(false)
     if (typeof hit.pageIndex === 'number') setActivePageIndex(hit.pageIndex, sourceProject)
     setSelectionFromHit(hit, sourceProject)
   }
-
   function handleCellSelect(hit: SheetHit) {
     if (!hit.paperTrack) return
     const sourceProject = commitTimingDraft(false)
     if (typeof hit.pageIndex === 'number') setActivePageIndex(hit.pageIndex, sourceProject)
     setSelectionFromHit(hit, sourceProject)
   }
-
-  function handleSetNullAtHit(hit: SheetHit) {
+  function handleSetTimingSpecialAtHit(hit: SheetHit, marker: 'blank' | 'inbetween' | 'reverse') {
     if (!hit.paperTrack) return
     if (typeof hit.pageIndex === 'number') setActivePageIndex(hit.pageIndex)
-    applyTimingValue(hit, 'x')
+    applyTimingValue(hit, marker === 'blank' ? 'x' : marker === 'inbetween' ? '/' : '.')
   }
-
+  const handleSetNullAtHit = (hit: SheetHit) => handleSetTimingSpecialAtHit(hit, 'blank')
   function handleDeleteEventAtHit(hit: SheetHit) {
     if (!hit.paperTrack) return
     const sheetRole = sheetRoleForHit(hit)
@@ -671,7 +670,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleKeySelect(keyId: string | null) {
-    if (isNullCellKeyId(keyId)) return
+    if (isSpecialTimingKeyId(keyId)) return
     const sourceProject = commitTimingDraft(false)
     setSelectedTextAnnotationId(null)
     setSelectedKeyId(keyId)
@@ -709,7 +708,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function updateOpenNativePreviewForKey(sourceProject: CutProject, keyId: string | null) {
-    if (!keyId || isNullCellKeyId(keyId)) return
+    if (!keyId || isSpecialTimingKeyId(keyId)) return
     const key = sourceProject.logicalSheet.keys.find(item => item.keyId === keyId)
     if (!key) return
     void updateNativeRegisteredCellPreviewIfOpen(sourceProject, key)
@@ -1253,10 +1252,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (targetKeyId && !window.confirm(uiText.sheet.moveEventOverwriteConfirm)) return
 
     let next = clearEvent(project, sourceHit.paperTrack, sourceHit.frame, sourceRole)
-    if (isNullCellKeyId(sourceKeyId)) {
-      next = setEvent(next, targetHit.paperTrack, targetHit.frame, NULL_CELL_KEY_ID, targetRole, { fontSizePx: sourceEvent?.fontSizePx })
+    if (isSpecialTimingKeyId(sourceKeyId)) {
+      next = setEvent(next, targetHit.paperTrack, targetHit.frame, sourceKeyId, targetRole, { fontSizePx: sourceEvent?.fontSizePx })
       commitProject(next)
-      setSelectionFromHit(targetHit, next, NULL_CELL_KEY_ID)
+      setSelectionFromHit(targetHit, next, sourceKeyId)
       return
     }
 
@@ -2107,15 +2106,16 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       ? { ...candidate, normalizedLabel: normalizeRecognitionLabel(value) ?? value.trim() }
       : candidate))
   }
-
-  function moveSelection(trackDelta: number, frameDelta: number) {
+  function moveSelection(trackDelta: number, frameDelta: number, extendRange: boolean) {
     const sourceProject = commitTimingDraft(false)
-    const nextHit = nextTimingHit(template, sheetDisplayDurationFrames, sheetDisplayFrameStart, selection.hit, trackDelta, frameDelta)
-    if (!nextHit) return
-    const nextRole = sheetRoleForHit(nextHit)
-    const existingEvent = sourceProject.logicalSheet.events.find(event => event.paperTrack === nextHit.paperTrack && event.frame === nextHit.frame && sheetTimingRoleForEvent(event) === nextRole)
-    if (typeof nextHit.pageIndex === 'number') setActivePageIndex(nextHit.pageIndex, sourceProject)
-    setSelectionFromHit(nextHit, sourceProject, existingEvent?.keyId ?? null)
+    const role = rangeSelection?.role === 'action' || rangeSelection?.role === 'cell' ? rangeSelection.role : selection.hit ? sheetRoleForHit(selection.hit) : 'cell'
+    const trackOrder = paperTrackOrderForRole(sourceProject, role)
+    const result = navigatePointEventSelection({ template, durationFrames: sheetDisplayDurationFrames, frameOrigin: sheetDisplayFrameStart, currentHit: selection.hit, range: rangeSelection, paperTracks: trackOrder, trackDelta, frameDelta, extendRange })
+    if (!result) return
+    if (typeof result.focusHit.pageIndex === 'number') setActivePageIndex(result.focusHit.pageIndex, sourceProject)
+    if (result.kind === 'range') setSelectionFromRange(result.range, sourceProject)
+    else setSelectionFromHit(result.hit, sourceProject)
+    setSheetScrollRequest(current => ({ requestId: (current?.requestId ?? 0) + 1, hit: result.focusHit }))
   }
 
   useEffect(() => {
@@ -2191,22 +2191,22 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         }
         if (event.key === 'ArrowUp') {
           event.preventDefault()
-          moveSelection(0, -1)
+          moveSelection(0, -1, event.shiftKey)
           return
         }
         if (event.key === 'ArrowDown') {
           event.preventDefault()
-          moveSelection(0, 1)
+          moveSelection(0, 1, event.shiftKey)
           return
         }
         if (event.key === 'ArrowLeft') {
           event.preventDefault()
-          moveSelection(-1, 0)
+          moveSelection(-1, 0, event.shiftKey)
           return
         }
         if (event.key === 'ArrowRight') {
           event.preventDefault()
-          moveSelection(1, 0)
+          moveSelection(1, 0, event.shiftKey)
           return
         }
         const mode = modeShortcut(event.key)
@@ -2275,7 +2275,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
-    handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect,
+    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,

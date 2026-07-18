@@ -40,6 +40,10 @@ export function createDefaultSheetViewState(templateInput: string | Pick<SheetTe
     metadataDisplay: {
       sharedCutNumbers: true,
     },
+    continuationDisplay: {
+      action: false,
+      cell: true,
+    },
     pages: [
       {
         pageId: 'page_1',
@@ -152,6 +156,10 @@ export function migrateSheetView(input: Partial<SheetViewState> | undefined, tem
     metadataDisplay: {
       ...base.metadataDisplay,
       ...(input?.metadataDisplay ?? {}),
+    },
+    continuationDisplay: {
+      ...base.continuationDisplay,
+      ...(input?.continuationDisplay ?? {}),
     },
   }
 }

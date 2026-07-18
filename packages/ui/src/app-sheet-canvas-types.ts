@@ -16,6 +16,7 @@ import type {
   TimelineMemoPlacement,
   TimelineMemoPoint,
   TimelineMemoStroke,
+  TimingSpecialMarker,
 } from '@xsheet-remap/core'
 import { updatePaperTrack } from '@xsheet-remap/core'
 import type { CameraCueClipboard, EditMode, SheetRangeSelection, SoundCueClipboard, TimingClipboard } from './appTypes'
@@ -77,6 +78,7 @@ export type SheetCanvasProps = {
   onCameraRangeEdit: (range: SheetRangeSelection) => void
   onCameraCueTransform: (cueId: string, updates: CameraCueTransformUpdates) => void
   onSetNullAtHit: (hit: SheetHit) => void
+  onSetTimingSpecialAtHit: (hit: SheetHit, marker: TimingSpecialMarker) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
   onCopyRange: () => void
   onCutRange: () => void

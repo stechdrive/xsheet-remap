@@ -14,6 +14,7 @@ import { defaultSheetImageSettings, loadImage, resolveImageRefUrl, warpSheetImag
 import { defaultLevelCorrectionSettings } from './levelCorrection'
 import {
   createSheetRenderModelContext,
+  continuationRenderItemsForPage,
   hasOverlayRenderContent,
   inputTextRenderItemsForPage,
   metadataTextRenderItemsForPage,
@@ -23,6 +24,7 @@ import {
   type SheetRenderCutGroupContext,
   type SheetRenderModelContext,
 } from './sheetRenderModel'
+import { timingEventSymbolGeometry } from './TimingEventSymbol'
 import {
   buildTemplateChromeRenderModel,
   buildTemplateGridOverlayRenderModel,
@@ -578,6 +580,20 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
+    ctx.strokeStyle = '#113c2d'
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (const item of continuationRenderItemsForPage(context, page)) {
+      const first = item.points[0]
+      if (!first) continue
+      ctx.beginPath()
+      ctx.moveTo(first.x * context.pageSize.widthPx, offsetY + first.y * context.pageSize.heightPx)
+      for (const point of item.points.slice(1)) {
+        ctx.lineTo(point.x * context.pageSize.widthPx, offsetY + point.y * context.pageSize.heightPx)
+      }
+      ctx.lineWidth = Math.max(1, item.strokeWidth * context.pageSize.widthPx)
+      ctx.stroke()
+    }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     for (const item of inputTextRenderItemsForPage(context, page)) {
@@ -585,12 +601,52 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
       const { x, y, w, h } = projectedPixelRect(context, rect, offsetY)
       ctx.fillStyle = 'rgba(238, 247, 242, 0.78)'
       ctx.fillRect(x + 1, y + 1, w - 2, h - 2)
-      ctx.fillStyle = '#113c2d'
-      ctx.font = fontDeclaration(item.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_EVENT_FONT_WEIGHT)
-      ctx.fillText(item.text, x + w / 2, y + h / 2)
+      if (item.kind === 'cell') {
+        ctx.fillStyle = '#113c2d'
+        ctx.font = fontDeclaration(item.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_EVENT_FONT_WEIGHT)
+        ctx.fillText(item.text, x + w / 2, y + h / 2)
+      } else {
+        drawTimingEventSymbol(ctx, context, offsetY, item.kind, item.rect)
+      }
     }
   }
   return ctx.getImageData(0, 0, context.width, context.height)
+}
+
+function drawTimingEventSymbol(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  offsetY: number,
+  kind: 'blank' | 'inbetween' | 'reverse',
+  rect: NormalizedRect,
+) {
+  const geometry = timingEventSymbolGeometry(kind, rect)
+  const point = (x: number, y: number) => ({
+    x: x * context.pageSize.widthPx,
+    y: offsetY + y * context.pageSize.heightPx,
+  })
+  ctx.strokeStyle = '#113c2d'
+  ctx.fillStyle = '#113c2d'
+  ctx.lineWidth = Math.max(1, geometry.strokeWidth * context.pageSize.widthPx)
+  ctx.lineCap = 'round'
+  if (kind === 'blank') {
+    for (const line of geometry.lines) {
+      const start = point(line.x1, line.y1)
+      const end = point(line.x2, line.y2)
+      ctx.beginPath()
+      ctx.moveTo(start.x, start.y)
+      ctx.lineTo(end.x, end.y)
+      ctx.stroke()
+    }
+    return
+  }
+  const center = point(geometry.center.x, geometry.center.y)
+  const radiusX = geometry.radiusX * context.pageSize.widthPx
+  const radiusY = geometry.radiusY * context.pageSize.heightPx
+  ctx.beginPath()
+  ctx.ellipse(center.x, center.y, radiusX, radiusY, 0, 0, Math.PI * 2)
+  if (kind === 'reverse') ctx.fill()
+  else ctx.stroke()
 }
 
 function projectedPixelRect(context: SheetExportLayerContext, rect: NormalizedRect, offsetY: number) {

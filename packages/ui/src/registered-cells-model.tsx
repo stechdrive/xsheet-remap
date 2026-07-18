@@ -1,5 +1,5 @@
 import { type CSSProperties } from 'react'
-import { assetSourceDisplayPath, defaultCspCellName, defaultCorrectionLayerId, type CellBinding, type CutProject, type CspTrackSlot, type NameNormalizationOptions, type SheetHit, type SheetTimingRole, type StackGuideLabel, formatLogicalSheetFrameTimecode, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideRegistrations, type CutAsset, type TimingKey, isNullCellKeyId } from '@xsheet-remap/core'
+import { assetSourceDisplayPath, defaultCspCellName, defaultCorrectionLayerId, type CellBinding, type CutProject, type CspTrackSlot, type NameNormalizationOptions, type SheetHit, type SheetTimingRole, type StackGuideLabel, formatLogicalSheetFrameTimecode, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideRegistrations, type CutAsset, type TimingKey, isSpecialTimingKeyId } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type SheetRangeSelection } from './appTypes'
@@ -312,7 +312,7 @@ export function singleMovableBindingForHit(project: CutProject, hit: SheetHit): 
     && item.frame === hit.frame
     && sheetTimingRoleForEvent(item) === sheetRole,
   )
-  if (!event || isNullCellKeyId(event.keyId)) return null
+  if (!event || isSpecialTimingKeyId(event.keyId)) return null
   const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
   if (!key) return null
   const bindings = project.bindings.filter(binding => binding.keyId === key.keyId && binding.assetId)

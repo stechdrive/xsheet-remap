@@ -7,6 +7,8 @@ import { SoundCueLayer } from './SoundCueLayer'
 import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { AnnotationSvgText } from './sheet-panel-annotation'
+import { TimingEventSymbol } from './TimingEventSymbol'
+import { continuationRenderItemsForPage } from './sheetRenderModel'
 
 const noop = () => undefined
 
@@ -30,6 +32,7 @@ export function SheetRevisionReferenceLayer({
   opacity: number
 }) {
   const events = eventRectsForPage(project, template, page)
+  const continuationItems = continuationRenderItemsForPage(context, page)
   const strokes = project.annotations.filter((annotation): annotation is AnnotationStroke =>
     isAnnotationStroke(annotation) && annotation.pageId === page.pageId && annotation.tool === 'pen')
   const textAnnotations = project.annotations.filter((annotation): annotation is AnnotationText =>
@@ -37,6 +40,14 @@ export function SheetRevisionReferenceLayer({
   return (
     <g className="sheetRevisionReferenceLayer" opacity={opacity} aria-label="元のシート">
       <MetadataTextLayer context={context} page={page} />
+      {continuationItems.map(item => (
+        <polyline
+          key={`${item.eventId}:${item.paperTrack}:${item.points[0]?.x}:${item.points[0]?.y}`}
+          className={`timingContinuationLine timingContinuation${item.kind === 'wave' ? 'Wave' : 'Straight'}`}
+          points={item.points.map(point => `${point.x},${point.y}`).join(' ')}
+          strokeWidth={item.strokeWidth}
+        />
+      ))}
       <SoundCueLayer
         cues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
         template={template}
@@ -71,7 +82,7 @@ export function SheetRevisionReferenceLayer({
         onPointerEnter={noop}
         onPointerLeave={noop}
       />
-      {events.map(({ event, displayLabel, rect, fontSizePx }) => (
+      {events.map(({ event, eventKind, displayLabel, rect, fontSizePx }) => (
         <g key={event.eventId}>
           <rect className="sheetRevisionReferenceEvent" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
           {displayLabel.trim() && (
@@ -88,6 +99,7 @@ export function SheetRevisionReferenceLayer({
               {displayLabel}
             </SheetSvgText>
           )}
+          {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} />}
         </g>
       ))}
       <TimelineMemoLayer

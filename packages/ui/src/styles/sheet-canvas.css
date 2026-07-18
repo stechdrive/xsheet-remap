@@ -767,6 +767,27 @@
   pointer-events: none;
 }
 
+.eventSymbol {
+  fill: none;
+  stroke: #113c2d;
+  stroke-linecap: round;
+  shape-rendering: geometricPrecision;
+  pointer-events: none;
+}
+
+.eventReverseSymbol {
+  fill: #113c2d;
+}
+
+.timingContinuationLine {
+  fill: none;
+  stroke: #113c2d;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  shape-rendering: geometricPrecision;
+  pointer-events: none;
+}
+
 .sheetRevisionReferenceLayer,
 .sheetRevisionReferenceLayer * {
   pointer-events: none !important;
@@ -787,6 +808,15 @@
 .sheetRevisionReferenceLayer .annotationTextSvg {
   fill: #b63c4a !important;
   stroke: rgb(255 255 252 / 0.78);
+}
+
+.sheetRevisionReferenceLayer .eventSymbol,
+.sheetRevisionReferenceLayer .timingContinuationLine {
+  stroke: #bd3e4d !important;
+}
+
+.sheetRevisionReferenceLayer .eventReverseSymbol {
+  fill: #bd3e4d !important;
 }
 
 .sheetRevisionReferenceLayer .soundCueBody,
@@ -1133,7 +1163,9 @@
 }
 
 .timelineEventHandle .eventText,
-.timelineEventDragSource .eventText {
+.timelineEventDragSource .eventText,
+.timelineEventHandle .eventSymbol,
+.timelineEventDragSource .eventSymbol {
   cursor: crosshair;
   pointer-events: all;
 }
@@ -1157,12 +1189,14 @@
 }
 
 .timelineEventDragReady .eventText,
-.timelineEventDragReady .assetAssignedEventRect {
+.timelineEventDragReady .assetAssignedEventRect,
+.timelineEventDragReady .eventSymbol {
   cursor: grab;
 }
 
 .timelineEventDragSource .eventRect,
-.timelineEventDragSource .eventText {
+.timelineEventDragSource .eventText,
+.timelineEventDragSource .eventSymbol {
   cursor: grabbing;
   opacity: 0.62;
 }

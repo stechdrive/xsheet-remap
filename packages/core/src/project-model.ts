@@ -2,7 +2,7 @@ import type { CorrectionLayer, CutMetadata, CutProject, ExportProfile, LogicalSh
 import { getSheetTemplatePaperTracks, withSheetTemplatePaperTracks, standardA3SheetTemplate, standardA3SheetTemplatePreset, type SheetTemplate } from './sheet-template'
 import { defaultLogicalSheetWorkRange } from './logical-sheet'
 import { createDefaultSheetViewState } from './sheet-view'
-import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
+import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, isSpecialTimingEvent, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
 import { DEFAULT_CSP_CELL_NAME_POLICY, ROOT_ASSET_BIN_ID } from './project-constants'
 
 export interface CreateProjectOptions {
@@ -388,7 +388,7 @@ function rebuildProjectPaperTrackSlots(
       paperTracks,
       keys: options.filterRemovedTracks ? project.logicalSheet.keys.filter(key => allowedTracks.has(key.paperTrack)) : project.logicalSheet.keys,
       events: options.filterRemovedTracks
-        ? project.logicalSheet.events.filter(event => allowedTracks.has(event.paperTrack) && allowedKeyIds.has(event.keyId))
+        ? project.logicalSheet.events.filter(event => allowedTracks.has(event.paperTrack) && (isSpecialTimingEvent(event) || allowedKeyIds.has(event.keyId)))
         : project.logicalSheet.events,
     },
     cspTrackSlots,

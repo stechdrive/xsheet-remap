@@ -97,10 +97,10 @@ export function enumerateTemplateCellHits(template: SheetTemplate, durationFrame
   return enumerateTemplateTimingHits(template, 'cell', durationFrames, frameOrigin)
 }
 
-export function enumerateTemplateTimingHits(template: SheetTemplate, sheetRole: SheetTimingRole, durationFrames = template.defaults.durationFrames, frameOrigin = template.defaults.frameOrigin): SheetHit[] {
+export function enumerateTemplateTimingHits(template: SheetTemplate, sheetRole: SheetTimingRole, durationFrames = template.defaults.durationFrames, frameOrigin = template.defaults.frameOrigin, paperTracks = template.defaults.paperTracks): SheetHit[] {
   return template.regions.flatMap(region => {
     if (region.type !== 'exposure-grid' || region.grid?.role !== sheetRole) return []
-    const columns = resolveSheetTemplateGridColumns(template, region.grid)
+    const columns = resolveSheetTemplateGridColumns(template, region.grid, paperTracks)
     const frames = resolveSheetTemplateGridFrames(template, region.grid, durationFrames, frameOrigin)
     const hits: SheetHit[] = []
     for (let rowIndex = 0; rowIndex < frames.rowCount; rowIndex += 1) {
@@ -131,17 +131,17 @@ export function enumerateCellHits(template: SheetTemplate, durationFrames: numbe
   )
 }
 
-export function enumerateTimingHits(template: SheetTemplate, durationFrames: number, frameOrigin: number, sheetRole: SheetTimingRole): SheetHit[] {
+export function enumerateTimingHits(template: SheetTemplate, durationFrames: number, frameOrigin: number, sheetRole: SheetTimingRole, paperTracks = template.defaults.paperTracks): SheetHit[] {
   return createSheetPages(template, durationFrames, frameOrigin).flatMap(page =>
-    enumerateTemplateTimingHits(template, sheetRole, durationFrames, frameOrigin)
+    enumerateTemplateTimingHits(template, sheetRole, durationFrames, frameOrigin, paperTracks)
       .map(hit => globalizeSheetHit(template, hit, page))
       .filter(hit => hit.frame <= page.frameEnd),
   )
 }
 
-export function nextTimingHit(template: SheetTemplate, durationFrames: number, frameOrigin: number, current: SheetHit | null, trackDelta: number, frameDelta: number): SheetHit | null {
+export function nextTimingHit(template: SheetTemplate, durationFrames: number, frameOrigin: number, current: SheetHit | null, trackDelta: number, frameDelta: number, paperTracks = template.defaults.paperTracks): SheetHit | null {
   const sheetRole = current ? sheetRoleForHit(current) : 'cell'
-  const hits = enumerateTimingHits(template, durationFrames, frameOrigin, sheetRole)
+  const hits = enumerateTimingHits(template, durationFrames, frameOrigin, sheetRole, paperTracks)
   if (hits.length === 0) return null
   if (!current?.paperTrack) return hits[0]
 
@@ -153,6 +153,67 @@ export function nextTimingHit(template: SheetTemplate, durationFrames: number, f
   const nextTrack = tracks[clampNumber(currentTrackIndex + trackDelta, 0, tracks.length - 1)] ?? current.paperTrack
   const nextFrame = clampNumber(current.frame + frameDelta, minFrame, maxFrame)
   return hits.find(hit => hit.paperTrack === nextTrack && hit.frame === nextFrame) ?? current
+}
+
+export type PointEventKeyboardNavigation =
+  | { kind: 'cell'; hit: SheetHit; focusHit: SheetHit }
+  | { kind: 'range'; range: SheetRangeSelection; focusHit: SheetHit }
+
+export function navigatePointEventSelection(input: {
+  template: SheetTemplate
+  durationFrames: number
+  frameOrigin: number
+  currentHit: SheetHit | null
+  range: SheetRangeSelection | null
+  paperTracks: string[]
+  trackDelta: number
+  frameDelta: number
+  extendRange: boolean
+}): PointEventKeyboardNavigation | null {
+  const move = (hit: SheetHit) => nextTimingHit(
+    input.template,
+    input.durationFrames,
+    input.frameOrigin,
+    hit,
+    input.trackDelta,
+    input.frameDelta,
+    input.paperTracks,
+  )
+  const range = input.range
+  if (range && (range.role === 'action' || range.role === 'cell') && range.paperTrack) {
+    if (input.extendRange) {
+      const focusHit = move(range.focusHit)
+      if (!focusHit || sameHitCell(focusHit, range.focusHit)) return null
+      const nextRange = rangeSelectionFromHits(input.template, range.anchorHit, focusHit, input.paperTracks)
+      return nextRange ? { kind: 'range', range: nextRange, focusHit } : null
+    }
+    const anchorHit = move(range.anchorHit)
+    const focusHit = move(range.focusHit)
+    if (!anchorHit || !focusHit) return null
+    const hitBoundary = (input.trackDelta !== 0 && (anchorHit.paperTrack === range.anchorHit.paperTrack || focusHit.paperTrack === range.focusHit.paperTrack))
+      || (input.frameDelta !== 0 && (anchorHit.frame === range.anchorHit.frame || focusHit.frame === range.focusHit.frame))
+    if (hitBoundary) return null
+    const nextRange = rangeSelectionFromHits(input.template, anchorHit, focusHit, input.paperTracks)
+    return nextRange ? { kind: 'range', range: nextRange, focusHit } : null
+  }
+  const hit = nextTimingHit(
+    input.template,
+    input.durationFrames,
+    input.frameOrigin,
+    input.currentHit,
+    input.trackDelta,
+    input.frameDelta,
+    input.paperTracks,
+  )
+  if (!hit) return null
+  if (!input.extendRange || !input.currentHit) return { kind: 'cell', hit, focusHit: hit }
+  if (sameHitCell(input.currentHit, hit)) return null
+  const nextRange = rangeSelectionFromHits(input.template, input.currentHit, hit, input.paperTracks)
+  return nextRange ? { kind: 'range', range: nextRange, focusHit: hit } : null
+}
+
+function sameHitCell(left: SheetHit, right: SheetHit): boolean {
+  return left.role === right.role && left.paperTrack === right.paperTrack && left.columnId === right.columnId && left.frame === right.frame
 }
 
 export function modeShortcut(key: string): EditMode | null {

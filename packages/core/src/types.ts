@@ -11,6 +11,12 @@ export type SheetTimingRole = 'action' | 'cell'
 export const NULL_CELL_KEY_ID = '__null_cell__'
 export const NULL_CELL_DISPLAY_LABEL = 'x'
 export const NULL_CELL_CSP_CELL_NAME = 'SYMBOL_NULL_CELL'
+export const INBETWEEN_KEY_ID = '__inbetween_tick__'
+export const INBETWEEN_CSP_CELL_NAME = 'SYMBOL_TICK_1'
+export const REVERSE_SHEET_KEY_ID = '__reverse_sheet_tick__'
+export const REVERSE_SHEET_CSP_CELL_NAME = 'SYMBOL_TICK_2'
+export type TimelineEventValueKind = 'cell' | 'blank' | 'inbetween' | 'reverse'
+export type TimingSpecialMarker = Exclude<TimelineEventValueKind, 'cell'>
 export type TimedRangeRole = 'sound' | 'camera' | 'action' | 'other'
 export type AssetRole = 'cell-material' | 'timesheet-scan' | 'reference' | 'unknown'
 export type AssetRootHandleKind = 'directory' | 'manual-files' | 'unknown'
@@ -112,6 +118,7 @@ export interface TimelineEvent {
   sheetRole?: SheetTimingRole
   frame: FrameIndex
   keyId: Id
+  valueKind: TimelineEventValueKind
   fontSizePx?: number
   source?: 'manual' | 'recognition' | 'import'
 }
@@ -489,6 +496,11 @@ export interface SheetViewMetadataDisplay {
   sharedCutNumbers: boolean
 }
 
+export interface SheetViewContinuationDisplay {
+  action: boolean
+  cell: boolean
+}
+
 export interface SheetViewState {
   templateId: string
   viewMode: SheetViewMode
@@ -497,6 +509,7 @@ export interface SheetViewState {
   pages: SheetPageViewState[]
   layoutOverrides?: SheetViewLayoutOverrides
   metadataDisplay: SheetViewMetadataDisplay
+  continuationDisplay: SheetViewContinuationDisplay
 }
 
 export interface ExportProfile {

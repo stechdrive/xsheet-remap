@@ -17,6 +17,8 @@ import { SoundCueLayer } from './SoundCueLayer'
 import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
+import { TimingEventSymbol } from './TimingEventSymbol'
+import { continuationRenderItemsForPage } from './sheetRenderModel'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -81,6 +83,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             : undefined
           const activeOverlayColumn = activeOverlayTrack ? overlayColumnRectForPage(props.template, props.project, activeOverlayTrack, page) : null
           const eventRects = isCalibrating ? [] : eventRectsForPage(props.project, props.template, page, { activeOverlayPaperTrack })
+          const continuationItems = isCalibrating ? [] : continuationRenderItemsForPage(sheetRenderModelContext, page)
           const candidateRects = isCalibrating
             ? []
             : props.recognitionCandidates.filter(candidate => {
@@ -212,6 +215,14 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     />
                   )}
                   {showInputContent && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
+                  {showInputContent && continuationItems.map(item => (
+                    <polyline
+                      key={`${item.eventId}:${item.paperTrack}:${item.points[0]?.x}:${item.points[0]?.y}`}
+                      className={`timingContinuationLine timingContinuation${item.kind === 'wave' ? 'Wave' : 'Straight'}`}
+                      points={item.points.map(point => `${point.x},${point.y}`).join(' ')}
+                      strokeWidth={item.strokeWidth}
+                    />
+                  ))}
                   {candidateRects.map(candidate => (
                     <rect
                       key={candidate.candidateId}
@@ -308,7 +319,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onHandlePointerDown={(event, index, kind) => handleCalibrationHandlePointerDown(event, page, pageImage.settings, index, kind)}
                     />
                   )}
-                  {showInputContent && eventRects.map(({ event, displayLabel, rect, hasAssetBinding, fontSizePx }) => {
+                  {showInputContent && eventRects.map(({ event, eventKind, displayLabel, rect, hasAssetBinding, fontSizePx }) => {
                     const eventHit = timelineEventHitForPage(event, page)
                     const isDraggingEvent = Boolean(timelineEventDrag && sameSheetHitCell(timelineEventDrag.sourceHit, eventHit))
                     const pendingEventDrag = pendingTimelineEventDrag && sameSheetHitCell(pendingTimelineEventDrag.sourceHit, eventHit)
@@ -330,7 +341,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       >
                         <rect className={hasAssetBinding ? 'eventRect assetAssignedEventRect' : 'eventRect'} x={rect.x} y={rect.y} width={rect.w} height={rect.h} rx="0.002" />
                         {hasAssetBinding && <AssetAssignedFrameCue rect={rect} surface={selectionSurface} />}
-                        {displayLabel.trim()
+                        {eventKind === 'cell' && displayLabel.trim()
                           && (
                             <SheetSvgText
                               className="eventText"
@@ -345,6 +356,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                               {displayLabel}
                             </SheetSvgText>
                         )}
+                        {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} />}
                       </g>
                     )
                   })}
@@ -558,6 +570,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               <button role="menuitem" disabled={!canPasteContextRepeatRange} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-range'))}>{uiText.actions.repeatPaste}</button>
               <button role="menuitem" disabled={!canPasteContextRepeatToEnd} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-to-end'))}>{uiText.actions.repeatPasteToEnd}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetNullAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.setNullCell}</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'inbetween'))}>{uiText.actions.setInbetween}</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'reverse'))}>{uiText.actions.setReverseSheet}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
             </>
           )}

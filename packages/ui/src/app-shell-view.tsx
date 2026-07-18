@@ -39,7 +39,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
-    handleCellClick, handleCellSelect, handleSetNullAtHit, handleDeleteEventAtHit, handleKeySelect,
+    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
@@ -239,6 +239,26 @@ export function AppShellView({ controller }: { controller: AppController }) {
                     {uiText.sheet.inputContent}
                   </label>
                   <label className="compactControl">
+                    <input
+                      type="checkbox"
+                      checked={project.sheetView.continuationDisplay.action}
+                      onChange={event => commitProject(updateSheetViewState(project, {
+                        continuationDisplay: { ...project.sheetView.continuationDisplay, action: event.currentTarget.checked },
+                      }))}
+                    />
+                    {uiText.sheet.actionContinuation}
+                  </label>
+                  <label className="compactControl">
+                    <input
+                      type="checkbox"
+                      checked={project.sheetView.continuationDisplay.cell}
+                      onChange={event => commitProject(updateSheetViewState(project, {
+                        continuationDisplay: { ...project.sheetView.continuationDisplay, cell: event.currentTarget.checked },
+                      }))}
+                    />
+                    {uiText.sheet.cellContinuation}
+                  </label>
+                  <label className="compactControl">
                     <input type="checkbox" checked={showAnnotations} onChange={event => setShowAnnotations(event.currentTarget.checked)} />
                     {uiText.sheet.annotations}
                   </label>
@@ -348,6 +368,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onCameraRangeEdit={openCameraCueEditorForRange}
             onCameraCueTransform={handleTransformCameraCue}
             onSetNullAtHit={handleSetNullAtHit}
+            onSetTimingSpecialAtHit={handleSetTimingSpecialAtHit}
             onDeleteEventAtHit={handleDeleteEventAtHit}
             onKeySelect={handleKeySelect}
             onDeleteEvent={handleDeleteEvent}

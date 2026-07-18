@@ -1,6 +1,6 @@
 import {
   createKey,
-  isNullCellKeyId,
+  isSpecialTimingKeyId,
   setEvent,
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
@@ -46,7 +46,7 @@ export function bindAssetToHit(project: CutProject, asset: CutAsset, hit: SheetH
 
   const existingEvent = project.logicalSheet.events.find(event => event.paperTrack === hit.paperTrack && event.frame === hit.frame && sheetTimingRoleForEvent(event) === sheetRole)
   let next = project
-  let keyId = existingEvent && !isNullCellKeyId(existingEvent.keyId) ? existingEvent.keyId : null
+  let keyId = existingEvent && !isSpecialTimingKeyId(existingEvent.keyId) ? existingEvent.keyId : null
   if (!keyId) {
     const created = createKey(next, hit.paperTrack, undefined, 'asset-drop', undefined, sheetRole)
     const withEvent = setEvent(created.project, hit.paperTrack, hit.frame, created.key.keyId, sheetRole)

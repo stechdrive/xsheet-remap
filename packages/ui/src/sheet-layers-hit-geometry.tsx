@@ -1,4 +1,4 @@
-import { cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timingHitForFrame, NULL_CELL_DISPLAY_LABEL, globalizeSheetHit, localizeFrameToSheetPage, isNullCellKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart } from '@xsheet-remap/core'
+import { cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { clampNumber } from './sheetInteraction'
 import { overlayBandSegments, overlayPaperTracks, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
@@ -13,8 +13,9 @@ export function eventRectsForPage(project: CutProject, template: SheetTemplate, 
   const activeOverlayColumn = activeOverlayTrack ? overlayColumnRectForPage(template, project, activeOverlayTrack, page) : null
   return project.logicalSheet.events.flatMap(event => {
     const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
-    if (!key && !isNullCellKeyId(event.keyId)) return []
-    const displayLabel = isNullCellKeyId(event.keyId) ? NULL_CELL_DISPLAY_LABEL : key?.displayLabel ?? ''
+    if (!key && !isSpecialTimingEvent(event)) return []
+    const eventKind = timingEventValueKind(event)
+    const displayLabel = eventKind === 'cell' ? key?.displayLabel ?? '' : ''
     const sheetRole = sheetTimingRoleForEvent(event)
     const fontSizePx = resolveTimingTextFontSizePx(template, sheetRole, event.fontSizePx)
     const track = project.logicalSheet.paperTracks.find(item => item.paperTrack === event.paperTrack)
@@ -30,7 +31,7 @@ export function eventRectsForPage(project: CutProject, template: SheetTemplate, 
         })()
     const hasAssetBinding = project.bindings.some(binding => binding.keyId === event.keyId && Boolean(binding.assetId))
     if (rect && shouldSuppressRectUnderActiveOverlay(track, rect, activeOverlayColumn)) return []
-    return rect ? [{ event, displayLabel, fontSizePx, rect, hasAssetBinding }] : []
+    return rect ? [{ event, eventKind, displayLabel, fontSizePx, rect, hasAssetBinding }] : []
   })
 }
 

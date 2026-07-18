@@ -1,5 +1,5 @@
-import type { CellBinding, CorrectionLayer, CspTrackSlot, CspCellNamePolicy, CutAsset, CutProject, ExportPlan, PaperTrack, PaperTrackName, ProductionStage, SheetTimingRole, StackGuideLabel, StackGuideRegistration, StackGuideStackBand, TimelineEvent, TimingKey } from './types'
-import { NULL_CELL_CSP_CELL_NAME, NULL_CELL_KEY_ID } from './types'
+import type { CellBinding, CorrectionLayer, CspTrackSlot, CspCellNamePolicy, CutAsset, CutProject, ExportPlan, PaperTrack, PaperTrackName, ProductionStage, SheetTimingRole, StackGuideLabel, StackGuideRegistration, StackGuideStackBand, TimelineEvent, TimelineEventValueKind, TimingKey, TimingSpecialMarker } from './types'
+import { INBETWEEN_CSP_CELL_NAME, INBETWEEN_KEY_ID, NULL_CELL_CSP_CELL_NAME, NULL_CELL_KEY_ID, REVERSE_SHEET_CSP_CELL_NAME, REVERSE_SHEET_KEY_ID } from './types'
 import { alphabeticTrackLabel } from './sheet-template'
 import { logicalSheetOfficialFrameEnd } from './logical-sheet'
 import { clampNumberForCore } from './core-utils'
@@ -364,7 +364,7 @@ export function resolveCspCellName(input: {
   policy?: CspCellNamePolicy
   sequenceIndex?: number
 }): string {
-  if (input.event && isNullCellEvent(input.event)) return NULL_CELL_CSP_CELL_NAME
+  if (input.event && isSpecialTimingEvent(input.event)) return specialTimingEventExportValue(input.event) ?? ''
   if (input.binding) return input.binding.cspCellName
 
   const policy = input.policy ?? DEFAULT_CSP_CELL_NAME_POLICY
@@ -414,8 +414,42 @@ export function isNullCellKeyId(keyId: string | null | undefined): boolean {
   return keyId === NULL_CELL_KEY_ID
 }
 
-export function isNullCellEvent(event: Pick<TimelineEvent, 'keyId'>): boolean {
-  return isNullCellKeyId(event.keyId)
+export function timingEventValueKindForKeyId(keyId: string | null | undefined): TimelineEventValueKind {
+  if (keyId === NULL_CELL_KEY_ID) return 'blank'
+  if (keyId === INBETWEEN_KEY_ID) return 'inbetween'
+  if (keyId === REVERSE_SHEET_KEY_ID) return 'reverse'
+  return 'cell'
+}
+
+export function timingEventValueKind(event: Pick<TimelineEvent, 'keyId'> & Partial<Pick<TimelineEvent, 'valueKind'>>): TimelineEventValueKind {
+  return event.valueKind ?? timingEventValueKindForKeyId(event.keyId)
+}
+
+export function timingSpecialMarkerKeyId(marker: TimingSpecialMarker): string {
+  if (marker === 'blank') return NULL_CELL_KEY_ID
+  if (marker === 'inbetween') return INBETWEEN_KEY_ID
+  return REVERSE_SHEET_KEY_ID
+}
+
+export function isSpecialTimingKeyId(keyId: string | null | undefined): boolean {
+  return timingEventValueKindForKeyId(keyId) !== 'cell'
+}
+
+export function isSpecialTimingEvent(event: Pick<TimelineEvent, 'keyId'> & Partial<Pick<TimelineEvent, 'valueKind'>>): boolean {
+  return timingEventValueKind(event) !== 'cell'
+}
+
+export function isNullCellEvent(event: Pick<TimelineEvent, 'keyId'> & Partial<Pick<TimelineEvent, 'valueKind'>>): boolean {
+  return timingEventValueKind(event) === 'blank'
+}
+
+export function specialTimingEventExportValue(event: Pick<TimelineEvent, 'keyId'> & Partial<Pick<TimelineEvent, 'valueKind'>>): string | null {
+  switch (timingEventValueKind(event)) {
+    case 'blank': return NULL_CELL_CSP_CELL_NAME
+    case 'inbetween': return INBETWEEN_CSP_CELL_NAME
+    case 'reverse': return REVERSE_SHEET_CSP_CELL_NAME
+    default: return null
+  }
 }
 
 export function ensurePaperTrack(project: CutProject, paperTrack: PaperTrackName): void {
@@ -610,7 +644,7 @@ export function exportEventsForSlot(project: CutProject, slot: CspTrackSlot, she
       officialEvents.push(event)
     }
   }
-  if (!carryIntoStart || officialEvents[0]?.frame === startFrame || isNullCellEvent(carryIntoStart)) return officialEvents
+  if (!carryIntoStart || officialEvents[0]?.frame === startFrame || isSpecialTimingEvent(carryIntoStart)) return officialEvents
   return [{ ...carryIntoStart, eventId: `${carryIntoStart.eventId}:export-start`, frame: startFrame }, ...officialEvents]
 }
 

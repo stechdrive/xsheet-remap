@@ -7,10 +7,13 @@ import {
   createStackGuideLabel,
   digitalStandardSheetTemplate,
   setEvent,
+  setTimingSpecialEvent,
   standardA3SheetTemplate,
+  updateSheetViewState,
 } from '@xsheet-remap/core'
 import {
   createSheetRenderModelContext,
+  continuationRenderItemsForPage,
   hasOverlayRenderContent,
   inputTextRenderItemsForPage,
   metadataTextRenderItemsForPage,
@@ -55,7 +58,7 @@ describe('sheet render model', () => {
     expect(stackGuideItems[0].geometry.labelWidth).toBeGreaterThan(0)
   })
 
-  it('builds text items for standard tracks, overlay tracks, and null cells', () => {
+  it('builds input items for standard tracks, overlay tracks, and SVG timing symbols', () => {
     const overlay = addOverlayPaperTrack(createDefaultProject(), {
       paperTrack: 'J',
       label: 'J',
@@ -72,11 +75,35 @@ describe('sheet render model', () => {
     expect(items.map(item => [item.paperTrack, item.frame, item.text])).toEqual(expect.arrayContaining([
       ['A', 1, '1'],
       ['J', 2, '1'],
-      ['B', 3, 'x'],
+      ['B', 3, ''],
     ]))
+    expect(items.find(item => item.paperTrack === 'B')).toMatchObject({ kind: 'blank' })
     expect(items).toHaveLength(3)
     expect(items.every(item => item.rect.w > 0 && item.rect.h > 0)).toBe(true)
     expect(items.every(item => item.fontSizePx === defaultTimingTextFontSizePx(standardA3SheetTemplate, 'action'))).toBe(true)
+  })
+
+  it('derives optional straight and wave continuation geometry from explicit events', () => {
+    const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const second = createOrSetEvent(first.project, 'A', 5, 'action')
+    const blank = setTimingSpecialEvent(second.project, 'B', 1, 'blank', 'action')
+    const endBlank = createOrSetEvent(blank, 'B', 5, 'action').project
+    const project = updateSheetViewState(endBlank, {
+      continuationDisplay: { action: true, cell: false },
+    })
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate)
+    const items = continuationRenderItemsForPage(context, context.pages[0])
+
+    expect(items.map(item => [item.paperTrack, item.kind])).toEqual(expect.arrayContaining([
+      ['A', 'straight'],
+      ['B', 'wave'],
+    ]))
+    expect(items.every(item => item.points.length >= 2 && item.strokeWidth > 0)).toBe(true)
+    const hiddenContext = createSheetRenderModelContext(updateSheetViewState(project, {
+      continuationDisplay: { action: false, cell: false },
+    }), standardA3SheetTemplate)
+    const hidden = continuationRenderItemsForPage(hiddenContext, hiddenContext.pages[0])
+    expect(hidden).toHaveLength(0)
   })
 
   it('resolves input text font size from the active display template', () => {

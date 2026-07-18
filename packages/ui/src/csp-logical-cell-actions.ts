@@ -1,4 +1,4 @@
-import { isNullCellKeyId, removeCellBinding, type CutProject } from '@xsheet-remap/core'
+import { isSpecialTimingKeyId, removeCellBinding, type CutProject } from '@xsheet-remap/core'
 import { confirmUserAction } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { registeredCellAssetRows } from './registered-cells-model'
@@ -14,7 +14,7 @@ export async function deleteCspTreeCardWithConfirmation(
   keyId: string,
   bindingId?: string,
 ): Promise<CspTreeCardDeletionResult | null> {
-  if (isNullCellKeyId(keyId)) return null
+  if (isSpecialTimingKeyId(keyId)) return null
   if (!bindingId) return deleteLogicalCellWithConfirmation(project, keyId)
   const binding = project.bindings.find(item => item.bindingId === bindingId)
   if (!binding) return null

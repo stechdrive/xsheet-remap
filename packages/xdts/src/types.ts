@@ -1,6 +1,7 @@
 export interface XdtsFrame {
   frameIndex: number
   cellName: string | null
+  valueKind: 'cell' | 'blank' | 'inbetween' | 'reverse'
 }
 
 export interface XdtsTrack {

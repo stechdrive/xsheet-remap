@@ -1,4 +1,4 @@
-import { NULL_CELL_KEY_ID } from './types'
+import { isSpecialTimingKeyId } from './project-shared'
 import type { CutProject, ExportProfile, ValidationIssue } from './types'
 
 export function validateProject(project: CutProject, profile?: ExportProfile): ValidationIssue[] {
@@ -37,7 +37,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
   }
 
   for (const event of project.logicalSheet.events) {
-    if (event.keyId !== NULL_CELL_KEY_ID && !keyIds.has(event.keyId)) {
+    if (!isSpecialTimingKeyId(event.keyId) && !keyIds.has(event.keyId)) {
       issues.push(issue('error', 'event.key.missing', `event ${event.eventId} references missing key ${event.keyId}`, 'event', event.eventId))
     }
     if (event.frame > displayEndFrame) {

@@ -136,7 +136,7 @@ export interface TimingClipboard {
   items: Array<{
     paperTrackOffset: number
     offsetFrames: number
-    kind: 'empty' | 'null' | 'key'
+    kind: 'empty' | 'blank' | 'inbetween' | 'reverse' | 'key'
     keyId?: string
     displayLabel?: string
     paperToken?: string

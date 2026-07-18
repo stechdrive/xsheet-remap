@@ -551,7 +551,7 @@ it('opens the sheet context menu on right click and prevents the browser menu', 
 
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.setNullCell }))
     expect(screen.queryByRole('menu')).toBeNull()
-    expect(document.querySelector('.eventText')?.textContent).toBe('x')
+    expect(document.querySelector('.eventBlankSymbol')).toBeTruthy()
     expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(0)
   })
 
@@ -627,7 +627,7 @@ it('clears frame hover previews and closes the paper track header menu on outsid
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
   })
 
-it('treats direct x input as a hidden reserved null-cell event', () => {
+it('renders direct x input as a grid-scaled SVG null-cell symbol', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     sheet.getBoundingClientRect = () => ({
@@ -645,8 +645,45 @@ it('treats direct x input as a hidden reserved null-cell event', () => {
     clickSheet(sheet, 255, 290)
     enterTimingValue('x')
 
-    expect(document.querySelector('.eventText')?.textContent).toBe('x')
+    const symbol = document.querySelector('.eventBlankSymbol')
+    expect(symbol?.querySelectorAll('line')).toHaveLength(2)
     expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(0)
+  })
+
+it('enters inbetween and reverse-sheet symbols without creating registered-cell cards', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    enterTimingValue('/')
+    expect(document.querySelector('.eventInbetweenSymbol')).toBeTruthy()
+
+    clickTemplateFrame(sheet, 'cell', 'A', 2)
+    enterTimingValue('.')
+    expect(document.querySelector('.eventReverseSymbol')).toBeTruthy()
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(0)
+  })
+
+it('moves a cell selection with arrows and adjusts or translates a range predictably', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    expectSelectedHit('cell', 'A', 2)
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expectSelectedHit('cell', 'B', 2)
+
+    fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true })
+    expectSelectedRange('cell', 'B', 2, 3)
+    fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true })
+    expectSelectedRange('cell', 'B', 2, 4)
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    expectSelectedRange('cell', 'B', 3, 5)
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expectSelectedRange('cell', 'A', 3, 5)
   })
 
 it('clears the current sheet cell selection with Escape', () => {

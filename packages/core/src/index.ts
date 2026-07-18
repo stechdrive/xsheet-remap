@@ -85,6 +85,7 @@ export type {
   SheetViewGridLayoutOverride,
   SheetViewLayoutOverrides,
   SheetViewMetadataDisplay,
+  SheetViewContinuationDisplay,
   SheetViewMode,
   SheetViewState,
   SharedRegisteredCellCatalog,
@@ -97,6 +98,8 @@ export type {
   TimedRangeCue,
   TimedRangeRole,
   TimelineEvent,
+  TimelineEventValueKind,
+  TimingSpecialMarker,
   TimingKey,
   ValidationIssue,
 } from './types'
@@ -112,9 +115,13 @@ export {
   type ProjectArchiveManifest,
 } from './project-archive'
 export {
+  INBETWEEN_CSP_CELL_NAME,
+  INBETWEEN_KEY_ID,
   NULL_CELL_CSP_CELL_NAME,
   NULL_CELL_DISPLAY_LABEL,
   NULL_CELL_KEY_ID,
+  REVERSE_SHEET_CSP_CELL_NAME,
+  REVERSE_SHEET_KEY_ID,
 } from './types'
 export type {
   NormalizedRect,
@@ -248,6 +255,13 @@ export {
   type ResolvedCutExportIdentity,
   removeAssetFromStackGuideLabel,
   setEvent,
+  setTimingSpecialEvent,
+  isSpecialTimingEvent,
+  isSpecialTimingKeyId,
+  specialTimingEventExportValue,
+  timingEventValueKind,
+  timingEventValueKindForKeyId,
+  timingSpecialMarkerKeyId,
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
   clampCameraOverlapPivotAnchorFrame,

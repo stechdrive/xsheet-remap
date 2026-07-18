@@ -3,10 +3,13 @@ import {
   createKey,
   defaultCspCellName,
   findTimingKeyByDisplayLabel,
-  isNullCellKeyId,
+  isSpecialTimingKeyId,
   isNullLabel,
+  INBETWEEN_KEY_ID,
   NULL_CELL_KEY_ID,
+  REVERSE_SHEET_KEY_ID,
   setEvent,
+  setTimingSpecialEvent,
   sheetTimingRoleForEvent,
   uniqueCspCellNameForSlot,
   updateKey,
@@ -27,9 +30,21 @@ export function setTimingValueAt(
   const value = rawValue.trim()
   const sheetRole = sheetRoleForHit(hit)
   if (!value) return { project: clearEvent(project, hit.paperTrack, hit.frame, sheetRole), keyId: null }
+  if (value === '/') {
+    return {
+      project: setTimingSpecialEvent(project, hit.paperTrack, hit.frame, 'inbetween', sheetRole, { fontSizePx }),
+      keyId: INBETWEEN_KEY_ID,
+    }
+  }
+  if (value === '.') {
+    return {
+      project: setTimingSpecialEvent(project, hit.paperTrack, hit.frame, 'reverse', sheetRole, { fontSizePx }),
+      keyId: REVERSE_SHEET_KEY_ID,
+    }
+  }
   if (isNullLabel(value)) {
     return {
-      project: setEvent(project, hit.paperTrack, hit.frame, NULL_CELL_KEY_ID, sheetRole, { fontSizePx }),
+      project: setTimingSpecialEvent(project, hit.paperTrack, hit.frame, 'blank', sheetRole, { fontSizePx }),
       keyId: NULL_CELL_KEY_ID,
     }
   }
@@ -44,7 +59,7 @@ export function setTimingValueAt(
     const withEvent = setEvent(project, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx })
     return { project: registerTimingKey(withEvent, reusableKey.keyId, correctionLayerId), keyId: reusableKey.keyId }
   }
-  if (existingKeyId && !isNullCellKeyId(existingKeyId)) {
+  if (existingKeyId && !isSpecialTimingKeyId(existingKeyId)) {
     const updated = updateKey(project, existingKeyId, { displayLabel: value, paperToken: value })
     return { project: registerTimingKey(updated, existingKeyId, correctionLayerId), keyId: existingKeyId }
   }

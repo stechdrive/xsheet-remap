@@ -1,7 +1,7 @@
 import {
   createKey,
   createTimedRangeCue,
-  NULL_CELL_KEY_ID,
+  setTimingSpecialEvent,
   replaceTimedRangeCues,
   setEvent,
   sheetTimingRoleForEvent,
@@ -136,10 +136,11 @@ export function importXdtsIntoProject(
         skippedCount += 1
         continue
       }
-      if (frame.cellName === null) {
-        project = setEvent(project, mapping.target.paperTrack, targetFrame, NULL_CELL_KEY_ID, options.targetRole, { source: 'import' })
+      if (frame.valueKind !== 'cell') {
+        project = setTimingSpecialEvent(project, mapping.target.paperTrack, targetFrame, frame.valueKind, options.targetRole, { source: 'import' })
         continue
       }
+      if (frame.cellName === null) continue
       const created = createKey(project, mapping.target.paperTrack, frame.cellName, 'import', frame.cellName, options.targetRole)
       project = setEvent(created.project, mapping.target.paperTrack, targetFrame, created.key.keyId, options.targetRole, { source: 'import' })
     }

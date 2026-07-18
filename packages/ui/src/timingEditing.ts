@@ -2,17 +2,16 @@ import {
   applyCutTimelineFrameEdit,
   clearEvent,
   createKey,
-  isNullCellKeyId,
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameEnd,
   logicalSheetDisplayFrameStart,
   logicalSheetOfficialFrameEnd,
   logicalSheetWorkRange,
-  NULL_CELL_DISPLAY_LABEL,
-  NULL_CELL_KEY_ID,
   setEvent,
+  setTimingSpecialEvent,
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
+  timingEventValueKind,
   timingHitForFrame,
   updateLogicalSheetSettings,
   updateKey,
@@ -158,8 +157,9 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
         items.push({ paperTrackOffset, offsetFrames: frame - range.frameStart, kind: 'empty' })
         continue
       }
-      if (isNullCellKeyId(event.keyId)) {
-        items.push({ paperTrackOffset, offsetFrames: frame - range.frameStart, kind: 'null', keyId: NULL_CELL_KEY_ID, displayLabel: NULL_CELL_DISPLAY_LABEL, fontSizePx: event.fontSizePx })
+      const eventKind = timingEventValueKind(event)
+      if (eventKind !== 'cell') {
+        items.push({ paperTrackOffset, offsetFrames: frame - range.frameStart, kind: eventKind, fontSizePx: event.fontSizePx })
         continue
       }
       const key = keyById.get(event.keyId)
@@ -347,7 +347,9 @@ function setTimingClipboardItem(
   item: TimingClipboardItem,
 ): CutProject {
   if (item.kind === 'empty') return clearEvent(project, targetPaperTrack, frame, targetRole)
-  if (item.kind === 'null') return setEvent(project, targetPaperTrack, frame, NULL_CELL_KEY_ID, targetRole, { fontSizePx: item.fontSizePx })
+  if (item.kind === 'blank' || item.kind === 'inbetween' || item.kind === 'reverse') {
+    return setTimingSpecialEvent(project, targetPaperTrack, frame, item.kind, targetRole, { fontSizePx: item.fontSizePx })
+  }
   const displayLabel = item.displayLabel ?? ''
   const sourceKey = item.keyId ? project.logicalSheet.keys.find(key => key.keyId === item.keyId) : undefined
   const reusableSourceKey = sourceKey

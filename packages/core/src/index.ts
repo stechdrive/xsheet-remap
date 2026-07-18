@@ -71,6 +71,7 @@ export type {
   ProductionMetadata,
   ProductionStage,
   ProjectFile,
+  ProjectExtensionPayload,
   ProjectHistory,
   RecognitionCandidate,
   SheetImageAlignment,
@@ -99,6 +100,17 @@ export type {
   TimingKey,
   ValidationIssue,
 } from './types'
+export {
+  PROJECT_ARCHIVE_FEATURE_VERSIONS,
+  PROJECT_ARCHIVE_FORMAT_VERSION,
+  PROJECT_ARCHIVE_KIND,
+  buildProjectArchiveManifest,
+  parseProjectArchiveManifest,
+  parseProjectExtensions,
+  type BuildProjectArchiveManifestOptions,
+  type ProjectArchiveBlobDescriptor,
+  type ProjectArchiveManifest,
+} from './project-archive'
 export {
   NULL_CELL_CSP_CELL_NAME,
   NULL_CELL_DISPLAY_LABEL,

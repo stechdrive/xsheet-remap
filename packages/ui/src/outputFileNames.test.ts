@@ -10,7 +10,7 @@ describe('output file names', () => {
     }
 
     expect(projectOutputPrefix(project)).toBe('SAMPLE_05_237')
-    expect(projectFileName(createProjectDocumentFromCutProject(project))).toBe('SAMPLE_05_237.xsr.json')
+    expect(projectFileName(createProjectDocumentFromCutProject(project))).toBe('SAMPLE_05_237.xsr')
     expect(sheetXdtsFileName(project)).toBe('SAMPLE_05_237_sheet.xdts')
     expect(sheetImageFileName(project, 'jpg', 0, 12)).toBe('SAMPLE_05_237_sheet01.jpg')
     expect(sheetImageFileName(project, 'psd', 11, 12)).toBe('SAMPLE_05_237_sheet12.psd')

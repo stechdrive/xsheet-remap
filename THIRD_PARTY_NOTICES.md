@@ -13,6 +13,7 @@ packages and assets under their own licenses.
 | PaddleOCR.js | Apache-2.0 | Browser OCR pipeline |
 | PP-OCRv5 mobile detection and recognition models | Apache-2.0 | Bundled ONNX OCR models |
 | ONNX Runtime Web | MIT | Bundled WebAssembly inference runtime |
+| fflate | MIT | Project container ZIP compression and extraction |
 | LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files |
 | pywinauto / pyperclip / Pillow / pywebview | permissive OSS licenses | CSP helper runtime dependencies |
 

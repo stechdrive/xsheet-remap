@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
+import { encodeProjectArchive } from '@xsheet-remap/adapters';
 import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
@@ -466,6 +467,23 @@ it('uses one page grid and one selected-page source editor for multipage sheets'
     if (!(pageMenu instanceof HTMLElement)) throw new Error('page menu not found')
     expect(pageMenu.querySelectorAll('.pageJumpPageButton')).toHaveLength(3)
     expect(pageMenu.querySelectorAll('.pageJumpSourceSelect select')).toHaveLength(1)
+  })
+
+it('loads the compressed project container through the normal project command', async () => {
+    const project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 300 })
+    const archive = await encodeProjectArchive(createProjectDocumentFromCutProject(project), { createdWith: 'test' })
+    const file = new File([new Uint8Array(archive)], 'multipage.xsr', { type: 'application/vnd.xsheet-remap.project' })
+    render(<App />)
+    const menu = openAppNavigationMenu()
+    const input = within(menu).getByText(uiText.actions.loadProject).closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!input) throw new Error('project input not found')
+    fireEvent.change(input, { target: { files: [file] } })
+
+    const pageMenuTrigger = await screen.findByLabelText(uiText.sheet.activePage)
+    fireEvent.click(pageMenuTrigger)
+    const pageMenu = document.querySelector('.actionMenuPortalContent.pageJumpMenu')
+    if (!(pageMenu instanceof HTMLElement)) throw new Error('page menu not found')
+    expect(pageMenu.querySelectorAll('.pageJumpPageButton')).toHaveLength(3)
   })
 
 it('closes the app navigation menu when a file picker item is selected', async () => {

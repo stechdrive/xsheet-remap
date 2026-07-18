@@ -1,8 +1,20 @@
-import type { FileRef, NameNormalizationAssetRename, NameNormalizationAssetRenameResult } from '@xsheet-remap/core'
+import type { CutGroupProjectDocument, FileRef, NameNormalizationAssetRename, NameNormalizationAssetRenameResult } from '@xsheet-remap/core'
 import { isTauriHost } from './environment'
+import { decodeProjectFileBytes, encodeProjectArchive, type DecodedProjectFile } from './projectArchive'
 
 export { isTauriHost, isTauriLikeWindow } from './environment'
 export { fileToFileRef, sha256File } from './browserFiles'
+export {
+  decodeProjectFileBytes,
+  encodeProjectArchive,
+  projectDocumentWithoutRuntimePreviews,
+  projectFileErrorCanRecoverFromBackup,
+  readProjectFile,
+  RecoverableProjectFileError,
+  type DecodedProjectFile,
+  type EncodeProjectArchiveOptions,
+  type ProjectFileFormat,
+} from './projectArchive'
 export {
   closeCurrentNativeWindow,
   configureCurrentNativeWindow,
@@ -212,6 +224,45 @@ export async function writeBinaryFile(path: string, bytes: Uint8Array): Promise<
   return { saved: true, path }
 }
 
+export async function saveProjectFile(
+  document: CutGroupProjectDocument,
+  fileName: string,
+  options: Pick<SaveTextFileOptions, 'initialDirectory'> & { createdWith?: string } = {},
+): Promise<SaveFileResult> {
+  const bytes = await encodeProjectArchive(document, { createdWith: options.createdWith })
+  if (isTauriHost()) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const path = await invoke<string | null>('save_project_file', {
+      fileName,
+      contentsBase64: bytesToBase64(bytes),
+      initialDirectory: options.initialDirectory,
+    })
+    return path ? { saved: true, path } : { saved: false }
+  }
+  const copy = new Uint8Array(bytes)
+  downloadBlob(new Blob([copy.buffer as ArrayBuffer], { type: 'application/vnd.xsheet-remap.project' }), fileName)
+  return { saved: true }
+}
+
+export async function writeProjectFile(
+  path: string,
+  document: CutGroupProjectDocument,
+  options: { createdWith?: string } = {},
+): Promise<SaveFileResult> {
+  if (!isTauriHost()) return { saved: false }
+  const bytes = await encodeProjectArchive(document, { createdWith: options.createdWith })
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('write_project_file', { path, contentsBase64: bytesToBase64(bytes) })
+  return { saved: true, path }
+}
+
+export async function readProjectBackup(path: string): Promise<DecodedProjectFile | null> {
+  if (!isTauriHost()) return null
+  const { invoke } = await import('@tauri-apps/api/core')
+  const contentsBase64 = await invoke<string | null>('read_project_backup', { path })
+  return contentsBase64 ? decodeProjectFileBytes(base64ToBytes(contentsBase64)) : null
+}
+
 export async function writeCspImportPackage(input: WriteCspImportPackageInput): Promise<WriteCspImportPackageResult | null> {
   if (!isTauriHost()) throw new Error('CSP自動登録パッケージの書き出しはデスクトップ版でのみ使えます。')
   const { invoke } = await import('@tauri-apps/api/core')
@@ -299,4 +350,11 @@ function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...chunk)
   }
   return btoa(binary)
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return bytes
 }

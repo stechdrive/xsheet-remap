@@ -7,6 +7,7 @@ import { withoutUndefined } from './core-utils'
 import { DEFAULT_CSP_CELL_NAME_POLICY, LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations } from './project-shared'
+import { parseProjectExtensions } from './project-archive'
 
 export function createDefaultProjectDocument(): CutGroupProjectDocument {
   return createProjectDocumentFromCutProject(createDefaultProject(), { sheetTemplate: standardA3SheetTemplate })
@@ -44,7 +45,9 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
   if (!isCutGroupProjectDocumentInput(input)) {
     throw new Error('対応していないプロジェクトファイルです。新しい兼用カットプロジェクトを作成してください。')
   }
-  if (input.schemaVersion !== PROJECT_DOCUMENT_SCHEMA_VERSION && input.schemaVersion !== LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION) {
+  if (!Number.isInteger(input.schemaVersion)
+    || Number(input.schemaVersion) < LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION
+    || Number(input.schemaVersion) > PROJECT_DOCUMENT_SCHEMA_VERSION) {
     throw new Error(`対応していないプロジェクトバージョンです: ${String(input.schemaVersion)}`)
   }
   if (!isRecord(input.production) || !isSheetTemplateInput(input.sheetTemplate)) {
@@ -71,6 +74,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     .sort((a, b) => a.order - b.order || a.cutId.localeCompare(b.cutId, 'ja'))
     .map((cut, order) => ({ ...cut, order }))
   const activeCutId = cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : cuts[0]!.cutId
+  const extensions = parseProjectExtensions(document.extensions)
   return {
     documentKind: PROJECT_DOCUMENT_KIND,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
@@ -87,6 +91,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     registeredCells,
     exportProfiles: document.exportProfiles,
     cuts,
+    extensions,
   }
 }
 

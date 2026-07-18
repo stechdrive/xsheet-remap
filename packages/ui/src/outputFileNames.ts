@@ -8,7 +8,7 @@ export function projectFileName(document: CutGroupProjectDocument): string {
     .map(cut => [safeFileNameSegment(cut.metadata.scene), safeFileNameSegment(cut.metadata.cut)].filter(Boolean).join('-'))
     .filter(Boolean)
   const group = cuts.join('_') || 'cut-group'
-  return `${productionPrefix ? `${productionPrefix}_${group}` : group}.xsr.json`
+  return `${productionPrefix ? `${productionPrefix}_${group}` : group}.xsr`
 }
 
 export function sheetXdtsFileName(project: CutProject): string {

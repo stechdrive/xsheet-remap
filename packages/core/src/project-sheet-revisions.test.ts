@@ -58,7 +58,7 @@ describe('project sheet history', () => {
         timelineMemos: revision.timelineMemos, timedRangeCues: revision.timedRangeCues }],
     }
     const migrated = parseProjectDocument(legacy)
-    expect(migrated).toMatchObject({ schemaVersion: 7, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined }] }] })
+    expect(migrated).toMatchObject({ schemaVersion: 8, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined }] }] })
     expect(activeCutProjectFromDocument(migrated).logicalSheet.events).toEqual(source.logicalSheet.events)
   })
 })

@@ -642,6 +642,20 @@ export interface CutSheetDocument {
   revisions: SheetRevisionDocument[]
 }
 
+/**
+ * Opaque, namespaced project data owned by an optional feature.
+ *
+ * Core never interprets `data`. Keeping the payload in the canonical project
+ * document lets a newer optional feature survive an open/save cycle in an
+ * application that does not understand it. Required extensions are rejected
+ * at the archive capability boundary instead of being silently discarded.
+ */
+export interface ProjectExtensionPayload {
+  schemaVersion: number
+  required?: boolean
+  data: unknown
+}
+
 export interface CutGroupProjectDocument {
   documentKind: 'xsheet-remap-cut-group-project'
   schemaVersion: number
@@ -658,6 +672,7 @@ export interface CutGroupProjectDocument {
   registeredCells: SharedRegisteredCellCatalog
   exportProfiles: ExportProfile[]
   cuts: CutSheetDocument[]
+  extensions?: Record<string, ProjectExtensionPayload>
 }
 
 export type ProjectFile = CutGroupProjectDocument

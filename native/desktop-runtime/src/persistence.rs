@@ -1,4 +1,59 @@
 use super::*;
+use std::io::Write as _;
+
+#[tauri::command(rename_all = "camelCase")]
+pub(super) async fn save_project_file(
+    window: tauri::WebviewWindow,
+    file_name: String,
+    contents_base64: String,
+    initial_directory: Option<String>,
+) -> Result<Option<String>, String> {
+    use base64::Engine as _;
+
+    let Some(path) = pick_save_path(
+        window,
+        file_name,
+        Some("xsheet-remap project".to_string()),
+        Some(vec!["xsr".to_string()]),
+        Some("xsr".to_string()),
+        initial_directory,
+    )
+    .await?
+    else {
+        return Ok(None);
+    };
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(contents_base64)
+        .map_err(|error| error.to_string())?;
+    atomic_write_project_file(&path, &bytes)?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub(super) fn write_project_file(path: String, contents_base64: String) -> Result<(), String> {
+    use base64::Engine as _;
+
+    let path = std::path::PathBuf::from(path);
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(contents_base64)
+        .map_err(|error| error.to_string())?;
+    atomic_write_project_file(&path, &bytes)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub(super) fn read_project_backup(path: String) -> Result<Option<String>, String> {
+    use base64::Engine as _;
+
+    let backup_path = project_backup_path(std::path::Path::new(&path))?;
+    if !backup_path.is_file() {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(backup_path).map_err(|error| error.to_string())?;
+    Ok(Some(
+        base64::engine::general_purpose::STANDARD.encode(bytes),
+    ))
+}
+
 #[tauri::command(rename_all = "camelCase")]
 pub(super) async fn save_text_file(
     window: tauri::WebviewWindow,
@@ -130,6 +185,158 @@ pub(super) fn write_binary_file(path: String, contents_base64: String) -> Result
         .decode(contents_base64)
         .map_err(|error| error.to_string())?;
     std::fs::write(&path, bytes).map_err(|error| error.to_string())
+}
+
+fn atomic_write_project_file(path: &std::path::Path, contents: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .filter(|parent| parent.is_dir())
+        .ok_or_else(|| "保存先フォルダが見つかりません。".to_string())?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| "保存先ファイル名が不正です。".to_string())?
+        .to_string_lossy();
+    let temp_path = parent.join(format!(
+        ".{file_name}.{}.{}.tmp",
+        std::process::id(),
+        next_atomic_write_id()
+    ));
+
+    let write_result = (|| -> Result<(), String> {
+        let mut file = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temp_path)
+            .map_err(|error| error.to_string())?;
+        file.write_all(contents)
+            .map_err(|error| error.to_string())?;
+        file.flush().map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        drop(file);
+        replace_project_file(path, &temp_path)
+    })();
+
+    if temp_path.exists() {
+        let _ = std::fs::remove_file(&temp_path);
+    }
+    write_result
+}
+
+fn next_atomic_write_id() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+    NEXT_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+fn project_backup_path(path: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| "保存先ファイル名が不正です。".to_string())?;
+    let mut backup_name = file_name.to_os_string();
+    backup_name.push(".bak");
+    Ok(path.with_file_name(backup_name))
+}
+
+#[cfg(windows)]
+fn replace_project_file(path: &std::path::Path, temp_path: &std::path::Path) -> Result<(), String> {
+    if !path.exists() {
+        return std::fs::rename(temp_path, path).map_err(|error| error.to_string());
+    }
+
+    use std::os::windows::ffi::OsStrExt as _;
+    let backup_path = project_backup_path(path)?;
+    if backup_path.exists() {
+        std::fs::remove_file(&backup_path).map_err(|error| error.to_string())?;
+    }
+    let path_wide = path
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let temp_wide = temp_path
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let backup_wide = backup_path
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let replaced = unsafe {
+        ReplaceFileW(
+            path_wide.as_ptr(),
+            temp_wide.as_ptr(),
+            backup_wide.as_ptr(),
+            0x0000_0001,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+    if replaced == 0 {
+        return Err(format!(
+            "プロジェクトファイルを安全に置換できませんでした: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+#[link(name = "Kernel32")]
+extern "system" {
+    fn ReplaceFileW(
+        replaced_file_name: *const u16,
+        replacement_file_name: *const u16,
+        backup_file_name: *const u16,
+        replace_flags: u32,
+        exclude: *mut std::ffi::c_void,
+        reserved: *mut std::ffi::c_void,
+    ) -> i32;
+}
+
+#[cfg(not(windows))]
+fn replace_project_file(path: &std::path::Path, temp_path: &std::path::Path) -> Result<(), String> {
+    if path.exists() {
+        std::fs::copy(path, project_backup_path(path)?).map_err(|error| error.to_string())?;
+    }
+    std::fs::rename(temp_path, path).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod project_file_tests {
+    use super::*;
+
+    #[test]
+    fn atomic_project_save_keeps_the_previous_complete_file_as_backup() {
+        let root = std::env::temp_dir().join(format!(
+            "xsheet-remap-project-save-test-{}-{}",
+            std::process::id(),
+            next_atomic_write_id()
+        ));
+        std::fs::create_dir_all(&root).expect("create test directory");
+        let project = root.join("sample.xsr");
+
+        atomic_write_project_file(&project, b"first-complete-project").expect("first save");
+        assert_eq!(
+            std::fs::read(&project).expect("read first save"),
+            b"first-complete-project"
+        );
+        assert!(!project_backup_path(&project).expect("backup path").exists());
+
+        atomic_write_project_file(&project, b"second-complete-project").expect("second save");
+        assert_eq!(
+            std::fs::read(&project).expect("read current save"),
+            b"second-complete-project"
+        );
+        assert_eq!(
+            std::fs::read(project_backup_path(&project).expect("backup path"))
+                .expect("read backup"),
+            b"first-complete-project"
+        );
+
+        std::fs::remove_dir_all(root).expect("remove test directory");
+    }
 }
 
 #[tauri::command(rename_all = "camelCase")]

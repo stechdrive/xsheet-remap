@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoPlacement, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke } from '@xsheet-remap/core';
-import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, parseProjectDocument, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
-import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, readJsonFile, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeTextFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
+import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isNullCellKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
+import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
 import { issueMessage, uiText } from './i18n';
 import { type Panel, type SheetRangeSelection, type TimingClipboard } from './appTypes';
+import { isProjectArchivePath, loadProjectDocumentFile } from './projectFileModel';
 import { defaultSheetImageExportOptions, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions } from './cleanSheetExport';
 import { cspImportPackageTextOutputs } from './cspImportPackageOutputs';
 import { projectFileName } from './outputFileNames';
@@ -1582,17 +1583,21 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         })
         if (!confirmed) return
       }
-      const loadedDocument = parseProjectDocument(await readJsonFile<unknown>(file))
+      const loadedFile = await loadProjectDocumentFile(file)
+      const loadedDocument = loadedFile.document
       const loaded = activeCutProjectFromDocument(loadedDocument)
       setTemplate(loadedDocument.sheetTemplate)
       setProjectDocument(loadedDocument)
       setSavedProjectDocumentSignature(JSON.stringify(loadedDocument))
-      setProjectFilePath((file as File & { path?: string }).path ?? null)
+      setProjectFilePath(loadedFile.projectFilePath)
       setHistory(createProjectHistory(loaded))
       setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
       setRuntimeSourceImageUrls({})
       clearSelectionState()
       void alertMissingProjectNativePaths(loadedDocument)
+      if (loadedFile.recoveredFromBackup) {
+        window.alert('プロジェクト本体を読み込めなかったため、直前の正常保存バックアップを開きました。バックアップを保護するため、次の保存では保存先を指定してください。')
+      }
     } catch (error) {
       window.alert(uiText.project.loadFailed(errorMessage(error)))
     }
@@ -1642,16 +1647,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   async function handleSaveProjectJson(options: { saveAs?: boolean } = {}) {
     try {
       const nextDocument = updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template })
-      const json = `${JSON.stringify(nextDocument, null, 2)}\n`
-      if (!options.saveAs && projectFilePath) {
-        await writeTextFile(projectFilePath, json)
+      if (!options.saveAs && projectFilePath && isProjectArchivePath(projectFilePath)) {
+        await writeProjectFile(projectFilePath, nextDocument, { createdWith: APP_VERSION })
         setProjectDocument(nextDocument)
         setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
         return
       }
-      const result = await saveJsonFile(nextDocument, projectFileName(nextDocument), {
+      const result = await saveProjectFile(nextDocument, projectFileName(nextDocument), {
         initialDirectory: fileDialogInitialDirectory(project),
+        createdWith: APP_VERSION,
       })
+      if (!result.saved) return
       if (result.path) setProjectFilePath(result.path)
       setProjectDocument(nextDocument)
       setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
@@ -2290,5 +2296,4 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   }
 }
-
 export type AppController = ReturnType<typeof useAppController>

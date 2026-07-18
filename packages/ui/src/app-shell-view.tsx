@@ -578,7 +578,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <div className="divider" />
         <label className="fileButton">
           {uiText.actions.loadProject}
-          <input type="file" accept=".json,application/json" onChange={event => void handleLoadProject(event.currentTarget.files)} />
+          <input type="file" accept=".xsr,.xsr.json,.json,application/vnd.xsheet-remap.project,application/json" onChange={event => void handleLoadProject(event.currentTarget.files)} />
         </label>
       </aside>
 

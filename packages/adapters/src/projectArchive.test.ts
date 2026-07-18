@@ -1,0 +1,82 @@
+import { describe, expect, it } from 'vitest'
+import { createDefaultProjectDocument } from '@xsheet-remap/core'
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
+import { decodeProjectFileBytes, encodeProjectArchive } from './projectArchive'
+
+const embeddedImage = 'data:image/png;base64,aGVsbG8='
+
+describe('project archive codec', () => {
+  it('deduplicates embedded data, compresses it as a blob, and restores it', async () => {
+    const source = createDefaultProjectDocument()
+    source.sheetTemplate = {
+      ...source.sheetTemplate,
+      defaultUnderlay: {
+        ...source.sheetTemplate.defaultUnderlay!,
+        assetPath: embeddedImage,
+        imageRef: {
+          ...source.sheetTemplate.defaultUnderlay!.imageRef,
+          assetPath: embeddedImage,
+        },
+      },
+    }
+    source.assets = [{
+      assetId: 'asset_1',
+      binId: 'asset_bin_root',
+      originalFileName: 'A.png',
+      displayName: 'A.png',
+      role: 'cell-material',
+      source: { kind: 'external-file', absolutePath: 'D:/cut/A.png' },
+      thumbnailUrl: 'asset://localhost/D:/cut/A.png',
+    }]
+
+    const bytes = await encodeProjectArchive(source, { createdWith: 'test' })
+    const entries = unzipSync(bytes)
+    const blobEntries = Object.keys(entries).filter(path => path.startsWith('blobs/'))
+    const archivedJson = strFromU8(entries['project.json']!)
+    expect(blobEntries).toHaveLength(1)
+    expect(archivedJson).not.toContain('data:image/png')
+    expect(archivedJson).not.toContain('thumbnailUrl')
+
+    const restored = await decodeProjectFileBytes(bytes)
+    expect(restored.format).toBe('archive')
+    expect(restored.manifest?.createdWith).toBe('test')
+    expect(restored.document.sheetTemplate.defaultUnderlay?.assetPath).toBe(embeddedImage)
+    expect(restored.document.sheetTemplate.defaultUnderlay?.imageRef.assetPath).toBe(embeddedImage)
+    expect(restored.document.assets[0]?.thumbnailUrl).toBeUndefined()
+  })
+
+  it('detects corrupted embedded blobs', async () => {
+    const source = createDefaultProjectDocument()
+    source.sheetTemplate = {
+      ...source.sheetTemplate,
+      defaultUnderlay: {
+        ...source.sheetTemplate.defaultUnderlay!,
+        assetPath: embeddedImage,
+        imageRef: { ...source.sheetTemplate.defaultUnderlay!.imageRef, assetPath: embeddedImage },
+      },
+    }
+    const entries = unzipSync(await encodeProjectArchive(source))
+    const blobPath = Object.keys(entries).find(path => path.startsWith('blobs/'))!
+    entries[blobPath] = strToU8('corrupt')
+    await expect(decodeProjectFileBytes(zipSync(entries))).rejects.toThrow(/サイズが一致|破損/)
+  })
+
+  it('refuses archives that require an unsupported future feature', async () => {
+    const entries = unzipSync(await encodeProjectArchive(createDefaultProjectDocument()))
+    const manifest = JSON.parse(strFromU8(entries['manifest.json']!)) as {
+      features: Record<string, number>
+      requiredFeatures: string[]
+    }
+    manifest.features['future-camera-model'] = 3
+    manifest.requiredFeatures.push('future-camera-model')
+    entries['manifest.json'] = strToU8(JSON.stringify(manifest))
+    await expect(decodeProjectFileBytes(zipSync(entries))).rejects.toThrow('対応していない必須プロジェクト機能')
+  })
+
+  it('keeps current JSON projects readable for one-way migration', async () => {
+    const source = createDefaultProjectDocument()
+    const restored = await decodeProjectFileBytes(strToU8(JSON.stringify(source)))
+    expect(restored.format).toBe('legacy-json')
+    expect(restored.document.projectId).toBe(source.projectId)
+  })
+})

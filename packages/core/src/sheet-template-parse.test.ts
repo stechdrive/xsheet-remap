@@ -24,4 +24,14 @@ describe('parseSheetTemplate', () => {
     template.regions[0]!.rect.w = 0.2
     expect(() => parseSheetTemplate(template)).toThrow('矩形が不正')
   })
+
+  it('accepts render-only decorative grids and rejects interactive decorative regions', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    expect(parseSheetTemplate(template).regions.some(region => region.type === 'decorative' && region.grid)).toBe(true)
+
+    const invalid = structuredClone(standardA3SheetTemplate)
+    const reserve = invalid.regions.find(region => region.regionId === 'left_action_reserve_grid')!
+    reserve.usage = 'input'
+    expect(() => parseSheetTemplate(invalid)).toThrow('描画専用')
+  })
 })

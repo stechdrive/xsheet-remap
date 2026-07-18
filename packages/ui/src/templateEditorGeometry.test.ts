@@ -222,6 +222,27 @@ describe('template editor geometry', () => {
     ]))
   })
 
+  it('renders A3 reserve columns as dotted decorative grids without headers or labels', () => {
+    const full = buildTemplateEditorRenderModel(standardA3SheetTemplate)
+    const reserveRegions = standardA3SheetTemplate.regions.filter(region => region.type === 'decorative' && region.grid)
+
+    expect(reserveRegions.map(region => region.regionId)).toEqual([
+      'left_action_reserve_grid',
+      'right_action_reserve_grid',
+    ])
+    for (const region of reserveRegions) {
+      const model = full.gridOverlays.find(item => item.regionId === region.regionId)
+      expect(model).toBeTruthy()
+      expect(model?.role).toBe('other')
+      expect(model?.labels).toHaveLength(0)
+      expect(model?.frameNumbers).toHaveLength(0)
+      expect(model?.bottomTrackLabels).toHaveLength(0)
+      expect(model?.rowPaths.find(path => path.style?.pattern === 'dotted')?.segments).toHaveLength(71)
+      expect(full.chrome.headers.some(header => header.regionId === region.regionId)).toBe(false)
+      expect(full.chrome.referenceRegions.some(item => item.regionId === region.regionId)).toBe(false)
+    }
+  })
+
   it('projects A3 process and count fields into editable form cells', () => {
     const model = buildTemplateChromeRenderModel(standardA3SheetTemplate)
     expect(model.formFields.some(field => field.fieldId === 'process.animationDirector.final' && field.definition.scope === 'revision')).toBe(true)

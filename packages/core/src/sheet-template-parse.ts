@@ -45,9 +45,16 @@ function validateRegion(input: unknown, index: number): asserts input is SheetTe
   if (!isRecord(input) || !nonEmptyString(input.regionId) || !nonEmptyString(input.label)) {
     throw new Error(`領域 ${index + 1} のIDまたはラベルが不正です。`)
   }
+  if (!sheetTemplateRegionTypes.has(String(input.type)) || !sheetTemplateRegionUsages.has(String(input.usage))) {
+    throw new Error(`領域 ${input.regionId} の種類または用途が不正です。`)
+  }
+  if (input.type === 'decorative' && input.usage !== 'render-only') {
+    throw new Error(`補助罫線領域 ${input.regionId} は描画専用である必要があります。`)
+  }
   if (!isNormalizedRect(input.rect)) throw new Error(`領域 ${input.regionId} の矩形が不正です。`)
   if (input.grid !== undefined) {
     if (!isRecord(input.grid)
+      || !sheetTemplateGridRoles.has(String(input.grid.role))
       || !positiveInteger(input.grid.rowCount)
       || !Array.isArray(input.grid.columns)
       || !input.grid.columns.every(column => isRecord(column) && nonEmptyString(column.columnId) && typeof column.label === 'string')) {
@@ -57,7 +64,37 @@ function validateRegion(input: unknown, index: number): asserts input is SheetTe
     if (new Set(columnIds).size !== columnIds.length) {
       throw new Error(`領域 ${input.regionId} の列IDが重複しています。`)
     }
+    if (input.grid.lineRules !== undefined
+      && (!Array.isArray(input.grid.lineRules) || !input.grid.lineRules.every(validateGridLineRule))) {
+      throw new Error(`領域 ${input.regionId} の罫線ルールが不正です。`)
+    }
   }
+}
+
+const sheetTemplateRegionTypes = new Set([
+  'metadata-field', 'memo-area', 'exposure-grid', 'frame-guide', 'count-table',
+  'process-check-area', 'form-table', 'annotation-area', 'decorative',
+])
+
+const sheetTemplateRegionUsages = new Set(['input', 'reference', 'render-only', 'ignored'])
+const sheetTemplateGridRoles = new Set(['action', 'sound', 'cell', 'camera', 'frame-guide', 'count-table', 'other'])
+
+function validateGridLineRule(input: unknown): boolean {
+  if (!isRecord(input)
+    || (input.axis !== 'row' && input.axis !== 'column')
+    || !['all', 'inner', 'outer', 'indexes'].includes(String(input.target))) return false
+  if (input.indexes !== undefined && (!Array.isArray(input.indexes) || !input.indexes.every(nonNegativeInteger))) return false
+  if (input.every !== undefined && !positiveInteger(input.every)) return false
+  if (input.offset !== undefined && !Number.isInteger(input.offset)) return false
+  if (input.spans !== undefined && (!Array.isArray(input.spans) || !input.spans.every(span =>
+    isRecord(span) && nonNegativeInteger(span.startBoundary) && nonNegativeInteger(span.endBoundary)))) return false
+  if (input.style === undefined) return true
+  if (!isRecord(input.style)) return false
+  if (input.style.pattern !== undefined && !['solid', 'dotted', 'dashed'].includes(String(input.style.pattern))) return false
+  if (input.style.widthPx !== undefined && !positiveNumber(input.style.widthPx)) return false
+  if (input.style.color !== undefined && !nonEmptyString(input.style.color)) return false
+  return input.style.dashPx === undefined
+    || (Array.isArray(input.style.dashPx) && input.style.dashPx.every(nonNegativeNumber))
 }
 
 function isNormalizedRect(input: unknown): input is NormalizedRect {
@@ -84,4 +121,12 @@ function positiveNumber(input: unknown): input is number {
 
 function positiveInteger(input: unknown): input is number {
   return positiveNumber(input) && Number.isInteger(input)
+}
+
+function nonNegativeInteger(input: unknown): input is number {
+  return finiteNumber(input) && input >= 0 && Number.isInteger(input)
+}
+
+function nonNegativeNumber(input: unknown): input is number {
+  return finiteNumber(input) && input >= 0
 }

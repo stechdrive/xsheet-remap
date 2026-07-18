@@ -1,4 +1,4 @@
-import { resolveCameraInstructionPoints, type AnnotationStroke, type AnnotationText, type SheetHit } from '@xsheet-remap/core';
+import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, type AnnotationStroke, type AnnotationText, type SheetHit } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
 import { getSheetPageImage } from './sheetImages';
@@ -199,7 +199,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     />
                   )}
                   {(showTemplateLines || showTemplateLabels) && <TemplateChrome template={props.template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />}
-                  {(showTemplateLines || showTemplateLabels) && props.template.regions.filter(region => region.type === 'exposure-grid').map(region => (
+                  {(showTemplateLines || showTemplateLabels) && props.template.regions.filter(isRenderableSheetTemplateGridRegion).map(region => (
                     <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />
                   ))}
                   {showInputContent && props.referenceProject && referenceRenderModelContext && (

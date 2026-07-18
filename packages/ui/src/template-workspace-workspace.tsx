@@ -1,4 +1,4 @@
-import { formatSheetTemplateCutNumber, getSheetViewLayout, type CorrectionLayer, type CutProject, type SheetTemplate } from '@xsheet-remap/core'
+import { formatSheetTemplateCutNumber, getSheetViewLayout, type CorrectionLayer, type CutProject, type SheetTemplate, type SheetTemplateLinePattern } from '@xsheet-remap/core'
 import { useMemo, useState } from 'react'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './appTypes'
@@ -66,6 +66,7 @@ export function TemplateWorkspace({
     : selectedRegionId
       ? editableRegions.find(region => region.regionId === selectedRegionId) ?? editableRegions[0] ?? null
       : editableRegions[0] ?? null
+  const selectedDecorativeGrid = isDecorativeGridRegion(selectedRegion) ? selectedRegion : null
   const effectiveSelectedRegionId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegion?.regionId ?? null
   const correctionLayers = sortedCorrectionLayers(project)
   const defaultCorrectionLayer = correctionLayers[0] ?? null
@@ -305,6 +306,66 @@ export function TemplateWorkspace({
     }))
   }
 
+  function updateDecorativeGridAxisPattern(regionId: string, axis: 'row' | 'column', pattern: SheetTemplateLinePattern | 'none') {
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => {
+        if (region.regionId !== regionId || region.type !== 'decorative' || !region.grid) return region
+        const currentRules = region.grid.lineRules ?? []
+        const existing = currentRules.find(rule => rule.axis === axis && rule.target === 'inner')
+        const nextRules = currentRules.filter(rule => !(rule.axis === axis && rule.target === 'inner'))
+        if (pattern !== 'none') {
+          nextRules.push({
+            axis,
+            target: 'inner',
+            style: {
+              ...(existing?.style ?? decorativeGridSharedLineStyle(region)),
+              pattern,
+            },
+          })
+        }
+        return { ...region, grid: { ...region.grid, lineRules: nextRules } }
+      }),
+    }))
+  }
+
+  function updateDecorativeGridOuterBorder(regionId: string, visible: boolean) {
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => {
+        if (region.regionId !== regionId || region.type !== 'decorative' || !region.grid) return region
+        const nextRules = (region.grid.lineRules ?? []).filter(rule => rule.target !== 'outer')
+        if (visible) {
+          const style = { ...decorativeGridSharedLineStyle(region), pattern: 'solid' as const }
+          nextRules.push(
+            { axis: 'row', target: 'outer', style },
+            { axis: 'column', target: 'outer', style },
+          )
+        }
+        return { ...region, grid: { ...region.grid, lineRules: nextRules } }
+      }),
+    }))
+  }
+
+  function updateDecorativeGridLineStyle(regionId: string, updates: { widthPx?: number; color?: string }) {
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => {
+        if (region.regionId !== regionId || region.type !== 'decorative' || !region.grid) return region
+        return {
+          ...region,
+          grid: {
+            ...region.grid,
+            lineRules: (region.grid.lineRules ?? []).map(rule => ({
+              ...rule,
+              style: { ...(rule.style ?? {}), ...updates },
+            })),
+          },
+        }
+      }),
+    }))
+  }
+
   function addGridRegion(role: NonNullable<SheetTemplate['regions'][number]['grid']>['role']) {
     const editableTemplate = ensureEditableTemplateDraft(template)
     const regionNumber = editableTemplate.regions.filter(region => region.grid?.role === role).length + 1
@@ -333,6 +394,32 @@ export function TemplateWorkspace({
       ...editableTemplate,
       regions: [...editableTemplate.regions, region],
     })
+    setSelectedRegionId(regionId)
+  }
+
+  function addDecorativeGridRegion() {
+    const editableTemplate = ensureEditableTemplateDraft(template)
+    const index = editableTemplate.regions.filter(region => region.type === 'decorative' && region.grid).length + 1
+    const regionId = `custom_decorative_grid_${editableTemplate.regions.length + 1}`
+    const region: SheetTemplate['regions'][number] = {
+      regionId,
+      type: 'decorative',
+      label: `補助罫線 ${index}`,
+      rect: { x: 0.05, y: 0.2, w: 0.08, h: 0.6 },
+      usage: 'render-only',
+      grid: {
+        role: 'other',
+        frameStart: 1,
+        rowCount: 24,
+        lineRules: [
+          { axis: 'row', target: 'inner', style: { pattern: 'dotted', widthPx: 1, color: '#727872' } },
+          { axis: 'row', target: 'outer', style: { pattern: 'solid', widthPx: 1, color: '#2f3430' } },
+          { axis: 'column', target: 'outer', style: { pattern: 'solid', widthPx: 1, color: '#2f3430' } },
+        ],
+        columns: [{ columnId: `decorative_${index}_1`, label: '' }],
+      },
+    }
+    setDraftTemplate({ ...editableTemplate, regions: [...editableTemplate.regions, region] })
     setSelectedRegionId(regionId)
   }
 
@@ -717,6 +804,82 @@ export function TemplateWorkspace({
           </dd>
         </>
       )}
+      {selectedDecorativeGrid && (
+        <>
+          <dt>補助罫線</dt>
+          <dd className="detailStack templateDecorativeGridControls">
+            <div className="templateCalibrationTargetFields">
+              <label>
+                <span>行数</span>
+                <input
+                  className="numberInput"
+                  type="number"
+                  min="1"
+                  value={selectedDecorativeGrid.grid.rowCount}
+                  onChange={event => updateRegionGrid(selectedDecorativeGrid.regionId, { rowCount: Math.max(1, Math.round(Number(event.currentTarget.value))) })}
+                />
+              </label>
+              <label>
+                <span>列数</span>
+                <input
+                  className="numberInput"
+                  type="number"
+                  min="1"
+                  max="64"
+                  value={selectedDecorativeGrid.grid.columns.length}
+                  onChange={event => updateRegionColumnCount(selectedDecorativeGrid.regionId, Number(event.currentTarget.value))}
+                />
+              </label>
+              <label>
+                <span>横罫線</span>
+                <select
+                  value={decorativeGridAxisPattern(selectedDecorativeGrid, 'row')}
+                  onChange={event => updateDecorativeGridAxisPattern(selectedDecorativeGrid.regionId, 'row', event.currentTarget.value as SheetTemplateLinePattern | 'none')}
+                >
+                  {decorativeGridPatternOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>縦罫線</span>
+                <select
+                  value={decorativeGridAxisPattern(selectedDecorativeGrid, 'column')}
+                  onChange={event => updateDecorativeGridAxisPattern(selectedDecorativeGrid.regionId, 'column', event.currentTarget.value as SheetTemplateLinePattern | 'none')}
+                >
+                  {decorativeGridPatternOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>線幅 px</span>
+                <input
+                  className="numberInput"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={decorativeGridSharedLineStyle(selectedDecorativeGrid).widthPx ?? 1}
+                  onChange={event => updateDecorativeGridLineStyle(selectedDecorativeGrid.regionId, { widthPx: Math.max(0.1, Number(event.currentTarget.value)) })}
+                />
+              </label>
+              <label>
+                <span>線色</span>
+                <input
+                  type="color"
+                  value={decorativeGridSharedLineStyle(selectedDecorativeGrid).color ?? '#2f3430'}
+                  onChange={event => updateDecorativeGridLineStyle(selectedDecorativeGrid.regionId, { color: event.currentTarget.value })}
+                />
+              </label>
+            </div>
+            <label className="compactControl">
+              <input
+                type="checkbox"
+                checked={decorativeGridHasOuterBorder(selectedDecorativeGrid)}
+                onChange={event => updateDecorativeGridOuterBorder(selectedDecorativeGrid.regionId, event.currentTarget.checked)}
+              />
+              外枠を描画
+            </label>
+            <p className="muted">印刷・画像出力にだけ使われ、シート入力や素材ドロップは受け付けません。</p>
+          </dd>
+        </>
+      )}
     </dl>
   )
 
@@ -996,6 +1159,9 @@ export function TemplateWorkspace({
           <Tooltip label={uiText.actions.addCameraRegionTitle}>
             <button onClick={() => addGridRegion('camera')}>{uiText.actions.addCameraRegion}</button>
           </Tooltip>
+          <Tooltip label={uiText.actions.addDecorativeGridRegionTitle}>
+            <button onClick={addDecorativeGridRegion}>{uiText.actions.addDecorativeGridRegion}</button>
+          </Tooltip>
         </ToolbarGroup>
         <ToolbarGroup className="templateProcessToolbarGroup">
           <span className="toolbarGroupLabel">{uiText.template.processSection}</span>
@@ -1084,4 +1250,41 @@ export function TemplateWorkspace({
       </div>
     </section>
   )
+}
+
+const decorativeGridPatternOptions: Array<[SheetTemplateLinePattern | 'none', string]> = [
+  ['none', 'なし'],
+  ['solid', '実線'],
+  ['dotted', '点線'],
+  ['dashed', '破線'],
+]
+
+function decorativeGridAxisPattern(
+  region: SheetTemplate['regions'][number],
+  axis: 'row' | 'column',
+): SheetTemplateLinePattern | 'none' {
+  return region.grid?.lineRules?.find(rule => rule.axis === axis && rule.target === 'inner')?.style?.pattern ?? 'none'
+}
+
+function decorativeGridHasOuterBorder(
+  region: SheetTemplate['regions'][number],
+): boolean {
+  const outerAxes = new Set(region.grid?.lineRules?.filter(rule => rule.target === 'outer').map(rule => rule.axis) ?? [])
+  return outerAxes.has('row') && outerAxes.has('column')
+}
+
+function decorativeGridSharedLineStyle(
+  region: SheetTemplate['regions'][number],
+) {
+  const style = region.grid?.lineRules?.find(rule => rule.style)?.style
+  return {
+    widthPx: style?.widthPx ?? 1,
+    color: style?.color ?? '#2f3430',
+  }
+}
+
+function isDecorativeGridRegion(
+  region: SheetTemplate['regions'][number] | null,
+): region is SheetTemplate['regions'][number] & { type: 'decorative'; grid: NonNullable<SheetTemplate['regions'][number]['grid']> } {
+  return region?.type === 'decorative' && Boolean(region.grid)
 }

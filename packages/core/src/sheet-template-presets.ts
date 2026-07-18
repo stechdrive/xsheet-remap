@@ -68,6 +68,24 @@ const STANDARD_A3_SOUND_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
   },
 ]
 
+const STANDARD_A3_RESERVE_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
+  {
+    axis: 'row',
+    target: 'inner',
+    style: { pattern: 'dotted', widthPx: 1, color: '#727872' },
+  },
+  {
+    axis: 'row',
+    target: 'outer',
+    style: STANDARD_A3_FORM_BORDER,
+  },
+  {
+    axis: 'column',
+    target: 'outer',
+    style: STANDARD_A3_FORM_BORDER,
+  },
+]
+
 const STANDARD_A3_PROCESS_FIELDS: SheetTemplateFieldDefinition[] = [
   ['process.original', '原図', 'revision', 'text'],
   ['process.direction.rough', '演出（前）', 'revision', 'text'],
@@ -465,6 +483,21 @@ export const standardA3SheetTemplate: SheetTemplate = {
       },
     },
     {
+      regionId: 'left_action_reserve_grid',
+      type: 'decorative',
+      label: '予備列 1-72',
+      rect: standardA3Rect(35, 708, 29, 1701),
+      usage: 'render-only',
+      grid: {
+        role: 'other',
+        frameStart: 1,
+        frameEnd: 72,
+        rowCount: 72,
+        lineRules: STANDARD_A3_RESERVE_LINE_RULES,
+        columns: [{ columnId: 'left_action_reserve', label: '' }],
+      },
+    },
+    {
       regionId: 'left_action_grid',
       type: 'exposure-grid',
       label: 'ACTION 1-72',
@@ -507,6 +540,21 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputMode: 'timed-range',
       flowGroupId: 'main_camera',
       grid: { role: 'camera', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, columns: cameraColumns },
+    },
+    {
+      regionId: 'right_action_reserve_grid',
+      type: 'decorative',
+      label: '予備列 73-144',
+      rect: standardA3Rect(891, 708, 29, 1701),
+      usage: 'render-only',
+      grid: {
+        role: 'other',
+        frameStart: 73,
+        frameEnd: 144,
+        rowCount: 72,
+        lineRules: STANDARD_A3_RESERVE_LINE_RULES,
+        columns: [{ columnId: 'right_action_reserve', label: '' }],
+      },
     },
     {
       regionId: 'right_action_grid',

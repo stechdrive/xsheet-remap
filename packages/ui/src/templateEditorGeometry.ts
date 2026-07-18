@@ -1,4 +1,5 @@
 import {
+  isRenderableSheetTemplateGridRegion,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
@@ -189,7 +190,7 @@ export function buildTemplateEditorRenderModel(template: SheetTemplate, duration
   return {
     chrome: buildTemplateChromeRenderModel(template, template.defaults.paperTracks, durationFrames),
     gridOverlays: template.regions
-      .filter(region => region.type === 'exposure-grid')
+      .filter(isRenderableSheetTemplateGridRegion)
       .map(region => buildTemplateGridOverlayRenderModel(template, region, { durationFrames }))
       .filter((model): model is TemplateGridOverlayRenderModel => model !== null),
     calibrationTargetRect: calibrationTargetRectForTemplate(template),
@@ -213,7 +214,7 @@ export function buildTemplateEditorRegionRenderModel(
     chrome: {
       pageSize: resolveSheetTemplatePageSize(template, durationFrames, resolveOptions),
       showOuterFrame: false,
-      referenceRegions: !region.form && region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored'
+      referenceRegions: !region.form && !region.grid && region.type !== 'metadata-field' && region.usage !== 'ignored'
         ? [{
             regionId: region.regionId,
             type: region.type,
@@ -225,7 +226,7 @@ export function buildTemplateEditorRegionRenderModel(
       formLabels: form.labels,
       formFields: form.fields,
     },
-    gridOverlay: region.type === 'exposure-grid'
+    gridOverlay: isRenderableSheetTemplateGridRegion(region)
       ? buildTemplateGridOverlayRenderModel(template, region, { durationFrames })
       : null,
   }
@@ -244,7 +245,7 @@ export function buildTemplateChromeRenderModel(
     pageSize,
     showOuterFrame: template.templateKind !== 'digital-native' && template.style?.outerFrame?.visible !== false,
     referenceRegions: template.regions
-      .filter(region => !region.form && region.type !== 'exposure-grid' && region.type !== 'metadata-field' && region.usage !== 'ignored')
+      .filter(region => !region.form && !region.grid && region.type !== 'metadata-field' && region.usage !== 'ignored')
       .map(region => ({
         regionId: region.regionId,
         type: region.type,
@@ -571,7 +572,7 @@ export function buildTemplateGridOverlayRenderModel(
   const frames = layout.frames
   const rowPaths = new Map<string, TemplateGridLineSegment[]>()
   const explicitPaths: TemplateGridPathRenderModel[] = []
-  const hasExplicitLineRules = Boolean(region.grid.lineRules?.length)
+  const hasExplicitLineRules = region.grid.lineRules !== undefined
   const renderHorizontalLines = !hasExplicitLineRules && !(template.templateKind === 'digital-native' && region.grid.role === 'sound')
   if (renderHorizontalLines) {
     for (let row = 0; row <= frames.rowCount; row += 1) {

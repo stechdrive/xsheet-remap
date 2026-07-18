@@ -381,6 +381,8 @@ export {
   getSheetViewLayout,
   globalizeSheetHit,
   hitTestSheetTemplate,
+  isInteractiveSheetTemplateGridRegion,
+  isRenderableSheetTemplateGridRegion,
   defaultSheetTemplatePresetCapabilities,
   isSheetTemplateImageCorrectionCapable,
   localizeFrameToSheetPage,

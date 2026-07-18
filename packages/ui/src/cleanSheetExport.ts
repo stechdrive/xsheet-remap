@@ -1,5 +1,6 @@
 import {
   getSheetViewLayout,
+  isRenderableSheetTemplateGridRegion,
   resolveSheetTemplateGridLayout,
   type AnnotationStroke,
   type AnnotationText,
@@ -374,7 +375,7 @@ function renderTemplateDrawingLayer(
     } else {
       drawTemplateGridHeaderLabels(ctx, context, chrome, offsetY)
     }
-    for (const region of context.template.regions.filter(region => region.type === 'exposure-grid' && region.grid)) {
+    for (const region of context.template.regions.filter(isRenderableSheetTemplateGridRegion)) {
       const viewLayout = getSheetViewLayout(context.template)
       const frameOrigin = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
         ? page.frameStart

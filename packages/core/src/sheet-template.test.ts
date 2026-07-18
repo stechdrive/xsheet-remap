@@ -76,7 +76,7 @@ describe('sheet template layout', () => {
   })
 
   it('uses distinct 1 second, half-second, and 6-frame row weights across the A3 grids', () => {
-    const grids = standardA3SheetTemplate.regions.flatMap(region => region.grid ? [region.grid] : [])
+    const grids = standardA3SheetTemplate.regions.flatMap(region => region.type === 'exposure-grid' && region.grid ? [region.grid] : [])
 
     expect(grids).toHaveLength(8)
     expect(grids.every(grid => grid.rowLineRules === grids[0]?.rowLineRules)).toBe(true)
@@ -85,6 +85,29 @@ describe('sheet template layout', () => {
       { every: 12, weight: 'medium' },
       { every: 6, weight: 'regular' },
     ])
+  })
+
+  it('defines A3 reserve columns as render-only decorative grids outside timing hit testing', () => {
+    const expected = [
+      ['left_action_reserve_grid', 35, 29, 1],
+      ['right_action_reserve_grid', 891, 29, 73],
+    ] as const
+
+    for (const [regionId, x, width, frameStart] of expected) {
+      const region = standardA3SheetTemplate.regions.find(item => item.regionId === regionId)
+      expect(region).toMatchObject({ type: 'decorative', usage: 'render-only' })
+      expect(region?.grid).toMatchObject({ role: 'other', frameStart, rowCount: 72 })
+      expect(region?.grid?.columns).toHaveLength(1)
+      expect(region?.grid?.lineRules).toEqual(expect.arrayContaining([
+        expect.objectContaining({ axis: 'row', target: 'inner', style: expect.objectContaining({ pattern: 'dotted' }) }),
+      ]))
+      expect(region!.rect.x * standardA3SheetTemplate.page.widthPx).toBeCloseTo(x)
+      expect(region!.rect.w * standardA3SheetTemplate.page.widthPx).toBeCloseTo(width)
+      expect(hitTestSheetTemplate(standardA3SheetTemplate, {
+        x: region!.rect.x + region!.rect.w / 2,
+        y: region!.rect.y + region!.rect.h / 144,
+      })).toBeNull()
+    }
   })
 
   it('places optional shared cut numbers at the bottom of the A3 CUT field', () => {

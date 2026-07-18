@@ -143,6 +143,8 @@ export const uiText = {
     addCellRegionTitle: 'CELL欄として使うグリッド領域を追加',
     addCameraRegion: 'CAMERA領域追加',
     addCameraRegionTitle: 'CAMERA欄として使うグリッド領域を追加',
+    addDecorativeGridRegion: '補助罫線追加',
+    addDecorativeGridRegionTitle: '入力を受け付けない印刷用の補助罫線領域を追加',
     resetCorners: '四隅リセット',
     resetCalibration: '4点補正リセット',
     autoCalibration: '4点自動検出',

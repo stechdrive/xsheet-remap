@@ -271,6 +271,24 @@ export interface SheetTemplateRegion {
   form?: SheetTemplateForm
 }
 
+/**
+ * A grid can be part of the printed template without being an editable
+ * timeline surface. Keeping this predicate separate from exposure-grid hit
+ * testing prevents decorative ruling from acquiring input behaviour merely
+ * because it uses the shared grid geometry model.
+ */
+export function isRenderableSheetTemplateGridRegion(
+  region: SheetTemplateRegion,
+): region is SheetTemplateRegion & { grid: SheetTemplateGrid } {
+  return Boolean(region.grid) && region.usage !== 'ignored'
+}
+
+export function isInteractiveSheetTemplateGridRegion(
+  region: SheetTemplateRegion,
+): region is SheetTemplateRegion & { type: 'exposure-grid'; grid: SheetTemplateGrid } {
+  return region.type === 'exposure-grid' && Boolean(region.grid) && region.usage !== 'ignored'
+}
+
 export interface SheetTemplateTextStyle {
   fontSizePx?: number
   minFontSizePx?: number

@@ -1661,7 +1661,9 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 }
 
 .annotationFloatingPalette button:not(.annotationPaletteTrigger) {
+  align-items: center;
   gap: 0;
+  line-height: 1;
 }
 
 .annotationFloatingPalette .actionMenu > summary {

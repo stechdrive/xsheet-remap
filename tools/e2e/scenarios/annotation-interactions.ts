@@ -67,11 +67,12 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await createAnchoredMemoWithInkAndText('action', 4, 'ACTIONコメント', () => rightClickFrame('action', 'A', 4))
   await createAnchoredMemoWithInkAndText('sound', 10, 'セリフコメント', () => rightClickTimedRangeFrame('sound', 'sound_lane_1', 10))
   await createAnchoredMemoWithInkAndText('camera', 20, '撮影コメント', () => rightClickTimedRangeFrame('camera', 'camera_lane_1', 20))
-  const memoTextClipContract = await evaluatePage<{ directTextClips: number; groupClips: number }>(`({
+  const memoTextClipContract = await evaluatePage<{ directTextClips: number; clipPaths: number; viewports: number }>(`({
     directTextClips: document.querySelectorAll('.timelineMemoText[clip-path]').length,
-    groupClips: document.querySelectorAll('.timelineMemoTextClip[clip-path]').length,
+    clipPaths: document.querySelectorAll('.timelineMemoLayer clipPath').length,
+    viewports: document.querySelectorAll('.timelineMemoTextViewport[overflow="hidden"]').length,
   })`)
-  if (memoTextClipContract.directTextClips !== 0 || memoTextClipContract.groupClips < 3) {
+  if (memoTextClipContract.directTextClips !== 0 || memoTextClipContract.clipPaths !== 0 || memoTextClipContract.viewports < 3) {
     throw new Error(`timeline memo text clipping can obscure the sheet background: ${JSON.stringify(memoTextClipContract)}`)
   }
   checks.push('created text and handwritten anchored comments for ACTION, SOUND, and CAMERA content')

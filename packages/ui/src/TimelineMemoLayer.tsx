@@ -237,20 +237,11 @@ export function TimelineMemoLayer({
 
   return (
     <g className="timelineMemoLayer" aria-label="フレームに紐づくメモ">
-      <defs>
-        {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
-          const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
-          return <clipPath key={clipId} id={clipId} clipPathUnits="userSpaceOnUse">
-            <rect x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
-          </clipPath>
-        }))}
-      </defs>
       {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
         const selected = memo.memoId === selectedMemoId
         const draftPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'draw' ? interaction.points : null
         const eraserPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'erase' ? interaction.points : null
         const drawingToolActive = editMode === 'pen' || editMode === 'eraser'
-        const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
         return (
           <g key={`${memo.memoId}:${segment.regionId}`} data-timeline-memo-id={memo.memoId} className={selected ? 'timelineMemoSegment selected' : 'timelineMemoSegment'}>
             {selected && <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />}
@@ -261,7 +252,16 @@ export function TimelineMemoLayer({
                 <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />
               </g> : null
             })}
-            <g className="timelineMemoTextClip" clipPath={`url(#${clipId})`}>
+            <svg
+              className="timelineMemoTextViewport"
+              x={segment.rect.x}
+              y={segment.rect.y}
+              width={segment.rect.w}
+              height={segment.rect.h}
+              viewBox={`${segment.rect.x} ${segment.rect.y} ${segment.rect.w} ${segment.rect.h}`}
+              preserveAspectRatio="none"
+              overflow="hidden"
+            >
               {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
                 const point = timelineMemoPointToPagePoint(segment, text)
                 return <text
@@ -279,7 +279,7 @@ export function TimelineMemoLayer({
                   dy={index === 0 ? 0 : text.fontSizeUnits * segment.rowHeightY * 1.25}
                 >{line || '\u00a0'}</tspan>)}</text>
               })}
-            </g>
+            </svg>
             {draftPoints && (() => {
               const path = timelineMemoStrokePath(segment, draftPoints)
               return path ? <path className="timelineMemoStroke draft" d={path} stroke={penColor} strokeWidth={Math.max(penWidth, 0.001)} /> : null
@@ -407,8 +407,4 @@ function nextTimelineMemoTextId(memo: TimelineInkMemo): string {
   let index = used.size + 1
   while (used.has(`${memo.memoId}_text_${index}`)) index += 1
   return `${memo.memoId}_text_${index}`
-}
-
-function timelineMemoSegmentClipId(memoId: string, regionId: string): string {
-  return `timeline-memo-clip-${memoId}-${regionId}`.replace(/[^a-zA-Z0-9_-]/g, '-')
 }

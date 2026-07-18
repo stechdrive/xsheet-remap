@@ -40,7 +40,11 @@ export interface SheetTemplateGridRowSizing {
 }
 
 export interface SheetTemplateGridTypography {
+  cellFontSize?: SheetTemplateLength
+  cellMinFontSize?: SheetTemplateLength
+  /** @deprecated Use cellFontSize with an explicit unit. */
   cellFontSizePx?: number
+  /** @deprecated Use cellMinFontSize with an explicit unit. */
   cellMinFontSizePx?: number
   cellFontWeight?: number
   shrinkToFit?: boolean
@@ -290,13 +294,32 @@ export function isInteractiveSheetTemplateGridRegion(
   return region.type === 'exposure-grid' && Boolean(region.grid) && region.usage !== 'ignored'
 }
 
+export type SheetTemplateLengthUnit = 'px' | 'pt' | 'mm'
+
+/**
+ * A template-space length. `px` is a design pixel at template.page size;
+ * `pt` and `mm` are physical units resolved through the template DPI.
+ */
+export interface SheetTemplateLength {
+  value: number
+  unit: SheetTemplateLengthUnit
+}
+
 export interface SheetTemplateTextStyle {
+  fontSize?: SheetTemplateLength
+  minFontSize?: SheetTemplateLength
+  lineHeight?: SheetTemplateLength
+  padding?: SheetTemplateLength
+  /** @deprecated Use fontSize with an explicit unit. */
   fontSizePx?: number
+  /** @deprecated Use minFontSize with an explicit unit. */
   minFontSizePx?: number
+  /** @deprecated Use lineHeight with an explicit unit. */
   lineHeightPx?: number
   fontWeight?: number
   horizontalAlign?: 'left' | 'center' | 'right'
   verticalAlign?: 'top' | 'middle' | 'bottom'
+  /** @deprecated Use padding with an explicit unit. */
   paddingPx?: number
   shrinkToFit?: boolean
 }

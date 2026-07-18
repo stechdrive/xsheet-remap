@@ -1,5 +1,6 @@
 import { isSpecialTimingKeyId } from './project-shared'
 import type { CutProject, ExportProfile, ValidationIssue } from './types'
+import { timelineMemos } from './sheet-memo'
 
 export function validateProject(project: CutProject, profile?: ExportProfile): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -107,7 +108,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     }
   }
 
-  for (const memo of project.timelineMemos ?? []) {
+  for (const memo of timelineMemos(project)) {
     const anchor = memo.anchor
     if ((anchor.role === 'action' || anchor.role === 'cell') && (!anchor.paperTrack || !paperTracks.has(anchor.paperTrack))) {
       issues.push(issue('error', 'memo.paperTrack.missing', `memo ${memo.memoId} references missing paper track ${anchor.paperTrack ?? ''}`, 'memo', memo.memoId))

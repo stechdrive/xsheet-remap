@@ -36,7 +36,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
-    selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
+    selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect,
@@ -55,8 +55,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
-    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
-    handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange,
+    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
+    handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   } = controller
 
@@ -345,12 +345,15 @@ export function AppShellView({ controller }: { controller: AppController }) {
             setPenWidth={setPenWidth}
             eraserWidth={eraserWidth}
             setEraserWidth={setEraserWidth}
-            textFontSizePx={activeTextFontSizePx}
+            textFontSizePx={activeMemoTextFontSizePx}
+            timingTextFontSizePx={activeTextFontSizePx}
             selectedTextAnnotationId={selectedTextAnnotation?.annotationId ?? null}
             editingTextAnnotationId={editingTextAnnotation?.annotationId ?? null}
             hasSelectedTextTarget={hasSelectedTextTarget}
             textFontSizeDisabled={isTextFontSizeDisabled}
             onTextFontSizeChange={handleTextFontSizeChange}
+            onMemoTextFontSizeChange={handleMemoTextFontSizeChange}
+            onUpsertTimelineMemoText={handleUpsertTimelineMemoText}
             onMetadataChange={handleUpdateCutMetadata}
             onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
             onFormFieldChange={(definition, value, pageId) => commitProject(updateSheetFormField(project, definition, value, pageId))}

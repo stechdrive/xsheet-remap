@@ -1,6 +1,6 @@
 import type { CutMetadataFieldId } from './types'
 import { createAlphabeticTrackLabels, createPaperTrackColumns } from './sheet-template-layout'
-import { NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFieldDefinition, SheetTemplateFormCell, SheetTemplateFrameProjection, SheetTemplateGridLineStyleRule, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
+import { NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFieldDefinition, SheetTemplateFormCell, SheetTemplateFrameProjection, SheetTemplateGridLineStyleRule, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplateLength, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
 
 export const standardA3DefaultPaperTracks = createAlphabeticTrackLabels(9)
 
@@ -26,6 +26,10 @@ const STANDARD_A3_PAGE_WIDTH_PX = 1754
 
 const STANDARD_A3_PAGE_HEIGHT_PX = 2481
 
+const templatePx = (value: number): SheetTemplateLength => ({ value, unit: 'px' })
+const standardA3Pt = (px: number): SheetTemplateLength => ({ value: px * 72 / 150, unit: 'pt' })
+const standardA3Mm = (px: number): SheetTemplateLength => ({ value: px * 25.4 / 150, unit: 'mm' })
+
 const STANDARD_24_FPS_ROW_LINE_RULES: SheetTemplateGridRowLineRule[] = [
   { every: 24, weight: 'strong' },
   { every: 12, weight: 'medium' },
@@ -33,19 +37,19 @@ const STANDARD_24_FPS_ROW_LINE_RULES: SheetTemplateGridRowLineRule[] = [
 ]
 
 const STANDARD_A3_TIMING_GRID_TYPOGRAPHY: SheetTemplateGridTypography = {
-  cellFontSizePx: 18,
-  cellMinFontSizePx: 6,
+  cellFontSize: standardA3Pt(18),
+  cellMinFontSize: standardA3Pt(6),
   cellFontWeight: 800,
   shrinkToFit: false,
 }
 
 const STANDARD_A3_METADATA_TEXT_STYLE: SheetTemplateTextStyle = {
-  fontSizePx: 24,
-  minFontSizePx: 12,
+  fontSize: standardA3Pt(24),
+  minFontSize: standardA3Pt(12),
   fontWeight: 700,
   horizontalAlign: 'center',
   verticalAlign: 'middle',
-  paddingPx: 8,
+  padding: standardA3Mm(8),
   shrinkToFit: true,
 }
 
@@ -114,7 +118,7 @@ function formLabelCell(
   column: number,
   label: string,
   columnSpan = 1,
-  textStyle: SheetTemplateTextStyle = { fontSizePx: 10, minFontSizePx: 7, fontWeight: 700, horizontalAlign: 'center', verticalAlign: 'middle', paddingPx: 2, shrinkToFit: true },
+  textStyle: SheetTemplateTextStyle = { fontSize: standardA3Pt(10), minFontSize: standardA3Pt(7), fontWeight: 700, horizontalAlign: 'center', verticalAlign: 'middle', padding: standardA3Mm(2), shrinkToFit: true },
 ): SheetTemplateFormCell {
   return { cellId, row, column, columnSpan, kind: 'label', label, textStyle }
 }
@@ -127,7 +131,7 @@ function formFieldCell(cellId: string, row: number, column: number, fieldId: str
     columnSpan,
     kind: 'field',
     fieldId,
-    textStyle: { fontSizePx: 13, minFontSizePx: 7, fontWeight: 700, horizontalAlign: 'center', verticalAlign: 'middle', paddingPx: 2, shrinkToFit: true },
+    textStyle: { fontSize: standardA3Pt(13), minFontSize: standardA3Pt(7), fontWeight: 700, horizontalAlign: 'center', verticalAlign: 'middle', padding: standardA3Mm(2), shrinkToFit: true },
   }
 }
 
@@ -146,12 +150,12 @@ function metadataFieldRegion(
   field: CutMetadataFieldId,
   rect: NormalizedRect,
   textStyle: SheetTemplateTextStyle = {
-    fontSizePx: 22,
-    minFontSizePx: 11,
+    fontSize: templatePx(22),
+    minFontSize: templatePx(11),
     fontWeight: 700,
     horizontalAlign: 'center',
     verticalAlign: 'middle',
-    paddingPx: 8,
+    padding: templatePx(8),
     shrinkToFit: true,
   },
 ): SheetTemplateRegion {
@@ -385,18 +389,18 @@ export const standardA3SheetTemplate: SheetTemplate = {
       textStyleVariants: {
         sharedCutNumbersVisible: {
           verticalAlign: 'top',
-          paddingPx: 5,
+          padding: standardA3Mm(5),
         },
       },
     },
     sharedCutNumbersRegion('top_shared_cut_numbers_field', standardA3Rect(863, 198, 171, 38), {
-      fontSizePx: 13,
-      minFontSizePx: 8,
-      lineHeightPx: 15,
+      fontSize: standardA3Pt(13),
+      minFontSize: standardA3Pt(8),
+      lineHeight: standardA3Pt(15),
       fontWeight: 700,
       horizontalAlign: 'center',
       verticalAlign: 'top',
-      paddingPx: 2,
+      padding: standardA3Mm(2),
       shrinkToFit: true,
     }),
     metadataFieldRegion('top_duration_field', '尺', 'duration', standardA3Rect(1034, 165, 256, 71), STANDARD_A3_METADATA_TEXT_STYLE),
@@ -413,7 +417,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
         columns: [1],
         rows: [24, 307],
         cells: [{
-          ...formLabelCell('memo_label', 0, 0, 'MEMO', 1, { fontSizePx: 10, fontWeight: 700, horizontalAlign: 'left', verticalAlign: 'middle', paddingPx: 2 }),
+          ...formLabelCell('memo_label', 0, 0, 'MEMO', 1, { fontSize: standardA3Pt(10), fontWeight: 700, horizontalAlign: 'left', verticalAlign: 'middle', padding: standardA3Mm(2) }),
           border: false,
         }, {
           cellId: 'memo_body',
@@ -424,13 +428,13 @@ export const standardA3SheetTemplate: SheetTemplate = {
           border: false,
           editPresentation: 'inline',
           textStyle: {
-            fontSizePx: 16,
-            minFontSizePx: 10,
-            lineHeightPx: 20,
+            fontSize: standardA3Pt(16),
+            minFontSize: standardA3Pt(10),
+            lineHeight: standardA3Pt(20),
             fontWeight: 400,
             horizontalAlign: 'left',
             verticalAlign: 'top',
-            paddingPx: 8,
+            padding: standardA3Mm(8),
             shrinkToFit: true,
           },
         }],
@@ -453,7 +457,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
         rows: [24, 118, 47, 118, 24],
         borderStyle: STANDARD_A3_FORM_BORDER,
         cells: [
-          { ...formLabelCell('shooting_notes_label', 0, 0, '撮影画面処理', 1, { fontSizePx: 10, fontWeight: 700, horizontalAlign: 'left', verticalAlign: 'middle', paddingPx: 2 }), border: false },
+          { ...formLabelCell('shooting_notes_label', 0, 0, '撮影画面処理', 1, { fontSize: standardA3Pt(10), fontWeight: 700, horizontalAlign: 'left', verticalAlign: 'middle', padding: standardA3Mm(2) }), border: false },
           { cellId: 'shooting_notes_box_1', row: 1, column: 0, kind: 'annotation' },
           { cellId: 'shooting_notes_box_2', row: 3, column: 0, kind: 'annotation' },
         ],
@@ -678,8 +682,8 @@ const digitalLogicalPaperTrackProjection: SheetTemplateTrackProjection = {
 }
 
 const DIGITAL_STANDARD_TIMING_GRID_TYPOGRAPHY: SheetTemplateGridTypography = {
-  cellFontSizePx: 18,
-  cellMinFontSizePx: 6,
+  cellFontSize: templatePx(18),
+  cellMinFontSize: templatePx(6),
   cellFontWeight: 800,
   shrinkToFit: false,
 }
@@ -752,18 +756,18 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       textStyleVariants: {
         sharedCutNumbersVisible: {
           verticalAlign: 'top',
-          paddingPx: 4,
+          padding: templatePx(4),
         },
       },
     },
     sharedCutNumbersRegion('digital_shared_cut_numbers_field', digitalRect(988, 82, 160, 32), {
-      fontSizePx: 12,
-      minFontSizePx: 7,
-      lineHeightPx: 14,
+      fontSize: templatePx(12),
+      minFontSize: templatePx(7),
+      lineHeight: templatePx(14),
       fontWeight: 700,
       horizontalAlign: 'center',
       verticalAlign: 'top',
-      paddingPx: 2,
+      padding: templatePx(2),
       shrinkToFit: true,
     }),
     metadataFieldRegion('digital_duration_field', '尺', 'duration', digitalRect(1160, 54, 190, 60)),

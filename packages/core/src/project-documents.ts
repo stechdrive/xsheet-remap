@@ -9,6 +9,7 @@ import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations, timingEventValueKind } from './project-shared'
 import { parseProjectExtensions } from './project-archive'
 import { normalizeSheetFormData, normalizeSheetFormFieldValues, normalizeSheetFormPageFieldValues } from './sheet-form-data'
+import { migrateLegacyMemos } from './sheet-memo'
 
 export function createDefaultProjectDocument(): CutGroupProjectDocument {
   return createProjectDocumentFromCutProject(createDefaultProject(), { sheetTemplate: standardA3SheetTemplate })
@@ -302,8 +303,9 @@ export function addBlankSharedCutToProjectDocument(
   }
 }
 
-export function migrateProject(input: Partial<CutProject>): CutProject {
+export function migrateProject(input: Partial<CutProject> & { annotations?: Annotation[]; timelineMemos?: Omit<TimelineInkMemo, 'kind'>[] }): CutProject {
   const base = createDefaultProject()
+  const legacyInput = input as Partial<CutProject> & { annotations?: Annotation[]; timelineMemos?: Omit<TimelineInkMemo, 'kind'>[] }
   const productionStages = input.productionStages ?? base.productionStages
   const correctionLayers = (input.correctionLayers ?? base.correctionLayers).map(layer => ({
     ...layer,
@@ -357,8 +359,11 @@ export function migrateProject(input: Partial<CutProject>): CutProject {
         paperTracks,
       },
     } as CutProject)),
-    annotations: (input.annotations ?? []).map(annotation => migrateAnnotation(annotation, input.sheetTemplateId ?? base.sheetTemplateId ?? standardA3SheetTemplate.templateId)),
-    timelineMemos: input.timelineMemos ?? [],
+    memos: migrateLegacyMemos(
+      input.memos,
+      (legacyInput.annotations ?? []).map(annotation => migrateAnnotation(annotation, input.sheetTemplateId ?? base.sheetTemplateId ?? standardA3SheetTemplate.templateId)),
+      legacyInput.timelineMemos ?? [],
+    ),
     timedRangeCues: input.timedRangeCues ?? [],
     exportProfiles: (input.exportProfiles ?? base.exportProfiles).map(profile => ({
       ...profile,
@@ -481,8 +486,7 @@ function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMet
       durationFrames: baseProject.logicalSheet.durationFrames,
       events: [],
     },
-    annotations: [],
-    timelineMemos: [],
+    memos: [],
     timedRangeCues: [],
   }
 }
@@ -536,8 +540,7 @@ function sheetRevisionFromProject(
     logicalSheet,
     cspTrackSlots: project.cspTrackSlots,
     stackGuideLabelPlacements: stackGuideLabelPlacementsFromProject(project),
-    annotations: project.annotations,
-    timelineMemos: project.timelineMemos,
+    memos: project.memos,
     timedRangeCues: project.timedRangeCues,
   }
 }
@@ -575,8 +578,7 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
     cspTrackSlots: revision.cspTrackSlots,
     bindings: document.registeredCells.bindings.map(binding => ({ ...binding })),
     stackGuideLabels: document.registeredCells.stackGuideLabels.map(label => cloneStackGuideLabel(label)),
-    annotations: revision.annotations,
-    timelineMemos: revision.timelineMemos,
+    memos: revision.memos,
     timedRangeCues: revision.timedRangeCues,
     exportProfiles: document.exportProfiles,
   })
@@ -620,7 +622,7 @@ function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): 
   if (!isRecord(input) || typeof input.revisionId !== 'string'
     || !isRecord(input.metadata) || !isRecord(input.sheetView) || !isRecord(input.logicalSheet)
     || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
-    || !Array.isArray(input.annotations) || !Array.isArray(input.timedRangeCues)) {
+    || (!Array.isArray(input.memos) && !Array.isArray(input.annotations)) || !Array.isArray(input.timedRangeCues)) {
     throw new Error(`シート${fallbackOrder + 1}のデータが不正です。`)
   }
   return {
@@ -640,8 +642,11 @@ function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): 
     logicalSheet: input.logicalSheet as unknown as SheetRevisionDocument['logicalSheet'],
     cspTrackSlots: input.cspTrackSlots as CspTrackSlot[],
     stackGuideLabelPlacements: input.stackGuideLabelPlacements as StackGuideLabelPlacementState[],
-    annotations: input.annotations as Annotation[],
-    timelineMemos: Array.isArray(input.timelineMemos) ? input.timelineMemos as TimelineInkMemo[] : [],
+    memos: migrateLegacyMemos(
+      input.memos,
+      Array.isArray(input.annotations) ? input.annotations as Annotation[] : [],
+      Array.isArray(input.timelineMemos) ? input.timelineMemos as Omit<TimelineInkMemo, 'kind'>[] : [],
+    ),
     timedRangeCues: input.timedRangeCues as TimedRangeCue[],
   }
 }
@@ -649,7 +654,7 @@ function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): 
 function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>): SheetRevisionDocument {
   if (!isRecord(input.sheetView) || !isRecord(input.logicalSheet)
     || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
-    || !Array.isArray(input.annotations) || !Array.isArray(input.timedRangeCues)) {
+    || (!Array.isArray(input.memos) && !Array.isArray(input.annotations)) || !Array.isArray(input.timedRangeCues)) {
     throw new Error('旧形式のタイムシートデータが不正です。')
   }
   const metadata = isRecord(input.metadata) ? input.metadata : {}
@@ -666,7 +671,8 @@ function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>): S
     logicalSheet: input.logicalSheet,
     cspTrackSlots: input.cspTrackSlots,
     stackGuideLabelPlacements: input.stackGuideLabelPlacements,
-    annotations: input.annotations,
+    memos: Array.isArray(input.memos) ? input.memos : undefined,
+    annotations: Array.isArray(input.annotations) ? input.annotations : [],
     timelineMemos: Array.isArray(input.timelineMemos) ? input.timelineMemos : [],
     timedRangeCues: input.timedRangeCues,
   }, 0)
@@ -750,8 +756,7 @@ function blankRevisionFromSource(source: SheetRevisionDocument, revisionId: stri
     sheetFields: {},
     pageFields: {},
     logicalSheet: { ...cloneRevision(source).logicalSheet, events: [] },
-    annotations: [],
-    timelineMemos: [],
+    memos: [],
     timedRangeCues: [],
   }
 }

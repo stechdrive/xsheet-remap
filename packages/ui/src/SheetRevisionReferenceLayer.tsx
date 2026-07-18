@@ -1,5 +1,5 @@
-import type { AnnotationStroke, AnnotationText, CutProject, SheetPage, SheetTemplate } from '@xsheet-remap/core'
-import { MetadataTextLayer, eventRectsForPage, isAnnotationStroke, strokePath } from './app-sheet-layers'
+import { sheetAnnotationStrokes, sheetAnnotationTexts, timelineMemos, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
+import { MetadataTextLayer, eventRectsForPage, strokePath } from './app-sheet-layers'
 import type { SheetRenderModelContext } from './sheetRenderModel'
 import { SheetSvgText } from './SheetSvgText'
 import { clampTextFontSizePx } from './sheetTextLayout'
@@ -33,10 +33,8 @@ export function SheetRevisionReferenceLayer({
 }) {
   const events = eventRectsForPage(project, template, page)
   const continuationItems = continuationRenderItemsForPage(context, page)
-  const strokes = project.annotations.filter((annotation): annotation is AnnotationStroke =>
-    isAnnotationStroke(annotation) && annotation.pageId === page.pageId && annotation.tool === 'pen')
-  const textAnnotations = project.annotations.filter((annotation): annotation is AnnotationText =>
-    annotation.kind === 'text' && annotation.pageId === page.pageId)
+  const strokes = sheetAnnotationStrokes(project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')
+  const textAnnotations = sheetAnnotationTexts(project).filter(annotation => annotation.pageId === page.pageId)
   return (
     <g className="sheetRevisionReferenceLayer" opacity={opacity} aria-label="元のシート">
       <MetadataTextLayer context={context} page={page} />
@@ -103,7 +101,7 @@ export function SheetRevisionReferenceLayer({
         </g>
       ))}
       <TimelineMemoLayer
-        memos={project.timelineMemos}
+        memos={timelineMemos(project)}
         template={template}
         page={page}
         paperTracks={paperTracks}
@@ -115,8 +113,10 @@ export function SheetRevisionReferenceLayer({
         penColor="#c5525c"
         penWidth={1}
         eraserWidth={1}
+        textFontSizePx={18}
         onAppendStroke={noop}
         onEraseStroke={noop}
+        onUpsertText={noop}
         onUpdatePlacement={noop}
       />
       {strokes.map(stroke => (

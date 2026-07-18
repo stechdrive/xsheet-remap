@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type AnnotationStroke, type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd } from '@xsheet-remap/core';
+import { type AnnotationStroke, type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type SheetRangeSelection, type SheetImageSettings } from './appTypes';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
@@ -1358,7 +1358,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         return
       }
       props.onTextAnnotation({
-        annotationId: nextAnnotationId(props.project.annotations),
+        annotationId: nextAnnotationId(sheetAnnotations(props.project)),
         pageId: page.pageId,
         kind: 'text',
         text: '',
@@ -1380,7 +1380,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       const tool = props.editMode
       event.currentTarget.setPointerCapture(event.pointerId)
       setDraftStroke({
-        annotationId: nextAnnotationId(props.project.annotations),
+        annotationId: nextAnnotationId(sheetAnnotations(props.project)),
         pageId: page.pageId,
         tool,
         color: tool === 'pen' ? props.penColor : '#2f7f6a',

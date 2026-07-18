@@ -302,34 +302,41 @@ export function FontSizeControl({
   active,
   disabled = false,
   onChange,
+  label = uiText.sheet.textFontSize,
+  tooltip = uiText.sheet.textFontSizeTitle,
+  compact = false,
 }: {
   value: number
   active: boolean
   disabled?: boolean
   onChange: (value: number) => void
+  label?: string
+  tooltip?: string
+  compact?: boolean
 }) {
   const clampedValue = clampTextFontSizePx(value)
 
   return (
-    <TooltipTarget label={uiText.sheet.textFontSizeTitle}>
+    <TooltipTarget label={tooltip}>
       {tooltipProps => (
         <div
           className={[
             'textFontSizeControl',
+            compact ? 'compact' : '',
             active ? 'active' : '',
             disabled ? 'disabled' : '',
           ].filter(Boolean).join(' ')}
           aria-disabled={disabled}
           {...tooltipProps}
         >
-          <span className="toolbarGroupLabel">{uiText.sheet.textFontSize}</span>
+          <span className="toolbarGroupLabel">{label}</span>
           <ScrubbableNumberInput
             className="fontSizeNumericInput"
             value={clampedValue}
             min={TEXT_FONT_SIZE_MIN_PX}
             max={TEXT_FONT_SIZE_MAX_PX}
             pixelsPerStep={4}
-            ariaLabel={uiText.sheet.textFontSize}
+            ariaLabel={label}
             ariaValueText={size => `${size}px`}
             disabled={disabled}
             onChange={onChange}

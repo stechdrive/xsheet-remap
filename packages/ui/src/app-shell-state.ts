@@ -95,6 +95,7 @@ export function useAppShellState() {
   const [penWidth, setPenWidth] = useState(0.004)
   const [eraserWidth, setEraserWidth] = useState(0.018)
   const [textFontSizePx, setTextFontSizePx] = useState(DEFAULT_TEXT_FONT_SIZE_PX)
+  const [memoTextFontSizePx, setMemoTextFontSizePx] = useState(DEFAULT_TEXT_FONT_SIZE_PX)
   const [selectedTextAnnotationId, setSelectedTextAnnotationId] = useState<string | null>(null)
   const [editingTextAnnotationId, setEditingTextAnnotationId] = useState<string | null>(null)
   const [textAnnotationClipboard, setTextAnnotationClipboard] = useState<AnnotationText | null>(null)
@@ -136,7 +137,7 @@ export function useAppShellState() {
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
     showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
-    penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
+    penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,

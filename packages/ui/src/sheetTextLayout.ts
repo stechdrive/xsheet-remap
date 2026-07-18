@@ -1,4 +1,4 @@
-import type { SheetTemplate, SheetTimingRole } from '@xsheet-remap/core'
+import { resolveSheetTemplateTextStyle, type SheetTemplate, type SheetTemplateGridTypography, type SheetTimingRole } from '@xsheet-remap/core'
 
 export const TEXT_FONT_SIZE_MIN_PX = 6
 export const TEXT_FONT_SIZE_MAX_PX = 256
@@ -12,7 +12,30 @@ export function clampTextFontSizePx(value: number): number {
 
 export function defaultTimingTextFontSizePx(template: SheetTemplate, role: SheetTimingRole | null | undefined = 'cell'): number {
   const grid = timingTextGridForRole(template, role)
-  return clampTextFontSizePx(grid?.typography?.cellFontSizePx ?? DEFAULT_TEXT_FONT_SIZE_PX)
+  return clampTextFontSizePx(resolveGridTypographyFontSizes(template, template.page, grid?.typography).fontSizePx)
+}
+
+export function resolveGridTypographyFontSizes(
+  template: SheetTemplate,
+  pageSize: { widthPx: number; heightPx: number },
+  typography: SheetTemplateGridTypography | undefined,
+  defaults: { fontSizePx?: number; minFontSizePx?: number } = {},
+): { fontSizePx: number; minFontSizePx: number } {
+  const resolved = resolveSheetTemplateTextStyle(template, pageSize, {
+    fontSize: typography?.cellFontSize,
+    minFontSize: typography?.cellMinFontSize,
+    fontSizePx: typography?.cellFontSizePx,
+    minFontSizePx: typography?.cellMinFontSizePx,
+  }, {
+    fontSizePx: defaults.fontSizePx ?? DEFAULT_TEXT_FONT_SIZE_PX,
+    minFontSizePx: defaults.minFontSizePx ?? TEXT_FONT_SIZE_MIN_PX,
+  })
+  return { fontSizePx: resolved.fontSizePx, minFontSizePx: resolved.minFontSizePx }
+}
+
+export function defaultTimingTextMinFontSizePx(template: SheetTemplate, role: SheetTimingRole | null | undefined = 'cell'): number {
+  const grid = timingTextGridForRole(template, role)
+  return clampTextFontSizePx(resolveGridTypographyFontSizes(template, template.page, grid?.typography).minFontSizePx)
 }
 
 export function resolveTimingTextFontSizePx(
@@ -31,7 +54,7 @@ function timingTextGridForRole(template: SheetTemplate, role: SheetTimingRole | 
   return template.regions.find(region =>
     region.type === 'exposure-grid'
     && region.grid?.role === targetRole
-    && typeof region.grid.typography?.cellFontSizePx === 'number',
+    && (region.grid.typography?.cellFontSize !== undefined || typeof region.grid.typography?.cellFontSizePx === 'number'),
   )?.grid
     ?? template.regions.find(region =>
       region.type === 'exposure-grid'
@@ -40,6 +63,6 @@ function timingTextGridForRole(template: SheetTemplate, role: SheetTimingRole | 
     ?? template.regions.find(region =>
       region.type === 'exposure-grid'
       && (region.grid?.role === 'cell' || region.grid?.role === 'action')
-      && typeof region.grid.typography?.cellFontSizePx === 'number',
+      && (region.grid.typography?.cellFontSize !== undefined || typeof region.grid.typography?.cellFontSizePx === 'number'),
     )?.grid
 }

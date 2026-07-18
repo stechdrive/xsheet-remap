@@ -17,6 +17,7 @@ import type {
   TimelineMemoPlacement,
   TimelineMemoPoint,
   TimelineMemoStroke,
+  TimelineMemoText,
   TimingSpecialMarker,
 } from '@xsheet-remap/core'
 import { updatePaperTrack } from '@xsheet-remap/core'
@@ -100,6 +101,7 @@ export type SheetCanvasProps = {
   onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void
   onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onEraseTimelineMemoStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
+  onUpsertTimelineMemoText: (memoId: string, text: TimelineMemoText) => void
   onTemplateImage: (files: FileList | File[] | null) => void
   onAssetSheetSources: (assetIds: string[]) => void
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void

@@ -192,6 +192,26 @@ describe('sheet render model', () => {
     expect(overflowingMemo).toMatchObject({ fontSizePx: 10, overflow: true })
   })
 
+  it('resolves physical form typography at the paper template DPI for display and export models', () => {
+    const memo = { fieldId: 'memo.body', scope: 'page' as const, valueType: 'multiline' as const }
+    const project = updateSheetFormField(createDefaultProject(), memo, 'DPI追従', 'page_1')
+    const template300 = {
+      ...standardA3SheetTemplate,
+      page: {
+        ...standardA3SheetTemplate.page,
+        widthPx: standardA3SheetTemplate.page.widthPx * 2,
+        heightPx: standardA3SheetTemplate.page.heightPx * 2,
+        dpi: 300,
+      },
+    }
+    const context = createSheetRenderModelContext(project, template300)
+    const item = metadataTextRenderItemsForPage(context, context.pages[0])
+      .find(candidate => candidate.field === 'memo.body')
+
+    expect(context.pageSize).toMatchObject({ widthPx: 3508, heightPx: 4962 })
+    expect(item).toMatchObject({ fontSizePx: 32, lineHeightPx: 40, overflow: false })
+  })
+
   it('renders other shared cut numbers only when the per-cut display option is enabled', () => {
     const base = createDefaultProject()
     const project = {

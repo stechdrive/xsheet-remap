@@ -9,7 +9,9 @@ import {
   deleteSheetRevisionInProjectDocument,
   parseProjectDocument,
   setSheetRevisionReferenceInProjectDocument,
+  sheetAnnotations,
   switchActiveSheetRevisionInProjectDocument,
+  timelineMemos,
   updateActiveCutProjectInDocument,
   updateLogicalSheetSettings,
   updateSheetFormField,
@@ -75,11 +77,17 @@ describe('project sheet history', () => {
       schemaVersion: 6,
       cuts: [{ cutId: cut.cutId, order: cut.order, metadata: { ...cut.metadata, ...revision.metadata },
         sheetView: revision.sheetView, logicalSheet: revision.logicalSheet, cspTrackSlots: revision.cspTrackSlots,
-        stackGuideLabelPlacements: revision.stackGuideLabelPlacements, annotations: revision.annotations,
-        timelineMemos: revision.timelineMemos, timedRangeCues: revision.timedRangeCues }],
+        stackGuideLabelPlacements: revision.stackGuideLabelPlacements, annotations: sheetAnnotations(revision),
+        timelineMemos: timelineMemos(revision).map(memo => ({
+          memoId: memo.memoId,
+          anchor: memo.anchor,
+          placement: memo.placement,
+          strokes: memo.strokes,
+          order: memo.order,
+        })), timedRangeCues: revision.timedRangeCues }],
     }
     const migrated = parseProjectDocument(legacy)
-    expect(migrated).toMatchObject({ schemaVersion: 9, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined, pageFields: {} }] }] })
+    expect(migrated).toMatchObject({ schemaVersion: 10, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined, pageFields: {} }] }] })
     expect(activeCutProjectFromDocument(migrated).logicalSheet.events).toEqual(source.logicalSheet.events)
   })
 })

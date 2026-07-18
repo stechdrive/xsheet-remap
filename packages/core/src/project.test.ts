@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   addOverlayPaperTrack,
+  addAnnotation,
+  addTimelineMemo,
   addBlankSharedCutToProjectDocument,
   applyNameNormalizationPlan,
   assignAssetToStackGuideLabel,
@@ -43,6 +45,8 @@ import {
   NULL_CELL_CSP_CELL_NAME,
   NULL_CELL_KEY_ID,
   redoHistory,
+  sheetAnnotations,
+  timelineMemos,
   registerAsset,
   registerAssetRoot,
   registerAssetsToCspTrack,
@@ -969,8 +973,7 @@ describe('core project commands', () => {
 
   it('migrates partial project JSON into a current project shape', () => {
     const migrated = migrateProject({ projectId: 'old', logicalSheet: { ...createDefaultProject().logicalSheet, keys: [], events: [] } })
-    expect(migrated.annotations).toEqual([])
-    expect(migrated.timelineMemos).toEqual([])
+    expect(migrated.memos).toEqual([])
     expect(migrated.timedRangeCues).toEqual([])
     expect(migrated.productionStages).toHaveLength(1)
   })
@@ -981,15 +984,16 @@ describe('core project commands', () => {
 
   it('round-trips timeline memo anchors, canvas placement, and ink with the active cut', () => {
     const source = createDefaultProject()
-    source.timelineMemos = [{
+    const withMemo = addTimelineMemo(source, {
+      kind: 'timeline',
       memoId: 'timeline_memo_1',
       anchor: { role: 'action', frame: 70, paperTrack: 'A' },
       placement: { frameOffset: 0, crossOffsetUnits: 1, widthUnits: 10, heightFrames: 8 },
       strokes: [{ strokeId: 'stroke_1', color: '#123456', widthUnits: 0.2, points: [{ x: 1, y: 1 }, { x: 8, y: 7 }] }],
       order: 1,
-    }]
-    const restored = activeCutProjectFromDocument(parseProjectDocument(createProjectDocumentFromCutProject(source)))
-    expect(restored.timelineMemos).toEqual(source.timelineMemos)
+    })
+    const restored = activeCutProjectFromDocument(parseProjectDocument(createProjectDocumentFromCutProject(withMemo)))
+    expect(timelineMemos(restored)).toEqual(timelineMemos(withMemo))
   })
 
   it('preserves inactive cuts while keeping production metadata canonical', () => {
@@ -1087,7 +1091,7 @@ describe('core project commands', () => {
         points: [{ x: 0.1, y: 0.2 }],
       }],
     })
-    expect(migrated.annotations[0]).toMatchObject({
+    expect(sheetAnnotations(migrated)[0]).toMatchObject({
       coordinateSpace: 'view-surface',
       anchor: {
         kind: 'view-surface',
@@ -1098,9 +1102,7 @@ describe('core project commands', () => {
   })
 
   it('erases only the touched part of annotation strokes', () => {
-    const project = {
-      ...createDefaultProject(),
-      annotations: [{
+    const project = addAnnotation(createDefaultProject(), {
         annotationId: 'anno_1',
         pageId: 'page_1',
         tool: 'pen' as const,
@@ -1113,8 +1115,7 @@ describe('core project commands', () => {
           { x: 0.75, y: 0.5 },
           { x: 1, y: 0.5 },
         ],
-      }],
-    }
+      })
 
     const erased = eraseAnnotations(project, {
       pageId: 'page_1',
@@ -1125,8 +1126,8 @@ describe('core project commands', () => {
       ],
     })
 
-    expect(erased.annotations).toHaveLength(2)
-    const erasedStrokes = erased.annotations.filter((annotation): annotation is AnnotationStroke => annotation.kind !== 'text')
+    expect(sheetAnnotations(erased)).toHaveLength(2)
+    const erasedStrokes = sheetAnnotations(erased).filter((annotation): annotation is AnnotationStroke => annotation.kind !== 'text')
     expect(erasedStrokes.map(stroke => stroke.points)).toEqual([
       [
         { x: 0, y: 0.5 },
@@ -1140,9 +1141,7 @@ describe('core project commands', () => {
   })
 
   it('clears annotations only on the selected page', () => {
-    const project = {
-      ...createDefaultProject(),
-      annotations: [
+    const project = [
         {
           annotationId: 'anno_page_1',
           pageId: 'page_1',
@@ -1159,35 +1158,34 @@ describe('core project commands', () => {
           width: 0.01,
           points: [{ x: 0.3, y: 0.4 }],
         },
-      ],
-    }
+      ].reduce((current, annotation) => addAnnotation(current, annotation), createDefaultProject())
 
     const cleared = clearAnnotationsForPage(project, 'page_1')
 
-    expect(cleared.annotations).toEqual([expect.objectContaining({ annotationId: 'anno_page_2', pageId: 'page_2' })])
+    expect(sheetAnnotations(cleared)).toEqual([expect.objectContaining({ annotationId: 'anno_page_2', pageId: 'page_2' })])
   })
 
   it('clears free annotations without deleting anchored timeline memos', () => {
-    const project = createDefaultProject()
-    project.annotations = [{
+    let project = addAnnotation(createDefaultProject(), {
       annotationId: 'anno_1',
       pageId: 'page_1',
       tool: 'pen',
       color: '#000',
       width: 0.01,
       points: [{ x: 0.1, y: 0.1 }],
-    }]
-    project.timelineMemos = [{
+    })
+    project = addTimelineMemo(project, {
+      kind: 'timeline',
       memoId: 'memo_1',
       anchor: { role: 'action', frame: 1, paperTrack: 'A' },
       placement: { frameOffset: 0, crossOffsetUnits: 0, widthUnits: 8, heightFrames: 8 },
       strokes: [],
       order: 1,
-    }]
+    })
 
     const cleared = clearAnnotations(project)
-    expect(cleared.annotations).toEqual([])
-    expect(cleared.timelineMemos).toEqual(project.timelineMemos)
+    expect(sheetAnnotations(cleared)).toEqual([])
+    expect(timelineMemos(cleared)).toEqual(timelineMemos(project))
   })
 
   it('keeps cell materials and timesheet scans as separate asset roles', () => {

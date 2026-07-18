@@ -127,7 +127,11 @@ describe('sheet template layout', () => {
     expect(sharedRegion.rect.w * standardA3SheetTemplate.page.widthPx).toBeCloseTo(171)
     expect(sharedRegion.rect.y * standardA3SheetTemplate.page.heightPx).toBeCloseTo(198)
     expect(sharedRegion.rect.h * standardA3SheetTemplate.page.heightPx).toBeCloseTo(38)
-    expect(sharedRegion.textStyle).toMatchObject({ fontSizePx: 13, lineHeightPx: 15, verticalAlign: 'top' })
+    expect(sharedRegion.textStyle).toMatchObject({
+      fontSize: { value: 6.24, unit: 'pt' },
+      lineHeight: { value: 7.2, unit: 'pt' },
+      verticalAlign: 'top',
+    })
   })
 
   it('matches A3 metadata regions to the pixel-exact underlay column borders', () => {

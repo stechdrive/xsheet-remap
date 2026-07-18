@@ -651,6 +651,23 @@
   opacity: 0.72;
 }
 
+.textFontSizeControl.compact {
+  width: 100%;
+  min-height: 28px;
+  padding: 2px 3px;
+  gap: 3px;
+}
+
+.textFontSizeControl.compact .toolbarGroupLabel {
+  flex: 1;
+  text-align: left;
+}
+
+.textFontSizeControl.compact .fontSizePresetMenu,
+.textFontSizeControl.compact .fontSizeUnit {
+  display: none;
+}
+
 .fontSizeNumericInput {
   width: 42px;
   height: 24px;
@@ -1504,9 +1521,10 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 }
 
 .annotationFloatingPalette:hover,
-.annotationFloatingPalette:focus-within {
-  width: 72px;
-  max-height: 360px;
+.annotationFloatingPalette:focus-within,
+.annotationFloatingPalette.open {
+  width: 124px;
+  max-height: 420px;
   padding: 6px;
 }
 
@@ -1517,8 +1535,9 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 }
 
 .annotationFloatingPalette.timelineMemoTarget:hover,
-.annotationFloatingPalette.timelineMemoTarget:focus-within {
-  width: 82px;
+.annotationFloatingPalette.timelineMemoTarget:focus-within,
+.annotationFloatingPalette.timelineMemoTarget.open {
+  width: 124px;
 }
 
 .annotationPaletteTrigger {
@@ -1532,6 +1551,9 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
 }
 
 .timelineMemoTarget .annotationPaletteTrigger {
@@ -1552,7 +1574,8 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 }
 
 .annotationFloatingPalette:hover .annotationPaletteTrigger,
-.annotationFloatingPalette:focus-within .annotationPaletteTrigger {
+.annotationFloatingPalette:focus-within .annotationPaletteTrigger,
+.annotationFloatingPalette.open .annotationPaletteTrigger {
   display: none;
 }
 
@@ -1561,8 +1584,19 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 }
 
 .annotationFloatingPalette:hover .annotationPaletteTitle,
-.annotationFloatingPalette:focus-within .annotationPaletteTitle {
+.annotationFloatingPalette:focus-within .annotationPaletteTitle,
+.annotationFloatingPalette.open .annotationPaletteTitle {
   display: block;
+  text-align: center;
+}
+
+.annotationTargetLabel {
+  justify-content: center;
+  width: 100%;
+  color: #42554b;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
   text-align: center;
 }
 
@@ -1571,11 +1605,12 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 }
 
 .annotationFloatingPalette:hover > :not(.annotationPaletteTrigger),
-.annotationFloatingPalette:focus-within > :not(.annotationPaletteTrigger) {
+.annotationFloatingPalette:focus-within > :not(.annotationPaletteTrigger),
+.annotationFloatingPalette.open > :not(.annotationPaletteTrigger) {
   display: inline-flex;
 }
 
-.annotationFloatingPalette button,
+.annotationFloatingPalette button:not(.annotationPaletteTrigger),
 .annotationFloatingPalette .actionMenu > summary {
   justify-content: center;
   min-height: 28px;
@@ -1583,7 +1618,7 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   font-size: 12px;
 }
 
-.annotationFloatingPalette button {
+.annotationFloatingPalette button:not(.annotationPaletteTrigger) {
   gap: 0;
 }
 

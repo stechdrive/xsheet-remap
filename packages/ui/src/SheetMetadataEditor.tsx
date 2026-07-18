@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   resolveSheetTemplateRegionRect,
+  resolveSheetTemplateTextStyle,
   sheetFormFieldsForScope,
   sheetFormFieldValueText,
   type CutMetadataFieldId,
@@ -72,13 +73,16 @@ export function SheetMetadataEditor({
   const activeLabel = activeMetadata?.region.label ?? activeForm?.definition.label ?? ''
   const activeFormIsInline = activeForm?.editPresentation === 'inline'
     && (activeForm.definition.valueType === 'text' || activeForm.definition.valueType === 'multiline')
+  const activeResolvedTextStyle = activeForm
+    ? resolveSheetTemplateTextStyle(template, chrome.pageSize, activeForm.textStyle, { fontWeight: 700 })
+    : null
   const activeInlineLayout = activeFormIsInline && activeForm
     ? activeForm.definition.valueType === 'multiline'
-      ? resolveMultilineFormTextLayout(inlineDraft, activeForm.rect, chrome.pageSize, activeForm.textStyle)
+      ? resolveMultilineFormTextLayout(inlineDraft, activeForm.rect, chrome.pageSize, activeResolvedTextStyle!)
       : {
-          fontSizePx: Math.max(1, activeForm.textStyle.fontSizePx ?? 13),
-          lineHeightPx: Math.max(1, activeForm.textStyle.lineHeightPx ?? (activeForm.textStyle.fontSizePx ?? 13) * 1.15),
-          paddingPx: Math.max(0, activeForm.textStyle.paddingPx ?? 2),
+          fontSizePx: activeResolvedTextStyle!.fontSizePx,
+          lineHeightPx: activeResolvedTextStyle!.lineHeightPx,
+          paddingPx: activeResolvedTextStyle!.paddingPx,
           overflow: false,
         }
     : null
@@ -209,7 +213,12 @@ export function SheetMetadataEditor({
           sheetFormFieldsForScope(project.sheetFormData, field.definition.scope, page.pageId)[field.fieldId],
         )
         const overflow = field.definition.valueType === 'multiline'
-          && resolveMultilineFormTextLayout(value, field.rect, chrome.pageSize, field.textStyle).overflow
+          && resolveMultilineFormTextLayout(
+            value,
+            field.rect,
+            chrome.pageSize,
+            resolveSheetTemplateTextStyle(template, chrome.pageSize, field.textStyle, { fontWeight: 700 }),
+          ).overflow
         const tooltipLabel = overflow
           ? `${field.definition.label}: 文字が欄内に収まりません。ダブルクリックまたはEnterで編集`
           : `${field.definition.label}: ダブルクリックまたはEnterで編集`
@@ -277,7 +286,7 @@ export function SheetMetadataEditor({
               fontSizePx: activeInlineLayout.fontSizePx * pageScale,
               lineHeightPx: activeInlineLayout.lineHeightPx * pageScale,
               paddingPx: activeInlineLayout.paddingPx * pageScale,
-              fontWeight: Math.max(100, Math.min(900, Math.round(activeForm.textStyle.fontWeight ?? 400))),
+              fontWeight: activeResolvedTextStyle!.fontWeight,
               overflow: activeInlineLayout.overflow,
             }}
             valueOverride={inlineDraft}

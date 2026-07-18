@@ -318,6 +318,30 @@ export interface AnnotationText {
 
 export type Annotation = AnnotationStroke | AnnotationText
 
+export type SheetMemoTargetKind = 'page' | 'template-region'
+
+export interface SheetPageMemoTarget {
+  kind: SheetMemoTargetKind
+  pageId: Id
+  templateId?: string
+  regionId?: Id
+  surfaceSize?: AnnotationSurfaceSize
+}
+
+/**
+ * Page and form-region memos share one container.  Stroke/text coordinates
+ * remain normalized to the page surface so template and zoom changes do not
+ * alter their placement.
+ */
+export interface SheetPageMemo {
+  kind: 'page'
+  memoId: Id
+  target: SheetPageMemoTarget
+  strokes: AnnotationStroke[]
+  texts: AnnotationText[]
+  order: number
+}
+
 export type TimelineMemoRole = 'action' | 'cell' | 'sound' | 'camera'
 
 export interface TimelineMemoAnchor {
@@ -354,13 +378,30 @@ export interface TimelineMemoStroke {
   points: TimelineMemoPoint[]
 }
 
+export interface TimelineMemoText {
+  textId: Id
+  text: string
+  color: string
+  /** Position and font size measured in frame-row-height units. */
+  x: number
+  y: number
+  fontSizeUnits: number
+}
+
 export interface TimelineInkMemo {
+  kind: 'timeline'
   memoId: Id
   anchor: TimelineMemoAnchor
   placement: TimelineMemoPlacement
   strokes: TimelineMemoStroke[]
+  texts?: TimelineMemoText[]
   order: number
 }
+
+/** Canonical project memo collection. Target-specific rendering is derived. */
+export type SheetMemo = SheetPageMemo | TimelineInkMemo
+
+export type SheetMemoAnchorPresentation = 'none' | 'marker' | 'camera-connector'
 
 export type CameraInstructionShape = 'range' | 'fade-in' | 'fade-out' | 'overlap'
 
@@ -623,8 +664,7 @@ export interface CutProject {
   cspTrackSlots: CspTrackSlot[]
   bindings: CellBinding[]
   stackGuideLabels: StackGuideLabel[]
-  annotations: Annotation[]
-  timelineMemos: TimelineInkMemo[]
+  memos: SheetMemo[]
   timedRangeCues: TimedRangeCue[]
   exportProfiles: ExportProfile[]
 }
@@ -666,8 +706,7 @@ export interface SheetRevisionDocument {
   logicalSheet: CutSheetLogicalSheet
   cspTrackSlots: CspTrackSlot[]
   stackGuideLabelPlacements: StackGuideLabelPlacementState[]
-  annotations: Annotation[]
-  timelineMemos: TimelineInkMemo[]
+  memos: SheetMemo[]
   timedRangeCues: TimedRangeCue[]
 }
 

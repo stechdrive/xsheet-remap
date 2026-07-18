@@ -214,7 +214,7 @@ describe('CAMERA cue geometry', () => {
     const customTemplate = {
       ...standardA3SheetTemplate,
       regions: standardA3SheetTemplate.regions.map(region => region.grid?.role === 'cell'
-        ? { ...region, grid: { ...region.grid, typography: { ...region.grid.typography, cellFontSizePx: 26 } } }
+        ? { ...region, grid: { ...region.grid, typography: { ...region.grid.typography, cellFontSize: { value: 26, unit: 'px' as const } } } }
         : region),
     }
     const customPage = createSheetPages(customTemplate, 144, 1)[0]!

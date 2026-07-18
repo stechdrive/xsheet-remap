@@ -2,6 +2,7 @@ import { logicalSheetOfficialFrameEnd } from './logical-sheet'
 import { compareTimelineEvents } from './project-shared'
 import { clampCameraOverlapPivotAnchorFrame, replaceTimedRangeCues, resolveCameraInstructionPoints } from './timed-range'
 import { deleteTimelineMemoAnchors, insertTimelineMemoAnchors } from './timeline-memo'
+import { replaceTimelineMemos, timelineMemos } from './sheet-memo'
 import type { CameraInstruction, CutProject, TimedRangeCue } from './types'
 
 export type CutTimelineFrameEdit =
@@ -28,15 +29,14 @@ function insertCutTimelineFrames(project: CutProject, requestedFrame: number, re
     .map(event => event.frame >= atFrame ? { ...event, frame: event.frame + frameCount } : event)
     .sort(compareTimelineEvents)
   const cues = project.timedRangeCues.map(cue => insertIntoCue(cue, atFrame, frameCount))
-  const resized: CutProject = {
+  const resized: CutProject = replaceTimelineMemos({
     ...project,
     logicalSheet: {
       ...project.logicalSheet,
       durationFrames: Math.max(1, Math.round(project.logicalSheet.durationFrames) + frameCount),
       events,
     },
-    timelineMemos: insertTimelineMemoAnchors(project.timelineMemos, atFrame, frameCount),
-  }
+  }, insertTimelineMemoAnchors(timelineMemos(project), atFrame, frameCount))
   return replaceTimedRangeCues(resized, cues)
 }
 
@@ -58,15 +58,14 @@ function deleteCutTimelineFrames(project: CutProject, requestedStart: number, re
     const transformed = deleteFromCue(cue, frameStart, frameEnd, frameCount)
     return transformed ? [transformed] : []
   })
-  const resized: CutProject = {
+  const resized: CutProject = replaceTimelineMemos({
     ...project,
     logicalSheet: {
       ...project.logicalSheet,
       durationFrames: Math.max(1, Math.round(project.logicalSheet.durationFrames) - frameCount),
       events,
     },
-    timelineMemos: deleteTimelineMemoAnchors(project.timelineMemos, frameStart, frameEnd, frameCount),
-  }
+  }, deleteTimelineMemoAnchors(timelineMemos(project), frameStart, frameEnd, frameCount))
   return replaceTimedRangeCues(resized, cues)
 }
 

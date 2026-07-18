@@ -1,36 +1,64 @@
 import type { Annotation, AnnotationPoint, AnnotationStroke, AnnotationText, CutProject } from './types'
 import { splitPolylineByEraser } from './polyline-eraser'
+import { isSheetPageMemo, pageMemoTargetForAnnotation, pageMemoTargetKey, sheetAnnotations } from './sheet-memo'
 
 export function addAnnotation(project: CutProject, annotation: Annotation): CutProject {
-  return { ...project, annotations: [...project.annotations, annotation] }
+  const target = pageMemoTargetForAnnotation(annotation)
+  const targetKey = pageMemoTargetKey(target)
+  let added = false
+  const memos = project.memos.map(memo => {
+    if (!isSheetPageMemo(memo) || pageMemoTargetKey(memo.target) !== targetKey) return memo
+    added = true
+    return annotation.kind === 'text'
+      ? { ...memo, texts: [...memo.texts, annotation] }
+      : { ...memo, strokes: [...memo.strokes, annotation] }
+  })
+  if (added) return { ...project, memos }
+  const order = project.memos.reduce((maximum, memo) => Math.max(maximum, memo.order), 0) + 1
+  return {
+    ...project,
+    memos: [...memos, {
+      kind: 'page',
+      memoId: nextPageMemoId(project, annotation.pageId),
+      target,
+      strokes: annotation.kind === 'text' ? [] : [annotation],
+      texts: annotation.kind === 'text' ? [annotation] : [],
+      order,
+    }],
+  }
 }
 
 export function clearAnnotations(project: CutProject): CutProject {
-  return project.annotations.length ? { ...project, annotations: [] } : project
+  const memos = project.memos.filter(memo => !isSheetPageMemo(memo))
+  return memos.length === project.memos.length ? project : { ...project, memos }
 }
 
 export function clearAnnotationsForPage(project: CutProject, pageId: string): CutProject {
-  const annotations = project.annotations.filter(stroke => stroke.pageId !== pageId)
-  return annotations.length === project.annotations.length ? project : { ...project, annotations }
+  const memos = project.memos.filter(memo => !isSheetPageMemo(memo) || memo.target.pageId !== pageId)
+  return memos.length === project.memos.length ? project : { ...project, memos }
 }
 
 export function eraseAnnotations(project: CutProject, input: { pageId: string; points: AnnotationPoint[]; width: number }): CutProject {
   if (input.points.length === 0 || input.width <= 0) return project
-  const existingIds = new Set(project.annotations.map(stroke => stroke.annotationId))
+  const existingIds = new Set(sheetAnnotations(project).map(stroke => stroke.annotationId))
   let changed = false
-  const annotations = project.annotations.flatMap(stroke => {
-    if (!isAnnotationStroke(stroke) || stroke.pageId !== input.pageId || stroke.tool !== 'pen') return [stroke]
-    const parts = splitAnnotationStroke(stroke, input.points, input.width)
-    if (parts === null) return [stroke]
-    changed = true
-    if (parts.length === 0) return []
-    return parts.map((part, index) => ({
-      ...stroke,
-      annotationId: index === 0 ? stroke.annotationId : nextAnnotationPartId(existingIds, stroke.annotationId, index),
-      points: part,
-    }))
+  const memos = project.memos.map(memo => {
+    if (!isSheetPageMemo(memo) || memo.target.pageId !== input.pageId) return memo
+    const strokes = memo.strokes.flatMap(stroke => {
+      if (stroke.tool !== 'pen') return [stroke]
+      const parts = splitAnnotationStroke(stroke, input.points, input.width)
+      if (parts === null) return [stroke]
+      changed = true
+      if (parts.length === 0) return []
+      return parts.map((part, index) => ({
+        ...stroke,
+        annotationId: index === 0 ? stroke.annotationId : nextAnnotationPartId(existingIds, stroke.annotationId, index),
+        points: part,
+      }))
+    })
+    return strokes === memo.strokes ? memo : { ...memo, strokes }
   })
-  return changed ? { ...project, annotations } : project
+  return changed ? { ...project, memos } : project
 }
 
 export function migrateAnnotation(annotation: Annotation, templateId: string): Annotation {
@@ -82,10 +110,6 @@ function migrateAnnotationText(annotation: AnnotationText, templateId: string): 
   }
 }
 
-function isAnnotationStroke(annotation: Annotation): annotation is AnnotationStroke {
-  return annotation.kind !== 'text'
-}
-
 function isAnnotationText(annotation: Annotation): annotation is AnnotationText {
   return annotation.kind === 'text'
 }
@@ -104,4 +128,12 @@ function nextAnnotationPartId(existingIds: Set<string>, baseId: string, partInde
   }
   existingIds.add(candidate)
   return candidate
+}
+
+function nextPageMemoId(project: CutProject, pageId: string): string {
+  const used = new Set(project.memos.map(memo => memo.memoId))
+  const safePage = pageId.replace(/[^a-zA-Z0-9_-]/g, '_')
+  let index = 1
+  while (used.has(`memo_${safePage}_${index}`)) index += 1
+  return `memo_${safePage}_${index}`
 }

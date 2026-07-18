@@ -1,4 +1,15 @@
-import { formatSheetTemplateCutNumber, getSheetViewLayout, type CorrectionLayer, type CutProject, type SheetTemplate, type SheetTemplateLinePattern } from '@xsheet-remap/core'
+import {
+  convertSheetTemplateLength,
+  formatSheetTemplateCutNumber,
+  getSheetViewLayout,
+  sheetTemplateLengthForReferencePx,
+  type CorrectionLayer,
+  type CutProject,
+  type SheetTemplate,
+  type SheetTemplateLength,
+  type SheetTemplateLinePattern,
+  type SheetTemplateTextStyle,
+} from '@xsheet-remap/core'
 import { useMemo, useState } from 'react'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './appTypes'
@@ -75,6 +86,9 @@ export function TemplateWorkspace({
   const selectedFormFieldDefinition = selectedFormFieldCell?.fieldId
     ? template.fields?.find(field => field.fieldId === selectedFormFieldCell.fieldId) ?? null
     : null
+  const selectedRegionHasTextStyle = Boolean(selectedRegion
+    && (selectedRegion.binding?.target === 'cut-metadata' || selectedRegion.binding?.target === 'cut-group'))
+  const textFontUnit = template.page.isPhysical ? 'pt' : 'px'
   const effectiveSelectedRegionId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegion?.regionId ?? null
   const correctionLayers = sortedCorrectionLayers(project)
   const defaultCorrectionLayer = correctionLayers[0] ?? null
@@ -469,12 +483,13 @@ export function TemplateWorkspace({
       inputKind: 'text',
       binding,
       textStyle: {
-        fontSizePx: 22,
-        minFontSizePx: 10,
+        fontSize: sheetTemplateLengthForReferencePx(editableTemplate, 22),
+        minFontSize: sheetTemplateLengthForReferencePx(editableTemplate, 10),
+        lineHeight: sheetTemplateLengthForReferencePx(editableTemplate, 22 * 1.15),
         fontWeight: 700,
         horizontalAlign: 'center',
         verticalAlign: 'middle',
-        paddingPx: 8,
+        padding: sheetTemplateLengthForReferencePx(editableTemplate, 8, 'spacing'),
         shrinkToFit: true,
       },
     }
@@ -832,6 +847,19 @@ export function TemplateWorkspace({
           </dd>
         </>
       )}
+      {selectedRegion && selectedRegionHasTextStyle && (
+        <>
+          <dt>文字レイアウト</dt>
+          <dd>
+            <TemplateTextMetricControls
+              template={template}
+              style={selectedRegion.textStyle}
+              defaults={{ fontSizePx: 22, minFontSizePx: 10, lineHeightPx: 22 * 1.15, paddingPx: 8 }}
+              onChange={(_key, textStyle) => updateRegion(selectedRegion.regionId, { textStyle })}
+            />
+          </dd>
+        </>
+      )}
       {selectedRegion && selectedFormFieldCell && (
         <>
           <dt>入力欄</dt>
@@ -863,6 +891,12 @@ export function TemplateWorkspace({
                 </select>
               </label>
             </div>
+            <TemplateTextMetricControls
+              template={template}
+              style={selectedFormFieldCell.textStyle}
+              defaults={{ fontSizePx: 13, minFontSizePx: 7, lineHeightPx: 13 * 1.15, paddingPx: 2 }}
+              onChange={(_key, textStyle) => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, { textStyle })}
+            />
             {selectedFormFieldDefinition?.valueType === 'multiline' && (
               <label className="compactControl">
                 <input
@@ -1055,7 +1089,7 @@ export function TemplateWorkspace({
             <th>{uiText.template.headers.region}</th>
             <th>{uiText.template.headers.role}</th>
             <th>{uiText.template.headers.metadataField}</th>
-            <th>{uiText.template.headers.fontSize}</th>
+            <th>{uiText.template.headers.fontSize} {textFontUnit}</th>
             <th>x px</th>
             <th>y px</th>
             <th>w px</th>
@@ -1097,9 +1131,10 @@ export function TemplateWorkspace({
                     className="numberInput"
                     type="number"
                     min="1"
-                    value={region.textStyle?.fontSizePx ?? 22}
+                    step="0.1"
+                    value={templateTextMetricValue(template, region.textStyle, 'fontSize', 22, 'font')}
                     onChange={event => updateRegion(region.regionId, {
-                      textStyle: { ...(region.textStyle ?? {}), fontSizePx: Math.max(1, Number(event.currentTarget.value)) },
+                      textStyle: withTemplateTextMetric(template, region.textStyle, 'fontSize', Number(event.currentTarget.value), 'font'),
                     })}
                   />
                 )}
@@ -1324,6 +1359,108 @@ export function TemplateWorkspace({
       </div>
     </section>
   )
+}
+
+type TemplateTextMetricKey = 'fontSize' | 'minFontSize' | 'lineHeight' | 'padding'
+
+function TemplateTextMetricControls({
+  template,
+  style,
+  defaults,
+  onChange,
+}: {
+  template: SheetTemplate
+  style: SheetTemplateTextStyle | undefined
+  defaults: { fontSizePx: number; minFontSizePx: number; lineHeightPx: number; paddingPx: number }
+  onChange: (key: TemplateTextMetricKey, style: SheetTemplateTextStyle) => void
+}) {
+  const fontUnit = template.page.isPhysical ? 'pt' : 'px'
+  const spacingUnit = template.page.isPhysical ? 'mm' : 'px'
+  const fields: Array<{
+    key: TemplateTextMetricKey
+    label: string
+    unit: string
+    fallback: number
+    kind: 'font' | 'spacing'
+    min: number
+  }> = [
+    { key: 'fontSize', label: '文字', unit: fontUnit, fallback: defaults.fontSizePx, kind: 'font', min: 0.1 },
+    { key: 'minFontSize', label: '最小', unit: fontUnit, fallback: defaults.minFontSizePx, kind: 'font', min: 0.1 },
+    { key: 'lineHeight', label: '行間', unit: fontUnit, fallback: defaults.lineHeightPx, kind: 'font', min: 0.1 },
+    { key: 'padding', label: '内余白', unit: spacingUnit, fallback: defaults.paddingPx, kind: 'spacing', min: 0 },
+  ]
+  return (
+    <div className="templateCalibrationTargetFields templateTextMetricFields">
+      {fields.map(field => (
+        <label key={field.key}>
+          <span>{field.label} {field.unit}</span>
+          <input
+            className="numberInput"
+            type="number"
+            min={field.min}
+            step="0.1"
+            value={templateTextMetricValue(template, style, field.key, field.fallback, field.kind)}
+            onChange={event => onChange(
+              field.key,
+              withTemplateTextMetric(template, style, field.key, Number(event.currentTarget.value), field.kind),
+            )}
+          />
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function templateTextMetricValue(
+  template: SheetTemplate,
+  style: SheetTemplateTextStyle | undefined,
+  key: TemplateTextMetricKey,
+  fallbackReferencePx: number,
+  kind: 'font' | 'spacing',
+): number {
+  const source = style?.[key]
+    ?? legacyTemplateTextMetric(style, key)
+    ?? sheetTemplateLengthForReferencePx(template, fallbackReferencePx, kind)
+  const targetUnit = template.page.isPhysical
+    ? kind === 'spacing' ? 'mm' : 'pt'
+    : 'px'
+  return roundTemplateMetric(convertSheetTemplateLength(template, source, targetUnit).value)
+}
+
+function withTemplateTextMetric(
+  template: SheetTemplate,
+  style: SheetTemplateTextStyle | undefined,
+  key: TemplateTextMetricKey,
+  value: number,
+  kind: 'font' | 'spacing',
+): SheetTemplateTextStyle {
+  const unit = template.page.isPhysical
+    ? kind === 'spacing' ? 'mm' : 'pt'
+    : 'px'
+  const metric: SheetTemplateLength = {
+    value: Math.max(key === 'padding' ? 0 : 0.1, Number.isFinite(value) ? value : 0),
+    unit,
+  }
+  return { ...(style ?? {}), [key]: metric }
+}
+
+function legacyTemplateTextMetric(
+  style: SheetTemplateTextStyle | undefined,
+  key: TemplateTextMetricKey,
+): SheetTemplateLength | undefined {
+  const legacyKey = key === 'fontSize'
+    ? 'fontSizePx'
+    : key === 'minFontSize'
+      ? 'minFontSizePx'
+      : key === 'lineHeight'
+        ? 'lineHeightPx'
+        : 'paddingPx'
+  const value = style?.[legacyKey]
+  return typeof value === 'number' && Number.isFinite(value) ? { value, unit: 'px' } : undefined
+}
+
+function roundTemplateMetric(value: number): number {
+  return Math.round(value * 1000) / 1000
 }
 
 const decorativeGridPatternOptions: Array<[SheetTemplateLinePattern | 'none', string]> = [

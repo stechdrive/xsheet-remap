@@ -11,6 +11,8 @@ import {
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
+  resolveSheetTemplateTextStyle,
+  sheetTemplateLengthForReferencePx,
   sheetFormFieldsForScope,
   sheetFormFieldValueText,
   sheetTimingRoleForEvent,
@@ -317,13 +319,13 @@ export function metadataTextRenderItemsForPage(context: SheetRenderModelContext,
       separator: '・',
     },
     textStyle: {
-      fontSizePx: 12,
-      minFontSizePx: 7,
-      lineHeightPx: 14,
+      fontSize: sheetTemplateLengthForReferencePx(context.template, 12),
+      minFontSize: sheetTemplateLengthForReferencePx(context.template, 7),
+      lineHeight: sheetTemplateLengthForReferencePx(context.template, 14),
       fontWeight: 700,
       horizontalAlign: 'center',
       verticalAlign: 'top',
-      paddingPx: 2,
+      padding: sheetTemplateLengthForReferencePx(context.template, 2, 'spacing'),
       shrinkToFit: true,
     },
   }
@@ -351,21 +353,22 @@ function formFieldTextRenderItems(context: SheetRenderModelContext, page: SheetP
     const text = formFieldText(context, field, page)
     if (!text) return []
     const style = field.textStyle
-    const paddingPx = Math.max(0, style.paddingPx ?? 2)
-    const horizontalAlign = style.horizontalAlign ?? 'center'
-    const verticalAlign = style.verticalAlign ?? 'middle'
+    const resolvedStyle = resolveSheetTemplateTextStyle(context.template, context.pageSize, style, { fontWeight: 700 })
+    const paddingPx = resolvedStyle.paddingPx
+    const horizontalAlign = resolvedStyle.horizontalAlign
+    const verticalAlign = resolvedStyle.verticalAlign
     const multilineLayout = field.definition.valueType === 'multiline'
-      ? resolveMultilineFormTextLayout(text, field.rect, context.pageSize, style)
+      ? resolveMultilineFormTextLayout(text, field.rect, context.pageSize, resolvedStyle)
       : null
     const fontSizePx = multilineLayout?.fontSizePx ?? metadataFontSizePx(text, field.rect, context.pageSize, {
-        fontSizePx: style.fontSizePx ?? 13,
-        minFontSizePx: style.minFontSizePx ?? 7,
+        fontSizePx: resolvedStyle.fontSizePx,
+        minFontSizePx: resolvedStyle.minFontSizePx,
         paddingPx,
-        shrinkToFit: style.shrinkToFit !== false,
+        shrinkToFit: resolvedStyle.shrinkToFit,
       })
     const paddingX = paddingPx / context.pageSize.widthPx
     const paddingY = paddingPx / context.pageSize.heightPx
-    const lineHeightPx = multilineLayout?.lineHeightPx ?? Math.max(fontSizePx, style.lineHeightPx ?? fontSizePx * 1.15)
+    const lineHeightPx = multilineLayout?.lineHeightPx ?? Math.max(fontSizePx, resolvedStyle.lineHeightPx)
     const lines = multilineLayout?.lines ?? [text]
     const multilineContentTop = multilineLayout
       ? verticalAlign === 'top'
@@ -390,7 +393,7 @@ function formFieldTextRenderItems(context: SheetRenderModelContext, page: SheetP
         ? 'text-before-edge'
         : verticalAlign === 'top' ? 'hanging' : verticalAlign === 'bottom' ? 'text-after-edge' : 'central',
       fontSizePx,
-      fontWeight: Math.max(100, Math.min(900, Math.round(style.fontWeight ?? 700))),
+      fontWeight: resolvedStyle.fontWeight,
       overflow: multilineLayout?.overflow ?? false,
     }]
   })
@@ -444,30 +447,36 @@ function metadataTextRenderItemsForRegion(
       && region.binding.field === 'cut'
       ? region.textStyleVariants?.sharedCutNumbersVisible ?? {
           verticalAlign: 'top' as const,
-          paddingPx: Math.min(region.textStyle?.paddingPx ?? 8, 5),
+          padding: sheetTemplateLengthForReferencePx(context.template, 5, 'spacing'),
         }
       : {}
     const style = {
       ...(region.textStyle ?? {}),
       ...sharedCutNumberCutStyle,
     }
-    const paddingPx = Math.max(0, style.paddingPx ?? 8)
-    const horizontalAlign = style.horizontalAlign ?? 'center'
-    const verticalAlign = style.verticalAlign ?? 'middle'
+    const resolvedStyle = resolveSheetTemplateTextStyle(context.template, context.pageSize, style, {
+      fontSizePx: isSharedCutNumbers ? 12 : 22,
+      minFontSizePx: isSharedCutNumbers ? 7 : 10,
+      paddingPx: 8,
+      fontWeight: 700,
+    })
+    const paddingPx = resolvedStyle.paddingPx
+    const horizontalAlign = resolvedStyle.horizontalAlign
+    const verticalAlign = resolvedStyle.verticalAlign
     const fontSizePx = isSharedCutNumbers
       ? sharedCutNumbersFontSizePx(sharedLabels, rect, context.pageSize, {
-          fontSizePx: style.fontSizePx ?? 12,
-          minFontSizePx: style.minFontSizePx ?? 7,
+          fontSizePx: resolvedStyle.fontSizePx,
+          minFontSizePx: resolvedStyle.minFontSizePx,
           paddingPx,
-          shrinkToFit: style.shrinkToFit !== false,
+          shrinkToFit: resolvedStyle.shrinkToFit,
           opening,
           closing,
         })
       : metadataFontSizePx(text, rect, context.pageSize, {
-      fontSizePx: style.fontSizePx ?? 22,
-      minFontSizePx: style.minFontSizePx ?? 10,
+      fontSizePx: resolvedStyle.fontSizePx,
+      minFontSizePx: resolvedStyle.minFontSizePx,
       paddingPx,
-      shrinkToFit: style.shrinkToFit !== false,
+      shrinkToFit: resolvedStyle.shrinkToFit,
     })
     const lines = isSharedCutNumbers
       ? wrapSharedCutNumberLines(sharedLabels, {
@@ -485,14 +494,14 @@ function metadataTextRenderItemsForRegion(
       field,
       text,
       lines,
-      lineHeightPx: Math.max(fontSizePx, style.lineHeightPx ?? fontSizePx * 1.15),
+      lineHeightPx: Math.max(fontSizePx, resolvedStyle.lineHeightPx),
       rect,
       x: horizontalAlign === 'left' ? rect.x + paddingX : horizontalAlign === 'right' ? rect.x + rect.w - paddingX : rect.x + rect.w / 2,
       y: verticalAlign === 'top' ? rect.y + paddingY : verticalAlign === 'bottom' ? rect.y + rect.h - paddingY : rect.y + rect.h / 2,
       textAnchor: horizontalAlign === 'left' ? 'start' : horizontalAlign === 'right' ? 'end' : 'middle',
       dominantBaseline: verticalAlign === 'top' ? 'hanging' : verticalAlign === 'bottom' ? 'text-after-edge' : 'central',
       fontSizePx,
-      fontWeight: Math.max(100, Math.min(900, Math.round(style.fontWeight ?? 700))),
+      fontWeight: resolvedStyle.fontWeight,
       overflow: false,
     }]
 }

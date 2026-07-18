@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, timelineMemos } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TimingClipboard, type WorkspaceStyle } from './appTypes'
@@ -84,11 +84,13 @@ export function SheetPanel(props: {
   eraserWidth: number
   setEraserWidth: (value: number) => void
   textFontSizePx: number
+  timingTextFontSizePx: number
   selectedTextAnnotationId: string | null
   editingTextAnnotationId: string | null
   hasSelectedTextTarget: boolean
   textFontSizeDisabled: boolean
   onTextFontSizeChange: (value: number) => void
+  onMemoTextFontSizeChange: (value: number) => void
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
   onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean, pageId: string) => void
@@ -129,6 +131,7 @@ export function SheetPanel(props: {
   onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void
   onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onEraseTimelineMemoStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
+  onUpsertTimelineMemoText: (memoId: string, text: TimelineMemoText) => void
   onClearTimelineMemoStrokes: (memoId: string) => void
   onClearSelection: () => void
   onTemplateImage: (files: FileList | File[] | null) => void
@@ -186,24 +189,40 @@ export function SheetPanel(props: {
   const activePage = props.sheetPages[props.activePageIndex] ?? props.sheetPages[0]
   const [paneLayout, setPaneLayout] = useState<SheetPaneLayout>(() => initialSheetPaneLayout(props.appKind, props.collapseEditorPanes))
   const [zoomPaletteOpen, setZoomPaletteOpen] = useState(false)
+  const [annotationPaletteOpen, setAnnotationPaletteOpen] = useState(false)
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
   const [normalizationOpen, setNormalizationOpen] = useState(false)
   const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
   const editMode = props.editMode
   const setEditMode = props.setEditMode
-  const activeTimelineMemoId = selectedTimelineMemoId && props.project.timelineMemos.some(memo => memo.memoId === selectedTimelineMemoId)
+  const activeTimelineMemoId = selectedTimelineMemoId && timelineMemos(props.project).some(memo => memo.memoId === selectedTimelineMemoId)
     ? selectedTimelineMemoId
     : null
-  const beginTimelineMemoEdit = useCallback((memoId: string) => {
+  const activeTimelineMemo = activeTimelineMemoId
+    ? timelineMemos(props.project).find(memo => memo.memoId === activeTimelineMemoId) ?? null
+    : null
+  const memoSelectionHit = props.rangeSelection?.anchorHit ?? props.selectedHit
+  const memoTargetLabel = activeTimelineMemo
+    ? timelineMemoTargetLabel(activeTimelineMemo.anchor.role, activeTimelineMemo.anchor.paperTrack, activeTimelineMemo.anchor.frame)
+    : memoSelectionHit && ['action', 'cell', 'sound', 'camera'].includes(memoSelectionHit.role)
+      ? timelineMemoTargetLabel(
+          memoSelectionHit.role as 'action' | 'cell' | 'sound' | 'camera',
+          memoSelectionHit.paperTrack,
+          props.rangeSelection ? Math.min(props.rangeSelection.frameStart, props.rangeSelection.frameEnd) : memoSelectionHit.frame,
+          props.rangeSelection ? Math.max(props.rangeSelection.frameStart, props.rangeSelection.frameEnd) : undefined,
+        )
+      : activePage ? `${activePage.pageIndex + 1}ページ` : 'ページ'
+  const beginTimelineMemoEdit = useCallback((memoId: string, mode: Extract<EditMode, 'pen' | 'text'> = 'pen') => {
     setSelectedTimelineMemoId(memoId)
-    setEditMode('pen')
+    setEditMode(mode)
   }, [setEditMode])
   const endTimelineMemoEdit = useCallback(() => {
     setSelectedTimelineMemoId(null)
-    if (editMode === 'pen' || editMode === 'eraser') setEditMode('new')
+    if (editMode === 'pen' || editMode === 'eraser' || editMode === 'text') setEditMode('new')
   }, [editMode, setEditMode])
   const zoomPaletteRef = useRef<HTMLDivElement>(null)
+  const annotationPaletteRef = useRef<HTMLDivElement>(null)
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
   const updateSheetZoom = props.setZoom
@@ -257,7 +276,7 @@ export function SheetPanel(props: {
   }, [activeTimelineMemoId, endTimelineMemoEdit, selectedTimelineMemoId])
 
   useEffect(() => {
-    if (!activeTimelineMemoId || editMode === 'new' || editMode === 'pen' || editMode === 'eraser') return
+    if (!activeTimelineMemoId || editMode === 'new' || editMode === 'pen' || editMode === 'eraser' || editMode === 'text') return
     const timer = window.setTimeout(() => setSelectedTimelineMemoId(null), 0)
     return () => window.clearTimeout(timer)
   }, [activeTimelineMemoId, editMode])
@@ -330,6 +349,17 @@ export function SheetPanel(props: {
     window.addEventListener('pointerdown', closeFromOutside)
     return () => window.removeEventListener('pointerdown', closeFromOutside)
   }, [zoomPaletteOpen])
+
+  useEffect(() => {
+    if (!annotationPaletteOpen) return undefined
+    const closeFromOutside = (event: globalThis.PointerEvent) => {
+      const target = event.target
+      if (target instanceof Node && annotationPaletteRef.current?.contains(target)) return
+      setAnnotationPaletteOpen(false)
+    }
+    window.addEventListener('pointerdown', closeFromOutside)
+    return () => window.removeEventListener('pointerdown', closeFromOutside)
+  }, [annotationPaletteOpen])
 
   useLayoutEffect(() => {
     if (didFitInitialSheetZoom.current) return
@@ -478,22 +508,13 @@ export function SheetPanel(props: {
           </TooltipTarget>
         </ToolbarGroup>
         <ToolbarGroup className="sheetToolbarGroup textToolbarGroup">
-          <Tooltip label={props.editMode === 'text' ? uiText.sheet.textToolActiveTitle : uiText.sheet.textToolTitle}>
-            <button
-              type="button"
-              className={props.editMode === 'text' ? 'activeToolButton textToolButton' : 'textToolButton'}
-              aria-pressed={props.editMode === 'text'}
-              aria-label={uiText.sheet.textTool}
-              onClick={() => props.setEditMode(props.editMode === 'text' ? 'new' : 'text')}
-            >
-              <TextToolIcon />
-            </button>
-          </Tooltip>
           <FontSizeControl
-            value={props.textFontSizePx}
+            value={props.timingTextFontSizePx}
             active={props.hasSelectedTextTarget}
             disabled={props.textFontSizeDisabled}
             onChange={props.onTextFontSizeChange}
+            label={uiText.sheet.timingTextFontSize}
+            tooltip={uiText.sheet.timingTextFontSizeTitle}
           />
         </ToolbarGroup>
         <ToolbarGroup className="sheetToolbarGroup sheetPageToolbarGroup">
@@ -634,16 +655,30 @@ export function SheetPanel(props: {
           </div>
         </div>
         <div
-          className={activeTimelineMemoId ? 'annotationFloatingPalette timelineMemoTarget' : 'annotationFloatingPalette'}
+          ref={annotationPaletteRef}
+          className={[
+            'annotationFloatingPalette',
+            activeTimelineMemoId ? 'timelineMemoTarget' : '',
+            annotationPaletteOpen ? 'open' : '',
+          ].filter(Boolean).join(' ')}
           aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
           data-annotation-target={activeTimelineMemoId ? 'timeline-memo' : 'sheet'}
         >
-          <span className="annotationPaletteTrigger" aria-hidden="true">
+          <button
+            type="button"
+            className="annotationPaletteTrigger"
+            aria-label="メモツールを開く"
+            aria-expanded={annotationPaletteOpen}
+            onClick={() => setAnnotationPaletteOpen(open => !open)}
+          >
             <PenToolIcon />
             {activeTimelineMemoId && <span className="annotationTargetBadge">{uiText.sheet.timelineMemoTargetShort}</span>}
-          </span>
+          </button>
           <span className="toolbarGroupLabel annotationPaletteTitle">
             {activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
+          </span>
+          <span className="annotationTargetLabel">
+            対象: {memoTargetLabel}
           </span>
           <Tooltip label={activeTimelineMemoId ? uiText.sheet.timelineMemoPenTool : uiText.sheet.penTool}>
             <button
@@ -651,9 +686,43 @@ export function SheetPanel(props: {
               className={props.editMode === 'pen' ? 'activeToolButton' : ''}
               aria-pressed={props.editMode === 'pen'}
               aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoPenTool : uiText.sheet.penTool}
-              onClick={() => props.setEditMode(props.editMode === 'pen' ? 'new' : 'pen')}
+              onClick={() => {
+                if (props.editMode === 'pen') {
+                  props.setEditMode('new')
+                  return
+                }
+                if (!activeTimelineMemoId && memoSelectionHit && ['action', 'cell', 'sound', 'camera'].includes(memoSelectionHit.role)) {
+                  const memoId = props.onCreateTimelineMemo(memoSelectionHit)
+                  if (memoId) beginTimelineMemoEdit(memoId)
+                  return
+                }
+                props.setEditMode('pen')
+              }}
             >
               <PenToolIcon />
+            </button>
+          </Tooltip>
+          <Tooltip label={props.editMode === 'text' ? uiText.sheet.textToolActiveTitle : uiText.sheet.textToolTitle}>
+            <button
+              type="button"
+              className={props.editMode === 'text' ? 'activeToolButton' : ''}
+              aria-pressed={props.editMode === 'text'}
+              aria-label={uiText.sheet.textTool}
+              onClick={() => {
+                if (props.editMode === 'text') {
+                  props.setEditMode('new')
+                  return
+                }
+                if (!activeTimelineMemoId && memoSelectionHit && ['action', 'cell', 'sound', 'camera'].includes(memoSelectionHit.role)) {
+                  const memoId = props.onCreateTimelineMemo(memoSelectionHit)
+                  if (memoId) beginTimelineMemoEdit(memoId, 'text')
+                  return
+                }
+                if (!activeTimelineMemoId) props.onClearSelection()
+                props.setEditMode('text')
+              }}
+            >
+              <TextToolIcon />
             </button>
           </Tooltip>
           <Tooltip label={activeTimelineMemoId ? uiText.sheet.timelineMemoEraserTool : uiText.sheet.eraserTool}>
@@ -670,6 +739,14 @@ export function SheetPanel(props: {
           <Tooltip label={uiText.sheet.penColor}>
             <input type="color" value={props.penColor} onChange={event => props.setPenColor(event.currentTarget.value)} />
           </Tooltip>
+          <FontSizeControl
+            value={props.textFontSizePx}
+            active={Boolean(props.selectedTextAnnotationId)}
+            onChange={props.onMemoTextFontSizeChange}
+            label={uiText.sheet.memoTextFontSize}
+            tooltip={uiText.sheet.memoTextFontSizeTitle}
+            compact
+          />
           <ActionMenu label={uiText.sheet.penWidth} tooltipLabel={uiText.sheet.penWidthTitle} className="annotationWidthMenu">
             <label className="compactControl">
               {uiText.sheet.penWidth}
@@ -835,4 +912,15 @@ export function SheetPanel(props: {
       )}
     </section>
   )
+}
+
+function timelineMemoTargetLabel(
+  role: 'action' | 'cell' | 'sound' | 'camera',
+  paperTrack: string | undefined,
+  frameStart: number,
+  frameEnd?: number,
+): string {
+  const track = paperTrack ? ` ${paperTrack}` : ''
+  const frames = frameEnd === undefined || frameEnd === frameStart ? `${frameStart}F` : `${frameStart}-${frameEnd}F`
+  return `${role.toUpperCase()}${track} ${frames}`
 }

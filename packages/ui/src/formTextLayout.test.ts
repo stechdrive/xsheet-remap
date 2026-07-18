@@ -9,6 +9,8 @@ const style = {
   lineHeightPx: 20,
   paddingPx: 0,
   fontWeight: 400,
+  horizontalAlign: 'left',
+  verticalAlign: 'top',
   shrinkToFit: true,
 } as const
 

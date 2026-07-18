@@ -1,22 +1,24 @@
-import type { CutProject, TimelineInkMemo, TimelineMemoPlacement, TimelineMemoPoint, TimelineMemoStroke } from './types'
+import type { CutProject, TimelineInkMemo, TimelineMemoPlacement, TimelineMemoPoint, TimelineMemoStroke, TimelineMemoText } from './types'
 import { splitPolylineByEraser } from './polyline-eraser'
+import { isTimelineMemo, timelineMemos } from './sheet-memo'
 
 export function addTimelineMemo(project: CutProject, memo: TimelineInkMemo): CutProject {
-  return { ...project, timelineMemos: [...project.timelineMemos, memo] }
+  return { ...project, memos: [...project.memos, { ...memo, kind: 'timeline', texts: memo.texts ?? [] }] }
 }
 
 export function updateTimelineMemo(
   project: CutProject,
   memoId: string,
-  updates: Partial<Pick<TimelineInkMemo, 'anchor' | 'placement' | 'strokes' | 'order'>>,
+  updates: Partial<Pick<TimelineInkMemo, 'anchor' | 'placement' | 'strokes' | 'texts' | 'order'>>,
 ): CutProject {
   let changed = false
-  const timelineMemos = project.timelineMemos.map(memo => {
+  const memos = project.memos.map(memo => {
+    if (!isTimelineMemo(memo)) return memo
     if (memo.memoId !== memoId) return memo
     changed = true
     return { ...memo, ...updates }
   })
-  return changed ? { ...project, timelineMemos } : project
+  return changed ? { ...project, memos } : project
 }
 
 export function updateTimelineMemoPlacement(project: CutProject, memoId: string, placement: TimelineMemoPlacement): CutProject {
@@ -24,8 +26,22 @@ export function updateTimelineMemoPlacement(project: CutProject, memoId: string,
 }
 
 export function appendTimelineMemoStroke(project: CutProject, memoId: string, stroke: TimelineMemoStroke): CutProject {
-  const memo = project.timelineMemos.find(item => item.memoId === memoId)
+  const memo = timelineMemos(project).find(item => item.memoId === memoId)
   return memo ? updateTimelineMemo(project, memoId, { strokes: [...memo.strokes, normalizeTimelineMemoStroke(stroke, memo.placement)] }) : project
+}
+
+export function upsertTimelineMemoText(project: CutProject, memoId: string, text: TimelineMemoText): CutProject {
+  const memo = timelineMemos(project).find(item => item.memoId === memoId)
+  if (!memo) return project
+  const texts = (memo.texts ?? []).filter(item => item.textId !== text.textId)
+  if (text.text.trim()) texts.push({
+    ...text,
+    text: text.text.trim(),
+    x: clamp(Number.isFinite(text.x) ? text.x : 0, 0, memo.placement.widthUnits),
+    y: clamp(Number.isFinite(text.y) ? text.y : 0, 0, memo.placement.heightFrames),
+    fontSizeUnits: Math.max(0.25, Number.isFinite(text.fontSizeUnits) ? text.fontSizeUnits : 1),
+  })
+  return updateTimelineMemo(project, memoId, { texts })
 }
 
 export function eraseTimelineMemoStrokes(
@@ -33,7 +49,7 @@ export function eraseTimelineMemoStrokes(
   input: { memoId: string; points: TimelineMemoPoint[]; widthUnits: number },
 ): CutProject {
   if (input.points.length === 0 || input.widthUnits <= 0) return project
-  const memo = project.timelineMemos.find(item => item.memoId === input.memoId)
+  const memo = timelineMemos(project).find(item => item.memoId === input.memoId)
   if (!memo) return project
   const existingIds = new Set(memo.strokes.map(stroke => stroke.strokeId))
   let changed = false
@@ -52,13 +68,13 @@ export function eraseTimelineMemoStrokes(
 }
 
 export function clearTimelineMemoStrokes(project: CutProject, memoId: string): CutProject {
-  const memo = project.timelineMemos.find(item => item.memoId === memoId)
+  const memo = timelineMemos(project).find(item => item.memoId === memoId)
   return memo?.strokes.length ? updateTimelineMemo(project, memoId, { strokes: [] }) : project
 }
 
 export function deleteTimelineMemo(project: CutProject, memoId: string): CutProject {
-  const timelineMemos = project.timelineMemos.filter(memo => memo.memoId !== memoId)
-  return timelineMemos.length === project.timelineMemos.length ? project : { ...project, timelineMemos }
+  const memos = project.memos.filter(memo => !isTimelineMemo(memo) || memo.memoId !== memoId)
+  return memos.length === project.memos.length ? project : { ...project, memos }
 }
 
 export function nextTimelineMemoId(memos: readonly TimelineInkMemo[]): string {

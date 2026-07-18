@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoPlacement, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke } from '@xsheet-remap/core';
-import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument } from '@xsheet-remap/core';
+import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoPlacement, upsertTimelineMemoText, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
+import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
@@ -54,7 +54,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
     showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
-    penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
+    penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
@@ -174,10 +174,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       : selectedKey ? `${selectedKey.displayLabel} (${selectedKey.keyId})` : '-'
     : '-'
   const selectedTextAnnotation = selectedTextAnnotationId
-    ? project.annotations.find((annotation): annotation is AnnotationText => annotation.kind === 'text' && annotation.annotationId === selectedTextAnnotationId) ?? null
+    ? sheetAnnotations(project).find((annotation): annotation is AnnotationText => annotation.kind === 'text' && annotation.annotationId === selectedTextAnnotationId) ?? null
     : null
   const editingTextAnnotation = editingTextAnnotationId
-    ? project.annotations.find((annotation): annotation is AnnotationText => annotation.kind === 'text' && annotation.annotationId === editingTextAnnotationId) ?? null
+    ? sheetAnnotations(project).find((annotation): annotation is AnnotationText => annotation.kind === 'text' && annotation.annotationId === editingTextAnnotationId) ?? null
     : null
   const selectedTimelineEvent = timelineEventAtHit(project, selection.hit)
   const { selectedFrameSummary, statusSelectionText, statusFallbackHint } = buildSelectionPresentation({
@@ -194,16 +194,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const selectedTimelineEventFontSizePx = selectedTimelineEvent
     ? resolveTimingTextFontSizePx(template, sheetTimingRoleForEvent(selectedTimelineEvent), selectedTimelineEvent.fontSizePx)
     : undefined
-  const activeTextTarget: ActiveTextTarget = selectedTextAnnotation
-    ? { kind: 'annotationText', annotationId: selectedTextAnnotation.annotationId, fontSizePx: resolveAnnotationTextFontSizePx(selectedTextAnnotation, activeSheetPageSize) }
-    : rangeSelection
-      ? { kind: 'timingRange', fontSizePx: textFontSizePx }
-      : selectedTimelineEvent && selectedTimelineEventFontSizePx !== undefined
-        ? { kind: 'timingEvent', eventId: selectedTimelineEvent.eventId, fontSizePx: selectedTimelineEventFontSizePx }
-        : { kind: 'nextTimingInput', fontSizePx: textFontSizePx }
+  const activeTextTarget: ActiveTextTarget = rangeSelection
+    ? { kind: 'timingRange', fontSizePx: textFontSizePx }
+    : selectedTimelineEvent && selectedTimelineEventFontSizePx !== undefined
+      ? { kind: 'timingEvent', eventId: selectedTimelineEvent.eventId, fontSizePx: selectedTimelineEventFontSizePx }
+      : { kind: 'nextTimingInput', fontSizePx: textFontSizePx }
   const activeTextFontSizePx = activeTextTarget.fontSizePx
-  const hasSelectedTextTarget = activeTextTarget.kind === 'annotationText' || activeTextTarget.kind === 'timingEvent'
+  const hasSelectedTextTarget = activeTextTarget.kind === 'timingEvent'
   const isTextFontSizeDisabled = activeTextTarget.kind === 'timingRange'
+  const activeMemoTextFontSizePx = selectedTextAnnotation
+    ? resolveAnnotationTextFontSizePx(selectedTextAnnotation, activeSheetPageSize)
+    : memoTextFontSizePx
   const setStatusHint = useCallback((source: StatusHintSource, text: string | null) => {
     setStatusHints(current => {
       if (text === null) {
@@ -675,6 +676,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSelectedTextAnnotationId(null)
     setSelectedKeyId(keyId)
     if (!keyId) {
+      setSheetSelection({ kind: 'none' })
       setValueDraftActive(false)
       return
     }
@@ -682,6 +684,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (!key) return
     const firstUse = firstTimelineUseForKey(sourceProject, key, registeredCellTrackOrder(sourceProject))
     if (!firstUse) {
+      setSheetSelection({ kind: 'none' })
       setValueDraft(key.displayLabel)
       setValueDraftActive(false)
       updateOpenNativePreviewForKey(sourceProject, keyId)
@@ -1869,7 +1872,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleAppendTimelineMemoStroke(memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) {
-    const memo = project.timelineMemos.find(item => item.memoId === memoId)
+    const memo = timelineMemos(project).find(item => item.memoId === memoId)
     if (!memo) return
     commitProject(appendTimelineMemoStroke(project, memoId, { ...stroke, strokeId: nextTimelineMemoStrokeId(memo) }))
   }
@@ -1878,7 +1881,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const next = eraseTimelineMemoStrokes(project, { memoId, points, widthUnits })
     if (next !== project) commitProject(next)
   }
-
+  function handleUpsertTimelineMemoText(memoId: string, text: TimelineMemoText) {
+    const next = upsertTimelineMemoText(project, memoId, text)
+    if (next !== project) commitProject(next)
+  }
   function handleClearTimelineMemoStrokes(memoId: string) {
     const next = clearTimelineMemoStrokes(project, memoId)
     if (next !== project) commitProject(next)
@@ -1893,7 +1899,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleSelectTextAnnotation(annotationId: string) {
-    const annotation = project.annotations.find((item): item is AnnotationText => item.kind === 'text' && item.annotationId === annotationId)
+    const annotation = sheetAnnotations(project).find((item): item is AnnotationText => item.kind === 'text' && item.annotationId === annotationId)
     if (!annotation) return
     selectTextAnnotationState(annotation)
     if (project.sheetView.activePageId !== annotation.pageId) {
@@ -1902,7 +1908,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleEditTextAnnotation(annotationId: string) {
-    const annotation = project.annotations.find((item): item is AnnotationText => item.kind === 'text' && item.annotationId === annotationId)
+    const annotation = sheetAnnotations(project).find((item): item is AnnotationText => item.kind === 'text' && item.annotationId === annotationId)
     if (!annotation) return
     selectTextAnnotationState(annotation, { edit: true })
     if (project.sheetView.activePageId !== annotation.pageId) {
@@ -1911,18 +1917,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function currentTextAnnotationAnchor(pageId: string): AnnotationText['anchor'] {
-    return {
-      kind: 'view-surface',
-      templateId: template.templateId,
-      pageId,
-      surfaceSize: activeSheetPageSize,
-    }
+    return { kind: 'view-surface', templateId: template.templateId, pageId, surfaceSize: activeSheetPageSize }
   }
 
   function selectTextAnnotationState(annotation: AnnotationText, options: { edit?: boolean } = {}) {
     setSelectedTextAnnotationId(annotation.annotationId)
     setEditingTextAnnotationId(options.edit ? annotation.annotationId : null)
-    setTextFontSizePx(resolveAnnotationTextFontSizePx(annotation, activeSheetPageSize))
+    setMemoTextFontSizePx(resolveAnnotationTextFontSizePx(annotation, activeSheetPageSize))
     setSheetSelection({ kind: 'none' })
     setSelectedKeyId(null)
     setValueDraft('')
@@ -1946,7 +1947,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleCancelTextAnnotation(annotationId: string) {
-    const annotation = project.annotations.find((item): item is AnnotationText => item.kind === 'text' && item.annotationId === annotationId)
+    const annotation = sheetAnnotations(project).find((item): item is AnnotationText => item.kind === 'text' && item.annotationId === annotationId)
     if (annotation && !annotation.text.trim()) {
       handleDeleteTextAnnotation(annotationId)
       return
@@ -1999,7 +2000,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handlePasteTextAnnotation() {
     if (!textAnnotationClipboard || !activePage) return
     const pastedAnnotation = cloneTextAnnotationForPaste(textAnnotationClipboard, {
-      annotationId: nextAnnotationId(project.annotations),
+      annotationId: nextAnnotationId(sheetAnnotations(project)),
       pageId: activePage.pageId,
       templateId: template.templateId,
       surfaceSize: activeSheetPageSize,
@@ -2016,19 +2017,18 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const nextSize = clampTextFontSizePx(value)
     if (activeTextTarget.kind === 'timingRange') return
     setTextFontSizePx(nextSize)
-    if (activeTextTarget.kind === 'annotationText') {
-      const annotation = project.annotations.find((item): item is AnnotationText => item.kind === 'text' && item.annotationId === activeTextTarget.annotationId)
-      handleUpdateTextAnnotation(activeTextTarget.annotationId, {
-        fontSizePx: nextSize,
-        coordinateSpace: 'view-surface',
-        anchor: currentTextAnnotationAnchor(annotation?.pageId ?? activePage?.pageId ?? project.sheetView.activePageId),
-      })
-      return
-    }
     if (activeTextTarget.kind === 'timingEvent') {
       const nextProject = updateTimelineEventFontSize(project, activeTextTarget.eventId, nextSize)
       if (nextProject !== project) commitProject(nextProject)
     }
+  }
+
+  function handleMemoTextFontSizeChange(value: number) {
+    const nextSize = clampTextFontSizePx(value)
+    setMemoTextFontSizePx(nextSize)
+    if (!selectedTextAnnotation) return
+    handleUpdateTextAnnotation(selectedTextAnnotation.annotationId, { fontSizePx: nextSize, coordinateSpace: 'view-surface',
+      anchor: currentTextAnnotationAnchor(selectedTextAnnotation.pageId) })
   }
 
   function handleEraseAnnotation(pageId: string, points: AnnotationPoint[], width: number) {
@@ -2272,7 +2272,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
-    selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
+    selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect,
@@ -2291,8 +2291,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
-    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
-    handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange,
+    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
+    handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   }
 }

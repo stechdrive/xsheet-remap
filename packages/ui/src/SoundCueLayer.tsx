@@ -2,6 +2,7 @@ import { useId, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
+import { resolveGridTypographyFontSizes } from './sheetTextLayout'
 
 export type SoundCueDragMode = 'move' | 'resize-start' | 'resize-end'
 
@@ -52,14 +53,15 @@ export function SoundCueLayer({
   segments.forEach(({ cue, segment, key }) => {
     textClipIds.set(key, `${clipIdPrefix}-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`)
     const typography = template.regions.find(region => region.regionId === segment.regionId)?.grid?.typography
+    const resolvedTypography = resolveGridTypographyFontSizes(template, pageSize, typography, { fontSizePx: 14, minFontSizePx: 6 })
     const textLayout = buildSoundCueTextLayout(
       segment.rect,
       pageSize,
       segment.startsCue ? cue.label : '',
       cue.text,
       {
-        fontSizePx: typography?.cellFontSizePx,
-        minFontSizePx: typography?.cellMinFontSizePx,
+        fontSizePx: resolvedTypography.fontSizePx,
+        minFontSizePx: resolvedTypography.minFontSizePx,
         regionRect: segment.regionRect,
         occupiedRects: segments.filter(item => item.key !== key).map(item => item.segment.rect),
         occupiedLabelBoundsPx,

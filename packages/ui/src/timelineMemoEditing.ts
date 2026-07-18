@@ -11,6 +11,7 @@ import {
   type TimedRangeCue,
   type TimelineInkMemo,
   type TimelineMemoRole,
+  timelineMemos,
 } from '@xsheet-remap/core'
 import type { SheetRangeSelection } from './appTypes'
 import { timedRangeLaneIdForHit } from './timedRangeCueEditing'
@@ -74,7 +75,8 @@ export function createTimelineMemoForHit(
   const selectedHeight = matchingRange ? Math.abs(matchingRange.frameEnd - matchingRange.frameStart) + 1 : null
   const dimensions = initialTimelineMemoDimensions(template, project, hit, selectedHeight)
   return {
-    memoId: nextTimelineMemoId(project.timelineMemos),
+    kind: 'timeline',
+    memoId: nextTimelineMemoId(timelineMemos(project)),
     anchor: {
       role,
       frame: frameStart,
@@ -88,7 +90,8 @@ export function createTimelineMemoForHit(
       heightFrames: dimensions.heightFrames,
     },
     strokes: [],
-    order: project.timelineMemos.reduce((maximum, item) => Math.max(maximum, item.order), 0) + 1,
+    texts: [],
+    order: project.memos.reduce((maximum, item) => Math.max(maximum, item.order), 0) + 1,
   }
 }
 

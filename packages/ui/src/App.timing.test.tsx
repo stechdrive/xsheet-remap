@@ -16,6 +16,32 @@ function dispatchBatchedPointerClick(target: Element, pointerId: number, clientX
 }
 
 describe('App: sheet timing interactions', () => {
+it('uses the floating memo palette as the single ink/text entry and locks a selected frame target', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    expect(document.querySelector('.textToolbarGroup button[aria-label="テキスト"]')).toBeNull()
+    expect(screen.getByRole('spinbutton', { name: uiText.sheet.timingTextFontSize })).toBeTruthy()
+    clickTemplateFrame(sheet, 'action', 'A', 1)
+    fireEvent.click(screen.getByRole('button', { name: 'メモツールを開く' }))
+    expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('ACTION A 1F')
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.penTool }))
+    await waitFor(() => expect(document.querySelector('.timelineMemoSegment.selected')).toBeTruthy())
+    expect(document.querySelector('.annotationFloatingPalette')?.classList.contains('timelineMemoTarget')).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.textTool }))
+    await waitFor(() => expect(document.querySelector('.timelineMemoTextSurface')).toBeTruthy())
+    const textSurface = document.querySelector<SVGRectElement>('.timelineMemoTextSurface')
+    const textPoint = templateFramePoint('action', 'A', 1)
+    fireEvent.pointerDown(textSurface as SVGRectElement, { pointerId: 3, clientX: textPoint.x, clientY: textPoint.y })
+    const editor = await screen.findByRole('textbox', { name: 'メモ文字' })
+    fireEvent.change(editor, { target: { value: '確認メモ' } })
+    fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true })
+    await waitFor(() => expect(document.querySelector('.timelineMemoText')?.textContent).toBe('確認メモ'))
+  })
+
 it('shows a dedicated cell cue for asset and CSP card drop targets', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
@@ -809,7 +835,7 @@ it('keeps range input as a draft until Enter and then steps by the selected rang
     expect(document.querySelector('.selectedRangeCorners')).toBeTruthy()
     expect(document.querySelector('.selectedCellCorners')).toBeTruthy()
     expectSelectedRange('cell', 'A', 1, 3)
-    expect((screen.getByRole('spinbutton', { name: uiText.sheet.textFontSize }) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('spinbutton', { name: uiText.sheet.timingTextFontSize }) as HTMLInputElement).disabled).toBe(true)
 
     fireEvent.keyDown(window, { key: '1' })
     expect(document.querySelectorAll('.eventRect')).toHaveLength(0)

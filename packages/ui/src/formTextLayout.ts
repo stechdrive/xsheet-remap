@@ -1,4 +1,4 @@
-import type { NormalizedRect, SheetTemplateTextStyle } from '@xsheet-remap/core'
+import type { NormalizedRect, ResolvedSheetTemplateTextStyle } from '@xsheet-remap/core'
 import {
   SHEET_TEXT_FONT_FAMILY,
   sharedTextMeasurementProvider,
@@ -23,16 +23,16 @@ export function resolveMultilineFormTextLayout(
   text: string,
   rect: NormalizedRect,
   pageSize: { widthPx: number; heightPx: number },
-  style: SheetTemplateTextStyle = {},
+  style: ResolvedSheetTemplateTextStyle,
   measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
 ): MultilineFormTextLayout {
-  const preferredFontSizePx = Math.max(1, style.fontSizePx ?? 13)
-  const minimumFontSizePx = Math.min(preferredFontSizePx, Math.max(1, style.minFontSizePx ?? 7))
-  const paddingPx = Math.max(0, style.paddingPx ?? 2)
+  const preferredFontSizePx = Math.max(1, style.fontSizePx)
+  const minimumFontSizePx = Math.min(preferredFontSizePx, Math.max(1, style.minFontSizePx))
+  const paddingPx = Math.max(0, style.paddingPx)
   const availableWidthPx = Math.max(1, rect.w * pageSize.widthPx - paddingPx * 2)
   const availableHeightPx = Math.max(1, rect.h * pageSize.heightPx - paddingPx * 2)
-  const preferredLineHeightPx = Math.max(preferredFontSizePx, style.lineHeightPx ?? preferredFontSizePx * 1.15)
-  const fontWeight = style.fontWeight ?? 400
+  const preferredLineHeightPx = Math.max(preferredFontSizePx, style.lineHeightPx)
+  const fontWeight = style.fontWeight
 
   const evaluate = (fontSizePx: number): MultilineFormTextLayout => {
     const lineHeightPx = Math.max(fontSizePx, preferredLineHeightPx * (fontSizePx / preferredFontSizePx))

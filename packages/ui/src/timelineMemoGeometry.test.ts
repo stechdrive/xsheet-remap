@@ -6,6 +6,7 @@ import { timelineMemoAnchorCellForPage, timelineMemoAnchorConnectorPoints, timel
 
 function memo(frame: number, heightFrames: number): TimelineInkMemo {
   return {
+    kind: 'timeline',
     memoId: 'memo_1',
     anchor: { role: 'action', frame, paperTrack: 'A' },
     placement: { frameOffset: 0, crossOffsetUnits: 0, widthUnits: 8, heightFrames },

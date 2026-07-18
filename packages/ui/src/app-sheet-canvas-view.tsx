@@ -1,4 +1,4 @@
-import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, type AnnotationStroke, type AnnotationText, type SheetHit } from '@xsheet-remap/core';
+import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, sheetAnnotationStrokes, sheetAnnotationTexts, timelineMemos, type SheetHit } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
 import { getSheetPageImage } from './sheetImages';
@@ -6,7 +6,7 @@ import { rangeRectsForPage } from './sheetInteraction';
 import { rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { SheetSvgText } from './SheetSvgText';
 import { SheetImageLayer } from './SheetTemplateLayers';
-import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, calibrationGuideMetrics, eventRectsForPage, isAnnotationStroke, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay, strokePath } from './app-sheet-layers';
+import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, calibrationGuideMetrics, eventRectsForPage, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay, strokePath } from './app-sheet-layers';
 import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { sheetContextMenuStyle } from './app-registered-cells';
@@ -71,12 +71,12 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const pageImage = getSheetPageImage(props.sheetView, props.runtimeSourceImageUrls, page.pageId, props.template)
           const strokes = !isCalibrating && props.showAnnotations
             ? [
-                ...props.project.annotations.filter((annotation): annotation is AnnotationStroke => isAnnotationStroke(annotation) && annotation.pageId === page.pageId && annotation.tool === 'pen'),
+                ...sheetAnnotationStrokes(props.project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen'),
                 ...(draftStroke?.pageId === page.pageId ? [draftStroke] : []),
               ]
             : []
           const textAnnotations = !isCalibrating && props.showAnnotations
-            ? props.project.annotations.filter((annotation): annotation is AnnotationText => annotation.kind === 'text' && annotation.pageId === page.pageId)
+            ? sheetAnnotationTexts(props.project).filter(annotation => annotation.pageId === page.pageId)
             : []
           const activeOverlayTrack = !isCalibrating && activeOverlayPaperTrack
             ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === activeOverlayPaperTrack && track.source === 'overlay')
@@ -374,7 +374,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                   {!isCalibrating && props.showAnnotations && (
                     <TimelineMemoLayer
-                      memos={props.project.timelineMemos}
+                      memos={timelineMemos(props.project)}
                       template={props.template}
                       page={page}
                       paperTracks={templateTrackNames}
@@ -386,8 +386,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       penColor={props.penColor}
                       penWidth={props.penWidth}
                       eraserWidth={props.eraserWidth}
+                      textFontSizePx={props.textFontSizePx}
                       onAppendStroke={props.onAppendTimelineMemoStroke}
                       onEraseStroke={props.onEraseTimelineMemoStroke}
+                      onUpsertText={props.onUpsertTimelineMemoText}
                       onUpdatePlacement={props.onUpdateTimelineMemoPlacement}
                     />
                   )}
@@ -528,7 +530,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
         >
           {timelineMemoContext && (
             <>
-              <div className="sheetContextMenuTitle">手書きメモ</div>
+              <div className="sheetContextMenuTitle">メモ</div>
               {contextTimelineMemoIds.flatMap((memoId, index) => {
                 const suffix = contextTimelineMemoIds.length > 1 ? ` ${index + 1}` : ''
                 return [
@@ -578,7 +580,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           )}
           {!timelineMemoContext && contextMenu.hit && (
             <>
-              <div className="sheetContextMenuTitle">手書きメモ</div>
+              <div className="sheetContextMenuTitle">メモ</div>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onCreateTimelineMemo(contextMenu.hit as SheetHit))}>メモを追加</button>
             </>
           )}

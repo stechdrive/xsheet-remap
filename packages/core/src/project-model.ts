@@ -72,8 +72,7 @@ export function createProjectFromTrackLabels(
     cspTrackSlots,
     bindings: [],
     stackGuideLabels: [],
-    annotations: [],
-    timelineMemos: [],
+    memos: [],
     timedRangeCues: [],
     exportProfiles,
   }

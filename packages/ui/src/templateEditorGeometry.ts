@@ -3,6 +3,8 @@ import {
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
+  resolveSheetTemplateTextStyle,
+  sheetTemplateLengthForReferencePx,
   sheetGridRowY,
   type NormalizedPoint,
   type NormalizedRect,
@@ -313,7 +315,7 @@ export function buildTemplateFormRenderModels(
       boxes.push({ key: `${region.regionId}:${cell.cellId}`, rect, style: normalizeTemplateLineStyle(cell.borderStyle, borderStyle) })
     }
     if (cell.kind === 'label' && cell.label) {
-      labels.push(templateFormLabel(`${region.regionId}:${cell.cellId}`, cell.label, rect, cell.textStyle, pageSize))
+      labels.push(templateFormLabel(`${region.regionId}:${cell.cellId}`, cell.label, rect, cell.textStyle, template, pageSize))
     }
     if (cell.kind === 'field' && cell.fieldId) {
       const definition = fieldDefinitionForCell(template, region.regionId, cell.fieldId, cell.label)
@@ -351,7 +353,15 @@ function projectedTrackCountCells(
       column: index + 1,
       kind: 'label' as const,
       label: column.label,
-      textStyle: { fontSizePx: 10, minFontSizePx: 7, fontWeight: 700, horizontalAlign: 'center' as const, verticalAlign: 'middle' as const, paddingPx: 2, shrinkToFit: true },
+      textStyle: {
+        fontSize: sheetTemplateLengthForReferencePx(template, 10),
+        minFontSize: sheetTemplateLengthForReferencePx(template, 7),
+        fontWeight: 700,
+        horizontalAlign: 'center' as const,
+        verticalAlign: 'middle' as const,
+        padding: sheetTemplateLengthForReferencePx(template, 2, 'spacing'),
+        shrinkToFit: true,
+      },
     })),
     { cellId: 'count_name', row: 1, column: 0, kind: 'label', label: projection.nameLabel ?? 'NAME' },
     ...projection.columns.map((column, index) => ({ cellId: `count_name_blank_${column.columnId}`, row: 1, column: index + 1, kind: 'spacer' as const })),
@@ -447,11 +457,18 @@ function templateFormLabel(
   text: string,
   rect: NormalizedRect,
   style: SheetTemplateTextStyle = {},
+  template: SheetTemplate,
   pageSize: SheetSvgPageSize,
 ): TemplateFormLabelRenderModel {
-  const paddingPx = Math.max(0, style.paddingPx ?? 2)
-  const align = style.horizontalAlign ?? 'center'
-  const vertical = style.verticalAlign ?? 'middle'
+  const resolvedStyle = resolveSheetTemplateTextStyle(template, pageSize, style, {
+    fontSizePx: 10,
+    minFontSizePx: 7,
+    paddingPx: 2,
+    fontWeight: 700,
+  })
+  const paddingPx = resolvedStyle.paddingPx
+  const align = resolvedStyle.horizontalAlign
+  const vertical = resolvedStyle.verticalAlign
   const xPadding = paddingPx / pageSize.widthPx
   const yPadding = paddingPx / pageSize.heightPx
   return {
@@ -462,8 +479,8 @@ function templateFormLabel(
     y: vertical === 'top' ? rect.y + yPadding : vertical === 'bottom' ? rect.y + rect.h - yPadding : rect.y + rect.h / 2,
     textAnchor: align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle',
     dominantBaseline: vertical === 'top' ? 'hanging' : vertical === 'bottom' ? 'text-after-edge' : 'central',
-    fontSizePx: style.fontSizePx ?? 10,
-    fontWeight: style.fontWeight ?? 700,
+    fontSizePx: resolvedStyle.fontSizePx,
+    fontWeight: resolvedStyle.fontWeight,
   }
 }
 

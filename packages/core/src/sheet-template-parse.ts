@@ -69,15 +69,58 @@ function validateRegion(input: unknown, index: number): asserts input is SheetTe
       && (!Array.isArray(input.grid.lineRules) || !input.grid.lineRules.every(validateGridLineRule))) {
       throw new Error(`領域 ${input.regionId} の罫線ルールが不正です。`)
     }
+    if (input.grid.typography !== undefined && !validateGridTypography(input.grid.typography)) {
+      throw new Error(`領域 ${input.regionId} の文字設定が不正です。`)
+    }
+  }
+  if (input.textStyle !== undefined && !validateTextStyle(input.textStyle)) {
+    throw new Error(`領域 ${input.regionId} の文字設定が不正です。`)
+  }
+  if (input.textStyleVariants !== undefined && (!isRecord(input.textStyleVariants)
+    || !Object.values(input.textStyleVariants).every(validateTextStyle))) {
+    throw new Error(`領域 ${input.regionId} の文字設定が不正です。`)
   }
   if (input.form !== undefined) {
     if (!isRecord(input.form)
       || input.form.cells !== undefined && (!Array.isArray(input.form.cells) || !input.form.cells.every(cell =>
         isRecord(cell)
+        && (cell.textStyle === undefined || validateTextStyle(cell.textStyle))
         && (cell.editPresentation === undefined || cell.editPresentation === 'inline' || cell.editPresentation === 'popover')))) {
       throw new Error(`領域 ${input.regionId} のフォーム定義が不正です。`)
     }
   }
+}
+
+function validateGridTypography(input: unknown): boolean {
+  if (!isRecord(input)) return false
+  if (input.cellFontSize !== undefined && !validateLength(input.cellFontSize, false)) return false
+  if (input.cellMinFontSize !== undefined && !validateLength(input.cellMinFontSize, false)) return false
+  if (input.cellFontSizePx !== undefined && !positiveNumber(input.cellFontSizePx)) return false
+  if (input.cellMinFontSizePx !== undefined && !positiveNumber(input.cellMinFontSizePx)) return false
+  if (input.cellFontWeight !== undefined && (!finiteNumber(input.cellFontWeight) || input.cellFontWeight < 100 || input.cellFontWeight > 900)) return false
+  return input.shrinkToFit === undefined || typeof input.shrinkToFit === 'boolean'
+}
+
+function validateTextStyle(input: unknown): boolean {
+  if (!isRecord(input)) return false
+  if (input.fontSize !== undefined && !validateLength(input.fontSize, false)) return false
+  if (input.minFontSize !== undefined && !validateLength(input.minFontSize, false)) return false
+  if (input.lineHeight !== undefined && !validateLength(input.lineHeight, false)) return false
+  if (input.padding !== undefined && !validateLength(input.padding, true)) return false
+  if (input.fontSizePx !== undefined && !positiveNumber(input.fontSizePx)) return false
+  if (input.minFontSizePx !== undefined && !positiveNumber(input.minFontSizePx)) return false
+  if (input.lineHeightPx !== undefined && !positiveNumber(input.lineHeightPx)) return false
+  if (input.paddingPx !== undefined && !nonNegativeNumber(input.paddingPx)) return false
+  if (input.fontWeight !== undefined && (!finiteNumber(input.fontWeight) || input.fontWeight < 100 || input.fontWeight > 900)) return false
+  if (input.horizontalAlign !== undefined && !['left', 'center', 'right'].includes(String(input.horizontalAlign))) return false
+  if (input.verticalAlign !== undefined && !['top', 'middle', 'bottom'].includes(String(input.verticalAlign))) return false
+  return input.shrinkToFit === undefined || typeof input.shrinkToFit === 'boolean'
+}
+
+function validateLength(input: unknown, allowZero: boolean): boolean {
+  return isRecord(input)
+    && ['px', 'pt', 'mm'].includes(String(input.unit))
+    && (allowZero ? nonNegativeNumber(input.value) : positiveNumber(input.value))
 }
 
 const sheetTemplateRegionTypes = new Set([

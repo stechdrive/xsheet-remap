@@ -5,6 +5,7 @@ import { TimelineMemoLayer } from './TimelineMemoLayer'
 
 function memo(memoId: string, frameOffset = 0): TimelineInkMemo {
   return {
+    kind: 'timeline',
     memoId,
     anchor: { role: 'action', frame: 10, paperTrack: 'A' },
     placement: { frameOffset, crossOffsetUnits: frameOffset ? 3 : 0, widthUnits: 8, heightFrames: 8 },
@@ -31,8 +32,10 @@ describe('TimelineMemoLayer anchor cues', () => {
           penColor="#111"
           penWidth={0.002}
           eraserWidth={0.018}
+          textFontSizePx={18}
           onAppendStroke={vi.fn()}
           onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
@@ -51,7 +54,10 @@ describe('TimelineMemoLayer anchor cues', () => {
   it('shows a connector only while a displaced memo is selected', () => {
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
-    const displaced = memo('memo_1', 8)
+    const displaced = {
+      ...memo('memo_1', 8),
+      anchor: { role: 'camera' as const, frame: 10, laneId: 'camera_lane_1' },
+    }
     const { container, rerender } = render(
       <svg viewBox="0 0 1 1">
         <TimelineMemoLayer
@@ -66,8 +72,10 @@ describe('TimelineMemoLayer anchor cues', () => {
           penColor="#111"
           penWidth={0.002}
           eraserWidth={0.018}
+          textFontSizePx={18}
           onAppendStroke={vi.fn()}
           onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
@@ -90,8 +98,10 @@ describe('TimelineMemoLayer anchor cues', () => {
           penColor="#111"
           penWidth={0.002}
           eraserWidth={0.018}
+          textFontSizePx={18}
           onAppendStroke={vi.fn()}
           onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
@@ -120,8 +130,10 @@ describe('TimelineMemoLayer anchor cues', () => {
           penColor="#111"
           penWidth={0.002}
           eraserWidth={0.018}
+          textFontSizePx={18}
           onAppendStroke={vi.fn()}
           onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
           onUpdatePlacement={onUpdatePlacement}
         />
       </svg>,
@@ -165,8 +177,10 @@ describe('TimelineMemoLayer anchor cues', () => {
           penColor="#111"
           penWidth={0.002}
           eraserWidth={0.018}
+          textFontSizePx={18}
           onAppendStroke={vi.fn()}
           onEraseStroke={onEraseStroke}
+          onUpsertText={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
@@ -193,8 +207,10 @@ describe('TimelineMemoLayer anchor cues', () => {
           penColor="#111"
           penWidth={0.002}
           eraserWidth={0.018}
+          textFontSizePx={18}
           onAppendStroke={vi.fn()}
           onEraseStroke={onEraseStroke}
+          onUpsertText={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
@@ -233,8 +249,10 @@ describe('TimelineMemoLayer anchor cues', () => {
           penColor="#111"
           penWidth={0.002}
           eraserWidth={0.018}
+          textFontSizePx={18}
           onAppendStroke={vi.fn()}
           onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
           onUpdatePlacement={vi.fn()}
         />
       </svg>,
@@ -243,5 +261,45 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(container.querySelector('.timelineMemoHitArea')).toBeNull()
     expect(container.querySelector('.timelineMemoStrokeHit')).toBeTruthy()
     expect(container.querySelector('.timelineMemoAnchorHitArea')).toBeTruthy()
+  })
+
+  it('renders and edits text inside the selected anchored memo', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const source = memo('memo_1')
+    source.texts = [{ textId: 'text_1', text: '指示\n補足', color: '#123456', x: 1, y: 1, fontSizeUnits: 1 }]
+    const onUpsertText = vi.fn()
+    const { container, getByLabelText } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[source]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
+          selectedMemoId={source.memoId}
+          editMode="text"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          textFontSizePx={18}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
+          onUpsertText={onUpsertText}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+
+    const rendered = container.querySelector<SVGTextElement>('.timelineMemoText')
+    expect(rendered?.querySelectorAll('tspan')).toHaveLength(2)
+    expect(rendered?.getAttribute('clip-path')).toMatch(/^url\(#timeline-memo-clip-/)
+    fireEvent.doubleClick(rendered as SVGTextElement)
+    const editor = getByLabelText('メモ文字')
+    fireEvent.change(editor, { target: { value: '更新' } })
+    fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true })
+
+    expect(onUpsertText).toHaveBeenCalledWith(source.memoId, expect.objectContaining({ textId: 'text_1', text: '更新' }))
   })
 })

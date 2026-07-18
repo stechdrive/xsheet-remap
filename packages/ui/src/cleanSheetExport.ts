@@ -1,9 +1,11 @@
 import {
   getSheetViewLayout,
   isRenderableSheetTemplateGridRegion,
+  memoAnchorPresentation,
   resolveSheetTemplateGridLayout,
-  type AnnotationStroke,
-  type AnnotationText,
+  sheetAnnotationStrokes,
+  sheetAnnotationTexts,
+  timelineMemos,
   type CutProject,
   type NormalizedRect,
   type SheetPage,
@@ -36,6 +38,7 @@ import {
 import { sheetImageFileName } from './outputFileNames'
 import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
+import { resolveGridTypographyFontSizes } from './sheetTextLayout'
 import {
   buildCameraCuePageLayouts,
   cameraCuePointLayoutsForPage,
@@ -84,7 +87,6 @@ type SheetExportLayerId =
   | 'soundCues'
   | 'cameraCues'
   | 'annotationInk'
-  | 'timelineMemoInk'
   | 'annotationText'
 
 export type TimedRangeCueExportLayerId = Extract<SheetExportLayerId, 'soundCues' | 'cameraCues'>
@@ -262,9 +264,8 @@ function sheetExportLayerDescriptorsForContext(
   for (const id of timedRangeCueExportLayerIds(context.project)) {
     layers.push({ id, name: id === 'soundCues' ? 'SOUND指示' : 'CAMERA指示' })
   }
-  layers.push({ id: 'annotationInk', name: '手描き注釈' })
-  layers.push({ id: 'timelineMemoInk', name: 'タイムラインメモ' })
-  layers.push({ id: 'annotationText', name: '注釈文字' })
+  layers.push({ id: 'annotationInk', name: 'メモ・手描き' })
+  layers.push({ id: 'annotationText', name: 'メモ・テキスト' })
   return layers
 }
 
@@ -288,8 +289,7 @@ async function renderSheetExportLayer(
   if (id === 'timingInput') return renderTimingInputLayer(context)
   if (id === 'soundCues') return renderSoundCueLayer(context)
   if (id === 'cameraCues') return renderCameraCueLayer(context)
-  if (id === 'annotationInk') return renderSheetAnnotationInkLayer(context)
-  if (id === 'timelineMemoInk') return renderTimelineMemoLayer(context)
+  if (id === 'annotationInk') return alphaComposite(renderSheetAnnotationInkLayer(context), renderTimelineMemoLayer(context))
   return renderAnnotationTextLayer(context)
 }
 
@@ -747,14 +747,15 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
         if (segment.startsCue) drawCanvasLine(ctx, rect.x, rect.y, rect.x + rect.w, rect.y)
         if (segment.endsCue) drawCanvasLine(ctx, rect.x, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h)
         const typography = context.template.regions.find(region => region.regionId === segment.regionId)?.grid?.typography
+        const resolvedTypography = resolveGridTypographyFontSizes(context.template, context.pageSize, typography, { fontSizePx: 14, minFontSizePx: 6 })
         const textLayout = buildSoundCueTextLayout(
           segment.rect,
           context.pageSize,
           segment.startsCue ? cue.label : '',
           cue.text,
           {
-            fontSizePx: typography?.cellFontSizePx,
-            minFontSizePx: typography?.cellMinFontSizePx,
+            fontSizePx: resolvedTypography.fontSizePx,
+            minFontSizePx: resolvedTypography.minFontSizePx,
             regionRect: segment.regionRect,
             fontFamily: SHEET_CANVAS_FONT_FAMILY,
             labelFontWeight: 850,
@@ -1112,7 +1113,7 @@ function renderSheetAnnotationInkLayer(context: SheetExportLayerContext): ImageD
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const stroke of context.project.annotations.filter((annotation): annotation is AnnotationStroke => annotation.kind !== 'text' && annotation.pageId === page.pageId && annotation.tool === 'pen')) {
+    for (const stroke of sheetAnnotationStrokes(context.project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')) {
       const [first, ...rest] = stroke.points
       if (!first) continue
       ctx.beginPath()
@@ -1135,7 +1136,7 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
   const surface = { widthPx: context.pageSize.widthPx, heightPx: context.pageSize.heightPx }
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const memo of context.project.timelineMemos.slice().sort((left, right) => left.order - right.order)) {
+    for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
       const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
         paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
         layoutOverrides: context.project.sheetView.layoutOverrides,
@@ -1156,7 +1157,7 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
         roundedRectPath(ctx, markerX, markerY, markerW, markerH, Math.min(markerW, markerH) * 0.32)
         ctx.fill()
         const firstSegment = segments[0]
-        if (firstSegment) {
+        if (firstSegment && memoAnchorPresentation(memo) === 'camera-connector') {
           const connector = timelineMemoAnchorConnectorPoints(marker, firstSegment.rect, surface)
           if (connector) {
             drawNormalizedPolygon(
@@ -1203,7 +1204,7 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const annotation of context.project.annotations.filter((item): item is AnnotationText => item.kind === 'text' && item.pageId === page.pageId)) {
+    for (const annotation of sheetAnnotationTexts(context.project).filter(item => item.pageId === page.pageId)) {
       const lines = annotationTextLines(annotation.text)
       if (lines.length === 0) continue
       const fontSize = resolveAnnotationTextFontSizePx(annotation, context.pageSize)
@@ -1216,6 +1217,39 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
       lines.forEach((line, index) => {
         ctx.fillText(line, x, y + index * fontSize * 1.25)
       })
+    }
+    for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
+      const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
+        paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+        layoutOverrides: context.project.sheetView.layoutOverrides,
+      })
+      for (const segment of segments) {
+        const texts = (memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd)
+        if (texts.length === 0) continue
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(
+          segment.rect.x * context.pageSize.widthPx,
+          offsetY + segment.rect.y * context.pageSize.heightPx,
+          segment.rect.w * context.pageSize.widthPx,
+          segment.rect.h * context.pageSize.heightPx,
+        )
+        ctx.clip()
+        for (const text of texts) {
+          const lines = annotationTextLines(text.text)
+          if (lines.length === 0) continue
+          const point = timelineMemoPointToPagePoint(segment, text)
+          const fontSize = Math.max(1, text.fontSizeUnits * segment.rowHeightY * context.pageSize.heightPx)
+          const x = point.x * context.pageSize.widthPx
+          const y = offsetY + point.y * context.pageSize.heightPx
+          ctx.fillStyle = text.color
+          ctx.font = fontDeclaration(fontSize, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+          ctx.textBaseline = 'top'
+          ctx.textAlign = 'left'
+          lines.forEach((line, index) => ctx.fillText(line, x, y + index * fontSize * 1.25))
+        }
+        ctx.restore()
+      }
     }
   }
   return ctx.getImageData(0, 0, context.width, context.height)

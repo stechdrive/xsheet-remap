@@ -57,4 +57,17 @@ describe('parseSheetTemplate', () => {
 
     expect(() => parseSheetTemplate(invalid)).toThrow('フォーム定義が不正')
   })
+
+  it('rejects unknown physical typography units', () => {
+    const invalid = structuredClone(standardA3SheetTemplate) as unknown as Record<string, unknown>
+    const regions = invalid.regions as Array<Record<string, unknown>>
+    const memo = regions.find(region => region.regionId === 'top_memo_area')!
+    const form = memo.form as Record<string, unknown>
+    const cells = form.cells as Array<Record<string, unknown>>
+    const body = cells.find(cell => cell.cellId === 'memo_body')!
+    const textStyle = body.textStyle as Record<string, unknown>
+    textStyle.fontSize = { value: 8, unit: 'inch' }
+
+    expect(() => parseSheetTemplate(invalid)).toThrow('フォーム定義が不正')
+  })
 })

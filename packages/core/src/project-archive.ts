@@ -7,7 +7,7 @@ export const PROJECT_ARCHIVE_FEATURE_VERSIONS = {
   'project-core': 1,
   'sheet-revisions': 1,
   'asset-references': 1,
-  'timeline-annotations': 1,
+  'timeline-annotations': 2,
   'timed-range-cues': 1,
   'embedded-blobs': 1,
 } as const
@@ -55,7 +55,7 @@ export function buildProjectArchiveManifest(
     features['asset-references'] = PROJECT_ARCHIVE_FEATURE_VERSIONS['asset-references']
     requiredFeatures.push('asset-references')
   }
-  if (document.cuts.some(cut => cut.revisions.some(revision => revision.annotations.length > 0 || revision.timelineMemos.length > 0))) {
+  if (document.cuts.some(cut => cut.revisions.some(revision => revision.memos.length > 0))) {
     features['timeline-annotations'] = PROJECT_ARCHIVE_FEATURE_VERSIONS['timeline-annotations']
     requiredFeatures.push('timeline-annotations')
   }

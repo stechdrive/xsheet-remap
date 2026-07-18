@@ -18,7 +18,7 @@ import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { TimingEventSymbol } from './TimingEventSymbol'
-import { continuationRenderItemsForPage } from './sheetRenderModel'
+import { continuationRenderItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -216,10 +216,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                   {showInputContent && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
                   {showInputContent && continuationItems.map(item => (
-                    <polyline
-                      key={`${item.eventId}:${item.paperTrack}:${item.points[0]?.x}:${item.points[0]?.y}`}
+                    <path
+                      key={`${item.eventId}:${item.paperTrack}:${item.path[0]?.x}:${item.path[0]?.y}`}
                       className={`timingContinuationLine timingContinuation${item.kind === 'wave' ? 'Wave' : 'Straight'}`}
-                      points={item.points.map(point => `${point.x},${point.y}`).join(' ')}
+                      d={sheetContinuationPathData(item.path)}
                       strokeWidth={item.strokeWidth}
                     />
                   ))}

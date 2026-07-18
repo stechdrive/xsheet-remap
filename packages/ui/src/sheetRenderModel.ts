@@ -65,9 +65,14 @@ export type SheetContinuationRenderItem = {
   paperTrack: string
   role: SheetTimingRole
   kind: 'straight' | 'wave'
-  points: Array<{ x: number; y: number }>
+  path: SheetContinuationPathCommand[]
   strokeWidth: number
 }
+
+export type SheetContinuationPathCommand =
+  | { kind: 'move'; x: number; y: number }
+  | { kind: 'line'; x: number; y: number }
+  | { kind: 'cubic'; control1X: number; control1Y: number; control2X: number; control2Y: number; x: number; y: number }
 
 export type SheetMetadataTextRenderItem = {
   regionId: string
@@ -223,15 +228,18 @@ export function continuationRenderItemsForPage(context: SheetRenderModelContext,
           const endY = last.y + last.h / 2
           const cellSize = Math.min(first.w, first.h)
           const strokeWidth = Math.max(0.00045, Math.min(0.0015, cellSize * 0.075))
-          const points = valueKind === 'blank'
-            ? waveContinuationPoints(centerX, startY, endY, first.w, first.h)
-            : [{ x: centerX, y: startY }, { x: centerX, y: endY }]
+          const path = valueKind === 'blank'
+            ? waveContinuationPath(centerX, startY, endY, first.w, first.h)
+            : [
+                { kind: 'move' as const, x: centerX, y: startY },
+                { kind: 'line' as const, x: centerX, y: endY },
+              ]
           items.push({
             eventId: event.eventId,
             paperTrack,
             role,
             kind: valueKind === 'blank' ? 'wave' : 'straight',
-            points,
+            path,
             strokeWidth,
           })
         }
@@ -239,6 +247,15 @@ export function continuationRenderItemsForPage(context: SheetRenderModelContext,
     }
   }
   return items
+}
+
+export function sheetContinuationPathData(commands: SheetContinuationPathCommand[]): string {
+  return commands.map(command => {
+    const end = `${pathNumber(command.x)} ${pathNumber(command.y)}`
+    if (command.kind === 'move') return `M ${end}`
+    if (command.kind === 'line') return `L ${end}`
+    return `C ${pathNumber(command.control1X)} ${pathNumber(command.control1Y)} ${pathNumber(command.control2X)} ${pathNumber(command.control2Y)} ${end}`
+  }).join(' ')
 }
 
 export function metadataTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetMetadataTextRenderItem[] {
@@ -769,18 +786,35 @@ function contiguousContinuationSegments(items: Array<{ frame: number; rect: Norm
   return segments
 }
 
-function waveContinuationPoints(centerX: number, startY: number, endY: number, cellWidth: number, cellHeight: number): Array<{ x: number; y: number }> {
-  if (endY <= startY) return [{ x: centerX, y: startY }]
+function waveContinuationPath(centerX: number, startY: number, endY: number, cellWidth: number, cellHeight: number): SheetContinuationPathCommand[] {
+  const commands: SheetContinuationPathCommand[] = [{ kind: 'move', x: centerX, y: startY }]
+  if (endY <= startY) return commands
   const amplitude = Math.min(cellWidth * 0.16, cellHeight * 0.28)
-  const pitch = Math.max(cellHeight * 0.9, 0.0001)
-  const steps = Math.max(4, Math.ceil((endY - startY) / pitch) * 4)
-  return Array.from({ length: steps + 1 }, (_, index) => {
-    const ratio = index / steps
-    return {
-      x: centerX + Math.sin(ratio * Math.PI * steps / 2) * amplitude,
-      y: startY + (endY - startY) * ratio,
-    }
-  })
+  const targetWavelength = Math.max(cellHeight * 0.9, 0.0001)
+  const cycleCount = Math.max(1, Math.round((endY - startY) / targetWavelength))
+  const halfWaveCount = cycleCount * 2
+  const halfWaveHeight = (endY - startY) / halfWaveCount
+  // A cubic with control X at 4/3 amplitude closely approximates a sine half-wave
+  // while keeping Y linear. Alternating the sign also keeps the tangent continuous.
+  const controlAmplitude = amplitude * (4 / 3)
+  for (let index = 0; index < halfWaveCount; index += 1) {
+    const y = startY + halfWaveHeight * index
+    const sign = index % 2 === 0 ? 1 : -1
+    commands.push({
+      kind: 'cubic',
+      control1X: centerX + sign * controlAmplitude,
+      control1Y: y + halfWaveHeight / 3,
+      control2X: centerX + sign * controlAmplitude,
+      control2Y: y + halfWaveHeight * 2 / 3,
+      x: centerX,
+      y: y + halfWaveHeight,
+    })
+  }
+  return commands
+}
+
+function pathNumber(value: number): string {
+  return String(Number(value.toFixed(7)))
 }
 
 function matchingGridRegion(template: SheetTemplate, role: 'action' | 'cell' | 'camera', frameStart: number): SheetTemplate['regions'][number] | undefined {

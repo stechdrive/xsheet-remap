@@ -584,12 +584,26 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     for (const item of continuationRenderItemsForPage(context, page)) {
-      const first = item.points[0]
+      const first = item.path[0]
       if (!first) continue
       ctx.beginPath()
-      ctx.moveTo(first.x * context.pageSize.widthPx, offsetY + first.y * context.pageSize.heightPx)
-      for (const point of item.points.slice(1)) {
-        ctx.lineTo(point.x * context.pageSize.widthPx, offsetY + point.y * context.pageSize.heightPx)
+      for (const command of item.path) {
+        const x = command.x * context.pageSize.widthPx
+        const y = offsetY + command.y * context.pageSize.heightPx
+        if (command.kind === 'move') {
+          ctx.moveTo(x, y)
+        } else if (command.kind === 'line') {
+          ctx.lineTo(x, y)
+        } else {
+          ctx.bezierCurveTo(
+            command.control1X * context.pageSize.widthPx,
+            offsetY + command.control1Y * context.pageSize.heightPx,
+            command.control2X * context.pageSize.widthPx,
+            offsetY + command.control2Y * context.pageSize.heightPx,
+            x,
+            y,
+          )
+        }
       }
       ctx.lineWidth = Math.max(1, item.strokeWidth * context.pageSize.widthPx)
       ctx.stroke()

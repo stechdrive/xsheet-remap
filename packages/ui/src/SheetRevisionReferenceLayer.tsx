@@ -8,7 +8,7 @@ import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { AnnotationSvgText } from './sheet-panel-annotation'
 import { TimingEventSymbol } from './TimingEventSymbol'
-import { continuationRenderItemsForPage } from './sheetRenderModel'
+import { continuationRenderItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
 
 const noop = () => undefined
 
@@ -41,10 +41,10 @@ export function SheetRevisionReferenceLayer({
     <g className="sheetRevisionReferenceLayer" opacity={opacity} aria-label="元のシート">
       <MetadataTextLayer context={context} page={page} />
       {continuationItems.map(item => (
-        <polyline
-          key={`${item.eventId}:${item.paperTrack}:${item.points[0]?.x}:${item.points[0]?.y}`}
+        <path
+          key={`${item.eventId}:${item.paperTrack}:${item.path[0]?.x}:${item.path[0]?.y}`}
           className={`timingContinuationLine timingContinuation${item.kind === 'wave' ? 'Wave' : 'Straight'}`}
-          points={item.points.map(point => `${point.x},${point.y}`).join(' ')}
+          d={sheetContinuationPathData(item.path)}
           strokeWidth={item.strokeWidth}
         />
       ))}

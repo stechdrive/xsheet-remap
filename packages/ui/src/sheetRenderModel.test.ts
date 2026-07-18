@@ -18,6 +18,7 @@ import {
   inputTextRenderItemsForPage,
   metadataTextRenderItemsForPage,
   overlayPaperTrackRenderItems,
+  sheetContinuationPathData,
   stackGuideFlagRenderItemsForPage,
 } from './sheetRenderModel'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
@@ -98,7 +99,14 @@ describe('sheet render model', () => {
       ['A', 'straight'],
       ['B', 'wave'],
     ]))
-    expect(items.every(item => item.points.length >= 2 && item.strokeWidth > 0)).toBe(true)
+    expect(items.every(item => item.path.length >= 2 && item.strokeWidth > 0)).toBe(true)
+    const straight = items.find(item => item.kind === 'straight')
+    const wave = items.find(item => item.kind === 'wave')
+    expect(straight?.path.map(command => command.kind)).toEqual(['move', 'line'])
+    expect(wave?.path[0]?.kind).toBe('move')
+    expect(wave?.path.slice(1).every(command => command.kind === 'cubic')).toBe(true)
+    expect(sheetContinuationPathData(wave?.path ?? [])).toMatch(/^M .* C /)
+    expect(sheetContinuationPathData(wave?.path ?? [])).not.toContain(' L ')
     const hiddenContext = createSheetRenderModelContext(updateSheetViewState(project, {
       continuationDisplay: { action: false, cell: false },
     }), standardA3SheetTemplate)

@@ -1,6 +1,6 @@
 import type { CutMetadataFieldId, Id, LogicalTimelineSectionRole, PaperTrackName, SheetImageAlignment, SheetPageImageRef, SheetViewLayoutOverrides, SheetViewMode } from './types'
 
-export const SHEET_TEMPLATE_SCHEMA_VERSION = 4
+export const SHEET_TEMPLATE_SCHEMA_VERSION = 5
 
 export interface NormalizedRect {
   x: number
@@ -62,7 +62,18 @@ export interface SheetTemplateGridLineStyleRule {
   indexes?: number[]
   every?: number
   offset?: number
+  /**
+   * Limits each line to ranges on the orthogonal grid axis. The values are
+   * boundary indexes: row lines use column boundaries and column lines use
+   * row boundaries. Omitting spans draws across the complete grid.
+   */
+  spans?: SheetTemplateGridLineSpan[]
   style?: SheetTemplateLineStyle
+}
+
+export interface SheetTemplateGridLineSpan {
+  startBoundary: number
+  endBoundary: number
 }
 
 export interface SheetTemplateGridHeader {

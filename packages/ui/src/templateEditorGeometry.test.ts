@@ -201,16 +201,25 @@ describe('template editor geometry', () => {
     expect(grid?.frameNumbers[0].fontSizePx).toBeGreaterThan(0)
   })
 
-  it('draws paper SOUND as four dotted columns without horizontal frame lines', () => {
+  it('draws paper SOUND with dotted columns and frame lines only in the two outer columns', () => {
     const region = standardA3SheetTemplate.regions.find(item => item.grid?.role === 'sound')
     expect(region?.grid).toBeTruthy()
 
     const model = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, region!)
     expect(model).not.toBeNull()
     expect(model?.columnPath).toBeNull()
-    expect(model?.rowPaths).toHaveLength(1)
-    expect(model?.rowPaths[0]?.segments).toHaveLength(5)
-    expect(model?.rowPaths[0]?.style).toMatchObject({ pattern: 'dotted', widthPx: 1 })
+    expect(model?.rowPaths).toHaveLength(2)
+    const columnLines = model?.rowPaths.find(path => path.className.includes('gridLineColumn'))
+    const rowLines = model?.rowPaths.find(path => path.className.includes('gridLineRow'))
+    expect(columnLines?.segments).toHaveLength(5)
+    expect(rowLines?.segments).toHaveLength((region!.grid!.rowCount + 1) * 2)
+    expect(columnLines?.style).toMatchObject({ pattern: 'dotted', widthPx: 1 })
+    expect(rowLines?.style).toMatchObject({ pattern: 'dotted', widthPx: 1 })
+    const columnBoundaries = columnLines!.segments.map(segment => segment.x1)
+    expect(new Set(rowLines!.segments.map(segment => `${segment.x1}:${segment.x2}`))).toEqual(new Set([
+      `${columnBoundaries[0]}:${columnBoundaries[1]}`,
+      `${columnBoundaries[3]}:${columnBoundaries[4]}`,
+    ]))
   })
 
   it('projects A3 process and count fields into editable form cells', () => {

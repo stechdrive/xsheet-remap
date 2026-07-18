@@ -157,6 +157,7 @@ export type {
   SheetTemplateFrameProjection,
   SheetTemplateGrid,
   SheetTemplateGridHeader,
+  SheetTemplateGridLineSpan,
   SheetTemplateGridLineStyleRule,
   SheetTemplateGridColumnSize,
   SheetTemplateGridColumnSizing,

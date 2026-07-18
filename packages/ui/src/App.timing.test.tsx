@@ -963,8 +963,8 @@ it('selects SOUND ranges while rendering only the template-defined dotted column
       toJSON: () => ({}),
     })
 
-    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(2)
-    expect(document.querySelectorAll('.gridOverlay-sound .gridLineRow')).toHaveLength(0)
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(4)
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineRow')).toHaveLength(2)
     dragSheet(sheet, 190, 290, 190, 310)
 
     expect(document.querySelector('.selectedRangeRect')).toBeTruthy()

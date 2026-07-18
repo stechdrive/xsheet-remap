@@ -711,7 +711,7 @@ it('renders the default paper template chrome and grid lines', () => {
     expect(document.querySelectorAll('.templateReferenceText')).toHaveLength(0)
     expect(document.querySelectorAll('.gridLine, .gridLineMajor').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridOverlay-action, .gridOverlay-cell, .gridOverlay-camera').length).toBeGreaterThan(0)
-    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(2)
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(4)
     expect(Array.from(document.querySelectorAll('.gridSecondCounter')).map(element => element.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toEqual(['001', '06+00', '1/1'])
     expect(document.querySelector('.templateHeaderText')?.getAttribute('transform')).toBe(paperTextTransform)
@@ -765,7 +765,7 @@ it('keeps template creation as a draft until apply or cancel', () => {
     expect(screen.getByText(uiText.template.builtInProtected)).toBeTruthy()
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
-    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(2)
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(4)
 
     fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
     fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))

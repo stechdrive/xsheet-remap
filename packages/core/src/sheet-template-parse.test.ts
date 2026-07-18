@@ -7,6 +7,11 @@ describe('parseSheetTemplate', () => {
     expect(parseSheetTemplate(structuredClone(standardA3SheetTemplate)).templateId).toBe(standardA3SheetTemplate.templateId)
   })
 
+  it('rejects obsolete template schema versions during development', () => {
+    const template = { ...structuredClone(standardA3SheetTemplate), schemaVersion: 4 }
+    expect(() => parseSheetTemplate(template)).toThrow('対応していないシートテンプレートバージョン')
+  })
+
   it('rejects duplicate region identifiers', () => {
     const template = structuredClone(standardA3SheetTemplate)
     template.regions[1]!.regionId = template.regions[0]!.regionId

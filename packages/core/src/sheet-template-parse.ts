@@ -3,7 +3,7 @@ import { SHEET_TEMPLATE_SCHEMA_VERSION, type NormalizedRect, type SheetTemplate,
 /** Validates an external JSON value before it becomes an editable sheet template. */
 export function parseSheetTemplate(input: unknown): SheetTemplate {
   if (!isRecord(input)) throw new Error('シートテンプレートJSONではありません。')
-  if (input.schemaVersion !== SHEET_TEMPLATE_SCHEMA_VERSION && input.schemaVersion !== 3) {
+  if (input.schemaVersion !== SHEET_TEMPLATE_SCHEMA_VERSION) {
     throw new Error(`対応していないシートテンプレートバージョンです: ${String(input.schemaVersion)}`)
   }
   if (!nonEmptyString(input.templateId) || !nonEmptyString(input.name)) {

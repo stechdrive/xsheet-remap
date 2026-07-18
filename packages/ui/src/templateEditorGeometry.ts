@@ -503,6 +503,25 @@ function gridLineRuleIndexes(
     .sort((a, b) => a - b)
 }
 
+function gridLineRuleSpans(
+  rule: NonNullable<SheetTemplateGrid['lineRules']>[number],
+  orthogonalBoundaryCount: number,
+): Array<{ startBoundary: number; endBoundary: number }> {
+  const spans = rule.spans?.length
+    ? rule.spans
+    : [{ startBoundary: 0, endBoundary: orthogonalBoundaryCount }]
+  const normalized = spans.flatMap(span => {
+    if (!Number.isFinite(span.startBoundary) || !Number.isFinite(span.endBoundary)) return []
+    const first = Math.max(0, Math.min(orthogonalBoundaryCount, Math.round(span.startBoundary)))
+    const last = Math.max(0, Math.min(orthogonalBoundaryCount, Math.round(span.endBoundary)))
+    const startBoundary = Math.min(first, last)
+    const endBoundary = Math.max(first, last)
+    return startBoundary === endBoundary ? [] : [{ startBoundary, endBoundary }]
+  })
+  return [...new Map(normalized.map(span => [`${span.startBoundary}:${span.endBoundary}`, span])).values()]
+    .sort((a, b) => a.startBoundary - b.startBoundary || a.endBoundary - b.endBoundary)
+}
+
 export function gridHeaderRolesForTemplate(template: SheetTemplate): SheetTemplateGridRole[] {
   const roles = new Set<SheetTemplateGridRole>()
   for (const region of template.regions) {
@@ -571,9 +590,21 @@ export function buildTemplateGridOverlayRenderModel(
     for (const [ruleIndex, rule] of region.grid.lineRules!.entries()) {
       const boundaryCount = rule.axis === 'row' ? frames.rowCount : Math.max(0, columnLines.length - 1)
       const indexes = gridLineRuleIndexes(rule, boundaryCount)
-      const segments = indexes.map(index => rule.axis === 'row'
-        ? { x1: rect.x, y1: sheetGridRowY(layout, index), x2: rect.x + rect.w, y2: sheetGridRowY(layout, index) }
-        : { x1: columnLines[index]!, y1: rect.y, x2: columnLines[index]!, y2: rect.y + rect.h })
+      const orthogonalBoundaryCount = rule.axis === 'row' ? Math.max(0, columnLines.length - 1) : frames.rowCount
+      const spans = gridLineRuleSpans(rule, orthogonalBoundaryCount)
+      const segments = indexes.flatMap(index => spans.map(span => rule.axis === 'row'
+        ? {
+            x1: columnLines[span.startBoundary]!,
+            y1: sheetGridRowY(layout, index),
+            x2: columnLines[span.endBoundary]!,
+            y2: sheetGridRowY(layout, index),
+          }
+        : {
+            x1: columnLines[index]!,
+            y1: sheetGridRowY(layout, span.startBoundary),
+            x2: columnLines[index]!,
+            y2: sheetGridRowY(layout, span.endBoundary),
+          }))
       if (segments.length === 0) continue
       explicitPaths.push({
         className: `gridLine gridLineCustom gridLine${rule.axis === 'row' ? 'Row' : 'Column'}`,

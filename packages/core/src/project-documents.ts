@@ -56,11 +56,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
   }
   let sheetTemplate: SheetTemplate
   try {
-    const incomingTemplateVersion = input.sheetTemplate.schemaVersion
-    const parsedTemplate = parseSheetTemplate(input.sheetTemplate)
-    sheetTemplate = incomingTemplateVersion === 3 && parsedTemplate.templateId === standardA3SheetTemplate.templateId
-      ? standardA3SheetTemplate
-      : parsedTemplate
+    sheetTemplate = parseSheetTemplate(input.sheetTemplate)
   } catch {
     throw new Error('プロジェクトの制作情報またはシートテンプレートが不正です。')
   }

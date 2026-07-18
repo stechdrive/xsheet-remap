@@ -1,6 +1,6 @@
 import type { CutMetadataFieldId } from './types'
 import { createAlphabeticTrackLabels, createPaperTrackColumns } from './sheet-template-layout'
-import { NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFieldDefinition, SheetTemplateFormCell, SheetTemplateFrameProjection, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
+import { NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFieldDefinition, SheetTemplateFormCell, SheetTemplateFrameProjection, SheetTemplateGridLineStyleRule, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
 
 export const standardA3DefaultPaperTracks = createAlphabeticTrackLabels(9)
 
@@ -52,6 +52,21 @@ const STANDARD_A3_METADATA_TEXT_STYLE: SheetTemplateTextStyle = {
 const STANDARD_A3_GRID_HEADER = { topOffsetPx: 71, heightPx: 48, columnHeightPx: 23 }
 
 const STANDARD_A3_FORM_BORDER = { weight: 'thin' as const, pattern: 'solid' as const, color: '#2f3430', widthPx: 1 }
+
+const STANDARD_A3_SOUND_LINE_STYLE = { pattern: 'dotted' as const, widthPx: 1, color: '#727872' }
+
+const STANDARD_A3_SOUND_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
+  { axis: 'column', target: 'all', style: STANDARD_A3_SOUND_LINE_STYLE },
+  {
+    axis: 'row',
+    target: 'all',
+    spans: [
+      { startBoundary: 0, endBoundary: 1 },
+      { startBoundary: 3, endBoundary: 4 },
+    ],
+    style: STANDARD_A3_SOUND_LINE_STYLE,
+  },
+]
 
 const STANDARD_A3_PROCESS_FIELDS: SheetTemplateFieldDefinition[] = [
   ['process.original', '原図', 'revision', 'text'],
@@ -469,7 +484,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, lineRules: [{ axis: 'column', target: 'all', style: { pattern: 'dotted', widthPx: 1, color: '#727872' } }], columns: soundColumns },
+      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, lineRules: STANDARD_A3_SOUND_LINE_RULES, columns: soundColumns },
     },
     {
       regionId: 'left_cell_grid',
@@ -513,7 +528,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, lineRules: [{ axis: 'column', target: 'all', style: { pattern: 'dotted', widthPx: 1, color: '#727872' } }], columns: soundColumns },
+      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, lineRules: STANDARD_A3_SOUND_LINE_RULES, columns: soundColumns },
     },
     {
       regionId: 'right_cell_grid',

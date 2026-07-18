@@ -1,10 +1,10 @@
-import type { Annotation, CellBinding, CspTrackSlot, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimelineInkMemo, TimingKey } from './types'
+import type { Annotation, CellBinding, CspTrackSlot, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetRevisionDocument, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimelineInkMemo, TimingKey } from './types'
 import { sheetTemplatePresets, standardA3SheetTemplate, SHEET_TEMPLATE_SCHEMA_VERSION, type SheetTemplate } from './sheet-template'
 import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { migrateAnnotation } from './annotations'
 import { createDefaultSheetViewState, migrateSheetView } from './sheet-view'
 import { withoutUndefined } from './core-utils'
-import { DEFAULT_CSP_CELL_NAME_POLICY, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION, ROOT_ASSET_BIN_ID } from './project-constants'
+import { DEFAULT_CSP_CELL_NAME_POLICY, LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations } from './project-shared'
 
@@ -44,7 +44,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
   if (!isCutGroupProjectDocumentInput(input)) {
     throw new Error('対応していないプロジェクトファイルです。新しい兼用カットプロジェクトを作成してください。')
   }
-  if (input.schemaVersion !== PROJECT_DOCUMENT_SCHEMA_VERSION) {
+  if (input.schemaVersion !== PROJECT_DOCUMENT_SCHEMA_VERSION && input.schemaVersion !== LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION) {
     throw new Error(`対応していないプロジェクトバージョンです: ${String(input.schemaVersion)}`)
   }
   if (!isRecord(input.production) || !isSheetTemplateInput(input.sheetTemplate)) {
@@ -96,6 +96,17 @@ export function activeCutProjectFromDocument(documentInput: CutGroupProjectDocum
   return cutProjectFromDocumentCut(document, activeCut)
 }
 
+export function activeSheetRevisionFromDocument(documentInput: CutGroupProjectDocument): SheetRevisionDocument {
+  const document = parseProjectDocument(documentInput)
+  const cut = activeCutDocument(document)
+  return activeRevisionForCut(cut)
+}
+
+export function sheetRevisionsForActiveCut(documentInput: CutGroupProjectDocument): SheetRevisionDocument[] {
+  const document = parseProjectDocument(documentInput)
+  return activeCutDocument(document).revisions.map(revision => cloneRevision(revision))
+}
+
 export function updateActiveCutProjectInDocument(
   documentInput: CutGroupProjectDocument,
   activeProjectInput: CutProject,
@@ -105,7 +116,9 @@ export function updateActiveCutProjectInDocument(
   const activeProject = migrateProject(activeProjectInput)
   const activeCutId = document.cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : document.cuts[0]?.cutId ?? 'cut_1'
   const currentCut = document.cuts.find(cut => cut.cutId === activeCutId)
-  const activeCut = cutSheetFromProject(activeProject, activeCutId, currentCut?.order ?? document.cuts.length)
+  const activeCut = currentCut
+    ? updateCutActiveRevisionFromProject(currentCut, activeProject)
+    : cutSheetFromProject(activeProject, activeCutId, document.cuts.length)
   const cuts = document.cuts.some(cut => cut.cutId === activeCutId)
     ? document.cuts.map(cut => cut.cutId === activeCutId ? activeCut : cut)
     : [...document.cuts, activeCut]
@@ -125,6 +138,125 @@ export function updateActiveCutProjectInDocument(
     exportProfiles: activeProject.exportProfiles,
     cuts,
   }
+}
+
+export function switchActiveSheetRevisionInProjectDocument(
+  documentInput: CutGroupProjectDocument,
+  activeProjectInput: CutProject,
+  revisionId: string,
+): CutGroupProjectDocument {
+  const document = updateActiveCutProjectInDocument(documentInput, activeProjectInput)
+  const cut = activeCutDocument(document)
+  if (!cut.revisions.some(revision => revision.revisionId === revisionId)) {
+    throw new Error(`sheet revision not found: ${revisionId}`)
+  }
+  return replaceCut(document, { ...cut, activeRevisionId: revisionId })
+}
+
+export function addSheetRevisionToProjectDocument(
+  documentInput: CutGroupProjectDocument,
+  activeProjectInput: CutProject,
+  input: { name: string; mode: 'duplicate' | 'blank'; showSourceReference?: boolean },
+): CutGroupProjectDocument {
+  const name = input.name.trim()
+  if (!name) throw new Error('追加するシートの名前を入力してください。')
+  const document = updateActiveCutProjectInDocument(documentInput, activeProjectInput)
+  const cut = activeCutDocument(document)
+  const source = activeRevisionForCut(cut)
+  const revisionId = nextSheetRevisionId(cut)
+  const revision = input.mode === 'blank'
+    ? blankRevisionFromSource(source, revisionId, cut.revisions.length, name)
+    : duplicateRevisionFromSource(source, revisionId, cut.revisions.length, name)
+  const withReference = input.showSourceReference
+    ? { ...revision, reference: { revisionId: source.revisionId, opacity: 0.28 } }
+    : revision
+  return replaceCut(document, {
+    ...cut,
+    activeRevisionId: revisionId,
+    revisions: [...cut.revisions, withReference],
+  })
+}
+
+export function renameSheetRevisionInProjectDocument(
+  documentInput: CutGroupProjectDocument,
+  revisionId: string,
+  name: string | undefined,
+): CutGroupProjectDocument {
+  const document = parseProjectDocument(documentInput)
+  const cut = activeCutDocument(document)
+  const normalizedName = name?.trim() || undefined
+  if (!cut.revisions.some(revision => revision.revisionId === revisionId)) throw new Error(`sheet revision not found: ${revisionId}`)
+  return replaceCut(document, {
+    ...cut,
+    revisions: cut.revisions.map(revision => revision.revisionId === revisionId ? { ...revision, name: normalizedName } : revision),
+  })
+}
+
+export function setSheetRevisionProtectedInProjectDocument(
+  documentInput: CutGroupProjectDocument,
+  revisionId: string,
+  protectedState: boolean,
+): CutGroupProjectDocument {
+  const document = parseProjectDocument(documentInput)
+  const cut = activeCutDocument(document)
+  if (!cut.revisions.some(revision => revision.revisionId === revisionId)) throw new Error(`sheet revision not found: ${revisionId}`)
+  return replaceCut(document, {
+    ...cut,
+    revisions: cut.revisions.map(revision => revision.revisionId === revisionId
+      ? { ...revision, protected: protectedState || undefined }
+      : revision),
+  })
+}
+
+export function setSheetRevisionReferenceInProjectDocument(
+  documentInput: CutGroupProjectDocument,
+  revisionId: string,
+  reference: { revisionId: string; opacity?: number } | undefined,
+): CutGroupProjectDocument {
+  const document = parseProjectDocument(documentInput)
+  const cut = activeCutDocument(document)
+  const target = cut.revisions.find(revision => revision.revisionId === revisionId)
+  if (!target) throw new Error(`sheet revision not found: ${revisionId}`)
+  if (reference?.revisionId === revisionId) throw new Error('現在のシート自身を下敷きにはできません。')
+  if (reference && !cut.revisions.some(revision => revision.revisionId === reference.revisionId)) {
+    throw new Error(`sheet revision not found: ${reference.revisionId}`)
+  }
+  const normalizedReference = reference
+    ? { revisionId: reference.revisionId, opacity: clampReferenceOpacity(reference.opacity ?? 0.28) }
+    : undefined
+  return replaceCut(document, {
+    ...cut,
+    revisions: cut.revisions.map(revision => revision.revisionId === revisionId
+      ? { ...revision, reference: normalizedReference }
+      : revision),
+  })
+}
+
+export function deleteSheetRevisionInProjectDocument(
+  documentInput: CutGroupProjectDocument,
+  revisionId: string,
+): CutGroupProjectDocument {
+  const document = parseProjectDocument(documentInput)
+  const cut = activeCutDocument(document)
+  if (cut.revisions.length <= 1) throw new Error('最後のシートは削除できません。')
+  const deletedIndex = cut.revisions.findIndex(revision => revision.revisionId === revisionId)
+  if (deletedIndex < 0) throw new Error(`sheet revision not found: ${revisionId}`)
+  const deleted = cut.revisions[deletedIndex]!
+  if (deleted.protected) throw new Error('保護中のシートは削除できません。')
+  const remaining = cut.revisions
+    .filter(revision => revision.revisionId !== revisionId)
+    .map((revision, order) => ({
+      ...revision,
+      order,
+      sourceRevisionId: revision.sourceRevisionId === revisionId ? deleted.sourceRevisionId : revision.sourceRevisionId,
+      reference: revision.reference?.revisionId === revisionId ? undefined : revision.reference,
+    }))
+  const fallback = remaining[Math.min(deletedIndex, remaining.length - 1)]!
+  return replaceCut(document, {
+    ...cut,
+    activeRevisionId: cut.activeRevisionId === revisionId ? fallback.revisionId : cut.activeRevisionId,
+    revisions: remaining,
+  })
 }
 
 export function switchActiveCutInProjectDocument(
@@ -345,7 +477,23 @@ function nextProjectCutId(document: CutGroupProjectDocument): string {
 }
 
 export function cutSheetFromProject(project: CutProject, cutId: string, order: number): CutSheetDocument {
-  const logicalSheet: CutSheetDocument['logicalSheet'] = {
+  const revisionId = 'sheet_revision_1'
+  return {
+    cutId,
+    order,
+    metadata: cutSheetMetadataFromProject(project),
+    activeRevisionId: revisionId,
+    revisions: [sheetRevisionFromProject(project, revisionId, 0)],
+  }
+}
+
+function sheetRevisionFromProject(
+  project: CutProject,
+  revisionId: string,
+  order: number,
+  previous: Partial<Pick<SheetRevisionDocument, 'name' | 'sourceRevisionId' | 'protected' | 'reference'>> = {},
+): SheetRevisionDocument {
+  const logicalSheet: SheetRevisionDocument['logicalSheet'] = {
     fps: project.logicalSheet.fps,
     frameOrigin: project.logicalSheet.frameOrigin,
     durationFrames: project.logicalSheet.durationFrames,
@@ -356,9 +504,10 @@ export function cutSheetFromProject(project: CutProject, cutId: string, order: n
     events: project.logicalSheet.events,
   }
   return {
-    cutId,
+    revisionId,
     order,
-    metadata: cutSheetMetadataFromProject(project),
+    ...previous,
+    metadata: withoutUndefined({ worker: project.cut.worker, custom: project.cut.custom }),
     sheetView: project.sheetView,
     logicalSheet,
     cspTrackSlots: project.cspTrackSlots,
@@ -374,16 +523,15 @@ function cutSheetMetadataFromProject(project: Pick<CutProject, 'cut'>): CutSheet
     scene: project.cut.scene,
     cut: project.cut.cut,
     cspTimelineName: project.cut.cspTimelineName,
-    worker: project.cut.worker,
-    custom: project.cut.custom,
   })
 }
 
 function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSheetDocument | undefined): CutProject {
   if (!cut) throw new Error('active cut not found')
+  const revision = activeRevisionForCut(cut)
   const base = migrateProject({
     projectId: document.projectId,
-    cut: cutMetadataWithProduction(cut.metadata, document.production),
+    cut: cutMetadataWithProduction(cut.metadata, revision.metadata, document.production),
     studioPresetId: document.studioPresetId,
     sheetTemplateId: document.sheetTemplate.templateId,
     productionStages: document.productionStages,
@@ -391,42 +539,71 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
     assetRoot: document.assetRoot,
     assetBins: document.assetBins,
     assets: document.assets,
-    sheetView: cut.sheetView,
-    logicalSheet: { ...cut.logicalSheet, keys: document.registeredCells.keys.map(key => ({ ...key })) },
-    cspTrackSlots: cut.cspTrackSlots,
+    sheetView: revision.sheetView,
+    logicalSheet: { ...revision.logicalSheet, keys: document.registeredCells.keys.map(key => ({ ...key })) },
+    cspTrackSlots: revision.cspTrackSlots,
     bindings: document.registeredCells.bindings.map(binding => ({ ...binding })),
     stackGuideLabels: document.registeredCells.stackGuideLabels.map(label => cloneStackGuideLabel(label)),
-    annotations: cut.annotations,
-    timelineMemos: cut.timelineMemos,
-    timedRangeCues: cut.timedRangeCues,
+    annotations: revision.annotations,
+    timelineMemos: revision.timelineMemos,
+    timedRangeCues: revision.timedRangeCues,
     exportProfiles: document.exportProfiles,
   })
   return repairBlankAssetDropBindingNames({
     ...base,
-    stackGuideLabels: applyStackGuideLabelPlacements(base.stackGuideLabels, cut.stackGuideLabelPlacements, base),
+    stackGuideLabels: applyStackGuideLabelPlacements(base.stackGuideLabels, revision.stackGuideLabelPlacements, base),
   })
 }
 
 function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSheetDocument {
-  if (!isRecord(input) || typeof input.cutId !== 'string' || !isRecord(input.metadata)
-    || !isRecord(input.sheetView) || !isRecord(input.logicalSheet)
-    || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
-    || !Array.isArray(input.annotations) || !Array.isArray(input.timedRangeCues)) {
+  if (!isRecord(input) || typeof input.cutId !== 'string' || !isRecord(input.metadata)) {
     throw new Error(`タイムシート${fallbackOrder + 1}のデータが不正です。`)
   }
   const metadata: CutSheetMetadata = {
     scene: stringValue(input.metadata.scene),
     cut: stringValue(input.metadata.cut),
     cspTimelineName: stringValue(input.metadata.cspTimelineName),
-    worker: stringValue(input.metadata.worker),
-    custom: isStringRecord(input.metadata.custom) ? { ...input.metadata.custom } : undefined,
   }
+  const revisions = Array.isArray(input.revisions)
+    ? input.revisions.map((revision, index) => normalizeSheetRevisionDocument(revision, index))
+    : [normalizeLegacySheetRevisionDocument(input)]
+  if (revisions.length === 0) throw new Error(`タイムシート${fallbackOrder + 1}には1件以上のシートが必要です。`)
+  const orderedRevisions = revisions
+    .sort((a, b) => a.order - b.order || a.revisionId.localeCompare(b.revisionId, 'ja'))
+    .map((revision, order) => ({ ...revision, order }))
+  const activeRevisionId = typeof input.activeRevisionId === 'string'
+    && orderedRevisions.some(revision => revision.revisionId === input.activeRevisionId)
+    ? input.activeRevisionId
+    : orderedRevisions[0]!.revisionId
   return {
     cutId: input.cutId,
     order: typeof input.order === 'number' && Number.isFinite(input.order) ? Math.max(0, Math.round(input.order)) : fallbackOrder,
     metadata,
+    activeRevisionId,
+    revisions: orderedRevisions,
+  }
+}
+
+function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): SheetRevisionDocument {
+  if (!isRecord(input) || typeof input.revisionId !== 'string'
+    || !isRecord(input.metadata) || !isRecord(input.sheetView) || !isRecord(input.logicalSheet)
+    || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
+    || !Array.isArray(input.annotations) || !Array.isArray(input.timedRangeCues)) {
+    throw new Error(`シート${fallbackOrder + 1}のデータが不正です。`)
+  }
+  return {
+    revisionId: input.revisionId,
+    order: typeof input.order === 'number' && Number.isFinite(input.order) ? Math.max(0, Math.round(input.order)) : fallbackOrder,
+    name: stringValue(input.name)?.trim() || undefined,
+    sourceRevisionId: stringValue(input.sourceRevisionId),
+    protected: input.protected === true || undefined,
+    reference: normalizeSheetRevisionReference(input.reference),
+    metadata: {
+      worker: stringValue(input.metadata.worker),
+      custom: isStringRecord(input.metadata.custom) ? { ...input.metadata.custom } : undefined,
+    },
     sheetView: input.sheetView as unknown as SheetViewState,
-    logicalSheet: input.logicalSheet as unknown as CutSheetDocument['logicalSheet'],
+    logicalSheet: input.logicalSheet as unknown as SheetRevisionDocument['logicalSheet'],
     cspTrackSlots: input.cspTrackSlots as CspTrackSlot[],
     stackGuideLabelPlacements: input.stackGuideLabelPlacements as StackGuideLabelPlacementState[],
     annotations: input.annotations as Annotation[],
@@ -435,16 +612,114 @@ function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSh
   }
 }
 
-function cutMetadataWithProduction(cut: CutSheetMetadata, production: ProductionMetadata): CutMetadata {
+function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>): SheetRevisionDocument {
+  if (!isRecord(input.sheetView) || !isRecord(input.logicalSheet)
+    || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
+    || !Array.isArray(input.annotations) || !Array.isArray(input.timedRangeCues)) {
+    throw new Error('旧形式のタイムシートデータが不正です。')
+  }
+  const metadata = isRecord(input.metadata) ? input.metadata : {}
+  return normalizeSheetRevisionDocument({
+    revisionId: 'sheet_revision_1',
+    order: 0,
+    metadata: {
+      worker: stringValue(metadata.worker),
+      custom: isStringRecord(metadata.custom) ? { ...metadata.custom } : undefined,
+    },
+    sheetView: input.sheetView,
+    logicalSheet: input.logicalSheet,
+    cspTrackSlots: input.cspTrackSlots,
+    stackGuideLabelPlacements: input.stackGuideLabelPlacements,
+    annotations: input.annotations,
+    timelineMemos: Array.isArray(input.timelineMemos) ? input.timelineMemos : [],
+    timedRangeCues: input.timedRangeCues,
+  }, 0)
+}
+
+function cutMetadataWithProduction(cut: CutSheetMetadata, revision: SheetRevisionDocument['metadata'], production: ProductionMetadata): CutMetadata {
   return {
     title: production.title,
     episode: production.episode,
     scene: cut.scene,
     cut: cut.cut,
     cspTimelineName: cut.cspTimelineName,
-    worker: cut.worker,
-    custom: cut.custom,
+    worker: revision.worker,
+    custom: revision.custom,
   }
+}
+
+function normalizeSheetRevisionReference(input: unknown): SheetRevisionDocument['reference'] {
+  if (!isRecord(input) || typeof input.revisionId !== 'string') return undefined
+  return {
+    revisionId: input.revisionId,
+    opacity: clampReferenceOpacity(typeof input.opacity === 'number' ? input.opacity : 0.28),
+  }
+}
+
+function clampReferenceOpacity(opacity: number): number {
+  return Math.min(0.7, Math.max(0.08, Number.isFinite(opacity) ? opacity : 0.28))
+}
+
+function activeCutDocument(document: CutGroupProjectDocument): CutSheetDocument {
+  const cut = document.cuts.find(candidate => candidate.cutId === document.activeCutId) ?? document.cuts[0]
+  if (!cut) throw new Error('active cut not found')
+  return cut
+}
+
+function activeRevisionForCut(cut: CutSheetDocument): SheetRevisionDocument {
+  const revision = cut.revisions.find(candidate => candidate.revisionId === cut.activeRevisionId) ?? cut.revisions[0]
+  if (!revision) throw new Error('active sheet revision not found')
+  return revision
+}
+
+function updateCutActiveRevisionFromProject(cut: CutSheetDocument, project: CutProject): CutSheetDocument {
+  const active = activeRevisionForCut(cut)
+  const nextRevision = sheetRevisionFromProject(project, active.revisionId, active.order, active)
+  return {
+    ...cut,
+    metadata: cutSheetMetadataFromProject(project),
+    revisions: cut.revisions.map(revision => revision.revisionId === active.revisionId ? nextRevision : revision),
+  }
+}
+
+function replaceCut(document: CutGroupProjectDocument, nextCut: CutSheetDocument): CutGroupProjectDocument {
+  return {
+    ...document,
+    cuts: document.cuts.map(cut => cut.cutId === nextCut.cutId ? nextCut : cut),
+  }
+}
+
+function nextSheetRevisionId(cut: CutSheetDocument): string {
+  const used = new Set(cut.revisions.map(revision => revision.revisionId))
+  let index = cut.revisions.length + 1
+  while (used.has(`sheet_revision_${index}`)) index += 1
+  return `sheet_revision_${index}`
+}
+
+function duplicateRevisionFromSource(source: SheetRevisionDocument, revisionId: string, order: number, name: string): SheetRevisionDocument {
+  return {
+    ...cloneRevision(source),
+    revisionId,
+    order,
+    name,
+    sourceRevisionId: source.revisionId,
+    protected: undefined,
+    reference: undefined,
+  }
+}
+
+function blankRevisionFromSource(source: SheetRevisionDocument, revisionId: string, order: number, name: string): SheetRevisionDocument {
+  return {
+    ...duplicateRevisionFromSource(source, revisionId, order, name),
+    logicalSheet: { ...cloneRevision(source).logicalSheet, events: [] },
+    annotations: [],
+    timelineMemos: [],
+    timedRangeCues: [],
+  }
+}
+
+function cloneRevision(revision: SheetRevisionDocument): SheetRevisionDocument {
+  return structuredClone(revision)
 }
 
 function isCutGroupProjectDocumentInput(input: unknown): input is Partial<CutGroupProjectDocument> {

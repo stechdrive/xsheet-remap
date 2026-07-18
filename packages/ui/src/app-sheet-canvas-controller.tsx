@@ -239,6 +239,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }),
     [props.activeCutId, props.project, props.projectCuts, props.template],
   )
+  const referenceRenderModelContext = useMemo(
+    () => props.referenceProject
+      ? createSheetRenderModelContext(props.referenceProject, props.template, {
+          cutGroup: { activeCutId: props.activeCutId, cuts: props.projectCuts },
+        })
+      : null,
+    [props.activeCutId, props.projectCuts, props.referenceProject, props.template],
+  )
   const rangeTrackOrder = (role: SheetTimingRole) => paperTrackOrderForRole(props.project, role)
   const rangeFromHits = (anchorHit: SheetHit, focusHit: SheetHit): SheetRangeSelection | null => {
     const usesOverlayTrack = [anchorHit.paperTrack, focusHit.paperTrack].some(paperTrack =>
@@ -2190,7 +2198,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
-    overlayTracks, sheetRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
+    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,

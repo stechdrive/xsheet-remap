@@ -43,7 +43,7 @@ export type { BuildExportPlanOptions } from './project-export'
 export { resolveCutExportIdentity } from './project-export-identity'
 export type { ResolvedCutExportIdentity } from './project-export-identity'
 export { applyCommand, createProjectHistory, commitHistory, undoHistory, redoHistory } from './project-commands'
-export { createDefaultProjectDocument, createProjectDocumentFromCutProject, parseProjectDocument, activeCutProjectFromDocument, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, addBlankSharedCutToProjectDocument, migrateProject } from './project-documents'
+export { createDefaultProjectDocument, createProjectDocumentFromCutProject, parseProjectDocument, activeCutProjectFromDocument, activeSheetRevisionFromDocument, sheetRevisionsForActiveCut, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, addBlankSharedCutToProjectDocument, switchActiveSheetRevisionInProjectDocument, addSheetRevisionToProjectDocument, renameSheetRevisionInProjectDocument, setSheetRevisionProtectedInProjectDocument, setSheetRevisionReferenceInProjectDocument, deleteSheetRevisionInProjectDocument, migrateProject } from './project-documents'
 export {
   createTimedRangeCue,
   defaultCameraOverlapPivotAnchorFrame,

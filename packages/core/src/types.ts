@@ -612,10 +612,19 @@ export interface CutSheetMetadata {
 
 export type CutSheetLogicalSheet = Omit<LogicalSheet, 'keys'>
 
-export interface CutSheetDocument {
-  cutId: Id
+export interface SheetRevisionReference {
+  revisionId: Id
+  opacity: number
+}
+
+export interface SheetRevisionDocument {
+  revisionId: Id
   order: number
-  metadata: CutSheetMetadata
+  name?: string
+  sourceRevisionId?: Id
+  protected?: boolean
+  reference?: SheetRevisionReference
+  metadata: Pick<CutSheetMetadata, 'worker' | 'custom'>
   sheetView: SheetViewState
   logicalSheet: CutSheetLogicalSheet
   cspTrackSlots: CspTrackSlot[]
@@ -623,6 +632,14 @@ export interface CutSheetDocument {
   annotations: Annotation[]
   timelineMemos: TimelineInkMemo[]
   timedRangeCues: TimedRangeCue[]
+}
+
+export interface CutSheetDocument {
+  cutId: Id
+  order: number
+  metadata: CutSheetMetadata
+  activeRevisionId: Id
+  revisions: SheetRevisionDocument[]
 }
 
 export interface CutGroupProjectDocument {

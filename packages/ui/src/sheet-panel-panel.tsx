@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TimingClipboard, type WorkspaceStyle } from './appTypes'
@@ -18,11 +18,14 @@ import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, Text
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
+import { SheetHistoryBar } from './SheetHistoryBar'
 
 export function SheetPanel(props: {
   appKind: MainAppKind
   collapseEditorPanes: boolean
   project: CutProject
+  referenceProject: CutProject | null
+  referenceOpacity: number
   exportProfileId: string
   template: SheetTemplate
   templatePresets: SheetTemplatePreset[]
@@ -32,6 +35,14 @@ export function SheetPanel(props: {
   activeCutId: string
   onSwitchProjectCut: (cutId: string) => void
   onAddSharedCut: () => void
+  sheetRevisions: SheetRevisionDocument[]
+  activeSheetRevisionId: string
+  onSwitchSheetRevision: (revisionId: string) => void
+  onAddSheetRevision: (input: { name: string; mode: 'duplicate' | 'blank'; showSourceReference: boolean }) => void
+  onRenameSheetRevision: (revisionId: string, name: string | undefined) => void
+  onToggleSheetRevisionProtected: (revisionId: string, protectedState: boolean) => void
+  onToggleSheetRevisionSourceReference: (revisionId: string, enabled: boolean) => void
+  onDeleteSheetRevision: (revisionId: string) => void
   onSetSharedCutNumbersVisible: (visible: boolean) => void
   sheetPages: SheetPage[]
   activePageIndex: number
@@ -567,6 +578,17 @@ export function SheetPanel(props: {
           <span className="muted calibrationStatus">{props.autoCalibrationMessage}</span>
         )}
       </div>
+      <SheetHistoryBar
+        revisions={props.sheetRevisions}
+        activeRevisionId={props.activeSheetRevisionId}
+        processSuggestions={props.project.correctionLayers.map(layer => layer.label).filter(Boolean)}
+        onSwitch={props.onSwitchSheetRevision}
+        onAdd={props.onAddSheetRevision}
+        onRename={props.onRenameSheetRevision}
+        onToggleProtected={props.onToggleSheetRevisionProtected}
+        onToggleSourceReference={props.onToggleSheetRevisionSourceReference}
+        onDelete={props.onDeleteSheetRevision}
+      />
       <div
         className={[
           'sheetWorkspace',

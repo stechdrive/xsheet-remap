@@ -35,6 +35,7 @@ $scenarios = @(
   "camera-ops",
   "timeline-ripple",
   "timeline-memo"
+  "sheet-history"
 )
 
 $artifactBase = if ([System.IO.Path]::IsPathRooted($ArtifactRoot)) {

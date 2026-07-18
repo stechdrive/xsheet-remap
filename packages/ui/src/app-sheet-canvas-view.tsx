@@ -16,6 +16,7 @@ import { SheetMetadataEditor } from './SheetMetadataEditor'
 import { SoundCueLayer } from './SoundCueLayer'
 import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
+import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -27,7 +28,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
-    overlayTracks, sheetRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
+    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
@@ -198,6 +199,18 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   {(showTemplateLines || showTemplateLabels) && props.template.regions.filter(region => region.type === 'exposure-grid').map(region => (
                     <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />
                   ))}
+                  {showInputContent && props.referenceProject && referenceRenderModelContext && (
+                    <SheetRevisionReferenceLayer
+                      project={props.referenceProject}
+                      template={props.template}
+                      page={page}
+                      paperTracks={templateTrackNames}
+                      pageSize={sheetPageSize}
+                      surface={selectionSurface}
+                      context={referenceRenderModelContext}
+                      opacity={props.referenceOpacity}
+                    />
+                  )}
                   {showInputContent && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
                   {candidateRects.map(candidate => (
                     <rect

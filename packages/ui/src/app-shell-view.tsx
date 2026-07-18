@@ -33,7 +33,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
-    projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
+    projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
@@ -53,6 +53,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
+    handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange,
@@ -263,6 +264,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             appKind={appKind}
             collapseEditorPanes={collapseEditorSheetPanes}
             project={project}
+            referenceProject={referenceProject}
+            referenceOpacity={activeSheetRevision.reference?.opacity ?? 0.28}
             exportProfileId={exportProfileId}
             template={template}
             templatePresets={sheetTemplatePresets}
@@ -272,6 +275,14 @@ export function AppShellView({ controller }: { controller: AppController }) {
             activeCutId={projectDocumentSnapshot.activeCutId}
             onSwitchProjectCut={handleSwitchProjectCut}
             onAddSharedCut={handleAddSharedCut}
+            sheetRevisions={sheetRevisions}
+            activeSheetRevisionId={activeSheetRevision.revisionId}
+            onSwitchSheetRevision={handleSwitchSheetRevision}
+            onAddSheetRevision={handleAddSheetRevision}
+            onRenameSheetRevision={handleRenameSheetRevision}
+            onToggleSheetRevisionProtected={handleToggleSheetRevisionProtected}
+            onToggleSheetRevisionSourceReference={handleToggleSheetRevisionSourceReference}
+            onDeleteSheetRevision={handleDeleteSheetRevision}
             onSetSharedCutNumbersVisible={visible => commitProject(updateSheetViewState(project, {
               metadataDisplay: { ...project.sheetView.metadataDisplay, sharedCutNumbers: visible },
             }))}

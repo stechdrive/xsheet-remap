@@ -25,6 +25,8 @@ import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
 
 export type SheetCanvasProps = {
   project: CutProject
+  referenceProject: CutProject | null
+  referenceOpacity: number
   template: SheetTemplate
   projectCuts: CutGroupProjectDocument['cuts']
   activeCutId: string

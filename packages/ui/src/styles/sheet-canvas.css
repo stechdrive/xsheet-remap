@@ -751,6 +751,60 @@
   pointer-events: none;
 }
 
+.sheetRevisionReferenceLayer,
+.sheetRevisionReferenceLayer * {
+  pointer-events: none !important;
+}
+
+.sheetRevisionReferenceEvent {
+  fill: rgb(212 76 88 / 0.14);
+  stroke: rgb(189 54 70 / 0.7);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.sheetRevisionReferenceText,
+.sheetRevisionReferenceLayer .metadataText,
+.sheetRevisionReferenceLayer .soundCueLabel,
+.sheetRevisionReferenceLayer .soundCueDialogue,
+.sheetRevisionReferenceLayer .cameraCueLabelText,
+.sheetRevisionReferenceLayer .annotationTextSvg {
+  fill: #b63c4a !important;
+  stroke: rgb(255 255 252 / 0.78);
+}
+
+.sheetRevisionReferenceLayer .soundCueBody,
+.sheetRevisionReferenceLayer .cameraCueFade,
+.sheetRevisionReferenceLayer .cameraCueOverlapFill {
+  fill: rgb(212 76 88 / 0.14) !important;
+}
+
+.sheetRevisionReferenceLayer .soundCueBody,
+.sheetRevisionReferenceLayer .soundCueCap,
+.sheetRevisionReferenceLayer .cameraCueStroke,
+.sheetRevisionReferenceLayer .cameraCueFade,
+.sheetRevisionReferenceLayer .cameraCueConnector,
+.sheetRevisionReferenceLayer .cameraCuePivotMark {
+  stroke: #bd3e4d !important;
+}
+
+.sheetRevisionReferenceLayer .cameraCueMarker,
+.sheetRevisionReferenceLayer .timelineMemoAnchorMarker,
+.sheetRevisionReferenceLayer .timelineMemoAnchorConnector {
+  fill: #bd3e4d !important;
+}
+
+.sheetRevisionReferenceLayer .timelineMemoSegment {
+  color: #bd3e4d;
+}
+
+.sheetRevisionReferenceStroke {
+  fill: none;
+  stroke: #bd3e4d;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .soundCueLayer {
   pointer-events: none;
 }

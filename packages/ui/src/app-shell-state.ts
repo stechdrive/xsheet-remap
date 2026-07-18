@@ -66,6 +66,7 @@ export function useAppShellState() {
     })
   }, [])
   const [projectDocument, setProjectDocument] = useState(() => createProjectDocumentFromCutProject(createDefaultProject()))
+  const [savedProjectDocumentSignature, setSavedProjectDocumentSignature] = useState(() => JSON.stringify(createProjectDocumentFromCutProject(createDefaultProject())))
   const [projectFilePath, setProjectFilePath] = useState<string | null>(null)
   const paperSheetInputRef = useRef<HTMLInputElement | null>(null)
   const project = workspaceHistory.present.project
@@ -128,7 +129,7 @@ export function useAppShellState() {
   useEffect(() => saveCameraPointLabelHistory(cameraPointLabelHistory), [cameraPointLabelHistory])
 
   return {
-    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, savedProjectDocumentSignature, setSavedProjectDocumentSignature, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,

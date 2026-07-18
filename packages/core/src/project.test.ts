@@ -1006,8 +1006,8 @@ describe('core project commands', () => {
     const updatedDocument = updateActiveCutProjectInDocument(switched, updatedFirst)
     expect(updatedDocument.cuts).toHaveLength(2)
     expect(updatedDocument.production).toMatchObject({ title: 'RENAMED', episode: '05' })
-    expect(updatedDocument.cuts.find(cut => cut.cutId === 'cut_237')?.logicalSheet.events).toEqual(updatedFirst.logicalSheet.events)
-    expect(updatedDocument.cuts.find(cut => cut.cutId !== 'cut_237')?.logicalSheet.events).toEqual(second.logicalSheet.events)
+    expect(activeCutProjectFromDocument({ ...updatedDocument, activeCutId: 'cut_237' }).logicalSheet.events).toEqual(updatedFirst.logicalSheet.events)
+    expect(activeCutProjectFromDocument({ ...updatedDocument, activeCutId: document.activeCutId }).logicalSheet.events).toEqual(second.logicalSheet.events)
     expect(activeCutProjectFromDocument({ ...updatedDocument, activeCutId: document.activeCutId }).cut.title).toBe('RENAMED')
   })
 
@@ -1020,7 +1020,7 @@ describe('core project commands', () => {
 
     expect(withSharedCut.cuts).toHaveLength(2)
     expect(withSharedCut.sheetTemplate.templateId).toBe(withLabel.sheetTemplateId)
-    expect('keys' in withSharedCut.cuts[0]!.logicalSheet).toBe(false)
+    expect('keys' in withSharedCut.cuts[0]!.revisions[0]!.logicalSheet).toBe(false)
     expect('bindings' in withSharedCut.cuts[0]!).toBe(false)
     expect('stackGuideLabels' in withSharedCut.cuts[0]!).toBe(false)
     expect('exportProfiles' in withSharedCut.cuts[0]!).toBe(false)

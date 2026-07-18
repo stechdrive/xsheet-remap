@@ -476,10 +476,12 @@ function projectDocumentNativePathChecks(document: CutGroupProjectDocument): Pro
   const sheetImages = new Set<string>()
 
   for (const cut of document.cuts) {
-    for (const source of cut.sheetView.sources) {
-      if (source.kind !== 'sheet-scan') continue
-      const path = source.imageRef.path ?? (source.assetId ? assetPathById.get(source.assetId) : undefined)
-      if (path) sheetImages.add(path)
+    for (const revision of cut.revisions) {
+      for (const source of revision.sheetView.sources) {
+        if (source.kind !== 'sheet-scan') continue
+        const path = source.imageRef.path ?? (source.assetId ? assetPathById.get(source.assetId) : undefined)
+        if (path) sheetImages.add(path)
+      }
     }
   }
 

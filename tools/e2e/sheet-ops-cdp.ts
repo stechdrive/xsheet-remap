@@ -123,6 +123,7 @@ const sheetOpsScenarioIds = [
   'camera-ops',
   'timeline-ripple',
   'timeline-memo',
+  'sheet-history',
 ] as const
 type SheetOpsScenarioId = typeof sheetOpsScenarioIds[number]
 const scenarioId = parseSheetOpsScenarioId(args.scenario)
@@ -247,7 +248,53 @@ async function runSheetOpsScenario(scenario: SheetOpsScenarioId): Promise<void> 
       return
     case 'timeline-memo':
       await verifyTimelineMemoEditing()
+      return
+    case 'sheet-history':
+      await verifySheetHistoryScenario()
   }
+}
+
+async function verifySheetHistoryScenario(): Promise<void> {
+  await waitForPageCondition(() => {
+    const bar = document.querySelector('.sheetHistoryBar')
+    const tabs = document.querySelectorAll('.sheetHistoryTab')
+    return bar?.textContent?.includes('シート履歴') === true
+      && tabs.length === 1
+      && tabs[0]?.getAttribute('aria-label') === '現在のシート'
+  }, 'unnamed initial sheet history tab')
+  checks.push('showed the unnamed initial sheet as an accessible document tab')
+
+  await clickFrame('cell', 'A', 1)
+  await keyPress('1')
+  await keyPress('Enter')
+  await waitForEventAt('cell', 'A', 1, '1')
+
+  await mouseClick(await centerOfSelector('.sheetHistoryAddButton'))
+  await waitForPageCondition(() => Boolean(document.querySelector('.sheetHistoryDialog')), 'sheet history add dialog')
+  await setReactFieldValue('.sheetHistoryDialog input[list]', '演出確認')
+  await clickButtonByText('追加')
+  await waitForPageCondition(() => {
+    const tabs = Array.from(document.querySelectorAll<HTMLElement>('.sheetHistoryTab'))
+    return tabs.length === 2
+      && tabs.some(tab => tab.getAttribute('aria-label') === '演出確認' && tab.getAttribute('aria-selected') === 'true')
+  }, 'duplicated named sheet is active')
+  await waitForPageCondition(() => Boolean(document.querySelector('.sheetRevisionReferenceLayer .sheetRevisionReferenceText')), 'source sheet underlay')
+  checks.push('created a named duplicate and rendered the source sheet as a non-interactive reference layer')
+
+  await clickFrame('cell', 'B', 2)
+  await keyPress('2')
+  await keyPress('Enter')
+  await waitForEventAt('cell', 'B', 2, '2')
+
+  await mouseClick(await centerOfSelector('.sheetHistoryTab[aria-label="現在のシート"]'))
+  await waitForPageCondition(() => document.querySelector('.sheetHistoryTab[aria-label="現在のシート"]')?.getAttribute('aria-selected') === 'true', 'original sheet active')
+  await waitForNoEventAt('cell', 'B', 2, '2')
+  await waitForPageCondition(() => !document.querySelector('.sheetRevisionReferenceLayer'), 'reference hidden on original sheet')
+
+  await mouseClick(await centerOfSelector('.sheetHistoryTab[aria-label="演出確認"]'))
+  await waitForEventAt('cell', 'B', 2, '2')
+  await waitForPageCondition(() => Boolean(document.querySelector('.sheetRevisionReferenceLayer')), 'reference restored on copied sheet')
+  checks.push('switched between independent sheet histories without leaking timing events and restored the configured reference')
 }
 
 async function verifyShellLayoutScenario(): Promise<void> {

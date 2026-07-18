@@ -41,12 +41,12 @@ import { buildSelectionPresentation, inputHitForRange } from './app-selection-pr
 import { createTimelineMemoForHit } from './timelineMemoEditing'
 import { createAppXdtsActions } from './app-xdts-actions'
 import { confirmSheetTemplateImport, loadSheetTemplate } from './app-template-import'
+import { useAppSheetHistoryController } from './app-sheet-history-actions'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
-
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
-    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, savedProjectDocumentSignature, setSavedProjectDocumentSignature, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole: storedRecognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -73,33 +73,25 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const recognitionRole: SheetTimingRole = recognitionRoles.includes(storedRecognitionRole as 'action' | 'cell')
     ? storedRecognitionRole
     : recognitionRoles[0] ?? 'action'
-
   const issues = useMemo(() => validateProject(project, project.exportProfiles.find(profile => profile.profileId === exportProfileId)), [project, exportProfileId])
-  const projectDocumentSnapshot = useMemo(
-    () => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }),
-    [projectDocument, project, template],
-  )
-  const hasUnsavedProjectChanges = useMemo(
-    () => JSON.stringify(projectDocumentSnapshot) !== JSON.stringify(projectDocument),
-    [projectDocumentSnapshot, projectDocument],
-  )
+  const projectDocumentSnapshot = useMemo(() => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }), [projectDocument, project, template])
+  const hasUnsavedProjectChanges = useMemo(() => JSON.stringify(projectDocumentSnapshot) !== savedProjectDocumentSignature, [projectDocumentSnapshot, savedProjectDocumentSignature])
   const projectCuts = projectDocumentSnapshot.cuts
-  const timingExportPlan = useMemo(() => timingExportDialog
-    ? buildExportPlan(project, {
-        profileId: exportProfileId,
-        timingSourceRole: timingExportDialog.timingSourceRole,
-        sheetTemplate: template,
-      })
-    : null, [project, template, timingExportDialog])
   const {
-    openTimingExportDialog,
-    updateTimingExportRole,
-    updateTimingExportOptions,
-    confirmTimingExport,
-    handleSaveXdts,
-    handleLoadXdts,
-    updateXdtsImportDialog,
-    confirmXdtsImport,
+    activeSheetRevision, sheetRevisions, referenceProject,
+    handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision,
+    handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
+  } = useAppSheetHistoryController({
+    projectDocument: projectDocumentSnapshot, project, setProjectDocument, setHistory, projectRef,
+    setActiveCorrectionLayerId: setActiveCorrectionLayerIdState,
+    setRuntimeSourceImageUrls, clearSelection: clearSelectionState, alertError: error => window.alert(errorMessage(error)),
+  })
+  const timingExportPlan = useMemo(() => timingExportDialog ? buildExportPlan(project, {
+    profileId: exportProfileId, timingSourceRole: timingExportDialog.timingSourceRole, sheetTemplate: template,
+  }) : null, [project, template, timingExportDialog])
+  const {
+    openTimingExportDialog, updateTimingExportRole, updateTimingExportOptions, confirmTimingExport,
+    handleSaveXdts, handleLoadXdts, updateXdtsImportDialog, confirmXdtsImport,
   } = createAppXdtsActions({
     project,
     getProject: () => projectRef.current,
@@ -229,11 +221,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }, [setPanel, setStatusHints])
   const activeStatusHint = activeStatusHintText(statusHints)
   const statusHintText = activeStatusHint ?? statusFallbackHint
-
   useEffect(() => {
     projectRef.current = project
   }, [project, projectRef])
-
   useEffect(() => {
     if (!selectedTimedRangeCueId || selectedTimedRangeCue) return
     setSheetSelection({ kind: 'none' })
@@ -290,6 +280,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }, [setRuntimeSourceImageUrls, sheetSourceRuntimePathEntries])
 
   function commitProject(nextProject: CutProject) {
+    if (activeSheetRevision.protected) {
+      window.alert('このシートは編集保護中です。シート履歴のメニューから保護を解除してください。')
+      return
+    }
     projectRef.current = nextProject
     setHistory(current => commitHistory(current, nextProject))
     if (selectionIsOutsideProjectDisplay(nextProject)) clearSelectionState()
@@ -1592,6 +1586,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       const loaded = activeCutProjectFromDocument(loadedDocument)
       setTemplate(loadedDocument.sheetTemplate)
       setProjectDocument(loadedDocument)
+      setSavedProjectDocumentSignature(JSON.stringify(loadedDocument))
       setProjectFilePath((file as File & { path?: string }).path ?? null)
       setHistory(createProjectHistory(loaded))
       setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
@@ -1651,6 +1646,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       if (!options.saveAs && projectFilePath) {
         await writeTextFile(projectFilePath, json)
         setProjectDocument(nextDocument)
+        setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
         return
       }
       const result = await saveJsonFile(nextDocument, projectFileName(nextDocument), {
@@ -1658,6 +1654,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       })
       if (result.path) setProjectFilePath(result.path)
       setProjectDocument(nextDocument)
+      setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
     } catch (error) {
       window.alert(uiText.project.saveFailed(errorMessage(error)))
     }
@@ -1807,13 +1804,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setTextFontSizePx(defaultTimingTextFontSizePx(nextTemplate, 'cell'))
   }
 
-  function handleUndo() {
-    setHistory(current => undoHistory(current))
-  }
-
-  function handleRedo() {
-    setHistory(current => redoHistory(current))
-  }
+  function handleUndo() { if (!activeSheetRevision.protected) setHistory(current => undoHistory(current)) }
+  function handleRedo() { if (!activeSheetRevision.protected) setHistory(current => redoHistory(current)) }
 
   async function handleResetApp() {
     if (hasUnsavedProjectChanges) {
@@ -1824,8 +1816,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       if (!confirmed) return
     }
     const nextProject = createDefaultProject()
+    const nextDocument = createProjectDocumentFromCutProject(nextProject)
     setTemplate(standardA3SheetTemplate)
-    setProjectDocument(createProjectDocumentFromCutProject(nextProject))
+    setProjectDocument(nextDocument)
+    setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
     setProjectFilePath(null)
     setHistory(createProjectHistory(nextProject))
     setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
@@ -2269,7 +2263,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
-    projectDocumentSnapshot, projectCuts, timingExportPlan, sheetPages, clampedActivePageIndex,
+    projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
@@ -2289,7 +2283,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
-    handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
+    handleAddSharedCut, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
+    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,

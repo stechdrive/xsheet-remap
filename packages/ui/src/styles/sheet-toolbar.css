@@ -1,8 +1,203 @@
 .sheetLayout {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 6px;
   overflow: hidden;
+}
+
+.sheetHistoryBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 2px 4px;
+  border-bottom: 1px solid #c7cdc6;
+  background: #f4f5f1;
+}
+
+.sheetHistoryLabel {
+  flex: 0 0 auto;
+  color: #4d5b53;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sheetHistoryTabs {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.sheetHistoryTab,
+.sheetHistoryAddButton {
+  min-height: 28px;
+  border: 1px solid #aeb8b0;
+  border-radius: 5px 5px 2px 2px;
+  background: #fbfcfa;
+  color: #193128;
+}
+
+.sheetHistoryTab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  max-width: 190px;
+  padding: 3px 9px;
+}
+
+.sheetHistoryTab.active {
+  border-color: #2f674e;
+  background: #e5f0e9;
+  box-shadow: inset 0 -2px 0 #2f674e;
+}
+
+.sheetHistoryTabName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetHistorySheetIcon {
+  width: 16px;
+  height: 16px;
+  fill: #f8fbf9;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+}
+
+.sheetHistoryTabState {
+  color: #5e6a63;
+  font-size: 11px;
+}
+
+.sheetHistoryTabState.reference {
+  color: #a04d4d;
+}
+
+.sheetHistoryReferenceOverflow {
+  color: #a04d4d;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.sheetHistoryAddButton {
+  flex: 0 0 auto;
+  width: 30px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.sheetHistoryProtectedNotice {
+  flex: 0 0 auto;
+  color: #855d16;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sheetHistoryContextMenu {
+  position: fixed;
+  z-index: 180;
+  display: grid;
+  min-width: 180px;
+  padding: 5px;
+  border: 1px solid #aab2aa;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 9px 24px rgb(22 39 30 / 20%);
+}
+
+.sheetHistoryContextMenu button {
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+}
+
+.sheetHistoryContextMenu button:hover:not(:disabled) {
+  background: #e8f0ea;
+}
+
+.sheetHistoryContextMenu button.danger {
+  color: #a02d2d;
+}
+
+.sheetHistoryDialogBackdrop {
+  position: fixed;
+  z-index: 190;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(25 34 29 / 24%);
+}
+
+.sheetHistoryDialog {
+  display: grid;
+  gap: 14px;
+  width: min(430px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid #aab5ad;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgb(15 31 22 / 24%);
+}
+
+.sheetHistoryDialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.sheetHistoryDialog > label:not(.sheetHistoryReferenceOption) {
+  display: grid;
+  gap: 5px;
+  font-weight: 700;
+}
+
+.sheetHistoryDialog input[type='text'],
+.sheetHistoryDialog input:not([type]) {
+  min-height: 34px;
+}
+
+.sheetHistoryCreateMode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sheetHistoryCreateMode button,
+.sheetHistoryDialogActions button {
+  min-height: 34px;
+}
+
+.sheetHistoryCreateMode button.active,
+.sheetHistoryDialogActions button.primary {
+  border-color: #32694f;
+  background: #e3efe7;
+  color: #173b2b;
+}
+
+.sheetHistoryReferenceOption {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sheetHistoryDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .sheetToolbar {

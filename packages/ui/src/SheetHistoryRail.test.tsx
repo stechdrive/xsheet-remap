@@ -23,9 +23,12 @@ describe('SheetHistoryRail', () => {
         onDelete={vi.fn()}
       />,
     )
-    expect(screen.getAllByRole('tab')).toHaveLength(2)
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs).toHaveLength(2)
+    expect(screen.getByRole('tab', { name: 'シート1（名前なし）' })).toBeTruthy()
+    expect(tabs.every(tab => tab.closest('.appTooltipTrigger') === null)).toBe(true)
     expect(screen.getByRole('tablist', { name: 'シート履歴' }).getAttribute('aria-orientation')).toBe('vertical')
-    expect(screen.getByRole('button', { name: 'シートを追加' }).closest('[role="tablist"]')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '修正用シートを追加' }).closest('[role="tablist"]')).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: '演出' }))
     expect(onSwitch).toHaveBeenCalledWith('sheet_revision_2')
   })
@@ -46,7 +49,7 @@ describe('SheetHistoryRail', () => {
         onDelete={vi.fn()}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'シートを追加' }))
+    fireEvent.click(screen.getByRole('button', { name: '修正用シートを追加' }))
     const addButton = screen.getByRole('button', { name: '追加' })
     expect((addButton as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(screen.getByRole('combobox', { name: '名前' }), { target: { value: '監督修正' } })

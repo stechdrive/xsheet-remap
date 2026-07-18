@@ -78,19 +78,20 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
       <div className="sheetHistoryTabs" role="tablist" aria-label="シート履歴" aria-orientation="vertical">
         {props.revisions.map((revision, index) => {
           const active = revision.revisionId === props.activeRevisionId
+          const accessibleLabel = revision.name || `シート${index + 1}（名前なし）`
           const reference = revision.reference
             ? props.revisions.find(candidate => candidate.revisionId === revision.reference?.revisionId)
             : undefined
           const overflowFrames = reference
             ? Math.max(0, reference.logicalSheet.durationFrames - revision.logicalSheet.durationFrames)
             : 0
-          const tab = (
+          return (
             <button
               key={revision.revisionId}
               type="button"
               role="tab"
               aria-selected={active}
-              aria-label={revision.name || (index === 0 ? '現在のシート' : '名前のないシート')}
+              aria-label={accessibleLabel}
               className={active ? 'sheetHistoryTab active' : 'sheetHistoryTab'}
               onClick={() => props.onSwitch(revision.revisionId)}
               onDoubleClick={() => rename(revision)}
@@ -102,11 +103,9 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
               {overflowFrames > 0 && <span className="sheetHistoryReferenceOverflow">下敷き +{overflowFrames}K</span>}
             </button>
           )
-          const tooltipLabel = revision.name || (index === 0 ? '現在のシート' : '名前のないシート')
-          return <Tooltip key={revision.revisionId} label={tooltipLabel}>{tab}</Tooltip>
         })}
-        <Tooltip label="シートを追加">
-          <button type="button" className="sheetHistoryAddButton" onClick={openAdd} aria-label="シートを追加">＋</button>
+        <Tooltip label={'修正用シートを追加\n元のシートを残したまま、修正履歴として管理できます'}>
+          <button type="button" className="sheetHistoryAddButton" onClick={openAdd} aria-label="修正用シートを追加">＋</button>
         </Tooltip>
       </div>
 
@@ -148,7 +147,7 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
             className="danger"
             disabled={props.revisions.length <= 1 || contextRevision.protected}
             onClick={() => {
-              if (window.confirm(`「${contextRevision.name || '現在のシート'}」を削除しますか？`)) props.onDelete(contextRevision.revisionId)
+              if (window.confirm(`「${contextRevision.name || '名前のないシート'}」を削除しますか？`)) props.onDelete(contextRevision.revisionId)
               setContext(null)
             }}
           >

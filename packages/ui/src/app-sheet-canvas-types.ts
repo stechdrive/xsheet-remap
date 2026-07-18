@@ -9,6 +9,7 @@ import type {
   SheetCalibrationPointPair,
   SheetHit,
   SheetPage,
+  SheetPageMemoTarget,
   SheetTemplate,
   SheetTemplateFieldDefinition,
   SheetTimingRole,
@@ -21,7 +22,7 @@ import type {
   TimingSpecialMarker,
 } from '@xsheet-remap/core'
 import { updatePaperTrack } from '@xsheet-remap/core'
-import type { CameraCueClipboard, EditMode, SheetRangeSelection, SoundCueClipboard, TimingClipboard } from './appTypes'
+import type { CameraCueClipboard, EditMode, SheetRangeSelection, SoundCueClipboard, TemplateRegionAnnotationTarget, TimingClipboard } from './appTypes'
 import type { DropDiagnosticReport } from './AssetBrowser'
 import type { AutoCalibrationOverlayState, FrameOperationKind, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate } from './app-foundation'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
@@ -43,6 +44,7 @@ export type SheetCanvasProps = {
   selectedSoundCueId: string | null
   selectedCameraCueId: string | null
   selectedTimelineMemoId: string | null
+  pageAnnotationTarget: SheetPageMemoTarget
   timingDraftValue: string
   timingDraftActive: boolean
   scrollRequest: SheetScrollRequest | null
@@ -110,7 +112,7 @@ export type SheetCanvasProps = {
   onDropDiagnostic: (report: DropDiagnosticReport) => void
   onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
-  onEraseAnnotation: (pageId: string, points: AnnotationPoint[], width: number) => void
+  onEraseAnnotation: (pageId: string, points: AnnotationPoint[], width: number, target: SheetPageMemoTarget) => void
   onCreateStackGuideLabel: (input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) => void
   onUpdateStackGuideLabel: (labelId: string, updates: StackGuideLabelUpdates) => void
   onAssignAssetToStackGuideLabel: (labelId: string, assetId: string, correctionLayerId?: string) => void
@@ -120,6 +122,7 @@ export type SheetCanvasProps = {
   stackGuideInsertTool: StackGuideInsertContext | null
   onStackGuideInsertToolConsumed: () => void
   onClearSelection: () => void
+  onSelectTemplateRegionAnnotationTarget: (target: TemplateRegionAnnotationTarget) => void
   onAnnotation: (stroke: AnnotationStroke) => void
   onTextAnnotation: (annotation: AnnotationText) => void
   onSelectTextAnnotation: (annotationId: string) => void

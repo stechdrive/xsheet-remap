@@ -95,6 +95,68 @@ export function createTimelineMemoForHit(
   }
 }
 
+export function createTimelineMemoForCue(
+  project: CutProject,
+  template: SheetTemplate,
+  cue: TimedRangeCue,
+): TimelineInkMemo | null {
+  const hit = sheetHitForTimedRangeCue(project, template, cue)
+  if (!hit) return null
+  const memo = createTimelineMemoForHit(project, template, hit, null)
+  if (!memo) return null
+  return {
+    ...memo,
+    anchor: {
+      ...memo.anchor,
+      frame: cue.frameStart,
+      laneId: cue.laneId,
+      cueId: cue.cueId,
+    },
+    placement: {
+      ...memo.placement,
+      heightFrames: Math.max(memo.placement.heightFrames, cue.frameEnd - cue.frameStart + 1),
+    },
+  }
+}
+
+function sheetHitForTimedRangeCue(project: CutProject, template: SheetTemplate, cue: TimedRangeCue): SheetHit | null {
+  const displayDuration = logicalSheetDisplayDurationFrames(project.logicalSheet)
+  const displayStart = logicalSheetDisplayFrameStart(project.logicalSheet)
+  const pages = createSheetPages(template, displayDuration, displayStart)
+  const page = pages.find(item => cue.frameStart >= item.frameStart && cue.frameStart <= item.frameEnd)
+  if (!page) return null
+  const viewLayout = getSheetViewLayout(template)
+  const frameOrigin = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
+    ? page.frameStart
+    : template.defaults.frameOrigin
+  for (const region of template.regions) {
+    if (region.grid?.role !== cue.role) continue
+    const layout = resolveSheetTemplateGridLayout(template, region, {
+      paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
+      durationFrames: page.frameEnd - page.frameStart + 1,
+      frameOrigin,
+      layoutOverrides: project.sheetView.layoutOverrides,
+    })
+    if (!layout || cue.frameStart < layout.frames.frameStart || cue.frameStart > layout.frames.frameEnd) continue
+    const columnIndex = layout.columns.findIndex(column => column.timelineLaneId === cue.laneId)
+    const column = layout.columns[columnIndex]
+    if (!column) continue
+    return {
+      regionId: region.regionId,
+      role: cue.role,
+      frame: cue.frameStart,
+      rowIndex: cue.frameStart - layout.frames.frameStart,
+      columnIndex,
+      columnId: column.columnId,
+      label: column.label,
+      pageId: page.pageId,
+      pageIndex: page.pageIndex,
+      localFrame: cue.frameStart - page.frameStart,
+    }
+  }
+  return null
+}
+
 function initialTimelineMemoDimensions(template: SheetTemplate, project: CutProject, hit: SheetHit, selectedHeight: number | null) {
   const displayDuration = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const displayStart = logicalSheetDisplayFrameStart(project.logicalSheet)

@@ -1,7 +1,7 @@
-import { createDefaultProject, createSheetPages, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
+import { createDefaultProject, createSheetPages, createTimedRangeCue, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
 import { describe, expect, it } from 'vitest'
 import { assetAssignedMarkerPoints, assetAssignedMarkerSize } from './sheet-selection-visuals'
-import { createTimelineMemoForHit } from './timelineMemoEditing'
+import { createTimelineMemoForCue, createTimelineMemoForHit } from './timelineMemoEditing'
 import { timelineMemoAnchorCellForPage, timelineMemoAnchorConnectorPoints, timelineMemoAnchorHitRect, timelineMemoAnchorMarkerRect, timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment } from './timelineMemoGeometry'
 
 function memo(frame: number, heightFrames: number): TimelineInkMemo {
@@ -107,6 +107,17 @@ describe('timeline memo geometry', () => {
     })
     expect(created?.anchor.frame).toBe(10)
     expect(created?.placement.heightFrames).toBe(9)
+  })
+
+  it('creates a cue-linked memo from the selected SOUND element', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'sound', laneId: 'sound_lane_1', frameStart: 10, frameEnd: 18, label: '話者',
+    })
+    const memo = createTimelineMemoForCue(created.project, standardA3SheetTemplate, created.cue)
+    expect(memo?.anchor).toMatchObject({
+      role: 'sound', laneId: 'sound_lane_1', frame: 10, cueId: created.cue.cueId,
+    })
+    expect(memo?.placement.heightFrames).toBeGreaterThanOrEqual(9)
   })
 
   it('preserves the stored memo aspect when switching between paper and digital templates', () => {

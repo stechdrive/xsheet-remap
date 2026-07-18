@@ -6,6 +6,37 @@ import { SheetMetadataEditor } from './SheetMetadataEditor'
 afterEach(cleanup)
 
 describe('SheetMetadataEditor page fields', () => {
+  it('selects TITLE and MEMO as stable template-region annotation targets on one click', () => {
+    const project = createDefaultProject()
+    const [page] = createSheetPages(standardA3SheetTemplate, project.logicalSheet.durationFrames)
+    const onAnnotationRegionSelect = vi.fn()
+
+    render(
+      <SheetMetadataEditor
+        project={project}
+        template={standardA3SheetTemplate}
+        page={page!}
+        pageWidth={877}
+        pageHeight={1241}
+        displayDurationFrames={project.logicalSheet.durationFrames}
+        paperTracks={standardA3SheetTemplate.defaults.paperTracks}
+        onMetadataChange={vi.fn()}
+        onDurationChange={vi.fn()}
+        onFormFieldChange={vi.fn()}
+        onAnnotationRegionSelect={onAnnotationRegionSelect}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'タイトルを編集' }))
+    expect(onAnnotationRegionSelect).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'template-region', regionId: 'top_title_field', label: 'タイトル', pageId: 'page_1',
+    }))
+    fireEvent.click(screen.getByRole('button', { name: 'MEMOを編集' }))
+    expect(onAnnotationRegionSelect).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'template-region', regionId: 'top_memo_area', label: 'MEMO', pageId: 'page_1',
+    }))
+  })
+
   it('opens the A3 memo as an inline multiline editor and writes to the active page', () => {
     const project = createDefaultProject()
     const [page] = createSheetPages(standardA3SheetTemplate, project.logicalSheet.durationFrames)

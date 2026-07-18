@@ -5,6 +5,7 @@ import { createDefaultSheetViewState } from './sheet-view'
 import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, isSpecialTimingEvent, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
 import { DEFAULT_CSP_CELL_NAME_POLICY, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createEmptySheetFormData } from './sheet-form-data'
+import { replaceTimedRangeCues } from './timed-range'
 
 export interface CreateProjectOptions {
   projectId?: string
@@ -175,17 +176,17 @@ export function updateProjectTimelineSectionsFromTemplate(project: CutProject, t
     })))
     return { ...section, lanes }
   })
-  return {
+  const withSections = {
     ...project,
     logicalSheet: {
       ...project.logicalSheet,
       timelineSections,
     },
-    timedRangeCues: project.timedRangeCues.map(cue => {
-      const laneId = laneRemapByRole.get(cue.role)?.get(cue.laneId)
-      return laneId ? { ...cue, laneId } : cue
-    }),
   }
+  return replaceTimedRangeCues(withSections, project.timedRangeCues.map(cue => {
+    const laneId = laneRemapByRole.get(cue.role)?.get(cue.laneId)
+    return laneId ? { ...cue, laneId } : cue
+  }))
 }
 
 export function updateProjectPaperTracks(project: CutProject, labels: PaperTrackName[]): CutProject {

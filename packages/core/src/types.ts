@@ -349,6 +349,8 @@ export interface TimelineMemoAnchor {
   frame: FrameIndex
   paperTrack?: PaperTrackName
   laneId?: Id
+  /** When present, the memo follows this SOUND/CAMERA cue as it moves or resizes. */
+  cueId?: Id
 }
 
 export interface TimelineMemoPlacement {

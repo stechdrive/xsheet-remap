@@ -10,6 +10,7 @@ import {
   updateTimedRangeCue,
   validateProject,
 } from './index'
+import { addTimelineMemo } from './timeline-memo'
 
 describe('timed range cues', () => {
   it('projects stable SOUND lanes from paper, digital, and custom template columns', () => {
@@ -70,6 +71,31 @@ describe('timed range cues', () => {
     const updated = updateTimedRangeCue(created.project, created.cue.cueId, { frameStart: 4, frameEnd: 18, label: 'SE' })
     expect(updated.timedRangeCues[0]).toMatchObject({ frameStart: 4, frameEnd: 18, label: 'SE' })
     expect(deleteTimedRangeCue(updated, created.cue.cueId).timedRangeCues).toEqual([])
+  })
+
+  it('keeps cue-linked memos synchronized and removes them with their cue', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'sound', laneId: 'sound_lane_1', frameStart: 4, frameEnd: 10, label: '声',
+    })
+    const withMemo = addTimelineMemo(created.project, {
+      kind: 'timeline',
+      memoId: 'timeline_memo_1',
+      anchor: { role: 'sound', laneId: created.cue.laneId, frame: created.cue.frameStart, cueId: created.cue.cueId },
+      placement: { frameOffset: 0, crossOffsetUnits: 0, widthUnits: 8, heightFrames: 7 },
+      strokes: [],
+      order: 1,
+    })
+
+    const moved = updateTimedRangeCue(withMemo, created.cue.cueId, {
+      laneId: 'sound_lane_2', frameStart: 12, frameEnd: 18,
+    })
+    expect(moved.memos[0]).toMatchObject({
+      anchor: { role: 'sound', laneId: 'sound_lane_2', frame: 12, cueId: created.cue.cueId },
+    })
+    expect(validateProject(moved).filter(issue => issue.code.startsWith('memo.cue.'))).toEqual([])
+
+    const deleted = deleteTimedRangeCue(moved, created.cue.cueId)
+    expect(deleted.memos).toEqual([])
   })
 
   it('normalizes semantic CAMERA geometry and logical manual label placement', () => {

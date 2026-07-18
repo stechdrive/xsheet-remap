@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoPlacement, upsertTimelineMemoText, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addBlankSharedCutToProjectDocument, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
@@ -39,7 +39,7 @@ import { deleteCspTreeCardWithConfirmation } from './csp-logical-cell-actions'
 import { createAppTimedRangeControllers } from './app-timed-range-controllers'
 import { applyFrameOperationToProject, frameOperationDialogStateForHit, pointRoleForFrameOperation } from './frameOperations'
 import { buildSelectionPresentation, inputHitForRange } from './app-selection-presentation'
-import { createTimelineMemoForHit } from './timelineMemoEditing'
+import { createTimelineMemoForCue, createTimelineMemoForHit } from './timelineMemoEditing'
 import { createAppXdtsActions } from './app-xdts-actions'
 import { confirmSheetTemplateImport, loadSheetTemplate } from './app-template-import'
 import { useAppSheetHistoryController } from './app-sheet-history-actions'
@@ -1860,23 +1860,27 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitProject(addTimelineMemo(project, memo))
     return memo.memoId
   }
-
+  function handleCreateTimelineMemoForCue(cueId: string): string | null {
+    const cue = project.timedRangeCues.find(item => item.cueId === cueId)
+    if (!cue) return null
+    const memo = createTimelineMemoForCue(project, template, cue)
+    if (!memo) return null
+    commitProject(addTimelineMemo(project, memo))
+    return memo.memoId
+  }
   function handleDeleteTimelineMemo(memoId: string) {
     const next = deleteTimelineMemo(project, memoId)
     if (next !== project) commitProject(next)
   }
-
   function handleUpdateTimelineMemoPlacement(memoId: string, placement: TimelineMemoPlacement) {
     const next = updateTimelineMemoPlacement(project, memoId, placement)
     if (next !== project) commitProject(next)
   }
-
   function handleAppendTimelineMemoStroke(memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) {
     const memo = timelineMemos(project).find(item => item.memoId === memoId)
     if (!memo) return
     commitProject(appendTimelineMemoStroke(project, memoId, { ...stroke, strokeId: nextTimelineMemoStrokeId(memo) }))
   }
-
   function handleEraseTimelineMemoStroke(memoId: string, points: TimelineMemoPoint[], widthUnits: number) {
     const next = eraseTimelineMemoStrokes(project, { memoId, points, widthUnits })
     if (next !== project) commitProject(next)
@@ -1914,10 +1918,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (project.sheetView.activePageId !== annotation.pageId) {
       commitProject(updateSheetViewState(project, { activePageId: annotation.pageId }))
     }
-  }
-
-  function currentTextAnnotationAnchor(pageId: string): AnnotationText['anchor'] {
-    return { kind: 'view-surface', templateId: template.templateId, pageId, surfaceSize: activeSheetPageSize }
   }
 
   function selectTextAnnotationState(annotation: AnnotationText, options: { edit?: boolean } = {}) {
@@ -2027,12 +2027,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const nextSize = clampTextFontSizePx(value)
     setMemoTextFontSizePx(nextSize)
     if (!selectedTextAnnotation) return
-    handleUpdateTextAnnotation(selectedTextAnnotation.annotationId, { fontSizePx: nextSize, coordinateSpace: 'view-surface',
-      anchor: currentTextAnnotationAnchor(selectedTextAnnotation.pageId) })
+    handleUpdateTextAnnotation(selectedTextAnnotation.annotationId, { fontSizePx: nextSize })
   }
 
-  function handleEraseAnnotation(pageId: string, points: AnnotationPoint[], width: number) {
-    const nextProject = eraseAnnotations(project, { pageId, points, width })
+  function handleEraseAnnotation(pageId: string, points: AnnotationPoint[], width: number, target: SheetPageMemoTarget) {
+    const nextProject = eraseAnnotations(project, { pageId, points, width, target })
     if (nextProject !== project) commitProject(nextProject)
   }
 
@@ -2291,7 +2290,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
-    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
+    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   }

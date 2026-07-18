@@ -1090,6 +1090,20 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const soundHitFromClientPoint = (clientX: number, clientY: number) => timedRangeHitFromClientPoint(clientX, clientY, 'sound')
   const cameraHitFromClientPoint = (clientX: number, clientY: number) => timedRangeHitFromClientPoint(clientX, clientY, 'camera')
 
+  function pageAnnotationAnchor(page: SheetPage) {
+    const regionId = props.pageAnnotationTarget.kind === 'template-region'
+      && props.pageAnnotationTarget.pageId === page.pageId
+      ? props.pageAnnotationTarget.regionId
+      : undefined
+    return {
+      kind: 'view-surface' as const,
+      templateId: props.template.templateId,
+      pageId: page.pageId,
+      surfaceSize: sheetPageSize,
+      regionId,
+    }
+  }
+
   function handleSoundCuePointerDown(event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: SoundCueDragMode) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     if (props.editMode === 'pen' || props.editMode === 'eraser' || props.editMode === 'text' || props.editMode === 'calibrate') return
@@ -1369,12 +1383,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         color: props.penColor,
         fontSizePx: props.textFontSizePx,
         coordinateSpace: 'view-surface',
-        anchor: {
-          kind: 'view-surface',
-          templateId: props.template.templateId,
-          pageId: page.pageId,
-          surfaceSize: sheetPageSize,
-        },
+        anchor: pageAnnotationAnchor(page),
       })
       return
     }
@@ -1388,12 +1397,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         color: tool === 'pen' ? props.penColor : '#2f7f6a',
         width: tool === 'pen' ? props.penWidth : props.eraserWidth,
         coordinateSpace: 'view-surface',
-        anchor: {
-          kind: 'view-surface',
-          templateId: props.template.templateId,
-          pageId: page.pageId,
-          surfaceSize: sheetPageSize,
-        },
+        anchor: pageAnnotationAnchor(page),
         points: [{ ...point, pressure: event.pressure || 1 }],
       })
       return
@@ -1930,7 +1934,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
     if (!draftStroke) return
     if (draftStroke.tool === 'eraser') {
-      props.onEraseAnnotation(draftStroke.pageId, draftStroke.points, draftStroke.width)
+      props.onEraseAnnotation(draftStroke.pageId, draftStroke.points, draftStroke.width, props.pageAnnotationTarget)
     } else {
       props.onAnnotation(draftStroke)
     }

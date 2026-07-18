@@ -110,6 +110,13 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
 
   for (const memo of timelineMemos(project)) {
     const anchor = memo.anchor
+    const linkedCue = anchor.cueId ? project.timedRangeCues.find(cue => cue.cueId === anchor.cueId) : undefined
+    if (anchor.cueId && !linkedCue) {
+      issues.push(issue('error', 'memo.cue.missing', `memo ${memo.memoId} references missing cue ${anchor.cueId}`, 'memo', memo.memoId))
+    }
+    if (linkedCue && (linkedCue.role !== anchor.role || linkedCue.laneId !== anchor.laneId || linkedCue.frameStart !== anchor.frame)) {
+      issues.push(issue('error', 'memo.cue.anchorMismatch', `memo ${memo.memoId} does not match linked cue ${anchor.cueId}`, 'memo', memo.memoId))
+    }
     if ((anchor.role === 'action' || anchor.role === 'cell') && (!anchor.paperTrack || !paperTracks.has(anchor.paperTrack))) {
       issues.push(issue('error', 'memo.paperTrack.missing', `memo ${memo.memoId} references missing paper track ${anchor.paperTrack ?? ''}`, 'memo', memo.memoId))
     }

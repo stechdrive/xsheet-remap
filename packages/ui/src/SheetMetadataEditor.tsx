@@ -14,6 +14,7 @@ import { DurationFrameControl } from './DurationFrameControl'
 import { TooltipTarget } from './Tooltip'
 import { buildTemplateChromeRenderModel } from './templateEditorGeometry'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
+import type { TemplateRegionAnnotationTarget } from './appTypes'
 
 type EditableMetadataRegion = SheetTemplate['regions'][number] & {
   binding: Extract<NonNullable<SheetTemplate['regions'][number]['binding']>, { target: 'cut-metadata' }>
@@ -28,9 +29,11 @@ export function SheetMetadataEditor({
   displayDurationFrames,
   paperTracks,
   interactionBlocked = false,
+  selectedAnnotationRegionId = null,
   onMetadataChange,
   onDurationChange,
   onFormFieldChange,
+  onAnnotationRegionSelect = () => {},
 }: {
   project: CutProject
   template: SheetTemplate
@@ -40,9 +43,11 @@ export function SheetMetadataEditor({
   displayDurationFrames: number
   paperTracks: string[]
   interactionBlocked?: boolean
+  selectedAnnotationRegionId?: string | null
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
   onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean, pageId: string) => void
+  onAnnotationRegionSelect?: (target: TemplateRegionAnnotationTarget) => void
 }) {
   const [editingRegionId, setEditingRegionId] = useState<string | null>(null)
   const [inlineDraft, setInlineDraft] = useState('')
@@ -186,12 +191,14 @@ export function SheetMetadataEditor({
       aria-label={`${page.pageIndex + 1}ページのシート情報編集`}
     >
       {regionLayouts.map(({ region, rect }) => (
-        <TooltipTarget key={region.regionId} label={`${region.label}: ダブルクリックまたはEnterで編集`} disabled={interactionBlocked || editingRegionId === region.regionId}>
+        <TooltipTarget key={region.regionId} label={`${region.label}: クリックでメモ対象、ダブルクリックまたはEnterで編集`} disabled={interactionBlocked || editingRegionId === region.regionId}>
           {tooltipProps => (
             <button
               type="button"
               className="sheetMetadataEditHotspot"
               style={rectStyle(rect, pageWidth, pageHeight)}
+              data-region-id={region.regionId}
+              data-annotation-target-selected={selectedAnnotationRegionId === region.regionId ? 'true' : undefined}
               aria-label={`${region.label}を編集`}
               aria-haspopup="dialog"
               aria-expanded={editingRegionId === region.regionId}
@@ -202,7 +209,10 @@ export function SheetMetadataEditor({
                 tooltipProps.onPointerDown()
                 event.stopPropagation()
               }}
-              onClick={event => event.stopPropagation()}
+              onClick={event => {
+                event.stopPropagation()
+                onAnnotationRegionSelect(annotationRegionTarget(page, template, region.regionId, region.label))
+              }}
               onDoubleClick={event => {
                 event.stopPropagation()
                 openEditor(region.regionId, event.currentTarget)
@@ -230,8 +240,8 @@ export function SheetMetadataEditor({
             resolveSheetTemplateTextStyle(template, chrome.pageSize, field.textStyle, { fontWeight: 700 }),
           ).overflow
         const tooltipLabel = overflow
-          ? `${field.definition.label}: 文字が欄内に収まりません。ダブルクリックまたはEnterで編集`
-          : `${field.definition.label}: ダブルクリックまたはEnterで編集`
+          ? `${field.definition.label}: 文字が欄内に収まりません。クリックでメモ対象、ダブルクリックまたはEnterで編集`
+          : `${field.definition.label}: クリックでメモ対象、ダブルクリックまたはEnterで編集`
         return (
         <TooltipTarget key={field.key} label={tooltipLabel} disabled={interactionBlocked || editingRegionId === field.key}>
           {tooltipProps => (
@@ -239,6 +249,8 @@ export function SheetMetadataEditor({
               type="button"
               className="sheetMetadataEditHotspot sheetFormEditHotspot"
               style={rectStyle(field.rect, pageWidth, pageHeight)}
+              data-region-id={field.regionId}
+              data-annotation-target-selected={selectedAnnotationRegionId === field.regionId ? 'true' : undefined}
               data-text-overflow={overflow ? 'true' : 'false'}
               aria-label={`${field.definition.label}を編集`}
               aria-haspopup="dialog"
@@ -250,7 +262,11 @@ export function SheetMetadataEditor({
                 tooltipProps.onPointerDown()
                 event.stopPropagation()
               }}
-              onClick={event => event.stopPropagation()}
+              onClick={event => {
+                event.stopPropagation()
+                const regionLabel = template.regions.find(region => region.regionId === field.regionId)?.label ?? field.definition.label
+                onAnnotationRegionSelect(annotationRegionTarget(page, template, field.regionId, regionLabel))
+              }}
               onDoubleClick={event => {
                 event.stopPropagation()
                 openEditor(field.key, event.currentTarget)
@@ -370,6 +386,15 @@ export function SheetMetadataEditor({
       )}
     </div>
   )
+}
+
+function annotationRegionTarget(
+  page: SheetPage,
+  template: SheetTemplate,
+  regionId: string,
+  label: string,
+): TemplateRegionAnnotationTarget {
+  return { kind: 'template-region', pageId: page.pageId, templateId: template.templateId, regionId, label }
 }
 
 function SheetFormFieldControl({

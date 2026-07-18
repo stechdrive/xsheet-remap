@@ -1,5 +1,6 @@
 import { logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart } from './logical-sheet'
-import type { CameraInstruction, CameraInstructionPoint, CameraInstructionPointRole, CutProject, TimedRangeCue, TimedRangeRole } from './types'
+import { isTimelineMemo } from './sheet-memo'
+import type { CameraInstruction, CameraInstructionPoint, CameraInstructionPointRole, CutProject, TimedRangeCue, TimedRangeRole, TimelineMemoAnchor } from './types'
 
 export interface TimedRangeCueInput {
   role: TimedRangeRole
@@ -47,12 +48,19 @@ export function updateTimedRangeCue(project: CutProject, cueId: string, updates:
   return {
     ...project,
     timedRangeCues: project.timedRangeCues.map(cue => cue.cueId === cueId ? nextCue : cue),
+    memos: project.memos.map(memo => isTimelineMemo(memo) && memo.anchor.cueId === cueId
+      ? { ...memo, anchor: cueLinkedMemoAnchor(memo.anchor, nextCue) }
+      : memo),
   }
 }
 
 export function deleteTimedRangeCue(project: CutProject, cueId: string): CutProject {
   if (!project.timedRangeCues.some(cue => cue.cueId === cueId)) return project
-  return { ...project, timedRangeCues: project.timedRangeCues.filter(cue => cue.cueId !== cueId) }
+  return {
+    ...project,
+    timedRangeCues: project.timedRangeCues.filter(cue => cue.cueId !== cueId),
+    memos: project.memos.filter(memo => !isTimelineMemo(memo) || memo.anchor.cueId !== cueId),
+  }
 }
 
 export function timedRangeCuesIntersecting(
@@ -72,7 +80,28 @@ export function timedRangeCuesIntersecting(
 
 export function replaceTimedRangeCues(project: CutProject, cues: TimedRangeCue[]): CutProject {
   const normalized = cues.map(cue => normalizeCue(project, cue))
-  return { ...project, timedRangeCues: normalized }
+  const cueById = new Map(normalized.map(cue => [cue.cueId, cue]))
+  return {
+    ...project,
+    timedRangeCues: normalized,
+    memos: project.memos.flatMap(memo => {
+      if (!isTimelineMemo(memo) || !memo.anchor.cueId) return [memo]
+      const cue = cueById.get(memo.anchor.cueId)
+      return cue ? [{ ...memo, anchor: cueLinkedMemoAnchor(memo.anchor, cue) }] : []
+    }),
+  }
+}
+
+function cueLinkedMemoAnchor(anchor: TimelineMemoAnchor, cue: TimedRangeCue): TimelineMemoAnchor {
+  if (cue.role !== 'sound' && cue.role !== 'camera') return anchor
+  return {
+    ...anchor,
+    role: cue.role,
+    frame: cue.frameStart,
+    laneId: cue.laneId,
+    paperTrack: undefined,
+    cueId: cue.cueId,
+  }
 }
 
 export function timedRangeLaneIds(project: Pick<CutProject, 'logicalSheet'>, role: TimedRangeRole): string[] {

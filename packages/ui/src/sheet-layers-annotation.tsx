@@ -99,6 +99,10 @@ export function cloneTextAnnotationForPaste(
       templateId: input.templateId,
       pageId: input.pageId,
       surfaceSize: input.surfaceSize,
+      regionId: annotation.anchor?.kind === 'view-surface'
+        && (!annotation.anchor.templateId || annotation.anchor.templateId === input.templateId)
+        ? annotation.anchor.regionId
+        : undefined,
     },
   }
 }

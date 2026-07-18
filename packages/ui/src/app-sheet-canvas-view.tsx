@@ -409,6 +409,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       d={strokePath(stroke)}
                       stroke={stroke.color}
                       strokeWidth={stroke.width}
+                      data-annotation-region-id={stroke.anchor?.kind === 'view-surface' ? stroke.anchor.regionId : undefined}
                     />
                   ))}
                   {selectedRect && props.timingDraftActive && (
@@ -460,9 +461,14 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     displayDurationFrames={displayDurationFrames}
                     paperTracks={templateTrackNames}
                     interactionBlocked={semanticHotspotsBlocked}
+                    selectedAnnotationRegionId={props.pageAnnotationTarget.kind === 'template-region'
+                      && props.pageAnnotationTarget.pageId === page.pageId
+                      ? props.pageAnnotationTarget.regionId ?? null
+                      : null}
                     onMetadataChange={props.onMetadataChange}
                     onDurationChange={props.onDurationChange}
                     onFormFieldChange={props.onFormFieldChange}
+                    onAnnotationRegionSelect={props.onSelectTemplateRegionAnnotationTarget}
                   />
                 )}
                 {!isCalibrating && pageAnnotationCaptureActive && (

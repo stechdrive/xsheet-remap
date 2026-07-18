@@ -55,7 +55,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     handleAddSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
-    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
+    handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   } = controller
@@ -390,6 +390,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onPasteCameraCues={pasteSelectedCameraCueRange}
             onOpenFrameOperation={openFrameOperationDialog}
             onCreateTimelineMemo={handleCreateTimelineMemo}
+            onCreateTimelineMemoForCue={handleCreateTimelineMemoForCue}
             onDeleteTimelineMemo={handleDeleteTimelineMemo}
             onUpdateTimelineMemoPlacement={handleUpdateTimelineMemoPlacement}
             onAppendTimelineMemoStroke={handleAppendTimelineMemoStroke}

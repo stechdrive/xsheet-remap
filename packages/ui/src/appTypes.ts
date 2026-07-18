@@ -88,6 +88,14 @@ export type SheetSelection =
   | { kind: 'range'; range: SheetRangeSelection }
   | { kind: 'cue'; cueId: string }
 
+export interface TemplateRegionAnnotationTarget {
+  kind: 'template-region'
+  pageId: string
+  templateId: string
+  regionId: string
+  label: string
+}
+
 export interface TimedRangeCueClipboard<Role extends 'sound' | 'camera'> {
   role: Role
   sourceLaneId: string

@@ -126,6 +126,27 @@ describe('cut timeline frame editing', () => {
     expect(timelineMemos(edited).map(memo => [memo.memoId, memo.anchor.frame])).toEqual([['before', 4], ['after', 9]])
     expect(timelineMemos(edited)[0]?.placement.heightFrames).toBe(24)
   })
+
+  it('keeps a cue-linked memo when a deletion removes the cue start but leaves the cue alive', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'sound', laneId: 'sound_lane_1', frameStart: 6, frameEnd: 12, label: 'KEEP',
+    })
+    const withMemo = addTimelineMemo(created.project, {
+      kind: 'timeline',
+      memoId: 'timeline_memo_cue',
+      anchor: { role: 'sound', frame: 6, laneId: 'sound_lane_1', cueId: created.cue.cueId },
+      placement: { frameOffset: 0, crossOffsetUnits: 0, widthUnits: 8, heightFrames: 7 },
+      strokes: [],
+      order: 1,
+    })
+
+    const edited = applyCutTimelineFrameEdit(withMemo, { kind: 'delete', frameStart: 6, frameCount: 3 })
+
+    expect(edited.timedRangeCues[0]).toMatchObject({ frameStart: 6, frameEnd: 9 })
+    expect(timelineMemos(edited)[0]?.anchor).toEqual({
+      role: 'sound', frame: 6, laneId: 'sound_lane_1', cueId: created.cue.cueId, paperTrack: undefined,
+    })
+  })
 })
 
 function timelineFixture() {

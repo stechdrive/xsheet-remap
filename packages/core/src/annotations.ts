@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationPoint, AnnotationStroke, AnnotationText, CutProject } from './types'
+import type { Annotation, AnnotationPoint, AnnotationStroke, AnnotationText, CutProject, SheetPageMemoTarget } from './types'
 import { splitPolylineByEraser } from './polyline-eraser'
 import { isSheetPageMemo, pageMemoTargetForAnnotation, pageMemoTargetKey, sheetAnnotations } from './sheet-memo'
 
@@ -38,12 +38,13 @@ export function clearAnnotationsForPage(project: CutProject, pageId: string): Cu
   return memos.length === project.memos.length ? project : { ...project, memos }
 }
 
-export function eraseAnnotations(project: CutProject, input: { pageId: string; points: AnnotationPoint[]; width: number }): CutProject {
+export function eraseAnnotations(project: CutProject, input: { pageId: string; points: AnnotationPoint[]; width: number; target?: SheetPageMemoTarget }): CutProject {
   if (input.points.length === 0 || input.width <= 0) return project
   const existingIds = new Set(sheetAnnotations(project).map(stroke => stroke.annotationId))
   let changed = false
   const memos = project.memos.map(memo => {
-    if (!isSheetPageMemo(memo) || memo.target.pageId !== input.pageId) return memo
+    if (!isSheetPageMemo(memo) || memo.target.pageId !== input.pageId
+      || (input.target && pageMemoTargetKey(memo.target) !== pageMemoTargetKey(input.target))) return memo
     const strokes = memo.strokes.flatMap(stroke => {
       if (stroke.tool !== 'pen') return [stroke]
       const parts = splitAnnotationStroke(stroke, input.points, input.width)

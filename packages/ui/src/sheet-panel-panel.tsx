@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, timelineMemos } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
-import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TimingClipboard, type WorkspaceStyle } from './appTypes'
+import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TemplateRegionAnnotationTarget, type TimingClipboard, type WorkspaceStyle } from './appTypes'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
 import { AssetTray, type DropDiagnosticReport } from './AssetBrowser'
 import { sortedCorrectionLayers } from './sheetAssets'
@@ -20,6 +20,7 @@ import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-vi
 import { FontSizeControl } from './sheet-panel-annotation'
 import { SheetHistoryRail } from './SheetHistoryRail'
 import { suppressSheetTooltips } from './sheetInteractionOwnership'
+import { resolveSheetAnnotationTarget } from './sheetAnnotationTarget'
 
 export function SheetPanel(props: {
   appKind: MainAppKind
@@ -128,6 +129,7 @@ export function SheetPanel(props: {
   onPasteCameraCues: (mode: 'overwrite' | 'insert') => void
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
   onCreateTimelineMemo: (hit: SheetHit) => string | null
+  onCreateTimelineMemoForCue: (cueId: string) => string | null
   onDeleteTimelineMemo: (memoId: string) => void
   onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void
   onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
@@ -154,7 +156,7 @@ export function SheetPanel(props: {
   onCommitTextAnnotation: (annotationId: string, text: string) => void
   onCancelTextAnnotation: (annotationId: string) => void
   onCommitFocusedTextAnnotationDraft: () => void
-  onEraseAnnotation: (pageId: string, points: AnnotationPoint[], width: number) => void
+  onEraseAnnotation: (pageId: string, points: AnnotationPoint[], width: number, target: SheetPageMemoTarget) => void
   onCalibrationPoints: (page: SheetPage, points: SheetCalibrationPointPair[], enabled?: boolean) => void
   onClearPageAnnotations: (pageId: string) => void
   onClearAllAnnotations: () => void
@@ -195,6 +197,7 @@ export function SheetPanel(props: {
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
   const [normalizationOpen, setNormalizationOpen] = useState(false)
   const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
+  const [selectedAnnotationRegion, setSelectedAnnotationRegion] = useState<TemplateRegionAnnotationTarget | null>(null)
   const editMode = props.editMode
   const setEditMode = props.setEditMode
   const activeTimelineMemoId = selectedTimelineMemoId && timelineMemos(props.project).some(memo => memo.memoId === selectedTimelineMemoId)
@@ -203,17 +206,49 @@ export function SheetPanel(props: {
   const activeTimelineMemo = activeTimelineMemoId
     ? timelineMemos(props.project).find(memo => memo.memoId === activeTimelineMemoId) ?? null
     : null
-  const memoSelectionHit = props.rangeSelection?.anchorHit ?? props.selectedHit
-  const memoTargetLabel = activeTimelineMemo
-    ? timelineMemoTargetLabel(activeTimelineMemo.anchor.role, activeTimelineMemo.anchor.paperTrack, activeTimelineMemo.anchor.frame)
-    : memoSelectionHit && ['action', 'cell', 'sound', 'camera'].includes(memoSelectionHit.role)
-      ? timelineMemoTargetLabel(
-          memoSelectionHit.role as 'action' | 'cell' | 'sound' | 'camera',
-          memoSelectionHit.paperTrack,
-          props.rangeSelection ? Math.min(props.rangeSelection.frameStart, props.rangeSelection.frameEnd) : memoSelectionHit.frame,
-          props.rangeSelection ? Math.max(props.rangeSelection.frameStart, props.rangeSelection.frameEnd) : undefined,
-        )
-      : activePage ? `${activePage.pageIndex + 1}ページ` : 'ページ'
+  const selectedCueId = props.selectedSoundCueId ?? props.selectedCameraCueId
+  const selectedCue = selectedCueId ? props.project.timedRangeCues.find(cue => cue.cueId === selectedCueId) ?? null : null
+  const selectedTextAnnotation = props.selectedTextAnnotationId
+    ? sheetAnnotations(props.project).find(annotation => annotation.annotationId === props.selectedTextAnnotationId) ?? null
+    : null
+  const selectedTextRegionId = selectedTextAnnotation?.anchor?.kind === 'view-surface'
+    ? selectedTextAnnotation.anchor.regionId
+    : undefined
+  const selectedTextRegion = selectedTextRegionId
+    ? {
+        kind: 'template-region' as const,
+        pageId: selectedTextAnnotation!.pageId,
+        templateId: selectedTextAnnotation!.anchor?.kind === 'view-surface'
+          ? selectedTextAnnotation!.anchor.templateId ?? props.template.templateId
+          : props.template.templateId,
+        regionId: selectedTextRegionId,
+        label: props.template.regions.find(region => region.regionId === selectedTextRegionId)?.label ?? selectedTextRegionId,
+      }
+    : null
+  const activeSelectedAnnotationRegion = props.selectedTextAnnotationId
+    ? selectedTextRegion
+    : selectedAnnotationRegion
+    && selectedAnnotationRegion.pageId === activePage?.pageId
+    && selectedAnnotationRegion.templateId === props.template.templateId
+    ? selectedAnnotationRegion
+    : null
+  const annotationTarget = resolveSheetAnnotationTarget({
+    activeMemo: activeTimelineMemo,
+    selectedCue,
+    selectedHit: props.selectedHit,
+    rangeSelection: props.rangeSelection,
+    selectedRegion: activeSelectedAnnotationRegion,
+    activePage: activePage ?? null,
+    cues: props.project.timedRangeCues,
+  })
+  const pageAnnotationTarget: SheetPageMemoTarget = annotationTarget.kind === 'template-region'
+    ? {
+        kind: 'template-region',
+        pageId: annotationTarget.region.pageId,
+        templateId: annotationTarget.region.templateId,
+        regionId: annotationTarget.region.regionId,
+      }
+    : { kind: 'page', pageId: activePage?.pageId ?? 'page_1', templateId: props.template.templateId }
   const beginTimelineMemoEdit = useCallback((memoId: string, mode: Extract<EditMode, 'pen' | 'text'> = 'pen') => {
     setSelectedTimelineMemoId(memoId)
     setEditMode(mode)
@@ -542,7 +577,10 @@ export function SheetPanel(props: {
                           type="button"
                           className={page.pageIndex === props.activePageIndex ? 'pageJumpPageButton active' : 'pageJumpPageButton'}
                           aria-pressed={page.pageIndex === props.activePageIndex}
-                          onClick={() => props.setActivePageIndex(page.pageIndex)}
+                          onClick={() => {
+                            setSelectedAnnotationRegion(null)
+                            props.setActivePageIndex(page.pageIndex)
+                          }}
                         >
                           {uiText.sheet.pageTab(page.pageIndex + 1)}
                         </button>
@@ -665,6 +703,7 @@ export function SheetPanel(props: {
           ].filter(Boolean).join(' ')}
           aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
           data-annotation-target={activeTimelineMemoId ? 'timeline-memo' : 'sheet'}
+          data-annotation-target-kind={annotationTarget.kind}
         >
           <button
             type="button"
@@ -680,7 +719,7 @@ export function SheetPanel(props: {
             {activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
           </span>
           <span className="annotationTargetLabel">
-            対象: {memoTargetLabel}
+            対象: {annotationTarget.label}
           </span>
           <Tooltip label={activeTimelineMemoId ? uiText.sheet.timelineMemoPenTool : uiText.sheet.penTool}>
             <button
@@ -693,8 +732,13 @@ export function SheetPanel(props: {
                   props.setEditMode('new')
                   return
                 }
-                if (!activeTimelineMemoId && memoSelectionHit && ['action', 'cell', 'sound', 'camera'].includes(memoSelectionHit.role)) {
-                  const memoId = props.onCreateTimelineMemo(memoSelectionHit)
+                if (!activeTimelineMemoId && annotationTarget.kind === 'timed-cue') {
+                  const memoId = props.onCreateTimelineMemoForCue(annotationTarget.cue.cueId)
+                  if (memoId) beginTimelineMemoEdit(memoId)
+                  return
+                }
+                if (!activeTimelineMemoId && annotationTarget.kind === 'timeline-range') {
+                  const memoId = props.onCreateTimelineMemo(annotationTarget.hit)
                   if (memoId) beginTimelineMemoEdit(memoId)
                   return
                 }
@@ -715,8 +759,13 @@ export function SheetPanel(props: {
                   props.setEditMode('new')
                   return
                 }
-                if (!activeTimelineMemoId && memoSelectionHit && ['action', 'cell', 'sound', 'camera'].includes(memoSelectionHit.role)) {
-                  const memoId = props.onCreateTimelineMemo(memoSelectionHit)
+                if (!activeTimelineMemoId && annotationTarget.kind === 'timed-cue') {
+                  const memoId = props.onCreateTimelineMemoForCue(annotationTarget.cue.cueId)
+                  if (memoId) beginTimelineMemoEdit(memoId, 'text')
+                  return
+                }
+                if (!activeTimelineMemoId && annotationTarget.kind === 'timeline-range') {
+                  const memoId = props.onCreateTimelineMemo(annotationTarget.hit)
                   if (memoId) beginTimelineMemoEdit(memoId, 'text')
                   return
                 }
@@ -846,6 +895,40 @@ export function SheetPanel(props: {
           <SheetCanvas
             {...props}
             selectedTimelineMemoId={activeTimelineMemoId}
+            pageAnnotationTarget={pageAnnotationTarget}
+            setActivePageIndex={pageIndex => {
+              setSelectedAnnotationRegion(null)
+              props.setActivePageIndex(pageIndex)
+            }}
+            onCellClick={hit => {
+              setSelectedAnnotationRegion(null)
+              props.onCellClick(hit)
+            }}
+            onCellSelect={hit => {
+              setSelectedAnnotationRegion(null)
+              props.onCellSelect(hit)
+            }}
+            onRangeSelect={range => {
+              setSelectedAnnotationRegion(null)
+              props.onRangeSelect(range)
+            }}
+            onSoundCueSelect={cueId => {
+              setSelectedAnnotationRegion(null)
+              props.onSoundCueSelect(cueId)
+            }}
+            onCameraCueSelect={cueId => {
+              setSelectedAnnotationRegion(null)
+              props.onCameraCueSelect(cueId)
+            }}
+            onClearSelection={() => {
+              setSelectedAnnotationRegion(null)
+              props.onClearSelection()
+            }}
+            onSelectTemplateRegionAnnotationTarget={target => {
+              setSelectedAnnotationRegion(target)
+              setSelectedTimelineMemoId(null)
+              props.onClearSelection()
+            }}
             onCreateTimelineMemo={hit => {
               const memoId = props.onCreateTimelineMemo(hit)
               if (memoId) beginTimelineMemoEdit(memoId)
@@ -915,15 +998,4 @@ export function SheetPanel(props: {
     </section>
     </TooltipSuppressionProvider>
   )
-}
-
-function timelineMemoTargetLabel(
-  role: 'action' | 'cell' | 'sound' | 'camera',
-  paperTrack: string | undefined,
-  frameStart: number,
-  frameEnd?: number,
-): string {
-  const track = paperTrack ? ` ${paperTrack}` : ''
-  const frames = frameEnd === undefined || frameEnd === frameStart ? `${frameStart}F` : `${frameStart}-${frameEnd}F`
-  return `${role.toUpperCase()}${track} ${frames}`
 }

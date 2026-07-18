@@ -103,7 +103,9 @@ function nextTimelineMemoStrokePartId(existingIds: Set<string>, baseId: string, 
 }
 
 export function insertTimelineMemoAnchors(memos: readonly TimelineInkMemo[], atFrame: number, frameCount: number): TimelineInkMemo[] {
-  return memos.map(memo => memo.anchor.frame >= atFrame
+  return memos.map(memo => memo.anchor.cueId
+    ? memo
+    : memo.anchor.frame >= atFrame
     ? { ...memo, anchor: { ...memo.anchor, frame: memo.anchor.frame + frameCount } }
     : memo)
 }
@@ -115,6 +117,7 @@ export function deleteTimelineMemoAnchors(
   frameCount: number,
 ): TimelineInkMemo[] {
   return memos.flatMap(memo => {
+    if (memo.anchor.cueId) return [memo]
     if (memo.anchor.frame >= frameStart && memo.anchor.frame <= frameEnd) return []
     return [memo.anchor.frame > frameEnd
       ? { ...memo, anchor: { ...memo.anchor, frame: memo.anchor.frame - frameCount } }

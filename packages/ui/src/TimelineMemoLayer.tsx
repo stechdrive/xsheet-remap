@@ -86,6 +86,7 @@ export function TimelineMemoLayer({
     anchorFrame: number
     anchorRole: TimelineInkMemo['anchor']['role']
     anchorPaperTrack?: string
+    anchorCueIds: string[]
     presentation: SheetMemoAnchorPresentation
     memoIds: string[]
   }>()
@@ -94,12 +95,16 @@ export function TimelineMemoLayer({
     if (!anchorCell) continue
     const key = [anchorCell.regionId, memo.anchor.role, memo.anchor.frame, memo.anchor.paperTrack ?? '', memo.anchor.laneId ?? ''].join(':')
     const existing = anchorGroups.get(key)
-    if (existing) existing.memoIds.push(memo.memoId)
+    if (existing) {
+      existing.memoIds.push(memo.memoId)
+      if (memo.anchor.cueId && !existing.anchorCueIds.includes(memo.anchor.cueId)) existing.anchorCueIds.push(memo.anchor.cueId)
+    }
     else anchorGroups.set(key, {
       anchorCell,
       anchorFrame: memo.anchor.frame,
       anchorRole: memo.anchor.role,
       anchorPaperTrack: memo.anchor.paperTrack,
+      anchorCueIds: memo.anchor.cueId ? [memo.anchor.cueId] : [],
       presentation: memoAnchorPresentation(memo),
       memoIds: [memo.memoId],
     })
@@ -374,6 +379,7 @@ export function TimelineMemoLayer({
             data-timeline-memo-anchor-frame={group.anchorFrame}
             data-timeline-memo-anchor-role={group.anchorRole}
             data-timeline-memo-anchor-track={group.anchorPaperTrack}
+            data-timeline-memo-anchor-cue-ids={group.anchorCueIds.join(' ') || undefined}
             data-timeline-memo-count={memoCount}
             aria-label={memoCount === 1 ? 'メモのアンカー' : `メモのアンカー ${memoCount}件`}
           >

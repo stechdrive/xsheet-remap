@@ -42,6 +42,23 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
     await waitFor(() => expect(document.querySelector('.timelineMemoText')?.textContent).toBe('確認メモ'))
   })
 
+it('selects TITLE and MEMO form regions as floating annotation targets', () => {
+    render(<App />)
+    const title = screen.getByRole('button', { name: 'タイトルを編集' })
+    const memo = screen.getByRole('button', { name: 'MEMOを編集' })
+
+    fireEvent.click(title)
+    fireEvent.click(screen.getByRole('button', { name: 'メモツールを開く' }))
+    expect(document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-target-kind')).toBe('template-region')
+    expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('対象: タイトル')
+    expect(title.getAttribute('data-annotation-target-selected')).toBe('true')
+
+    fireEvent.click(memo)
+    expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('対象: MEMO')
+    expect(memo.getAttribute('data-annotation-target-selected')).toBe('true')
+    expect(title.hasAttribute('data-annotation-target-selected')).toBe(false)
+  })
+
 it('shows a dedicated cell cue for asset and CSP card drop targets', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
@@ -1056,6 +1073,17 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
     expect(screen.getByRole('tooltip').textContent).toContain('走れ！')
     fireEvent.pointerLeave(cue)
 
+    const selectedSoundBody = cue.querySelector<SVGRectElement>('.soundCueBody')!
+    fireEvent.pointerDown(selectedSoundBody, { pointerId: 79, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerUp(cue, { pointerId: 79, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(2) })
+    fireEvent.click(screen.getByRole('button', { name: 'メモツールを開く' }))
+    expect(document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-target-kind')).toBe('timed-cue')
+    expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('SOUND「アキラ」 1-6F')
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.penTool }))
+    await waitFor(() => expect(document.querySelector('.timelineMemoAnchorCue.selected')?.getAttribute('data-timeline-memo-anchor-cue-ids')).toBe('cue_1'))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(document.querySelector('.timelineMemoSegment.selected')).toBeNull())
+
     const cellFrame = templateFramePoint('cell', 'A', 20)
     fireEvent.pointerDown(sheet, { pointerId: 80, pointerType: 'mouse', button: 0, buttons: 1, clientX: cellFrame.x, clientY: cellFrame.y })
     await waitFor(() => expectSelectedHit('cell', 'A', 20))
@@ -1144,6 +1172,17 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
       && item.querySelector(':scope > g[transform] > text'),
     )).toBe(true)
     expect(screen.queryByRole('dialog', { name: '撮影指示' })).toBeNull()
+
+    const selectedCameraShape = cue.querySelector<SVGPolylineElement>('.cameraCueShapeHit')!
+    fireEvent.pointerDown(selectedCameraShape, { pointerId: 100, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
+    fireEvent.pointerUp(cue, { pointerId: 100, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(2) })
+    fireEvent.click(screen.getByRole('button', { name: 'メモツールを開く' }))
+    expect(document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-target-kind')).toBe('timed-cue')
+    expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('CAMERA「OL」 1-12F')
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.penTool }))
+    await waitFor(() => expect(document.querySelector('.timelineMemoAnchorCue.selected')?.getAttribute('data-timeline-memo-anchor-cue-ids')).toBe('cue_1'))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(document.querySelector('.timelineMemoSegment.selected')).toBeNull())
 
     const actionFrame = templateFramePoint('action', 'A', 20)
     fireEvent.pointerDown(sheet, { pointerId: 103, pointerType: 'mouse', button: 0, buttons: 1, clientX: actionFrame.x, clientY: actionFrame.y })

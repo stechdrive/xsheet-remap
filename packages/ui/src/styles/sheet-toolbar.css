@@ -1689,3 +1689,25 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 .annotationClearMenu.actionMenuContent {
   min-width: 148px;
 }
+
+.annotationAppearanceMenu.actionMenuContent {
+  min-width: 220px;
+}
+
+.annotationAppearanceControl {
+  display: grid;
+  grid-template-columns: 58px 1fr 30px;
+  align-items: center;
+  gap: 6px;
+}
+
+.annotationAppearanceControl output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.annotationBackgroundToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

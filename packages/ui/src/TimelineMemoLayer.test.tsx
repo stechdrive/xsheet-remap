@@ -356,4 +356,77 @@ describe('TimelineMemoLayer anchor cues', () => {
 
     expect(onUpsertText).toHaveBeenCalledWith(source.memoId, expect.objectContaining({ textId: 'text_1', text: '更新' }))
   })
+
+  it('keeps the inline editor and committed text at the same logical font size across zoom', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const source = memo('memo_1')
+    source.texts = [{ textId: 'text_1', text: '同じ大きさ', color: '#123456', x: 1, y: 1, fontSizeUnits: 1.4 }]
+    const { container, getByLabelText } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[source]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.79, heightPx: pageSize.heightPx * 0.79 }}
+          selectedMemoId={source.memoId}
+          editMode="text"
+          zoom={0.79}
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          textFontSizePx={18}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+    const rendered = container.querySelector<SVGTextElement>('[data-timeline-memo-text-id="text_1"]')!
+    fireEvent.doubleClick(rendered)
+    const editor = getByLabelText('メモ文字') as HTMLTextAreaElement
+    const committedDisplayPx = Number(rendered.getAttribute('font-size')) * pageSize.heightPx * 0.79
+    expect(Number.parseFloat(editor.style.fontSize)).toBeCloseTo(committedDisplayPx, 5)
+    expect(editor.classList.contains('timelineMemoTextEditor')).toBe(true)
+  })
+
+  it('renders shared background and independent ink/text opacity from memo appearance', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const source = memo('memo_1')
+    source.appearance = {
+      inkOpacity: 0.35,
+      textOpacity: 0.6,
+      background: { enabled: true, color: '#ffee88', opacity: 0.25 },
+    }
+    source.texts = [{ textId: 'text_1', text: '注釈', color: '#123456', x: 1, y: 1, fontSizeUnits: 1 }]
+    const { container } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[source]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={pageSize}
+          selectedMemoId={null}
+          editMode="new"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          textFontSizePx={18}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+    expect(container.querySelector('[data-memo-background="solid"]')?.getAttribute('fill')).toBe('#ffee88')
+    expect(container.querySelector('.timelineMemoInkLayer')?.getAttribute('opacity')).toBe('0.35')
+    expect(container.querySelector('.timelineMemoTextLayer')?.getAttribute('opacity')).toBe('0.6')
+  })
 })

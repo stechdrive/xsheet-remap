@@ -15,6 +15,7 @@ import {
 } from '@xsheet-remap/core'
 import type { SheetRangeSelection } from './appTypes'
 import { timedRangeLaneIdForHit } from './timedRangeCueEditing'
+import { timelineMemoAnchorCellForPage, timelineMemoSegmentsForPage } from './timelineMemoGeometry'
 
 const MEMO_ROLES = new Set<TimelineMemoRole>(['action', 'cell', 'sound', 'camera'])
 
@@ -74,7 +75,7 @@ export function createTimelineMemoForHit(
   const frameStart = matchingRange ? Math.min(matchingRange.frameStart, matchingRange.frameEnd) : hit.frame
   const selectedHeight = matchingRange ? Math.abs(matchingRange.frameEnd - matchingRange.frameStart) + 1 : null
   const dimensions = initialTimelineMemoDimensions(template, project, hit, selectedHeight)
-  return {
+  const memo: TimelineInkMemo = {
     kind: 'timeline',
     memoId: nextTimelineMemoId(timelineMemos(project)),
     anchor: {
@@ -93,6 +94,7 @@ export function createTimelineMemoForHit(
     texts: [],
     order: project.memos.reduce((maximum, item) => Math.max(maximum, item.order), 0) + 1,
   }
+  return withInitialTimelineMemoPlacement(project, template, hit.pageId, memo, selectedHeight ?? 1)
 }
 
 export function createTimelineMemoForCue(
@@ -104,7 +106,7 @@ export function createTimelineMemoForCue(
   if (!hit) return null
   const memo = createTimelineMemoForHit(project, template, hit, null)
   if (!memo) return null
-  return {
+  const cueMemo: TimelineInkMemo = {
     ...memo,
     anchor: {
       ...memo.anchor,
@@ -117,6 +119,79 @@ export function createTimelineMemoForCue(
       heightFrames: Math.max(memo.placement.heightFrames, cue.frameEnd - cue.frameStart + 1),
     },
   }
+  return withInitialTimelineMemoPlacement(project, template, hit.pageId, cueMemo, cue.frameEnd - cue.frameStart + 1)
+}
+
+/**
+ * Places a new bounded memo beside its source before considering an overlap.
+ * The score is template geometry based, so paper/digital/custom sheets share
+ * the same policy without storing screen pixels in the project.
+ */
+export function withInitialTimelineMemoPlacement(
+  project: CutProject,
+  template: SheetTemplate,
+  pageId: string | undefined,
+  memo: TimelineInkMemo,
+  sourceHeightFrames: number,
+): TimelineInkMemo {
+  const displayDuration = logicalSheetDisplayDurationFrames(project.logicalSheet)
+  const displayStart = logicalSheetDisplayFrameStart(project.logicalSheet)
+  const pages = createSheetPages(template, displayDuration, displayStart)
+  const page = pages.find(item => item.pageId === pageId)
+    ?? pages.find(item => memo.anchor.frame >= item.frameStart && memo.anchor.frame <= item.frameEnd)
+  if (!page) return memo
+  const geometryOptions = {
+    paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
+    layoutOverrides: project.sheetView.layoutOverrides,
+  }
+  const anchorCell = timelineMemoAnchorCellForPage(template, page, memo, geometryOptions)
+  if (!anchorCell) return memo
+  const rowHeightX = anchorCell.rect.h * template.page.heightPx / template.page.widthPx
+  const rowHeightY = anchorCell.rect.h
+  const columnWidthUnits = anchorCell.rect.w / Math.max(Number.EPSILON, rowHeightX)
+  const gapUnits = 0.45
+  const gapFrames = 0.45
+  const candidates = [
+    { ...memo.placement, crossOffsetUnits: columnWidthUnits + gapUnits, frameOffset: 0 },
+    { ...memo.placement, crossOffsetUnits: -memo.placement.widthUnits - gapUnits, frameOffset: 0 },
+    { ...memo.placement, crossOffsetUnits: 0, frameOffset: Math.max(1, sourceHeightFrames) + gapFrames },
+    { ...memo.placement, crossOffsetUnits: 0, frameOffset: -memo.placement.heightFrames - gapFrames },
+    memo.placement,
+  ]
+  const sourceRect = {
+    x: anchorCell.rect.x,
+    y: anchorCell.rect.y,
+    w: anchorCell.rect.w,
+    h: Math.max(1, sourceHeightFrames) * rowHeightY,
+  }
+  const occupied = timelineMemos(project).flatMap(existing => timelineMemoSegmentsForPage(template, page, existing, geometryOptions).map(segment => segment.rect))
+  const scored = candidates.map((placement, index) => {
+    const rect = {
+      x: anchorCell.rect.x + placement.crossOffsetUnits * rowHeightX,
+      y: anchorCell.rect.y + placement.frameOffset * rowHeightY,
+      w: placement.widthUnits * rowHeightX,
+      h: placement.heightFrames * rowHeightY,
+    }
+    const overflow = Math.max(0, -rect.x) + Math.max(0, -rect.y)
+      + Math.max(0, rect.x + rect.w - 1) + Math.max(0, rect.y + rect.h - 1)
+    const sourceOverlap = normalizedRectIntersectionArea(rect, sourceRect)
+    const occupiedOverlap = occupied.reduce((sum, item) => sum + normalizedRectIntersectionArea(rect, item), 0)
+    return {
+      placement,
+      score: overflow * 100_000 + sourceOverlap * 1_000_000 + occupiedOverlap * 10_000 + index,
+    }
+  })
+  scored.sort((left, right) => left.score - right.score)
+  return { ...memo, placement: scored[0]?.placement ?? memo.placement }
+}
+
+function normalizedRectIntersectionArea(
+  left: { x: number; y: number; w: number; h: number },
+  right: { x: number; y: number; w: number; h: number },
+): number {
+  const width = Math.max(0, Math.min(left.x + left.w, right.x + right.w) - Math.max(left.x, right.x))
+  const height = Math.max(0, Math.min(left.y + left.h, right.y + right.h) - Math.max(left.y, right.y))
+  return width * height
 }
 
 function sheetHitForTimedRangeCue(project: CutProject, template: SheetTemplate, cue: TimedRangeCue): SheetHit | null {

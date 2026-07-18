@@ -18,6 +18,7 @@ export type {
   AnnotationRegionAnchor,
   AnnotationTimelineAnchor,
   AnnotationViewSurfaceAnchor,
+  MemoAppearance,
   SheetMemo,
   SheetMemoAnchorPresentation,
   SheetMemoTargetKind,
@@ -129,6 +130,10 @@ export {
   sheetPageMemos,
   timelineMemos,
 } from './sheet-memo'
+export {
+  DEFAULT_MEMO_APPEARANCE,
+  normalizeMemoAppearance,
+} from './memo-appearance'
 export {
   PROJECT_ARCHIVE_FEATURE_VERSIONS,
   PROJECT_ARCHIVE_FORMAT_VERSION,
@@ -361,6 +366,7 @@ export {
   nextTimelineMemoId,
   nextTimelineMemoStrokeId,
   updateTimelineMemo,
+  updateTimelineMemoAppearance,
   updateTimelineMemoPlacement,
 } from './timeline-memo'
 export type { CutTimelineFrameEdit, TimedRangeCueInput, TimedRangeCueUpdates } from './project'

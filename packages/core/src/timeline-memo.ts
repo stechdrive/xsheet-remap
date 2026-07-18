@@ -1,4 +1,5 @@
-import type { CutProject, TimelineInkMemo, TimelineMemoPlacement, TimelineMemoPoint, TimelineMemoStroke, TimelineMemoText } from './types'
+import type { CutProject, MemoAppearance, TimelineInkMemo, TimelineMemoPlacement, TimelineMemoPoint, TimelineMemoStroke, TimelineMemoText } from './types'
+import { normalizeMemoAppearance } from './memo-appearance'
 import { splitPolylineByEraser } from './polyline-eraser'
 import { isTimelineMemo, timelineMemos } from './sheet-memo'
 
@@ -9,7 +10,7 @@ export function addTimelineMemo(project: CutProject, memo: TimelineInkMemo): Cut
 export function updateTimelineMemo(
   project: CutProject,
   memoId: string,
-  updates: Partial<Pick<TimelineInkMemo, 'anchor' | 'placement' | 'strokes' | 'texts' | 'order'>>,
+  updates: Partial<Pick<TimelineInkMemo, 'anchor' | 'placement' | 'strokes' | 'texts' | 'appearance' | 'order'>>,
 ): CutProject {
   let changed = false
   const memos = project.memos.map(memo => {
@@ -19,6 +20,10 @@ export function updateTimelineMemo(
     return { ...memo, ...updates }
   })
   return changed ? { ...project, memos } : project
+}
+
+export function updateTimelineMemoAppearance(project: CutProject, memoId: string, appearance: MemoAppearance): CutProject {
+  return updateTimelineMemo(project, memoId, { appearance: normalizeMemoAppearance(appearance) })
 }
 
 export function updateTimelineMemoPlacement(project: CutProject, memoId: string, placement: TimelineMemoPlacement): CutProject {

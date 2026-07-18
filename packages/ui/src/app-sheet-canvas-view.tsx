@@ -1,4 +1,5 @@
 import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, sheetAnnotationStrokes, sheetAnnotationTexts, timelineMemos, type SheetHit } from '@xsheet-remap/core';
+import { useState, type ReactNode } from 'react'
 import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
 import { getSheetPageImage } from './sheetImages';
@@ -20,6 +21,28 @@ import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { TimingEventSymbol } from './TimingEventSymbol'
 import { continuationRenderItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
+
+function SheetPageSurface({
+  interactionOwner,
+  width,
+  height,
+  children,
+}: {
+  interactionOwner: string
+  width: number
+  height: number
+  children: (host: HTMLDivElement | null) => ReactNode
+}) {
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  return <div
+    className="sheetPageSurface"
+    data-sheet-interaction-owner={interactionOwner}
+    style={{ width: `${width}px`, height: `${height}px` }}
+    ref={setHost}
+  >
+    {children(host)}
+  </div>
+}
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
@@ -153,19 +176,16 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               className={page.pageIndex === props.activePageIndex ? 'sheetPage active' : 'sheetPage'}
               aria-label={pageAccessibleLabel}
             >
-              <div
-                className="sheetPageSurface"
-                data-sheet-interaction-owner={interactionOwner}
-                style={{ width: `${sheetPageWidth}px`, height: `${sheetPageHeight}px` }}
-              >
+              <SheetPageSurface interactionOwner={interactionOwner} width={sheetPageWidth} height={sheetPageHeight}>
+                {editorHost => <>
                 <svg
                   viewBox="0 0 1 1"
                   preserveAspectRatio="none"
                   className={[
                     'sheetSvg',
                     draftCalibration?.pageId === page.pageId ? 'calibrationDragging' : '',
-                    props.editMode === 'text' ? 'textAnnotationMode' : '',
-                    props.editMode === 'text' && !props.editingTextAnnotationId ? 'textAnnotationPlacementMode' : '',
+                    props.editMode === 'text' && interactionOwner !== 'timeline-memo' ? 'textAnnotationMode' : '',
+                    props.editMode === 'text' && pageAnnotationCaptureActive && !props.editingTextAnnotationId ? 'textAnnotationPlacementMode' : '',
                   ].filter(Boolean).join(' ')}
                   data-page-id={page.pageId}
                   ref={element => {
@@ -388,15 +408,19 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       pageSize={sheetPageSize}
                       surface={selectionSurface}
                       selectedMemoId={props.selectedTimelineMemoId}
+                      selectedTextId={props.selectedTimelineMemoTextId}
                       editMode={props.editMode}
                       penColor={props.penColor}
                       penWidth={props.penWidth}
                       eraserWidth={props.eraserWidth}
                       textFontSizePx={props.textFontSizePx}
+                      zoom={props.zoom}
+                      editorHost={editorHost}
                       onAppendStroke={props.onAppendTimelineMemoStroke}
                       onEraseStroke={props.onEraseTimelineMemoStroke}
                       onUpsertText={props.onUpsertTimelineMemoText}
                       onUpdatePlacement={props.onUpdateTimelineMemoPlacement}
+                      onSelectText={props.onSelectTimelineMemoText}
                     />
                   )}
                   {strokes.map(stroke => (
@@ -505,7 +529,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     )}
                   </svg>
                 )}
-                {props.editMode === 'text' && !props.editingTextAnnotationId && textCursorBadge?.pageId === page.pageId && (
+                {props.editMode === 'text' && pageAnnotationCaptureActive && !props.editingTextAnnotationId && textCursorBadge?.pageId === page.pageId && (
                   <div
                     className="textCursorBadge"
                     style={{ left: `${textCursorBadge.x}px`, top: `${textCursorBadge.y}px` }}
@@ -551,7 +575,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   />
                 )}
                 {hoverRect && <HoverCellOverlay rect={hoverRect} />}
-              </div>
+                </>}
+              </SheetPageSurface>
             </figure>
           )
         })}

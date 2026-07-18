@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject } from './project-model'
-import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, updateTimelineMemoPlacement, upsertTimelineMemoText } from './timeline-memo'
+import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText } from './timeline-memo'
 import { timelineMemos } from './sheet-memo'
+import { normalizeMemoAppearance } from './memo-appearance'
 import type { TimelineInkMemo } from './types'
 
 describe('timeline memos', () => {
@@ -99,5 +100,32 @@ describe('timeline memos', () => {
       { textId: 'text_1', text: 'TU', color: '#654321', x: 2, y: 3, fontSizeUnits: 0.25 },
     ])
     expect(timelineMemos(removed)[0]?.texts).toEqual([])
+  })
+
+  it('normalizes and updates bounded memo appearance as project data', () => {
+    const source = addTimelineMemo(createDefaultProject(), {
+      kind: 'timeline',
+      memoId: 'timeline_memo_1',
+      anchor: { role: 'sound', frame: 1, laneId: 'sound_lane_1' },
+      placement: { frameOffset: 0, crossOffsetUnits: 0, widthUnits: 8, heightFrames: 12 },
+      strokes: [],
+      order: 1,
+    })
+    const updated = updateTimelineMemoAppearance(source, 'timeline_memo_1', {
+      inkOpacity: 2,
+      textOpacity: -1,
+      background: { enabled: true, color: '#abcdef', opacity: 0.42 },
+    })
+
+    expect(normalizeMemoAppearance(timelineMemos(source)[0]?.appearance)).toMatchObject({
+      inkOpacity: 1,
+      textOpacity: 1,
+      background: { enabled: false },
+    })
+    expect(timelineMemos(updated)[0]?.appearance).toEqual({
+      inkOpacity: 1,
+      textOpacity: 0,
+      background: { enabled: true, color: '#abcdef', opacity: 0.42 },
+    })
   })
 })

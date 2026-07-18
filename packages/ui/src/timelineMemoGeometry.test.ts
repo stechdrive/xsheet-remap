@@ -118,6 +118,12 @@ describe('timeline memo geometry', () => {
       role: 'sound', laneId: 'sound_lane_1', frame: 10, cueId: created.cue.cueId,
     })
     expect(memo?.placement.heightFrames).toBeGreaterThanOrEqual(9)
+    expect(memo?.placement.crossOffsetUnits).not.toBe(0)
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const anchor = timelineMemoAnchorCellForPage(standardA3SheetTemplate, page, memo!, { paperTracks: ['A'] })!.rect
+    const segment = timelineMemoSegmentsForPage(standardA3SheetTemplate, page, memo!, { paperTracks: ['A'] })[0]!.rect
+    const overlapsHorizontally = Math.min(anchor.x + anchor.w, segment.x + segment.w) > Math.max(anchor.x, segment.x)
+    expect(overlapsHorizontally).toBe(false)
   })
 
   it('preserves the stored memo aspect when switching between paper and digital templates', () => {

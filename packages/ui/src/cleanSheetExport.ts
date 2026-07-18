@@ -2,6 +2,7 @@ import {
   getSheetViewLayout,
   isRenderableSheetTemplateGridRegion,
   memoAnchorPresentation,
+  normalizeMemoAppearance,
   resolveSheetTemplateGridLayout,
   sheetAnnotationStrokes,
   sheetAnnotationTexts,
@@ -86,6 +87,7 @@ type SheetExportLayerId =
   | 'timingInput'
   | 'soundCues'
   | 'cameraCues'
+  | 'annotationBackground'
   | 'annotationInk'
   | 'annotationText'
 
@@ -264,6 +266,7 @@ function sheetExportLayerDescriptorsForContext(
   for (const id of timedRangeCueExportLayerIds(context.project)) {
     layers.push({ id, name: id === 'soundCues' ? 'SOUND指示' : 'CAMERA指示' })
   }
+  layers.push({ id: 'annotationBackground', name: 'メモ・背景' })
   layers.push({ id: 'annotationInk', name: 'メモ・手描き' })
   layers.push({ id: 'annotationText', name: 'メモ・テキスト' })
   return layers
@@ -289,6 +292,7 @@ async function renderSheetExportLayer(
   if (id === 'timingInput') return renderTimingInputLayer(context)
   if (id === 'soundCues') return renderSoundCueLayer(context)
   if (id === 'cameraCues') return renderCameraCueLayer(context)
+  if (id === 'annotationBackground') return renderTimelineMemoBackgroundLayer(context)
   if (id === 'annotationInk') return alphaComposite(renderSheetAnnotationInkLayer(context), renderTimelineMemoLayer(context))
   return renderAnnotationTextLayer(context)
 }
@@ -1137,6 +1141,7 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
     for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
+      const appearance = normalizeMemoAppearance(memo.appearance)
       const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
         paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
         layoutOverrides: context.project.sheetView.layoutOverrides,
@@ -1176,6 +1181,7 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
       }
       for (const segment of segments) {
         ctx.save()
+        ctx.globalAlpha = appearance.inkOpacity
         ctx.beginPath()
         ctx.rect(
           segment.rect.x * context.pageSize.widthPx,
@@ -1208,6 +1214,36 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
   return ctx.getImageData(0, 0, context.width, context.height)
 }
 
+function renderTimelineMemoBackgroundLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
+      const appearance = normalizeMemoAppearance(memo.appearance)
+      if (!appearance.background.enabled || appearance.background.opacity <= 0) continue
+      const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
+        paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+        layoutOverrides: context.project.sheetView.layoutOverrides,
+      })
+      ctx.save()
+      ctx.globalAlpha = appearance.background.opacity
+      ctx.fillStyle = appearance.background.color
+      for (const segment of segments) {
+        ctx.fillRect(
+          segment.rect.x * context.pageSize.widthPx,
+          offsetY + segment.rect.y * context.pageSize.heightPx,
+          segment.rect.w * context.pageSize.widthPx,
+          segment.rect.h * context.pageSize.heightPx,
+        )
+      }
+      ctx.restore()
+    }
+  }
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
 function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -1229,6 +1265,7 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
       })
     }
     for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
+      const appearance = normalizeMemoAppearance(memo.appearance)
       const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
         paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
         layoutOverrides: context.project.sheetView.layoutOverrides,
@@ -1237,6 +1274,7 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
         const texts = (memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd)
         if (texts.length === 0) continue
         ctx.save()
+        ctx.globalAlpha = appearance.textOpacity
         ctx.beginPath()
         ctx.rect(
           segment.rect.x * context.pageSize.widthPx,

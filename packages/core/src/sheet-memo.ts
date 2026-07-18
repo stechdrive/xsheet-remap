@@ -9,6 +9,7 @@ import type {
   SheetPageMemoTarget,
   TimelineInkMemo,
 } from './types'
+import { normalizeMemoAppearance } from './memo-appearance'
 
 export function isSheetPageMemo(memo: SheetMemo): memo is SheetPageMemo {
   return memo.kind === 'page'
@@ -97,6 +98,7 @@ export function normalizeSheetMemos(input: unknown): SheetMemo[] {
         target,
         strokes: Array.isArray(memo.strokes) ? memo.strokes as AnnotationStroke[] : [],
         texts: Array.isArray(memo.texts) ? memo.texts as AnnotationText[] : [],
+        appearance: memo.appearance ? normalizeMemoAppearance(memo.appearance) : undefined,
         order: typeof memo.order === 'number' ? memo.order : index + 1,
       })
       return
@@ -107,6 +109,7 @@ export function normalizeSheetMemos(input: unknown): SheetMemo[] {
         kind: 'timeline',
         strokes: Array.isArray(memo.strokes) ? memo.strokes as TimelineInkMemo['strokes'] : [],
         texts: Array.isArray(memo.texts) ? memo.texts as NonNullable<TimelineInkMemo['texts']> : [],
+        appearance: memo.appearance ? normalizeMemoAppearance(memo.appearance) : undefined,
         order: typeof memo.order === 'number' ? memo.order : index + 1,
       })
     }

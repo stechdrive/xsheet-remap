@@ -44,6 +44,7 @@ export type SheetCanvasProps = {
   selectedSoundCueId: string | null
   selectedCameraCueId: string | null
   selectedTimelineMemoId: string | null
+  selectedTimelineMemoTextId: string | null
   pageAnnotationTarget: SheetPageMemoTarget
   timingDraftValue: string
   timingDraftActive: boolean
@@ -99,6 +100,7 @@ export type SheetCanvasProps = {
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
   onCreateTimelineMemo: (hit: SheetHit) => void
   onSelectTimelineMemo: (memoId: string | null) => void
+  onSelectTimelineMemoText: (memoId: string, textId: string) => void
   onDeleteTimelineMemo: (memoId: string) => void
   onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void
   onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void

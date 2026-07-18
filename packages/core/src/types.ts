@@ -328,6 +328,17 @@ export interface SheetPageMemoTarget {
   surfaceSize?: AnnotationSurfaceSize
 }
 
+/** Visual treatment shared by bounded memo regions. Values are normalized 0..1. */
+export interface MemoAppearance {
+  inkOpacity: number
+  textOpacity: number
+  background: {
+    enabled: boolean
+    color: string
+    opacity: number
+  }
+}
+
 /**
  * Page and form-region memos share one container.  Stroke/text coordinates
  * remain normalized to the page surface so template and zoom changes do not
@@ -339,6 +350,7 @@ export interface SheetPageMemo {
   target: SheetPageMemoTarget
   strokes: AnnotationStroke[]
   texts: AnnotationText[]
+  appearance?: MemoAppearance
   order: number
 }
 
@@ -397,6 +409,7 @@ export interface TimelineInkMemo {
   placement: TimelineMemoPlacement
   strokes: TimelineMemoStroke[]
   texts?: TimelineMemoText[]
+  appearance?: MemoAppearance
   order: number
 }
 

@@ -86,7 +86,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   ) {
     throw new Error(`timeline memo text clipping can obscure the sheet background: ${JSON.stringify(memoTextClipContract)}`)
   }
-  checks.push('created text and handwritten anchored comments for ACTION, SOUND, and CAMERA content')
+  checks.push('created direct text comments for SOUND and text plus handwritten comments for ACTION and CAMERA')
 
   await evaluatePage(`document.querySelector('button[aria-label="タイトルを編集"]')?.scrollIntoView({ block: 'center', inline: 'center' })`)
   await mouseClick(await inputPointForSelector('button[aria-label="タイトルを編集"]'))
@@ -269,7 +269,8 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       5000,
       `${anchorRole} cue annotation target`,
     )
-    await selectAnnotationPaletteTool('sheet', 'ペン')
+    const startsWithText = anchorRole === 'sound'
+    await selectAnnotationPaletteTool('sheet', startsWithText ? 'テキスト' : 'ペン')
     await waitForCondition(async () => evaluatePage<boolean>(`
       (() => {
         const anchor = document.querySelector('.timelineMemoAnchorCue.selected');
@@ -279,7 +280,20 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
           && (anchor.getAttribute('data-timeline-memo-anchor-cue-ids') ?? '').split(/\\s+/).includes(${JSON.stringify(cueId)});
       })()
     `), 5000, `${anchorRole} cue-linked memo selected`)
-    await fillSelectedMemo(anchorRole, text)
+    if (anchorRole === 'sound') {
+      const placement = await evaluatePage<{ overlap: number; cueArea: number; memoArea: number }>(`(() => {
+        const cue = document.querySelector(${JSON.stringify(hitSelector)})?.getBoundingClientRect();
+        const memo = document.querySelector('.timelineMemoSegment.selected .timelineMemoBounds')?.getBoundingClientRect();
+        if (!cue || !memo) throw new Error('SOUND cue or memo bounds missing');
+        const width = Math.max(0, Math.min(cue.right, memo.right) - Math.max(cue.left, memo.left));
+        const height = Math.max(0, Math.min(cue.bottom, memo.bottom) - Math.max(cue.top, memo.top));
+        return { overlap: width * height, cueArea: cue.width * cue.height, memoArea: memo.width * memo.height };
+      })()`)
+      const ratio = placement.overlap / Math.max(1, Math.min(placement.cueArea, placement.memoArea))
+      if (ratio > 0.02) throw new Error(`default SOUND text memo overlaps its source cue: ${JSON.stringify({ ...placement, ratio })}`)
+      checks.push('placed a SOUND text memo beside its source interval without obscuring the dialogue')
+    }
+    await fillSelectedMemo(anchorRole, text, startsWithText)
   }
 
   async function inputPointForSvgGeometry(selector: string): Promise<ClientPoint> {
@@ -303,14 +317,22 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     return point
   }
 
-  async function fillSelectedMemo(anchorRole: 'action' | 'sound' | 'camera', text: string): Promise<void> {
-    const draw = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoDrawSurface', 0.2, 0.25, 0.78, 0.72)
-    await mouseDrag(draw.start, draw.end)
-    await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoSegment.selected .timelineMemoStroke:not(.draft)')), `${anchorRole} memo ink`)
-    await selectAnnotationPaletteTool('timeline-memo', 'テキスト')
+  async function fillSelectedMemo(
+    anchorRole: 'action' | 'sound' | 'camera',
+    text: string,
+    startsWithText = false,
+  ): Promise<void> {
+    if (!startsWithText) {
+      const draw = await selectorInsetDrag('.timelineMemoSegment.selected .timelineMemoDrawSurface', 0.2, 0.25, 0.78, 0.72)
+      await mouseDrag(draw.start, draw.end)
+      await waitForPageCondition(() => Boolean(document.querySelector('.timelineMemoSegment.selected .timelineMemoStroke:not(.draft)')), `${anchorRole} memo ink`)
+      await selectAnnotationPaletteTool('timeline-memo', 'テキスト')
+    }
     await waitForSelector('.timelineMemoSegment.selected .timelineMemoTextSurface')
-    await mouseClick(await inputPointForSelector('.timelineMemoSegment.selected .timelineMemoTextSurface'))
     await waitForSelector('.timelineMemoTextEditor')
+    await waitForPageCondition(() => document.activeElement?.classList.contains('timelineMemoTextEditor') === true, `${anchorRole} memo text editor focused without a placement click`)
+    await waitForPageCondition(() => !document.querySelector('.sheetSvg.textAnnotationPlacementMode') && !document.querySelector('.textCursorBadge'), `${anchorRole} memo does not enter page text placement mode`)
+    const editorFontSize = await evaluatePage<number>(`Number.parseFloat(getComputedStyle(document.querySelector('.timelineMemoTextEditor')).fontSize)`)
     await setReactFieldValue('.timelineMemoTextEditor', text)
     await controlEnter()
     await waitForPageCondition(() => !document.querySelector('.timelineMemoTextEditor'), `${anchorRole} memo text editor closed`)
@@ -319,6 +341,33 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       5000,
       `${anchorRole} memo text`,
     )
+    const committedFont = await evaluatePage<{ logical: number; surfaceHeight: number }>(`(() => {
+      const textNode = Array.from(document.querySelectorAll('.timelineMemoSegment.selected .timelineMemoText')).find(element => element.textContent === ${JSON.stringify(text)});
+      const surface = textNode?.closest('svg');
+      if (!(textNode instanceof SVGTextElement) || !(surface instanceof SVGSVGElement)) throw new Error('committed memo text geometry missing');
+      return { logical: Number(textNode.getAttribute('font-size')), surfaceHeight: surface.getBoundingClientRect().height };
+    })()`)
+    const committedDisplayFontSize = committedFont.logical * committedFont.surfaceHeight
+    if (Math.abs(editorFontSize - committedDisplayFontSize) > 0.75) {
+      throw new Error(`timeline text changed size after commit: ${JSON.stringify({ editorFontSize, committedDisplayFontSize })}`)
+    }
+    if (anchorRole === 'sound') {
+      await mouseClick(await inputPointForSelector('.annotationFloatingPalette summary[aria-label="メモの見た目"]'))
+      await setReactFieldValue('input[aria-label="手描きの不透明度"]', '55')
+      await setReactFieldValue('input[aria-label="文字の不透明度"]', '65')
+      await new Promise(resolve => setTimeout(resolve, 180))
+      await mouseClick(await inputPointForSelector('input[aria-label="背景色を使用"]'))
+      await waitForPageCondition(() => Boolean(document.querySelector('input[aria-label="背景の不透明度"]')), 'memo appearance menu stays open after enabling its background')
+      await setReactFieldValue('input[aria-label="背景の不透明度"]', '30')
+      await waitForPageCondition(() => {
+        const segment = document.querySelector('.timelineMemoSegment.selected')
+        return segment?.querySelector('.timelineMemoInkLayer')?.getAttribute('opacity') === '0.55'
+          && segment?.querySelector('.timelineMemoTextLayer')?.getAttribute('opacity') === '0.65'
+          && segment?.querySelector('[data-memo-background="solid"]')?.getAttribute('opacity') === '0.3'
+      }, 'timeline memo appearance controls update the rendered memo')
+      await captureScreenshotArtifact('sound-memo-appearance-controls')
+      checks.push('kept text size stable through commit and applied independent memo opacity/background controls')
+    }
     await keyPress('Escape')
     await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), `${anchorRole} memo edit closed`)
     await waitForPageCondition(() => document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-session') === 'idle', `${anchorRole} memo tool session closed`)

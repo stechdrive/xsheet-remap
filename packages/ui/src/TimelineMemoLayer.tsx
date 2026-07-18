@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
-import { memoAnchorPresentation, type SheetMemoAnchorPresentation, type SheetPage, type SheetTemplate, type SheetViewLayoutOverrides, type TimelineInkMemo, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core'
+import { createPortal } from 'react-dom'
+import { memoAnchorPresentation, normalizeMemoAppearance, type SheetMemoAnchorPresentation, type SheetPage, type SheetTemplate, type SheetViewLayoutOverrides, type TimelineInkMemo, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core'
 import type { EditMode } from './appTypes'
 import {
   timelineMemoAnchorCellForPage,
@@ -45,10 +46,14 @@ export function TimelineMemoLayer({
   penWidth,
   eraserWidth,
   textFontSizePx,
+  zoom = 1,
+  editorHost,
+  selectedTextId = null,
   onAppendStroke,
   onEraseStroke,
   onUpsertText,
   onUpdatePlacement,
+  onSelectText,
 }: {
   memos: readonly TimelineInkMemo[]
   template: SheetTemplate
@@ -63,13 +68,18 @@ export function TimelineMemoLayer({
   penWidth: number
   eraserWidth: number
   textFontSizePx: number
+  zoom?: number
+  editorHost?: HTMLElement | null
+  selectedTextId?: string | null
   onAppendStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onEraseStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
   onUpsertText: (memoId: string, text: TimelineMemoText) => void
   onUpdatePlacement: (memoId: string, placement: TimelineMemoPlacement) => void
+  onSelectText?: (memoId: string, textId: string) => void
 }) {
   const [interaction, setInteraction] = useState<MemoInteraction | null>(null)
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
+  const [automaticTextSessionKey, setAutomaticTextSessionKey] = useState<string | null>(null)
   const interactionRef = useRef<MemoInteraction | null>(null)
   const renderedMemos = useMemo(() => memos
     .slice()
@@ -116,6 +126,34 @@ export function TimelineMemoLayer({
   const selectedConnectorPoints = selectedAnchorGroup?.presentation === 'camera-connector' && selectedAnchorMarker && selectedStartSegment
     ? timelineMemoAnchorConnectorPoints(selectedAnchorMarker, selectedStartSegment.rect, surface)
     : null
+
+  function newTextDraft(memo: TimelineInkMemo, segment: TimelineMemoSegment, point?: TimelineMemoPoint): TimelineTextDraft {
+    const fontSizeUnits = Math.max(0.25, textFontSizePx / Math.max(1, segment.rowHeightY * pageSize.heightPx))
+    const insetX = Math.min(Math.max(0.12, fontSizeUnits * 0.12), Math.max(0, memo.placement.widthUnits - 0.5))
+    const insetY = Math.max(0.12, fontSizeUnits * 0.12)
+    return {
+      memoId: memo.memoId,
+      segment,
+      value: {
+        textId: nextTimelineMemoTextId(memo),
+        text: '',
+        color: penColor,
+        x: point?.x ?? insetX,
+        y: point?.y ?? Math.min(segment.memoYEnd - 0.25, segment.memoYStart + insetY),
+        fontSizeUnits,
+      },
+    }
+  }
+
+  const nextAutomaticTextSessionKey = editMode === 'text' && selectedMemoId && selectedRender && selectedStartSegment
+    ? `${selectedMemoId}:${page.pageId}`
+    : null
+  if (automaticTextSessionKey !== nextAutomaticTextSessionKey) {
+    setAutomaticTextSessionKey(nextAutomaticTextSessionKey)
+    setTextDraft(nextAutomaticTextSessionKey && selectedRender && selectedStartSegment
+      ? newTextDraft(selectedRender.memo, selectedStartSegment)
+      : null)
+  }
 
   function begin(event: PointerEvent<SVGElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment, mode: MemoInteraction['mode']) {
     if (memo.memoId !== selectedMemoId) return
@@ -203,18 +241,7 @@ export function TimelineMemoLayer({
     event.preventDefault()
     event.stopPropagation()
     const point = timelineMemoPointFromPagePoint(segment, pagePoint(event))
-    setTextDraft({
-      memoId: memo.memoId,
-      segment,
-      value: {
-        textId: nextTimelineMemoTextId(memo),
-        text: '',
-        color: penColor,
-        x: point.x,
-        y: point.y,
-        fontSizeUnits: Math.max(0.25, textFontSizePx / Math.max(1, segment.rowHeightY * pageSize.heightPx)),
-      },
-    })
+    setTextDraft(newTextDraft(memo, segment, point))
   }
 
   function editText(event: MouseEvent<SVGTextElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment, text: TimelineMemoText) {
@@ -252,14 +279,26 @@ export function TimelineMemoLayer({
       </defs>
       {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
         const selected = memo.memoId === selectedMemoId
+        const appearance = normalizeMemoAppearance(memo.appearance)
         const draftPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'draw' ? interaction.points : null
         const eraserPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'erase' ? interaction.points : null
         const drawingToolActive = editMode === 'pen' || editMode === 'eraser'
         const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
         return (
           <g key={`${memo.memoId}:${segment.regionId}`} data-timeline-memo-id={memo.memoId} className={selected ? 'timelineMemoSegment selected' : 'timelineMemoSegment'}>
+            {appearance.background.enabled && <rect
+              className="timelineMemoBackground"
+              data-memo-background="solid"
+              x={segment.rect.x}
+              y={segment.rect.y}
+              width={segment.rect.w}
+              height={segment.rect.h}
+              fill={appearance.background.color}
+              opacity={appearance.background.opacity}
+              clipPath={`url(#${clipId})`}
+            />}
             {selected && <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />}
-            <g className="timelineMemoInkLayer" clipPath={`url(#${clipId})`}>
+            <g className="timelineMemoInkLayer" data-memo-ink-opacity={appearance.inkOpacity} opacity={appearance.inkOpacity} clipPath={`url(#${clipId})`}>
               {memo.strokes.map(stroke => {
                 const path = timelineMemoStrokePath(segment, stroke.points)
                 return path ? <g key={stroke.strokeId}>
@@ -276,17 +315,33 @@ export function TimelineMemoLayer({
                 return path ? <path className="timelineMemoEraserPreview" d={path} strokeWidth={Math.max(eraserWidth, 0.001)} /> : null
               })()}
             </g>
-            <g className="timelineMemoTextLayer" clipPath={`url(#${clipId})`}>
+            {selected && editMode === 'text' && <rect
+              className="timelineMemoTextSurface"
+              x={segment.rect.x}
+              y={segment.rect.y}
+              width={segment.rect.w}
+              height={segment.rect.h}
+              onPointerDown={event => beginText(event, memo, segment)}
+            />}
+            <g className="timelineMemoTextLayer" data-memo-text-opacity={appearance.textOpacity} opacity={appearance.textOpacity} clipPath={`url(#${clipId})`}>
               {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
+                if (textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId) return null
                 const point = timelineMemoPointToPagePoint(segment, text)
                 return <text
                   key={text.textId}
-                  className="timelineMemoText"
+                  className={selectedTextId === text.textId ? 'timelineMemoText selected' : 'timelineMemoText'}
+                  data-timeline-memo-text-id={text.textId}
                   x={point.x}
                   y={point.y}
                   fill={text.color}
                   fontSize={text.fontSizeUnits * segment.rowHeightY}
                   dominantBaseline="hanging"
+                  onClick={event => {
+                    if (memo.memoId !== selectedMemoId) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onSelectText?.(memo.memoId, text.textId)
+                  }}
                   onDoubleClick={event => editText(event, memo, segment, text)}
                 >{text.text.split(/\r?\n/).map((line, index) => <tspan
                   key={`${text.textId}:${index}`}
@@ -313,24 +368,27 @@ export function TimelineMemoLayer({
               onPointerUp={finish}
               onPointerCancel={event => finish(event, true)}
             />}
-            {selected && editMode === 'text' && <rect
-              className="timelineMemoTextSurface"
-              x={segment.rect.x}
-              y={segment.rect.y}
-              width={segment.rect.w}
-              height={segment.rect.h}
-              onPointerDown={event => beginText(event, memo, segment)}
-            />}
             {textDraft?.memoId === memo.memoId && textDraft.segment.regionId === segment.regionId && (() => {
               const point = timelineMemoPointToPagePoint(segment, textDraft.value)
               const width = Math.max(segment.rowHeightX * 2, segment.rect.x + segment.rect.w - point.x)
               const height = Math.max(segment.rowHeightY * 2, Math.min(segment.rect.y + segment.rect.h - point.y, segment.rowHeightY * 5))
-              return <foreignObject className="timelineMemoTextEditorHost" x={point.x} y={point.y} width={width} height={height}>
+              const host = editorHost === undefined && typeof document !== 'undefined' ? document.body : editorHost
+              return host ? createPortal(
                 <textarea
                   autoFocus
                   className="timelineMemoTextEditor"
                   value={textDraft.value.text}
-                  style={{ fontSize: `${textFontSizePx}px`, color: textDraft.value.color }}
+                  style={{
+                    left: `${point.x * 100}%`,
+                    top: `${point.y * 100}%`,
+                    width: `${width * 100}%`,
+                    height: `${height * 100}%`,
+                    fontSize: `${textDraft.value.fontSizeUnits * segment.rowHeightY * pageSize.heightPx * zoom}px`,
+                    color: textDraft.value.color,
+                    opacity: appearance.textOpacity,
+                  }}
+                  wrap="off"
+                  spellCheck={false}
                   onChange={event => {
                     const text = event.currentTarget.value
                     setTextDraft(current => current ? { ...current, value: { ...current.value, text } } : null)
@@ -339,8 +397,9 @@ export function TimelineMemoLayer({
                   onBlur={() => finishTextDraft(false)}
                   onPointerDown={event => event.stopPropagation()}
                   aria-label="メモ文字"
-                />
-              </foreignObject>
+                />,
+                host,
+              ) : null
             })()}
             {selected && segment.startsMemo && <SheetTransformHandle
               rect={segment.rect}

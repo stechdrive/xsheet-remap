@@ -1652,7 +1652,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (panningRef.current) return
     const page = props.sheetPages.find(page => page.pageId === event.currentTarget.dataset.pageId)
     const viewport = event.currentTarget.closest<HTMLElement>('.sheetViewport')
-    if (props.editMode === 'text' && page && !props.editingTextAnnotationId) {
+    if (props.editMode === 'text' && page && !props.selectedTimelineMemoId && !props.editingTextAnnotationId) {
       const box = event.currentTarget.getBoundingClientRect()
       setTextCursorBadge({
         pageId: page.pageId,

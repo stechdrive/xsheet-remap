@@ -2028,6 +2028,13 @@
   stroke-width: 0.0012;
   pointer-events: visiblePainted;
   cursor: text;
+  font-weight: 700;
+}
+
+.timelineMemoText.selected {
+  stroke: rgb(255 255 252 / 0.98);
+  stroke-width: 0.0022;
+  filter: drop-shadow(0 0 1px rgb(19 116 92 / 0.7));
 }
 
 .timelineMemoTextSurface {
@@ -2036,22 +2043,26 @@
   cursor: text;
 }
 
-.timelineMemoTextEditorHost {
-  overflow: visible;
-}
-
 .timelineMemoTextEditor {
+  position: absolute;
+  z-index: 14;
   box-sizing: border-box;
-  width: 100%;
-  height: 100%;
   resize: none;
-  padding: 2px 3px;
-  border: 1px solid #2d6a57;
-  border-radius: 3px;
-  outline: 2px solid rgb(45 106 87 / 0.22);
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  outline: 1px solid #2d6a57;
+  box-shadow: 0 0 0 2px rgb(45 106 87 / 0.18);
   background: transparent;
   font-family: var(--font-sheet-sans);
-  line-height: 1.2;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: pre;
+  overflow: auto;
+}
+
+.timelineMemoBackground {
+  pointer-events: none;
 }
 
 .timelineMemoEraserPreview {

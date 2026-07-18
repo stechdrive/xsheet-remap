@@ -59,6 +59,7 @@ describe('clean sheet export options', () => {
       ['timingInput', 'ACTION/CELL入力'],
       ['soundCues', 'SOUND指示'],
       ['cameraCues', 'CAMERA指示'],
+      ['annotationBackground', 'メモ・背景'],
       ['annotationInk', 'メモ・手描き'],
       ['annotationText', 'メモ・テキスト'],
     ])

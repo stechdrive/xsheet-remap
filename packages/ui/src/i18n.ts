@@ -40,7 +40,7 @@ export const uiText = {
     overlayPaperTrackDragging: (label: string) => `${label}追加セル列を移動中: 離すと表示位置を確定`,
     penMode: 'ペン: シート上をドラッグして注記。完了またはEscで終了',
     eraserMode: '消しゴム: シート上をドラッグして注記を消去。完了またはEscで終了',
-    textMode: 'テキスト: シート上をクリックして注記を追加 / Escで終了',
+    textMode: 'テキスト注釈を入力 / Ctrl+Enterで確定 / Escで終了',
     calibrateMode: '四隅合わせ: ハンドルをドラッグして紙シート画像を補正',
   },
   nav: {

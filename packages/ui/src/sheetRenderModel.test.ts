@@ -166,11 +166,30 @@ describe('sheet render model', () => {
     const firstMemo = metadataTextRenderItemsForPage(context, context.pages[0]).find(item => item.field === 'memo.body')
     const secondMemo = metadataTextRenderItemsForPage(context, context.pages[1]).find(item => item.field === 'memo.body')
 
-    expect(firstMemo).toMatchObject({ text: firstText, textAnchor: 'start', dominantBaseline: 'hanging' })
+    expect(firstMemo).toMatchObject({ text: firstText, textAnchor: 'start', dominantBaseline: 'text-before-edge' })
     expect(firstMemo?.lines[0]).toBe('1ページ目')
     expect(firstMemo?.lines.length).toBeGreaterThan(2)
     expect(secondMemo).toMatchObject({ text: '2ページ目', lines: ['2ページ目'] })
     expect(firstMemo?.rect).toEqual(secondMemo?.rect)
+  })
+
+  it('shrinks multiline form text vertically and reports unavoidable overflow', () => {
+    const memo = { fieldId: 'memo.body', scope: 'page' as const, valueType: 'multiline' as const }
+    const fittingProject = updateSheetFormField(createDefaultProject(), memo, 'メ'.repeat(1800), 'page_1')
+    const fittingContext = createSheetRenderModelContext(fittingProject, standardA3SheetTemplate)
+    const fittingMemo = metadataTextRenderItemsForPage(fittingContext, fittingContext.pages[0])
+      .find(item => item.field === 'memo.body')
+
+    expect(fittingMemo?.fontSizePx).toBeGreaterThanOrEqual(10)
+    expect(fittingMemo?.fontSizePx).toBeLessThan(16)
+    expect(fittingMemo?.overflow).toBe(false)
+
+    const overflowingProject = updateSheetFormField(createDefaultProject(), memo, 'メ'.repeat(4000), 'page_1')
+    const overflowingContext = createSheetRenderModelContext(overflowingProject, standardA3SheetTemplate)
+    const overflowingMemo = metadataTextRenderItemsForPage(overflowingContext, overflowingContext.pages[0])
+      .find(item => item.field === 'memo.body')
+
+    expect(overflowingMemo).toMatchObject({ fontSizePx: 10, overflow: true })
   })
 
   it('renders other shared cut numbers only when the per-cut display option is enabled', () => {

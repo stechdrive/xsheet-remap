@@ -822,6 +822,16 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .internalD
   overflow: auto;
 }
 
+.sheetImageExportWarning {
+  padding: 9px 11px;
+  border: 1px solid #b44b3d;
+  border-radius: 6px;
+  background: #fff4ef;
+  color: #7d2f25;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .sheetImageExportCheckbox {
   display: flex;
   align-items: center;

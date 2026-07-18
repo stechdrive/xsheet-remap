@@ -268,6 +268,18 @@
   box-shadow: inset 0 0 0 2px #2a6951, 0 0 0 1px rgb(255 255 255 / 0.85);
 }
 
+.sheetFormEditHotspot[data-text-overflow="true"]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #b44b3d;
+  pointer-events: none;
+}
+
 .sheetMetadataEditorPopover {
   position: absolute;
   z-index: 2;
@@ -327,11 +339,25 @@
   position: absolute;
   z-index: 3;
   box-sizing: border-box;
-  border: 2px solid #2a6951;
+  border: 0;
   border-radius: 3px;
+  outline: 2px solid #2a6951;
+  outline-offset: 0;
   background: rgb(255 255 255 / 0.08);
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.75);
   overflow: hidden;
+}
+
+.sheetInlineMultilineEditor.overflow::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: #b44b3d;
+  pointer-events: none;
 }
 
 .sheetInlineMultilineEditor .sheetMetadataEditorField {
@@ -339,7 +365,8 @@
   height: 100%;
 }
 
-.sheetInlineMultilineEditor .sheetInlineMultilineTextarea {
+.sheetInlineMultilineEditor .sheetInlineMultilineTextarea,
+.sheetInlineMultilineEditor .sheetInlineTextInput {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -347,7 +374,6 @@
   border: 0;
   outline: 0;
   resize: none;
-  overflow: auto;
   background: transparent;
   color: #1f2421;
   font-family: var(--font-sheet-sans);
@@ -355,6 +381,10 @@
   word-break: break-all;
   white-space: pre-wrap;
   caret-color: #173d2f;
+}
+
+.sheetInlineMultilineEditor .sheetInlineTextInput {
+  min-height: 0;
 }
 
 .sheetMetadataEditorCheckbox {

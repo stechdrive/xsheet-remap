@@ -167,6 +167,7 @@ export interface SheetTemplateFormCell {
   border?: boolean
   borderStyle?: SheetTemplateLineStyle
   textStyle?: SheetTemplateTextStyle
+  editPresentation?: 'inline' | 'popover'
 }
 
 export interface SheetTemplateTrackCountColumn {

@@ -46,4 +46,15 @@ describe('parseSheetTemplate', () => {
     invalid.fields[0]!.scope = 'sheet'
     expect(() => parseSheetTemplate(invalid)).toThrow('フォーム項目定義が不正')
   })
+
+  it('rejects unknown form edit presentations', () => {
+    const invalid = structuredClone(standardA3SheetTemplate) as unknown as Record<string, unknown>
+    const regions = invalid.regions as Array<Record<string, unknown>>
+    const memo = regions.find(region => region.regionId === 'top_memo_area')!
+    const form = memo.form as Record<string, unknown>
+    const cells = form.cells as Array<Record<string, unknown>>
+    cells.find(cell => cell.cellId === 'memo_body')!.editPresentation = 'floating'
+
+    expect(() => parseSheetTemplate(invalid)).toThrow('フォーム定義が不正')
+  })
 })

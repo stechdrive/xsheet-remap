@@ -173,7 +173,14 @@ export function MetadataTextLayer({ context, page }: { context: SheetRenderModel
         ))}
       </defs>
       {items.map((item, itemIndex) => (
-        <g key={item.regionId} clipPath={`url(#${clipPrefix}-${itemIndex})`}>
+        <g
+          key={item.regionId}
+          className={`metadataFieldItem${item.overflow ? ' overflow' : ''}`}
+          data-region-id={item.regionId}
+          data-text-overflow={item.overflow ? 'true' : 'false'}
+          clipPath={`url(#${clipPrefix}-${itemIndex})`}
+        >
+          {item.overflow && <title>文字が欄内に収まりません。</title>}
           <SheetSvgText
             className="metadataFieldText"
             data-region-id={item.regionId}

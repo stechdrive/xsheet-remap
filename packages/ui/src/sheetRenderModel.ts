@@ -31,7 +31,7 @@ import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } fro
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
-import { SHEET_TEXT_FONT_FAMILY, wrapMultilineTextByWidth } from './textMetrics'
+import { resolveMultilineFormTextLayout } from './formTextLayout'
 
 export type SheetRenderModelContext = {
   project: CutProject
@@ -88,9 +88,10 @@ export type SheetMetadataTextRenderItem = {
   x: number
   y: number
   textAnchor: 'start' | 'middle' | 'end'
-  dominantBaseline: 'hanging' | 'central' | 'text-after-edge'
+  dominantBaseline: 'hanging' | 'central' | 'text-after-edge' | 'text-before-edge'
   fontSizePx: number
   fontWeight: number
+  overflow: boolean
 }
 
 export type FlagLabelGeometry = {
@@ -353,22 +354,26 @@ function formFieldTextRenderItems(context: SheetRenderModelContext, page: SheetP
     const paddingPx = Math.max(0, style.paddingPx ?? 2)
     const horizontalAlign = style.horizontalAlign ?? 'center'
     const verticalAlign = style.verticalAlign ?? 'middle'
-    const fontSizePx = metadataFontSizePx(text, field.rect, context.pageSize, {
-      fontSizePx: style.fontSizePx ?? 13,
-      minFontSizePx: style.minFontSizePx ?? 7,
-      paddingPx,
-      shrinkToFit: style.shrinkToFit !== false,
-    })
+    const multilineLayout = field.definition.valueType === 'multiline'
+      ? resolveMultilineFormTextLayout(text, field.rect, context.pageSize, style)
+      : null
+    const fontSizePx = multilineLayout?.fontSizePx ?? metadataFontSizePx(text, field.rect, context.pageSize, {
+        fontSizePx: style.fontSizePx ?? 13,
+        minFontSizePx: style.minFontSizePx ?? 7,
+        paddingPx,
+        shrinkToFit: style.shrinkToFit !== false,
+      })
     const paddingX = paddingPx / context.pageSize.widthPx
     const paddingY = paddingPx / context.pageSize.heightPx
-    const lineHeightPx = Math.max(fontSizePx, style.lineHeightPx ?? fontSizePx * 1.15)
-    const lines = field.definition.valueType === 'multiline'
-      ? wrapMultilineTextByWidth(text, Math.max(1, field.rect.w * context.pageSize.widthPx - paddingPx * 2), {
-          family: SHEET_TEXT_FONT_FAMILY,
-          sizePx: fontSizePx,
-          weight: style.fontWeight ?? 400,
-        })
-      : [text]
+    const lineHeightPx = multilineLayout?.lineHeightPx ?? Math.max(fontSizePx, style.lineHeightPx ?? fontSizePx * 1.15)
+    const lines = multilineLayout?.lines ?? [text]
+    const multilineContentTop = multilineLayout
+      ? verticalAlign === 'top'
+        ? field.rect.y + paddingY
+        : verticalAlign === 'bottom'
+          ? field.rect.y + field.rect.h - paddingY - multilineLayout.contentHeightPx / context.pageSize.heightPx
+          : field.rect.y + (field.rect.h - multilineLayout.contentHeightPx / context.pageSize.heightPx) / 2
+      : null
     return [{
       regionId: field.key,
       field: field.fieldId,
@@ -377,11 +382,16 @@ function formFieldTextRenderItems(context: SheetRenderModelContext, page: SheetP
       lineHeightPx,
       rect: field.rect,
       x: horizontalAlign === 'left' ? field.rect.x + paddingX : horizontalAlign === 'right' ? field.rect.x + field.rect.w - paddingX : field.rect.x + field.rect.w / 2,
-      y: verticalAlign === 'top' ? field.rect.y + paddingY : verticalAlign === 'bottom' ? field.rect.y + field.rect.h - paddingY : field.rect.y + field.rect.h / 2,
+      y: multilineLayout && multilineContentTop !== null
+        ? multilineContentTop + Math.max(0, lineHeightPx - fontSizePx) / 2 / context.pageSize.heightPx
+        : verticalAlign === 'top' ? field.rect.y + paddingY : verticalAlign === 'bottom' ? field.rect.y + field.rect.h - paddingY : field.rect.y + field.rect.h / 2,
       textAnchor: horizontalAlign === 'left' ? 'start' : horizontalAlign === 'right' ? 'end' : 'middle',
-      dominantBaseline: verticalAlign === 'top' ? 'hanging' : verticalAlign === 'bottom' ? 'text-after-edge' : 'central',
+      dominantBaseline: multilineLayout
+        ? 'text-before-edge'
+        : verticalAlign === 'top' ? 'hanging' : verticalAlign === 'bottom' ? 'text-after-edge' : 'central',
       fontSizePx,
       fontWeight: Math.max(100, Math.min(900, Math.round(style.fontWeight ?? 700))),
+      overflow: multilineLayout?.overflow ?? false,
     }]
   })
 }
@@ -483,6 +493,7 @@ function metadataTextRenderItemsForRegion(
       dominantBaseline: verticalAlign === 'top' ? 'hanging' : verticalAlign === 'bottom' ? 'text-after-edge' : 'central',
       fontSizePx,
       fontWeight: Math.max(100, Math.min(900, Math.round(style.fontWeight ?? 700))),
+      overflow: false,
     }]
 }
 

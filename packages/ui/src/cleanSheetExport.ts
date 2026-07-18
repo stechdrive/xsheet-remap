@@ -600,7 +600,9 @@ function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
       ctx.fillStyle = '#1f2421'
       ctx.font = fontDeclaration(item.fontSizePx, SHEET_CANVAS_FONT_FAMILY, item.fontWeight)
       ctx.textAlign = item.textAnchor === 'start' ? 'left' : item.textAnchor === 'end' ? 'right' : 'center'
-      ctx.textBaseline = item.dominantBaseline === 'hanging' ? 'top' : item.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
+      ctx.textBaseline = item.dominantBaseline === 'hanging' || item.dominantBaseline === 'text-before-edge'
+        ? 'top'
+        : item.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
       item.lines.forEach((line, index) => {
         ctx.fillText(
           line,

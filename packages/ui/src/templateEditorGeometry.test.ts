@@ -251,6 +251,7 @@ describe('template editor geometry', () => {
       regionId: 'top_memo_area',
       fieldId: 'memo.body',
       definition: expect.objectContaining({ scope: 'page', valueType: 'multiline' }),
+      editPresentation: 'inline',
       editable: true,
     }))
     expect(model.formBoxes.some(box => box.key === 'top_memo_area:memo_body')).toBe(false)

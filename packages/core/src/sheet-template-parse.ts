@@ -70,6 +70,14 @@ function validateRegion(input: unknown, index: number): asserts input is SheetTe
       throw new Error(`領域 ${input.regionId} の罫線ルールが不正です。`)
     }
   }
+  if (input.form !== undefined) {
+    if (!isRecord(input.form)
+      || input.form.cells !== undefined && (!Array.isArray(input.form.cells) || !input.form.cells.every(cell =>
+        isRecord(cell)
+        && (cell.editPresentation === undefined || cell.editPresentation === 'inline' || cell.editPresentation === 'popover')))) {
+      throw new Error(`領域 ${input.regionId} のフォーム定義が不正です。`)
+    }
+  }
 }
 
 const sheetTemplateRegionTypes = new Set([

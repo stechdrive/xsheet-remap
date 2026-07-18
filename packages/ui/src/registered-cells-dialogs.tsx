@@ -9,6 +9,7 @@ import { type TimelineFrameEditScope } from './timingEditing'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { FrameOperationDialogState, FrameOperationSubmit, errorMessage, formatFramePosition } from './app-foundation'
 import { defaultNameNormalizationTarget, nameNormalizationOptionsForTarget, nameNormalizationTargetOptions, type NameNormalizationTarget } from './registered-cells-model'
+import { createSheetRenderModelContext, metadataTextRenderItemsForPage } from './sheetRenderModel'
 
 export function FrameOperationDialog({
   state,
@@ -263,6 +264,11 @@ export function SheetImageExportDialog({
 }) {
   const hasPaper = hasPaperSheetImages(project)
   const hasTemplateImage = Boolean(template.defaultUnderlay) && template.defaultUnderlayUsage !== 'reference-only'
+  const overflowingFields = useMemo(() => {
+    const context = createSheetRenderModelContext(project, template)
+    return context.pages.flatMap(page => metadataTextRenderItemsForPage(context, page))
+      .filter(item => item.overflow)
+  }, [project, template])
   const [options, setOptions] = useState(() => normalizeSheetImageExportDialogOptions(initialOptions, hasPaper, hasTemplateImage))
   const [isSaving, setIsSaving] = useState(false)
 
@@ -294,6 +300,11 @@ export function SheetImageExportDialog({
           </div>
         </header>
         <div className="sheetImageExportControls">
+          {overflowingFields.length > 0 && (
+            <div className="sheetImageExportWarning" role="status">
+              {overflowingFields.length}件の入力文字が欄内に収まっていません。書き出しでは欄外が切り取られます。
+            </div>
+          )}
           <TooltipTarget label={uiText.actions.imageExportPaperSheetTitle}>
             {tooltipProps => (
               <label className="sheetImageExportCheckbox" {...tooltipProps}>

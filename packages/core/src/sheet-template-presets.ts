@@ -422,6 +422,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
           kind: 'field',
           fieldId: 'memo.body',
           border: false,
+          editPresentation: 'inline',
           textStyle: {
             fontSizePx: 16,
             minFontSizePx: 10,
@@ -430,7 +431,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
             horizontalAlign: 'left',
             verticalAlign: 'top',
             paddingPx: 8,
-            shrinkToFit: false,
+            shrinkToFit: true,
           },
         }],
       },

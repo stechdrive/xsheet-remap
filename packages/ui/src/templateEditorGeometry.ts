@@ -74,6 +74,7 @@ export type TemplateFormFieldRenderModel = {
   rect: NormalizedRect
   definition: SheetTemplateFieldDefinition
   textStyle: SheetTemplateTextStyle
+  editPresentation: 'inline' | 'popover'
   editable: boolean
   sourceFieldIds?: string[]
 }
@@ -325,6 +326,7 @@ export function buildTemplateFormRenderModels(
         rect,
         definition,
         textStyle: cell.textStyle ?? {},
+        editPresentation: cell.editPresentation ?? 'popover',
         editable: !isProjectedTotal,
         sourceFieldIds: isProjectedTotal && totalSuffix
           ? paperTracks.map(paperTrack => `${form.projection!.fieldPrefix}.${paperTrack}.${totalSuffix}`)

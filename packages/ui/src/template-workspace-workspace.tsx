@@ -49,6 +49,7 @@ export function TemplateWorkspace({
       : uiText.template.draftApplied
   const editableRegions = template.regions
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => editableRegions[0]?.regionId ?? null)
+  const [selectedFormCellId, setSelectedFormCellId] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<TemplateDetailTab>('region')
   const [templateZoom, setTemplateZoom] = useState(1)
   const [dockWidth, setDockWidth] = useState(380)
@@ -67,6 +68,13 @@ export function TemplateWorkspace({
       ? editableRegions.find(region => region.regionId === selectedRegionId) ?? editableRegions[0] ?? null
       : editableRegions[0] ?? null
   const selectedDecorativeGrid = isDecorativeGridRegion(selectedRegion) ? selectedRegion : null
+  const selectedFormFieldCells = selectedRegion?.form?.cells?.filter(cell => cell.kind === 'field' && cell.fieldId) ?? []
+  const selectedFormFieldCell = selectedFormFieldCells.find(cell => cell.cellId === selectedFormCellId)
+    ?? selectedFormFieldCells[0]
+    ?? null
+  const selectedFormFieldDefinition = selectedFormFieldCell?.fieldId
+    ? template.fields?.find(field => field.fieldId === selectedFormFieldCell.fieldId) ?? null
+    : null
   const effectiveSelectedRegionId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegion?.regionId ?? null
   const correctionLayers = sortedCorrectionLayers(project)
   const defaultCorrectionLayer = correctionLayers[0] ?? null
@@ -225,6 +233,26 @@ export function TemplateWorkspace({
     updateTemplateDraft(currentTemplate => ({
       ...currentTemplate,
       regions: currentTemplate.regions.map(region => region.regionId === regionId ? { ...region, ...updates } : region),
+    }))
+  }
+
+  function updateRegionFormCell(
+    regionId: string,
+    cellId: string,
+    updates: Partial<NonNullable<NonNullable<SheetTemplate['regions'][number]['form']>['cells']>[number]>,
+  ) {
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => {
+        if (region.regionId !== regionId || !region.form?.cells) return region
+        return {
+          ...region,
+          form: {
+            ...region.form,
+            cells: region.form.cells.map(cell => cell.cellId === cellId ? { ...cell, ...updates } : cell),
+          },
+        }
+      }),
     }))
   }
 
@@ -801,6 +829,52 @@ export function TemplateWorkspace({
                 />
               </label>
             ))}
+          </dd>
+        </>
+      )}
+      {selectedRegion && selectedFormFieldCell && (
+        <>
+          <dt>入力欄</dt>
+          <dd className="detailStack templateFormFieldControls">
+            <div className="templateCalibrationTargetFields">
+              <label>
+                <span>欄</span>
+                <select
+                  value={selectedFormFieldCell.cellId}
+                  onChange={event => setSelectedFormCellId(event.currentTarget.value)}
+                >
+                  {selectedFormFieldCells.map(cell => (
+                    <option key={cell.cellId} value={cell.cellId}>
+                      {template.fields?.find(field => field.fieldId === cell.fieldId)?.label ?? cell.fieldId ?? cell.cellId}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>編集方法</span>
+                <select
+                  value={selectedFormFieldCell.editPresentation ?? 'popover'}
+                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                    editPresentation: event.currentTarget.value as 'inline' | 'popover',
+                  })}
+                >
+                  <option value="inline">その場で入力</option>
+                  <option value="popover">ポップアップ</option>
+                </select>
+              </label>
+            </div>
+            {selectedFormFieldDefinition?.valueType === 'multiline' && (
+              <label className="compactControl">
+                <input
+                  type="checkbox"
+                  checked={selectedFormFieldCell.textStyle?.shrinkToFit !== false}
+                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                    textStyle: { ...(selectedFormFieldCell.textStyle ?? {}), shrinkToFit: event.currentTarget.checked },
+                  })}
+                />
+                欄内に収まる範囲で文字を自動縮小
+              </label>
+            )}
           </dd>
         </>
       )}

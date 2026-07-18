@@ -278,6 +278,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     )
     await keyPress('Escape')
     await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), `${anchorRole} memo edit closed`)
+    await waitForPageCondition(() => document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-session') === 'idle', `${anchorRole} memo tool session closed`)
   }
 
   async function selectAnnotationPaletteTool(target: 'sheet' | 'timeline-memo', ariaLabel: string): Promise<void> {
@@ -301,13 +302,19 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
         return false
       }
     }, 2000, `${ariaLabel} annotation palette tool receives input`)
+    // The compact palette expands with a short CSS transition. Resolve the
+    // hit point only after its geometry settles so the real mouse click cannot
+    // land on the adjacent tool while the column is still opening.
+    await new Promise(resolve => setTimeout(resolve, 180))
     await mouseClick(await inputPointForSelector(selector))
+    const expectedTool = ariaLabel.includes('消しゴム') ? 'eraser' : ariaLabel.includes('テキスト') ? 'text' : 'pen'
     await waitForCondition(
       async () => evaluatePage<boolean>(`
-        Boolean(document.querySelector('.annotationFloatingPalette button.activeToolButton[aria-pressed="true"]'))
+        document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-tool') === ${JSON.stringify(expectedTool)}
+          && Boolean(document.querySelector('.annotationFloatingPalette button.activeToolButton[aria-pressed="true"]'))
       `),
       2000,
-      `${ariaLabel} annotation palette tool selected`,
+      `${ariaLabel} annotation palette tool selected as ${expectedTool}`,
     )
   }
 

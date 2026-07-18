@@ -129,31 +129,50 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await selectAnnotationPaletteTool('sheet', 'ペン')
   await waitForPageCondition(() => Boolean(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="pen"]')), 'page pen input surface')
   await assertNoTransientTooltip('page pen drawing')
-  const strokeCountBeforeText = await evaluatePage<number>(`document.querySelectorAll('.annotationStroke:not(.annotationEraserPreview)').length`)
+  await waitForPageCondition(() => {
+    const palette = document.querySelector('.annotationFloatingPalette')
+    return palette?.getAttribute('data-annotation-session') === 'active'
+      && palette.getAttribute('data-annotation-tool') === 'pen'
+      && palette.classList.contains('open')
+  }, 'annotation session remains visibly open')
+  const strokeCountBeforeText = await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)
   const textBeforePen = await pageTextGeometry('ページコメント')
-  await mouseDrag(
+  await drawPageStrokeWithLivePreview(
     { x: textBeforePen.centerX, y: textBeforePen.centerY },
     { x: textBeforePen.centerX + 58, y: textBeforePen.centerY + 8 },
   )
   await waitForCondition(
-    async () => (await evaluatePage<number>(`document.querySelectorAll('.annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeText,
+    async () => (await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeText,
     5000,
     'page stroke starting on page text',
   )
   const textAfterPen = await pageTextGeometry('ページコメント')
   if (Math.abs(textAfterPen.left - textBeforePen.left) > 1 || Math.abs(textAfterPen.top - textBeforePen.top) > 1) throw new Error('page pen moved the underlying page text instead of drawing')
 
-  const strokeCountBeforeMemoForm = await evaluatePage<number>(`document.querySelectorAll('.annotationStroke:not(.annotationEraserPreview)').length`)
+  await setReactFieldValue('.annotationActiveWidthControl input[aria-label="ペン幅"]', '8')
+  await waitForPageCondition(() => document.querySelector('.annotationActiveWidthControl output')?.textContent === '8', 'pen width changes during annotation session')
+  await selectAnnotationPaletteTool('sheet', '消しゴム')
+  await waitForPageCondition(() => {
+    const palette = document.querySelector('.annotationFloatingPalette')
+    return palette?.getAttribute('data-annotation-tool') === 'eraser'
+      && Boolean(document.querySelector('.annotationActiveWidthControl input[aria-label="消しゴム幅"]'))
+      && Boolean(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="eraser"]'))
+  }, 'eraser replaces pen without ending annotation session')
+  await selectAnnotationPaletteTool('sheet', 'ペン')
+  await waitForPageCondition(() => Boolean(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="pen"]')), 'pen restored without ending annotation session')
+
+  const strokeCountBeforeMemoForm = await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)
   await mouseDrag(memoPoint, { x: memoPoint.x + 64, y: memoPoint.y + 6 })
   await waitForCondition(
-    async () => (await evaluatePage<number>(`document.querySelectorAll('.annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeMemoForm,
+    async () => (await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeMemoForm,
     5000,
     'page stroke starting on MEMO form',
   )
   await assertNoTransientTooltip('page pen over metadata forms')
+  checks.push('kept a visible annotation session open while previewing live ink and switching pen, width, and eraser')
   checks.push('selected TITLE and MEMO targets, stored MEMO text against its template region, then restored page-target drawing without input interception')
 
-  await keyPress('Escape')
+  await clickButtonByText('完了')
   await waitForPageCondition(() => !document.querySelector('.pageAnnotationInputSurface'), 'annotation capture released')
   await mouseDoubleClick(memoPoint)
   await waitForSelector('[role="dialog"][aria-label="MEMOを編集"]')
@@ -296,6 +315,50 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     await new Promise(resolve => setTimeout(resolve, 220))
     const tooltipCount = await evaluatePage<number>(`document.querySelectorAll('.appTooltip').length`)
     if (tooltipCount !== 0) throw new Error(`${label} left ${tooltipCount} transient tooltip(s) visible`)
+  }
+
+  async function drawPageStrokeWithLivePreview(start: ClientPoint, end: ClientPoint): Promise<void> {
+    await clientSend('Input.dispatchMouseEvent', {
+      type: 'mouseMoved', x: start.x, y: start.y, button: 'none', buttons: 0,
+    })
+    await clientSend('Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: start.x, y: start.y, button: 'left', buttons: 1, clickCount: 1,
+    })
+    for (let step = 1; step <= 4; step += 1) {
+      const ratio = step / 4
+      await clientSend('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: start.x + (end.x - start.x) * ratio,
+        y: start.y + (end.y - start.y) * ratio,
+        button: 'left',
+        buttons: 1,
+      })
+    }
+    const preview = await waitForCondition(async () => evaluatePage<{
+      pathLength: number
+      inInputSurface: boolean
+      visible: boolean
+      paletteOpen: boolean
+    } | null>(`
+      (() => {
+        const path = document.querySelector('.pageAnnotationInputSurface .annotationDraftStroke');
+        if (!(path instanceof SVGPathElement)) return null;
+        const style = getComputedStyle(path);
+        return {
+          pathLength: path.getTotalLength(),
+          inInputSurface: Boolean(path.closest('.pageAnnotationInputSurface')),
+          visible: style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0,
+          paletteOpen: document.querySelector('.annotationFloatingPalette[data-annotation-session="active"]')?.classList.contains('open') === true,
+        };
+      })()
+    `), 5000, 'live page annotation preview while pointer remains pressed')
+    if (!(preview.pathLength > 0) || !preview.inInputSurface || !preview.visible || !preview.paletteOpen) {
+      throw new Error(`page annotation preview is not visibly owned by the input surface: ${JSON.stringify(preview)}`)
+    }
+    await clientSend('Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: end.x, y: end.y, button: 'left', buttons: 0, clickCount: 1,
+    })
+    await waitForPageCondition(() => !document.querySelector('.pageAnnotationInputSurface .annotationDraftStroke'), 'live page annotation preview clears after commit')
   }
 
   async function topElementSummary(point: ClientPoint): Promise<string> {

@@ -200,6 +200,8 @@ export function SheetPanel(props: {
   const [selectedAnnotationRegion, setSelectedAnnotationRegion] = useState<TemplateRegionAnnotationTarget | null>(null)
   const editMode = props.editMode
   const setEditMode = props.setEditMode
+  const annotationSessionActive = editMode === 'pen' || editMode === 'eraser' || editMode === 'text'
+  const annotationPaletteExpanded = annotationPaletteOpen || annotationSessionActive
   const activeTimelineMemoId = selectedTimelineMemoId && timelineMemos(props.project).some(memo => memo.memoId === selectedTimelineMemoId)
     ? selectedTimelineMemoId
     : null
@@ -257,6 +259,13 @@ export function SheetPanel(props: {
     setSelectedTimelineMemoId(null)
     if (editMode === 'pen' || editMode === 'eraser' || editMode === 'text') setEditMode('new')
   }, [editMode, setEditMode])
+  const finishAnnotationSession = useCallback(() => {
+    setAnnotationPaletteOpen(false)
+    if (activeTimelineMemoId) {
+      setSelectedTimelineMemoId(null)
+    }
+    setEditMode('new')
+  }, [activeTimelineMemoId, setEditMode])
   const zoomPaletteRef = useRef<HTMLDivElement>(null)
   const annotationPaletteRef = useRef<HTMLDivElement>(null)
   const didFitInitialSheetZoom = useRef(false)
@@ -387,7 +396,7 @@ export function SheetPanel(props: {
   }, [zoomPaletteOpen])
 
   useEffect(() => {
-    if (!annotationPaletteOpen) return undefined
+    if (!annotationPaletteOpen || annotationSessionActive) return undefined
     const closeFromOutside = (event: globalThis.PointerEvent) => {
       const target = event.target
       if (target instanceof Node && annotationPaletteRef.current?.contains(target)) return
@@ -395,7 +404,16 @@ export function SheetPanel(props: {
     }
     window.addEventListener('pointerdown', closeFromOutside)
     return () => window.removeEventListener('pointerdown', closeFromOutside)
-  }, [annotationPaletteOpen])
+  }, [annotationPaletteOpen, annotationSessionActive])
+
+  useEffect(() => {
+    if (!annotationSessionActive) return undefined
+    const finishOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAnnotationPaletteOpen(false)
+    }
+    window.addEventListener('keydown', finishOnEscape)
+    return () => window.removeEventListener('keydown', finishOnEscape)
+  }, [annotationSessionActive])
 
   useLayoutEffect(() => {
     if (didFitInitialSheetZoom.current) return
@@ -699,24 +717,31 @@ export function SheetPanel(props: {
           className={[
             'annotationFloatingPalette',
             activeTimelineMemoId ? 'timelineMemoTarget' : '',
-            annotationPaletteOpen ? 'open' : '',
+            annotationSessionActive ? 'annotationSessionActive' : '',
+            annotationPaletteExpanded ? 'open' : '',
           ].filter(Boolean).join(' ')}
           aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
           data-annotation-target={activeTimelineMemoId ? 'timeline-memo' : 'sheet'}
           data-annotation-target-kind={annotationTarget.kind}
+          data-annotation-session={annotationSessionActive ? 'active' : 'idle'}
+          data-annotation-tool={annotationSessionActive ? editMode : undefined}
         >
           <button
             type="button"
             className="annotationPaletteTrigger"
             aria-label="メモツールを開く"
-            aria-expanded={annotationPaletteOpen}
-            onClick={() => setAnnotationPaletteOpen(open => !open)}
+            aria-expanded={annotationPaletteExpanded}
+            onClick={() => {
+              if (!annotationSessionActive) setAnnotationPaletteOpen(open => !open)
+            }}
           >
             <PenToolIcon />
             {activeTimelineMemoId && <span className="annotationTargetBadge">{uiText.sheet.timelineMemoTargetShort}</span>}
           </button>
           <span className="toolbarGroupLabel annotationPaletteTitle">
-            {activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
+            {annotationSessionActive
+              ? uiText.sheet.annotationSessionTitle
+              : activeTimelineMemoId ? uiText.sheet.timelineMemoAnnotationGroup : uiText.sheet.sheetAnnotationGroup}
           </span>
           <span className="annotationTargetLabel">
             対象: {annotationTarget.label}
@@ -728,10 +753,7 @@ export function SheetPanel(props: {
               aria-pressed={props.editMode === 'pen'}
               aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoPenTool : uiText.sheet.penTool}
               onClick={() => {
-                if (props.editMode === 'pen') {
-                  props.setEditMode('new')
-                  return
-                }
+                if (props.editMode === 'pen') return
                 if (!activeTimelineMemoId && annotationTarget.kind === 'timed-cue') {
                   const memoId = props.onCreateTimelineMemoForCue(annotationTarget.cue.cueId)
                   if (memoId) beginTimelineMemoEdit(memoId)
@@ -755,10 +777,7 @@ export function SheetPanel(props: {
               aria-pressed={props.editMode === 'text'}
               aria-label={uiText.sheet.textTool}
               onClick={() => {
-                if (props.editMode === 'text') {
-                  props.setEditMode('new')
-                  return
-                }
+                if (props.editMode === 'text') return
                 if (!activeTimelineMemoId && annotationTarget.kind === 'timed-cue') {
                   const memoId = props.onCreateTimelineMemoForCue(annotationTarget.cue.cueId)
                   if (memoId) beginTimelineMemoEdit(memoId, 'text')
@@ -782,7 +801,9 @@ export function SheetPanel(props: {
               className={props.editMode === 'eraser' ? 'activeToolButton' : ''}
               aria-pressed={props.editMode === 'eraser'}
               aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoEraserTool : uiText.sheet.eraserTool}
-              onClick={() => props.setEditMode(props.editMode === 'eraser' ? 'new' : 'eraser')}
+              onClick={() => {
+                if (props.editMode !== 'eraser') props.setEditMode('eraser')
+              }}
             >
               <EraserToolIcon />
             </button>
@@ -798,7 +819,25 @@ export function SheetPanel(props: {
             tooltip={uiText.sheet.memoTextFontSizeTitle}
             compact
           />
-          <ActionMenu label={uiText.sheet.penWidth} tooltipLabel={uiText.sheet.penWidthTitle} className="annotationWidthMenu">
+          {(props.editMode === 'pen' || props.editMode === 'eraser') && (
+            <label className="annotationActiveWidthControl">
+              <span>{props.editMode === 'pen' ? uiText.sheet.penWidth : uiText.sheet.eraserWidth}</span>
+              <input
+                type="range"
+                aria-label={props.editMode === 'pen' ? uiText.sheet.penWidth : uiText.sheet.eraserWidth}
+                min={props.editMode === 'pen' ? 1 : 4}
+                max={props.editMode === 'pen' ? 12 : 32}
+                value={Math.round((props.editMode === 'pen' ? props.penWidth : props.eraserWidth) * 1000)}
+                onChange={event => {
+                  const width = Number(event.currentTarget.value) / 1000
+                  if (props.editMode === 'pen') props.setPenWidth(width)
+                  else props.setEraserWidth(width)
+                }}
+              />
+              <output>{Math.round((props.editMode === 'pen' ? props.penWidth : props.eraserWidth) * 1000)}</output>
+            </label>
+          )}
+          {!annotationSessionActive && <ActionMenu label={uiText.sheet.penWidth} tooltipLabel={uiText.sheet.penWidthTitle} className="annotationWidthMenu">
             <label className="compactControl">
               {uiText.sheet.penWidth}
               <input type="range" min="1" max="12" value={Math.round(props.penWidth * 1000)} onChange={event => props.setPenWidth(Number(event.currentTarget.value) / 1000)} />
@@ -807,7 +846,7 @@ export function SheetPanel(props: {
               {uiText.sheet.eraserWidth}
               <input type="range" min="4" max="32" value={Math.round(props.eraserWidth * 1000)} onChange={event => props.setEraserWidth(Number(event.currentTarget.value) / 1000)} />
             </label>
-          </ActionMenu>
+          </ActionMenu>}
           <ActionMenu label={<TrashIcon />} ariaLabel={uiText.actions.clearInk} tooltipLabel={uiText.actions.clearInkTitle} className="annotationClearMenu" closeOnMenuItemClick>
             {activeTimelineMemoId ? (
               <button type="button" onClick={() => props.onClearTimelineMemoStrokes(activeTimelineMemoId)}>{uiText.sheet.clearTimelineMemoInk}</button>
@@ -826,6 +865,11 @@ export function SheetPanel(props: {
               </>
             )}
           </ActionMenu>
+          {annotationSessionActive && (
+            <button type="button" className="annotationSessionDoneButton" onClick={finishAnnotationSession}>
+              {uiText.sheet.annotationSessionDone}
+            </button>
+          )}
         </div>
         <aside id="sheet-left-pane" className="sheetDock sheetDockLeft" aria-label="CSPレイヤー構成" hidden={!paneLayout.left}>
           <div className="dockBody">

@@ -78,10 +78,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const isCalibrating = isCalibratingSheet
           const pageImage = getSheetPageImage(props.sheetView, props.runtimeSourceImageUrls, page.pageId, props.template)
           const strokes = !isCalibrating && props.showAnnotations
-            ? [
-                ...sheetAnnotationStrokes(props.project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen'),
-                ...(draftStroke?.pageId === page.pageId ? [draftStroke] : []),
-              ]
+            ? sheetAnnotationStrokes(props.project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')
             : []
           const textAnnotations = !isCalibrating && props.showAnnotations
             ? sheetAnnotationTexts(props.project).filter(annotation => annotation.pageId === page.pageId)
@@ -495,6 +492,17 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     aria-label={`${page.pageIndex + 1}ページの注釈入力`}
                   >
                     <rect x="0" y="0" width="1" height="1" fill="transparent" />
+                    {draftStroke?.pageId === page.pageId && (
+                      <path
+                        className={draftStroke.tool === 'eraser'
+                          ? 'annotationStroke annotationDraftStroke annotationEraserPreview'
+                          : 'annotationStroke annotationDraftStroke'}
+                        d={strokePath(draftStroke)}
+                        stroke={draftStroke.color}
+                        strokeWidth={draftStroke.width}
+                        data-annotation-region-id={draftStroke.anchor?.kind === 'view-surface' ? draftStroke.anchor.regionId : undefined}
+                      />
+                    )}
                   </svg>
                 )}
                 {props.editMode === 'text' && !props.editingTextAnnotationId && textCursorBadge?.pageId === page.pageId && (

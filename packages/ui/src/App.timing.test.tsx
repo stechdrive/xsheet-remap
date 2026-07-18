@@ -42,7 +42,7 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
     await waitFor(() => expect(document.querySelector('.timelineMemoText')?.textContent).toBe('確認メモ'))
   })
 
-it('selects TITLE and MEMO form regions as floating annotation targets', () => {
+  it('selects TITLE and MEMO form regions as floating annotation targets', () => {
     render(<App />)
     const title = screen.getByRole('button', { name: 'タイトルを編集' })
     const memo = screen.getByRole('button', { name: 'MEMOを編集' })
@@ -57,6 +57,49 @@ it('selects TITLE and MEMO form regions as floating annotation targets', () => {
     expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('対象: MEMO')
     expect(memo.getAttribute('data-annotation-target-selected')).toBe('true')
     expect(title.hasAttribute('data-annotation-target-selected')).toBe(false)
+  })
+
+  it('keeps a memo-input session open, previews the active stroke above the sheet, and exits explicitly', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'MEMOを編集' }))
+    fireEvent.click(screen.getByRole('button', { name: 'メモツールを開く' }))
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.penTool }))
+
+    const palette = document.querySelector<HTMLElement>('.annotationFloatingPalette')!
+    await waitFor(() => expect(palette.getAttribute('data-annotation-session')).toBe('active'))
+    expect(palette.classList.contains('open')).toBe(true)
+    expect(palette.getAttribute('data-annotation-tool')).toBe('pen')
+
+    const surface = document.querySelector<SVGSVGElement>('.pageAnnotationInputSurface[data-annotation-tool="pen"]')!
+    setSheetRect(surface as unknown as HTMLElement, 0, 0)
+    surface.setPointerCapture = vi.fn()
+    fireEvent.pointerDown(surface, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 1, clientX: 300, clientY: 300 })
+    fireEvent.pointerMove(surface, { pointerId: 31, pointerType: 'mouse', buttons: 1, clientX: 420, clientY: 360 })
+
+    await waitFor(() => expect(surface.querySelector('.annotationDraftStroke')).toBeTruthy())
+    const preview = surface.querySelector<SVGPathElement>('.annotationDraftStroke')!
+    expect(preview.getAttribute('d')).toContain('L')
+    expect(preview.closest('.pageAnnotationInputSurface')).toBe(surface)
+    expect(document.querySelector('.sheetSvg .annotationDraftStroke')).toBeNull()
+
+    fireEvent.pointerUp(surface, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 0, clientX: 420, clientY: 360 })
+    await waitFor(() => expect(surface.querySelector('.annotationDraftStroke')).toBeNull())
+    expect(document.querySelector('.sheetSvg .annotationStroke:not(.annotationEraserPreview)')).toBeTruthy()
+
+    fireEvent.pointerDown(document.body)
+    expect(palette.classList.contains('open')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.penTool }))
+    expect(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="pen"]')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.eraserTool }))
+    await waitFor(() => expect(palette.getAttribute('data-annotation-tool')).toBe('eraser'))
+    expect(screen.getByRole('slider', { name: uiText.sheet.eraserWidth })).toBeTruthy()
+    expect(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="eraser"]')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.annotationSessionDone }))
+    await waitFor(() => expect(document.querySelector('.pageAnnotationInputSurface')).toBeNull())
+    expect(palette.getAttribute('data-annotation-session')).toBe('idle')
+    expect(palette.classList.contains('open')).toBe(false)
   })
 
 it('shows a dedicated cell cue for asset and CSP card drop targets', () => {

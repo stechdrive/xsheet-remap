@@ -1942,6 +1942,11 @@
   pointer-events: none;
 }
 
+.annotationDraftStroke {
+  opacity: 1;
+  filter: drop-shadow(0 0 0.45px rgb(255 255 255 / 0.9));
+}
+
 .timelineMemoSegment {
   color: #16634f;
 }

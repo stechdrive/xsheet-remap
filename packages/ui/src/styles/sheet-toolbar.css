@@ -1522,7 +1522,8 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 
 .annotationFloatingPalette:hover,
 .annotationFloatingPalette:focus-within,
-.annotationFloatingPalette.open {
+.annotationFloatingPalette.open,
+.annotationFloatingPalette.annotationSessionActive {
   width: 124px;
   max-height: 420px;
   padding: 6px;
@@ -1536,7 +1537,8 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 
 .annotationFloatingPalette.timelineMemoTarget:hover,
 .annotationFloatingPalette.timelineMemoTarget:focus-within,
-.annotationFloatingPalette.timelineMemoTarget.open {
+.annotationFloatingPalette.timelineMemoTarget.open,
+.annotationFloatingPalette.timelineMemoTarget.annotationSessionActive {
   width: 124px;
 }
 
@@ -1575,8 +1577,15 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 
 .annotationFloatingPalette:hover .annotationPaletteTrigger,
 .annotationFloatingPalette:focus-within .annotationPaletteTrigger,
-.annotationFloatingPalette.open .annotationPaletteTrigger {
+.annotationFloatingPalette.open .annotationPaletteTrigger,
+.annotationFloatingPalette.annotationSessionActive .annotationPaletteTrigger {
   display: none;
+}
+
+.annotationFloatingPalette.annotationSessionActive {
+  border-color: rgb(19 116 92 / 0.9);
+  background: rgb(245 251 247 / 0.98);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.16), 0 0 0 2px rgb(19 116 92 / 0.14);
 }
 
 .annotationPaletteTitle {
@@ -1585,7 +1594,8 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 
 .annotationFloatingPalette:hover .annotationPaletteTitle,
 .annotationFloatingPalette:focus-within .annotationPaletteTitle,
-.annotationFloatingPalette.open .annotationPaletteTitle {
+.annotationFloatingPalette.open .annotationPaletteTitle,
+.annotationFloatingPalette.annotationSessionActive .annotationPaletteTitle {
   display: block;
   text-align: center;
 }
@@ -1606,8 +1616,40 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
 
 .annotationFloatingPalette:hover > :not(.annotationPaletteTrigger),
 .annotationFloatingPalette:focus-within > :not(.annotationPaletteTrigger),
-.annotationFloatingPalette.open > :not(.annotationPaletteTrigger) {
+.annotationFloatingPalette.open > :not(.annotationPaletteTrigger),
+.annotationFloatingPalette.annotationSessionActive > :not(.annotationPaletteTrigger) {
   display: inline-flex;
+}
+
+.annotationActiveWidthControl {
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 3px 5px;
+  width: 100%;
+  color: #32483e;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.annotationActiveWidthControl input {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.annotationActiveWidthControl output {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.annotationFloatingPalette .annotationSessionDoneButton {
+  width: 100%;
+  border-color: #27644f;
+  background: #dceadf;
+  color: #173528;
+  font-weight: 800;
 }
 
 .annotationFloatingPalette button:not(.annotationPaletteTrigger),

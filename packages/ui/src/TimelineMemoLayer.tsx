@@ -258,24 +258,25 @@ export function TimelineMemoLayer({
                 <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />
               </g> : null
             })}
-            {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
-              const point = timelineMemoPointToPagePoint(segment, text)
-              return <text
-                key={text.textId}
-                className="timelineMemoText"
-                x={point.x}
-                y={point.y}
-                fill={text.color}
-                fontSize={text.fontSizeUnits * segment.rowHeightY}
-                dominantBaseline="hanging"
-                clipPath={`url(#${clipId})`}
-                onDoubleClick={event => editText(event, memo, segment, text)}
-              >{text.text.split(/\r?\n/).map((line, index) => <tspan
-                key={`${text.textId}:${index}`}
-                x={point.x}
-                dy={index === 0 ? 0 : text.fontSizeUnits * segment.rowHeightY * 1.25}
-              >{line || '\u00a0'}</tspan>)}</text>
-            })}
+            <g className="timelineMemoTextClip" clipPath={`url(#${clipId})`}>
+              {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
+                const point = timelineMemoPointToPagePoint(segment, text)
+                return <text
+                  key={text.textId}
+                  className="timelineMemoText"
+                  x={point.x}
+                  y={point.y}
+                  fill={text.color}
+                  fontSize={text.fontSizeUnits * segment.rowHeightY}
+                  dominantBaseline="hanging"
+                  onDoubleClick={event => editText(event, memo, segment, text)}
+                >{text.text.split(/\r?\n/).map((line, index) => <tspan
+                  key={`${text.textId}:${index}`}
+                  x={point.x}
+                  dy={index === 0 ? 0 : text.fontSizeUnits * segment.rowHeightY * 1.25}
+                >{line || '\u00a0'}</tspan>)}</text>
+              })}
+            </g>
             {draftPoints && (() => {
               const path = timelineMemoStrokePath(segment, draftPoints)
               return path ? <path className="timelineMemoStroke draft" d={path} stroke={penColor} strokeWidth={Math.max(penWidth, 0.001)} /> : null

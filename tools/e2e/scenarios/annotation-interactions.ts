@@ -22,7 +22,6 @@ export interface AnnotationInteractionDriver {
   waitForPageCondition: (condition: () => boolean, label?: string) => Promise<void>
   clickMenuItem: (label: string) => Promise<void>
   selectorInsetDrag: (selector: string, startX: number, startY: number, endX: number, endY: number) => Promise<{ start: ClientPoint; end: ClientPoint }>
-  hoverSelector: (selector: string) => Promise<void>
   centerOfSelector: (selector: string) => Promise<ClientPoint>
   inputPointForSelector: (selector: string) => Promise<ClientPoint>
   waitForCondition: <T>(condition: () => T | null | false | undefined | Promise<T | null | false | undefined>, timeoutMs: number, label: string) => Promise<T>
@@ -36,7 +35,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     checks, clickFrame, keyPress, waitForEventAt, dragSoundRange, waitForSelector,
     setReactFieldValue, clickButtonByText, waitForSoundCueAt, clientPointsForTimedRange,
     mouseDrag, waitForCameraCueAt, rightClickFrame, rightClickTimedRangeFrame,
-    evaluatePage, waitForPageCondition, clickMenuItem, selectorInsetDrag, hoverSelector,
+    evaluatePage, waitForPageCondition, clickMenuItem, selectorInsetDrag,
     centerOfSelector, inputPointForSelector, waitForCondition, mouseClick, mouseDoubleClick,
     clientSend,
   } = driver
@@ -68,6 +67,13 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await createAnchoredMemoWithInkAndText('action', 4, 'ACTIONコメント', () => rightClickFrame('action', 'A', 4))
   await createAnchoredMemoWithInkAndText('sound', 10, 'セリフコメント', () => rightClickTimedRangeFrame('sound', 'sound_lane_1', 10))
   await createAnchoredMemoWithInkAndText('camera', 20, '撮影コメント', () => rightClickTimedRangeFrame('camera', 'camera_lane_1', 20))
+  const memoTextClipContract = await evaluatePage<{ directTextClips: number; groupClips: number }>(`({
+    directTextClips: document.querySelectorAll('.timelineMemoText[clip-path]').length,
+    groupClips: document.querySelectorAll('.timelineMemoTextClip[clip-path]').length,
+  })`)
+  if (memoTextClipContract.directTextClips !== 0 || memoTextClipContract.groupClips < 3) {
+    throw new Error(`timeline memo text clipping can obscure the sheet background: ${JSON.stringify(memoTextClipContract)}`)
+  }
   checks.push('created text and handwritten anchored comments for ACTION, SOUND, and CAMERA content')
 
   await selectAnnotationPaletteTool('sheet', 'テキスト')
@@ -111,21 +117,20 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   const textAfterPen = await pageTextGeometry('ページコメント')
   if (Math.abs(textAfterPen.left - textBeforePen.left) > 1 || Math.abs(textAfterPen.top - textBeforePen.top) > 1) throw new Error('page pen moved the underlying page text instead of drawing')
 
-  const titlePoint = await centerOfSelector('button[aria-label="タイトルを編集"]')
-  const strokeCountBeforeTitle = await evaluatePage<number>(`document.querySelectorAll('.annotationStroke:not(.annotationEraserPreview)').length`)
-  await mouseDrag(titlePoint, { x: titlePoint.x + 64, y: titlePoint.y + 6 })
+  const strokeCountBeforeMemoForm = await evaluatePage<number>(`document.querySelectorAll('.annotationStroke:not(.annotationEraserPreview)').length`)
+  await mouseDrag(memoPoint, { x: memoPoint.x + 64, y: memoPoint.y + 6 })
   await waitForCondition(
-    async () => (await evaluatePage<number>(`document.querySelectorAll('.annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeTitle,
+    async () => (await evaluatePage<number>(`document.querySelectorAll('.annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeMemoForm,
     5000,
-    'page stroke starting on TITLE form',
+    'page stroke starting on MEMO form',
   )
   await assertNoTransientTooltip('page pen over metadata forms')
-  checks.push('placed, reselected, and moved page text over MEMO, then drew from page text and metadata without input interception')
+  checks.push('placed, reselected, and moved page text over MEMO, then drew from page text and the MEMO form without input interception')
 
   await keyPress('Escape')
   await waitForPageCondition(() => !document.querySelector('.pageAnnotationInputSurface'), 'annotation capture released')
-  await mouseDoubleClick(titlePoint)
-  await waitForSelector('[role="dialog"][aria-label="タイトルを編集"]')
+  await mouseDoubleClick(memoPoint)
+  await waitForSelector('[role="dialog"][aria-label="MEMOを編集"]')
   checks.push('released annotation ownership and restored ordinary metadata editing')
 
   async function createAnchoredMemoWithInkAndText(
@@ -157,6 +162,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     await waitForSelector('.timelineMemoTextEditor')
     await setReactFieldValue('.timelineMemoTextEditor', text)
     await controlEnter()
+    await waitForPageCondition(() => !document.querySelector('.timelineMemoTextEditor'), `${anchorRole} memo text editor closed`)
     await waitForCondition(
       async () => evaluatePage<boolean>(`Array.from(document.querySelectorAll('.timelineMemoSegment.selected .timelineMemoText')).some(element => element.textContent === ${JSON.stringify(text)})`),
       5000,
@@ -168,10 +174,25 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
 
   async function selectAnnotationPaletteTool(target: 'sheet' | 'timeline-memo', ariaLabel: string): Promise<void> {
     const palette = `.annotationFloatingPalette[data-annotation-target="${target}"]`
-    await hoverSelector(palette)
+    const trigger = `${palette} .annotationPaletteTrigger`
+    const expanded = await evaluatePage<boolean>(`document.querySelector(${JSON.stringify(palette)})?.classList.contains('open') ?? false`)
+    if (!expanded) await mouseClick(await inputPointForSelector(trigger))
     const selector = `${palette} button[aria-label="${ariaLabel}"]`
     await waitForSelector(selector)
-    await mouseClick(await centerOfSelector(selector))
+    await waitForCondition(async () => {
+      try {
+        await inputPointForSelector(selector)
+        return true
+      } catch {
+        return false
+      }
+    }, 2000, `${ariaLabel} annotation palette tool receives input`)
+    await mouseClick(await inputPointForSelector(selector))
+    await waitForCondition(
+      async () => evaluatePage<boolean>(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') === 'true'`),
+      2000,
+      `${ariaLabel} annotation palette tool selected`,
+    )
   }
 
   async function assertNoTransientTooltip(label: string): Promise<void> {
@@ -185,7 +206,13 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       (() => {
         const element = document.elementFromPoint(${point.x}, ${point.y});
         if (!element) return 'none';
-        return [element.tagName, element.id, element.className?.baseVal ?? element.className ?? '', element.getAttribute('aria-label') ?? ''].join('|');
+        return Array.from((function* () {
+          let current = element;
+          while (current) {
+            yield [current.tagName, current.id, current.className?.baseVal ?? current.className ?? '', current.getAttribute('aria-label') ?? ''].join('|');
+            current = current.parentElement;
+          }
+        })()).join(' < ');
       })()
     `)
   }

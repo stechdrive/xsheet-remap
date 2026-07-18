@@ -237,6 +237,14 @@ export function TimelineMemoLayer({
 
   return (
     <g className="timelineMemoLayer" aria-label="フレームに紐づくメモ">
+      <defs>
+        {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
+          const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
+          return <clipPath key={clipId} id={clipId} clipPathUnits="userSpaceOnUse">
+            <rect x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
+          </clipPath>
+        }))}
+      </defs>
       {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
         const selected = memo.memoId === selectedMemoId
         const draftPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'draw' ? interaction.points : null
@@ -245,11 +253,6 @@ export function TimelineMemoLayer({
         const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
         return (
           <g key={`${memo.memoId}:${segment.regionId}`} data-timeline-memo-id={memo.memoId} className={selected ? 'timelineMemoSegment selected' : 'timelineMemoSegment'}>
-            <defs>
-              <clipPath id={clipId}>
-                <rect x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
-              </clipPath>
-            </defs>
             {selected && <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />}
             {memo.strokes.map(stroke => {
               const path = timelineMemoStrokePath(segment, stroke.points)

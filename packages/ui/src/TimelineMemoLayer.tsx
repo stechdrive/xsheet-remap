@@ -259,13 +259,23 @@ export function TimelineMemoLayer({
         return (
           <g key={`${memo.memoId}:${segment.regionId}`} data-timeline-memo-id={memo.memoId} className={selected ? 'timelineMemoSegment selected' : 'timelineMemoSegment'}>
             {selected && <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />}
-            {memo.strokes.map(stroke => {
-              const path = timelineMemoStrokePath(segment, stroke.points)
-              return path ? <g key={stroke.strokeId}>
-                {!selected && <path className="timelineMemoStrokeHit" d={path} />}
-                <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />
-              </g> : null
-            })}
+            <g className="timelineMemoInkLayer" clipPath={`url(#${clipId})`}>
+              {memo.strokes.map(stroke => {
+                const path = timelineMemoStrokePath(segment, stroke.points)
+                return path ? <g key={stroke.strokeId}>
+                  {!selected && <path className="timelineMemoStrokeHit" d={path} />}
+                  <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />
+                </g> : null
+              })}
+              {draftPoints && (() => {
+                const path = timelineMemoStrokePath(segment, draftPoints)
+                return path ? <path className="timelineMemoStroke draft" d={path} stroke={penColor} strokeWidth={Math.max(penWidth, 0.001)} /> : null
+              })()}
+              {eraserPoints && (() => {
+                const path = timelineMemoStrokePath(segment, eraserPoints)
+                return path ? <path className="timelineMemoEraserPreview" d={path} strokeWidth={Math.max(eraserWidth, 0.001)} /> : null
+              })()}
+            </g>
             <g className="timelineMemoTextLayer" clipPath={`url(#${clipId})`}>
               {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
                 const point = timelineMemoPointToPagePoint(segment, text)
@@ -285,14 +295,6 @@ export function TimelineMemoLayer({
                 >{line || '\u00a0'}</tspan>)}</text>
               })}
             </g>
-            {draftPoints && (() => {
-              const path = timelineMemoStrokePath(segment, draftPoints)
-              return path ? <path className="timelineMemoStroke draft" d={path} stroke={penColor} strokeWidth={Math.max(penWidth, 0.001)} /> : null
-            })()}
-            {eraserPoints && (() => {
-              const path = timelineMemoStrokePath(segment, eraserPoints)
-              return path ? <path className="timelineMemoEraserPreview" d={path} strokeWidth={Math.max(eraserWidth, 0.001)} /> : null
-            })()}
             {selected && <g className="timelineMemoBoundsEdges">
               <rect className="timelineMemoBounds" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
               <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={edgeH} />

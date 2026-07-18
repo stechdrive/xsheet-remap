@@ -1175,6 +1175,15 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
         }
       }
       for (const segment of segments) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(
+          segment.rect.x * context.pageSize.widthPx,
+          offsetY + segment.rect.y * context.pageSize.heightPx,
+          segment.rect.w * context.pageSize.widthPx,
+          segment.rect.h * context.pageSize.heightPx,
+        )
+        ctx.clip()
         for (const stroke of memo.strokes) {
           const points = timelineMemoStrokePointsForSegment(segment, stroke.points)
           const [first, ...rest] = points
@@ -1192,6 +1201,7 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
           ctx.lineJoin = 'round'
           ctx.stroke()
         }
+        ctx.restore()
       }
     }
   }

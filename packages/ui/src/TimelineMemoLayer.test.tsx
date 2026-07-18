@@ -259,8 +259,59 @@ describe('TimelineMemoLayer anchor cues', () => {
     )
 
     expect(container.querySelector('.timelineMemoHitArea')).toBeNull()
-    expect(container.querySelector('.timelineMemoStrokeHit')).toBeTruthy()
+    const inkLayer = container.querySelector('.timelineMemoInkLayer')
+    expect(inkLayer?.getAttribute('clip-path')).toMatch(/^url\(#timeline-memo-clip-/)
+    expect(inkLayer?.querySelector('.timelineMemoStrokeHit')).toBeTruthy()
+    expect(inkLayer?.querySelector('.timelineMemoStroke')).toBeTruthy()
     expect(container.querySelector('.timelineMemoAnchorHitArea')).toBeTruthy()
+  })
+
+  it('clips preserved ink and its hit target to resized memo bounds without rewriting the stroke', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const source = memo('memo_1')
+    source.placement.widthUnits = 2
+    source.strokes = [{
+      strokeId: 'stroke_1',
+      color: '#111',
+      widthUnits: 0.2,
+      points: [{ x: 1, y: 1 }, { x: 7, y: 5 }],
+    }]
+    const { container } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[source]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
+          selectedMemoId={null}
+          editMode="new"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          textFontSizePx={18}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+
+    const inkLayer = container.querySelector('.timelineMemoInkLayer')
+    const clipId = inkLayer?.getAttribute('clip-path')?.match(/^url\(#(.+)\)$/)?.[1]
+    const clipPath = [...container.querySelectorAll('clipPath')].find(item => item.id === clipId)
+    const clipRect = clipPath?.querySelector('rect')
+    const visibleStroke = inkLayer?.querySelector('.timelineMemoStroke')
+    const hitStroke = inkLayer?.querySelector('.timelineMemoStrokeHit')
+
+    expect(clipRect).toBeTruthy()
+    expect(Number(clipRect?.getAttribute('width'))).toBeGreaterThan(0)
+    expect(visibleStroke?.getAttribute('d')).toContain('L ')
+    expect(hitStroke?.getAttribute('d')).toBe(visibleStroke?.getAttribute('d'))
+    expect(source.strokes[0]?.points.at(-1)?.x).toBe(7)
   })
 
   it('renders and edits text inside the selected anchored memo', () => {

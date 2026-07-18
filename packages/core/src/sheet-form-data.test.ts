@@ -20,15 +20,32 @@ describe('sheet form data', () => {
     expect(sheetFormFieldValueText(updated.sheetFormData.cut['output.sizeX'])).toBe('1920')
   })
 
+  it('stores page fields independently and requires an explicit page id', () => {
+    const definition = { fieldId: 'memo.body', scope: 'page' as const, valueType: 'multiline' as const }
+    const first = updateSheetFormField(createDefaultProject(), definition, '1ページのメモ', 'page_1')
+    const second = updateSheetFormField(first, definition, '2ページのメモ', 'page_2')
+
+    expect(second.sheetFormData.pages).toEqual({
+      page_1: { 'memo.body': { kind: 'text', value: '1ページのメモ' } },
+      page_2: { 'memo.body': { kind: 'text', value: '2ページのメモ' } },
+    })
+    expect(() => updateSheetFormField(second, definition, 'ページ不明')).toThrow('ページIDがありません')
+  })
+
   it('drops malformed external values while preserving valid tagged values', () => {
     expect(normalizeSheetFormData({
       production: { valid: { kind: 'text', value: '作品' }, invalid: { kind: 'number', value: 'NaN' } },
       cut: null,
       revision: { checked: { kind: 'boolean', value: true } },
+      pages: {
+        page_1: { memo: { kind: 'text', value: '備考' }, invalid: { kind: 'number', value: 'NaN' } },
+        empty: { invalid: true },
+      },
     })).toEqual({
       production: { valid: { kind: 'text', value: '作品' } },
       cut: {},
       revision: { checked: { kind: 'boolean', value: true } },
+      pages: { page_1: { memo: { kind: 'text', value: '備考' } } },
     })
   })
 })

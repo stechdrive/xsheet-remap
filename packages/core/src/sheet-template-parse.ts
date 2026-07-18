@@ -26,6 +26,7 @@ export function parseSheetTemplate(input: unknown): SheetTemplate {
   if (new Set(input.defaults.paperTracks).size !== input.defaults.paperTracks.length) {
     throw new Error('テンプレートのセル列名が重複しています。')
   }
+  if (input.fields !== undefined) validateFields(input.fields)
   if (!Array.isArray(input.regions) || input.regions.length === 0) {
     throw new Error('テンプレートに表示領域がありません。')
   }
@@ -78,6 +79,25 @@ const sheetTemplateRegionTypes = new Set([
 
 const sheetTemplateRegionUsages = new Set(['input', 'reference', 'render-only', 'ignored'])
 const sheetTemplateGridRoles = new Set(['action', 'sound', 'cell', 'camera', 'frame-guide', 'count-table', 'other'])
+const sheetTemplateFieldScopes = new Set(['production', 'cut', 'revision', 'page'])
+const sheetTemplateFieldValueTypes = new Set(['text', 'multiline', 'number', 'boolean', 'choice', 'date', 'duration'])
+
+function validateFields(input: unknown): void {
+  if (!Array.isArray(input)) throw new Error('テンプレートのフォーム項目定義が不正です。')
+  const fieldIds = new Set<string>()
+  for (const field of input) {
+    if (!isRecord(field)
+      || !nonEmptyString(field.fieldId)
+      || !nonEmptyString(field.label)
+      || !sheetTemplateFieldScopes.has(String(field.scope))
+      || !sheetTemplateFieldValueTypes.has(String(field.valueType))
+      || field.choices !== undefined && (!Array.isArray(field.choices) || !field.choices.every(nonEmptyString))) {
+      throw new Error('テンプレートのフォーム項目定義が不正です。')
+    }
+    if (fieldIds.has(field.fieldId)) throw new Error(`フォーム項目IDが重複しています: ${field.fieldId}`)
+    fieldIds.add(field.fieldId)
+  }
+}
 
 function validateGridLineRule(input: unknown): boolean {
   if (!isRecord(input)

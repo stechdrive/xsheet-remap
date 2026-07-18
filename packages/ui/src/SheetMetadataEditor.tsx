@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   resolveSheetTemplateRegionRect,
+  sheetFormFieldsForScope,
   sheetFormFieldValueText,
   type CutMetadataFieldId,
   type CutProject,
@@ -37,9 +38,11 @@ export function SheetMetadataEditor({
   paperTracks: string[]
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
-  onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean) => void
+  onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean, pageId: string) => void
 }) {
   const [editingRegionId, setEditingRegionId] = useState<string | null>(null)
+  const [multilineDraft, setMultilineDraft] = useState('')
+  const multilineDraftRef = useRef('')
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const regions = template.regions.filter((region): region is EditableMetadataRegion =>
@@ -62,9 +65,23 @@ export function SheetMetadataEditor({
   const activeForm = formFields.find(field => field.key === editingRegionId) ?? null
   const activeRect = activeMetadata?.rect ?? activeForm?.rect ?? null
   const activeLabel = activeMetadata?.region.label ?? activeForm?.definition.label ?? ''
+  const activeFormIsMultiline = activeForm?.definition.valueType === 'multiline'
+  const pageScale = pageHeight / Math.max(1, template.page.heightPx)
 
   useEffect(() => {
     if (!editingRegionId) return
+
+    function commitAndCloseEditor() {
+      if (activeFormIsMultiline && activeForm) {
+        const currentValue = sheetFormFieldValueText(
+          sheetFormFieldsForScope(project.sheetFormData, activeForm.definition.scope, page.pageId)[activeForm.fieldId],
+        )
+        if (multilineDraftRef.current !== currentValue) {
+          onFormFieldChange(activeForm.definition, multilineDraftRef.current, page.pageId)
+        }
+      }
+      setEditingRegionId(null)
+    }
 
     function isInsideEditor(target: EventTarget | null) {
       return target instanceof Node
@@ -72,11 +89,11 @@ export function SheetMetadataEditor({
     }
 
     function handlePointerDown(event: PointerEvent) {
-      if (!isInsideEditor(event.target)) setEditingRegionId(null)
+      if (!isInsideEditor(event.target)) commitAndCloseEditor()
     }
 
     function handleFocusIn(event: FocusEvent) {
-      if (!isInsideEditor(event.target)) setEditingRegionId(null)
+      if (!isInsideEditor(event.target)) commitAndCloseEditor()
     }
 
     document.addEventListener('pointerdown', handlePointerDown, true)
@@ -85,16 +102,46 @@ export function SheetMetadataEditor({
       document.removeEventListener('pointerdown', handlePointerDown, true)
       document.removeEventListener('focusin', handleFocusIn, true)
     }
-  }, [editingRegionId])
+  }, [activeForm, activeFormIsMultiline, editingRegionId, onFormFieldChange, page.pageId, project.sheetFormData])
 
-  function closeEditor(restoreTriggerFocus: boolean) {
+  useEffect(() => {
+    if (!activeFormIsMultiline || !activeForm) return
+    const surface = activeTriggerRef.current?.closest('.sheetPageSurface')
+    const renderedFields = surface
+      ? Array.from(surface.querySelectorAll<SVGTextElement>('.metadataFieldText'))
+        .filter(element => element.dataset.regionId === activeForm.key)
+      : []
+    const previousVisibility = renderedFields.map(element => element.style.visibility)
+    renderedFields.forEach(element => { element.style.visibility = 'hidden' })
+    return () => {
+      renderedFields.forEach((element, index) => { element.style.visibility = previousVisibility[index] ?? '' })
+    }
+  }, [activeForm, activeFormIsMultiline])
+
+  function closeEditor(restoreTriggerFocus: boolean, commitMultiline: boolean) {
     const trigger = activeTriggerRef.current
+    if (commitMultiline && activeFormIsMultiline && activeForm) {
+      const currentValue = sheetFormFieldValueText(
+        sheetFormFieldsForScope(project.sheetFormData, activeForm.definition.scope, page.pageId)[activeForm.fieldId],
+      )
+      if (multilineDraftRef.current !== currentValue) {
+        onFormFieldChange(activeForm.definition, multilineDraftRef.current, page.pageId)
+      }
+    }
     setEditingRegionId(null)
     if (restoreTriggerFocus) trigger?.focus()
   }
 
   function openEditor(regionId: string, trigger: HTMLButtonElement) {
     activeTriggerRef.current = trigger
+    const form = formFields.find(field => field.key === regionId)
+    if (form?.definition.valueType === 'multiline') {
+      const value = sheetFormFieldValueText(
+        sheetFormFieldsForScope(project.sheetFormData, form.definition.scope, page.pageId)[form.fieldId],
+      )
+      multilineDraftRef.current = value
+      setMultilineDraft(value)
+    }
     setEditingRegionId(regionId)
   }
 
@@ -164,7 +211,46 @@ export function SheetMetadataEditor({
           )}
         </TooltipTarget>
       ))}
-      {activeRect && (activeMetadata || activeForm) && (
+      {activeRect && activeForm && activeFormIsMultiline && (
+        <div
+          ref={popoverRef}
+          className="sheetInlineMultilineEditor"
+          role="dialog"
+          aria-label={`${activeLabel}を編集`}
+          style={rectStyle(activeRect, pageWidth, pageHeight)}
+          onPointerDown={event => event.stopPropagation()}
+          onKeyDown={event => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.stopPropagation()
+              closeEditor(true, false)
+            }
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              event.stopPropagation()
+              closeEditor(true, true)
+            }
+          }}
+        >
+          <SheetFormFieldControl
+            project={project}
+            field={activeForm}
+            pageId={page.pageId}
+            multilineStyle={{
+              fontSizePx: Math.max(12, (activeForm.textStyle.fontSizePx ?? 16) * pageScale),
+              lineHeightPx: Math.max(15, (activeForm.textStyle.lineHeightPx ?? 20) * pageScale),
+              paddingPx: Math.max(4, (activeForm.textStyle.paddingPx ?? 8) * pageScale),
+            }}
+            valueOverride={multilineDraft}
+            onMultilineDraftChange={value => {
+              multilineDraftRef.current = value
+              setMultilineDraft(value)
+            }}
+            onChange={onFormFieldChange}
+          />
+        </div>
+      )}
+      {activeRect && (activeMetadata || activeForm) && !activeFormIsMultiline && (
         <div
           ref={popoverRef}
           className="sheetMetadataEditorPopover"
@@ -176,7 +262,7 @@ export function SheetMetadataEditor({
             if (event.key === 'Escape') {
               event.preventDefault()
               event.stopPropagation()
-              closeEditor(true)
+              closeEditor(true, false)
             }
             if (
               event.key === 'Enter'
@@ -185,13 +271,13 @@ export function SheetMetadataEditor({
             ) {
               event.preventDefault()
               event.stopPropagation()
-              closeEditor(true)
+              closeEditor(true, true)
             }
           }}
         >
           <div className="sheetMetadataEditorHeader">
             <strong>{activeLabel}</strong>
-            <button type="button" aria-label={`${activeLabel}の編集を閉じる`} onClick={() => closeEditor(true)}>×</button>
+            <button type="button" aria-label={`${activeLabel}の編集を閉じる`} onClick={() => closeEditor(true, true)}>×</button>
           </div>
           {activeMetadata?.region.binding.field === 'duration'
             ? (
@@ -219,7 +305,7 @@ export function SheetMetadataEditor({
               </div>
                 )
               : activeForm
-                ? <SheetFormFieldControl project={project} field={activeForm} onChange={onFormFieldChange} />
+                ? <SheetFormFieldControl project={project} field={activeForm} pageId={page.pageId} onChange={onFormFieldChange} />
                 : null}
         </div>
       )}
@@ -230,18 +316,26 @@ export function SheetMetadataEditor({
 function SheetFormFieldControl({
   project,
   field,
+  pageId,
+  multilineStyle,
+  valueOverride,
+  onMultilineDraftChange,
   onChange,
 }: {
   project: CutProject
   field: ReturnType<typeof buildTemplateChromeRenderModel>['formFields'][number]
-  onChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean) => void
+  pageId: string
+  multilineStyle?: { fontSizePx: number; lineHeightPx: number; paddingPx: number }
+  valueOverride?: string
+  onMultilineDraftChange?: (value: string) => void
+  onChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean, pageId: string) => void
 }) {
-  const value = project.sheetFormData[field.definition.scope][field.fieldId]
-  const text = sheetFormFieldValueText(value)
+  const value = sheetFormFieldsForScope(project.sheetFormData, field.definition.scope, pageId)[field.fieldId]
+  const text = valueOverride ?? sheetFormFieldValueText(value)
   if (field.definition.valueType === 'boolean') {
     return (
       <label className="sheetMetadataEditorCheckbox">
-        <input autoFocus type="checkbox" checked={value?.kind === 'boolean' && value.value} onChange={event => onChange(field.definition, event.currentTarget.checked)} />
+        <input autoFocus type="checkbox" checked={value?.kind === 'boolean' && value.value} onChange={event => onChange(field.definition, event.currentTarget.checked, pageId)} />
         <span>チェック</span>
       </label>
     )
@@ -249,7 +343,7 @@ function SheetFormFieldControl({
   if (field.definition.valueType === 'choice') {
     return (
       <div className="sheetMetadataEditorField">
-        <select autoFocus aria-label={field.definition.label} value={text} onChange={event => onChange(field.definition, event.currentTarget.value)}>
+        <select autoFocus aria-label={field.definition.label} value={text} onChange={event => onChange(field.definition, event.currentTarget.value, pageId)}>
           <option value="" />
           {field.definition.choices?.map(choice => <option key={choice} value={choice}>{choice}</option>)}
         </select>
@@ -259,7 +353,21 @@ function SheetFormFieldControl({
   if (field.definition.valueType === 'multiline') {
     return (
       <div className="sheetMetadataEditorField">
-        <textarea autoFocus aria-label={field.definition.label} value={text} onChange={event => onChange(field.definition, event.currentTarget.value)} />
+        <textarea
+          autoFocus
+          className={multilineStyle ? 'sheetInlineMultilineTextarea' : undefined}
+          aria-label={field.definition.label}
+          value={text}
+          style={multilineStyle ? {
+            fontSize: `${multilineStyle.fontSizePx}px`,
+            lineHeight: `${multilineStyle.lineHeightPx}px`,
+            padding: `${multilineStyle.paddingPx}px`,
+          } : undefined}
+          onChange={event => {
+            if (onMultilineDraftChange) onMultilineDraftChange(event.currentTarget.value)
+            else onChange(field.definition, event.currentTarget.value, pageId)
+          }}
+        />
       </div>
     )
   }
@@ -270,7 +378,7 @@ function SheetFormFieldControl({
         type={field.definition.valueType === 'number' || field.definition.valueType === 'duration' ? 'number' : field.definition.valueType === 'date' ? 'date' : 'text'}
         aria-label={field.definition.label}
         value={text}
-        onChange={event => onChange(field.definition, event.currentTarget.value)}
+        onChange={event => onChange(field.definition, event.currentTarget.value, pageId)}
       />
     </div>
   )

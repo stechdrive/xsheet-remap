@@ -301,7 +301,10 @@ export const standardA3SheetTemplate: SheetTemplate = {
     frameOrigin: 1,
     paperTracks: standardA3DefaultPaperTracks,
   },
-  fields: STANDARD_A3_PROCESS_FIELDS,
+  fields: [
+    ...STANDARD_A3_PROCESS_FIELDS,
+    { fieldId: 'memo.body', label: 'MEMO', scope: 'page', valueType: 'multiline' },
+  ],
   regions: [
     {
       regionId: 'top_process_check_area',
@@ -405,19 +408,30 @@ export const standardA3SheetTemplate: SheetTemplate = {
       label: 'MEMO',
       rect: standardA3Rect(35, 259, 1113, 331),
       usage: 'input',
-      inputKind: 'annotation',
-      inputMode: 'free-annotation',
-      binding: {
-        target: 'annotation-layer',
-        layerId: 'memo',
-        intent: 'memo',
-      },
+      inputKind: 'text',
       form: {
         columns: [1],
         rows: [24, 307],
         cells: [{
           ...formLabelCell('memo_label', 0, 0, 'MEMO', 1, { fontSizePx: 10, fontWeight: 700, horizontalAlign: 'left', verticalAlign: 'middle', paddingPx: 2 }),
           border: false,
+        }, {
+          cellId: 'memo_body',
+          row: 1,
+          column: 0,
+          kind: 'field',
+          fieldId: 'memo.body',
+          border: false,
+          textStyle: {
+            fontSizePx: 16,
+            minFontSizePx: 10,
+            lineHeightPx: 20,
+            fontWeight: 400,
+            horizontalAlign: 'left',
+            verticalAlign: 'top',
+            paddingPx: 8,
+            shrinkToFit: false,
+          },
         }],
       },
     },

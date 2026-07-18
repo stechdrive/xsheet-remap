@@ -1,4 +1,4 @@
-import { memo, useMemo, type PointerEvent } from 'react'
+import { memo, useId, useMemo, type PointerEvent } from 'react'
 import { type CutProject, type NormalizedPoint, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, resolveSheetTemplateGridLayout } from '@xsheet-remap/core'
 import { type SheetImageSettings } from './appTypes'
 import { buildTemplateChromeRenderModel, buildTemplateGridOverlayRenderModel } from './templateEditorGeometry'
@@ -161,31 +161,41 @@ export const GridOverlay = memo(function GridOverlay({
 
 export function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext; page: SheetPage }) {
   const items = metadataTextRenderItemsForPage(context, page)
+  const clipPrefix = useId().replace(/:/g, '')
   if (items.length === 0) return null
   return (
     <g className="metadataTextLayer" aria-hidden="true">
-      {items.map(item => (
-        <SheetSvgText
-          key={item.regionId}
-          className="metadataFieldText"
-          x={item.x}
-          y={item.y}
-          textAnchor={item.textAnchor}
-          dominantBaseline={item.dominantBaseline}
-          fontSizePx={item.fontSizePx}
-          pageSize={context.pageSize}
-          fontWeight={item.fontWeight}
-        >
-          {item.lines.map((line, index) => (
-            <tspan
-              key={`${item.regionId}_${index}`}
-              x={sheetSvgTextX(item.x, context.pageSize)}
-              dy={index === 0 ? 0 : item.lineHeightPx}
-            >
-              {line}
-            </tspan>
-          ))}
-        </SheetSvgText>
+      <defs>
+        {items.map((item, index) => (
+          <clipPath key={`${item.regionId}:clip`} id={`${clipPrefix}-${index}`}>
+            <rect x={item.rect.x} y={item.rect.y} width={item.rect.w} height={item.rect.h} />
+          </clipPath>
+        ))}
+      </defs>
+      {items.map((item, itemIndex) => (
+        <g key={item.regionId} clipPath={`url(#${clipPrefix}-${itemIndex})`}>
+          <SheetSvgText
+            className="metadataFieldText"
+            data-region-id={item.regionId}
+            x={item.x}
+            y={item.y}
+            textAnchor={item.textAnchor}
+            dominantBaseline={item.dominantBaseline}
+            fontSizePx={item.fontSizePx}
+            pageSize={context.pageSize}
+            fontWeight={item.fontWeight}
+          >
+            {item.lines.map((line, index) => (
+              <tspan
+                key={`${item.regionId}_${index}`}
+                x={sheetSvgTextX(item.x, context.pageSize)}
+                dy={index === 0 ? 0 : item.lineHeightPx}
+              >
+                {line}
+              </tspan>
+            ))}
+          </SheetSvgText>
+        </g>
       ))}
     </g>
   )

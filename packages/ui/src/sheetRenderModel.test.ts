@@ -9,6 +9,8 @@ import {
   setEvent,
   setTimingSpecialEvent,
   standardA3SheetTemplate,
+  updateLogicalSheetSettings,
+  updateSheetFormField,
   updateSheetViewState,
 } from '@xsheet-remap/core'
 import {
@@ -152,6 +154,23 @@ describe('sheet render model', () => {
     })
     expect(secondPage.find(item => item.field === 'page')?.text).toBe('2/2')
     expect(firstPage.every(item => item.rect.w > 0 && item.fontSizePx > 0)).toBe(true)
+  })
+
+  it('renders wrapped A3 memo text independently for each physical page', () => {
+    const memo = { fieldId: 'memo.body', scope: 'page' as const, valueType: 'multiline' as const }
+    const extended = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 288 })
+    const firstText = `1ページ目\n${'メ'.repeat(100)}`
+    const first = updateSheetFormField(extended, memo, firstText, 'page_1')
+    const project = updateSheetFormField(first, memo, '2ページ目', 'page_2')
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate)
+    const firstMemo = metadataTextRenderItemsForPage(context, context.pages[0]).find(item => item.field === 'memo.body')
+    const secondMemo = metadataTextRenderItemsForPage(context, context.pages[1]).find(item => item.field === 'memo.body')
+
+    expect(firstMemo).toMatchObject({ text: firstText, textAnchor: 'start', dominantBaseline: 'hanging' })
+    expect(firstMemo?.lines[0]).toBe('1ページ目')
+    expect(firstMemo?.lines.length).toBeGreaterThan(2)
+    expect(secondMemo).toMatchObject({ text: '2ページ目', lines: ['2ページ目'] })
+    expect(firstMemo?.rect).toEqual(secondMemo?.rect)
   })
 
   it('renders other shared cut numbers only when the per-cut display option is enabled', () => {

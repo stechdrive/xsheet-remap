@@ -589,10 +589,13 @@ export type SheetFormFieldValue =
 
 export type SheetFormFieldValues = Record<Id, SheetFormFieldValue>
 
+export type SheetFormPageFieldValues = Record<Id, SheetFormFieldValues>
+
 export interface SheetFormData {
   production: SheetFormFieldValues
   cut: SheetFormFieldValues
   revision: SheetFormFieldValues
+  pages: SheetFormPageFieldValues
 }
 
 export interface NameNormalizationAssetRenameResult {
@@ -658,6 +661,7 @@ export interface SheetRevisionDocument {
   reference?: SheetRevisionReference
   metadata: Pick<CutSheetMetadata, 'worker' | 'custom'>
   sheetFields: SheetFormFieldValues
+  pageFields: SheetFormPageFieldValues
   sheetView: SheetViewState
   logicalSheet: CutSheetLogicalSheet
   cspTrackSlots: CspTrackSlot[]

@@ -588,6 +588,15 @@ function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
     for (const item of metadataTextRenderItemsForPage(context, page)) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(
+        item.rect.x * context.pageSize.widthPx,
+        offsetY + item.rect.y * context.pageSize.heightPx,
+        item.rect.w * context.pageSize.widthPx,
+        item.rect.h * context.pageSize.heightPx,
+      )
+      ctx.clip()
       ctx.fillStyle = '#1f2421'
       ctx.font = fontDeclaration(item.fontSizePx, SHEET_CANVAS_FONT_FAMILY, item.fontWeight)
       ctx.textAlign = item.textAnchor === 'start' ? 'left' : item.textAnchor === 'end' ? 'right' : 'center'
@@ -599,6 +608,7 @@ function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
           offsetY + item.y * context.pageSize.heightPx + index * item.lineHeightPx,
         )
       })
+      ctx.restore()
     }
   }
   return ctx.getImageData(0, 0, context.width, context.height)

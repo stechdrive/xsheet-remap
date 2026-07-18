@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCanvasTextMeasurementProvider, splitTextGraphemes, textFontDeclaration } from './textMetrics'
+import { createCanvasTextMeasurementProvider, splitTextGraphemes, textFontDeclaration, wrapMultilineTextByWidth } from './textMetrics'
 
 describe('shared text measurement', () => {
   it('measures with a resolved font and caches identical requests', () => {
@@ -30,5 +30,18 @@ describe('shared text measurement', () => {
   it('builds a stable CSS canvas font declaration', () => {
     expect(textFontDeclaration({ family: 'sans-serif', sizePx: 14, weight: 700, style: 'italic' }))
       .toBe('italic 700 14px sans-serif')
+  })
+
+  it('wraps explicit and measured multiline text without discarding blank lines', () => {
+    const provider = {
+      measure: (text: string) => ({ widthPx: text.length * 10, ascentPx: 8, descentPx: 2, exact: true }),
+    }
+
+    expect(wrapMultilineTextByWidth('ABCD\n\nEF', 25, { family: 'sans-serif', sizePx: 10 }, provider)).toEqual([
+      'AB',
+      'CD',
+      '',
+      'EF',
+    ])
   })
 })

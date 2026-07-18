@@ -137,7 +137,7 @@ export interface SheetTemplateGrid {
   columns: SheetTemplateColumn[]
 }
 
-export type SheetTemplateFieldScope = 'production' | 'cut' | 'revision'
+export type SheetTemplateFieldScope = 'production' | 'cut' | 'revision' | 'page'
 
 export type SheetTemplateFieldValueType = 'text' | 'multiline' | 'number' | 'boolean' | 'choice' | 'date' | 'duration'
 

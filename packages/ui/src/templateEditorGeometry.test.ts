@@ -247,6 +247,13 @@ describe('template editor geometry', () => {
     const model = buildTemplateChromeRenderModel(standardA3SheetTemplate)
     expect(model.formFields.some(field => field.fieldId === 'process.animationDirector.final' && field.definition.scope === 'revision')).toBe(true)
     expect(model.formFields.some(field => field.fieldId === 'output.sizeX' && field.definition.scope === 'cut')).toBe(true)
+    expect(model.formFields).toContainEqual(expect.objectContaining({
+      regionId: 'top_memo_area',
+      fieldId: 'memo.body',
+      definition: expect.objectContaining({ scope: 'page', valueType: 'multiline' }),
+      editable: true,
+    }))
+    expect(model.formBoxes.some(box => box.key === 'top_memo_area:memo_body')).toBe(false)
     expect(model.formFields.filter(field => field.fieldId.startsWith('count.') && field.editable)).toHaveLength(27)
     expect(model.formFields.filter(field => field.fieldId.startsWith('count.total.') && !field.editable)).toHaveLength(3)
   })

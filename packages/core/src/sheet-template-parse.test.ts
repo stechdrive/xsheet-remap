@@ -34,4 +34,16 @@ describe('parseSheetTemplate', () => {
     reserve.usage = 'input'
     expect(() => parseSheetTemplate(invalid)).toThrow('描画専用')
   })
+
+  it('accepts page-scoped multiline fields and rejects unknown field scopes', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    expect(parseSheetTemplate(template).fields?.find(field => field.fieldId === 'memo.body')).toMatchObject({
+      scope: 'page',
+      valueType: 'multiline',
+    })
+
+    const invalid = structuredClone(standardA3SheetTemplate) as unknown as { fields: Array<Record<string, unknown>> }
+    invalid.fields[0]!.scope = 'sheet'
+    expect(() => parseSheetTemplate(invalid)).toThrow('フォーム項目定義が不正')
+  })
 })

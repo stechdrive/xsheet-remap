@@ -8,7 +8,7 @@ import { DEFAULT_CSP_CELL_NAME_POLICY, LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION, P
 import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations, timingEventValueKind } from './project-shared'
 import { parseProjectExtensions } from './project-archive'
-import { normalizeSheetFormData, normalizeSheetFormFieldValues } from './sheet-form-data'
+import { normalizeSheetFormData, normalizeSheetFormFieldValues, normalizeSheetFormPageFieldValues } from './sheet-form-data'
 
 export function createDefaultProjectDocument(): CutGroupProjectDocument {
   return createProjectDocumentFromCutProject(createDefaultProject(), { sheetTemplate: standardA3SheetTemplate })
@@ -473,6 +473,7 @@ function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMet
       production: { ...baseProject.sheetFormData.production },
       cut: {},
       revision: {},
+      pages: {},
     },
     sheetView: createDefaultSheetViewState(baseProject.sheetTemplateId ?? baseProject.sheetView.templateId),
     logicalSheet: {
@@ -530,6 +531,7 @@ function sheetRevisionFromProject(
     ...previous,
     metadata: withoutUndefined({ worker: project.cut.worker, custom: project.cut.custom }),
     sheetFields: { ...project.sheetFormData.revision },
+    pageFields: structuredClone(project.sheetFormData.pages),
     sheetView: project.sheetView,
     logicalSheet,
     cspTrackSlots: project.cspTrackSlots,
@@ -559,6 +561,7 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
       production: normalizeSheetFormFieldValues(document.production.sheetFields),
       cut: normalizeSheetFormFieldValues(cut.metadata.sheetFields),
       revision: normalizeSheetFormFieldValues(revision.sheetFields),
+      pages: normalizeSheetFormPageFieldValues(revision.pageFields),
     },
     studioPresetId: document.studioPresetId,
     sheetTemplateId: document.sheetTemplate.templateId,
@@ -632,6 +635,7 @@ function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): 
       custom: isStringRecord(input.metadata.custom) ? { ...input.metadata.custom } : undefined,
     },
     sheetFields: normalizeSheetFormFieldValues(input.sheetFields),
+    pageFields: normalizeSheetFormPageFieldValues(input.pageFields),
     sheetView: input.sheetView as unknown as SheetViewState,
     logicalSheet: input.logicalSheet as unknown as SheetRevisionDocument['logicalSheet'],
     cspTrackSlots: input.cspTrackSlots as CspTrackSlot[],
@@ -657,6 +661,7 @@ function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>): S
       custom: isStringRecord(metadata.custom) ? { ...metadata.custom } : undefined,
     },
     sheetFields: normalizeSheetFormFieldValues(input.sheetFields),
+    pageFields: normalizeSheetFormPageFieldValues(input.pageFields),
     sheetView: input.sheetView,
     logicalSheet: input.logicalSheet,
     cspTrackSlots: input.cspTrackSlots,
@@ -743,6 +748,7 @@ function blankRevisionFromSource(source: SheetRevisionDocument, revisionId: stri
   return {
     ...duplicateRevisionFromSource(source, revisionId, order, name),
     sheetFields: {},
+    pageFields: {},
     logicalSheet: { ...cloneRevision(source).logicalSheet, events: [] },
     annotations: [],
     timelineMemos: [],

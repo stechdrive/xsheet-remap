@@ -128,7 +128,7 @@ export type SheetCanvasProps = {
   onCommitFocusedTextAnnotationDraft: () => void
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
-  onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean) => void
+  onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean, pageId: string) => void
   onCalibrationPoints: (page: SheetPage, points: SheetCalibrationPointPair[], enabled?: boolean) => void
 }
 

@@ -72,6 +72,32 @@ let defaultMeasurementContext: CanvasMeasurementContext | null | undefined
 
 export const sharedTextMeasurementProvider = createCanvasTextMeasurementProvider(resolveDefaultMeasurementContext)
 
+export function wrapMultilineTextByWidth(
+  value: string,
+  maxWidthPx: number,
+  font: TextFontSpec,
+  measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
+): string[] {
+  if (!value) return []
+  const width = Math.max(1, maxWidthPx)
+  return value.replace(/\r\n?/g, '\n').split('\n').flatMap(paragraph => {
+    if (!paragraph) return ['']
+    const lines: string[] = []
+    let line = ''
+    for (const grapheme of splitTextGraphemes(paragraph)) {
+      const candidate = `${line}${grapheme}`
+      if (line && measurement.measure(candidate, font).widthPx > width) {
+        lines.push(line)
+        line = grapheme
+      } else {
+        line = candidate
+      }
+    }
+    lines.push(line)
+    return lines
+  })
+}
+
 function resolveDefaultMeasurementContext(): CanvasMeasurementContext | null {
   if (defaultMeasurementContext !== undefined) return defaultMeasurementContext
   try {

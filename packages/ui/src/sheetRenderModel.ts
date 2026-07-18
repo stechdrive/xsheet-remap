@@ -11,6 +11,7 @@ import {
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
+  sheetFormFieldsForScope,
   sheetFormFieldValueText,
   sheetTimingRoleForEvent,
   timingEventValueKind,
@@ -30,6 +31,7 @@ import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } fro
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
+import { SHEET_TEXT_FONT_FAMILY, wrapMultilineTextByWidth } from './textMetrics'
 
 export type SheetRenderModelContext = {
   project: CutProject
@@ -277,7 +279,7 @@ export function metadataTextRenderItemsForPage(context: SheetRenderModelContext,
     sharedLabels,
     sharedCutNumbersVisible,
     )),
-    ...formFieldTextRenderItems(context),
+    ...formFieldTextRenderItems(context, page),
   ]
   if (!sharedCutNumbersVisible || explicitSharedCutRegion) return items
 
@@ -337,7 +339,7 @@ export function metadataTextRenderItemsForPage(context: SheetRenderModelContext,
   ]
 }
 
-function formFieldTextRenderItems(context: SheetRenderModelContext): SheetMetadataTextRenderItem[] {
+function formFieldTextRenderItems(context: SheetRenderModelContext, page: SheetPage): SheetMetadataTextRenderItem[] {
   const chrome = buildTemplateChromeRenderModel(
     context.template,
     context.paperTracks,
@@ -345,7 +347,7 @@ function formFieldTextRenderItems(context: SheetRenderModelContext): SheetMetada
     { layoutOverrides: context.project.sheetView.layoutOverrides },
   )
   return chrome.formFields.flatMap(field => {
-    const text = formFieldText(context, field)
+    const text = formFieldText(context, field, page)
     if (!text) return []
     const style = field.textStyle
     const paddingPx = Math.max(0, style.paddingPx ?? 2)
@@ -359,12 +361,20 @@ function formFieldTextRenderItems(context: SheetRenderModelContext): SheetMetada
     })
     const paddingX = paddingPx / context.pageSize.widthPx
     const paddingY = paddingPx / context.pageSize.heightPx
+    const lineHeightPx = Math.max(fontSizePx, style.lineHeightPx ?? fontSizePx * 1.15)
+    const lines = field.definition.valueType === 'multiline'
+      ? wrapMultilineTextByWidth(text, Math.max(1, field.rect.w * context.pageSize.widthPx - paddingPx * 2), {
+          family: SHEET_TEXT_FONT_FAMILY,
+          sizePx: fontSizePx,
+          weight: style.fontWeight ?? 400,
+        })
+      : [text]
     return [{
       regionId: field.key,
       field: field.fieldId,
       text,
-      lines: [text],
-      lineHeightPx: Math.max(fontSizePx, style.lineHeightPx ?? fontSizePx * 1.15),
+      lines,
+      lineHeightPx,
       rect: field.rect,
       x: horizontalAlign === 'left' ? field.rect.x + paddingX : horizontalAlign === 'right' ? field.rect.x + field.rect.w - paddingX : field.rect.x + field.rect.w / 2,
       y: verticalAlign === 'top' ? field.rect.y + paddingY : verticalAlign === 'bottom' ? field.rect.y + field.rect.h - paddingY : field.rect.y + field.rect.h / 2,
@@ -376,16 +386,16 @@ function formFieldTextRenderItems(context: SheetRenderModelContext): SheetMetada
   })
 }
 
-function formFieldText(context: SheetRenderModelContext, field: TemplateFormFieldRenderModel): string {
+function formFieldText(context: SheetRenderModelContext, field: TemplateFormFieldRenderModel, page: SheetPage): string {
+  const values = sheetFormFieldsForScope(context.project.sheetFormData, field.definition.scope, page.pageId)
   if (field.sourceFieldIds?.length) {
-    const values = context.project.sheetFormData[field.definition.scope]
     const sum = field.sourceFieldIds.reduce((total, fieldId) => {
       const value = values[fieldId]
       return total + (value?.kind === 'number' && value.value !== null ? value.value : 0)
     }, 0)
     return sum === 0 ? '' : String(sum)
   }
-  return sheetFormFieldValueText(context.project.sheetFormData[field.definition.scope][field.fieldId])
+  return sheetFormFieldValueText(values[field.fieldId])
 }
 
 function metadataTextRenderItemsForRegion(

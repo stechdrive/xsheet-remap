@@ -353,7 +353,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onTextFontSizeChange={handleTextFontSizeChange}
             onMetadataChange={handleUpdateCutMetadata}
             onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
-            onFormFieldChange={(definition, value) => commitProject(updateSheetFormField(project, definition, value))}
+            onFormFieldChange={(definition, value, pageId) => commitProject(updateSheetFormField(project, definition, value, pageId))}
             autoCalibrationRunning={autoCalibrationRunning}
             autoCalibrationMessage={autoCalibrationMessage}
             autoCalibrationOverlay={autoCalibrationOverlay}

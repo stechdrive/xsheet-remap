@@ -49,6 +49,7 @@ describe('project sheet history', () => {
     let original = updateSheetFormField(createDefaultProject(), { fieldId: 'production.code', scope: 'production', valueType: 'text' }, 'P')
     original = updateSheetFormField(original, { fieldId: 'output.sizeX', scope: 'cut', valueType: 'number' }, 1920)
     original = updateSheetFormField(original, { fieldId: 'process.check', scope: 'revision', valueType: 'text' }, '作画')
+    original = updateSheetFormField(original, { fieldId: 'memo.body', scope: 'page', valueType: 'multiline' }, 'ページメモ', 'page_1')
     let document = createProjectDocumentFromCutProject(original)
 
     document = addSheetRevisionToProjectDocument(document, original, { name: '演出', mode: 'duplicate' })
@@ -60,6 +61,7 @@ describe('project sheet history', () => {
       production: original.sheetFormData.production,
       cut: original.sheetFormData.cut,
       revision: {},
+      pages: {},
     })
   })
 
@@ -77,7 +79,7 @@ describe('project sheet history', () => {
         timelineMemos: revision.timelineMemos, timedRangeCues: revision.timedRangeCues }],
     }
     const migrated = parseProjectDocument(legacy)
-    expect(migrated).toMatchObject({ schemaVersion: 8, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined }] }] })
+    expect(migrated).toMatchObject({ schemaVersion: 9, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined, pageFields: {} }] }] })
     expect(activeCutProjectFromDocument(migrated).logicalSheet.events).toEqual(source.logicalSheet.events)
   })
 })

@@ -941,7 +941,7 @@ export function SheetPanel(props: {
             selectedTimelineMemoId={activeTimelineMemoId}
             pageAnnotationTarget={pageAnnotationTarget}
             setActivePageIndex={pageIndex => {
-              setSelectedAnnotationRegion(null)
+              if (pageIndex !== props.activePageIndex) setSelectedAnnotationRegion(null)
               props.setActivePageIndex(pageIndex)
             }}
             onCellClick={hit => {

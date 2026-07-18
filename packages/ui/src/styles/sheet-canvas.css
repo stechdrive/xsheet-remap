@@ -250,6 +250,17 @@
   pointer-events: none;
 }
 
+.sheetMetadataEditorLayer.interactionBlocked .sheetMetadataEditHotspot:disabled {
+  background: transparent;
+  color: inherit;
+  cursor: inherit;
+  transition: none;
+}
+
+.sheetMetadataEditorLayer.interactionBlocked .sheetMetadataEditHotspot[data-annotation-target-selected="true"]:disabled {
+  background: transparent;
+}
+
 .sheetMetadataEditHotspot {
   position: absolute;
   min-width: 16px;

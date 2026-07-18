@@ -1,4 +1,5 @@
 import { writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import {
   cellRectForHit,
   resolveSheetTemplateGridLayout,
@@ -62,6 +63,7 @@ if (!args.result) throw new Error('--result is required')
 if (!args.report) throw new Error('--report is required')
 
 const checks: string[] = []
+const scenarioArtifacts: string[] = []
 let client: CdpClient | null = null
 let previewClient: CdpClient | null = null
 const e2ePageFrames = standardA3SheetTemplate.defaults.durationFrames
@@ -104,10 +106,10 @@ try {
     passed: true,
     scenario: scenarioId,
     checks,
-    artifacts: [args.report, args.screenshot].filter(Boolean),
+    artifacts: [args.report, args.screenshot, ...scenarioArtifacts].filter(Boolean),
   })
 } catch (error) {
-  const failureArtifacts = [args.report]
+  const failureArtifacts = [args.report, ...scenarioArtifacts]
   if (client && args['failure-screenshot']) {
     await capturePageScreenshot(args['failure-screenshot'])
       .then(() => failureArtifacts.push(args['failure-screenshot']))
@@ -231,6 +233,8 @@ async function runSheetOpsScenario(scenario: SheetOpsScenarioId): Promise<void> 
         mouseClick,
         mouseDoubleClick,
         clientSend,
+        captureScreenshot: capturePageScreenshotData,
+        captureScreenshotArtifact: captureScenarioScreenshot,
       })
       return
     case 'sheet-history':
@@ -2227,6 +2231,14 @@ async function capturePageScreenshot(path: string): Promise<void> {
 async function capturePageScreenshotData(): Promise<string> {
   const result = await clientSend<{ data: string }>('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
   return result.data
+}
+
+async function captureScenarioScreenshot(label: string): Promise<string> {
+  const root = dirname(args.screenshot || args.result)
+  const path = join(root, `${scenarioId}-${label.replace(/[^a-z0-9_-]+/gi, '-')}.png`)
+  await capturePageScreenshot(path)
+  if (!scenarioArtifacts.includes(path)) scenarioArtifacts.push(path)
+  return path
 }
 
 async function waitForCondition<T>(

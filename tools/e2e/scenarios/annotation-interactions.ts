@@ -1,3 +1,5 @@
+import { assertSelectorsContributePaint } from '../visual-paint-contract'
+
 interface ClientPoint {
   x: number
   y: number
@@ -27,6 +29,8 @@ export interface AnnotationInteractionDriver {
   mouseClick: (point: ClientPoint, button?: 'left' | 'right') => Promise<void>
   mouseDoubleClick: (point: ClientPoint) => Promise<void>
   clientSend: <T>(method: string, params?: Record<string, unknown>) => Promise<T>
+  captureScreenshot: () => Promise<string>
+  captureScreenshotArtifact: (label: string) => Promise<string>
 }
 
 export async function verifyAnnotationInteractionScenario(driver: AnnotationInteractionDriver): Promise<void> {
@@ -36,7 +40,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     mouseDrag, waitForCameraCueAt, rightClickFrame,
     evaluatePage, waitForPageCondition, clickMenuItem, selectorInsetDrag,
     centerOfSelector, inputPointForSelector, waitForCondition, mouseClick, mouseDoubleClick,
-    clientSend,
+    clientSend, captureScreenshot, captureScreenshotArtifact,
   } = driver
 
   await clickFrame('action', 'A', 4)
@@ -91,10 +95,48 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await evaluatePage(`document.querySelector('button[aria-label="MEMOを編集"]')?.scrollIntoView({ block: 'center', inline: 'center' })`)
   await mouseClick(await inputPointForSelector('button[aria-label="MEMOを編集"]'))
   await waitForPageCondition(() => document.querySelector('.annotationTargetLabel')?.textContent?.includes('対象: MEMO') === true, 'MEMO annotation target')
+  const memoPoint = await centerOfSelector('button[aria-label="MEMOを編集"]')
+  await selectAnnotationPaletteTool('sheet', 'ペン')
+  await waitForPageCondition(() => Boolean(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="pen"]')), 'MEMO pen input surface')
+  const blockedMemoHotspot = await evaluatePage<{ disabled: boolean; backgroundColor: string; selected: boolean }>(`(() => {
+    const hotspot = document.querySelector('button[aria-label="MEMOを編集"]');
+    if (!(hotspot instanceof HTMLButtonElement)) throw new Error('MEMO hotspot not found');
+    return {
+      disabled: hotspot.disabled,
+      backgroundColor: getComputedStyle(hotspot).backgroundColor,
+      selected: hotspot.getAttribute('data-annotation-target-selected') === 'true',
+    };
+  })()`)
+  if (!blockedMemoHotspot.disabled || !blockedMemoHotspot.selected || !['transparent', 'rgba(0, 0, 0, 0)'].includes(blockedMemoHotspot.backgroundColor)) {
+    throw new Error(`blocked MEMO hotspot obscures annotation ink: ${JSON.stringify(blockedMemoHotspot)}`)
+  }
+  const memoStrokeCountBefore = await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke[data-annotation-region-id="top_memo_area"]').length`)
+  await drawPageStrokeWithLivePreview(
+    { x: memoPoint.x - 80, y: memoPoint.y - 20 },
+    { x: memoPoint.x + 80, y: memoPoint.y + 20 },
+    'memo-live-annotation-preview',
+  )
+  await waitForPageCondition(() => document.querySelector('.annotationTargetLabel')?.textContent?.includes('対象: MEMO') === true
+    && document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-target-kind') === 'template-region', 'MEMO target remains locked after drawing')
+  await waitForCondition(
+    async () => (await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke[data-annotation-region-id="top_memo_area"]').length`)) > memoStrokeCountBefore,
+    5000,
+    'MEMO-region stroke committed',
+  )
+  const committedMemoStrokePixels = await assertSelectorsContributePaint({
+    evaluate: evaluatePage,
+    captureScreenshot,
+  }, {
+    selector: '.sheetSvg .annotationStroke[data-annotation-region-id="top_memo_area"]',
+    expectedCount: memoStrokeCountBefore + 1,
+    label: 'committed MEMO annotation while the pen session remains active',
+    minimumChangedPixels: 12,
+  })
+  await captureScreenshotArtifact('memo-committed-annotation-visible')
+  checks.push(`kept the MEMO target locked and painted committed ink above blocked hotspots: ${committedMemoStrokePixels.join(', ')}`)
   await selectAnnotationPaletteTool('sheet', 'テキスト')
   await waitForPageCondition(() => Boolean(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="text"]')), 'page text input surface')
   await assertNoTransientTooltip('page text placement')
-  const memoPoint = await centerOfSelector('button[aria-label="MEMOを編集"]')
   const memoOwner = await topElementSummary(memoPoint)
   if (!memoOwner.includes('pageAnnotationInputSurface')) throw new Error(`page text input does not own the MEMO region: ${memoOwner}`)
   await mouseClick(memoPoint)
@@ -140,6 +182,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await drawPageStrokeWithLivePreview(
     { x: textBeforePen.centerX, y: textBeforePen.centerY },
     { x: textBeforePen.centerX + 58, y: textBeforePen.centerY + 8 },
+    'page-live-annotation-preview',
   )
   await waitForCondition(
     async () => (await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeText,
@@ -324,7 +367,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     if (tooltipCount !== 0) throw new Error(`${label} left ${tooltipCount} transient tooltip(s) visible`)
   }
 
-  async function drawPageStrokeWithLivePreview(start: ClientPoint, end: ClientPoint): Promise<void> {
+  async function drawPageStrokeWithLivePreview(start: ClientPoint, end: ClientPoint, artifactLabel: string): Promise<void> {
     await clientSend('Input.dispatchMouseEvent', {
       type: 'mouseMoved', x: start.x, y: start.y, button: 'none', buttons: 0,
     })
@@ -362,6 +405,17 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     if (!(preview.pathLength > 0) || !preview.inInputSurface || !preview.visible || !preview.paletteOpen) {
       throw new Error(`page annotation preview is not visibly owned by the input surface: ${JSON.stringify(preview)}`)
     }
+    const previewPixels = await assertSelectorsContributePaint({
+      evaluate: evaluatePage,
+      captureScreenshot,
+    }, {
+      selector: '.pageAnnotationInputSurface .annotationDraftStroke',
+      expectedCount: 1,
+      label: `${artifactLabel} draft stroke while the pointer remains pressed`,
+      minimumChangedPixels: 12,
+    })
+    await captureScreenshotArtifact(artifactLabel)
+    checks.push(`${artifactLabel} contributed visible compositor pixels while pressed: ${previewPixels.join(', ')}`)
     await clientSend('Input.dispatchMouseEvent', {
       type: 'mouseReleased', x: end.x, y: end.y, button: 'left', buttons: 0, clickCount: 1,
     })

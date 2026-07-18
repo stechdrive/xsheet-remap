@@ -77,6 +77,9 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
     fireEvent.pointerMove(surface, { pointerId: 31, pointerType: 'mouse', buttons: 1, clientX: 420, clientY: 360 })
 
     await waitFor(() => expect(surface.querySelector('.annotationDraftStroke')).toBeTruthy())
+    expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('対象: MEMO')
+    expect(palette.getAttribute('data-annotation-target-kind')).toBe('template-region')
+    expect(screen.getByRole('button', { name: 'MEMOを編集' }).getAttribute('data-annotation-target-selected')).toBe('true')
     const preview = surface.querySelector<SVGPathElement>('.annotationDraftStroke')!
     expect(preview.getAttribute('d')).toContain('L')
     expect(preview.closest('.pageAnnotationInputSurface')).toBe(surface)
@@ -84,7 +87,10 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
 
     fireEvent.pointerUp(surface, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 0, clientX: 420, clientY: 360 })
     await waitFor(() => expect(surface.querySelector('.annotationDraftStroke')).toBeNull())
-    expect(document.querySelector('.sheetSvg .annotationStroke:not(.annotationEraserPreview)')).toBeTruthy()
+    const committedStroke = document.querySelector('.sheetSvg .annotationStroke:not(.annotationEraserPreview)')
+    expect(committedStroke).toBeTruthy()
+    expect(committedStroke?.getAttribute('data-annotation-region-id')).toBe('top_memo_area')
+    expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('対象: MEMO')
 
     fireEvent.pointerDown(document.body)
     expect(palette.classList.contains('open')).toBe(true)

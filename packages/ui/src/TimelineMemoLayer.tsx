@@ -252,16 +252,7 @@ export function TimelineMemoLayer({
                 <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />
               </g> : null
             })}
-            <svg
-              className="timelineMemoTextViewport"
-              x={segment.rect.x}
-              y={segment.rect.y}
-              width={segment.rect.w}
-              height={segment.rect.h}
-              viewBox={`${segment.rect.x} ${segment.rect.y} ${segment.rect.w} ${segment.rect.h}`}
-              preserveAspectRatio="none"
-              overflow="hidden"
-            >
+            <g className="timelineMemoTextLayer">
               {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
                 const point = timelineMemoPointToPagePoint(segment, text)
                 return <text
@@ -279,7 +270,7 @@ export function TimelineMemoLayer({
                   dy={index === 0 ? 0 : text.fontSizeUnits * segment.rowHeightY * 1.25}
                 >{line || '\u00a0'}</tspan>)}</text>
               })}
-            </svg>
+            </g>
             {draftPoints && (() => {
               const path = timelineMemoStrokePath(segment, draftPoints)
               return path ? <path className="timelineMemoStroke draft" d={path} stroke={penColor} strokeWidth={Math.max(penWidth, 0.001)} /> : null

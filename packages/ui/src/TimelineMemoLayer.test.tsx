@@ -410,6 +410,48 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(editor.classList.contains('timelineMemoTextEditor')).toBe(true)
   })
 
+  it('extends the automatic text editor to the shared memo boundary instead of capping it at five frames', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const source = memo('memo_1')
+    source.placement.heightFrames = 12
+    const { container, getByLabelText } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[source]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
+          selectedMemoId={source.memoId}
+          editMode="text"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          textFontSizePx={18}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+
+    const bounds = container.querySelector<SVGRectElement>('.timelineMemoBounds')!
+    const editor = getByLabelText('メモ文字') as HTMLTextAreaElement
+    const boundsRight = Number(bounds.getAttribute('x')) + Number(bounds.getAttribute('width'))
+    const boundsBottom = Number(bounds.getAttribute('y')) + Number(bounds.getAttribute('height'))
+    const editorRight = (Number.parseFloat(editor.style.left) + Number.parseFloat(editor.style.width)) / 100
+    const editorBottom = (Number.parseFloat(editor.style.top) + Number.parseFloat(editor.style.height)) / 100
+    const editorHeight = Number.parseFloat(editor.style.height) / 100
+    const boundsHeight = Number(bounds.getAttribute('height'))
+
+    expect(editorRight).toBeCloseTo(boundsRight, 6)
+    expect(editorBottom).toBeCloseTo(boundsBottom, 6)
+    expect(editorHeight).toBeGreaterThan(boundsHeight * 0.75)
+  })
+
   it('renders shared background and independent ink/text opacity from memo appearance', () => {
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)

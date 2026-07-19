@@ -33,6 +33,20 @@ type TimelineTextDraft = {
   appearance: ReturnType<typeof normalizeMemoAppearance>
 }
 
+function timelineMemoTextEditorRect(segment: TimelineMemoSegment, value: TimelineMemoText) {
+  const point = timelineMemoPointToPagePoint(segment, value)
+  const right = segment.rect.x + segment.rect.w
+  const bottom = segment.rect.y + segment.rect.h
+  const x = Math.max(segment.rect.x, Math.min(point.x, right))
+  const y = Math.max(segment.rect.y, Math.min(point.y, bottom))
+  return {
+    x,
+    y,
+    width: Math.max(0, right - x),
+    height: Math.max(0, bottom - y),
+  }
+}
+
 export function TimelineMemoLayer({
   memos,
   template,
@@ -378,9 +392,7 @@ export function TimelineMemoLayer({
               <rect className="timelineMemoBoundsEdge" x={segment.rect.x + segment.rect.w - edgeW} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
             </g>}
             {textDraft?.memoId === memo.memoId && textDraft.segment.regionId === segment.regionId && (() => {
-              const point = timelineMemoPointToPagePoint(segment, textDraft.value)
-              const width = Math.max(segment.rowHeightX * 2, segment.rect.x + segment.rect.w - point.x)
-              const height = Math.max(segment.rowHeightY * 2, Math.min(segment.rect.y + segment.rect.h - point.y, segment.rowHeightY * 5))
+              const editorRect = timelineMemoTextEditorRect(segment, textDraft.value)
               const host = editorHost === undefined && typeof document !== 'undefined' ? document.body : editorHost
               return host ? createPortal(
                 <textarea
@@ -388,10 +400,10 @@ export function TimelineMemoLayer({
                   className="timelineMemoTextEditor"
                   value={textDraft.value.text}
                   style={{
-                    left: `${point.x * 100}%`,
-                    top: `${point.y * 100}%`,
-                    width: `${width * 100}%`,
-                    height: `${height * 100}%`,
+                    left: `${editorRect.x * 100}%`,
+                    top: `${editorRect.y * 100}%`,
+                    width: `${editorRect.width * 100}%`,
+                    height: `${editorRect.height * 100}%`,
                     fontSize: `${textDraft.appearance.text.fontSizeUnits * segment.rowHeightY * pageSize.heightPx * zoom}px`,
                     color: textDraft.appearance.text.color,
                     opacity: textDraft.appearance.textOpacity,

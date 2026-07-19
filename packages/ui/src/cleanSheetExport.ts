@@ -592,16 +592,17 @@ function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
+  const textMeasurement = createCanvasTextMeasurementProvider(() => ctx)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const item of metadataTextRenderItemsForPage(context, page)) {
+    for (const item of metadataTextRenderItemsForPage(context, page, textMeasurement)) {
       ctx.save()
       ctx.beginPath()
       ctx.rect(
-        item.rect.x * context.pageSize.widthPx,
-        offsetY + item.rect.y * context.pageSize.heightPx,
-        item.rect.w * context.pageSize.widthPx,
-        item.rect.h * context.pageSize.heightPx,
+        item.clipRect.x * context.pageSize.widthPx,
+        offsetY + item.clipRect.y * context.pageSize.heightPx,
+        item.clipRect.w * context.pageSize.widthPx,
+        item.clipRect.h * context.pageSize.heightPx,
       )
       ctx.clip()
       ctx.fillStyle = '#1f2421'

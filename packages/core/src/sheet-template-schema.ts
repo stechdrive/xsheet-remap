@@ -339,6 +339,10 @@ export interface SheetTemplateTextStyle {
   /** @deprecated Use padding with an explicit unit. */
   paddingPx?: number
   shrinkToFit?: boolean
+  /** Controls whether text may paint outside the field horizontally. */
+  overflowX?: 'clip' | 'visible'
+  /** Controls whether text may paint outside the field vertically. */
+  overflowY?: 'clip' | 'visible'
 }
 
 export interface SheetTemplateBgBookLabelStyle {

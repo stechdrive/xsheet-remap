@@ -27,6 +27,8 @@ export interface ResolvedSheetTemplateTextStyle {
   horizontalAlign: 'left' | 'center' | 'right'
   verticalAlign: 'top' | 'middle' | 'bottom'
   shrinkToFit: boolean
+  overflowX: 'clip' | 'visible'
+  overflowY: 'clip' | 'visible'
 }
 
 export function sheetTemplateDesignDpi(template: SheetTemplate): number {
@@ -108,6 +110,8 @@ export function resolveSheetTemplateTextStyle(
     horizontalAlign: style.horizontalAlign ?? 'center',
     verticalAlign: style.verticalAlign ?? 'middle',
     shrinkToFit: style.shrinkToFit !== false,
+    overflowX: style.overflowX ?? 'clip',
+    overflowY: style.overflowY ?? 'clip',
   }
 }
 

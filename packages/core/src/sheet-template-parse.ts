@@ -123,6 +123,8 @@ function validateTextStyle(input: unknown): boolean {
   if (input.fontWeight !== undefined && (!finiteNumber(input.fontWeight) || input.fontWeight < 100 || input.fontWeight > 900)) return false
   if (input.horizontalAlign !== undefined && !['left', 'center', 'right'].includes(String(input.horizontalAlign))) return false
   if (input.verticalAlign !== undefined && !['top', 'middle', 'bottom'].includes(String(input.verticalAlign))) return false
+  if (input.overflowX !== undefined && !['clip', 'visible'].includes(String(input.overflowX))) return false
+  if (input.overflowY !== undefined && !['clip', 'visible'].includes(String(input.overflowY))) return false
   return input.shrinkToFit === undefined || typeof input.shrinkToFit === 'boolean'
 }
 

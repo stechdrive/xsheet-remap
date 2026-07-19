@@ -658,6 +658,15 @@
   width: 100%;
 }
 
+.templateTextOverflowFields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
+}
+
+.templateTextOverflowFields select {
+  width: 100%;
+}
+
 .templateHeaderLabelMeta {
   grid-template-columns: 110px minmax(0, 1fr);
 }

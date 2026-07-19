@@ -762,6 +762,10 @@ it('toggles shared cut numbers beside the cut switch even before another cut exi
 it('deletes the selected shared cut after confirmation but keeps the last cut', async () => {
     render(<App />)
     const deleteButton = screen.getByRole('button', { name: uiText.sheet.deleteSharedCutTitle }) as HTMLButtonElement
+    const addButton = screen.getByRole('button', { name: uiText.sheet.addSharedCutTitle }) as HTMLButtonElement
+    expect(deleteButton.classList.contains('iconButton')).toBe(true)
+    expect(deleteButton.classList.contains('cutSwitchIconButton')).toBe(true)
+    expect(addButton.classList.contains('iconButton')).toBe(true)
     expect(deleteButton.disabled).toBe(true)
 
     fireEvent.click(document.querySelector('.cutSwitchAddButton') as HTMLButtonElement)

@@ -307,19 +307,17 @@
   font: inherit;
 }
 
-.cutSwitchAddButton,
-.cutSwitchDeleteButton {
+.cutSwitchIconButton {
   width: 30px;
   min-width: 30px;
-  padding: 4px 0;
-  font-weight: 800;
+  height: 30px;
 }
 
 .cutSwitchDeleteButton {
   color: #8f2f2f;
 }
 
-.cutSwitchDeleteButton .topIconSvg {
+.cutSwitchIconButton .topIconSvg {
   width: 16px;
   height: 16px;
 }

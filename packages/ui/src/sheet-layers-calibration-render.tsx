@@ -168,7 +168,7 @@ export function MetadataTextLayer({ context, page }: { context: SheetRenderModel
       <defs>
         {items.map((item, index) => (
           <clipPath key={`${item.regionId}:clip`} id={`${clipPrefix}-${index}`}>
-            <rect x={item.rect.x} y={item.rect.y} width={item.rect.w} height={item.rect.h} />
+            <rect x={item.clipRect.x} y={item.clipRect.y} width={item.clipRect.w} height={item.clipRect.h} />
           </clipPath>
         ))}
       </defs>

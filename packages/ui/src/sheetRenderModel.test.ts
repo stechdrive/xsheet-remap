@@ -24,6 +24,7 @@ import {
   stackGuideFlagRenderItemsForPage,
 } from './sheetRenderModel'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
+import type { TextMeasurementProvider } from './textMetrics'
 
 describe('sheet render model', () => {
   it('builds overlay column and stack-guide label items independently from canvas rendering', () => {
@@ -280,6 +281,53 @@ describe('sheet render model', () => {
     expect(shared?.lines[0]?.startsWith('[')).toBe(true)
     expect(shared?.lines.at(-1)?.endsWith(']')).toBe(true)
     expect(shared?.lines.flatMap(line => line.match(/\d+/g) ?? [])).toEqual(['002', '003', '004', '005', '006', '007'])
+  })
+
+  it('uses measured glyph widths for shared-cut wrapping and allows vertical overflow only to the page edge', () => {
+    const base = createDefaultProject()
+    const project = {
+      ...base,
+      sheetView: {
+        ...base.sheetView,
+        metadataDisplay: { sharedCutNumbers: true },
+      },
+    }
+    const cutGroup = {
+      activeCutId: 'cut_1',
+      cuts: [
+        { cutId: 'cut_1', order: 0, metadata: { cut: '001' } },
+        ...Array.from({ length: 40 }, (_, index) => ({
+          cutId: `cut_${index + 2}`,
+          order: index + 1,
+          metadata: { cut: `W${String(index + 2).padStart(2, '0')}` },
+        })),
+      ],
+    }
+    const measurement: TextMeasurementProvider = {
+      measure(text, font) {
+        return {
+          widthPx: Array.from(text).length * font.sizePx,
+          ascentPx: font.sizePx * 0.8,
+          descentPx: font.sizePx * 0.2,
+          exact: true,
+        }
+      },
+    }
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate, { cutGroup })
+    const shared = metadataTextRenderItemsForPage(context, context.pages[0], measurement)
+      .find(item => item.field === 'shared-cut-numbers')
+
+    expect(shared).toBeTruthy()
+    const fieldWidthPx = shared!.rect.w * context.pageSize.widthPx
+    expect(shared!.lines.every(line => measurement.measure(line, {
+      family: 'test',
+      sizePx: shared!.fontSizePx,
+      weight: shared!.fontWeight,
+    }).widthPx <= fieldWidthPx)).toBe(true)
+    expect(shared).toMatchObject({
+      overflow: true,
+      clipRect: { x: shared!.rect.x, y: 0, w: shared!.rect.w, h: 1 },
+    })
   })
 
   it('falls back to the lower half of the CUT field when no shared-cut region is defined', () => {

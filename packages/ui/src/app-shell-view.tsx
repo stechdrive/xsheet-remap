@@ -6,7 +6,7 @@ import { roundForInput } from './sheetImages';
 import { sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
 import { Tooltip, TooltipTarget } from './Tooltip';
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe';
-import { ActionMenu, ScrubbableNumberInput } from './AppControls';
+import { ActionMenu, IconButton, ScrubbableNumberInput } from './AppControls';
 import { TemplateWorkspace } from './TemplateWorkspace';
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
@@ -267,13 +267,13 @@ export function AppShellView({ controller }: { controller: AppController }) {
               </ActionMenu>
             )}
             <Tooltip label={uiText.actions.undo}>
-              <button className="topIconButton" onClick={handleUndo} disabled={history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></button>
+              <IconButton onClick={handleUndo} disabled={history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></IconButton>
             </Tooltip>
             <Tooltip label={uiText.actions.redo}>
-              <button className="topIconButton" onClick={handleRedo} disabled={history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></button>
+              <IconButton onClick={handleRedo} disabled={history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></IconButton>
             </Tooltip>
             <Tooltip label={`${appProfile.appName}の基本操作と作業手順を開く`}>
-              <button className="topIconButton" type="button" onClick={() => setAppHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></button>
+              <IconButton onClick={() => setAppHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></IconButton>
             </Tooltip>
           </div>
         </div>

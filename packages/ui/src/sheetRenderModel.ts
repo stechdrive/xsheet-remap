@@ -34,6 +34,7 @@ import { resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
+import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
 
 export type SheetRenderModelContext = {
   project: CutProject
@@ -87,6 +88,7 @@ export type SheetMetadataTextRenderItem = {
   lines: string[]
   lineHeightPx: number
   rect: NormalizedRect
+  clipRect: NormalizedRect
   x: number
   y: number
   textAnchor: 'start' | 'middle' | 'end'
@@ -265,7 +267,11 @@ export function sheetContinuationPathData(commands: SheetContinuationPathCommand
   }).join(' ')
 }
 
-export function metadataTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetMetadataTextRenderItem[] {
+export function metadataTextRenderItemsForPage(
+  context: SheetRenderModelContext,
+  page: SheetPage,
+  measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
+): SheetMetadataTextRenderItem[] {
   const sharedLabels = sharedCutNumberLabels(context)
   const sharedCutNumbersVisible = sharedLabels.length > 0
   const explicitSharedCutRegion = context.template.regions.some(region =>
@@ -281,8 +287,10 @@ export function metadataTextRenderItemsForPage(context: SheetRenderModelContext,
     region,
     sharedLabels,
     sharedCutNumbersVisible,
+    undefined,
+    measurement,
     )),
-    ...formFieldTextRenderItems(context, page),
+    ...formFieldTextRenderItems(context, page, measurement),
   ]
   if (!sharedCutNumbersVisible || explicitSharedCutRegion) return items
 
@@ -327,6 +335,7 @@ export function metadataTextRenderItemsForPage(context: SheetRenderModelContext,
       verticalAlign: 'top',
       padding: sheetTemplateLengthForReferencePx(context.template, 2, 'spacing'),
       shrinkToFit: true,
+      overflowY: 'visible',
     },
   }
   return [
@@ -338,11 +347,16 @@ export function metadataTextRenderItemsForPage(context: SheetRenderModelContext,
       sharedLabels,
       sharedCutNumbersVisible,
       fallbackRegion.rect,
+      measurement,
     ),
   ]
 }
 
-function formFieldTextRenderItems(context: SheetRenderModelContext, page: SheetPage): SheetMetadataTextRenderItem[] {
+function formFieldTextRenderItems(
+  context: SheetRenderModelContext,
+  page: SheetPage,
+  measurement: TextMeasurementProvider,
+): SheetMetadataTextRenderItem[] {
   const chrome = buildTemplateChromeRenderModel(
     context.template,
     context.paperTracks,
@@ -358,14 +372,15 @@ function formFieldTextRenderItems(context: SheetRenderModelContext, page: SheetP
     const horizontalAlign = resolvedStyle.horizontalAlign
     const verticalAlign = resolvedStyle.verticalAlign
     const multilineLayout = field.definition.valueType === 'multiline'
-      ? resolveMultilineFormTextLayout(text, field.rect, context.pageSize, resolvedStyle)
+      ? resolveMultilineFormTextLayout(text, field.rect, context.pageSize, resolvedStyle, measurement)
       : null
     const fontSizePx = multilineLayout?.fontSizePx ?? metadataFontSizePx(text, field.rect, context.pageSize, {
         fontSizePx: resolvedStyle.fontSizePx,
         minFontSizePx: resolvedStyle.minFontSizePx,
         paddingPx,
         shrinkToFit: resolvedStyle.shrinkToFit,
-      })
+        fontWeight: resolvedStyle.fontWeight,
+      }, measurement)
     const paddingX = paddingPx / context.pageSize.widthPx
     const paddingY = paddingPx / context.pageSize.heightPx
     const lineHeightPx = multilineLayout?.lineHeightPx ?? Math.max(fontSizePx, resolvedStyle.lineHeightPx)
@@ -384,6 +399,7 @@ function formFieldTextRenderItems(context: SheetRenderModelContext, page: SheetP
       lines,
       lineHeightPx,
       rect: field.rect,
+      clipRect: metadataTextClipRect(field.rect, resolvedStyle.overflowX, resolvedStyle.overflowY),
       x: horizontalAlign === 'left' ? field.rect.x + paddingX : horizontalAlign === 'right' ? field.rect.x + field.rect.w - paddingX : field.rect.x + field.rect.w / 2,
       y: multilineLayout && multilineContentTop !== null
         ? multilineContentTop + Math.max(0, lineHeightPx - fontSizePx) / 2 / context.pageSize.heightPx
@@ -418,6 +434,7 @@ function metadataTextRenderItemsForRegion(
   sharedLabels: string[],
   sharedCutNumbersVisible: boolean,
   resolvedRect?: NormalizedRect,
+  measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
 ): SheetMetadataTextRenderItem[] {
     if (region.type !== 'metadata-field' || !region.binding || region.usage === 'ignored') return []
     const sharedCutBinding = region.binding.target === 'cut-group' && region.binding.field === 'shared-cut-numbers'
@@ -471,13 +488,15 @@ function metadataTextRenderItemsForRegion(
           shrinkToFit: resolvedStyle.shrinkToFit,
           opening,
           closing,
-        })
+          fontWeight: resolvedStyle.fontWeight,
+        }, measurement)
       : metadataFontSizePx(text, rect, context.pageSize, {
       fontSizePx: resolvedStyle.fontSizePx,
       minFontSizePx: resolvedStyle.minFontSizePx,
       paddingPx,
       shrinkToFit: resolvedStyle.shrinkToFit,
-    })
+      fontWeight: resolvedStyle.fontWeight,
+    }, measurement)
     const lines = isSharedCutNumbers
       ? wrapSharedCutNumberLines(sharedLabels, {
           availableWidthPx: Math.max(1, rect.w * context.pageSize.widthPx - paddingPx * 2),
@@ -485,7 +504,8 @@ function metadataTextRenderItemsForRegion(
           opening,
           closing,
           separator,
-        })
+          fontWeight: resolvedStyle.fontWeight,
+        }, measurement)
       : [text]
     const paddingX = paddingPx / context.pageSize.widthPx
     const paddingY = paddingPx / context.pageSize.heightPx
@@ -496,13 +516,19 @@ function metadataTextRenderItemsForRegion(
       lines,
       lineHeightPx: Math.max(fontSizePx, resolvedStyle.lineHeightPx),
       rect,
+      clipRect: metadataTextClipRect(rect, resolvedStyle.overflowX, resolvedStyle.overflowY),
       x: horizontalAlign === 'left' ? rect.x + paddingX : horizontalAlign === 'right' ? rect.x + rect.w - paddingX : rect.x + rect.w / 2,
       y: verticalAlign === 'top' ? rect.y + paddingY : verticalAlign === 'bottom' ? rect.y + rect.h - paddingY : rect.y + rect.h / 2,
       textAnchor: horizontalAlign === 'left' ? 'start' : horizontalAlign === 'right' ? 'end' : 'middle',
       dominantBaseline: verticalAlign === 'top' ? 'hanging' : verticalAlign === 'bottom' ? 'text-after-edge' : 'central',
       fontSizePx,
       fontWeight: resolvedStyle.fontWeight,
-      overflow: false,
+      overflow: metadataTextOverflows(lines, rect, context.pageSize, {
+        fontSizePx,
+        lineHeightPx: Math.max(fontSizePx, resolvedStyle.lineHeightPx),
+        paddingPx,
+        fontWeight: resolvedStyle.fontWeight,
+      }, measurement),
     }]
 }
 
@@ -548,15 +574,16 @@ function metadataFontSizePx(
   text: string,
   rect: NormalizedRect,
   pageSize: { widthPx: number; heightPx: number },
-  options: { fontSizePx: number; minFontSizePx: number; paddingPx: number; shrinkToFit: boolean },
+  options: { fontSizePx: number; minFontSizePx: number; paddingPx: number; shrinkToFit: boolean; fontWeight: number },
+  measurement: TextMeasurementProvider,
 ): number {
   const availableWidth = Math.max(1, rect.w * pageSize.widthPx - options.paddingPx * 2)
   const availableHeight = Math.max(1, rect.h * pageSize.heightPx - options.paddingPx * 2)
   const requested = Math.max(1, options.fontSizePx)
   const heightLimited = Math.min(requested, availableHeight)
   if (!options.shrinkToFit) return heightLimited
-  const widthUnits = metadataTextWidthUnits(text)
-  const widthLimited = widthUnits > 0 ? availableWidth / widthUnits : heightLimited
+  const measuredWidth = measurement.measure(text, metadataFont(heightLimited, options.fontWeight)).widthPx
+  const widthLimited = measuredWidth > 0 ? heightLimited * availableWidth / measuredWidth : heightLimited
   return Math.max(Math.min(options.minFontSizePx, heightLimited), Math.min(heightLimited, widthLimited))
 }
 
@@ -571,18 +598,21 @@ function sharedCutNumbersFontSizePx(
     shrinkToFit: boolean
     opening: string
     closing: string
+    fontWeight: number
   },
+  measurement: TextMeasurementProvider,
 ): number {
   const availableWidth = Math.max(1, rect.w * pageSize.widthPx - options.paddingPx * 2)
   const availableHeight = Math.max(1, rect.h * pageSize.heightPx - options.paddingPx * 2)
   const requested = Math.max(1, options.fontSizePx)
   const heightLimited = Math.min(requested, availableHeight)
   if (!options.shrinkToFit) return heightLimited
-  const widestAtomicUnits = labels.reduce(
-    (widest, label) => Math.max(widest, metadataTextWidthUnits(`${options.opening}${label}${options.closing}`)),
+  const font = metadataFont(heightLimited, options.fontWeight)
+  const widestAtomicWidth = labels.reduce(
+    (widest, label) => Math.max(widest, measurement.measure(`${options.opening}${label}${options.closing}`, font).widthPx),
     0,
   )
-  const widthLimited = widestAtomicUnits > 0 ? availableWidth / widestAtomicUnits : heightLimited
+  const widthLimited = widestAtomicWidth > 0 ? heightLimited * availableWidth / widestAtomicWidth : heightLimited
   return Math.max(Math.min(options.minFontSizePx, heightLimited), Math.min(heightLimited, widthLimited))
 }
 
@@ -594,7 +624,9 @@ function wrapSharedCutNumberLines(
     opening: string
     closing: string
     separator: string
+    fontWeight: number
   },
+  measurement: TextMeasurementProvider,
 ): string[] {
   if (labels.length === 0) return []
   const groups: string[][] = []
@@ -602,7 +634,7 @@ function wrapSharedCutNumberLines(
   for (let index = 0; index < labels.length; index += 1) {
     const candidate = [...current, labels[index]]
     const candidateText = `${groups.length === 0 ? options.opening : ''}${candidate.join(options.separator)}${index === labels.length - 1 ? options.closing : ''}`
-    const candidateWidthPx = metadataTextWidthUnits(candidateText) * options.fontSizePx
+    const candidateWidthPx = measurement.measure(candidateText, metadataFont(options.fontSizePx, options.fontWeight)).widthPx
     if (current.length === 0 || candidateWidthPx <= options.availableWidthPx) {
       current = candidate
       continue
@@ -616,8 +648,45 @@ function wrapSharedCutNumberLines(
   )
 }
 
-function metadataTextWidthUnits(text: string): number {
-  return Array.from(text).reduce((total, character) => total + (/^[\x20-\x7e]$/.test(character) ? 0.58 : 1), 0)
+function metadataFont(fontSizePx: number, fontWeight: number) {
+  return {
+    family: SHEET_TEXT_FONT_FAMILY,
+    sizePx: fontSizePx,
+    weight: fontWeight,
+  }
+}
+
+function metadataTextClipRect(
+  rect: NormalizedRect,
+  overflowX: 'clip' | 'visible',
+  overflowY: 'clip' | 'visible',
+): NormalizedRect {
+  return {
+    x: overflowX === 'visible' ? 0 : rect.x,
+    y: overflowY === 'visible' ? 0 : rect.y,
+    w: overflowX === 'visible' ? 1 : rect.w,
+    h: overflowY === 'visible' ? 1 : rect.h,
+  }
+}
+
+function metadataTextOverflows(
+  lines: string[],
+  rect: NormalizedRect,
+  pageSize: { widthPx: number; heightPx: number },
+  options: { fontSizePx: number; lineHeightPx: number; paddingPx: number; fontWeight: number },
+  measurement: TextMeasurementProvider,
+): boolean {
+  const availableWidthPx = Math.max(1, rect.w * pageSize.widthPx - options.paddingPx * 2)
+  const availableHeightPx = Math.max(1, rect.h * pageSize.heightPx - options.paddingPx * 2)
+  const font = metadataFont(options.fontSizePx, options.fontWeight)
+  const contentWidthPx = lines.reduce(
+    (widest, line) => Math.max(widest, measurement.measure(line, font).widthPx),
+    0,
+  )
+  const contentHeightPx = lines.length === 0
+    ? 0
+    : options.fontSizePx + (lines.length - 1) * options.lineHeightPx
+  return contentWidthPx > availableWidthPx + 0.01 || contentHeightPx > availableHeightPx + 0.01
 }
 
 export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, page: SheetPage): OverlayPaperTrackRenderItem[] {

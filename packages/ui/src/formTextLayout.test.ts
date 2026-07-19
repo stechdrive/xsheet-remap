@@ -12,6 +12,8 @@ const style = {
   horizontalAlign: 'left',
   verticalAlign: 'top',
   shrinkToFit: true,
+  overflowX: 'clip',
+  overflowY: 'clip',
 } as const
 
 describe('resolveMultilineFormTextLayout', () => {

@@ -85,4 +85,17 @@ describe('parseSheetTemplate', () => {
 
     expect(() => parseSheetTemplate(invalid)).toThrow('フォーム定義が不正')
   })
+
+  it('accepts axis-specific text overflow and rejects unknown policies', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const shared = template.regions.find(region => region.regionId === 'top_shared_cut_numbers_field')!
+    expect(parseSheetTemplate(template).regions.find(region => region.regionId === shared.regionId)?.textStyle)
+      .toMatchObject({ overflowY: 'visible' })
+
+    const invalid = structuredClone(template) as unknown as Record<string, unknown>
+    const regions = invalid.regions as Array<Record<string, unknown>>
+    const textStyle = regions.find(region => region.regionId === shared.regionId)!.textStyle as Record<string, unknown>
+    textStyle.overflowX = 'wrap'
+    expect(() => parseSheetTemplate(invalid)).toThrow('文字設定が不正')
+  })
 })

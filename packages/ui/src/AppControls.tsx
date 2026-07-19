@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ButtonHTMLAttributes,
   type FormEvent,
   type MouseEvent,
   type PointerEvent,
@@ -16,6 +17,10 @@ import { clampNumber } from './sheetInteraction'
 import { TooltipTarget, type TooltipTriggerProps } from './Tooltip'
 
 const ACTION_MENU_OPEN_EVENT = 'xsheet-remap:action-menu-open'
+
+export function IconButton({ className = '', type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button {...props} type={type} className={`iconButton ${className}`.trim()} />
+}
 
 export function ActionMenu({
   label,

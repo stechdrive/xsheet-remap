@@ -11,12 +11,12 @@ import { sortedCorrectionLayers } from './sheetAssets'
 import { SHEET_ZOOM_MAX, SHEET_ZOOM_MIN } from './sheetConstants'
 import { clampSheetZoom } from './sheetInteraction'
 import { Tooltip, TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
-import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
+import { ActionMenu, IconButton, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
 import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
-import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
+import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
@@ -551,18 +551,19 @@ export function SheetPanel(props: {
             )}
           </TooltipTarget>
           <Tooltip label={uiText.sheet.addSharedCutTitle}>
-            <button type="button" className="cutSwitchAddButton" onClick={props.onAddSharedCut}>＋</button>
+            <IconButton className="cutSwitchAddButton cutSwitchIconButton" aria-label={uiText.sheet.addSharedCutTitle} onClick={props.onAddSharedCut}>
+              <PlusIcon />
+            </IconButton>
           </Tooltip>
           <Tooltip label={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : uiText.sheet.deleteSharedCutTitle}>
-            <button
-              type="button"
-              className="cutSwitchDeleteButton"
+            <IconButton
+              className="cutSwitchDeleteButton cutSwitchIconButton"
               aria-label={uiText.sheet.deleteSharedCutTitle}
               disabled={props.projectCuts.length <= 1}
               onClick={props.onDeleteSharedCut}
             >
               <TrashIcon />
-            </button>
+            </IconButton>
           </Tooltip>
           <TooltipTarget label={uiText.sheet.sharedCutNumbersTitle}>
             {tooltipProps => (

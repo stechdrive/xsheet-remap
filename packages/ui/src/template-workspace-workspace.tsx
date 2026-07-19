@@ -857,6 +857,34 @@ export function TemplateWorkspace({
               defaults={{ fontSizePx: 22, minFontSizePx: 10, lineHeightPx: 22 * 1.15, paddingPx: 8 }}
               onChange={(_key, textStyle) => updateRegion(selectedRegion.regionId, { textStyle })}
             />
+            {selectedRegion.type === 'metadata-field' && (
+              <div className="templateCalibrationTargetFields templateTextOverflowFields">
+                <label>
+                  <span>横方向の欄外表示</span>
+                  <select
+                    value={selectedRegion.textStyle?.overflowX ?? 'clip'}
+                    onChange={event => updateRegion(selectedRegion.regionId, {
+                      textStyle: { ...(selectedRegion.textStyle ?? {}), overflowX: event.currentTarget.value as 'clip' | 'visible' },
+                    })}
+                  >
+                    <option value="clip">欄内で切る</option>
+                    <option value="visible">ページ内へ許可</option>
+                  </select>
+                </label>
+                <label>
+                  <span>縦方向の欄外表示</span>
+                  <select
+                    value={selectedRegion.textStyle?.overflowY ?? 'clip'}
+                    onChange={event => updateRegion(selectedRegion.regionId, {
+                      textStyle: { ...(selectedRegion.textStyle ?? {}), overflowY: event.currentTarget.value as 'clip' | 'visible' },
+                    })}
+                  >
+                    <option value="clip">欄内で切る</option>
+                    <option value="visible">ページ内へ許可</option>
+                  </select>
+                </label>
+              </div>
+            )}
           </dd>
         </>
       )}

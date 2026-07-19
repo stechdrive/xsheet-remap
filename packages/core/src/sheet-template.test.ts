@@ -131,6 +131,7 @@ describe('sheet template layout', () => {
       fontSize: { value: 6.24, unit: 'pt' },
       lineHeight: { value: 7.2, unit: 'pt' },
       verticalAlign: 'top',
+      overflowY: 'visible',
     })
   })
 

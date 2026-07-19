@@ -380,8 +380,10 @@ textarea,
   width: 42px;
 }
 
-.iconButton {
+/* Keep this selector as specific as toolbar button rules so their padding cannot shift the icon track. */
+button.iconButton {
   display: inline-grid;
+  place-content: center;
   place-items: center;
   width: 34px;
   min-width: 34px;

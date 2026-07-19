@@ -539,15 +539,17 @@ export function cameraCueSemanticLandmarksForPage(
     ]
     if (layout.point.role === 'intermediate') {
       const transitionHalfHeight = Math.max(segment.rowHeight * 0.45, 2 / Math.max(1, pageSize.heightPx))
+      const transitionTop = Math.min(layout.anchor.y - transitionHalfHeight, labelRect.y)
+      const transitionBottom = Math.max(layout.anchor.y + transitionHalfHeight, labelRect.y + labelRect.h)
       landmarks.push({
         cueId: cue.cueId,
         kind: 'path-transition',
         pointId: layout.point.pointId,
         rect: clampRectToRegion({
-          x: segment.rect.x - paddingX,
-          y: layout.anchor.y - transitionHalfHeight,
-          w: segment.rect.w + paddingX * 2,
-          h: transitionHalfHeight * 2,
+          x: segment.regionRect.x,
+          y: transitionTop,
+          w: segment.regionRect.w,
+          h: transitionBottom - transitionTop,
         }, segment.regionRect),
       })
     }

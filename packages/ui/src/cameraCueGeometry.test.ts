@@ -227,7 +227,11 @@ describe('CAMERA cue geometry', () => {
       'point-connector',
       'path-transition',
     ])
+    const transition = landmarks.find(landmark => landmark.kind === 'path-transition')!
+    expect(transition.rect.x).toBeCloseTo(layout.segments[0]!.regionRect.x)
+    expect(transition.rect.w).toBeCloseTo(layout.segments[0]!.regionRect.w)
     expect(landmarks.every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
+    expect(verticalIntervalsOverlap(layout.label!.rect, transition.rect)).toBe(false)
     expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
   })
 
@@ -397,6 +401,10 @@ function rectIsContainedBy(rect: { x: number; y: number; w: number; h: number },
 
 function rectContainsPoint(rect: { x: number; y: number; w: number; h: number }, point: { x: number; y: number }): boolean {
   return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h
+}
+
+function verticalIntervalsOverlap(left: { y: number; h: number }, right: { y: number; h: number }): boolean {
+  return Math.min(left.y + left.h, right.y + right.h) - Math.max(left.y, right.y) > 0.0000001
 }
 
 function intersectionArea(left: { x: number; y: number; w: number; h: number }, right: { x: number; y: number; w: number; h: number }): number {

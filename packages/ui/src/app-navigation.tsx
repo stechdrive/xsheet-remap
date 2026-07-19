@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
@@ -9,6 +10,7 @@ import { ActionMenu } from './AppControls'
 import { CalibrationPointKind, RegisteredCellSortDirection, type MainAppKind } from './app-foundation'
 import { gridHeaderLabelForRole } from './templateEditorGeometry'
 import { DurationFrameControl } from './DurationFrameControl'
+import { EditorDetailedHelp } from './EditorDetailedHelp'
 
 export function RecognitionActionMenu({
   candidates,
@@ -407,20 +409,48 @@ export function AppHelpDialog({
   onClose: () => void
 }) {
   const isEditor = appKind === 'editor'
+  const [editorHelpView, setEditorHelpView] = useState<'quick' | 'detailed'>('quick')
+  const isDetailedEditorHelp = isEditor && editorHelpView === 'detailed'
   return (
     <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label={`${appName}の使い方`}>
-      <section className="appHelpDialog">
+      <section className={`appHelpDialog${isEditor ? ' appHelpDialogEditor' : ''}`}>
         <header>
           <div>
-            <strong>{appName}の使い方</strong>
+            <strong>{appName} ヘルプ</strong>
             <span>{isEditor
-              ? 'デジタルタイムシートの作成、編集、保存と、紙シートを下絵に使う流れを説明します。'
+              ? isDetailedEditorHelp
+                ? 'すべての操作と機能を、目的別の章に分けて説明します。'
+                : 'まず作業を始めるための、短い流れを説明します。'
               : 'CSPはCLIP STUDIO PAINT、つまりクリスタのことです。ここでは主な作業の流れを説明します。'}</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
         </header>
-        <div className="appHelpBody">
-          {isEditor ? <EditorHelpContent /> : <RemapHelpContent appName={appName} />}
+        {isEditor && (
+          <div className="appHelpTabs" role="tablist" aria-label="ヘルプの種類">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={editorHelpView === 'quick'}
+              className={editorHelpView === 'quick' ? 'active' : ''}
+              onClick={() => setEditorHelpView('quick')}
+            >
+              クイックガイド
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={editorHelpView === 'detailed'}
+              className={editorHelpView === 'detailed' ? 'active' : ''}
+              onClick={() => setEditorHelpView('detailed')}
+            >
+              詳しい使い方
+            </button>
+          </div>
+        )}
+        <div className={`appHelpBody${isDetailedEditorHelp ? ' appHelpBodyDetailed' : ''}`}>
+          {isEditor
+            ? isDetailedEditorHelp ? <EditorDetailedHelp /> : <EditorHelpContent />
+            : <RemapHelpContent appName={appName} />}
         </div>
         <footer>
           <p>{isEditor
@@ -444,6 +474,7 @@ function EditorHelpContent() {
         <li><strong>プロジェクトを保存する</strong><span>メニューの「保存」または「名前を付けて保存」で.xsrプロジェクトを保存します。デスクトップ版は選択した場所へ保存し、PWA版はブラウザからダウンロードします。</span></li>
       </ol>
     </article>
+    <CspLayerPaneQuickHelp />
     <article className="appHelpWorkflow appHelpWorkflowPrep">
       <h2>紙タイムシートを下絵に使う（任意）</h2>
       <p>紙シートがなくても入力できます。読み込む場合は、テンプレートに合うdpiでスキャンした画像を使います。</p>
@@ -482,12 +513,29 @@ function RemapHelpContent({ appName }: { appName: string }) {
         <li><strong>紙シート画像を読み込む</strong><span>上部の「紙シート」から「読込」を押します。必要なら「補正」で四隅を合わせ、「レベル補正」で薄いスキャンを見やすくします。</span></li>
         <li><strong>画像素材を素材ブラウザへ入れる</strong><span>カットフォルダまたは画像ファイルを右側の素材ブラウザへドロップします。素材カードからプレビューを確認できます。</span></li>
         <li><strong>素材をセル欄へドラッグしてキーを作る</strong><span>素材カードをシート上のCELL/ACTION/CAMERA欄へ置きます。範囲選択してから素材を置くと、開始位置へまとめて割り当てできます。</span></li>
-        <li><strong>CSPレイヤー構成を確認する</strong><span>左のCSPレイヤー構成で、工程、CSPセル名、重ね順を確認します。BG/BOOKやメモも同じツリーで管理します。</span></li>
+        <li><strong>CSPレイヤー構成を確認する</strong><span>左のCSPレイヤー構成で、工程、CSPセル名、BG／BOOK、撮影指示、メモと、CSPへ渡す重ね順を確認します。具体的な追加・並び替え・削除は次の手順で行います。</span></li>
         <li><strong>クリスタ用の名前を整える</strong><span>必要に応じて、登録セル名・クリスタセル名・実ファイル名をまとめて整えます。クリスタはファイル名をセル名として扱うため、ここを揃えるのが重要です。</span></li>
         <li><strong>CSP自動登録データを書き出す</strong><span>書き出すとxsheet-importer用の登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。csp-import.xciはクリスタではなく、xsheet-importerで選択します。</span></li>
       </ol>
     </article>
+    <CspLayerPaneQuickHelp />
   </>
+}
+
+function CspLayerPaneQuickHelp() {
+  return (
+    <article className="appHelpWorkflow">
+      <h2>CSPレイヤー構成を操作する</h2>
+      <p>左ペインでは行やカードを選択し、スクロールしても消えない最下部の「一括リネーム」「項目を追加」「削除」を使います。</p>
+      <ol>
+        <li><strong>ペインの＋でひとまず追加する</strong><span>追加セル列は既存セル列より上、BG／BOOKは既存セル列より下かつ既存BG／BOOKより上へ自動配置されます。名前を入力してEnterまたは✓で確定し、Escまたは×で取り消します。</span></li>
+        <li><strong>正確な挿入位置を先に決める</strong><span>シート上から右クリックして追加すると、従来どおりシート上の挿入位置を選んでから作成できます。物理位置を指定したいときはこちらを使います。</span></li>
+        <li><strong>ドラッグでCSPの重ね順を変える</strong><span>制作段階、工程、セル列、BG／BOOK、撮影指示、メモの行をドラッグし、同じ階層に表示される挿入ラインへドロップします。名前は対象名をダブルクリックして編集します。</span></li>
+        <li><strong>選択項目を削除・操作を元に戻す</strong><span>削除は対象を選択して最下部のごみ箱を押します。テンプレート由来など削除できない項目では無効になります。追加・並び替え・名前変更・削除は上部の元に戻す、またはCtrl+Zで戻せます。</span></li>
+        <li><strong>シート上のラベルで位置を確認する</strong><span>BG／BOOKと追加セル列の名前は、テンプレートの物理幅に収まる限り文字数で省略せず表示されます。重なりは上下へ自動で逃がされ、支柱が実際の挿入位置を示します。位置を変えるときはラベルをドラッグします。</span></li>
+      </ol>
+    </article>
+  )
 }
 
 export function AppNavigationMenu({

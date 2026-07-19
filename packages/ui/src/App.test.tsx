@@ -42,6 +42,9 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('tab', { name: 'クイックガイド' }).getAttribute('aria-selected')).toBe('true')
     expect(within(dialog).getByRole('tab', { name: '詳しい使い方' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'デジタルタイムシートを作成・保存する' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'CSPレイヤー構成を操作する' })).toBeTruthy()
+    expect(within(dialog).getByText(/追加セル列は既存セル列より上/)).toBeTruthy()
+    expect(within(dialog).getByText(/同じ階層に表示される挿入ライン/)).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: '紙タイムシートを下絵に使う（任意）' })).toBeTruthy()
     expect(within(dialog).getByText(/この下絵補正はOCRを使わず/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
@@ -66,6 +69,12 @@ it('renders the main workspace shell', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /12\s*読み込みと書き出し/ }))
     expect(within(dialog).getByRole('heading', { name: '読み込みと書き出し' })).toBeTruthy()
     expect(within(dialog).getByText('CSP自動登録データ')).toBeTruthy()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /09\s*素材・登録セル・CSP構成/ }))
+    expect(within(dialog).getByText('ペイン下部の操作')).toBeTruthy()
+    expect(within(dialog).getByText('ドラッグで並び替え')).toBeTruthy()
+    expect(within(dialog).getByText('BG／BOOK・追加セル列のラベル')).toBeTruthy()
+    expect(within(dialog).getByText(/テンプレートの物理幅に収まる限り/)).toBeTruthy()
   })
 
 it('keeps Remap-specific CSP help in the Remap app', () => {
@@ -76,6 +85,9 @@ it('keeps Remap-specific CSP help in the Remap app', () => {
     expect(within(dialog).queryByRole('tab', { name: '詳しい使い方' })).toBeNull()
     expect(within(dialog).getByRole('heading', { name: '必ず先に準備すること' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'CSP組み込み用シートを作る' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'CSPレイヤー構成を操作する' })).toBeTruthy()
+    expect(within(dialog).getByText(/最下部の「一括リネーム」「項目を追加」「削除」/)).toBeTruthy()
+    expect(within(dialog).getByText(/BG／BOOKは既存セル列より下かつ既存BG／BOOKより上/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: 'デジタルタイムシートを作成・保存する' })).toBeNull()
   })
 

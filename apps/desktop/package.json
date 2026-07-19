@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/desktop",
-  "version": "0.1.624",
+  "version": "0.1.625",
   "private": true,
   "type": "module",
   "scripts": {

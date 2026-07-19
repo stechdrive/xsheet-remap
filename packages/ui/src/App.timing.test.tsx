@@ -1257,10 +1257,12 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     cue = document.querySelector<SVGGElement>('.cameraCue')!
     shapeHit = cue.querySelector<SVGPolylineElement>('.cameraCueShapeHit')!
     fireEvent.pointerDown(shapeHit, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
-    fireEvent.pointerMove(cue, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(20) })
-    cue = document.querySelector<SVGGElement>('.cameraCue')!
-    fireEvent.pointerUp(cue, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
+    fireEvent.pointerMove(window, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(12) })
+    fireEvent.pointerMove(window, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(20) })
+    fireEvent.pointerUp(window, { pointerId: 105, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
     await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '19', frameEnd: '30' }))
+    expect(document.querySelector('.cameraCue.transforming')).toBeNull()
+    expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
 
     let intermediatePoint = document.querySelector<SVGGElement>('.cameraCuePoint.intermediate')!
     expect(intermediatePoint.dataset.cameraPointFrame).toBe('24')
@@ -1288,10 +1290,8 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     await waitFor(() => expect(document.querySelector('.cameraCueLabel')?.classList.contains('manual')).toBe(true))
 
     fireEvent.doubleClick(document.querySelector<SVGGElement>('.cameraCue')!)
-    fireEvent.click(screen.getByRole('button', { name: /中間ラベル1から次の点まで：オーバーラップ/ }))
     expect((screen.getByLabelText('中間ラベル1から次の点までの交差フレーム') as HTMLInputElement).value).toBe('28')
     expect(screen.getByRole('button', { name: '自動配置に戻す' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /開始から次の点まで：オーバーラップ/ }))
     fireEvent.click(screen.getByRole('radio', { name: '開始から次の点までをフェードイン・ワイプイン' }))
     fireEvent.click(screen.getByRole('button', { name: '更新' }))
     await waitFor(() => expect(document.querySelector('.cameraCue')?.classList.contains('fade-in')).toBe(true))
@@ -1502,7 +1502,6 @@ it('ripples ACTION, CELL, SOUND, and CAMERA together from every frame-bearing co
     const cameraEnd = timedPoint(cameraRegion, 10)
     dragSheet(sheet, cameraStart.x, cameraStart.y, cameraEnd.x, cameraEnd.y)
     fireEvent.keyDown(window, { key: 'Enter' })
-    fireEvent.click(screen.getByRole('button', { name: /開始から次の点まで：直線/ }))
     fireEvent.click(screen.getByRole('radio', { name: '開始から次の点までをオーバーラップ' }))
     fireEvent.change(screen.getByLabelText('CAMERA指示'), { target: { value: 'RIPPLE CAMERA' } })
     fireEvent.change(screen.getByLabelText('開始から次の点までの交差フレーム'), { target: { value: '8' } })

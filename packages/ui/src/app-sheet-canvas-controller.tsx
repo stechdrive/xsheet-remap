@@ -94,6 +94,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const stackGuideInsertRequestIdRef = useRef(0)
   const soundCueDragRef = useRef<typeof soundCueDrag>(null)
   const cameraCueDragRef = useRef<typeof cameraCueDrag>(null)
+  const updateCameraCuePointerRef = useRef<(pointerId: number, clientX: number, clientY: number) => void>(() => undefined)
+  const finishCameraCuePointerRef = useRef<(pointerId: number, cancelled?: boolean) => void>(() => undefined)
   const onStatusHint = props.onStatusHint
 
   function setDraftRange(next: DraftRangeInteraction | null | ((current: DraftRangeInteraction | null) => DraftRangeInteraction | null)) {
@@ -202,21 +204,60 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       event.preventDefault()
       event.stopPropagation()
       event.stopImmediatePropagation()
-      cameraCueDragRef.current = null
-      setCameraCueDrag(null)
-      onStatusHint('sheet-drag', null)
+      finishCameraCuePointerRef.current(cameraCueDragRef.current.pointerId, true)
     }
     const cancelCameraTransformOnBlur = () => {
       if (!cameraCueDragRef.current) return
-      cameraCueDragRef.current = null
-      setCameraCueDrag(null)
-      onStatusHint('sheet-drag', null)
+      finishCameraCuePointerRef.current(cameraCueDragRef.current.pointerId, true)
+    }
+    const updateCameraTransform = (event: globalThis.PointerEvent) => {
+      const current = cameraCueDragRef.current
+      if (!current || current.pointerId !== event.pointerId) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.buttons === 0) {
+        finishCameraCuePointerRef.current(event.pointerId)
+        return
+      }
+      updateCameraCuePointerRef.current(event.pointerId, event.clientX, event.clientY)
+    }
+    const finishCameraTransform = (event: globalThis.PointerEvent) => {
+      const current = cameraCueDragRef.current
+      if (!current || current.pointerId !== event.pointerId) return
+      event.preventDefault()
+      event.stopPropagation()
+      finishCameraCuePointerRef.current(event.pointerId)
+    }
+    const cancelCameraTransformFromPointer = (event: globalThis.PointerEvent) => {
+      const current = cameraCueDragRef.current
+      if (!current || current.pointerId !== event.pointerId) return
+      event.preventDefault()
+      event.stopPropagation()
+      finishCameraCuePointerRef.current(event.pointerId, true)
+    }
+    const cancelStaleCameraTransform = () => {
+      const current = cameraCueDragRef.current
+      if (current) finishCameraCuePointerRef.current(current.pointerId, true)
+    }
+    const cancelCameraTransformWhenHidden = () => {
+      if (!document.hidden || !cameraCueDragRef.current) return
+      finishCameraCuePointerRef.current(cameraCueDragRef.current.pointerId, true)
     }
     window.addEventListener('keydown', cancelCameraTransform, true)
     window.addEventListener('blur', cancelCameraTransformOnBlur)
+    window.addEventListener('pointermove', updateCameraTransform, { capture: true, passive: false })
+    window.addEventListener('pointerup', finishCameraTransform, { capture: true, passive: false })
+    window.addEventListener('pointercancel', cancelCameraTransformFromPointer, { capture: true, passive: false })
+    window.addEventListener('pointerdown', cancelStaleCameraTransform, true)
+    document.addEventListener('visibilitychange', cancelCameraTransformWhenHidden)
     return () => {
       window.removeEventListener('keydown', cancelCameraTransform, true)
       window.removeEventListener('blur', cancelCameraTransformOnBlur)
+      window.removeEventListener('pointermove', updateCameraTransform, true)
+      window.removeEventListener('pointerup', finishCameraTransform, true)
+      window.removeEventListener('pointercancel', cancelCameraTransformFromPointer, true)
+      window.removeEventListener('pointerdown', cancelStaleCameraTransform, true)
+      document.removeEventListener('visibilitychange', cancelCameraTransformWhenHidden)
     }
   }, [onStatusHint])
   useEffect(() => {
@@ -1245,7 +1286,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
           heightFrames: Math.max(1, Math.round(labelLayout.rect.h / Math.max(0.000001, labelLayout.rowHeight))),
         }
       : undefined
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+    event.currentTarget.ownerSVGElement?.setPointerCapture?.(event.pointerId)
     const nextDrag = {
       pointerId: event.pointerId,
       mode,
@@ -1270,16 +1311,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props.onStatusHint('sheet-drag', `${action}：離すと確定 / Escで取消`)
   }
 
-  function handleCameraCuePointerMove(event: PointerEvent<SVGGElement>) {
+  function updateCameraCuePointer(pointerId: number, clientX: number, clientY: number) {
     const currentDrag = cameraCueDragRef.current
-    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return
-    event.preventDefault()
-    event.stopPropagation()
-    autoScrollViewportForDrag(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))
-    const pointed = cameraHitFromClientPoint(event.clientX, event.clientY)
+    if (!currentDrag || currentDrag.pointerId !== pointerId) return
+    autoScrollViewportForDrag({ clientX, clientY }, viewportRef.current)
+    const pointed = cameraHitFromClientPoint(clientX, clientY)
     if (!pointed) return
     setActivePageIndexIfNeeded(pointed.page.pageIndex)
-    const moved = currentDrag.moved || Math.abs(event.clientX - currentDrag.startX) >= 3 || Math.abs(event.clientY - currentDrag.startY) >= 3
+    const moved = currentDrag.moved || Math.abs(clientX - currentDrag.startX) >= 3 || Math.abs(clientY - currentDrag.startY) >= 3
     const origin = currentDrag.origin
     const duration = origin.frameEnd - origin.frameStart + 1
     let laneId = origin.laneId
@@ -1340,14 +1379,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setCameraCueDrag(nextDrag)
   }
 
-  function finishCameraCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) {
+  function finishCameraCuePointerById(pointerId: number, cancelled = false) {
     const current = cameraCueDragRef.current
-    if (!current || current.pointerId !== event.pointerId) return
-    event.preventDefault()
-    event.stopPropagation()
+    if (!current || current.pointerId !== pointerId) return
     cameraCueDragRef.current = null
     setCameraCueDrag(null)
     props.onStatusHint('sheet-drag', null)
+    releasePointerCaptureForElements(pointerId, Object.values(sheetSvgRefs.current))
     if (!cancelled && current.moved) {
       props.onCameraCueTransform(current.origin.cueId, {
         laneId: current.preview.laneId,
@@ -1359,6 +1397,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       props.onCameraCueSelect(current.origin.cueId)
     }
   }
+
+  updateCameraCuePointerRef.current = updateCameraCuePointer
+  finishCameraCuePointerRef.current = finishCameraCuePointerById
+  function handleCameraCuePointerMove(event: PointerEvent<SVGGElement>) {
+    updateCameraCuePointer(event.pointerId, event.clientX, event.clientY)
+  }
+  function finishCameraCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) { finishCameraCuePointerById(event.pointerId, cancelled) }
 
   function handleCameraCuePointerEnter(event: PointerEvent<SVGGElement>, cueId: string) {
     if (cameraCueDragRef.current) return

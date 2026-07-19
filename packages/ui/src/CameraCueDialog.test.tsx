@@ -4,16 +4,16 @@ import { CameraCueDialog } from './CameraCueDialog'
 
 afterEach(cleanup)
 
-function renderDialog(onSubmit = vi.fn()) {
+function renderDialog(onSubmit = vi.fn(), { frameEnd = 24, frameMax = 144 } = {}) {
   return {
     onSubmit,
     ...render(
       <CameraCueDialog
-        state={{ mode: 'create', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24 }}
+        state={{ mode: 'create', laneId: 'camera_lane_1', frameStart: 1, frameEnd }}
         cue={null}
         fps={24}
         frameMin={1}
-        frameMax={144}
+        frameMax={frameMax}
         instructionHistory={[]}
         pointLabelHistory={[]}
         onSubmit={onSubmit}
@@ -23,18 +23,12 @@ function renderDialog(onSubmit = vi.fn()) {
   }
 }
 
-function openSegmentPicker(name: RegExp) {
-  fireEvent.click(screen.getByRole('button', { name }))
-}
-
 describe('CameraCueDialog', () => {
-  it('uses one compact outgoing-segment selector instead of a global shape row', () => {
+  it('shows all five outgoing-segment choices inline instead of hiding them in a picker', () => {
     const { onSubmit, container } = renderDialog()
     expect(container.querySelector('.cameraShapePicker')).toBeNull()
-    expect(screen.getByRole('button', { name: /開始から次の点まで：直線/ })).toBeTruthy()
-
-    openSegmentPicker(/開始から次の点まで：直線/)
     expect(screen.getByRole('radiogroup', { name: '開始から次の点までの図形' })).toBeTruthy()
+    expect(screen.getAllByRole('radio')).toHaveLength(5)
     const overlap = screen.getByRole('radio', { name: '開始から次の点までをオーバーラップ' })
     expect(overlap.querySelector('path')?.getAttribute('d')).toBe('M7 3H29L18 12Z M7 21H29L18 12Z')
     fireEvent.click(overlap)
@@ -56,7 +50,6 @@ describe('CameraCueDialog', () => {
     fireEvent.change(screen.getByLabelText('CAMERA終了ラベル'), { target: { value: 'B' } })
     fireEvent.change(screen.getByLabelText('長さ 秒'), { target: { value: '00' } })
     fireEvent.change(screen.getByLabelText('長さ コマ'), { target: { value: '12' } })
-    openSegmentPicker(/開始から次の点まで：オーバーラップ/)
     fireEvent.change(screen.getByLabelText('開始から次の点までの交差フレーム'), { target: { value: '8' } })
     fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
     fireEvent.change(screen.getByLabelText('CAMERA中間ラベル1'), { target: { value: '' } })
@@ -84,11 +77,8 @@ describe('CameraCueDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
     expect(container.querySelectorAll('.cameraSegmentKindControl')).toHaveLength(3)
 
-    openSegmentPicker(/開始から次の点まで：直線/)
     fireEvent.click(screen.getByRole('radio', { name: '開始から次の点までを波線の区間指示' }))
-    openSegmentPicker(/中間ラベル1から次の点まで：直線/)
     fireEvent.click(screen.getByRole('radio', { name: '中間ラベル1から次の点までをフェードイン・ワイプイン' }))
-    openSegmentPicker(/中間ラベル2から次の点まで：直線/)
     fireEvent.click(screen.getByRole('radio', { name: '中間ラベル2から次の点までをオーバーラップ' }))
     fireEvent.click(screen.getByRole('button', { name: '追加' }))
 
@@ -105,15 +95,45 @@ describe('CameraCueDialog', () => {
 
   it('splits a segment by inheritance and keeps the following segment kind when a point is removed', () => {
     const { onSubmit } = renderDialog()
-    openSegmentPicker(/開始から次の点まで：直線/)
     fireEvent.click(screen.getByRole('radio', { name: '開始から次の点までを波線の区間指示' }))
     fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
-    expect(screen.getAllByRole('button', { name: /：波線の区間指示/ })).toHaveLength(2)
+    expect(screen.getAllByRole('radio', { name: /を波線の区間指示/ }).filter(item => item.getAttribute('aria-checked') === 'true')).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: '中間ラベル1を削除' }))
-    expect(screen.getAllByRole('button', { name: /：波線の区間指示/ })).toHaveLength(1)
+    expect(screen.getAllByRole('radio', { name: /を波線の区間指示/ }).filter(item => item.getAttribute('aria-checked') === 'true')).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: '追加' }))
     expect(onSubmit.mock.calls[0]?.[0].camera.segments).toEqual([
       { endPointId: 'cue-end', kind: 'wave', pivotAnchorFrame: undefined },
     ])
+  })
+
+  it('edits each intermediate position as a compact duration from the preceding point', () => {
+    const { onSubmit } = renderDialog(vi.fn(), { frameEnd: 72, frameMax: 144 })
+    fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
+    const duration = screen.getByLabelText('CAMERA中間ラベル1までの区間長') as HTMLInputElement
+    fireEvent.focus(duration)
+    fireEvent.change(duration, { target: { value: '25' } })
+    fireEvent.blur(duration)
+    expect(duration.value).toBe('1+1')
+    fireEvent.click(screen.getByRole('button', { name: 'CAMERA中間ラベル1までの区間長を1コマ増やす' }))
+    expect(duration.value).toBe('1+2')
+    fireEvent.click(screen.getByRole('button', { name: '追加' }))
+    expect(onSubmit.mock.calls[0]?.[0].camera.points).toContainEqual(expect.objectContaining({
+      pointId: 'point_1',
+      frameOffset: 26,
+    }))
+  })
+
+  it('keeps fixed row slots and exposes eight interval controls without popovers', () => {
+    const { container } = renderDialog(vi.fn(), { frameEnd: 96, frameMax: 144 })
+    for (let index = 0; index < 7; index += 1) fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
+    expect(container.querySelectorAll('.cameraPointEditorRow')).toHaveLength(9)
+    expect(screen.getAllByRole('radiogroup', { name: /の図形/ })).toHaveLength(8)
+    expect(container.querySelectorAll('.cameraSegmentKindPopover')).toHaveLength(0)
+    for (const row of container.querySelectorAll('.cameraPointEditorRow')) {
+      expect(row.querySelector(':scope > input')).toBeTruthy()
+      expect(row.querySelector(':scope > .compactDurationFrameControl, :scope > .cameraPointDurationSlot')).toBeTruthy()
+      expect(row.querySelector(':scope > .cameraSegmentKindControl, :scope > .cameraPointSegmentSlot')).toBeTruthy()
+      expect(row.querySelector(':scope > .dialogIconButton, :scope > .cameraPointActionSlot')).toBeTruthy()
+    }
   })
 })

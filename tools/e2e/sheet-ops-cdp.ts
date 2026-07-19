@@ -11,18 +11,17 @@ import {
 } from '@xsheet-remap/core'
 import { assertSelectorsContributePaint } from './visual-paint-contract'
 import { verifyAnnotationInteractionScenario } from './scenarios/annotation-interactions'
+import { verifyCameraDialogScalability } from './scenarios/camera-dialog-scalability'
 import { CdpClient } from './cdp-client'
 
 interface ClientPoint {
   x: number
   y: number
 }
-
 interface CellPointBias {
   xRatio: number
   yRatio: number
 }
-
 interface EventSnapshot {
   label: string
   pageId: string
@@ -32,17 +31,14 @@ interface EventSnapshot {
   h: number
   className: string
 }
-
 interface RectSnapshot extends NormalizedRect {
   pageId: string
   className: string
 }
-
 interface FrameLocation {
   pageId: string
   rect: NormalizedRect
 }
-
 interface SheetOpsReport {
   checks: string[]
   finalEvents: EventSnapshot[]
@@ -652,6 +648,12 @@ async function selectedTimelineMemoGeometry(): Promise<{
 }
 
 async function verifyCameraCueInputHandoff(): Promise<void> {
+  await verifyCameraDialogScalability({
+    clientPointsForTimedRange, mouseDrag, keyPress, waitForSelector,
+    clickButtonByText, setReactFieldValue, evaluatePage,
+    waitForPageCondition, checks,
+  })
+
   const [start, end] = await clientPointsForTimedRange('camera', 'camera_lane_1', 1, 24)
   await mouseDrag(start, end)
   await keyPress('Enter')
@@ -664,9 +666,9 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
     const instruction = dialog.querySelector<HTMLInputElement>('[aria-label="CAMERA指示"]')
     const addButton = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === '追加')
     return dialog.querySelector('header strong')?.textContent?.trim() === '撮影指示'
-      && radios.length === 0
+      && radios.length === 5
       && !dialog.querySelector('.cameraShapePicker')
-      && Boolean(dialog.querySelector('.cameraSegmentKindTrigger[aria-label*="開始から次の点まで"]'))
+      && Boolean(dialog.querySelector('[role="radiogroup"][aria-label="開始から次の点までの図形"]'))
       && !dialog.querySelector('select')
       && !dialog.querySelector('[aria-label="CAMERA開始フレーム"]')
       && instruction?.required === false
@@ -675,9 +677,8 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
       && Boolean(dialog.querySelector('[aria-label="CAMERA開始ラベル"]'))
       && Boolean(dialog.querySelector('[aria-label="CAMERA終了ラベル"]'))
       && ['OL', 'TU', 'TB', 'SL', 'DTU', 'DTB', 'PAN', 'FI', 'FO', 'WI', 'WO', 'Follow', '画ブレ'].every(value => builtIns.includes(value))
-  }, 'compact CAMERA dialog with no global shape row and one outgoing-segment selector')
-  await mouseClick(await centerOfSelector('.cameraPointLabelRow .cameraSegmentKindTrigger'))
-  await waitForPageCondition(() => document.querySelectorAll('[role="radiogroup"][aria-label="開始から次の点までの図形"] [role="radio"]').length === 5, 'five segment kinds in compact popover')
+  }, 'compact CAMERA dialog with five visible outgoing-segment choices')
+  await waitForPageCondition(() => document.querySelectorAll('[role="radiogroup"][aria-label="開始から次の点までの図形"] [role="radio"]').length === 5, 'five visible segment kinds')
   if (!await evaluatePage<boolean>(`document.querySelector('[role="radio"][aria-label="開始から次の点までをオーバーラップ"] path')?.getAttribute('d') === 'M7 3H29L18 12Z M7 21H29L18 12Z'`)) throw new Error('OL segment icon is not a closed filled shape')
   await mouseClick(await centerOfSelector('[role="radio"][aria-label="開始から次の点までを波線の区間指示"]'))
   await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E MIX')
@@ -685,7 +686,6 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
   await setReactFieldValue('[aria-label="CAMERA終了ラベル"]', 'B')
   await clickButtonByText('＋ 中間ラベル')
   await setReactFieldValue('[aria-label="CAMERA中間ラベル1"]', 'MID')
-  await mouseClick(await centerOfSelector('.cameraIntermediatePointRow .cameraSegmentKindTrigger'))
   await mouseClick(await centerOfSelector('[role="radio"][aria-label="中間ラベル1から次の点までをオーバーラップ"]'))
   await waitForSelector('[aria-label="中間ラベル1から次の点までの交差フレーム"]')
   await setReactFieldValue('[aria-label="中間ラベル1から次の点までの交差フレーム"]', '18')
@@ -833,7 +833,7 @@ async function verifyTimelineRippleEditing(): Promise<void> {
   const [cameraStart, cameraEnd] = await clientPointsForTimedRange('camera', 'camera_lane_1', 6, 10)
   await mouseDrag(cameraStart, cameraEnd)
   await keyPress('Enter')
-  await waitForSelector('[role="dialog"][aria-label="CAMERA指示を追加"]')
+  await waitForSelector('[role="dialog"][aria-label="撮影指示"]')
   await setReactFieldValue('[aria-label="CAMERA指示"]', 'RIPPLE CAMERA')
   await clickButtonByText('追加')
   await waitForCameraCueAt('camera_lane_1', 6, 10, 'RIPPLE CAMERA')

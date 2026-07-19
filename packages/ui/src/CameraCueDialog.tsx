@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   CAMERA_INSTRUCTION_CUE_END_POINT_ID,
   cameraSegmentKindForLegacyInstruction,
@@ -21,7 +21,7 @@ import {
   CAMERA_INSTRUCTION_HISTORY_LIMIT,
   CAMERA_POINT_LABEL_HISTORY_LIMIT,
 } from './cameraCueEditing'
-import { DurationFrameControl } from './DurationFrameControl'
+import { CompactDurationFrameControl, DurationFrameControl } from './DurationFrameControl'
 import { HistoryInput } from './HistoryInput'
 
 export interface CameraCueDialogSubmit {
@@ -266,13 +266,17 @@ export function CameraCueDialog({
             <DurationFrameControl frames={durationFrames} fps={safeFps} maxFrames={maxDuration} label="長さ" onChange={updateDuration} />
           </div>
           <div className="cameraPointEditor">
-            <PointLabelRow
-              kindLabel="開始ラベル"
-              ariaLabel="CAMERA開始ラベル"
-              value={startLabel}
-              history={pointLabelHistory}
-              onChange={setStartLabel}
-            >
+            <div className="cameraPointEditorRow cameraPointStartRow">
+              <span className="cameraPointKindLabel">開始ラベル</span>
+              <HistoryInput
+                aria-label="CAMERA開始ラベル"
+                value={startLabel}
+                history={pointLabelHistory}
+                historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
+                placeholder="任意"
+                onChange={event => setStartLabel(event.currentTarget.value)}
+              />
+              <span className="cameraPointDurationSlot" aria-hidden="true" />
               <SegmentKindControl
                 value={resolvedSegment(intermediatePoints[0]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
                 label="開始から次の点まで"
@@ -282,13 +286,14 @@ export function CameraCueDialog({
                 fps={safeFps}
                 onChange={segment => setSegmentByEndPointId(current => ({ ...current, [segment.endPointId]: segment }))}
               />
-            </PointLabelRow>
+              <span className="cameraPointActionSlot" aria-hidden="true" />
+            </div>
             {intermediatePoints.map((point, index) => {
               const previous = intermediatePoints[index - 1]?.frameOffset ?? 0
               const next = intermediatePoints[index + 1]?.frameOffset ?? durationFrames - 1
               return (
-                <div className="cameraIntermediatePointRow" key={point.pointId}>
-                    <span>中間ラベル</span>
+                <div className="cameraPointEditorRow cameraIntermediatePointRow" key={point.pointId}>
+                    <span className="cameraPointKindLabel">中間ラベル</span>
                     <HistoryInput
                       aria-label={`CAMERA中間ラベル${index + 1}`}
                       value={point.label}
@@ -297,15 +302,14 @@ export function CameraCueDialog({
                       placeholder="任意"
                       onChange={event => updateIntermediatePoint(point.pointId, { label: event.currentTarget.value })}
                     />
-                    <input
-                      className="cameraPointFrameInput"
-                      type="number"
-                      aria-label={`CAMERA中間ラベル${index + 1}位置`}
-                      min={frameStart + previous + 1}
-                      max={frameStart + next - 1}
-                      value={frameStart + point.frameOffset}
-                      onChange={event => updateIntermediatePoint(point.pointId, {
-                        frameOffset: Math.max(previous + 1, Math.min(next - 1, Math.round(Number(event.currentTarget.value)) - frameStart)),
+                    <CompactDurationFrameControl
+                      frames={point.frameOffset - previous}
+                      fps={safeFps}
+                      minFrames={1}
+                      maxFrames={Math.max(1, next - previous - 1)}
+                      label={`CAMERA中間ラベル${index + 1}までの区間長`}
+                      onChange={frames => updateIntermediatePoint(point.pointId, {
+                        frameOffset: previous + Math.max(1, Math.min(next - previous - 1, Math.round(frames))),
                       })}
                     />
                     <SegmentKindControl
@@ -321,13 +325,20 @@ export function CameraCueDialog({
                   </div>
               )
             })}
-            <PointLabelRow
-              kindLabel="終了ラベル"
-              ariaLabel="CAMERA終了ラベル"
-              value={endLabel}
-              history={pointLabelHistory}
-              onChange={setEndLabel}
-            />
+            <div className="cameraPointEditorRow cameraPointEndRow">
+              <span className="cameraPointKindLabel">終了ラベル</span>
+              <HistoryInput
+                aria-label="CAMERA終了ラベル"
+                value={endLabel}
+                history={pointLabelHistory}
+                historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
+                placeholder="任意"
+                onChange={event => setEndLabel(event.currentTarget.value)}
+              />
+              <span className="cameraPointDurationSlot" aria-hidden="true" />
+              <span className="cameraPointSegmentSlot" aria-hidden="true" />
+              <span className="cameraPointActionSlot" aria-hidden="true" />
+            </div>
             <button type="button" className="cameraAddPointButton" disabled={!canAddIntermediate} onClick={addIntermediatePoint}>＋ 中間ラベル</button>
             {tooManyPointLabels && <span className="cameraPointValidation" role="alert">位置ラベル数を区間のコマ数以下にしてください。</span>}
           </div>
@@ -347,30 +358,6 @@ export function CameraCueDialog({
   )
 }
 
-function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange, children }: {
-  kindLabel: string
-  ariaLabel: string
-  value: string
-  history: string[]
-  onChange: (value: string) => void
-  children?: ReactNode
-}) {
-  return (
-    <div className="cameraPointLabelRow">
-      <span>{kindLabel}</span>
-      <HistoryInput
-        aria-label={ariaLabel}
-        value={value}
-        history={history}
-        historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
-        placeholder="任意"
-        onChange={event => onChange(event.currentTarget.value)}
-      />
-      {children}
-    </div>
-  )
-}
-
 function SegmentKindControl({ value, label, frameStart, frameEnd, frameMin, fps, onChange }: {
   value: CameraInstructionSegment
   label: string
@@ -380,23 +367,10 @@ function SegmentKindControl({ value, label, frameStart, frameEnd, frameMin, fps,
   fps: number
   onChange: (value: CameraInstructionSegment) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const option = segmentOptions.find(item => item.kind === value.kind) ?? segmentOptions[0]!
   const pivotMax = (frameEnd - frameStart + 1) % 2 === 0 ? Math.max(frameStart, frameEnd - 1) : frameEnd
   const pivot = value.kind === 'overlap'
     ? clampCameraOverlapPivotAnchorFrame(value.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(frameStart, frameEnd), frameStart, frameEnd)
     : undefined
-
-  useEffect(() => {
-    if (!open) return
-    const closeOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && rootRef.current?.contains(event.target)) return
-      setOpen(false)
-    }
-    window.addEventListener('pointerdown', closeOutside, true)
-    return () => window.removeEventListener('pointerdown', closeOutside, true)
-  }, [open])
 
   function choose(kind: CameraInstructionSegmentKind) {
     onChange({
@@ -406,52 +380,38 @@ function SegmentKindControl({ value, label, frameStart, frameEnd, frameMin, fps,
         ? clampCameraOverlapPivotAnchorFrame(pivot ?? defaultCameraOverlapPivotAnchorFrame(frameStart, frameEnd), frameStart, frameEnd)
         : undefined,
     })
-    if (kind !== 'overlap') setOpen(false)
   }
 
   return (
-    <div ref={rootRef} className="cameraSegmentKindControl">
-      <button
-        type="button"
-        className="cameraSegmentKindTrigger"
-        aria-label={`${label}：${option.label}`}
-        aria-expanded={open}
-        onClick={event => { event.preventDefault(); setOpen(current => !current) }}
-      >
-        <CameraSegmentIcon kind={value.kind} />
-      </button>
-      {open && (
-        <div className="cameraSegmentKindPopover" role="radiogroup" aria-label={`${label}の図形`}>
-          <div className="cameraSegmentKindOptions">
-            {segmentOptions.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                role="radio"
-                aria-label={`${label}を${item.label}`}
-                aria-checked={value.kind === item.kind}
-                className={value.kind === item.kind ? 'selected' : ''}
-                onClick={event => { event.preventDefault(); choose(item.kind) }}
-              >
-                <CameraSegmentIcon kind={item.kind} />
-              </button>
-            ))}
-          </div>
-          {value.kind === 'overlap' && pivot !== undefined && (
-            <label className="cameraSegmentPivotField">
-              <span>交点</span>
-              <input
-                type="number"
-                aria-label={`${label}の交差フレーム`}
-                min={frameStart}
-                max={pivotMax}
-                value={pivot}
-                onChange={event => onChange({ ...value, pivotAnchorFrame: clampCameraOverlapPivotAnchorFrame(Number(event.currentTarget.value), frameStart, frameEnd) })}
-              />
-              <output>{formatLogicalSheetFrameTimecode(pivot, frameMin, fps)}</output>
-            </label>
-          )}
-        </div>
+    <div className="cameraSegmentKindControl">
+      <div className="cameraSegmentKindOptions" role="radiogroup" aria-label={`${label}の図形`}>
+        {segmentOptions.map(item => (
+          <button
+            key={item.id}
+            type="button"
+            role="radio"
+            aria-label={`${label}を${item.label}`}
+            aria-checked={value.kind === item.kind}
+            className={value.kind === item.kind ? 'selected' : ''}
+            onClick={event => { event.preventDefault(); choose(item.kind) }}
+          >
+            <CameraSegmentIcon kind={item.kind} />
+          </button>
+        ))}
+      </div>
+      {value.kind === 'overlap' && pivot !== undefined && (
+        <label className="cameraSegmentPivotField">
+          <span>交点</span>
+          <input
+            type="number"
+            aria-label={`${label}の交差フレーム`}
+            min={frameStart}
+            max={pivotMax}
+            value={pivot}
+            onChange={event => onChange({ ...value, pivotAnchorFrame: clampCameraOverlapPivotAnchorFrame(Number(event.currentTarget.value), frameStart, frameEnd) })}
+          />
+          <output>{formatLogicalSheetFrameTimecode(pivot, frameMin, fps)}</output>
+        </label>
       )}
     </div>
   )

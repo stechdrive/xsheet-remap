@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { uiText } from './i18n'
 import { clampNumber } from './sheetInteraction'
 
@@ -68,6 +68,85 @@ export function DurationFrameControl({
   )
 }
 
+export function CompactDurationFrameControl({
+  frames,
+  fps,
+  onChange,
+  minFrames = 1,
+  maxFrames,
+  label,
+}: {
+  frames: number
+  fps: number
+  onChange: (frames: number) => void
+  minFrames?: number
+  maxFrames?: number
+  label: string
+}) {
+  const safeFps = Math.max(1, Math.round(fps))
+  const minimum = Math.max(0, Math.round(minFrames))
+  const maximum = Math.max(minimum, Math.round(maxFrames ?? (999 * safeFps + safeFps - 1)))
+  const normalizedFrames = clampNumber(Math.round(frames), minimum, maximum)
+  const [draft, setDraft] = useState<string | null>(null)
+
+  function commit(rawValue: string) {
+    const parsed = parseCompactDuration(rawValue, safeFps)
+    const next = clampNumber(parsed ?? normalizedFrames, minimum, maximum)
+    onChange(next)
+    setDraft(null)
+  }
+
+  function updateDraft(rawValue: string) {
+    setDraft(rawValue)
+    const parsed = parseCompactDuration(rawValue, safeFps)
+    if (parsed === null) return
+    onChange(clampNumber(parsed, minimum, maximum))
+  }
+
+  function step(delta: number) {
+    const next = clampNumber(normalizedFrames + delta, minimum, maximum)
+    onChange(next)
+    setDraft(null)
+  }
+
+  return (
+    <span className="compactDurationFrameControl" role="group" aria-label={`${label}ステッパー`}>
+      <input
+        value={draft ?? formatCompactDuration(normalizedFrames, safeFps)}
+        inputMode="numeric"
+        aria-label={label}
+        onFocus={() => setDraft(formatCompactDuration(normalizedFrames, safeFps))}
+        onChange={event => updateDraft(event.currentTarget.value)}
+        onBlur={event => commit(event.currentTarget.value)}
+        onKeyDown={event => {
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            step(1)
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            step(-1)
+          }
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            commit(event.currentTarget.value)
+            event.currentTarget.select()
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            setDraft(formatCompactDuration(normalizedFrames, safeFps))
+            event.currentTarget.select()
+          }
+        }}
+      />
+      <span className="compactDurationArrowStack">
+        <button type="button" aria-label={`${label}を1コマ増やす`} onClick={() => step(1)}>▲</button>
+        <button type="button" aria-label={`${label}を1コマ減らす`} onClick={() => step(-1)}>▼</button>
+      </span>
+    </span>
+  )
+}
+
 function DurationStepperUnit({
   displayValue,
   autoFocus = false,
@@ -133,4 +212,22 @@ function durationParts(frames: number, fps: number): { seconds: number; frameRem
 
 function formatDurationPart(value: number, minDigits: number): string {
   return String(Math.max(0, Math.round(value))).padStart(minDigits, '0')
+}
+
+export function formatCompactDuration(frames: number, fps: number): string {
+  const safeFps = Math.max(1, Math.round(fps))
+  const safeFrames = Math.max(0, Math.round(frames))
+  return `${Math.floor(safeFrames / safeFps)}+${safeFrames % safeFps}`
+}
+
+export function parseCompactDuration(value: string, fps: number): number | null {
+  const normalized = value
+    .trim()
+    .replace(/[０-９]/g, character => String.fromCharCode(character.charCodeAt(0) - 0xfee0))
+    .replace(/[＋]/g, '+')
+  const safeFps = Math.max(1, Math.round(fps))
+  const timecode = normalized.match(/^(\d+)\s*\+\s*(\d*)$/)
+  if (timecode) return Number(timecode[1]) * safeFps + Number(timecode[2] || 0)
+  if (/^\d+$/.test(normalized)) return Number(normalized)
+  return null
 }

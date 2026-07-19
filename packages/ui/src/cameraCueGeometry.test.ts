@@ -167,6 +167,80 @@ describe('CAMERA cue geometry', () => {
     expect(marker.start[2]!.y - segment.rect.y).toBeLessThanOrEqual(segment.rowHeight)
   })
 
+  it('keeps automatic instruction and endpoint labels clear of range markers at different durations', () => {
+    const pageSize = { widthPx: 1754, heightPx: 2481 }
+    for (const duration of [2, 6, 24]) {
+      const cue: TimedRangeCue = {
+        cueId: `cue_endpoint_clearance_${duration}`,
+        role: 'camera',
+        laneId: 'camera_lane_2',
+        frameStart: 1,
+        frameEnd: duration,
+        label: duration === 6 ? 'PAN' : 'Follow撮影指示',
+        text: '',
+        source: 'manual',
+        camera: {
+          shape: 'range',
+          points: [
+            { pointId: 'start', role: 'start', frameOffset: 0, label: 'IN' },
+            ...(duration === 24
+              ? [
+                  { pointId: 'mid_a', role: 'intermediate' as const, frameOffset: 7, label: 'A' },
+                  { pointId: 'mid_b', role: 'intermediate' as const, frameOffset: 15, label: 'B' },
+                ]
+              : []),
+            { pointId: 'end', role: 'end', frameOffset: duration - 1, label: 'OUT' },
+          ],
+        },
+      }
+      const layout = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [cue], pageSize, { paperTracks })[0]!
+      const markerLandmarks = cameraCueSemanticLandmarksForPage(
+        standardA3SheetTemplate,
+        cue,
+        layout.segments,
+        pageSize,
+      ).filter(landmark => landmark.kind === 'range-endpoint-marker')
+      const pointLayouts = cameraCuePointLayoutsForPage(standardA3SheetTemplate, cue, layout.segments, pageSize)
+
+      expect(markerLandmarks).toHaveLength(2)
+      expect(markerLandmarks.every(landmark => landmark.blocksInstructionLabel)).toBe(true)
+      expect(markerLandmarks.every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
+      expect(pointLayouts.filter(point => point.point.role !== 'intermediate')
+        .every(point => intersectionArea(point.rect, point.protectedRect) < 0.000000001)).toBe(true)
+      expect(pointLayouts.every((point, index) => pointLayouts.slice(index + 1)
+        .every(other => intersectionArea(point.rect, other.rect) < 0.000000001))).toBe(true)
+    }
+  })
+
+  it('keeps endpoint labels off exact start and end landmarks for every camera shape', () => {
+    const pageSize = { widthPx: 1754, heightPx: 2481 }
+    for (const shape of ['range', 'fade-in', 'fade-out', 'overlap'] as const) {
+      const cue: TimedRangeCue = {
+        cueId: `cue_shape_endpoint_${shape}`,
+        role: 'camera',
+        laneId: 'camera_lane_3',
+        frameStart: 4,
+        frameEnd: 15,
+        label: shape,
+        text: '',
+        source: 'manual',
+        camera: {
+          shape,
+          points: [
+            { pointId: 'start', role: 'start', frameOffset: 0, label: 'START' },
+            { pointId: 'end', role: 'end', frameOffset: 11, label: 'END' },
+          ],
+        },
+      }
+      const segments = cameraCueSegmentsForPage(standardA3SheetTemplate, page, cue, { paperTracks })
+      const points = cameraCuePointLayoutsForPage(standardA3SheetTemplate, cue, segments, pageSize)
+
+      expect(points).toHaveLength(2)
+      expect(points.every(point => intersectionArea(point.rect, point.protectedRect) < 0.000000001)).toBe(true)
+      expect(points.every(point => !rectContainsPoint(point.rect, point.anchor))).toBe(true)
+    }
+  })
+
   it('connects wave paths to the triangle tips and switches style at intermediate points', () => {
     const cue: TimedRangeCue = {
       cueId: 'cue_wave', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24,

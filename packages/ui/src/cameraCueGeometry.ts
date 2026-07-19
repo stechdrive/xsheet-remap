@@ -43,6 +43,8 @@ export interface CameraCuePointLayout {
   point: CameraInstructionPoint
   frame: number
   anchor: NormalizedPoint
+  /** Visual landmark around the exact frame that the point label must not cover. */
+  protectedRect: NormalizedRect
   mark?: CameraCueHorizontalMark
   connector: { from: NormalizedPoint; to: NormalizedPoint }
   rect: NormalizedRect
@@ -58,7 +60,7 @@ export interface CameraCueHorizontalMark {
   y: number
 }
 
-export type CameraCueSemanticLandmarkKind = 'point-label' | 'point-mark' | 'point-connector' | 'path-transition' | 'wave-segment' | 'overlap-pivot'
+export type CameraCueSemanticLandmarkKind = 'range-endpoint-marker' | 'point-label' | 'point-mark' | 'point-connector' | 'path-transition' | 'wave-segment' | 'overlap-pivot'
 
 /**
  * A derived, template-space reservation for CAMERA information that must remain
@@ -207,6 +209,7 @@ export function cameraCuePointLayoutsForPage(
 ): CameraCuePointLayout[] {
   const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
   const font: TextFontSpec = { family: SHEET_TEXT_FONT_FAMILY, sizePx: fontSizePx, weight: 850 }
+  const occupiedRects: NormalizedRect[] = []
   return resolveCameraInstructionPoints(cue.camera, cue.frameStart, cue.frameEnd).flatMap(point => {
     const frame = cue.frameStart + point.frameOffset
     const segment = segments.find(item => frame >= item.frameStart && frame <= item.frameEnd)
@@ -219,47 +222,45 @@ export function cameraCuePointLayoutsForPage(
     const mark = point.role === 'intermediate'
       ? cameraHorizontalMark(segment.rect, anchor.y)
       : undefined
+    const protectedRect = cameraCuePointProtectedRect(cue, point, segment, anchor, mark, pageSize)
     const measured = sharedTextMeasurementProvider.measure(point.label, font)
     const width = Math.min(segment.regionRect.w, (measured.widthPx + 8) / pageSize.widthPx)
     const height = Math.min(segment.rowHeight, Math.max(fontSizePx * 1.35, 12) / pageSize.heightPx)
     const horizontalGap = Math.max(segment.rect.w * 0.1, 3 / pageSize.widthPx)
-    const rightX = (mark?.x2 ?? anchor.x) + horizontalGap
-    const leftX = (mark?.x1 ?? anchor.x) - horizontalGap - width
-    const canPlaceRight = rightX + width <= segment.regionRect.x + segment.regionRect.w
-    const canPlaceLeft = leftX >= segment.regionRect.x
-    let x = canPlaceRight
-      ? rightX
-      : canPlaceLeft
-        ? leftX
-        : Math.max(segment.regionRect.x, Math.min(segment.regionRect.x + segment.regionRect.w - width, anchor.x - width / 2))
-    let y = Math.max(segment.regionRect.y, Math.min(segment.regionRect.y + segment.regionRect.h - height, anchor.y - height / 2))
-    if (mark && !canPlaceRight && !canPlaceLeft) {
-      const verticalGap = Math.max(segment.rowHeight * 0.15, 2 / pageSize.heightPx)
-      const aboveY = anchor.y - verticalGap - height
-      const belowY = anchor.y + verticalGap
-      const canPlaceAbove = aboveY >= segment.regionRect.y
-      const canPlaceBelow = belowY + height <= segment.regionRect.y + segment.regionRect.h
-      y = canPlaceAbove
-        ? aboveY
-        : canPlaceBelow
-          ? belowY
-          : Math.max(segment.regionRect.y, Math.min(segment.regionRect.y + segment.regionRect.h - height, aboveY))
-      x = Math.max(segment.regionRect.x, Math.min(segment.regionRect.x + segment.regionRect.w - width, x))
-    }
-    const rect = {
-      x,
-      y,
-      w: width,
-      h: height,
-    }
+    const verticalGap = Math.max(segment.rowHeight * 0.15, 2 / pageSize.heightPx)
+    const sideY = anchor.y - height / 2
+    const centeredX = anchor.x - width / 2
+    const above = { x: centeredX, y: protectedRect.y - verticalGap - height, w: width, h: height }
+    const below = { x: centeredX, y: protectedRect.y + protectedRect.h + verticalGap, w: width, h: height }
+    const verticalCandidates = point.role === 'end' ? [above, below] : [below, above]
+    const candidates = uniqueRects([
+      { x: protectedRect.x + protectedRect.w + horizontalGap, y: sideY, w: width, h: height },
+      { x: protectedRect.x - horizontalGap - width, y: sideY, w: width, h: height },
+      ...verticalCandidates,
+    ].map(candidate => clampRectToRegion(candidate, segment.regionRect)))
+    const rect = candidates.reduce((best, candidate, index) => {
+      const area = Math.max(0.000000001, candidate.w * candidate.h)
+      const protectedOverlap = intersectionArea(candidate, protectedRect) / area
+      const occupiedOverlap = occupiedRects.reduce((total, occupied) => total + intersectionArea(candidate, occupied), 0) / area
+      const xDistance = Math.abs(candidate.x + candidate.w / 2 - anchor.x) / Math.max(0.000001, segment.regionRect.w)
+      const yDistance = Math.abs(candidate.y + candidate.h / 2 - anchor.y) / Math.max(0.000001, segment.rowHeight)
+      const score = protectedOverlap * 1_000_000
+        + occupiedOverlap * 500_000
+        + yDistance * 20
+        + xDistance * 8
+        + index
+      return score < best.score ? { rect: candidate, score } : best
+    }, { rect: candidates[0]!, score: Number.POSITIVE_INFINITY }).rect
+    occupiedRects.push(rect)
     const connectorTo = nearestPointOnRect(anchor, rect)
     const connectorFrom = mark && Math.abs(connectorTo.x - anchor.x) >= Math.abs(connectorTo.y - anchor.y)
       ? { x: connectorTo.x >= anchor.x ? mark.x2 : mark.x1, y: anchor.y }
-      : anchor
+      : nearestPointOnRect(connectorTo, protectedRect)
     return [{
       point,
       frame,
       anchor,
+      protectedRect,
       mark,
       connector: { from: connectorFrom, to: connectorTo },
       rect,
@@ -560,6 +561,24 @@ export function cameraCueSemanticLandmarksForPage(
   pageSize: { widthPx: number; heightPx: number },
 ): CameraCueSemanticLandmark[] {
   const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
+  const endpointMarkerLandmarks = cue.camera?.shape === 'range'
+    ? segments.flatMap(segment => {
+        const landmarks: CameraCueSemanticLandmark[] = []
+        if (segment.startsCue) landmarks.push({
+          cueId: cue.cueId,
+          kind: 'range-endpoint-marker',
+          rect: cameraRangeMarkerProtectedRect(segment, 'start', pageSize),
+          blocksInstructionLabel: true,
+        })
+        if (segment.endsCue) landmarks.push({
+          cueId: cue.cueId,
+          kind: 'range-endpoint-marker',
+          rect: cameraRangeMarkerProtectedRect(segment, 'end', pageSize),
+          blocksInstructionLabel: true,
+        })
+        return landmarks
+      })
+    : []
   const styleSpans = cameraInstructionStyleSpans(cue)
   const mixedStyles = new Set(styleSpans.map(span => span.style)).size > 1
   const transitionPointIds = new Set(styleSpans.flatMap((span, index) => {
@@ -638,7 +657,7 @@ export function cameraCueSemanticLandmarksForPage(
         })
       : [])
     : []
-  if (cue.camera?.shape !== 'overlap') return [...pointLandmarks, ...waveSegmentLandmarks]
+  if (cue.camera?.shape !== 'overlap') return [...endpointMarkerLandmarks, ...pointLandmarks, ...waveSegmentLandmarks]
   const crossingLandmarks = segments.flatMap(segment => {
     const pivotMark = cameraOverlapPivotMarkForSegment(cue, segment)
     if (!pivotMark) return []
@@ -655,7 +674,51 @@ export function cameraCueSemanticLandmarksForPage(
       blocksInstructionLabel: true,
     }]
   })
-  return [...pointLandmarks, ...waveSegmentLandmarks, ...crossingLandmarks]
+  return [...endpointMarkerLandmarks, ...pointLandmarks, ...waveSegmentLandmarks, ...crossingLandmarks]
+}
+
+function cameraCuePointProtectedRect(
+  cue: TimedRangeCue,
+  point: CameraInstructionPoint,
+  segment: CameraCueSegment,
+  anchor: NormalizedPoint,
+  mark: CameraCueHorizontalMark | undefined,
+  pageSize: { widthPx: number; heightPx: number },
+): NormalizedRect {
+  if (mark) {
+    return expandRectWithinRegion({
+      x: mark.x1,
+      y: mark.y,
+      w: mark.x2 - mark.x1,
+      h: 0.000001,
+    }, Math.max(segment.rect.w * 0.12, 2 / Math.max(1, pageSize.widthPx)), Math.max(segment.rowHeight * 0.12, 2 / Math.max(1, pageSize.heightPx)), segment.regionRect)
+  }
+  if (cue.camera?.shape === 'range' && (point.role === 'start' || point.role === 'end')) {
+    return cameraRangeMarkerProtectedRect(segment, point.role, pageSize)
+  }
+  return expandRectWithinRegion({
+    x: anchor.x - segment.rect.w * CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO / 2,
+    y: anchor.y - segment.rowHeight * CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO / 2,
+    w: segment.rect.w * CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO,
+    h: segment.rowHeight * CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO,
+  }, Math.max(segment.rect.w * 0.08, 2 / Math.max(1, pageSize.widthPx)), Math.max(segment.rowHeight * 0.08, 2 / Math.max(1, pageSize.heightPx)), segment.regionRect)
+}
+
+function cameraRangeMarkerProtectedRect(
+  segment: CameraCueSegment,
+  role: 'start' | 'end',
+  pageSize: { widthPx: number; heightPx: number },
+): NormalizedRect {
+  const marker = cameraRangeMarkerGeometryForSegment(segment, pageSize)
+  const points = role === 'start' ? marker.start : marker.end
+  const xs = points.map(point => point.x)
+  const ys = points.map(point => point.y)
+  return expandRectWithinRegion({
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    w: Math.max(...xs) - Math.min(...xs),
+    h: Math.max(...ys) - Math.min(...ys),
+  }, Math.max(segment.rect.w * 0.1, 2 / Math.max(1, pageSize.widthPx)), Math.max(segment.rowHeight * 0.08, 2 / Math.max(1, pageSize.heightPx)), segment.regionRect)
 }
 
 interface CameraInstructionStyleSpan {

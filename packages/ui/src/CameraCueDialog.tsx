@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
+  CAMERA_INSTRUCTION_CUE_END_POINT_ID,
   defaultCameraOverlapPivotAnchorFrame,
   formatLogicalSheetFrameTimecode,
   resolveCameraInstructionPoints,
+  resolveCameraInstructionSegmentStyles,
   type CameraInstruction,
+  type CameraInstructionPathStyle,
   type CameraInstructionPoint,
   type CameraInstructionShape,
   type TimedRangeCue,
@@ -26,11 +29,19 @@ export interface CameraCueDialogSubmit {
   camera: CameraInstruction
 }
 
-const shapeOptions: Array<{ value: CameraInstructionShape; label: string }> = [
-  { value: 'range', label: '区間指示' },
-  { value: 'fade-in', label: 'フェードイン・ワイプイン' },
-  { value: 'fade-out', label: 'フェードアウト・ワイプアウト' },
-  { value: 'overlap', label: 'オーバーラップ' },
+type CameraShapeOption = {
+  id: string
+  shape: CameraInstructionShape
+  pathStyle?: CameraInstructionPathStyle
+  label: string
+}
+
+const shapeOptions: CameraShapeOption[] = [
+  { id: 'range-straight', shape: 'range', pathStyle: 'straight', label: '直線の区間指示' },
+  { id: 'range-wave', shape: 'range', pathStyle: 'wave', label: '波線の区間指示' },
+  { id: 'fade-in', shape: 'fade-in', label: 'フェードイン・ワイプイン' },
+  { id: 'fade-out', shape: 'fade-out', label: 'フェードアウト・ワイプアウト' },
+  { id: 'overlap', shape: 'overlap', label: 'オーバーラップ' },
 ]
 
 export function CameraCueDialog({
@@ -60,9 +71,15 @@ export function CameraCueDialog({
   const initialDuration = Math.max(1, initialFrameEnd - frameStart + 1)
   const initialCamera = cue?.camera
   const initialPoints = resolveCameraInstructionPoints(initialCamera, frameStart, initialFrameEnd)
+  const initialPathStyle: CameraInstructionPathStyle = initialCamera?.pathStyle === 'wave' ? 'wave' : 'straight'
   const initialPivotAnchor = initialCamera?.pivotAnchorFrame
     ?? defaultCameraOverlapPivotAnchorFrame(frameStart, initialFrameEnd)
   const [shape, setShape] = useState<CameraInstructionShape>(initialCamera?.shape ?? 'range')
+  const [pathStyle, setPathStyle] = useState<CameraInstructionPathStyle>(initialPathStyle)
+  const [segmentStyleByEndPointId, setSegmentStyleByEndPointId] = useState<Record<string, CameraInstructionPathStyle>>(
+    () => Object.fromEntries(resolveCameraInstructionSegmentStyles(initialCamera, frameStart, initialFrameEnd, initialPoints)
+      .map(item => [item.endPointId, item.style])),
+  )
   const [label, setLabel] = useState(cue?.label ?? '')
   const [startLabel, setStartLabel] = useState(initialPoints.find(point => point.role === 'start')?.label ?? '')
   const [endLabel, setEndLabel] = useState(initialPoints.find(point => point.role === 'end')?.label ?? '')
@@ -108,6 +125,13 @@ export function CameraCueDialog({
     if (suggestedShape) setShape(suggestedShape)
   }
 
+  function selectShapeOption(option: CameraShapeOption) {
+    setShape(option.shape)
+    if (option.shape !== 'range' || !option.pathStyle) return
+    setPathStyle(option.pathStyle)
+    setSegmentStyleByEndPointId({})
+  }
+
   function updateDuration(nextDuration: number) {
     setDurationFrames(Math.max(minimumDuration, Math.min(maxDuration, Math.round(nextDuration))))
   }
@@ -115,8 +139,15 @@ export function CameraCueDialog({
   function addIntermediatePoint() {
     const offset = largestAvailableGapMidpoint(durationFrames, occupiedOffsets)
     if (offset === null) return
+    const pointId = nextPointId(intermediatePoints)
+    const nextTargetId = intermediatePoints.find(point => point.frameOffset > offset)?.pointId
+      ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID
+    setSegmentStyleByEndPointId(current => ({
+      ...current,
+      [pointId]: current[nextTargetId] ?? pathStyle,
+    }))
     setIntermediatePoints(current => [...current, {
-      pointId: nextPointId(current),
+      pointId,
       role: 'intermediate' as const,
       frameOffset: offset,
       label: '',
@@ -128,12 +159,28 @@ export function CameraCueDialog({
       .sort((left, right) => left.frameOffset - right.frameOffset))
   }
 
+  function removeIntermediatePoint(pointId: string) {
+    setIntermediatePoints(current => current.filter(item => item.pointId !== pointId))
+    setSegmentStyleByEndPointId(current => {
+      const remaining = { ...current }
+      delete remaining[pointId]
+      return remaining
+    })
+  }
+
+  function segmentStyle(endPointId: string): CameraInstructionPathStyle {
+    return segmentStyleByEndPointId[endPointId] ?? pathStyle
+  }
+
   function submit(event: FormEvent) {
     event.preventDefault()
     const normalizedLabel = label.trim()
+    const submittedIntermediatePoints = intermediatePoints
+      .filter(point => point.label.trim())
+      .map(point => ({ ...point, label: point.label.trim() }))
     const points: CameraInstructionPoint[] = [
       ...(startLabel.trim() ? [{ pointId: 'point_start', role: 'start' as const, frameOffset: 0, label: startLabel.trim() }] : []),
-      ...intermediatePoints.filter(point => point.label.trim()).map(point => ({ ...point, label: point.label.trim() })),
+      ...submittedIntermediatePoints,
       ...(endLabel.trim() ? [{ pointId: 'point_end', role: 'end' as const, frameOffset: durationFrames - 1, label: endLabel.trim() }] : []),
     ]
     onSubmit({
@@ -144,6 +191,11 @@ export function CameraCueDialog({
       label: normalizedLabel,
       camera: {
         shape,
+        pathStyle: shape === 'range' ? pathStyle : undefined,
+        segmentStyles: shape === 'range'
+          ? [...submittedIntermediatePoints.map(point => point.pointId), CAMERA_INSTRUCTION_CUE_END_POINT_ID]
+              .map(endPointId => ({ endPointId, style: segmentStyle(endPointId) }))
+          : undefined,
         points,
         pivotAnchorFrame: shape === 'overlap' ? pivotAnchorFrame : undefined,
         labelPlacement,
@@ -162,15 +214,15 @@ export function CameraCueDialog({
           <div className="cameraShapePicker" role="radiogroup" aria-label="CAMERA描画種別">
             {shapeOptions.map(option => (
               <button
-                key={option.value}
+                key={option.id}
                 type="button"
-                className={shape === option.value ? 'cameraShapeButton selected' : 'cameraShapeButton'}
+                className={shape === option.shape && (option.shape !== 'range' || pathStyle === option.pathStyle) ? 'cameraShapeButton selected' : 'cameraShapeButton'}
                 role="radio"
                 aria-label={option.label}
-                aria-checked={shape === option.value}
-                onClick={() => setShape(option.value)}
+                aria-checked={shape === option.shape && (option.shape !== 'range' || pathStyle === option.pathStyle)}
+                onClick={() => selectShapeOption(option)}
               >
-                <CameraShapeIcon shape={option.value} />
+                <CameraShapeIcon option={option} />
               </button>
             ))}
           </div>
@@ -187,7 +239,7 @@ export function CameraCueDialog({
               placeholder="PAN、TU、OLなど"
             />
           </label>
-          <div className="cameraCueTimingRow">
+          <div className="timedRangeDialogTimingRow">
             <span><small>開始</small>{formatLogicalSheetFrameTimecode(frameStart, frameMin, safeFps)}</span>
             <span><small>終了</small>{formatLogicalSheetFrameTimecode(frameEnd, frameMin, safeFps)}</span>
             <DurationFrameControl frames={durationFrames} fps={safeFps} maxFrames={maxDuration} label="長さ" onChange={updateDuration} />
@@ -204,21 +256,8 @@ export function CameraCueDialog({
               const previous = intermediatePoints[index - 1]?.frameOffset ?? 0
               const next = intermediatePoints[index + 1]?.frameOffset ?? durationFrames - 1
               return (
-                <div className="cameraIntermediatePointRow" key={point.pointId}>
+                <div className={`cameraIntermediatePointRow${shape === 'range' ? ' withConnectionStyle' : ''}`} key={point.pointId}>
                   <span>中間ラベル</span>
-                  <span className="cameraPointPosition">
-                    <input
-                      type="number"
-                      aria-label={`CAMERA中間ラベル${index + 1}位置`}
-                      min={frameStart + previous + 1}
-                      max={frameStart + next - 1}
-                      value={frameStart + point.frameOffset}
-                      onChange={event => updateIntermediatePoint(point.pointId, {
-                        frameOffset: Math.max(previous + 1, Math.min(next - 1, Math.round(Number(event.currentTarget.value)) - frameStart)),
-                      })}
-                    />
-                    <output>{formatLogicalSheetFrameTimecode(frameStart + point.frameOffset, frameMin, safeFps)}</output>
-                  </span>
                   <HistoryInput
                     aria-label={`CAMERA中間ラベル${index + 1}`}
                     value={point.label}
@@ -227,7 +266,25 @@ export function CameraCueDialog({
                     placeholder="任意"
                     onChange={event => updateIntermediatePoint(point.pointId, { label: event.currentTarget.value })}
                   />
-                  <button type="button" className="dialogIconButton compact" aria-label={`中間ラベル${index + 1}を削除`} onClick={() => setIntermediatePoints(current => current.filter(item => item.pointId !== point.pointId))}>×</button>
+                  <input
+                    className="cameraPointFrameInput"
+                    type="number"
+                    aria-label={`CAMERA中間ラベル${index + 1}位置`}
+                    min={frameStart + previous + 1}
+                    max={frameStart + next - 1}
+                    value={frameStart + point.frameOffset}
+                    onChange={event => updateIntermediatePoint(point.pointId, {
+                      frameOffset: Math.max(previous + 1, Math.min(next - 1, Math.round(Number(event.currentTarget.value)) - frameStart)),
+                    })}
+                  />
+                  {shape === 'range' && (
+                    <ConnectionStyleControl
+                      value={segmentStyle(point.pointId)}
+                      label={`中間ラベル${index + 1}まで`}
+                      onChange={style => setSegmentStyleByEndPointId(current => ({ ...current, [point.pointId]: style }))}
+                    />
+                  )}
+                  <button type="button" className="dialogIconButton compact" aria-label={`中間ラベル${index + 1}を削除`} onClick={() => removeIntermediatePoint(point.pointId)}>×</button>
                 </div>
               )
             })}
@@ -238,6 +295,13 @@ export function CameraCueDialog({
               value={endLabel}
               history={pointLabelHistory}
               onChange={setEndLabel}
+              trailing={shape === 'range' && intermediatePoints.length > 0 ? (
+                <ConnectionStyleControl
+                  value={segmentStyle(CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
+                  label="終了まで"
+                  onChange={style => setSegmentStyleByEndPointId(current => ({ ...current, [CAMERA_INSTRUCTION_CUE_END_POINT_ID]: style }))}
+                />
+              ) : undefined}
             />
             {tooManyPointLabels && <span className="cameraPointValidation" role="alert">位置ラベル数を区間のコマ数以下にしてください。</span>}
           </div>
@@ -271,15 +335,16 @@ export function CameraCueDialog({
   )
 }
 
-function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange }: {
+function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange, trailing }: {
   kindLabel: string
   ariaLabel: string
   value: string
   history: string[]
   onChange: (value: string) => void
+  trailing?: ReactNode
 }) {
   return (
-    <label className="cameraPointLabelRow">
+    <label className={`cameraPointLabelRow${trailing ? ' withTrailing' : ''}`}>
       <span>{kindLabel}</span>
       <HistoryInput
         aria-label={ariaLabel}
@@ -289,14 +354,44 @@ function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange }: {
         placeholder="任意"
         onChange={event => onChange(event.currentTarget.value)}
       />
+      {trailing}
     </label>
   )
 }
 
-function CameraShapeIcon({ shape }: { shape: CameraInstructionShape }) {
-  if (shape === 'range') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M18 4v16M14 7l4-4 4 4M14 17l4 4 4-4" /></svg>
-  if (shape === 'fade-in') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M18 3L6 21h24Z" /></svg>
-  if (shape === 'fade-out') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M6 3h24L18 21Z" /></svg>
+function ConnectionStyleControl({ value, label, onChange }: {
+  value: CameraInstructionPathStyle
+  label: string
+  onChange: (value: CameraInstructionPathStyle) => void
+}) {
+  return (
+    <span className="cameraConnectionStyleControl" role="radiogroup" aria-label={`${label}の線`}>
+      <button type="button" role="radio" aria-label={`${label}を直線`} aria-checked={value === 'straight'} className={value === 'straight' ? 'selected' : ''} onClick={() => onChange('straight')}>
+        <ConnectionStyleIcon style="straight" />
+      </button>
+      <button type="button" role="radio" aria-label={`${label}を波線`} aria-checked={value === 'wave'} className={value === 'wave' ? 'selected' : ''} onClick={() => onChange('wave')}>
+        <ConnectionStyleIcon style="wave" />
+      </button>
+    </span>
+  )
+}
+
+function ConnectionStyleIcon({ style }: { style: CameraInstructionPathStyle }) {
+  return style === 'straight'
+    ? <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2V18" /></svg>
+    : <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2C14 4 2 6 8 8S14 12 8 14 2 16 8 18" /></svg>
+}
+
+function CameraShapeIcon({ option }: { option: CameraShapeOption }) {
+  if (option.shape === 'range') return (
+    <svg className="cameraRangeShapeIcon" viewBox="0 0 36 24" aria-hidden="true">
+      <polygon points="12,2 24,2 18,7" />
+      <path d={option.pathStyle === 'wave' ? 'M18 7C28 9 8 11 18 12S28 15 18 17' : 'M18 7V17'} />
+      <polygon points="12,22 24,22 18,17" />
+    </svg>
+  )
+  if (option.shape === 'fade-in') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M18 3L6 21h24Z" /></svg>
+  if (option.shape === 'fade-out') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M6 3h24L18 21Z" /></svg>
   return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M7 3H29L18 12Z M7 21H29L18 12Z" /></svg>
 }
 

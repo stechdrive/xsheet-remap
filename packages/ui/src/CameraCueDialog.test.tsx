@@ -72,4 +72,50 @@ describe('CameraCueDialog', () => {
     }))
     expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('text')
   })
+
+  it('places the intermediate label before its frame and stores compact per-segment line styles', () => {
+    const onSubmit = vi.fn()
+    const { container } = render(
+      <CameraCueDialog
+        state={{ mode: 'create', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24 }}
+        cue={null}
+        fps={24}
+        frameMin={1}
+        frameMax={144}
+        instructionHistory={[]}
+        pointLabelHistory={[]}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    const waveOption = screen.getByRole('radio', { name: '波線の区間指示' })
+    fireEvent.click(waveOption)
+    expect(waveOption.getAttribute('aria-checked')).toBe('true')
+    const icon = waveOption.querySelector('.cameraRangeShapeIcon')!
+    expect(icon.querySelectorAll('polygon')).toHaveLength(2)
+    expect(icon.querySelector('path')?.getAttribute('d')).toMatch(/^M18 7.*18 17$/)
+
+    fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
+    const row = container.querySelector('.cameraIntermediatePointRow')!
+    const labelInput = screen.getByLabelText('CAMERA中間ラベル1')
+    const frameInput = screen.getByLabelText('CAMERA中間ラベル1位置')
+    expect([...row.querySelectorAll('input')].indexOf(labelInput as HTMLInputElement))
+      .toBeLessThan([...row.querySelectorAll('input')].indexOf(frameInput as HTMLInputElement))
+    expect(row.querySelector('output')).toBeNull()
+
+    fireEvent.change(labelInput, { target: { value: 'B' } })
+    fireEvent.click(screen.getByRole('radio', { name: '中間ラベル1までを直線' }))
+    fireEvent.click(screen.getByRole('button', { name: '追加' }))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      camera: expect.objectContaining({
+        shape: 'range',
+        pathStyle: 'wave',
+        segmentStyles: [
+          { endPointId: 'point_1', style: 'straight' },
+          { endPointId: 'cue-end', style: 'wave' },
+        ],
+      }),
+    }))
+  })
 })

@@ -5,9 +5,10 @@ import type {
   SheetTemplate,
   SheetViewLayoutOverrides,
   TimedRangeCue,
+  CameraInstructionPathStyle,
   CameraInstructionPoint,
 } from '@xsheet-remap/core'
-import { clampCameraOverlapPivotAnchorFrame, defaultCameraOverlapPivotAnchorFrame, resolveCameraInstructionPoints } from '@xsheet-remap/core'
+import { CAMERA_INSTRUCTION_CUE_END_POINT_ID, clampCameraOverlapPivotAnchorFrame, defaultCameraOverlapPivotAnchorFrame, resolveCameraInstructionPoints, resolveCameraInstructionSegmentStyles } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import {
@@ -49,6 +50,17 @@ export interface CameraCuePointLayout {
   textYpx: number
 }
 
+export type CameraRangePathCommand =
+  | { kind: 'move'; x: number; y: number }
+  | { kind: 'line'; x: number; y: number }
+  | { kind: 'cubic'; control1X: number; control1Y: number; control2X: number; control2Y: number; x: number; y: number }
+
+export interface CameraRangePath {
+  endPointId: string
+  style: CameraInstructionPathStyle
+  commands: CameraRangePathCommand[]
+}
+
 interface CameraCueLabelVariant {
   orientation: CameraCueLabelLayout['orientation']
   widthPx: number
@@ -69,6 +81,91 @@ export const CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO = 0.65
 export const CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO = 0.85
 export const CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO = 0.72
 const CAMERA_RANGE_MARKER_MAX_ASPECT_RATIO = 1.2
+
+export function cameraRangePathsForSegment(
+  cue: TimedRangeCue,
+  segment: CameraCueSegment,
+  pageSize: { widthPx: number; heightPx: number },
+): CameraRangePath[] {
+  if (cue.camera?.shape !== 'range') return []
+  const camera = cue.camera
+  const intermediatePoints = resolveCameraInstructionPoints(camera, cue.frameStart, cue.frameEnd)
+    .filter(point => point.role === 'intermediate')
+  const styles = new Map(resolveCameraInstructionSegmentStyles(camera, cue.frameStart, cue.frameEnd)
+    .map(item => [item.endPointId, item.style]))
+  const fallback: CameraInstructionPathStyle = camera.pathStyle === 'wave' ? 'wave' : 'straight'
+  const marker = cameraRangeMarkerGeometryForSegment(segment, pageSize)
+  const centerX = segment.rect.x + segment.rect.w / 2
+  const segmentStart = segment.frameStart
+  const segmentEnd = segment.frameEnd + 1
+  const targets = [
+    ...intermediatePoints.map(point => ({ endPointId: point.pointId, position: cue.frameStart + point.frameOffset + 0.5 })),
+    { endPointId: CAMERA_INSTRUCTION_CUE_END_POINT_ID, position: cue.frameEnd + 1 },
+  ]
+  let connectionStart = cue.frameStart
+  return targets.flatMap(target => {
+    const clippedStart = Math.max(connectionStart, segmentStart)
+    const clippedEnd = Math.min(target.position, segmentEnd)
+    const startsCue = connectionStart === cue.frameStart && clippedStart === cue.frameStart && segment.startsCue
+    const endsCue = target.endPointId === CAMERA_INSTRUCTION_CUE_END_POINT_ID
+      && clippedEnd === cue.frameEnd + 1
+      && segment.endsCue
+    connectionStart = target.position
+    if (clippedEnd <= clippedStart) return []
+    let startY = startsCue
+      ? marker.start[2]!.y
+      : segment.rect.y + (clippedStart - segment.frameStart) * segment.rowHeight
+    let endY = endsCue
+      ? marker.end[2]!.y
+      : segment.rect.y + (clippedEnd - segment.frameStart) * segment.rowHeight
+    if (endY < startY) startY = endY = (startY + endY) / 2
+    const style = styles.get(target.endPointId) ?? fallback
+    return [{
+      endPointId: target.endPointId,
+      style,
+      commands: style === 'wave'
+        ? cameraWavePath(centerX, startY, endY, segment.rect.w, segment.rowHeight)
+        : [{ kind: 'move' as const, x: centerX, y: startY }, { kind: 'line' as const, x: centerX, y: endY }],
+    }]
+  })
+}
+
+export function cameraRangePathData(commands: CameraRangePathCommand[]): string {
+  return commands.map(command => {
+    if (command.kind === 'move') return `M ${pathNumber(command.x)} ${pathNumber(command.y)}`
+    if (command.kind === 'line') return `L ${pathNumber(command.x)} ${pathNumber(command.y)}`
+    return `C ${pathNumber(command.control1X)} ${pathNumber(command.control1Y)} ${pathNumber(command.control2X)} ${pathNumber(command.control2Y)} ${pathNumber(command.x)} ${pathNumber(command.y)}`
+  }).join(' ')
+}
+
+function cameraWavePath(centerX: number, startY: number, endY: number, laneWidth: number, rowHeight: number): CameraRangePathCommand[] {
+  const commands: CameraRangePathCommand[] = [{ kind: 'move', x: centerX, y: startY }]
+  if (endY <= startY) return commands
+  const amplitude = Math.min(laneWidth * 0.2, rowHeight * 0.3)
+  const targetWavelength = Math.max(rowHeight * 0.95, 0.000001)
+  const cycleCount = Math.max(1, Math.round((endY - startY) / targetWavelength))
+  const halfWaveCount = cycleCount * 2
+  const halfWaveHeight = (endY - startY) / halfWaveCount
+  const controlAmplitude = amplitude * (4 / 3)
+  for (let index = 0; index < halfWaveCount; index += 1) {
+    const y = startY + halfWaveHeight * index
+    const sign = index % 2 === 0 ? 1 : -1
+    commands.push({
+      kind: 'cubic',
+      control1X: centerX + sign * controlAmplitude,
+      control1Y: y + halfWaveHeight / 3,
+      control2X: centerX + sign * controlAmplitude,
+      control2Y: y + halfWaveHeight * 2 / 3,
+      x: centerX,
+      y: y + halfWaveHeight,
+    })
+  }
+  return commands
+}
+
+function pathNumber(value: number): string {
+  return String(Number(value.toFixed(7)))
+}
 
 export function cameraCueSegmentsForPage(
   template: SheetTemplate,

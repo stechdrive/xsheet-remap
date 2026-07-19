@@ -11,7 +11,7 @@ describe('SoundCueDialog', () => {
       <SoundCueDialog
         state={{ mode: 'create', laneId: 'sound_lane_1', frameStart: 10, frameEnd: 12 }}
         cue={null}
-        lane={{ laneId: 'sound_lane_1', label: 'S1', order: 0 }}
+        sectionLabel="SOUND"
         fps={24}
         frameMin={1}
         frameMax={144}
@@ -22,8 +22,13 @@ describe('SoundCueDialog', () => {
     )
     fireEvent.change(screen.getByLabelText('SOUNDラベル'), { target: { value: 'SE' } })
     fireEvent.change(screen.getByLabelText('SOUND内容'), { target: { value: 'ドン！' } })
-    fireEvent.change(screen.getByLabelText('SOUNDデュレーション秒'), { target: { value: '1' } })
-    fireEvent.change(screen.getByLabelText('SOUNDデュレーションコマ'), { target: { value: '6' } })
+    expect(screen.getByRole('dialog', { name: 'SOUND指示' })).toBeTruthy()
+    expect(screen.queryByLabelText('SOUND開始フレーム')).toBeNull()
+    expect(screen.getByLabelText('SOUND内容').getAttribute('placeholder')).toBeNull()
+    expect(screen.getByText('Ctrl+Enterで確定')).toBeTruthy()
+    expect(screen.queryByText(/ラベル履歴/)).toBeNull()
+    fireEvent.change(screen.getByLabelText('長さ 秒'), { target: { value: '1' } })
+    fireEvent.change(screen.getByLabelText('長さ コマ'), { target: { value: '6' } })
     fireEvent.click(screen.getByRole('button', { name: '追加' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -42,7 +47,7 @@ describe('SoundCueDialog', () => {
       <SoundCueDialog
         state={{ mode: 'edit', cueId: 'cue_1', laneId: 'sound_lane_1', frameStart: 1, frameEnd: 24 }}
         cue={{ cueId: 'cue_1', role: 'sound', laneId: 'sound_lane_1', frameStart: 1, frameEnd: 24, label: 'アキラ', text: 'はい', source: 'manual' }}
-        lane={{ laneId: 'sound_lane_1', label: 'S1', order: 0 }}
+        sectionLabel="セリフ"
         fps={24}
         frameMin={1}
         frameMax={144}
@@ -51,7 +56,8 @@ describe('SoundCueDialog', () => {
         onCancel={() => undefined}
       />,
     )
-    const textarea = screen.getByLabelText('SOUND内容')
+    expect(screen.getByRole('dialog', { name: 'セリフ指示' })).toBeTruthy()
+    const textarea = screen.getByLabelText('セリフ内容')
     fireEvent.keyDown(textarea, { key: 'Enter' })
     expect(onSubmit).not.toHaveBeenCalled()
     fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true })

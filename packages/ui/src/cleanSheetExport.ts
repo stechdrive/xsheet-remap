@@ -48,6 +48,8 @@ import {
   cameraOverlapPivotMarkForSegment,
   cameraOverlapPathsForSegment,
   cameraRangeMarkerGeometryForSegment,
+  cameraRangePathsForSegment,
+  type CameraRangePathCommand,
 } from './cameraCueGeometry'
 import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, textFontDeclaration } from './textMetrics'
 import {
@@ -803,13 +805,14 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
     for (const { cue, segments } of layouts) {
       const camera = cue.camera ?? { shape: 'range' as const, points: [] }
       for (const segment of segments) {
-        const centerX = (segment.rect.x + segment.rect.w / 2) * pageWidth
-        const top = offsetY + segment.rect.y * pageHeight
-        const bottom = offsetY + (segment.rect.y + segment.rect.h) * pageHeight
         ctx.strokeStyle = 'rgba(22, 67, 52, 0.96)'
         ctx.fillStyle = 'rgba(55, 112, 87, 0.13)'
         ctx.lineWidth = 1.5
-        if (camera.shape === 'range') drawCanvasLine(ctx, centerX, top, centerX, bottom)
+        if (camera.shape === 'range') {
+          for (const path of cameraRangePathsForSegment(cue, segment, context.pageSize)) {
+            drawNormalizedCameraRangePath(ctx, path.commands, pageWidth, pageHeight, offsetY)
+          }
+        }
         if (camera.shape === 'fade-in' || camera.shape === 'fade-out') {
           drawNormalizedPolygon(ctx, cameraFadePolygonForSegment(cue, segment, camera.shape), pageWidth, pageHeight, offsetY, true)
         }
@@ -954,6 +957,32 @@ function drawNormalizedPolyline(
   ctx.beginPath()
   ctx.moveTo(first.x * pageWidth, offsetY + first.y * pageHeight)
   for (const point of points.slice(1)) ctx.lineTo(point.x * pageWidth, offsetY + point.y * pageHeight)
+  ctx.stroke()
+}
+
+function drawNormalizedCameraRangePath(
+  ctx: CanvasRenderingContext2D,
+  commands: CameraRangePathCommand[],
+  pageWidth: number,
+  pageHeight: number,
+  offsetY: number,
+) {
+  if (commands.length === 0) return
+  ctx.beginPath()
+  for (const command of commands) {
+    const x = command.x * pageWidth
+    const y = offsetY + command.y * pageHeight
+    if (command.kind === 'move') ctx.moveTo(x, y)
+    else if (command.kind === 'line') ctx.lineTo(x, y)
+    else ctx.bezierCurveTo(
+      command.control1X * pageWidth,
+      offsetY + command.control1Y * pageHeight,
+      command.control2X * pageWidth,
+      offsetY + command.control2Y * pageHeight,
+      x,
+      y,
+    )
+  }
   ctx.stroke()
 }
 

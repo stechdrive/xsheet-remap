@@ -1,6 +1,6 @@
 import { logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart } from './logical-sheet'
 import { isTimelineMemo } from './sheet-memo'
-import type { CameraInstruction, CameraInstructionPoint, CameraInstructionPointRole, CutProject, TimedRangeCue, TimedRangeRole, TimelineMemoAnchor } from './types'
+import type { CameraInstruction, CameraInstructionPathStyle, CameraInstructionPoint, CameraInstructionPointRole, CameraInstructionSegmentStyle, CutProject, TimedRangeCue, TimedRangeRole, TimelineMemoAnchor } from './types'
 
 export interface TimedRangeCueInput {
   role: TimedRangeRole
@@ -154,12 +154,39 @@ function normalizeCameraInstruction(cue: TimedRangeCue): CameraInstruction {
         heightFrames: Math.max(1, Math.round(input.labelPlacement.heightFrames)),
       }
     : undefined
+  const points = resolveCameraInstructionPoints(input, cue.frameStart, cue.frameEnd)
+  const pathStyle: CameraInstructionPathStyle = input?.pathStyle === 'wave' ? 'wave' : 'straight'
   return {
     shape,
-    points: resolveCameraInstructionPoints(input, cue.frameStart, cue.frameEnd),
+    pathStyle: shape === 'range' ? pathStyle : undefined,
+    segmentStyles: shape === 'range'
+      ? resolveCameraInstructionSegmentStyles(input ? { ...input, pathStyle } : { shape, pathStyle }, cue.frameStart, cue.frameEnd, points)
+      : undefined,
+    points,
     pivotAnchorFrame,
     labelPlacement,
   }
+}
+
+export const CAMERA_INSTRUCTION_CUE_END_POINT_ID = 'cue-end'
+
+export function resolveCameraInstructionSegmentStyles(
+  camera: CameraInstruction | null | undefined,
+  frameStart: number,
+  frameEnd: number,
+  resolvedPoints = resolveCameraInstructionPoints(camera, frameStart, frameEnd),
+): CameraInstructionSegmentStyle[] {
+  const fallback: CameraInstructionPathStyle = camera?.pathStyle === 'wave' ? 'wave' : 'straight'
+  const requested = new Map((camera?.segmentStyles ?? []).flatMap(item =>
+    item.endPointId.trim() && (item.style === 'straight' || item.style === 'wave')
+      ? [[item.endPointId, item.style] as const]
+      : [],
+  ))
+  const targetIds = [
+    ...resolvedPoints.filter(point => point.role === 'intermediate').map(point => point.pointId),
+    CAMERA_INSTRUCTION_CUE_END_POINT_ID,
+  ]
+  return targetIds.map(endPointId => ({ endPointId, style: requested.get(endPointId) ?? fallback }))
 }
 
 export function resolveCameraInstructionPoints(

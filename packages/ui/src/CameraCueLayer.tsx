@@ -8,6 +8,8 @@ import {
   cameraOverlapPathsForSegment,
   cameraCuePointLayoutsForPage,
   cameraRangeMarkerGeometryForSegment,
+  cameraRangePathData,
+  cameraRangePathsForSegment,
   type CameraCueLabelLayout,
 } from './cameraCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
@@ -46,8 +48,8 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
     <g className="cameraCueLayer">
       {pageLayouts.flatMap(({ cue, segments }) => segments.map(segment => {
         const selected = selectedCueId === cue.cueId
-        const centerX = segment.rect.x + segment.rect.w / 2
         const camera = cue.camera ?? { shape: 'range' as const, points: [] }
+        const rangePaths = camera.shape === 'range' ? cameraRangePathsForSegment(cue, segment, pageSize) : []
         const fadePoints = camera.shape === 'fade-in' || camera.shape === 'fade-out'
           ? cameraFadePolygonForSegment(cue, segment, camera.shape)
           : null
@@ -77,8 +79,8 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
               onDoubleClick(cue.cueId)
             }}
           >
-            {camera.shape === 'range' && <line className="cameraCueStroke" x1={centerX} y1={segment.rect.y} x2={centerX} y2={segment.rect.y + segment.rect.h} />}
-            {camera.shape === 'range' && <line className="cameraCueShapeHit" x1={centerX} y1={segment.rect.y} x2={centerX} y2={segment.rect.y + segment.rect.h} onPointerDown={event => onPointerDown(event, cue, 'move')} />}
+            {rangePaths.map(path => <path key={`range-stroke-${path.endPointId}`} className={`cameraCueStroke cameraCueRangePath ${path.style}`} d={cameraRangePathData(path.commands)} />)}
+            {rangePaths.map(path => <path key={`range-hit-${path.endPointId}`} className="cameraCueShapeHit" d={cameraRangePathData(path.commands)} onPointerDown={event => onPointerDown(event, cue, 'move')} />)}
             {fadePath && <path className="cameraCueFade cameraCueFill" d={fadePath} />}
             {fadePath && <path className="cameraCueShapeHit" d={fadePath} onPointerDown={event => onPointerDown(event, cue, 'move')} />}
             {overlapFillPolygons?.map((points, index) => <polygon key={`fill-${index}`} className="cameraCueOverlapFill cameraCueFill" points={pointList(points)} />)}

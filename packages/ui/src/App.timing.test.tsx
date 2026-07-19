@@ -1081,10 +1081,10 @@ it('preserves a selected SOUND range through double-click and releases native po
     }
     fireEvent.doubleClick(sheet, { button: 0, clientX: x, clientY: frameY(3) })
 
-    expect(screen.getByRole('dialog', { name: 'SOUND区間を追加' })).toBeTruthy()
-    expect((screen.getByLabelText('SOUND開始フレーム') as HTMLInputElement).value).toBe('1')
-    expect((screen.getByLabelText('SOUNDデュレーション秒') as HTMLInputElement).value).toBe('0')
-    expect((screen.getByLabelText('SOUNDデュレーションコマ') as HTMLInputElement).value).toBe('6')
+    expect(screen.getByRole('dialog', { name: 'SOUND指示' })).toBeTruthy()
+    expect(screen.queryByLabelText('SOUND開始フレーム')).toBeNull()
+    expect((screen.getByLabelText('長さ 秒') as HTMLInputElement).value).toBe('00')
+    expect((screen.getByLabelText('長さ コマ') as HTMLInputElement).value).toBe('06')
     fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }))
 
     const cellFrame = templateFramePoint('cell', 'A', 20)
@@ -1105,7 +1105,7 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
 
     dragSheet(sheet, x, frameY(1), x, frameY(6))
     fireEvent.keyDown(window, { key: 'Enter' })
-    expect(screen.getByRole('dialog', { name: 'SOUND区間を追加' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'SOUND指示' })).toBeTruthy()
     fireEvent.change(screen.getByLabelText('SOUNDラベル'), { target: { value: 'アキラ' } })
     fireEvent.change(screen.getByLabelText('SOUND内容'), { target: { value: '走れ！' } })
     fireEvent.click(screen.getByRole('button', { name: '追加' }))
@@ -1146,7 +1146,7 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
     enterTimingValue('2')
     await waitFor(() => expectSelectedHit('cell', 'A', 21))
     expect(Array.from(document.querySelectorAll('.eventText')).some(item => item.textContent === '2')).toBe(true)
-    expect(screen.queryByRole('dialog', { name: 'SOUND区間を編集' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'SOUND指示' })).toBeNull()
     expect(document.querySelector('.draftRangeRect')).toBeNull()
 
     fireEvent.doubleClick(cue)

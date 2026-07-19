@@ -128,7 +128,15 @@
   stroke-linejoin: round;
 }
 
-.cameraCueTimingRow {
+.cameraShapeButton .cameraRangeShapeIcon path {
+  fill: none;
+}
+
+.cameraShapeButton .cameraRangeShapeIcon polygon {
+  fill: rgb(41 86 67 / 0.16);
+}
+
+.timedRangeDialogTimingRow {
   display: grid;
   grid-template-columns: auto auto minmax(185px, 1fr);
   gap: 12px;
@@ -141,18 +149,18 @@
   font-weight: 800;
 }
 
-.cameraCueTimingRow > span {
+.timedRangeDialogTimingRow > span {
   display: grid;
   gap: 1px;
 }
 
-.cameraCueTimingRow small {
+.timedRangeDialogTimingRow small {
   color: #66736c;
   font-size: 9px;
   font-weight: 750;
 }
 
-.cameraCueTimingRow .durationControl {
+.timedRangeDialogTimingRow .durationControl {
   justify-self: end;
 }
 
@@ -176,21 +184,62 @@
   min-width: 0;
 }
 
+.cameraPointLabelRow.withTrailing {
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+}
+
 .cameraIntermediatePointRow {
-  grid-template-columns: 62px 96px minmax(0, 1fr) 28px;
+  grid-template-columns: 62px minmax(0, 1fr) 54px 28px;
 }
 
-.cameraPointPosition {
-  display: grid;
-  grid-template-columns: 50px minmax(0, 1fr);
-  gap: 3px;
-  align-items: center;
+.cameraIntermediatePointRow.withConnectionStyle {
+  grid-template-columns: 62px minmax(0, 1fr) 54px auto 28px;
 }
 
-.cameraPointPosition output {
-  color: #5d6a63;
-  font-size: 9px;
+.cameraPointFrameInput {
+  width: 54px !important;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.cameraConnectionStyleControl {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid #aeb9b2;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.cameraConnectionStyleControl button {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  min-width: 25px;
+  height: 28px;
+  min-height: 28px;
+  padding: 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #29483b;
+}
+
+.cameraConnectionStyleControl button + button {
+  border-left: 1px solid #ccd3ce;
+}
+
+.cameraConnectionStyleControl button.selected {
+  background: #dfeee6;
+  box-shadow: inset 0 0 0 1px #175f46;
+}
+
+.cameraConnectionStyleControl svg {
+  width: 14px;
+  height: 18px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .dialogIconButton.compact {
@@ -243,43 +292,14 @@
   resize: vertical;
 }
 
+.soundCueDialogCommitHint {
+  justify-self: end;
+  font-weight: 500;
+}
+
 .soundCueDialogBody small {
   color: #69736d;
   font-size: 10px;
-}
-
-.soundCueTimingFields {
-  display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 1.4fr);
-  gap: 10px;
-  align-items: end;
-}
-
-.soundCueTimingFields > label,
-.soundCueTimingFields fieldset label {
-  display: grid;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.soundCueTimingFields fieldset {
-  display: grid;
-  grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr);
-  gap: 7px;
-  align-items: end;
-  min-width: 0;
-  margin: 0;
-  padding: 7px 8px 8px;
-  border: 1px solid #cbd2cc;
-  border-radius: 5px;
-}
-
-.soundCueTimingFields legend {
-  padding: 0 3px;
-  color: #455149;
-  font-size: 10px;
-  font-weight: 800;
 }
 
 .soundCueDialogFooter {
@@ -289,19 +309,15 @@
 }
 
 @media (max-width: 560px) {
-  .soundCueTimingFields {
-    grid-template-columns: 1fr;
-  }
-
   .cameraCueEndpointFields {
     grid-template-columns: 1fr;
   }
 
-  .cameraCueTimingRow {
+  .timedRangeDialogTimingRow {
     grid-template-columns: 1fr 1fr;
   }
 
-  .cameraCueTimingRow .durationControl {
+  .timedRangeDialogTimingRow .durationControl {
     grid-column: 1 / -1;
     justify-self: start;
   }

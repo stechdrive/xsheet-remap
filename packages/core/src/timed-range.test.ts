@@ -33,6 +33,15 @@ describe('timed range cues', () => {
     const synced = updateProjectTimelineSectionsFromTemplate(createDefaultProject(), custom)
     expect(synced.logicalSheet.timelineSections.find(section => section.role === 'sound')?.lanes).toHaveLength(2)
 
+    const relabeled = {
+      ...custom,
+      regions: custom.regions.map(region => region.grid?.role === 'sound'
+        ? { ...region, label: 'セリフ 1-144' }
+        : region),
+    }
+    const relabeledProject = updateProjectTimelineSectionsFromTemplate(createDefaultProject(), relabeled)
+    expect(relabeledProject.logicalSheet.timelineSections.find(section => section.role === 'sound')?.label).toBe('セリフ')
+
     const withCue = createTimedRangeCue(createDefaultProject(), {
       role: 'sound', laneId: 'sound_lane_1', frameStart: 1, frameEnd: 6, label: '声',
     }).project
@@ -137,6 +146,33 @@ describe('timed range cues', () => {
     })
     expect(faded.timedRangeCues[0]?.camera?.pivotAnchorFrame).toBeUndefined()
     expect(validateProject(faded).filter(issue => issue.code.startsWith('cue.camera.'))).toEqual([])
+  })
+
+  it('normalizes CAMERA range path styles by stable intermediate-point targets', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'camera',
+      laneId: 'camera_lane_1',
+      frameStart: 1,
+      frameEnd: 24,
+      label: 'Follow',
+      camera: {
+        shape: 'range',
+        pathStyle: 'wave',
+        points: [{ pointId: 'mid', role: 'intermediate', frameOffset: 11, label: 'B' }],
+        segmentStyles: [
+          { endPointId: 'mid', style: 'straight' },
+          { endPointId: 'removed', style: 'wave' },
+        ],
+      },
+    })
+    expect(created.cue.camera).toMatchObject({
+      pathStyle: 'wave',
+      segmentStyles: [
+        { endPointId: 'mid', style: 'straight' },
+        { endPointId: 'cue-end', style: 'wave' },
+      ],
+    })
+    expect(validateProject(created.project).filter(issue => issue.code === 'cue.camera.segmentStyles.invalid')).toEqual([])
   })
 
   it('rejects missing lanes and validation reports invalid stored lane references', () => {

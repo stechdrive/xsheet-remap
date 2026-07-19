@@ -104,6 +104,21 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
         if (invalidPoint || startPoints.length > 1 || endPoints.length > 1 || points.length > duration) {
           issues.push(issue('error', 'cue.camera.points.invalid', `camera cue ${cue.cueId} has invalid instruction points`, 'cue', cue.cueId))
         }
+        const allowedSegmentTargets = new Set([
+          ...points.filter(point => point.role === 'intermediate').map(point => point.pointId),
+          'cue-end',
+        ])
+        const segmentTargets = new Set<string>()
+        const invalidSegmentStyle = (cue.camera.segmentStyles ?? []).some(segment => {
+          const duplicate = segmentTargets.has(segment.endPointId)
+          segmentTargets.add(segment.endPointId)
+          return duplicate
+            || !allowedSegmentTargets.has(segment.endPointId)
+            || (segment.style !== 'straight' && segment.style !== 'wave')
+        })
+        if (cue.camera.shape === 'range' && invalidSegmentStyle) {
+          issues.push(issue('error', 'cue.camera.segmentStyles.invalid', `camera cue ${cue.cueId} has invalid segment styles`, 'cue', cue.cueId))
+        }
       }
     }
   }

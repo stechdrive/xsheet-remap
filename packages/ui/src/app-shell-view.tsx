@@ -507,14 +507,14 @@ export function AppShellView({ controller }: { controller: AppController }) {
       )}
 
       {soundCueDialog && (() => {
-        const lane = project.logicalSheet.timelineSections
+        const sectionLabel = project.logicalSheet.timelineSections
           .find(section => section.role === 'sound')
-          ?.lanes?.find(item => item.laneId === soundCueDialog.laneId) ?? null
+          ?.label ?? 'SOUND'
         return (
           <SoundCueDialog
             state={soundCueDialog}
             cue={soundCueDialog.cueId === selectedSoundCue?.cueId ? selectedSoundCue : null}
-            lane={lane}
+            sectionLabel={sectionLabel}
             fps={project.logicalSheet.fps}
             frameMin={project.logicalSheet.frameOrigin}
             frameMax={project.logicalSheet.frameOrigin + project.logicalSheet.durationFrames - 1}

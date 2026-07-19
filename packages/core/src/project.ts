@@ -45,11 +45,13 @@ export type { ResolvedCutExportIdentity } from './project-export-identity'
 export { applyCommand, createProjectHistory, commitHistory, undoHistory, redoHistory } from './project-commands'
 export { createDefaultProjectDocument, createProjectDocumentFromCutProject, parseProjectDocument, activeCutProjectFromDocument, activeSheetRevisionFromDocument, sheetRevisionsForActiveCut, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, addBlankSharedCutToProjectDocument, switchActiveSheetRevisionInProjectDocument, addSheetRevisionToProjectDocument, renameSheetRevisionInProjectDocument, setSheetRevisionProtectedInProjectDocument, setSheetRevisionReferenceInProjectDocument, deleteSheetRevisionInProjectDocument, migrateProject } from './project-documents'
 export {
+  CAMERA_INSTRUCTION_CUE_END_POINT_ID,
   createTimedRangeCue,
   defaultCameraOverlapPivotAnchorFrame,
   deleteTimedRangeCue,
   replaceTimedRangeCues,
   resolveCameraInstructionPoints,
+  resolveCameraInstructionSegmentStyles,
   clampCameraOverlapPivotAnchorFrame,
   timedRangeCuesIntersecting,
   timedRangeLaneIds,

@@ -423,6 +423,17 @@ export type SheetMemo = SheetPageMemo | TimelineInkMemo
 export type SheetMemoAnchorPresentation = 'none' | 'marker' | 'camera-connector'
 
 export type CameraInstructionShape = 'range' | 'fade-in' | 'fade-out' | 'overlap'
+export type CameraInstructionPathStyle = 'straight' | 'wave'
+
+/**
+ * A range path is split at intermediate instruction points. Each entry styles
+ * the path ending at that point; the reserved `cue-end` id styles the final
+ * path to the instruction end.
+ */
+export interface CameraInstructionSegmentStyle {
+  endPointId: Id
+  style: CameraInstructionPathStyle
+}
 
 /**
  * A label box is stored in logical CAMERA-region coordinates so it follows
@@ -452,6 +463,10 @@ export interface CameraInstructionPoint {
 
 export interface CameraInstruction {
   shape: CameraInstructionShape
+  /** Default connector style for range instructions. */
+  pathStyle?: CameraInstructionPathStyle
+  /** Stable per-segment overrides keyed by the segment's ending point. */
+  segmentStyles?: CameraInstructionSegmentStyle[]
   /** Empty endpoint labels are omitted. Intermediate points are user movable. */
   points?: CameraInstructionPoint[]
   /** @deprecated Normalized into points when older in-memory data is encountered. */

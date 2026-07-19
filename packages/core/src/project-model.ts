@@ -90,7 +90,7 @@ export function defaultTimelineSections(template: SheetTemplate = standardA3Shee
     {
       sectionId: 'section_action',
       role: 'action',
-      label: 'ACTION',
+      label: timelineSectionLabelForTemplate(template, 'action', 'ACTION'),
       order: 0,
       inputMode: 'point-event',
       trackAxis: 'paper-tracks',
@@ -99,7 +99,7 @@ export function defaultTimelineSections(template: SheetTemplate = standardA3Shee
     {
       sectionId: 'section_sound',
       role: 'sound',
-      label: 'SOUND',
+      label: timelineSectionLabelForTemplate(template, 'sound', 'SOUND'),
       order: 1,
       inputMode: 'timed-range',
       trackAxis: 'fixed-lanes',
@@ -109,7 +109,7 @@ export function defaultTimelineSections(template: SheetTemplate = standardA3Shee
     {
       sectionId: 'section_cell',
       role: 'cell',
-      label: 'CELL',
+      label: timelineSectionLabelForTemplate(template, 'cell', 'CELL'),
       order: 2,
       inputMode: 'point-event',
       trackAxis: 'paper-tracks',
@@ -118,7 +118,7 @@ export function defaultTimelineSections(template: SheetTemplate = standardA3Shee
     {
       sectionId: 'section_camera',
       role: 'camera',
-      label: 'CAMERA',
+      label: timelineSectionLabelForTemplate(template, 'camera', 'CAMERA'),
       order: 3,
       inputMode: 'timed-range',
       trackAxis: 'fixed-lanes',
@@ -126,6 +126,19 @@ export function defaultTimelineSections(template: SheetTemplate = standardA3Shee
       lanes: timelineLanesForTemplate(template, 'camera', 4),
     },
   ]
+}
+
+function timelineSectionLabelForTemplate(
+  template: SheetTemplate,
+  role: Extract<LogicalTimelineSectionRole, 'action' | 'sound' | 'cell' | 'camera'>,
+  fallback: string,
+): string {
+  const region = template.regions.find(candidate => candidate.grid?.role === role)
+  if (!region) return fallback
+  const label = region.label
+    .replace(/\s*\d+\s*[-–—〜~]\s*\d+\s*$/u, '')
+    .trim()
+  return label || fallback
 }
 
 function timelineLanesForTemplate(
@@ -159,14 +172,16 @@ function timelineLanesForTemplate(
 }
 
 export function updateProjectTimelineSectionsFromTemplate(project: CutProject, template: SheetTemplate): CutProject {
+  const templateSections = new Map(defaultTimelineSections(template).map(section => [section.role, section]))
   const replacements = new Map<LogicalTimelineSectionRole, LogicalTimelineLane[]>([
     ['sound', timelineLanesForTemplate(template, 'sound', 4)],
     ['camera', timelineLanesForTemplate(template, 'camera', 4)],
   ])
   const laneRemapByRole = new Map<string, Map<string, string>>()
   const timelineSections = project.logicalSheet.timelineSections.map(section => {
+    const templateSection = templateSections.get(section.role)
     const lanes = replacements.get(section.role)
-    if (!lanes) return section
+    if (!lanes) return templateSection ? { ...section, label: templateSection.label } : section
     const nextIds = new Set(lanes.map(lane => lane.laneId))
     const oldLanes = [...(section.lanes ?? [])].sort((a, b) => a.order - b.order)
     const nextLanes = [...lanes].sort((a, b) => a.order - b.order)
@@ -174,7 +189,7 @@ export function updateProjectTimelineSectionsFromTemplate(project: CutProject, t
       const replacement = nextLanes[index]
       return replacement && !nextIds.has(lane.laneId) ? [[lane.laneId, replacement.laneId]] : []
     })))
-    return { ...section, lanes }
+    return { ...section, label: templateSection?.label ?? section.label, lanes }
   })
   const withSections = {
     ...project,

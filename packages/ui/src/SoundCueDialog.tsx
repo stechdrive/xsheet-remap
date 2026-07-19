@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { LogicalTimelineLane, TimedRangeCue } from '@xsheet-remap/core'
+import { formatLogicalSheetFrameTimecode, type TimedRangeCue } from '@xsheet-remap/core'
 import type { SoundCueDialogState } from './appTypes'
+import { DurationFrameControl } from './DurationFrameControl'
 import { HistoryInput } from './HistoryInput'
 
 export interface SoundCueDialogSubmit {
@@ -15,7 +16,7 @@ export interface SoundCueDialogSubmit {
 export function SoundCueDialog({
   state,
   cue,
-  lane,
+  sectionLabel,
   fps,
   frameMin,
   frameMax,
@@ -25,7 +26,7 @@ export function SoundCueDialog({
 }: {
   state: SoundCueDialogState
   cue: TimedRangeCue | null
-  lane: LogicalTimelineLane | null
+  sectionLabel: string
   fps: number
   frameMin: number
   frameMax: number
@@ -38,14 +39,13 @@ export function SoundCueDialog({
   const initialDuration = Math.max(1, (cue?.frameEnd ?? state.frameEnd) - initialFrameStart + 1)
   const [label, setLabel] = useState(cue?.label ?? '')
   const [text, setText] = useState(cue?.text ?? '')
-  const [frameStart, setFrameStart] = useState(initialFrameStart)
   const [durationFrames, setDurationFrames] = useState(initialDuration)
   const labelInputRef = useRef<HTMLInputElement>(null)
-  const seconds = Math.floor(durationFrames / safeFps)
-  const frames = durationFrames % safeFps
-  const frameEnd = Math.min(frameMax, frameStart + durationFrames - 1)
-  const laneLabel = lane?.label || state.laneId
-  const dialogTitle = state.mode === 'edit' ? 'SOUND区間を編集' : 'SOUND区間を追加'
+  const frameStart = Math.max(frameMin, Math.min(frameMax, initialFrameStart))
+  const maxDuration = Math.max(1, frameMax - frameStart + 1)
+  const frameEnd = frameStart + durationFrames - 1
+  const normalizedSectionLabel = sectionLabel.trim() || 'SOUND'
+  const dialogTitle = `${normalizedSectionLabel}指示`
 
   useEffect(() => {
     labelInputRef.current?.focus()
@@ -62,10 +62,8 @@ export function SoundCueDialog({
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [onCancel])
 
-  function setDurationParts(nextSeconds: number, nextFrames: number) {
-    const normalizedSeconds = Math.max(0, Math.round(nextSeconds))
-    const normalizedFrames = Math.max(0, Math.min(safeFps - 1, Math.round(nextFrames)))
-    setDurationFrames(Math.max(1, normalizedSeconds * safeFps + normalizedFrames))
+  function updateDuration(nextDuration: number) {
+    setDurationFrames(Math.max(1, Math.min(maxDuration, Math.round(nextDuration))))
   }
 
   function submit(event: FormEvent) {
@@ -96,10 +94,7 @@ export function SoundCueDialog({
     <div className="assetQuickPreviewBackdrop soundCueDialogBackdrop" role="dialog" aria-modal="true" aria-label={dialogTitle} onPointerDown={onCancel}>
       <form className="soundCueDialog" onSubmit={submit} onPointerDown={event => event.stopPropagation()}>
         <header className="soundCueDialogHeader">
-          <div>
-            <strong>{dialogTitle}</strong>
-            <span>{laneLabel} / {frameStart}–{frameEnd}F</span>
-          </div>
+          <strong>{dialogTitle}</strong>
           <button type="button" className="dialogIconButton" aria-label="閉じる" onClick={onCancel}>×</button>
         </header>
         <div className="soundCueDialogBody">
@@ -107,7 +102,7 @@ export function SoundCueDialog({
             <span>ラベル</span>
             <HistoryInput
               inputRef={labelInputRef}
-              aria-label="SOUNDラベル"
+              aria-label={`${normalizedSectionLabel}ラベル`}
               value={label}
               onChange={event => setLabel(event.currentTarget.value)}
               history={labelHistory}
@@ -115,56 +110,22 @@ export function SoundCueDialog({
               required
             />
           </label>
-          <label>
+          <label className="soundCueContentField">
             <span>内容</span>
             <textarea
-              aria-label="SOUND内容"
+              aria-label={`${normalizedSectionLabel}内容`}
               value={text}
               rows={6}
               onChange={event => setText(event.currentTarget.value)}
               onKeyDown={handleTextKeyDown}
-              placeholder="セリフ、効果音の内容など"
             />
+            <small className="soundCueDialogCommitHint">Ctrl+Enterで確定</small>
           </label>
-          <div className="soundCueTimingFields">
-            <label>
-              <span>開始フレーム</span>
-              <input
-                type="number"
-                aria-label="SOUND開始フレーム"
-                min={frameMin}
-                max={frameMax}
-                value={frameStart}
-                onChange={event => setFrameStart(Math.max(frameMin, Math.min(frameMax, Math.round(Number(event.currentTarget.value)))))}
-              />
-            </label>
-            <fieldset>
-              <legend>デュレーション</legend>
-              <label>
-                <span>秒</span>
-                <input
-                  type="number"
-                  aria-label="SOUNDデュレーション秒"
-                  min={0}
-                  value={seconds}
-                  onChange={event => setDurationParts(Number(event.currentTarget.value), frames)}
-                />
-              </label>
-              <span aria-hidden="true">+</span>
-              <label>
-                <span>コマ</span>
-                <input
-                  type="number"
-                  aria-label="SOUNDデュレーションコマ"
-                  min={0}
-                  max={safeFps - 1}
-                  value={frames}
-                  onChange={event => setDurationParts(seconds, Number(event.currentTarget.value))}
-                />
-              </label>
-            </fieldset>
+          <div className="timedRangeDialogTimingRow">
+            <span><small>開始</small>{formatLogicalSheetFrameTimecode(frameStart, frameMin, safeFps)}</span>
+            <span><small>終了</small>{formatLogicalSheetFrameTimecode(frameEnd, frameMin, safeFps)}</span>
+            <DurationFrameControl frames={durationFrames} fps={safeFps} maxFrames={maxDuration} label="長さ" onChange={updateDuration} />
           </div>
-          <small>ラベル履歴は最近使った順に保存されます。内容欄は Ctrl+Enter で確定します。</small>
         </div>
         <footer className="soundCueDialogFooter">
           <button type="button" onClick={onCancel}>キャンセル</button>

@@ -13,6 +13,8 @@ import {
   cameraOverlapPivotPosition,
   cameraOverlapPathsForSegment,
   cameraRangeMarkerGeometryForSegment,
+  cameraRangePathData,
+  cameraRangePathsForSegment,
 } from './cameraCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 
@@ -161,6 +163,36 @@ describe('CAMERA cue geometry', () => {
     expect(marker.start[2]!.x).toBeCloseTo(segment.rect.x + segment.rect.w / 2)
     expect(marker.end[2]!.x).toBeCloseTo(segment.rect.x + segment.rect.w / 2)
     expect(marker.start[2]!.y - segment.rect.y).toBeLessThanOrEqual(segment.rowHeight)
+  })
+
+  it('connects wave paths to the triangle tips and switches style at intermediate points', () => {
+    const cue: TimedRangeCue = {
+      cueId: 'cue_wave', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24,
+      label: 'Follow', text: '', source: 'manual',
+      camera: {
+        shape: 'range',
+        pathStyle: 'wave',
+        points: [{ pointId: 'mid', role: 'intermediate', frameOffset: 11, label: 'B' }],
+        segmentStyles: [
+          { endPointId: 'mid', style: 'straight' },
+          { endPointId: 'cue-end', style: 'wave' },
+        ],
+      },
+    }
+    const pageSize = { widthPx: 1754, heightPx: 2481 }
+    const segment = cameraCueSegmentsForPage(standardA3SheetTemplate, page, cue, { paperTracks })[0]!
+    const marker = cameraRangeMarkerGeometryForSegment(segment, pageSize)
+    const paths = cameraRangePathsForSegment(cue, segment, pageSize)
+
+    expect(paths.map(path => [path.endPointId, path.style])).toEqual([
+      ['mid', 'straight'],
+      ['cue-end', 'wave'],
+    ])
+    expect(paths[0]?.commands[0]).toMatchObject({ kind: 'move', y: marker.start[2]?.y })
+    expect(paths[1]?.commands.at(-1)).toMatchObject({ y: marker.end[2]?.y })
+    expect(cameraRangePathData(paths[0]!.commands)).toContain(' L ')
+    expect(cameraRangePathData(paths[1]!.commands)).toContain(' C ')
+    expect(paths[0]?.commands.at(-1)?.y).toBeCloseTo(paths[1]?.commands[0]?.y ?? 0)
   })
 
   it('draws an odd overlap at the center of its anchor frame', () => {

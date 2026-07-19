@@ -133,7 +133,9 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
             }}
           >
             <defs><clipPath id={clipId}><rect x={layout.regionRect.x} y={layout.regionRect.y} width={layout.regionRect.w} height={layout.regionRect.h} /></clipPath></defs>
-            <line className="cameraCuePointConnector" x1={layout.anchor.x} y1={layout.anchor.y} x2={layout.rect.x + layout.rect.w / 2} y2={layout.anchor.y} />
+            {layout.mark && <line className="cameraCuePivotMarkHalo" x1={layout.mark.x1} y1={layout.mark.y} x2={layout.mark.x2} y2={layout.mark.y} />}
+            {layout.mark && <line className="cameraCuePivotMark" x1={layout.mark.x1} y1={layout.mark.y} x2={layout.mark.x2} y2={layout.mark.y} />}
+            <line className="cameraCuePointConnector" x1={layout.connector.from.x} y1={layout.connector.from.y} x2={layout.connector.to.x} y2={layout.connector.to.y} />
             {selected && movable && <rect className="cameraCuePointBody" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} />}
             <rect
               className="cameraCuePointHit"

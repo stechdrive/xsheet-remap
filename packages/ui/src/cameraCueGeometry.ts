@@ -43,6 +43,8 @@ export interface CameraCuePointLayout {
   point: CameraInstructionPoint
   frame: number
   anchor: NormalizedPoint
+  mark?: CameraCueHorizontalMark
+  connector: { from: NormalizedPoint; to: NormalizedPoint }
   rect: NormalizedRect
   regionRect: NormalizedRect
   fontSizePx: number
@@ -50,7 +52,13 @@ export interface CameraCuePointLayout {
   textYpx: number
 }
 
-export type CameraCueSemanticLandmarkKind = 'point-label' | 'point-connector' | 'path-transition' | 'wave-segment' | 'overlap-pivot'
+export interface CameraCueHorizontalMark {
+  x1: number
+  x2: number
+  y: number
+}
+
+export type CameraCueSemanticLandmarkKind = 'point-label' | 'point-mark' | 'point-connector' | 'path-transition' | 'wave-segment' | 'overlap-pivot'
 
 /**
  * A derived, template-space reservation for CAMERA information that must remain
@@ -91,7 +99,8 @@ interface ScoredCameraCueLabelCandidate {
 
 const LABEL_HORIZONTAL_PADDING_PX = 8
 const LABEL_VERTICAL_PADDING_PX = 4
-export const CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO = 0.65
+export const CAMERA_HORIZONTAL_MARK_GRID_RATIO = 0.65
+export const CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO = CAMERA_HORIZONTAL_MARK_GRID_RATIO
 export const CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO = 0.85
 export const CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO = 0.72
 const CAMERA_RANGE_MARKER_MAX_ASPECT_RATIO = 1.2
@@ -207,27 +216,52 @@ export function cameraCuePointLayoutsForPage(
       x: segment.rect.x + segment.rect.w / 2,
       y: segment.rect.y + framePosition * segment.rowHeight,
     }
+    const mark = point.role === 'intermediate'
+      ? cameraHorizontalMark(segment.rect, anchor.y)
+      : undefined
     const measured = sharedTextMeasurementProvider.measure(point.label, font)
     const width = Math.min(segment.regionRect.w, (measured.widthPx + 8) / pageSize.widthPx)
     const height = Math.min(segment.rowHeight, Math.max(fontSizePx * 1.35, 12) / pageSize.heightPx)
-    const gap = Math.min(segment.rect.w * 0.12, 5 / pageSize.widthPx)
-    const rightX = anchor.x + gap
-    const leftX = anchor.x - gap - width
-    const x = rightX + width <= segment.regionRect.x + segment.regionRect.w
+    const horizontalGap = Math.max(segment.rect.w * 0.1, 3 / pageSize.widthPx)
+    const rightX = (mark?.x2 ?? anchor.x) + horizontalGap
+    const leftX = (mark?.x1 ?? anchor.x) - horizontalGap - width
+    const canPlaceRight = rightX + width <= segment.regionRect.x + segment.regionRect.w
+    const canPlaceLeft = leftX >= segment.regionRect.x
+    let x = canPlaceRight
       ? rightX
-      : leftX >= segment.regionRect.x
+      : canPlaceLeft
         ? leftX
-        : Math.max(segment.regionRect.x, Math.min(segment.regionRect.x + segment.regionRect.w - width, rightX))
+        : Math.max(segment.regionRect.x, Math.min(segment.regionRect.x + segment.regionRect.w - width, anchor.x - width / 2))
+    let y = Math.max(segment.regionRect.y, Math.min(segment.regionRect.y + segment.regionRect.h - height, anchor.y - height / 2))
+    if (mark && !canPlaceRight && !canPlaceLeft) {
+      const verticalGap = Math.max(segment.rowHeight * 0.15, 2 / pageSize.heightPx)
+      const aboveY = anchor.y - verticalGap - height
+      const belowY = anchor.y + verticalGap
+      const canPlaceAbove = aboveY >= segment.regionRect.y
+      const canPlaceBelow = belowY + height <= segment.regionRect.y + segment.regionRect.h
+      y = canPlaceAbove
+        ? aboveY
+        : canPlaceBelow
+          ? belowY
+          : Math.max(segment.regionRect.y, Math.min(segment.regionRect.y + segment.regionRect.h - height, aboveY))
+      x = Math.max(segment.regionRect.x, Math.min(segment.regionRect.x + segment.regionRect.w - width, x))
+    }
     const rect = {
       x,
-      y: Math.max(segment.regionRect.y, Math.min(segment.regionRect.y + segment.regionRect.h - height, anchor.y - height / 2)),
+      y,
       w: width,
       h: height,
     }
+    const connectorTo = nearestPointOnRect(anchor, rect)
+    const connectorFrom = mark && Math.abs(connectorTo.x - anchor.x) >= Math.abs(connectorTo.y - anchor.y)
+      ? { x: connectorTo.x >= anchor.x ? mark.x2 : mark.x1, y: anchor.y }
+      : anchor
     return [{
       point,
       frame,
       anchor,
+      mark,
+      connector: { from: connectorFrom, to: connectorTo },
       rect,
       regionRect: segment.regionRect,
       fontSizePx,
@@ -446,18 +480,21 @@ export function cameraOverlapPivotPosition(cue: TimedRangeCue): number {
 export function cameraOverlapPivotMarkForSegment(
   cue: TimedRangeCue,
   segment: CameraCueSegment,
-): { x1: number; x2: number; y: number } | null {
+): CameraCueHorizontalMark | null {
   if (cue.camera?.shape !== 'overlap') return null
   const pivotPosition = cameraOverlapPivotPosition(cue)
   const ownerFrame = Number.isInteger(pivotPosition) ? pivotPosition - 1 : Math.floor(pivotPosition)
   if (ownerFrame < segment.frameStart || ownerFrame > segment.frameEnd) return null
-  const centerX = segment.rect.x + segment.rect.w / 2
-  const halfWidth = segment.rect.w * CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO / 2
-  return {
-    x1: centerX - halfWidth,
-    x2: centerX + halfWidth,
-    y: segment.rect.y + (pivotPosition - segment.frameStart) * segment.rowHeight,
-  }
+  return cameraHorizontalMark(
+    segment.rect,
+    segment.rect.y + (pivotPosition - segment.frameStart) * segment.rowHeight,
+  )
+}
+
+function cameraHorizontalMark(rect: NormalizedRect, y: number): CameraCueHorizontalMark {
+  const centerX = rect.x + rect.w / 2
+  const halfWidth = rect.w * CAMERA_HORIZONTAL_MARK_GRID_RATIO / 2
+  return { x1: centerX - halfWidth, x2: centerX + halfWidth, y }
 }
 
 function cameraCueLabelVariants(
@@ -538,17 +575,30 @@ export function cameraCueSemanticLandmarksForPage(
     const paddingX = Math.max(segment.rect.w * 0.12, 2 / Math.max(1, pageSize.widthPx))
     const paddingY = Math.max(segment.rowHeight * 0.12, 2 / Math.max(1, pageSize.heightPx))
     const labelRect = expandRectWithinRegion(layout.rect, paddingX, paddingY, segment.regionRect)
-    const connectorCenterX = layout.rect.x + layout.rect.w / 2
     const connectorRect = clampRectToRegion({
-      x: Math.min(layout.anchor.x, connectorCenterX) - paddingX,
-      y: layout.anchor.y - paddingY,
-      w: Math.abs(connectorCenterX - layout.anchor.x) + paddingX * 2,
-      h: paddingY * 2,
+      x: Math.min(layout.connector.from.x, layout.connector.to.x) - paddingX,
+      y: Math.min(layout.connector.from.y, layout.connector.to.y) - paddingY,
+      w: Math.abs(layout.connector.to.x - layout.connector.from.x) + paddingX * 2,
+      h: Math.abs(layout.connector.to.y - layout.connector.from.y) + paddingY * 2,
     }, segment.regionRect)
     const landmarks: CameraCueSemanticLandmark[] = [
       { cueId: cue.cueId, kind: 'point-label', pointId: layout.point.pointId, rect: labelRect, blocksInstructionLabel: true },
       { cueId: cue.cueId, kind: 'point-connector', pointId: layout.point.pointId, rect: connectorRect, blocksInstructionLabel: false },
     ]
+    if (layout.mark) {
+      landmarks.push({
+        cueId: cue.cueId,
+        kind: 'point-mark',
+        pointId: layout.point.pointId,
+        rect: clampRectToRegion({
+          x: layout.mark.x1 - paddingX,
+          y: layout.mark.y - paddingY,
+          w: layout.mark.x2 - layout.mark.x1 + paddingX * 2,
+          h: paddingY * 2,
+        }, segment.regionRect),
+        blocksInstructionLabel: true,
+      })
+    }
     if (layout.point.role === 'intermediate' && transitionPointIds.has(layout.point.pointId)) {
       const transitionHalfHeight = Math.max(segment.rowHeight * 0.45, 2 / Math.max(1, pageSize.heightPx))
       const transitionTop = Math.min(layout.anchor.y - transitionHalfHeight, labelRect.y)
@@ -738,6 +788,19 @@ function connectorForRect(anchor: NormalizedPoint, rect: NormalizedRect): Camera
       y: rect.y + rect.h / 2,
     },
   }
+}
+
+function nearestPointOnRect(point: NormalizedPoint, rect: NormalizedRect): NormalizedPoint {
+  const x = Math.max(rect.x, Math.min(rect.x + rect.w, point.x))
+  const y = Math.max(rect.y, Math.min(rect.y + rect.h, point.y))
+  if (x !== point.x || y !== point.y) return { x, y }
+  const distances = [
+    { distance: point.x - rect.x, value: { x: rect.x, y: point.y } },
+    { distance: rect.x + rect.w - point.x, value: { x: rect.x + rect.w, y: point.y } },
+    { distance: point.y - rect.y, value: { x: point.x, y: rect.y } },
+    { distance: rect.y + rect.h - point.y, value: { x: point.x, y: rect.y + rect.h } },
+  ]
+  return distances.reduce((nearest, candidate) => candidate.distance < nearest.distance ? candidate : nearest).value
 }
 
 function wrapGraphemesByWidth(values: string[], maxWidthPx: number, font: TextFontSpec): string[] {

@@ -5,8 +5,13 @@ import { CameraCueLayer } from './CameraCueLayer'
 
 describe('CameraCueLayer', () => {
   it('renders all four semantic instruction shapes and an editable overlap pivot', () => {
+    const rangeCue = cameraCue('cue_1', 'camera_lane_1', 1, 12, 'range')
+    rangeCue.camera = {
+      ...rangeCue.camera!,
+      points: [{ pointId: 'mid', role: 'intermediate', frameOffset: 5, label: 'B' }],
+    }
     const cues: TimedRangeCue[] = [
-      cameraCue('cue_1', 'camera_lane_1', 1, 12, 'range'),
+      rangeCue,
       cameraCue('cue_2', 'camera_lane_2', 13, 24, 'fade-in'),
       cameraCue('cue_3', 'camera_lane_3', 25, 36, 'fade-out'),
       cameraCue('cue_4', 'camera_lane_4', 37, 48, 'overlap', 43),
@@ -32,16 +37,18 @@ describe('CameraCueLayer', () => {
         />
       </svg>,
     )
-    expect(container.querySelectorAll('.cameraCue.range .cameraCueStroke')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCue.range .cameraCueStroke')).toHaveLength(2)
     expect(container.querySelectorAll('.cameraCue.fade-in .cameraCueFade')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.fade-out .cameraCueFade')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.overlap .cameraCueStroke')).toHaveLength(2)
     expect(container.querySelectorAll('.cameraCue.overlap .cameraCueOverlapFill')).toHaveLength(2)
-    expect(container.querySelectorAll('.cameraCueShapeHit')).toHaveLength(5)
+    expect(container.querySelectorAll('.cameraCueShapeHit')).toHaveLength(6)
     expect(container.querySelector('.cameraCueHitBody')).toBeNull()
     expect(container.querySelector('.cameraCuePivotHandle')).toBeTruthy()
     expect(container.querySelectorAll('.cameraCue.overlap .cameraCuePivotMarkHalo')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.overlap .cameraCuePivotMark')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCuePoint.intermediate .cameraCuePivotMarkHalo')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCuePoint.intermediate .cameraCuePivotMark')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.range .cameraCueMarker.start')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.range .cameraCueMarker.end')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.fade-in .cameraCueMarker, .cameraCue.fade-out .cameraCueMarker, .cameraCue.overlap .cameraCueMarker')).toHaveLength(0)

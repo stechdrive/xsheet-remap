@@ -1166,7 +1166,8 @@
   stroke-width: 3px;
 }
 
-.cameraCue.selected .cameraCuePivotMark {
+.cameraCue.selected .cameraCuePivotMark,
+.cameraCuePoint.selected .cameraCuePivotMark {
   stroke: rgb(21 94 220 / 1);
 }
 

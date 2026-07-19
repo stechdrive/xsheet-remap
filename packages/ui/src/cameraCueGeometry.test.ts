@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
 import {
+  CAMERA_HORIZONTAL_MARK_GRID_RATIO,
   CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO,
   CAMERA_RANGE_MARKER_HEIGHT_GRID_RATIO,
   CAMERA_RANGE_MARKER_WIDTH_GRID_RATIO,
@@ -227,6 +228,7 @@ describe('CAMERA cue geometry', () => {
     expect(landmarks.map(landmark => landmark.kind)).toEqual([
       'point-label',
       'point-connector',
+      'point-mark',
       'path-transition',
     ])
     expect(landmarks.find(landmark => landmark.kind === 'point-label')?.blocksInstructionLabel).toBe(true)
@@ -244,7 +246,7 @@ describe('CAMERA cue geometry', () => {
     expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
   })
 
-  it('only avoids point labels when intermediate points keep the same wave style', () => {
+  it('only avoids point landmarks when intermediate points keep the same wave style', () => {
     const customTemplate = {
       ...standardA3SheetTemplate,
       regions: standardA3SheetTemplate.regions.map(region => region.grid?.role === 'cell'
@@ -284,6 +286,7 @@ describe('CAMERA cue geometry', () => {
     expect(landmarks.filter(landmark => landmark.kind === 'path-transition')).toHaveLength(0)
     expect(landmarks.filter(landmark => landmark.kind === 'wave-segment')).toHaveLength(0)
     expect(landmarks.filter(landmark => landmark.kind === 'point-label')).toHaveLength(2)
+    expect(landmarks.filter(landmark => landmark.kind === 'point-mark')).toHaveLength(2)
     expect(landmarks.filter(landmark => landmark.blocksInstructionLabel)
       .every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
     expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
@@ -373,6 +376,13 @@ describe('CAMERA cue geometry', () => {
     expect(intermediate.anchor.y).toBeCloseTo(
       intermediateSegment.rect.y + (intermediate.frame - intermediateSegment.frameStart) * intermediateSegment.rowHeight,
     )
+    expect(intermediate.mark).toBeDefined()
+    expect(intermediate.mark?.y).toBeCloseTo(intermediate.anchor.y)
+    expect(((intermediate.mark?.x2 ?? 0) - (intermediate.mark?.x1 ?? 0)) / intermediateSegment.rect.w)
+      .toBeCloseTo(CAMERA_HORIZONTAL_MARK_GRID_RATIO)
+    expect(horizontalMarkIntersectsRect(intermediate.mark!, intermediate.rect)).toBe(false)
+    expect(intermediate.connector.from.x === intermediate.mark?.x1 || intermediate.connector.from.x === intermediate.mark?.x2).toBe(true)
+    expect(layouts.filter(layout => layout.point.role !== 'intermediate').every(layout => layout.mark === undefined)).toBe(true)
   })
 })
 
@@ -417,6 +427,13 @@ function rectContainsPoint(rect: { x: number; y: number; w: number; h: number },
 
 function verticalIntervalsOverlap(left: { y: number; h: number }, right: { y: number; h: number }): boolean {
   return Math.min(left.y + left.h, right.y + right.h) - Math.max(left.y, right.y) > 0.0000001
+}
+
+function horizontalMarkIntersectsRect(mark: { x1: number; x2: number; y: number }, rect: { x: number; y: number; w: number; h: number }): boolean {
+  return mark.x2 > rect.x + 0.0000001
+    && mark.x1 < rect.x + rect.w - 0.0000001
+    && mark.y > rect.y + 0.0000001
+    && mark.y < rect.y + rect.h - 0.0000001
 }
 
 function intersectionArea(left: { x: number; y: number; w: number; h: number }, right: { x: number; y: number; w: number; h: number }): number {

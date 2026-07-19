@@ -853,14 +853,34 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
           point.regionRect.h * pageHeight,
         )
         ctx.clip()
+        if (point.mark) {
+          ctx.strokeStyle = 'rgba(255, 255, 252, 0.96)'
+          ctx.lineWidth = 5
+          drawCanvasLine(
+            ctx,
+            point.mark.x1 * pageWidth,
+            offsetY + point.mark.y * pageHeight,
+            point.mark.x2 * pageWidth,
+            offsetY + point.mark.y * pageHeight,
+          )
+          ctx.strokeStyle = 'rgba(22, 67, 52, 0.98)'
+          ctx.lineWidth = 3
+          drawCanvasLine(
+            ctx,
+            point.mark.x1 * pageWidth,
+            offsetY + point.mark.y * pageHeight,
+            point.mark.x2 * pageWidth,
+            offsetY + point.mark.y * pageHeight,
+          )
+        }
         ctx.strokeStyle = 'rgba(47, 95, 76, 0.82)'
         ctx.lineWidth = 1.25
         drawCanvasLine(
           ctx,
-          point.anchor.x * pageWidth,
-          offsetY + point.anchor.y * pageHeight,
-          (point.rect.x + point.rect.w / 2) * pageWidth,
-          offsetY + point.anchor.y * pageHeight,
+          point.connector.from.x * pageWidth,
+          offsetY + point.connector.from.y * pageHeight,
+          point.connector.to.x * pageWidth,
+          offsetY + point.connector.to.y * pageHeight,
         )
         ctx.textAlign = 'center'
         ctx.textBaseline = 'alphabetic'

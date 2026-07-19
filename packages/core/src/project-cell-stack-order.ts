@@ -1,4 +1,4 @@
-import type { CutProject, PaperTrack, StackGuideLabel } from './types'
+import type { CutProject, PaperTrack, StackGuideLabel, StackGuideStackBand } from './types'
 import { stackGuideStackBand } from './project-shared'
 
 const naturalFileNameCollator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' })
@@ -11,6 +11,8 @@ export type CellStackOrderItem =
   | { id: string; kind: 'template-track'; label: string; paperTrack: string }
   | { id: string; kind: 'overlay-track'; label: string; paperTrack: string }
   | { id: string; kind: 'stack-guide'; label: string; labelId: string }
+
+export type CspStackReorderEdge = 'before' | 'after'
 
 export function cellStackOrderItems(project: CutProject): CellStackOrderItem[] {
   const templateTracks = project.logicalSheet.paperTracks
@@ -183,7 +185,191 @@ export function moveCellStackOrderItem(
   const orderedIds = items.map(item => item.id)
   const [moved] = orderedIds.splice(currentIndex, 1)
   orderedIds.splice(targetIndex, 0, moved)
-  return applyCellStackOrder(project, orderedIds, syncViewOrder)
+
+  return applyStableCellStackOrder(project, orderedIds, syncViewOrder)
+}
+
+/**
+ * Reorders a CSP track by stable item ids. `before` and `after` are expressed
+ * in the order users see in CSP (top-to-bottom), while cellStackOrderItems is
+ * the XDTS/paper order (bottom-to-top). Keeping that reversal here prevents
+ * every UI from reimplementing the direction conversion.
+ */
+export function reorderCspStackItem(
+  project: CutProject,
+  itemId: string,
+  referenceItemId: string,
+  edge: CspStackReorderEdge,
+  syncViewOrder: boolean,
+): CutProject | null {
+  if (itemId === referenceItemId) return null
+  const cellItems = cellStackOrderItems(project)
+  const cellItemIds = new Set(cellItems.map(item => item.id))
+  if (cellItemIds.has(itemId) || cellItemIds.has(referenceItemId)) {
+    if (!cellItemIds.has(itemId) || !cellItemIds.has(referenceItemId)) return null
+    const cspTopToBottom = cellItems.map(item => item.id).reverse()
+    const reordered = reorderIdsByReference(cspTopToBottom, itemId, referenceItemId, edge)
+    if (!reordered) return null
+    return applyStableCellStackOrder(project, reordered.reverse(), syncViewOrder)
+  }
+
+  const itemLabel = stackGuideLabelFromItemId(project, itemId)
+  const referenceLabel = stackGuideLabelFromItemId(project, referenceItemId)
+  if (!itemLabel || !referenceLabel) return null
+  const band = stackGuideStackBand(itemLabel)
+  if (band === 'cell-interleave' || stackGuideStackBand(referenceLabel) !== band) return null
+  const cspTopToBottom = stackGuideIdsForBandTopToBottom(project, band)
+  const reordered = reorderIdsByReference(cspTopToBottom, itemId, referenceItemId, edge)
+  if (!reordered) return null
+  const orderById = new Map(reordered.map((id, index) => [id, reordered.length - index - 1]))
+  return {
+    ...project,
+    stackGuideLabels: project.stackGuideLabels.map(label => {
+      const orderInGap = orderById.get(`stack:${label.labelId}`)
+      return typeof orderInGap === 'number' && orderInGap !== label.orderInGap
+        ? { ...label, orderInGap }
+        : label
+    }),
+  }
+}
+
+export function cspStackReorderScope(project: CutProject, itemId: string): StackGuideStackBand | null {
+  if (cellStackOrderItems(project).some(item => item.id === itemId)) return 'cell-interleave'
+  const label = stackGuideLabelFromItemId(project, itemId)
+  return label ? stackGuideStackBand(label) : null
+}
+
+function applyStableCellStackOrder(project: CutProject, orderedIds: string[], syncViewOrder: boolean): CutProject {
+  const items = cellStackOrderItems(project)
+  const currentIds = items.map(item => item.id)
+  if (orderedIds.length !== currentIds.length || new Set(orderedIds).size !== currentIds.length) return project
+  if (currentIds.some(id => !orderedIds.includes(id))) return project
+
+  const itemById = new Map(items.map(item => [item.id, item]))
+  const desiredAuxiliaryPlacement = new Map<string, { insertAfterPaperTrack?: string; orderInGap: number }>()
+  const nextOrderByAnchor = new Map<string, number>()
+  let currentTemplateAnchor: string | undefined
+  for (const orderedId of orderedIds) {
+    const item = itemById.get(orderedId)
+    if (!item) continue
+    if (item.kind === 'template-track') {
+      currentTemplateAnchor = item.paperTrack
+      continue
+    }
+    const anchorKey = currentTemplateAnchor ?? ''
+    const orderInGap = nextOrderByAnchor.get(anchorKey) ?? 0
+    nextOrderByAnchor.set(anchorKey, orderInGap + 1)
+    desiredAuxiliaryPlacement.set(item.id, { insertAfterPaperTrack: currentTemplateAnchor, orderInGap })
+  }
+
+  const templateOrder = new Map(
+    orderedIds
+      .map(id => itemById.get(id))
+      .filter((item): item is Extract<CellStackOrderItem, { kind: 'template-track' }> => item?.kind === 'template-track')
+      .map((item, index) => [item.paperTrack, index]),
+  )
+  const originalAuxiliaryAnchor = new Map<string, string | undefined>()
+  for (const item of items) {
+    if (item.kind === 'overlay-track') {
+      originalAuxiliaryAnchor.set(item.id, project.logicalSheet.paperTracks.find(track => track.paperTrack === item.paperTrack)?.exportPlacement?.insertAfterPaperTrack)
+    } else if (item.kind === 'stack-guide') {
+      const label = project.stackGuideLabels.find(candidate => candidate.labelId === item.labelId)
+      originalAuxiliaryAnchor.set(item.id, label ? stackGuideAnchorForCellOrder(project, label) : undefined)
+    }
+  }
+  const movedAcrossTemplate = new Set<string>()
+  if (syncViewOrder) {
+    for (const [id, placement] of desiredAuxiliaryPlacement) {
+      if (originalAuxiliaryAnchor.get(id) !== placement.insertAfterPaperTrack) movedAcrossTemplate.add(id)
+    }
+  }
+
+  // A one-step button move changes only the two adjacent stack entries. Keep
+  // every other track object, view override, and display role intact. We only
+  // normalize orderInGap values; unlike the previous full apply, this cannot
+  // rewrite unrelated label anchors or push them outside another role's grid.
+  const paperTracks = project.logicalSheet.paperTracks.map(track => {
+    if (track.source !== 'overlay') {
+      const order = templateOrder.get(track.paperTrack)
+      return typeof order === 'number' && order !== track.order ? { ...track, order } : track
+    }
+    const itemIdForTrack = `paper:${track.paperTrack}`
+    const placement = desiredAuxiliaryPlacement.get(itemIdForTrack)
+    if (!placement) return track
+    const nextViewPlacement = movedAcrossTemplate.has(itemIdForTrack)
+      ? {
+          ...track.viewPlacement,
+          snapIndex: cellStackViewSnapIndexFromTemplateOrder(templateOrder, placement.insertAfterPaperTrack),
+          expanded: true,
+        }
+      : track.viewPlacement
+    return {
+      ...track,
+      exportPlacement: {
+        ...track.exportPlacement,
+        insertAfterPaperTrack: placement.insertAfterPaperTrack,
+        orderInGap: placement.orderInGap,
+      },
+      viewPlacement: nextViewPlacement,
+    }
+  })
+
+  const stackGuideLabels = project.stackGuideLabels.map(label => {
+    const itemIdForLabel = `stack:${label.labelId}`
+    const placement = desiredAuxiliaryPlacement.get(itemIdForLabel)
+    if (!placement) return label
+    const anchorIndex = placement.insertAfterPaperTrack ? templateOrder.get(placement.insertAfterPaperTrack) : undefined
+    return {
+      ...label,
+      insertAfterPaperTrack: placement.insertAfterPaperTrack,
+      gapIndex: typeof anchorIndex === 'number' ? anchorIndex + 1 : 0,
+      orderInGap: placement.orderInGap,
+      ...(movedAcrossTemplate.has(itemIdForLabel)
+        ? { viewSnapIndex: cellStackViewSnapIndexFromTemplateOrder(templateOrder, placement.insertAfterPaperTrack) }
+        : {}),
+    }
+  })
+
+  return {
+    ...project,
+    logicalSheet: {
+      ...project.logicalSheet,
+      paperTracks,
+    },
+    stackGuideLabels,
+  }
+}
+
+function stackGuideLabelFromItemId(project: CutProject, itemId: string): StackGuideLabel | undefined {
+  if (!itemId.startsWith('stack:')) return undefined
+  return project.stackGuideLabels.find(label => label.labelId === itemId.slice('stack:'.length))
+}
+
+function stackGuideIdsForBandTopToBottom(project: CutProject, band: Exclude<StackGuideStackBand, 'cell-interleave'>): string[] {
+  return project.stackGuideLabels
+    .filter(label => stackGuideStackBand(label) === band)
+    .sort((a, b) =>
+      b.orderInGap - a.orderInGap
+      || b.label.localeCompare(a.label, 'ja')
+      || b.labelId.localeCompare(a.labelId, 'ja'),
+    )
+    .map(label => `stack:${label.labelId}`)
+}
+
+function reorderIdsByReference(ids: string[], itemId: string, referenceItemId: string, edge: CspStackReorderEdge): string[] | null {
+  const sourceIndex = ids.indexOf(itemId)
+  if (sourceIndex < 0 || !ids.includes(referenceItemId)) return null
+  const next = ids.filter(id => id !== itemId)
+  const referenceIndex = next.indexOf(referenceItemId)
+  if (referenceIndex < 0) return null
+  next.splice(referenceIndex + (edge === 'after' ? 1 : 0), 0, itemId)
+  return next.every((id, index) => id === ids[index]) ? null : next
+}
+
+function cellStackViewSnapIndexFromTemplateOrder(templateOrder: Map<string, number>, insertAfterPaperTrack: string | undefined): number {
+  if (!insertAfterPaperTrack) return 0
+  const index = templateOrder.get(insertAfterPaperTrack)
+  return typeof index === 'number' ? index + 2 : 0
 }
 
 function normalizePaperTracksForUi(paperTracks: PaperTrack[]): PaperTrack[] {

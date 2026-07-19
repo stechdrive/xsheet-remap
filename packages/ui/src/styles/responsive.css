@@ -32,6 +32,10 @@
   .appHelpBody {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .editorHelpManual {
+    grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 1000px) {
@@ -85,6 +89,39 @@
   .issue {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .editorHelpManual {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .editorHelpToc {
+    display: block;
+  }
+
+  .editorHelpTocIntro {
+    display: none;
+  }
+
+  .editorHelpToc nav {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+  }
+
+  .editorHelpToc nav button {
+    flex: 0 0 auto;
+    grid-template-columns: auto auto;
+  }
+
+  .editorHelpChapter {
+    padding: 16px;
+  }
+
+  .editorHelpChapter dl > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
   }
 }
 

@@ -546,16 +546,16 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       props.onStatusHint('sheet-drop', null)
       return
     }
-    if (payload.kind === 'stack-guide') {
+    const draggedStackGuideLabelId = payload.kind === 'stack-guide' ? payload.labelId : payload.kind === 'csp-pane-node' ? payload.stackGuideLabelId : undefined
+    if (draggedStackGuideLabelId) {
       clearDropTargetPreview()
-      if (phase === 'start' || phase === 'move') updateStackGuideDropPreview(payload.labelId, clientX, clientY)
-      if (phase === 'drop') moveStackGuideLabelFromPoint(payload.labelId, clientX, clientY)
-      if (phase === 'drop') setInternalDragDropValidity(null)
+      if (phase === 'start' || phase === 'move') updateStackGuideDropPreview(draggedStackGuideLabelId, clientX, clientY)
+      if (phase === 'drop') { moveStackGuideLabelFromPoint(draggedStackGuideLabelId, clientX, clientY); setInternalDragDropValidity(null) }
       return
     }
-
+    if (payload.kind === 'stack-guide' || payload.kind === 'csp-pane-node') return
     const pointedElement = document.elementFromPoint?.(clientX, clientY)
-    const stackGuideElement = pointedElement?.closest<HTMLElement>('.stackGuideSvgLabel[data-stack-guide-label-id]')
+    const stackGuideElement = pointedElement?.closest<HTMLElement>('.stackGuideLabelDragHandle[data-stack-guide-label-id], .stackGuideSvgLabel[data-stack-guide-label-id]')
     if (stackGuideElement && payload.kind === 'asset') {
       const valid = payload.assetIds.length === 1
       setInternalDragDropValidity(valid ? 'valid' : 'invalid')

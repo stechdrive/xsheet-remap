@@ -1,7 +1,9 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { buildCspLayerTree, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
-import { startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
+import { setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
+import { autoScrollListForPointer, listReorderTargetFromContainer, type ListReorderTarget } from './listReorder'
+import { correctionLayerIdForCspPaneSelection, cspPaneNodeCapabilities, cspPaneSelectionCurrentLabel, cspPaneSelectionExists, stackGuideSelectionBand, type CspPaneSelection } from './cspPaneModel'
 import { Tooltip, TooltipTarget } from './Tooltip'
 
 export interface CspTreeAssetRegistrationResult {
@@ -32,7 +34,11 @@ export function CspLayerTree({
   onRenameProductionStage,
   onRenameCorrectionLayer,
   onRenamePaperTrack,
-  onMoveStackItem,
+  onReorderStackItem,
+  onReorderProductionStage,
+  onReorderCorrectionLayer,
+  onDeleteCorrectionLayer,
+  onDeleteOverlayPaperTrack,
   onAssignAsset,
   onAssignAssetsToStackGuideLabel,
   onRegisterAssetsToTrack,
@@ -58,7 +64,11 @@ export function CspLayerTree({
   onRenameProductionStage?: (stageId: string, label: string) => void
   onRenameCorrectionLayer?: (layerId: string, label: string) => void
   onRenamePaperTrack: (paperTrack: string, name: string) => void
-  onMoveStackItem: (itemId: string, direction: 'up' | 'down') => void
+  onReorderStackItem: (itemId: string, referenceItemId: string, edge: 'before' | 'after') => void
+  onReorderProductionStage: (stageId: string, referenceStageId: string, edge: 'before' | 'after') => void
+  onReorderCorrectionLayer: (layerId: string, referenceLayerId: string, edge: 'before' | 'after') => void
+  onDeleteCorrectionLayer: (layerId: string) => void
+  onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   onAssignAsset: (assetId: string, keyId: string, slotId?: string) => void
   onAssignAssetsToStackGuideLabel: (labelId: string, assetIds: string[], correctionLayerId: string) => void
   onRegisterAssetsToTrack: (slotId: string, assetIds: string[]) => CspTreeAssetRegistrationResult
@@ -90,18 +100,44 @@ export function CspLayerTree({
   } | null>(null)
   const [newCelDraft, setNewCelDraft] = useState<{ slotId: string; cspCellName: string } | null>(null)
   const [dropNotice, setDropNotice] = useState<string | null>(null)
+  const [paneSelectionState, setPaneSelection] = useState<CspPaneSelection | null>(null)
+  const [paneDropTarget, setPaneDropTarget] = useState<(ListReorderTarget & { scope: string }) | null>(null)
   const [summaryRename, setSummaryRename] = useState<{
     kind: 'stage' | 'layer'
     id: string
     label: string
   } | null>(null)
   const treeRootRef = useRef<HTMLElement | null>(null)
+  const treeBodyRef = useRef<HTMLDivElement | null>(null)
   const pendingKeySelectRef = useRef<number | null>(null)
   const suppressClickKeyRef = useRef<string | null>(null)
+  const suppressPaneClickRef = useRef<string | null>(null)
 
   useEffect(() => () => {
     if (pendingKeySelectRef.current !== null) window.clearTimeout(pendingKeySelectRef.current)
   }, [])
+
+  const paneSelection = useMemo<CspPaneSelection | null>(() => {
+    const currentState = paneSelectionState && cspPaneSelectionExists(project, paneSelectionState)
+      ? (() => {
+          const currentLabel = cspPaneSelectionCurrentLabel(project, paneSelectionState)
+          return currentLabel !== null && currentLabel !== paneSelectionState.label
+            ? { ...paneSelectionState, label: currentLabel }
+            : paneSelectionState
+        })()
+      : null
+    if (!selectedKeyId) return currentState
+    if ((currentState?.kind === 'registered-cell' || currentState?.kind === 'unregistered-cell') && currentState.keyId === selectedKeyId) return currentState
+    const key = project.logicalSheet.keys.find(candidate => candidate.keyId === selectedKeyId)
+    if (!key) return currentState
+    const activeSlotIds = new Set(project.cspTrackSlots.filter(slot => slot.correctionLayerId === activeCorrectionLayerId).map(slot => slot.slotId))
+    const binding = project.bindings.find(candidate => candidate.keyId === selectedKeyId && activeSlotIds.has(candidate.slotId))
+      ?? project.bindings.find(candidate => candidate.keyId === selectedKeyId)
+    const slot = binding ? project.cspTrackSlots.find(candidate => candidate.slotId === binding.slotId) : undefined
+    return binding
+      ? { kind: 'registered-cell', nodeId: `binding:${binding.bindingId}`, label: binding.cspCellName, keyId: selectedKeyId, bindingId: binding.bindingId, correctionLayerId: slot?.correctionLayerId, slotId: binding.slotId }
+      : { kind: 'unregistered-cell', nodeId: `key:${selectedKeyId}`, label: key.displayLabel, keyId: selectedKeyId }
+  }, [activeCorrectionLayerId, paneSelectionState, project, selectedKeyId])
 
   function cancelPendingKeySelect() {
     if (pendingKeySelectRef.current === null) return
@@ -109,11 +145,11 @@ export function CspLayerTree({
     pendingKeySelectRef.current = null
   }
 
-  function scheduleKeySelect(keyId: string | null) {
+  function scheduleKeySelect(selection: CspPaneSelection) {
     cancelPendingKeySelect()
     pendingKeySelectRef.current = window.setTimeout(() => {
       pendingKeySelectRef.current = null
-      onSelectKey(keyId)
+      selectPaneNode(selection)
     }, 250)
   }
 
@@ -219,7 +255,157 @@ export function CspLayerTree({
     })
   }
 
+  function selectPaneNode(selection: CspPaneSelection) {
+    setPaneSelection(selection)
+    if (selection.kind === 'registered-cell' || selection.kind === 'unregistered-cell') {
+      onSelectKey(selection.keyId)
+    } else {
+      onSelectKey(null)
+    }
+  }
+
+  function trackPaneSelection(track: CspLayerTreeTrack, correctionLayerId?: string): CspPaneSelection {
+    if (track.stackGuideLabelId && track.stackItemId) {
+      return {
+        kind: 'stack-guide',
+        nodeId: track.stackItemId,
+        label: track.label,
+        itemId: track.stackItemId,
+        labelId: track.stackGuideLabelId,
+        band: stackGuideSelectionBand(project, track.stackGuideLabelId),
+        correctionLayerId,
+      }
+    }
+    if (track.paperTrack && track.stackItemId) {
+      const paperTrack = project.logicalSheet.paperTracks.find(item => item.paperTrack === track.paperTrack)
+      return {
+        kind: paperTrack?.source === 'overlay' ? 'overlay-track' : 'template-track',
+        nodeId: track.stackItemId,
+        label: track.label,
+        itemId: track.stackItemId,
+        paperTrack: track.paperTrack,
+        correctionLayerId,
+        slotId: track.slotId,
+      }
+    }
+    return { kind: 'generated-readonly', nodeId: track.nodeId, label: track.label, correctionLayerId }
+  }
+
+  function paneReorderId(selection: CspPaneSelection): string | null {
+    if (selection.kind === 'production-stage') return selection.stageId
+    if (selection.kind === 'correction-layer') return selection.layerId
+    if (selection.kind === 'template-track' || selection.kind === 'overlay-track' || selection.kind === 'stack-guide') return selection.itemId
+    return null
+  }
+
+  function beginPaneNodeDrag(event: ReactPointerEvent<HTMLElement>, selection: CspPaneSelection) {
+    const capabilities = cspPaneNodeCapabilities(project, selection)
+    const reorderId = paneReorderId(selection)
+    if (!capabilities.draggable || !capabilities.reorderScope || !reorderId) return
+    if (
+      selection.kind !== 'production-stage'
+      && selection.kind !== 'correction-layer'
+      && selection.kind !== 'template-track'
+      && selection.kind !== 'overlay-track'
+      && selection.kind !== 'stack-guide'
+    ) return
+    startInternalPointerDrag(event, {
+      begin: () => ({
+        kind: 'csp-pane-node',
+        nodeId: selection.nodeId,
+        nodeKind: selection.kind,
+        reorderId,
+        reorderScope: capabilities.reorderScope!,
+        ...(selection.kind === 'stack-guide' ? { stackGuideLabelId: selection.labelId } : {}),
+      }),
+      createPreview: () => ({ primaryText: selection.label, secondaryText: 'CSPレイヤー構成' }),
+      onStarted: () => {
+        selectPaneNode(selection)
+        suppressPaneClickRef.current = selection.nodeId
+      },
+      onFinished: () => {
+        window.setTimeout(() => {
+          if (suppressPaneClickRef.current === selection.nodeId) suppressPaneClickRef.current = null
+        }, 0)
+      },
+    })
+  }
+
+  function handlePaneNodeClick(selection: CspPaneSelection) {
+    if (suppressPaneClickRef.current === selection.nodeId) {
+      suppressPaneClickRef.current = null
+      return
+    }
+    selectPaneNode(selection)
+  }
+
+  function paneReorderAttributes(selection: CspPaneSelection) {
+    const capabilities = cspPaneNodeCapabilities(project, selection)
+    const reorderId = paneReorderId(selection)
+    return capabilities.draggable && capabilities.reorderScope && reorderId
+      ? {
+          'data-csp-pane-reorder-id': reorderId,
+          'data-csp-pane-reorder-scope': capabilities.reorderScope,
+        }
+      : {}
+  }
+
+  function paneRowClass(selection: CspPaneSelection): string {
+    const capabilities = cspPaneNodeCapabilities(project, selection)
+    const reorderId = paneReorderId(selection)
+    const activeDrop = paneDropTarget
+      && paneDropTarget.scope === capabilities.reorderScope
+      && paneDropTarget.referenceItemId === reorderId
+      ? paneDropTarget
+      : null
+    return [
+      paneSelection?.nodeId === selection.nodeId ? 'cspPaneSelected' : '',
+      capabilities.draggable ? 'cspPaneDraggable' : '',
+      activeDrop
+        ? activeDrop.edge === 'before' ? 'cspPaneDropBefore' : 'cspPaneDropAfter'
+        : '',
+    ].filter(Boolean).join(' ')
+  }
+
+  function deleteSelectedPaneNode() {
+    if (!paneSelection) return
+    const capabilities = cspPaneNodeCapabilities(project, paneSelection)
+    if (!capabilities.deletable) return
+    if (paneSelection.kind === 'correction-layer') onDeleteCorrectionLayer(paneSelection.layerId)
+    if (paneSelection.kind === 'overlay-track') void onDeleteOverlayPaperTrack(paneSelection.paperTrack)
+    if (paneSelection.kind === 'stack-guide') onDeleteStackGuideLabel(paneSelection.labelId)
+    if (paneSelection.kind === 'registered-cell') void onDeleteKey(paneSelection.keyId, paneSelection.bindingId)
+    if (paneSelection.kind === 'unregistered-cell') void onDeleteKey(paneSelection.keyId)
+    setPaneSelection(null)
+  }
+
   useEffect(() => subscribeInternalDrag(detail => {
+    if (detail.payload.kind === 'csp-pane-node') {
+      const body = treeBodyRef.current
+      const target = listReorderTargetFromContainer(body, detail.payload.reorderScope, detail.clientX, detail.clientY)
+      if (detail.phase === 'start' || detail.phase === 'move') {
+        if (target) {
+          autoScrollListForPointer(body, detail.clientY)
+          setPaneDropTarget({ ...target, scope: detail.payload.reorderScope })
+          setInternalDragDropValidity('valid')
+        } else {
+          setPaneDropTarget(null)
+          setInternalDragDropValidity(null)
+        }
+        return
+      }
+      setPaneDropTarget(null)
+      if (detail.phase !== 'drop' || !target) return
+      if (detail.payload.nodeKind === 'production-stage') {
+        onReorderProductionStage(detail.payload.reorderId, target.referenceItemId, target.edge)
+      } else if (detail.payload.nodeKind === 'correction-layer') {
+        onReorderCorrectionLayer(detail.payload.reorderId, target.referenceItemId, target.edge)
+      } else {
+        onReorderStackItem(detail.payload.reorderId, target.referenceItemId, target.edge)
+      }
+      setInternalDragDropValidity(null)
+      return
+    }
     if (detail.payload.kind !== 'asset' && detail.payload.kind !== 'registered-cell') return
     const target = cspInternalDropTarget(treeRootRef.current, detail.clientX, detail.clientY, detail.payload)
     if (detail.phase === 'start' || detail.phase === 'move') {
@@ -351,7 +537,12 @@ export function CspLayerTree({
     const editableGuide = Boolean(track.stackGuideLabelId && correctionLayerId)
     const showSheetLabel = Boolean(cel.keyId && cel.displayLabel?.trim() && cel.displayLabel.trim() !== cel.cspCellName.trim())
     const asset = cel.assetId ? assetsById.get(cel.assetId) : undefined
-    const selected = cel.keyId === selectedKeyId
+    const celSelection: CspPaneSelection = cel.keyId
+      ? cel.bindingId
+        ? { kind: 'registered-cell', nodeId: `binding:${cel.bindingId}`, label: cel.cspCellName, keyId: cel.keyId, bindingId: cel.bindingId, correctionLayerId, slotId: track.slotId }
+        : { kind: 'unregistered-cell', nodeId: `key:${cel.keyId}`, label: cel.cspCellName, keyId: cel.keyId, correctionLayerId, slotId: assignmentSlotId }
+      : trackPaneSelection(track, correctionLayerId)
+    const selected = cel.keyId === selectedKeyId || paneSelection?.nodeId === celSelection.nodeId
     const assetDragOver = cel.nodeId === assetDropCelNodeId
     const assetDropInvalid = assetDragOver && activeAssetDragCount !== 1
     return (
@@ -366,6 +557,8 @@ export function CspLayerTree({
           assetDropInvalid ? 'assetDropInvalid' : '',
         ].filter(Boolean).join(' ')}
         draggable={false}
+        role="treeitem"
+        aria-selected={selected}
         data-csp-drop-kind={cel.keyId ? 'cel' : undefined}
         data-csp-cel-node-id={cel.nodeId}
         data-csp-key-id={cel.keyId}
@@ -380,6 +573,7 @@ export function CspLayerTree({
             onStarted: () => {
               cancelPendingKeySelect()
               suppressClickKeyRef.current = cel.keyId!
+              selectPaneNode(celSelection)
             },
             onFinished: () => {
               window.setTimeout(() => {
@@ -396,11 +590,11 @@ export function CspLayerTree({
           }
           const target = event.target
           if (target instanceof Element && target.closest('.cspTreeCelName')) {
-            scheduleKeySelect(cel.keyId ?? null)
+            scheduleKeySelect(celSelection)
             return
           }
           cancelPendingKeySelect()
-          onSelectKey(cel.keyId ?? null)
+          selectPaneNode(celSelection)
         }}
       >
         {(editableBinding || editableGuide) ? (
@@ -437,20 +631,6 @@ export function CspLayerTree({
             </span>
           )}
         </TooltipTarget>
-        {selected && cel.keyId && (
-          <div className="cspTreeCelActions" onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
-            <Tooltip label={cel.bindingId ? 'この工程のカードを削除' : '登録セルを削除'}>
-              <button
-                type="button"
-                className="cspTreeDeleteButton"
-                aria-label={`${track.label} ${cel.displayLabel || cel.cspCellName}を削除`}
-                onClick={() => onDeleteKey(cel.keyId!, cel.bindingId)}
-              >
-                <DeleteIcon />
-              </button>
-            </Tooltip>
-          </div>
-        )}
         {assetDragOver && (
           <span className="cspTreeCelDropLabel">
             {assetDropInvalid
@@ -464,24 +644,26 @@ export function CspLayerTree({
     )
   }
 
+  const selectedCapabilities = paneSelection ? cspPaneNodeCapabilities(project, paneSelection) : null
+  const selectedLayerId = correctionLayerIdForCspPaneSelection(paneSelection, activeCorrectionLayerId)
+  const selectedSlotId = paneSelection && (
+    paneSelection.kind === 'template-track'
+    || paneSelection.kind === 'overlay-track'
+    || paneSelection.kind === 'registered-cell'
+    || paneSelection.kind === 'unregistered-cell'
+  ) ? paneSelection.slotId : undefined
+  const deleteTooltip = paneSelection
+    ? selectedCapabilities?.deletable
+      ? `${paneSelection.label}を削除`
+      : selectedCapabilities?.disabledReason ?? `${paneSelection.label}は削除できません`
+    : '削除する項目を選択してください'
+
   return (
     <section ref={treeRootRef} className="cspLayerTree" aria-label="CSPレイヤー構成">
       <header className="cspLayerTreeHeader">
         <strong>CSPレイヤー構成</strong>
-        <div className="cspLayerTreeHeaderActions">
-          <Tooltip label="CSPセル名と素材ファイル名をまとめて整える">
-            <button type="button" className="cspTreeNormalizeButton" aria-label="名前を正規化" onClick={onOpenNameNormalization}>
-              <NormalizeIcon />
-            </button>
-          </Tooltip>
-          <Tooltip label="紙シート上にセル列を追加">
-            <button type="button" className="cspTreeAddCellButton" aria-label="セル列を追加" onClick={onRequestOverlayPaperTrack}>
-              <PlusIcon />
-            </button>
-          </Tooltip>
-        </div>
       </header>
-      <div className="cspLayerTreeBody">
+      <div ref={treeBodyRef} className="cspLayerTreeBody" role="tree" aria-label="CSPレイヤー">
         {dropNotice && <div className="cspTreeDropNotice" role="status">{dropNotice}</div>}
         {tree.unregisteredTracks.length > 0 && (
           <details className="cspTreeStage cspTreeUnregisteredStage" open>
@@ -499,15 +681,31 @@ export function CspLayerTree({
           </details>
         )}
         {tree.stages.length === 0 && tree.unregisteredTracks.length === 0 && <p className="cspLayerTreeEmpty">登録済みのレイヤーはありません。</p>}
-        {tree.stages.map(stage => (
+        {tree.stages.map(stage => {
+          const stageSelection: CspPaneSelection = stage.stageId
+            ? { kind: 'production-stage', nodeId: `stage:${stage.stageId}`, label: stage.label, stageId: stage.stageId }
+            : { kind: 'generated-readonly', nodeId: stage.nodeId, label: stage.label }
+          return (
           <details className="cspTreeStage" key={stage.nodeId} open>
-            <summary>
+            <summary
+              className={paneRowClass(stageSelection)}
+              role="treeitem"
+              aria-selected={paneSelection?.nodeId === stageSelection.nodeId}
+              {...paneReorderAttributes(stageSelection)}
+              onPointerDown={event => beginPaneNodeDrag(event, stageSelection)}
+              onClick={event => {
+                event.preventDefault()
+                handlePaneNodeClick(stageSelection)
+              }}
+            >
+              <TreeDisclosureButton label={stage.label} />
               {stage.stageId && onRenameProductionStage ? (
                 <SummaryRenameTrigger
                   className="cspTreeSummaryLabel"
                   label={stage.label}
                   editTitle="ダブルクリックで制作段階名を編集"
                   editing={summaryRename?.kind === 'stage' && summaryRename.id === stage.stageId}
+                  onSelect={() => handlePaneNodeClick(stageSelection)}
                   onBegin={() => setSummaryRename({ kind: 'stage', id: stage.stageId!, label: stage.label })}
                 />
               ) : stage.label}
@@ -524,22 +722,39 @@ export function CspLayerTree({
                 }}
               />
             )}
-            {stage.layers.map(layer => (
+            {stage.layers.map(layer => {
+              const layerSelection: CspPaneSelection = layer.layerId
+                ? { kind: 'correction-layer', nodeId: `layer:${layer.layerId}`, label: layer.label, stageId: stage.stageId ?? '', layerId: layer.layerId }
+                : { kind: 'generated-readonly', nodeId: layer.nodeId, label: layer.label }
+              return (
               <div className="cspTreeLayerShell" key={layer.nodeId}>
                 <details className="cspTreeLayer" open>
                   <summary
-                    className={layer.layerId && assetDropGapId === `${layer.layerId}:0` ? 'assetDragOver' : undefined}
+                    className={[
+                      layer.layerId && assetDropGapId === `${layer.layerId}:0` ? 'assetDragOver' : '',
+                      paneRowClass(layerSelection),
+                    ].filter(Boolean).join(' ')}
+                    role="treeitem"
+                    aria-selected={paneSelection?.nodeId === layerSelection.nodeId}
+                    {...paneReorderAttributes(layerSelection)}
                     data-csp-drop-kind={layer.layerId ? 'gap' : undefined}
                     data-csp-gap-id={layer.layerId ? `${layer.layerId}:0` : undefined}
                     data-csp-correction-layer-id={layer.layerId}
                     data-csp-gap-index={layer.layerId ? 0 : undefined}
+                    onPointerDown={event => beginPaneNodeDrag(event, layerSelection)}
+                    onClick={event => {
+                      event.preventDefault()
+                      handlePaneNodeClick(layerSelection)
+                    }}
                   >
+                    <TreeDisclosureButton label={layer.label} />
                     {layer.layerId && onRenameCorrectionLayer ? (
                       <SummaryRenameTrigger
                         className="cspTreeSummaryLabel"
                         label={layer.label}
                         editTitle="ダブルクリックで工程名を編集"
                         editing={summaryRename?.kind === 'layer' && summaryRename.id === layer.layerId}
+                        onSelect={() => handlePaneNodeClick(layerSelection)}
                         onBegin={() => setSummaryRename({ kind: 'layer', id: layer.layerId!, label: layer.label })}
                       />
                     ) : layer.label}
@@ -593,6 +808,7 @@ export function CspLayerTree({
                   {layer.tracks.length === 0 && <p className="cspTreeNoTracks">トラックなし</p>}
                   {layer.layerId && renderNewTrackDropZone(layer.layerId, layer.label, layer.tracks, 0)}
                   {layer.tracks.map((track, trackIndex) => {
+                    const trackSelection = trackPaneSelection(track, layer.layerId)
                     const acceptsStackGuideAsset = Boolean(track.stackGuideLabelId && layer.layerId)
                     const acceptsPaperTrackAsset = Boolean(track.paperTrack && track.slotId)
                     const acceptsAsset = acceptsStackGuideAsset || acceptsPaperTrackAsset
@@ -611,14 +827,15 @@ export function CspLayerTree({
                       data-csp-native-drop-kind={acceptsPaperTrackAsset ? 'paper-track' : acceptsStackGuideAsset ? 'stack-guide' : undefined}
                       data-csp-slot-id={track.slotId}
                       data-csp-stack-guide-label-id={track.stackGuideLabelId}
-                      onPointerDown={track.stackGuideLabelId ? event => {
-                        startInternalPointerDrag(event, {
-                          begin: () => ({ kind: 'stack-guide', labelId: track.stackGuideLabelId! }),
-                          createPreview: () => ({ primaryText: track.label, secondaryText: layer.label }),
-                        })
-                      } : undefined}
                     >
-                    <div className="cspTreeTrackRow">
+                    <div
+                      className={['cspTreeTrackRow', paneRowClass(trackSelection)].filter(Boolean).join(' ')}
+                      role="treeitem"
+                      aria-selected={paneSelection?.nodeId === trackSelection.nodeId}
+                      {...paneReorderAttributes(trackSelection)}
+                      onPointerDown={event => beginPaneNodeDrag(event, trackSelection)}
+                      onClick={() => handlePaneNodeClick(trackSelection)}
+                    >
                       {track.paperTrack ? (
                         <InlineTreeLabel
                           key={`${track.paperTrack}:${track.label}`}
@@ -640,37 +857,6 @@ export function CspLayerTree({
                           onCommit={label => onUpdateStackGuideLabel(track.stackGuideLabelId!, { label })}
                         />
                       ) : <span className="cspTreeTrackName">{track.label}</span>}
-                      {track.stackItemId && <div className="cspTreeMoveButtons">
-                        {track.slotId && onCreateUnplacedCard && (
-                          <Tooltip label={`${track.label}（${layer.label}）に素材未割当のセルを追加`}>
-                            <button
-                              type="button"
-                              aria-label={`${track.label}（${layer.label}）にセルを追加`}
-                              onClick={() => beginNewCel(track.slotId!)}
-                            >
-                              <PlusIcon />
-                            </button>
-                          </Tooltip>
-                        )}
-                        <Tooltip label={`全工程の${track.label}をCSPで1段上へ（紙シートでは右へ）`}>
-                          <button type="button" aria-label={`全工程の${track.label}をCSPで上へ（シートで右へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'up')}>↑</button>
-                        </Tooltip>
-                        <Tooltip label={`全工程の${track.label}をCSPで1段下へ（紙シートでは左へ）`}>
-                          <button type="button" aria-label={`全工程の${track.label}をCSPで下へ（シートで左へ）`} onClick={() => onMoveStackItem(track.stackItemId!, 'down')}>↓</button>
-                        </Tooltip>
-                        {track.stackGuideLabelId && (
-                          <Tooltip label={`${track.label}を削除`}>
-                            <button
-                              type="button"
-                              className="cspTreeTrackDeleteButton"
-                              aria-label={`${track.label}を削除`}
-                              onClick={() => onDeleteStackGuideLabel(track.stackGuideLabelId!)}
-                            >
-                              <DeleteIcon />
-                            </button>
-                          </Tooltip>
-                        )}
-                      </div>}
                     </div>
                     <div className="cspTreeCels">
                       {newCelDraft && newCelDraft.slotId === track.slotId && (
@@ -726,24 +912,45 @@ export function CspLayerTree({
                     )
                   })}
                 </details>
-                {layer.layerId && (
-                  <ActionMenu
-                    label={<PlusIcon />}
-                    ariaLabel={`${layer.label}にトラックを追加`}
-                    tooltipLabel={`${layer.label}にトラックを追加`}
-                    className="cspTreeLayerAddMenu iconActionMenu"
-                    closeOnMenuItemClick
-                  >
-                    <button type="button" onClick={() => onRequestStackGuideInsert(layer.layerId!)}>BG／BOOK</button>
-                    <button type="button" onClick={() => setAuxiliaryDraft({ correctionLayerId: layer.layerId!, kind: 'camera-note', label: '' })}>撮影指示</button>
-                    <button type="button" onClick={() => setAuxiliaryDraft({ correctionLayerId: layer.layerId!, kind: 'memo', label: '' })}>メモ</button>
-                  </ActionMenu>
-                )}
               </div>
-            ))}
+              )
+            })}
           </details>
-        ))}
+          )
+        })}
       </div>
+      <footer className="cspLayerTreeFooter" aria-label="CSPレイヤー操作">
+        <Tooltip label="CSPセル名と素材ファイル名をまとめて整える">
+          <button type="button" className="cspTreeNormalizeButton" aria-label="名前を正規化" onClick={onOpenNameNormalization}>
+            <NormalizeIcon />
+          </button>
+        </Tooltip>
+        <ActionMenu
+          label={<PlusIcon />}
+          ariaLabel="選択位置に項目を追加"
+          tooltipLabel="選択位置に項目を追加"
+          className="cspPaneFooterAddMenu iconActionMenu"
+          closeOnMenuItemClick
+        >
+          <button type="button" onClick={onRequestOverlayPaperTrack}>追加セル列</button>
+          <button type="button" disabled={!selectedLayerId} onClick={() => selectedLayerId && onRequestStackGuideInsert(selectedLayerId)}>BG／BOOK</button>
+          <button type="button" disabled={!selectedLayerId} onClick={() => selectedLayerId && setAuxiliaryDraft({ correctionLayerId: selectedLayerId, kind: 'camera-note', label: '' })}>撮影指示</button>
+          <button type="button" disabled={!selectedLayerId} onClick={() => selectedLayerId && setAuxiliaryDraft({ correctionLayerId: selectedLayerId, kind: 'memo', label: '' })}>メモ</button>
+          {selectedSlotId && onCreateUnplacedCard && <button type="button" onClick={() => beginNewCel(selectedSlotId)}>登録セル</button>}
+        </ActionMenu>
+        <span className="cspLayerTreeFooterSpacer" />
+        <Tooltip label={deleteTooltip}>
+          <button
+            type="button"
+            className="cspPaneDeleteButton"
+            aria-label={paneSelection ? `${paneSelection.label}を削除` : '選択項目を削除'}
+            disabled={!paneSelection || !selectedCapabilities?.deletable}
+            onClick={deleteSelectedPaneNode}
+          >
+            <DeleteIcon />
+          </button>
+        </Tooltip>
+      </footer>
     </section>
   )
 }
@@ -778,6 +985,25 @@ function DeleteIcon() {
       <path d="m7 7 1 13h8l1-13" />
       <path d="M10 11v5M14 11v5" />
     </svg>
+  )
+}
+
+function TreeDisclosureButton({ label }: { label: string }) {
+  return (
+    <button
+      type="button"
+      className="cspTreeDisclosureButton"
+      aria-label={`${label}を展開または折りたたむ`}
+      onPointerDown={event => event.stopPropagation()}
+      onClick={event => {
+        event.preventDefault()
+        event.stopPropagation()
+        const details = event.currentTarget.closest<HTMLDetailsElement>('details')
+        if (details) details.open = !details.open
+      }}
+    >
+      <span className="cspTreeDisclosureGlyph" aria-hidden="true" />
+    </button>
   )
 }
 
@@ -877,12 +1103,14 @@ function SummaryRenameTrigger({
   className,
   editTitle,
   editing,
+  onSelect,
   onBegin,
 }: {
   label: string
   className: string
   editTitle: string
   editing: boolean
+  onSelect: () => void
   onBegin: () => void
 }) {
   return (
@@ -896,6 +1124,7 @@ function SummaryRenameTrigger({
           onClick={event => {
             event.preventDefault()
             event.stopPropagation()
+            onSelect()
           }}
           onDoubleClick={event => {
             event.preventDefault()

@@ -189,7 +189,7 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
     fireEvent.pointerMove(window, { pointerId: 71, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
     expect(document.querySelector('.internalDragPreviewShell.pointerDragGhost')).toBeTruthy()
     expect(document.querySelector('.internalDragPreview')?.textContent).toContain('A1')
-    expect(registeredCell.classList.contains('internalPointerDragSource')).toBe(true)
+    expect(registeredCell.dataset.internalDragSource).toBe('true')
     expect(document.body.dataset.internalDragValidity).toBe('valid')
     expectStatusHint(uiText.statusHints.dropRegisteredCell(`CELL B ${formatTestFramePosition(1)}`))
     fireEvent.pointerUp(window, { pointerId: 71, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
@@ -250,11 +250,11 @@ it('creates an overlay paper track from the insertion handle menu', async () => 
     fireEvent.contextMenu(currentOverlayHandle, { clientX: 500, clientY: 80 })
     expect(screen.getByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeTruthy()
 
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.deleteOverlayPaperTrack }))
 
     await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(false))
-    expect(confirmSpy).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(true))
   })
 
 it('adds a BG/BOOK label from the registered-cell plus menu and places it in the reserve slot before A', async () => {
@@ -262,7 +262,8 @@ it('adds a BG/BOOK label from the registered-cell plus menu and places it in the
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
-    fireEvent.click(screen.getByLabelText('作画にトラックを追加'))
+    fireEvent.click(screen.getByText('作画', { selector: '.cspTreeSummaryLabel' }))
+    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
     await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
     const defaultTarget = document.querySelector<HTMLElement>('.stackGuideGap.insertToolActive')
@@ -371,15 +372,9 @@ it('removes one process card before deleting its shared logical cell', async () 
     dragInternalPointer(getAssetCardByName('A1_ref.png'), registeredCell)
     await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id].assigned')).toBeTruthy())
 
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const assignedProcessCard = document.querySelector<HTMLElement>('.cspTreeCel.assigned')
     if (!assignedProcessCard) throw new Error('assigned process card not found')
     fireEvent.click(assignedProcessCard)
-    fireEvent.click(within(assignedProcessCard).getByRole('button', { name: /1を削除$/ }))
-    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteProcessCardConfirm('作画', 'A1'))
-    expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
-
-    confirmSpy.mockReturnValue(true)
     fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
     await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id].assigned')).toBeNull())
     expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
@@ -485,12 +480,13 @@ it('chooses a process when an external image file is dropped onto an already reg
     expect(previewPanel?.textContent).toContain('演出')
     expect(previewPanel?.textContent).toContain('A1')
 
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const assignedProcessCard = document.querySelector<HTMLElement>('.cspTreeCel.assigned')
     if (!assignedProcessCard) throw new Error('assigned process card not found')
-    fireEvent.click(within(assignedProcessCard).getByRole('button', { name: /1を削除$/ }))
-    expect(confirmSpy).toHaveBeenCalledWith(uiText.keys.deleteProcessCardConfirm('演出', 'A1'))
-    expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeTruthy()
+    fireEvent.click(assignedProcessCard)
+    fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
+    await waitFor(() => expect(document.querySelector('.cspTreeCel.assigned')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    await waitFor(() => expect(document.querySelector('.cspTreeCel.assigned')).toBeTruthy())
   })
 
 it('drops image assets onto the first frame when dropped inside an active range', async () => {

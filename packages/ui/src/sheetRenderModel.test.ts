@@ -36,7 +36,7 @@ describe('sheet render model', () => {
       sheetRole: 'action',
     })
     const bg = createStackGuideLabel(overlay.project, {
-      label: 'BG',
+      label: 'BOOK_BACKGROUND_REFERENCE_LAYER_01',
       kind: 'background',
       displayRole: 'action',
       insertAfterPaperTrack: 'A',
@@ -58,7 +58,15 @@ describe('sheet render model', () => {
 
     const stackGuideItems = stackGuideFlagRenderItemsForPage(context, page)
     expect(stackGuideItems).toHaveLength(1)
-    expect(stackGuideItems[0]).toMatchObject({ label: 'BG', color: '#315bdc', align: 'start' })
+    expect(stackGuideItems[0]).toMatchObject({
+      label: 'BOOK_BACKGROUND_REFERENCE_LAYER_01',
+      color: '#315bdc',
+      align: 'start',
+      geometry: {
+        displayText: 'BOOK_BACKGROUND_REFERENCE_LAYER_01',
+        truncated: false,
+      },
+    })
     expect(stackGuideItems[0].geometry.labelWidth).toBeGreaterThan(0)
   })
 

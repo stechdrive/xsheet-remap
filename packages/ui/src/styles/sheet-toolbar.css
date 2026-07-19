@@ -795,7 +795,7 @@
 
 .cspLayerTree {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 100%;
   color: #26312a;
   font-size: 12px;
@@ -816,9 +816,23 @@
   gap: 3px;
 }
 
-.cspTreeAddCellButton,
+.cspLayerTreeFooter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 5px 3px 2px;
+  border-top: 1px solid #aeb8b0;
+  background: #f2f4f1;
+}
+
+.cspLayerTreeFooterSpacer {
+  flex: 1;
+}
+
 .cspTreeNormalizeButton,
-.cspTreeLayerAddMenu > summary {
+.cspPaneDeleteButton,
+.cspPaneFooterAddMenu > summary {
   display: inline-grid;
   place-items: center;
   width: 24px;
@@ -828,16 +842,24 @@
   padding: 0;
 }
 
-.cspTreeAddCellButton svg,
 .cspTreeNormalizeButton svg,
-.cspTreeLayerAddMenu > summary svg {
+.cspPaneDeleteButton svg,
+.cspPaneFooterAddMenu > summary svg {
   width: 15px;
   height: 15px;
 }
 
-.cspTreeLayerAddMenu > summary::after {
+.cspPaneFooterAddMenu > summary::after {
   display: none;
   content: none;
+}
+
+.cspPaneDeleteButton {
+  color: #8d3029;
+}
+
+.cspPaneDeleteButton:disabled {
+  color: #8b918c;
 }
 
 .cspLayerTreeBody {
@@ -854,6 +876,9 @@
 
 .cspTreeStage > summary,
 .cspTreeLayer > summary {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   min-width: 0;
   padding: 5px 4px;
   overflow: hidden;
@@ -863,8 +888,47 @@
   font-weight: 800;
 }
 
+.cspTreeStage > summary::marker,
+.cspTreeLayer > summary::marker {
+  content: '';
+}
+
+.cspTreeDisclosureButton {
+  display: inline-grid;
+  flex: 0 0 16px;
+  place-items: center;
+  width: 16px;
+  min-width: 16px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.cspTreeDisclosureButton:hover,
+.cspTreeDisclosureButton:focus-visible {
+  background: rgb(65 107 90 / 0.12);
+}
+
+.cspTreeDisclosureGlyph {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid currentcolor;
+}
+
+details[open] > summary > .cspTreeDisclosureButton > .cspTreeDisclosureGlyph {
+  transform: rotate(90deg);
+}
+
 .cspTreeSummaryLabel {
   display: inline-block;
+  flex: 1 1 auto;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -918,7 +982,6 @@
 }
 
 .cspTreeLayer > summary {
-  padding-right: 36px;
   background: #f0f3f0;
 }
 
@@ -926,13 +989,6 @@
   outline: 2px solid #2372c4;
   outline-offset: -2px;
   background: #e9f3fc;
-}
-
-.cspTreeLayerAddMenu {
-  position: absolute;
-  top: 3px;
-  right: 4px;
-  z-index: 2;
 }
 
 .cspTreeAuxiliaryForm {
@@ -1075,6 +1131,7 @@
 }
 
 .cspTreeTrackRow {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -1082,6 +1139,28 @@
   min-height: 30px;
   padding: 3px 3px 3px 7px;
   background: #fafaf7;
+}
+
+.cspPaneSelected {
+  outline: 2px solid #416b5a;
+  outline-offset: -2px;
+  background: #e5eee7 !important;
+}
+
+.cspPaneDraggable {
+  cursor: grab;
+}
+
+.cspPaneDraggable:active {
+  cursor: grabbing;
+}
+
+.cspPaneDropBefore {
+  box-shadow: inset 0 3px 0 #236fd0;
+}
+
+.cspPaneDropAfter {
+  box-shadow: inset 0 -3px 0 #236fd0;
 }
 
 .cspTreeTrackName {
@@ -1105,27 +1184,6 @@
 .cspTreeTrackNameInput:focus {
   border-color: #9da8a0;
   background: #fff;
-}
-
-.cspTreeMoveButtons {
-  display: flex;
-  gap: 2px;
-}
-
-.cspTreeMoveButtons button {
-  display: inline-grid;
-  place-items: center;
-  width: 23px;
-  min-width: 23px;
-  height: 23px;
-  min-height: 23px;
-  padding: 0;
-  line-height: 1;
-}
-
-.cspTreeMoveButtons .topIconSvg {
-  width: 14px;
-  height: 14px;
 }
 
 .cspTreeCels {

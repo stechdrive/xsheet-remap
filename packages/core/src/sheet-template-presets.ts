@@ -247,11 +247,10 @@ export const standardA3SheetTemplate: SheetTemplate = {
     },
     bgBookLabel: {
       baseOffsetMm: 4.74,
-      lanePitchMm: 3.39,
+      laneGapMm: 1.35,
       labelHeightMm: 2.37,
       fontSizePt: 5.04,
       minWidthMm: 3.73,
-      maxWidthMm: 12.87,
       pageMarginMm: 1.02,
       poleGapMm: 0.34,
       textPaddingMm: 0.51,

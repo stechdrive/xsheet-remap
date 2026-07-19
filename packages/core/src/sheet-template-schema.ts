@@ -348,7 +348,10 @@ export interface SheetTemplateTextStyle {
 export interface SheetTemplateBgBookLabelStyle {
   designDpi?: number
   baseOffsetMm?: number
+  /** Legacy absolute lane pitch. Used to derive the clear gap when laneGapMm is omitted. */
   lanePitchMm?: number
+  /** Physical clear gap between adjacent label boxes. */
+  laneGapMm?: number
   labelHeightMm?: number
   fontSizePt?: number
   minFontSizePt?: number
@@ -356,6 +359,7 @@ export interface SheetTemplateBgBookLabelStyle {
   fontWeight?: number
   shrinkToFit?: boolean
   minWidthMm?: number
+  /** Optional physical cap. When omitted, labels may use the template page's drawable width. */
   maxWidthMm?: number
   pageMarginMm?: number
   poleGapMm?: number

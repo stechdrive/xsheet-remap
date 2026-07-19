@@ -475,7 +475,7 @@ describe('core project commands', () => {
     expect(standardA3SheetTemplate.style?.bgBookLabel).toMatchObject({
       labelHeightMm: 2.37,
       fontSizePt: 5.04,
-      lanePitchMm: 3.39,
+      laneGapMm: 1.35,
     })
     expect(standardA3SheetTemplate.style?.gridHeader).toMatchObject({
       labelOverrides: {

@@ -6,8 +6,8 @@ import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider } from './textMet
 const DEFAULT_BASE_OFFSET_PX = 28
 const DEFAULT_LANE_PITCH_PX = 20
 const DEFAULT_LABEL_HEIGHT_PX = 14
+const DEFAULT_LANE_GAP_PX = DEFAULT_LANE_PITCH_PX - DEFAULT_LABEL_HEIGHT_PX
 const DEFAULT_LABEL_MIN_WIDTH_PX = 22
-const DEFAULT_LABEL_MAX_WIDTH_PX = 76
 const DEFAULT_LABEL_FONT_SIZE_PX = 10.5
 const DEFAULT_LABEL_MIN_FONT_SIZE_PX = 7
 const DEFAULT_PAGE_MARGIN_PX = 6
@@ -25,6 +25,7 @@ export type AuxiliaryLabelVariant = 'stack-guide' | 'overlay-track'
 export interface AuxiliaryLabelMetrics {
   baseOffsetPx: number
   lanePitchPx: number
+  laneGapPx: number
   labelHeightPx: number
   minWidthPx: number
   maxWidthPx: number
@@ -48,6 +49,11 @@ export interface AuxiliaryLabelTextLayout {
   textWidthPx: number
   labelWidthPx: number
   truncated: boolean
+}
+
+export interface AuxiliaryLabelTextLayoutOptions {
+  extraWidthPx?: number
+  maxLabelWidthPx?: number
 }
 
 export interface OverlayAuxiliaryLabelGeometry {
@@ -79,23 +85,31 @@ export function auxiliaryLabelMetrics(template: SheetTemplate, variant: Auxiliar
   const minFontSizePx = Math.min(fontSizePx, Math.max(5, rawMinFontSizePx))
   const baseTextPaddingPx = Math.max(mmToTemplatePx(template, style?.textPaddingMm, DEFAULT_TEXT_PADDING_PX), fontSizePx * 0.22)
   const textPaddingPx = variant === 'overlay-track' ? Math.max(2, baseTextPaddingPx * 0.72) : baseTextPaddingPx
-  const baseLabelHeightPx = Math.max(mmToTemplatePx(template, style?.labelHeightMm, DEFAULT_LABEL_HEIGHT_PX), fontSizePx + 4)
+  const configuredLabelHeightPx = mmToTemplatePx(template, style?.labelHeightMm, DEFAULT_LABEL_HEIGHT_PX)
+  const baseLabelHeightPx = Math.max(configuredLabelHeightPx, fontSizePx + 4)
   const labelHeightPx = variant === 'overlay-track' ? Math.max(11, fontSizePx + 3) : baseLabelHeightPx
+  const legacyLanePitchPx = mmToTemplatePx(template, style?.lanePitchMm, DEFAULT_LANE_PITCH_PX)
+  const laneGapPx = Math.max(0, style?.laneGapMm === undefined
+    ? legacyLanePitchPx - configuredLabelHeightPx
+    : mmToTemplatePx(template, style.laneGapMm, DEFAULT_LANE_GAP_PX))
   const baseMinWidthPx = Math.max(mmToTemplatePx(template, style?.minWidthMm, DEFAULT_LABEL_MIN_WIDTH_PX), fontSizePx + baseTextPaddingPx * 2)
   const minWidthPx = variant === 'overlay-track'
     ? Math.max(13, fontSizePx * 0.72 + textPaddingPx * 2)
     : baseMinWidthPx
-  const configuredMaxWidthPx = mmToTemplatePx(template, style?.maxWidthMm, DEFAULT_LABEL_MAX_WIDTH_PX)
-  const maxWidthPx = style?.maxWidthMm !== undefined
-    ? Math.max(configuredMaxWidthPx, minWidthPx)
-    : Math.max(configuredMaxWidthPx, minWidthPx, fontSizePx * 8)
+  const pageMarginPx = mmToTemplatePx(template, style?.pageMarginMm, DEFAULT_PAGE_MARGIN_PX)
+  const drawablePageWidthPx = Math.max(1, template.page.widthPx - pageMarginPx * 2)
+  const configuredMaxWidthPx = style?.maxWidthMm === undefined
+    ? drawablePageWidthPx
+    : mmToTemplatePx(template, style.maxWidthMm, drawablePageWidthPx)
+  const maxWidthPx = Math.max(1, Math.min(configuredMaxWidthPx, drawablePageWidthPx))
   const baseEstimatedCharWidthPx = Math.max(mmToTemplatePx(template, style?.estimatedCharWidthMm, DEFAULT_ESTIMATED_CHAR_WIDTH_PX), fontSizePx * 0.56)
   const estimatedCharWidthPx = variant === 'overlay-track'
     ? Math.max(baseEstimatedCharWidthPx * 0.9, fontSizePx * 0.54)
     : baseEstimatedCharWidthPx
   return {
     baseOffsetPx: mmToTemplatePx(template, style?.baseOffsetMm, DEFAULT_BASE_OFFSET_PX),
-    lanePitchPx: Math.max(mmToTemplatePx(template, style?.lanePitchMm, DEFAULT_LANE_PITCH_PX), labelHeightPx + 3),
+    lanePitchPx: labelHeightPx + laneGapPx,
+    laneGapPx,
     labelHeightPx,
     minWidthPx,
     maxWidthPx,
@@ -104,7 +118,7 @@ export function auxiliaryLabelMetrics(template: SheetTemplate, variant: Auxiliar
     fontFamily: style?.fontFamily?.trim() || SHEET_AUXILIARY_LABEL_FONT_FAMILY,
     fontWeight: normalizeFontWeight(style?.fontWeight),
     shrinkToFit: style?.shrinkToFit !== false,
-    pageMarginPx: mmToTemplatePx(template, style?.pageMarginMm, DEFAULT_PAGE_MARGIN_PX),
+    pageMarginPx,
     poleGapPx: mmToTemplatePx(template, style?.poleGapMm, DEFAULT_POLE_GAP_PX),
     textPaddingPx,
     connectorStrokePx: mmToTemplatePx(template, style?.connectorStrokeMm, DEFAULT_CONNECTOR_STROKE_PX),
@@ -118,10 +132,12 @@ export function auxiliaryLabelMetrics(template: SheetTemplate, variant: Auxiliar
 export function auxiliaryLabelTextLayout(
   text: string,
   metrics: AuxiliaryLabelMetrics,
-  extraWidthPx = 0,
+  options: AuxiliaryLabelTextLayoutOptions = {},
 ): AuxiliaryLabelTextLayout {
   const fullText = text.trim() || text
-  const availableTextWidthPx = Math.max(1, metrics.maxWidthPx - metrics.textPaddingPx * 2 - extraWidthPx)
+  const extraWidthPx = Math.max(0, options.extraWidthPx ?? 0)
+  const maxLabelWidthPx = Math.max(1, Math.min(metrics.maxWidthPx, options.maxLabelWidthPx ?? metrics.maxWidthPx))
+  const availableTextWidthPx = Math.max(1, maxLabelWidthPx - metrics.textPaddingPx * 2 - extraWidthPx)
   let fontSizePx = metrics.fontSizePx
   let textWidthPx = measureAuxiliaryLabelTextPx(fullText, metrics, fontSizePx)
   if (metrics.shrinkToFit && textWidthPx > availableTextWidthPx) {
@@ -140,16 +156,25 @@ export function auxiliaryLabelTextLayout(
     fontSizePx,
     textWidthPx: displayWidthPx,
     labelWidthPx: Math.min(
-      metrics.maxWidthPx,
+      maxLabelWidthPx,
       Math.max(metrics.minWidthPx, displayWidthPx + metrics.textPaddingPx * 2 + extraWidthPx),
     ),
     truncated: displayText !== fullText,
   }
 }
 
+export function auxiliaryLabelMaxWidthForPage(metrics: AuxiliaryLabelMetrics, pageWidthPx: number): number {
+  return Math.max(1, Math.min(metrics.maxWidthPx, pageWidthPx - metrics.pageMarginPx * 2))
+}
+
 export function auxiliaryLabelBottomPx(template: SheetTemplate, lane: number, maxLane: number): number {
-  const metrics = auxiliaryLabelMetrics(template, 'stack-guide')
-  return metrics.baseOffsetPx + Math.min(lane, maxLane) * metrics.lanePitchPx
+  // Stack guides and added cell columns share one collision lane system. Use
+  // the largest physical pitch so differently styled variants cannot overlap,
+  // while each variant keeps its own compact label height and padding.
+  const metrics = (['stack-guide', 'overlay-track'] as const).map(variant => auxiliaryLabelMetrics(template, variant))
+  const baseOffsetPx = Math.max(...metrics.map(item => item.baseOffsetPx))
+  const lanePitchPx = Math.max(...metrics.map(item => item.lanePitchPx))
+  return baseOffsetPx + Math.min(lane, maxLane) * lanePitchPx
 }
 
 export function auxiliaryLabelHeaderReachPx(template: SheetTemplate, rect: NormalizedRect, pageHeightPx: number): number {
@@ -167,7 +192,9 @@ export function overlayAuxiliaryLabelGeometry(
   maxLane: number,
 ): OverlayAuxiliaryLabelGeometry {
   const metrics = auxiliaryLabelMetrics(template, 'overlay-track')
-  const textLayout = auxiliaryLabelTextLayout(track.label, metrics)
+  const textLayout = auxiliaryLabelTextLayout(track.label, metrics, {
+    maxLabelWidthPx: auxiliaryLabelMaxWidthForPage(metrics, pageSize.widthPx),
+  })
   const labelWidth = textLayout.labelWidthPx / pageSize.widthPx
   const labelHeight = metrics.labelHeightPx / pageSize.heightPx
   const textPadding = metrics.textPaddingPx / pageSize.widthPx
@@ -182,7 +209,7 @@ export function overlayAuxiliaryLabelGeometry(
   const labelY = labelBottomY - labelHeight
   const desiredLabelX = stemX + poleGap
   const labelX = clampNumber(desiredLabelX, pageMargin, 1 - pageMargin - labelWidth)
-  const labelAttachX = labelX >= stemX ? labelX : labelX + labelWidth
+  const labelAttachX = clampNumber(stemX, labelX, labelX + labelWidth)
   return {
     stemX,
     labelX,

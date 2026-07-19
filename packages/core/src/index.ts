@@ -468,9 +468,13 @@ export { hasBlockingIssues, validateProject } from './validation'
 export {
   applyCellStackOrder,
   cellStackOrderItems,
+  cspStackReorderScope,
   moveCellStackOrderItem,
+  reorderCspStackItem,
+  type CspStackReorderEdge,
   type CellStackOrderItem,
 } from './project-cell-stack-order'
+export { reorderCorrectionLayer, reorderProductionStage } from './project-csp-pane-order'
 export {
   buildCspLayerTree,
   cspTopToBottomFromXdtsBottomToTop,

@@ -392,6 +392,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       project={props.project}
                       template={props.template}
                       page={page}
+                      dropPreview={stackGuideDropPreview?.pageId === page.pageId ? stackGuideDropPreview : null}
                       onUpdateLabel={props.onUpdateStackGuideLabel}
                       onPreviewPlacement={(labelId, clientX, clientY) => {
                         updateStackGuideDropPreview(labelId, clientX, clientY)
@@ -554,6 +555,11 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onInsertToolConsumed={props.onStackGuideInsertToolConsumed}
                       onCreate={props.onCreateStackGuideLabel}
                       onCreateOverlayPaperTrack={openAddOverlayPaperTrackEditor}
+                      onUpdateLabel={props.onUpdateStackGuideLabel}
+                      onPreviewPlacement={(labelId, clientX, clientY) => {
+                        updateStackGuideDropPreview(labelId, clientX, clientY)
+                      }}
+                      onClearPreview={() => setStackGuideDropPreview(null)}
                     />
                 )}
                 {!isCalibrating && overlayTracks.length > 0 && (

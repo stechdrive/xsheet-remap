@@ -1,11 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent, type PointerEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent, type PointerEvent } from 'react'
 import { type CutProject, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, stackGuideStackBand, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { clampNumber } from './sheetInteraction'
 import { Tooltip, TooltipTarget } from './Tooltip'
-import { StackGuideDropPreviewState, StackGuideInsertContext, StackGuideInsertRequest, StackGuideInsertTarget } from './app-foundation'
-import { stackGuideAnchorRegions, stackGuideClampedEditorBottomPx, stackGuideColumnHeaderHitPx, stackGuideEditorBottomPx, stackGuideEditorShiftPx, stackGuideGapWidthPx, stackGuideGuideHeightPx, stackGuideHeaderReachPx, stackGuideInsertionTargets, stackGuidePlacementsByGap } from './stack-guides-geometry'
-import { defaultStackGuideInsertTarget, stackGuideInsertTargetFromPoint } from './stack-guides-interaction'
+import { StackGuideDropPreviewState, StackGuideInsertContext, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideLabelUpdates } from './app-foundation'
+import { stackGuideAnchorRegions, stackGuideClampedEditorBottomPx, stackGuideColumnHeaderHitPx, stackGuideEditorBottomPx, stackGuideEditorShiftPx, stackGuideGuideHeightPx, stackGuideHeaderReachPx, stackGuideInsertionTargets, stackGuideLabelsForPreview, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
+import { defaultStackGuideInsertTarget, stackGuideInsertTargetFromPoint, stackGuidePlacementUpdateFromPointer } from './stack-guides-interaction'
 
 export function HoverCellOverlay({ rect }: { rect: { x: number; y: number; w: number; h: number } }) {
   return (
@@ -34,6 +34,9 @@ export function StackGuideOverlay({
   onInsertToolConsumed,
   onCreate,
   onCreateOverlayPaperTrack,
+  onUpdateLabel,
+  onPreviewPlacement,
+  onClearPreview,
 }: {
   project: CutProject
   template: SheetTemplate
@@ -47,6 +50,9 @@ export function StackGuideOverlay({
   onInsertToolConsumed?: () => void
   onCreate: (input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) => void
   onCreateOverlayPaperTrack: (input: { x: number; y: number; insertAfterPaperTrack?: string; snapIndex: number; sheetRole: SheetTimingRole }) => void
+  onUpdateLabel?: (labelId: string, updates: StackGuideLabelUpdates) => void
+  onPreviewPlacement?: (labelId: string, clientX: number, clientY: number) => void
+  onClearPreview?: () => void
 }) {
   const editorInputRef = useRef<HTMLInputElement | null>(null)
   const overlayRef = useRef<HTMLDivElement | null>(null)
@@ -68,17 +74,85 @@ export function StackGuideOverlay({
     value: string
     correctionLayerId?: string
   } | null>(null)
+  type LabelDragState = {
+    pointerId: number
+    labelId: string
+    startX: number
+    startY: number
+    moved: boolean
+  }
+  const [labelDrag, setLabelDrag] = useState<LabelDragState | null>(null)
+  const labelDragRef = useRef<LabelDragState | null>(null)
+  const labelDragCaptureRef = useRef<HTMLButtonElement | null>(null)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
     paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
     layoutOverrides: project.sheetView.layoutOverrides,
   })
+  const previewLabels = stackGuideLabelsForPreview(project, dropPreview)
+  const displayProject = previewLabels === project.stackGuideLabels
+    ? project
+    : { ...project, stackGuideLabels: previewLabels }
   const anchorRegions = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
   const activeInsertContext = insertTool ?? requestInsertTool
   const activeInsertTool = activeInsertContext?.mode
   const currentInsertToolTarget = activeInsertContext
     ? insertToolTarget ?? defaultStackGuideInsertTarget(template, project, page, activeInsertContext?.preferredSnapIndex)
     : null
+
+  const setCurrentLabelDrag = useCallback((next: LabelDragState | null) => {
+    labelDragRef.current = next
+    setLabelDrag(next)
+  }, [])
+
+  const updateLabelDragFromPoint = useCallback((pointerId: number, clientX: number, clientY: number) => {
+    const current = labelDragRef.current
+    if (!current || current.pointerId !== pointerId) return
+    const moved = current.moved || Math.hypot(clientX - current.startX, clientY - current.startY) > 4
+    if (moved) onPreviewPlacement?.(current.labelId, clientX, clientY)
+    if (moved !== current.moved) setCurrentLabelDrag({ ...current, moved })
+  }, [onPreviewPlacement, setCurrentLabelDrag])
+
+  const finishLabelDragFromPoint = useCallback((pointerId: number, clientX: number, clientY: number) => {
+    const current = labelDragRef.current
+    if (!current || current.pointerId !== pointerId) return false
+    const label = project.stackGuideLabels.find(item => item.labelId === current.labelId)
+    const captureTarget = labelDragCaptureRef.current
+    if (captureTarget?.hasPointerCapture?.(pointerId)) captureTarget.releasePointerCapture(pointerId)
+    labelDragCaptureRef.current = null
+    setCurrentLabelDrag(null)
+    onClearPreview?.()
+    const moved = current.moved || Math.hypot(clientX - current.startX, clientY - current.startY) > 4
+    if (!moved || !onUpdateLabel || !label) return false
+    const svg = overlayRef.current?.parentElement?.querySelector<SVGSVGElement>('svg.sheetSvg') ?? null
+    const update = stackGuidePlacementUpdateFromPointer(svg, clientX, clientY, project, template, page, label)
+    if (update) onUpdateLabel(label.labelId, update)
+    return true
+  }, [onClearPreview, onUpdateLabel, page, project, setCurrentLabelDrag, template])
+
+  useEffect(() => {
+    if (!labelDrag) return undefined
+    function handlePointerMove(event: globalThis.PointerEvent) {
+      updateLabelDragFromPoint(event.pointerId, event.clientX, event.clientY)
+    }
+    function handlePointerUp(event: globalThis.PointerEvent) {
+      finishLabelDragFromPoint(event.pointerId, event.clientX, event.clientY)
+    }
+    function handlePointerCancel(event: globalThis.PointerEvent) {
+      if (labelDragRef.current?.pointerId !== event.pointerId) return
+      labelDragCaptureRef.current = null
+      setCurrentLabelDrag(null)
+      onClearPreview?.()
+    }
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerCancel)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerCancel)
+    }
+  }, [finishLabelDragFromPoint, labelDrag, onClearPreview, setCurrentLabelDrag, updateLabelDragFromPoint])
 
   useEffect(() => {
     if (!insertRequest || insertRequest.pageId !== page.pageId) return
@@ -234,11 +308,48 @@ export function StackGuideOverlay({
         const anchorY = rect.y
         const headerReachPx = stackGuideHeaderReachPx(template, rect, pageHeight)
         const columnHeaderHitPx = stackGuideColumnHeaderHitPx(template, pageHeight)
-        const gapWidthPx = stackGuideGapWidthPx(template, rect, columns, pageSize.widthPx)
-        const labelsForRegion = project.stackGuideLabels.filter(label => (label.displayRole ?? 'action') === displayRole && stackGuideStackBand(label) === 'cell-interleave')
-        const placementsByGap = stackGuidePlacementsByGap(template, project, labelsForRegion, gapWidthPx, columns)
+        const labelsForRegion = displayProject.stackGuideLabels.filter(label => (label.displayRole ?? 'action') === displayRole && stackGuideStackBand(label) === 'cell-interleave')
+        const placementsByGap = stackGuidePlacementsByGap(template, displayProject, labelsForRegion, rect, pageSize, columns)
+        const labelDragHandles = Array.from(placementsByGap.values()).flatMap(placements => placements.map(({ label, lane }) => {
+          const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns)
+          return (
+            <button
+              key={label.labelId}
+              type="button"
+              className={labelDrag?.labelId === label.labelId ? 'stackGuideLabelDragHandle dragging' : 'stackGuideLabelDragHandle'}
+              data-stack-guide-label-id={label.labelId}
+              aria-label={uiText.stackGuides.labelTitle(label.label, label.assetIds.length)}
+              style={{
+                left: `${geometry.labelX * pageWidth}px`,
+                top: `${geometry.labelY * pageHeight}px`,
+                width: `${geometry.labelWidth * pageWidth}px`,
+                height: `${geometry.labelHeight * pageHeight}px`,
+              }}
+              onPointerDown={event => {
+                if (!onUpdateLabel) return
+                if (event.pointerType === 'mouse' && event.button !== 0) return
+                event.preventDefault()
+                event.stopPropagation()
+                event.currentTarget.setPointerCapture?.(event.pointerId)
+                labelDragCaptureRef.current = event.currentTarget
+                setCurrentLabelDrag({
+                  pointerId: event.pointerId,
+                  labelId: label.labelId,
+                  startX: event.clientX,
+                  startY: event.clientY,
+                  moved: false,
+                })
+              }}
+              onClick={event => {
+                event.preventDefault()
+                event.stopPropagation()
+              }}
+            />
+          )
+        }))
         return (
           <div key={region.regionId}>
+            {labelDragHandles}
             {stackGuideInsertionTargets(template, project, displayRole, region.regionId, rect, columns).map(target => {
               const { gapIndex, insertAfterPaperTrack, snapIndex, x } = target
               const placements = placementsByGap.get(snapIndex) ?? []

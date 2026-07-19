@@ -50,7 +50,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
-    handleMoveKeyBindingProcess, handleMoveCspStackItem, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
+    handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
@@ -272,7 +272,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             <Tooltip label={uiText.actions.redo}>
               <IconButton onClick={handleRedo} disabled={history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></IconButton>
             </Tooltip>
-            <Tooltip label={`${appProfile.appName}の基本操作と作業手順を開く`}>
+            <Tooltip label={`${appProfile.appName}のクイックガイドと詳しい使い方を開く`}>
               <IconButton onClick={() => setAppHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></IconButton>
             </Tooltip>
           </div>
@@ -453,7 +453,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onDeleteOverlayPaperTrack={handleDeleteOverlayPaperTrack}
             onApplyNameNormalization={handleApplyNameNormalization}
             onAssignAssetToKey={handleAssignAssetToKey}
-            onMoveCspStackItem={handleMoveCspStackItem}
+            onReorderCspStackItem={handleReorderCspStackItem}
+            onReorderProductionStage={handleReorderProductionStage}
+            onReorderCorrectionLayer={handleReorderCorrectionLayer}
+            onDeleteCorrectionLayer={handleDeleteCorrectionLayer}
           />
         )}
         {panel === 'template' && (

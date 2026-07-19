@@ -25,8 +25,10 @@ import {
   overlayPaperTrackRenderItems,
   stackGuideFlagRenderItemsForPage,
   type FlagLabelGeometry,
+  type OverlayPaperTrackRenderItem,
   type SheetRenderCutGroupContext,
   type SheetRenderModelContext,
+  type StackGuideFlagRenderItem,
 } from './sheetRenderModel'
 import { timingEventSymbolGeometry } from './TimingEventSymbol'
 import {
@@ -1031,8 +1033,14 @@ function renderOverlayTrackLayer(context: SheetExportLayerContext): ImageData {
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    drawOverlayPaperTracks(ctx, context, page, offsetY)
-    drawStackGuideLabels(ctx, context, page, offsetY)
+    const overlayItems = overlayPaperTrackRenderItems(context, page)
+    drawOverlayPaperTracks(ctx, context, overlayItems, offsetY)
+    const flagItems = [
+      ...overlayItems.map(item => overlayTrackFlagRenderItem(context, item)),
+      ...stackGuideFlagRenderItemsForPage(context, page),
+    ]
+    for (const item of flagItems) drawFlagConnector(ctx, context, offsetY, item)
+    for (const item of flagItems) drawFlagBody(ctx, context, offsetY, item)
   }
   return ctx.getImageData(0, 0, context.width, context.height)
 }
@@ -1040,11 +1048,10 @@ function renderOverlayTrackLayer(context: SheetExportLayerContext): ImageData {
 function drawOverlayPaperTracks(
   ctx: CanvasRenderingContext2D,
   context: SheetExportLayerContext,
-  page: SheetPage,
+  items: OverlayPaperTrackRenderItem[],
   offsetY: number,
 ) {
-  for (const item of overlayPaperTrackRenderItems(context, page)) {
-    const { track, column, label } = item
+  for (const { column } of items) {
     const x = column.rect.x * context.pageSize.widthPx
     const y = offsetY + column.rect.y * context.pageSize.heightPx
     const w = column.rect.w * context.pageSize.widthPx
@@ -1063,32 +1070,37 @@ function drawOverlayPaperTracks(
       ctx.lineTo(x + w, yy)
       ctx.stroke()
     }
+  }
+}
 
-    drawFlagLabel(ctx, context, offsetY, {
-      label: track.label,
-      geometry: {
-        anchorX: label.stemX,
-        anchorY: column.rect.y,
-        labelAttachX: label.labelAttachX,
-        labelBottomY: label.labelBottomY,
-        labelX: label.labelX,
-        labelY: label.labelY,
-        labelTextX: label.labelX + label.labelWidth / 2,
-        labelWidth: label.labelWidth,
-        labelHeight: label.labelHeight,
-        displayText: label.displayText,
-        fullText: label.fullText,
-        truncated: label.truncated,
-        fontSizePx: label.fontSizePx,
-        fontFamily: label.fontFamily,
-        fontWeight: label.fontWeight,
-        radiusX: label.radiusX,
-        radiusY: label.radiusY,
-        connectorStrokeWidth: 3 / context.pageSize.heightPx,
-      },
-      color: '#2c6f54',
-      align: 'center',
-    })
+function overlayTrackFlagRenderItem(
+  context: SheetExportLayerContext,
+  { track, column, label }: OverlayPaperTrackRenderItem,
+): StackGuideFlagRenderItem {
+  return {
+    label: track.label,
+    geometry: {
+      anchorX: label.stemX,
+      anchorY: column.rect.y,
+      labelAttachX: label.labelAttachX,
+      labelBottomY: label.labelBottomY,
+      labelX: label.labelX,
+      labelY: label.labelY,
+      labelTextX: label.labelX + label.labelWidth / 2,
+      labelWidth: label.labelWidth,
+      labelHeight: label.labelHeight,
+      displayText: label.displayText,
+      fullText: label.fullText,
+      truncated: label.truncated,
+      fontSizePx: label.fontSizePx,
+      fontFamily: label.fontFamily,
+      fontWeight: label.fontWeight,
+      radiusX: label.radiusX,
+      radiusY: label.radiusY,
+      connectorStrokeWidth: 3 / context.pageSize.heightPx,
+    },
+    color: '#2c6f54',
+    align: 'center',
   }
 }
 
@@ -1099,27 +1111,11 @@ function overlayGridCanvasLineWidth(className: string): number {
   return 0.75
 }
 
-function drawStackGuideLabels(
-  ctx: CanvasRenderingContext2D,
-  context: SheetExportLayerContext,
-  page: SheetPage,
-  offsetY: number,
-) {
-  for (const item of stackGuideFlagRenderItemsForPage(context, page)) {
-    drawFlagLabel(ctx, context, offsetY, item)
-  }
-}
-
-function drawFlagLabel(
+function drawFlagConnector(
   ctx: CanvasRenderingContext2D,
   context: SheetExportLayerContext,
   offsetY: number,
-  input: {
-    label: string
-    geometry: FlagLabelGeometry
-    color: string
-    align: 'start' | 'center'
-  },
+  input: StackGuideFlagRenderItem,
 ) {
   const geometry = input.geometry
   const pageWidth = context.pageSize.widthPx
@@ -1128,21 +1124,31 @@ function drawFlagLabel(
   const anchorY = offsetY + geometry.anchorY * pageHeight
   const labelBottomY = offsetY + geometry.labelBottomY * pageHeight
   const labelAttachX = geometry.labelAttachX * pageWidth
-  const labelX = geometry.labelX * pageWidth
-  const labelY = offsetY + geometry.labelY * pageHeight
-  const labelW = geometry.labelWidth * pageWidth
-  const labelH = geometry.labelHeight * pageHeight
-  const radius = Math.max(1, geometry.radiusX * pageWidth)
-
   ctx.strokeStyle = input.color
-  ctx.fillStyle = input.color
   ctx.lineWidth = Math.max(1, geometry.connectorStrokeWidth * pageHeight)
   ctx.beginPath()
   ctx.moveTo(anchorX, anchorY)
   ctx.lineTo(anchorX, labelBottomY)
   ctx.lineTo(labelAttachX, labelBottomY)
   ctx.stroke()
+}
 
+function drawFlagBody(
+  ctx: CanvasRenderingContext2D,
+  context: SheetExportLayerContext,
+  offsetY: number,
+  input: StackGuideFlagRenderItem,
+) {
+  const geometry: FlagLabelGeometry = input.geometry
+  const pageWidth = context.pageSize.widthPx
+  const pageHeight = context.pageSize.heightPx
+  const labelX = geometry.labelX * pageWidth
+  const labelY = offsetY + geometry.labelY * pageHeight
+  const labelW = geometry.labelWidth * pageWidth
+  const labelH = geometry.labelHeight * pageHeight
+  const radius = Math.max(1, geometry.radiusX * pageWidth)
+
+  ctx.fillStyle = input.color
   roundedRectPath(ctx, labelX, labelY, labelW, labelH, radius)
   ctx.fill()
   ctx.fillStyle = '#ffffff'

@@ -6,7 +6,7 @@ import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
 import { ASSET_DRAG_MIME } from './sheetConstants';
-import { clickActiveStackGuideInsertHandle, clickSheet, clickTemplateFrame, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
 
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
@@ -34,15 +34,38 @@ it('renders the main workspace shell', () => {
     expect(screen.queryByRole('tablist', { name: uiText.sheet.sideDock })).toBeNull()
   })
 
-it('shows Editor-specific help instead of the Remap workflow', () => {
+  it('shows Editor-specific help instead of the Remap workflow', () => {
     render(<EditorApp />)
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
 
     const dialog = screen.getByRole('dialog', { name: 'xsheet-editorの使い方' })
+    expect(within(dialog).getByRole('tab', { name: 'クイックガイド' }).getAttribute('aria-selected')).toBe('true')
+    expect(within(dialog).getByRole('tab', { name: '詳しい使い方' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'デジタルタイムシートを作成・保存する' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: '紙タイムシートを下絵に使う（任意）' })).toBeTruthy()
     expect(within(dialog).getByText(/この下絵補正はOCRを使わず/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
+  })
+
+  it('opens the chapter-based Editor manual from help', () => {
+    render(<EditorApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'xsheet-editorの使い方' })
+    fireEvent.click(within(dialog).getByRole('tab', { name: '詳しい使い方' }))
+
+    expect(within(dialog).getByRole('tab', { name: '詳しい使い方' }).getAttribute('aria-selected')).toBe('true')
+    expect(within(dialog).getByRole('navigation', { name: '詳しい使い方の目次' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: '画面の見方' })).toBeTruthy()
+    expect(within(dialog).getByText('全13章')).toBeTruthy()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /04\s*ACTION・CELL入力/ }))
+    expect(within(dialog).getByRole('heading', { name: 'ACTION・CELL入力' })).toBeTruthy()
+    expect(within(dialog).getByText('フレーム挿入・削除')).toBeTruthy()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /12\s*読み込みと書き出し/ }))
+    expect(within(dialog).getByRole('heading', { name: '読み込みと書き出し' })).toBeTruthy()
+    expect(within(dialog).getByText('CSP自動登録データ')).toBeTruthy()
   })
 
 it('keeps Remap-specific CSP help in the Remap app', () => {
@@ -50,6 +73,7 @@ it('keeps Remap-specific CSP help in the Remap app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
 
     const dialog = screen.getByRole('dialog', { name: 'xsheet-remapの使い方' })
+    expect(within(dialog).queryByRole('tab', { name: '詳しい使い方' })).toBeNull()
     expect(within(dialog).getByRole('heading', { name: '必ず先に準備すること' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'CSP組み込み用シートを作る' })).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: 'デジタルタイムシートを作成・保存する' })).toBeNull()
@@ -111,7 +135,8 @@ it('adds an empty paper track and a material-unassigned card from the CSP layer 
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'セル列を追加' }))
+    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByRole('button', { name: '追加セル列' }))
     await clickActiveStackGuideInsertHandle(templateStackGuideHeaderPoint('action', 3))
     fireEvent.change(screen.getByLabelText(uiText.sheet.addOverlayTrackName), { target: { value: 'J' } })
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
@@ -124,7 +149,10 @@ it('adds an empty paper track and a material-unassigned card from the CSP layer 
       .find(track => track.querySelector<HTMLElement>('.cspTreeTrackName')?.textContent === 'J')
     expect(emptyTrack?.querySelector('.cspTreeNoCels')?.textContent).toBe('カードなし')
 
-    fireEvent.click(screen.getByRole('button', { name: 'J（作画）にセルを追加' }))
+    const jRow = cspPaneTrackRow('J', '作画')
+    fireEvent.click(jRow)
+    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByRole('button', { name: '登録セル' }))
     const cspNameInput = screen.getByLabelText('J（作画）に追加するCSPセル名') as HTMLInputElement
     expect(cspNameInput.value).toBe('J_01')
     fireEvent.click(screen.getByRole('button', { name: 'セルを追加' }))
@@ -143,7 +171,8 @@ it('keeps the selected correction layer when placing a BG or BOOK track from the
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
-    fireEvent.click(screen.getByLabelText('演出にトラックを追加'))
+    fireEvent.click(screen.getByText('演出', { selector: '.cspTreeSummaryLabel' }))
+    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
     await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
     const activeTarget = document.querySelector<HTMLElement>('.stackGuideGap.insertToolActive')
@@ -280,7 +309,7 @@ it('keeps CSP track order and names synchronized with the paper sheet', async ()
     }
     expect(columnX('A')).toBeLessThan(columnX('B'))
 
-    fireEvent.click(screen.getByRole('button', { name: '全工程のAをCSPで上へ（シートで右へ）' }))
+    dragCspPaneRow(cspPaneTrackRow('A', '作画'), cspPaneTrackRow('B', '作画'), 'before')
     await waitFor(() => {
       expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).map(label => label.textContent))
         .toEqual(['A', 'B'])
@@ -1166,7 +1195,7 @@ it('auto-scrolls the sheet viewport while dragging a registered asset near the e
     expect(viewport.scrollTop).toBeGreaterThan(100)
   })
 
-it('deletes a registered cell from the registered cell pane', async () => {
+it('deletes a selected registered cell from the fixed pane footer and restores it with undo', async () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -1178,14 +1207,17 @@ it('deletes a registered cell from the registered cell pane', async () => {
     const registeredCard = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
     if (!registeredCard) throw new Error('registered cell card not found')
     fireEvent.click(registeredCard)
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
 
-    expect(confirmSpy).toHaveBeenNthCalledWith(1, uiText.keys.deleteProcessCardConfirm('作画', 'A1'))
     await waitFor(() => expect(document.querySelector('.cspTreeCel.unregistered')).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: /1を削除$/ }))
-    expect(confirmSpy).toHaveBeenNthCalledWith(2, uiText.keys.deleteConfirm('1', 0, 1))
     await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id]')).toBeNull())
     expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    await waitFor(() => expect(document.querySelector('.cspTreeCel.unregistered')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    await waitFor(() => expect(document.querySelector('.cspTreeCel[data-csp-key-id]:not(.unregistered)')).toBeTruthy())
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
   })
 })

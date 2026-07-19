@@ -77,6 +77,48 @@ export function dragInternalPointer(
   else Reflect.deleteProperty(document, 'elementFromPoint')
 }
 
+export function cspPaneTrackRow(label: string, correctionLayerLabel?: string): HTMLElement {
+  const trackLabel = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
+    .find(candidate => candidate.textContent === label && (
+      !correctionLayerLabel
+      || candidate.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent?.includes(correctionLayerLabel)
+    ))
+  const row = trackLabel?.closest<HTMLElement>('.cspTreeTrackRow')
+  if (!row) throw new Error(`CSP pane track row not found: ${correctionLayerLabel ? `${correctionLayerLabel}/` : ''}${label}`)
+  return row
+}
+
+export function dragCspPaneRow(source: HTMLElement, target: HTMLElement, edge: 'before' | 'after' = 'before') {
+  const body = source.closest<HTMLElement>('.cspLayerTreeBody')
+  const scope = source.dataset.cspPaneReorderScope
+  if (!body || !scope || target.dataset.cspPaneReorderScope !== scope) throw new Error('CSP pane reorder rows are not in the same scope')
+  const rows = Array.from(body.querySelectorAll<HTMLElement>('[data-csp-pane-reorder-id][data-csp-pane-reorder-scope]'))
+    .filter(row => row.dataset.cspPaneReorderScope === scope)
+  setElementRect(body, 0, 0, 320, Math.max(120, rows.length * 40 + 20))
+  rows.forEach((row, index) => setElementRect(row, 10, 10 + index * 40, 300, 30))
+  const targetRect = target.getBoundingClientRect()
+  dragInternalPointer(source, target, {
+    fromX: 120,
+    fromY: source.getBoundingClientRect().top + 15,
+    toX: 120,
+    toY: edge === 'before' ? targetRect.top + 2 : targetRect.bottom - 2,
+  })
+}
+
+function setElementRect(element: HTMLElement, left: number, top: number, width: number, height: number) {
+  element.getBoundingClientRect = () => ({
+    x: left,
+    y: top,
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    toJSON: () => ({}),
+  })
+}
+
 export function clickTemplateFrame(sheet: HTMLElement, role: SheetTimingRole, paperTrack: string, frame: number) {
   const point = templateFramePoint(role, paperTrack, frame)
   clickSheet(sheet, point.x, point.y)
@@ -138,13 +180,22 @@ export function templateStackGuideBodySnapPoint(role: SheetTimingRole, snapIndex
 }
 
 export function stackGuideConnectorAnchorX(labelText: string): number {
+  const path = stackGuideConnectorPath(labelText)
+  const match = /^M\s+(-?\d+(?:\.\d+)?)/.exec(path)
+  if (!match) throw new Error(`stack guide connector path not found: ${labelText}`)
+  return Number(match[1])
+}
+
+export function stackGuideConnectorPath(labelText: string): string {
   const label = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
     .find(item => item.textContent === labelText)
   if (!label) throw new Error(`stack guide label not found: ${labelText}`)
-  const connector = label.querySelector<SVGPathElement>('.stackGuideSvgConnector')
-  const match = /^M\s+(-?\d+(?:\.\d+)?)/.exec(connector?.getAttribute('d') ?? '')
-  if (!match) throw new Error(`stack guide connector path not found: ${labelText}`)
-  return Number(match[1])
+  const labelId = label.dataset.stackGuideLabelId
+  const connector = Array.from(document.querySelectorAll<SVGPathElement>('.stackGuideSvgConnector'))
+    .find(item => item.dataset.stackGuideLabelId === labelId)
+  const path = connector?.getAttribute('d')
+  if (!path) throw new Error(`stack guide connector path not found: ${labelText}`)
+  return path
 }
 
 export function openStackGuideInsertMenu(sheet: HTMLElement, role: SheetTimingRole, gapIndex: number) {
@@ -159,17 +210,25 @@ export async function clickActiveStackGuideInsertHandle(point: { x: number; y: n
   fireEvent.click(activeHandle, { clientX: point.x, clientY: point.y })
 }
 
-export function dragStackGuideSvgLabel(labelText: string, targetRole: SheetTimingRole, targetGapIndex: number) {
-  const source = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
+export function dragStackGuideSvgLabel(
+  labelText: string,
+  targetRole: SheetTimingRole,
+  targetGapIndex: number,
+  onPreview?: () => void,
+) {
+  const svgLabel = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
     .find(label => label.textContent === labelText)
-  if (!source) throw new Error(`stack guide SVG label not found: ${labelText}`)
+  if (!svgLabel) throw new Error(`stack guide SVG label not found: ${labelText}`)
+  const source = document.querySelector<HTMLButtonElement>(`.stackGuideLabelDragHandle[data-stack-guide-label-id="${svgLabel.dataset.stackGuideLabelId}"]`)
+  if (!source) throw new Error(`stack guide label drag handle not found: ${labelText}`)
   source.setPointerCapture = vi.fn()
   source.releasePointerCapture = vi.fn()
   source.hasPointerCapture = () => true
   const target = templateStackGuideHeaderPoint(targetRole, targetGapIndex)
   fireEvent.pointerDown(source, { pointerId: 41, pointerType: 'mouse', button: 0, buttons: 1, clientX: target.x - 80, clientY: target.y - 80 })
-  fireEvent.pointerMove(source, { pointerId: 41, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
-  fireEvent.pointerUp(source, { pointerId: 41, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
+  fireEvent.pointerMove(window, { pointerId: 41, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
+  onPreview?.()
+  fireEvent.pointerUp(window, { pointerId: 41, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
 }
 
 export function switchSharedCutByLabel(label: string) {

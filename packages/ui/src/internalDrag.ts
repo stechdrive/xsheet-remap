@@ -5,6 +5,14 @@ export type InternalDragPayload =
   | { kind: 'asset'; assetIds: string[] }
   | { kind: 'registered-cell'; keyId: string; sourceSlotId?: string }
   | { kind: 'stack-guide'; labelId: string }
+  | {
+      kind: 'csp-pane-node'
+      nodeId: string
+      nodeKind: 'production-stage' | 'correction-layer' | 'template-track' | 'overlay-track' | 'stack-guide'
+      reorderId: string
+      reorderScope: string
+      stackGuideLabelId?: string
+    }
 
 export type InternalDragPhase = 'start' | 'move' | 'drop' | 'cancel'
 export type InternalDragDropValidity = 'valid' | 'invalid' | null
@@ -105,6 +113,7 @@ export function startInternalPointerDrag(
     window.removeEventListener('pointerup', handleStop)
     window.removeEventListener('pointercancel', handleCancel)
     window.removeEventListener('blur', handleWindowBlur)
+    window.removeEventListener('keydown', handleKeyDown, true)
     try {
       if (source.hasPointerCapture?.(pointerId)) source.releasePointerCapture?.(pointerId)
     } catch {
@@ -191,10 +200,18 @@ export function startInternalPointerDrag(
     finish('cancel', lastX, lastY)
   }
 
+  function handleKeyDown(keyEvent: globalThis.KeyboardEvent) {
+    if (keyEvent.key !== 'Escape' || !payload) return
+    keyEvent.preventDefault()
+    keyEvent.stopPropagation()
+    finish('cancel', lastX, lastY)
+  }
+
   window.addEventListener('pointermove', handleMove)
   window.addEventListener('pointerup', handleStop)
   window.addEventListener('pointercancel', handleCancel)
   window.addEventListener('blur', handleWindowBlur)
+  window.addEventListener('keydown', handleKeyDown, true)
   return true
 }
 
@@ -250,5 +267,6 @@ function normalizeInternalDragPayload(payload: InternalDragPayload | null): Inte
     return assetIds.length > 0 ? { kind: 'asset', assetIds } : null
   }
   if (payload.kind === 'registered-cell') return payload.keyId ? payload : null
-  return payload.labelId ? payload : null
+  if (payload.kind === 'stack-guide') return payload.labelId ? payload : null
+  return payload.nodeId && payload.reorderId && payload.reorderScope ? payload : null
 }

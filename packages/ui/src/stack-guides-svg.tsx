@@ -2,14 +2,15 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'rea
 import { type CutProject, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, stackGuideStackBand, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { SheetSvgText } from './SheetSvgText'
-import { StackGuideLabelUpdates } from './app-foundation'
-import { stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
+import { StackGuideDropPreviewState, StackGuideLabelUpdates } from './app-foundation'
+import { stackGuideAnchorRegions, stackGuideLabelsForPreview, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { stackGuidePlacementUpdateFromPointer } from './stack-guides-interaction'
 
 export function StackGuideSvgLayer({
   project,
   template,
   page,
+  dropPreview,
   onUpdateLabel,
   onPreviewPlacement,
   onClearPreview,
@@ -17,6 +18,7 @@ export function StackGuideSvgLayer({
   project: CutProject
   template: SheetTemplate
   page: SheetPage
+  dropPreview?: StackGuideDropPreviewState | null
   onUpdateLabel?: (labelId: string, updates: StackGuideLabelUpdates) => void
   onPreviewPlacement?: (labelId: string, clientX: number, clientY: number) => void
   onClearPreview?: () => void
@@ -38,6 +40,10 @@ export function StackGuideSvgLayer({
     paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
     layoutOverrides: project.sheetView.layoutOverrides,
   })
+  const previewLabels = stackGuideLabelsForPreview(project, dropPreview)
+  const displayProject = previewLabels === project.stackGuideLabels
+    ? project
+    : { ...project, stackGuideLabels: previewLabels }
 
   const setCurrentDragState = useCallback((next: LabelDragState | null) => {
     dragStateRef.current = next
@@ -130,82 +136,98 @@ export function StackGuideSvgLayer({
     return finishLabelDragFromPoint(event.pointerId, event.clientX, event.clientY, event.currentTarget.ownerSVGElement)
   }
 
+  const renderItems = anchorRegions.flatMap(region => {
+    const displayRole = region.grid?.role as SheetTimingRole
+    const layout = resolveSheetTemplateGridLayout(template, region, {
+      paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
+      durationFrames: displayDurationFrames,
+      layoutOverrides: project.sheetView.layoutOverrides,
+    })
+    const columns = layout?.columns ?? []
+    const rect = layout?.rect ?? resolveSheetTemplateRegionRect(template, region, displayDurationFrames)
+    const labelsForRegion = displayProject.stackGuideLabels.filter(label => (label.displayRole ?? 'action') === displayRole && stackGuideStackBand(label) === 'cell-interleave')
+    const placementsByGap = stackGuidePlacementsByGap(template, displayProject, labelsForRegion, rect, pageSize, columns)
+
+    return Array.from(placementsByGap.values()).flatMap(placements => placements.map(({ label, lane }) => ({
+      key: `${region.regionId}-${label.labelId}`,
+      regionId: region.regionId,
+      displayRole,
+      label,
+      geometry: stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns),
+      className: [
+        'stackGuideLabel',
+        'stackGuideSvgLabel',
+        onUpdateLabel ? 'draggable' : '',
+        dragState?.labelId === label.labelId ? 'dragging' : '',
+        label.assetIds.length > 0 ? 'assigned' : '',
+      ].filter(Boolean).join(' '),
+    })))
+  })
+
   return (
     <g className="stackGuideSvgLayer">
-      {anchorRegions.map(region => {
-        const displayRole = region.grid?.role as SheetTimingRole
-        const layout = resolveSheetTemplateGridLayout(template, region, {
-          paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
-          durationFrames: displayDurationFrames,
-          layoutOverrides: project.sheetView.layoutOverrides,
-        })
-        const columns = layout?.columns ?? []
-        const rect = layout?.rect ?? resolveSheetTemplateRegionRect(template, region, displayDurationFrames)
-        const gapWidthPx = stackGuideGapWidthPx(template, rect, columns, pageSize.widthPx)
-        const labelsForRegion = project.stackGuideLabels.filter(label => (label.displayRole ?? 'action') === displayRole && stackGuideStackBand(label) === 'cell-interleave')
-        const placementsByGap = stackGuidePlacementsByGap(template, project, labelsForRegion, gapWidthPx, columns)
-
-        return Array.from(placementsByGap.values()).flatMap(placements => placements.map(({ label, lane }) => {
-          const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns)
-          const className = [
-            'stackGuideLabel',
-            'stackGuideSvgLabel',
-            onUpdateLabel ? 'draggable' : '',
-            dragState?.labelId === label.labelId ? 'dragging' : '',
-            label.assetIds.length > 0 ? 'assigned' : '',
-          ].filter(Boolean).join(' ')
-          return (
-            <g
-              key={`${region.regionId}-${label.labelId}`}
-              className={className}
-              data-stack-guide-role={displayRole}
-              data-stack-guide-label-id={label.labelId}
-              data-region-id={region.regionId}
-              aria-label={uiText.stackGuides.labelTitle(label.label, label.assetIds.length)}
-              onPointerDown={event => startLabelDrag(event, label)}
-              onPointerMove={updateLabelDrag}
-              onPointerUp={event => {
-                endLabelDrag(event, label)
-              }}
-              onPointerCancel={event => {
-                if (dragStateRef.current?.pointerId === event.pointerId) {
-                  setCurrentDragState(null)
-                  onClearPreview?.()
-                }
-              }}
-              onClick={event => {
-                event.preventDefault()
-                event.stopPropagation()
-              }}
+      <g className="stackGuideSvgConnectorLayer" aria-hidden="true">
+        {renderItems.map(({ key, label, geometry }) => (
+          <path
+            key={`${key}-connector`}
+            className="stackGuideSvgConnector"
+            data-stack-guide-label-id={label.labelId}
+            d={`M ${geometry.anchorX} ${geometry.anchorY} V ${geometry.labelBottomY} H ${geometry.labelAttachX}`}
+            strokeWidth={geometry.connectorStrokeWidth}
+          />
+        ))}
+      </g>
+      <g className="stackGuideSvgLabelLayer">
+        {renderItems.map(({ key, regionId, displayRole, label, geometry, className }) => (
+          <g
+            key={key}
+            className={className}
+            data-stack-guide-role={displayRole}
+            data-stack-guide-label-id={label.labelId}
+            data-region-id={regionId}
+            aria-label={uiText.stackGuides.labelTitle(label.label, label.assetIds.length)}
+            onPointerDown={event => startLabelDrag(event, label)}
+            onPointerMove={updateLabelDrag}
+            onPointerUp={event => {
+              endLabelDrag(event, label)
+            }}
+            onPointerCancel={event => {
+              if (dragStateRef.current?.pointerId === event.pointerId) {
+                setCurrentDragState(null)
+                onClearPreview?.()
+              }
+            }}
+            onClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+          >
+            {geometry.truncated && <title>{geometry.fullText}</title>}
+            <rect
+              className="stackGuideSvgLabelBox"
+              x={geometry.labelX}
+              y={geometry.labelY}
+              width={geometry.labelWidth}
+              height={geometry.labelHeight}
+              rx={geometry.radiusX}
+              ry={geometry.radiusY}
+            />
+            <SheetSvgText
+              className="stackGuideSvgLabelText"
+              x={geometry.labelTextX}
+              y={geometry.labelY + geometry.labelHeight / 2}
+              dy="0.08em"
+              textAnchor="start"
+              dominantBaseline="middle"
+              fontSizePx={geometry.fontSizePx}
+              pageSize={pageSize}
+              style={{ fontFamily: geometry.fontFamily, fontWeight: geometry.fontWeight }}
             >
-              {geometry.truncated && <title>{geometry.fullText}</title>}
-              <path className="stackGuideSvgConnector" d={`M ${geometry.anchorX} ${geometry.anchorY} V ${geometry.labelBottomY} H ${geometry.labelAttachX}`} strokeWidth={geometry.connectorStrokeWidth} />
-              <rect
-                className="stackGuideSvgLabelBox"
-                x={geometry.labelX}
-                y={geometry.labelY}
-                width={geometry.labelWidth}
-                height={geometry.labelHeight}
-                rx={geometry.radiusX}
-                ry={geometry.radiusY}
-              />
-              <SheetSvgText
-                className="stackGuideSvgLabelText"
-                x={geometry.labelTextX}
-                y={geometry.labelY + geometry.labelHeight / 2}
-                dy="0.08em"
-                textAnchor="start"
-                dominantBaseline="middle"
-                fontSizePx={geometry.fontSizePx}
-                pageSize={pageSize}
-                style={{ fontFamily: geometry.fontFamily, fontWeight: geometry.fontWeight }}
-              >
-                {geometry.displayText}
-              </SheetSvgText>
-            </g>
-          )
-        }))
-      })}
+              {geometry.displayText}
+            </SheetSvgText>
+          </g>
+        ))}
+      </g>
     </g>
   )
 }

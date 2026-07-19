@@ -1,1 +1,1 @@
-export { applyCellStackOrder, cellStackOrderItems, moveCellStackOrderItem, type CellStackOrderItem } from '@xsheet-remap/core'
+export { applyCellStackOrder, cellStackOrderItems, moveCellStackOrderItem, reorderCspStackItem, type CellStackOrderItem } from '@xsheet-remap/core'

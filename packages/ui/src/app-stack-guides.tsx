@@ -2,5 +2,5 @@ export { PaperTrackEditorPopover, exportPreviousPaperTrackName, defaultExportAft
 export { HoverCellOverlay, StackGuideOverlay } from './stack-guides-overlay'
 export { StackGuideSvgLayer } from './stack-guides-svg'
 export type { StackGuideLabelMetrics } from './stack-guides-geometry'
-export { STACK_GUIDE_MAX_LANE, OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, stackGuidePlacements, stackGuideLabelBottomPx, stackGuideNativeHeaderReachPx, stackGuideGapWidthPx, stackGuideLabelMetrics, estimatedLabelTextWidthPx, stackGuideSvgGeometry, stackGuideAnchorRegions } from './stack-guides-geometry'
+export { STACK_GUIDE_MAX_LANE, OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, stackGuidePlacements, stackGuideLabelBottomPx, stackGuideNativeHeaderReachPx, stackGuideLabelMetrics, estimatedLabelTextWidthPx, stackGuideSvgGeometry, stackGuideAnchorRegions } from './stack-guides-geometry'
 export { stackGuideInsertTargetFromPoint, stackGuidePlacementUpdateFromPointer, stackGuidePlacementTargetFromPointer } from './stack-guides-interaction'

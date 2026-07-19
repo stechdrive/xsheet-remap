@@ -4,7 +4,7 @@ import { standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
 import { defaultCalibrationPoints } from './sheetImages';
-import { clickActiveStackGuideInsertHandle, clickSheet, dragInternalPointer, dragStackGuideSvgLabel, enterTimingValue, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, dragStackGuideSvgLabel, enterTimingValue, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, stackGuideConnectorPath, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 describe('App: viewport and assets', () => {
 it('zooms the sheet with Ctrl+wheel and viewport controls', () => {
@@ -536,16 +536,11 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     expect(Array.from(document.querySelectorAll('.stackGuideLabel')).some(label => label.textContent === 'BOOK2,3')).toBe(true)
     expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BOOK2,3')
     expect(document.querySelector('.stackGuideSvgLabelText')?.getAttribute('transform')).toBe(`scale(${1 / standardA3SheetTemplate.page.widthPx} ${1 / standardA3SheetTemplate.page.heightPx})`)
+    const svgLayer = document.querySelector('.stackGuideSvgLayer')
+    expect(svgLayer?.firstElementChild?.getAttribute('class')).toBe('stackGuideSvgConnectorLayer')
+    expect(svgLayer?.lastElementChild?.getAttribute('class')).toBe('stackGuideSvgLabelLayer')
     expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).some(label => label.textContent === 'BOOK2,3')).toBe(true)
-    const bookGuideBeforeMove = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
-      .find(label => label.textContent === 'BOOK2,3')
-    const connectorBeforeMove = bookGuideBeforeMove?.querySelector('.stackGuideSvgConnector')?.getAttribute('d')
-    fireEvent.click(screen.getByRole('button', { name: '全工程のBOOK2,3をCSPで上へ（シートで右へ）' }))
-    await waitFor(() => {
-      const movedGuide = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
-        .find(label => label.textContent === 'BOOK2,3')
-      expect(movedGuide?.querySelector('.stackGuideSvgConnector')?.getAttribute('d')).not.toBe(connectorBeforeMove)
-    })
+    const connectorBeforeMove = stackGuideConnectorPath('BOOK2,3')
 
     openStackGuideInsertMenu(sheet, 'cell', 2)
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.add }))
@@ -554,6 +549,18 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="cell"]')?.textContent).toBe('BG'))
 
+    const bookRow = cspPaneTrackRow('BOOK2,3', '作画')
+    const bgRow = cspPaneTrackRow('BG', '作画')
+    const sameScopeRows = Array.from(document.querySelectorAll<HTMLElement>('[data-csp-pane-reorder-scope]'))
+      .filter(row => row.dataset.cspPaneReorderScope === bookRow.dataset.cspPaneReorderScope)
+    dragCspPaneRow(bookRow, bgRow, sameScopeRows.indexOf(bookRow) < sameScopeRows.indexOf(bgRow) ? 'after' : 'before')
+    await waitFor(() => {
+      const movedGuide = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
+        .find(label => label.textContent === 'BOOK2,3')
+      expect(movedGuide).toBeTruthy()
+      expect(stackGuideConnectorPath('BOOK2,3')).not.toBe(connectorBeforeMove)
+    })
+
     const assetInput = screen.getByLabelText(uiText.actions.addAssets)
     const file = new File(['book'], 'BOOK2_3.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(assetInput, { target: { files: [file] } })
@@ -561,7 +568,9 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
 
     const labelButton = Array.from(document.querySelectorAll('.stackGuideLabel')).find(label => label.textContent === 'BOOK2,3')
     if (!labelButton) throw new Error('stack guide label was not rendered')
-    dragInternalPointer(getAssetCardByName('BOOK2_3.png'), labelButton)
+    const labelHandle = document.querySelector<HTMLElement>(`.stackGuideLabelDragHandle[data-stack-guide-label-id="${(labelButton as HTMLElement).dataset.stackGuideLabelId}"]`)
+    if (!labelHandle) throw new Error('stack guide label interaction target was not rendered')
+    dragInternalPointer(getAssetCardByName('BOOK2_3.png'), labelHandle)
 
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')).toBeTruthy())
     const stackGuideCard = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
@@ -571,7 +580,7 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     expect(stackGuideCard.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('作画')
 
     const cellTarget = templateStackGuideHeaderPoint('cell', 4)
-    dragInternalPointer(stackGuideCard, sheet, { toX: cellTarget.x, toY: cellTarget.y })
+    dragInternalPointer(cspPaneTrackRow('BOOK2,3', '作画'), sheet, { toX: cellTarget.x, toY: cellTarget.y })
     await waitFor(() => expect(document.querySelectorAll('.stackGuideLabel').length).toBe(2))
     await waitFor(() => {
       const labels = Array.from(document.querySelectorAll('.stackGuideLabel')).map(label => `${label.getAttribute('data-stack-guide-role')}:${label.textContent}`).join(', ')
@@ -653,7 +662,11 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
       .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
 
-    dragStackGuideSvgLabel('BOOK-CUT', 'cell', 4)
+    const connectorBeforeDrag = stackGuideConnectorPath('BOOK-CUT')
+    dragStackGuideSvgLabel('BOOK-CUT', 'cell', 4, () => {
+      expect(document.querySelector('.stackGuideSvgLabel[data-stack-guide-role="cell"]')?.textContent).toBe('BOOK-CUT')
+      expect(stackGuideConnectorPath('BOOK-CUT')).not.toBe(connectorBeforeDrag)
+    })
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="cell"]')?.textContent).toBe('BOOK-CUT'))
 
     switchSharedCutByLabel('001')

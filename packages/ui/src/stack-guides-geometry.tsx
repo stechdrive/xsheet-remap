@@ -3,7 +3,15 @@ import { STANDARD_A3_GRID_HEADER_HEIGHT, STANDARD_A3_GRID_HEADER_TOP_OFFSET } fr
 import { clampNumber } from './sheetInteraction'
 import { compareStackGuideLabelsForUi } from './app-foundation'
 import { overlayBandSegments } from './app-sheet-geometry'
-import { auxiliaryLabelBottomPx, auxiliaryLabelHeaderReachPx, auxiliaryLabelMetrics, auxiliaryLabelTextLayout, type AuxiliaryLabelMetrics } from './auxiliary-label-layout'
+import { auxiliaryLabelBottomPx, auxiliaryLabelHeaderReachPx, auxiliaryLabelMaxWidthForPage, auxiliaryLabelMetrics, auxiliaryLabelRangesOverlap, auxiliaryLabelTextLayout, type AuxiliaryLabelMetrics } from './auxiliary-label-layout'
+
+type StackGuidePreviewPlacement = {
+  labelId?: string
+  displayRole: SheetTimingRole
+  gapIndex: number
+  insertAfterPaperTrack?: string
+  snapIndex: number
+}
 
 export type { AuxiliaryLabelMetrics as StackGuideLabelMetrics } from './auxiliary-label-layout'
 export { estimatedLabelTextWidthPx } from './auxiliary-label-layout'
@@ -29,6 +37,33 @@ export function stackGuideVisibleSnapIndex(label: StackGuideLabel, columns: Arra
   return clampNumber(Math.round(label.gapIndex) + 1, 0, columns.length + 1)
 }
 
+/**
+ * Produces the temporary label model used by both the SVG and its HTML hit
+ * targets while a label is being dragged. Keeping this in the shared geometry
+ * path prevents the visible flag and the clickable flag from drifting apart.
+ */
+export function stackGuideLabelsForPreview(
+  project: CutProject,
+  preview?: StackGuidePreviewPlacement | null,
+): StackGuideLabel[] {
+  if (!preview?.labelId || !project.stackGuideLabels.some(label => label.labelId === preview.labelId)) {
+    return project.stackGuideLabels
+  }
+  const nextOrderInGap = project.stackGuideLabels
+    .filter(label => label.labelId !== preview.labelId && (label.displayRole ?? 'action') === preview.displayRole)
+    .reduce((max, label) => Math.max(max, label.orderInGap), -1) + 1
+  return project.stackGuideLabels.map(label => label.labelId === preview.labelId
+    ? {
+        ...label,
+        displayRole: preview.displayRole,
+        gapIndex: preview.gapIndex,
+        insertAfterPaperTrack: preview.insertAfterPaperTrack,
+        viewSnapIndex: preview.snapIndex,
+        orderInGap: nextOrderInGap,
+      }
+    : label)
+}
+
 const STACK_GUIDE_EDITOR_BASE_HEIGHT_PX = 24
 
 const STACK_GUIDE_EDITOR_LANE_HEIGHT_PX = 20
@@ -48,12 +83,22 @@ export const OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS = 650
 interface StackGuidePlacement {
   label: StackGuideLabel
   gapIndex: number
-  widthInGaps: number
+  leftPx: number
+  rightPx: number
   lane: number
 }
 
-export function stackGuidePlacementsByGap(template: SheetTemplate, project: CutProject, labels: StackGuideLabel[], gapWidthPx: number, columns?: Array<{ paperTrack?: string }>) {
-  const placements = stackGuidePlacements(template, project, labels, gapWidthPx, columns)
+type StackGuideColumn = { paperTrack?: string; x?: number; w?: number }
+
+export function stackGuidePlacementsByGap(
+  template: SheetTemplate,
+  project: CutProject,
+  labels: StackGuideLabel[],
+  rect: NormalizedRect,
+  pageSize: { widthPx: number; heightPx: number },
+  columns: StackGuideColumn[] = [],
+) {
+  const placements = stackGuidePlacements(template, project, labels, rect, pageSize, columns)
   const byGap = new Map<number, StackGuidePlacement[]>()
   for (const placement of placements) {
     const gapPlacements = byGap.get(placement.gapIndex) ?? []
@@ -66,20 +111,31 @@ export function stackGuidePlacementsByGap(template: SheetTemplate, project: CutP
   return byGap
 }
 
-export function stackGuidePlacements(template: SheetTemplate, project: CutProject, labels: StackGuideLabel[], gapWidthPx: number, columns?: Array<{ paperTrack?: string }>): StackGuidePlacement[] {
+export function stackGuidePlacements(
+  template: SheetTemplate,
+  project: CutProject,
+  labels: StackGuideLabel[],
+  rect: NormalizedRect,
+  pageSize: { widthPx: number; heightPx: number },
+  columns: StackGuideColumn[] = [],
+): StackGuidePlacement[] {
   const placed: StackGuidePlacement[] = []
   for (const label of [...labels].sort(compareStackGuidePlacementPriority(project))) {
     const gapIndex = stackGuideVisibleGapIndex(project, label, columns)
     if (gapIndex === null) continue
-    const widthInGaps = stackGuideLabelWidthInGaps(template, label, gapWidthPx)
+    const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, 0, columns)
+    const range = {
+      leftPx: geometry.labelX * pageSize.widthPx,
+      rightPx: (geometry.labelX + geometry.labelWidth) * pageSize.widthPx,
+    }
     let lane = 0
     while (
       lane < STACK_GUIDE_MAX_LANE
-      && placed.some(candidate => candidate.lane === lane && stackGuidePlacementsOverlap({ gapIndex, widthInGaps }, candidate))
+      && placed.some(candidate => candidate.lane === lane && auxiliaryLabelRangesOverlap(range, candidate))
     ) {
       lane += 1
     }
-    placed.push({ label, gapIndex, widthInGaps, lane })
+    placed.push({ label, gapIndex, ...range, lane })
   }
   return placed
 }
@@ -93,17 +149,6 @@ function compareStackGuidePlacementPriority(project: CutProject) {
   const fallback = compareStackGuideLabelsForUi(project)
   return (a: StackGuideLabel, b: StackGuideLabel): number =>
     fallback(a, b)
-}
-
-function stackGuideLabelWidthInGaps(template: SheetTemplate, label: StackGuideLabel, gapWidthPx: number) {
-  return stackGuideLabelWidthPx(label, stackGuideLabelMetrics(template)) / gapWidthPx
-}
-
-function stackGuidePlacementsOverlap(
-  a: Pick<StackGuidePlacement, 'gapIndex' | 'widthInGaps'>,
-  b: Pick<StackGuidePlacement, 'gapIndex' | 'widthInGaps'>,
-) {
-  return Math.abs(a.gapIndex - b.gapIndex) < (a.widthInGaps + b.widthInGaps) / 2 + 0.18
 }
 
 export function stackGuideGuideHeightPx(maxLane: number) {
@@ -151,25 +196,16 @@ export function stackGuideNativeHeaderReachPx(template: SheetTemplate, rect: Nor
   return stackGuideHeaderReachPx(template, rect, pageSize.heightPx)
 }
 
-export function stackGuideGapWidthPx(template: SheetTemplate, rect: NormalizedRect, columns?: Array<{ paperTrack?: string; w?: number }>, pageWidthPx = template.page.widthPx) {
-  const columnCount = Math.max(1, columns?.length ?? 1)
-  const averageColumnWidth = columns?.length && columns.every(column => typeof column.w === 'number')
-    ? columns.reduce((total, column) => total + (column.w ?? 0), 0) / columns.length
-    : rect.w / columnCount
-  return Math.max(1, averageColumnWidth * pageWidthPx)
-}
-
 export function stackGuideLabelMetrics(template: SheetTemplate): AuxiliaryLabelMetrics {
   return auxiliaryLabelMetrics(template, 'stack-guide')
 }
 
-function stackGuideLabelWidthPx(label: Pick<StackGuideLabel, 'label'>, metrics: AuxiliaryLabelMetrics) {
-  return auxiliaryLabelTextLayout(label.label, metrics, DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX).labelWidthPx
-}
-
-export function stackGuideSvgGeometry(template: SheetTemplate, rect: NormalizedRect, pageSize: { widthPx: number; heightPx: number }, label: StackGuideLabel, lane: number, columns: Array<{ paperTrack?: string; x?: number; w?: number }> = []) {
+export function stackGuideSvgGeometry(template: SheetTemplate, rect: NormalizedRect, pageSize: { widthPx: number; heightPx: number }, label: StackGuideLabel, lane: number, columns: StackGuideColumn[] = []) {
   const metrics = stackGuideLabelMetrics(template)
-  const textLayout = auxiliaryLabelTextLayout(label.label, metrics, DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX)
+  const textLayout = auxiliaryLabelTextLayout(label.label, metrics, {
+    extraWidthPx: DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX,
+    maxLabelWidthPx: auxiliaryLabelMaxWidthForPage(metrics, pageSize.widthPx),
+  })
   const snapIndex = stackGuideVisibleSnapIndex(label, columns)
   const anchorX = stackGuideSnapX(rect, columns, snapIndex)
   const anchorY = rect.y
@@ -181,7 +217,7 @@ export function stackGuideSvgGeometry(template: SheetTemplate, rect: NormalizedR
   const labelBottomOffset = (stackGuideNativeHeaderReachPx(template, rect, pageSize) + stackGuideLabelBottomPx(template, lane)) / pageSize.heightPx
   const desiredLabelX = anchorX + labelPoleGap
   const labelX = clampNumber(desiredLabelX, pageMargin, 1 - pageMargin - labelWidth)
-  const labelAttachX = labelX >= anchorX ? labelX : labelX + labelWidth
+  const labelAttachX = clampNumber(anchorX, labelX, labelX + labelWidth)
   const labelBottomY = anchorY - labelBottomOffset
   const labelY = labelBottomY - labelHeight
   return {

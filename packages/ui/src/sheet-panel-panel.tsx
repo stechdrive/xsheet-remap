@@ -192,7 +192,10 @@ export function SheetPanel(props: {
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   onApplyNameNormalization: (plan: NameNormalizationPlan) => Promise<void>
   onAssignAssetToKey: (assetId: string, keyId: string, target?: { position?: { x: number; y: number }; slotId?: string }) => void
-  onMoveCspStackItem: (itemId: string, direction: 'up' | 'down') => void
+  onReorderCspStackItem: (itemId: string, referenceItemId: string, edge: 'before' | 'after') => void
+  onReorderProductionStage: (stageId: string, referenceStageId: string, edge: 'before' | 'after') => void
+  onReorderCorrectionLayer: (layerId: string, referenceLayerId: string, edge: 'before' | 'after') => void
+  onDeleteCorrectionLayer: (layerId: string) => void
 }) {
   const activePage = props.sheetPages[props.activePageIndex] ?? props.sheetPages[0]
   const [paneLayout, setPaneLayout] = useState<SheetPaneLayout>(() => initialSheetPaneLayout(props.appKind, props.collapseEditorPanes))
@@ -985,8 +988,12 @@ export function SheetPanel(props: {
               onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
               onUpdateStackGuideLabel={props.onUpdateStackGuideLabel}
               onDeleteStackGuideLabel={props.onDeleteStackGuideLabel}
+              onDeleteOverlayPaperTrack={props.onDeleteOverlayPaperTrack}
+              onDeleteCorrectionLayer={props.onDeleteCorrectionLayer}
               onRenamePaperTrack={(paperTrack, name) => props.onUpdatePaperTrack(paperTrack, { paperTrack: name, label: name })}
-              onMoveStackItem={props.onMoveCspStackItem}
+              onReorderStackItem={props.onReorderCspStackItem}
+              onReorderProductionStage={props.onReorderProductionStage}
+              onReorderCorrectionLayer={props.onReorderCorrectionLayer}
               onAssignAsset={(assetId, keyId, slotId) => props.onAssignAssetToKey(assetId, keyId, { slotId })}
               onAssignAssetsToStackGuideLabel={props.onAssignAssetsToStackGuideLabel}
               onRegisterAssetsToTrack={props.onRegisterAssetsToCspTrack}

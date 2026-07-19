@@ -5,7 +5,7 @@ import { gridRowLineClassName } from './templateEditorGeometry'
 import { TooltipTarget } from './Tooltip'
 import { SheetSvgText } from './SheetSvgText'
 import { StatusHintSource } from './app-foundation'
-import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuidePlacements, stackGuideSvgGeometry } from './app-stack-guides'
+import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuidePlacements, stackGuideSvgGeometry } from './app-stack-guides'
 import { overlaySnapIndexFromPoint, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 import { overlayColumnRectForPage } from './sheet-layers-hit-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
@@ -264,7 +264,6 @@ interface LabelLaneOccupancy {
   leftPx: number
   rightPx: number
   lane: number
-  source: 'stack-guide' | 'overlay-track'
 }
 
 function overlayPaperTrackRenderItems(
@@ -297,15 +296,13 @@ function overlayPaperTrackRenderItems(
         if (!layout || layout.columns.length === 0) return []
         const rect = layout.rect
         const columns = layout.columns
-        const gapWidthPx = stackGuideGapWidthPx(template, rect, columns, pageSize.widthPx)
         const labelsForRegion = project.stackGuideLabels.filter(label => (label.displayRole ?? 'action') === anchorRegion.grid?.role && stackGuideStackBand(label) === 'cell-interleave')
-        return stackGuidePlacements(template, project, labelsForRegion, gapWidthPx, columns).map(({ label, lane }) => {
+        return stackGuidePlacements(template, project, labelsForRegion, rect, pageSize, columns).map(({ label, lane }) => {
           const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns)
           return {
             leftPx: geometry.labelX * pageSize.widthPx,
             rightPx: (geometry.labelX + geometry.labelWidth) * pageSize.widthPx,
             lane,
-            source: 'stack-guide' as const,
           }
         })
       })
@@ -329,8 +326,7 @@ function overlayPaperTrackRenderItems(
     if (!layout || layout.columns.length === 0) return []
     const rect = layout.rect
     const occupied = occupiedLanesForRegion(region)
-    const highestStackGuideLane = occupied.reduce((highest, candidate) => candidate.source === 'stack-guide' ? Math.max(highest, candidate.lane) : highest, -1)
-    let lane = highestStackGuideLane >= 0 ? Math.min(highestStackGuideLane + 1, STACK_GUIDE_MAX_LANE) : 0
+    let lane = 0
     let label = overlayAuxiliaryLabelGeometry(template, rect, pageSize, renderedTrack, column, lane, STACK_GUIDE_MAX_LANE)
     while (
       lane < STACK_GUIDE_MAX_LANE
@@ -339,7 +335,7 @@ function overlayPaperTrackRenderItems(
       lane += 1
       label = overlayAuxiliaryLabelGeometry(template, rect, pageSize, renderedTrack, column, lane, STACK_GUIDE_MAX_LANE)
     }
-    occupied.push({ ...auxiliaryLabelRangePx(label, pageSize.widthPx), lane, source: 'overlay-track' })
+    occupied.push({ ...auxiliaryLabelRangePx(label, pageSize.widthPx), lane })
     return [{
       track,
       renderedTrack,

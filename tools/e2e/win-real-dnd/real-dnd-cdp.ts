@@ -445,6 +445,155 @@ async function runRemapRealDndScenario(): Promise<void> {
   await realKeyPress('{SPACE}', true)
   await waitForPaneExpanded('sheet-left-pane', true)
   checks.push('closed the CSP layer pane with the real mouse and reopened it with real keyboard input')
+
+  await runCspPaneRefactorScenario()
+}
+
+async function runCspPaneRefactorScenario(): Promise<void> {
+  const createdLabel = 'BG_FOOTER_LONG_REFERENCE_02'
+  const renamedLabel = 'BOOK_FOOTER_LONG_REFERENCE_03'
+  await verifyFixedCspPaneFooter()
+  checks.push('kept the CSP layer operation footer fixed while only the layer tree body scrolled')
+
+  await createStackGuideFromCspPaneFooter('作画', 'action', 3, createdLabel)
+  await waitForStackGuideLabelRole(createdLabel, 'action')
+  await dragAssetToCspTrack('A2.png', createdLabel)
+  await waitForCspTrackAssigned(createdLabel)
+  checks.push('created a long BG/BOOK label from the fixed footer and assigned a real image asset')
+
+  await swapCspPaneTrackWithRealMouse(createdLabel, 'BG1')
+  checks.push('reordered CSP pane tracks with the real mouse and observed the insertion line before drop')
+
+  await renameCspPaneTrackWithRealMouse(createdLabel, renamedLabel)
+  await waitForStackGuideLabelRole(renamedLabel, 'action')
+  checks.push('renamed the selected auxiliary track with the real mouse and keyboard without truncating its sheet label')
+
+  const paneTrackClient = await cspTrackRowPoint(renamedLabel)
+  const sheetTargetClient = await stackGuideHeaderPoint('cell', 4)
+  await realMouseDrag(await clientToScreen(paneTrackClient), await clientToScreen(sheetTargetClient))
+  await waitForStackGuideLabelRole(renamedLabel, 'cell')
+  await waitForNoStackGuideLabelRole(renamedLabel, 'action')
+  checks.push('dragged the CSP pane track itself onto the sheet and verified its insertion placement moved')
+
+  await deleteSelectedCspPaneTrackAndUndo(renamedLabel)
+  await waitForStackGuideLabelRole(renamedLabel, 'cell')
+  checks.push('deleted the selected track from the fixed footer and restored it through application Undo')
+  await captureScreenshot('remap-csp-pane-refactor-after')
+}
+
+async function verifyFixedCspPaneFooter(): Promise<void> {
+  const geometry = await evaluatePage<{
+    beforeTop: number
+    afterTop: number
+    paneBottom: number
+    footerBottom: number
+    scrollable: boolean
+  }>(`
+    (() => {
+      const pane = document.querySelector('.cspLayerTree');
+      const body = document.querySelector('.cspLayerTreeBody');
+      const footer = document.querySelector('.cspLayerTreeFooter');
+      if (!(pane instanceof HTMLElement) || !(body instanceof HTMLElement) || !(footer instanceof HTMLElement)) {
+        throw new Error('CSP pane layout elements not found');
+      }
+      const beforeTop = footer.getBoundingClientRect().top;
+      const scrollable = body.scrollHeight > body.clientHeight;
+      body.scrollTop = body.scrollHeight;
+      const afterTop = footer.getBoundingClientRect().top;
+      const paneRect = pane.getBoundingClientRect();
+      const footerRect = footer.getBoundingClientRect();
+      return { beforeTop, afterTop, paneBottom: paneRect.bottom, footerBottom: footerRect.bottom, scrollable };
+    })()
+  `)
+  diagnostics.cspPaneFooterGeometry = geometry
+  if (Math.abs(geometry.beforeTop - geometry.afterTop) > 1 || geometry.footerBottom > geometry.paneBottom + 1) {
+    throw new Error(`CSP pane footer moved with the scroll body: ${JSON.stringify(geometry)}`)
+  }
+}
+
+async function createStackGuideFromCspPaneFooter(
+  correctionLayerLabel: string,
+  role: SheetTimingRole,
+  gapIndex: number,
+  label: string,
+): Promise<void> {
+  await stackGuideHeaderPoint(role, gapIndex)
+  await realMouseClick(await clientToScreen(await cspSummaryLabelPoint(correctionLayerLabel)))
+  await realMouseClick(await clientToScreen(await elementCenterPoint('[aria-label="選択位置に項目を追加"]')))
+  const menuPoint = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const button = Array.from(document.querySelectorAll('.cspPaneFooterAddMenu.actionMenuPortalContent button'))
+        .find(item => item.textContent?.trim() === 'BG／BOOK' && !item.disabled);
+      if (!button) return null;
+      const rect = button.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()
+  `)
+  if (!menuPoint) throw new Error('CSP pane BG/BOOK add command not found')
+  await realMouseClick(await clientToScreen(menuPoint), 'left', false)
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`Boolean(document.querySelector('.stackGuideGap.insertToolActive'))`),
+    'CSP pane BG/BOOK insertion mode',
+  )
+  await realMouseClick(await clientToScreen(await activeStackGuideInsertHandlePoint(role, gapIndex)))
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`document.activeElement?.matches('.stackGuideEditor input[name="stackGuideLabel"]') === true`),
+    'stack guide editor keyboard focus',
+  )
+  await realKeyPress(`^a${label}{ENTER}`, true)
+  await waitForCspTrack(label)
+}
+
+async function swapCspPaneTrackWithRealMouse(sourceLabel: string, referenceLabel: string): Promise<void> {
+  const before = await cspPaneTrackScopeOrder(sourceLabel)
+  const sourceIndex = before.indexOf(sourceLabel)
+  const referenceIndex = before.indexOf(referenceLabel)
+  if (sourceIndex < 0 || referenceIndex < 0) throw new Error(`CSP pane reorder fixture not found: ${before.join(', ')}`)
+  const edge: 'before' | 'after' = sourceIndex < referenceIndex ? 'after' : 'before'
+  const sourceClient = await cspTrackRowPoint(sourceLabel)
+  const targetClient = await cspTrackRowEdgePoint(referenceLabel, edge)
+  const sourceScreen = await clientToScreen(sourceClient)
+  const targetScreen = await clientToScreen(targetClient)
+  let mouseIsDown = false
+  try {
+    await runMouseOp(['mouse-down-screen', '--x', String(sourceScreen.x), '--y', String(sourceScreen.y), '--app-pid', args['app-pid'] as string])
+    mouseIsDown = true
+    await runMouseOp(['mouse-move-screen', '--x', String(targetScreen.x), '--y', String(targetScreen.y), '--duration', '0.8'])
+    await waitForPageCondition(
+      () => evaluatePage<boolean>(`Boolean(document.querySelector(${JSON.stringify(edge === 'before' ? '.cspPaneDropBefore' : '.cspPaneDropAfter')}))`),
+      `CSP pane ${edge} insertion line`,
+    )
+    await captureScreenshot('remap-csp-pane-reorder-line')
+  } finally {
+    if (mouseIsDown) await runMouseOp(['mouse-up-screen', '--x', String(targetScreen.x), '--y', String(targetScreen.y)])
+  }
+  await waitForPageCondition(async () => {
+    const after = await cspPaneTrackScopeOrder(sourceLabel)
+    const nextSource = after.indexOf(sourceLabel)
+    const nextReference = after.indexOf(referenceLabel)
+    return edge === 'before' ? nextSource < nextReference : nextSource > nextReference
+  }, `CSP pane reordered ${sourceLabel} ${edge} ${referenceLabel}`)
+}
+
+async function renameCspPaneTrackWithRealMouse(currentLabel: string, nextLabel: string): Promise<void> {
+  const point = await clientToScreen(await cspTrackNamePoint(currentLabel))
+  await realMouseClick(point)
+  await realMouseClick(point, 'left', false)
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`document.activeElement?.getAttribute('aria-label') === ${JSON.stringify(`${currentLabel}の追加トラック名`)}`),
+    `CSP pane rename input ${currentLabel}`,
+  )
+  await realKeyPress(`^a${nextLabel}{ENTER}`, true)
+  await waitForCspTrack(nextLabel)
+}
+
+async function deleteSelectedCspPaneTrackAndUndo(label: string): Promise<void> {
+  await realMouseClick(await clientToScreen(await cspTrackRowPoint(label)))
+  const deletePoint = await elementCenterPoint(`[aria-label=${JSON.stringify(`${label}を削除`)}]`)
+  await realMouseClick(await clientToScreen(deletePoint))
+  await waitForNoCspTrack(label)
+  await realMouseClick(await clientToScreen(await elementCenterPoint('[aria-label="元に戻す"]')))
+  await waitForCspTrack(label)
 }
 
 async function dragAssetToCspTrack(fileName: string, trackLabel: string): Promise<void> {
@@ -552,6 +701,107 @@ async function waitForCspTrackAssigned(trackLabel: string): Promise<void> {
     `),
     `CSP track ${trackLabel} assigned asset`,
   )
+}
+
+async function waitForCspTrack(trackLabel: string): Promise<void> {
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      Array.from(document.querySelectorAll('.cspTreeTrackName')).some(item => item.textContent?.trim() === ${JSON.stringify(trackLabel)})
+    `),
+    `CSP track ${trackLabel}`,
+  )
+}
+
+async function waitForNoCspTrack(trackLabel: string): Promise<void> {
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      !Array.from(document.querySelectorAll('.cspTreeTrackName')).some(item => item.textContent?.trim() === ${JSON.stringify(trackLabel)})
+    `),
+    `CSP track ${trackLabel} removed`,
+  )
+}
+
+async function cspTrackNamePoint(trackLabel: string): Promise<ClientPoint> {
+  const point = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const label = Array.from(document.querySelectorAll('.cspTreeTrackName'))
+        .find(item => item.textContent?.trim() === ${JSON.stringify(trackLabel)});
+      if (!label) return null;
+      label.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = label.getBoundingClientRect();
+      return { x: rect.left + Math.min(Math.max(rect.width / 2, 12), rect.width - 4), y: rect.top + rect.height / 2 };
+    })()
+  `)
+  if (!point) throw new Error(`CSP track label not found: ${trackLabel}`)
+  return point
+}
+
+async function cspTrackRowPoint(trackLabel: string): Promise<ClientPoint> {
+  return cspTrackRowEdgePoint(trackLabel, 'center')
+}
+
+async function cspTrackRowEdgePoint(trackLabel: string, edge: 'before' | 'after' | 'center'): Promise<ClientPoint> {
+  const point = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const label = Array.from(document.querySelectorAll('.cspTreeTrackName'))
+        .find(item => item.textContent?.trim() === ${JSON.stringify(trackLabel)});
+      const row = label?.closest('.cspTreeTrackRow');
+      if (!row) return null;
+      row.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = row.getBoundingClientRect();
+      const edge = ${JSON.stringify(edge)};
+      return {
+        x: rect.left + Math.min(Math.max(rect.width / 2, 24), rect.width - 8),
+        y: edge === 'before' ? rect.top + 2 : edge === 'after' ? rect.bottom - 2 : rect.top + rect.height / 2,
+      };
+    })()
+  `)
+  if (!point) throw new Error(`CSP track row not found: ${trackLabel}`)
+  return point
+}
+
+async function cspPaneTrackScopeOrder(trackLabel: string): Promise<string[]> {
+  return evaluatePage<string[]>(`
+    (() => {
+      const label = Array.from(document.querySelectorAll('.cspTreeTrackName'))
+        .find(item => item.textContent?.trim() === ${JSON.stringify(trackLabel)});
+      const row = label?.closest('.cspTreeTrackRow');
+      const scope = row?.dataset.cspPaneReorderScope;
+      if (!scope) return [];
+      return Array.from(document.querySelectorAll('.cspTreeTrackRow'))
+        .filter(item => item.dataset.cspPaneReorderScope === scope)
+        .map(item => item.querySelector('.cspTreeTrackName')?.textContent?.trim() || '')
+        .filter(Boolean);
+    })()
+  `)
+}
+
+async function cspSummaryLabelPoint(label: string): Promise<ClientPoint> {
+  const point = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const target = Array.from(document.querySelectorAll('.cspTreeSummaryLabel'))
+        .find(item => item.textContent?.trim() === ${JSON.stringify(label)});
+      if (!target) return null;
+      target.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = target.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()
+  `)
+  if (!point) throw new Error(`CSP correction layer summary not found: ${label}`)
+  return point
+}
+
+async function elementCenterPoint(selector: string): Promise<ClientPoint> {
+  const point = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()
+  `)
+  if (!point) throw new Error(`element not found: ${selector}`)
+  return point
 }
 
 async function paneTogglePoint(controls: string): Promise<ClientPoint> {
@@ -1160,6 +1410,7 @@ async function activeStackGuideInsertHandlePoint(role: SheetTimingRole, gapIndex
         && Number(item.dataset.stackGuideGapIndex) === ${gapIndex}
       ) || handles[0];
       if (!handle) return null;
+      handle.scrollIntoView({ block: 'center', inline: 'center' });
       const rect = handle.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()
@@ -1217,10 +1468,11 @@ async function stackGuideCardPoint(label: string): Promise<ClientPoint> {
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
       const input = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).find(item => item.value === ${JSON.stringify(label)});
-      const card = input?.closest('.cspTreeTrack');
+      const text = Array.from(document.querySelectorAll('.cspTreeTrackName')).find(item => item.textContent?.trim() === ${JSON.stringify(label)});
+      const card = (input || text)?.closest('.cspTreeTrack');
       if (!card) return null;
       card.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const handle = card.querySelector('.cspTreeCels') || card;
+      const handle = card.querySelector('.cspTreeTrackRow') || card;
       const rect = handle.getBoundingClientRect();
       return { x: rect.left + Math.min(Math.max(rect.width / 2, 24), rect.width - 8), y: rect.top + rect.height / 2 };
     })()
@@ -1233,8 +1485,9 @@ async function waitForStackGuideCardAsset(label: string, fileName: string): Prom
   await waitForPageCondition(
     () => evaluatePage<boolean>(`
       (() => {
-        const input = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).find(item => item.value === ${JSON.stringify(label)});
-        const card = input?.closest('.cspTreeTrack');
+      const input = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).find(item => item.value === ${JSON.stringify(label)});
+      const text = Array.from(document.querySelectorAll('.cspTreeTrackName')).find(item => item.textContent?.trim() === ${JSON.stringify(label)});
+      const card = (input || text)?.closest('.cspTreeTrack');
         return Boolean(card && (card.textContent || '').includes(${JSON.stringify(fileName)}));
       })()
     `),

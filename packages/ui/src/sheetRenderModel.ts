@@ -31,7 +31,7 @@ import {
 } from '@xsheet-remap/core'
 import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } from './templateEditorGeometry'
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
-import { STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuideGapWidthPx, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
+import { STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
@@ -147,7 +147,6 @@ type LabelLaneOccupancy = {
   leftPx: number
   rightPx: number
   lane: number
-  source: 'stack-guide' | 'overlay-track'
 }
 
 export function createSheetRenderModelContext(
@@ -707,18 +706,16 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
         if (!layout || layout.columns.length === 0) return []
         const rect = layout.rect
         const columns = layout.columns
-        const gapWidthPx = stackGuideGapWidthPx(context.template, rect, columns, context.pageSize.widthPx)
         const labelsForRegion = context.project.stackGuideLabels.filter(label =>
           (label.displayRole ?? 'action') === anchorRegion.grid?.role
           && stackGuideStackBand(label) === 'cell-interleave',
         )
-        return stackGuidePlacements(context.template, context.project, labelsForRegion, gapWidthPx, columns).map(({ label, lane }) => {
+        return stackGuidePlacements(context.template, context.project, labelsForRegion, rect, context.pageSize, columns).map(({ label, lane }) => {
           const geometry = stackGuideSvgGeometry(context.template, rect, context.pageSize, label, lane, columns)
           return {
             leftPx: geometry.labelX * context.pageSize.widthPx,
             rightPx: (geometry.labelX + geometry.labelWidth) * context.pageSize.widthPx,
             lane,
-            source: 'stack-guide' as const,
           }
         })
       })
@@ -739,8 +736,7 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
     if (!layout || layout.columns.length === 0) return []
     const rect = layout.rect
     const occupied = occupiedLanesForRegion(region)
-    const highestStackGuideLane = occupied.reduce((highest, candidate) => candidate.source === 'stack-guide' ? Math.max(highest, candidate.lane) : highest, -1)
-    let lane = highestStackGuideLane >= 0 ? Math.min(highestStackGuideLane + 1, STACK_GUIDE_MAX_LANE) : 0
+    let lane = 0
     let label = overlayAuxiliaryLabelGeometry(context.template, rect, context.pageSize, track, column, lane, STACK_GUIDE_MAX_LANE)
     while (
       lane < STACK_GUIDE_MAX_LANE
@@ -749,7 +745,7 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
       lane += 1
       label = overlayAuxiliaryLabelGeometry(context.template, rect, context.pageSize, track, column, lane, STACK_GUIDE_MAX_LANE)
     }
-    occupied.push({ ...auxiliaryLabelRangePx(label, context.pageSize.widthPx), lane, source: 'overlay-track' })
+    occupied.push({ ...auxiliaryLabelRangePx(label, context.pageSize.widthPx), lane })
     return [{ track, column, label }]
   })
 }
@@ -765,12 +761,11 @@ export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContex
     if (!layout || layout.columns.length === 0) return []
     const columns = layout.columns
     const rect = layout.rect
-    const gapWidthPx = stackGuideGapWidthPx(context.template, rect, columns, context.pageSize.widthPx)
     const labelsForRegion = context.project.stackGuideLabels.filter(label =>
       (label.displayRole ?? 'action') === displayRole
       && stackGuideStackBand(label) === 'cell-interleave',
     )
-    const placementsByGap = stackGuidePlacementsByGap(context.template, context.project, labelsForRegion, gapWidthPx, columns)
+    const placementsByGap = stackGuidePlacementsByGap(context.template, context.project, labelsForRegion, rect, context.pageSize, columns)
     return [...placementsByGap.values()].flatMap(placements =>
       placements.map(({ label, lane }) => ({
         label: label.label,

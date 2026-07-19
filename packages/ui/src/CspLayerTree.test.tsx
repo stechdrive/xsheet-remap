@@ -36,7 +36,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -50,7 +54,12 @@ describe('CspLayerTree', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'A（演出）にセルを追加' }))
+    const trackRow = screen.getByLabelText('A（演出）にカードを追加').closest<HTMLElement>('.cspTreeTrack')
+      ?.querySelector<HTMLElement>('.cspTreeTrackRow')
+    if (!trackRow) throw new Error('A track row not found')
+    fireEvent.click(trackRow)
+    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByRole('button', { name: '登録セル' }))
     const input = screen.getByLabelText('A（演出）に追加するCSPセル名')
     expect((input as HTMLInputElement).value).toBe('A_02_e')
     fireEvent.change(input, { target: { value: 'A_missing_e' } })
@@ -92,7 +101,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={onRenamePaperTrack}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -129,7 +142,7 @@ describe('CspLayerTree', () => {
     fireEvent.click(registeredCellName)
     unsubscribe()
     expect(droppedPayloads).toEqual([{ kind: 'registered-cell', keyId: second.key.keyId, sourceSlotId: 'slot_A' }])
-    expect(onSelectKey).not.toHaveBeenCalled()
+    expect(onSelectKey).toHaveBeenCalledWith(second.key.keyId)
 
     const trackLabel = document.querySelector<HTMLElement>('.cspTreeTrackName')
     if (!trackLabel) throw new Error('track label not found')
@@ -169,7 +182,11 @@ describe('CspLayerTree', () => {
         onRenameProductionStage={onRenameProductionStage}
         onRenameCorrectionLayer={onRenameCorrectionLayer}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -218,9 +235,10 @@ describe('CspLayerTree', () => {
     fireEvent.click(directorSummary)
     expect(onRenameCorrectionLayer).toHaveBeenCalledWith('layer_sakuga', '第一原画')
     expect(screen.queryByLabelText('作画の工程名')).toBeNull()
-    expect(directorDetails?.open).toBe(false)
+    expect(directorDetails?.open).toBe(true)
 
     const cellLabel = screen.getByText('A1', { selector: '.cspTreeCelName' })
+    onSelectKey.mockClear()
     vi.useFakeTimers()
     fireEvent.click(cellLabel)
     fireEvent.click(cellLabel)
@@ -259,7 +277,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -306,7 +328,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -319,14 +345,15 @@ describe('CspLayerTree', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'セル列を追加' }))
+    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByRole('button', { name: '追加セル列' }))
     expect(onRequestOverlayPaperTrack).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByLabelText('作画にトラックを追加'))
+    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
     expect(onRequestStackGuideInsert).toHaveBeenCalledWith('layer_sakuga')
 
-    fireEvent.click(screen.getByLabelText('作画にトラックを追加'))
+    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: '撮影指示' }))
     fireEvent.change(screen.getByRole('textbox', { name: '追加トラック名' }), { target: { value: 'PAN1' } })
     fireEvent.click(screen.getByRole('button', { name: '追加を確定' }))
@@ -374,7 +401,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={onAssignAsset}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -394,7 +425,7 @@ describe('CspLayerTree', () => {
     expect(card.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: A1 reference.png')
     expect(card.querySelector('[title]')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'A 1を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: 'A1を削除' }))
     expect(onDeleteKey).toHaveBeenCalledWith(created.key.keyId, project.bindings[0]?.bindingId)
 
     moveInternalOver(card, { kind: 'asset', assetIds: ['asset_replacement'] })
@@ -435,7 +466,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -476,7 +511,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={onAssignAssetsToStackGuideLabel}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -530,7 +569,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={onAssignAssetsToStackGuideLabel}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
@@ -577,7 +620,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={onRegisterAssetsToTrack}
@@ -616,7 +663,11 @@ describe('CspLayerTree', () => {
         onUpdateStackGuideLabel={vi.fn()}
         onDeleteStackGuideLabel={vi.fn()}
         onRenamePaperTrack={vi.fn()}
-        onMoveStackItem={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
         onAssignAsset={vi.fn()}
         onAssignAssetsToStackGuideLabel={vi.fn()}
         onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}

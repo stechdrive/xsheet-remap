@@ -131,6 +131,7 @@ function formFieldCell(cellId: string, row: number, column: number, fieldId: str
     columnSpan,
     kind: 'field',
     fieldId,
+    memoTarget: { scope: 'cell' },
     textStyle: { fontSize: standardA3Pt(13), minFontSize: standardA3Pt(7), fontWeight: 700, horizontalAlign: 'center', verticalAlign: 'middle', padding: standardA3Mm(2), shrinkToFit: true },
   }
 }
@@ -425,6 +426,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
           column: 0,
           kind: 'field',
           fieldId: 'memo.body',
+          memoTarget: { scope: 'region' },
           border: false,
           editPresentation: 'inline',
           textStyle: {

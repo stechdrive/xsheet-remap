@@ -85,10 +85,19 @@ function validateRegion(input: unknown, index: number): asserts input is SheetTe
       || input.form.cells !== undefined && (!Array.isArray(input.form.cells) || !input.form.cells.every(cell =>
         isRecord(cell)
         && (cell.textStyle === undefined || validateTextStyle(cell.textStyle))
-        && (cell.editPresentation === undefined || cell.editPresentation === 'inline' || cell.editPresentation === 'popover')))) {
+        && (cell.editPresentation === undefined || cell.editPresentation === 'inline' || cell.editPresentation === 'popover')
+        && (cell.memoTarget === undefined || validateMemoTarget(cell.memoTarget))))) {
       throw new Error(`領域 ${input.regionId} のフォーム定義が不正です。`)
     }
   }
+}
+
+function validateMemoTarget(input: unknown): boolean {
+  if (!isRecord(input)) return false
+  if (input.scope !== 'cell' && input.scope !== 'region' && input.scope !== 'group' && input.scope !== 'none') return false
+  if (input.targetId !== undefined && !nonEmptyString(input.targetId)) return false
+  if (input.label !== undefined && !nonEmptyString(input.label)) return false
+  return input.scope !== 'group' || nonEmptyString(input.targetId)
 }
 
 function validateGridTypography(input: unknown): boolean {

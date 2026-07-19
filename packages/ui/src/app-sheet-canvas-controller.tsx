@@ -1155,16 +1155,16 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const cameraHitFromClientPoint = (clientX: number, clientY: number) => timedRangeHitFromClientPoint(clientX, clientY, 'camera')
 
   function pageAnnotationAnchor(page: SheetPage) {
-    const regionId = props.pageAnnotationTarget.kind === 'template-region'
-      && props.pageAnnotationTarget.pageId === page.pageId
-      ? props.pageAnnotationTarget.regionId
+    const regionTarget = props.pageAnnotationTarget.kind === 'template-region' && props.pageAnnotationTarget.pageId === page.pageId
+      ? props.pageAnnotationTarget
       : undefined
     return {
       kind: 'view-surface' as const,
       templateId: props.template.templateId,
       pageId: page.pageId,
       surfaceSize: sheetPageSize,
-      regionId,
+      regionId: regionTarget?.regionId,
+      targetId: regionTarget?.targetId,
     }
   }
 

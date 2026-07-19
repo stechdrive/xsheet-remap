@@ -430,6 +430,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       stroke={stroke.color}
                       strokeWidth={stroke.width}
                       data-annotation-region-id={stroke.anchor?.kind === 'view-surface' ? stroke.anchor.regionId : undefined}
+                      data-annotation-target-id={stroke.anchor?.kind === 'view-surface' ? stroke.anchor.targetId : undefined}
                     />
                   ))}
                   {selectedRect && props.timingDraftActive && (
@@ -481,9 +482,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     displayDurationFrames={displayDurationFrames}
                     paperTracks={templateTrackNames}
                     interactionBlocked={semanticHotspotsBlocked}
-                    selectedAnnotationRegionId={props.pageAnnotationTarget.kind === 'template-region'
+                    selectedAnnotationTarget={props.pageAnnotationTarget.kind === 'template-region'
                       && props.pageAnnotationTarget.pageId === page.pageId
-                      ? props.pageAnnotationTarget.regionId ?? null
+                      && props.pageAnnotationTarget.regionId
+                      ? { regionId: props.pageAnnotationTarget.regionId, targetId: props.pageAnnotationTarget.targetId }
                       : null}
                     onMetadataChange={props.onMetadataChange}
                     onDurationChange={props.onDurationChange}
@@ -524,6 +526,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                         stroke={draftStroke.color}
                         strokeWidth={draftStroke.width}
                         data-annotation-region-id={draftStroke.anchor?.kind === 'view-surface' ? draftStroke.anchor.regionId : undefined}
+                        data-annotation-target-id={draftStroke.anchor?.kind === 'view-surface' ? draftStroke.anchor.targetId : undefined}
                       />
                     )}
                   </svg>

@@ -152,6 +152,7 @@ export function pageMemoTargetForAnnotation(annotation: Annotation): SheetPageMe
       pageId: anchor.pageId || annotation.pageId,
       templateId: anchor.templateId,
       regionId: anchor.regionId,
+      targetId: anchor.targetId,
       surfaceSize: anchor.surfaceSize,
     }
   }
@@ -161,17 +162,19 @@ export function pageMemoTargetForAnnotation(annotation: Annotation): SheetPageMe
       pageId: annotation.pageId,
       templateId: anchor.templateId,
       regionId: anchor.regionId,
+      targetId: anchor.targetId,
     }
   }
   return { kind: 'page', pageId: annotation.pageId }
 }
 
 export function pageMemoTargetKey(target: SheetPageMemoTarget): string {
-  return [target.kind, target.pageId, target.templateId ?? '', target.regionId ?? ''].join(':')
+  return [target.kind, target.pageId, target.templateId ?? '', target.regionId ?? '', target.targetId ?? ''].join(':')
 }
 
 function pageMemoId(target: SheetPageMemoTarget, serial: number): string {
   const safePage = target.pageId.replace(/[^a-zA-Z0-9_-]/g, '_')
   const safeRegion = target.regionId?.replace(/[^a-zA-Z0-9_-]/g, '_')
-  return `memo_${safePage}${safeRegion ? `_${safeRegion}` : ''}_${serial}`
+  const safeTarget = target.targetId?.replace(/[^a-zA-Z0-9_-]/g, '_')
+  return `memo_${safePage}${safeRegion ? `_${safeRegion}` : ''}${safeTarget ? `_${safeTarget}` : ''}_${serial}`
 }

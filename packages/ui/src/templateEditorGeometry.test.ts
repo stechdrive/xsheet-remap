@@ -35,6 +35,7 @@ describe('template editor geometry', () => {
           formBoxes: full.chrome.formBoxes.filter(item => item.key.startsWith(`${region.regionId}:`)),
           formLabels: full.chrome.formLabels.filter(item => item.key.startsWith(`${region.regionId}:`)),
           formFields: full.chrome.formFields.filter(item => item.regionId === region.regionId),
+          formAnnotationTargets: full.chrome.formAnnotationTargets.filter(item => item.memoTarget.regionId === region.regionId),
         })
         expect(active?.gridOverlay).toEqual(full.gridOverlays.find(item => item.regionId === region.regionId) ?? null)
       }

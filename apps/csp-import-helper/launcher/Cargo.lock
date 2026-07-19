@@ -307,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "xsheet-importer-launcher"
-version = "0.1.614"
+version = "0.1.615"
 dependencies = [
  "embed-resource",
 ]

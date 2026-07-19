@@ -263,6 +263,8 @@ export interface AnnotationViewSurfaceAnchor {
   pageId: Id
   surfaceSize?: AnnotationSurfaceSize
   regionId?: Id
+  /** Optional form-cell/group identity within regionId. */
+  targetId?: Id
 }
 
 export interface AnnotationTimelineAnchor {
@@ -283,6 +285,7 @@ export interface AnnotationRegionAnchor {
   kind: 'template-region'
   templateId?: string
   regionId: Id
+  targetId?: Id
 }
 
 export type AnnotationAnchor =
@@ -325,6 +328,7 @@ export interface SheetPageMemoTarget {
   pageId: Id
   templateId?: string
   regionId?: Id
+  targetId?: Id
   surfaceSize?: AnnotationSurfaceSize
 }
 

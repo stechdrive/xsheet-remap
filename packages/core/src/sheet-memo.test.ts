@@ -4,6 +4,7 @@ import { createDefaultProject } from './project-model'
 import { createProjectDocumentFromCutProject, migrateProject, parseProjectDocument } from './project-documents'
 import {
   memoAnchorPresentation,
+  pageMemoTargetKey,
   sheetAnnotations,
   sheetPageMemos,
   timelineMemos,
@@ -11,6 +12,24 @@ import {
 import { addTimelineMemo } from './timeline-memo'
 
 describe('sheet memo model', () => {
+  it('keeps form-cell memo targets distinct inside one template region', () => {
+    expect(pageMemoTargetKey({ kind: 'template-region', pageId: 'page_1', templateId: 'a3', regionId: 'process', targetId: 'cell:director' }))
+      .not.toBe(pageMemoTargetKey({ kind: 'template-region', pageId: 'page_1', templateId: 'a3', regionId: 'process', targetId: 'cell:supervisor' }))
+
+    const annotation = (annotationId: string, targetId: string) => ({
+      annotationId,
+      pageId: 'page_1',
+      kind: 'stroke' as const,
+      tool: 'pen' as const,
+      color: '#111',
+      width: 0.004,
+      points: [{ x: 0.1, y: 0.2 }],
+      anchor: { kind: 'view-surface' as const, pageId: 'page_1', templateId: 'a3', regionId: 'process', targetId },
+    })
+    const project = addAnnotation(addAnnotation(createDefaultProject(), annotation('director', 'cell:director')), annotation('supervisor', 'cell:supervisor'))
+    expect(sheetPageMemos(project).map(memo => memo.target.targetId)).toEqual(['cell:director', 'cell:supervisor'])
+  })
+
   it('keeps page ink and text in one page-target memo', () => {
     const pageInk = {
       annotationId: 'ink_1', pageId: 'page_1', kind: 'stroke' as const, tool: 'pen' as const,

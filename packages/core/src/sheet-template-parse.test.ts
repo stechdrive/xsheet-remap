@@ -58,6 +58,21 @@ describe('parseSheetTemplate', () => {
     expect(() => parseSheetTemplate(invalid)).toThrow('フォーム定義が不正')
   })
 
+  it('accepts generic memo targets and rejects groups without a stable id', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const process = template.regions.find(region => region.regionId === 'top_process_check_area')!
+    const field = process.form!.cells!.find(cell => cell.cellId === 'process_field_original')!
+    field.memoTarget = { scope: 'group', targetId: 'rough-check', label: '前半チェック' }
+    expect(parseSheetTemplate(template).regions.find(region => region.regionId === process.regionId)?.form?.cells)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ memoTarget: { scope: 'group', targetId: 'rough-check', label: '前半チェック' } })]))
+
+    const invalid = structuredClone(template) as unknown as Record<string, unknown>
+    const regions = invalid.regions as Array<Record<string, unknown>>
+    const cells = ((regions.find(region => region.regionId === 'top_process_check_area')!.form as Record<string, unknown>).cells) as Array<Record<string, unknown>>
+    cells.find(cell => cell.cellId === 'process_field_original')!.memoTarget = { scope: 'group' }
+    expect(() => parseSheetTemplate(invalid)).toThrow('フォーム定義が不正')
+  })
+
   it('rejects unknown physical typography units', () => {
     const invalid = structuredClone(standardA3SheetTemplate) as unknown as Record<string, unknown>
     const regions = invalid.regions as Array<Record<string, unknown>>

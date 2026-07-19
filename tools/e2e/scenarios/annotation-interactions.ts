@@ -67,6 +67,19 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await waitForCameraCueAt('camera_lane_1', 20, 28, 'PAN')
   checks.push('created a CAMERA instruction interval')
 
+  const processFieldSelector = '[data-annotation-target-id="cell:process_field_original"]'
+  await evaluatePage(`document.querySelector(${JSON.stringify(processFieldSelector)})?.scrollIntoView({ block: 'center', inline: 'center' })`)
+  await mouseClick(await inputPointForSelector(processFieldSelector))
+  await waitForPageCondition(() => document.querySelector('.annotationTargetLabel')?.textContent?.includes('対象: 原図') === true, 'individual process-field annotation target')
+  const processSelection = await evaluatePage<{ selectedCount: number; targetId: string | null }>(`(() => {
+    const selected = Array.from(document.querySelectorAll('[data-annotation-target-selected="true"]'));
+    return { selectedCount: selected.length, targetId: selected[0]?.getAttribute('data-annotation-target-id') ?? null };
+  })()`)
+  if (processSelection.selectedCount !== 1 || processSelection.targetId !== 'cell:process_field_original') {
+    throw new Error(`process form selection leaked to sibling fields: ${JSON.stringify(processSelection)}`)
+  }
+  checks.push('selected one process-check form cell without highlighting sibling fields')
+
   await createAnchoredMemoWithInkAndText('action', 4, 'ACTIONコメント', () => rightClickFrame('action', 'A', 4))
   await createCueLinkedMemoWithInkAndText('sound', 10, 'セリフコメント', '.soundCueBody')
   await createCueLinkedMemoWithInkAndText('camera', 20, '撮影コメント', '.cameraCueShapeHit')

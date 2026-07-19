@@ -58,6 +58,7 @@ function annotationAnchorSignature(anchor: AnnotationText['anchor']): string {
       anchor.templateId ?? '',
       anchor.pageId,
       anchor.regionId ?? '',
+      anchor.targetId ?? '',
       anchor.surfaceSize?.widthPx ?? '',
       anchor.surfaceSize?.heightPx ?? '',
     ].join(':')
@@ -102,6 +103,10 @@ export function cloneTextAnnotationForPaste(
       regionId: annotation.anchor?.kind === 'view-surface'
         && (!annotation.anchor.templateId || annotation.anchor.templateId === input.templateId)
         ? annotation.anchor.regionId
+        : undefined,
+      targetId: annotation.anchor?.kind === 'view-surface'
+        && (!annotation.anchor.templateId || annotation.anchor.templateId === input.templateId)
+        ? annotation.anchor.targetId
         : undefined,
     },
   }

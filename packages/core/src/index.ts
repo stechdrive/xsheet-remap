@@ -208,6 +208,8 @@ export type {
   SheetTemplateFieldDefinition,
   SheetTemplateForm,
   SheetTemplateFormCell,
+  SheetTemplateMemoTarget,
+  SheetTemplateMemoTargetScope,
   SheetTemplateTrackCountColumn,
   SheetTemplateTrackCountProjection,
   SheetTemplateInputMode,

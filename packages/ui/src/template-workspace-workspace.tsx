@@ -517,8 +517,8 @@ export function TemplateWorkspace({
         cells: [
           { cellId: 'label_left', row: 0, column: 0, kind: 'label', label: '項目1' },
           { cellId: 'label_right', row: 0, column: 1, kind: 'label', label: '項目2' },
-          { cellId: 'field_left', row: 1, column: 0, kind: 'field', fieldId: fieldIds[0] },
-          { cellId: 'field_right', row: 1, column: 1, kind: 'field', fieldId: fieldIds[1] },
+          { cellId: 'field_left', row: 1, column: 0, kind: 'field', fieldId: fieldIds[0], memoTarget: { scope: 'cell' } },
+          { cellId: 'field_right', row: 1, column: 1, kind: 'field', fieldId: fieldIds[1], memoTarget: { scope: 'cell' } },
         ],
       },
     }
@@ -890,7 +890,61 @@ export function TemplateWorkspace({
                   <option value="popover">ポップアップ</option>
                 </select>
               </label>
+              <label>
+                <span>メモ対象</span>
+                <select
+                  aria-label="メモ対象の単位"
+                  value={selectedFormFieldCell.memoTarget?.scope ?? 'cell'}
+                  onChange={event => {
+                    const scope = event.currentTarget.value as 'cell' | 'region' | 'group' | 'none'
+                    const current = selectedFormFieldCell.memoTarget
+                    updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                      memoTarget: scope === 'group'
+                        ? { scope, targetId: current?.targetId?.trim() || 'group_1', ...(current?.label ? { label: current.label } : {}) }
+                        : { scope, ...(current?.label ? { label: current.label } : {}) },
+                    })
+                  }}
+                >
+                  <option value="cell">この欄</option>
+                  <option value="region">表全体</option>
+                  <option value="group">同じグループ</option>
+                  <option value="none">メモ対象外</option>
+                </select>
+              </label>
             </div>
+            {selectedFormFieldCell.memoTarget?.scope === 'group' && (
+              <label className="compactControl">
+                <span>メモ対象グループID</span>
+                <input
+                  aria-label="メモ対象グループID"
+                  value={selectedFormFieldCell.memoTarget.targetId ?? ''}
+                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                    memoTarget: {
+                      ...selectedFormFieldCell.memoTarget!,
+                      scope: 'group',
+                      targetId: event.currentTarget.value,
+                    },
+                  })}
+                />
+              </label>
+            )}
+            {selectedFormFieldCell.memoTarget?.scope !== 'none' && (
+              <label className="compactControl">
+                <span>メモ対象名（任意）</span>
+                <input
+                  aria-label="メモ対象名"
+                  placeholder={selectedFormFieldDefinition?.label ?? selectedFormFieldCell.fieldId ?? selectedFormFieldCell.cellId}
+                  value={selectedFormFieldCell.memoTarget?.label ?? ''}
+                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                    memoTarget: {
+                      scope: selectedFormFieldCell.memoTarget?.scope ?? 'cell',
+                      ...(selectedFormFieldCell.memoTarget?.targetId ? { targetId: selectedFormFieldCell.memoTarget.targetId } : {}),
+                      ...(event.currentTarget.value ? { label: event.currentTarget.value } : {}),
+                    },
+                  })}
+                />
+              </label>
+            )}
             <TemplateTextMetricControls
               template={template}
               style={selectedFormFieldCell.textStyle}

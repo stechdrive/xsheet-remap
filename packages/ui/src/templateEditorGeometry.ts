@@ -26,6 +26,7 @@ import {
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import type { SheetSvgPageSize } from './sheetSvgTextGeometry'
 import { gridRoleLabel } from './templateEditing'
+import { resolveTemplateFormCellMemoTarget, type TemplateMemoTargetRef } from './templateMemoTargets'
 
 export type TemplateGridHeaderColumnRenderModel = {
   columnId: string
@@ -71,6 +72,7 @@ export type TemplateFormLabelRenderModel = {
 
 export type TemplateFormFieldRenderModel = {
   key: string
+  cellId: string
   regionId: string
   fieldId: string
   rect: NormalizedRect
@@ -78,7 +80,14 @@ export type TemplateFormFieldRenderModel = {
   textStyle: SheetTemplateTextStyle
   editPresentation: 'inline' | 'popover'
   editable: boolean
+  memoTarget: TemplateMemoTargetRef | null
   sourceFieldIds?: string[]
+}
+
+export type TemplateFormAnnotationTargetRenderModel = {
+  key: string
+  rect: NormalizedRect
+  memoTarget: TemplateMemoTargetRef
 }
 
 export type TemplateReferenceRegionRenderModel = {
@@ -95,6 +104,7 @@ export type TemplateChromeRenderModel = {
   formBoxes: TemplateFormBoxRenderModel[]
   formLabels: TemplateFormLabelRenderModel[]
   formFields: TemplateFormFieldRenderModel[]
+  formAnnotationTargets: TemplateFormAnnotationTargetRenderModel[]
 }
 
 export type TemplateGridPathRenderModel = {
@@ -228,6 +238,7 @@ export function buildTemplateEditorRegionRenderModel(
       formBoxes: form.boxes,
       formLabels: form.labels,
       formFields: form.fields,
+      formAnnotationTargets: form.annotationTargets,
     },
     gridOverlay: isRenderableSheetTemplateGridRegion(region)
       ? buildTemplateGridOverlayRenderModel(template, region, { durationFrames })
@@ -261,6 +272,7 @@ export function buildTemplateChromeRenderModel(
     formBoxes: forms.flatMap(form => form.boxes),
     formLabels: forms.flatMap(form => form.labels),
     formFields: forms.flatMap(form => form.fields),
+    formAnnotationTargets: forms.flatMap(form => form.annotationTargets),
   }
 }
 
@@ -274,9 +286,10 @@ export function buildTemplateFormRenderModels(
   boxes: TemplateFormBoxRenderModel[]
   labels: TemplateFormLabelRenderModel[]
   fields: TemplateFormFieldRenderModel[]
+  annotationTargets: TemplateFormAnnotationTargetRenderModel[]
 } {
   const form = region.form
-  if (!form || region.usage === 'ignored') return { boxes: [], labels: [], fields: [] }
+  if (!form || region.usage === 'ignored') return { boxes: [], labels: [], fields: [], annotationTargets: [] }
   const regionRect = resolveSheetTemplateRegionRect(template, region, durationFrames, { ...options, paperTracks })
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, { ...options, paperTracks })
   const borderStyle = normalizeTemplateLineStyle(form.borderStyle)
@@ -308,6 +321,7 @@ export function buildTemplateFormRenderModels(
   const boxes: TemplateFormBoxRenderModel[] = []
   const labels: TemplateFormLabelRenderModel[] = []
   const fields: TemplateFormFieldRenderModel[] = []
+  const annotationTargets: TemplateFormAnnotationTargetRenderModel[] = []
   for (const cell of cells) {
     const rect = formCellRect(cell.row, cell.column, cell.rowSpan ?? 1, cell.columnSpan ?? 1, rowEdges, columnEdges)
     if (!rect) continue
@@ -323,6 +337,7 @@ export function buildTemplateFormRenderModels(
       const totalSuffix = isProjectedTotal ? cell.fieldId.split('.').at(-1) : undefined
       fields.push({
         key: `${region.regionId}:${cell.cellId}`,
+        cellId: cell.cellId,
         regionId: region.regionId,
         fieldId: cell.fieldId,
         rect,
@@ -330,13 +345,22 @@ export function buildTemplateFormRenderModels(
         textStyle: cell.textStyle ?? {},
         editPresentation: cell.editPresentation ?? 'popover',
         editable: !isProjectedTotal,
+        memoTarget: resolveTemplateFormCellMemoTarget(region, cell, definition.label),
         sourceFieldIds: isProjectedTotal && totalSuffix
           ? paperTracks.map(paperTrack => `${form.projection!.fieldPrefix}.${paperTrack}.${totalSuffix}`)
           : undefined,
       })
     }
+    if (cell.kind === 'annotation') {
+      const memoTarget = resolveTemplateFormCellMemoTarget(region, cell, cell.label ?? region.label)
+      if (memoTarget) annotationTargets.push({
+        key: `${region.regionId}:${cell.cellId}`,
+        rect,
+        memoTarget,
+      })
+    }
   }
-  return { boxes, labels, fields }
+  return { boxes, labels, fields, annotationTargets }
 }
 
 function projectedTrackCountCells(

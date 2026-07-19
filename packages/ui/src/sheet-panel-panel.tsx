@@ -20,6 +20,7 @@ import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, Text
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
+import { templateMemoTargetLabel } from './templateMemoTargets'
 import { SheetHistoryRail } from './SheetHistoryRail'
 import { suppressSheetTooltips } from './sheetInteractionOwnership'
 import { resolveSheetAnnotationTarget } from './sheetAnnotationTarget'
@@ -229,6 +230,9 @@ export function SheetPanel(props: {
   const selectedTextRegionId = selectedTextAnnotation?.anchor?.kind === 'view-surface'
     ? selectedTextAnnotation.anchor.regionId
     : undefined
+  const selectedTextTargetId = selectedTextAnnotation?.anchor?.kind === 'view-surface'
+    ? selectedTextAnnotation.anchor.targetId
+    : undefined
   const selectedTextRegion = selectedTextRegionId
     ? {
         kind: 'template-region' as const,
@@ -237,7 +241,8 @@ export function SheetPanel(props: {
           ? selectedTextAnnotation!.anchor.templateId ?? props.template.templateId
           : props.template.templateId,
         regionId: selectedTextRegionId,
-        label: props.template.regions.find(region => region.regionId === selectedTextRegionId)?.label ?? selectedTextRegionId,
+        targetId: selectedTextTargetId,
+        label: templateMemoTargetLabel(props.template, { regionId: selectedTextRegionId, targetId: selectedTextTargetId }),
       }
     : null
   const activeSelectedAnnotationRegion = props.selectedTextAnnotationId
@@ -262,6 +267,7 @@ export function SheetPanel(props: {
         pageId: annotationTarget.region.pageId,
         templateId: annotationTarget.region.templateId,
         regionId: annotationTarget.region.regionId,
+        targetId: annotationTarget.region.targetId,
       }
     : { kind: 'page', pageId: activePage?.pageId ?? 'page_1', templateId: props.template.templateId }
   const beginTimelineMemoEdit = useCallback((memoId: string, mode: Extract<EditMode, 'pen' | 'text'> = 'pen') => {

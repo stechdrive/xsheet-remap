@@ -15,6 +15,7 @@ import { TooltipTarget } from './Tooltip'
 import { buildTemplateChromeRenderModel } from './templateEditorGeometry'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import type { TemplateRegionAnnotationTarget } from './appTypes'
+import { sameTemplateMemoTarget, type TemplateMemoTargetRef } from './templateMemoTargets'
 
 type EditableMetadataRegion = SheetTemplate['regions'][number] & {
   binding: Extract<NonNullable<SheetTemplate['regions'][number]['binding']>, { target: 'cut-metadata' }>
@@ -29,7 +30,7 @@ export function SheetMetadataEditor({
   displayDurationFrames,
   paperTracks,
   interactionBlocked = false,
-  selectedAnnotationRegionId = null,
+  selectedAnnotationTarget = null,
   onMetadataChange,
   onDurationChange,
   onFormFieldChange,
@@ -43,7 +44,7 @@ export function SheetMetadataEditor({
   displayDurationFrames: number
   paperTracks: string[]
   interactionBlocked?: boolean
-  selectedAnnotationRegionId?: string | null
+  selectedAnnotationTarget?: Pick<TemplateRegionAnnotationTarget, 'regionId' | 'targetId'> | null
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
   onFormFieldChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean, pageId: string) => void
@@ -198,7 +199,7 @@ export function SheetMetadataEditor({
               className="sheetMetadataEditHotspot"
               style={rectStyle(rect, pageWidth, pageHeight)}
               data-region-id={region.regionId}
-              data-annotation-target-selected={selectedAnnotationRegionId === region.regionId ? 'true' : undefined}
+              data-annotation-target-selected={sameTemplateMemoTarget(selectedAnnotationTarget, { regionId: region.regionId }) ? 'true' : undefined}
               aria-label={`${region.label}を編集`}
               aria-haspopup="dialog"
               aria-expanded={editingRegionId === region.regionId}
@@ -211,7 +212,7 @@ export function SheetMetadataEditor({
               }}
               onClick={event => {
                 event.stopPropagation()
-                onAnnotationRegionSelect(annotationRegionTarget(page, template, region.regionId, region.label))
+                onAnnotationRegionSelect(annotationRegionTarget(page, template, { regionId: region.regionId, label: region.label }))
               }}
               onDoubleClick={event => {
                 event.stopPropagation()
@@ -239,9 +240,10 @@ export function SheetMetadataEditor({
             chrome.pageSize,
             resolveSheetTemplateTextStyle(template, chrome.pageSize, field.textStyle, { fontWeight: 700 }),
           ).overflow
+        const selectionHint = field.memoTarget ? 'クリックでメモ対象、' : ''
         const tooltipLabel = overflow
-          ? `${field.definition.label}: 文字が欄内に収まりません。クリックでメモ対象、ダブルクリックまたはEnterで編集`
-          : `${field.definition.label}: クリックでメモ対象、ダブルクリックまたはEnterで編集`
+          ? `${field.definition.label}: 文字が欄内に収まりません。${selectionHint}ダブルクリックまたはEnterで編集`
+          : `${field.definition.label}: ${selectionHint}ダブルクリックまたはEnterで編集`
         return (
         <TooltipTarget key={field.key} label={tooltipLabel} disabled={interactionBlocked || editingRegionId === field.key}>
           {tooltipProps => (
@@ -250,7 +252,8 @@ export function SheetMetadataEditor({
               className="sheetMetadataEditHotspot sheetFormEditHotspot"
               style={rectStyle(field.rect, pageWidth, pageHeight)}
               data-region-id={field.regionId}
-              data-annotation-target-selected={selectedAnnotationRegionId === field.regionId ? 'true' : undefined}
+              data-annotation-target-id={field.memoTarget?.targetId}
+              data-annotation-target-selected={sameTemplateMemoTarget(selectedAnnotationTarget, field.memoTarget) ? 'true' : undefined}
               data-text-overflow={overflow ? 'true' : 'false'}
               aria-label={`${field.definition.label}を編集`}
               aria-haspopup="dialog"
@@ -264,8 +267,7 @@ export function SheetMetadataEditor({
               }}
               onClick={event => {
                 event.stopPropagation()
-                const regionLabel = template.regions.find(region => region.regionId === field.regionId)?.label ?? field.definition.label
-                onAnnotationRegionSelect(annotationRegionTarget(page, template, field.regionId, regionLabel))
+                if (field.memoTarget) onAnnotationRegionSelect(annotationRegionTarget(page, template, field.memoTarget))
               }}
               onDoubleClick={event => {
                 event.stopPropagation()
@@ -283,6 +285,31 @@ export function SheetMetadataEditor({
         </TooltipTarget>
         )
       })}
+      {chrome.formAnnotationTargets.map(target => (
+        <TooltipTarget key={target.key} label={`${target.memoTarget.label}: クリックでメモ対象`} disabled={interactionBlocked}>
+          {tooltipProps => (
+            <button
+              type="button"
+              className="sheetMetadataEditHotspot sheetFormAnnotationHotspot"
+              style={rectStyle(target.rect, pageWidth, pageHeight)}
+              data-region-id={target.memoTarget.regionId}
+              data-annotation-target-id={target.memoTarget.targetId}
+              data-annotation-target-selected={sameTemplateMemoTarget(selectedAnnotationTarget, target.memoTarget) ? 'true' : undefined}
+              aria-label={`${target.memoTarget.label}をメモ対象に選択`}
+              disabled={interactionBlocked}
+              {...tooltipProps}
+              onPointerDown={event => {
+                tooltipProps.onPointerDown()
+                event.stopPropagation()
+              }}
+              onClick={event => {
+                event.stopPropagation()
+                onAnnotationRegionSelect(annotationRegionTarget(page, template, target.memoTarget))
+              }}
+            />
+          )}
+        </TooltipTarget>
+      ))}
       {activeRect && activeForm && activeFormIsInline && activeInlineLayout && (
         <div
           ref={popoverRef}
@@ -391,10 +418,16 @@ export function SheetMetadataEditor({
 function annotationRegionTarget(
   page: SheetPage,
   template: SheetTemplate,
-  regionId: string,
-  label: string,
+  target: TemplateMemoTargetRef,
 ): TemplateRegionAnnotationTarget {
-  return { kind: 'template-region', pageId: page.pageId, templateId: template.templateId, regionId, label }
+  return {
+    kind: 'template-region',
+    pageId: page.pageId,
+    templateId: template.templateId,
+    regionId: target.regionId,
+    targetId: target.targetId,
+    label: target.label,
+  }
 }
 
 function SheetFormFieldControl({

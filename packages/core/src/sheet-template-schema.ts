@@ -159,6 +159,21 @@ export interface SheetTemplateFieldDefinition {
   }
 }
 
+export type SheetTemplateMemoTargetScope = 'cell' | 'region' | 'group' | 'none'
+
+/**
+ * Declares how a form cell participates in page-annotation targeting.
+ * Geometry and target identity stay separate: a small cell can be the stable
+ * anchor while the memo itself uses a larger editable canvas.
+ */
+export interface SheetTemplateMemoTarget {
+  scope: SheetTemplateMemoTargetScope
+  /** Stable, template-owned group identity. Required when scope is `group`. */
+  targetId?: string
+  /** Optional user-facing target name. Field/region labels are used by default. */
+  label?: string
+}
+
 export interface SheetTemplateFormCell {
   cellId: string
   row: number
@@ -172,6 +187,8 @@ export interface SheetTemplateFormCell {
   borderStyle?: SheetTemplateLineStyle
   textStyle?: SheetTemplateTextStyle
   editPresentation?: 'inline' | 'popover'
+  /** Field cells default to an individual `cell` target when omitted. */
+  memoTarget?: SheetTemplateMemoTarget
 }
 
 export interface SheetTemplateTrackCountColumn {

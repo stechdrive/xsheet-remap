@@ -93,6 +93,7 @@ export interface TemplateRegionAnnotationTarget {
   pageId: string
   templateId: string
   regionId: string
+  targetId?: string
   label: string
 }
 

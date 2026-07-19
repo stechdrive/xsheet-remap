@@ -6,6 +6,104 @@ import { SheetMetadataEditor } from './SheetMetadataEditor'
 afterEach(cleanup)
 
 describe('SheetMetadataEditor page fields', () => {
+  it('selects and highlights only one form cell when the template declares cell targets', () => {
+    const project = createDefaultProject()
+    const [page] = createSheetPages(standardA3SheetTemplate, project.logicalSheet.durationFrames)
+    const onAnnotationRegionSelect = vi.fn()
+    const commonProps = {
+      project,
+      template: standardA3SheetTemplate,
+      page: page!,
+      pageWidth: 877,
+      pageHeight: 1241,
+      displayDurationFrames: project.logicalSheet.durationFrames,
+      paperTracks: standardA3SheetTemplate.defaults.paperTracks,
+      onMetadataChange: vi.fn(),
+      onDurationChange: vi.fn(),
+      onFormFieldChange: vi.fn(),
+      onAnnotationRegionSelect,
+    }
+    const { container, rerender } = render(<SheetMetadataEditor {...commonProps} />)
+    const field = container.querySelector<HTMLButtonElement>('[data-annotation-target-id="cell:process_field_original"]')!
+
+    fireEvent.click(field)
+    expect(onAnnotationRegionSelect).toHaveBeenLastCalledWith(expect.objectContaining({
+      regionId: 'top_process_check_area',
+      targetId: 'cell:process_field_original',
+      label: '原図',
+    }))
+
+    rerender(<SheetMetadataEditor {...commonProps} selectedAnnotationTarget={{
+      regionId: 'top_process_check_area',
+      targetId: 'cell:process_field_original',
+    }} />)
+    expect(container.querySelectorAll('[data-annotation-target-selected="true"]')).toHaveLength(1)
+    expect(container.querySelector('[data-annotation-target-selected="true"]')?.getAttribute('data-annotation-target-id'))
+      .toBe('cell:process_field_original')
+  })
+
+  it('groups only cells that share a template memo target id', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const process = template.regions.find(region => region.regionId === 'top_process_check_area')!
+    const groupedIds = ['process_field_direction_rough', 'process_field_supervision_rough']
+    process.form!.cells!.forEach(cell => {
+      if (groupedIds.includes(cell.cellId)) cell.memoTarget = { scope: 'group', targetId: 'rough-review', label: '前半確認' }
+    })
+    const project = createDefaultProject()
+    const [page] = createSheetPages(template, project.logicalSheet.durationFrames)
+    const commonProps = {
+      project,
+      template,
+      page: page!,
+      pageWidth: 877,
+      pageHeight: 1241,
+      displayDurationFrames: project.logicalSheet.durationFrames,
+      paperTracks: template.defaults.paperTracks,
+      onMetadataChange: vi.fn(),
+      onDurationChange: vi.fn(),
+      onFormFieldChange: vi.fn(),
+      onAnnotationRegionSelect: vi.fn(),
+    }
+    const { container, rerender } = render(<SheetMetadataEditor {...commonProps} />)
+    expect(container.querySelectorAll('[data-annotation-target-id="group:rough-review"]')).toHaveLength(2)
+
+    rerender(<SheetMetadataEditor {...commonProps} selectedAnnotationTarget={{
+      regionId: 'top_process_check_area',
+      targetId: 'group:rough-review',
+    }} />)
+    expect(container.querySelectorAll('[data-annotation-target-selected="true"]')).toHaveLength(2)
+  })
+
+  it('keeps a target-disabled form cell editable without selecting an annotation target', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const process = template.regions.find(region => region.regionId === 'top_process_check_area')!
+    process.form!.cells!.find(cell => cell.cellId === 'process_field_original')!.memoTarget = { scope: 'none' }
+    const project = createDefaultProject()
+    const [page] = createSheetPages(template, project.logicalSheet.durationFrames)
+    const onAnnotationRegionSelect = vi.fn()
+    const { container } = render(
+      <SheetMetadataEditor
+        project={project}
+        template={template}
+        page={page!}
+        pageWidth={877}
+        pageHeight={1241}
+        displayDurationFrames={project.logicalSheet.durationFrames}
+        paperTracks={template.defaults.paperTracks}
+        onMetadataChange={vi.fn()}
+        onDurationChange={vi.fn()}
+        onFormFieldChange={vi.fn()}
+        onAnnotationRegionSelect={onAnnotationRegionSelect}
+      />,
+    )
+    const field = container.querySelector<HTMLButtonElement>('[data-region-id="top_process_check_area"]')!
+    expect(field.dataset.annotationTargetId).toBeUndefined()
+    fireEvent.click(field)
+    expect(onAnnotationRegionSelect).not.toHaveBeenCalled()
+    fireEvent.doubleClick(field)
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
   it('selects TITLE and MEMO as stable template-region annotation targets on one click', () => {
     const project = createDefaultProject()
     const [page] = createSheetPages(standardA3SheetTemplate, project.logicalSheet.durationFrames)

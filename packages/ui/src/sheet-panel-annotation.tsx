@@ -255,6 +255,7 @@ function AnnotationTextItem({
       style={commonStyle}
       aria-label={uiText.sheet.textTool}
       data-annotation-region-id={annotation.anchor?.kind === 'view-surface' ? annotation.anchor.regionId : undefined}
+      data-annotation-target-id={annotation.anchor?.kind === 'view-surface' ? annotation.anchor.targetId : undefined}
       data-dragging={dragPosition ? 'true' : undefined}
       onPointerDown={handleDisplayPointerDown}
       onPointerMove={handleDisplayPointerMove}

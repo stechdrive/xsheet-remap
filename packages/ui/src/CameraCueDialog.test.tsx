@@ -94,7 +94,9 @@ describe('CameraCueDialog', () => {
     expect(waveOption.getAttribute('aria-checked')).toBe('true')
     const icon = waveOption.querySelector('.cameraRangeShapeIcon')!
     expect(icon.querySelectorAll('polygon')).toHaveLength(2)
-    expect(icon.querySelector('path')?.getAttribute('d')).toMatch(/^M18 7.*18 17$/)
+    expect(icon.querySelector('path')?.getAttribute('d')).toBe(
+      'M18 7C24 7.833 24 8.667 18 9.5C12 10.333 12 11.167 18 12C24 12.833 24 13.667 18 14.5C12 15.333 12 16.167 18 17',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
     const row = container.querySelector('.cameraIntermediatePointRow')!

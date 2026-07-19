@@ -214,28 +214,37 @@ describe('CAMERA cue geometry', () => {
     }
     const pageSize = { widthPx: 1754, heightPx: 2481 }
     const layout = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [cue], pageSize, { paperTracks })[0]!
-    const landmarks = cameraCueSemanticLandmarksForPage(
+    const allLandmarks = cameraCueSemanticLandmarksForPage(
       standardA3SheetTemplate,
       cue,
       layout.segments,
       pageSize,
-    ).filter(landmark => landmark.pointId === 'mid')
+    )
+    const landmarks = allLandmarks.filter(landmark => landmark.pointId === 'mid')
 
     expect(layout.label).not.toBeNull()
+    expect(layout.label?.orientation).toBe('horizontal')
     expect(landmarks.map(landmark => landmark.kind)).toEqual([
       'point-label',
       'point-connector',
       'path-transition',
     ])
+    expect(landmarks.find(landmark => landmark.kind === 'point-label')?.blocksInstructionLabel).toBe(true)
+    expect(landmarks.find(landmark => landmark.kind === 'point-connector')?.blocksInstructionLabel).toBe(false)
     const transition = landmarks.find(landmark => landmark.kind === 'path-transition')!
+    const waveSegment = allLandmarks.find(landmark => landmark.kind === 'wave-segment')!
     expect(transition.rect.x).toBeCloseTo(layout.segments[0]!.regionRect.x)
     expect(transition.rect.w).toBeCloseTo(layout.segments[0]!.regionRect.w)
-    expect(landmarks.every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
+    expect(waveSegment.rect.x).toBeCloseTo(layout.segments[0]!.regionRect.x)
+    expect(waveSegment.rect.w).toBeCloseTo(layout.segments[0]!.regionRect.w)
+    expect(allLandmarks.filter(landmark => landmark.blocksInstructionLabel)
+      .every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
     expect(verticalIntervalsOverlap(layout.label!.rect, transition.rect)).toBe(false)
+    expect(verticalIntervalsOverlap(layout.label!.rect, waveSegment.rect)).toBe(false)
     expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
   })
 
-  it('avoids multiple intermediate landmarks using a custom template grid and font size', () => {
+  it('only avoids point labels when intermediate points keep the same wave style', () => {
     const customTemplate = {
       ...standardA3SheetTemplate,
       regions: standardA3SheetTemplate.regions.map(region => region.grid?.role === 'cell'
@@ -272,8 +281,11 @@ describe('CAMERA cue geometry', () => {
     )
 
     expect(layout.label?.fontSizePx).toBe(24)
-    expect(landmarks.filter(landmark => landmark.kind === 'path-transition')).toHaveLength(2)
-    expect(landmarks.every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
+    expect(landmarks.filter(landmark => landmark.kind === 'path-transition')).toHaveLength(0)
+    expect(landmarks.filter(landmark => landmark.kind === 'wave-segment')).toHaveLength(0)
+    expect(landmarks.filter(landmark => landmark.kind === 'point-label')).toHaveLength(2)
+    expect(landmarks.filter(landmark => landmark.blocksInstructionLabel)
+      .every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
     expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
   })
 

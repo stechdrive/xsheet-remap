@@ -50,7 +50,7 @@ export interface CameraCuePointLayout {
   textYpx: number
 }
 
-export type CameraCueSemanticLandmarkKind = 'point-label' | 'point-connector' | 'path-transition' | 'overlap-pivot'
+export type CameraCueSemanticLandmarkKind = 'point-label' | 'point-connector' | 'path-transition' | 'wave-segment' | 'overlap-pivot'
 
 /**
  * A derived, template-space reservation for CAMERA information that must remain
@@ -61,6 +61,7 @@ export interface CameraCueSemanticLandmark {
   kind: CameraCueSemanticLandmarkKind
   rect: NormalizedRect
   pointId?: string
+  blocksInstructionLabel: boolean
 }
 
 export type CameraRangePathCommand =
@@ -260,7 +261,9 @@ export function buildCameraCuePageLayouts(
       pageSize,
       segments,
       [
-        ...semanticLandmarks.filter(landmark => landmark.cueId !== cue.cueId).map(landmark => landmark.rect),
+        ...semanticLandmarks
+          .filter(landmark => landmark.cueId !== cue.cueId && landmark.blocksInstructionLabel)
+          .map(landmark => landmark.rect),
         ...occupiedLabels,
       ],
     )
@@ -312,6 +315,7 @@ export function cameraCueLabelLayoutForPage(
   const protectedObstacles = [
     ...obstacles,
     ...cameraCueSemanticLandmarksForPage(template, cue, segments, pageSize)
+      .filter(landmark => landmark.blocksInstructionLabel)
       .map(landmark => landmark.rect),
   ]
   let best: ScoredCameraCueLabelCandidate | null = null
@@ -519,6 +523,14 @@ export function cameraCueSemanticLandmarksForPage(
   pageSize: { widthPx: number; heightPx: number },
 ): CameraCueSemanticLandmark[] {
   const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
+  const styleSpans = cameraInstructionStyleSpans(cue)
+  const mixedStyles = new Set(styleSpans.map(span => span.style)).size > 1
+  const transitionPointIds = new Set(styleSpans.flatMap((span, index) => {
+    const next = styleSpans[index + 1]
+    return next && next.style !== span.style && span.endPointId !== CAMERA_INSTRUCTION_CUE_END_POINT_ID
+      ? [span.endPointId]
+      : []
+  }))
   const pointLayouts = cameraCuePointLayoutsForPage(template, cue, segments, pageSize)
   const pointLandmarks = pointLayouts.flatMap(layout => {
     const segment = segments.find(item => layout.frame >= item.frameStart && layout.frame <= item.frameEnd)
@@ -534,10 +546,10 @@ export function cameraCueSemanticLandmarksForPage(
       h: paddingY * 2,
     }, segment.regionRect)
     const landmarks: CameraCueSemanticLandmark[] = [
-      { cueId: cue.cueId, kind: 'point-label', pointId: layout.point.pointId, rect: labelRect },
-      { cueId: cue.cueId, kind: 'point-connector', pointId: layout.point.pointId, rect: connectorRect },
+      { cueId: cue.cueId, kind: 'point-label', pointId: layout.point.pointId, rect: labelRect, blocksInstructionLabel: true },
+      { cueId: cue.cueId, kind: 'point-connector', pointId: layout.point.pointId, rect: connectorRect, blocksInstructionLabel: false },
     ]
-    if (layout.point.role === 'intermediate') {
+    if (layout.point.role === 'intermediate' && transitionPointIds.has(layout.point.pointId)) {
       const transitionHalfHeight = Math.max(segment.rowHeight * 0.45, 2 / Math.max(1, pageSize.heightPx))
       const transitionTop = Math.min(layout.anchor.y - transitionHalfHeight, labelRect.y)
       const transitionBottom = Math.max(layout.anchor.y + transitionHalfHeight, labelRect.y + labelRect.h)
@@ -551,11 +563,32 @@ export function cameraCueSemanticLandmarksForPage(
           w: segment.regionRect.w,
           h: transitionBottom - transitionTop,
         }, segment.regionRect),
+        blocksInstructionLabel: true,
       })
     }
     return landmarks
   })
-  if (cue.camera?.shape !== 'overlap') return pointLandmarks
+  const waveSegmentLandmarks = mixedStyles
+    ? styleSpans.flatMap(span => span.style === 'wave'
+      ? segments.flatMap(segment => {
+          const start = Math.max(span.frameStart, segment.frameStart)
+          const end = Math.min(span.frameEndExclusive, segment.frameEnd + 1)
+          if (end <= start) return []
+          return [{
+            cueId: cue.cueId,
+            kind: 'wave-segment' as const,
+            rect: clampRectToRegion({
+              x: segment.regionRect.x,
+              y: segment.rect.y + (start - segment.frameStart) * segment.rowHeight,
+              w: segment.regionRect.w,
+              h: (end - start) * segment.rowHeight,
+            }, segment.regionRect),
+            blocksInstructionLabel: true,
+          }]
+        })
+      : [])
+    : []
+  if (cue.camera?.shape !== 'overlap') return [...pointLandmarks, ...waveSegmentLandmarks]
   const crossingLandmarks = segments.flatMap(segment => {
     const pivotMark = cameraOverlapPivotMarkForSegment(cue, segment)
     if (!pivotMark) return []
@@ -569,9 +602,43 @@ export function cameraCueSemanticLandmarksForPage(
         w: segment.rect.w,
         h: clearance,
       },
+      blocksInstructionLabel: true,
     }]
   })
-  return [...pointLandmarks, ...crossingLandmarks]
+  return [...pointLandmarks, ...waveSegmentLandmarks, ...crossingLandmarks]
+}
+
+interface CameraInstructionStyleSpan {
+  endPointId: string
+  frameStart: number
+  frameEndExclusive: number
+  style: CameraInstructionPathStyle
+}
+
+function cameraInstructionStyleSpans(cue: TimedRangeCue): CameraInstructionStyleSpan[] {
+  if (cue.camera?.shape !== 'range') return []
+  const points = resolveCameraInstructionPoints(cue.camera, cue.frameStart, cue.frameEnd)
+    .filter(point => point.role === 'intermediate')
+  const styles = new Map(resolveCameraInstructionSegmentStyles(cue.camera, cue.frameStart, cue.frameEnd)
+    .map(item => [item.endPointId, item.style]))
+  const fallback: CameraInstructionPathStyle = cue.camera.pathStyle === 'wave' ? 'wave' : 'straight'
+  const targets = [
+    ...points.map(point => ({ endPointId: point.pointId, frameEndExclusive: cue.frameStart + point.frameOffset })),
+    { endPointId: CAMERA_INSTRUCTION_CUE_END_POINT_ID, frameEndExclusive: cue.frameEnd + 1 },
+  ]
+  let frameStart = cue.frameStart
+  return targets.flatMap(target => {
+    const span = target.frameEndExclusive > frameStart
+      ? [{
+          endPointId: target.endPointId,
+          frameStart,
+          frameEndExclusive: target.frameEndExclusive,
+          style: styles.get(target.endPointId) ?? fallback,
+        }]
+      : []
+    frameStart = target.frameEndExclusive
+    return span
+  })
 }
 
 function labelCandidates(

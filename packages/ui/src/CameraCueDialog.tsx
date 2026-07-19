@@ -379,14 +379,16 @@ function ConnectionStyleControl({ value, label, onChange }: {
 function ConnectionStyleIcon({ style }: { style: CameraInstructionPathStyle }) {
   return style === 'straight'
     ? <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2V18" /></svg>
-    : <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2C14 4 2 6 8 8S14 12 8 14 2 16 8 18" /></svg>
+    : <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2C12 3.333 12 4.667 8 6C4 7.333 4 8.667 8 10C12 11.333 12 12.667 8 14C4 15.333 4 16.667 8 18" /></svg>
 }
 
 function CameraShapeIcon({ option }: { option: CameraShapeOption }) {
   if (option.shape === 'range') return (
     <svg className="cameraRangeShapeIcon" viewBox="0 0 36 24" aria-hidden="true">
       <polygon points="12,2 24,2 18,7" />
-      <path d={option.pathStyle === 'wave' ? 'M18 7C28 9 8 11 18 12S28 15 18 17' : 'M18 7V17'} />
+      <path d={option.pathStyle === 'wave'
+        ? 'M18 7C24 7.833 24 8.667 18 9.5C12 10.333 12 11.167 18 12C24 12.833 24 13.667 18 14.5C12 15.333 12 16.167 18 17'
+        : 'M18 7V17'} />
       <polygon points="12,22 24,22 18,17" />
     </svg>
   )

@@ -1,4 +1,6 @@
-import type { CutProject, PaperTrack, StackGuideLabel, StackGuideStackBand } from './types'
+import type { CutProject, PaperTrack, SheetTimingRole, StackGuideLabel, StackGuideStackBand } from './types'
+import { addOverlayPaperTrack } from './project-model'
+import { createStackGuideLabel } from './project-stack-guides'
 import { stackGuideStackBand } from './project-shared'
 
 const naturalFileNameCollator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' })
@@ -13,6 +15,18 @@ export type CellStackOrderItem =
   | { id: string; kind: 'stack-guide'; label: string; labelId: string }
 
 export type CspStackReorderEdge = 'before' | 'after'
+
+export type CspTopOverlayPaperTrackInput = {
+  paperTrack?: string
+  label?: string
+  sheetRole?: SheetTimingRole
+  templateId?: string
+}
+
+export type CspBottomStackGuideInput = Omit<
+  Parameters<typeof createStackGuideLabel>[1],
+  'gapIndex' | 'insertAfterPaperTrack' | 'viewSnapIndex'
+>
 
 export function cellStackOrderItems(project: CutProject): CellStackOrderItem[] {
   const templateTracks = project.logicalSheet.paperTracks
@@ -66,6 +80,73 @@ export function cellStackOrderItems(project: CutProject): CellStackOrderItem[] {
     items.push(...cellStackGapItems(entriesByAnchor, track.paperTrack))
   })
   return items
+}
+
+/**
+ * Adds a paper column at the top of the paper-track group as users see it in
+ * CSP. The reference is resolved from the current unified stack instead of a
+ * template column name, so custom templates and previously-added columns use
+ * the same rule.
+ */
+export function addOverlayPaperTrackAtCspTop(
+  project: CutProject,
+  input: CspTopOverlayPaperTrackInput = {},
+): ReturnType<typeof addOverlayPaperTrack> {
+  const sheetRole = input.sheetRole ?? 'cell'
+  const created = addOverlayPaperTrack(project, {
+    ...input,
+    sheetRole,
+    snapIndex: nextCspTopOverlaySnapIndex(project, sheetRole),
+  })
+  const itemId = `paper:${created.paperTrack.paperTrack}`
+  const topPaperTrack = cellStackOrderItems(created.project)
+    .filter(item => item.id !== itemId && item.kind !== 'stack-guide')
+    .at(-1)
+  const placedProject = topPaperTrack
+    ? reorderCspStackItem(created.project, itemId, topPaperTrack.id, 'before', true) ?? created.project
+    : created.project
+  return {
+    project: placedProject,
+    paperTrack: placedProject.logicalSheet.paperTracks.find(track => track.paperTrack === created.paperTrack.paperTrack) ?? created.paperTrack,
+  }
+}
+
+/**
+ * Adds a BG/BOOK-style guide immediately below all paper columns and above the
+ * existing guides in the normal CSP stack. Only the new item is positioned;
+ * manually arranged existing items retain their relative order and view data.
+ */
+export function createStackGuideLabelAtCspCellBottom(
+  project: CutProject,
+  input: CspBottomStackGuideInput,
+): ReturnType<typeof createStackGuideLabel> {
+  const created = createStackGuideLabel(project, {
+    ...input,
+    gapIndex: 0,
+    insertAfterPaperTrack: undefined,
+    viewSnapIndex: 0,
+  })
+  const itemId = `stack:${created.label.labelId}`
+  const bottomPaperTrack = [...cellStackOrderItems(created.project)]
+    .reverse()
+    .filter(item => item.kind !== 'stack-guide')
+    .at(-1)
+  const placedProject = bottomPaperTrack
+    ? reorderCspStackItem(created.project, itemId, bottomPaperTrack.id, 'after', true) ?? created.project
+    : created.project
+  return {
+    project: placedProject,
+    label: placedProject.stackGuideLabels.find(label => label.labelId === created.label.labelId) ?? created.label,
+  }
+}
+
+function nextCspTopOverlaySnapIndex(project: CutProject, sheetRole: SheetTimingRole): number {
+  const templateTrackCount = project.logicalSheet.paperTracks.filter(track => track.source !== 'overlay').length
+  const occupiedOverlaySnapIndices = project.logicalSheet.paperTracks
+    .filter(track => track.source === 'overlay' && (track.viewPlacement?.sheetRole ?? 'cell') === sheetRole)
+    .map(track => track.viewPlacement?.snapIndex)
+    .filter((snapIndex): snapIndex is number => typeof snapIndex === 'number' && Number.isFinite(snapIndex))
+  return Math.max(templateTrackCount + 1, ...occupiedOverlaySnapIndices.map(snapIndex => Math.round(snapIndex) + 1))
 }
 
 function cellStackGapItems(entriesByAnchor: Map<string, Array<{ item: CellStackOrderItem }>>, anchor: string | undefined): CellStackOrderItem[] {

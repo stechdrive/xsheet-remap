@@ -1,7 +1,62 @@
 import { describe, expect, it } from 'vitest'
-import { addOverlayPaperTrack, applyCellStackOrder, buildCspLayerTree, cellStackOrderItems, createDefaultProject, createProjectHistory, createStackGuideLabel, moveCellStackOrderItem, reorderCorrectionLayer, reorderCspStackItem, reorderProductionStage } from './index'
+import { addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, applyCellStackOrder, buildCspLayerTree, cellStackOrderItems, createDefaultProject, createProjectFromTrackLabels, createProjectHistory, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, moveCellStackOrderItem, reorderCorrectionLayer, reorderCspStackItem, reorderProductionStage } from './index'
 
 describe('cell stack order', () => {
+  it('adds a pane cell column above every existing cell column for a custom template', () => {
+    const custom = createProjectFromTrackLabels(['KEY', 'FX', 'MATTE'])
+    const existing = addOverlayPaperTrack(custom, {
+      paperTrack: 'EXISTING_CELL',
+      insertAfterPaperTrack: 'MATTE',
+      snapIndex: 14,
+      sheetRole: 'cell',
+    })
+    const background = createStackGuideLabel(existing.project, {
+      label: 'BG_EXISTING',
+      kind: 'background',
+      gapIndex: 0,
+      viewSnapIndex: 3,
+    })
+
+    const created = addOverlayPaperTrackAtCspTop(background.project, { paperTrack: 'NEW_CELL' })
+    const cspPaperOrder = cellStackOrderItems(created.project)
+      .filter(item => item.kind !== 'stack-guide')
+      .map(item => item.id)
+      .reverse()
+
+    expect(cspPaperOrder[0]).toBe('paper:NEW_CELL')
+    expect(created.paperTrack.viewPlacement).toMatchObject({ sheetRole: 'cell', snapIndex: 15 })
+    expect(created.project.logicalSheet.paperTracks.find(track => track.paperTrack === 'EXISTING_CELL')?.viewPlacement?.snapIndex).toBe(14)
+    expect(created.project.stackGuideLabels.find(label => label.labelId === background.label.labelId)?.viewSnapIndex).toBe(3)
+  })
+
+  it('adds a pane BG/BOOK below every cell column and above existing BG/BOOK labels', () => {
+    const overlay = addOverlayPaperTrack(createProjectFromTrackLabels(['X', 'Y']), {
+      paperTrack: 'LOW_CELL',
+      snapIndex: 0,
+      sheetRole: 'cell',
+    })
+    const existing = createStackGuideLabelAtCspCellBottom(overlay.project, {
+      label: 'BOOK_EXISTING',
+      kind: 'book',
+    })
+
+    const created = createStackGuideLabelAtCspCellBottom(existing.project, {
+      label: 'BG_NEW',
+      kind: 'background',
+      correctionLayerId: 'layer_sakuga',
+    })
+    const cspOrder = cellStackOrderItems(created.project).map(item => item.id).reverse()
+    const newId = `stack:${created.label.labelId}`
+    const existingId = `stack:${existing.label.labelId}`
+    const paperIndices = cspOrder
+      .map((id, index) => id.startsWith('paper:') ? index : -1)
+      .filter(index => index >= 0)
+
+    expect(Math.max(...paperIndices)).toBeLessThan(cspOrder.indexOf(newId))
+    expect(cspOrder.indexOf(newId)).toBeLessThan(cspOrder.indexOf(existingId))
+    expect(created.label).toMatchObject({ insertAfterPaperTrack: undefined, gapIndex: 0, viewSnapIndex: 0 })
+  })
+
   it('clears a stack-guide view override when CSP ordering is synchronized to the sheet', () => {
     const book = createStackGuideLabel(createDefaultProject(), {
       label: 'BOOK',

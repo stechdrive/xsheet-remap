@@ -177,7 +177,7 @@ export function SheetPanel(props: {
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
   onRenameProductionStage: (stageId: string, label: string) => void
   onRenameCorrectionLayer: (layerId: string, label: string) => void
-  onCreateStackGuideLabel: (input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) => void
+  onCreateStackGuideLabel: (input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string; cspPlacement?: 'cell-bottom' }) => void
   onUpdateStackGuideLabel: (labelId: string, updates: StackGuideLabelUpdates) => void
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
   onDeleteStackGuideLabel: (labelId: string) => void
@@ -187,7 +187,7 @@ export function SheetPanel(props: {
   onRegisterAssetsToNewCspTrack: (input: CspTreeNewTrackRegistrationInput) => CspTreeAssetRegistrationResult
   onCreateUnplacedCspCard: (slotId: string, cspCellName: string) => string | null
   onRegisterKeyToCspTrack: (keyId: string, slotId: string) => boolean
-  onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
+  onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole; cspPlacement?: 'cell-top' }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   onApplyNameNormalization: (plan: NameNormalizationPlan) => Promise<void>
@@ -1001,12 +1001,8 @@ export function SheetPanel(props: {
               onCreateUnplacedCard={props.onCreateUnplacedCspCard}
               onRegisterKeyToTrack={props.onRegisterKeyToCspTrack}
               onOpenNameNormalization={() => setNormalizationOpen(true)}
-              onRequestOverlayPaperTrack={() => setStackGuideInsertTool({ mode: 'overlay-track' })}
-              onRequestStackGuideInsert={correctionLayerId => setStackGuideInsertTool({
-                mode: 'label-editor',
-                correctionLayerId,
-                preferredSnapIndex: 0,
-              })}
+              onCreateDefaultOverlayPaperTrack={input => props.onAddOverlayPaperTrack({ ...input, cspPlacement: 'cell-top' })}
+              onCreateDefaultStackGuideLabel={input => props.onCreateStackGuideLabel({ ...input, gapIndex: 0, cspPlacement: 'cell-bottom' })}
               onCreateStackGuideLabel={props.onCreateStackGuideLabel}
             />
           </div>

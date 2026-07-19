@@ -466,12 +466,16 @@ export {
 } from './sheet-template'
 export { hasBlockingIssues, validateProject } from './validation'
 export {
+  addOverlayPaperTrackAtCspTop,
   applyCellStackOrder,
   cellStackOrderItems,
+  createStackGuideLabelAtCspCellBottom,
   cspStackReorderScope,
   moveCellStackOrderItem,
   reorderCspStackItem,
+  type CspBottomStackGuideInput,
   type CspStackReorderEdge,
+  type CspTopOverlayPaperTrackInput,
   type CellStackOrderItem,
 } from './project-cell-stack-order'
 export { reorderCorrectionLayer, reorderProductionStage } from './project-csp-pane-order'

@@ -4,7 +4,7 @@ import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsh
 import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
-import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 function dispatchBatchedPointerClick(target: Element, pointerId: number, clientX: number, clientY: number, releaseTarget: EventTarget = target) {
   const pointerDown = createEvent.pointerDown(target, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX, clientY })
@@ -263,19 +263,10 @@ it('adds a BG/BOOK label from the registered-cell plus menu and places it in the
     setSheetRect(sheet, 0, 0)
 
     fireEvent.click(screen.getByText('作画', { selector: '.cspTreeSummaryLabel' }))
-    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
-    await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
-    const defaultTarget = document.querySelector<HTMLElement>('.stackGuideGap.insertToolActive')
-    expect(defaultTarget?.dataset.stackGuideRole).toBe('action')
-    expect(defaultTarget?.dataset.stackGuideSnapIndex).toBe('0')
-
-    const overlay = setStackGuideOverlayRect()
-    const reservePoint = templateStackGuideHeaderSnapPoint('action', 0)
-    fireEvent.pointerMove(overlay, { pointerId: 1, pointerType: 'mouse', clientX: reservePoint.x, clientY: reservePoint.y })
-    fireEvent.click(overlay, { clientX: reservePoint.x, clientY: reservePoint.y })
-    fireEvent.change(await screen.findByLabelText(uiText.stackGuides.inputLabel), { target: { value: 'BG' } })
-    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'BG／BOOK名' }), { target: { value: 'BG' } })
+    fireEvent.click(screen.getByRole('button', { name: 'BG／BOOKを作成' }))
 
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BG'))
     const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')

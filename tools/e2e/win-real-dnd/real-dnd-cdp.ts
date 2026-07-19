@@ -506,7 +506,7 @@ async function runCspPaneRefactorScenario(): Promise<void> {
   await verifyFixedCspPaneFooter()
   checks.push('kept the CSP layer operation footer fixed while only the layer tree body scrolled')
 
-  await createStackGuideFromCspPaneFooter('作画', 'action', 3, createdLabel)
+  await createStackGuideFromCspPaneFooter('作画', createdLabel)
   await waitForStackGuideLabelRole(createdLabel, 'action')
   await dragAssetToCspTrack('A2.png', createdLabel)
   await waitForCspTrackAssigned(createdLabel)
@@ -596,13 +596,10 @@ async function verifyFixedCspPaneFooter(): Promise<void> {
 
 async function createStackGuideFromCspPaneFooter(
   correctionLayerLabel: string,
-  role: SheetTimingRole,
-  gapIndex: number,
   label: string,
 ): Promise<void> {
-  await stackGuideHeaderPoint(role, gapIndex)
   await realMouseClick(await clientToScreen(await cspSummaryLabelPoint(correctionLayerLabel)))
-  await realMouseClick(await clientToScreen(await elementCenterPoint('[aria-label="選択位置に項目を追加"]')))
+  await realMouseClick(await clientToScreen(await elementCenterPoint('[aria-label="CSPレイヤー項目を追加"]')))
   const menuPoint = await evaluatePage<ClientPoint | null>(`
     (() => {
       const button = Array.from(document.querySelectorAll('.cspPaneFooterAddMenu.actionMenuPortalContent button'))
@@ -615,13 +612,8 @@ async function createStackGuideFromCspPaneFooter(
   if (!menuPoint) throw new Error('CSP pane BG/BOOK add command not found')
   await realMouseClick(await clientToScreen(menuPoint), 'left', false)
   await waitForPageCondition(
-    () => evaluatePage<boolean>(`Boolean(document.querySelector('.stackGuideGap.insertToolActive'))`),
-    'CSP pane BG/BOOK insertion mode',
-  )
-  await realMouseClick(await clientToScreen(await activeStackGuideInsertHandlePoint(role, gapIndex)))
-  await waitForPageCondition(
-    () => evaluatePage<boolean>(`document.activeElement?.matches('.stackGuideEditor input[name="stackGuideLabel"]') === true`),
-    'stack guide editor keyboard focus',
+    () => evaluatePage<boolean>(`document.activeElement?.matches('input[aria-label="BG／BOOK名"]') === true`),
+    'CSP pane BG/BOOK draft keyboard focus',
   )
   await realKeyPress(`^a${label}{ENTER}`, true)
   await waitForCspTrack(label)

@@ -48,8 +48,8 @@ describe('CspLayerTree', () => {
         onCreateUnplacedCard={onCreateUnplacedCard}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -58,7 +58,7 @@ describe('CspLayerTree', () => {
       ?.querySelector<HTMLElement>('.cspTreeTrackRow')
     if (!trackRow) throw new Error('A track row not found')
     fireEvent.click(trackRow)
-    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: '登録セル' }))
     const input = screen.getByLabelText('A（演出）に追加するCSPセル名')
     expect((input as HTMLInputElement).value).toBe('A_02_e')
@@ -112,8 +112,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -193,8 +193,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -288,8 +288,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={onRegisterKeyToTrack}
         onOpenNameNormalization={onOpenNameNormalization}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -309,9 +309,9 @@ describe('CspLayerTree', () => {
     expect(onOpenNameNormalization).toHaveBeenCalledTimes(1)
   })
 
-  it('offers paper placement globally and auxiliary tracks on each correction layer', () => {
-    const onRequestOverlayPaperTrack = vi.fn()
-    const onRequestStackGuideInsert = vi.fn()
+  it('creates pane additions at semantic defaults and keeps auxiliary tracks on the selected layer', () => {
+    const onCreateDefaultOverlayPaperTrack = vi.fn()
+    const onCreateDefaultStackGuideLabel = vi.fn()
     const onCreateStackGuideLabel = vi.fn()
 
     render(
@@ -339,21 +339,30 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={onRequestOverlayPaperTrack}
-        onRequestStackGuideInsert={onRequestStackGuideInsert}
+        onCreateDefaultOverlayPaperTrack={onCreateDefaultOverlayPaperTrack}
+        onCreateDefaultStackGuideLabel={onCreateDefaultStackGuideLabel}
         onCreateStackGuideLabel={onCreateStackGuideLabel}
       />,
     )
 
-    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: '追加セル列' }))
-    expect(onRequestOverlayPaperTrack).toHaveBeenCalledTimes(1)
+    const overlayName = screen.getByRole('textbox', { name: '追加セル列名' })
+    expect((overlayName as HTMLInputElement).value).toBe('J')
+    fireEvent.change(overlayName, { target: { value: 'CUSTOM_CELL' } })
+    fireEvent.click(screen.getByRole('button', { name: '追加セル列を作成' }))
+    expect(onCreateDefaultOverlayPaperTrack).toHaveBeenCalledWith({ paperTrack: 'CUSTOM_CELL' })
 
-    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
-    expect(onRequestStackGuideInsert).toHaveBeenCalledWith('layer_sakuga')
+    fireEvent.change(screen.getByRole('textbox', { name: 'BG／BOOK名' }), { target: { value: 'BOOK_DEFAULT' } })
+    fireEvent.click(screen.getByRole('button', { name: 'BG／BOOKを作成' }))
+    expect(onCreateDefaultStackGuideLabel).toHaveBeenCalledWith({
+      label: 'BOOK_DEFAULT',
+      correctionLayerId: 'layer_sakuga',
+    })
 
-    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: '撮影指示' }))
     fireEvent.change(screen.getByRole('textbox', { name: '追加トラック名' }), { target: { value: 'PAN1' } })
     fireEvent.click(screen.getByRole('button', { name: '追加を確定' }))
@@ -412,8 +421,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -477,8 +486,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -522,8 +531,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -580,8 +589,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -631,8 +640,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )
@@ -674,8 +683,8 @@ describe('CspLayerTree', () => {
         onRegisterAssetsToNewTrack={onRegisterAssetsToNewTrack}
         onRegisterKeyToTrack={vi.fn(() => true)}
         onOpenNameNormalization={vi.fn()}
-        onRequestOverlayPaperTrack={vi.fn()}
-        onRequestStackGuideInsert={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
         onCreateStackGuideLabel={vi.fn()}
       />,
     )

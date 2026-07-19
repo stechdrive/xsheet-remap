@@ -6,7 +6,7 @@ import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
 import { ASSET_DRAG_MIME } from './sheetConstants';
-import { clickActiveStackGuideInsertHandle, clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint, templateStackGuideHeaderPoint, templateStackGuideHeaderSnapPoint } from './App.test-support'
+import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
 
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
@@ -132,14 +132,12 @@ it('provides a focused CSP remap shell without template authoring navigation', (
 
 it('adds an empty paper track and a material-unassigned card from the CSP layer pane', async () => {
     render(<RemapApp />)
-    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
-    setSheetRect(sheet, 0, 0)
 
-    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: '追加セル列' }))
-    await clickActiveStackGuideInsertHandle(templateStackGuideHeaderPoint('action', 3))
-    fireEvent.change(screen.getByLabelText(uiText.sheet.addOverlayTrackName), { target: { value: 'J' } })
-    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+    const trackName = screen.getByRole('textbox', { name: '追加セル列名' }) as HTMLInputElement
+    expect(trackName.value).toBe('J')
+    fireEvent.click(screen.getByRole('button', { name: '追加セル列を作成' }))
 
     await waitFor(() => {
       expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).map(label => label.textContent))
@@ -151,7 +149,7 @@ it('adds an empty paper track and a material-unassigned card from the CSP layer 
 
     const jRow = cspPaneTrackRow('J', '作画')
     fireEvent.click(jRow)
-    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: '登録セル' }))
     const cspNameInput = screen.getByLabelText('J（作画）に追加するCSPセル名') as HTMLInputElement
     expect(cspNameInput.value).toBe('J_01')
@@ -172,15 +170,10 @@ it('keeps the selected correction layer when placing a BG or BOOK track from the
     setSheetRect(sheet, 0, 0)
 
     fireEvent.click(screen.getByText('演出', { selector: '.cspTreeSummaryLabel' }))
-    fireEvent.click(screen.getByLabelText('選択位置に項目を追加'))
+    fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: 'BG／BOOK' }))
-    await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
-    const activeTarget = document.querySelector<HTMLElement>('.stackGuideGap.insertToolActive')
-    expect(activeTarget?.dataset.stackGuideSnapIndex).toBe('0')
-    const reservePoint = templateStackGuideHeaderSnapPoint('action', 0)
-    await clickActiveStackGuideInsertHandle(reservePoint)
-    fireEvent.change(screen.getByLabelText(uiText.stackGuides.inputLabel), { target: { value: 'BG1' } })
-    fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'BG／BOOK名' }), { target: { value: 'BG1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'BG／BOOKを作成' }))
 
     await waitFor(() => {
       const bgTrack = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))

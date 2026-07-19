@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
@@ -1419,9 +1419,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  function handleCreateStackGuideLabel(input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string }) {
+  function handleCreateStackGuideLabel(input: { label: string; gapIndex: number; insertAfterPaperTrack?: string; displayRole?: SheetTimingRole; viewSnapIndex?: number; kind?: StackGuideLabel['kind']; correctionLayerId?: string; cspPlacement?: 'cell-bottom' }) {
     try {
-      commitProject(createStackGuideLabel(project, { correctionLayerId: activeCorrectionLayerId, ...input }).project)
+      const { cspPlacement, ...createInput } = input
+      const created = cspPlacement === 'cell-bottom'
+        ? createStackGuideLabelAtCspCellBottom(project, createInput)
+        : createStackGuideLabel(project, { correctionLayerId: activeCorrectionLayerId, ...createInput })
+      commitProject(created.project)
     } catch (error) {
       window.alert(errorMessage(error))
     }
@@ -1529,12 +1533,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  function handleAddOverlayPaperTrack(input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) {
+  function handleAddOverlayPaperTrack(input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole; cspPlacement?: 'cell-top' }) {
     try {
-      const created = addOverlayPaperTrack(project, {
-        ...input,
+      const { cspPlacement, ...createInput } = input
+      const created = (cspPlacement === 'cell-top' ? addOverlayPaperTrackAtCspTop : addOverlayPaperTrack)(project, {
+        ...createInput,
         templateId: template.templateId,
-        sheetRole: input.sheetRole ?? 'cell',
+        sheetRole: createInput.sheetRole ?? 'cell',
       })
       commitProject(created.project)
     } catch (error) {

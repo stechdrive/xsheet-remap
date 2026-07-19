@@ -998,6 +998,14 @@ details[open] > summary > .cspTreeDisclosureButton > .cspTreeDisclosureGlyph {
   margin: 4px 4px 4px 18px;
 }
 
+.cspTreePaneAdditionForm {
+  padding: 3px;
+  border: 1px solid #789286;
+  border-radius: 4px;
+  background: #f8faf8;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.1);
+}
+
 .cspTreeAuxiliaryForm input {
   min-width: 0;
   height: 25px;

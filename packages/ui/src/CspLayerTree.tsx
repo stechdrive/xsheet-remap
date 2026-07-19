@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { buildCspLayerTree, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
+import { buildCspLayerTree, defaultCorrectionLayerId, stackGuideStackBand, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
 import { setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
 import { autoScrollListForPointer, listReorderTargetFromContainer, type ListReorderTarget } from './listReorder'
 import { correctionLayerIdForCspPaneSelection, cspPaneNodeCapabilities, cspPaneSelectionCurrentLabel, cspPaneSelectionExists, stackGuideSelectionBand, type CspPaneSelection } from './cspPaneModel'
+import { nextOverlayTrackNameForUi } from './sheet-layers-hit-geometry'
 import { Tooltip, TooltipTarget } from './Tooltip'
 
 export interface CspTreeAssetRegistrationResult {
@@ -46,8 +47,8 @@ export function CspLayerTree({
   onCreateUnplacedCard,
   onRegisterKeyToTrack,
   onOpenNameNormalization,
-  onRequestOverlayPaperTrack,
-  onRequestStackGuideInsert,
+  onCreateDefaultOverlayPaperTrack,
+  onCreateDefaultStackGuideLabel,
   onCreateStackGuideLabel,
 }: {
   project: CutProject
@@ -76,8 +77,8 @@ export function CspLayerTree({
   onCreateUnplacedCard?: (slotId: string, cspCellName: string) => string | null
   onRegisterKeyToTrack: (keyId: string, slotId: string) => boolean
   onOpenNameNormalization: () => void
-  onRequestOverlayPaperTrack: () => void
-  onRequestStackGuideInsert: (correctionLayerId: string) => void
+  onCreateDefaultOverlayPaperTrack: (input: { paperTrack: string }) => void
+  onCreateDefaultStackGuideLabel: (input: { label: string; correctionLayerId: string }) => void
   onCreateStackGuideLabel: (input: { label: string; kind: StackGuideLabel['kind']; gapIndex: number; correctionLayerId: string }) => void
 }) {
   const tree = useMemo(() => buildCspLayerTree(project, exportProfileId), [exportProfileId, project])
@@ -85,6 +86,11 @@ export function CspLayerTree({
   const [auxiliaryDraft, setAuxiliaryDraft] = useState<{
     correctionLayerId: string
     kind: Extract<StackGuideLabel['kind'], 'camera-note' | 'memo'>
+    label: string
+  } | null>(null)
+  const [paneAdditionDraft, setPaneAdditionDraft] = useState<{
+    kind: 'overlay-track' | 'stack-guide'
+    correctionLayerId: string
     label: string
   } | null>(null)
   const [assetDropTrackNodeId, setAssetDropTrackNodeId] = useState<string | null>(null)
@@ -664,6 +670,80 @@ export function CspLayerTree({
     )
   }
 
+  function beginPaneAddition(kind: 'overlay-track' | 'stack-guide', correctionLayerId: string) {
+    setAuxiliaryDraft(null)
+    setPaneAdditionDraft({
+      kind,
+      correctionLayerId,
+      label: kind === 'overlay-track' ? nextOverlayTrackNameForUi(project) : '',
+    })
+  }
+
+  function paneAdditionIndex(tracks: CspLayerTreeTrack[]): number {
+    if (!paneAdditionDraft) return -1
+    const cellInterleaveIndices = tracks.flatMap((track, index) => {
+      if (track.paperTrack) return [index]
+      const label = track.stackGuideLabelId
+        ? project.stackGuideLabels.find(item => item.labelId === track.stackGuideLabelId)
+        : undefined
+      return label && stackGuideStackBand(label) === 'cell-interleave' ? [index] : []
+    })
+    if (paneAdditionDraft.kind === 'overlay-track') {
+      return cellInterleaveIndices[0] ?? tracks.length
+    }
+    let lastPaperTrackIndex = -1
+    tracks.forEach((track, index) => {
+      if (track.paperTrack) lastPaperTrackIndex = index
+    })
+    return lastPaperTrackIndex >= 0
+      ? lastPaperTrackIndex + 1
+      : cellInterleaveIndices[0] ?? tracks.length
+  }
+
+  function renderPaneAdditionDraft(layerId: string) {
+    if (!paneAdditionDraft || paneAdditionDraft.correctionLayerId !== layerId) return null
+    const isOverlayTrack = paneAdditionDraft.kind === 'overlay-track'
+    return (
+      <form
+        className="cspTreeAuxiliaryForm cspTreePaneAdditionForm"
+        onSubmit={(event: FormEvent<HTMLFormElement>) => {
+          event.preventDefault()
+          const label = paneAdditionDraft.label.trim()
+          if (!label) return
+          if (isOverlayTrack) {
+            onCreateDefaultOverlayPaperTrack({ paperTrack: label })
+          } else {
+            onCreateDefaultStackGuideLabel({ label, correctionLayerId: layerId })
+          }
+          setPaneAdditionDraft(null)
+        }}
+      >
+        <input
+          autoFocus
+          aria-label={isOverlayTrack ? '追加セル列名' : 'BG／BOOK名'}
+          placeholder={isOverlayTrack ? 'J' : 'BG1 / BOOK1'}
+          value={paneAdditionDraft.label}
+          onFocus={event => event.currentTarget.select()}
+          onChange={event => {
+            const label = event.currentTarget.value
+            setPaneAdditionDraft(current => current ? { ...current, label } : current)
+          }}
+          onKeyDown={event => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            setPaneAdditionDraft(null)
+          }}
+        />
+        <TooltipTarget label="追加を確定">
+          {tooltipProps => <button type="submit" aria-label={isOverlayTrack ? '追加セル列を作成' : 'BG／BOOKを作成'} {...tooltipProps}>✓</button>}
+        </TooltipTarget>
+        <TooltipTarget label="追加をキャンセル">
+          {tooltipProps => <button type="button" aria-label="追加をキャンセル" onClick={() => setPaneAdditionDraft(null)} {...tooltipProps}>×</button>}
+        </TooltipTarget>
+      </form>
+    )
+  }
+
   const selectedCapabilities = paneSelection ? cspPaneNodeCapabilities(project, paneSelection) : null
   const selectedLayerId = correctionLayerIdForCspPaneSelection(paneSelection, activeCorrectionLayerId)
   const selectedSlotId = paneSelection && (
@@ -746,6 +826,9 @@ export function CspLayerTree({
               const layerSelection: CspPaneSelection = layer.layerId
                 ? { kind: 'correction-layer', nodeId: `layer:${layer.layerId}`, label: layer.label, stageId: stage.stageId ?? '', layerId: layer.layerId }
                 : { kind: 'generated-readonly', nodeId: layer.nodeId, label: layer.label }
+              const additionIndex = layer.layerId && paneAdditionDraft?.correctionLayerId === layer.layerId
+                ? paneAdditionIndex(layer.tracks)
+                : -1
               return (
               <div className="cspTreeLayerShell" key={layer.nodeId}>
                 <details className="cspTreeLayer" open>
@@ -825,7 +908,7 @@ export function CspLayerTree({
                       </TooltipTarget>
                     </form>
                   )}
-                  {layer.tracks.length === 0 && <p className="cspTreeNoTracks">トラックなし</p>}
+                  {layer.tracks.length === 0 && additionIndex < 0 && <p className="cspTreeNoTracks">トラックなし</p>}
                   {layer.layerId && renderNewTrackDropZone(layer.layerId, layer.label, layer.tracks, 0)}
                   {layer.tracks.map((track, trackIndex) => {
                     const trackSelection = trackPaneSelection(track, layer.layerId)
@@ -837,6 +920,7 @@ export function CspLayerTree({
                       : `${track.label}（${layer.label}）にカードを追加`
                     return (
                     <Fragment key={track.nodeId}>
+                    {layer.layerId && additionIndex === trackIndex && renderPaneAdditionDraft(layer.layerId)}
                     <div
                       className={[
                         'cspTreeTrack',
@@ -931,6 +1015,7 @@ export function CspLayerTree({
                     </Fragment>
                     )
                   })}
+                  {layer.layerId && additionIndex === layer.tracks.length && renderPaneAdditionDraft(layer.layerId)}
                 </details>
               </div>
               )
@@ -940,22 +1025,38 @@ export function CspLayerTree({
         })}
       </div>
       <footer className="cspLayerTreeFooter" aria-label="CSPレイヤー操作">
-        <Tooltip label="CSPセル名と素材ファイル名をまとめて整える">
+        <Tooltip label="一括リネーム">
           <button type="button" className="cspTreeNormalizeButton" aria-label="名前を正規化" onClick={onOpenNameNormalization}>
             <NormalizeIcon />
           </button>
         </Tooltip>
         <ActionMenu
           label={<PlusIcon />}
-          ariaLabel="選択位置に項目を追加"
-          tooltipLabel="選択位置に項目を追加"
+          ariaLabel="CSPレイヤー項目を追加"
+          tooltipLabel="項目を追加"
           className="cspPaneFooterAddMenu iconActionMenu"
           closeOnMenuItemClick
         >
-          <button type="button" onClick={onRequestOverlayPaperTrack}>追加セル列</button>
-          <button type="button" disabled={!selectedLayerId} onClick={() => selectedLayerId && onRequestStackGuideInsert(selectedLayerId)}>BG／BOOK</button>
-          <button type="button" disabled={!selectedLayerId} onClick={() => selectedLayerId && setAuxiliaryDraft({ correctionLayerId: selectedLayerId, kind: 'camera-note', label: '' })}>撮影指示</button>
-          <button type="button" disabled={!selectedLayerId} onClick={() => selectedLayerId && setAuxiliaryDraft({ correctionLayerId: selectedLayerId, kind: 'memo', label: '' })}>メモ</button>
+          <button
+            type="button"
+            onClick={() => {
+              const layerId = defaultCorrectionLayerId(project) ?? activeCorrectionLayerId
+              if (layerId) beginPaneAddition('overlay-track', layerId)
+            }}
+          >
+            追加セル列
+          </button>
+          <button type="button" disabled={!selectedLayerId} onClick={() => selectedLayerId && beginPaneAddition('stack-guide', selectedLayerId)}>BG／BOOK</button>
+          <button type="button" disabled={!selectedLayerId} onClick={() => {
+            if (!selectedLayerId) return
+            setPaneAdditionDraft(null)
+            setAuxiliaryDraft({ correctionLayerId: selectedLayerId, kind: 'camera-note', label: '' })
+          }}>撮影指示</button>
+          <button type="button" disabled={!selectedLayerId} onClick={() => {
+            if (!selectedLayerId) return
+            setPaneAdditionDraft(null)
+            setAuxiliaryDraft({ correctionLayerId: selectedLayerId, kind: 'memo', label: '' })
+          }}>メモ</button>
           {selectedSlotId && onCreateUnplacedCard && <button type="button" onClick={() => beginNewCel(selectedSlotId)}>登録セル</button>}
         </ActionMenu>
         <span className="cspLayerTreeFooterSpacer" />

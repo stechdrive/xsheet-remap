@@ -7,6 +7,7 @@ import {
   buildCameraCuePageLayouts,
   cameraCueLabelLayoutForPage,
   cameraCuePointLayoutsForPage,
+  cameraCueSemanticLandmarksForPage,
   cameraCueSegmentsForPage,
   cameraOverlapFillPolygonsForSegment,
   cameraOverlapPivotMarkForSegment,
@@ -195,6 +196,81 @@ describe('CAMERA cue geometry', () => {
     const intermediateFrameStartY = segment.rect.y + 11 * segment.rowHeight
     expect(paths[0]?.commands.at(-1)?.y).toBeCloseTo(intermediateFrameStartY)
     expect(paths[1]?.commands[0]?.y).toBeCloseTo(intermediateFrameStartY)
+  })
+
+  it('keeps an automatic instruction label clear of an intermediate label and path transition', () => {
+    const cue: TimedRangeCue = {
+      cueId: 'cue_landmark', role: 'camera', laneId: 'camera_lane_3', frameStart: 2, frameEnd: 10,
+      label: 'WAVE', text: '', source: 'manual',
+      camera: {
+        shape: 'range',
+        pathStyle: 'wave',
+        points: [{ pointId: 'mid', role: 'intermediate', frameOffset: 4, label: 'B' }],
+        segmentStyles: [
+          { endPointId: 'mid', style: 'straight' },
+          { endPointId: 'cue-end', style: 'wave' },
+        ],
+      },
+    }
+    const pageSize = { widthPx: 1754, heightPx: 2481 }
+    const layout = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [cue], pageSize, { paperTracks })[0]!
+    const landmarks = cameraCueSemanticLandmarksForPage(
+      standardA3SheetTemplate,
+      cue,
+      layout.segments,
+      pageSize,
+    ).filter(landmark => landmark.pointId === 'mid')
+
+    expect(layout.label).not.toBeNull()
+    expect(landmarks.map(landmark => landmark.kind)).toEqual([
+      'point-label',
+      'point-connector',
+      'path-transition',
+    ])
+    expect(landmarks.every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
+    expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
+  })
+
+  it('avoids multiple intermediate landmarks using a custom template grid and font size', () => {
+    const customTemplate = {
+      ...standardA3SheetTemplate,
+      regions: standardA3SheetTemplate.regions.map(region => region.grid?.role === 'cell'
+        ? {
+            ...region,
+            grid: {
+              ...region.grid,
+              majorLineEvery: 8,
+              typography: { ...region.grid.typography, cellFontSize: { value: 24, unit: 'px' as const } },
+            },
+          }
+        : region),
+    }
+    const customPage = createSheetPages(customTemplate, 144, 1)[0]!
+    const cue: TimedRangeCue = {
+      cueId: 'cue_multi_landmark', role: 'camera', laneId: 'camera_lane_2', frameStart: 2, frameEnd: 24,
+      label: 'Follow', text: '', source: 'manual',
+      camera: {
+        shape: 'range',
+        pathStyle: 'wave',
+        points: [
+          { pointId: 'mid_a', role: 'intermediate', frameOffset: 7, label: 'A' },
+          { pointId: 'mid_b', role: 'intermediate', frameOffset: 15, label: 'B' },
+        ],
+      },
+    }
+    const pageSize = { widthPx: 2100, heightPx: 2970 }
+    const layout = buildCameraCuePageLayouts(customTemplate, customPage, [cue], pageSize, { paperTracks })[0]!
+    const landmarks = cameraCueSemanticLandmarksForPage(
+      customTemplate,
+      cue,
+      layout.segments,
+      pageSize,
+    )
+
+    expect(layout.label?.fontSizePx).toBe(24)
+    expect(landmarks.filter(landmark => landmark.kind === 'path-transition')).toHaveLength(2)
+    expect(landmarks.every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
+    expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
   })
 
   it('draws an odd overlap at the center of its anchor frame', () => {

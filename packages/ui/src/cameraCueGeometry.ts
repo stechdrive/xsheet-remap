@@ -50,6 +50,19 @@ export interface CameraCuePointLayout {
   textYpx: number
 }
 
+export type CameraCueSemanticLandmarkKind = 'point-label' | 'point-connector' | 'path-transition' | 'overlap-pivot'
+
+/**
+ * A derived, template-space reservation for CAMERA information that must remain
+ * legible when the instruction label is placed automatically.
+ */
+export interface CameraCueSemanticLandmark {
+  cueId: string
+  kind: CameraCueSemanticLandmarkKind
+  rect: NormalizedRect
+  pointId?: string
+}
+
 export type CameraRangePathCommand =
   | { kind: 'move'; x: number; y: number }
   | { kind: 'line'; x: number; y: number }
@@ -231,8 +244,12 @@ export function buildCameraCuePageLayouts(
   options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): CameraCuePageLayout[] {
   const cueSegments = new Map(cues.map(cue => [cue.cueId, cameraCueSegmentsForPage(template, page, cue, options)]))
-  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
-  const protectedCrossings = cues.flatMap(cue => cameraCueProtectedCrossings(cue, cueSegments.get(cue.cueId) ?? [], pageSize, fontSizePx))
+  const semanticLandmarks = cues.flatMap(cue => cameraCueSemanticLandmarksForPage(
+    template,
+    cue,
+    cueSegments.get(cue.cueId) ?? [],
+    pageSize,
+  ))
   const occupiedLabels: NormalizedRect[] = []
   return cues.map(cue => {
     const segments = cueSegments.get(cue.cueId) ?? []
@@ -242,7 +259,10 @@ export function buildCameraCuePageLayouts(
       cue,
       pageSize,
       segments,
-      [...protectedCrossings, ...occupiedLabels],
+      [
+        ...semanticLandmarks.filter(landmark => landmark.cueId !== cue.cueId).map(landmark => landmark.rect),
+        ...occupiedLabels,
+      ],
     )
     if (label) occupiedLabels.push(label.rect)
     return { cue, segments, label }
@@ -291,7 +311,8 @@ export function cameraCueLabelLayoutForPage(
   const variants = cameraCueLabelVariants(label, values, segment, pageSize, font)
   const protectedObstacles = [
     ...obstacles,
-    ...cameraCueProtectedCrossings(cue, segments, pageSize, fontSizePx),
+    ...cameraCueSemanticLandmarksForPage(template, cue, segments, pageSize)
+      .map(landmark => landmark.rect),
   ]
   let best: ScoredCameraCueLabelCandidate | null = null
   for (const variant of variants) {
@@ -491,24 +512,64 @@ function preferredCameraLabelFrame(template: SheetTemplate, cue: TimedRangeCue, 
   return cue.frameStart + (duration - 1) * progress
 }
 
-function cameraCueProtectedCrossings(
+export function cameraCueSemanticLandmarksForPage(
+  template: SheetTemplate,
   cue: TimedRangeCue,
   segments: CameraCueSegment[],
   pageSize: { widthPx: number; heightPx: number },
-  fontSizePx: number,
-): NormalizedRect[] {
-  if (cue.camera?.shape !== 'overlap') return []
-  return segments.flatMap(segment => {
+): CameraCueSemanticLandmark[] {
+  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
+  const pointLayouts = cameraCuePointLayoutsForPage(template, cue, segments, pageSize)
+  const pointLandmarks = pointLayouts.flatMap(layout => {
+    const segment = segments.find(item => layout.frame >= item.frameStart && layout.frame <= item.frameEnd)
+    if (!segment) return []
+    const paddingX = Math.max(segment.rect.w * 0.12, 2 / Math.max(1, pageSize.widthPx))
+    const paddingY = Math.max(segment.rowHeight * 0.12, 2 / Math.max(1, pageSize.heightPx))
+    const labelRect = expandRectWithinRegion(layout.rect, paddingX, paddingY, segment.regionRect)
+    const connectorCenterX = layout.rect.x + layout.rect.w / 2
+    const connectorRect = clampRectToRegion({
+      x: Math.min(layout.anchor.x, connectorCenterX) - paddingX,
+      y: layout.anchor.y - paddingY,
+      w: Math.abs(connectorCenterX - layout.anchor.x) + paddingX * 2,
+      h: paddingY * 2,
+    }, segment.regionRect)
+    const landmarks: CameraCueSemanticLandmark[] = [
+      { cueId: cue.cueId, kind: 'point-label', pointId: layout.point.pointId, rect: labelRect },
+      { cueId: cue.cueId, kind: 'point-connector', pointId: layout.point.pointId, rect: connectorRect },
+    ]
+    if (layout.point.role === 'intermediate') {
+      const transitionHalfHeight = Math.max(segment.rowHeight * 0.45, 2 / Math.max(1, pageSize.heightPx))
+      landmarks.push({
+        cueId: cue.cueId,
+        kind: 'path-transition',
+        pointId: layout.point.pointId,
+        rect: clampRectToRegion({
+          x: segment.rect.x - paddingX,
+          y: layout.anchor.y - transitionHalfHeight,
+          w: segment.rect.w + paddingX * 2,
+          h: transitionHalfHeight * 2,
+        }, segment.regionRect),
+      })
+    }
+    return landmarks
+  })
+  if (cue.camera?.shape !== 'overlap') return pointLandmarks
+  const crossingLandmarks = segments.flatMap(segment => {
     const pivotMark = cameraOverlapPivotMarkForSegment(cue, segment)
     if (!pivotMark) return []
     const clearance = Math.max(segment.rowHeight * 1.5, (fontSizePx + 6) / pageSize.heightPx)
     return [{
-      x: segment.rect.x,
-      y: pivotMark.y - clearance / 2,
-      w: segment.rect.w,
-      h: clearance,
+      cueId: cue.cueId,
+      kind: 'overlap-pivot' as const,
+      rect: {
+        x: segment.rect.x,
+        y: pivotMark.y - clearance / 2,
+        w: segment.rect.w,
+        h: clearance,
+      },
     }]
   })
+  return [...pointLandmarks, ...crossingLandmarks]
 }
 
 function labelCandidates(
@@ -635,6 +696,20 @@ function clampRectToRegion(rect: NormalizedRect, region: NormalizedRect): Normal
     w,
     h,
   }
+}
+
+function expandRectWithinRegion(
+  rect: NormalizedRect,
+  paddingX: number,
+  paddingY: number,
+  region: NormalizedRect,
+): NormalizedRect {
+  return clampRectToRegion({
+    x: rect.x - paddingX,
+    y: rect.y - paddingY,
+    w: rect.w + paddingX * 2,
+    h: rect.h + paddingY * 2,
+  }, region)
 }
 
 function verticalOutsideRatio(rect: NormalizedRect, cueRect: NormalizedRect): number {

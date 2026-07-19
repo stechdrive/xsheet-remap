@@ -64,6 +64,7 @@ def main() -> int:
     click_parser.add_argument("--x", type=int, required=True)
     click_parser.add_argument("--y", type=int, required=True)
     click_parser.add_argument("--button", choices=["left", "right"], default="left")
+    click_parser.add_argument("--click-count", choices=[1, 2], type=int, default=1)
     click_parser.add_argument("--app-pid", type=int)
     click_parser.add_argument("--modifier", action="append", choices=["ctrl", "shift"], default=[])
 
@@ -89,6 +90,15 @@ def main() -> int:
     explorer_multi_parser.add_argument("--app-pid", type=int)
     explorer_multi_parser.add_argument("--duration", type=float, default=1.0)
     explorer_multi_parser.add_argument("--timeout", type=float, default=15.0)
+
+    choose_folder_parser = subparsers.add_parser(
+        "choose-folder-dialog",
+        help="Choose an allowed folder in the app's native Windows folder dialog.",
+    )
+    choose_folder_parser.add_argument("--path", required=True)
+    choose_folder_parser.add_argument("--allowed-root", required=True)
+    choose_folder_parser.add_argument("--app-pid", type=int, required=True)
+    choose_folder_parser.add_argument("--timeout", type=float, default=15.0)
 
     metrics_parser = subparsers.add_parser("window-client-metrics", help="Return the main app window client rectangle in physical screen coordinates.")
     metrics_parser.add_argument("--app-pid", type=int, required=True)
@@ -132,12 +142,15 @@ def main() -> int:
         try:
             for modifier in args.modifier:
                 keyboard.send_keys("{" + modifier_keys[modifier] + " down}")
-            mouse.click(button=args.button, coords=(args.x, args.y))
+            if args.click_count == 2:
+                mouse.double_click(button=args.button, coords=(args.x, args.y))
+            else:
+                mouse.click(button=args.button, coords=(args.x, args.y))
         finally:
             for modifier in reversed(args.modifier):
                 keyboard.send_keys("{" + modifier_keys[modifier] + " up}")
         time.sleep(0.1)
-        print_json({"ok": True, "command": args.command, "button": args.button, "modifiers": args.modifier, "point": [args.x, args.y]})
+        print_json({"ok": True, "command": args.command, "button": args.button, "clickCount": args.click_count, "modifiers": args.modifier, "point": [args.x, args.y]})
         return 0
 
     if args.command == "key-press":
@@ -193,6 +206,21 @@ def main() -> int:
             "target": [args.to_x, args.to_y],
             "explorerRect": explorer_rect,
             "selection": selection,
+        })
+        return 0
+
+    if args.command == "choose-folder-dialog":
+        folder_path = resolved_path(args.path)
+        allowed_root = resolved_path(args.allowed_root)
+        assert_inside(folder_path, allowed_root)
+        if not folder_path.is_dir():
+            raise RuntimeError(f"folder dialog target is not a directory: {folder_path}")
+        dialog_title = choose_folder_in_dialog(folder_path, args.app_pid, args.timeout)
+        print_json({
+            "ok": True,
+            "command": args.command,
+            "path": str(folder_path),
+            "dialogTitle": dialog_title,
         })
         return 0
 
@@ -292,6 +320,42 @@ def process_main_window(process_id: int):
     if not windows:
         raise RuntimeError(f"could not find a visible process window: pid={process_id}")
     return max(windows, key=window_area)
+
+
+def choose_folder_in_dialog(folder_path: Path, process_id: int, timeout: float) -> str:
+    desktop = Desktop(backend="uia")
+    deadline = time.monotonic() + timeout
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        for window in desktop.windows(process=process_id, control_type="Window", visible_only=True):
+            try:
+                title = window.window_text() or ""
+                # Tauri exposes the native picker as descendants of the main
+                # application window instead of a separate top-level window.
+                # The standard control IDs are the stable dialog boundary.
+                folder_edit = next(
+                    control
+                    for control in window.descendants(control_type="Edit")
+                    if str(control.element_info.automation_id) == "1152"
+                )
+                select_button = next(
+                    control
+                    for control in window.descendants(control_type="Button")
+                    if str(control.element_info.automation_id) == "1"
+                )
+                if not folder_edit.is_visible() or not select_button.is_enabled():
+                    continue
+                window.set_focus()
+                folder_edit.set_edit_text(str(folder_path))
+                select_button.click_input()
+                return title
+            except Exception as exc:
+                last_error = exc
+        time.sleep(0.2)
+    raise RuntimeError(
+        f"could not choose folder in native dialog for pid={process_id}: {last_error}; "
+        f"candidates={explorer_debug_snapshot(desktop)}"
+    )
 
 
 def window_area(window) -> int:
@@ -550,7 +614,9 @@ def drag_screen(from_x: int, from_y: int, to_x: int, to_y: int, duration: float)
 
 
 def print_json(value: object) -> None:
-    print(json.dumps(value, ensure_ascii=False), flush=True)
+    # Keep diagnostics valid even when the Windows console code page cannot
+    # encode a title returned from another user's open application.
+    print(json.dumps(value, ensure_ascii=True), flush=True)
 
 
 if __name__ == "__main__":

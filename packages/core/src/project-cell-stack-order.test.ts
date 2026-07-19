@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addOverlayPaperTrack, applyCellStackOrder, cellStackOrderItems, createDefaultProject, createStackGuideLabel, moveCellStackOrderItem, reorderCorrectionLayer, reorderCspStackItem, reorderProductionStage } from './index'
+import { addOverlayPaperTrack, applyCellStackOrder, buildCspLayerTree, cellStackOrderItems, createDefaultProject, createProjectHistory, createStackGuideLabel, moveCellStackOrderItem, reorderCorrectionLayer, reorderCspStackItem, reorderProductionStage } from './index'
 
 describe('cell stack order', () => {
   it('clears a stack-guide view override when CSP ordering is synchronized to the sheet', () => {
@@ -172,6 +172,37 @@ describe('cell stack order', () => {
     expect(cspOrder.indexOf(itemId)).toBe(cspOrder.indexOf('paper:E') - 1)
     expect(moved.stackGuideLabels.find(label => label.labelId === created.label.labelId)?.viewSnapIndex).toBe(6)
     expect(reorderCspStackItem(moved, itemId, 'paper:E', 'before', true)).toBeNull()
+  })
+
+  it('keeps CSP tree order aligned when dragging one BG/BOOK guide across a template track', () => {
+    const background = createStackGuideLabel(createDefaultProject(), {
+      label: 'BG1',
+      kind: 'background',
+      gapIndex: 1,
+      correctionLayerId: 'layer_sakuga',
+    })
+    const dragged = createStackGuideLabel(background.project, {
+      label: 'BG_DRAG',
+      kind: 'background',
+      gapIndex: 0,
+      correctionLayerId: 'layer_sakuga',
+    })
+    const trackLabels = (project: typeof dragged.project) => buildCspLayerTree(project).stages
+      .flatMap(stage => stage.layers)
+      .find(layer => layer.layerId === 'layer_sakuga')
+      ?.tracks.map(track => track.label) ?? []
+    expect(trackLabels(dragged.project).indexOf('BG_DRAG')).toBeGreaterThan(trackLabels(dragged.project).indexOf('BG1'))
+
+    const moved = reorderCspStackItem(
+      dragged.project,
+      `stack:${dragged.label.labelId}`,
+      `stack:${background.label.labelId}`,
+      'before',
+      true,
+    )
+    if (!moved) throw new Error('BG/BOOK reorder failed')
+    expect(trackLabels(moved).indexOf('BG_DRAG')).toBeLessThan(trackLabels(moved).indexOf('BG1'))
+    expect(trackLabels(createProjectHistory(moved).present).indexOf('BG_DRAG')).toBeLessThan(trackLabels(createProjectHistory(moved).present).indexOf('BG1'))
   })
 
   it('reorders camera and memo labels inside their own bands and rejects cross-band drops', () => {

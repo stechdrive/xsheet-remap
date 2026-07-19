@@ -88,19 +88,27 @@ export function cspPaneTrackRow(label: string, correctionLayerLabel?: string): H
   return row
 }
 
-export function dragCspPaneRow(source: HTMLElement, target: HTMLElement, edge: 'before' | 'after' = 'before') {
+export function dragCspPaneRow(
+  source: HTMLElement,
+  target: HTMLElement,
+  edge: 'before' | 'after' = 'before',
+  dragHandle: HTMLElement = source,
+) {
   const body = source.closest<HTMLElement>('.cspLayerTreeBody')
   const scope = source.dataset.cspPaneReorderScope
   if (!body || !scope || target.dataset.cspPaneReorderScope !== scope) throw new Error('CSP pane reorder rows are not in the same scope')
   const rows = Array.from(body.querySelectorAll<HTMLElement>('[data-csp-pane-reorder-id][data-csp-pane-reorder-scope]'))
     .filter(row => row.dataset.cspPaneReorderScope === scope)
-  setElementRect(body, 0, 0, 320, Math.max(120, rows.length * 40 + 20))
-  rows.forEach((row, index) => setElementRect(row, 10, 10 + index * 40, 300, 30))
+  // Keep the synthetic pane outside the sheet rectangle. This catches the
+  // real routing contract: reordering inside the pane must not also be
+  // interpreted as a pane-to-sheet placement drop.
+  setElementRect(body, -400, 0, 320, Math.max(120, rows.length * 40 + 20))
+  rows.forEach((row, index) => setElementRect(row, -390, 10 + index * 40, 300, 30))
   const targetRect = target.getBoundingClientRect()
-  dragInternalPointer(source, target, {
-    fromX: 120,
+  dragInternalPointer(dragHandle, target, {
+    fromX: -280,
     fromY: source.getBoundingClientRect().top + 15,
-    toX: 120,
+    toX: -280,
     toY: edge === 'before' ? targetRect.top + 2 : targetRect.bottom - 2,
   })
 }

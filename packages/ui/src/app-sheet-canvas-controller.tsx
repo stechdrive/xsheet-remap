@@ -549,8 +549,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const draggedStackGuideLabelId = payload.kind === 'stack-guide' ? payload.labelId : payload.kind === 'csp-pane-node' ? payload.stackGuideLabelId : undefined
     if (draggedStackGuideLabelId) {
       clearDropTargetPreview()
-      if (phase === 'start' || phase === 'move') updateStackGuideDropPreview(draggedStackGuideLabelId, clientX, clientY)
-      if (phase === 'drop') { moveStackGuideLabelFromPoint(draggedStackGuideLabelId, clientX, clientY); setInternalDragDropValidity(null) }
+      if (phase === 'start' || phase === 'move') updateStackGuideDropPreview(draggedStackGuideLabelId, clientX, clientY, payload.kind === 'csp-pane-node')
+      if (phase === 'drop') { moveStackGuideLabelFromPoint(draggedStackGuideLabelId, clientX, clientY, payload.kind === 'csp-pane-node'); setInternalDragDropValidity(null) }
       return
     }
     if (payload.kind === 'stack-guide' || payload.kind === 'csp-pane-node') return
@@ -859,7 +859,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     return stackGuideInsertTargetFromPoint(props.template, props.project, page, point)
   }
 
-  function stackGuideDropTargetFromClientPoint(clientX: number, clientY: number): StackGuideDropPreviewState | null {
+  function stackGuideDropTargetFromClientPoint(clientX: number, clientY: number, requireInsidePage = false): StackGuideDropPreviewState | null {
     let fallback: StackGuideDropPreviewState | null = null
     for (const page of visiblePages) {
       const svg = svgForPage(page)
@@ -880,21 +880,21 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         return preview
       }
     }
-    return fallback
+    return requireInsidePage ? null : fallback
   }
 
-  function updateStackGuideDropPreview(labelId: string | undefined, clientX: number, clientY: number) {
-    const target = stackGuideDropTargetFromClientPoint(clientX, clientY)
+  function updateStackGuideDropPreview(labelId: string | undefined, clientX: number, clientY: number, requireInsidePage = false) {
+    const target = stackGuideDropTargetFromClientPoint(clientX, clientY, requireInsidePage)
     setStackGuideDropPreview(target ? { ...target, labelId } : null)
     if (target) setActivePageIndexIfNeeded(visiblePages.find(page => page.pageId === target.pageId)?.pageIndex ?? props.activePageIndex)
     return target
   }
 
-  function moveStackGuideLabelFromPoint(labelId: string, clientX: number, clientY: number): boolean {
+  function moveStackGuideLabelFromPoint(labelId: string, clientX: number, clientY: number, requireInsidePage = false): boolean {
     if (!labelId) return false
     const label = props.project.stackGuideLabels.find(item => item.labelId === labelId)
     if (!label) return true
-    const target = stackGuideDropTargetFromClientPoint(clientX, clientY)
+    const target = stackGuideDropTargetFromClientPoint(clientX, clientY, requireInsidePage)
     if (!target) return true
     const page = visiblePages.find(item => item.pageId === target.pageId)
     if (!page) return true

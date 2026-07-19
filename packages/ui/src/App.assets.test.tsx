@@ -553,12 +553,19 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     const bgRow = cspPaneTrackRow('BG', '作画')
     const sameScopeRows = Array.from(document.querySelectorAll<HTMLElement>('[data-csp-pane-reorder-scope]'))
       .filter(row => row.dataset.cspPaneReorderScope === bookRow.dataset.cspPaneReorderScope)
-    dragCspPaneRow(bookRow, bgRow, sameScopeRows.indexOf(bookRow) < sameScopeRows.indexOf(bgRow) ? 'after' : 'before')
+    const bookLabel = bookRow.querySelector<HTMLElement>('.cspTreeTrackName')
+    if (!bookLabel) throw new Error('CSP pane track label was not rendered')
+    const reorderEdge = sameScopeRows.indexOf(bookRow) < sameScopeRows.indexOf(bgRow) ? 'after' : 'before'
+    dragCspPaneRow(bookRow, bgRow, reorderEdge, bookLabel)
     await waitFor(() => {
       const movedGuide = Array.from(document.querySelectorAll<SVGGElement>('.stackGuideSvgLabel'))
         .find(label => label.textContent === 'BOOK2,3')
       expect(movedGuide).toBeTruthy()
       expect(stackGuideConnectorPath('BOOK2,3')).not.toBe(connectorBeforeMove)
+      const labels = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackRow'))
+        .filter(row => row.dataset.cspPaneReorderScope === bookRow.dataset.cspPaneReorderScope)
+        .map(row => row.querySelector('.cspTreeTrackName')?.textContent?.trim())
+      expect(labels.indexOf('BOOK2,3') < labels.indexOf('BG')).toBe(reorderEdge === 'before')
     })
 
     const assetInput = screen.getByLabelText(uiText.actions.addAssets)

@@ -109,6 +109,7 @@ export function CspLayerTree({
   } | null>(null)
   const treeRootRef = useRef<HTMLElement | null>(null)
   const treeBodyRef = useRef<HTMLDivElement | null>(null)
+  const paneDropTargetRef = useRef<(ListReorderTarget & { scope: string }) | null>(null)
   const pendingKeySelectRef = useRef<number | null>(null)
   const suppressClickKeyRef = useRef<string | null>(null)
   const suppressPaneClickRef = useRef<string | null>(null)
@@ -310,6 +311,10 @@ export function CspLayerTree({
       && selection.kind !== 'stack-guide'
     ) return
     startInternalPointerDrag(event, {
+      // The visible name occupies almost the entire row and doubles as the
+      // rename trigger. Keep actual form controls/disclosure buttons inert,
+      // but allow a thresholded drag to start from the name itself.
+      interactiveTargetSelector: 'button,input,select,textarea,a,[contenteditable="true"]',
       begin: () => ({
         kind: 'csp-pane-node',
         nodeId: selection.nodeId,
@@ -386,22 +391,37 @@ export function CspLayerTree({
       if (detail.phase === 'start' || detail.phase === 'move') {
         if (target) {
           autoScrollListForPointer(body, detail.clientY)
-          setPaneDropTarget({ ...target, scope: detail.payload.reorderScope })
+          const nextTarget = { ...target, scope: detail.payload.reorderScope }
+          paneDropTargetRef.current = nextTarget
+          setPaneDropTarget(nextTarget)
           setInternalDragDropValidity('valid')
         } else {
+          paneDropTargetRef.current = null
           setPaneDropTarget(null)
           setInternalDragDropValidity(null)
         }
         return
       }
+      const lastTarget = paneDropTargetRef.current?.scope === detail.payload.reorderScope
+        ? paneDropTargetRef.current
+        : null
+      paneDropTargetRef.current = null
       setPaneDropTarget(null)
-      if (detail.phase !== 'drop' || !target) return
+      if (detail.phase !== 'drop') {
+        setInternalDragDropValidity(null)
+        return
+      }
+      const dropTarget = lastTarget ?? target
+      if (!dropTarget) {
+        setInternalDragDropValidity(null)
+        return
+      }
       if (detail.payload.nodeKind === 'production-stage') {
-        onReorderProductionStage(detail.payload.reorderId, target.referenceItemId, target.edge)
+        onReorderProductionStage(detail.payload.reorderId, dropTarget.referenceItemId, dropTarget.edge)
       } else if (detail.payload.nodeKind === 'correction-layer') {
-        onReorderCorrectionLayer(detail.payload.reorderId, target.referenceItemId, target.edge)
+        onReorderCorrectionLayer(detail.payload.reorderId, dropTarget.referenceItemId, dropTarget.edge)
       } else {
-        onReorderStackItem(detail.payload.reorderId, target.referenceItemId, target.edge)
+        onReorderStackItem(detail.payload.reorderId, dropTarget.referenceItemId, dropTarget.edge)
       }
       setInternalDragDropValidity(null)
       return

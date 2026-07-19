@@ -108,7 +108,7 @@ if (!args['app-pid']) throw new Error('--app-pid is required')
 if (!args['test-case']) throw new Error('--test-case is required')
 if (!args['scenario-id']) throw new Error('--scenario-id is required')
 if (!args['screenshot-root']) throw new Error('--screenshot-root is required')
-if (!['registered-cell', 'explorer-import', 'full'].includes(args['test-case'])) throw new Error(`unsupported --test-case: ${args['test-case']}`)
+if (!['registered-cell', 'explorer-import', 'csp-pane', 'full'].includes(args['test-case'])) throw new Error(`unsupported --test-case: ${args['test-case']}`)
 if (args['test-case'] !== 'registered-cell') {
   if (!args.folder) throw new Error('--folder is required')
   if (!args['allowed-root']) throw new Error('--allowed-root is required')
@@ -138,6 +138,8 @@ try {
     await runRegisteredCellRealDndScenario()
   } else if (args['test-case'] === 'explorer-import') {
     await runExplorerImportScenario()
+  } else if (args['test-case'] === 'csp-pane' && args.mode === 'remap') {
+    await runRemapCspPaneRealDndScenario()
   } else if (args.mode === 'remap') {
     await runRemapRealDndScenario()
   } else {
@@ -449,6 +451,55 @@ async function runRemapRealDndScenario(): Promise<void> {
   await runCspPaneRefactorScenario()
 }
 
+async function runRemapCspPaneRealDndScenario(): Promise<void> {
+  await ensurePaneExpandedWithRealMouse('sheet-left-pane')
+  await ensurePaneExpandedWithRealMouse('sheet-right-pane')
+  await setSheetZoomForRealMouse(60)
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`Boolean(document.querySelector('.cspLayerTree') && document.querySelector('[aria-label^="BG1（"]') && document.querySelector('[aria-label^="SL1（"]') && document.querySelector('[aria-label^="MEMO1（"]'))`),
+    'remap CSP layer tree fixture',
+  )
+
+  await registerAssetFolderWithNativeDialog()
+  await waitForAssetBrowserFilesMaterialized(['A1.png', 'A1_e.png', 'A2.png'])
+  checks.push('registered a generated image-material folder through the real Windows folder-selection UI')
+
+  await dragAssetToCspTrack('A1.png', 'BG1')
+  await waitForCspTrackAssigned('BG1')
+  await dragAssetToCspTrack('A1_e.png', 'SL1')
+  await waitForCspTrackAssigned('SL1')
+  await dragAssetToCspTrack('A2.png', 'MEMO1')
+  await waitForCspTrackAssigned('MEMO1')
+  checks.push('assigned real image materials to BG/BOOK, camera-note, and memo tracks with real mouse drags')
+
+  await dragAssetToCspTrack('A1.png', 'A')
+  await waitForCspTrackAssigned('A')
+  const cspCellClient = await cspTrackCelPoint('A')
+  const frameClient = await framePoint('action', 'A', 1)
+  await realMouseDragRegisteredCellToSheet(
+    await clientToScreen(cspCellClient),
+    await clientToScreen(frameClient),
+    frameClient,
+  )
+  await waitForAssetEventAt('action', 'A', 1)
+  checks.push('registered a cell material and dropped its CSP card onto the sheet with the real mouse')
+
+  await runCspPaneRefactorScenario()
+}
+
+async function registerAssetFolderWithNativeDialog(): Promise<void> {
+  const buttonClient = await elementCenterPoint('[aria-label="カットフォルダを追加"]')
+  await realMouseClick(await clientToScreen(buttonClient))
+  const result = await runMouseOpJson<{ ok: boolean; path: string; dialogTitle: string }>([
+    'choose-folder-dialog',
+    '--path', args.folder as string,
+    '--allowed-root', args['allowed-root'] as string,
+    '--app-pid', args['app-pid'] as string,
+  ])
+  diagnostics.nativeAssetFolderDialog = result
+  await waitForAssetBrowserFile('A1.png')
+}
+
 async function runCspPaneRefactorScenario(): Promise<void> {
   const createdLabel = 'BG_FOOTER_LONG_REFERENCE_02'
   const renamedLabel = 'BOOK_FOOTER_LONG_REFERENCE_03'
@@ -468,9 +519,7 @@ async function runCspPaneRefactorScenario(): Promise<void> {
   await waitForStackGuideLabelRole(renamedLabel, 'action')
   checks.push('renamed the selected auxiliary track with the real mouse and keyboard without truncating its sheet label')
 
-  const paneTrackClient = await cspTrackRowPoint(renamedLabel)
-  const sheetTargetClient = await stackGuideHeaderPoint('cell', 4)
-  await realMouseDrag(await clientToScreen(paneTrackClient), await clientToScreen(sheetTargetClient))
+  await dragCspPaneTrackToSheetWithRealMouse(renamedLabel, 'cell')
   await waitForStackGuideLabelRole(renamedLabel, 'cell')
   await waitForNoStackGuideLabelRole(renamedLabel, 'action')
   checks.push('dragged the CSP pane track itself onto the sheet and verified its insertion placement moved')
@@ -479,6 +528,40 @@ async function runCspPaneRefactorScenario(): Promise<void> {
   await waitForStackGuideLabelRole(renamedLabel, 'cell')
   checks.push('deleted the selected track from the fixed footer and restored it through application Undo')
   await captureScreenshot('remap-csp-pane-refactor-after')
+}
+
+async function dragCspPaneTrackToSheetWithRealMouse(label: string, role: SheetTimingRole): Promise<void> {
+  // Use the template grid point rather than an insert-tool handle. Multiple
+  // overlapping guide handles can share a snap index, while the grid point
+  // unambiguously exercises the requested ACTION/CELL role.
+  const targetClient = (await stackGuideLabelToGridRolePoints(label, role)).target
+  const sourceClient = await cspTrackNamePoint(label)
+  const sourceScreen = await clientToScreen(sourceClient)
+  const targetScreen = await clientToScreen(targetClient)
+  diagnostics.cspPaneSheetDropPoints = { sourceClient, sourceScreen, targetClient, targetScreen }
+  await evaluatePage<void>(`window.__cspPaneDragEvents = []`)
+  let mouseIsDown = false
+  try {
+    await runMouseOp(['mouse-down-screen', '--x', String(sourceScreen.x), '--y', String(sourceScreen.y), '--app-pid', args['app-pid'] as string])
+    mouseIsDown = true
+    await runMouseOp(['mouse-move-screen', '--x', String(targetScreen.x), '--y', String(targetScreen.y), '--duration', '0.8'])
+    await waitForPageCondition(
+      () => evaluatePage<boolean>(`document.body.dataset.internalDragKind === 'csp-pane-node'`),
+      `CSP pane track ${label} drag start`,
+      3000,
+    )
+    diagnostics.cspPaneSheetDropDuringDrag = await evaluatePage(`
+      (() => ({
+        validity: document.body.dataset.internalDragValidity || '',
+        preview: Boolean(document.querySelector('.stackGuideDropPreview')),
+        ghost: document.querySelector('.internalDragPreview')?.textContent?.trim() || '',
+      }))()
+    `)
+    await captureScreenshot('remap-csp-pane-sheet-drop')
+  } finally {
+    if (mouseIsDown) await runMouseOp(['mouse-up-screen', '--x', String(targetScreen.x), '--y', String(targetScreen.y)])
+  }
+  diagnostics.cspPaneSheetDragEvents = await evaluatePage(`window.__cspPaneDragEvents || []`)
 }
 
 async function verifyFixedCspPaneFooter(): Promise<void> {
@@ -550,10 +633,28 @@ async function swapCspPaneTrackWithRealMouse(sourceLabel: string, referenceLabel
   const referenceIndex = before.indexOf(referenceLabel)
   if (sourceIndex < 0 || referenceIndex < 0) throw new Error(`CSP pane reorder fixture not found: ${before.join(', ')}`)
   const edge: 'before' | 'after' = sourceIndex < referenceIndex ? 'after' : 'before'
-  const sourceClient = await cspTrackRowPoint(sourceLabel)
-  const targetClient = await cspTrackRowEdgePoint(referenceLabel, edge)
+  const { source: sourceClient, target: targetClient } = await cspTrackReorderPoints(sourceLabel, referenceLabel, edge)
   const sourceScreen = await clientToScreen(sourceClient)
   const targetScreen = await clientToScreen(targetClient)
+  await evaluatePage<void>(`
+    (() => {
+      window.__cspPaneDragEvents = [];
+      if (!window.__cspPaneDragListenerInstalled) {
+        window.addEventListener('xsheet-remap:internal-drag', event => {
+          const detail = event.detail;
+          if (detail?.payload?.kind === 'csp-pane-node') {
+            window.__cspPaneDragEvents.push({
+              phase: detail.phase,
+              clientX: detail.clientX,
+              clientY: detail.clientY,
+              payload: detail.payload,
+            });
+          }
+        });
+        window.__cspPaneDragListenerInstalled = true;
+      }
+    })()
+  `)
   let mouseIsDown = false
   try {
     await runMouseOp(['mouse-down-screen', '--x', String(sourceScreen.x), '--y', String(sourceScreen.y), '--app-pid', args['app-pid'] as string])
@@ -567,18 +668,52 @@ async function swapCspPaneTrackWithRealMouse(sourceLabel: string, referenceLabel
   } finally {
     if (mouseIsDown) await runMouseOp(['mouse-up-screen', '--x', String(targetScreen.x), '--y', String(targetScreen.y)])
   }
-  await waitForPageCondition(async () => {
-    const after = await cspPaneTrackScopeOrder(sourceLabel)
-    const nextSource = after.indexOf(sourceLabel)
-    const nextReference = after.indexOf(referenceLabel)
-    return edge === 'before' ? nextSource < nextReference : nextSource > nextReference
-  }, `CSP pane reordered ${sourceLabel} ${edge} ${referenceLabel}`)
+  diagnostics.cspPaneDragEvents = await evaluatePage(`window.__cspPaneDragEvents || []`)
+  diagnostics.cspPaneOrderAfterDrop = await cspPaneTrackScopeOrder(sourceLabel)
+  try {
+    await waitForPageCondition(async () => {
+      const after = await cspPaneTrackScopeOrder(sourceLabel)
+      const nextSource = after.indexOf(sourceLabel)
+      const nextReference = after.indexOf(referenceLabel)
+      return edge === 'before' ? nextSource < nextReference : nextSource > nextReference
+    }, `CSP pane reordered ${sourceLabel} ${edge} ${referenceLabel}`)
+  } finally {
+    diagnostics.cspPaneOrderAfterWait = await cspPaneTrackScopeOrder(sourceLabel)
+  }
+}
+
+async function cspTrackReorderPoints(
+  sourceLabel: string,
+  referenceLabel: string,
+  edge: 'before' | 'after',
+): Promise<{ source: ClientPoint; target: ClientPoint }> {
+  return evaluatePage<{ source: ClientPoint; target: ClientPoint }>(`
+    (() => {
+      const rows = Array.from(document.querySelectorAll('.cspTreeTrackRow'));
+      const rowFor = label => rows.find(row => row.querySelector('.cspTreeTrackName')?.textContent?.trim() === label);
+      const sourceRow = rowFor(${JSON.stringify(sourceLabel)});
+      const targetRow = rowFor(${JSON.stringify(referenceLabel)});
+      if (!(sourceRow instanceof HTMLElement) || !(targetRow instanceof HTMLElement)) {
+        throw new Error('CSP pane reorder rows not found');
+      }
+      sourceRow.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const sourceRect = sourceRow.getBoundingClientRect();
+      const targetRect = targetRow.getBoundingClientRect();
+      const xFor = rect => rect.left + Math.min(Math.max(rect.width / 2, 24), rect.width - 8);
+      return {
+        source: { x: xFor(sourceRect), y: sourceRect.top + sourceRect.height / 2 },
+        target: {
+          x: xFor(targetRect),
+          y: ${JSON.stringify(edge)} === 'before' ? targetRect.top + 2 : targetRect.bottom - 2,
+        },
+      };
+    })()
+  `)
 }
 
 async function renameCspPaneTrackWithRealMouse(currentLabel: string, nextLabel: string): Promise<void> {
   const point = await clientToScreen(await cspTrackNamePoint(currentLabel))
-  await realMouseClick(point)
-  await realMouseClick(point, 'left', false)
+  await realMouseClick(point, 'left', true, [], 2)
   await waitForPageCondition(
     () => evaluatePage<boolean>(`document.activeElement?.getAttribute('aria-label') === ${JSON.stringify(`${currentLabel}の追加トラック名`)}`),
     `CSP pane rename input ${currentLabel}`,
@@ -952,12 +1087,14 @@ async function realMouseClick(
   button: MouseButton = 'left',
   focusApp = true,
   modifiers: Array<'ctrl' | 'shift'> = [],
+  clickCount: 1 | 2 = 1,
 ): Promise<void> {
   await runMouseOp([
     'click-screen',
     '--x', String(point.x),
     '--y', String(point.y),
     '--button', button,
+    '--click-count', String(clickCount),
     ...modifiers.flatMap(modifier => ['--modifier', modifier]),
     ...(focusApp ? ['--app-pid', args['app-pid'] as string] : []),
   ])

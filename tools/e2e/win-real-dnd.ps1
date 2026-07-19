@@ -1,7 +1,7 @@
 param(
   [ValidateSet("editor", "remap")]
   [string]$AppMode = "editor",
-  [ValidateSet("registered-cell", "explorer-import", "full")]
+  [ValidateSet("registered-cell", "explorer-import", "csp-pane", "full")]
   [string]$TestCase = "registered-cell",
   [string]$ExePath = "",
   [string]$ArtifactRoot = ".tmp/desktop-e2e-real-dnd",
@@ -30,7 +30,7 @@ if (-not $ExePath) {
 }
 $scenario = if ($TestCase -eq "registered-cell") {
   "registered-cell-real-dnd"
-} elseif ($AppMode -eq "remap" -and $TestCase -eq "full") {
+} elseif ($AppMode -eq "remap" -and $TestCase -in @("csp-pane", "full")) {
   "remap-real-dnd"
 } else {
   "real-dnd"
@@ -138,11 +138,24 @@ function Ensure-RealDndVenv {
     }
   }
 
-  & $venvPython -c "import pywinauto" 2>$null
-  if ($LASTEXITCODE -ne 0) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    # Windows PowerShell promotes a native command's stderr to a terminating
+    # NativeCommandError while the script-wide preference is Stop. A missing
+    # optional import is the condition we are probing for here, so capture its
+    # exit code without aborting before the dependency install can run.
+    $ErrorActionPreference = "SilentlyContinue"
+    & $venvPython -c "import pywinauto" *> $null
+    $pywinautoImportExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($pywinautoImportExitCode -ne 0) {
     Write-Host "[real-dnd] installing pywinauto dependencies into isolated venv..."
-    & $venvPython -m pip install -r (Join-Path $repoRoot "tools\e2e\win-real-dnd\requirements.txt")
-    if ($LASTEXITCODE -ne 0) {
+    & $venvPython -m pip install -r (Join-Path $repoRoot "tools\e2e\win-real-dnd\requirements.txt") 2>&1 |
+      ForEach-Object { Write-Host $_ }
+    $pipInstallExitCode = $LASTEXITCODE
+    if ($pipInstallExitCode -ne 0) {
       throw "failed to install pywinauto dependencies"
     }
   }

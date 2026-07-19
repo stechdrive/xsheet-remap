@@ -104,12 +104,24 @@ export function normalizeSheetMemos(input: unknown): SheetMemo[] {
       return
     }
     if (memo.kind === 'timeline' && memo.anchor && memo.placement) {
+      const rawTexts = Array.isArray(memo.texts) ? memo.texts as Array<NonNullable<TimelineInkMemo['texts']>[number] & { color?: string; fontSizeUnits?: number }> : []
+      const legacyText = rawTexts[0]
+      const appearance = memo.appearance
+        ? normalizeMemoAppearance(memo.appearance)
+        : legacyText
+          ? normalizeMemoAppearance({
+              text: {
+                color: legacyText.color ?? '#d52b2b',
+                fontSizeUnits: legacyText.fontSizeUnits ?? 1,
+              },
+            })
+          : undefined
       result.push({
         ...(memo as unknown as TimelineInkMemo),
         kind: 'timeline',
         strokes: Array.isArray(memo.strokes) ? memo.strokes as TimelineInkMemo['strokes'] : [],
-        texts: Array.isArray(memo.texts) ? memo.texts as NonNullable<TimelineInkMemo['texts']> : [],
-        appearance: memo.appearance ? normalizeMemoAppearance(memo.appearance) : undefined,
+        texts: rawTexts.map(text => ({ textId: text.textId, text: text.text, x: text.x, y: text.y })),
+        appearance,
         order: typeof memo.order === 'number' ? memo.order : index + 1,
       })
     }

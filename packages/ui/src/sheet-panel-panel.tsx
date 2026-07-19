@@ -136,7 +136,7 @@ export function SheetPanel(props: {
   onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void
   onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onEraseTimelineMemoStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
-  onUpsertTimelineMemoText: (memoId: string, text: TimelineMemoText) => void
+  onUpsertTimelineMemoText: (memoId: string, text: TimelineMemoText, appearance: MemoAppearance) => void
   onUpdateTimelineMemoAppearance: (memoId: string, appearance: MemoAppearance) => void
   onClearTimelineMemoStrokes: (memoId: string) => void
   onClearSelection: () => void
@@ -200,7 +200,6 @@ export function SheetPanel(props: {
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
   const [normalizationOpen, setNormalizationOpen] = useState(false)
   const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
-  const [selectedTimelineMemoTextId, setSelectedTimelineMemoTextId] = useState<string | null>(null)
   const [selectedAnnotationRegion, setSelectedAnnotationRegion] = useState<TemplateRegionAnnotationTarget | null>(null)
   const editMode = props.editMode
   const setEditMode = props.setEditMode
@@ -213,15 +212,14 @@ export function SheetPanel(props: {
     ? timelineMemos(props.project).find(memo => memo.memoId === activeTimelineMemoId) ?? null
     : null
   const activeTimelineMemoAppearance = normalizeMemoAppearance(activeTimelineMemo?.appearance)
-  const activeTimelineMemoText = activeTimelineMemo?.texts?.find(text => text.textId === selectedTimelineMemoTextId) ?? null
   const activeTimelineMemoTextSegment = activeTimelineMemo && activePage
     ? timelineMemoSegmentsForPage(props.template, activePage, activeTimelineMemo, {
         paperTracks: props.project.logicalSheet.paperTracks.map(track => track.paperTrack),
         layoutOverrides: props.project.sheetView.layoutOverrides,
-      }).find(segment => activeTimelineMemoText && activeTimelineMemoText.y >= segment.memoYStart && activeTimelineMemoText.y < segment.memoYEnd) ?? null
+      })[0] ?? null
     : null
-  const activeTimelineMemoTextFontSizePx = activeTimelineMemoText && activeTimelineMemoTextSegment
-    ? activeTimelineMemoText.fontSizeUnits * activeTimelineMemoTextSegment.rowHeightY * resolveSheetTemplatePageSize(props.template).heightPx
+  const activeTimelineMemoTextFontSizePx = activeTimelineMemo && activeTimelineMemoTextSegment
+    ? activeTimelineMemoAppearance.text.fontSizeUnits * activeTimelineMemoTextSegment.rowHeightY * resolveSheetTemplatePageSize(props.template).heightPx
     : null
   const selectedCueId = props.selectedSoundCueId ?? props.selectedCameraCueId
   const selectedCue = selectedCueId ? props.project.timedRangeCues.find(cue => cue.cueId === selectedCueId) ?? null : null
@@ -268,12 +266,10 @@ export function SheetPanel(props: {
     : { kind: 'page', pageId: activePage?.pageId ?? 'page_1', templateId: props.template.templateId }
   const beginTimelineMemoEdit = useCallback((memoId: string, mode: Extract<EditMode, 'pen' | 'text'> = 'pen') => {
     setSelectedTimelineMemoId(memoId)
-    setSelectedTimelineMemoTextId(null)
     setEditMode(mode)
   }, [setEditMode])
   const endTimelineMemoEdit = useCallback(() => {
     setSelectedTimelineMemoId(null)
-    setSelectedTimelineMemoTextId(null)
     if (editMode === 'pen' || editMode === 'eraser' || editMode === 'text') setEditMode('new')
   }, [editMode, setEditMode])
   const finishAnnotationSession = useCallback(() => {
@@ -826,26 +822,36 @@ export function SheetPanel(props: {
               <EraserToolIcon />
             </button>
           </Tooltip>
-          <Tooltip label={uiText.sheet.penColor}>
-            <input type="color" value={activeTimelineMemoText?.color ?? selectedTextAnnotation?.color ?? props.penColor} onChange={event => {
+          <Tooltip label={props.editMode === 'text' && activeTimelineMemoId ? 'メモ全体の文字色' : uiText.sheet.penColor}>
+            <input
+              type="color"
+              aria-label={props.editMode === 'text' && activeTimelineMemoId ? 'メモ全体の文字色' : uiText.sheet.penColor}
+              value={props.editMode === 'text' && activeTimelineMemoId ? activeTimelineMemoAppearance.text.color : selectedTextAnnotation?.color ?? props.penColor}
+              onChange={event => {
               const color = event.currentTarget.value
-              props.setPenColor(color)
-              if (activeTimelineMemoId && activeTimelineMemoText) {
-                props.onUpsertTimelineMemoText(activeTimelineMemoId, { ...activeTimelineMemoText, color })
+              if (activeTimelineMemoId && props.editMode === 'text') {
+                props.onUpdateTimelineMemoAppearance(activeTimelineMemoId, {
+                  ...activeTimelineMemoAppearance,
+                  text: { ...activeTimelineMemoAppearance.text, color },
+                })
               } else if (selectedTextAnnotation?.kind === 'text') {
                 props.onUpdateTextAnnotation(selectedTextAnnotation.annotationId, { color })
-              }
-            }} />
+              } else props.setPenColor(color)
+              }}
+            />
           </Tooltip>
           <FontSizeControl
             value={activeTimelineMemoTextFontSizePx ?? props.textFontSizePx}
-            active={Boolean(props.selectedTextAnnotationId || activeTimelineMemoText)}
+            active={Boolean(props.selectedTextAnnotationId || activeTimelineMemo)}
             onChange={value => {
-              if (activeTimelineMemoId && activeTimelineMemoText && activeTimelineMemoTextSegment) {
+              if (activeTimelineMemoId && activeTimelineMemoTextSegment) {
                 const pageHeight = resolveSheetTemplatePageSize(props.template).heightPx
-                props.onUpsertTimelineMemoText(activeTimelineMemoId, {
-                  ...activeTimelineMemoText,
-                  fontSizeUnits: value / Math.max(1, activeTimelineMemoTextSegment.rowHeightY * pageHeight),
+                props.onUpdateTimelineMemoAppearance(activeTimelineMemoId, {
+                  ...activeTimelineMemoAppearance,
+                  text: {
+                    ...activeTimelineMemoAppearance.text,
+                    fontSizeUnits: value / Math.max(1, activeTimelineMemoTextSegment.rowHeightY * pageHeight),
+                  },
                 })
                 return
               }
@@ -1012,7 +1018,6 @@ export function SheetPanel(props: {
           <SheetCanvas
             {...props}
             selectedTimelineMemoId={activeTimelineMemoId}
-            selectedTimelineMemoTextId={selectedTimelineMemoTextId}
             pageAnnotationTarget={pageAnnotationTarget}
             setActivePageIndex={pageIndex => {
               if (pageIndex !== props.activePageIndex) setSelectedAnnotationRegion(null)
@@ -1052,10 +1057,6 @@ export function SheetPanel(props: {
               if (memoId) beginTimelineMemoEdit(memoId)
             }}
             onSelectTimelineMemo={memoId => memoId ? beginTimelineMemoEdit(memoId) : endTimelineMemoEdit()}
-            onSelectTimelineMemoText={(memoId, textId) => {
-              if (memoId !== activeTimelineMemoId) beginTimelineMemoEdit(memoId, 'text')
-              setSelectedTimelineMemoTextId(textId)
-            }}
             onDeleteTimelineMemo={memoId => {
               props.onDeleteTimelineMemo(memoId)
               endTimelineMemoEdit()

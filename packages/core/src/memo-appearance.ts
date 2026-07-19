@@ -3,6 +3,10 @@ import type { MemoAppearance } from './types'
 export const DEFAULT_MEMO_APPEARANCE: Readonly<MemoAppearance> = Object.freeze({
   inkOpacity: 1,
   textOpacity: 1,
+  text: Object.freeze({
+    color: '#d52b2b',
+    fontSizeUnits: 1,
+  }),
   background: Object.freeze({
     enabled: false,
     color: '#fff6a8',
@@ -12,9 +16,18 @@ export const DEFAULT_MEMO_APPEARANCE: Readonly<MemoAppearance> = Object.freeze({
 
 export function normalizeMemoAppearance(value?: Partial<MemoAppearance> | null): MemoAppearance {
   const background = value?.background
+  const text = value?.text
   return {
     inkOpacity: normalizeOpacity(value?.inkOpacity, DEFAULT_MEMO_APPEARANCE.inkOpacity),
     textOpacity: normalizeOpacity(value?.textOpacity, DEFAULT_MEMO_APPEARANCE.textOpacity),
+    text: {
+      color: typeof text?.color === 'string' && text.color.trim()
+        ? text.color
+        : DEFAULT_MEMO_APPEARANCE.text.color,
+      fontSizeUnits: Number.isFinite(text?.fontSizeUnits)
+        ? Math.max(0.25, text!.fontSizeUnits)
+        : DEFAULT_MEMO_APPEARANCE.text.fontSizeUnits,
+    },
     background: {
       enabled: background?.enabled === true,
       color: typeof background?.color === 'string' && background.color.trim()

@@ -19,6 +19,7 @@ import type {
   TimelineMemoPoint,
   TimelineMemoStroke,
   TimelineMemoText,
+  MemoAppearance,
   TimingSpecialMarker,
 } from '@xsheet-remap/core'
 import { updatePaperTrack } from '@xsheet-remap/core'
@@ -44,7 +45,6 @@ export type SheetCanvasProps = {
   selectedSoundCueId: string | null
   selectedCameraCueId: string | null
   selectedTimelineMemoId: string | null
-  selectedTimelineMemoTextId: string | null
   pageAnnotationTarget: SheetPageMemoTarget
   timingDraftValue: string
   timingDraftActive: boolean
@@ -100,12 +100,11 @@ export type SheetCanvasProps = {
   onOpenFrameOperation: (kind: FrameOperationKind, hit: SheetHit) => void
   onCreateTimelineMemo: (hit: SheetHit) => void
   onSelectTimelineMemo: (memoId: string | null) => void
-  onSelectTimelineMemoText: (memoId: string, textId: string) => void
   onDeleteTimelineMemo: (memoId: string) => void
   onUpdateTimelineMemoPlacement: (memoId: string, placement: TimelineMemoPlacement) => void
   onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onEraseTimelineMemoStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
-  onUpsertTimelineMemoText: (memoId: string, text: TimelineMemoText) => void
+  onUpsertTimelineMemoText: (memoId: string, text: TimelineMemoText, appearance: MemoAppearance) => void
   onTemplateImage: (files: FileList | File[] | null) => void
   onAssetSheetSources: (assetIds: string[]) => void
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void

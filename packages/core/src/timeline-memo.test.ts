@@ -84,21 +84,27 @@ describe('timeline memos', () => {
       order: 1,
     })
     const added = upsertTimelineMemoText(source, 'timeline_memo_1', {
-      textId: 'text_1', text: ' PAN ', color: '#123456', x: 1, y: 2, fontSizeUnits: 1.5,
+      textId: 'text_1', text: ' PAN ', x: 1, y: 2,
+    }, {
+      inkOpacity: 1,
+      textOpacity: 1,
+      text: { color: '#123456', fontSizeUnits: 1.5 },
+      background: { enabled: false, color: '#fff6a8', opacity: 0.28 },
     })
     const updated = upsertTimelineMemoText(added, 'timeline_memo_1', {
-      textId: 'text_1', text: 'TU', color: '#654321', x: 2, y: 3, fontSizeUnits: 0.1,
+      textId: 'text_1', text: 'TU', x: 2, y: 3,
     })
     const removed = upsertTimelineMemoText(updated, 'timeline_memo_1', {
-      textId: 'text_1', text: '   ', color: '#654321', x: 2, y: 3, fontSizeUnits: 1,
+      textId: 'text_1', text: '   ', x: 2, y: 3,
     })
 
     expect(timelineMemos(added)[0]?.texts).toEqual([
-      { textId: 'text_1', text: 'PAN', color: '#123456', x: 1, y: 2, fontSizeUnits: 1.5 },
+      { textId: 'text_1', text: 'PAN', x: 1, y: 2 },
     ])
     expect(timelineMemos(updated)[0]?.texts).toEqual([
-      { textId: 'text_1', text: 'TU', color: '#654321', x: 2, y: 3, fontSizeUnits: 0.25 },
+      { textId: 'text_1', text: 'TU', x: 2, y: 3 },
     ])
+    expect(timelineMemos(updated)[0]?.appearance?.text).toEqual({ color: '#123456', fontSizeUnits: 1.5 })
     expect(timelineMemos(removed)[0]?.texts).toEqual([])
   })
 
@@ -108,24 +114,33 @@ describe('timeline memos', () => {
       memoId: 'timeline_memo_1',
       anchor: { role: 'sound', frame: 1, laneId: 'sound_lane_1' },
       placement: { frameOffset: 0, crossOffsetUnits: 0, widthUnits: 8, heightFrames: 12 },
-      strokes: [],
+      strokes: [{
+        strokeId: 'stroke_1',
+        color: '#0a7f58',
+        widthUnits: 0.75,
+        points: [{ x: 1, y: 1 }, { x: 2, y: 2 }],
+      }],
       order: 1,
     })
     const updated = updateTimelineMemoAppearance(source, 'timeline_memo_1', {
       inkOpacity: 2,
       textOpacity: -1,
+      text: { color: '#123456', fontSizeUnits: 0.1 },
       background: { enabled: true, color: '#abcdef', opacity: 0.42 },
     })
 
     expect(normalizeMemoAppearance(timelineMemos(source)[0]?.appearance)).toMatchObject({
       inkOpacity: 1,
       textOpacity: 1,
+      text: { color: '#d52b2b', fontSizeUnits: 1 },
       background: { enabled: false },
     })
     expect(timelineMemos(updated)[0]?.appearance).toEqual({
       inkOpacity: 1,
       textOpacity: 0,
+      text: { color: '#123456', fontSizeUnits: 0.25 },
       background: { enabled: true, color: '#abcdef', opacity: 0.42 },
     })
+    expect(timelineMemos(updated)[0]?.strokes[0]).toMatchObject({ color: '#0a7f58', widthUnits: 0.75 })
   })
 })

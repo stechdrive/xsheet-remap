@@ -352,6 +352,44 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       throw new Error(`timeline text changed size after commit: ${JSON.stringify({ editorFontSize, committedDisplayFontSize })}`)
     }
     if (anchorRole === 'sound') {
+      const moveFrame = await evaluatePage<{ left: number; top: number; right: number; centerY: number; cursor: string; legacyHandles: number }>(`(() => {
+        const frame = document.querySelector('.timelineMemoSegment.selected .timelineMemoMoveFrame');
+        if (!(frame instanceof SVGRectElement)) throw new Error('memo border move surface missing');
+        const rect = frame.getBoundingClientRect();
+        return {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          centerY: rect.top + rect.height / 2,
+          cursor: getComputedStyle(frame).cursor,
+          legacyHandles: document.querySelectorAll('.timelineMemoMoveHandle, .sheetTransformHandleMoveVisual').length,
+        };
+      })()`)
+      if (moveFrame.cursor !== 'grab' || moveFrame.legacyHandles !== 0) {
+        throw new Error(`memo still exposes an obstructive move icon instead of its border: ${JSON.stringify(moveFrame)}`)
+      }
+      await mouseDrag(
+        { x: moveFrame.right - 2, y: moveFrame.centerY },
+        { x: moveFrame.right + 26, y: moveFrame.centerY + 16 },
+      )
+      await waitForCondition(async () => evaluatePage<boolean>(`(() => {
+        const frame = document.querySelector('.timelineMemoSegment.selected .timelineMemoMoveFrame');
+        if (!(frame instanceof SVGRectElement)) return false;
+        const rect = frame.getBoundingClientRect();
+        return rect.left > ${moveFrame.left + 12} && rect.top > ${moveFrame.top + 7};
+      })()`), 5000, 'memo moved by dragging its border')
+      checks.push('removed the obstructive move icon and moved the selected memo through its grab border')
+
+      const originalLogicalFontSize = committedFont.logical
+      await setReactFieldValue('input[aria-label="メモ全体の文字色"]', '#285c9e')
+      await setReactFieldValue('.annotationFloatingPalette input[aria-label="文字"]', '24')
+      await waitForCondition(async () => evaluatePage<boolean>(`(() => {
+        const texts = Array.from(document.querySelectorAll('.timelineMemoSegment.selected .timelineMemoText'));
+        return texts.length > 0
+          && texts.every(text => text.getAttribute('fill') === '#285c9e')
+          && texts.every(text => Number(text.getAttribute('font-size')) > ${originalLogicalFontSize});
+      })()`), 5000, 'memo-wide text color and size update every text run')
+
       await mouseClick(await inputPointForSelector('.annotationFloatingPalette summary[aria-label="メモの見た目"]'))
       await setReactFieldValue('input[aria-label="手描きの不透明度"]', '55')
       await setReactFieldValue('input[aria-label="文字の不透明度"]', '65')
@@ -366,7 +404,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
           && segment?.querySelector('[data-memo-background="solid"]')?.getAttribute('opacity') === '0.3'
       }, 'timeline memo appearance controls update the rendered memo')
       await captureScreenshotArtifact('sound-memo-appearance-controls')
-      checks.push('kept text size stable through commit and applied independent memo opacity/background controls')
+      checks.push('kept text size stable through commit and applied memo-wide text styling plus independent opacity/background controls')
     }
     await keyPress('Escape')
     await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), `${anchorRole} memo edit closed`)

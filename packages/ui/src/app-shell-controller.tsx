@@ -1885,8 +1885,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const next = eraseTimelineMemoStrokes(project, { memoId, points, widthUnits })
     if (next !== project) commitProject(next)
   }
-  function handleUpsertTimelineMemoText(memoId: string, text: TimelineMemoText) {
-    const next = upsertTimelineMemoText(project, memoId, text)
+  function handleUpsertTimelineMemoText(memoId: string, text: TimelineMemoText, appearance: MemoAppearance) {
+    const next = upsertTimelineMemoText(project, memoId, text, appearance)
     if (next !== project) commitProject(next)
   }
   function handleUpdateTimelineMemoAppearance(memoId: string, appearance: MemoAppearance) { const next = updateTimelineMemoAppearance(project, memoId, appearance); if (next !== project) commitProject(next) }

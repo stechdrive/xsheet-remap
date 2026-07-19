@@ -1287,10 +1287,10 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
           const lines = annotationTextLines(text.text)
           if (lines.length === 0) continue
           const point = timelineMemoPointToPagePoint(segment, text)
-          const fontSize = Math.max(1, text.fontSizeUnits * segment.rowHeightY * context.pageSize.heightPx)
+          const fontSize = Math.max(1, appearance.text.fontSizeUnits * segment.rowHeightY * context.pageSize.heightPx)
           const x = point.x * context.pageSize.widthPx
           const y = offsetY + point.y * context.pageSize.heightPx
-          ctx.fillStyle = text.color
+          ctx.fillStyle = appearance.text.color
           ctx.font = fontDeclaration(fontSize, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
           ctx.textBaseline = 'top'
           ctx.textAlign = 'left'

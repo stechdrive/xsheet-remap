@@ -139,17 +139,19 @@ describe('TimelineMemoLayer anchor cues', () => {
       </svg>,
     )
     const svg = container.querySelector('svg')
-    const handle = container.querySelector<SVGGElement>('.timelineMemoMoveHandle')
+    const moveFrame = container.querySelector<SVGRectElement>('.timelineMemoMoveFrame')
     expect(svg).toBeTruthy()
-    expect(handle).toBeTruthy()
+    expect(moveFrame).toBeTruthy()
+    expect(container.querySelector('.timelineMemoMoveHandle')).toBeNull()
     Object.defineProperty(svg, 'getBoundingClientRect', {
       value: () => ({ left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, x: 0, y: 0, toJSON: () => ({}) }),
     })
-    Object.defineProperty(handle, 'setPointerCapture', { value: vi.fn() })
+    Object.defineProperty(moveFrame, 'setPointerCapture', { value: vi.fn() })
 
-    fireEvent.pointerDown(handle as SVGGElement, { pointerId: 9, clientX: 10, clientY: 20 })
-    fireEvent.pointerMove(handle as SVGGElement, { pointerId: 9, clientX: 110, clientY: 70 })
-    fireEvent.pointerUp(handle as SVGGElement, { pointerId: 9, clientX: 110, clientY: 70 })
+    fireEvent.pointerDown(moveFrame as SVGRectElement, { pointerId: 9, clientX: 10, clientY: 20 })
+    expect(moveFrame?.getAttribute('data-dragging')).toBe('true')
+    fireEvent.pointerMove(moveFrame as SVGRectElement, { pointerId: 9, clientX: 110, clientY: 70 })
+    fireEvent.pointerUp(moveFrame as SVGRectElement, { pointerId: 9, clientX: 110, clientY: 70 })
 
     expect(onUpdatePlacement).toHaveBeenCalledTimes(1)
     const placement = onUpdatePlacement.mock.calls[0]?.[1]
@@ -186,12 +188,11 @@ describe('TimelineMemoLayer anchor cues', () => {
       </svg>,
     )
     expect(container.querySelector('.timelineMemoDrawSurface')).toBeNull()
-    expect(container.querySelector('.timelineMemoMoveHandle.sheetTransformHandle.move')).toBeTruthy()
-    expect(container.querySelector('.sheetTransformHandleMoveVisual')).toBeTruthy()
-    expect(container.querySelectorAll('.sheetTransformHandleMoveGrip')).toHaveLength(3)
+    expect(container.querySelector('.timelineMemoMoveFrame')).toBeTruthy()
+    expect(container.querySelector('.timelineMemoMoveHandle')).toBeNull()
+    expect(container.querySelector('.sheetTransformHandleMoveVisual')).toBeNull()
     expect(container.querySelector('.timelineMemoResizeHandle.sheetTransformHandle.resize')).toBeTruthy()
     expect(container.querySelector('.sheetTransformHandleResizeVisual')).toBeTruthy()
-    expect(container.querySelector('.timelineMemoMoveHandleGlyph')).toBeNull()
 
     rerender(
       <svg viewBox="0 0 1 1">
@@ -318,7 +319,13 @@ describe('TimelineMemoLayer anchor cues', () => {
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
     const source = memo('memo_1')
-    source.texts = [{ textId: 'text_1', text: '指示\n補足', color: '#123456', x: 1, y: 1, fontSizeUnits: 1 }]
+    source.appearance = {
+      inkOpacity: 1,
+      textOpacity: 1,
+      text: { color: '#123456', fontSizeUnits: 1 },
+      background: { enabled: false, color: '#fff6a8', opacity: 0.28 },
+    }
+    source.texts = [{ textId: 'text_1', text: '指示\n補足', x: 1, y: 1 }]
     const onUpsertText = vi.fn()
     const { container, getByLabelText } = render(
       <svg viewBox="0 0 1 1">
@@ -354,14 +361,24 @@ describe('TimelineMemoLayer anchor cues', () => {
     fireEvent.change(editor, { target: { value: '更新' } })
     fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true })
 
-    expect(onUpsertText).toHaveBeenCalledWith(source.memoId, expect.objectContaining({ textId: 'text_1', text: '更新' }))
+    expect(onUpsertText).toHaveBeenCalledWith(
+      source.memoId,
+      expect.objectContaining({ textId: 'text_1', text: '更新' }),
+      expect.objectContaining({ text: { color: '#123456', fontSizeUnits: 1 } }),
+    )
   })
 
   it('keeps the inline editor and committed text at the same logical font size across zoom', () => {
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
     const source = memo('memo_1')
-    source.texts = [{ textId: 'text_1', text: '同じ大きさ', color: '#123456', x: 1, y: 1, fontSizeUnits: 1.4 }]
+    source.appearance = {
+      inkOpacity: 1,
+      textOpacity: 1,
+      text: { color: '#123456', fontSizeUnits: 1.4 },
+      background: { enabled: false, color: '#fff6a8', opacity: 0.28 },
+    }
+    source.texts = [{ textId: 'text_1', text: '同じ大きさ', x: 1, y: 1 }]
     const { container, getByLabelText } = render(
       <svg viewBox="0 0 1 1">
         <TimelineMemoLayer
@@ -400,9 +417,13 @@ describe('TimelineMemoLayer anchor cues', () => {
     source.appearance = {
       inkOpacity: 0.35,
       textOpacity: 0.6,
+      text: { color: '#123456', fontSizeUnits: 1 },
       background: { enabled: true, color: '#ffee88', opacity: 0.25 },
     }
-    source.texts = [{ textId: 'text_1', text: '注釈', color: '#123456', x: 1, y: 1, fontSizeUnits: 1 }]
+    source.texts = [
+      { textId: 'text_1', text: '注釈', x: 1, y: 1 },
+      { textId: 'text_2', text: '追記', x: 1, y: 3 },
+    ]
     const { container } = render(
       <svg viewBox="0 0 1 1">
         <TimelineMemoLayer
@@ -428,5 +449,8 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(container.querySelector('[data-memo-background="solid"]')?.getAttribute('fill')).toBe('#ffee88')
     expect(container.querySelector('.timelineMemoInkLayer')?.getAttribute('opacity')).toBe('0.35')
     expect(container.querySelector('.timelineMemoTextLayer')?.getAttribute('opacity')).toBe('0.6')
+    expect([...container.querySelectorAll('.timelineMemoText')].map(text => [text.getAttribute('fill'), text.getAttribute('font-size')]))
+      .toEqual([['#123456', expect.any(String)], ['#123456', expect.any(String)]])
+    expect(new Set([...container.querySelectorAll('.timelineMemoText')].map(text => text.getAttribute('font-size'))).size).toBe(1)
   })
 })

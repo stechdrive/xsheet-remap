@@ -30,6 +30,7 @@ type TimelineTextDraft = {
   memoId: string
   segment: TimelineMemoSegment
   value: TimelineMemoText
+  appearance: ReturnType<typeof normalizeMemoAppearance>
 }
 
 export function TimelineMemoLayer({
@@ -48,12 +49,10 @@ export function TimelineMemoLayer({
   textFontSizePx,
   zoom = 1,
   editorHost,
-  selectedTextId = null,
   onAppendStroke,
   onEraseStroke,
   onUpsertText,
   onUpdatePlacement,
-  onSelectText,
 }: {
   memos: readonly TimelineInkMemo[]
   template: SheetTemplate
@@ -70,12 +69,10 @@ export function TimelineMemoLayer({
   textFontSizePx: number
   zoom?: number
   editorHost?: HTMLElement | null
-  selectedTextId?: string | null
   onAppendStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onEraseStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
-  onUpsertText: (memoId: string, text: TimelineMemoText) => void
+  onUpsertText: (memoId: string, text: TimelineMemoText, appearance: ReturnType<typeof normalizeMemoAppearance>) => void
   onUpdatePlacement: (memoId: string, placement: TimelineMemoPlacement) => void
-  onSelectText?: (memoId: string, textId: string) => void
 }) {
   const [interaction, setInteraction] = useState<MemoInteraction | null>(null)
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
@@ -129,18 +126,23 @@ export function TimelineMemoLayer({
 
   function newTextDraft(memo: TimelineInkMemo, segment: TimelineMemoSegment, point?: TimelineMemoPoint): TimelineTextDraft {
     const fontSizeUnits = Math.max(0.25, textFontSizePx / Math.max(1, segment.rowHeightY * pageSize.heightPx))
+    const appearance = memo.appearance
+      ? normalizeMemoAppearance(memo.appearance)
+      : {
+          ...normalizeMemoAppearance(),
+          text: { color: penColor, fontSizeUnits },
+        }
     const insetX = Math.min(Math.max(0.12, fontSizeUnits * 0.12), Math.max(0, memo.placement.widthUnits - 0.5))
     const insetY = Math.max(0.12, fontSizeUnits * 0.12)
     return {
       memoId: memo.memoId,
       segment,
+      appearance,
       value: {
         textId: nextTimelineMemoTextId(memo),
         text: '',
-        color: penColor,
         x: point?.x ?? insetX,
         y: point?.y ?? Math.min(segment.memoYEnd - 0.25, segment.memoYStart + insetY),
-        fontSizeUnits,
       },
     }
   }
@@ -248,13 +250,13 @@ export function TimelineMemoLayer({
     if (memo.memoId !== selectedMemoId) return
     event.preventDefault()
     event.stopPropagation()
-    setTextDraft({ memoId: memo.memoId, segment, value: text })
+    setTextDraft({ memoId: memo.memoId, segment, value: text, appearance: normalizeMemoAppearance(memo.appearance) })
   }
 
   function finishTextDraft(cancelled: boolean) {
     const draft = textDraft
     setTextDraft(null)
-    if (!cancelled && draft) onUpsertText(draft.memoId, draft.value)
+    if (!cancelled && draft) onUpsertText(draft.memoId, draft.value, draft.appearance)
   }
 
   function handleTextDraftKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -323,40 +325,6 @@ export function TimelineMemoLayer({
               height={segment.rect.h}
               onPointerDown={event => beginText(event, memo, segment)}
             />}
-            <g className="timelineMemoTextLayer" data-memo-text-opacity={appearance.textOpacity} opacity={appearance.textOpacity} clipPath={`url(#${clipId})`}>
-              {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
-                if (textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId) return null
-                const point = timelineMemoPointToPagePoint(segment, text)
-                return <text
-                  key={text.textId}
-                  className={selectedTextId === text.textId ? 'timelineMemoText selected' : 'timelineMemoText'}
-                  data-timeline-memo-text-id={text.textId}
-                  x={point.x}
-                  y={point.y}
-                  fill={text.color}
-                  fontSize={text.fontSizeUnits * segment.rowHeightY}
-                  dominantBaseline="hanging"
-                  onClick={event => {
-                    if (memo.memoId !== selectedMemoId) return
-                    event.preventDefault()
-                    event.stopPropagation()
-                    onSelectText?.(memo.memoId, text.textId)
-                  }}
-                  onDoubleClick={event => editText(event, memo, segment, text)}
-                >{text.text.split(/\r?\n/).map((line, index) => <tspan
-                  key={`${text.textId}:${index}`}
-                  x={point.x}
-                  dy={index === 0 ? 0 : text.fontSizeUnits * segment.rowHeightY * 1.25}
-                >{line || '\u00a0'}</tspan>)}</text>
-              })}
-            </g>
-            {selected && <g className="timelineMemoBoundsEdges">
-              <rect className="timelineMemoBounds" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
-              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={edgeH} />
-              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y + segment.rect.h - edgeH} width={segment.rect.w} height={edgeH} />
-              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
-              <rect className="timelineMemoBoundsEdge" x={segment.rect.x + segment.rect.w - edgeW} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
-            </g>}
             {selected && drawingToolActive && <rect
               className={editMode === 'eraser' ? 'timelineMemoDrawSurface eraser' : 'timelineMemoDrawSurface'}
               x={segment.rect.x}
@@ -368,6 +336,47 @@ export function TimelineMemoLayer({
               onPointerUp={finish}
               onPointerCancel={event => finish(event, true)}
             />}
+            {selected && <rect
+              className="timelineMemoMoveFrame"
+              data-dragging={interaction?.memo.memoId === memo.memoId && interaction.mode === 'move'}
+              aria-label="メモの枠をドラッグして移動"
+              x={segment.rect.x}
+              y={segment.rect.y}
+              width={segment.rect.w}
+              height={segment.rect.h}
+              onPointerDown={event => begin(event, memo, segment, 'move')}
+              onPointerMove={move}
+              onPointerUp={finish}
+              onPointerCancel={event => finish(event, true)}
+            />}
+            <g className="timelineMemoTextLayer" data-memo-text-opacity={appearance.textOpacity} opacity={appearance.textOpacity} clipPath={`url(#${clipId})`}>
+              {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
+                if (textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId) return null
+                const point = timelineMemoPointToPagePoint(segment, text)
+                return <text
+                  key={text.textId}
+                  className="timelineMemoText"
+                  data-timeline-memo-text-id={text.textId}
+                  x={point.x}
+                  y={point.y}
+                  fill={appearance.text.color}
+                  fontSize={appearance.text.fontSizeUnits * segment.rowHeightY}
+                  dominantBaseline="hanging"
+                  onDoubleClick={event => editText(event, memo, segment, text)}
+                >{text.text.split(/\r?\n/).map((line, index) => <tspan
+                  key={`${text.textId}:${index}`}
+                  x={point.x}
+                  dy={index === 0 ? 0 : appearance.text.fontSizeUnits * segment.rowHeightY * 1.25}
+                >{line || '\u00a0'}</tspan>)}</text>
+              })}
+            </g>
+            {selected && <g className="timelineMemoBoundsEdges">
+              <rect className="timelineMemoBounds" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
+              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={edgeH} />
+              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y + segment.rect.h - edgeH} width={segment.rect.w} height={edgeH} />
+              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
+              <rect className="timelineMemoBoundsEdge" x={segment.rect.x + segment.rect.w - edgeW} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
+            </g>}
             {textDraft?.memoId === memo.memoId && textDraft.segment.regionId === segment.regionId && (() => {
               const point = timelineMemoPointToPagePoint(segment, textDraft.value)
               const width = Math.max(segment.rowHeightX * 2, segment.rect.x + segment.rect.w - point.x)
@@ -383,9 +392,9 @@ export function TimelineMemoLayer({
                     top: `${point.y * 100}%`,
                     width: `${width * 100}%`,
                     height: `${height * 100}%`,
-                    fontSize: `${textDraft.value.fontSizeUnits * segment.rowHeightY * pageSize.heightPx * zoom}px`,
-                    color: textDraft.value.color,
-                    opacity: appearance.textOpacity,
+                    fontSize: `${textDraft.appearance.text.fontSizeUnits * segment.rowHeightY * pageSize.heightPx * zoom}px`,
+                    color: textDraft.appearance.text.color,
+                    opacity: textDraft.appearance.textOpacity,
                   }}
                   wrap="off"
                   spellCheck={false}
@@ -401,17 +410,6 @@ export function TimelineMemoLayer({
                 host,
               ) : null
             })()}
-            {selected && segment.startsMemo && <SheetTransformHandle
-              rect={segment.rect}
-              surface={surface}
-              kind="move"
-              className="timelineMemoMoveHandle"
-              label="メモを移動"
-              onPointerDown={event => begin(event, memo, segment, 'move')}
-              onPointerMove={move}
-              onPointerUp={finish}
-              onPointerCancel={event => finish(event, true)}
-            />}
             {selected && segment.endsMemo && <SheetTransformHandle
               rect={segment.rect}
               surface={surface}

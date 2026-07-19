@@ -2031,12 +2031,6 @@
   font-weight: 700;
 }
 
-.timelineMemoText.selected {
-  stroke: rgb(255 255 252 / 0.98);
-  stroke-width: 0.0022;
-  filter: drop-shadow(0 0 1px rgb(19 116 92 / 0.7));
-}
-
 .timelineMemoTextSurface {
   fill: transparent;
   pointer-events: fill;
@@ -2082,6 +2076,24 @@
   fill: currentColor;
   opacity: 0.76;
   pointer-events: none;
+}
+
+.timelineMemoMoveFrame {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+  cursor: grab;
+}
+
+.timelineMemoMoveFrame[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.timelineMemoSegment:has(.timelineMemoMoveFrame:hover) .timelineMemoBoundsEdge,
+.timelineMemoSegment:has(.timelineMemoMoveFrame[data-dragging="true"]) .timelineMemoBoundsEdge {
+  opacity: 1;
 }
 
 .timelineMemoDrawSurface {

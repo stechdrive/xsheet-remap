@@ -408,7 +408,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       pageSize={sheetPageSize}
                       surface={selectionSurface}
                       selectedMemoId={props.selectedTimelineMemoId}
-                      selectedTextId={props.selectedTimelineMemoTextId}
                       editMode={props.editMode}
                       penColor={props.penColor}
                       penWidth={props.penWidth}
@@ -420,7 +419,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onEraseStroke={props.onEraseTimelineMemoStroke}
                       onUpsertText={props.onUpsertTimelineMemoText}
                       onUpdatePlacement={props.onUpdateTimelineMemoPlacement}
-                      onSelectText={props.onSelectTimelineMemoText}
                     />
                   )}
                   {strokes.map(stroke => (

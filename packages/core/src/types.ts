@@ -332,6 +332,12 @@ export interface SheetPageMemoTarget {
 export interface MemoAppearance {
   inkOpacity: number
   textOpacity: number
+  /** Text treatment belongs to the memo container, not an individual text run. */
+  text: {
+    color: string
+    /** Font size in the memo target's local row-height units. */
+    fontSizeUnits: number
+  }
   background: {
     enabled: boolean
     color: string
@@ -395,11 +401,9 @@ export interface TimelineMemoStroke {
 export interface TimelineMemoText {
   textId: Id
   text: string
-  color: string
-  /** Position and font size measured in frame-row-height units. */
+  /** Position measured in frame-row-height units. */
   x: number
   y: number
-  fontSizeUnits: number
 }
 
 export interface TimelineInkMemo {

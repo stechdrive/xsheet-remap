@@ -35,7 +35,7 @@ export function appendTimelineMemoStroke(project: CutProject, memoId: string, st
   return memo ? updateTimelineMemo(project, memoId, { strokes: [...memo.strokes, normalizeTimelineMemoStroke(stroke, memo.placement)] }) : project
 }
 
-export function upsertTimelineMemoText(project: CutProject, memoId: string, text: TimelineMemoText): CutProject {
+export function upsertTimelineMemoText(project: CutProject, memoId: string, text: TimelineMemoText, appearance?: MemoAppearance): CutProject {
   const memo = timelineMemos(project).find(item => item.memoId === memoId)
   if (!memo) return project
   const texts = (memo.texts ?? []).filter(item => item.textId !== text.textId)
@@ -44,9 +44,11 @@ export function upsertTimelineMemoText(project: CutProject, memoId: string, text
     text: text.text.trim(),
     x: clamp(Number.isFinite(text.x) ? text.x : 0, 0, memo.placement.widthUnits),
     y: clamp(Number.isFinite(text.y) ? text.y : 0, 0, memo.placement.heightFrames),
-    fontSizeUnits: Math.max(0.25, Number.isFinite(text.fontSizeUnits) ? text.fontSizeUnits : 1),
   })
-  return updateTimelineMemo(project, memoId, { texts })
+  return updateTimelineMemo(project, memoId, {
+    texts,
+    ...(appearance ? { appearance: normalizeMemoAppearance(appearance) } : {}),
+  })
 }
 
 export function eraseTimelineMemoStrokes(

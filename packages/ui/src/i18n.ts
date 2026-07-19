@@ -278,6 +278,11 @@ export const uiText = {
     viewTemplateOptionTitle: (name: string) => `${name}に切り替える`,
     cutSwitchTitle: '兼用カットを切り替える',
     addSharedCutTitle: '兼用カットを追加',
+    deleteSharedCutTitle: '現在の兼用カットを削除',
+    deleteSharedCutUnavailableTitle: '最後の兼用カットは削除できません',
+    deleteSharedCutDialogTitle: '兼用カットの削除',
+    deleteSharedCutConfirm: (label: string, revisionCount: number) =>
+      `兼用カット「${label}」を削除します。\n\nこのカットのシート ${revisionCount} 枚、タイムシート入力、メモ、紙シート画像も削除されます。共有している登録セルと素材は残ります。\n\nこの操作は取り消せません。`,
     sharedCutNumbers: '兼用カット番号',
     sharedCutNumbersTitle: '現在のカットと兼用しているほかのカット番号をシートと画像出力に表示',
     preRollTitle: '開始前のダミーコマ領域を表示',

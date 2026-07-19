@@ -88,16 +88,14 @@ export function initialSheetPaneLayout(appKind: MainAppKind, collapseEditorPanes
   }
 }
 
-export const APP_PROFILES: Record<MainAppKind, { appName: string; panels: Panel[]; showDigitalHelp: boolean }> = {
+export const APP_PROFILES: Record<MainAppKind, { appName: string; panels: Panel[] }> = {
   editor: {
     appName: 'xsheet-editor',
     panels: ['sheet', 'template'],
-    showDigitalHelp: true,
   },
   remap: {
     appName: 'xsheet-remap',
     panels: ['sheet'],
-    showDigitalHelp: false,
   },
 }
 

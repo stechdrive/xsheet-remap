@@ -1,4 +1,4 @@
-import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type CutGroupProjectDocument, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
+import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel } from './appTypes'
@@ -6,7 +6,7 @@ import { type SheetImageExportFormat } from './cleanSheetExport'
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { ActionMenu } from './AppControls'
-import { CalibrationPointKind, RegisteredCellSortDirection } from './app-foundation'
+import { CalibrationPointKind, RegisteredCellSortDirection, type MainAppKind } from './app-foundation'
 import { gridHeaderLabelForRole } from './templateEditorGeometry'
 import { DurationFrameControl } from './DurationFrameControl'
 
@@ -399,103 +399,95 @@ export function DisplaySettingsIcon() {
 
 export function AppHelpDialog({
   appName,
-  showDigitalHelp,
+  appKind,
   onClose,
 }: {
   appName: string
-  showDigitalHelp: boolean
+  appKind: MainAppKind
   onClose: () => void
 }) {
+  const isEditor = appKind === 'editor'
   return (
     <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label={`${appName}の使い方`}>
       <section className="appHelpDialog">
         <header>
           <div>
             <strong>{appName}の使い方</strong>
-            <span>CSPはCLIP STUDIO PAINT、つまりクリスタのことです。ここでは主な作業の流れを説明します。</span>
+            <span>{isEditor
+              ? 'デジタルタイムシートの作成、編集、保存と、紙シートを下絵に使う流れを説明します。'
+              : 'CSPはCLIP STUDIO PAINT、つまりクリスタのことです。ここでは主な作業の流れを説明します。'}</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
         </header>
         <div className="appHelpBody">
-          <article className="appHelpWorkflow appHelpWorkflowPrep">
-            <h2>必ず先に準備すること</h2>
-            <p>CSPはCLIP STUDIO PAINT、つまりクリスタのことです。クリスタへ組み込む前に、紙シート画像と作画素材を用意します。</p>
-            <ol>
-              <li>
-                <strong>タイムシート画像を指定dpiでスキャンする</strong>
-                <span>紙タイムシートを読み込む場合は、使用する表示テンプレートに合わせたdpiでスキャンしてください。紙シート画像を下敷きにして、シート上のキーや登録内容を確認できるようになります。</span>
-              </li>
-              <li>
-                <strong>作画素材をOLMペグホールスタビライザーで揃える</strong>
-                <span>スキャンした作画素材は、読み込み前にOLMペグホールスタビライザーでタップ穴基準の位置合わせを済ませてください。位置合わせ後の画像をこのアプリへ読み込みます。</span>
-              </li>
-              <li>
-                <strong>作画素材を読み込める場所にまとめる</strong>
-                <span>作画素材は、カットフォルダなど、あとで読み込みやすい場所にまとめておきます。事前に画像を見ながらA1、B3などへリネームしておく必要はありません。このアプリでは、素材ブラウザのクイックビューで中身を確認し、該当するシート上のキーへ置くことで素材とタイムシートを紐づけます。</span>
-              </li>
-            </ol>
-          </article>
-          <article className="appHelpWorkflow">
-            <h2>CSP組み込み用シートを作る</h2>
-            <p>{appName}でタイムシートと素材対応を作り、ヘルパーでCLIP STUDIO PAINT（クリスタ）へ登録します。</p>
-            <ol>
-              <li>
-                <strong>紙シート画像を読み込む</strong>
-                <span>上部の「紙シート」から「読込」を押します。必要なら「補正」で四隅を合わせ、「レベル補正」で薄いスキャンを見やすくします。</span>
-              </li>
-              <li>
-                <strong>画像素材を素材ブラウザへ入れる</strong>
-                <span>カットフォルダまたは画像ファイルを右側の素材ブラウザへドロップします。素材カードからプレビューを確認できます。</span>
-              </li>
-              <li>
-                <strong>素材をセル欄へドラッグしてキーを作る</strong>
-                <span>素材カードをシート上のCELL/ACTION/CAMERA欄へ置きます。範囲選択してから素材を置くと、開始位置へまとめて割り当てできます。</span>
-              </li>
-              <li>
-                <strong>CSPレイヤー構成を確認する</strong>
-                <span>左のCSPレイヤー構成で、工程、CSPセル名、重ね順を確認します。シートへ新しく入力したキーは現在の登録先へ素材未割当カードとして登録されます。BG/BOOKやメモも同じツリーで管理します。</span>
-              </li>
-              <li>
-                <strong>クリスタ用の名前を整える</strong>
-                <span>必要に応じて、登録セル名・クリスタセル名・実ファイル名をまとめて整えます。クリスタはファイル名をセル名として扱うため、ここを揃えるのが重要です。</span>
-              </li>
-              <li>
-                <strong>「書き出し」から「タイムシート/CSP自動登録」を保存する</strong>
-                <span>
-                  「タイムシート/CSP自動登録」を保存すると、xsheet-importer用の登録ファイル（csp-import.xci）、XDTS、素材参照がカットフォルダ配下に作られます。csp-import.xciはクリスタではなく、xsheet-importerで選択します。
-                </span>
-              </li>
-            </ol>
-          </article>
-          {showDigitalHelp && <article className="appHelpWorkflow">
-            <h2>デジタルタイムシートとして使う</h2>
-            <p>この領域は拡張中ですが、紙シートの下敷き、キー入力、注釈、XDTS/画像出力の作業台として使えます。</p>
-            <ol>
-              <li>
-                <strong>シート入力でフレームを選ぶ</strong>
-                <span>フレームをクリックして選択し、素材ドロップや右クリックメニューからキー作成・削除・カラセル入力を行います。</span>
-              </li>
-              <li>
-                <strong>範囲を選んで編集する</strong>
-                <span>ドラッグで範囲を作り、右クリックメニューからコピー、切り取り、貼り付け、挿入貼り付け、選択範囲内/末尾までのリピート貼り付けを使います。</span>
-              </li>
-              <li>
-                <strong>表示と注釈を調整する</strong>
-                <span>全体表示、連続/見開き表示、紙シート不透明度、罫線表示、ペン注釈で確認しやすい状態にします。</span>
-              </li>
-              <li>
-                <strong>画像またはXDTSとして書き出す</strong>
-                <span>確認用にはJPG/PNG/PSD、連携用にはXDTSを使います。CSP自動登録には専用の「タイムシート/CSP自動登録」を使ってください。</span>
-              </li>
-            </ol>
-          </article>}
+          {isEditor ? <EditorHelpContent /> : <RemapHelpContent appName={appName} />}
         </div>
         <footer>
-          <p>CSP自動登録は、同梱のxsheet-importerがクリスタを操作して行います。csp-import.xciはxsheet-importer用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。</p>
+          <p>{isEditor
+            ? 'PWA版ではプロジェクトや出力物をブラウザのダウンロードとして保存します。OCRとネイティブのファイルパスを必要とする処理はデスクトップ版専用です。'
+            : 'CSP自動登録は、同梱のxsheet-importerがクリスタを操作して行います。csp-import.xciはxsheet-importer用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。'}</p>
         </footer>
       </section>
     </div>
   )
+}
+
+function EditorHelpContent() {
+  return <>
+    <article className="appHelpWorkflow">
+      <h2>デジタルタイムシートを作成・保存する</h2>
+      <p>カット情報と尺を設定し、ACTION、CELL、CAMERA、SOUNDの各欄へタイミングを入力します。</p>
+      <ol>
+        <li><strong>カット情報と尺を設定する</strong><span>上部のカット情報から作品名、話数、シーン、カット番号、尺を入力します。尺を変更すると、シートの作業範囲とページ数へ反映されます。</span></li>
+        <li><strong>フレームまたは範囲を選んで入力する</strong><span>セルをクリックして文字を入力するか、右クリックメニューからキー、カラセル、中割、逆シートを設定します。ドラッグした範囲にはコピー、切り取り、貼り付け、リピート貼り付けを使えます。</span></li>
+        <li><strong>兼用カットとシート履歴を管理する</strong><span>「兼用」の＋で同じ登録セルと素材を共有するカットを追加します。選択中のカットはゴミ箱から削除でき、最後の1カットは安全のため削除できません。右側のシート履歴では修正シートを追加・切替できます。</span></li>
+        <li><strong>プロジェクトを保存する</strong><span>メニューの「保存」または「名前を付けて保存」で.xsrプロジェクトを保存します。デスクトップ版は選択した場所へ保存し、PWA版はブラウザからダウンロードします。</span></li>
+      </ol>
+    </article>
+    <article className="appHelpWorkflow appHelpWorkflowPrep">
+      <h2>紙タイムシートを下絵に使う（任意）</h2>
+      <p>紙シートがなくても入力できます。読み込む場合は、テンプレートに合うdpiでスキャンした画像を使います。</p>
+      <ol>
+        <li><strong>紙シート画像を読み込む</strong><span>上部の「紙シート」から「読込」を選びます。複数ページもまとめて追加できます。</span></li>
+        <li><strong>四隅と濃さを補正する</strong><span>「補正」または「四隅拡大」で罫線を合わせ、「レベル補正」と画像不透明度で入力内容を見やすくします。この下絵補正はOCRを使わず、PWA版でも利用できます。</span></li>
+        <li><strong>必要なら認識結果を採用する</strong><span>OCRによる文字認識はデスクトップ版だけの補助機能です。PWA版では無効ですが、紙シートの表示・補正と手入力はそのまま使えます。</span></li>
+      </ol>
+    </article>
+    <article className="appHelpWorkflow">
+      <h2>表示・テンプレート・書き出し</h2>
+      <ol>
+        <li><strong>見やすい表示と注釈を使う</strong><span>全体表示、連続/見開き表示、罫線・下絵の表示切替、ペン・テキスト注釈を使って確認しやすい状態にします。</span></li>
+        <li><strong>シートテンプレートを編集する</strong><span>「シートテンプレ」ワークスペースで既存テンプレートを複製し、情報欄、入力欄、罫線、文字、ページ寸法を調整して適用します。</span></li>
+        <li><strong>用途に合わせて書き出す</strong><span>確認用にはJPG/PNG/PSD、他ソフトとの連携にはXDTSを使います。CSP自動登録データは、デスクトップ版では選択した保存先へ、PWA版ではZIPとしてダウンロードします。</span></li>
+      </ol>
+    </article>
+  </>
+}
+
+function RemapHelpContent({ appName }: { appName: string }) {
+  return <>
+    <article className="appHelpWorkflow appHelpWorkflowPrep">
+      <h2>必ず先に準備すること</h2>
+      <p>CSPはCLIP STUDIO PAINT、つまりクリスタのことです。クリスタへ組み込む前に、紙シート画像と作画素材を用意します。</p>
+      <ol>
+        <li><strong>タイムシート画像を指定dpiでスキャンする</strong><span>紙タイムシートを読み込む場合は、使用する表示テンプレートに合わせたdpiでスキャンしてください。紙シート画像を下敷きにして、シート上のキーや登録内容を確認できるようになります。</span></li>
+        <li><strong>作画素材をOLMペグホールスタビライザーで揃える</strong><span>スキャンした作画素材は、読み込み前にタップ穴基準の位置合わせを済ませてください。位置合わせ後の画像をこのアプリへ読み込みます。</span></li>
+        <li><strong>作画素材を読み込める場所にまとめる</strong><span>作画素材はカットフォルダなどにまとめます。素材ブラウザのクイックビューで中身を確認し、該当するシート上のキーへ置くことで素材とタイムシートを紐づけます。</span></li>
+      </ol>
+    </article>
+    <article className="appHelpWorkflow">
+      <h2>CSP組み込み用シートを作る</h2>
+      <p>{appName}でタイムシートと素材対応を作り、ヘルパーでCLIP STUDIO PAINT（クリスタ）へ登録します。</p>
+      <ol>
+        <li><strong>紙シート画像を読み込む</strong><span>上部の「紙シート」から「読込」を押します。必要なら「補正」で四隅を合わせ、「レベル補正」で薄いスキャンを見やすくします。</span></li>
+        <li><strong>画像素材を素材ブラウザへ入れる</strong><span>カットフォルダまたは画像ファイルを右側の素材ブラウザへドロップします。素材カードからプレビューを確認できます。</span></li>
+        <li><strong>素材をセル欄へドラッグしてキーを作る</strong><span>素材カードをシート上のCELL/ACTION/CAMERA欄へ置きます。範囲選択してから素材を置くと、開始位置へまとめて割り当てできます。</span></li>
+        <li><strong>CSPレイヤー構成を確認する</strong><span>左のCSPレイヤー構成で、工程、CSPセル名、重ね順を確認します。BG/BOOKやメモも同じツリーで管理します。</span></li>
+        <li><strong>クリスタ用の名前を整える</strong><span>必要に応じて、登録セル名・クリスタセル名・実ファイル名をまとめて整えます。クリスタはファイル名をセル名として扱うため、ここを揃えるのが重要です。</span></li>
+        <li><strong>CSP自動登録データを書き出す</strong><span>書き出すとxsheet-importer用の登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。csp-import.xciはクリスタではなく、xsheet-importerで選択します。</span></li>
+      </ol>
+    </article>
+  </>
 }
 
 export function AppNavigationMenu({
@@ -680,17 +672,6 @@ function cornersFromRect(rect: NormalizedRect): SheetImageAlignment['corners'] {
     br: { x: rect.x + rect.w, y: rect.y + rect.h },
     bl: { x: rect.x, y: rect.y + rect.h },
   }
-}
-
-export function nextCutNumberLabel(document: CutGroupProjectDocument): string {
-  const used = new Set(document.cuts.map(cut => cut.metadata.cut).filter((value): value is string => Boolean(value?.trim())))
-  let index = document.cuts.length + 1
-  let candidate = String(index).padStart(3, '0')
-  while (used.has(candidate)) {
-    index += 1
-    candidate = String(index).padStart(3, '0')
-  }
-  return candidate
 }
 
 export function imageExportFilterName(format: SheetImageExportFormat): string {

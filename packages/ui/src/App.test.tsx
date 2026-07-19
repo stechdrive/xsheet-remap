@@ -34,6 +34,27 @@ it('renders the main workspace shell', () => {
     expect(screen.queryByRole('tablist', { name: uiText.sheet.sideDock })).toBeNull()
   })
 
+it('shows Editor-specific help instead of the Remap workflow', () => {
+    render(<EditorApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'xsheet-editorの使い方' })
+    expect(within(dialog).getByRole('heading', { name: 'デジタルタイムシートを作成・保存する' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: '紙タイムシートを下絵に使う（任意）' })).toBeTruthy()
+    expect(within(dialog).getByText(/この下絵補正はOCRを使わず/)).toBeTruthy()
+    expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
+  })
+
+it('keeps Remap-specific CSP help in the Remap app', () => {
+    render(<RemapApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'xsheet-remapの使い方' })
+    expect(within(dialog).getByRole('heading', { name: '必ず先に準備すること' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'CSP組み込み用シートを作る' })).toBeTruthy()
+    expect(within(dialog).queryByRole('heading', { name: 'デジタルタイムシートを作成・保存する' })).toBeNull()
+  })
+
 it('loads XDTS through the import menu with ACTION as the default destination', async () => {
     render(<App />)
     const xdts = `exchangeDigitalTimeSheet Save Data
@@ -736,6 +757,30 @@ it('toggles shared cut numbers beside the cut switch even before another cut exi
     expect(toggle.disabled).toBe(false)
     expect(toggle.checked).toBe(true)
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toContain('[001]')
+  })
+
+it('deletes the selected shared cut after confirmation but keeps the last cut', async () => {
+    render(<App />)
+    const deleteButton = screen.getByRole('button', { name: uiText.sheet.deleteSharedCutTitle }) as HTMLButtonElement
+    expect(deleteButton.disabled).toBe(true)
+
+    fireEvent.click(document.querySelector('.cutSwitchAddButton') as HTMLButtonElement)
+    const cutSelect = document.querySelector('.cutSwitchControl select') as HTMLSelectElement
+    expect(cutSelect.options).toHaveLength(2)
+    expect(cutSelect.selectedOptions[0]?.textContent?.trim()).toBe('002')
+    expect(deleteButton.disabled).toBe(false)
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    fireEvent.click(deleteButton)
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1))
+    expect(cutSelect.options).toHaveLength(2)
+
+    fireEvent.click(deleteButton)
+    await waitFor(() => expect(cutSelect.options).toHaveLength(1))
+    expect(cutSelect.selectedOptions[0]?.textContent?.trim()).toBe('001')
+    expect(deleteButton.disabled).toBe(true)
+    expect(confirmSpy.mock.calls[1]?.[0]).toContain('兼用カット「002」')
+    confirmSpy.mockRestore()
   })
 
 it('keeps template creation as a draft until apply or cancel', () => {

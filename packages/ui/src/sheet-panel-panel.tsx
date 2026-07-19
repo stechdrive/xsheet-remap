@@ -40,6 +40,7 @@ export function SheetPanel(props: {
   activeCutId: string
   onSwitchProjectCut: (cutId: string) => void
   onAddSharedCut: () => void
+  onDeleteSharedCut: () => void
   sheetRevisions: SheetRevisionDocument[]
   activeSheetRevisionId: string
   onSwitchSheetRevision: (revisionId: string) => void
@@ -551,6 +552,17 @@ export function SheetPanel(props: {
           </TooltipTarget>
           <Tooltip label={uiText.sheet.addSharedCutTitle}>
             <button type="button" className="cutSwitchAddButton" onClick={props.onAddSharedCut}>＋</button>
+          </Tooltip>
+          <Tooltip label={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : uiText.sheet.deleteSharedCutTitle}>
+            <button
+              type="button"
+              className="cutSwitchDeleteButton"
+              aria-label={uiText.sheet.deleteSharedCutTitle}
+              disabled={props.projectCuts.length <= 1}
+              onClick={props.onDeleteSharedCut}
+            >
+              <TrashIcon />
+            </button>
           </Tooltip>
           <TooltipTarget label={uiText.sheet.sharedCutNumbersTitle}>
             {tooltipProps => (

@@ -258,6 +258,7 @@ export {
 export {
   addOverlayPaperTrack,
   addBlankSharedCutToProjectDocument,
+  deleteSharedCutFromProjectDocument,
   assignAssetToStackGuideLabel,
   applyNameNormalizationPlan,
   applyCommand,

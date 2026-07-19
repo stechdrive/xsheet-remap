@@ -303,6 +303,27 @@ export function addBlankSharedCutToProjectDocument(
   }
 }
 
+export function deleteSharedCutFromProjectDocument(
+  documentInput: CutGroupProjectDocument,
+  activeProjectInput: CutProject,
+  cutId: string,
+  options: { sheetTemplate?: SheetTemplate } = {},
+): CutGroupProjectDocument {
+  const document = updateActiveCutProjectInDocument(documentInput, activeProjectInput, options)
+  if (document.cuts.length <= 1) throw new Error('最後の兼用カットは削除できません。')
+  const deletedIndex = document.cuts.findIndex(cut => cut.cutId === cutId)
+  if (deletedIndex < 0) throw new Error(`cut not found: ${cutId}`)
+  const cuts = document.cuts
+    .filter(cut => cut.cutId !== cutId)
+    .map((cut, order) => ({ ...cut, order }))
+  const fallback = cuts[Math.min(deletedIndex, cuts.length - 1)]!
+  return {
+    ...document,
+    activeCutId: document.activeCutId === cutId ? fallback.cutId : document.activeCutId,
+    cuts,
+  }
+}
+
 export function migrateProject(input: Partial<CutProject> & { annotations?: Annotation[]; timelineMemos?: Omit<TimelineInkMemo, 'kind'>[] }): CutProject {
   const base = createDefaultProject()
   const legacyInput = input as Partial<CutProject> & { annotations?: Annotation[]; timelineMemos?: Omit<TimelineInkMemo, 'kind'>[] }

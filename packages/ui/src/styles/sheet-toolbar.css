@@ -307,11 +307,26 @@
   font: inherit;
 }
 
-.cutSwitchAddButton {
+.cutSwitchAddButton,
+.cutSwitchDeleteButton {
   width: 30px;
   min-width: 30px;
   padding: 4px 0;
   font-weight: 800;
+}
+
+.cutSwitchDeleteButton {
+  color: #8f2f2f;
+}
+
+.cutSwitchDeleteButton .topIconSvg {
+  width: 16px;
+  height: 16px;
+}
+
+.cutSwitchDeleteButton:not(:disabled):hover {
+  border-color: #a84747;
+  background: #f7e3e3;
 }
 
 .sharedCutNumbersControl {

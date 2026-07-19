@@ -39,4 +39,10 @@ for (const reference of actionReferences) {
   if (!/^[0-9a-f]{40}$/.test(revision)) throw new Error(`Pages action is not pinned to a full commit SHA: ${reference}`)
 }
 
+const checkoutCount = actionReferences.filter(reference => reference.startsWith('actions/checkout@')).length
+const fullHistoryCheckoutCount = [...workflow.matchAll(/^\s*fetch-depth:\s*0\s*$/gm)].length
+if (checkoutCount === 0 || fullHistoryCheckoutCount !== checkoutCount) {
+  throw new Error('Every Pages checkout must fetch full history so commit-count versions stay correct')
+}
+
 console.log('[pages-contract] passed')

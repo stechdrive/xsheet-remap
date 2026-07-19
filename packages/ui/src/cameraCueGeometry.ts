@@ -99,7 +99,7 @@ export function cameraRangePathsForSegment(
   const segmentStart = segment.frameStart
   const segmentEnd = segment.frameEnd + 1
   const targets = [
-    ...intermediatePoints.map(point => ({ endPointId: point.pointId, position: cue.frameStart + point.frameOffset + 0.5 })),
+    ...intermediatePoints.map(point => ({ endPointId: point.pointId, position: cue.frameStart + point.frameOffset })),
     { endPointId: CAMERA_INSTRUCTION_CUE_END_POINT_ID, position: cue.frameEnd + 1 },
   ]
   let connectionStart = cue.frameStart
@@ -188,9 +188,10 @@ export function cameraCuePointLayoutsForPage(
     const frame = cue.frameStart + point.frameOffset
     const segment = segments.find(item => frame >= item.frameStart && frame <= item.frameEnd)
     if (!segment) return []
+    const framePosition = frame - segment.frameStart + (point.role === 'intermediate' ? 0 : 0.5)
     const anchor = {
       x: segment.rect.x + segment.rect.w / 2,
-      y: segment.rect.y + (frame - segment.frameStart + 0.5) * segment.rowHeight,
+      y: segment.rect.y + framePosition * segment.rowHeight,
     }
     const measured = sharedTextMeasurementProvider.measure(point.label, font)
     const width = Math.min(segment.regionRect.w, (measured.widthPx + 8) / pageSize.widthPx)

@@ -456,7 +456,10 @@ export type CameraInstructionPointRole = 'start' | 'intermediate' | 'end'
 export interface CameraInstructionPoint {
   pointId: Id
   role: CameraInstructionPointRole
-  /** Zero-based frame offset from the instruction start. */
+  /**
+   * Zero-based frame offset from the instruction start. Intermediate points
+   * change connector style at the addressed frame's start boundary.
+   */
   frameOffset: number
   label: string
 }

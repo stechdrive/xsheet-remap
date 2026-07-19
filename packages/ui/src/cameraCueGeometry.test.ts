@@ -192,7 +192,9 @@ describe('CAMERA cue geometry', () => {
     expect(paths[1]?.commands.at(-1)).toMatchObject({ y: marker.end[2]?.y })
     expect(cameraRangePathData(paths[0]!.commands)).toContain(' L ')
     expect(cameraRangePathData(paths[1]!.commands)).toContain(' C ')
-    expect(paths[0]?.commands.at(-1)?.y).toBeCloseTo(paths[1]?.commands[0]?.y ?? 0)
+    const intermediateFrameStartY = segment.rect.y + 11 * segment.rowHeight
+    expect(paths[0]?.commands.at(-1)?.y).toBeCloseTo(intermediateFrameStartY)
+    expect(paths[1]?.commands[0]?.y).toBeCloseTo(intermediateFrameStartY)
   })
 
   it('draws an odd overlap at the center of its anchor frame', () => {
@@ -274,6 +276,11 @@ describe('CAMERA cue geometry', () => {
     expect(layouts.every(layout => layout.fontSizePx === defaultTimingTextFontSizePx(standardA3SheetTemplate, 'cell'))).toBe(true)
     expect(layouts.every(layout => layout.rect.x >= layout.regionRect.x
       && layout.rect.x + layout.rect.w <= layout.regionRect.x + layout.regionRect.w)).toBe(true)
+    const intermediate = layouts.find(layout => layout.point.role === 'intermediate')!
+    const intermediateSegment = segments.find(segment => intermediate.frame >= segment.frameStart && intermediate.frame <= segment.frameEnd)!
+    expect(intermediate.anchor.y).toBeCloseTo(
+      intermediateSegment.rect.y + (intermediate.frame - intermediateSegment.frameStart) * intermediateSegment.rowHeight,
+    )
   })
 })
 

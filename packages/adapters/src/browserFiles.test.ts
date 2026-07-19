@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fileToFileRef, sha256File } from './browserFiles'
+import { browserAssetBytes, browserAssetDataUrl, fileToFileRef, sha256File } from './browserFiles'
 
 describe('browser file adapters', () => {
   const originalCreateObjectUrl = URL.createObjectURL
@@ -35,5 +35,12 @@ describe('browser file adapters', () => {
     const second = await sha256File(new File(['same'], 'b.txt'))
 
     expect(first).toBe(second)
+  })
+
+  it('retains browser file bytes for project and portable-package saves', async () => {
+    const ref = await fileToFileRef(new File(['asset'], 'A1.png', { type: 'image/png' }))
+    expect(await browserAssetDataUrl(ref.objectUrl)).toBe('data:image/png;base64,YXNzZXQ=')
+    expect([...(await browserAssetBytes(ref.objectUrl))!.bytes]).toEqual([97, 115, 115, 101, 116])
+    expect([...(await browserAssetBytes('data:image/png;base64,YXNzZXQ='))!.bytes]).toEqual([97, 115, 115, 101, 116])
   })
 })

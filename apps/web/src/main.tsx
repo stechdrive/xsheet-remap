@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@xsheet-remap/ui/styles.css'
+import { registerPagesServiceWorker } from './pwa'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('root element not found')
@@ -17,7 +18,9 @@ const applicationTitle = isAssetPreviewWindow
         ? 'シート画像補正'
         : 'xsheet-editor'
 
-document.title = applicationTitle
+const isPagesBuild = import.meta.env.MODE === 'pages'
+document.title = isPagesBuild ? `${applicationTitle} PWA` : applicationTitle
+if (isPagesBuild) registerPagesServiceWorker()
 
 async function resolveApplication() {
   if (isAssetPreviewWindow) {

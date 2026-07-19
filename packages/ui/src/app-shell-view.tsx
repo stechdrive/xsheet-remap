@@ -17,6 +17,7 @@ import { TimingExportDialog } from './TimingExportDialog'
 import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
+import { SHEET_OCR_AVAILABLE } from './runtimeFeatures'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -133,7 +134,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
                     補正
                   </button>
                 </Tooltip>
-                <RecognitionActionMenu
+                {SHEET_OCR_AVAILABLE && <RecognitionActionMenu
                   candidates={recognitionCandidates}
                   sheetRole={recognitionRole}
                   running={recognitionRunning}
@@ -156,7 +157,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
                     setRecognitionCandidates([])
                     setRecognitionMessage(null)
                   }}
-                />
+                />}
                 <TooltipTarget label={uiText.sheet.imageOpacityTitle}>
                   {tooltipProps => (
                     <label className="compactControl topOpacityControl" {...tooltipProps}>

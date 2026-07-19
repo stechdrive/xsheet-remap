@@ -1,4 +1,5 @@
 import type { SheetTemplate, SheetTimingRole, ValidationIssue } from '@xsheet-remap/core'
+import { isTauriHost } from '@xsheet-remap/adapters'
 import { issueMessage, severityLabel } from './i18n'
 import type { TimingExportDialogState } from './appTypes'
 
@@ -23,7 +24,8 @@ export function TimingExportDialog({
 }) {
   const blockingIssues = issues.filter(issue => issue.severity === 'error')
   const visibleIssues = issues.filter(issue => issue.severity !== 'info').slice(0, 8)
-  const rootMissing = state.kind === 'csp-import' && !assetRootPath
+  const portableBrowserExport = state.kind === 'csp-import' && !isTauriHost()
+  const rootMissing = state.kind === 'csp-import' && !portableBrowserExport && !assetRootPath
   const disabled = blockingIssues.length > 0 || rootMissing
   const actionLabel = template.style?.gridHeader?.labelOverrides?.action || 'ACTION'
   const cellLabel = template.style?.gridHeader?.labelOverrides?.cell || 'CELL'
@@ -51,8 +53,8 @@ export function TimingExportDialog({
           )}
           {state.kind === 'csp-import' && (
             <label className="timingExportPathField">
-              <span>カットフォルダ</span>
-              <input value={assetRootPath || '未設定'} readOnly />
+              <span>{portableBrowserExport ? '保存形式' : 'カットフォルダ'}</span>
+              <input value={portableBrowserExport ? '素材同梱ZIP（ブラウザ保存）' : assetRootPath || '未設定'} readOnly />
             </label>
           )}
           {rootMissing && <div className="issue error"><strong>エラー</strong><span>画像素材ペインでカットフォルダを設定してください。</span></div>}

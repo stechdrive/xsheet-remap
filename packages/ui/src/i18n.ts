@@ -80,7 +80,7 @@ export const uiText = {
     xdts: 'XDTSを書き出す…',
     xdtsTitle: 'タイムシートをXDTS互換形式で書き出す',
     cspImportPackage: 'CSP自動登録データを書き出す…',
-    cspImportPackageTitle: '保存先フォルダを確認してから、CSP自動登録用のXDTSと登録ファイルを書き出す',
+    cspImportPackageTitle: '保存設定を確認してから、CSP自動登録用のXDTSと登録ファイルを書き出す',
     loadProject: 'プロジェクトを開く…',
     loadProjectTitle: '保存済みのプロジェクトJSONを開く',
     projectMenu: '保存',

@@ -24,6 +24,7 @@ export interface DecodedProjectFile {
 
 export interface EncodeProjectArchiveOptions {
   createdWith?: string
+  includeAssetPreviews?: boolean
 }
 
 export class RecoverableProjectFileError extends Error {
@@ -43,7 +44,10 @@ export async function encodeProjectArchive(
   documentInput: CutGroupProjectDocument,
   options: EncodeProjectArchiveOptions = {},
 ): Promise<Uint8Array> {
-  const document = projectDocumentWithoutRuntimePreviews(parseProjectDocument(documentInput))
+  const parsedDocument = parseProjectDocument(documentInput)
+  const document = options.includeAssetPreviews
+    ? parsedDocument
+    : projectDocumentWithoutRuntimePreviews(parsedDocument)
   const blobs = new Map<string, CollectedBlob>()
   const archivedDocument = await externalizeDataUrls(document, blobs, new Map(), 0) as unknown as CutGroupProjectDocument
   const descriptors = [...blobs.values()].map(blob => blob.descriptor).sort((a, b) => a.path.localeCompare(b.path))

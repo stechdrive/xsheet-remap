@@ -61,6 +61,22 @@ describe('project archive codec', () => {
     await expect(decodeProjectFileBytes(zipSync(entries))).rejects.toThrow(/サイズが一致|破損/)
   })
 
+  it('can preserve browser asset previews as checked archive blobs', async () => {
+    const source = createDefaultProjectDocument()
+    source.assets = [{
+      assetId: 'asset_browser',
+      binId: 'asset_bin_root',
+      originalFileName: 'A1.png',
+      displayName: 'A1.png',
+      role: 'cell-material',
+      source: { kind: 'unresolved' },
+      thumbnailUrl: embeddedImage,
+    }]
+    const bytes = await encodeProjectArchive(source, { includeAssetPreviews: true })
+    const restored = await decodeProjectFileBytes(bytes)
+    expect(restored.document.assets[0]?.thumbnailUrl).toBe(embeddedImage)
+  })
+
   it('refuses archives that require an unsupported future feature', async () => {
     const entries = unzipSync(await encodeProjectArchive(createDefaultProjectDocument()))
     const manifest = JSON.parse(strFromU8(entries['manifest.json']!)) as {

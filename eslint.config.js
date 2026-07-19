@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      '**/dist-pages/**',
       '**/dist-ts/**',
       '**/node_modules/**',
       '**/.pytest_cache/**',

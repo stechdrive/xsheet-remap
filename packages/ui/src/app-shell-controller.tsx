@@ -6,7 +6,7 @@ import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
 import { issueMessage, uiText } from './i18n';
 import { type Panel, type SheetRangeSelection, type TimingClipboard } from './appTypes';
-import { isProjectArchivePath, loadProjectDocumentFile } from './projectFileModel';
+import { isProjectArchivePath, loadProjectDocumentFile, projectRuntimeSourceImageUrls } from './projectFileModel';
 import { defaultSheetImageExportOptions, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions } from './cleanSheetExport';
 import { cspImportPackageTextOutputs } from './cspImportPackageOutputs';
 import { projectFileName } from './outputFileNames';
@@ -21,7 +21,8 @@ import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
 import { calibrationPointsForSettings, getSheetPageImage, serializableImageRef } from './sheetImages';
 import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, nextTimingHit, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
 import { buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, pasteResultRange, pasteTimingClipboardToProject, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget } from './timingEditing';
-import { normalizeRecognitionLabel, recognizeSheetPages } from './sheetRecognition';
+import { normalizeRecognitionLabel, recognizeSheetPagesIfAvailable } from './runtimeFeatures';
+import { saveBrowserCspImportPackage } from './browserCspImportPackage';
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
@@ -233,12 +234,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setValueDraft('')
     setValueDraftActive(false)
   }, [selectedTimedRangeCue, selectedTimedRangeCueId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive])
-
   useEffect(() => {
     if (!selectedKey || isSpecialTimingKeyId(selectedKey.keyId)) return
     void updateNativeRegisteredCellPreviewIfOpen(project, selectedKey)
   }, [project, selectedKey])
-
   useEffect(() => {
     void runDesktopE2EIfRequested({
       applyProject: (nextProject, nextTemplate, initialPanel) => {
@@ -1594,7 +1593,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       setProjectFilePath(loadedFile.projectFilePath)
       setHistory(createProjectHistory(loaded))
       setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
-      setRuntimeSourceImageUrls({})
+      setRuntimeSourceImageUrls(projectRuntimeSourceImageUrls(loadedDocument))
       clearSelectionState()
       void alertMissingProjectNativePaths(loadedDocument)
       if (loadedFile.recoveredFromBackup) {
@@ -1706,6 +1705,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   async function handleSaveCspImportPackage(timingSourceRole: SheetTimingRole = DEFAULT_EXPORT_TIMING_ROLE) {
     try {
+      if (!isTauriHost()) return saveBrowserCspImportPackage(projectDocumentSnapshot, { exportProfileId, timingSourceRole, appVersion: APP_VERSION })
       const packageBuild = buildCspImportPackage(projectDocumentSnapshot, {
         exportProfileId,
         timingSourceRole,
@@ -2048,7 +2048,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setRecognitionProgress({ completed: 0, total: 0 })
     setRecognitionMessage(null)
     try {
-      const candidates = await recognizeSheetPages({
+      const candidates = await recognizeSheetPagesIfAvailable({
         template,
         pages,
         sheetRole: recognitionRole,

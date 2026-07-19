@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   CAMERA_INSTRUCTION_CUE_END_POINT_ID,
   defaultCameraOverlapPivotAnchorFrame,
@@ -255,54 +255,64 @@ export function CameraCueDialog({
             {intermediatePoints.map((point, index) => {
               const previous = intermediatePoints[index - 1]?.frameOffset ?? 0
               const next = intermediatePoints[index + 1]?.frameOffset ?? durationFrames - 1
+              const fromName = index === 0
+                ? '開始'
+                : pointConnectionName(intermediatePoints[index - 1]?.label, `中間${index}`)
+              const toName = pointConnectionName(point.label, `中間${index + 1}`)
               return (
-                <div className={`cameraIntermediatePointRow${shape === 'range' ? ' withConnectionStyle' : ''}`} key={point.pointId}>
-                  <span>中間ラベル</span>
-                  <HistoryInput
-                    aria-label={`CAMERA中間ラベル${index + 1}`}
-                    value={point.label}
-                    history={pointLabelHistory}
-                    historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
-                    placeholder="任意"
-                    onChange={event => updateIntermediatePoint(point.pointId, { label: event.currentTarget.value })}
-                  />
-                  <input
-                    className="cameraPointFrameInput"
-                    type="number"
-                    aria-label={`CAMERA中間ラベル${index + 1}位置`}
-                    min={frameStart + previous + 1}
-                    max={frameStart + next - 1}
-                    value={frameStart + point.frameOffset}
-                    onChange={event => updateIntermediatePoint(point.pointId, {
-                      frameOffset: Math.max(previous + 1, Math.min(next - 1, Math.round(Number(event.currentTarget.value)) - frameStart)),
-                    })}
-                  />
+                <Fragment key={point.pointId}>
                   {shape === 'range' && (
-                    <ConnectionStyleControl
+                    <ConnectionStyleRow
+                      from={fromName}
+                      to={toName}
                       value={segmentStyle(point.pointId)}
-                      label={`中間ラベル${index + 1}まで`}
+                      label={`${index === 0 ? '開始' : `中間ラベル${index}`}から中間ラベル${index + 1}まで`}
                       onChange={style => setSegmentStyleByEndPointId(current => ({ ...current, [point.pointId]: style }))}
                     />
                   )}
-                  <button type="button" className="dialogIconButton compact" aria-label={`中間ラベル${index + 1}を削除`} onClick={() => removeIntermediatePoint(point.pointId)}>×</button>
-                </div>
+                  <div className="cameraIntermediatePointRow">
+                    <span>中間ラベル</span>
+                    <HistoryInput
+                      aria-label={`CAMERA中間ラベル${index + 1}`}
+                      value={point.label}
+                      history={pointLabelHistory}
+                      historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
+                      placeholder="任意"
+                      onChange={event => updateIntermediatePoint(point.pointId, { label: event.currentTarget.value })}
+                    />
+                    <input
+                      className="cameraPointFrameInput"
+                      type="number"
+                      aria-label={`CAMERA中間ラベル${index + 1}位置`}
+                      min={frameStart + previous + 1}
+                      max={frameStart + next - 1}
+                      value={frameStart + point.frameOffset}
+                      onChange={event => updateIntermediatePoint(point.pointId, {
+                        frameOffset: Math.max(previous + 1, Math.min(next - 1, Math.round(Number(event.currentTarget.value)) - frameStart)),
+                      })}
+                    />
+                    <button type="button" className="dialogIconButton compact" aria-label={`中間ラベル${index + 1}を削除`} onClick={() => removeIntermediatePoint(point.pointId)}>×</button>
+                  </div>
+                </Fragment>
               )
             })}
-            <button type="button" className="cameraAddPointButton" disabled={!canAddIntermediate} onClick={addIntermediatePoint}>＋ 中間ラベル</button>
+            {shape === 'range' && intermediatePoints.length > 0 && (
+              <ConnectionStyleRow
+                from={pointConnectionName(intermediatePoints.at(-1)?.label, `中間${intermediatePoints.length}`)}
+                to="終了"
+                value={segmentStyle(CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
+                label={`中間ラベル${intermediatePoints.length}から終了まで`}
+                onChange={style => setSegmentStyleByEndPointId(current => ({ ...current, [CAMERA_INSTRUCTION_CUE_END_POINT_ID]: style }))}
+              />
+            )}
             <PointLabelRow
               kindLabel="終了ラベル"
               ariaLabel="CAMERA終了ラベル"
               value={endLabel}
               history={pointLabelHistory}
               onChange={setEndLabel}
-              trailing={shape === 'range' && intermediatePoints.length > 0 ? (
-                <ConnectionStyleControl
-                  value={segmentStyle(CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
-                  label="終了まで"
-                  onChange={style => setSegmentStyleByEndPointId(current => ({ ...current, [CAMERA_INSTRUCTION_CUE_END_POINT_ID]: style }))}
-                />
-              ) : undefined}
             />
+            <button type="button" className="cameraAddPointButton" disabled={!canAddIntermediate} onClick={addIntermediatePoint}>＋ 中間ラベル</button>
             {tooManyPointLabels && <span className="cameraPointValidation" role="alert">位置ラベル数を区間のコマ数以下にしてください。</span>}
           </div>
           {shape === 'overlap' && (
@@ -335,16 +345,15 @@ export function CameraCueDialog({
   )
 }
 
-function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange, trailing }: {
+function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange }: {
   kindLabel: string
   ariaLabel: string
   value: string
   history: string[]
   onChange: (value: string) => void
-  trailing?: ReactNode
 }) {
   return (
-    <label className={`cameraPointLabelRow${trailing ? ' withTrailing' : ''}`}>
+    <label className="cameraPointLabelRow">
       <span>{kindLabel}</span>
       <HistoryInput
         aria-label={ariaLabel}
@@ -354,8 +363,22 @@ function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange, trailin
         placeholder="任意"
         onChange={event => onChange(event.currentTarget.value)}
       />
-      {trailing}
     </label>
+  )
+}
+
+function ConnectionStyleRow({ from, to, value, label, onChange }: {
+  from: string
+  to: string
+  value: CameraInstructionPathStyle
+  label: string
+  onChange: (value: CameraInstructionPathStyle) => void
+}) {
+  return (
+    <div className="cameraConnectionStyleRow">
+      <span className="cameraConnectionRelation">{from}<span aria-hidden="true"> → </span>{to}</span>
+      <ConnectionStyleControl value={value} label={label} onChange={onChange} />
+    </div>
   )
 }
 
@@ -380,6 +403,10 @@ function ConnectionStyleIcon({ style }: { style: CameraInstructionPathStyle }) {
   return style === 'straight'
     ? <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2V18" /></svg>
     : <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2C12 3.333 12 4.667 8 6C4 7.333 4 8.667 8 10C12 11.333 12 12.667 8 14C4 15.333 4 16.667 8 18" /></svg>
+}
+
+function pointConnectionName(value: string | undefined, fallback: string): string {
+  return value?.trim() || fallback
 }
 
 function CameraShapeIcon({ option }: { option: CameraShapeOption }) {

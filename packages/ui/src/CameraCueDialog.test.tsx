@@ -73,7 +73,7 @@ describe('CameraCueDialog', () => {
     expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('text')
   })
 
-  it('places the intermediate label before its frame and stores compact per-segment line styles', () => {
+  it('places each line-style control between its endpoints and stores independent segment styles', () => {
     const onSubmit = vi.fn()
     const { container } = render(
       <CameraCueDialog
@@ -100,14 +100,24 @@ describe('CameraCueDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
     const row = container.querySelector('.cameraIntermediatePointRow')!
+    const editorRows = [...container.querySelector('.cameraPointEditor')!.children]
+    const connectionRows = [...container.querySelectorAll('.cameraConnectionStyleRow')]
     const labelInput = screen.getByLabelText('CAMERA中間ラベル1')
     const frameInput = screen.getByLabelText('CAMERA中間ラベル1位置')
     expect([...row.querySelectorAll('input')].indexOf(labelInput as HTMLInputElement))
       .toBeLessThan([...row.querySelectorAll('input')].indexOf(frameInput as HTMLInputElement))
     expect(row.querySelector('output')).toBeNull()
+    expect(connectionRows).toHaveLength(2)
+    expect(editorRows.indexOf(connectionRows[0]!)).toBeLessThan(editorRows.indexOf(row))
+    expect(editorRows.indexOf(connectionRows[1]!)).toBeGreaterThan(editorRows.indexOf(row))
 
     fireEvent.change(labelInput, { target: { value: 'B' } })
-    fireEvent.click(screen.getByRole('radio', { name: '中間ラベル1までを直線' }))
+    expect([...container.querySelectorAll('.cameraConnectionRelation')].map(item => item.textContent)).toEqual([
+      '開始 → B',
+      'B → 終了',
+    ])
+    fireEvent.click(screen.getByRole('radio', { name: '開始から中間ラベル1までを直線' }))
+    fireEvent.click(screen.getByRole('radio', { name: '中間ラベル1から終了までを波線' }))
     fireEvent.click(screen.getByRole('button', { name: '追加' }))
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       camera: expect.objectContaining({
@@ -119,5 +129,37 @@ describe('CameraCueDialog', () => {
         ],
       }),
     }))
+  })
+
+  it('shows one unambiguous line-style control for every segment with multiple intermediate points', () => {
+    const { container } = render(
+      <CameraCueDialog
+        state={{ mode: 'create', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24 }}
+        cue={null}
+        fps={24}
+        frameMin={1}
+        frameMax={144}
+        instructionHistory={[]}
+        pointLabelHistory={[]}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
+    fireEvent.click(screen.getByRole('button', { name: '＋ 中間ラベル' }))
+    fireEvent.change(screen.getByLabelText('CAMERA中間ラベル1'), { target: { value: 'A' } })
+    fireEvent.change(screen.getByLabelText('CAMERA中間ラベル2'), { target: { value: 'B' } })
+
+    const controls = [...container.querySelectorAll('.cameraConnectionStyleRow')]
+    expect(controls).toHaveLength(3)
+    expect(controls.map(control => control.querySelector('.cameraConnectionRelation')?.textContent)).toEqual([
+      '開始 → A',
+      'A → B',
+      'B → 終了',
+    ])
+    expect(screen.getByRole('radiogroup', { name: '開始から中間ラベル1までの線' })).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: '中間ラベル1から中間ラベル2までの線' })).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: '中間ラベル2から終了までの線' })).toBeTruthy()
   })
 })

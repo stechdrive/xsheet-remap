@@ -184,16 +184,27 @@
   min-width: 0;
 }
 
-.cameraPointLabelRow.withTrailing {
-  grid-template-columns: 62px minmax(0, 1fr) auto;
-}
-
 .cameraIntermediatePointRow {
   grid-template-columns: 62px minmax(0, 1fr) 54px 28px;
 }
 
-.cameraIntermediatePointRow.withConnectionStyle {
-  grid-template-columns: 62px minmax(0, 1fr) 54px auto 28px;
+.cameraConnectionStyleRow {
+  display: flex;
+  min-width: 0;
+  margin-left: 69px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cameraConnectionRelation {
+  min-width: 0;
+  overflow: hidden;
+  color: #5f6f67;
+  font-size: 10px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cameraPointFrameInput {
@@ -215,8 +226,8 @@
   place-items: center;
   width: 25px;
   min-width: 25px;
-  height: 28px;
-  min-height: 28px;
+  height: 24px;
+  min-height: 24px;
   padding: 2px;
   border: 0;
   border-radius: 0;
@@ -235,7 +246,7 @@
 
 .cameraConnectionStyleControl svg {
   width: 14px;
-  height: 18px;
+  height: 16px;
   fill: none;
   stroke: currentcolor;
   stroke-width: 1.8;

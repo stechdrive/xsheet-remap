@@ -1,14 +1,18 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   CAMERA_INSTRUCTION_CUE_END_POINT_ID,
+  cameraSegmentKindForLegacyInstruction,
+  clampCameraOverlapPivotAnchorFrame,
   defaultCameraOverlapPivotAnchorFrame,
   formatLogicalSheetFrameTimecode,
   resolveCameraInstructionPoints,
-  resolveCameraInstructionSegmentStyles,
+  resolveCameraInstructionSegments,
+  shapeForCameraSegmentKind,
   type CameraInstruction,
   type CameraInstructionPathStyle,
   type CameraInstructionPoint,
-  type CameraInstructionShape,
+  type CameraInstructionSegment,
+  type CameraInstructionSegmentKind,
   type TimedRangeCue,
 } from '@xsheet-remap/core'
 import type { CameraCueDialogState } from './appTypes'
@@ -29,19 +33,18 @@ export interface CameraCueDialogSubmit {
   camera: CameraInstruction
 }
 
-type CameraShapeOption = {
+type CameraSegmentOption = {
   id: string
-  shape: CameraInstructionShape
-  pathStyle?: CameraInstructionPathStyle
+  kind: CameraInstructionSegmentKind
   label: string
 }
 
-const shapeOptions: CameraShapeOption[] = [
-  { id: 'range-straight', shape: 'range', pathStyle: 'straight', label: '直線の区間指示' },
-  { id: 'range-wave', shape: 'range', pathStyle: 'wave', label: '波線の区間指示' },
-  { id: 'fade-in', shape: 'fade-in', label: 'フェードイン・ワイプイン' },
-  { id: 'fade-out', shape: 'fade-out', label: 'フェードアウト・ワイプアウト' },
-  { id: 'overlap', shape: 'overlap', label: 'オーバーラップ' },
+const segmentOptions: CameraSegmentOption[] = [
+  { id: 'straight', kind: 'straight', label: '直線の区間指示' },
+  { id: 'wave', kind: 'wave', label: '波線の区間指示' },
+  { id: 'fade-in', kind: 'fade-in', label: 'フェードイン・ワイプイン' },
+  { id: 'fade-out', kind: 'fade-out', label: 'フェードアウト・ワイプアウト' },
+  { id: 'overlap', kind: 'overlap', label: 'オーバーラップ' },
 ]
 
 export function CameraCueDialog({
@@ -71,14 +74,9 @@ export function CameraCueDialog({
   const initialDuration = Math.max(1, initialFrameEnd - frameStart + 1)
   const initialCamera = cue?.camera
   const initialPoints = resolveCameraInstructionPoints(initialCamera, frameStart, initialFrameEnd)
-  const initialPathStyle: CameraInstructionPathStyle = initialCamera?.pathStyle === 'wave' ? 'wave' : 'straight'
-  const initialPivotAnchor = initialCamera?.pivotAnchorFrame
-    ?? defaultCameraOverlapPivotAnchorFrame(frameStart, initialFrameEnd)
-  const [shape, setShape] = useState<CameraInstructionShape>(initialCamera?.shape ?? 'range')
-  const [pathStyle, setPathStyle] = useState<CameraInstructionPathStyle>(initialPathStyle)
-  const [segmentStyleByEndPointId, setSegmentStyleByEndPointId] = useState<Record<string, CameraInstructionPathStyle>>(
-    () => Object.fromEntries(resolveCameraInstructionSegmentStyles(initialCamera, frameStart, initialFrameEnd, initialPoints)
-      .map(item => [item.endPointId, item.style])),
+  const [segmentByEndPointId, setSegmentByEndPointId] = useState<Record<string, CameraInstructionSegment>>(
+    () => Object.fromEntries(resolveCameraInstructionSegments(initialCamera, frameStart, initialFrameEnd, initialPoints)
+      .map(item => [item.endPointId, item])),
   )
   const [label, setLabel] = useState(cue?.label ?? '')
   const [startLabel, setStartLabel] = useState(initialPoints.find(point => point.role === 'start')?.label ?? '')
@@ -87,15 +85,11 @@ export function CameraCueDialog({
     initialPoints.filter(point => point.role === 'intermediate'),
   )
   const [durationFrames, setDurationFrames] = useState(initialDuration)
-  const [pivotAnchorOffset, setPivotAnchorOffset] = useState(Math.max(0, initialPivotAnchor - frameStart))
   const [labelPlacement, setLabelPlacement] = useState(initialCamera?.labelPlacement)
   const instructionInputRef = useRef<HTMLInputElement>(null)
   const maxDuration = Math.max(1, frameMax - frameStart + 1)
   const minimumDuration = Math.max(1, ...intermediatePoints.map(point => point.frameOffset + 2))
   const frameEnd = frameStart + durationFrames - 1
-  const evenDuration = durationFrames % 2 === 0
-  const pivotAnchorMax = evenDuration ? Math.max(frameStart, frameEnd - 1) : frameEnd
-  const pivotAnchorFrame = Math.max(frameStart, Math.min(pivotAnchorMax, frameStart + pivotAnchorOffset))
   const occupiedOffsets = useMemo(() => new Set([0, durationFrames - 1, ...intermediatePoints.map(point => point.frameOffset)]), [durationFrames, intermediatePoints])
   const canAddIntermediate = durationFrames >= 3 && occupiedOffsets.size < durationFrames
   const pointCount = (startLabel.trim() ? 1 : 0)
@@ -121,15 +115,10 @@ export function CameraCueDialog({
   function updateInstruction(value: string) {
     setLabel(value)
     if (state.mode !== 'create') return
-    const suggestedShape = suggestedShapeForInstruction(value)
-    if (suggestedShape) setShape(suggestedShape)
-  }
-
-  function selectShapeOption(option: CameraShapeOption) {
-    setShape(option.shape)
-    if (option.shape !== 'range' || !option.pathStyle) return
-    setPathStyle(option.pathStyle)
-    setSegmentStyleByEndPointId({})
+    const suggestedKind = suggestedKindForInstruction(value)
+    if (!suggestedKind) return
+    const firstTarget = intermediatePoints[0]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID
+    updateSegment(firstTarget, suggestedKind, frameStart, segmentEndFrame(firstTarget))
   }
 
   function updateDuration(nextDuration: number) {
@@ -142,9 +131,12 @@ export function CameraCueDialog({
     const pointId = nextPointId(intermediatePoints)
     const nextTargetId = intermediatePoints.find(point => point.frameOffset > offset)?.pointId
       ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID
-    setSegmentStyleByEndPointId(current => ({
+    setSegmentByEndPointId(current => ({
       ...current,
-      [pointId]: current[nextTargetId] ?? pathStyle,
+      [pointId]: {
+        ...(current[nextTargetId] ?? { endPointId: nextTargetId, kind: cameraSegmentKindForLegacyInstruction(initialCamera) }),
+        endPointId: pointId,
+      },
     }))
     setIntermediatePoints(current => [...current, {
       pointId,
@@ -161,28 +153,74 @@ export function CameraCueDialog({
 
   function removeIntermediatePoint(pointId: string) {
     setIntermediatePoints(current => current.filter(item => item.pointId !== pointId))
-    setSegmentStyleByEndPointId(current => {
+    setSegmentByEndPointId(current => {
       const remaining = { ...current }
       delete remaining[pointId]
       return remaining
     })
   }
 
-  function segmentStyle(endPointId: string): CameraInstructionPathStyle {
-    return segmentStyleByEndPointId[endPointId] ?? pathStyle
+  function segmentEndFrame(endPointId: string): number {
+    const point = intermediatePoints.find(item => item.pointId === endPointId)
+    return point ? frameStart + point.frameOffset - 1 : frameEnd
+  }
+
+  function segmentStartFrame(endPointId: string): number {
+    const targetIndex = intermediatePoints.findIndex(item => item.pointId === endPointId)
+    if (targetIndex < 0) return intermediatePoints.length
+      ? frameStart + intermediatePoints.at(-1)!.frameOffset
+      : frameStart
+    return targetIndex === 0 ? frameStart : frameStart + intermediatePoints[targetIndex - 1]!.frameOffset
+  }
+
+  function resolvedSegment(endPointId: string): CameraInstructionSegment {
+    return segmentByEndPointId[endPointId] ?? {
+      endPointId,
+      kind: cameraSegmentKindForLegacyInstruction(initialCamera),
+    }
+  }
+
+  function updateSegment(endPointId: string, kind: CameraInstructionSegmentKind, start: number, end: number, pivotAnchorFrame?: number) {
+    setSegmentByEndPointId(current => ({
+      ...current,
+      [endPointId]: {
+        endPointId,
+        kind,
+        pivotAnchorFrame: kind === 'overlap'
+          ? clampCameraOverlapPivotAnchorFrame(
+              pivotAnchorFrame ?? current[endPointId]?.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(start, end),
+              start,
+              end,
+            )
+          : undefined,
+      },
+    }))
   }
 
   function submit(event: FormEvent) {
     event.preventDefault()
     const normalizedLabel = label.trim()
-    const submittedIntermediatePoints = intermediatePoints
-      .filter(point => point.label.trim())
-      .map(point => ({ ...point, label: point.label.trim() }))
+    const submittedIntermediatePoints = intermediatePoints.map(point => ({ ...point, label: point.label.trim() }))
     const points: CameraInstructionPoint[] = [
       ...(startLabel.trim() ? [{ pointId: 'point_start', role: 'start' as const, frameOffset: 0, label: startLabel.trim() }] : []),
       ...submittedIntermediatePoints,
       ...(endLabel.trim() ? [{ pointId: 'point_end', role: 'end' as const, frameOffset: durationFrames - 1, label: endLabel.trim() }] : []),
     ]
+    const segmentTargetIds = [...submittedIntermediatePoints.map(point => point.pointId), CAMERA_INSTRUCTION_CUE_END_POINT_ID]
+    const segments = segmentTargetIds.map(endPointId => {
+      const segment = resolvedSegment(endPointId)
+      const start = segmentStartFrame(endPointId)
+      const end = segmentEndFrame(endPointId)
+      return {
+        ...segment,
+        endPointId,
+        pivotAnchorFrame: segment.kind === 'overlap'
+          ? clampCameraOverlapPivotAnchorFrame(segment.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(start, end), start, end)
+          : undefined,
+      }
+    })
+    const firstKind = segments[0]?.kind ?? 'straight'
+    const allRange = segments.every(segment => segment.kind === 'straight' || segment.kind === 'wave')
     onSubmit({
       cueId: state.cueId,
       laneId: state.laneId,
@@ -190,14 +228,12 @@ export function CameraCueDialog({
       frameEnd,
       label: normalizedLabel,
       camera: {
-        shape,
-        pathStyle: shape === 'range' ? pathStyle : undefined,
-        segmentStyles: shape === 'range'
-          ? [...submittedIntermediatePoints.map(point => point.pointId), CAMERA_INSTRUCTION_CUE_END_POINT_ID]
-              .map(endPointId => ({ endPointId, style: segmentStyle(endPointId) }))
-          : undefined,
+        shape: shapeForCameraSegmentKind(firstKind),
+        pathStyle: firstKind === 'straight' || firstKind === 'wave' ? firstKind : undefined,
+        segmentStyles: allRange ? segments.map(segment => ({ endPointId: segment.endPointId, style: segment.kind as CameraInstructionPathStyle })) : undefined,
+        segments,
         points,
-        pivotAnchorFrame: shape === 'overlap' ? pivotAnchorFrame : undefined,
+        pivotAnchorFrame: segments.length === 1 && firstKind === 'overlap' ? segments[0]?.pivotAnchorFrame : undefined,
         labelPlacement,
       },
     })
@@ -211,21 +247,6 @@ export function CameraCueDialog({
           <button type="button" className="dialogIconButton" aria-label="閉じる" onClick={onCancel}>×</button>
         </header>
         <div className="soundCueDialogBody cameraCueDialogBody">
-          <div className="cameraShapePicker" role="radiogroup" aria-label="CAMERA描画種別">
-            {shapeOptions.map(option => (
-              <button
-                key={option.id}
-                type="button"
-                className={shape === option.shape && (option.shape !== 'range' || pathStyle === option.pathStyle) ? 'cameraShapeButton selected' : 'cameraShapeButton'}
-                role="radio"
-                aria-label={option.label}
-                aria-checked={shape === option.shape && (option.shape !== 'range' || pathStyle === option.pathStyle)}
-                onClick={() => selectShapeOption(option)}
-              >
-                <CameraShapeIcon option={option} />
-              </button>
-            ))}
-          </div>
           <label>
             <span>指示</span>
             <HistoryInput
@@ -251,26 +272,22 @@ export function CameraCueDialog({
               value={startLabel}
               history={pointLabelHistory}
               onChange={setStartLabel}
-            />
+            >
+              <SegmentKindControl
+                value={resolvedSegment(intermediatePoints[0]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
+                label="開始から次の点まで"
+                frameStart={frameStart}
+                frameEnd={segmentEndFrame(intermediatePoints[0]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
+                frameMin={frameMin}
+                fps={safeFps}
+                onChange={segment => setSegmentByEndPointId(current => ({ ...current, [segment.endPointId]: segment }))}
+              />
+            </PointLabelRow>
             {intermediatePoints.map((point, index) => {
               const previous = intermediatePoints[index - 1]?.frameOffset ?? 0
               const next = intermediatePoints[index + 1]?.frameOffset ?? durationFrames - 1
-              const fromName = index === 0
-                ? '開始'
-                : pointConnectionName(intermediatePoints[index - 1]?.label, `中間${index}`)
-              const toName = pointConnectionName(point.label, `中間${index + 1}`)
               return (
-                <Fragment key={point.pointId}>
-                  {shape === 'range' && (
-                    <ConnectionStyleRow
-                      from={fromName}
-                      to={toName}
-                      value={segmentStyle(point.pointId)}
-                      label={`${index === 0 ? '開始' : `中間ラベル${index}`}から中間ラベル${index + 1}まで`}
-                      onChange={style => setSegmentStyleByEndPointId(current => ({ ...current, [point.pointId]: style }))}
-                    />
-                  )}
-                  <div className="cameraIntermediatePointRow">
+                <div className="cameraIntermediatePointRow" key={point.pointId}>
                     <span>中間ラベル</span>
                     <HistoryInput
                       aria-label={`CAMERA中間ラベル${index + 1}`}
@@ -291,20 +308,19 @@ export function CameraCueDialog({
                         frameOffset: Math.max(previous + 1, Math.min(next - 1, Math.round(Number(event.currentTarget.value)) - frameStart)),
                       })}
                     />
+                    <SegmentKindControl
+                      value={resolvedSegment(intermediatePoints[index + 1]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
+                      label={`中間ラベル${index + 1}から次の点まで`}
+                      frameStart={frameStart + point.frameOffset}
+                      frameEnd={segmentEndFrame(intermediatePoints[index + 1]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
+                      frameMin={frameMin}
+                      fps={safeFps}
+                      onChange={segment => setSegmentByEndPointId(current => ({ ...current, [segment.endPointId]: segment }))}
+                    />
                     <button type="button" className="dialogIconButton compact" aria-label={`中間ラベル${index + 1}を削除`} onClick={() => removeIntermediatePoint(point.pointId)}>×</button>
                   </div>
-                </Fragment>
               )
             })}
-            {shape === 'range' && intermediatePoints.length > 0 && (
-              <ConnectionStyleRow
-                from={pointConnectionName(intermediatePoints.at(-1)?.label, `中間${intermediatePoints.length}`)}
-                to="終了"
-                value={segmentStyle(CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
-                label={`中間ラベル${intermediatePoints.length}から終了まで`}
-                onChange={style => setSegmentStyleByEndPointId(current => ({ ...current, [CAMERA_INSTRUCTION_CUE_END_POINT_ID]: style }))}
-              />
-            )}
             <PointLabelRow
               kindLabel="終了ラベル"
               ariaLabel="CAMERA終了ラベル"
@@ -315,20 +331,6 @@ export function CameraCueDialog({
             <button type="button" className="cameraAddPointButton" disabled={!canAddIntermediate} onClick={addIntermediatePoint}>＋ 中間ラベル</button>
             {tooManyPointLabels && <span className="cameraPointValidation" role="alert">位置ラベル数を区間のコマ数以下にしてください。</span>}
           </div>
-          {shape === 'overlap' && (
-            <label className="cameraPivotField">
-              <span>交点</span>
-              <input
-                type="number"
-                aria-label="CAMERA交差フレーム"
-                min={frameStart}
-                max={pivotAnchorMax}
-                value={pivotAnchorFrame}
-                onChange={event => setPivotAnchorOffset(Math.round(Number(event.currentTarget.value)) - frameStart)}
-              />
-              <output>{formatLogicalSheetFrameTimecode(pivotAnchorFrame, frameMin, safeFps)}</output>
-            </label>
-          )}
           {labelPlacement && (
             <div className="cameraCueManualPlacementNotice">
               <span>シート上のラベル位置を使用中</span>
@@ -345,15 +347,16 @@ export function CameraCueDialog({
   )
 }
 
-function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange }: {
+function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange, children }: {
   kindLabel: string
   ariaLabel: string
   value: string
   history: string[]
   onChange: (value: string) => void
+  children?: ReactNode
 }) {
   return (
-    <label className="cameraPointLabelRow">
+    <div className="cameraPointLabelRow">
       <span>{kindLabel}</span>
       <HistoryInput
         aria-label={ariaLabel}
@@ -363,73 +366,118 @@ function PointLabelRow({ kindLabel, ariaLabel, value, history, onChange }: {
         placeholder="任意"
         onChange={event => onChange(event.currentTarget.value)}
       />
-    </label>
-  )
-}
-
-function ConnectionStyleRow({ from, to, value, label, onChange }: {
-  from: string
-  to: string
-  value: CameraInstructionPathStyle
-  label: string
-  onChange: (value: CameraInstructionPathStyle) => void
-}) {
-  return (
-    <div className="cameraConnectionStyleRow">
-      <span className="cameraConnectionRelation">{from}<span aria-hidden="true"> → </span>{to}</span>
-      <ConnectionStyleControl value={value} label={label} onChange={onChange} />
+      {children}
     </div>
   )
 }
 
-function ConnectionStyleControl({ value, label, onChange }: {
-  value: CameraInstructionPathStyle
+function SegmentKindControl({ value, label, frameStart, frameEnd, frameMin, fps, onChange }: {
+  value: CameraInstructionSegment
   label: string
-  onChange: (value: CameraInstructionPathStyle) => void
+  frameStart: number
+  frameEnd: number
+  frameMin: number
+  fps: number
+  onChange: (value: CameraInstructionSegment) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const option = segmentOptions.find(item => item.kind === value.kind) ?? segmentOptions[0]!
+  const pivotMax = (frameEnd - frameStart + 1) % 2 === 0 ? Math.max(frameStart, frameEnd - 1) : frameEnd
+  const pivot = value.kind === 'overlap'
+    ? clampCameraOverlapPivotAnchorFrame(value.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(frameStart, frameEnd), frameStart, frameEnd)
+    : undefined
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && rootRef.current?.contains(event.target)) return
+      setOpen(false)
+    }
+    window.addEventListener('pointerdown', closeOutside, true)
+    return () => window.removeEventListener('pointerdown', closeOutside, true)
+  }, [open])
+
+  function choose(kind: CameraInstructionSegmentKind) {
+    onChange({
+      endPointId: value.endPointId,
+      kind,
+      pivotAnchorFrame: kind === 'overlap'
+        ? clampCameraOverlapPivotAnchorFrame(pivot ?? defaultCameraOverlapPivotAnchorFrame(frameStart, frameEnd), frameStart, frameEnd)
+        : undefined,
+    })
+    if (kind !== 'overlap') setOpen(false)
+  }
+
   return (
-    <span className="cameraConnectionStyleControl" role="radiogroup" aria-label={`${label}の線`}>
-      <button type="button" role="radio" aria-label={`${label}を直線`} aria-checked={value === 'straight'} className={value === 'straight' ? 'selected' : ''} onClick={() => onChange('straight')}>
-        <ConnectionStyleIcon style="straight" />
+    <div ref={rootRef} className="cameraSegmentKindControl">
+      <button
+        type="button"
+        className="cameraSegmentKindTrigger"
+        aria-label={`${label}：${option.label}`}
+        aria-expanded={open}
+        onClick={event => { event.preventDefault(); setOpen(current => !current) }}
+      >
+        <CameraSegmentIcon kind={value.kind} />
       </button>
-      <button type="button" role="radio" aria-label={`${label}を波線`} aria-checked={value === 'wave'} className={value === 'wave' ? 'selected' : ''} onClick={() => onChange('wave')}>
-        <ConnectionStyleIcon style="wave" />
-      </button>
-    </span>
+      {open && (
+        <div className="cameraSegmentKindPopover" role="radiogroup" aria-label={`${label}の図形`}>
+          <div className="cameraSegmentKindOptions">
+            {segmentOptions.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                role="radio"
+                aria-label={`${label}を${item.label}`}
+                aria-checked={value.kind === item.kind}
+                className={value.kind === item.kind ? 'selected' : ''}
+                onClick={event => { event.preventDefault(); choose(item.kind) }}
+              >
+                <CameraSegmentIcon kind={item.kind} />
+              </button>
+            ))}
+          </div>
+          {value.kind === 'overlap' && pivot !== undefined && (
+            <label className="cameraSegmentPivotField">
+              <span>交点</span>
+              <input
+                type="number"
+                aria-label={`${label}の交差フレーム`}
+                min={frameStart}
+                max={pivotMax}
+                value={pivot}
+                onChange={event => onChange({ ...value, pivotAnchorFrame: clampCameraOverlapPivotAnchorFrame(Number(event.currentTarget.value), frameStart, frameEnd) })}
+              />
+              <output>{formatLogicalSheetFrameTimecode(pivot, frameMin, fps)}</output>
+            </label>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
-function ConnectionStyleIcon({ style }: { style: CameraInstructionPathStyle }) {
-  return style === 'straight'
-    ? <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2V18" /></svg>
-    : <svg viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2C12 3.333 12 4.667 8 6C4 7.333 4 8.667 8 10C12 11.333 12 12.667 8 14C4 15.333 4 16.667 8 18" /></svg>
-}
-
-function pointConnectionName(value: string | undefined, fallback: string): string {
-  return value?.trim() || fallback
-}
-
-function CameraShapeIcon({ option }: { option: CameraShapeOption }) {
-  if (option.shape === 'range') return (
+function CameraSegmentIcon({ kind }: { kind: CameraInstructionSegmentKind }) {
+  if (kind === 'straight' || kind === 'wave') return (
     <svg className="cameraRangeShapeIcon" viewBox="0 0 36 24" aria-hidden="true">
       <polygon points="12,2 24,2 18,7" />
-      <path d={option.pathStyle === 'wave'
+      <path d={kind === 'wave'
         ? 'M18 7C24 7.833 24 8.667 18 9.5C12 10.333 12 11.167 18 12C24 12.833 24 13.667 18 14.5C12 15.333 12 16.167 18 17'
         : 'M18 7V17'} />
       <polygon points="12,22 24,22 18,17" />
     </svg>
   )
-  if (option.shape === 'fade-in') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M18 3L6 21h24Z" /></svg>
-  if (option.shape === 'fade-out') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M6 3h24L18 21Z" /></svg>
+  if (kind === 'fade-in') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M18 3L6 21h24Z" /></svg>
+  if (kind === 'fade-out') return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M6 3h24L18 21Z" /></svg>
   return <svg viewBox="0 0 36 24" aria-hidden="true"><path d="M7 3H29L18 12Z M7 21H29L18 12Z" /></svg>
 }
 
-function suggestedShapeForInstruction(value: string): CameraInstructionShape | null {
+function suggestedKindForInstruction(value: string): CameraInstructionSegmentKind | null {
   const normalized = value.trim().toLocaleUpperCase('ja-JP')
   if (normalized === 'OL') return 'overlap'
   if (normalized === 'FI' || normalized === 'WI') return 'fade-in'
   if (normalized === 'FO' || normalized === 'WO') return 'fade-out'
-  if (CAMERA_INSTRUCTION_BUILT_INS.some(item => item.toLocaleUpperCase('ja-JP') === normalized)) return 'range'
+  if (CAMERA_INSTRUCTION_BUILT_INS.some(item => item.toLocaleUpperCase('ja-JP') === normalized)) return 'straight'
   return null
 }
 

@@ -184,8 +184,106 @@
   min-width: 0;
 }
 
+.cameraPointLabelRow {
+  grid-template-columns: 62px minmax(0, 1fr) 34px;
+}
+
 .cameraIntermediatePointRow {
-  grid-template-columns: 62px minmax(0, 1fr) 54px 28px;
+  grid-template-columns: 62px minmax(0, 1fr) 54px 34px 28px;
+}
+
+.cameraSegmentKindControl {
+  position: relative;
+}
+
+.cameraSegmentKindTrigger {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-width: 34px;
+  height: 28px;
+  min-height: 28px;
+  padding: 2px;
+  border: 1px solid #aeb9b2;
+  border-radius: 5px;
+  background: #fff;
+  color: #29483b;
+}
+
+.cameraSegmentKindTrigger:hover,
+.cameraSegmentKindTrigger[aria-expanded='true'] {
+  border-color: #175f46;
+  background: #e8f2ed;
+}
+
+.cameraSegmentKindTrigger svg,
+.cameraSegmentKindOptions svg {
+  width: 30px;
+  height: 20px;
+  fill: rgb(41 86 67 / 0.12);
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cameraSegmentKindTrigger .cameraRangeShapeIcon path,
+.cameraSegmentKindOptions .cameraRangeShapeIcon path {
+  fill: none;
+}
+
+.cameraSegmentKindPopover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #aeb9b2;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgb(30 45 36 / 0.18);
+}
+
+.cameraSegmentKindOptions {
+  display: flex;
+  gap: 3px;
+}
+
+.cameraSegmentKindOptions button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  min-width: 38px;
+  height: 28px;
+  min-height: 28px;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #29483b;
+}
+
+.cameraSegmentKindOptions button:hover,
+.cameraSegmentKindOptions button.selected {
+  border-color: #175f46;
+  background: #dfeee6;
+}
+
+.cameraSegmentPivotField {
+  display: grid;
+  grid-template-columns: auto 58px auto;
+  align-items: center;
+  gap: 5px;
+  color: #53635b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.cameraSegmentPivotField input {
+  width: 58px;
+  text-align: center;
 }
 
 .cameraConnectionStyleRow {

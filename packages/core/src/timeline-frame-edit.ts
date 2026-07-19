@@ -1,6 +1,6 @@
 import { logicalSheetOfficialFrameEnd } from './logical-sheet'
 import { compareTimelineEvents } from './project-shared'
-import { clampCameraOverlapPivotAnchorFrame, replaceTimedRangeCues, resolveCameraInstructionPoints } from './timed-range'
+import { clampCameraOverlapPivotAnchorFrame, replaceTimedRangeCues, resolveCameraInstructionPoints, resolveCameraInstructionSegments } from './timed-range'
 import { deleteTimelineMemoAnchors, insertTimelineMemoAnchors } from './timeline-memo'
 import { replaceTimelineMemos, timelineMemos } from './sheet-memo'
 import type { CameraInstruction, CutProject, TimedRangeCue } from './types'
@@ -93,6 +93,12 @@ function insertIntoCamera(
         nextCueRange.start,
         nextCueRange.end,
       )
+  const segments = resolveCameraInstructionSegments(camera, cue.frameStart, cue.frameEnd).map(segment => ({
+    ...segment,
+    pivotAnchorFrame: segment.pivotAnchorFrame === undefined
+      ? undefined
+      : insertPoint(segment.pivotAnchorFrame, atFrame, frameCount),
+  }))
   const labelPlacement = camera.labelPlacement
     ? placementAfterInsert(cue, nextCueRange, atFrame, frameCount)
     : undefined
@@ -103,7 +109,7 @@ function insertIntoCamera(
       return { ...point, frameOffset: nextFrame - nextCueRange.start }
     }),
   }, nextCueRange.start, nextCueRange.end)
-  return { ...camera, points, startLabel: undefined, endLabel: undefined, pivotAnchorFrame, labelPlacement }
+  return { ...camera, points, segments, startLabel: undefined, endLabel: undefined, pivotAnchorFrame, labelPlacement }
 }
 
 function placementAfterInsert(
@@ -149,6 +155,12 @@ function deleteFromCamera(
         nextCueRange.start,
         nextCueRange.end,
       )
+  const segments = resolveCameraInstructionSegments(camera, cue.frameStart, cue.frameEnd).map(segment => ({
+    ...segment,
+    pivotAnchorFrame: segment.pivotAnchorFrame === undefined
+      ? undefined
+      : deletePoint(segment.pivotAnchorFrame, frameStart, frameEnd, frameCount, nextCueRange),
+  }))
   const labelPlacement = camera.labelPlacement
     ? placementAfterDelete(cue, nextCueRange, frameStart, frameEnd, frameCount)
     : undefined
@@ -161,7 +173,7 @@ function deleteFromCamera(
       return [{ ...point, frameOffset: nextFrame - nextCueRange.start }]
     }),
   }, nextCueRange.start, nextCueRange.end)
-  return { ...camera, points, startLabel: undefined, endLabel: undefined, pivotAnchorFrame, labelPlacement }
+  return { ...camera, points, segments, startLabel: undefined, endLabel: undefined, pivotAnchorFrame, labelPlacement }
 }
 
 function placementAfterDelete(

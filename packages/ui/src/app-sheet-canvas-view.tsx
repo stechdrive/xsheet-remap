@@ -322,6 +322,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       pageSize={sheetPageSize}
                       surface={selectionSurface}
                       selectedCueId={props.selectedCameraCueId}
+                      draggingCueId={cameraCueDrag?.origin.cueId ?? null}
                       onPointerDown={handleCameraCuePointerDown}
                       onPointerMove={handleCameraCuePointerMove}
                       onPointerUp={event => finishCameraCuePointer(event)}

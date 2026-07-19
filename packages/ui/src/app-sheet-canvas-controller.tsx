@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type AnnotationStroke, type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd, sheetAnnotations } from '@xsheet-remap/core';
+import { type AnnotationStroke, type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type SheetRangeSelection, type SheetImageSettings } from './appTypes';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
@@ -195,6 +195,29 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     onStatusHint('sheet-drop', null)
     onStatusHint('sheet-drag', null)
     onStatusHint('overlay-paper-track', null)
+  }, [onStatusHint])
+  useEffect(() => {
+    const cancelCameraTransform = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !cameraCueDragRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      event.stopImmediatePropagation()
+      cameraCueDragRef.current = null
+      setCameraCueDrag(null)
+      onStatusHint('sheet-drag', null)
+    }
+    const cancelCameraTransformOnBlur = () => {
+      if (!cameraCueDragRef.current) return
+      cameraCueDragRef.current = null
+      setCameraCueDrag(null)
+      onStatusHint('sheet-drag', null)
+    }
+    window.addEventListener('keydown', cancelCameraTransform, true)
+    window.addEventListener('blur', cancelCameraTransformOnBlur)
+    return () => {
+      window.removeEventListener('keydown', cancelCameraTransform, true)
+      window.removeEventListener('blur', cancelCameraTransformOnBlur)
+    }
   }, [onStatusHint])
   useEffect(() => {
     const clearDropStatus = () => {
@@ -1238,13 +1261,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
     cameraCueDragRef.current = nextDrag
     setCameraCueDrag(nextDrag)
-    const hint = mode === 'move' ? 'CAMERA区間を移動中'
+    const action = mode === 'move' ? 'CAMERA区間を移動中'
       : mode === 'resize-start' || mode === 'resize-end' ? 'CAMERA区間の長さを変更中'
         : mode === 'pivot' ? 'CAMERA交差位置を変更中'
           : mode === 'point' ? 'CAMERA中間点を移動中'
-          : mode === 'move-label' ? 'CAMERAラベルを移動中'
-            : 'CAMERAラベルの大きさを変更中'
-    props.onStatusHint('sheet-drag', hint)
+            : mode === 'move-label' ? 'CAMERAラベルを移動中'
+              : 'CAMERAラベルの大きさを変更中'
+    props.onStatusHint('sheet-drag', `${action}：離すと確定 / Escで取消`)
   }
 
   function handleCameraCuePointerMove(event: PointerEvent<SVGGElement>) {
@@ -1268,16 +1291,25 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       frameStart = clampNumber(pointed.hit.frame - currentDrag.grabOffsetFrames, displayFrameStart, displayFrameEnd - duration + 1)
       frameEnd = frameStart + duration - 1
       laneId = pointed.laneId
-      const delta = frameStart - origin.frameStart
-      if (camera.pivotAnchorFrame !== undefined) camera = { ...camera, pivotAnchorFrame: camera.pivotAnchorFrame + delta }
+      camera = transformCameraInstructionRange(camera, origin.frameStart, origin.frameEnd, frameStart, frameEnd)
     } else if (currentDrag.mode === 'resize-start') {
       frameStart = clampNumber(pointed.hit.frame, displayFrameStart, origin.frameEnd)
       camera = transformCameraInstructionRange(camera, origin.frameStart, origin.frameEnd, frameStart, frameEnd)
     } else if (currentDrag.mode === 'resize-end') {
       frameEnd = clampNumber(pointed.hit.frame, origin.frameStart, displayFrameEnd)
       camera = transformCameraInstructionRange(camera, origin.frameStart, origin.frameEnd, frameStart, frameEnd)
-    } else if (currentDrag.mode === 'pivot') {
-      camera = { ...camera, pivotAnchorFrame: clampCameraOverlapPivotAnchorFrame(pointed.hit.frame, origin.frameStart, origin.frameEnd) }
+    } else if (currentDrag.mode === 'pivot' && currentDrag.labelGeometry?.segmentEndPointId) {
+      const points = resolveCameraInstructionPoints(camera, origin.frameStart, origin.frameEnd)
+      const targets = [...points.filter(point => point.role === 'intermediate'), { pointId: 'cue-end', frameOffset: duration }]
+      const targetIndex = targets.findIndex(target => target.pointId === currentDrag.labelGeometry?.segmentEndPointId)
+      const segmentStart = targetIndex <= 0 ? origin.frameStart : origin.frameStart + targets[targetIndex - 1]!.frameOffset
+      const segmentEnd = targetIndex < 0 ? origin.frameEnd : origin.frameStart + targets[targetIndex]!.frameOffset - 1
+      camera = {
+        ...camera,
+        segments: resolveCameraInstructionSegments(camera, origin.frameStart, origin.frameEnd, points).map(segment => segment.endPointId === currentDrag.labelGeometry?.segmentEndPointId
+          ? { ...segment, pivotAnchorFrame: clampCameraOverlapPivotAnchorFrame(pointed.hit.frame, segmentStart, segmentEnd) }
+          : segment),
+      }
     } else if (currentDrag.mode === 'point' && currentDrag.labelGeometry?.pointId) {
       const points = resolveCameraInstructionPoints(camera, origin.frameStart, origin.frameEnd)
       const pointIndex = points.findIndex(point => point.pointId === currentDrag.labelGeometry?.pointId)
@@ -1332,12 +1364,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (cameraCueDragRef.current) return
     setHoveredCameraCueId(cueId)
     setCameraCueHoverAnchor({ x: event.clientX, y: event.clientY })
+    if (props.selectedCameraCueId === cueId) props.onStatusHint('sheet-hover', 'ドラッグで移動 / ダブルクリックで編集 / Escで選択解除')
   }
 
   function handleCameraCuePointerLeave() {
     if (cameraCueDragRef.current) return
     setHoveredCameraCueId(null)
     setCameraCueHoverAnchor(null)
+    props.onStatusHint('sheet-hover', null)
   }
 
   function handleTimedRangeDoubleClick(event: MouseEvent<SVGSVGElement>, page: SheetPage) {

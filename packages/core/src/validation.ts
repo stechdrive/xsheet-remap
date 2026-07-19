@@ -66,7 +66,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
       if (!cue.camera) {
         issues.push(issue('error', 'cue.camera.missing', `camera cue ${cue.cueId} has no instruction geometry`, 'cue', cue.cueId))
       } else {
-        if (cue.camera.shape === 'overlap' && (
+        if ((cue.camera.segments?.length ?? 0) === 0 && cue.camera.shape === 'overlap' && (
           cue.camera.pivotAnchorFrame === undefined
           || !Number.isInteger(cue.camera.pivotAnchorFrame)
           || cue.camera.pivotAnchorFrame < cue.frameStart
@@ -95,7 +95,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
           return duplicateId
             || duplicateIntermediate
             || !point.pointId
-            || !point.label.trim()
+            || (point.role !== 'intermediate' && !point.label.trim())
             || !Number.isInteger(point.frameOffset)
             || point.frameOffset !== expectedOffset
             || point.frameOffset < 0
@@ -118,6 +118,29 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
         })
         if (cue.camera.shape === 'range' && invalidSegmentStyle) {
           issues.push(issue('error', 'cue.camera.segmentStyles.invalid', `camera cue ${cue.cueId} has invalid segment styles`, 'cue', cue.cueId))
+        }
+        const instructionSegments = cue.camera.segments ?? []
+        const instructionTargets = new Set<string>()
+        const intermediateById = new Map(points.filter(point => point.role === 'intermediate').map(point => [point.pointId, point]))
+        let instructionStart = cue.frameStart
+        const invalidInstructionSegment = instructionSegments.some(segment => {
+          const duplicate = instructionTargets.has(segment.endPointId)
+          instructionTargets.add(segment.endPointId)
+          const validKind = segment.kind === 'straight' || segment.kind === 'wave'
+            || segment.kind === 'fade-in' || segment.kind === 'fade-out' || segment.kind === 'overlap'
+          const targetPoint = intermediateById.get(segment.endPointId)
+          const instructionEnd = targetPoint ? cue.frameStart + targetPoint.frameOffset - 1 : cue.frameEnd
+          const pivotMax = (instructionEnd - instructionStart + 1) % 2 === 0 ? Math.max(instructionStart, instructionEnd - 1) : instructionEnd
+          const validPivot = segment.kind !== 'overlap'
+            ? segment.pivotAnchorFrame === undefined
+            : Number.isInteger(segment.pivotAnchorFrame)
+              && segment.pivotAnchorFrame! >= instructionStart
+              && segment.pivotAnchorFrame! <= pivotMax
+          instructionStart = instructionEnd + 1
+          return duplicate || !allowedSegmentTargets.has(segment.endPointId) || !validKind || !validPivot
+        })
+        if (invalidInstructionSegment || (instructionSegments.length > 0 && instructionSegments.length !== allowedSegmentTargets.size)) {
+          issues.push(issue('error', 'cue.camera.segments.invalid', `camera cue ${cue.cueId} has invalid instruction segments`, 'cue', cue.cueId))
         }
       }
     }

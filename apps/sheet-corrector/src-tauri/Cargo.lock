@@ -4498,7 +4498,7 @@ dependencies = [
 
 [[package]]
 name = "xsheet-corrector"
-version = "0.1.612"
+version = "0.1.613"
 dependencies = [
  "base64 0.22.1",
  "image",

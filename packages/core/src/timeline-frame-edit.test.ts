@@ -22,7 +22,11 @@ describe('cut timeline frame editing', () => {
       frameStart: 4,
       frameEnd: 13,
       camera: {
-        pivotAnchorFrame: 10,
+        pivotAnchorFrame: undefined,
+        segments: expect.arrayContaining([
+          expect.objectContaining({ endPointId: 'point_mid', kind: 'overlap' }),
+          expect.objectContaining({ endPointId: 'cue-end', kind: 'overlap' }),
+        ]),
         points: expect.arrayContaining([
           { pointId: 'point_mid', role: 'intermediate', frameOffset: 6, label: 'MID' },
         ]),

@@ -43,6 +43,7 @@ import { resolveGridTypographyFontSizes } from './sheetTextLayout'
 import {
   buildCameraCuePageLayouts,
   cameraCuePointLayoutsForPage,
+  cameraInstructionSpans,
   cameraFadePolygonForSegment,
   cameraOverlapFillPolygonsForSegment,
   cameraOverlapPivotMarkForSegment,
@@ -803,27 +804,27 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
       layoutOverrides: context.project.sheetView.layoutOverrides,
     })
     for (const { cue, segments } of layouts) {
-      const camera = cue.camera ?? { shape: 'range' as const, points: [] }
+      const instructionSpans = cameraInstructionSpans(cue)
       for (const segment of segments) {
         ctx.strokeStyle = 'rgba(22, 67, 52, 0.96)'
         ctx.fillStyle = 'rgba(55, 112, 87, 0.13)'
         ctx.lineWidth = 1.5
-        if (camera.shape === 'range') {
-          for (const path of cameraRangePathsForSegment(cue, segment, context.pageSize)) {
-            drawNormalizedCameraRangePath(ctx, path.commands, pageWidth, pageHeight, offsetY)
+        for (const path of cameraRangePathsForSegment(cue, segment, context.pageSize)) {
+          drawNormalizedCameraRangePath(ctx, path.commands, pageWidth, pageHeight, offsetY)
+        }
+        const spans = instructionSpans.filter(span => span.frameEndExclusive > segment.frameStart && span.frameStart < segment.frameEnd + 1)
+        for (const span of spans) {
+          if (span.kind === 'fade-in' || span.kind === 'fade-out') {
+            drawNormalizedPolygon(ctx, cameraFadePolygonForSegment(cue, segment, span.kind, span), pageWidth, pageHeight, offsetY, true)
           }
-        }
-        if (camera.shape === 'fade-in' || camera.shape === 'fade-out') {
-          drawNormalizedPolygon(ctx, cameraFadePolygonForSegment(cue, segment, camera.shape), pageWidth, pageHeight, offsetY, true)
-        }
-        if (camera.shape === 'overlap') {
-          for (const polygon of cameraOverlapFillPolygonsForSegment(cue, segment)) {
+          if (span.kind !== 'overlap') continue
+          for (const polygon of cameraOverlapFillPolygonsForSegment(cue, segment, span)) {
             drawNormalizedPolygon(ctx, polygon, pageWidth, pageHeight, offsetY, true, false)
           }
-          for (const path of cameraOverlapPathsForSegment(cue, segment)) {
+          for (const path of cameraOverlapPathsForSegment(cue, segment, span)) {
             drawNormalizedPolyline(ctx, path, pageWidth, pageHeight, offsetY)
           }
-          const pivotMark = cameraOverlapPivotMarkForSegment(cue, segment)
+          const pivotMark = cameraOverlapPivotMarkForSegment(cue, segment, span)
           if (pivotMark) {
             ctx.save()
             ctx.strokeStyle = 'rgba(255, 255, 252, 0.96)'
@@ -835,11 +836,13 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
             ctx.restore()
           }
         }
+        const startKind = instructionSpans[0]?.kind
+        const endKind = instructionSpans.at(-1)?.kind
         const marker = cameraRangeMarkerGeometryForSegment(segment, context.pageSize)
-        if (camera.shape === 'range' && segment.startsCue) {
+        if ((startKind === 'straight' || startKind === 'wave') && segment.startsCue) {
           drawCanvasPolygon(ctx, marker.start.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), '#194f3c')
         }
-        if (camera.shape === 'range' && segment.endsCue) {
+        if ((endKind === 'straight' || endKind === 'wave') && segment.endsCue) {
           drawCanvasPolygon(ctx, marker.end.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), '#194f3c')
         }
       }
@@ -873,18 +876,22 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
             offsetY + point.mark.y * pageHeight,
           )
         }
-        ctx.strokeStyle = 'rgba(47, 95, 76, 0.82)'
-        ctx.lineWidth = 1.25
-        drawCanvasLine(
-          ctx,
-          point.connector.from.x * pageWidth,
-          offsetY + point.connector.from.y * pageHeight,
-          point.connector.to.x * pageWidth,
-          offsetY + point.connector.to.y * pageHeight,
-        )
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'alphabetic'
-        drawCueText(ctx, point.point.label, point.textXpx, offsetY + point.textYpx, point.fontSizePx, 850)
+        if (point.connector) {
+          ctx.strokeStyle = 'rgba(47, 95, 76, 0.82)'
+          ctx.lineWidth = 1.25
+          drawCanvasLine(
+            ctx,
+            point.connector.from.x * pageWidth,
+            offsetY + point.connector.from.y * pageHeight,
+            point.connector.to.x * pageWidth,
+            offsetY + point.connector.to.y * pageHeight,
+          )
+        }
+        if (point.point.label) {
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'alphabetic'
+          drawCueText(ctx, point.point.label, point.textXpx, offsetY + point.textYpx, point.fontSizePx, 850)
+        }
         ctx.restore()
       }
     }

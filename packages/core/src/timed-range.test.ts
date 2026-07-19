@@ -142,7 +142,7 @@ describe('timed range cues', () => {
     expect(created.cue.camera?.labelPlacement?.widthRatio).toBeCloseTo(0.1)
 
     const faded = updateTimedRangeCue(created.project, created.cue.cueId, {
-      camera: { ...created.cue.camera!, shape: 'fade-in' },
+      camera: { ...created.cue.camera!, shape: 'fade-in', segments: [{ endPointId: 'cue-end', kind: 'fade-in' }] },
     })
     expect(faded.timedRangeCues[0]?.camera?.pivotAnchorFrame).toBeUndefined()
     expect(validateProject(faded).filter(issue => issue.code.startsWith('cue.camera.'))).toEqual([])
@@ -165,14 +165,36 @@ describe('timed range cues', () => {
         ],
       },
     })
-    expect(created.cue.camera).toMatchObject({
-      pathStyle: 'wave',
-      segmentStyles: [
-        { endPointId: 'mid', style: 'straight' },
-        { endPointId: 'cue-end', style: 'wave' },
-      ],
-    })
+    expect(created.cue.camera?.segments).toEqual([
+      { endPointId: 'mid', kind: 'straight', pivotAnchorFrame: undefined },
+      { endPointId: 'cue-end', kind: 'wave', pivotAnchorFrame: undefined },
+    ])
     expect(validateProject(created.project).filter(issue => issue.code === 'cue.camera.segmentStyles.invalid')).toEqual([])
+  })
+
+  it('normalizes mixed CAMERA interval kinds and keeps an unlabeled geometry point', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24, label: 'MIX',
+      camera: {
+        shape: 'range',
+        points: [
+          { pointId: 'mid_a', role: 'intermediate', frameOffset: 6, label: '' },
+          { pointId: 'mid_b', role: 'intermediate', frameOffset: 12, label: 'B' },
+        ],
+        segments: [
+          { endPointId: 'mid_a', kind: 'wave' },
+          { endPointId: 'mid_b', kind: 'fade-in' },
+          { endPointId: 'cue-end', kind: 'overlap', pivotAnchorFrame: 18 },
+        ],
+      },
+    })
+    expect(created.cue.camera?.points?.find(point => point.pointId === 'mid_a')?.label).toBe('')
+    expect(created.cue.camera?.segments).toEqual([
+      { endPointId: 'mid_a', kind: 'wave', pivotAnchorFrame: undefined },
+      { endPointId: 'mid_b', kind: 'fade-in', pivotAnchorFrame: undefined },
+      { endPointId: 'cue-end', kind: 'overlap', pivotAnchorFrame: 18 },
+    ])
+    expect(validateProject(created.project).filter(issue => issue.code.startsWith('cue.camera.'))).toEqual([])
   })
 
   it('rejects missing lanes and validation reports invalid stored lane references', () => {

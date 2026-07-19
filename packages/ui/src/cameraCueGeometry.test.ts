@@ -309,10 +309,10 @@ describe('CAMERA cue geometry', () => {
     expect(landmarks.find(landmark => landmark.kind === 'point-connector')?.blocksInstructionLabel).toBe(false)
     const transition = landmarks.find(landmark => landmark.kind === 'path-transition')!
     const waveSegment = allLandmarks.find(landmark => landmark.kind === 'wave-segment')!
-    expect(transition.rect.x).toBeCloseTo(layout.segments[0]!.regionRect.x)
-    expect(transition.rect.w).toBeCloseTo(layout.segments[0]!.regionRect.w)
-    expect(waveSegment.rect.x).toBeCloseTo(layout.segments[0]!.regionRect.x)
-    expect(waveSegment.rect.w).toBeCloseTo(layout.segments[0]!.regionRect.w)
+    expect(transition.rect.x).toBeCloseTo(layout.segments[0]!.rect.x - layout.segments[0]!.rect.w * 0.18)
+    expect(transition.rect.w).toBeCloseTo(layout.segments[0]!.rect.w * 1.36)
+    expect(waveSegment.rect.x).toBeCloseTo(layout.segments[0]!.rect.x - layout.segments[0]!.rect.w * 0.18)
+    expect(waveSegment.rect.w).toBeCloseTo(layout.segments[0]!.rect.w * 1.36)
     expect(allLandmarks.filter(landmark => landmark.blocksInstructionLabel)
       .every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
     expect(verticalIntervalsOverlap(layout.label!.rect, transition.rect)).toBe(false)
@@ -364,6 +364,34 @@ describe('CAMERA cue geometry', () => {
     expect(landmarks.filter(landmark => landmark.blocksInstructionLabel)
       .every(landmark => intersectionArea(layout.label!.rect, landmark.rect) < 0.000000001)).toBe(true)
     expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
+  })
+
+  it('keeps a neighboring straight SL label on its own interval instead of reserving the full CAMERA width for a wave', () => {
+    const wave: TimedRangeCue = {
+      cueId: 'wave_neighbor', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24,
+      label: 'WAVE', text: '', source: 'manual',
+      camera: {
+        shape: 'range',
+        points: [{ pointId: 'wave_mid', role: 'intermediate', frameOffset: 12, label: 'B' }],
+        segments: [
+          { endPointId: 'wave_mid', kind: 'wave' },
+          { endPointId: 'cue-end', kind: 'straight' },
+        ],
+      },
+    }
+    const slide: TimedRangeCue = {
+      cueId: 'slide_neighbor', role: 'camera', laneId: 'camera_lane_3', frameStart: 7, frameEnd: 22,
+      label: 'SL', text: '', source: 'manual',
+      camera: { shape: 'range', segments: [{ endPointId: 'cue-end', kind: 'straight' }] },
+    }
+    const pageSize = { widthPx: 1754, heightPx: 2481 }
+    const layouts = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [wave, slide], pageSize, { paperTracks })
+    const slideLayout = layouts.find(layout => layout.cue.cueId === slide.cueId)!
+    expect(slideLayout.label).not.toBeNull()
+    expect(intersectionArea(slideLayout.label!.rect, slideLayout.segments[0]!.rect)).toBeGreaterThan(0)
+    const waveObstacles = cameraCueSemanticLandmarksForPage(standardA3SheetTemplate, wave, layouts[0]!.segments, pageSize)
+      .filter(landmark => landmark.blocksInstructionLabel)
+    expect(waveObstacles.every(obstacle => intersectionArea(slideLayout.label!.rect, obstacle.rect) < 0.000000001)).toBe(true)
   })
 
   it('draws an odd overlap at the center of its anchor frame', () => {
@@ -455,7 +483,8 @@ describe('CAMERA cue geometry', () => {
     expect(((intermediate.mark?.x2 ?? 0) - (intermediate.mark?.x1 ?? 0)) / intermediateSegment.rect.w)
       .toBeCloseTo(CAMERA_HORIZONTAL_MARK_GRID_RATIO)
     expect(horizontalMarkIntersectsRect(intermediate.mark!, intermediate.rect)).toBe(false)
-    expect(intermediate.connector.from.x === intermediate.mark?.x1 || intermediate.connector.from.x === intermediate.mark?.x2).toBe(true)
+    expect(intermediate.connector).toBeDefined()
+    expect(intermediate.connector!.from.x === intermediate.mark?.x1 || intermediate.connector!.from.x === intermediate.mark?.x2).toBe(true)
     expect(layouts.filter(layout => layout.point.role !== 'intermediate').every(layout => layout.mark === undefined)).toBe(true)
   })
 })

@@ -91,6 +91,50 @@ describe('CameraCueLayer', () => {
     expect(label?.querySelector('title')?.textContent).toContain('アンカー付きメモ')
     expect(label?.querySelector('[clip-path]')).toBeTruthy()
   })
+
+  it('renders mixed interval kinds in one cue and distinguishes an active transform', () => {
+    const cue: TimedRangeCue = {
+      cueId: 'cue_mixed', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24,
+      label: 'MIX', text: '', source: 'manual',
+      camera: {
+        shape: 'range',
+        points: [
+          { pointId: 'p1', role: 'intermediate', frameOffset: 6, label: '' },
+          { pointId: 'p2', role: 'intermediate', frameOffset: 12, label: 'B' },
+          { pointId: 'p3', role: 'intermediate', frameOffset: 18, label: 'C' },
+        ],
+        segments: [
+          { endPointId: 'p1', kind: 'straight' },
+          { endPointId: 'p2', kind: 'wave' },
+          { endPointId: 'p3', kind: 'fade-in' },
+          { endPointId: 'cue-end', kind: 'overlap', pivotAnchorFrame: 20 },
+        ],
+      },
+    }
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const { container } = render(
+      <svg><CameraCueLayer
+        cues={[cue]}
+        template={standardA3SheetTemplate}
+        page={page}
+        paperTracks={createDefaultProject().logicalSheet.paperTracks.map(track => track.paperTrack)}
+        pageSize={{ widthPx: 1754, heightPx: 2481 }}
+        surface={{ widthPx: 1000, heightPx: 1000 }}
+        selectedCueId="cue_mixed"
+        draggingCueId="cue_mixed"
+        onPointerDown={vi.fn()} onPointerMove={vi.fn()} onPointerUp={vi.fn()} onPointerCancel={vi.fn()}
+        onDoubleClick={vi.fn()} onPointerEnter={vi.fn()} onPointerLeave={vi.fn()}
+      /></svg>,
+    )
+    expect(container.querySelector('.cameraCue.transforming')).toBeTruthy()
+    expect(container.querySelector('.cameraCueRangePath.straight')).toBeTruthy()
+    expect(container.querySelector('.cameraCueRangePath.wave')).toBeTruthy()
+    expect(container.querySelector('.cameraCueFade')).toBeTruthy()
+    expect(container.querySelectorAll('.cameraCueOverlapFill')).toHaveLength(2)
+    expect(container.querySelectorAll('.cameraCueMarker.start')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCueMarker.end')).toHaveLength(0)
+    expect(container.querySelectorAll('.cameraCuePivotHandle')).toHaveLength(1)
+  })
 })
 
 function cameraCue(cueId: string, laneId: string, frameStart: number, frameEnd: number, shape: 'range' | 'fade-in' | 'fade-out' | 'overlap', pivotAnchorFrame?: number): TimedRangeCue {

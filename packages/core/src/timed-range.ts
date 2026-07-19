@@ -1,6 +1,6 @@
 import { logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart } from './logical-sheet'
 import { isTimelineMemo } from './sheet-memo'
-import type { CameraInstruction, CameraInstructionPathStyle, CameraInstructionPoint, CameraInstructionPointRole, CameraInstructionSegmentStyle, CutProject, TimedRangeCue, TimedRangeRole, TimelineMemoAnchor } from './types'
+import type { CameraInstruction, CameraInstructionPathStyle, CameraInstructionPoint, CameraInstructionPointRole, CameraInstructionSegment, CameraInstructionSegmentKind, CameraInstructionSegmentStyle, CameraInstructionShape, CutProject, TimedRangeCue, TimedRangeRole, TimelineMemoAnchor } from './types'
 
 export interface TimedRangeCueInput {
   role: TimedRangeRole
@@ -136,14 +136,6 @@ function normalizeCue(project: CutProject, cue: TimedRangeCue): TimedRangeCue {
 
 function normalizeCameraInstruction(cue: TimedRangeCue): CameraInstruction {
   const input = cue.camera
-  const shape = input?.shape ?? 'range'
-  const pivotAnchorFrame = shape === 'overlap'
-    ? clampCameraOverlapPivotAnchorFrame(
-        input?.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(cue.frameStart, cue.frameEnd),
-        cue.frameStart,
-        cue.frameEnd,
-      )
-    : undefined
   const labelXRatio = input?.labelPlacement ? clamp(input.labelPlacement.xRatio, 0, 0.95) : 0
   const labelPlacement = input?.labelPlacement
     ? {
@@ -155,13 +147,18 @@ function normalizeCameraInstruction(cue: TimedRangeCue): CameraInstruction {
       }
     : undefined
   const points = resolveCameraInstructionPoints(input, cue.frameStart, cue.frameEnd)
-  const pathStyle: CameraInstructionPathStyle = input?.pathStyle === 'wave' ? 'wave' : 'straight'
+  const segments = resolveCameraInstructionSegments(input, cue.frameStart, cue.frameEnd, points)
+  const firstKind = segments[0]?.kind ?? 'straight'
+  const shape = shapeForCameraSegmentKind(firstKind)
+  const pathStyle: CameraInstructionPathStyle | undefined = firstKind === 'straight' || firstKind === 'wave' ? firstKind : undefined
+  const pivotAnchorFrame = segments.length === 1 && firstKind === 'overlap' ? segments[0]?.pivotAnchorFrame : undefined
   return {
     shape,
-    pathStyle: shape === 'range' ? pathStyle : undefined,
-    segmentStyles: shape === 'range'
-      ? resolveCameraInstructionSegmentStyles(input ? { ...input, pathStyle } : { shape, pathStyle }, cue.frameStart, cue.frameEnd, points)
+    pathStyle,
+    segmentStyles: segments.every(segment => segment.kind === 'straight' || segment.kind === 'wave')
+      ? segments.map(segment => ({ endPointId: segment.endPointId, style: segment.kind as CameraInstructionPathStyle }))
       : undefined,
+    segments,
     points,
     pivotAnchorFrame,
     labelPlacement,
@@ -169,6 +166,56 @@ function normalizeCameraInstruction(cue: TimedRangeCue): CameraInstruction {
 }
 
 export const CAMERA_INSTRUCTION_CUE_END_POINT_ID = 'cue-end'
+
+export function shapeForCameraSegmentKind(kind: CameraInstructionSegmentKind): CameraInstructionShape {
+  return kind === 'straight' || kind === 'wave' ? 'range' : kind
+}
+
+export function cameraSegmentKindForLegacyInstruction(camera: CameraInstruction | null | undefined): CameraInstructionSegmentKind {
+  if (camera?.shape === 'fade-in' || camera?.shape === 'fade-out' || camera?.shape === 'overlap') return camera.shape
+  return camera?.pathStyle === 'wave' ? 'wave' : 'straight'
+}
+
+export function resolveCameraInstructionSegments(
+  camera: CameraInstruction | null | undefined,
+  frameStart: number,
+  frameEnd: number,
+  resolvedPoints = resolveCameraInstructionPoints(camera, frameStart, frameEnd),
+): CameraInstructionSegment[] {
+  const fallback = cameraSegmentKindForLegacyInstruction(camera)
+  const legacyStyles = new Map((camera?.segmentStyles ?? []).map(item => [item.endPointId, item.style] as const))
+  const requested = new Map((camera?.segments ?? []).flatMap(item => {
+    const kind = isCameraInstructionSegmentKind(item.kind) ? item.kind : null
+    return item.endPointId.trim() && kind ? [[item.endPointId, { ...item, kind }] as const] : []
+  }))
+  const targetIds = [
+    ...resolvedPoints.filter(point => point.role === 'intermediate').map(point => point.pointId),
+    CAMERA_INSTRUCTION_CUE_END_POINT_ID,
+  ]
+  let segmentStart = frameStart
+  return targetIds.map(endPointId => {
+    const targetPoint = resolvedPoints.find(point => point.pointId === endPointId)
+    const segmentEnd = targetPoint ? frameStart + targetPoint.frameOffset - 1 : frameEnd
+    const stored = requested.get(endPointId)
+    const kind = stored?.kind ?? legacyStyles.get(endPointId) ?? fallback
+    const pivotAnchorFrame = kind === 'overlap'
+      ? clampCameraOverlapPivotAnchorFrame(
+          stored?.pivotAnchorFrame
+            ?? (targetIds.length === 1 ? camera?.pivotAnchorFrame : undefined)
+            ?? defaultCameraOverlapPivotAnchorFrame(segmentStart, segmentEnd),
+          segmentStart,
+          segmentEnd,
+        )
+      : undefined
+    const segment = { endPointId, kind, pivotAnchorFrame }
+    segmentStart = segmentEnd + 1
+    return segment
+  })
+}
+
+function isCameraInstructionSegmentKind(value: unknown): value is CameraInstructionSegmentKind {
+  return value === 'straight' || value === 'wave' || value === 'fade-in' || value === 'fade-out' || value === 'overlap'
+}
 
 export function resolveCameraInstructionSegmentStyles(
   camera: CameraInstruction | null | undefined,
@@ -212,7 +259,7 @@ export function resolveCameraInstructionPoints(
   for (const raw of source) {
     const label = raw.label.trim()
     const role: CameraInstructionPointRole = raw.role === 'start' || raw.role === 'end' ? raw.role : 'intermediate'
-    if (!label || (role === 'start' && hasStart) || (role === 'end' && hasEnd)) continue
+    if ((role !== 'intermediate' && !label) || (role === 'start' && hasStart) || (role === 'end' && hasEnd)) continue
     if (role === 'intermediate' && duration < 3) continue
     const frameOffset = role === 'start'
       ? 0
@@ -253,6 +300,16 @@ export function transformCameraInstructionRange(
           return [{ ...point, frameOffset: absoluteFrame - nextFrameStart }]
         }),
       }, nextFrameStart, nextFrameEnd)
+  const segments = resolveCameraInstructionSegments(camera, previousFrameStart, previousFrameEnd).map(segment => ({
+    ...segment,
+    pivotAnchorFrame: segment.pivotAnchorFrame === undefined
+      ? undefined
+      : clampCameraOverlapPivotAnchorFrame(
+          movedWholeRange ? segment.pivotAnchorFrame + movedBy : segment.pivotAnchorFrame,
+          nextFrameStart,
+          nextFrameEnd,
+        ),
+  }))
   const pivotAnchorFrame = camera.pivotAnchorFrame === undefined
     ? undefined
     : clampCameraOverlapPivotAnchorFrame(
@@ -260,7 +317,7 @@ export function transformCameraInstructionRange(
         nextFrameStart,
         nextFrameEnd,
       )
-  return { ...camera, points, startLabel: undefined, endLabel: undefined, pivotAnchorFrame }
+  return { ...camera, points, segments, startLabel: undefined, endLabel: undefined, pivotAnchorFrame }
 }
 
 function pointRoleOrder(role: CameraInstructionPointRole): number {

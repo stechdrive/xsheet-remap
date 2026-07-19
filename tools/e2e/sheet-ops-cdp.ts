@@ -663,12 +663,10 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
     const builtIns = Array.from(dialog.querySelectorAll<HTMLOptionElement>('datalist option')).map(option => option.value)
     const instruction = dialog.querySelector<HTMLInputElement>('[aria-label="CAMERA指示"]')
     const addButton = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === '追加')
-    const overlapPath = dialog.querySelector<SVGPathElement>('[role="radio"][aria-label="オーバーラップ"] path')
     return dialog.querySelector('header strong')?.textContent?.trim() === '撮影指示'
-      && radios.length === 4
-      && radios.every(radio => radio.getBoundingClientRect().width > 0 && radio.getBoundingClientRect().height > 0)
-      && !dialog.querySelector('.cameraShapePicker .appTooltipTrigger')
-      && overlapPath?.getAttribute('d') === 'M7 3H29L18 12Z M7 21H29L18 12Z'
+      && radios.length === 0
+      && !dialog.querySelector('.cameraShapePicker')
+      && Boolean(dialog.querySelector('.cameraSegmentKindTrigger[aria-label*="開始から次の点まで"]'))
       && !dialog.querySelector('select')
       && !dialog.querySelector('[aria-label="CAMERA開始フレーム"]')
       && instruction?.required === false
@@ -677,21 +675,26 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
       && Boolean(dialog.querySelector('[aria-label="CAMERA開始ラベル"]'))
       && Boolean(dialog.querySelector('[aria-label="CAMERA終了ラベル"]'))
       && ['OL', 'TU', 'TB', 'SL', 'DTU', 'DTB', 'PAN', 'FI', 'FO', 'WI', 'WO', 'Follow', '画ブレ'].every(value => builtIns.includes(value))
-  }, 'compact CAMERA dialog with shape-only submission, closed OL icon, and clear labels')
-  await mouseClick(await centerOfSelector('[role="radio"][aria-label="オーバーラップ"]'))
-  await waitForSelector('[aria-label="CAMERA交差フレーム"]')
-  await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E OL')
+  }, 'compact CAMERA dialog with no global shape row and one outgoing-segment selector')
+  await mouseClick(await centerOfSelector('.cameraPointLabelRow .cameraSegmentKindTrigger'))
+  await waitForPageCondition(() => document.querySelectorAll('[role="radiogroup"][aria-label="開始から次の点までの図形"] [role="radio"]').length === 5, 'five segment kinds in compact popover')
+  if (!await evaluatePage<boolean>(`document.querySelector('[role="radio"][aria-label="開始から次の点までをオーバーラップ"] path')?.getAttribute('d') === 'M7 3H29L18 12Z M7 21H29L18 12Z'`)) throw new Error('OL segment icon is not a closed filled shape')
+  await mouseClick(await centerOfSelector('[role="radio"][aria-label="開始から次の点までを波線の区間指示"]'))
+  await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E MIX')
   await setReactFieldValue('[aria-label="CAMERA開始ラベル"]', 'A')
   await setReactFieldValue('[aria-label="CAMERA終了ラベル"]', 'B')
   await clickButtonByText('＋ 中間ラベル')
   await setReactFieldValue('[aria-label="CAMERA中間ラベル1"]', 'MID')
-  await setReactFieldValue('[aria-label="CAMERA交差フレーム"]', '12')
+  await mouseClick(await centerOfSelector('.cameraIntermediatePointRow .cameraSegmentKindTrigger'))
+  await mouseClick(await centerOfSelector('[role="radio"][aria-label="中間ラベル1から次の点までをオーバーラップ"]'))
+  await waitForSelector('[aria-label="中間ラベル1から次の点までの交差フレーム"]')
+  await setReactFieldValue('[aria-label="中間ラベル1から次の点までの交差フレーム"]', '18')
   await clickButtonByText('追加')
-  await waitForCameraCueAt('camera_lane_1', 1, 24, 'E2E OL')
+  await waitForCameraCueAt('camera_lane_1', 1, 24, 'E2E MIX')
   await waitForPageCondition(() => {
-    const cue = document.querySelector<SVGGElement>('.cameraCue.overlap[data-camera-lane-id="camera_lane_1"][data-frame-start="1"][data-frame-end="24"]')
+    const cue = document.querySelector<SVGGElement>('.cameraCue.range[data-camera-lane-id="camera_lane_1"][data-frame-start="1"][data-frame-end="24"]')
     if (!cue) return false
-    const paths = Array.from(cue.querySelectorAll<SVGPolylineElement>('.cameraCueStroke')).map(polyline =>
+    const paths = Array.from(cue.querySelectorAll<SVGPolylineElement>('polyline.cameraCueStroke')).map(polyline =>
       (polyline.getAttribute('points') ?? '').trim().split(/\s+/).map(value => {
         const [x = Number.NaN, y = Number.NaN] = value.split(',').map(Number)
         return { x, y }
@@ -730,17 +733,13 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
       w: Number(region?.getAttribute('width')),
       h: Number(region?.getAttribute('height')),
     }
-    const cueTop = Math.min(forward[0]?.y ?? Number.NaN, reverse[0]?.y ?? Number.NaN)
-    const cueBottom = Math.max(forward[2]?.y ?? Number.NaN, reverse[2]?.y ?? Number.NaN)
     const laneWidth = Math.abs((forward[2]?.x ?? Number.NaN) - (forward[0]?.x ?? Number.NaN))
-    const expectedPivotGridLineY = cueTop + (cueBottom - cueTop) * 12 / 24
+    const expectedPivotGridLineY = pivot.y
     const pivotIsOnFrameBoundary = Math.abs(pivot.y - expectedPivotGridLineY) < 0.0000001
     const pivotMarkIsCentered = Math.abs((markX1 + markX2) / 2 - pivot.x) < 0.0000001
       && Math.abs(markY1 - pivot.y) < 0.0000001
       && Math.abs(markY2 - pivot.y) < 0.0000001
       && Math.abs((markX2 - markX1) / laneWidth - 0.65) < 0.000001
-    const labelCenterY = labelRect.y + labelRect.h / 2
-    const labelProgress = (labelCenterY - cueTop) / Math.max(0.0000001, cueBottom - cueTop)
     const contained = labelRect.x >= regionRect.x - 0.0000001
       && labelRect.y >= regionRect.y - 0.0000001
       && labelRect.x + labelRect.w <= regionRect.x + regionRect.w + 0.0000001
@@ -768,12 +767,14 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
       && Number(labelText?.getAttribute('font-size')) === 18
       && label?.dataset.cameraLabelOverflow === 'false'
       && contained
-      && labelProgress >= 0.2
-      && labelProgress <= 0.45
       && !pivotCovered
       && JSON.stringify(pointFrames) === JSON.stringify([1, 12, 24])
+      && cue.querySelectorAll('.cameraCueRangePath.wave').length === 1
+      && cue.querySelectorAll('.cameraCueOverlapFill').length === 2
+      && cue.querySelectorAll('.cameraCueMarker.start').length === 1
+      && cue.querySelectorAll('.cameraCueMarker.end').length === 0
       && pointsContained
-  }, 'frame-boundary OL crossing with a 0.65-grid pivot mark and contained CAMERA label')
+  }, 'mixed wave-to-OL instruction with local pivot, start marker, and contained label')
 
   const pointLabelPixels = await assertSelectorsContributePaint({
     evaluate: evaluatePage,
@@ -793,11 +794,15 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
     (() => {
       const instructions = JSON.parse(localStorage.getItem('xsheet:camera-instruction-history') ?? '[]');
       const points = JSON.parse(localStorage.getItem('xsheet:camera-point-label-history') ?? '[]');
-      return instructions[0] === 'E2E OL' && ['A', 'MID', 'B'].every(value => points.includes(value));
+      return instructions[0] === 'E2E MIX' && ['A', 'MID', 'B'].every(value => points.includes(value));
     })()
   `)
   if (!historyStored) throw new Error('CAMERA instruction or point-label MRU history was not persisted')
-
+  await mouseDrag(await clientPointForTimedRangeFrame('camera', 'camera_lane_1', 4), await clientPointForTimedRangeFrame('camera', 'camera_lane_1', 6))
+  await waitForCameraCueAt('camera_lane_1', 3, 26, 'E2E MIX')
+  const cameraMoveEnded = await evaluatePage<boolean>(`!document.querySelector('.cameraCue.transforming')
+    && Boolean(document.querySelector('.cameraCue.selected[data-frame-start="3"][data-frame-end="26"]'))`)
+  if (!cameraMoveEnded) throw new Error('CAMERA drag did not leave the transform state on pointer release')
   await clickFrame('action', 'A', 8)
   await keyPress('1')
   await keyPress('Enter')
@@ -805,7 +810,7 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
   await waitForSelectedFrame('action', 'A', 9)
   const editorReopened = await evaluatePage<boolean>('Boolean(document.querySelector(\'[role="dialog"][aria-label="撮影指示"]\'))')
   if (editorReopened) throw new Error('CAMERA editor reopened instead of accepting ACTION timing input')
-  checks.push('created a 24-frame OL with compact shape controls, pinned/MRU inputs, exact draggable point labels, and continued ACTION input')
+  checks.push('created and moved a mixed wave-to-OL CAMERA cue, left transform state on release, and continued ACTION input')
 }
 
 async function verifyTimelineRippleEditing(): Promise<void> {

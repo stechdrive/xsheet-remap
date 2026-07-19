@@ -105,9 +105,7 @@ export function pasteTimedRangeCueClipboard<Role extends EditableTimedRangeRole>
       const frameStart = Math.min(maxFrame, cue.frameStart + clipboard.spanFrames)
       const frameEnd = Math.min(maxFrame, cue.frameEnd + clipboard.spanFrames)
       const frameDelta = frameStart - cue.frameStart
-      const camera = cue.camera?.pivotAnchorFrame === undefined
-        ? cue.camera
-        : { ...cue.camera, pivotAnchorFrame: cue.camera.pivotAnchorFrame + frameDelta }
+      const camera = shiftCameraInstruction(cue.camera, frameDelta)
       return { ...cue, frameStart: Math.min(frameStart, frameEnd), frameEnd, camera }
     })
     next = replaceTimedRangeCues(next, shifted)
@@ -118,9 +116,7 @@ export function pasteTimedRangeCueClipboard<Role extends EditableTimedRangeRole>
     const frameStart = targetStart + item.frameStartOffset
     if (frameStart > maxFrame) continue
     const frameDelta = frameStart - (clipboard.sourceFrameStart + item.frameStartOffset)
-    const camera = item.camera?.pivotAnchorFrame === undefined
-      ? item.camera
-      : { ...item.camera, pivotAnchorFrame: item.camera.pivotAnchorFrame + frameDelta }
+    const camera = shiftCameraInstruction(item.camera, frameDelta)
     const result = createTimedRangeCue(next, {
       role: clipboard.role,
       laneId: target.laneId,
@@ -135,6 +131,18 @@ export function pasteTimedRangeCueClipboard<Role extends EditableTimedRangeRole>
     cueIds.push(result.cue.cueId)
   }
   return { project: next, cueIds, frameStart: targetStart, frameEnd: targetEnd }
+}
+
+function shiftCameraInstruction(camera: TimedRangeCue['camera'], frameDelta: number): TimedRangeCue['camera'] {
+  if (!camera || frameDelta === 0) return camera
+  return {
+    ...camera,
+    pivotAnchorFrame: camera.pivotAnchorFrame === undefined ? undefined : camera.pivotAnchorFrame + frameDelta,
+    segments: camera.segments?.map(segment => ({
+      ...segment,
+      pivotAnchorFrame: segment.pivotAnchorFrame === undefined ? undefined : segment.pivotAnchorFrame + frameDelta,
+    })),
+  }
 }
 
 export function deleteTimedRangeCuesInRange(

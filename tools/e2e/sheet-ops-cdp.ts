@@ -456,7 +456,7 @@ async function dropSheetSourcesForMultiPage(): Promise<void> {
 async function verifySoundCueEditing(): Promise<void> {
   await dragSoundRange('sound_lane_1', 10, 15)
   await keyPress('Enter')
-  await waitForSelector('[role="dialog"][aria-label="SOUND区間を追加"]')
+  await waitForSelector('[role="dialog"][aria-label="SOUND指示"]')
   await setReactFieldValue('[aria-label="SOUNDラベル"]', 'E2E話者')
   await setReactFieldValue('[aria-label="SOUND内容"]', 'E2Eセリフ')
   await clickButtonByText('追加')
@@ -825,7 +825,7 @@ async function verifyTimelineRippleEditing(): Promise<void> {
 
   await dragSoundRange('sound_lane_1', 4, 8)
   await keyPress('Enter')
-  await waitForSelector('[role="dialog"][aria-label="SOUND区間を追加"]')
+  await waitForSelector('[role="dialog"][aria-label="SOUND指示"]')
   await setReactFieldValue('[aria-label="SOUNDラベル"]', 'RIPPLE SOUND')
   await clickButtonByText('追加')
   await waitForSoundCueAt('sound_lane_1', 4, 8, 'RIPPLE SOUND')

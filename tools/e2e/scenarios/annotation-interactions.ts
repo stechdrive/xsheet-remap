@@ -51,7 +51,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
 
   await dragSoundRange('sound_lane_1', 10, 15)
   await keyPress('Enter')
-  await waitForSelector('[role="dialog"][aria-label="SOUND区間を追加"]')
+  await waitForSelector('[role="dialog"][aria-label="SOUND指示"]')
   await setReactFieldValue('[aria-label="SOUNDラベル"]', 'E2E話者')
   await setReactFieldValue('[aria-label="SOUND内容"]', 'E2Eセリフ')
   await clickButtonByText('追加')

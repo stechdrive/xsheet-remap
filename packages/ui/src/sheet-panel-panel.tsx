@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent } from 'react'
 import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
 import { normalizeMemoAppearance, type MemoAppearance } from '@xsheet-remap/core'
@@ -15,7 +15,7 @@ import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrack
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
 import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
-import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
+import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
@@ -38,7 +38,7 @@ export function SheetPanel(props: {
   projectCuts: CutGroupProjectDocument['cuts']
   activeCutId: string
   onSwitchProjectCut: (cutId: string) => void
-  onAddSharedCut: () => void
+  onAddSharedCut: (label: string) => void
   onDeleteSharedCut: () => void
   sheetRevisions: SheetRevisionDocument[]
   activeSheetRevisionId: string
@@ -203,8 +203,11 @@ export function SheetPanel(props: {
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
   const [normalizationOpen, setNormalizationOpen] = useState(false)
+  const [sharedCutDraft, setSharedCutDraft] = useState<string | null>(null)
+  const [sharedCutDraftError, setSharedCutDraftError] = useState<string | null>(null)
   const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
   const [selectedAnnotationRegion, setSelectedAnnotationRegion] = useState<TemplateRegionAnnotationTarget | null>(null)
+  const sharedCutInputRef = useRef<HTMLInputElement>(null)
   const editMode = props.editMode
   const setEditMode = props.setEditMode
   const annotationSessionActive = editMode === 'pen' || editMode === 'eraser' || editMode === 'text'
@@ -293,9 +296,42 @@ export function SheetPanel(props: {
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
   const updateSheetZoom = props.setZoom
-  const activeCutIndex = props.projectCuts.findIndex(cut => cut.cutId === props.activeCutId)
-  const activeCut = activeCutIndex >= 0 ? props.projectCuts[activeCutIndex] : props.projectCuts[0]
+  const projectCuts = props.projectCuts
+  const onAddSharedCut = props.onAddSharedCut
+  const activeCutIndex = projectCuts.findIndex(cut => cut.cutId === props.activeCutId)
+  const activeCut = activeCutIndex >= 0 ? projectCuts[activeCutIndex] : projectCuts[0]
   const activeCutLabel = activeCut?.metadata.cut?.trim() || `カット${Math.max(1, activeCutIndex + 1)}`
+  const addingSharedCut = sharedCutDraft !== null
+  const cancelSharedCutAddition = useCallback(() => {
+    setSharedCutDraft(null)
+    setSharedCutDraftError(null)
+  }, [])
+  const handleSharedCutMenuOpenChange = useCallback((open: boolean) => {
+    if (!open) cancelSharedCutAddition()
+  }, [cancelSharedCutAddition])
+  const beginSharedCutAddition = useCallback(() => {
+    setSharedCutDraft(nextSharedCutLabel(projectCuts))
+    setSharedCutDraftError(null)
+  }, [projectCuts])
+  const submitSharedCutAddition = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const label = sharedCutDraft?.trim() ?? ''
+    if (!label) {
+      setSharedCutDraftError(uiText.sheet.sharedCutNameRequired)
+      return
+    }
+    if (projectCuts.some(cut => cut.metadata.cut?.trim() === label)) {
+      setSharedCutDraftError(uiText.sheet.sharedCutNameDuplicate(label))
+      return
+    }
+    onAddSharedCut(label)
+    cancelSharedCutAddition()
+  }, [cancelSharedCutAddition, onAddSharedCut, projectCuts, sharedCutDraft])
+  useLayoutEffect(() => {
+    if (!addingSharedCut) return
+    sharedCutInputRef.current?.focus()
+    sharedCutInputRef.current?.select()
+  }, [addingSharedCut])
   const templatePaperTrackNames = useMemo(
     () => templatePaperTracks(props.project).map(track => track.paperTrack),
     [props.project],
@@ -545,41 +581,122 @@ export function SheetPanel(props: {
             ariaLabel={uiText.sheet.cutSwitchTitle}
             tooltipLabel={`${uiText.sheet.cutSwitchTitle}（現在: ${activeCutLabel}）`}
             className="cutSwitchMenu"
+            onOpenChange={handleSharedCutMenuOpenChange}
           >
-            <label className="cutSwitchMenuSelect">
-              <span>兼用カット</span>
-              <select aria-label="兼用カット" value={props.activeCutId} onChange={event => props.onSwitchProjectCut(event.currentTarget.value)}>
-                {props.projectCuts.map((cut, index) => (
-                  <option key={cut.cutId} value={cut.cutId}>
-                    {cut.metadata.cut?.trim() || `カット${index + 1}`}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="cutSwitchMenuSelectRow">
+              <label className="cutSwitchMenuSelect">
+                <span>兼用カット</span>
+                <select
+                  aria-label="兼用カット"
+                  value={props.activeCutId}
+                  disabled={addingSharedCut}
+                  onChange={event => props.onSwitchProjectCut(event.currentTarget.value)}
+                >
+                  {props.projectCuts.map((cut, index) => (
+                    <option key={cut.cutId} value={cut.cutId}>
+                      {cut.metadata.cut?.trim() || `カット${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <TooltipTarget label={uiText.sheet.addSharedCutTitle}>
+                {tooltipProps => (
+                  <button
+                    type="button"
+                    className="cutSwitchAddButton cutSwitchIconButton"
+                    aria-label={uiText.sheet.addSharedCutTitle}
+                    disabled={addingSharedCut}
+                    onClick={beginSharedCutAddition}
+                    {...tooltipProps}
+                  >
+                    <PlusIcon />
+                  </button>
+                )}
+              </TooltipTarget>
+            </div>
+            {addingSharedCut && (
+              <form className="cutSwitchAddForm" onSubmit={submitSharedCutAddition}>
+                <span className="cutSwitchAddFormLabel">{uiText.sheet.addSharedCutName}</span>
+                <div className="cutSwitchAddFormRow">
+                  <input
+                    ref={sharedCutInputRef}
+                    aria-label={uiText.sheet.addSharedCutName}
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={sharedCutDraft ?? ''}
+                    onChange={event => {
+                      setSharedCutDraft(event.currentTarget.value)
+                      if (sharedCutDraftError) setSharedCutDraftError(null)
+                    }}
+                    onKeyDown={event => {
+                      if (event.key !== 'Escape') return
+                      event.preventDefault()
+                      event.stopPropagation()
+                      cancelSharedCutAddition()
+                    }}
+                  />
+                  <TooltipTarget label={uiText.sheet.addSharedCutConfirm}>
+                    {tooltipProps => (
+                      <button
+                        type="submit"
+                        className="cutSwitchAddConfirmButton cutSwitchIconButton"
+                        aria-label={uiText.sheet.addSharedCutConfirm}
+                        {...tooltipProps}
+                      >
+                        <CheckSmallIcon />
+                      </button>
+                    )}
+                  </TooltipTarget>
+                  <TooltipTarget label={uiText.sheet.cancelSharedCutAddition}>
+                    {tooltipProps => (
+                      <button
+                        type="button"
+                        className="cutSwitchAddCancelButton cutSwitchIconButton"
+                        aria-label={uiText.sheet.cancelSharedCutAddition}
+                        onClick={cancelSharedCutAddition}
+                        {...tooltipProps}
+                      >
+                        <CloseSmallIcon />
+                      </button>
+                    )}
+                  </TooltipTarget>
+                </div>
+                {sharedCutDraftError && <p className="cutSwitchAddError" role="alert">{sharedCutDraftError}</p>}
+              </form>
+            )}
             <TooltipTarget label={uiText.sheet.sharedCutNumbersTitle}>
               {tooltipProps => (
                 <label className="compactControl sharedCutNumbersControl" {...tooltipProps}>
                   <input
                     type="checkbox"
                     aria-label={uiText.sheet.sharedCutNumbers}
-                  checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
+                    checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
                     onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
                   />
-                  シートに兼用カット番号を表示
+                  シートに兼用カット名を表示
                 </label>
               )}
             </TooltipTarget>
             <div className="cutSwitchMenuActions">
-              <button type="button" className="cutSwitchAddButton" onClick={props.onAddSharedCut}>{uiText.sheet.addSharedCutTitle}</button>
-              <button
-                type="button"
-                className="cutSwitchDeleteButton"
-                disabled={props.projectCuts.length <= 1}
-                title={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : undefined}
-                onClick={props.onDeleteSharedCut}
+              <TooltipTarget
+                label={props.projectCuts.length <= 1
+                  ? uiText.sheet.deleteSharedCutUnavailableTitle
+                  : uiText.sheet.deleteSharedCutCurrentTitle(activeCutLabel)}
               >
-                {uiText.sheet.deleteSharedCutTitle}
-              </button>
+                {tooltipProps => (
+                  <button
+                    type="button"
+                    className="cutSwitchDeleteButton cutSwitchIconButton"
+                    aria-label={uiText.sheet.deleteSharedCutTitle}
+                    disabled={props.projectCuts.length <= 1}
+                    title={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : undefined}
+                    onClick={props.onDeleteSharedCut}
+                    {...tooltipProps}
+                  >
+                    <TrashIcon />
+                  </button>
+                )}
+              </TooltipTarget>
             </div>
           </ActionMenu>
         </ToolbarGroup>
@@ -1129,4 +1246,15 @@ export function SheetPanel(props: {
     </section>
     </TooltipSuppressionProvider>
   )
+}
+
+function nextSharedCutLabel(cuts: CutGroupProjectDocument['cuts']): string {
+  const usedLabels = new Set(cuts.map(cut => cut.metadata.cut?.trim()).filter(Boolean))
+  let index = Math.max(1, cuts.length + 1)
+  let candidate = String(index).padStart(3, '0')
+  while (usedLabels.has(candidate)) {
+    index += 1
+    candidate = String(index).padStart(3, '0')
+  }
+  return candidate
 }

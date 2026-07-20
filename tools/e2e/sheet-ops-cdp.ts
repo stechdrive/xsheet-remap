@@ -1371,8 +1371,9 @@ async function verifyStackGuidePlacementAndSharedCuts(): Promise<void> {
   await waitForStackGuideLabelRole('BOOK-E2E', 'action')
   checks.push('created a BG/BOOK label from the ACTION header context menu')
 
-  await clickAddSharedCutButton()
-  await waitForSelectedSharedCut('002')
+  const alternateCutLabel = 'BOOK別案'
+  await clickAddSharedCutButton(alternateCutLabel)
+  await waitForSelectedSharedCut(alternateCutLabel)
   await waitForStackGuideLabelRole('BOOK-E2E', 'action')
 
   await dragStackGuideLabelToHeader('BOOK-E2E', 'cell', 4)
@@ -1384,8 +1385,8 @@ async function verifyStackGuidePlacementAndSharedCuts(): Promise<void> {
   await waitForStackGuideLabelRole('BOOK-E2E', 'action')
   await waitForNoStackGuideLabelRole('BOOK-E2E', 'cell')
 
-  await switchSharedCut('002')
-  await waitForSelectedSharedCut('002')
+  await switchSharedCut(alternateCutLabel)
+  await waitForSelectedSharedCut(alternateCutLabel)
   await waitForStackGuideLabelRole('BOOK-E2E', 'cell')
 
   await switchSharedCut('001')
@@ -1484,7 +1485,7 @@ async function waitForNoStackGuideLabelRole(label: string, role: SheetTimingRole
   `), 10000, `stack guide label ${label} not in ${role}`)
 }
 
-async function clickAddSharedCutButton(): Promise<void> {
+async function clickAddSharedCutButton(label: string): Promise<void> {
   await ensureSharedCutMenuOpen()
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
@@ -1496,6 +1497,10 @@ async function clickAddSharedCutButton(): Promise<void> {
   `)
   if (!point) throw new Error('shared cut add button not found')
   await mouseClick(point)
+  const inputSelector = '.cutSwitchAddForm input[aria-label="追加する兼用カット名"]'
+  await waitForSelector(inputSelector)
+  await setReactFieldValue(inputSelector, label)
+  await mouseClick(await centerOfSelector('.cutSwitchAddConfirmButton'))
 }
 
 async function switchSharedCut(label: string): Promise<void> {

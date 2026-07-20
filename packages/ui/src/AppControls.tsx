@@ -29,6 +29,7 @@ export function ActionMenu({
   tooltipLabel,
   className = '',
   closeOnMenuItemClick = false,
+  onOpenChange,
 }: {
   label: ReactNode
   children: ReactNode
@@ -36,6 +37,7 @@ export function ActionMenu({
   tooltipLabel?: string
   className?: string
   closeOnMenuItemClick?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const menuId = useId()
   const menuRef = useRef<HTMLDetailsElement>(null)
@@ -43,6 +45,10 @@ export function ActionMenu({
   const contentRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null)
+
+  useEffect(() => {
+    onOpenChange?.(open)
+  }, [onOpenChange, open])
 
   const updateMenuPosition = useCallback(() => {
     const summary = summaryRef.current

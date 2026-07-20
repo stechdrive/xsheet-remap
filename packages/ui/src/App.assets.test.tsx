@@ -661,6 +661,9 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     const sharedCutMenu = openSharedCutMenu()
     const addCutButton = within(sharedCutMenu).getByRole('button', { name: uiText.sheet.addSharedCutTitle })
     fireEvent.click(addCutButton)
+    const cutNameInput = within(sharedCutMenu).getByLabelText(uiText.sheet.addSharedCutName)
+    fireEvent.change(cutNameInput, { target: { value: '002' } })
+    fireEvent.click(within(sharedCutMenu).getByRole('button', { name: uiText.sheet.addSharedCutConfirm }))
     await waitFor(() => {
       const select = within(sharedCutMenu).getByLabelText('兼用カット') as HTMLSelectElement
       expect(select?.options.length).toBe(2)

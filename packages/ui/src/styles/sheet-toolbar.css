@@ -317,9 +317,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+.cutSwitchMenuSelectRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 6px;
+  align-items: end;
+}
+
 .cutSwitchMenuSelect {
   display: grid;
   gap: 5px;
+  min-width: 0;
   color: #4c574f;
   font-size: 12px;
   font-weight: 800;
@@ -337,18 +345,74 @@
   font: inherit;
 }
 
-.cutSwitchMenuActions {
-  display: grid;
-  gap: 4px;
-  padding-top: 5px;
-  border-top: 1px solid #d6dbd4;
+.actionMenuContent .cutSwitchIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
 }
 
-.actionMenuContent .cutSwitchMenuActions button {
-  justify-content: flex-start;
-  min-height: 32px;
-  padding: 5px 8px;
+.cutSwitchIconButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cutSwitchAddForm {
+  display: grid;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid #cbd1cb;
+  border-radius: 5px;
+  background: #f5f7f4;
+}
+
+.cutSwitchAddFormLabel {
+  color: #4c574f;
+  font-size: 12px;
   font-weight: 800;
+}
+
+.cutSwitchAddFormRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px 32px;
+  gap: 5px;
+}
+
+.cutSwitchAddFormRow input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 4px 7px;
+  border: 1px solid #aeb6af;
+  border-radius: 4px;
+  background: #fff;
+  color: #202421;
+  font: inherit;
+}
+
+.cutSwitchAddFormRow input:focus-visible {
+  border-color: #3e6752;
+  outline: 2px solid rgba(62, 103, 82, 0.2);
+  outline-offset: 0;
+}
+
+.cutSwitchAddError {
+  margin: 0;
+  color: #9a3434;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.cutSwitchMenuActions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 5px;
+  border-top: 1px solid #d6dbd4;
 }
 
 .actionMenuContent .cutSwitchDeleteButton {

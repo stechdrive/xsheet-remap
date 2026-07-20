@@ -108,18 +108,60 @@ export async function verifyTopMenuBehaviorScenario(driver: SharedUiControlsDriv
 
 export async function verifySharedCutMenuControlsScenario(driver: SharedUiControlsDriver): Promise<void> {
   await driver.ensureSharedCutMenuOpen()
+  const addPoint = await driver.evaluatePage<ClientPoint | null>(`
+    (() => {
+      const menu = document.querySelector('.cutSwitchMenu.actionMenuPortalContent');
+      const select = menu?.querySelector('select[aria-label="兼用カット"]');
+      const add = menu?.querySelector('.cutSwitchAddButton');
+      const remove = menu?.querySelector('.cutSwitchDeleteButton');
+      if (!(select instanceof HTMLSelectElement)
+        || !(add instanceof HTMLButtonElement)
+        || !(remove instanceof HTMLButtonElement)
+        || !add.classList.contains('cutSwitchIconButton')
+        || !remove.classList.contains('cutSwitchIconButton')
+        || add.textContent?.trim()
+        || remove.textContent?.trim()
+        || document.querySelector('.processPaletteGroup, .cutSwitchControl')) return null;
+      const box = add.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    })()
+  `)
+  if (!addPoint) throw new Error('shared cut icon controls not found')
+  await driver.mouseClick(addPoint)
+  await driver.waitForPageCondition(() => {
+    const input = document.querySelector<HTMLInputElement>('.cutSwitchAddForm input[aria-label="追加する兼用カット名"]')
+    const confirm = document.querySelector<HTMLButtonElement>('.cutSwitchAddConfirmButton')
+    const cancel = document.querySelector<HTMLButtonElement>('.cutSwitchAddCancelButton')
+    return input?.value === '002'
+      && !input.hasAttribute('maxlength')
+      && Boolean(confirm?.classList.contains('cutSwitchIconButton'))
+      && Boolean(cancel?.classList.contains('cutSwitchIconButton'))
+  }, 'shared cut add action opens an unrestricted name editor with confirm and cancel icons')
+  const cancelPoint = await driver.evaluatePage<ClientPoint | null>(`
+    (() => {
+      const button = document.querySelector('.cutSwitchAddCancelButton');
+      if (!button) return null;
+      const box = button.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    })()
+  `)
+  if (!cancelPoint) throw new Error('shared cut add cancel button not found')
+  await driver.mouseClick(cancelPoint)
+  await driver.waitForPageCondition(
+    () => !document.querySelector('.cutSwitchAddForm'),
+    'shared cut add editor cancels without creating a cut',
+  )
   const checkboxPoint = await driver.evaluatePage<ClientPoint | null>(`
     (() => {
       const menu = document.querySelector('.cutSwitchMenu.actionMenuPortalContent');
       const select = menu?.querySelector('select[aria-label="兼用カット"]');
       const add = menu?.querySelector('.cutSwitchAddButton');
       const remove = menu?.querySelector('.cutSwitchDeleteButton');
-      const checkbox = menu?.querySelector('input[aria-label="兼用カット番号"]');
+      const checkbox = menu?.querySelector('input[aria-label="兼用カット名"]');
       if (!(select instanceof HTMLSelectElement)
         || !(add instanceof HTMLButtonElement)
         || !(remove instanceof HTMLButtonElement)
-        || !(checkbox instanceof HTMLInputElement)
-        || document.querySelector('.processPaletteGroup, .cutSwitchControl, .cutSwitchIconButton')) return null;
+        || !(checkbox instanceof HTMLInputElement)) return null;
       const box = checkbox.getBoundingClientRect();
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     })()
@@ -127,15 +169,15 @@ export async function verifySharedCutMenuControlsScenario(driver: SharedUiContro
   if (!checkboxPoint) throw new Error('consolidated shared cut menu controls not found')
   await driver.mouseClick(checkboxPoint)
   await driver.waitForPageCondition(
-    () => !document.querySelector<HTMLInputElement>('.cutSwitchMenu.actionMenuPortalContent input[aria-label="兼用カット番号"]')?.checked,
-    'shared cut number display disabled from the menu',
+    () => !document.querySelector<HTMLInputElement>('.cutSwitchMenu.actionMenuPortalContent input[aria-label="兼用カット名"]')?.checked,
+    'shared cut name display disabled from the menu',
   )
   await driver.mouseClick(checkboxPoint)
   await driver.waitForPageCondition(
-    () => Boolean(document.querySelector<HTMLInputElement>('.cutSwitchMenu.actionMenuPortalContent input[aria-label="兼用カット番号"]')?.checked),
-    'shared cut number display restored from the menu',
+    () => Boolean(document.querySelector<HTMLInputElement>('.cutSwitchMenu.actionMenuPortalContent input[aria-label="兼用カット名"]')?.checked),
+    'shared cut name display restored from the menu',
   )
   await driver.mouseClick(await driver.viewportOutsideMenusPoint())
   await driver.waitForNoActionMenu('shared cut menu closes before sheet interaction')
-  driver.checks.push('consolidated shared-cut switching, add/delete, and display controls in one persistent menu')
+  driver.checks.push('verified shared-cut icon controls, arbitrary-name editor, cancel action, and name display toggle in one persistent menu')
 }

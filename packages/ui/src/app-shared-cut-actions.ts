@@ -50,10 +50,17 @@ export function createAppSharedCutActions(input: {
       if (!cutId || cutId === input.projectDocument.activeCutId) return
       run(() => activateDocument(switchActiveCutInProjectDocument(input.projectDocument, input.project, cutId, { sheetTemplate: input.template })))
     },
-    handleAddSharedCut() {
-      run(() => activateDocument(addBlankSharedCutToProjectDocument(input.projectDocument, input.project, {
-        cut: { cut: nextCutNumberLabel(input.projectDocument) },
-      })))
+    handleAddSharedCut(label: string) {
+      const normalizedLabel = label.trim()
+      run(() => {
+        if (!normalizedLabel) throw new Error(uiText.sheet.sharedCutNameRequired)
+        if (input.projectDocument.cuts.some(cut => cut.metadata.cut?.trim() === normalizedLabel)) {
+          throw new Error(uiText.sheet.sharedCutNameDuplicate(normalizedLabel))
+        }
+        activateDocument(addBlankSharedCutToProjectDocument(input.projectDocument, input.project, {
+          cut: { cut: normalizedLabel },
+        }))
+      })
     },
     async handleDeleteSharedCut() {
       if (input.projectDocument.cuts.length <= 1) return
@@ -74,15 +81,4 @@ export function createAppSharedCutActions(input: {
       )))
     },
   }
-}
-
-export function nextCutNumberLabel(document: CutGroupProjectDocument): string {
-  const used = new Set(document.cuts.map(cut => cut.metadata.cut).filter((value): value is string => Boolean(value?.trim())))
-  let index = document.cuts.length + 1
-  let candidate = String(index).padStart(3, '0')
-  while (used.has(candidate)) {
-    index += 1
-    candidate = String(index).padStart(3, '0')
-  }
-  return candidate
 }

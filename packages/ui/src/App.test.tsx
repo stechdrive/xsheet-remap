@@ -792,6 +792,10 @@ it('toggles shared cut numbers beside the cut switch even before another cut exi
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).not.toContain('[]')
 
     fireEvent.click(within(menu).getByRole('button', { name: uiText.sheet.addSharedCutTitle }))
+    const cutNameInput = within(menu).getByLabelText(uiText.sheet.addSharedCutName) as HTMLInputElement
+    expect(cutNameInput.value).toBe('002')
+    fireEvent.change(cutNameInput, { target: { value: 'BOOK別案' } })
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.sheet.addSharedCutConfirm }))
     const toggle = within(menu).getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
     expect(toggle.disabled).toBe(false)
     expect(toggle.checked).toBe(true)
@@ -803,14 +807,19 @@ it('deletes the selected shared cut after confirmation but keeps the last cut', 
     const menu = openSharedCutMenu()
     const deleteButton = within(menu).getByRole('button', { name: uiText.sheet.deleteSharedCutTitle }) as HTMLButtonElement
     const addButton = within(menu).getByRole('button', { name: uiText.sheet.addSharedCutTitle }) as HTMLButtonElement
-    expect(deleteButton.classList.contains('iconButton')).toBe(false)
-    expect(addButton.classList.contains('iconButton')).toBe(false)
+    expect(deleteButton.classList.contains('cutSwitchIconButton')).toBe(true)
+    expect(addButton.classList.contains('cutSwitchIconButton')).toBe(true)
+    expect(deleteButton.textContent?.trim()).toBe('')
+    expect(addButton.textContent?.trim()).toBe('')
     expect(deleteButton.disabled).toBe(true)
 
     fireEvent.click(addButton)
+    const cutNameInput = within(menu).getByLabelText(uiText.sheet.addSharedCutName)
+    fireEvent.change(cutNameInput, { target: { value: 'BOOK別案' } })
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.sheet.addSharedCutConfirm }))
     const cutSelect = within(menu).getByLabelText('兼用カット') as HTMLSelectElement
     expect(cutSelect.options).toHaveLength(2)
-    expect(cutSelect.selectedOptions[0]?.textContent?.trim()).toBe('002')
+    expect(cutSelect.selectedOptions[0]?.textContent?.trim()).toBe('BOOK別案')
     expect(deleteButton.disabled).toBe(false)
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
@@ -822,8 +831,33 @@ it('deletes the selected shared cut after confirmation but keeps the last cut', 
     await waitFor(() => expect(cutSelect.options).toHaveLength(1))
     expect(cutSelect.selectedOptions[0]?.textContent?.trim()).toBe('001')
     expect(deleteButton.disabled).toBe(true)
-    expect(confirmSpy.mock.calls[1]?.[0]).toContain('兼用カット「002」')
+    expect(confirmSpy.mock.calls[1]?.[0]).toContain('兼用カット「BOOK別案」')
     confirmSpy.mockRestore()
+  })
+
+it('requires a unique arbitrary name before adding a shared cut', () => {
+    render(<App />)
+    const menu = openSharedCutMenu()
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.sheet.addSharedCutTitle }))
+
+    const input = within(menu).getByLabelText(uiText.sheet.addSharedCutName) as HTMLInputElement
+    expect(input.maxLength).toBe(-1)
+    expect(input.value).toBe('002')
+
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.sheet.addSharedCutConfirm }))
+    expect(within(menu).getByRole('alert').textContent).toBe(uiText.sheet.sharedCutNameRequired)
+
+    fireEvent.change(input, { target: { value: '001' } })
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.sheet.addSharedCutConfirm }))
+    expect(within(menu).getByRole('alert').textContent).toBe(uiText.sheet.sharedCutNameDuplicate('001'))
+
+    fireEvent.change(input, { target: { value: '  BOOK_BACKGROUND_ALT  ' } })
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.sheet.addSharedCutConfirm }))
+    const cutSelect = within(menu).getByLabelText('兼用カット') as HTMLSelectElement
+    expect(cutSelect.options).toHaveLength(2)
+    expect(cutSelect.selectedOptions[0]?.textContent?.trim()).toBe('BOOK_BACKGROUND_ALT')
+    expect(within(menu).queryByLabelText(uiText.sheet.addSharedCutName)).toBeNull()
   })
 
 it('keeps template creation as a draft until apply or cancel', () => {

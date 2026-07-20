@@ -14,11 +14,37 @@ export interface CreateProjectOptions {
   sheetTemplateId?: string
 }
 
+export interface ReprojectProjectToTemplateOptions {
+  studioPresetId?: string
+  resetSheetView?: boolean
+}
+
 export function createDefaultProject(): CutProject {
   return createProjectFromTemplate(standardA3SheetTemplate, {
     studioPresetId: standardA3SheetTemplatePreset.presetId,
     sheetTemplateId: standardA3SheetTemplate.templateId,
   })
+}
+
+/**
+ * Changes only the sheet presentation used by a project.
+ *
+ * Logical tracks, timeline lanes, timing data, and FPS belong to the project,
+ * not to the template. A template switch must therefore never rebuild them.
+ */
+export function reprojectProjectToTemplate(
+  project: CutProject,
+  template: SheetTemplate,
+  options: ReprojectProjectToTemplateOptions = {},
+): CutProject {
+  return {
+    ...project,
+    studioPresetId: options.studioPresetId,
+    sheetTemplateId: template.templateId,
+    sheetView: options.resetSheetView
+      ? createDefaultSheetViewState(template)
+      : { ...project.sheetView, templateId: template.templateId },
+  }
 }
 
 export function createProjectFromTemplate(template: SheetTemplate, options: CreateProjectOptions = {}): CutProject {

@@ -31,7 +31,7 @@ export {
   updateSheetViewState,
 } from './sheet-view'
 export { DEFAULT_SHEET_TIMING_ROLE, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_CSP_CELL_NAME_POLICY, CSP_IMPORT_STACK_START_SEPARATOR_NAME, CSP_IMPORT_STACK_END_SEPARATOR_NAME, MAX_CORRECTION_LAYERS, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION } from './project-constants'
-export { createDefaultProject, createProjectFromTemplate, createProjectFromTrackLabels, createPaperTracks, defaultTimelineSections, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateProductionStageLabel, updateCorrectionLayers, addOverlayPaperTrack, updatePaperTrack, deleteOverlayPaperTrack } from './project-model'
+export { createDefaultProject, createProjectFromTemplate, createProjectFromTrackLabels, createPaperTracks, defaultTimelineSections, reprojectProjectToTemplate, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateProductionStageLabel, updateCorrectionLayers, addOverlayPaperTrack, updatePaperTrack, deleteOverlayPaperTrack } from './project-model'
 export type { CreateProjectOptions } from './project-model'
 export { createKey, createUnplacedCspCard, findTimingKeyByDisplayLabel, setEvent, setTimingSpecialEvent, clearEvent, createOrSetEvent, createRecognizedEvent, upsertBinding, registerAssetsToCspTrack, moveBindingToCorrectionLayer, ensureDefaultBindingsForKey, suggestUnplacedCspCellName, updateKey } from './project-timing'
 export type { CreateRecognizedEventStatus, CreateUnplacedCspCardResult, RegisterAssetsToCspTrackResult } from './project-timing'

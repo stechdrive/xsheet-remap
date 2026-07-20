@@ -361,6 +361,7 @@ export {
   updateLogicalSheetSettings,
   updateProjectPaperTracks,
   updateProjectTimelineSectionsFromTemplate,
+  reprojectProjectToTemplate,
   updateStackGuideLabel,
   updateStackGuideRegistration,
   updateTimedRangeCue,

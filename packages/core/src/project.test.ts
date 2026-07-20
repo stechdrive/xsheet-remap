@@ -28,6 +28,7 @@ import {
   createRecognizedEvent,
   createProjectFromTrackLabels,
   createStackGuideLabel,
+  createTimedRangeCue,
   defaultCspCellName,
   deleteOverlayPaperTrack,
   digitalStandardSheetTemplate,
@@ -68,6 +69,7 @@ import {
   updateLogicalSheetSettings,
   updatePaperTrack,
   updateProjectPaperTracks,
+  reprojectProjectToTemplate,
   updateStackGuideLabel,
   updateSheetPageViewState,
   updateSheetViewState,
@@ -414,6 +416,38 @@ describe('core project commands', () => {
     expect(renamed.cspTrackSlots.find(slot => slot.paperTrack === 'A')?.slotId).toBe('slot_A')
     expect(renamed.cspTrackSlots.filter(slot => slot.paperTrack === 'AA').map(slot => slot.slotId)).toEqual(['slot_AA', 'slot_enshutsu_AA', 'slot_kantoku_AA', 'slot_sakkan_AA', 'slot_ryouri_AA', 'slot_sousakkan_AA'])
     expect(renamed.exportProfiles.every(profile => profile.slotIds.length === renamed.cspTrackSlots.length)).toBe(true)
+  })
+
+  it('reprojects templates without changing logical tracks, lanes, cues, or FPS', () => {
+    const added = addOverlayPaperTrack(createDefaultProject(), {
+      paperTrack: 'J',
+      insertAfterPaperTrack: 'I',
+      snapIndex: 10,
+      sheetRole: 'cell',
+    }).project
+    const withCell = createOrSetEvent(added, 'J', 12, 'cell').project
+    const withSound = createTimedRangeCue(withCell, {
+      role: 'sound', laneId: 'sound_lane_4', frameStart: 4, frameEnd: 18, label: 'SE',
+    }).project
+    const source = { ...withSound, logicalSheet: { ...withSound.logicalSheet, fps: 30 } }
+    const logicalSheet = structuredClone(source.logicalSheet)
+    const timedRangeCues = structuredClone(source.timedRangeCues)
+
+    const digital = reprojectProjectToTemplate(source, digitalStandardSheetTemplate, {
+      studioPresetId: 'digital-standard',
+      resetSheetView: true,
+    })
+    const paper = reprojectProjectToTemplate(digital, standardA3SheetTemplate, {
+      studioPresetId: 'standard-a3-default',
+      resetSheetView: true,
+    })
+
+    expect(digital.logicalSheet).toEqual(logicalSheet)
+    expect(digital.timedRangeCues).toEqual(timedRangeCues)
+    expect(digital.sheetTemplateId).toBe(digitalStandardSheetTemplate.templateId)
+    expect(paper.logicalSheet).toEqual(logicalSheet)
+    expect(paper.timedRangeCues).toEqual(timedRangeCues)
+    expect(paper.sheetTemplateId).toBe(standardA3SheetTemplate.templateId)
   })
 
   it('adds overlay paper tracks with independent view and export placement', () => {

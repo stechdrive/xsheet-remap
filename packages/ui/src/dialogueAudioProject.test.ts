@@ -16,6 +16,7 @@ describe('dialogue audio project extension', () => {
     expect(state.tracks.map(track => track.name)).toEqual(['セリフ 1', 'セリフ 2', 'セリフ 3'])
     expect(state.tracks.every(track => track.clips.length === 0)).toBe(true)
     expect(state.assets).toEqual([])
+    expect(state).toMatchObject({ detectionPreset: 'quiet', detectionStability: 0.4, detectionSensitivity: 0.5 })
   })
 
   it('stores shared audio assets and revision-specific candidate links per cut', () => {
@@ -82,5 +83,28 @@ describe('dialogue audio project extension', () => {
       clips: [{ timelineStartFrame: 10, durationFrames: 24 }],
       speechCandidates: [{ frameStart: 12, frameEnd: 20, status: 'pending' }],
     })
+    expect(migrated).toMatchObject({ detectionPreset: 'quiet', detectionStability: 0.4 })
+  })
+
+  it('upgrades v2 cuts with KomaSync VAD defaults while preserving the other cuts', () => {
+    const project = createDefaultProject()
+    const document = createProjectDocumentFromCutProject(project, { sheetTemplate: standardA3SheetTemplate })
+    const legacyState = createDefaultDialogueAudioCutState(1)
+    const v2State: Record<string, unknown> = { ...legacyState }
+    delete v2State.detectionPreset
+    delete v2State.detectionStability
+    const legacyDocument = {
+      ...document,
+      extensions: {
+        [DIALOGUE_AUDIO_EXTENSION]: {
+          schemaVersion: 2,
+          data: { cuts: { [document.activeCutId]: v2State, untouched: v2State } },
+        },
+      },
+    }
+    const migrated = dialogueAudioCutStateFromDocument(legacyDocument, document.activeCutId, 1)
+    expect(migrated).toMatchObject({ detectionPreset: 'quiet', detectionStability: 0.4 })
+    const updated = updateDialogueAudioCutStateInDocument(legacyDocument, document.activeCutId, migrated, 1)
+    expect((updated.extensions?.[DIALOGUE_AUDIO_EXTENSION]?.data as { cuts: Record<string, unknown> }).cuts.untouched).toEqual(v2State)
   })
 })

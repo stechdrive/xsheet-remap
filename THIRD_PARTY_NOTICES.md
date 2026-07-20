@@ -13,6 +13,7 @@ packages and assets under their own licenses.
 | PaddleOCR.js | Apache-2.0 | Browser OCR pipeline |
 | PP-OCRv5 mobile detection and recognition models | Apache-2.0 | Bundled ONNX OCR models |
 | ONNX Runtime Web | MIT | Bundled WebAssembly inference runtime |
+| Silero VAD 16k OP15 model | MIT | Bundled dialogue voice-activity detection model from Silero VAD 6.2.0 |
 | fflate | MIT | Project container ZIP compression and extraction |
 | LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files |
 | pywinauto / pyperclip / Pillow / pywebview | permissive OSS licenses | CSP helper runtime dependencies |
@@ -33,3 +34,10 @@ Relevant lockfiles and manifests:
 - `apps/desktop/src-tauri/Cargo.lock`
 - `apps/sheet-corrector/src-tauri/Cargo.lock`
 - `apps/csp-import-helper/requirements/*.txt`
+
+## Silero VAD model
+
+The bundled `apps/web/public/vad/models/silero_vad.onnx` file comes from
+`silero_vad-6.2.0-py3-none-any.whl` (`silero_vad/data/silero_vad_16k_op15.onnx`).
+The model is distributed by the Silero Team under the MIT License:
+https://github.com/snakers4/silero-vad

@@ -15,7 +15,6 @@ import {
   type DialogueAudioRange,
 } from './dialogueAudioEditing'
 import {
-  analyzeDialogueAudio,
   audioBufferFromPcm,
   blobToDataUrl,
   decodeAudioBlob,
@@ -24,6 +23,11 @@ import {
   pcmToWavBlob,
   type PcmAudio,
 } from './dialogueAudioEngine'
+import {
+  analyzeDialogueAudioWithSileroVad,
+  type DialogueSileroAnalysis,
+  type DialogueVadEngineStatus,
+} from './dialogueAudioSileroVad'
 import {
   pruneUnusedDialogueAudioAssets,
   type DialogueAudioAsset,
@@ -76,6 +80,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const [silenceFrameCount, setSilenceFrameCount] = useState(1)
   const [clipboard, setClipboard] = useState<DialogueAudioClipboard | null>(null)
   const [audioHistory, setAudioHistory] = useState<AudioHistory>({ past: [], future: [] })
+  const [vadEngine, setVadEngine] = useState<{ status: DialogueVadEngineStatus; error?: string }>({ status: 'idle' })
   const [cueDrag, setCueDrag] = useState<{
     cueId: string
     mode: 'start' | 'body' | 'end'
@@ -215,6 +220,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       recorderRef.current?.recorder.stop()
       return
     }
+    if (vadEngine.status === 'loading') return
     if (!activeTrack) return
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setStatus('この環境ではマイク録音を利用できません。')
@@ -247,20 +253,20 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     }
     try {
       const recorded = await decodeAudioBlob(new Blob(chunks, { type: mimeType }), audioContext())
-      await addAudioAssetClip(recorded, startFrame, trackId, 'マイク録音')
+      const analysis = await addAudioAssetClip(recorded, startFrame, trackId, 'マイク録音')
       setPlayhead(startFrame + durationFramesForAudio(recorded, fps))
-      setStatus('録音を非破壊クリップとして反映しました。')
+      setStatus(`録音を非破壊クリップとして反映しました。${vadResultSuffix(analysis)}`)
     } catch (error) {
       setStatus(`録音を処理できませんでした: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
-  async function addAudioAssetClip(audio: PcmAudio, timelineStartFrame: number, trackId: string, sourceName: string) {
+  async function addAudioAssetClip(audio: PcmAudio, timelineStartFrame: number, trackId: string, sourceName: string): Promise<DialogueSileroAnalysis | undefined> {
     const current = cutStateRef.current
     const track = current.tracks.find(item => item.trackId === trackId)
     if (!track) return
     const duration = durationFramesForAudio(audio, fps)
-    const analysis = analyzeDialogueAudio(audio.samples, audio.sampleRate, fps, timelineStartFrame, current.detectionSensitivity)
+    const analysis = await analyzeSpeech(audio, timelineStartFrame, current)
     const usedAssetIds = new Set(current.assets.map(asset => asset.assetId))
     const usedClipIds = new Set(current.tracks.flatMap(item => item.clips.map(clip => clip.clipId)))
     const assetId = nextUniqueId('dialogue-asset', usedAssetIds)
@@ -276,6 +282,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       assets: [...current.assets, asset],
       tracks: current.tracks.map(item => item.trackId === trackId ? nextTrack : item),
     })
+    return analysis
   }
 
   async function importAudio(event: ChangeEvent<HTMLInputElement>) {
@@ -284,8 +291,8 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     if (!file || !activeTrack) return
     try {
       const audio = await decodeAudioBlob(file, audioContext())
-      await addAudioAssetClip(audio, playheadFrame, activeTrack.trackId, file.name)
-      setStatus(`${file.name}を${playheadFrame}Fへ読み込みました。`)
+      const analysis = await addAudioAssetClip(audio, playheadFrame, activeTrack.trackId, file.name)
+      setStatus(`${file.name}を${playheadFrame}Fへ読み込みました。${vadResultSuffix(analysis)}`)
     } catch (error) {
       setStatus(`音声を読み込めませんでした: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -383,23 +390,45 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   async function redetectActiveTrack() {
     if (!activeTrack?.clips.length) return
     try {
+      setVadEngine({ status: 'loading' })
       const assetById = new Map(cutState.assets.map(asset => [asset.assetId, asset]))
       const ranges = []
+      let lastAnalysis: DialogueSileroAnalysis | undefined
       for (const clip of activeTrack.clips) {
         const asset = assetById.get(clip.assetId)
         if (!asset) continue
         const audio = await decodedAsset(asset, audioContext())
         const sourceStart = Math.round(clip.sourceOffsetFrames * audio.sampleRate / fps)
         const sourceEnd = Math.min(audio.samples.length, Math.round((clip.sourceOffsetFrames + clip.durationFrames) * audio.sampleRate / fps))
-        const analysis = analyzeDialogueAudio(audio.samples.slice(sourceStart, sourceEnd), audio.sampleRate, fps, clip.timelineStartFrame, cutState.detectionSensitivity)
+        const analysis = await analyzeSpeech(
+          { samples: audio.samples.slice(sourceStart, sourceEnd), sampleRate: audio.sampleRate },
+          clip.timelineStartFrame,
+          cutState,
+        )
+        lastAnalysis = analysis
         ranges.push(...analysis.speechRanges)
       }
       const candidates = reconcileDialogueSpeechCandidates(activeTrack.speechCandidates, mergeRanges(ranges), activeTrack.trackId)
       updateTrack(activeTrack.trackId, { speechCandidates: candidates })
-      setStatus(`${activeTrack.name}から${ranges.length}区間を再検出しました。処理済みラベルは保持しています。`)
+      setStatus(`${activeTrack.name}から${ranges.length}区間を再検出しました。処理済みラベルは保持しています。${vadResultSuffix(lastAnalysis)}`)
     } catch (error) {
       setStatus(`再検出に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
     }
+  }
+
+  async function analyzeSpeech(audio: PcmAudio, timelineStartFrame: number, state: DialogueAudioCutState): Promise<DialogueSileroAnalysis> {
+    setVadEngine({ status: 'loading' })
+    const analysis = await analyzeDialogueAudioWithSileroVad(
+      audio.samples,
+      audio.sampleRate,
+      fps,
+      timelineStartFrame,
+      state.detectionPreset,
+      state.detectionStability,
+      state.detectionSensitivity,
+    )
+    setVadEngine({ status: analysis.engine, error: analysis.error })
+    return analysis
   }
 
   function ignoreSelectedCandidate() {
@@ -536,7 +565,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         <button type="button" className="dialogueAudioCollapse" onClick={() => setCollapsed(true)} aria-expanded="true" disabled={recording}>▾ 音声タイムライン</button>
         <button type="button" onClick={() => { setPlayhead(frameOrigin); void startPlayback(frameOrigin) }} disabled={recording}>⏮ カット頭から</button>
         <button type="button" onClick={() => playing ? stopPlayback() : void startPlayback()} disabled={recording}>{playing ? '⏸ 一時停止' : '▶ 再生ヘッドから'}</button>
-        <button type="button" className={recording ? 'isRecording' : ''} onClick={() => void toggleRecording()}>{recording ? '■ 録音終了' : '● 録音'}</button>
+        <button type="button" className={recording ? 'isRecording' : ''} onClick={() => void toggleRecording()} disabled={!recording && vadEngine.status === 'loading'}>{recording ? '■ 録音終了' : '● 録音'}</button>
         <button type="button" onClick={undoAudioEdit} disabled={recording || playing || audioHistory.past.length === 0} aria-label="音声編集を元に戻す">↶</button>
         <button type="button" onClick={redoAudioEdit} disabled={recording || playing || audioHistory.future.length === 0} aria-label="音声編集をやり直す">↷</button>
         <button type="button" onClick={() => insertSilence(1)} disabled={recording || playing || !activeTrack?.clips.length}>+1F</button>
@@ -619,7 +648,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
       <footer className="dialogueAudioFooter">
         <input ref={fileInputRef} type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden onChange={event => void importAudio(event)} />
-        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={recording || playing}>再生ヘッドへ音声読込</button>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={recording || playing || vadEngine.status === 'loading'}>再生ヘッドへ音声読込</button>
         <span className="dialogueAudioSelectionSummary">{audioSelection ? `${audioSelection.frameStart}–${audioSelection.frameEnd}F (${audioSelection.frameEnd - audioSelection.frameStart + 1}F)` : '範囲未選択'}</span>
         <button type="button" onClick={silenceSelection} disabled={recording || playing || !audioSelection}>範囲を無音化</button>
         <button type="button" onClick={() => rippleDelete()} disabled={recording || playing || !audioSelection}>範囲をリップル削除</button>
@@ -631,8 +660,13 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         <button type="button" onClick={() => insertSilence()} disabled={recording || playing || !activeTrack?.clips.length}>挿入</button>
         <button type="button" onClick={createSoundFromSelection} disabled={!selectedCandidate && !audioSelection}>{selectedCandidate?.cueLinks?.some(link => link.revisionId === activeRevisionId) ? 'SOUNDを編集' : 'SOUNDを作成'}</button>
         <button type="button" onClick={ignoreSelectedCandidate} disabled={!selectedCandidate}>候補を無視</button>
-        <label>検出感度<input type="range" min="0" max="1" step="0.01" value={cutState.detectionSensitivity} onChange={event => onCutStateChange({ ...cutState, detectionSensitivity: Number(event.target.value) })} /></label>
-        <button type="button" onClick={() => void redetectActiveTrack()} disabled={recording || playing || !activeTrack?.clips.length}>セリフ区間を再検出</button>
+        <label>環境<select value={cutState.detectionPreset} disabled={vadEngine.status === 'loading'} onChange={event => onCutStateChange({ ...cutState, detectionPreset: event.target.value as DialogueAudioCutState['detectionPreset'] })}>
+          <option value="quiet">静か</option><option value="normal">通常</option><option value="noisy">騒がしい</option>
+        </select></label>
+        <label>検出感度<input type="range" min="0" max="1" step="0.01" value={cutState.detectionSensitivity} disabled={vadEngine.status === 'loading'} onChange={event => onCutStateChange({ ...cutState, detectionSensitivity: Number(event.target.value) })} /></label>
+        <label>途切れにくさ<input type="range" min="0" max="1" step="0.01" value={cutState.detectionStability} disabled={vadEngine.status === 'loading'} onChange={event => onCutStateChange({ ...cutState, detectionStability: Number(event.target.value) })} /></label>
+        <span className={`dialogueVadEngine is-${vadEngine.status}`} role="status" title={vadEngine.error}>{vadEngineLabel(vadEngine.status)}</span>
+        <button type="button" onClick={() => void redetectActiveTrack()} disabled={recording || playing || vadEngine.status === 'loading' || !activeTrack?.clips.length}>セリフ区間を再検出</button>
         <button type="button" onClick={() => { stopPlayback(false); if (activeTrack) commitCutState({ ...cutState, tracks: cutState.tracks.map(track => track.trackId === activeTrack.trackId ? { ...track, clips: [], speechCandidates: [] } : track) }) }} disabled={recording || !activeTrack?.clips.length}>トラックをクリア</button>
         <span className="dialogueAudioStatus" role="status">{status}</span>
       </footer>
@@ -694,6 +728,20 @@ function mergeRanges(ranges: DialogueAudioRange[]): DialogueAudioRange[] {
     else result.push({ ...range })
     return result
   }, [])
+}
+
+function vadEngineLabel(status: DialogueVadEngineStatus): string {
+  if (status === 'loading') return 'Silero解析中…'
+  if (status === 'silero') return 'Silero VAD'
+  if (status === 'fallback') return '簡易検出'
+  return 'Silero待機'
+}
+
+function vadResultSuffix(analysis: DialogueSileroAnalysis | undefined): string {
+  if (!analysis) return ''
+  return analysis.engine === 'silero'
+    ? ' Silero VADで検出しました。'
+    : ` 簡易検出へ切り替えました${analysis.error ? `（${analysis.error}）` : '。'}`
 }
 
 function rangeStyle(frameStart: number, rangeFrameEnd: number, frameOrigin: number, durationFrames: number) {

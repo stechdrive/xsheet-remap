@@ -67,7 +67,7 @@ export function analyzeDialogueAudio(
     frameStart: audioStartFrame + Math.floor(range.start * secondsPerWindow * safeFps),
     frameEnd: audioStartFrame + Math.max(0, Math.ceil(range.end * secondsPerWindow * safeFps) - 1),
   }))
-  return { waveform: summarizeWaveform(samples, 1024), speechRanges: mergeTouchingRanges(speechRanges) }
+  return { waveform: summarizeDialogueWaveform(samples, 1024), speechRanges: mergeTouchingRanges(speechRanges) }
 }
 
 export function overwritePcmAtFrame(
@@ -162,7 +162,7 @@ export function durationFramesForAudio(audio: PcmAudio, fps: number): number {
   return Math.max(0, Math.ceil(audio.samples.length / audio.sampleRate * Math.max(1, fps)))
 }
 
-function summarizeWaveform(samples: Float32Array, pointCount: number): number[] {
+export function summarizeDialogueWaveform(samples: Float32Array, pointCount: number): number[] {
   if (samples.length === 0) return []
   const count = Math.max(1, Math.min(pointCount, samples.length))
   const bucketSize = samples.length / count

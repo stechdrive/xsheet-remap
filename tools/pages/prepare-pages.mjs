@@ -17,6 +17,7 @@ const cacheKey = `xsheet-pages-${version}-${contentHash.digest('hex').slice(0, 1
 const coreFiles = knownFiles.filter(file =>
   !/\.(?:woff2?|ttf|wasm)$/i.test(file)
   && !/(?:^|\/)opencv-[^/]+\.js$/i.test(file)
+  && !file.startsWith('vad/')
 )
 const coreUrls = ['./', ...coreFiles.filter(file => file !== 'index.html').map(file => `./${file}`)]
 const knownUrls = ['./', ...knownFiles.filter(file => file !== 'index.html').map(file => `./${file}`)]

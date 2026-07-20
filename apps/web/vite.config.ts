@@ -39,6 +39,7 @@ function pagesPublicAssetsPlugin() {
     ['icons/icon-192.png', path.join(webRoot, 'public/icons/icon-192.png')],
     ['icons/icon-512.png', path.join(webRoot, 'public/icons/icon-512.png')],
     ['templates/standard-a3/timesheet.png', path.join(webRoot, 'public/templates/standard-a3/timesheet.png')],
+    ['vad/models/silero_vad.onnx', path.join(webRoot, 'public/vad/models/silero_vad.onnx')],
     ['manifest.webmanifest', path.join(webRoot, 'pages/manifest.webmanifest')],
   ] as const
   return {

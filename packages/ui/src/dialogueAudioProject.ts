@@ -1,7 +1,9 @@
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 
 export const DIALOGUE_AUDIO_EXTENSION = 'xsheet-remap.dialogue-audio'
-export const DIALOGUE_AUDIO_SCHEMA_VERSION = 2
+export const DIALOGUE_AUDIO_SCHEMA_VERSION = 3
+
+export type DialogueAudioVadPreset = 'quiet' | 'normal' | 'noisy'
 
 export type DialogueSpeechCandidateStatus = 'pending' | 'linked' | 'ignored' | 'review'
 
@@ -53,6 +55,8 @@ export interface DialogueAudioTrackState {
 export interface DialogueAudioCutState {
   activeTrackId: string
   detectionSensitivity: number
+  detectionStability: number
+  detectionPreset: DialogueAudioVadPreset
   assets: DialogueAudioAsset[]
   tracks: DialogueAudioTrackState[]
 }
@@ -70,7 +74,14 @@ export function createDefaultDialogueAudioCutState(frameOrigin: number): Dialogu
     muted: false,
     solo: false,
   }))
-  return { activeTrackId: tracks[0].trackId, detectionSensitivity: 0.52, assets: [], tracks }
+  return {
+    activeTrackId: tracks[0].trackId,
+    detectionSensitivity: 0.5,
+    detectionStability: 0.4,
+    detectionPreset: 'quiet',
+    assets: [],
+    tracks,
+  }
 }
 
 export function dialogueAudioCutStateFromDocument(
@@ -84,7 +95,7 @@ export function dialogueAudioCutStateFromDocument(
   const cuts = isRecord(extension.data.cuts) ? extension.data.cuts : null
   const value = cuts?.[cutId]
   if (extension.schemaVersion === 1) return migrateV1CutState(value, fallback, frameOrigin)
-  if (extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
+  if (extension.schemaVersion !== 2 && extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
   return normalizeCutState(value, fallback)
 }
 
@@ -95,7 +106,7 @@ export function updateDialogueAudioCutStateInDocument(
   frameOrigin: number,
 ): CutGroupProjectDocument {
   const extension = document.extensions?.[DIALOGUE_AUDIO_EXTENSION]
-  const currentData = extension?.schemaVersion === DIALOGUE_AUDIO_SCHEMA_VERSION && isRecord(extension.data)
+  const currentData = (extension?.schemaVersion === 2 || extension?.schemaVersion === DIALOGUE_AUDIO_SCHEMA_VERSION) && isRecord(extension.data)
     ? extension.data
     : {}
   const currentCuts = isRecord(currentData.cuts) ? currentData.cuts : {}
@@ -190,6 +201,8 @@ function migrateV1CutState(value: unknown, fallback: DialogueAudioCutState, fram
   return {
     activeTrackId,
     detectionSensitivity: clampNumber(value.detectionSensitivity, 0, 1, fallback.detectionSensitivity),
+    detectionStability: fallback.detectionStability,
+    detectionPreset: fallback.detectionPreset,
     assets,
     tracks,
   }
@@ -207,6 +220,8 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState): Dia
   return {
     activeTrackId,
     detectionSensitivity: clampNumber(value.detectionSensitivity, 0, 1, fallback.detectionSensitivity),
+    detectionStability: clampNumber(value.detectionStability, 0, 1, fallback.detectionStability),
+    detectionPreset: normalizeVadPreset(value.detectionPreset, fallback.detectionPreset),
     assets,
     tracks,
   }
@@ -309,6 +324,10 @@ function normalizedTrackName(value: unknown, fallback: string): string {
 
 function normalizedId(value: unknown): string {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, 160) : ''
+}
+
+function normalizeVadPreset(value: unknown, fallback: DialogueAudioVadPreset): DialogueAudioVadPreset {
+  return value === 'normal' || value === 'noisy' || value === 'quiet' ? value : fallback
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

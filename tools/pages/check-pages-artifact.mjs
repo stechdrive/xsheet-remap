@@ -6,11 +6,12 @@ import process from 'node:process'
 const repoRoot = process.cwd()
 const outputRoot = path.join(repoRoot, 'apps', 'web', 'dist-pages')
 const MAX_FILES = 1000
-const MAX_TOTAL_BYTES = 40 * 1024 * 1024
+// Silero VADはモデルとWASMを初回音声解析時にだけ取得する。OCRは引き続きPages対象外。
+const MAX_TOTAL_BYTES = 48 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
 const allowedExtensions = new Set([
   '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.json', '.mjs', '.png',
-  '.svg', '.ttf', '.wasm', '.webmanifest', '.webp', '.woff', '.woff2',
+  '.onnx', '.svg', '.ttf', '.wasm', '.webmanifest', '.webp', '.woff', '.woff2',
 ])
 const forbiddenPathPatterns = [
   { name: 'source map', pattern: /(?:^|\/).*\.map$/i },
@@ -25,7 +26,7 @@ const contentPatterns = [
   { name: 'developer workspace path', pattern: /[A-Za-z]:\\(?:GitHub|gh|dev|src|work)\\[^\\\s'"`<>]+/i },
   { name: 'repository-local output name', pattern: /(?:reference-local|release-local|dev-local|csp-import-helper-(?:build-venv|pyinstaller|dist))/i },
   { name: 'likely inline secret', pattern: /\b(?:api[_-]?key|access[_-]?token|secret|password)\b\s*[:=]\s*['"][A-Za-z0-9_./+=-]{16,}/i },
-  { name: 'OCR model/runtime identifier', pattern: /(?:@paddleocr|PaddleOCR|PP-OCRv5|ort-wasm-simd)/i },
+  { name: 'OCR model/runtime identifier', pattern: /(?:@paddleocr|PaddleOCR|PP-OCRv5)/i },
 ]
 
 const findings = []

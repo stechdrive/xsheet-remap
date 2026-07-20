@@ -56,4 +56,23 @@ describe('TemplateEditorApp', () => {
     expect(screen.getByText('CELLトラック数')).toBeTruthy()
     expect(screen.queryByRole('tab', { name: uiText.template.detailTabs.reference })).toBeNull()
   })
+
+  it('opens the chapter-based template authoring help from the app header', () => {
+    render(<TemplateEditorApp />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
+
+    expect(screen.getByRole('dialog', { name: 'xsheet-templateの使い方' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '完成までの手順' })).toBeTruthy()
+    expect(screen.getByText('上から順番に進める')).toBeTruthy()
+    expect(screen.getByText('用途を決める')).toBeTruthy()
+    expect(screen.getByText('適用・保存・実機確認')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '08参照画像と補正基準枠' }))
+    expect(screen.getByRole('heading', { name: '参照画像と補正基準枠' })).toBeTruthy()
+    expect(screen.getByText('グリッド外接に合わせる', { selector: '.templateHelpChapter dt' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    expect(screen.queryByRole('dialog', { name: 'xsheet-templateの使い方' })).toBeNull()
+  })
 })

@@ -8,9 +8,12 @@ import {
 } from '@xsheet-remap/core'
 import { readJsonFile, saveJsonFile } from '@xsheet-remap/adapters'
 import { useState } from 'react'
+import { IconButton } from './AppControls'
 import { APP_VERSION } from './appVersion'
+import { HelpIcon } from './app-navigation'
 import { uiText } from './i18n'
 import { TemplateWorkspace } from './TemplateWorkspace'
+import { TemplateEditorHelpDialog } from './TemplateEditorHelp'
 import {
   createPaperTemplateDraftFromImage,
   createTemplateDraft,
@@ -24,6 +27,7 @@ export function TemplateEditorApp() {
   const [template, setTemplate] = useState<SheetTemplate>(() => structuredClone(standardA3SheetTemplate))
   const [project, setProject] = useState<CutProject>(() => createDefaultProject())
   const [workspaceKey, setWorkspaceKey] = useState(0)
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false)
 
   async function loadTemplate(files: FileList | null): Promise<SheetTemplate | null> {
     const file = files?.[0]
@@ -88,7 +92,10 @@ export function TemplateEditorApp() {
           <strong>xsheet-template</strong>
           <span className="appVersion">v{APP_VERSION}</span>
         </span>
-        <button type="button" onClick={resetWorkspace}>リセット</button>
+        <div className="templateEditorAppActions">
+          <IconButton onClick={() => setHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></IconButton>
+          <button type="button" onClick={resetWorkspace}>リセット</button>
+        </div>
       </header>
       <main className="templateEditorAppMain">
         <TemplateWorkspace
@@ -107,6 +114,7 @@ export function TemplateEditorApp() {
         <span>{template.name}</span>
         <span className="statusIssueSummary">{template.page.widthPx} x {template.page.heightPx}px</span>
       </footer>
+      {helpDialogOpen && <TemplateEditorHelpDialog onClose={() => setHelpDialogOpen(false)} />}
     </div>
   )
 }

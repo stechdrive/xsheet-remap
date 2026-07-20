@@ -47,6 +47,7 @@ import { openCspImportExportDirectory, saveCspImportExportPlan } from './app-csp
 import { useCspImportExportPlan } from './useCspImportExportPlan'
 import { createPreferredProject, rememberSheetTemplatePreset } from './mainAppPreferences'
 import { createAppTimelineLaneActions } from './app-timeline-lane-actions'
+import { updateDialogueAudioCutStateInDocument, type DialogueAudioCutState } from './dialogueAudioProject'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
@@ -829,6 +830,15 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     } else {
       clearSelectionState()
     }
+  }
+
+  function handleDialogueAudioCutStateChange(cutState: DialogueAudioCutState) {
+    setProjectDocument(current => updateDialogueAudioCutStateInDocument(
+      updateActiveCutProjectInDocument(current, projectRef.current, { sheetTemplate: template }),
+      projectDocumentSnapshot.activeCutId,
+      cutState,
+      project.logicalSheet.frameOrigin,
+    ))
   }
 
   function setSelectionToFrameSpan(sourceProject: CutProject, role: SheetTimingRole, paperTracks: string[], frameStart: number, spanFrames: number) {
@@ -2277,7 +2287,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
-    handleAddSharedCut, handleDeleteSharedCut, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
+    handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,

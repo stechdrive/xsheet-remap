@@ -1,4 +1,4 @@
-import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, sheetAnnotationStrokes, sheetAnnotationTexts, timelineMemos, type SheetHit } from '@xsheet-remap/core';
+import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, sheetAnnotationStrokes, sheetAnnotationTexts, sheetGridRowY, timelineMemos, type SheetHit } from '@xsheet-remap/core';
 import { useState, type ReactNode } from 'react'
 import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
@@ -167,6 +167,20 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const cameraCues = props.project.timedRangeCues
             .filter(cue => cue.role === 'camera')
             .map(cue => cameraCueDrag?.origin.cueId === cue.cueId ? cameraCueDrag.preview : cue)
+          const playheadRegion = props.template.regions.find(region => isRenderableSheetTemplateGridRegion(region) && (region.grid?.role === 'action' || region.grid?.role === 'cell'))
+          const playheadLayout = playheadRegion ? resolveSheetTemplateGridLayout(props.template, playheadRegion, {
+            paperTracks: templateTrackNames,
+            timelineLanes,
+            durationFrames: page.frameEnd - page.frameStart + 1,
+            frameOrigin: isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin,
+            layoutOverrides: props.project.sheetView.layoutOverrides,
+          }) : null
+          const playheadRow = props.audioPlayheadFrame !== null && playheadLayout
+            ? props.audioPlayheadFrame - playheadLayout.frames.frameStart
+            : -1
+          const audioPlayheadY = playheadLayout && playheadRow >= 0 && playheadRow < playheadLayout.frames.rowCount
+            ? sheetGridRowY(playheadLayout, playheadRow) + playheadLayout.frames.rowHeight / 2
+            : null
 
           const pageAccessibleLabel = isContinuousCanvas
             ? uiText.sheet.surfaceCaption(page.frameStart, page.frameEnd)
@@ -459,6 +473,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   {dropTargetRect && dropTargetPreview && (
                     <SheetDropTargetCue rect={dropTargetRect} surface={selectionSurface} validity={dropTargetPreview.validity} />
                   )}
+                  {audioPlayheadY !== null && <line className="audioSheetPlayhead" x1="0" x2="1" y1={audioPlayheadY} y2={audioPlayheadY} />}
                 </svg>
                 {!isCalibrating && textAnnotations.length > 0 && (
                   <AnnotationTextLayer

@@ -10,6 +10,7 @@ import {
 } from './projectArchive'
 
 const embeddedImage = 'data:image/png;base64,aGVsbG8='
+const embeddedAudio = 'data:audio/wav;base64,UklGRg=='
 
 describe('project archive codec', () => {
   it('deduplicates embedded data, compresses it as a blob, and restores it', async () => {
@@ -80,6 +81,21 @@ describe('project archive codec', () => {
     const bytes = await encodeProjectArchive(source, { includeAssetPreviews: true })
     const restored = await decodeProjectFileBytes(bytes)
     expect(restored.document.assets[0]?.thumbnailUrl).toBe(embeddedImage)
+  })
+
+  it('externalizes and restores optional dialogue audio stored in project extensions', async () => {
+    const source = createDefaultProjectDocument()
+    source.extensions = {
+      'xsheet-remap.dialogue-audio': {
+        schemaVersion: 1,
+        data: { cuts: { [source.activeCutId]: { tracks: [{ audioDataUrl: embeddedAudio }] } } },
+      },
+    }
+    const bytes = await encodeProjectArchive(source)
+    const entries = unzipSync(bytes)
+    expect(strFromU8(entries['project.json']!)).not.toContain('data:audio/wav')
+    const restored = await decodeProjectFileBytes(bytes)
+    expect(JSON.stringify(restored.document.extensions)).toContain(embeddedAudio)
   })
 
   it('refuses archives that require an unsupported future feature', async () => {

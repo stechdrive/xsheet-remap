@@ -60,6 +60,7 @@ export function SheetPanel(props: {
   recognitionCandidates: RecognitionCandidate[]
   selectedKeyId: string | null
   selectedHit: SheetHit | null
+  audioPlayheadFrame: number | null
   selectedSoundCueId: string | null
   selectedCameraCueId: string | null
   timingDraftValue: string

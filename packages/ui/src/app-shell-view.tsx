@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { clearAnnotations, clearAnnotationsForPage, sheetTemplatePresets, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
@@ -19,6 +20,8 @@ import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
 import { SHEET_OCR_AVAILABLE } from './runtimeFeatures'
+import { DialogueAudioTimeline } from './DialogueAudioTimeline'
+import { dialogueAudioCutStateFromDocument } from './dialogueAudioProject'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -56,11 +59,26 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
-    handleAddSharedCut, handleDeleteSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
+    handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, openTimingExportDialog, confirmTimingExport, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   } = controller
+
+  const [audioPlayhead, setAudioPlayhead] = useState({ cutId: projectDocumentSnapshot.activeCutId, frame: project.logicalSheet.frameOrigin })
+  const audioPlayheadFrame = audioPlayhead.cutId === projectDocumentSnapshot.activeCutId
+    ? audioPlayhead.frame
+    : project.logicalSheet.frameOrigin
+  const handleAudioPlayheadChange = (frame: number) => {
+    setAudioPlayhead({ cutId: projectDocumentSnapshot.activeCutId, frame })
+    const pageIndex = sheetPages.findIndex(page => frame >= page.frameStart && frame <= page.frameEnd)
+    if (pageIndex >= 0 && pageIndex !== clampedActivePageIndex) setActivePageIndex(pageIndex)
+  }
+  const dialogueAudioCutState = useMemo(() => dialogueAudioCutStateFromDocument(
+    projectDocumentSnapshot,
+    projectDocumentSnapshot.activeCutId,
+    project.logicalSheet.frameOrigin,
+  ), [project.logicalSheet.frameOrigin, projectDocumentSnapshot])
 
   const sheetRailExternalActions = panel === 'sheet' ? (
     <>
@@ -233,7 +251,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
 
       <main className="mainPane">
         {panel === 'sheet' && (
-          <SheetPanel
+          <div className={appKind === 'editor' ? 'editorAudioWorkspace' : 'sheetPanelWorkspace'}>
+            <SheetPanel
             appKind={appKind}
             collapseEditorPanes={collapseEditorSheetPanes}
             project={project}
@@ -271,6 +290,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             recognitionCandidates={recognitionCandidates}
             selectedKeyId={selection.keyId}
             selectedHit={selection.hit}
+            audioPlayheadFrame={appKind === 'editor' ? audioPlayheadFrame : null}
             selectedSoundCueId={selectedSoundCueId}
             selectedCameraCueId={selectedCameraCueId}
             timingDraftValue={valueDraft}
@@ -422,7 +442,23 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onReorderProductionStage={handleReorderProductionStage}
             onReorderCorrectionLayer={handleReorderCorrectionLayer}
             onDeleteCorrectionLayer={handleDeleteCorrectionLayer}
-          />
+            />
+            {appKind === 'editor' && (
+              <DialogueAudioTimeline
+                key={projectDocumentSnapshot.activeCutId}
+                cutState={dialogueAudioCutState}
+                fps={project.logicalSheet.fps}
+                frameOrigin={project.logicalSheet.frameOrigin}
+                durationFrames={project.logicalSheet.durationFrames}
+                soundCues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
+                selectedSoundCueId={selectedSoundCueId}
+                onCutStateChange={handleDialogueAudioCutStateChange}
+                onPlayheadChange={handleAudioPlayheadChange}
+                onSoundCueSelect={handleSoundCueSelect}
+                onSoundCueTransform={handleTransformSoundCue}
+              />
+            )}
+          </div>
         )}
         {panel === 'template' && (
           <TemplateWorkspace

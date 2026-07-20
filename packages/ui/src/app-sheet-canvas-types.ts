@@ -43,6 +43,7 @@ export type SheetCanvasProps = {
   runtimeSourceImageUrls: Record<string, string>
   recognitionCandidates: RecognitionCandidate[]
   selectedHit: SheetHit | null
+  audioPlayheadFrame: number | null
   selectedSoundCueId: string | null
   selectedCameraCueId: string | null
   selectedTimelineMemoId: string | null

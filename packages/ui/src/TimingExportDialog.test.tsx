@@ -66,4 +66,33 @@ describe('TimingExportDialog', () => {
     expect(screen.getByLabelText('SOUNDを含める')).toBeTruthy()
     expect(screen.getByLabelText('CAMERAを含める')).toBeTruthy()
   })
+
+  it('shows the unassigned CSP target but keeps key-only export enabled', () => {
+    const onConfirm = vi.fn()
+    const view = render(
+      <TimingExportDialog
+        state={{ kind: 'csp-import', timingSourceRole: 'action', includeSound: false, includeCamera: false }}
+        timelineSections={defaultTimelineSections(standardA3SheetTemplate)}
+        assetRootPath="C:\\cuts\\C001"
+        issues={[{
+          issueId: 'cspImport.asset.unassigned:binding_1',
+          severity: 'warning',
+          code: 'cspImport.asset.unassigned',
+          message: 'image material is not assigned',
+          target: { entity: 'binding', id: 'binding_1', label: '作画 / A / A1' },
+        }]}
+        onChangeRole={() => undefined}
+        onChangeOptions={() => undefined}
+        onCancel={() => undefined}
+        onConfirm={onConfirm}
+      />,
+    )
+
+    expect(view.getByText(/画像素材が未割当です: 作画 \/ A \/ A1/)).toBeTruthy()
+    const exportButton = view.container.querySelector<HTMLButtonElement>('button.primary')
+    expect(exportButton).not.toBeNull()
+    expect(exportButton!.disabled).toBe(false)
+    fireEvent.click(exportButton!)
+    expect(onConfirm).toHaveBeenCalledOnce()
+  })
 })

@@ -815,8 +815,9 @@ export interface ValidationIssue {
   code: string
   message: string
   target?: {
-    entity: 'project' | 'sheet' | 'key' | 'event' | 'cue' | 'memo' | 'asset' | 'binding' | 'slot' | 'export'
+    entity: 'project' | 'sheet' | 'key' | 'event' | 'cue' | 'memo' | 'asset' | 'binding' | 'slot' | 'stackGuide' | 'export'
     id?: string
+    label?: string
   }
 }
 

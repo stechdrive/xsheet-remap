@@ -10,6 +10,7 @@ import type {
 } from './types'
 import { nextId } from './core-utils'
 import { ROOT_ASSET_BIN_ID } from './project-constants'
+import { nativeFileSystemPathKey, normalizeNativeFileSystemPath } from './native-paths'
 
 export function registerAsset(
   project: CutProject,
@@ -17,7 +18,7 @@ export function registerAsset(
   options: { role?: CutAsset['role']; binId?: string; source?: AssetSource; relativePath?: string } = {},
 ): { project: CutProject; asset: CutAsset } {
   const role = options.role ?? 'cell-material'
-  const source = options.source ?? assetSourceForFile(project.assetRoot, file, options.relativePath)
+  const source = normalizeAssetSourceNativePaths(options.source ?? assetSourceForFile(project.assetRoot, file, options.relativePath))
   const duplicate = findMatchingAsset(project.assets, file, { role, source, root: project.assetRoot })
   if (duplicate) {
     const merged = mergeRegisteredAsset(duplicate, file, { ...options, source })
@@ -50,7 +51,7 @@ export function registerAssetRoot(project: CutProject, input: { label: string; p
   if (samePath(project.assetRoot?.path, input.path)) return { project, root: project.assetRoot! }
   const root: AssetRoot = {
     label: input.label,
-    path: input.path,
+    path: normalizeNativeFileSystemPath(input.path),
     handleKind: input.handleKind ?? 'directory',
   }
   const assets = project.assetRoot?.path
@@ -122,8 +123,8 @@ export function assetRelativePath(asset: CutAsset): string | undefined {
 }
 
 export function assetAbsolutePath(asset: CutAsset, root?: AssetRoot): string | undefined {
-  if (asset.source.kind === 'external-file') return asset.source.absolutePath
-  if (asset.source.kind === 'unresolved') return asset.source.lastKnownPath
+  if (asset.source.kind === 'external-file') return normalizeNativeFileSystemPath(asset.source.absolutePath)
+  if (asset.source.kind === 'unresolved') return asset.source.lastKnownPath ? normalizeNativeFileSystemPath(asset.source.lastKnownPath) : undefined
   if (!root?.path) return undefined
   return joinPath(root.path, asset.source.relativePath)
 }
@@ -133,6 +134,7 @@ export function assetSourceDisplayPath(asset: CutAsset): string {
 }
 
 export function registerSheetSource(project: CutProject, imageRef: SheetPageImageRef, options: { assetId?: string } = {}): { project: CutProject; source: SheetSource } {
+  imageRef = imageRef.path ? { ...imageRef, path: normalizeNativeFileSystemPath(imageRef.path) } : imageRef
   const duplicate = project.sheetView.sources.find(source => source.kind === 'sheet-scan' && sameSheetImageRef(source.imageRef, imageRef))
   if (duplicate) {
     if (!options.assetId || duplicate.assetId === options.assetId) return { project, source: duplicate }
@@ -165,6 +167,16 @@ export function registerSheetSource(project: CutProject, imageRef: SheetPageImag
     },
     source,
   }
+}
+
+export function normalizeAssetSourceNativePaths(source: AssetSource): AssetSource {
+  if (source.kind === 'external-file') {
+    return { ...source, absolutePath: normalizeNativeFileSystemPath(source.absolutePath) }
+  }
+  if (source.kind === 'unresolved' && source.lastKnownPath) {
+    return { ...source, lastKnownPath: normalizeNativeFileSystemPath(source.lastKnownPath) }
+  }
+  return source
 }
 
 export function sameSheetImageRef(a: SheetPageImageRef, b: SheetPageImageRef): boolean {
@@ -221,7 +233,7 @@ function assetSourceForFile(root: AssetRoot | undefined, file: FileRef, relative
   if (root?.path && resolvedRelativePath) {
     return { kind: 'root-relative', relativePath: normalizeRelativePath(resolvedRelativePath) }
   }
-  if (file.path) return { kind: 'external-file', absolutePath: file.path }
+  if (file.path) return { kind: 'external-file', absolutePath: normalizeNativeFileSystemPath(file.path) }
   return { kind: 'unresolved' }
 }
 
@@ -258,9 +270,7 @@ function fileModifiedAt(file: Pick<FileRef, 'lastModified'>): string | undefined
 }
 
 function assetPathKey(path?: string): string | undefined {
-  if (!path) return undefined
-  const normalized = path.replace(/\\/g, '/')
-  return /^[a-z]:\//i.test(normalized) || normalized.startsWith('//') ? normalized.toLowerCase() : normalized
+  return nativeFileSystemPathKey(path)
 }
 
 function assetRelativePathKey(path?: string): string | undefined {

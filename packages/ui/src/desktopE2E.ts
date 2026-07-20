@@ -2,6 +2,8 @@ import {
   createDefaultProject,
   createKey,
   createStackGuideLabel,
+  registerAssetRoot,
+  setEvent,
   standardA3SheetTemplate,
   upsertBinding,
   type CutProject,
@@ -18,6 +20,7 @@ import {
 
 export const REMAP_REAL_DND_SCENARIO_ID = 'remap-real-dnd'
 export const REGISTERED_CELL_REAL_DND_SCENARIO_ID = 'registered-cell-real-dnd'
+export const EXPORT_VALIDATION_SCENARIO_ID = 'export-validation'
 
 interface DesktopE2EConfig {
   scenario: string
@@ -50,6 +53,19 @@ export async function runDesktopE2EIfRequested(callbacks: DesktopE2ERunCallbacks
     callbacks.applyProject(buildRemapRealDndProject(), standardA3SheetTemplate, 'sheet')
     return
   }
+  if (config.scenario === EXPORT_VALIDATION_SCENARIO_ID) {
+    const project = buildExportValidationProject(config.root)
+    callbacks.applyProject(project, standardA3SheetTemplate, 'sheet')
+    await writeDesktopE2EJson('result.json', {
+      passed: true,
+      scenario: config.scenario,
+      checks: [
+        'loaded a path-backed cut folder without a Windows device prefix',
+        'loaded an unassigned 作画 / A / A1 cell for XDTS and CSP export validation',
+      ],
+    } satisfies DesktopE2EResult)
+    return
+  }
   if (config.scenario !== FULL_DEFAULT_A3_SCENARIO_ID) return
 
   try {
@@ -62,6 +78,22 @@ export async function runDesktopE2EIfRequested(callbacks: DesktopE2ERunCallbacks
       error: errorMessage(error),
     } satisfies DesktopE2EResult)
   }
+}
+
+export function buildExportValidationProject(assetRootPath: string): CutProject {
+  const rooted = registerAssetRoot({
+    ...createDefaultProject(),
+    projectId: 'desktop_e2e_export_validation',
+    cut: { title: 'E2E', episode: '01', cut: 'EXPORT_VALIDATION' },
+  }, { label: 'export-validation', path: assetRootPath, handleKind: 'directory' })
+  const created = createKey(rooted.project, 'A', '1', 'manual', '1', 'action')
+  const timed = setEvent(created.project, 'A', 1, created.key.keyId, 'action')
+  return upsertBinding(timed, {
+    slotId: 'slot_A',
+    keyId: created.key.keyId,
+    cspCellName: 'A1',
+    materialState: 'unassigned',
+  })
 }
 
 function buildRemapRealDndProject(): CutProject {

@@ -19,10 +19,10 @@ pub(super) fn open_file_ref_from_path_with_root(
         name,
         size: Some(metadata.len()),
         last_modified: modified_at_millis(&metadata),
-        path: canonical_path.to_string_lossy().into_owned(),
+        path: public_path_string(&canonical_path),
         root_path: canonical_root
             .as_ref()
-            .map(|root_path| root_path.to_string_lossy().into_owned()),
+            .map(|root_path| public_path_string(root_path)),
         relative_path: canonical_root
             .as_ref()
             .and_then(|root_path| relative_path_string(&canonical_path, root_path)),
@@ -34,6 +34,19 @@ pub(super) fn canonicalize_existing_path(
     path: &std::path::Path,
 ) -> Result<std::path::PathBuf, String> {
     path.canonicalize().map_err(|error| error.to_string())
+}
+
+/// Keep canonical paths internally, but never expose the Windows device
+/// namespace prefix to the UI or persist it in project data.
+pub(super) fn public_path_string(path: &std::path::Path) -> String {
+    let value = path.to_string_lossy();
+    if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{}", rest);
+    }
+    if let Some(rest) = value.strip_prefix(r"\\?\") {
+        return rest.to_string();
+    }
+    value.into_owned()
 }
 
 pub(super) fn modified_at_millis(metadata: &std::fs::Metadata) -> Option<u64> {
@@ -78,9 +91,39 @@ pub(super) fn asset_root_candidate(
         label: path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| path.to_string_lossy().into_owned()),
-        path: path.to_string_lossy().into_owned(),
+            .unwrap_or_else(|| public_path_string(path)),
+        path: public_path_string(path),
         from_directory_drop,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::public_path_string;
+    use std::path::Path;
+
+    #[test]
+    fn public_paths_remove_windows_device_prefixes() {
+        assert_eq!(
+            public_path_string(Path::new(r"\\?\C:\cuts\C001")),
+            r"C:\cuts\C001"
+        );
+        assert_eq!(
+            public_path_string(Path::new(r"\\?\UNC\server\share\C001")),
+            r"\\server\share\C001"
+        );
+    }
+
+    #[test]
+    fn public_paths_leave_ordinary_paths_unchanged() {
+        assert_eq!(
+            public_path_string(Path::new(r"C:\cuts\C001")),
+            r"C:\cuts\C001"
+        );
+        assert_eq!(
+            public_path_string(Path::new("/projects/C001")),
+            "/projects/C001"
+        );
     }
 }
 

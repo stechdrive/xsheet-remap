@@ -118,6 +118,7 @@ export type {
   TimingKey,
   ValidationIssue,
 } from './types'
+export { nativeFileSystemPathKey, normalizeNativeFileSystemPath } from './native-paths'
 export {
   createPageMemosFromAnnotations,
   isSheetPageMemo,
@@ -464,7 +465,7 @@ export {
   standardA3SheetTemplate,
   standardA3SheetTemplatePreset,
 } from './sheet-template'
-export { hasBlockingIssues, validateProject } from './validation'
+export { hasBlockingIssues, validateCspMaterialAssignments, validateProject } from './validation'
 export {
   addOverlayPaperTrackAtCspTop,
   applyCellStackOrder,

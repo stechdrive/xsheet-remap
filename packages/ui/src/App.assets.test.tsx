@@ -302,7 +302,7 @@ it('registers sheet scan images in filename order and sets duration from the sca
     fireEvent.click(pageMenuTrigger)
     const pageJumpMenu = document.querySelector('.actionMenuPortalContent.pageJumpMenu') as HTMLElement | null
     if (!pageJumpMenu) throw new Error('page jump menu not found')
-    expect(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(4) })).toBeTruthy()
+    await waitFor(() => expect(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(4) })).toBeTruthy())
     expect(pageJumpMenu.querySelectorAll('.pageJumpSourceSelect select')).toHaveLength(1)
     const assignedSourceLabels = Array.from({ length: 4 }, (_, index) => {
       fireEvent.click(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(index + 1) }))

@@ -395,7 +395,9 @@ export function exportCutProjectsFromDocument(document: CutGroupProjectDocument)
   return document.cuts.map(cut => activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId }))
 }
 
-export function fileDialogInitialDirectory(project: CutProject): string | undefined {
+/** Optional convenience location for ordinary save dialogs. CSP automatic
+ * registration performs its separate required-root validation. */
+export function preferredSaveDirectory(project: CutProject): string | undefined {
   return project.assetRoot?.path
 }
 

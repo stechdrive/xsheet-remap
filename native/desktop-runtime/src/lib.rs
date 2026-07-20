@@ -278,7 +278,7 @@ async fn open_asset_root_directory(window: tauri::WebviewWindow) -> Result<Optio
         return Ok(None);
     };
     let path = folder_path.into_path().map_err(|error| error.to_string())?;
-    Ok(Some(path.to_string_lossy().into_owned()))
+    Ok(Some(public_path_string(&path)))
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -381,7 +381,7 @@ fn list_asset_directory(
         let is_file = metadata.is_file();
         entries.push(AssetDirectoryEntry {
             name,
-            path: path.to_string_lossy().into_owned(),
+            path: public_path_string(&path),
             relative_path,
             kind: if is_dir { "directory" } else { "file" }.to_string(),
             is_supported_image: is_file && is_supported_image_file(&path),
@@ -401,11 +401,11 @@ fn list_asset_directory(
     let parent_path = current
         .parent()
         .filter(|parent| current != root && parent.starts_with(&root))
-        .map(|parent| parent.to_string_lossy().into_owned());
+        .map(public_path_string);
 
     Ok(AssetDirectoryListing {
-        root_path: root.to_string_lossy().into_owned(),
-        current_path: current.to_string_lossy().into_owned(),
+        root_path: public_path_string(&root),
+        current_path: public_path_string(&current),
         parent_path,
         entries,
     })

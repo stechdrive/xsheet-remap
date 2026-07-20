@@ -26,7 +26,7 @@ pub(super) async fn save_project_file(
         .decode(contents_base64)
         .map_err(|error| error.to_string())?;
     atomic_write_project_file(&path, &bytes)?;
-    Ok(Some(path.to_string_lossy().into_owned()))
+    Ok(Some(public_path_string(&path)))
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -77,7 +77,7 @@ pub(super) async fn save_text_file(
         return Ok(None);
     };
     std::fs::write(&path, contents).map_err(|error| error.to_string())?;
-    Ok(Some(path.to_string_lossy().into_owned()))
+    Ok(Some(public_path_string(&path)))
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -108,7 +108,7 @@ pub(super) async fn save_binary_file(
         .decode(contents_base64)
         .map_err(|error| error.to_string())?;
     std::fs::write(&path, bytes).map_err(|error| error.to_string())?;
-    Ok(Some(path.to_string_lossy().into_owned()))
+    Ok(Some(public_path_string(&path)))
 }
 
 pub(super) async fn pick_save_path(
@@ -379,7 +379,7 @@ pub(super) async fn write_csp_import_package(
     }
 
     Ok(Some(WriteCspImportPackageResult {
-        output_directory_path: output_directory.to_string_lossy().into_owned(),
+        output_directory_path: public_path_string(&output_directory),
     }))
 }
 

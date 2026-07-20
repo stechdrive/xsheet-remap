@@ -18,7 +18,7 @@ import { sheetXdtsFileName } from './outputFileNames'
 import {
   errorMessage,
   exportCutProjectsFromDocument,
-  fileDialogInitialDirectory,
+  preferredSaveDirectory,
   saveTextOutputs,
 } from './app-foundation'
 import { uiText } from './i18n'
@@ -87,7 +87,7 @@ export function createAppXdtsActions(options: AppXdtsActionsOptions) {
         filterName: 'XDTS',
         extensions: ['xdts'],
         defaultExtension: 'xdts',
-        initialDirectory: fileDialogInitialDirectory(options.project),
+        initialDirectory: preferredSaveDirectory(options.project),
       })
     } catch (error) {
       window.alert(uiText.export.saveFailed(errorMessage(error)))

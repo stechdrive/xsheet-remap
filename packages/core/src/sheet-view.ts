@@ -12,6 +12,7 @@ import {
 } from './sheet-template'
 import { sameSheetImageRef } from './assets'
 import { nextId, withoutUndefined } from './core-utils'
+import { normalizeNativeFileSystemPath } from './native-paths'
 
 export function defaultSheetImageAlignment(): SheetImageAlignment {
   return {
@@ -121,8 +122,13 @@ export function assignSheetSourceToPage(project: CutProject, pageId: string, sou
 
 export function migrateSheetView(input: Partial<SheetViewState> | undefined, templateId: string): SheetViewState {
   const base = createDefaultSheetViewStateForTemplateId(templateId)
-  const sources: SheetSource[] = [...(input?.sources ?? base.sources)].filter(source => source.kind === 'sheet-scan')
-  const pages = (input?.pages?.length ? input.pages : base.pages).map(page => {
+  const sources: SheetSource[] = [...(input?.sources ?? base.sources)]
+    .filter(source => source.kind === 'sheet-scan')
+    .map(source => ({ ...source, imageRef: normalizeSheetImageRefNativePath(source.imageRef) }))
+  const pages = (input?.pages?.length ? input.pages : base.pages).map(inputPage => {
+    const page = inputPage.imageRef
+      ? { ...inputPage, imageRef: normalizeSheetImageRefNativePath(inputPage.imageRef) }
+      : inputPage
     let sourceId = page.sourceId
     if (sourceId && !sources.some(source => source.sourceId === sourceId)) {
       sourceId = undefined
@@ -162,6 +168,10 @@ export function migrateSheetView(input: Partial<SheetViewState> | undefined, tem
       ...(input?.continuationDisplay ?? {}),
     },
   }
+}
+
+function normalizeSheetImageRefNativePath(imageRef: SheetPageImageRef): SheetPageImageRef {
+  return imageRef.path ? { ...imageRef, path: normalizeNativeFileSystemPath(imageRef.path) } : imageRef
 }
 
 export function mergeSheetImageAlignment(base: SheetImageAlignment, updates: Partial<SheetImageAlignment>): SheetImageAlignment {

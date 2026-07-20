@@ -1,4 +1,4 @@
-import { isSpecialTimingKeyId } from './project-shared'
+import { isSpecialTimingKeyId, stackGuideCspCellName, stackGuideRegistrations } from './project-shared'
 import type { CutProject, ExportProfile, ValidationIssue } from './types'
 import { timelineMemos } from './sheet-memo'
 
@@ -191,12 +191,6 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     if (binding.assetId && !assetIds.has(binding.assetId)) {
       issues.push(issue('error', 'binding.asset.missing', `binding references missing asset ${binding.assetId}`, 'binding', binding.bindingId))
     }
-    if (binding.materialState === 'unassigned') {
-      issues.push(issue('warning', 'asset.unassigned', 'asset is not assigned yet', 'binding', binding.bindingId))
-    }
-    if (binding.materialState === 'missing-ok') {
-      issues.push(issue('info', 'export.missingOk.present', 'missing-ok cell will be exported without requiring material', 'binding', binding.bindingId))
-    }
   }
 
   const trackNoSeen = new Map<number, string>()
@@ -229,6 +223,33 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
   return issues
 }
 
+/** Material readiness is specific to CSP automatic registration. XDTS and
+ * rendered-sheet exports intentionally do not depend on image assignment. */
+export function validateCspMaterialAssignments(project: CutProject): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  for (const binding of project.bindings) {
+    const label = cspBindingDisplayLabel(project, binding.slotId, binding.cspCellName)
+    if (binding.materialState === 'unassigned') {
+      issues.push(issue('warning', 'cspImport.asset.unassigned', 'image material is not assigned; the cell will be registered as a key only', 'binding', binding.bindingId, label))
+    } else if (binding.materialState === 'missing-ok') {
+      issues.push(issue('info', 'cspImport.asset.keyOnly', 'the cell will be registered as a key only', 'binding', binding.bindingId, label))
+    }
+  }
+  for (const stackGuide of project.stackGuideLabels) {
+    if (!stackGuide.exportAsStaticCell) continue
+    for (const registration of stackGuideRegistrations(stackGuide)) {
+      if (registration.assetIds.length > 0) continue
+      const layerLabel = project.correctionLayers.find(layer => layer.layerId === registration.correctionLayerId)?.label
+      const label = [layerLabel, stackGuide.label, stackGuideCspCellName(stackGuide, registration)]
+        .map(part => part?.trim())
+        .filter((part): part is string => Boolean(part))
+        .join(' / ')
+      issues.push(issue('warning', 'cspImport.asset.unassigned', 'image material is not assigned; the cell will be registered as a key only', 'stackGuide', `${stackGuide.labelId}:${registration.registrationId}`, label))
+    }
+  }
+  return issues
+}
+
 export function hasBlockingIssues(issues: ValidationIssue[]): boolean {
   return issues.some(issue => issue.severity === 'error')
 }
@@ -239,14 +260,23 @@ function issue(
   message: string,
   entity: NonNullable<ValidationIssue['target']>['entity'],
   id?: string,
+  label?: string,
 ): ValidationIssue {
   return {
     issueId: `${code}:${id ?? 'project'}`,
     severity,
     code,
     message,
-    target: { entity, id },
+    target: { entity, id, label },
   }
+}
+
+function cspBindingDisplayLabel(project: CutProject, slotId: string, cspCellName: string): string {
+  const slotPath = project.cspTrackSlots.find(slot => slot.slotId === slotId)?.displayPath
+    .split('/')
+    .map(part => part.trim())
+    .filter(Boolean) ?? []
+  return [...slotPath, cspCellName.trim()].filter(Boolean).join(' / ')
 }
 
 function logicalSheetDisplayFrameStart(sheet: CutProject['logicalSheet']): number {

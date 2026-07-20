@@ -1,4 +1,4 @@
-import type { Annotation, CellBinding, CspTrackSlot, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetRevisionDocument, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimelineInkMemo, TimingKey } from './types'
+import type { Annotation, AssetRoot, CellBinding, CspTrackSlot, CutAsset, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetRevisionDocument, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimelineInkMemo, TimingKey } from './types'
 import { parseSheetTemplate, sheetTemplatePresets, standardA3SheetTemplate, type SheetTemplate } from './sheet-template'
 import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { migrateAnnotation } from './annotations'
@@ -10,6 +10,8 @@ import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrection
 import { parseProjectExtensions } from './project-archive'
 import { normalizeSheetFormData, normalizeSheetFormFieldValues, normalizeSheetFormPageFieldValues } from './sheet-form-data'
 import { migrateLegacyMemos } from './sheet-memo'
+import { normalizeAssetSourceNativePaths } from './assets'
+import { normalizeNativeFileSystemPath } from './native-paths'
 
 export function createDefaultProjectDocument(): CutGroupProjectDocument {
   return createProjectDocumentFromCutProject(createDefaultProject(), { sheetTemplate: standardA3SheetTemplate })
@@ -94,9 +96,9 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     sheetTemplate,
     productionStages: document.productionStages,
     correctionLayers: document.correctionLayers,
-    assetRoot: document.assetRoot,
+    assetRoot: normalizeAssetRootNativePath(document.assetRoot),
     assetBins: document.assetBins,
-    assets: document.assets,
+    assets: document.assets.map(normalizeCutAssetNativePaths),
     registeredCells,
     exportProfiles: document.exportProfiles,
     cuts,
@@ -361,11 +363,12 @@ export function migrateProject(input: Partial<CutProject> & { annotations?: Anno
     },
     productionStages,
     correctionLayers,
-    assetRoot: input.assetRoot,
+    assetRoot: normalizeAssetRootNativePath(input.assetRoot),
     assetBins: input.assetBins?.length ? input.assetBins : [{ binId: ROOT_ASSET_BIN_ID, name: 'プロジェクト素材', order: 0 }],
     assets: (input.assets ?? []).map(asset => ({
       ...asset,
       role: asset.role ?? 'cell-material',
+      source: normalizeAssetSourceNativePaths(asset.source),
     })),
     sheetView: migrateSheetView(input.sheetView, input.sheetTemplateId ?? base.sheetTemplateId ?? standardA3SheetTemplate.templateId),
     cspTrackSlots: reconcileCspTrackSlots(paperTracks, productionStages, correctionLayers, input.cspTrackSlots ?? base.cspTrackSlots),
@@ -392,6 +395,14 @@ export function migrateProject(input: Partial<CutProject> & { annotations?: Anno
     })),
   }
   return { ...project, schemaVersion: 3 }
+}
+
+function normalizeAssetRootNativePath(root: AssetRoot | undefined): AssetRoot | undefined {
+  return root ? { ...root, path: normalizeNativeFileSystemPath(root.path) } : undefined
+}
+
+function normalizeCutAssetNativePaths(asset: CutAsset): CutAsset {
+  return { ...asset, source: normalizeAssetSourceNativePaths(asset.source) }
 }
 
 function repairBlankAssetDropBindingNames(project: CutProject): CutProject {

@@ -4,8 +4,17 @@ import {
   createFullDefaultA3FixtureRefs,
   FULL_DEFAULT_A3_ASSET_NAMES,
 } from './desktopE2EScenarios'
+import { buildExportValidationProject } from './desktopE2E'
 
 describe('desktop e2e scenarios', () => {
+  it('builds an isolated export-validation project with a targeted key-only cell', () => {
+    const project = buildExportValidationProject('C:\\e2e\\export-validation')
+
+    expect(project.assetRoot?.path).toBe('C:\\e2e\\export-validation')
+    expect(project.bindings).toContainEqual(expect.objectContaining({ cspCellName: 'A1', materialState: 'unassigned' }))
+    expect(project.logicalSheet.events).toHaveLength(1)
+  })
+
   it('builds the full default A3 project and validates normalized XDTS output', () => {
     const initial = buildFullDefaultA3Scenario(createFullDefaultA3FixtureRefs('C:\\e2e\\assets'))
     const renameResults = initial.normalizationPlan.assetRenames.map(rename => ({

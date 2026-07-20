@@ -759,6 +759,14 @@ export function severityLabel(severity: ValidationIssue['severity'] | 'warning' 
 }
 
 export function issueMessage(issue: ValidationIssue): string {
+  if (issue.code === 'cspImport.asset.unassigned') {
+    const target = issue.target?.label ? `: ${issue.target.label}` : ''
+    return `画像素材が未割当です${target}\nこのセルはキーのみ登録されます。`
+  }
+  if (issue.code === 'cspImport.asset.keyOnly') {
+    const target = issue.target?.label ? `: ${issue.target.label}` : ''
+    return `画像素材を登録しない設定です${target}\nこのセルはキーのみ登録されます。`
+  }
   const messages: Record<string, string> = {
     'sheet.fps.invalid': 'FPSは1以上にしてください。',
     'sheet.duration.invalid': '尺は1フレーム以上にしてください。',

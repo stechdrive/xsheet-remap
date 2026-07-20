@@ -34,7 +34,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
-    projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, sheetPages, clampedActivePageIndex,
+    projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, timingExportIssues, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
@@ -453,7 +453,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
           state={timingExportDialog}
           timelineSections={project.logicalSheet.timelineSections}
           assetRootPath={project.assetRoot?.path}
-          issues={timingExportPlan.validation}
+          issues={timingExportIssues}
           onChangeRole={updateTimingExportRole}
           onChangeOptions={updateTimingExportOptions}
           onCancel={() => setTimingExportDialog(null)}

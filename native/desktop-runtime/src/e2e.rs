@@ -15,7 +15,7 @@ pub(super) async fn rename_material_files(
             .map(|()| RenameFileResult {
                 asset_id: operation.asset_id.clone(),
                 renamed: true,
-                next_path: Some(next_path.to_string_lossy().into_owned()),
+                next_path: Some(public_path_string(&next_path)),
                 next_file_name: Some(operation.next_file_name.clone()),
                 error: None,
             })
@@ -83,7 +83,7 @@ pub(super) fn write_desktop_e2e_artifact(
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     std::fs::write(&path, contents).map_err(|error| error.to_string())?;
-    Ok(path.to_string_lossy().into_owned())
+    Ok(public_path_string(&path))
 }
 
 pub(super) fn read_desktop_e2e_config() -> Result<Option<DesktopE2eConfig>, String> {
@@ -110,7 +110,7 @@ pub(super) fn required_env_path(name: &str) -> Result<String, String> {
             let path = std::path::PathBuf::from(&value);
             std::fs::create_dir_all(&path).map_err(|error| error.to_string())?;
             path.canonicalize()
-                .map(|path| path.to_string_lossy().into_owned())
+                .map(|path| public_path_string(&path))
                 .map_err(|error| error.to_string())
         })
 }

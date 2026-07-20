@@ -37,7 +37,7 @@ $sheetOpsScenarios = @(
   "annotation-interactions"
   "sheet-history"
 )
-$supportedScenarios = @("launch", "full-default-a3", "auto-calibration") + $sheetOpsScenarios
+$supportedScenarios = @("launch", "full-default-a3", "auto-calibration", "export-validation") + $sheetOpsScenarios
 if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }

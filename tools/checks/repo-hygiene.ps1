@@ -231,6 +231,29 @@ if ($IncludeBuildOutput) {
 
 $findings = New-Object System.Collections.Generic.List[object]
 
+$publicReadmePath = "README.md"
+$publicReadmeContent = Get-Content -LiteralPath $publicReadmePath -Raw -ErrorAction Stop
+$publicReadmeDevelopmentPatterns = @(
+  [pscustomobject]@{ Name = "Development heading"; Regex = [regex]'(?im)^##\s+.*(?:開発|development|contributing)' },
+  [pscustomobject]@{ Name = "npm command"; Regex = [regex]'(?i)\bnpm\s+(?:run|ci|install)\b' },
+  [pscustomobject]@{ Name = "Development output path"; Regex = [regex]'(?i)\b(?:dev-local|release-local|reference-local)/' },
+  [pscustomobject]@{ Name = "Build cache path"; Regex = [regex]'(?i)\.cache/cargo-target/' },
+  [pscustomobject]@{ Name = "Internal build or handoff command"; Regex = [regex]'(?i)\b(?:build:dev|build:release|clean:generated|publish:handoff)\b' },
+  [pscustomobject]@{ Name = "Internal build environment variable"; Regex = [regex]'\b(?:CARGO_BUILD_JOBS|XSHEET_RELEASE_COPY_DIR)\b' }
+)
+
+foreach ($pattern in $publicReadmeDevelopmentPatterns) {
+  foreach ($match in $pattern.Regex.Matches($publicReadmeContent)) {
+    $lineNumber = ($publicReadmeContent.Substring(0, $match.Index) -split "`n").Count
+    $findings.Add([pscustomobject]@{
+      File = $publicReadmePath
+      Line = $lineNumber
+      Rule = "Public README must remain user-facing: $($pattern.Name)"
+      Value = $match.Value
+    })
+  }
+}
+
 foreach ($file in ($files | Sort-Object -Unique)) {
   $content = Get-Content -LiteralPath $file -Raw -ErrorAction Stop
   foreach ($pattern in $patterns) {

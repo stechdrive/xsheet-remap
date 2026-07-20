@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost, XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
@@ -564,6 +564,82 @@ function CspLayerPaneQuickHelp() {
   )
 }
 
+type AppNavigationSubmenu = 'project' | 'import' | 'export'
+
+function AppNavigationFlyout({
+  submenu,
+  label,
+  tooltip,
+  activeSubmenu,
+  onActivate,
+  menuClassName = '',
+  children,
+}: {
+  submenu: AppNavigationSubmenu
+  label: ReactNode
+  tooltip: string
+  activeSubmenu: AppNavigationSubmenu | null
+  onActivate: (submenu: AppNavigationSubmenu | null) => void
+  menuClassName?: string
+  children: ReactNode
+}) {
+  const menuId = useId()
+  const suppressFocusActivationRef = useRef(false)
+  const open = activeSubmenu === submenu
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const trigger = event.currentTarget.querySelector<HTMLElement>('.appNavFlyoutTrigger')
+    if (event.key === 'Escape' || event.key === 'ArrowLeft') {
+      if (!open) return
+      event.preventDefault()
+      event.stopPropagation()
+      onActivate(null)
+      if (trigger && document.activeElement !== trigger) {
+        suppressFocusActivationRef.current = true
+        trigger.focus()
+        suppressFocusActivationRef.current = false
+      }
+      return
+    }
+    if ((event.key === 'ArrowRight' || event.key === 'ArrowDown') && event.target === trigger) {
+      event.preventDefault()
+      onActivate(submenu)
+    }
+  }
+
+  return (
+    <div
+      className={open ? 'appNavFlyout submenuOpen' : 'appNavFlyout'}
+      data-app-nav-submenu={submenu}
+      onPointerEnter={() => onActivate(submenu)}
+      onKeyDown={handleKeyDown}
+    >
+      <Tooltip label={tooltip}>
+        <button
+          type="button"
+          className="appNavMenuItem appNavFlyoutTrigger"
+          aria-controls={menuId}
+          aria-expanded={open}
+          data-action-menu-keep-open
+          onClick={() => onActivate(submenu)}
+          onFocus={() => {
+            if (suppressFocusActivationRef.current) return
+            onActivate(submenu)
+          }}
+        >
+          {label}
+        </button>
+      </Tooltip>
+      <div
+        id={menuId}
+        className={`appNavFlyoutMenu ${menuClassName}`.trim()}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 export function AppNavigationMenu({
   appName,
   appVersion,
@@ -597,15 +673,26 @@ export function AppNavigationMenu({
   onSaveXdts: () => void
   onSaveCspImportPackage: () => void
 }) {
+  const [activeSubmenu, setActiveSubmenu] = useState<AppNavigationSubmenu | null>(null)
+
   return (
-    <ActionMenu label={<MenuIcon />} ariaLabel={uiText.nav.menu} tooltipLabel={uiText.nav.menuTitle} className="appNavMenu iconActionMenu" closeOnMenuItemClick>
-      <div className="appNavFlyout">
-        <Tooltip label="プロジェクトの新規作成・読込・保存">
-          <button type="button" className="appNavMenuItem appNavFlyoutTrigger" data-action-menu-keep-open>
-            プロジェクト
-          </button>
-        </Tooltip>
-        <div className="appNavFlyoutMenu">
+    <ActionMenu
+      label={<MenuIcon />}
+      ariaLabel={uiText.nav.menu}
+      tooltipLabel={uiText.nav.menuTitle}
+      className="appNavMenu iconActionMenu"
+      closeOnMenuItemClick
+      onOpenChange={open => {
+        if (!open) setActiveSubmenu(null)
+      }}
+    >
+      <AppNavigationFlyout
+        submenu="project"
+        label="プロジェクト"
+        tooltip="プロジェクトの新規作成・読込・保存"
+        activeSubmenu={activeSubmenu}
+        onActivate={setActiveSubmenu}
+      >
           <Tooltip label={uiText.actions.resetAppTitle}>
             <button type="button" className="appNavMenuItem" onClick={onResetApp}>新規プロジェクト</button>
           </Tooltip>
@@ -623,13 +710,14 @@ export function AppNavigationMenu({
           <Tooltip label={uiText.actions.saveProjectAsTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveProjectAs}>名前を付けて保存…</button>
           </Tooltip>
-        </div>
-      </div>
-      <div className="appNavFlyout">
-        <Tooltip label="外部データを現在のプロジェクトへ読み込む">
-          <button type="button" className="appNavMenuItem appNavFlyoutTrigger" data-action-menu-keep-open>読み込み</button>
-        </Tooltip>
-        <div className="appNavFlyoutMenu">
+      </AppNavigationFlyout>
+      <AppNavigationFlyout
+        submenu="import"
+        label="読み込み"
+        tooltip="外部データを現在のプロジェクトへ読み込む"
+        activeSubmenu={activeSubmenu}
+        onActivate={setActiveSubmenu}
+      >
           <TooltipTarget label="XDTSのキーと任意のSOUND/CAMERA指示を読み込む">
             {tooltipProps => (
               <label className="fileButton appNavMenuItem" {...tooltipProps}>
@@ -646,15 +734,15 @@ export function AppNavigationMenu({
               </label>
             )}
           </TooltipTarget>
-        </div>
-      </div>
-      <div className="appNavFlyout">
-        <Tooltip label={uiText.actions.exportMenuTitle}>
-          <button type="button" className="appNavMenuItem appNavFlyoutTrigger" data-action-menu-keep-open>
-            {uiText.actions.exportMenu}
-          </button>
-        </Tooltip>
-        <div className="appNavFlyoutMenu appNavExportFlyoutMenu">
+      </AppNavigationFlyout>
+      <AppNavigationFlyout
+        submenu="export"
+        label={uiText.actions.exportMenu}
+        tooltip={uiText.actions.exportMenuTitle}
+        activeSubmenu={activeSubmenu}
+        onActivate={setActiveSubmenu}
+        menuClassName="appNavExportFlyoutMenu"
+      >
           <div className="imageExportMenuGroup appNavImageExportGroup" aria-label={uiText.actions.imageExportMenuTitle}>
             <div className="imageExportMenuLabel">タイムシート画像</div>
             <div className="imageExportFormatButtons">
@@ -679,9 +767,8 @@ export function AppNavigationMenu({
           <Tooltip label={uiText.actions.templateJsonTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveTemplate}>シートテンプレート（JSON）を書き出す…</button>
           </Tooltip>
-        </div>
-      </div>
-      <div className="appNavSectionLabel">ワークスペース</div>
+      </AppNavigationFlyout>
+      <div className="appNavSectionLabel" onPointerEnter={() => setActiveSubmenu(null)}>ワークスペース</div>
       {panels.map(item => (
         <Tooltip key={item} label={uiText.nav.workspaceItemTitle(panelLabel(item))}>
           <button
@@ -689,12 +776,14 @@ export function AppNavigationMenu({
             className={item === panel ? 'appNavMenuItem active' : 'appNavMenuItem'}
             aria-current={item === panel ? 'page' : undefined}
             onClick={() => onSelect(item)}
+            onFocus={() => setActiveSubmenu(null)}
+            onPointerEnter={() => setActiveSubmenu(null)}
           >
             {panelLabel(item)}
           </button>
         </Tooltip>
       ))}
-      <div className="appNavVersionLabel" aria-label={`${appName} バージョン ${appVersion}`}>
+      <div className="appNavVersionLabel" aria-label={`${appName} バージョン ${appVersion}`} onPointerEnter={() => setActiveSubmenu(null)}>
         {appName} v{appVersion}
       </div>
     </ActionMenu>

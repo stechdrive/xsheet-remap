@@ -648,8 +648,7 @@ button.iconButton {
   font-weight: 800;
 }
 
-.appNavFlyout:hover .appNavFlyoutMenu,
-.appNavFlyout:focus-within .appNavFlyoutMenu {
+.appNavFlyout.submenuOpen > .appNavFlyoutMenu {
   display: grid;
   gap: 4px;
 }

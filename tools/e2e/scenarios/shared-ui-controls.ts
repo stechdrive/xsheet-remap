@@ -9,6 +9,7 @@ interface SharedUiControlsDriver {
   ensureSharedCutMenuOpen: () => Promise<void>
   evaluatePage: <T>(expression: string) => Promise<T>
   mouseClick: (point: ClientPoint) => Promise<void>
+  mouseMove: (point: ClientPoint) => Promise<void>
   viewportOutsideMenusPoint: () => Promise<ClientPoint>
   waitForNoActionMenu: (label: string) => Promise<void>
   waitForPageCondition: (condition: () => boolean, label?: string) => Promise<void>
@@ -62,6 +63,28 @@ export async function verifyTopMenuBehaviorScenario(driver: SharedUiControlsDriv
       && Boolean(topElement?.closest('.appNavFlyoutMenu'))
       && document.querySelectorAll('.appTooltip').length === 0
   }, 'hamburger file flyout appears to the side above other content')
+
+  const importTriggerPoint = await driver.evaluatePage<ClientPoint | null>(`
+    (() => {
+      const trigger = Array.from(document.querySelectorAll('.appNavFlyoutTrigger'))
+        .find(item => item.textContent?.trim() === '読み込み');
+      if (!(trigger instanceof HTMLElement)) return null;
+      const box = trigger.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    })()
+  `)
+  if (!importTriggerPoint) throw new Error('import flyout trigger not found')
+  await driver.mouseMove(importTriggerPoint)
+  await driver.waitForPageCondition(() => {
+    const project = document.querySelector<HTMLElement>('[data-app-nav-submenu="project"]')
+    const importFlyout = document.querySelector<HTMLElement>('[data-app-nav-submenu="import"]')
+    const visibleMenus = Array.from(document.querySelectorAll<HTMLElement>('.appNavFlyoutMenu'))
+      .filter(menu => window.getComputedStyle(menu).display !== 'none')
+    return project?.classList.contains('submenuOpen') === false
+      && importFlyout?.classList.contains('submenuOpen') === true
+      && visibleMenus.length === 1
+      && importFlyout.contains(visibleMenus[0])
+  }, 'hovering import replaces the clicked project flyout without overlap')
 
   await driver.evaluatePage<void>(`
     (() => {
@@ -124,7 +147,7 @@ export async function verifyTopMenuBehaviorScenario(driver: SharedUiControlsDriv
   }, 'rail display menu is vertical and visible without tooltip overlap')
   await driver.mouseClick(await driver.viewportOutsideMenusPoint())
   await driver.waitForNoActionMenu('view mode menu closes from outside click')
-  driver.checks.push('verified the one-row top toolbar and fixed sheet rail actions; menus close from outside clicks and remain inside the viewport')
+  driver.checks.push('verified the one-row top toolbar and fixed sheet rail actions; hamburger flyouts stay mutually exclusive, menus close from outside clicks, and all menus remain inside the viewport')
 }
 
 export async function verifySharedCutMenuControlsScenario(driver: SharedUiControlsDriver): Promise<void> {

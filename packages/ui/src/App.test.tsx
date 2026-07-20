@@ -44,6 +44,33 @@ it('renders the main workspace shell', () => {
     expect(screen.queryByRole('tablist', { name: uiText.sheet.sideDock })).toBeNull()
   })
 
+  it('keeps hamburger flyouts mutually exclusive across click, hover, and focus', () => {
+    render(<App />)
+    const menu = openAppNavigationMenu()
+    const projectTrigger = within(menu).getByRole('button', { name: 'プロジェクト' })
+    const importTrigger = within(menu).getByRole('button', { name: '読み込み' })
+    const exportTrigger = within(menu).getByRole('button', { name: uiText.actions.exportMenu })
+
+    fireEvent.click(projectTrigger)
+    expect(projectTrigger.getAttribute('aria-expanded')).toBe('true')
+    expect(menu.querySelectorAll('.appNavFlyout.submenuOpen')).toHaveLength(1)
+
+    fireEvent.pointerEnter(importTrigger)
+    expect(projectTrigger.getAttribute('aria-expanded')).toBe('false')
+    expect(importTrigger.getAttribute('aria-expanded')).toBe('true')
+    expect(menu.querySelectorAll('.appNavFlyout.submenuOpen')).toHaveLength(1)
+
+    fireEvent.focus(exportTrigger)
+    expect(importTrigger.getAttribute('aria-expanded')).toBe('false')
+    expect(exportTrigger.getAttribute('aria-expanded')).toBe('true')
+    expect(menu.querySelectorAll('.appNavFlyout.submenuOpen')).toHaveLength(1)
+
+    fireEvent.keyDown(exportTrigger, { key: 'Escape' })
+    expect(exportTrigger.getAttribute('aria-expanded')).toBe('false')
+    expect(menu.querySelectorAll('.appNavFlyout.submenuOpen')).toHaveLength(0)
+    expect(document.querySelector('.actionMenuPortalContent.appNavMenu')).toBe(menu)
+  })
+
   it('shows Editor-specific help instead of the Remap workflow', () => {
     render(<EditorApp />)
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))

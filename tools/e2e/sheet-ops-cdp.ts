@@ -300,7 +300,7 @@ async function verifySheetHistoryScenario(): Promise<void> {
 
 async function verifyShellLayoutScenario(): Promise<void> {
   await verifyTopMenuBehaviorScenario({
-    checks, clickActionMenuSummary, ensureSharedCutMenuOpen, evaluatePage, mouseClick,
+    checks, clickActionMenuSummary, ensureSharedCutMenuOpen, evaluatePage, mouseClick, mouseMove,
     viewportOutsideMenusPoint, waitForNoActionMenu, waitForPageCondition,
   })
   await verifyAssetBrowserShell()
@@ -1118,6 +1118,16 @@ async function mouseClick(point: ClientPoint, button: 'left' | 'right' = 'left')
     button,
     buttons: 0,
     clickCount: 1,
+  })
+}
+
+async function mouseMove(point: ClientPoint): Promise<void> {
+  await clientSend('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: point.x,
+    y: point.y,
+    button: 'none',
+    buttons: 0,
   })
 }
 

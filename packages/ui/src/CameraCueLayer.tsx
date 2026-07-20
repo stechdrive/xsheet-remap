@@ -1,5 +1,5 @@
 import type { PointerEvent } from 'react'
-import type { SheetPage, SheetTemplate, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
+import type { SheetPage, SheetTemplate, SheetTemplateLayoutResolveOptions, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
 import {
   buildCameraCuePageLayouts,
   cameraFadePolygonForSegment,
@@ -24,11 +24,12 @@ export interface CameraCueDragGeometry {
   segmentEndPointId?: string
 }
 
-export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverrides, pageSize, surface, selectedCueId, draggingCueId, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onDoubleClick, onPointerEnter, onPointerLeave }: {
+export function CameraCueLayer({ cues, template, page, paperTracks, timelineLanes, layoutOverrides, pageSize, surface, selectedCueId, draggingCueId, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onDoubleClick, onPointerEnter, onPointerLeave }: {
   cues: TimedRangeCue[]
   template: SheetTemplate
   page: SheetPage
   paperTracks: string[]
+  timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']
   layoutOverrides?: SheetViewLayoutOverrides
   pageSize: { widthPx: number; heightPx: number }
   surface: SheetSelectionSurface
@@ -42,7 +43,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, layoutOverri
   onPointerEnter: (event: PointerEvent<SVGGElement>, cueId: string) => void
   onPointerLeave: () => void
 }) {
-  const pageLayouts = buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, layoutOverrides })
+  const pageLayouts = buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, timelineLanes, layoutOverrides })
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
   const pivotRadiusX = 5 / Math.max(1, surface.widthPx)
   const pivotRadiusY = 5 / Math.max(1, surface.heightPx)

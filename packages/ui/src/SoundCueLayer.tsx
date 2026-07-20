@@ -1,5 +1,5 @@
 import { useId, type PointerEvent } from 'react'
-import type { SheetPage, SheetTemplate, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
+import type { SheetPage, SheetTemplate, SheetTemplateLayoutResolveOptions, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
 import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { resolveGridTypographyFontSizes } from './sheetTextLayout'
@@ -11,6 +11,7 @@ export function SoundCueLayer({
   template,
   page,
   paperTracks,
+  timelineLanes,
   layoutOverrides,
   pageSize,
   surface,
@@ -27,6 +28,7 @@ export function SoundCueLayer({
   template: SheetTemplate
   page: SheetPage
   paperTracks: string[]
+  timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']
   layoutOverrides?: SheetViewLayoutOverrides
   pageSize: { widthPx: number; heightPx: number }
   surface: SheetSelectionSurface
@@ -42,7 +44,7 @@ export function SoundCueLayer({
   const clipIdPrefix = `sound-cue-clip-${useId().replace(/:/g, '')}`
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
   const segments = cues
-    .flatMap(cue => soundCueSegmentsForPage(template, page, cue, { paperTracks, layoutOverrides })
+    .flatMap(cue => soundCueSegmentsForPage(template, page, cue, { paperTracks, timelineLanes, layoutOverrides })
       .map(segment => ({ cue, segment, key: `${cue.cueId}:${segment.regionId}:${segment.frameStart}` })))
     .sort((left, right) => left.segment.frameStart - right.segment.frameStart
       || left.segment.rect.x - right.segment.rect.x

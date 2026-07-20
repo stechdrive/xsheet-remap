@@ -2,6 +2,7 @@ import {
   type NormalizedRect,
   type SheetPage,
   type SheetTemplate,
+  type SheetTemplateLayoutResolveOptions,
   type SheetViewLayoutOverrides,
   type TimedRangeCue,
 } from '@xsheet-remap/core'
@@ -55,7 +56,7 @@ export function soundCueSegmentsForPage(
   template: SheetTemplate,
   page: SheetPage,
   cue: TimedRangeCue,
-  options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
+  options: { paperTracks?: string[]; timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): SoundCueSegment[] {
   return timedRangeCueSegmentsForPage(template, page, cue, 'sound', options)
 }

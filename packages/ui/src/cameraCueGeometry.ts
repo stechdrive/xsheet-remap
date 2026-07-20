@@ -3,6 +3,7 @@ import type {
   NormalizedRect,
   SheetPage,
   SheetTemplate,
+  SheetTemplateLayoutResolveOptions,
   SheetViewLayoutOverrides,
   TimedRangeCue,
   CameraInstructionPathStyle,
@@ -220,7 +221,7 @@ export function cameraCueSegmentsForPage(
   template: SheetTemplate,
   page: SheetPage,
   cue: TimedRangeCue,
-  options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
+  options: { paperTracks?: string[]; timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): CameraCueSegment[] {
   return timedRangeCueSegmentsForPage(template, page, cue, 'camera', options)
 }
@@ -302,7 +303,7 @@ export function buildCameraCuePageLayouts(
   page: SheetPage,
   cues: TimedRangeCue[],
   pageSize: { widthPx: number; heightPx: number },
-  options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
+  options: { paperTracks?: string[]; timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): CameraCuePageLayout[] {
   const cueSegments = new Map(cues.map(cue => [cue.cueId, cameraCueSegmentsForPage(template, page, cue, options)]))
   const semanticLandmarks = cues.flatMap(cue => cameraCueSemanticLandmarksForPage(

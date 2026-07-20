@@ -1,4 +1,4 @@
-import type { CutMetadataFieldId, Id, LogicalTimelineSectionRole, PaperTrackName, SheetImageAlignment, SheetPageImageRef, SheetViewLayoutOverrides, SheetViewMode } from './types'
+import type { CutMetadataFieldId, Id, LogicalTimelineLane, LogicalTimelineSectionRole, PaperTrackName, SheetImageAlignment, SheetPageImageRef, SheetViewLayoutOverrides, SheetViewMode } from './types'
 
 export const SHEET_TEMPLATE_SCHEMA_VERSION = 5
 
@@ -89,7 +89,7 @@ export interface SheetTemplateGridHeader {
 }
 
 export interface SheetTemplateTrackProjection {
-  source: 'logical-paper-tracks'
+  source: 'logical-paper-tracks' | 'logical-timeline-lanes'
   startIndex?: number
   overflow?: 'hidden' | 'scroll' | 'paginate'
 }
@@ -449,6 +449,14 @@ export interface SheetTemplateAuxiliaryBand {
   slotRegionIds: string[]
 }
 
+/** Places variable-width regions from left to right on a continuous canvas. */
+export interface SheetTemplateHorizontalFlow {
+  regionIds: string[]
+  leftPx: number
+  rightPx: number
+  gapPx?: number
+}
+
 export interface SheetTemplate {
   schemaVersion: number
   templateId: string
@@ -492,6 +500,7 @@ export interface SheetTemplate {
     paperTracks: PaperTrackName[]
   }
   auxiliaryBands?: SheetTemplateAuxiliaryBand[]
+  horizontalFlow?: SheetTemplateHorizontalFlow
   fields?: SheetTemplateFieldDefinition[]
   regions: SheetTemplateRegion[]
 }
@@ -554,5 +563,6 @@ export interface SheetTemplatePageSize {
 
 export interface SheetTemplateLayoutResolveOptions {
   paperTracks?: PaperTrackName[]
+  timelineLanes?: Partial<Record<'sound' | 'camera', LogicalTimelineLane[]>>
   layoutOverrides?: SheetViewLayoutOverrides
 }

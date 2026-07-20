@@ -37,9 +37,26 @@ export function parseSheetTemplate(input: unknown): SheetTemplate {
     regionIds.add(region.regionId)
   }
   if (input.auxiliaryBands !== undefined) validateAuxiliaryBands(input.auxiliaryBands, regionIds)
+  if (input.horizontalFlow !== undefined) validateHorizontalFlow(input.horizontalFlow, regionIds)
   return {
     ...(input as unknown as SheetTemplate),
     schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
+  }
+}
+
+function validateHorizontalFlow(input: unknown, regionIds: Set<string>): void {
+  if (!isRecord(input)
+    || !Array.isArray(input.regionIds)
+    || input.regionIds.length === 0
+    || !input.regionIds.every(nonEmptyString)
+    || !nonNegativeNumber(input.leftPx)
+    || !nonNegativeNumber(input.rightPx)
+    || (input.gapPx !== undefined && !nonNegativeNumber(input.gapPx))) {
+    throw new Error('横方向フローの定義が不正です。')
+  }
+  if (new Set(input.regionIds).size !== input.regionIds.length) throw new Error('横方向フローの領域が重複しています。')
+  for (const regionId of input.regionIds) {
+    if (!regionIds.has(regionId)) throw new Error(`横方向フローが存在しない領域を参照しています: ${regionId}`)
   }
 }
 

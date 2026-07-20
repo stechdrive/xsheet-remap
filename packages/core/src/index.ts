@@ -349,6 +349,7 @@ export {
   stackGuideStackBand,
   timedRangeCuesIntersecting,
   timedRangeLaneIds,
+  timelineLanesForLayout,
   suggestUnplacedCspCellName,
   undoHistory,
   updateKey,

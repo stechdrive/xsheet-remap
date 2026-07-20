@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
   addOverlayPaperTrack,
+  createAlphabeticTrackLabels,
   createDefaultProject,
   createStackGuideLabel,
   digitalStandardSheetTemplate,
   logicalSheetDisplayDurationFrames,
   resolveSheetTemplateGridLayout,
+  resolveSheetTemplatePageSize,
   standardA3SheetTemplate,
+  timelineLanesForLayout,
+  updateProjectPaperTracks,
   type SheetTemplate,
 } from '@xsheet-remap/core'
-import { overlayBandSegments, overlayVisibleSnapIndex, stampAuxiliaryPlacementTemplate } from './app-sheet-geometry'
+import { overlayBandSegments, overlayPaperTracks, overlayVisibleSnapIndex, stampAuxiliaryPlacementTemplate, templatePaperTracks } from './app-sheet-geometry'
 import { stackGuideInsertionTargets, stackGuideSvgGeometry, stackGuideVisibleSnapIndex } from './stack-guides-geometry'
 
 function templateTracks(project: ReturnType<typeof createDefaultProject>) {
@@ -29,16 +33,34 @@ function gridLayout(template: SheetTemplate, project: ReturnType<typeof createDe
 }
 
 describe('auxiliary sheet geometry', () => {
-  it('uses the declared reserve and exact physical column widths in both built-in templates', () => {
+  it('keeps the paper reserve while digital starts directly with variable ACTION columns', () => {
     const project = createDefaultProject()
     const a3 = overlayBandSegments(standardA3SheetTemplate, project, 'action')[0]
     const digital = overlayBandSegments(digitalStandardSheetTemplate, project, 'action')[0]
+    const digitalPageSize = resolveSheetTemplatePageSize(digitalStandardSheetTemplate, project.logicalSheet.durationFrames, {
+      paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
+      timelineLanes: timelineLanesForLayout(project),
+    })
 
     expect(a3?.slots[0]).toMatchObject({ regionId: 'left_action_reserve_grid', x: 35 / 1754, w: 29 / 1754 })
     expect(a3?.slots[1]).toMatchObject({ regionId: 'left_action_grid', paperTrack: 'A', x: 64 / 1754 })
-    expect(digital?.slots[0]).toMatchObject({ regionId: 'digital_action_reserve_grid', x: 32 / 1920, w: 48 / 1920 })
-    expect(digital?.slots[1]).toMatchObject({ regionId: 'digital_action_grid', paperTrack: 'A', x: 80 / 1920 })
-    expect(digital?.slots.find(slot => slot.regionId === 'digital_cell_grid')?.w).not.toBe(digital?.slots[1]?.w)
+    expect(digital?.slots.some(slot => slot.regionId.includes('reserve'))).toBe(false)
+    expect(digital?.slots[0]).toMatchObject({ regionId: 'digital_action_grid', paperTrack: 'A', x: 32 / digitalPageSize.widthPx })
+    expect(digital?.slots.find(slot => slot.regionId === 'digital_cell_grid')?.w).not.toBe(digital?.slots[0]?.w)
+  })
+
+  it('renders additional logical cell tracks as digital columns and paper overflow tags', () => {
+    const added = addOverlayPaperTrack(createDefaultProject(), {
+      paperTrack: 'J', insertAfterPaperTrack: 'I', snapIndex: 10, sheetRole: 'cell',
+    }).project
+
+    expect(templatePaperTracks(added, digitalStandardSheetTemplate).map(track => track.paperTrack)).toContain('J')
+    expect(overlayPaperTracks(added, digitalStandardSheetTemplate)).toEqual([])
+    expect(templatePaperTracks(added, standardA3SheetTemplate).map(track => track.paperTrack)).not.toContain('J')
+    expect(overlayPaperTracks(added, standardA3SheetTemplate).map(track => track.paperTrack)).toContain('J')
+
+    const twelveBaseTracks = updateProjectPaperTracks(createDefaultProject(), createAlphabeticTrackLabels(12))
+    expect(overlayPaperTracks(twelveBaseTracks, standardA3SheetTemplate).map(track => track.paperTrack)).toEqual(['J', 'K', 'L'])
   })
 
   it('re-resolves an overlay track semantically when switching A3 to digital and restores its A3 override', () => {

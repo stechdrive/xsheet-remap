@@ -58,6 +58,7 @@ export {
   clampCameraOverlapPivotAnchorFrame,
   timedRangeCuesIntersecting,
   timedRangeLaneIds,
+  timelineLanesForLayout,
   transformCameraInstructionRange,
   updateTimedRangeCue,
 } from './timed-range'

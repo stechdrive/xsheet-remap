@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, isXsrProjectFileName, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
@@ -158,7 +158,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }, [project.assetRoot, project.assets, project.sheetView.sources])
   const activeSheetPageSize = useMemo(
     () => resolveSheetTemplatePageSize(template, sheetDisplayDurationFrames, {
-      paperTracks: templatePaperTracks(project).map(track => track.paperTrack),
+      paperTracks: templatePaperTracks(project, template).map(track => track.paperTrack),
+      timelineLanes: timelineLanesForLayout(project),
       layoutOverrides: project.sheetView.layoutOverrides,
     }),
     [project, sheetDisplayDurationFrames, template],
@@ -484,8 +485,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
     if (point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1) return null
     const frameOrigin = frameOriginForPageHit(template, page)
-    const templateTrackNames = templatePaperTracks(project).map(track => track.paperTrack)
-    const hitOptions = { paperTracks: templateTrackNames, durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin, layoutOverrides: project.sheetView.layoutOverrides }
+    const templateTrackNames = templatePaperTracks(project, template).map(track => track.paperTrack)
+    const hitOptions = { paperTracks: templateTrackNames, timelineLanes: timelineLanesForLayout(project), durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin, layoutOverrides: project.sheetView.layoutOverrides }
     const localHit = hitTestSheetTemplate(template, point, { ...hitOptions, role: 'cell' })
       ?? hitTestSheetTemplate(template, point, { ...hitOptions, role: 'action' })
     if (!localHit?.paperTrack) return null
@@ -709,7 +710,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       firstUse.frame,
       sheetDisplayDurationFrames,
       sheetDisplayFrameStart,
-      templatePaperTracks(sourceProject).map(track => track.paperTrack),
+      templatePaperTracks(sourceProject, template).map(track => track.paperTrack),
     )
     if (!hit) {
       setValueDraft(key.displayLabel)
@@ -2046,7 +2047,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         sheetRole: recognitionRole,
         durationFrames: sheetDisplayDurationFrames,
         frameOrigin: sheetDisplayFrameStart,
-        paperTracks: templatePaperTracks(project).map(track => track.paperTrack),
+        paperTracks: templatePaperTracks(project, template).map(track => track.paperTrack),
         layoutOverrides: project.sheetView.layoutOverrides,
         onProgress: (completed, total) => setRecognitionProgress({ completed, total }),
       })

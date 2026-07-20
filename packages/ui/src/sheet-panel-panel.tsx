@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type ReactNode } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
 import { normalizeMemoAppearance, type MemoAppearance } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
@@ -341,8 +341,8 @@ export function SheetPanel(props: {
     sharedCutInputRef.current?.select()
   }, [addingSharedCut])
   const templatePaperTrackNames = useMemo(
-    () => templatePaperTracks(props.project).map(track => track.paperTrack),
-    [props.project],
+    () => templatePaperTracks(props.project, props.template).map(track => track.paperTrack),
+    [props.project, props.template],
   )
   const hiddenPaperTracks = getSheetTemplateHiddenPaperTracks(props.template, 'cell', templatePaperTrackNames)
   const sheetViewLayout = getSheetViewLayout(props.template)
@@ -353,9 +353,10 @@ export function SheetPanel(props: {
   const sheetPageSize = useMemo(
     () => resolveSheetTemplatePageSize(props.template, displayDurationFrames, {
       paperTracks: templatePaperTrackNames,
+      timelineLanes: timelineLanesForLayout(props.project),
       layoutOverrides: props.project.sheetView.layoutOverrides,
     }),
-    [props.template, displayDurationFrames, props.project.sheetView.layoutOverrides, templatePaperTrackNames],
+    [props.template, displayDurationFrames, props.project, templatePaperTrackNames],
   )
   const assetRegistrationSummaryMap = useMemo(() => assetRegistrationSummaries(props.project), [props.project])
 

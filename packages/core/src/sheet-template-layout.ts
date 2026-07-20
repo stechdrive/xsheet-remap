@@ -1,6 +1,40 @@
 import type { PaperTrackName, SheetTimingRole, SheetViewLayoutOverrides } from './types'
 import { NormalizedRect, SheetFrameAxisLayout, SheetHit, SheetPage, SheetTemplate, SheetTemplateColumn, SheetTemplateGrid, SheetTemplateGridColumnSize, SheetTemplateGridRole, SheetTemplateLayoutResolveOptions, SheetTemplatePageSize, SheetTemplateRegion, SheetTrackAxisLayout, SheetViewLayout, SheetViewSurfaceLayout } from './sheet-template-schema'
 
+interface ResolvedHorizontalFlow {
+  widthPx: number
+  regions: Map<string, { xPx: number; widthPx: number }>
+}
+
+function resolveSheetTemplateHorizontalFlow(
+  template: SheetTemplate,
+  options: SheetTemplateLayoutResolveOptions,
+): ResolvedHorizontalFlow | null {
+  const flow = template.horizontalFlow
+  if (!flow || flow.regionIds.length === 0) return null
+  const regions = new Map<string, { xPx: number; widthPx: number }>()
+  const gapPx = Math.max(0, flow.gapPx ?? 0)
+  let cursorPx = Math.max(0, flow.leftPx)
+  for (const regionId of flow.regionIds) {
+    const region = template.regions.find(candidate => candidate.regionId === regionId)
+    if (!region) continue
+    const baseWidthPx = region.rect.w * template.page.widthPx
+    const columns = region.grid
+      ? resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks, options.timelineLanes)
+      : []
+    const widthPx = region.grid
+      ? gridFixedContentWidthPx(region.grid, columns, options.layoutOverrides?.grids?.[region.regionId]) ?? baseWidthPx
+      : baseWidthPx
+    regions.set(regionId, { xPx: cursorPx, widthPx })
+    cursorPx += widthPx + gapPx
+  }
+  const contentRightPx = Math.max(flow.leftPx, cursorPx - gapPx)
+  return {
+    widthPx: Math.max(template.page.widthPx, Math.ceil(contentRightPx + Math.max(0, flow.rightPx))),
+    regions,
+  }
+}
+
 export function resolveSheetTemplatePageSize(
   template: SheetTemplate,
   durationFrames = template.defaults.durationFrames,
@@ -12,6 +46,8 @@ export function resolveSheetTemplatePageSize(
 
   let widthPx = template.page.widthPx
   let heightPx = template.page.heightPx
+  const horizontalFlow = resolveSheetTemplateHorizontalFlow(template, options)
+  if (horizontalFlow) widthPx = Math.max(widthPx, horizontalFlow.widthPx)
   for (const region of template.regions) {
     if (region.type !== 'exposure-grid' || !region.grid) continue
     const baseY = region.rect.y * template.page.heightPx
@@ -24,10 +60,11 @@ export function resolveSheetTemplatePageSize(
       : baseHeight * logicalFrameScaleForGrid(region.grid, durationFrames)
     heightPx = Math.max(heightPx, Math.ceil(baseY + projectedHeight + baseBottomMargin))
 
+    if (horizontalFlow?.regions.has(region.regionId)) continue
     const baseX = region.rect.x * template.page.widthPx
     const baseWidth = region.rect.w * template.page.widthPx
     const baseRightMargin = Math.max(0, template.page.widthPx - (baseX + baseWidth))
-    const columns = resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks)
+    const columns = resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks, options.timelineLanes)
     const projectedWidth = gridFixedContentWidthPx(region.grid, columns, options.layoutOverrides?.grids?.[region.regionId]) ?? baseWidth
     widthPx = Math.max(widthPx, Math.ceil(baseX + projectedWidth + baseRightMargin))
   }
@@ -42,13 +79,13 @@ export function resolveSheetTemplateRegionRect(
   options: SheetTemplateLayoutResolveOptions = {},
 ): NormalizedRect {
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, options)
-  if (pageSize.widthPx === template.page.widthPx && pageSize.heightPx === template.page.heightPx) return region.rect
+  if (!template.horizontalFlow && pageSize.widthPx === template.page.widthPx && pageSize.heightPx === template.page.heightPx) return region.rect
 
   const baseX = region.rect.x * template.page.widthPx
   const baseY = region.rect.y * template.page.heightPx
   const baseWidth = region.rect.w * template.page.widthPx
   const baseHeight = region.rect.h * template.page.heightPx
-  const columns = region.grid ? resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks) : []
+  const columns = region.grid ? resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks, options.timelineLanes) : []
   const width = region.grid
     ? gridFixedContentWidthPx(region.grid, columns, options.layoutOverrides?.grids?.[region.regionId]) ?? baseWidth
     : baseWidth
@@ -60,10 +97,12 @@ export function resolveSheetTemplateRegionRect(
       ? baseHeight * logicalFrameScaleForGrid(region.grid, durationFrames)
       : baseHeight
 
+  const horizontalFlow = resolveSheetTemplateHorizontalFlow(template, options)
+  const flowed = horizontalFlow?.regions.get(region.regionId)
   return {
-    x: baseX / pageSize.widthPx,
+    x: (flowed?.xPx ?? baseX) / pageSize.widthPx,
     y: baseY / pageSize.heightPx,
-    w: width / pageSize.widthPx,
+    w: (flowed?.widthPx ?? width) / pageSize.widthPx,
     h: height / pageSize.heightPx,
   }
 }
@@ -72,7 +111,28 @@ export function resolveSheetTemplateGridColumns(
   template: Pick<SheetTemplate, 'defaults' | 'viewLayout' | 'pageModel'>,
   grid: SheetTemplateGrid,
   paperTracks: PaperTrackName[] = template.defaults.paperTracks,
+  timelineLanes: SheetTemplateLayoutResolveOptions['timelineLanes'] = {},
 ): SheetTemplateColumn[] {
+  if (grid.trackProjection?.source === 'logical-timeline-lanes' && (grid.role === 'sound' || grid.role === 'camera')) {
+    const lanes = [...(timelineLanes?.[grid.role] ?? [])].sort((left, right) => left.order - right.order)
+    if (lanes.length === 0) return grid.columns
+    const startIndex = Math.max(0, Math.floor(grid.trackProjection.startIndex ?? 0))
+    const viewLayout = getSheetViewLayout(template)
+    const columnCount = viewLayout.trackAxis?.type === 'logical-width'
+      ? Math.max(grid.columns.length, Math.max(0, lanes.length - startIndex))
+      : grid.columns.length
+    return Array.from({ length: columnCount }, (_, index) => {
+      const baseColumn = grid.columns[index]
+      const lane = lanes[startIndex + index]
+      return {
+        ...baseColumn,
+        columnId: baseColumn?.columnId ?? `${grid.role}_${safeIdFragment(lane?.laneId ?? '', index)}`,
+        label: lane?.label ?? '',
+        timelineLaneId: lane?.laneId,
+        xdtsEligible: false,
+      }
+    })
+  }
   if (!usesPaperTracks(grid.role) || grid.trackProjection?.source !== 'logical-paper-tracks') return grid.columns
   const tracks = normalizePaperTrackNames(paperTracks.length > 0 ? paperTracks : template.defaults.paperTracks)
   const startIndex = Math.max(0, Math.floor(grid.trackProjection.startIndex ?? 0))
@@ -159,7 +219,7 @@ export function resolveSheetTemplateGridLayout(
   const frameOrigin = options.frameOrigin ?? template.defaults.frameOrigin
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, options)
   const rect = resolveSheetTemplateRegionRect(template, region, durationFrames, options)
-  const columns = resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks)
+  const columns = resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks, options.timelineLanes)
   const frames = resolveSheetTemplateGridFrames(template, region.grid, durationFrames, frameOrigin)
   const columnWidthsPx = resolveGridColumnWidthsPx(region.grid, columns, rect.w * pageSize.widthPx, options.layoutOverrides?.grids?.[region.regionId])
   const rowHeightPx = resolveGridRowHeightPx(region.grid, frames.rowCount, rect.h * pageSize.heightPx, options.layoutOverrides?.grids?.[region.regionId])
@@ -250,7 +310,7 @@ export function getSheetTemplateHiddenPaperTracks(
 export function hitTestSheetTemplate(
   template: SheetTemplate,
   point: { x: number; y: number },
-  options: { onlyXdtsEligible?: boolean; role?: SheetTemplateGrid['role']; paperTracks?: PaperTrackName[]; durationFrames?: number; frameOrigin?: number; layoutOverrides?: SheetViewLayoutOverrides } = {},
+  options: SheetGridLayoutOptions & { onlyXdtsEligible?: boolean; role?: SheetTemplateGrid['role'] } = {},
 ): SheetHit | null {
   for (const region of template.regions) {
     if (region.type !== 'exposure-grid' || !region.grid) continue

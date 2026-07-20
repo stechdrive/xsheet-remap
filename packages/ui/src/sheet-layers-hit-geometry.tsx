@@ -1,10 +1,12 @@
-import { cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
+import { cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timelineLanesForLayout, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { clampNumber } from './sheetInteraction'
 import { overlayBandSegments, overlayPaperTracks, overlayVisibleSnapIndex, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 
 export function eventRectsForPage(project: CutProject, template: SheetTemplate, page: SheetPage, options: { activeOverlayPaperTrack?: string | null } = {}) {
-  const paperTracks = templatePaperTracks(project).map(track => track.paperTrack)
+  const paperTracks = templatePaperTracks(project, template).map(track => track.paperTrack)
+  const timelineLanes = timelineLanesForLayout(project)
+  const presentedOverlayTracks = new Set(overlayPaperTracks(project, template).map(track => track.paperTrack))
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const activeOverlayTrack = options.activeOverlayPaperTrack
@@ -19,13 +21,14 @@ export function eventRectsForPage(project: CutProject, template: SheetTemplate, 
     const sheetRole = sheetTimingRoleForEvent(event)
     const fontSizePx = resolveTimingTextFontSizePx(template, sheetRole, event.fontSizePx)
     const track = project.logicalSheet.paperTracks.find(item => item.paperTrack === event.paperTrack)
-    const rect = track?.source === 'overlay'
+    const rect = track && presentedOverlayTracks.has(track.paperTrack)
       ? overlayCellRectForFrame(template, project, track, event.frame, page)
       : (() => {
           const hit = timingHitForFrame(template, sheetRole, event.paperTrack, event.frame, displayDurationFrames, displayFrameStart, paperTracks)
           if (!hit || hit.pageId !== page.pageId) return null
           return cellRectForHit(template, hit, displayDurationFrames, displayFrameStart, {
             paperTracks,
+            timelineLanes,
             layoutOverrides: project.sheetView.layoutOverrides,
           })
         })()
@@ -51,12 +54,13 @@ export function rectForHit(project: CutProject, template: SheetTemplate, hit: Sh
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const track = hit.paperTrack ? project.logicalSheet.paperTracks.find(item => item.paperTrack === hit.paperTrack) : undefined
-  if (track?.source === 'overlay') {
+  if (track && overlayPaperTracks(project, template).some(candidate => candidate.paperTrack === track.paperTrack)) {
     const page = hit.pageId ? createSheetPages(template, displayDurationFrames, displayFrameStart).find(item => item.pageId === hit.pageId) : undefined
     return page ? overlayCellRectForFrame(template, project, track, hit.frame, page) : null
   }
   return cellRectForHit(template, hit, displayDurationFrames, displayFrameStart, {
-    paperTracks: templatePaperTracks(project).map(track => track.paperTrack),
+    paperTracks: templatePaperTracks(project, template).map(track => track.paperTrack),
+    timelineLanes: timelineLanesForLayout(project),
     layoutOverrides: project.sheetView.layoutOverrides,
   })
 }
@@ -92,7 +96,7 @@ export function nextOverlayTrackNameForUi(project: CutProject): string {
 
 export function overlayHitFromPoint(template: SheetTemplate, project: CutProject, page: SheetPage, point: NormalizedPoint, activePaperTrack: string | null): SheetHit | null {
   if (!activePaperTrack) return null
-  for (const track of overlayPaperTracks(project)) {
+  for (const track of overlayPaperTracks(project, template)) {
     if (track.paperTrack !== activePaperTrack) continue
     const column = overlayColumnRectForPage(template, project, track, page)
     if (!column) continue

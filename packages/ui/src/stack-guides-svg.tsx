@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
-import { type CutProject, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, stackGuideStackBand, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
+import { type CutProject, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, stackGuideStackBand, timelineLanesForLayout, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { SheetSvgText } from './SheetSvgText'
 import { StackGuideDropPreviewState, StackGuideLabelUpdates } from './app-foundation'
@@ -36,8 +36,10 @@ export function StackGuideSvgLayer({
   const dragCaptureTargetRef = useRef<SVGGElement | null>(null)
   const anchorRegions = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
+  const timelineLanes = timelineLanesForLayout(project)
   const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
     paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
+    timelineLanes,
     layoutOverrides: project.sheetView.layoutOverrides,
   })
   const previewLabels = stackGuideLabelsForPreview(project, dropPreview)

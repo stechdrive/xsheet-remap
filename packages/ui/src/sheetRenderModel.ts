@@ -3,6 +3,7 @@ import {
   createSheetPages,
   formatSheetTemplateCutNumber,
   getSheetViewLayout,
+  getSheetTemplateHiddenPaperTracks,
   localizeFrameToSheetPage,
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
@@ -19,6 +20,7 @@ import {
   timingEventValueKind,
   stackGuideStackBand,
   timingHitForFrame,
+  timelineLanesForLayout,
   type CutProject,
   type CutSheetDocument,
   type NormalizedRect,
@@ -47,6 +49,7 @@ export type SheetRenderModelContext = {
   displayDurationFrames: number
   officialFrameEnd: number
   paperTracks: string[]
+  timelineLanes: ReturnType<typeof timelineLanesForLayout>
   overlayTracks: PaperTrack[]
   cutGroup?: SheetRenderCutGroupContext
 }
@@ -147,9 +150,11 @@ export function createSheetRenderModelContext(
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const officialFrameEnd = logicalSheetOfficialFrameEnd(project.logicalSheet)
   const pages = createSheetPages(template, displayDurationFrames, displayFrameStart)
-  const paperTracks = templatePaperTracks(project).map(track => track.paperTrack)
+  const paperTracks = templatePaperTracks(project, template).map(track => track.paperTrack)
+  const timelineLanes = timelineLanesForLayout(project)
   const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
     paperTracks,
+    timelineLanes,
     layoutOverrides: project.sheetView.layoutOverrides,
   })
   return {
@@ -163,7 +168,8 @@ export function createSheetRenderModelContext(
     displayDurationFrames,
     officialFrameEnd,
     paperTracks,
-    overlayTracks: overlayPaperTracks(project),
+    timelineLanes,
+    overlayTracks: overlayPaperTracks(project, template),
     cutGroup: options.cutGroup,
   }
 }
@@ -179,7 +185,7 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
     const sheetRole = sheetTimingRoleForEvent(event)
     const kind = timingEventValueKind(event)
     const track = context.project.logicalSheet.paperTracks.find(item => item.paperTrack === event.paperTrack)
-    const rect = track?.source === 'overlay'
+    const rect = track && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)
       ? overlayCellRectForFrame(context, track, event.frame, page)
       : standardEventRectForPage(context, event, page)
     if (!rect) return []
@@ -293,7 +299,7 @@ export function metadataTextRenderItemsForPage(
     context.template,
     cutRegion,
     context.displayDurationFrames,
-    { paperTracks: context.paperTracks, layoutOverrides: context.project.sheetView.layoutOverrides },
+    { paperTracks: context.paperTracks, timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
   )
   const fallbackRegion: SheetTemplate['regions'][number] = {
     regionId: `${cutRegion.regionId}__shared_cut_numbers`,
@@ -445,7 +451,7 @@ function metadataTextRenderItemsForRegion(
       context.template,
       region,
       context.displayDurationFrames,
-      { paperTracks: context.paperTracks, layoutOverrides: context.project.sheetView.layoutOverrides },
+      { paperTracks: context.paperTracks, timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
     )
     const sharedCutNumberCutStyle = sharedCutNumbersVisible
       && region.binding.target === 'cut-metadata'
@@ -689,6 +695,7 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
       .flatMap(anchorRegion => {
         const layout = resolveSheetTemplateGridLayout(context.template, anchorRegion, {
           paperTracks: context.paperTracks,
+          timelineLanes: context.timelineLanes,
           durationFrames: context.displayDurationFrames,
           layoutOverrides: context.project.sheetView.layoutOverrides,
         })
@@ -720,6 +727,7 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
     if (!region?.grid) return []
     const layout = resolveSheetTemplateGridLayout(context.template, region, {
       paperTracks: context.paperTracks,
+      timelineLanes: context.timelineLanes,
       durationFrames: context.displayDurationFrames,
       layoutOverrides: context.project.sheetView.layoutOverrides,
     })
@@ -745,6 +753,7 @@ export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContex
     const displayRole = region.grid?.role as SheetTimingRole
     const layout = resolveSheetTemplateGridLayout(context.template, region, {
       paperTracks: context.paperTracks,
+      timelineLanes: context.timelineLanes,
       durationFrames: context.displayDurationFrames,
       layoutOverrides: context.project.sheetView.layoutOverrides,
     })
@@ -768,14 +777,30 @@ export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContex
   })
 }
 
-function templatePaperTracks(project: CutProject): PaperTrack[] {
-  return project.logicalSheet.paperTracks.filter(track => track.source !== 'overlay').sort((a, b) => a.order - b.order)
+function templatePaperTracks(project: CutProject, template: SheetTemplate): PaperTrack[] {
+  const showAllLogicalTracks = getSheetViewLayout(template).trackAxis?.type === 'logical-width'
+  return project.logicalSheet.paperTracks
+    .filter(track => showAllLogicalTracks || track.source !== 'overlay')
+    .sort((a, b) => a.order - b.order)
 }
 
-function overlayPaperTracks(project: CutProject): PaperTrack[] {
-  return project.logicalSheet.paperTracks
-    .filter(track => track.source === 'overlay' && track.viewPlacement?.expanded !== false)
-    .sort((a, b) => a.order - b.order)
+function overlayPaperTracks(project: CutProject, template: SheetTemplate): PaperTrack[] {
+  if (getSheetViewLayout(template).trackAxis?.type === 'logical-width') return []
+  const ordered = [...project.logicalSheet.paperTracks].sort((a, b) => a.order - b.order)
+  const hidden = new Set(getSheetTemplateHiddenPaperTracks(template, 'cell', ordered.filter(track => track.source !== 'overlay').map(track => track.paperTrack)))
+  return ordered.flatMap(track => {
+    if (track.source === 'overlay') return track.viewPlacement?.expanded === false ? [] : [track]
+    if (!hidden.has(track.paperTrack)) return []
+    return [{
+      ...track,
+      viewPlacement: {
+        ...track.viewPlacement,
+        templateId: template.templateId,
+        sheetRole: 'cell' as const,
+        snapIndex: Number.MAX_SAFE_INTEGER,
+      },
+    }]
+  })
 }
 
 function overlayCellRectForFrame(context: SheetRenderModelContext, track: PaperTrack, frame: number, page: SheetPage): NormalizedRect | null {
@@ -839,6 +864,7 @@ function standardEventRectForPage(
   if (!hit || hit.pageId !== page.pageId) return null
   return cellRectForHit(context.template, hit, context.displayDurationFrames, context.displayFrameStart, {
     paperTracks: context.paperTracks,
+    timelineLanes: context.timelineLanes,
     layoutOverrides: context.project.sheetView.layoutOverrides,
   })
 }
@@ -851,7 +877,7 @@ function eventRectForTrackFrame(
   page: SheetPage,
 ): NormalizedRect | null {
   const track = context.project.logicalSheet.paperTracks.find(item => item.paperTrack === paperTrack)
-  if (track?.source === 'overlay') return overlayCellRectForFrame(context, track, frame, page)
+  if (track && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)) return overlayCellRectForFrame(context, track, frame, page)
   const hit = timingHitForFrame(
     context.template,
     role,
@@ -864,6 +890,7 @@ function eventRectForTrackFrame(
   if (!hit || hit.pageId !== page.pageId) return null
   return cellRectForHit(context.template, hit, context.displayDurationFrames, context.displayFrameStart, {
     paperTracks: context.paperTracks,
+    timelineLanes: context.timelineLanes,
     layoutOverrides: context.project.sheetView.layoutOverrides,
   })
 }

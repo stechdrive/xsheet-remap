@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
+import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, resolveSheetTemplatePageSize, timelineLanesForLayout, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
 import { encodeProjectArchive, XSR_PROJECT_FILE_ACCEPT, XSR_PROJECT_MIME_TYPE } from '@xsheet-remap/adapters';
 import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
@@ -936,7 +936,7 @@ it('keeps template creation as a draft until apply or cancel', () => {
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
-    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(1)
+    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(0)
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
@@ -1073,7 +1073,12 @@ it('shows context operation hints in the bottom status bar', () => {
 
 it('omits the fixed paper outer frame for the digital standard template', () => {
     render(<App />)
-    const digitalTextTransform = `scale(${1 / digitalStandardSheetTemplate.page.widthPx} ${1 / digitalStandardSheetTemplate.page.heightPx})`
+    const defaultProject = createDefaultProject()
+    const digitalPageSize = resolveSheetTemplatePageSize(digitalStandardSheetTemplate, defaultProject.logicalSheet.durationFrames, {
+      paperTracks: defaultProject.logicalSheet.paperTracks.map(track => track.paperTrack),
+      timelineLanes: timelineLanesForLayout(defaultProject),
+    })
+    const digitalTextTransform = `scale(${1 / digitalPageSize.widthPx} ${1 / digitalPageSize.heightPx})`
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(2)
@@ -1083,7 +1088,7 @@ it('omits the fixed paper outer frame for the digital standard template', () => 
 
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
-    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(1)
+    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(0)
     expect(Array.from(document.querySelectorAll('.templateFormLabel')).map(element => element.textContent)).toEqual([
       'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'ページ数', 'MEMO',
     ])

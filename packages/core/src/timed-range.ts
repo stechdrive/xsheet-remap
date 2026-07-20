@@ -1,6 +1,6 @@
 import { logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart } from './logical-sheet'
 import { isTimelineMemo } from './sheet-memo'
-import type { CameraInstruction, CameraInstructionPathStyle, CameraInstructionPoint, CameraInstructionPointRole, CameraInstructionSegment, CameraInstructionSegmentKind, CameraInstructionSegmentStyle, CameraInstructionShape, CutProject, TimedRangeCue, TimedRangeRole, TimelineMemoAnchor } from './types'
+import type { CameraInstruction, CameraInstructionPathStyle, CameraInstructionPoint, CameraInstructionPointRole, CameraInstructionSegment, CameraInstructionSegmentKind, CameraInstructionSegmentStyle, CameraInstructionShape, CutProject, LogicalTimelineLane, TimedRangeCue, TimedRangeRole, TimelineMemoAnchor } from './types'
 
 export interface TimedRangeCueInput {
   role: TimedRangeRole
@@ -108,6 +108,14 @@ export function timedRangeLaneIds(project: Pick<CutProject, 'logicalSheet'>, rol
   return project.logicalSheet.timelineSections
     .find(section => section.role === role)
     ?.lanes?.slice().sort((left, right) => left.order - right.order).map(lane => lane.laneId) ?? []
+}
+
+export function timelineLanesForLayout(project: Pick<CutProject, 'logicalSheet'>): Partial<Record<TimedRangeRole, LogicalTimelineLane[]>> {
+  return Object.fromEntries(
+    project.logicalSheet.timelineSections
+      .filter(section => section.role === 'sound' || section.role === 'camera')
+      .map(section => [section.role, [...(section.lanes ?? [])].sort((left, right) => left.order - right.order)]),
+  )
 }
 
 function normalizeCue(project: CutProject, cue: TimedRangeCue): TimedRangeCue {

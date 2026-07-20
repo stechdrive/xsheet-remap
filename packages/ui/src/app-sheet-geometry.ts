@@ -1,8 +1,10 @@
 import {
   getSheetViewLayout,
+  getSheetTemplateHiddenPaperTracks,
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   resolveSheetTemplateGridLayout,
+  timelineLanesForLayout,
   type CutProject,
   type NormalizedPoint,
   type PaperTrack,
@@ -12,12 +14,32 @@ import {
 import { compareNaturalFileNameText } from './naturalSort'
 import { clampNumber } from './sheetInteraction'
 
-export function templatePaperTracks(project: CutProject): PaperTrack[] {
-  return project.logicalSheet.paperTracks.filter(track => track.source !== 'overlay').sort((a, b) => a.order - b.order)
+export function templatePaperTracks(project: CutProject, template?: SheetTemplate): PaperTrack[] {
+  const showAllLogicalTracks = template && getSheetViewLayout(template).trackAxis?.type === 'logical-width'
+  return project.logicalSheet.paperTracks
+    .filter(track => showAllLogicalTracks || track.source !== 'overlay')
+    .sort((a, b) => a.order - b.order)
 }
 
-export function overlayPaperTracks(project: CutProject): PaperTrack[] {
-  return project.logicalSheet.paperTracks.filter(track => track.source === 'overlay').sort((a, b) => a.order - b.order)
+export function overlayPaperTracks(project: CutProject, template?: SheetTemplate): PaperTrack[] {
+  if (template && getSheetViewLayout(template).trackAxis?.type === 'logical-width') return []
+  const ordered = [...project.logicalSheet.paperTracks].sort((a, b) => a.order - b.order)
+  const hidden = template
+    ? new Set(getSheetTemplateHiddenPaperTracks(template, 'cell', ordered.filter(track => track.source !== 'overlay').map(track => track.paperTrack)))
+    : new Set<string>()
+  return ordered.flatMap(track => {
+    if (track.source === 'overlay') return [track]
+    if (!template || !hidden.has(track.paperTrack)) return []
+    return [{
+      ...track,
+      viewPlacement: {
+        ...track.viewPlacement,
+        templateId: template.templateId,
+        sheetRole: 'cell' as const,
+        snapIndex: Number.MAX_SAFE_INTEGER,
+      },
+    }]
+  })
 }
 
 /** Records the source template for legacy numeric view overrides before a template switch. */
@@ -83,7 +105,8 @@ export interface OverlayBandSlot {
 }
 
 export function overlayBandSegments(template: SheetTemplate, project: CutProject, role: SheetTimingRole): OverlayBandSegment[] {
-  const templateTrackNames = templatePaperTracks(project).map(track => track.paperTrack)
+  const templateTrackNames = templatePaperTracks(project, template).map(track => track.paperTrack)
+  const timelineLanes = timelineLanesForLayout(project)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const viewLayout = getSheetViewLayout(template)
   const frameOrigin = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
@@ -93,6 +116,7 @@ export function overlayBandSegments(template: SheetTemplate, project: CutProject
     if (region.type !== 'exposure-grid' || region.grid?.role !== role) return []
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: templateTrackNames,
+      timelineLanes,
       durationFrames: displayDurationFrames,
       frameOrigin,
       layoutOverrides: project.sheetView.layoutOverrides,
@@ -105,6 +129,7 @@ export function overlayBandSegments(template: SheetTemplate, project: CutProject
       if (!slotRegion?.grid) return []
       const slotLayout = resolveSheetTemplateGridLayout(template, slotRegion, {
         paperTracks: templateTrackNames,
+        timelineLanes,
         durationFrames: displayDurationFrames,
         frameOrigin,
         layoutOverrides: project.sheetView.layoutOverrides,
@@ -122,6 +147,7 @@ export function overlayBandSegments(template: SheetTemplate, project: CutProject
     const resolveRelatedLayout = (relatedRegion: SheetTemplate['regions'][number] | undefined) => relatedRegion
       ? resolveSheetTemplateGridLayout(template, relatedRegion, {
           paperTracks: templateTrackNames,
+          timelineLanes,
           durationFrames: displayDurationFrames,
           frameOrigin,
           layoutOverrides: project.sheetView.layoutOverrides,
@@ -200,6 +226,6 @@ export function overlayVisibleSnapIndex(template: SheetTemplate, project: CutPro
   if (!anchor) return 0
   const anchorSlotIndex = segment.slots.findIndex(slot => slot.regionId === segment.regionId && slot.paperTrack === anchor)
   if (anchorSlotIndex >= 0) return clampNumber(anchorSlotIndex + 1, 0, segment.snapCount)
-  const trackIndex = templatePaperTracks(project).findIndex(candidate => candidate.paperTrack === anchor)
+  const trackIndex = templatePaperTracks(project, template).findIndex(candidate => candidate.paperTrack === anchor)
   return clampNumber(trackIndex >= 0 ? trackIndex + 2 : 0, 0, segment.snapCount)
 }

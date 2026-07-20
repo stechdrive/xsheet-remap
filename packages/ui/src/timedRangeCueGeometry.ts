@@ -4,6 +4,7 @@ import {
   type NormalizedRect,
   type SheetPage,
   type SheetTemplate,
+  type SheetTemplateLayoutResolveOptions,
   type SheetViewLayoutOverrides,
   type TimedRangeCue,
   type TimedRangeRole,
@@ -27,7 +28,7 @@ export function timedRangeCueSegmentsForPage(
   page: SheetPage,
   cue: TimedRangeCue,
   role: TimedRangeRole,
-  options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
+  options: { paperTracks?: string[]; timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): TimedRangeCueSegment[] {
   if (cue.role !== role || cue.frameEnd < page.frameStart || cue.frameStart > page.frameEnd) return []
   const localCueStart = cue.frameStart - page.frameStart + template.defaults.frameOrigin
@@ -37,6 +38,7 @@ export function timedRangeCueSegmentsForPage(
     if (region.type !== 'exposure-grid' || region.grid?.role !== role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: options.paperTracks,
+      timelineLanes: options.timelineLanes,
       durationFrames: page.frameEnd - page.frameStart + 1,
       frameOrigin: template.defaults.frameOrigin,
       layoutOverrides: options.layoutOverrides,

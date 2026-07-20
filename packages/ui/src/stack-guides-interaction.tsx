@@ -1,4 +1,4 @@
-import { type CutProject, type NormalizedRect, type NormalizedPoint, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
+import { type CutProject, type NormalizedRect, type NormalizedPoint, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, timelineLanesForLayout, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
 import { clampNumber } from './sheetInteraction'
 import { StackGuideInsertTarget, StackGuideLabelUpdates } from './app-foundation'
 import { stackGuideAnchorRegions, stackGuideColumnHeaderHitPx, stackGuideInsertionTargets, stackGuideNativeHeaderReachPx } from './stack-guides-geometry'
@@ -15,8 +15,10 @@ export function stackGuideInsertTargetFromPoint(
   const anchorRegions = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const paperTracks = project.logicalSheet.paperTracks.map(track => track.paperTrack)
+  const timelineLanes = timelineLanesForLayout(project)
   const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
     paperTracks,
+    timelineLanes,
     layoutOverrides: project.sheetView.layoutOverrides,
   })
   const candidates: Array<StackGuideInsertTarget & { score: number }> = []
@@ -26,6 +28,7 @@ export function stackGuideInsertTargetFromPoint(
     const displayRole = region.grid.role as SheetTimingRole
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks,
+      timelineLanes,
       durationFrames: displayDurationFrames,
       layoutOverrides: project.sheetView.layoutOverrides,
     })

@@ -53,7 +53,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
-    displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
+    displayDurationFrames, officialFrameEnd, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
@@ -224,9 +224,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       preview
                     />
                   )}
-                  {(showTemplateLines || showTemplateLabels) && <TemplateChrome template={props.template} paperTracks={templateTrackNames} durationFrames={displayDurationFrames} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />}
+                  {(showTemplateLines || showTemplateLabels) && <TemplateChrome template={props.template} paperTracks={templateTrackNames} timelineLanes={timelineLanes} durationFrames={displayDurationFrames} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />}
                   {(showTemplateLines || showTemplateLabels) && props.template.regions.filter(isRenderableSheetTemplateGridRegion).map(region => (
-                    <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />
+                    <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} timelineLanes={timelineLanes} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />
                   ))}
                   {showInputContent && props.referenceProject && referenceRenderModelContext && (
                     <SheetRevisionReferenceLayer
@@ -299,6 +299,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       template={props.template}
                       page={page}
                       paperTracks={templateTrackNames}
+                      timelineLanes={timelineLanes}
                       layoutOverrides={props.project.sheetView.layoutOverrides}
                       pageSize={sheetPageSize}
                       surface={selectionSurface}
@@ -318,6 +319,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       template={props.template}
                       page={page}
                       paperTracks={templateTrackNames}
+                      timelineLanes={timelineLanes}
                       layoutOverrides={props.project.sheetView.layoutOverrides}
                       pageSize={sheetPageSize}
                       surface={selectionSurface}

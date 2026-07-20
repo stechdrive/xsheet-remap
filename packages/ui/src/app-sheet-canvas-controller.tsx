@@ -284,25 +284,20 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const displayFrameEnd = logicalSheetDisplayFrameEnd(props.project.logicalSheet)
   const officialFrameEnd = logicalSheetOfficialFrameEnd(props.project.logicalSheet)
   const templateTrackNames = useMemo(
-    () => templatePaperTracks(props.project).map(track => track.paperTrack),
-    [props.project],
+    () => templatePaperTracks(props.project, props.template).map(track => track.paperTrack),
+    [props.project, props.template],
   )
-  const sheetPageSize = useMemo(
-    () => resolveSheetTemplatePageSize(props.template, displayDurationFrames, {
-      paperTracks: templateTrackNames,
-      layoutOverrides: props.sheetView.layoutOverrides,
-    }),
-    [props.template, displayDurationFrames, props.sheetView.layoutOverrides, templateTrackNames],
-  )
-  const sheetPageWidth = Math.round(sheetPageSize.widthPx * zoom)
-  const sheetPageHeight = Math.round(sheetPageSize.heightPx * zoom)
-  const overlayTracks = overlayPaperTracks(props.project)
   const sheetRenderModelContext = useMemo(
     () => createSheetRenderModelContext(props.project, props.template, {
       cutGroup: { activeCutId: props.activeCutId, cuts: props.projectCuts },
     }),
     [props.activeCutId, props.project, props.projectCuts, props.template],
   )
+  const timelineLanes = sheetRenderModelContext.timelineLanes
+  const sheetPageSize = sheetRenderModelContext.pageSize
+  const sheetPageWidth = Math.round(sheetPageSize.widthPx * zoom)
+  const sheetPageHeight = Math.round(sheetPageSize.heightPx * zoom)
+  const overlayTracks = overlayPaperTracks(props.project, props.template)
   const referenceRenderModelContext = useMemo(
     () => props.referenceProject
       ? createSheetRenderModelContext(props.referenceProject, props.template, {
@@ -314,7 +309,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const rangeTrackOrder = (role: SheetTimingRole) => paperTrackOrderForRole(props.project, role)
   const rangeFromHits = (anchorHit: SheetHit, focusHit: SheetHit): SheetRangeSelection | null => {
     const usesOverlayTrack = [anchorHit.paperTrack, focusHit.paperTrack].some(paperTrack =>
-      props.project.logicalSheet.paperTracks.some(track => track.paperTrack === paperTrack && track.source === 'overlay'),
+      overlayPaperTracks(props.project, props.template).some(track => track.paperTrack === paperTrack),
     )
     return rangeSelectionFromHits(props.template, anchorHit, focusHit, usesOverlayTrack ? rangeTrackOrder(sheetRoleForHit(anchorHit)) : templateTrackNames)
   }
@@ -662,6 +657,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       if ((region.flowGroupId ?? region.regionId) !== flowGroupId) continue
       const layout = resolveSheetTemplateGridLayout(props.template, region, {
         paperTracks: templateTrackNames,
+        timelineLanes,
         durationFrames: displayDurationFrames,
         frameOrigin: frameOriginForPageHit(props.template, page),
         layoutOverrides: props.project.sheetView.layoutOverrides,
@@ -785,7 +781,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
 
   function hitFromPoint(point: NormalizedPoint, page: SheetPage): SheetHit | null {
     const frameOrigin = frameOriginForPageHit(props.template, page)
-    const hitOptions = { paperTracks: templateTrackNames, durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin, layoutOverrides: props.project.sheetView.layoutOverrides }
+    const hitOptions = { paperTracks: templateTrackNames, timelineLanes, durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin, layoutOverrides: props.project.sheetView.layoutOverrides }
     const localHit = overlayHitFromPoint(props.template, props.project, page, point, activeOverlayPaperTrack)
       ?? hitTestSheetTemplate(props.template, point, { ...hitOptions, role: 'cell' })
       ?? hitTestSheetTemplate(props.template, point, { ...hitOptions, role: 'action' })
@@ -796,7 +792,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
 
   function rangeHitFromPoint(point: NormalizedPoint, page: SheetPage): SheetHit | null {
     const frameOrigin = frameOriginForPageHit(props.template, page)
-    const hitOptions = { paperTracks: templateTrackNames, durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin, layoutOverrides: props.project.sheetView.layoutOverrides }
+    const hitOptions = { paperTracks: templateTrackNames, timelineLanes, durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin, layoutOverrides: props.project.sheetView.layoutOverrides }
     const localHit = overlayHitFromPoint(props.template, props.project, page, point, activeOverlayPaperTrack)
       ?? hitTestSheetTemplate(props.template, point, { ...hitOptions, role: 'cell' })
       ?? hitTestSheetTemplate(props.template, point, { ...hitOptions, role: 'action' })
@@ -810,6 +806,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function paperTrackHeaderHitFromPoint(point: NormalizedPoint, page: SheetPage, viewportHeightPx?: number): SheetHit | null {
     const pageSize = resolveSheetTemplatePageSize(props.template, displayDurationFrames, {
       paperTracks: templateTrackNames,
+      timelineLanes,
       layoutOverrides: props.project.sheetView.layoutOverrides,
     })
     const headerTopOffset = (STANDARD_A3_GRID_HEADER_TOP_OFFSET * props.template.page.heightPx) / pageSize.heightPx
@@ -824,6 +821,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       if (region.grid.role !== 'action' && region.grid.role !== 'cell') continue
       const layout = resolveSheetTemplateGridLayout(props.template, region, {
         paperTracks: templateTrackNames,
+        timelineLanes,
         durationFrames: displayDurationFrames,
         frameOrigin: frameOriginForPageHit(props.template, page),
         layoutOverrides: props.project.sheetView.layoutOverrides,
@@ -1141,6 +1139,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       const region = props.template.regions.find(item => item.regionId === hit.regionId)
       const layout = region ? resolveSheetTemplateGridLayout(props.template, region, {
         paperTracks: templateTrackNames,
+        timelineLanes,
         durationFrames: page.frameEnd - page.frameStart + 1,
         frameOrigin: frameOriginForPageHit(props.template, page),
         layoutOverrides: props.project.sheetView.layoutOverrides,
@@ -1522,7 +1521,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   ): SheetHit | null {
     const role = sheetTimingRoleForEvent(timelineEvent)
     const track = props.project.logicalSheet.paperTracks.find(item => item.paperTrack === timelineEvent.paperTrack)
-    if (track?.source === 'overlay') return overlayHitForFrame(props.template, props.project, track, timelineEvent.frame, page, role)
+    if (track && overlayPaperTracks(props.project, props.template).some(candidate => candidate.paperTrack === track.paperTrack)) return overlayHitForFrame(props.template, props.project, track, timelineEvent.frame, page, role)
     const hit = timingHitForFrame(props.template, role, timelineEvent.paperTrack, timelineEvent.frame, displayDurationFrames, displayFrameStart, templateTrackNames)
     return hit?.pageId === page.pageId ? hit : null
   }
@@ -2282,7 +2281,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
-    displayDurationFrames, officialFrameEnd, templateTrackNames, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
+    displayDurationFrames, officialFrameEnd, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,

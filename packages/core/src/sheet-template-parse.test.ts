@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { parseSheetTemplate } from './sheet-template-parse'
-import { standardA3SheetTemplate } from './sheet-template-presets'
+import { digitalStandardSheetTemplate, standardA3SheetTemplate } from './sheet-template-presets'
 
 describe('parseSheetTemplate', () => {
   it('accepts a complete template value', () => {
     expect(parseSheetTemplate(structuredClone(standardA3SheetTemplate)).templateId).toBe(standardA3SheetTemplate.templateId)
+  })
+
+  it('validates responsive form spans and column flex definitions', () => {
+    expect(parseSheetTemplate(structuredClone(digitalStandardSheetTemplate)).templateId).toBe('digital-standard-v2')
+
+    const invalid = structuredClone(digitalStandardSheetTemplate)
+    invalid.regions.find(region => region.regionId === 'digital_metadata_form')!.form!.columnFlex!.pop()
+    expect(() => parseSheetTemplate(invalid)).toThrow('フォーム定義が不正')
   })
 
   it('rejects obsolete template schema versions during development', () => {

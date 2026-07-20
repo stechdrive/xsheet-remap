@@ -714,6 +714,37 @@ const DIGITAL_STANDARD_TIMING_GRID_TYPOGRAPHY: SheetTemplateGridTypography = {
   shrinkToFit: false,
 }
 
+const DIGITAL_STANDARD_METADATA_TEXT_STYLE: SheetTemplateTextStyle = {
+  fontSize: templatePx(22),
+  minFontSize: templatePx(11),
+  fontWeight: 700,
+  horizontalAlign: 'center',
+  verticalAlign: 'middle',
+  padding: templatePx(8),
+  shrinkToFit: true,
+}
+
+const DIGITAL_STANDARD_FIELDS: SheetTemplateFieldDefinition[] = [
+  { fieldId: 'digital.title', label: 'タイトル', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'title' } },
+  { fieldId: 'digital.episode', label: '話数', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'episode' } },
+  { fieldId: 'digital.scene', label: 'シーン', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'scene' } },
+  { fieldId: 'digital.cut', label: 'カット', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'cut' } },
+  { fieldId: 'digital.duration', label: '尺', scope: 'cut', valueType: 'duration', builtinBinding: { target: 'cut-metadata', field: 'duration' } },
+  { fieldId: 'digital.worker', label: '作業者名', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'worker' } },
+  { fieldId: 'digital.page', label: 'ページ数', scope: 'page', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'page' } },
+]
+
+function digitalMetadataFieldCell(cellId: string, column: number, fieldId: string): SheetTemplateFormCell {
+  return {
+    cellId,
+    row: 1,
+    column,
+    kind: 'field',
+    fieldId,
+    textStyle: DIGITAL_STANDARD_METADATA_TEXT_STYLE,
+  }
+}
+
 export const digitalStandardSheetTemplate: SheetTemplate = {
   schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
   templateId: 'digital-standard-v2',
@@ -773,6 +804,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
     frameOrigin: 1,
     paperTracks: standardA3DefaultPaperTracks,
   },
+  fields: DIGITAL_STANDARD_FIELDS,
   auxiliaryBands: [
     {
       bandId: 'digital_timing_band',
@@ -792,60 +824,37 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       type: 'form-table',
       label: '基本情報',
       rect: digitalRect(32, 24, DIGITAL_STANDARD_CONTENT_WIDTH_PX, 90),
+      horizontalSpan: { source: 'resolved-page-content' },
       usage: 'render-only',
       form: {
         columns: [600, 12, 160, 12, 160, 12, 160, 12, 190, 12, 300, 12, 214],
+        columnFlex: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
         rows: [30, 60],
         borderStyle: STANDARD_A3_FORM_BORDER,
         cells: [
           { cellId: 'digital_title_label', row: 0, column: 0, kind: 'label', label: 'タイトル' },
-          { cellId: 'digital_title_box', row: 1, column: 0, kind: 'spacer' },
+          digitalMetadataFieldCell('digital_title_box', 0, 'digital.title'),
           { cellId: 'digital_episode_label', row: 0, column: 2, kind: 'label', label: '話数' },
-          { cellId: 'digital_episode_box', row: 1, column: 2, kind: 'spacer' },
+          digitalMetadataFieldCell('digital_episode_box', 2, 'digital.episode'),
           { cellId: 'digital_scene_label', row: 0, column: 4, kind: 'label', label: 'シーン' },
-          { cellId: 'digital_scene_box', row: 1, column: 4, kind: 'spacer' },
+          digitalMetadataFieldCell('digital_scene_box', 4, 'digital.scene'),
           { cellId: 'digital_cut_label', row: 0, column: 6, kind: 'label', label: 'カット' },
-          { cellId: 'digital_cut_box', row: 1, column: 6, kind: 'spacer' },
+          digitalMetadataFieldCell('digital_cut_box', 6, 'digital.cut'),
           { cellId: 'digital_duration_label', row: 0, column: 8, kind: 'label', label: '尺' },
-          { cellId: 'digital_duration_box', row: 1, column: 8, kind: 'spacer' },
+          digitalMetadataFieldCell('digital_duration_box', 8, 'digital.duration'),
           { cellId: 'digital_worker_label', row: 0, column: 10, kind: 'label', label: '作業者名' },
-          { cellId: 'digital_worker_box', row: 1, column: 10, kind: 'spacer' },
+          digitalMetadataFieldCell('digital_worker_box', 10, 'digital.worker'),
           { cellId: 'digital_page_label', row: 0, column: 12, kind: 'label', label: 'ページ数' },
-          { cellId: 'digital_page_box', row: 1, column: 12, kind: 'spacer' },
+          digitalMetadataFieldCell('digital_page_box', 12, 'digital.page'),
         ],
       },
     },
-    metadataFieldRegion('digital_title_field', 'タイトル', 'title', digitalRect(32, 54, 600, 60)),
-    metadataFieldRegion('digital_episode_field', '話数', 'episode', digitalRect(644, 54, 160, 60)),
-    metadataFieldRegion('digital_scene_field', 'シーン', 'scene', digitalRect(816, 54, 160, 60)),
-    {
-      ...metadataFieldRegion('digital_cut_field', 'カット', 'cut', digitalRect(988, 54, 160, 60)),
-      textStyleVariants: {
-        sharedCutNumbersVisible: {
-          verticalAlign: 'top',
-          padding: templatePx(4),
-        },
-      },
-    },
-    sharedCutNumbersRegion('digital_shared_cut_numbers_field', digitalRect(988, 82, 160, 32), {
-      fontSize: templatePx(12),
-      minFontSize: templatePx(7),
-      lineHeight: templatePx(14),
-      fontWeight: 700,
-      horizontalAlign: 'center',
-      verticalAlign: 'top',
-      padding: templatePx(2),
-      shrinkToFit: true,
-      overflowY: 'visible',
-    }),
-    metadataFieldRegion('digital_duration_field', '尺', 'duration', digitalRect(1160, 54, 190, 60)),
-    metadataFieldRegion('digital_worker_field', '作業者', 'worker', digitalRect(1362, 54, 300, 60)),
-    metadataFieldRegion('digital_page_field', 'ページ', 'page', digitalRect(1674, 54, 214, 60)),
     {
       regionId: 'digital_memo_area',
       type: 'memo-area',
       label: 'MEMO',
       rect: digitalRect(DIGITAL_STANDARD_MARGIN_X_PX, 160, DIGITAL_STANDARD_CONTENT_WIDTH_PX, 300),
+      horizontalSpan: { source: 'resolved-page-content' },
       usage: 'input',
       inputKind: 'annotation',
       inputMode: 'free-annotation',
@@ -860,7 +869,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
         borderStyle: STANDARD_A3_FORM_BORDER,
         cells: [
           { cellId: 'digital_memo_label', row: 0, column: 0, kind: 'label', label: 'MEMO' },
-          { cellId: 'digital_memo_box', row: 1, column: 0, kind: 'spacer' },
+          { cellId: 'digital_memo_box', row: 1, column: 0, kind: 'annotation', label: 'MEMO', memoTarget: { scope: 'cell' } },
         ],
       },
     },

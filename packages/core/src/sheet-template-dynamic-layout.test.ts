@@ -22,23 +22,14 @@ describe('dynamic sheet template layout', () => {
         h: Math.round(rect.h * pageSize.heightPx),
       }
     }
-    const metadataRects = digitalStandardSheetTemplate.regions
-      .filter(region => region.binding?.target === 'cut-metadata')
-      .map(region => rectForRegion(region.regionId))
-    const cutMetadata = {
-      x: Math.min(...metadataRects.map(rect => rect.x)),
-      y: Math.min(...metadataRects.map(rect => rect.y)),
-      w: Math.max(...metadataRects.map(rect => rect.x + rect.w)) - Math.min(...metadataRects.map(rect => rect.x)),
-      h: Math.max(...metadataRects.map(rect => rect.y + rect.h)) - Math.min(...metadataRects.map(rect => rect.y)),
-    }
+    const cutMetadata = rectForRegion('digital_metadata_form')
     const memo = rectForRegion('digital_memo_area')
     const action = rectForRegion('digital_action_grid')
     const camera = rectForRegion('digital_camera_grid')
     const actionGrid = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_action_grid')?.grid
     const soundGrid = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_sound_grid')?.grid
 
-    expect(metadataRects).toHaveLength(7)
-    expect(cutMetadata).toEqual({ x: 32, y: 54, w: 1856, h: 60 })
+    expect(cutMetadata).toEqual({ x: 32, y: 24, w: 1856, h: 90 })
     expect(memo).toEqual({ x: 32, y: 160, w: 1856, h: 300 })
     expect(digitalStandardSheetTemplate.regions.some(region => region.regionId.includes('reserve'))).toBe(false)
     expect(action).toMatchObject({ x: 32, y: 620, h: 2880 })
@@ -77,6 +68,12 @@ describe('dynamic sheet template layout', () => {
       const previous = layouts[index - 1]!
       const current = layouts[index]!
       expect(Math.round((current.rect.x - previous.rect.x - previous.rect.w) * pageSize.widthPx)).toBe(8)
+    }
+    for (const regionId of ['digital_metadata_form', 'digital_memo_area']) {
+      const region = digitalStandardSheetTemplate.regions.find(candidate => candidate.regionId === regionId)!
+      const rect = resolveSheetTemplateRegionRect(digitalStandardSheetTemplate, region, 144, { paperTracks, timelineLanes })
+      expect(Math.round(rect.x * pageSize.widthPx)).toBe(32)
+      expect(Math.round(rect.w * pageSize.widthPx)).toBe(pageSize.widthPx - 64)
     }
   })
 

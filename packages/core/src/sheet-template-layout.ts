@@ -85,6 +85,7 @@ export function resolveSheetTemplateRegionRect(
   const baseY = region.rect.y * template.page.heightPx
   const baseWidth = region.rect.w * template.page.widthPx
   const baseHeight = region.rect.h * template.page.heightPx
+  const baseRightMargin = Math.max(0, template.page.widthPx - baseX - baseWidth)
   const columns = region.grid ? resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks, options.timelineLanes) : []
   const width = region.grid
     ? gridFixedContentWidthPx(region.grid, columns, options.layoutOverrides?.grids?.[region.regionId]) ?? baseWidth
@@ -99,10 +100,13 @@ export function resolveSheetTemplateRegionRect(
 
   const horizontalFlow = resolveSheetTemplateHorizontalFlow(template, options)
   const flowed = horizontalFlow?.regions.get(region.regionId)
+  const resolvedWidth = region.horizontalSpan?.source === 'resolved-page-content'
+    ? Math.max(0, pageSize.widthPx - baseX - baseRightMargin)
+    : flowed?.widthPx ?? width
   return {
     x: (flowed?.xPx ?? baseX) / pageSize.widthPx,
     y: baseY / pageSize.heightPx,
-    w: (flowed?.widthPx ?? width) / pageSize.widthPx,
+    w: resolvedWidth / pageSize.widthPx,
     h: height / pageSize.heightPx,
   }
 }

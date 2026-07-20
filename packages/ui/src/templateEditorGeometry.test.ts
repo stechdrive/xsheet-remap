@@ -253,7 +253,30 @@ describe('template editor geometry', () => {
     expect(model.chrome.formLabels.map(label => label.text)).toEqual([
       'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'ページ数', 'MEMO',
     ])
+    expect(model.chrome.formFields).toHaveLength(7)
+    expect(model.chrome.formAnnotationTargets).toHaveLength(1)
     expect(model.chrome.formBoxes.some(box => box.key === 'digital_memo_area:digital_memo_box')).toBe(true)
+  })
+
+  it('derives expanded digital form boxes and hotspots from identical cell rectangles', () => {
+    const paperTracks = Array.from({ length: 12 }, (_, index) => String.fromCharCode(65 + index))
+    const timelineLanes = {
+      sound: Array.from({ length: 6 }, (_, index) => ({ laneId: `sound_${index}`, label: `S${index + 1}`, order: index })),
+      camera: Array.from({ length: 7 }, (_, index) => ({ laneId: `camera_${index}`, label: String(index + 1), order: index })),
+    }
+    const chrome = buildTemplateChromeRenderModel(digitalStandardSheetTemplate, paperTracks, 144, { timelineLanes })
+    const boxes = new Map(chrome.formBoxes.map(box => [box.key, box.rect]))
+
+    expect(chrome.pageSize.widthPx).toBeGreaterThan(digitalStandardSheetTemplate.page.widthPx)
+    for (const field of chrome.formFields) expect(field.rect).toEqual(boxes.get(field.key))
+    for (const target of chrome.formAnnotationTargets) expect(target.rect).toEqual(boxes.get(target.key))
+
+    const title = chrome.formFields.find(field => field.fieldId === 'digital.title')!
+    const episode = chrome.formFields.find(field => field.fieldId === 'digital.episode')!
+    const memo = chrome.formAnnotationTargets.find(target => target.key === 'digital_memo_area:digital_memo_box')!
+    expect(title.rect.w * chrome.pageSize.widthPx).toBeGreaterThan(600)
+    expect(episode.rect.w * chrome.pageSize.widthPx).toBeCloseTo(160)
+    expect(memo.rect.w * chrome.pageSize.widthPx).toBeCloseTo(chrome.pageSize.widthPx - 64)
   })
 
   it('labels timed-range lanes that remain outside a fixed paper template', () => {

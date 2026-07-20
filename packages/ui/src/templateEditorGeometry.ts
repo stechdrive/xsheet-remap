@@ -299,7 +299,11 @@ export function buildTemplateFormRenderModels(
   const rowWeights = form.projection
     ? projectedTrackCountRowWeights(form.rows, paperTracks.length)
     : form.rows
-  const columnEdges = weightedEdges(form.columns, regionRect.x, regionRect.w)
+  const columnEdges = weightedEdges(
+    resolvedFormColumnWidths(form.columns, form.columnFlex, regionRect.w * pageSize.widthPx),
+    regionRect.x,
+    regionRect.w,
+  )
   const rowEdges = weightedEdges(rowWeights, regionRect.y, regionRect.h)
   const occupied = new Set<string>()
   for (const cell of cells) {
@@ -344,7 +348,7 @@ export function buildTemplateFormRenderModels(
         definition,
         textStyle: cell.textStyle ?? {},
         editPresentation: cell.editPresentation ?? 'popover',
-        editable: !isProjectedTotal,
+        editable: !isProjectedTotal && definition.builtinBinding?.field !== 'page',
         memoTarget: resolveTemplateFormCellMemoTarget(region, cell, definition.label),
         sourceFieldIds: isProjectedTotal && totalSuffix
           ? paperTracks.map(paperTrack => `${form.projection!.fieldPrefix}.${paperTrack}.${totalSuffix}`)
@@ -474,6 +478,16 @@ function weightedEdges(weights: number[], start: number, span: number): number[]
     edges.push(start + span * consumed / total)
   }
   return edges
+}
+
+function resolvedFormColumnWidths(baseWidths: number[], flex: number[] | undefined, resolvedWidthPx: number): number[] {
+  const normalized = baseWidths.map(width => Math.max(0, width))
+  const baseTotal = normalized.reduce((sum, width) => sum + width, 0)
+  if (!flex || flex.length !== normalized.length || resolvedWidthPx <= baseTotal) return normalized
+  const flexTotal = flex.reduce((sum, factor) => sum + Math.max(0, factor), 0)
+  if (flexTotal <= 0) return normalized
+  const extraWidth = resolvedWidthPx - baseTotal
+  return normalized.map((width, index) => width + extraWidth * Math.max(0, flex[index] ?? 0) / flexTotal)
 }
 
 function templateFormLabel(

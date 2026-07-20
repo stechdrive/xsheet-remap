@@ -165,6 +165,28 @@ describe('sheet render model', () => {
     expect(firstPage.every(item => item.rect.w > 0 && item.fontSizePx > 0)).toBe(true)
   })
 
+  it('renders digital built-in metadata from the same form fields used for editing', () => {
+    const source = createDefaultProject()
+    const project = {
+      ...source,
+      cut: { title: '作品タイトル', episode: '03', scene: '12', cut: '101', worker: '作業者A' },
+      logicalSheet: { ...source.logicalSheet, durationFrames: 150 },
+    }
+    const context = createSheetRenderModelContext(project, digitalStandardSheetTemplate)
+    const items = metadataTextRenderItemsForPage(context, context.pages[0])
+
+    expect(Object.fromEntries(items.map(item => [item.field, item.text]))).toEqual({
+      title: '作品タイトル',
+      episode: '03',
+      scene: '12',
+      cut: '101',
+      duration: '06+06',
+      worker: '作業者A',
+      page: '1/1',
+    })
+    expect(items.every(item => item.regionId.startsWith('digital_metadata_form:'))).toBe(true)
+  })
+
   it('renders wrapped A3 memo text independently for each physical page', () => {
     const memo = { fieldId: 'memo.body', scope: 'page' as const, valueType: 'multiline' as const }
     const extended = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 288 })

@@ -120,8 +120,16 @@ function validateRegion(input: unknown, index: number): asserts input is SheetTe
     || !Object.values(input.textStyleVariants).every(validateTextStyle))) {
     throw new Error(`領域 ${input.regionId} の文字設定が不正です。`)
   }
+  if (input.horizontalSpan !== undefined
+    && (!isRecord(input.horizontalSpan) || input.horizontalSpan.source !== 'resolved-page-content')) {
+    throw new Error(`領域 ${input.regionId} の横幅追従設定が不正です。`)
+  }
   if (input.form !== undefined) {
     if (!isRecord(input.form)
+      || input.form.columnFlex !== undefined && (!Array.isArray(input.form.columnFlex)
+        || !Array.isArray(input.form.columns)
+        || input.form.columnFlex.length !== input.form.columns.length
+        || !input.form.columnFlex.every(nonNegativeNumber))
       || input.form.cells !== undefined && (!Array.isArray(input.form.cells) || !input.form.cells.every(cell =>
         isRecord(cell)
         && (cell.textStyle === undefined || validateTextStyle(cell.textStyle))
@@ -193,7 +201,11 @@ function validateFields(input: unknown): void {
       || !nonEmptyString(field.label)
       || !sheetTemplateFieldScopes.has(String(field.scope))
       || !sheetTemplateFieldValueTypes.has(String(field.valueType))
-      || field.choices !== undefined && (!Array.isArray(field.choices) || !field.choices.every(nonEmptyString))) {
+      || field.choices !== undefined && (!Array.isArray(field.choices) || !field.choices.every(nonEmptyString))
+      || field.builtinBinding !== undefined && (!isRecord(field.builtinBinding)
+        || field.builtinBinding.target !== 'cut-metadata'
+        || !nonEmptyString(field.builtinBinding.field)
+        || field.builtinBinding.customKey !== undefined && !nonEmptyString(field.builtinBinding.customKey))) {
       throw new Error('テンプレートのフォーム項目定義が不正です。')
     }
     if (fieldIds.has(field.fieldId)) throw new Error(`フォーム項目IDが重複しています: ${field.fieldId}`)

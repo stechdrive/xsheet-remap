@@ -43,8 +43,9 @@ describe('sheet template typography', () => {
   })
 
   it('uses digital design pixels and scales them with an enlarged output surface', () => {
-    const region = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_title_field')
-    const base = resolveSheetTemplateTextStyle(digitalStandardSheetTemplate, digitalStandardSheetTemplate.page, region?.textStyle, {
+    const region = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_metadata_form')
+    const title = region?.form?.cells?.find(cell => cell.cellId === 'digital_title_box')
+    const base = resolveSheetTemplateTextStyle(digitalStandardSheetTemplate, digitalStandardSheetTemplate.page, title?.textStyle, {
       fontSizePx: 22,
       minFontSizePx: 10,
       paddingPx: 8,
@@ -52,7 +53,7 @@ describe('sheet template typography', () => {
     const doubled = resolveSheetTemplateTextStyle(digitalStandardSheetTemplate, {
       widthPx: digitalStandardSheetTemplate.page.widthPx * 2,
       heightPx: digitalStandardSheetTemplate.page.heightPx * 2,
-    }, region?.textStyle, {
+    }, title?.textStyle, {
       fontSizePx: 22,
       minFontSizePx: 10,
       paddingPx: 8,

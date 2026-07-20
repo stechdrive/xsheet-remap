@@ -1,11 +1,57 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createDefaultProject, createSheetPages, standardA3SheetTemplate, updateSheetFormField } from '@xsheet-remap/core'
+import { addTimelineLane, createDefaultProject, createProjectFromTemplate, createSheetPages, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, standardA3SheetTemplate, timelineLanesForLayout, updateProjectPaperTracks, updateSheetFormField } from '@xsheet-remap/core'
 import { SheetMetadataEditor } from './SheetMetadataEditor'
 
 afterEach(cleanup)
 
 describe('SheetMetadataEditor page fields', () => {
+  it('keeps expanded digital metadata and MEMO hotspots on their form cell bounds', () => {
+    let project = updateProjectPaperTracks(
+      createProjectFromTemplate(digitalStandardSheetTemplate),
+      Array.from({ length: 12 }, (_, index) => String.fromCharCode(65 + index)),
+    )
+    for (let index = 4; index < 6; index += 1) project = addTimelineLane(project, { role: 'sound', label: `S${index + 1}` }).project
+    for (let index = 4; index < 7; index += 1) project = addTimelineLane(project, { role: 'camera', label: String(index + 1) }).project
+    const paperTracks = project.logicalSheet.paperTracks.map(track => track.paperTrack)
+    const timelineLanes = timelineLanesForLayout(project)
+    const pageSize = resolveSheetTemplatePageSize(digitalStandardSheetTemplate, 144, { paperTracks, timelineLanes })
+    const [page] = createSheetPages(digitalStandardSheetTemplate, 144)
+    const onMetadataChange = vi.fn()
+    const onAnnotationRegionSelect = vi.fn()
+
+    render(
+      <SheetMetadataEditor
+        project={project}
+        template={digitalStandardSheetTemplate}
+        page={page!}
+        pageWidth={pageSize.widthPx}
+        pageHeight={pageSize.heightPx}
+        displayDurationFrames={144}
+        paperTracks={paperTracks}
+        onMetadataChange={onMetadataChange}
+        onDurationChange={vi.fn()}
+        onFormFieldChange={vi.fn()}
+        onAnnotationRegionSelect={onAnnotationRegionSelect}
+      />,
+    )
+
+    const title = screen.getByRole('button', { name: 'タイトルを編集' })
+    const episode = screen.getByRole('button', { name: '話数を編集' })
+    const memo = screen.getByRole('button', { name: 'MEMOをメモ対象に選択' })
+    expect(Number.parseFloat(title.style.width)).toBeGreaterThan(600)
+    expect(Number.parseFloat(episode.style.width)).toBeCloseTo(160)
+    expect(Number.parseFloat(memo.style.width)).toBeCloseTo(pageSize.widthPx - 64)
+
+    fireEvent.click(memo)
+    expect(onAnnotationRegionSelect).toHaveBeenLastCalledWith(expect.objectContaining({
+      regionId: 'digital_memo_area', targetId: 'cell:digital_memo_box', label: 'MEMO',
+    }))
+    fireEvent.doubleClick(title)
+    fireEvent.change(screen.getByRole('textbox', { name: 'タイトル' }), { target: { value: '可変幅タイトル' } })
+    expect(onMetadataChange).toHaveBeenLastCalledWith('title', '可変幅タイトル', undefined)
+  })
+
   it('selects and highlights only one form cell when the template declares cell targets', () => {
     const project = createDefaultProject()
     const [page] = createSheetPages(standardA3SheetTemplate, project.logicalSheet.durationFrames)

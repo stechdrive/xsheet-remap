@@ -1722,8 +1722,8 @@ describe('sheet template hit testing', () => {
         surface: { type: 'continuous-canvas' },
       },
     })
-    expect(digitalStandardSheetTemplate.regions.flatMap(region =>
-      region.binding?.target === 'cut-metadata' ? [region.binding.field] : [],
+    expect(digitalStandardSheetTemplate.fields?.flatMap(field =>
+      field.builtinBinding?.target === 'cut-metadata' ? [field.builtinBinding.field] : [],
     )).toEqual(['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'])
   })
 

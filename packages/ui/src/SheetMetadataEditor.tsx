@@ -4,6 +4,7 @@ import {
   resolveSheetTemplateTextStyle,
   sheetFormFieldsForScope,
   sheetFormFieldValueText,
+  timelineLanesForLayout,
   type CutMetadataFieldId,
   type CutProject,
   type SheetPage,
@@ -55,6 +56,7 @@ export function SheetMetadataEditor({
   const inlineDraftRef = useRef('')
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
+  const timelineLanes = useMemo(() => timelineLanesForLayout(project), [project])
   const regions = template.regions.filter((region): region is EditableMetadataRegion =>
     region.type === 'metadata-field'
     && region.usage === 'input'
@@ -65,14 +67,16 @@ export function SheetMetadataEditor({
     region,
     rect: resolveSheetTemplateRegionRect(template, region, displayDurationFrames, {
       paperTracks,
+      timelineLanes,
       layoutOverrides: project.sheetView.layoutOverrides,
     }),
   }))
   const chrome = useMemo(
     () => buildTemplateChromeRenderModel(template, paperTracks, displayDurationFrames, {
       layoutOverrides: project.sheetView.layoutOverrides,
+      timelineLanes,
     }),
-    [displayDurationFrames, paperTracks, project.sheetView.layoutOverrides, template],
+    [displayDurationFrames, paperTracks, project.sheetView.layoutOverrides, template, timelineLanes],
   )
   const formFields = chrome.formFields.filter(field => field.editable)
   const activeMetadata = regionLayouts.find(item => item.region.regionId === editingRegionId) ?? null
@@ -230,9 +234,7 @@ export function SheetMetadataEditor({
         </TooltipTarget>
       ))}
       {formFields.map(field => {
-        const value = sheetFormFieldValueText(
-          sheetFormFieldsForScope(project.sheetFormData, field.definition.scope, page.pageId)[field.fieldId],
-        )
+        const value = formFieldEditorText(project, field, page.pageId)
         const overflow = field.definition.valueType === 'multiline'
           && resolveMultilineFormTextLayout(
             value,
@@ -406,8 +408,17 @@ export function SheetMetadataEditor({
                 />
               </div>
                 )
-              : activeForm
-                ? <SheetFormFieldControl project={project} field={activeForm} pageId={page.pageId} onChange={onFormFieldChange} />
+              : activeForm?.definition.builtinBinding
+                ? (
+                  <BuiltinMetadataFieldControl
+                    project={project}
+                    field={activeForm}
+                    onMetadataChange={onMetadataChange}
+                    onDurationChange={onDurationChange}
+                  />
+                  )
+                : activeForm
+                  ? <SheetFormFieldControl project={project} field={activeForm} pageId={page.pageId} onChange={onFormFieldChange} />
                 : null}
         </div>
       )}
@@ -517,6 +528,60 @@ function metadataValue(project: CutProject, field: CutMetadataFieldId, customKey
   if (field === 'custom') return customKey ? project.cut.custom?.[customKey] ?? '' : ''
   if (field === 'duration' || field === 'page') return ''
   return project.cut[field] ?? ''
+}
+
+function formFieldEditorText(
+  project: CutProject,
+  field: ReturnType<typeof buildTemplateChromeRenderModel>['formFields'][number],
+  pageId: string,
+): string {
+  const builtin = field.definition.builtinBinding
+  if (builtin) {
+    if (builtin.field === 'duration') {
+      const fps = Math.max(1, Math.round(project.logicalSheet.fps))
+      const frames = Math.max(1, Math.round(project.logicalSheet.durationFrames))
+      return `${String(Math.floor(frames / fps)).padStart(2, '0')}+${String(frames % fps).padStart(2, '0')}`
+    }
+    return metadataValue(project, builtin.field, builtin.customKey)
+  }
+  return sheetFormFieldValueText(
+    sheetFormFieldsForScope(project.sheetFormData, field.definition.scope, pageId)[field.fieldId],
+  )
+}
+
+function BuiltinMetadataFieldControl({
+  project,
+  field,
+  onMetadataChange,
+  onDurationChange,
+}: {
+  project: CutProject
+  field: ReturnType<typeof buildTemplateChromeRenderModel>['formFields'][number]
+  onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
+  onDurationChange: (frames: number) => void
+}) {
+  const binding = field.definition.builtinBinding!
+  if (binding.field === 'duration') {
+    return (
+      <DurationFrameControl
+        frames={project.logicalSheet.durationFrames}
+        fps={project.logicalSheet.fps}
+        onChange={onDurationChange}
+        showLabel={false}
+        autoFocus
+      />
+    )
+  }
+  return (
+    <div className="sheetMetadataEditorField">
+      <input
+        autoFocus
+        aria-label={field.definition.label}
+        value={metadataValue(project, binding.field, binding.customKey)}
+        onChange={event => onMetadataChange(binding.field, event.currentTarget.value, binding.customKey)}
+      />
+    </div>
+  )
 }
 
 function rectStyle(

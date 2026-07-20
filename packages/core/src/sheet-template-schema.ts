@@ -208,6 +208,11 @@ export interface SheetTemplateTrackCountProjection {
 
 export interface SheetTemplateForm {
   columns: number[]
+  /**
+   * Optional flex factors applied only to width added beyond the declared
+   * column total. Base column widths and zero-flex gutters stay unchanged.
+   */
+  columnFlex?: number[]
   rows: number[]
   fillEmptyCells?: boolean
   cells?: SheetTemplateFormCell[]
@@ -280,6 +285,10 @@ export interface SheetTemplateRegion {
     | 'decorative'
   label: string
   rect: NormalizedRect
+  /** Keeps the base left/right page margins while the digital canvas widens. */
+  horizontalSpan?: {
+    source: 'resolved-page-content'
+  }
   usage: 'input' | 'reference' | 'render-only' | 'ignored'
   inputKind?: 'text' | 'number' | 'timing-event' | 'camera' | 'dialogue' | 'annotation'
   inputMode?: SheetTemplateInputMode

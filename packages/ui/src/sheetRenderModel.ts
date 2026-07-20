@@ -284,7 +284,7 @@ export function metadataTextRenderItemsForPage(
     undefined,
     measurement,
     )),
-    ...formFieldTextRenderItems(context, page, measurement),
+    ...formFieldTextRenderItems(context, page, sharedCutNumbersVisible, measurement),
   ]
   if (!sharedCutNumbersVisible || explicitSharedCutRegion) return items
 
@@ -294,15 +294,23 @@ export function metadataTextRenderItemsForPage(
     && region.binding?.target === 'cut-metadata'
     && region.binding.field === 'cut',
   )
-  if (!cutRegion) return items
-  const cutRect = resolveSheetTemplateRegionRect(
+  const cutFormField = buildTemplateChromeRenderModel(
     context.template,
-    cutRegion,
+    context.paperTracks,
     context.displayDurationFrames,
-    { paperTracks: context.paperTracks, timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
-  )
+    { layoutOverrides: context.project.sheetView.layoutOverrides },
+  ).formFields.find(field => field.definition.builtinBinding?.field === 'cut')
+  if (!cutRegion && !cutFormField) return items
+  const cutRect = cutRegion
+    ? resolveSheetTemplateRegionRect(
+        context.template,
+        cutRegion,
+        context.displayDurationFrames,
+        { paperTracks: context.paperTracks, timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
+      )
+    : cutFormField!.rect
   const fallbackRegion: SheetTemplate['regions'][number] = {
-    regionId: `${cutRegion.regionId}__shared_cut_numbers`,
+    regionId: `${cutRegion?.regionId ?? cutFormField!.key}__shared_cut_numbers`,
     type: 'metadata-field',
     label: '兼用カット',
     rect: {
@@ -349,6 +357,7 @@ export function metadataTextRenderItemsForPage(
 function formFieldTextRenderItems(
   context: SheetRenderModelContext,
   page: SheetPage,
+  sharedCutNumbersVisible: boolean,
   measurement: TextMeasurementProvider,
 ): SheetMetadataTextRenderItem[] {
   const chrome = buildTemplateChromeRenderModel(
@@ -360,7 +369,13 @@ function formFieldTextRenderItems(
   return chrome.formFields.flatMap(field => {
     const text = formFieldText(context, field, page)
     if (!text) return []
-    const style = field.textStyle
+    const style = field.definition.builtinBinding?.field === 'cut' && sharedCutNumbersVisible
+      ? {
+          ...field.textStyle,
+          verticalAlign: 'top' as const,
+          padding: sheetTemplateLengthForReferencePx(context.template, 4, 'spacing'),
+        }
+      : field.textStyle
     const resolvedStyle = resolveSheetTemplateTextStyle(context.template, context.pageSize, style, { fontWeight: 700 })
     const paddingPx = resolvedStyle.paddingPx
     const horizontalAlign = resolvedStyle.horizontalAlign
@@ -388,7 +403,7 @@ function formFieldTextRenderItems(
       : null
     return [{
       regionId: field.key,
-      field: field.fieldId,
+      field: field.definition.builtinBinding?.field ?? field.fieldId,
       text,
       lines,
       lineHeightPx,
@@ -410,6 +425,8 @@ function formFieldTextRenderItems(
 }
 
 function formFieldText(context: SheetRenderModelContext, field: TemplateFormFieldRenderModel, page: SheetPage): string {
+  const builtin = field.definition.builtinBinding
+  if (builtin) return metadataFieldText(context, page, builtin.field, builtin.customKey)
   const values = sheetFormFieldsForScope(context.project.sheetFormData, field.definition.scope, page.pageId)
   if (field.sourceFieldIds?.length) {
     const sum = field.sourceFieldIds.reduce((total, fieldId) => {

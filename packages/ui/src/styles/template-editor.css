@@ -778,6 +778,77 @@
   min-width: 0;
 }
 
+.templateHeaderLabelField .templateHeaderColumnLabelToggle {
+  display: inline-flex;
+  grid-column: 2;
+  justify-self: start;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  white-space: nowrap;
+}
+
+.templateHeaderColumnLabelToggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.templateTimelineLaneMeta {
+  grid-template-columns: 110px minmax(0, 1fr);
+}
+
+.templateTimelineLaneGroups,
+.templateTimelineLaneGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.templateTimelineLaneGroup + .templateTimelineLaneGroup {
+  padding-top: 10px;
+  border-top: 1px solid #d8dcd7;
+}
+
+.templateTimelineLaneGroupHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.templateTimelineLaneGroupHeader strong {
+  white-space: nowrap;
+}
+
+.templateTimelineLaneGroupHeader span {
+  color: #737b76;
+  font-size: 11px;
+}
+
+.templateTimelineLaneLabelList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.templateTimelineLaneLabelField {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+}
+
+.templateTimelineLaneLabelField > span {
+  color: #737b76;
+  font-size: 11px;
+  text-align: right;
+}
+
+.templateTimelineLaneLabelField input {
+  min-width: 0;
+  width: 100%;
+}
+
 .cornerGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

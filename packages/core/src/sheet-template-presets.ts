@@ -10,14 +10,14 @@ const actionColumns = createPaperTrackColumns('action', standardA3DefaultPaperTr
 
 const soundColumns = Array.from({ length: 4 }, (_, index) => ({
   columnId: `sound_${index + 1}`,
-  label: '',
+  label: `S${index + 1}`,
   timelineLaneId: `sound_lane_${index + 1}`,
   xdtsEligible: false,
 }))
 
 const cameraColumns = Array.from({ length: 6 }, (_, index) => ({
   columnId: `camera_${index + 1}`,
-  label: '',
+  label: String(index + 1),
   timelineLaneId: `camera_lane_${index + 1}`,
   xdtsEligible: false,
 }))
@@ -60,6 +60,8 @@ const STANDARD_A3_METADATA_TEXT_STYLE: SheetTemplateTextStyle = {
 }
 
 const STANDARD_A3_GRID_HEADER = { topOffsetPx: 71, heightPx: 48, columnHeightPx: 23 }
+
+const STANDARD_A3_TIMED_RANGE_GRID_HEADER = { ...STANDARD_A3_GRID_HEADER, showColumnLabels: false }
 
 const STANDARD_A3_FORM_BORDER = { weight: 'thin' as const, pattern: 'solid' as const, color: '#2f3430', widthPx: 1 }
 
@@ -556,7 +558,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, lineRules: STANDARD_A3_SOUND_LINE_RULES, trackProjection: fixedLogicalTimelineLaneProjection, columns: soundColumns },
+      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_TIMED_RANGE_GRID_HEADER, lineRules: STANDARD_A3_SOUND_LINE_RULES, trackProjection: fixedLogicalTimelineLaneProjection, columns: soundColumns },
     },
     {
       regionId: 'left_cell_grid',
@@ -578,7 +580,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'camera',
       inputMode: 'timed-range',
       flowGroupId: 'main_camera',
-      grid: { role: 'camera', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, trackProjection: fixedLogicalTimelineLaneProjection, columns: cameraColumns },
+      grid: { role: 'camera', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_TIMED_RANGE_GRID_HEADER, trackProjection: fixedLogicalTimelineLaneProjection, columns: cameraColumns },
     },
     {
       regionId: 'right_action_reserve_grid',
@@ -615,7 +617,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, lineRules: STANDARD_A3_SOUND_LINE_RULES, trackProjection: fixedLogicalTimelineLaneProjection, columns: soundColumns },
+      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_TIMED_RANGE_GRID_HEADER, lineRules: STANDARD_A3_SOUND_LINE_RULES, trackProjection: fixedLogicalTimelineLaneProjection, columns: soundColumns },
     },
     {
       regionId: 'right_cell_grid',
@@ -637,7 +639,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'camera',
       inputMode: 'timed-range',
       flowGroupId: 'main_camera',
-      grid: { role: 'camera', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_GRID_HEADER, trackProjection: fixedLogicalTimelineLaneProjection, columns: cameraColumns },
+      grid: { role: 'camera', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_TIMED_RANGE_GRID_HEADER, trackProjection: fixedLogicalTimelineLaneProjection, columns: cameraColumns },
     },
   ],
 }
@@ -893,7 +895,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'digital_sound',
-      grid: { role: 'sound', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, trackProjection: digitalLogicalTimelineLaneProjection, frameProjection: digitalLogicalFrameProjection, columnSizing: { mode: 'fixed-content', defaultWidthPx: 220 / digitalSoundColumns.length }, columns: digitalSoundColumns },
+      grid: { role: 'sound', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, header: { showColumnLabels: false }, trackProjection: digitalLogicalTimelineLaneProjection, frameProjection: digitalLogicalFrameProjection, columnSizing: { mode: 'fixed-content', defaultWidthPx: 220 / digitalSoundColumns.length }, columns: digitalSoundColumns },
     },
     {
       regionId: 'digital_cell_grid',
@@ -915,7 +917,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       inputKind: 'camera',
       inputMode: 'timed-range',
       flowGroupId: 'digital_camera',
-      grid: { role: 'camera', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, trackProjection: digitalLogicalTimelineLaneProjection, frameProjection: digitalLogicalFrameProjection, columnSizing: { mode: 'fixed-content', defaultWidthPx: 344 / digitalCameraColumns.length }, columns: digitalCameraColumns },
+      grid: { role: 'camera', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: { showColumnLabels: false }, trackProjection: digitalLogicalTimelineLaneProjection, frameProjection: digitalLogicalFrameProjection, columnSizing: { mode: 'fixed-content', defaultWidthPx: 344 / digitalCameraColumns.length }, columns: digitalCameraColumns },
     },
   ],
 }

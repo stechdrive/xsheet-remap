@@ -526,6 +526,17 @@ it('separates template lines and labels in the display menu', () => {
     expect(document.querySelectorAll('.templateHeaderText')).toHaveLength(0)
   })
 
+it('starts the pen tool at black and width 2', () => {
+    render(<App />)
+    expect((screen.getByLabelText(uiText.sheet.penColor) as HTMLInputElement).value).toBe('#000000')
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.penTool }))
+    const widthControl = document.querySelector('.annotationActiveWidthControl')
+    if (!(widthControl instanceof HTMLElement)) throw new Error('active pen width control not found')
+    expect((within(widthControl).getByLabelText(uiText.sheet.penWidth) as HTMLInputElement).value).toBe('2')
+    expect(widthControl.querySelector('output')?.textContent).toBe('2')
+  })
+
 it('edits cut metadata from a template-defined sheet region', () => {
     render(<App />)
     const editButton = screen.getByRole('button', { name: 'カットを編集' })

@@ -4,6 +4,12 @@ import { clampNumber } from './sheetInteraction'
 
 export type TemplateRegionEdge = 'left' | 'right' | 'top' | 'bottom'
 export type TemplateGridRole = NonNullable<SheetTemplate['regions'][number]['grid']>['role']
+export type TemplateTimelineLaneRole = Extract<TemplateGridRole, 'sound' | 'camera'>
+export interface TemplateTimelineLaneDefinition {
+  laneId: string
+  label: string
+  order: number
+}
 type EditableRect = SheetTemplate['regions'][number]['rect']
 
 export function updateTemplateRectEdge(
@@ -73,11 +79,10 @@ export function updateTemplateCalibrationTargetRectEdge(
 }
 
 export function defaultColumnCountForRole(template: SheetTemplate, role: TemplateGridRole): number {
-  if (role === 'action' || role === 'cell') {
-    return template.regions.find(region => region.grid?.role === role)?.grid?.columns.length ?? template.defaults.paperTracks.length
-  }
-  if (role === 'camera') return 6
-  if (role === 'sound') return 4
+  const configuredCount = template.regions.find(region => region.grid?.role === role)?.grid?.columns.length
+  if (configuredCount) return configuredCount
+  if (role === 'action' || role === 'cell') return template.defaults.paperTracks.length
+  if (role === 'sound' || role === 'camera') return 4
   return 1
 }
 
@@ -105,7 +110,7 @@ export function buildTemplateColumns(
 ): NonNullable<SheetTemplate['regions'][number]['grid']>['columns'] {
   return Array.from({ length: count }, (_, index) => {
     const existingColumn = existing[index]
-    const label = defaultColumnLabel(template, role, index, count)
+    const label = defaultColumnLabel(template, role, index)
     return {
       columnId: existingColumn?.columnId ?? `${role}_${index + 1}`,
       label: existingColumn?.label ?? label,
@@ -118,10 +123,111 @@ export function buildTemplateColumns(
   })
 }
 
-export function trackProjectionForRole(role: TemplateGridRole): NonNullable<SheetTemplate['regions'][number]['grid']>['trackProjection'] {
-  return role === 'action' || role === 'cell'
-    ? { source: 'logical-paper-tracks', startIndex: 0, overflow: 'hidden' }
-    : undefined
+export function trackProjectionForRole(
+  template: SheetTemplate,
+  role: TemplateGridRole,
+): NonNullable<SheetTemplate['regions'][number]['grid']>['trackProjection'] {
+  const overflow = template.viewLayout?.trackAxis?.type === 'logical-width' ? 'scroll' : 'hidden'
+  if (role === 'action' || role === 'cell') return { source: 'logical-paper-tracks', startIndex: 0, overflow }
+  if (role === 'sound' || role === 'camera') return { source: 'logical-timeline-lanes', startIndex: 0, overflow }
+  return undefined
+}
+
+export function templateTimelineLaneDefinitions(
+  template: SheetTemplate,
+  role: TemplateTimelineLaneRole,
+): TemplateTimelineLaneDefinition[] {
+  const lanes = new Map<string, TemplateTimelineLaneDefinition>()
+  for (const region of template.regions) {
+    if (region.grid?.role !== role) continue
+    region.grid.columns.forEach((column, index) => {
+      const laneId = column.timelineLaneId ?? `${role}_lane_${index + 1}`
+      const existing = lanes.get(laneId)
+      if (existing) {
+        if (!existing.label && column.label) existing.label = column.label
+        return
+      }
+      lanes.set(laneId, { laneId, label: column.label, order: lanes.size })
+    })
+  }
+  return [...lanes.values()]
+}
+
+export function setTemplateTimelineLaneLabel(
+  template: SheetTemplate,
+  role: TemplateTimelineLaneRole,
+  laneId: string,
+  label: string,
+): SheetTemplate {
+  return {
+    ...template,
+    regions: template.regions.map(region => {
+      if (region.grid?.role !== role) return region
+      return {
+        ...region,
+        grid: {
+          ...region.grid,
+          columns: region.grid.columns.map((column, index) => {
+            const columnLaneId = column.timelineLaneId ?? `${role}_lane_${index + 1}`
+            return columnLaneId === laneId ? { ...column, label, timelineLaneId: columnLaneId } : column
+          }),
+        },
+      }
+    }),
+  }
+}
+
+export function resizeTemplateTimelineLanes(
+  template: SheetTemplate,
+  role: TemplateTimelineLaneRole,
+  count: number,
+): SheetTemplate {
+  const firstGrid = template.regions.find(region => region.grid?.role === role)?.grid
+  const sharedColumns = buildTemplateColumns(template, role, count, firstGrid?.columns)
+  return {
+    ...template,
+    regions: template.regions.map(region => {
+      if (region.grid?.role !== role) return region
+      return {
+        ...region,
+        grid: {
+          ...region.grid,
+          columns: sharedColumns.map((column, index) => ({
+            ...column,
+            columnId: region.grid?.columns[index]?.columnId ?? column.columnId,
+          })),
+        },
+      }
+    }),
+  }
+}
+
+export function templateGridColumnLabelsVisible(template: SheetTemplate, role: TemplateGridRole): boolean {
+  const regions = template.regions.filter(region => region.grid?.role === role)
+  return regions.length === 0 || regions.every(region => region.grid?.header?.showColumnLabels !== false)
+}
+
+export function setTemplateGridColumnLabelsVisible(
+  template: SheetTemplate,
+  role: TemplateGridRole,
+  visible: boolean,
+): SheetTemplate {
+  return {
+    ...template,
+    regions: template.regions.map(region => {
+      if (region.grid?.role !== role) return region
+      const header = { ...(region.grid.header ?? {}) }
+      if (visible) delete header.showColumnLabels
+      else header.showColumnLabels = false
+      return {
+        ...region,
+        grid: {
+          ...region.grid,
+          header: Object.keys(header).length > 0 ? header : undefined,
+        },
+      }
+    }),
+  }
 }
 
 export function resizePaperTrackLabels(labels: string[], count: number): string[] {
@@ -167,9 +273,9 @@ export function addCellRegionToTemplate(template: SheetTemplate, rect: { x: numb
   }
 }
 
-function defaultColumnLabel(template: SheetTemplate, role: TemplateGridRole, index: number, count: number): string {
+function defaultColumnLabel(template: SheetTemplate, role: TemplateGridRole, index: number): string {
   if (role === 'action' || role === 'cell') return template.defaults.paperTracks[index] ?? alphabeticTrackLabel(index)
-  if (role === 'camera') return count === 1 ? 'CAMERA' : `CAM${index + 1}`
-  if (role === 'sound') return ''
+  if (role === 'camera') return String(index + 1)
+  if (role === 'sound') return `S${index + 1}`
   return String(index + 1)
 }

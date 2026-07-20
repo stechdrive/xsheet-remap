@@ -319,8 +319,6 @@
   border-radius: 0;
   background: #f5f7f4;
   color: #46544c;
-  font-size: 7px;
-  line-height: 1;
 }
 
 .compactDurationArrowStack button:last-child {
@@ -1150,6 +1148,7 @@
 .durationArrowButton {
   display: grid;
   place-items: center;
+  position: relative;
   width: 18px;
   min-width: 18px;
   height: 14px;
@@ -1159,25 +1158,19 @@
   border-radius: 0;
   background: #f3f4f0;
   color: #1f2421;
-  font-size: 0;
-  line-height: 0;
 }
 
-.durationArrowButton::before {
+.durationArrowIcon {
   display: block;
-  width: 0;
-  height: 0;
-  border-right: 4px solid transparent;
-  border-left: 4px solid transparent;
-  content: "";
-}
-
-.durationArrowButton:first-child::before {
-  border-bottom: 5px solid currentColor;
-}
-
-.durationArrowButton:last-child::before {
-  border-top: 5px solid currentColor;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 5px;
+  transform: translate(-50%, -50%);
+  overflow: visible;
+  fill: currentColor;
+  pointer-events: none;
 }
 
 .durationInput {

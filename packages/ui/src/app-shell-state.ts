@@ -18,6 +18,9 @@ import {
 } from './cameraCueEditing'
 import { createPreferredProject } from './mainAppPreferences'
 
+export const DEFAULT_PEN_COLOR = '#000000'
+export const DEFAULT_PEN_WIDTH = 0.002
+
 interface WorkspaceHistorySnapshot {
   project: CutProject
   template: SheetTemplate
@@ -94,8 +97,8 @@ export function useAppShellState(appKind: MainAppKind) {
   const [showTemplateLabels, setShowTemplateLabels] = useState(true)
   const [showInputContent, setShowInputContent] = useState(true)
   const [showAnnotations, setShowAnnotations] = useState(true)
-  const [penColor, setPenColor] = useState('#d52b2b')
-  const [penWidth, setPenWidth] = useState(0.004)
+  const [penColor, setPenColor] = useState(DEFAULT_PEN_COLOR)
+  const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH)
   const [eraserWidth, setEraserWidth] = useState(0.018)
   const [textFontSizePx, setTextFontSizePx] = useState(DEFAULT_TEXT_FONT_SIZE_PX)
   const [memoTextFontSizePx, setMemoTextFontSizePx] = useState(DEFAULT_TEXT_FONT_SIZE_PX)

@@ -1082,9 +1082,15 @@ it('adds and renames a logical SOUND lane from paper, then expands it as a digit
   fireEvent.click(within(digitalMenu).getByRole('button', { name: 'デジタル標準' }))
   await waitFor(() => {
     const labels = Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)
-    expect(labels).toContain('FOLEY')
+    expect(labels).not.toContain('FOLEY')
     expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
   })
+
+  const paperMenu = openDisplaySettingsMenu()
+  fireEvent.click(within(paperMenu).getByRole('button', { name: 'A3標準' }))
+  fireEvent.contextMenu(sheet, { clientX: insertedLanePoint.x, clientY: insertedLanePoint.y })
+  fireEvent.click(screen.getByRole('menuitem', { name: '列名を変更' }))
+  expect((within(screen.getByRole('form', { name: 'SOUND列名前変更' })).getByLabelText('SOUND列名') as HTMLInputElement).value).toBe('FOLEY')
 })
 
 it('preserves a selected SOUND range through double-click and releases native pointer state after closing', async () => {

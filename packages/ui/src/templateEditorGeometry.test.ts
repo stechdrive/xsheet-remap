@@ -264,6 +264,24 @@ describe('template editor geometry', () => {
     expect(model.chrome.formBoxes.some(box => box.key === 'digital_memo_area:digital_memo_box')).toBe(true)
   })
 
+  it.each([standardA3SheetTemplate, digitalStandardSheetTemplate])(
+    'hides built-in SOUND and CAMERA column labels while keeping their lane names in $templateId',
+    template => {
+      const model = buildTemplateChromeRenderModel(template)
+      const timedRangeRegionIds = new Set(template.regions
+        .filter(region => region.grid?.role === 'sound' || region.grid?.role === 'camera')
+        .map(region => region.regionId))
+      const headers = model.headers.filter(header => timedRangeRegionIds.has(header.regionId))
+
+      expect(headers.length).toBeGreaterThan(0)
+      expect(headers.flatMap(header => header.columns).every(column => column.label === '')).toBe(true)
+      expect(template.regions
+        .filter(region => region.grid?.role === 'sound' || region.grid?.role === 'camera')
+        .flatMap(region => region.grid?.columns ?? [])
+        .some(column => Boolean(column.label))).toBe(true)
+    },
+  )
+
   it('derives expanded digital form boxes and hotspots from identical cell rectangles', () => {
     const paperTracks = Array.from({ length: 12 }, (_, index) => String.fromCharCode(65 + index))
     const timelineLanes = {

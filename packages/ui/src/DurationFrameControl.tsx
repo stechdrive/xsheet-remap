@@ -140,8 +140,8 @@ export function CompactDurationFrameControl({
         }}
       />
       <span className="compactDurationArrowStack">
-        <button type="button" aria-label={`${label}を1コマ増やす`} onClick={() => step(1)}>▲</button>
-        <button type="button" aria-label={`${label}を1コマ減らす`} onClick={() => step(-1)}>▼</button>
+        <button type="button" aria-label={`${label}を1コマ増やす`} onClick={() => step(1)}><DurationArrowIcon direction="up" /></button>
+        <button type="button" aria-label={`${label}を1コマ減らす`} onClick={() => step(-1)}><DurationArrowIcon direction="down" /></button>
       </span>
     </span>
   )
@@ -195,10 +195,18 @@ function DurationStepperUnit({
         }}
       />
       <span className="durationArrowStack">
-        <button type="button" className="durationArrowButton" aria-label={upLabel} onClick={() => onStep(1)}>▲</button>
-        <button type="button" className="durationArrowButton" aria-label={downLabel} onClick={() => onStep(-1)}>▼</button>
+        <button type="button" className="durationArrowButton" aria-label={upLabel} onClick={() => onStep(1)}><DurationArrowIcon direction="up" /></button>
+        <button type="button" className="durationArrowButton" aria-label={downLabel} onClick={() => onStep(-1)}><DurationArrowIcon direction="down" /></button>
       </span>
     </span>
+  )
+}
+
+function DurationArrowIcon({ direction }: { direction: 'up' | 'down' }) {
+  return (
+    <svg className={`durationArrowIcon ${direction}`} viewBox="0 0 8 5" aria-hidden="true">
+      <path d={direction === 'up' ? 'M4 0 8 5H0Z' : 'M0 0H8L4 5Z'} />
+    </svg>
   )
 }
 

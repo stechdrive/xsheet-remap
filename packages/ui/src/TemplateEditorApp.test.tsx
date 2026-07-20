@@ -71,6 +71,35 @@ describe('TemplateEditorApp', () => {
     expect(cellColumnCount.value).toBe('6')
   })
 
+  it('edits shared SOUND and CAMERA initial names separately from their visibility', () => {
+    render(<TemplateEditorApp />)
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.display }))
+    const soundVisible = screen.getByLabelText('SOUND列名を表示') as HTMLInputElement
+    const cameraVisible = screen.getByLabelText('CAMERA列名を表示') as HTMLInputElement
+    expect(soundVisible.checked).toBe(false)
+    expect(cameraVisible.checked).toBe(false)
+
+    const soundName = screen.getByLabelText('SOUND初期列名1') as HTMLInputElement
+    const cameraName = screen.getByLabelText('CAMERA初期列名1') as HTMLInputElement
+    expect(soundName.value).toBe('S1')
+    expect(cameraName.value).toBe('1')
+
+    fireEvent.change(soundName, { target: { value: '台詞' } })
+    fireEvent.click(soundVisible)
+    expect(Array.from(document.querySelectorAll('.templateColumnText')).filter(element => element.textContent === '台詞')).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.table }))
+    const firstSoundCount = screen.getByLabelText('SOUND 1-72の列数') as HTMLInputElement
+    const secondSoundCount = screen.getByLabelText('SOUND 73-144の列数') as HTMLInputElement
+    fireEvent.change(firstSoundCount, { target: { value: '5' } })
+    expect(firstSoundCount.value).toBe('5')
+    expect(secondSoundCount.value).toBe('5')
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.display }))
+    expect((screen.getByLabelText('SOUND初期列名5') as HTMLInputElement).value).toBe('S5')
+  })
+
   it('deletes individual regions from both the overview and region table as draft changes', () => {
     render(<TemplateEditorApp />)
 

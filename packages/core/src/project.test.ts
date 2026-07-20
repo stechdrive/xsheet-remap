@@ -1608,16 +1608,16 @@ describe('sheet template hit testing', () => {
     ])
     expect(soundRegions.map(region => region.grid?.columns.map(column => [column.columnId, column.label]))).toEqual([
       [
-        ['sound_1', ''],
-        ['sound_2', ''],
-        ['sound_3', ''],
-        ['sound_4', ''],
+        ['sound_1', 'S1'],
+        ['sound_2', 'S2'],
+        ['sound_3', 'S3'],
+        ['sound_4', 'S4'],
       ],
       [
-        ['sound_1', ''],
-        ['sound_2', ''],
-        ['sound_3', ''],
-        ['sound_4', ''],
+        ['sound_1', 'S1'],
+        ['sound_2', 'S2'],
+        ['sound_3', 'S3'],
+        ['sound_4', 'S4'],
       ],
     ])
     const leftSoundRegion = soundRegions[0]

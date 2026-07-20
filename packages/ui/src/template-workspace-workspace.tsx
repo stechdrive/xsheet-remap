@@ -23,7 +23,7 @@ import { clampNumber, fitZoomForViewport } from './sheetInteraction'
 import { cloneSheetTemplate, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, synchronizeDigitalTemplatePaperTracks, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
 import { readTemplateImageMetadata } from './templateImageMetadata'
 import { gridHeaderLabelForRole, gridHeaderRolesForTemplate, templateEditorNormalizedRectValue, templateEditorRectPixelValue, type TemplateEditorRectKey } from './templateEditorGeometry'
-import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, resizePaperTrackLabels, setTemplateCalibrationTargetRect, trackProjectionForRole, type TemplateGridRole } from './templateEditing'
+import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, resizePaperTrackLabels, resizeTemplateTimelineLanes, setTemplateCalibrationTargetRect, setTemplateGridColumnLabelsVisible, setTemplateTimelineLaneLabel, templateGridColumnLabelsVisible, templateTimelineLaneDefinitions, trackProjectionForRole, type TemplateGridRole, type TemplateTimelineLaneRole } from './templateEditing'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { METADATA_BINDING_OPTION_IDS, TEMPLATE_CALIBRATION_TARGET_ID, errorMessage, metadataBindingFromOptionId, metadataBindingOptionId, metadataBindingOptionLabel, sameNormalizedRect, standardCalibrationTargetRectForTemplate, type MetadataBindingOptionId } from './template-workspace-model'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
@@ -214,6 +214,14 @@ export function TemplateWorkspace({
     })
   }
 
+  function updateGridColumnLabelsVisible(role: TemplateGridRole, visible: boolean) {
+    updateTemplateDraft(currentTemplate => setTemplateGridColumnLabelsVisible(currentTemplate, role, visible))
+  }
+
+  function updateTimelineLaneLabel(role: TemplateTimelineLaneRole, laneId: string, label: string) {
+    updateTemplateDraft(currentTemplate => setTemplateTimelineLaneLabel(currentTemplate, role, laneId, label))
+  }
+
   function updateSecondCounterVisible(visible: boolean) {
     updateTemplateDraft(currentTemplate => {
       const nextStyle = { ...(currentTemplate.style ?? {}) }
@@ -344,6 +352,9 @@ export function TemplateWorkspace({
         const paperTracks = resizePaperTrackLabels(currentTemplate.defaults.paperTracks, columnCount)
         return withSheetTemplatePaperTracks(currentTemplate, paperTracks)
       }
+      if (targetRole === 'sound' || targetRole === 'camera') {
+        return resizeTemplateTimelineLanes(currentTemplate, targetRole, columnCount)
+      }
       return {
         ...currentTemplate,
         regions: currentTemplate.regions.map(region => {
@@ -447,7 +458,7 @@ export function TemplateWorkspace({
         rowCount: editableTemplate.defaults.durationFrames,
         majorLineEvery: 6,
         pageBreakEvery: 24,
-        trackProjection: trackProjectionForRole(role),
+        trackProjection: trackProjectionForRole(editableTemplate, role),
         columns: buildTemplateColumns(editableTemplate, role, columnCount),
       },
     }
@@ -712,6 +723,7 @@ export function TemplateWorkspace({
     ['json', uiText.template.detailTabs.json],
   ]
   const gridHeaderRoles = gridHeaderRolesForTemplate(template)
+  const timelineLaneRoles = gridHeaderRoles.filter((role): role is TemplateTimelineLaneRole => role === 'sound' || role === 'camera')
 
   const templateViewLayout = getSheetViewLayout(template)
   const templateMeta = (
@@ -1173,7 +1185,7 @@ export function TemplateWorkspace({
         <dt>{uiText.template.gridHeaderLabels}</dt>
         <dd className="templateHeaderLabelList">
           {gridHeaderRoles.map(role => (
-            <label key={role} className="templateHeaderLabelField">
+            <div key={role} className="templateHeaderLabelField">
               <span>{gridRoleLabel(role)}</span>
               <input
                 aria-label={uiText.template.gridHeaderLabelInput(gridRoleLabel(role))}
@@ -1181,10 +1193,46 @@ export function TemplateWorkspace({
                 placeholder={gridRoleLabel(role)}
                 onChange={event => updateGridHeaderLabel(role, event.currentTarget.value)}
               />
-            </label>
+              <span className="templateHeaderColumnLabelToggle">
+                <input
+                  type="checkbox"
+                  aria-label={uiText.template.gridColumnLabelsVisibleInput(gridRoleLabel(role))}
+                  checked={templateGridColumnLabelsVisible(template, role)}
+                  onChange={event => updateGridColumnLabelsVisible(role, event.currentTarget.checked)}
+                />
+                <span>{uiText.template.gridColumnLabelsVisible}</span>
+              </span>
+            </div>
           ))}
         </dd>
       </dl>
+      {timelineLaneRoles.length > 0 && (
+        <dl className="templateMeta templateTimelineLaneMeta">
+          <dt>{uiText.template.timelineLaneInitialLabels}</dt>
+          <dd className="templateTimelineLaneGroups">
+            {timelineLaneRoles.map(role => (
+              <section key={role} className="templateTimelineLaneGroup" aria-label={uiText.template.timelineLaneInitialLabelsForRole(gridRoleLabel(role))}>
+                <div className="templateTimelineLaneGroupHeader">
+                  <strong>{gridRoleLabel(role)}</strong>
+                  <span>{uiText.template.timelineLaneInitialLabelsHint}</span>
+                </div>
+                <div className="templateTimelineLaneLabelList">
+                  {templateTimelineLaneDefinitions(template, role).map((lane, index) => (
+                    <label key={lane.laneId} className="templateTimelineLaneLabelField">
+                      <span>{index + 1}</span>
+                      <input
+                        aria-label={uiText.template.timelineLaneInitialLabelInput(gridRoleLabel(role), index + 1)}
+                        value={lane.label}
+                        onChange={event => updateTimelineLaneLabel(role, lane.laneId, event.currentTarget.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </dd>
+        </dl>
+      )}
     </div>
   )
 

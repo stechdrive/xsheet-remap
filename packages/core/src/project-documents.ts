@@ -468,6 +468,7 @@ function stackGuideLabelPlacementsFromProject(project: Pick<CutProject, 'stackGu
   return project.stackGuideLabels.map(label => ({
     labelId: label.labelId,
     displayRole: label.displayRole,
+    viewTemplateId: label.viewTemplateId,
     viewSnapIndex: label.viewSnapIndex,
     insertAfterPaperTrack: label.insertAfterPaperTrack,
     gapIndex: label.gapIndex,
@@ -483,6 +484,7 @@ function applyStackGuideLabelPlacements(labels: StackGuideLabel[], placements: S
     return normalizeStackGuideLabelForProject({
       ...label,
       displayRole: placement.displayRole ?? label.displayRole,
+      viewTemplateId: placement.viewTemplateId ?? label.viewTemplateId,
       viewSnapIndex: placement.viewSnapIndex ?? label.viewSnapIndex,
       insertAfterPaperTrack: placement.insertAfterPaperTrack,
       gapIndex: placement.gapIndex,

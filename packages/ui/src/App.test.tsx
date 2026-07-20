@@ -239,9 +239,9 @@ it('keeps the selected correction layer when placing a BG or BOOK track from the
         .find(track => track.textContent === 'BG1')
       expect(bgTrack?.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('演出')
     })
-    const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')
-    if (!region?.grid) throw new Error('action region not found')
-    expect(stackGuideConnectorAnchorX('BG1')).toBeCloseTo(region.rect.x - region.rect.w / region.grid.columns.length, 4)
+    const reserve = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_action_reserve_grid')
+    if (!reserve) throw new Error('action reserve region not found')
+    expect(stackGuideConnectorAnchorX('BG1')).toBeCloseTo(reserve.rect.x, 6)
 
     const assetFile = new File(['bg'], 'BG1.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(screen.getByLabelText(uiText.actions.addAssets), { target: { files: [assetFile] } })
@@ -824,6 +824,7 @@ it('renders the default paper template chrome and grid lines', () => {
     expect(screen.getByLabelText(uiText.sheet.canvasLabel).getAttribute('preserveAspectRatio')).toBe('none')
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(2)
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toHaveLength(6)
     expect(headerLabels).not.toContain('SOUND')
@@ -934,7 +935,8 @@ it('keeps template creation as a draft until apply or cancel', () => {
 
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
+    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(1)
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
@@ -979,7 +981,7 @@ it('undoes and redoes an applied template with the synchronized project history'
     expect(redo.disabled).toBe(false)
     fireEvent.click(redo)
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
   })
 
 it('edits selected template rectangles in source-image pixels', () => {
@@ -1074,12 +1076,17 @@ it('omits the fixed paper outer frame for the digital standard template', () => 
     const digitalTextTransform = `scale(${1 / digitalStandardSheetTemplate.page.widthPx} ${1 / digitalStandardSheetTemplate.page.heightPx})`
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(2)
 
     fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
     fireEvent.click(screen.getByRole('button', { name: 'デジタル標準' }))
 
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(0)
+    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
+    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(1)
+    expect(Array.from(document.querySelectorAll('.templateFormLabel')).map(element => element.textContent)).toEqual([
+      'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'ページ数', 'MEMO',
+    ])
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
@@ -1098,6 +1105,10 @@ it('omits the fixed paper outer frame for the digital standard template', () => 
     expect(document.querySelector('.gridActionFrameNumber')?.getAttribute('transform')).toBe(digitalTextTransform)
     expect(document.querySelector('.gridSecondCounter')?.getAttribute('transform')).toBe(digitalTextTransform)
     expect(Array.from(document.querySelectorAll('.sheetSvg text')).every(element => element.getAttribute('transform') === digitalTextTransform)).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(2)
+    expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(16)
   })
 
 it('selects a CELL grid position and creates a key from explicit input', () => {

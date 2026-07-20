@@ -28,7 +28,7 @@ import { createPaperTemplateDraftFromImage, createTemplateDraft, readFileAsDataU
 import { readTemplateImageMetadata } from './templateImageMetadata';
 import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, exportCutProjectsFromDocument, isImageFileRef, preferredSaveDirectory, saveBinaryOutputs, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
-import { paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
+import { paperTrackOrderForRole, stampAuxiliaryPlacementTemplate, templatePaperTracks } from './app-sheet-geometry';
 import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen, updateNativeStackGuidePreviewIfOpen } from './app-registered-cells';
 import { setTimingValueAt } from './sheet-timing-input';
 import { calibrationCornersForTemplate, calibrationCornersFromPoints, imageExportFilterName, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
@@ -1789,7 +1789,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     options: { studioPresetId?: string; resetSheetView?: boolean; commitTemplate?: boolean } = {},
   ) {
     const reconfigured = updateProjectTimelineSectionsFromTemplate(
-      updateProjectPaperTracks(project, getSheetTemplatePaperTracks(nextTemplate)),
+      updateProjectPaperTracks(stampAuxiliaryPlacementTemplate(project, project.sheetTemplateId ?? template.templateId), getSheetTemplatePaperTracks(nextTemplate)),
       nextTemplate,
     )
     const nextProject = updateLogicalSheetSettings(reconfigured, { fps: nextTemplate.defaults.fps })

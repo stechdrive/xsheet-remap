@@ -35,6 +35,19 @@ describe('parseSheetTemplate', () => {
     expect(() => parseSheetTemplate(invalid)).toThrow('描画専用')
   })
 
+  it('validates auxiliary band identifiers and region references', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    expect(parseSheetTemplate(template).auxiliaryBands).toHaveLength(2)
+
+    const missingRegion = structuredClone(template)
+    missingRegion.auxiliaryBands![0]!.slotRegionIds[0] = 'missing_reserve'
+    expect(() => parseSheetTemplate(missingRegion)).toThrow('存在しない領域')
+
+    const duplicateBand = structuredClone(template)
+    duplicateBand.auxiliaryBands![1]!.bandId = duplicateBand.auxiliaryBands![0]!.bandId
+    expect(() => parseSheetTemplate(duplicateBand)).toThrow('補助列配置IDが重複')
+  })
+
   it('accepts page-scoped multiline fields and rejects unknown field scopes', () => {
     const template = structuredClone(standardA3SheetTemplate)
     expect(parseSheetTemplate(template).fields?.find(field => field.fieldId === 'memo.body')).toMatchObject({

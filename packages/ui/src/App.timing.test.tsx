@@ -269,10 +269,9 @@ it('adds a BG/BOOK label from the registered-cell plus menu and places it in the
     fireEvent.click(screen.getByRole('button', { name: 'BG／BOOKを作成' }))
 
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BG'))
-    const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')
-    if (!region?.grid) throw new Error('action region not found')
-    const expectedAnchorX = region.rect.x - region.rect.w / region.grid.columns.length
-    expect(stackGuideConnectorAnchorX('BG')).toBeCloseTo(expectedAnchorX, 4)
+    const reserve = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_action_reserve_grid')
+    if (!reserve) throw new Error('action reserve region not found')
+    expect(stackGuideConnectorAnchorX('BG')).toBeCloseTo(reserve.rect.x, 6)
   })
 
 it('moves the BG/BOOK insertion preview from the sheet body after starting from a header context menu', async () => {
@@ -292,10 +291,9 @@ it('moves the BG/BOOK insertion preview from the sheet body after starting from 
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
 
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="action"]')?.textContent).toBe('BOOK'))
-    const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === 'action')
-    if (!region?.grid) throw new Error('action region not found')
-    const expectedAnchorX = region.rect.x - region.rect.w / region.grid.columns.length
-    expect(stackGuideConnectorAnchorX('BOOK')).toBeCloseTo(expectedAnchorX, 4)
+    const reserve = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_action_reserve_grid')
+    if (!reserve) throw new Error('action reserve region not found')
+    expect(stackGuideConnectorAnchorX('BOOK')).toBeCloseTo(reserve.rect.x, 6)
   })
 
 it('edits registered cell CSP names and assigns image assets by dropping onto the cell card', async () => {

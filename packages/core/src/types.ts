@@ -217,6 +217,7 @@ export interface StackGuideLabel {
   placement?: StackGuidePlacement
   stackBand?: StackGuideStackBand
   displayRole: SheetTimingRole
+  viewTemplateId?: Id
   viewSnapIndex?: number
   insertAfterPaperTrack?: PaperTrackName
   gapIndex: number
@@ -232,6 +233,7 @@ export interface StackGuideLabel {
 export interface StackGuideLabelPlacementState {
   labelId: Id
   displayRole?: SheetTimingRole
+  viewTemplateId?: Id
   viewSnapIndex?: number
   insertAfterPaperTrack?: PaperTrackName
   gapIndex: number

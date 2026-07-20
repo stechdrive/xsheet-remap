@@ -36,9 +36,32 @@ export function parseSheetTemplate(input: unknown): SheetTemplate {
     if (regionIds.has(region.regionId)) throw new Error(`領域IDが重複しています: ${region.regionId}`)
     regionIds.add(region.regionId)
   }
+  if (input.auxiliaryBands !== undefined) validateAuxiliaryBands(input.auxiliaryBands, regionIds)
   return {
     ...(input as unknown as SheetTemplate),
     schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
+  }
+}
+
+function validateAuxiliaryBands(input: unknown, regionIds: Set<string>): void {
+  if (!Array.isArray(input)) throw new Error('補助列配置の定義が不正です。')
+  const bandIds = new Set<string>()
+  for (const band of input) {
+    if (!isRecord(band)
+      || !nonEmptyString(band.bandId)
+      || !Array.isArray(band.anchorRegionIds)
+      || band.anchorRegionIds.length === 0
+      || !band.anchorRegionIds.every(nonEmptyString)
+      || !Array.isArray(band.slotRegionIds)
+      || band.slotRegionIds.length === 0
+      || !band.slotRegionIds.every(nonEmptyString)) {
+      throw new Error('補助列配置の定義が不正です。')
+    }
+    if (bandIds.has(band.bandId)) throw new Error(`補助列配置IDが重複しています: ${band.bandId}`)
+    bandIds.add(band.bandId)
+    for (const regionId of [...band.anchorRegionIds, ...band.slotRegionIds]) {
+      if (!regionIds.has(regionId)) throw new Error(`補助列配置が存在しない領域を参照しています: ${regionId}`)
+    }
   }
 }
 

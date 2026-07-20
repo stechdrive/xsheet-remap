@@ -25,13 +25,13 @@ import {
   type PaperTrack,
   type SheetPage,
   type SheetTemplate,
-  type SheetTemplateGridRowLineRule,
   type SheetTimingRole,
   type TimelineEventValueKind,
 } from '@xsheet-remap/core'
 import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } from './templateEditorGeometry'
+import { overlayBandSegments as buildOverlayBandSegments, overlayVisibleSnapIndex, type OverlayBandSegment } from './app-sheet-geometry'
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
-import { STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
+import { STACK_GUIDE_MAX_LANE, overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
@@ -124,17 +124,6 @@ export type StackGuideFlagRenderItem = {
   geometry: FlagLabelGeometry
   color: string
   align: 'start' | 'center'
-}
-
-export type OverlayBandSegment = {
-  regionId: string
-  rect: NormalizedRect
-  frames: { frameStart: number; frameEnd: number; rowCount: number }
-  minX: number
-  columnWidth: number
-  snapCount: number
-  majorLineEvery?: number
-  rowLineRules?: SheetTemplateGridRowLineRule[]
 }
 
 export type OverlayPaperTrackRenderItem = {
@@ -706,12 +695,13 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
         if (!layout || layout.columns.length === 0) return []
         const rect = layout.rect
         const columns = layout.columns
+        const slots = overlayBandSegmentForRegion(context.template, context.project, anchorRegion.grid?.role as SheetTimingRole, anchorRegion.regionId)?.slots ?? []
         const labelsForRegion = context.project.stackGuideLabels.filter(label =>
           (label.displayRole ?? 'action') === anchorRegion.grid?.role
           && stackGuideStackBand(label) === 'cell-interleave',
         )
-        return stackGuidePlacements(context.template, context.project, labelsForRegion, rect, context.pageSize, columns).map(({ label, lane }) => {
-          const geometry = stackGuideSvgGeometry(context.template, rect, context.pageSize, label, lane, columns)
+        return stackGuidePlacements(context.template, context.project, labelsForRegion, rect, context.pageSize, columns, slots, anchorRegion.regionId).map(({ label, lane }) => {
+          const geometry = stackGuideSvgGeometry(context.template, rect, context.pageSize, label, lane, columns, slots, anchorRegion.regionId)
           return {
             leftPx: geometry.labelX * context.pageSize.widthPx,
             rightPx: (geometry.labelX + geometry.labelWidth) * context.pageSize.widthPx,
@@ -761,15 +751,16 @@ export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContex
     if (!layout || layout.columns.length === 0) return []
     const columns = layout.columns
     const rect = layout.rect
+    const slots = overlayBandSegmentForRegion(context.template, context.project, displayRole, region.regionId)?.slots ?? []
     const labelsForRegion = context.project.stackGuideLabels.filter(label =>
       (label.displayRole ?? 'action') === displayRole
       && stackGuideStackBand(label) === 'cell-interleave',
     )
-    const placementsByGap = stackGuidePlacementsByGap(context.template, context.project, labelsForRegion, rect, context.pageSize, columns)
+    const placementsByGap = stackGuidePlacementsByGap(context.template, context.project, labelsForRegion, rect, context.pageSize, columns, slots, region.regionId)
     return [...placementsByGap.values()].flatMap(placements =>
       placements.map(({ label, lane }) => ({
         label: label.label,
-        geometry: stackGuideSvgGeometry(context.template, rect, context.pageSize, label, lane, columns),
+        geometry: stackGuideSvgGeometry(context.template, rect, context.pageSize, label, lane, columns, slots, region.regionId),
         color: '#315bdc',
         align: 'start' as const,
       })),
@@ -813,66 +804,22 @@ function overlayColumnRectForPage(context: SheetRenderModelContext, track: Paper
     return page.frameStart <= segmentEnd && page.frameEnd >= segmentStart
   })
   if (!segment) return null
-  const snapIndex = clampNumberForRender(Math.round(track.viewPlacement?.snapIndex ?? 0), 0, segment.snapCount)
+  const snapIndex = overlayVisibleSnapIndex(context.template, context.project, track, segment)
+  const slot = segment.slots[snapIndex]
+  if (!slot) return null
   return {
     ...segment,
     rect: {
-      x: segment.minX + segment.columnWidth * snapIndex,
+      x: slot.x,
       y: segment.rect.y,
-      w: segment.columnWidth,
+      w: slot.w,
       h: segment.rect.h,
     },
   }
 }
 
 function overlayBandSegments(context: SheetRenderModelContext, role: SheetTimingRole): OverlayBandSegment[] {
-  const viewLayout = getSheetViewLayout(context.template)
-  const frameOrigin = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
-    ? context.displayFrameStart
-    : context.template.defaults.frameOrigin
-  return context.template.regions.flatMap(region => {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== role) return []
-    const layout = resolveSheetTemplateGridLayout(context.template, region, {
-      paperTracks: context.paperTracks,
-      durationFrames: context.displayDurationFrames,
-      frameOrigin,
-      layoutOverrides: context.project.sheetView.layoutOverrides,
-    })
-    if (!layout || layout.columns.length === 0) return []
-    const rect = layout.rect
-    const columns = layout.columns
-    const frames = layout.frames
-    const actionRegion = matchingGridRegion(context.template, 'action', frames.frameStart)
-    const cameraRegion = matchingGridRegion(context.template, 'camera', frames.frameStart)
-    const actionLayout = actionRegion ? resolveSheetTemplateGridLayout(context.template, actionRegion, {
-      paperTracks: context.paperTracks,
-      durationFrames: context.displayDurationFrames,
-      frameOrigin,
-      layoutOverrides: context.project.sheetView.layoutOverrides,
-    }) : null
-    const cameraLayout = cameraRegion ? resolveSheetTemplateGridLayout(context.template, cameraRegion, {
-      paperTracks: context.paperTracks,
-      durationFrames: context.displayDurationFrames,
-      frameOrigin,
-      layoutOverrides: context.project.sheetView.layoutOverrides,
-    }) : null
-    const actionRect = actionLayout?.rect ?? rect
-    const cameraRect = cameraLayout?.rect ?? rect
-    const columnWidth = columns.reduce((total, column) => total + column.w, 0) / columns.length
-    const minX = Math.max(0, actionRect.x - columnWidth)
-    const maxX = Math.min(1 - columnWidth, cameraRect.x + cameraRect.w)
-    const snapCount = Math.max(0, Math.round((maxX - minX) / columnWidth))
-    return [{
-      regionId: region.regionId,
-      rect,
-      frames,
-      minX,
-      columnWidth,
-      snapCount,
-      majorLineEvery: region.grid.majorLineEvery,
-      rowLineRules: region.grid.rowLineRules,
-    }]
-  })
+  return buildOverlayBandSegments(context.template, context.project, role)
 }
 
 function standardEventRectForPage(
@@ -967,22 +914,9 @@ function pathNumber(value: number): string {
   return String(Number(value.toFixed(7)))
 }
 
-function matchingGridRegion(template: SheetTemplate, role: 'action' | 'cell' | 'camera', frameStart: number): SheetTemplate['regions'][number] | undefined {
-  return template.regions.find(region =>
-    region.type === 'exposure-grid'
-    && region.grid?.role === role
-    && (region.grid.frameStart ?? template.defaults.frameOrigin) === frameStart,
-  )
-}
-
 function frameOriginForPage(template: SheetTemplate, page: SheetPage): number {
   const layout = getSheetViewLayout(template)
   return layout.frameAxis?.type === 'continuous' || layout.frameAxis?.type === 'infinite'
     ? page.frameStart
     : template.defaults.frameOrigin
-}
-
-function clampNumberForRender(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min
-  return Math.min(max, Math.max(min, value))
 }

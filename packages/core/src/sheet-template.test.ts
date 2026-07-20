@@ -6,6 +6,7 @@ import {
   resolveSheetTemplatePageSize,
   sheetGridCellRect,
   type SheetTemplate,
+  digitalStandardSheetTemplate,
   standardA3SheetTemplate,
 } from './sheet-template'
 
@@ -108,6 +109,33 @@ describe('sheet template layout', () => {
         y: region!.rect.y + region!.rect.h / 144,
       })).toBeNull()
     }
+  })
+
+  it('declares exact auxiliary bands and a real reserve column for both built-in templates', () => {
+    expect(standardA3SheetTemplate.auxiliaryBands).toEqual([
+      expect.objectContaining({
+        bandId: 'left_timing_band',
+        anchorRegionIds: ['left_action_grid', 'left_cell_grid'],
+        slotRegionIds: expect.arrayContaining(['left_action_reserve_grid', 'left_action_grid', 'left_cell_grid']),
+      }),
+      expect.objectContaining({
+        bandId: 'right_timing_band',
+        anchorRegionIds: ['right_action_grid', 'right_cell_grid'],
+        slotRegionIds: expect.arrayContaining(['right_action_reserve_grid', 'right_action_grid', 'right_cell_grid']),
+      }),
+    ])
+
+    const reserve = digitalStandardSheetTemplate.regions.find(region => region.regionId === 'digital_action_reserve_grid')
+    expect(digitalStandardSheetTemplate.auxiliaryBands).toEqual([
+      expect.objectContaining({
+        bandId: 'digital_timing_band',
+        anchorRegionIds: ['digital_action_grid', 'digital_cell_grid'],
+        slotRegionIds: ['digital_action_reserve_grid', 'digital_action_grid', 'digital_sound_grid', 'digital_cell_grid', 'digital_camera_grid'],
+      }),
+    ])
+    expect(reserve).toMatchObject({ type: 'decorative', usage: 'render-only', grid: { role: 'other', rowCount: 144 } })
+    expect(reserve!.rect.x * digitalStandardSheetTemplate.page.widthPx).toBe(32)
+    expect(reserve!.rect.w * digitalStandardSheetTemplate.page.widthPx).toBe(48)
   })
 
   it('places optional shared cut numbers at the bottom of the A3 CUT field', () => {

@@ -438,6 +438,17 @@ export interface SheetTemplateNaming {
   cutNumberPrefixMode?: SheetTemplateCutNumberPrefixMode
 }
 
+/**
+ * Declares the exact visual slots used by auxiliary paper tracks and stack
+ * guides around one or more timing grids. Region order is significant: each
+ * region contributes its resolved grid columns from left to right.
+ */
+export interface SheetTemplateAuxiliaryBand {
+  bandId: string
+  anchorRegionIds: string[]
+  slotRegionIds: string[]
+}
+
 export interface SheetTemplate {
   schemaVersion: number
   templateId: string
@@ -480,6 +491,7 @@ export interface SheetTemplate {
     frameOrigin: number
     paperTracks: PaperTrackName[]
   }
+  auxiliaryBands?: SheetTemplateAuxiliaryBand[]
   fields?: SheetTemplateFieldDefinition[]
   regions: SheetTemplateRegion[]
 }

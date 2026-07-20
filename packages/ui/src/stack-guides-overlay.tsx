@@ -4,7 +4,7 @@ import { uiText } from './i18n'
 import { clampNumber } from './sheetInteraction'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { StackGuideDropPreviewState, StackGuideInsertContext, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideLabelUpdates } from './app-foundation'
-import { stackGuideAnchorRegions, stackGuideClampedEditorBottomPx, stackGuideColumnHeaderHitPx, stackGuideEditorBottomPx, stackGuideEditorShiftPx, stackGuideGuideHeightPx, stackGuideHeaderReachPx, stackGuideInsertionTargets, stackGuideLabelsForPreview, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
+import { overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuideClampedEditorBottomPx, stackGuideColumnHeaderHitPx, stackGuideEditorBottomPx, stackGuideEditorShiftPx, stackGuideGuideHeightPx, stackGuideHeaderReachPx, stackGuideInsertionTargets, stackGuideLabelsForPreview, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { defaultStackGuideInsertTarget, stackGuideInsertTargetFromPoint, stackGuidePlacementUpdateFromPointer } from './stack-guides-interaction'
 
 export function HoverCellOverlay({ rect }: { rect: { x: number; y: number; w: number; h: number } }) {
@@ -305,13 +305,14 @@ export function StackGuideOverlay({
         const columns = layout?.columns ?? []
         const displayRole = region.grid?.role as SheetTimingRole
         const rect = layout?.rect ?? resolveSheetTemplateRegionRect(template, region, displayDurationFrames)
+        const slots = overlayBandSegmentForRegion(template, displayProject, displayRole, region.regionId)?.slots ?? []
         const anchorY = rect.y
         const headerReachPx = stackGuideHeaderReachPx(template, rect, pageHeight)
         const columnHeaderHitPx = stackGuideColumnHeaderHitPx(template, pageHeight)
         const labelsForRegion = displayProject.stackGuideLabels.filter(label => (label.displayRole ?? 'action') === displayRole && stackGuideStackBand(label) === 'cell-interleave')
-        const placementsByGap = stackGuidePlacementsByGap(template, displayProject, labelsForRegion, rect, pageSize, columns)
+        const placementsByGap = stackGuidePlacementsByGap(template, displayProject, labelsForRegion, rect, pageSize, columns, slots, region.regionId)
         const labelDragHandles = Array.from(placementsByGap.values()).flatMap(placements => placements.map(({ label, lane }) => {
-          const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns)
+          const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns, slots, region.regionId)
           return (
             <button
               key={label.labelId}

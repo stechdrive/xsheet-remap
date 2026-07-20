@@ -25,7 +25,7 @@ export type CspTopOverlayPaperTrackInput = {
 
 export type CspBottomStackGuideInput = Omit<
   Parameters<typeof createStackGuideLabel>[1],
-  'gapIndex' | 'insertAfterPaperTrack' | 'viewSnapIndex'
+  'gapIndex' | 'insertAfterPaperTrack' | 'viewTemplateId' | 'viewSnapIndex'
 >
 
 export function cellStackOrderItems(project: CutProject): CellStackOrderItem[] {
@@ -124,6 +124,7 @@ export function createStackGuideLabelAtCspCellBottom(
     ...input,
     gapIndex: 0,
     insertAfterPaperTrack: undefined,
+    viewTemplateId: project.sheetTemplateId,
     viewSnapIndex: 0,
   })
   const itemId = `stack:${created.label.labelId}`
@@ -225,6 +226,7 @@ export function applyCellStackOrder(project: CutProject, orderedItemIds: string[
       viewPlacement: syncViewOrder
         ? {
             ...track.viewPlacement,
+            templateId: project.sheetTemplateId,
             snapIndex: update.snapIndex,
             expanded: true,
           }
@@ -247,7 +249,7 @@ export function applyCellStackOrder(project: CutProject, orderedItemIds: string[
         insertAfterPaperTrack: update.insertAfterPaperTrack,
         gapIndex: update.insertAfterPaperTrack ? (paperTrackIndex.get(update.insertAfterPaperTrack) ?? -1) + 1 : 0,
         orderInGap: update.orderInGap,
-        ...(update.clearViewOverride ? { viewSnapIndex: undefined } : {}),
+        ...(update.clearViewOverride ? { viewTemplateId: undefined, viewSnapIndex: undefined } : {}),
       }
     }),
   }
@@ -380,6 +382,7 @@ function applyStableCellStackOrder(project: CutProject, orderedIds: string[], sy
     const nextViewPlacement = movedAcrossTemplate.has(itemIdForTrack)
       ? {
           ...track.viewPlacement,
+          templateId: project.sheetTemplateId,
           snapIndex: cellStackViewSnapIndexFromTemplateOrder(templateOrder, placement.insertAfterPaperTrack),
           expanded: true,
         }
@@ -406,7 +409,10 @@ function applyStableCellStackOrder(project: CutProject, orderedIds: string[], sy
       gapIndex: typeof anchorIndex === 'number' ? anchorIndex + 1 : 0,
       orderInGap: placement.orderInGap,
       ...(movedAcrossTemplate.has(itemIdForLabel)
-        ? { viewSnapIndex: cellStackViewSnapIndexFromTemplateOrder(templateOrder, placement.insertAfterPaperTrack) }
+        ? {
+            viewTemplateId: project.sheetTemplateId,
+            viewSnapIndex: cellStackViewSnapIndexFromTemplateOrder(templateOrder, placement.insertAfterPaperTrack),
+          }
         : {}),
     }
   })

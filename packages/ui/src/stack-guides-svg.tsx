@@ -3,7 +3,7 @@ import { type CutProject, type SheetPage, type SheetTemplate, type SheetTimingRo
 import { uiText } from './i18n'
 import { SheetSvgText } from './SheetSvgText'
 import { StackGuideDropPreviewState, StackGuideLabelUpdates } from './app-foundation'
-import { stackGuideAnchorRegions, stackGuideLabelsForPreview, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
+import { overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuideLabelsForPreview, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { stackGuidePlacementUpdateFromPointer } from './stack-guides-interaction'
 
 export function StackGuideSvgLayer({
@@ -145,15 +145,16 @@ export function StackGuideSvgLayer({
     })
     const columns = layout?.columns ?? []
     const rect = layout?.rect ?? resolveSheetTemplateRegionRect(template, region, displayDurationFrames)
+    const slots = overlayBandSegmentForRegion(template, displayProject, displayRole, region.regionId)?.slots ?? []
     const labelsForRegion = displayProject.stackGuideLabels.filter(label => (label.displayRole ?? 'action') === displayRole && stackGuideStackBand(label) === 'cell-interleave')
-    const placementsByGap = stackGuidePlacementsByGap(template, displayProject, labelsForRegion, rect, pageSize, columns)
+    const placementsByGap = stackGuidePlacementsByGap(template, displayProject, labelsForRegion, rect, pageSize, columns, slots, region.regionId)
 
     return Array.from(placementsByGap.values()).flatMap(placements => placements.map(({ label, lane }) => ({
       key: `${region.regionId}-${label.labelId}`,
       regionId: region.regionId,
       displayRole,
       label,
-      geometry: stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns),
+      geometry: stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns, slots, region.regionId),
       className: [
         'stackGuideLabel',
         'stackGuideSvgLabel',

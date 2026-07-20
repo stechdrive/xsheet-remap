@@ -1,8 +1,7 @@
 import { type CutProject, type NormalizedRect, type NormalizedPoint, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
 import { clampNumber } from './sheetInteraction'
 import { StackGuideInsertTarget, StackGuideLabelUpdates } from './app-foundation'
-import { overlaySnapIndexFromSegment } from './app-sheet-geometry'
-import { overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuideColumnHeaderHitPx, stackGuideGapIndexFromSnapIndex, stackGuideInsertAfterPaperTrackFromGap, stackGuideInsertionTargets, stackGuideNativeHeaderReachPx, stackGuideVisibleGapIndex } from './stack-guides-geometry'
+import { stackGuideAnchorRegions, stackGuideColumnHeaderHitPx, stackGuideInsertionTargets, stackGuideNativeHeaderReachPx } from './stack-guides-geometry'
 
 type StackGuideInsertHitMode = 'header' | 'page'
 
@@ -122,11 +121,12 @@ export function stackGuidePlacementUpdateFromPointer(
 ): StackGuideLabelUpdates | null {
   const target = stackGuidePlacementTargetFromPointer(svg, clientX, clientY, project, template, page)
   if (!target) return null
-  const orderInGap = nextStackGuideOrderInGap(project, label.labelId, target.displayRole, target.gapIndex, target.columns)
+  const orderInGap = nextStackGuideOrderInGap(project, label.labelId, target.displayRole, target.gapIndex)
   return {
     displayRole: target.displayRole,
     gapIndex: target.gapIndex,
     insertAfterPaperTrack: target.insertAfterPaperTrack ?? '',
+    viewTemplateId: template.templateId,
     viewSnapIndex: target.snapIndex,
     orderInGap,
   }
@@ -175,17 +175,17 @@ export function stackGuidePlacementTargetFromPointer(
     .sort((a, b) => a.score - b.score)
   const target = candidates[0]
   if (!target) return null
-  const segment = overlayBandSegmentForRegion(template, project, target.role, target.regionId)
-  const snapIndex = overlaySnapIndexFromSegment(point.x, segment)
-  const gapIndex = stackGuideGapIndexFromSnapIndex(snapIndex, target.columns.length)
-  const insertAfterPaperTrack = stackGuideInsertAfterPaperTrackFromGap(target.columns, gapIndex)
+  const insertionTargets = stackGuideInsertionTargets(template, project, target.role, target.regionId, target.rect, target.columns)
+  const placement = insertionTargets.reduce((nearest, candidate) =>
+    Math.abs(point.x - candidate.x) < Math.abs(point.x - nearest.x) ? candidate : nearest,
+  )
   return {
     pageId: page.pageId,
     regionId: target.regionId,
     displayRole: target.role,
-    gapIndex,
-    insertAfterPaperTrack,
-    snapIndex,
+    gapIndex: placement.gapIndex,
+    insertAfterPaperTrack: placement.insertAfterPaperTrack,
+    snapIndex: placement.snapIndex,
     columns: target.columns,
   }
 }
@@ -195,14 +195,13 @@ function nextStackGuideOrderInGap(
   movedLabelId: string,
   displayRole: SheetTimingRole,
   gapIndex: number,
-  columns: Array<{ paperTrack?: string }>,
 ): number {
   const orders = project.stackGuideLabels
     .filter(label =>
       label.labelId !== movedLabelId
       && stackGuideStackBand(label) === 'cell-interleave'
       && (label.displayRole ?? 'action') === displayRole
-      && stackGuideVisibleGapIndex(project, label, columns) === gapIndex,
+      && label.gapIndex === gapIndex,
     )
     .map(label => label.orderInGap)
   return orders.length > 0 ? Math.max(...orders) + 1 : 0

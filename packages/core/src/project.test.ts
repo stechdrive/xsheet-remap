@@ -1735,7 +1735,7 @@ describe('sheet template hit testing', () => {
       h: Math.max(...metadataRects.map(rect => rect.y + rect.h)) - Math.min(...metadataRects.map(rect => rect.y)),
     }
     const memo = rectForRegion('digital_memo_area')
-    const action = rectForRegion('digital_action_grid')
+    const [reserve, action] = ['digital_action_reserve_grid', 'digital_action_grid'].map(rectForRegion)
     const camera = rectForRegion('digital_camera_grid')
     const actionGrid = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_action_grid')?.grid
     const soundGrid = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_sound_grid')?.grid
@@ -1743,7 +1743,9 @@ describe('sheet template hit testing', () => {
     expect(metadataRects).toHaveLength(7)
     expect(cutMetadata).toEqual({ x: 32, y: 54, w: 1856, h: 60 })
     expect(memo).toEqual({ x: 32, y: 160, w: 1856, h: 300 })
-    expect(action).toMatchObject({ x: 32, y: 620, h: 2880 })
+    expect(reserve).toEqual({ x: 32, y: 620, w: 48, h: 2880 })
+    expect(action).toMatchObject({ x: 80, y: 620, h: 2880 })
+    expect(reserve.x + reserve.w).toBe(action.x)
     expect(camera.x + camera.w).toBe(1888)
     expect(action.y).toBeGreaterThan(memo.y + memo.h)
     expect(actionGrid?.rowCount).toBe(144)

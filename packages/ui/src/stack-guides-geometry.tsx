@@ -13,6 +13,8 @@ type StackGuidePreviewPlacement = {
   snapIndex: number
 }
 
+type StackGuideSlot = { x: number; w: number; regionId?: string; paperTrack?: string }
+
 export type { AuxiliaryLabelMetrics as StackGuideLabelMetrics } from './auxiliary-label-layout'
 export { estimatedLabelTextWidthPx } from './auxiliary-label-layout'
 
@@ -28,9 +30,19 @@ export function stackGuideInsertAfterPaperTrackFromGap(columns: Array<{ paperTra
   return gapIndex > 0 ? columns[gapIndex - 1]?.paperTrack : undefined
 }
 
-export function stackGuideVisibleSnapIndex(label: StackGuideLabel, columns: Array<{ paperTrack?: string }>): number {
-  if (Number.isFinite(label.viewSnapIndex)) return clampNumber(Math.round(label.viewSnapIndex as number), 0, Number.MAX_SAFE_INTEGER)
+export function stackGuideVisibleSnapIndex(
+  label: StackGuideLabel,
+  columns: Array<{ paperTrack?: string }>,
+  templateId?: string,
+  slots: StackGuideSlot[] = [],
+  anchorRegionId?: string,
+): number {
+  if ((!templateId || !label.viewTemplateId || label.viewTemplateId === templateId) && Number.isFinite(label.viewSnapIndex)) {
+    return clampNumber(Math.round(label.viewSnapIndex as number), 0, Number.MAX_SAFE_INTEGER)
+  }
   if (label.insertAfterPaperTrack) {
+    const slotIndex = slots.findIndex(slot => slot.regionId === anchorRegionId && slot.paperTrack === label.insertAfterPaperTrack)
+    if (slotIndex >= 0) return slotIndex + 1
     const trackIndex = columns.findIndex(column => column.paperTrack === label.insertAfterPaperTrack)
     if (trackIndex >= 0) return trackIndex + 2
   }
@@ -58,6 +70,7 @@ export function stackGuideLabelsForPreview(
         displayRole: preview.displayRole,
         gapIndex: preview.gapIndex,
         insertAfterPaperTrack: preview.insertAfterPaperTrack,
+        viewTemplateId: project.sheetTemplateId,
         viewSnapIndex: preview.snapIndex,
         orderInGap: nextOrderInGap,
       }
@@ -97,8 +110,10 @@ export function stackGuidePlacementsByGap(
   rect: NormalizedRect,
   pageSize: { widthPx: number; heightPx: number },
   columns: StackGuideColumn[] = [],
+  slots: StackGuideSlot[] = [],
+  anchorRegionId?: string,
 ) {
-  const placements = stackGuidePlacements(template, project, labels, rect, pageSize, columns)
+  const placements = stackGuidePlacements(template, project, labels, rect, pageSize, columns, slots, anchorRegionId)
   const byGap = new Map<number, StackGuidePlacement[]>()
   for (const placement of placements) {
     const gapPlacements = byGap.get(placement.gapIndex) ?? []
@@ -118,12 +133,14 @@ export function stackGuidePlacements(
   rect: NormalizedRect,
   pageSize: { widthPx: number; heightPx: number },
   columns: StackGuideColumn[] = [],
+  slots: StackGuideSlot[] = [],
+  anchorRegionId?: string,
 ): StackGuidePlacement[] {
   const placed: StackGuidePlacement[] = []
   for (const label of [...labels].sort(compareStackGuidePlacementPriority(project))) {
-    const gapIndex = stackGuideVisibleGapIndex(project, label, columns)
+    const gapIndex = stackGuideVisibleGapIndex(project, label, columns, template.templateId, slots, anchorRegionId)
     if (gapIndex === null) continue
-    const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, 0, columns)
+    const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, 0, columns, slots, anchorRegionId)
     const range = {
       leftPx: geometry.labelX * pageSize.widthPx,
       rightPx: (geometry.labelX + geometry.labelWidth) * pageSize.widthPx,
@@ -140,9 +157,9 @@ export function stackGuidePlacements(
   return placed
 }
 
-export function stackGuideVisibleGapIndex(project: CutProject, label: StackGuideLabel, columns?: Array<{ paperTrack?: string }>): number | null {
+export function stackGuideVisibleGapIndex(project: CutProject, label: StackGuideLabel, columns?: Array<{ paperTrack?: string }>, templateId?: string, slots: StackGuideSlot[] = [], anchorRegionId?: string): number | null {
   if (!columns) return stackGuideGapIndex(project, label)
-  return stackGuideVisibleSnapIndex(label, columns)
+  return stackGuideVisibleSnapIndex(label, columns, templateId, slots, anchorRegionId)
 }
 
 function compareStackGuidePlacementPriority(project: CutProject) {
@@ -200,14 +217,14 @@ export function stackGuideLabelMetrics(template: SheetTemplate): AuxiliaryLabelM
   return auxiliaryLabelMetrics(template, 'stack-guide')
 }
 
-export function stackGuideSvgGeometry(template: SheetTemplate, rect: NormalizedRect, pageSize: { widthPx: number; heightPx: number }, label: StackGuideLabel, lane: number, columns: StackGuideColumn[] = []) {
+export function stackGuideSvgGeometry(template: SheetTemplate, rect: NormalizedRect, pageSize: { widthPx: number; heightPx: number }, label: StackGuideLabel, lane: number, columns: StackGuideColumn[] = [], slots: StackGuideSlot[] = [], anchorRegionId?: string) {
   const metrics = stackGuideLabelMetrics(template)
   const textLayout = auxiliaryLabelTextLayout(label.label, metrics, {
     extraWidthPx: DEFAULT_STACK_GUIDE_LABEL_EXTRA_WIDTH_PX,
     maxLabelWidthPx: auxiliaryLabelMaxWidthForPage(metrics, pageSize.widthPx),
   })
-  const snapIndex = stackGuideVisibleSnapIndex(label, columns)
-  const anchorX = stackGuideSnapX(rect, columns, snapIndex)
+  const snapIndex = stackGuideVisibleSnapIndex(label, columns, template.templateId, slots, anchorRegionId)
+  const anchorX = slots[snapIndex]?.x ?? stackGuideSnapX(rect, columns, snapIndex)
   const anchorY = rect.y
   const labelWidth = textLayout.labelWidthPx / pageSize.widthPx
   const labelHeight = metrics.labelHeightPx / pageSize.heightPx
@@ -249,8 +266,8 @@ function stackGuideSnapX(rect: NormalizedRect, columns: Array<{ x?: number; w?: 
     const last = columns[columns.length - 1]!
     if (snapIndex <= 0) return (first.x ?? rect.x) - (first.w ?? rect.w / columnCount)
     if (snapIndex >= columns.length + 1) return (last.x ?? rect.x) + (last.w ?? rect.w / columnCount)
-    const previous = columns[snapIndex - 1]
-    return previous ? (previous.x ?? rect.x) + (previous.w ?? rect.w / columnCount) : rect.x
+    const column = columns[snapIndex - 1]
+    return column?.x ?? rect.x
   }
   return rect.x + (rect.w * (snapIndex - 1)) / columnCount
 }
@@ -276,16 +293,17 @@ export function stackGuideInsertionTargets(
 ) {
   const fallbackColumnWidth = rect.w / Math.max(1, columns.length)
   const segment = overlayBandSegmentForRegion(template, project, displayRole, regionId)
-  const minX = segment?.minX ?? rect.x
-  const columnWidth = segment?.columnWidth ?? fallbackColumnWidth
   const snapCount = segment?.snapCount ?? columns.length + 1
+  const firstAnchorSlotIndex = segment?.slots.findIndex(slot => slot.regionId === regionId) ?? -1
   return Array.from({ length: snapCount + 1 }, (_, snapIndex) => {
-    const gapIndex = stackGuideGapIndexFromSnapIndex(snapIndex, columns.length)
+    const gapIndex = firstAnchorSlotIndex >= 0
+      ? clampNumber(snapIndex - firstAnchorSlotIndex, 0, columns.length)
+      : stackGuideGapIndexFromSnapIndex(snapIndex, columns.length)
     return {
       snapIndex,
       gapIndex,
       insertAfterPaperTrack: stackGuideInsertAfterPaperTrackFromGap(columns, gapIndex),
-      x: minX + columnWidth * snapIndex,
+      x: segment?.slots[snapIndex]?.x ?? rect.x + fallbackColumnWidth * (snapIndex - 1),
     }
   })
 }

@@ -15,6 +15,7 @@ export function createStackGuideLabel(
     correctionLayerId?: string
     placement?: StackGuideLabel['placement']
     stackBand?: StackGuideLabel['stackBand']
+    viewTemplateId?: string
     viewSnapIndex?: number
   },
 ): { project: CutProject; label: StackGuideLabel } {
@@ -42,6 +43,7 @@ export function createStackGuideLabel(
     placement,
     stackBand,
     displayRole: input.displayRole ?? 'action',
+    viewTemplateId: input.viewTemplateId ?? project.sheetTemplateId,
     viewSnapIndex: normalizeOptionalStackGuideViewSnapIndex(input.viewSnapIndex),
     insertAfterPaperTrack,
     gapIndex,
@@ -63,7 +65,7 @@ export function createStackGuideLabel(
 export function updateStackGuideLabel(
   project: CutProject,
   labelId: string,
-  updates: Partial<Pick<StackGuideLabel, 'label' | 'kind' | 'placement' | 'stackBand' | 'displayRole' | 'viewSnapIndex' | 'insertAfterPaperTrack' | 'gapIndex' | 'orderInGap' | 'exportAsStaticCell' | 'cspCellName'>>,
+  updates: Partial<Pick<StackGuideLabel, 'label' | 'kind' | 'placement' | 'stackBand' | 'displayRole' | 'viewTemplateId' | 'viewSnapIndex' | 'insertAfterPaperTrack' | 'gapIndex' | 'orderInGap' | 'exportAsStaticCell' | 'cspCellName'>>,
 ): CutProject {
   const existing = project.stackGuideLabels.find(label => label.labelId === labelId)
   if (!existing) throw new Error(`stack guide label not found: ${labelId}`)
@@ -85,6 +87,7 @@ export function updateStackGuideLabel(
               placement: updates.placement,
               stackBand: updates.stackBand,
               displayRole: updates.displayRole,
+              viewTemplateId: updates.viewTemplateId,
               viewSnapIndex: updates.viewSnapIndex === undefined ? undefined : normalizeOptionalStackGuideViewSnapIndex(updates.viewSnapIndex),
               insertAfterPaperTrack: nextInsertAfterPaperTrack,
               gapIndex: nextGapIndex,

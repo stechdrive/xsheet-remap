@@ -1,7 +1,7 @@
 import { cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { clampNumber } from './sheetInteraction'
-import { overlayBandSegments, overlayPaperTracks, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
+import { overlayBandSegments, overlayPaperTracks, overlayVisibleSnapIndex, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 
 export function eventRectsForPage(project: CutProject, template: SheetTemplate, page: SheetPage, options: { activeOverlayPaperTrack?: string | null } = {}) {
   const paperTracks = templatePaperTracks(project).map(track => track.paperTrack)
@@ -180,13 +180,15 @@ export function overlayColumnRectForPage(template: SheetTemplate, project: CutPr
     return page.frameStart <= segmentEnd && page.frameEnd >= segmentStart
   })
   if (!segment) return null
-  const snapIndex = clampNumber(Math.round(track.viewPlacement?.snapIndex ?? 0), 0, segment.snapCount)
+  const snapIndex = overlayVisibleSnapIndex(template, project, track, segment)
+  const slot = segment.slots[snapIndex]
+  if (!slot) return null
   return {
     ...segment,
     rect: {
-      x: segment.minX + segment.columnWidth * snapIndex,
+      x: slot.x,
       y: segment.rect.y,
-      w: segment.columnWidth,
+      w: slot.w,
       h: segment.rect.h,
     },
   }

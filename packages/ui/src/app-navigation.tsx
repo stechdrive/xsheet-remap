@@ -395,32 +395,33 @@ export function ViewModeIcon() {
 
 export function DisplaySettingsIcon() {
   return (
-    <svg className="topIconSvg displayTemplateIcon" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="1.5" y="2" width="21" height="20" rx="1.8" />
-      <path d="M1.5 7.7h21" />
-      <path d="M6.75 7.7v14.3" />
-      <path d="M12 7.7v14.3" />
-      <path d="M17.25 7.7v14.3" />
-      <path d="M1.5 12.5h21" />
-      <path d="M1.5 17.3h21" />
+    <svg className="topIconSvg displayTemplateIcon pageDisplayIcon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2.5 12S6 6 12 6s9.5 6 9.5 6S18 18 12 18 2.5 12 2.5 12z" />
+      <rect x="8" y="9" width="8" height="6" rx="0.7" />
+      <path d="M12 9v6" />
     </svg>
   )
 }
 
 export function PaperSheetIcon() {
   return (
-    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5 2.5h10l4 4V21.5H5z" />
-      <path d="M15 2.5v4h4M8 11h8M8 14.5h8M8 18h5" />
+    <svg className="topIconSvg paperSheetIcon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 2.5h9.5L19 5v6.5H7z" />
+      <path d="M16.5 2.5V5H19M9.5 7.5h7" />
+      <path d="M4 10.5h16l1.5 4v5H2.5v-5z" />
+      <path d="M5 14.5h14" />
+      <path d="M6 19.5v2h12v-2" />
     </svg>
   )
 }
 
 export function SharedCutIcon() {
   return (
-    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="4" width="11" height="14" rx="1.5" />
-      <path d="M9 8h12v12H9zM6.5 8h4M6.5 11h4M12 12h6M12 15h6" />
+    <svg className="topIconSvg sharedCutIcon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.5 7.5h17v12.5h-17z" />
+      <path d="M3.5 7.5V4.8L19.7 2l.8 5.5z" />
+      <path d="M8 4 6.8 7.5M13 3.2l-1.2 4.3M18 2.5l-1.2 5" />
+      <path d="M6.5 14h4.2M10.7 14l4-3M10.7 14l4 3M14.7 9.8v2.4M14.7 15.8v2.4" />
     </svg>
   )
 }

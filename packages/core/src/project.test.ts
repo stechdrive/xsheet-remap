@@ -1730,11 +1730,15 @@ describe('sheet template hit testing', () => {
   it('lets the digital standard view follow logical tracks and duration', () => {
     const labels = createAlphabeticTrackLabels(26)
     const template = withSheetTemplatePaperTracks(digitalStandardSheetTemplate, labels)
+    const actionRegion = template.regions.find(region => region.regionId === 'digital_action_grid')
     const cellRegion = template.regions.find(region => region.regionId === 'digital_cell_grid')
+    const actionColumns = actionRegion?.grid ? resolveSheetTemplateGridColumns(template, actionRegion.grid) : []
     const columns = cellRegion?.grid ? resolveSheetTemplateGridColumns(template, cellRegion.grid) : []
     const frames = cellRegion?.grid ? resolveSheetTemplateGridFrames(template, cellRegion.grid, 168, 1) : null
 
+    expect(actionColumns.map(column => column.paperTrack)).toEqual(labels)
     expect(columns.map(column => column.paperTrack)).toEqual(labels)
+    expect(actionColumns.map(column => column.paperTrack)).toEqual(columns.map(column => column.paperTrack))
     expect(getSheetTemplateHiddenPaperTracks(template)).toEqual([])
     expect(frames).toEqual({ frameStart: 1, frameEnd: 168, rowCount: 168 })
     expect(timingHitForFrame(template, 'cell', 'Z', 168, 168, 1, labels)).toMatchObject({

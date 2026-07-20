@@ -142,7 +142,7 @@ export function resolveSheetTemplateGridColumns(
   const startIndex = Math.max(0, Math.floor(grid.trackProjection.startIndex ?? 0))
   const viewLayout = getSheetViewLayout(template)
   const columnCount = viewLayout.trackAxis?.type === 'logical-width'
-    ? Math.max(grid.columns.length, Math.max(0, tracks.length - startIndex))
+    ? Math.max(0, tracks.length - startIndex)
     : grid.columns.length
   return Array.from({ length: columnCount }, (_, index) => {
     const baseColumn = grid.columns[index]
@@ -564,6 +564,7 @@ export function getSheetTemplatePaperTracks(template: Pick<SheetTemplate, 'defau
 
 export function withSheetTemplatePaperTracks(template: SheetTemplate, labels: PaperTrackName[]): SheetTemplate {
   const paperTracks = normalizePaperTrackNames(labels)
+  const sharesAllDigitalPaperTracks = template.templateKind === 'digital-native'
   return {
     ...template,
     defaults: {
@@ -572,6 +573,16 @@ export function withSheetTemplatePaperTracks(template: SheetTemplate, labels: Pa
     },
     regions: template.regions.map(region => {
       if (region.type !== 'exposure-grid' || !region.grid || !usesPaperTracks(region.grid.role)) return region
+      if (sharesAllDigitalPaperTracks) {
+        return {
+          ...region,
+          grid: {
+            ...region.grid,
+            trackProjection: { source: 'logical-paper-tracks', startIndex: 0, overflow: 'scroll' },
+            columns: createPaperTrackColumns(region.grid.role, paperTracks, region.grid.columns),
+          },
+        }
+      }
       if (region.grid.trackProjection?.source === 'logical-paper-tracks') return region
       return {
         ...region,

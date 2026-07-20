@@ -45,7 +45,7 @@ describe('TemplateEditorApp', () => {
     expect(document.querySelector('.templateHandleSvg')).toBeTruthy()
   })
 
-  it('creates a digital template with digital settings and without paper reference controls', () => {
+  it('creates a digital template with shared ACTION and CELL columns and without paper reference controls', () => {
     render(<TemplateEditorApp />)
 
     fireEvent.click(screen.getByRole('button', { name: '新しいテンプレート' }))
@@ -53,8 +53,22 @@ describe('TemplateEditorApp', () => {
     fireEvent.click(screen.getByRole('button', { name: '作成' }))
 
     expect(screen.getByText('1920 × 3600px / 連続キャンバス')).toBeTruthy()
-    expect(screen.getByText('CELLトラック数')).toBeTruthy()
+    expect(screen.getByText('セル列数（ACTION/CELL共通）')).toBeTruthy()
     expect(screen.queryByRole('tab', { name: uiText.template.detailTabs.reference })).toBeNull()
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.table }))
+    const actionColumnCount = screen.getByLabelText('ACTIONの共有セル列数') as HTMLInputElement
+    const cellColumnCount = screen.getByLabelText('CELLの共有セル列数') as HTMLInputElement
+    expect(actionColumnCount.value).toBe('9')
+    expect(cellColumnCount.value).toBe('9')
+
+    fireEvent.change(actionColumnCount, { target: { value: '4' } })
+    expect(actionColumnCount.value).toBe('4')
+    expect(cellColumnCount.value).toBe('4')
+
+    fireEvent.change(cellColumnCount, { target: { value: '6' } })
+    expect(actionColumnCount.value).toBe('6')
+    expect(cellColumnCount.value).toBe('6')
   })
 
   it('deletes individual regions from both the overview and region table as draft changes', () => {
@@ -90,9 +104,10 @@ describe('TemplateEditorApp', () => {
     expect(screen.getByText('適用・保存・実機確認')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '06ACTION・SOUND・CELL・CAMERA' }))
-    expect(screen.getByText(/原画工程で、原画番号と中割りのタイミング指示を記入する欄です。/)).toBeTruthy()
-    expect(screen.getByText(/動画工程で、動画番号とそのタイミングを記入する欄です。/)).toBeTruthy()
+    expect(screen.getByText(/原画工程でタイミング指示を記入する欄です。CELLと同じ論理セル列/)).toBeTruthy()
+    expect(screen.getByText(/動画工程で動画番号とタイミングを記入する欄です。ACTIONと同じ論理セル列/)).toBeTruthy()
     expect(screen.queryByText(/期間/)).toBeNull()
+    expect(screen.queryByText(/カウンター/)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '08参照画像と補正基準枠' }))
     expect(screen.getByRole('heading', { name: '参照画像と補正基準枠' })).toBeTruthy()

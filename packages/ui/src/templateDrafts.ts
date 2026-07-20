@@ -1,4 +1,4 @@
-import { digitalStandardSheetTemplate, standardA3SheetTemplate, type SheetTemplate, type SheetTemplateUnderlayPlacement } from '@xsheet-remap/core'
+import { digitalStandardSheetTemplate, standardA3SheetTemplate, withSheetTemplatePaperTracks, type SheetTemplate, type SheetTemplateUnderlayPlacement } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { quantizeNormalizedRectToPagePixels } from './templateEditorGeometry'
 import type { TemplateImageMetadata } from './templateImageMetadata'
@@ -159,7 +159,14 @@ export function finalizeTemplateDraftForApply(template: SheetTemplate): SheetTem
   const finalized = isModifiedBuiltInSheetTemplate(template)
     ? ensureEditableTemplateDraft(template)
     : cloneSheetTemplate(template)
-  return quantizeTemplateGeometry(finalized)
+  const quantized = quantizeTemplateGeometry(finalized)
+  return synchronizeDigitalTemplatePaperTracks(quantized)
+}
+
+export function synchronizeDigitalTemplatePaperTracks(template: SheetTemplate): SheetTemplate {
+  return template.templateKind === 'digital-native'
+    ? withSheetTemplatePaperTracks(template, template.defaults.paperTracks)
+    : template
 }
 
 export function quantizeTemplateGeometry(template: SheetTemplate): SheetTemplate {

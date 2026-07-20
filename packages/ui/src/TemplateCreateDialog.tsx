@@ -59,7 +59,7 @@ export function TemplateCreateDialog({
           <div className="templateCreateFields">
             <label>FPS<input type="number" min="1" value={fps} onChange={event => setFps(Math.max(1, Number(event.currentTarget.value)))} /></label>
             <label>初期フレーム数<input type="number" min="1" value={durationFrames} onChange={event => setDurationFrames(Math.max(1, Number(event.currentTarget.value)))} /></label>
-            <label>CELLトラック数<input type="number" min="1" value={trackCount} onChange={event => setTrackCount(Math.max(1, Number(event.currentTarget.value)))} /></label>
+            <label>セル列数（ACTION/CELL共通）<input type="number" min="1" value={trackCount} onChange={event => setTrackCount(Math.max(1, Number(event.currentTarget.value)))} /></label>
           </div>
         )}
         <div className="toolRow templateCreateActions">

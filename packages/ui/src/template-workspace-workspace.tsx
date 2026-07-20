@@ -3,6 +3,7 @@ import {
   formatSheetTemplateCutNumber,
   getSheetViewLayout,
   sheetTemplateLengthForReferencePx,
+  withSheetTemplatePaperTracks,
   type CorrectionLayer,
   type CutProject,
   type SheetTemplate,
@@ -19,7 +20,7 @@ import { sortedCorrectionLayers } from './sheetAssets'
 import { SHEET_ZOOM_MIN, TEMPLATE_ZOOM_MAX } from './sheetConstants'
 import { calibrationGridBoundsForTemplate, calibrationTargetRectForTemplate, defaultSheetImageSettings, resolveImageRefUrl } from './sheetImages'
 import { clampNumber, fitZoomForViewport } from './sheetInteraction'
-import { cloneSheetTemplate, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
+import { cloneSheetTemplate, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, synchronizeDigitalTemplatePaperTracks, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
 import { readTemplateImageMetadata } from './templateImageMetadata'
 import { gridHeaderLabelForRole, gridHeaderRolesForTemplate, templateEditorNormalizedRectValue, templateEditorRectPixelValue, type TemplateEditorRectKey } from './templateEditorGeometry'
 import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, resizePaperTrackLabels, setTemplateCalibrationTargetRect, trackProjectionForRole, type TemplateGridRole } from './templateEditing'
@@ -48,7 +49,7 @@ export function TemplateWorkspace({
   onCreatePaperTemplateFromImage: (files: FileList | null) => Promise<SheetTemplate | null>
   onUpdateCorrectionLayers: (layers: CorrectionLayer[]) => boolean
 }) {
-  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(appliedTemplate))
+  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate)))
   const template = draftTemplate
   const appliedTemplateJson = useMemo(() => JSON.stringify(appliedTemplate), [appliedTemplate])
   const draftTemplateJson = useMemo(() => JSON.stringify(draftTemplate), [draftTemplate])
@@ -124,7 +125,7 @@ export function TemplateWorkspace({
   function replaceTemplateDraft(nextTemplate: SheetTemplate | null, nextTab: TemplateDetailTab) {
     if (!nextTemplate) return
     const sourceTemplate = isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate
-    const clonedTemplate = cloneSheetTemplate(quantizeTemplateGeometry(sourceTemplate))
+    const clonedTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(quantizeTemplateGeometry(sourceTemplate)))
     setDraftTemplate(clonedTemplate)
     setSelectedRegionId(clonedTemplate.regions[0]?.regionId ?? null)
     setDetailTab(nextTab)
@@ -140,7 +141,7 @@ export function TemplateWorkspace({
 
   function cancelTemplateDraftChanges() {
     if (!hasTemplateDraftChanges) return
-    const nextTemplate = cloneSheetTemplate(appliedTemplate)
+    const nextTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate))
     setDraftTemplate(nextTemplate)
     setSelectedRegionId(nextTemplate.regions[0]?.regionId ?? null)
   }
@@ -337,19 +338,26 @@ export function TemplateWorkspace({
 
   function updateRegionColumnCount(regionId: string, value: number) {
     const columnCount = clampNumber(Math.round(value), 1, 64)
-    updateTemplateDraft(currentTemplate => ({
-      ...currentTemplate,
-      regions: currentTemplate.regions.map(region => {
-        if (region.regionId !== regionId || !region.grid) return region
-        return {
-          ...region,
-          grid: {
-            ...region.grid,
-            columns: buildTemplateColumns(currentTemplate, region.grid.role, columnCount, region.grid.columns),
-          },
-        }
-      }),
-    }))
+    updateTemplateDraft(currentTemplate => {
+      const targetRole = currentTemplate.regions.find(region => region.regionId === regionId)?.grid?.role
+      if (currentTemplate.templateKind === 'digital-native' && (targetRole === 'action' || targetRole === 'cell')) {
+        const paperTracks = resizePaperTrackLabels(currentTemplate.defaults.paperTracks, columnCount)
+        return withSheetTemplatePaperTracks(currentTemplate, paperTracks)
+      }
+      return {
+        ...currentTemplate,
+        regions: currentTemplate.regions.map(region => {
+          if (region.regionId !== regionId || !region.grid) return region
+          return {
+            ...region,
+            grid: {
+              ...region.grid,
+              columns: buildTemplateColumns(currentTemplate, region.grid.role, columnCount, region.grid.columns),
+            },
+          }
+        }),
+      }
+    })
   }
 
   function updateRegionGrid(regionId: string, updates: Partial<NonNullable<SheetTemplate['regions'][number]['grid']>>) {
@@ -443,10 +451,11 @@ export function TemplateWorkspace({
         columns: buildTemplateColumns(editableTemplate, role, columnCount),
       },
     }
-    setDraftTemplate({
+    const nextTemplate = {
       ...editableTemplate,
       regions: [...editableTemplate.regions, region],
-    })
+    }
+    setDraftTemplate(synchronizeDigitalTemplatePaperTracks(nextTemplate))
     setSelectedRegionId(regionId)
   }
 
@@ -677,7 +686,7 @@ export function TemplateWorkspace({
         paperTracks,
       },
     }
-    const created = {
+    const created = withSheetTemplatePaperTracks({
       ...withDefaults,
       regions: withDefaults.regions.map(region => region.grid
         ? {
@@ -686,13 +695,11 @@ export function TemplateWorkspace({
               ...region.grid,
               rowCount: options.durationFrames,
               frameEnd: (region.grid.frameStart ?? withDefaults.defaults.frameOrigin) + options.durationFrames - 1,
-              columns: region.grid.role === 'action' || region.grid.role === 'cell'
-                ? buildTemplateColumns(withDefaults, region.grid.role, options.trackCount, region.grid.columns)
-                : region.grid.columns,
+              columns: region.grid.columns,
             },
           }
         : region),
-    }
+    }, paperTracks)
     replaceTemplateDraft(created, 'region')
     setTemplateCreateOpen(false)
   }
@@ -750,18 +757,12 @@ export function TemplateWorkspace({
               regions: current.regions.map(region => region.grid ? { ...region, grid: { ...region.grid, rowCount: durationFrames, frameEnd: (region.grid.frameStart ?? current.defaults.frameOrigin) + durationFrames - 1 } } : region),
             }))
           }} /></dd>
-          <dt>CELLトラック数</dt>
+          <dt>セル列数（ACTION/CELL共通）</dt>
           <dd><input className="numberInput" type="number" min="1" value={template.defaults.paperTracks.length} onChange={event => {
             const count = Math.max(1, Number(event.currentTarget.value))
             updateTemplateDraft(current => {
               const paperTracks = resizePaperTrackLabels(current.defaults.paperTracks, count)
-              const next = { ...current, defaults: { ...current.defaults, paperTracks } }
-              return {
-                ...next,
-                regions: next.regions.map(region => region.grid && (region.grid.role === 'action' || region.grid.role === 'cell')
-                  ? { ...region, grid: { ...region.grid, columns: buildTemplateColumns(next, region.grid.role, count, region.grid.columns) } }
-                  : region),
-              }
+              return withSheetTemplatePaperTracks(current, paperTracks)
             })
           }} /></dd>
           <dt>基準キャンバス</dt>
@@ -1269,7 +1270,21 @@ export function TemplateWorkspace({
               </td>
               <td>
                 {region.grid && (
-                  <input className="numberInput" type="number" min="1" value={region.grid.columns.length} onChange={event => updateRegionColumnCount(region.regionId, Number(event.currentTarget.value))} />
+                  <input
+                    className="numberInput"
+                    type="number"
+                    min="1"
+                    aria-label={isDigitalTemplate && (region.grid.role === 'action' || region.grid.role === 'cell')
+                      ? `${gridRoleLabel(region.grid.role)}の共有セル列数`
+                      : `${region.label}の列数`}
+                    title={isDigitalTemplate && (region.grid.role === 'action' || region.grid.role === 'cell')
+                      ? 'ACTIONとCELLで共有するセル列数'
+                      : undefined}
+                    value={isDigitalTemplate && (region.grid.role === 'action' || region.grid.role === 'cell')
+                      ? template.defaults.paperTracks.length
+                      : region.grid.columns.length}
+                    onChange={event => updateRegionColumnCount(region.regionId, Number(event.currentTarget.value))}
+                  />
                 )}
               </td>
               <td>{region.usage}</td>

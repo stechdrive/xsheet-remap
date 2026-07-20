@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   cellRectForHit,
+  createPaperTrackColumns,
   hitTestSheetTemplate,
+  resolveSheetTemplateGridColumns,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   sheetGridCellRect,
   type SheetTemplate,
   digitalStandardSheetTemplate,
   standardA3SheetTemplate,
+  withSheetTemplatePaperTracks,
 } from './sheet-template'
 
 describe('sheet template layout', () => {
@@ -62,6 +65,31 @@ describe('sheet template layout', () => {
     expect(pageSize.heightPx).toBe(564)
     expect(layout?.frames.rowHeightPx).toBe(48)
     expect(layout?.rect.h).toBeCloseTo((48 * 8) / 564, 10)
+  })
+
+  it('uses the logical paper tracks as the only digital ACTION and CELL column count', () => {
+    const labels = ['A', 'B', 'C']
+    const mismatched = structuredClone(digitalStandardSheetTemplate)
+    mismatched.defaults.paperTracks = labels
+    const actionRegion = mismatched.regions.find(region => region.regionId === 'digital_action_grid')
+    const cellRegion = mismatched.regions.find(region => region.regionId === 'digital_cell_grid')
+    if (!actionRegion?.grid || !cellRegion?.grid) throw new Error('digital timing grids not found')
+    actionRegion.grid.columns = actionRegion.grid.columns.slice(0, 1)
+    cellRegion.grid.columns = [
+      ...cellRegion.grid.columns,
+      ...createPaperTrackColumns('cell', ['J', 'K', 'L']),
+    ]
+
+    expect(resolveSheetTemplateGridColumns(mismatched, actionRegion.grid).map(column => column.paperTrack)).toEqual(labels)
+    expect(resolveSheetTemplateGridColumns(mismatched, cellRegion.grid).map(column => column.paperTrack)).toEqual(labels)
+
+    const normalized = withSheetTemplatePaperTracks(mismatched, labels)
+    const normalizedAction = normalized.regions.find(region => region.regionId === 'digital_action_grid')?.grid
+    const normalizedCell = normalized.regions.find(region => region.regionId === 'digital_cell_grid')?.grid
+    expect(normalizedAction?.columns.map(column => column.paperTrack)).toEqual(labels)
+    expect(normalizedCell?.columns.map(column => column.paperTrack)).toEqual(labels)
+    expect(normalizedAction?.trackProjection).toEqual({ source: 'logical-paper-tracks', startIndex: 0, overflow: 'scroll' })
+    expect(normalizedCell?.trackProjection).toEqual({ source: 'logical-paper-tracks', startIndex: 0, overflow: 'scroll' })
   })
 
   it('aligns the A3 process-check area to the built-in underlay ruling', () => {

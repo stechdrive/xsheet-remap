@@ -718,10 +718,6 @@ export const uiText = {
   },
   export: {
     saveFailed: (message: string) => `書き出しに失敗しました。\n${message}`,
-    cspImportPackageBlocked: (message: string) => `CSP自動登録を書き出せません。\n${message}`,
-    cspImportAssetRootMissing: (path: string) => `CSP自動登録を書き出せません。\nカットフォルダが見つかりません。\n\n${path}\n\nプロジェクトファイルを別PCで開いた場合や、Google Driveの同期前は、画像素材フォルダを登録し直してください。`,
-    cspImportAssetFilesMissing: (count: number, paths: string[]) => `登録素材ファイルが見つかりません: ${count}件\n\n${paths.join('\n')}${count > paths.length ? `\n...ほか ${count - paths.length} 件` : ''}\n\n該当画像の読み込みを省略し、XDTSのキーとCSPセル名のみで自動登録パッケージを書き出しますか？`,
-    cspImportPackageSaved: (path: string) => `CSP自動登録を書き出しました。\n${path}`,
   },
   issue: {
     errorsWarnings: (errors: number, warnings: number) => `エラー${errors}件 / 警告${warnings}件`,
@@ -758,13 +754,9 @@ export function severityLabel(severity: ValidationIssue['severity'] | 'warning' 
 }
 
 export function issueMessage(issue: ValidationIssue): string {
-  if (issue.code === 'cspImport.asset.unassigned') {
+  if (issue.code === 'cspImport.asset.nativeMissing') {
     const target = issue.target?.label ? `: ${issue.target.label}` : ''
-    return `画像素材が未割当です${target}\nこのセルはキーのみ登録されます。`
-  }
-  if (issue.code === 'cspImport.asset.keyOnly') {
-    const target = issue.target?.label ? `: ${issue.target.label}` : ''
-    return `画像素材を登録しない設定です${target}\nこのセルはキーのみ登録されます。`
+    return `このPCで画像素材を確認できません${target}\nこのセルはキーのみ登録されます。`
   }
   const messages: Record<string, string> = {
     'sheet.fps.invalid': 'FPSは1以上にしてください。',

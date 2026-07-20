@@ -515,7 +515,7 @@ function EditorHelpContent() {
       <ol>
         <li><strong>見やすい表示と注釈を使う</strong><span>全体表示、連続/見開き表示、罫線・下絵の表示切替、ペン・テキスト注釈を使って確認しやすい状態にします。</span></li>
         <li><strong>シートテンプレートを編集する</strong><span>「シートテンプレ」ワークスペースで既存テンプレートを複製し、情報欄、入力欄、罫線、文字、ページ寸法を調整して適用します。</span></li>
-        <li><strong>用途に合わせて書き出す</strong><span>確認用にはJPG/PNG/PSD、他ソフトとの連携にはXDTSを使います。CSP自動登録データは、デスクトップ版では選択した保存先へ、PWA版ではZIPとしてダウンロードします。</span></li>
+        <li><strong>用途に合わせて書き出す</strong><span>確認用にはJPG/PNG/PSD、他ソフトとの連携にはXDTSを使います。CSP自動登録データは、デスクトップ版ではカットフォルダ内のxsheet-csp-importへ、PWA版では素材を含むZIPとして書き出します。</span></li>
       </ol>
     </article>
   </>
@@ -541,7 +541,7 @@ function RemapHelpContent({ appName }: { appName: string }) {
         <li><strong>素材をセル欄へドラッグしてキーを作る</strong><span>素材カードをシート上のCELL/ACTION/CAMERA欄へ置きます。範囲選択してから素材を置くと、開始位置へまとめて割り当てできます。</span></li>
         <li><strong>CSPレイヤー構成を確認する</strong><span>左のCSPレイヤー構成で、工程、CSPセル名、BG／BOOK、撮影指示、メモと、CSPへ渡す重ね順を確認します。具体的な追加・並び替え・削除は次の手順で行います。</span></li>
         <li><strong>クリスタ用の名前を整える</strong><span>必要に応じて、登録セル名・クリスタセル名・実ファイル名をまとめて整えます。クリスタはファイル名をセル名として扱うため、ここを揃えるのが重要です。</span></li>
-        <li><strong>CSP自動登録データを書き出す</strong><span>書き出すとxsheet-importer用の登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。csp-import.xciはクリスタではなく、xsheet-importerで選択します。</span></li>
+        <li><strong>CSP自動登録データを書き出す</strong><span>書き出し前に出力先と登録件数を確認します。デスクトップ版ではカットフォルダ内のxsheet-csp-importへ毎回安全に更新し、完了後は画面下部からフォルダを開けます。画像なしのセルは警告ではなく、XDTSのキーとCSPセル名だけを登録します。</span></li>
       </ol>
     </article>
     <CspLayerPaneQuickHelp />

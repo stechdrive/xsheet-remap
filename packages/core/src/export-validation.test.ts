@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildExportPlan,
   createDefaultProject,
-  createStackGuideLabel,
   createUnplacedCspCard,
-  validateCspMaterialAssignments,
   validateProject,
 } from './index'
 
@@ -20,32 +18,15 @@ describe('purpose-specific export validation', () => {
     expect(buildExportPlan(created.project).validation.map(issue => issue.code)).not.toContain('cspImport.asset.unassigned')
   })
 
-  it('reports the exact CSP cell that will be registered without material', () => {
+  it('treats a CSP cell without material as an ordinary key-only export', () => {
     const created = createUnplacedCspCard(createDefaultProject(), {
       slotId: 'slot_A',
       cspCellName: 'A1',
       sheetRole: 'action',
     })
 
-    expect(validateCspMaterialAssignments(created.project)).toContainEqual(expect.objectContaining({
-      severity: 'warning',
+    expect(buildExportPlan(created.project).validation).not.toContainEqual(expect.objectContaining({
       code: 'cspImport.asset.unassigned',
-      target: expect.objectContaining({ label: '作画 / A / A1' }),
-    }))
-  })
-
-  it('uses the same CSP material validation for BG and BOOK registrations', () => {
-    const created = createStackGuideLabel(createDefaultProject(), {
-      label: 'BOOK_背景',
-      kind: 'book',
-      gapIndex: 1,
-      correctionLayerId: 'layer_sakuga',
-    })
-
-    expect(validateCspMaterialAssignments(created.project)).toContainEqual(expect.objectContaining({
-      severity: 'warning',
-      code: 'cspImport.asset.unassigned',
-      target: expect.objectContaining({ label: '作画 / BOOK_背景 / BOOK_背景' }),
     }))
   })
 })

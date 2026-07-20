@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateCspMaterialAssignments, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
-import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, isXsrProjectFileName, nativeFileSource, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, isXsrProjectFileName, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
-import { issueMessage, uiText } from './i18n';
+import { uiText } from './i18n';
 import { type Panel, type SheetRangeSelection, type TimingClipboard } from './appTypes';
 import { loadProjectDocumentFile, projectRuntimeSourceImageUrls } from './projectFileModel';
 import { defaultSheetImageExportOptions, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions } from './cleanSheetExport';
-import { cspImportPackageTextOutputs } from './cspImportPackageOutputs';
 import { projectFileName } from './outputFileNames';
 import { type DropDiagnosticReport } from './AssetBrowser';
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection';
@@ -22,13 +21,12 @@ import { calibrationPointsForSettings, getSheetPageImage, serializableImageRef }
 import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, nextTimingHit, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
 import { buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, pasteResultRange, pasteTimingClipboardToProject, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget } from './timingEditing';
 import { normalizeRecognitionLabel, recognizeSheetPagesIfAvailable } from './runtimeFeatures';
-import { saveBrowserCspImportPackage } from './browserCspImportPackage';
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
 import { createPaperTemplateDraftFromImage, createTemplateDraft, readFileAsDataUrl, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
 import { readTemplateImageMetadata } from './templateImageMetadata';
-import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, cspImportPackageAssetPaths, errorMessage, exportCutProjectsFromDocument, isImageFileRef, preferredSaveDirectory, saveBinaryOutputs, timelineEventAtHit } from './app-foundation';
+import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, exportCutProjectsFromDocument, isImageFileRef, preferredSaveDirectory, saveBinaryOutputs, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
 import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen, updateNativeStackGuidePreviewIfOpen } from './app-registered-cells';
@@ -45,6 +43,8 @@ import { createAppXdtsActions } from './app-xdts-actions'
 import { confirmSheetTemplateImport, loadSheetTemplate } from './app-template-import'
 import { useAppSheetHistoryController } from './app-sheet-history-actions'
 import { createAppSharedCutActions } from './app-shared-cut-actions'
+import { openCspImportExportDirectory, saveCspImportExportPlan } from './app-csp-import-actions'
+import { useCspImportExportPlan } from './useCspImportExportPlan'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
@@ -65,7 +65,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     statusHints, setStatusHints,
     valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
-    timingExportDialog, setTimingExportDialog, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
+    timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
   } = useAppShellState()
   const exportProfileId = 'import-stack'
@@ -95,7 +95,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setRuntimeSourceImageUrls, clearSelection: clearSelectionState, alertError: error => window.alert(errorMessage(error)),
   })
   const timingExportPlan = useMemo(() => timingExportDialog ? buildExportPlan(project, { profileId: exportProfileId, timingSourceRole: timingExportDialog.timingSourceRole, sheetTemplate: template }) : null, [exportProfileId, project, template, timingExportDialog])
-  const timingExportIssues = useMemo(() => !timingExportDialog || !timingExportPlan ? [] : timingExportDialog.kind === 'csp-import' ? [...timingExportPlan.validation, ...validateCspMaterialAssignments(project)] : timingExportPlan.validation, [project, timingExportDialog, timingExportPlan])
+  const timingExportIssues = useMemo(() => timingExportPlan?.validation ?? [], [timingExportPlan])
+  const cspImportExport = useCspImportExportPlan({
+    enabled: timingExportDialog?.kind === 'csp-import',
+    projectDocument: projectDocumentSnapshot,
+    exportProfileId,
+    timingSourceRole: timingExportDialog?.timingSourceRole ?? DEFAULT_EXPORT_TIMING_ROLE,
+    appVersion: APP_VERSION,
+  })
   const {
     openTimingExportDialog, updateTimingExportRole, updateTimingExportOptions, confirmTimingExport,
     handleSaveXdts, handleLoadXdts, updateXdtsImportDialog, confirmXdtsImport,
@@ -1148,9 +1155,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   async function handleAssetRootCandidates(candidates: AssetRootCandidate[]) {
-    if (candidates.length === 0) return
+    if (candidates.length === 0) return false
     const candidate = candidates[0]!
     try {
+      const previousAssetIds = new Set(projectRef.current.assets.map(asset => asset.assetId))
       const collection = await collectAssetPathDrop([candidate.path], { recursive: true, rootPath: candidate.path })
       const imageRefs = collection.files.filter(isImageFileRef)
       const synchronized = synchronizeAssetRoot(projectRef.current, {
@@ -1159,10 +1167,23 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         handleKind: 'directory',
       }, imageRefs)
       commitProject(synchronized.project)
-      setStatusHint('sheet-drop', `${candidate.label} をアセットルートに設定し、画像 ${imageRefs.length}件を同期しました。`)
+      const synchronizedIds = new Set(synchronized.assetIds)
+      const reconnectedCount = [...synchronizedIds].filter(assetId => previousAssetIds.has(assetId)).length
+      const addedCount = [...synchronizedIds].filter(assetId => !previousAssetIds.has(assetId)).length
+      const unresolvedCount = synchronized.project.assets.filter(asset => asset.source.kind === 'unresolved').length
+      setStatusHint('sheet-drop', `${candidate.label} をカットフォルダに設定しました。再接続 ${reconnectedCount}件 / 新規 ${addedCount}件 / 未解決 ${unresolvedCount}件`)
+      return true
     } catch (error) {
       setStatusHint('sheet-drop', `アセットルートを読み込めませんでした: ${error instanceof Error ? error.message : String(error)}`)
+      return false
     }
+  }
+
+  async function handleChooseAssetRoot() {
+    const path = await openAssetRootDirectory()
+    if (!path) return false
+    const candidates = await assetRootCandidatesFromNativePaths([path])
+    return handleAssetRootCandidates(candidates)
   }
 
   function registerMaterialAssetRef(sourceProject: CutProject, ref: FileRef): { project: CutProject; asset: CutAsset } {
@@ -1703,46 +1724,25 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitProject(updateCutMetadata(project, field, value, customKey))
   }
 
-  async function handleSaveCspImportPackage(timingSourceRole: SheetTimingRole = DEFAULT_EXPORT_TIMING_ROLE) {
+  async function handleSaveCspImportPackage() {
+    const plan = cspImportExport.state.plan
+    if (cspImportExport.state.phase !== 'ready' || !plan || plan.blockingIssues.length > 0) return
+    cspImportExport.markWriting(plan)
     try {
-      if (!isTauriHost()) return saveBrowserCspImportPackage(projectDocumentSnapshot, { exportProfileId, timingSourceRole, appVersion: APP_VERSION })
-      const packageBuild = buildCspImportPackage(projectDocumentSnapshot, {
-        exportProfileId,
-        timingSourceRole,
-        appVersion: APP_VERSION,
-      })
-      const blockingIssues = packageBuild.issues.filter(issue => issue.severity === 'error')
-      if (blockingIssues.length > 0 || !packageBuild.assetRootPath) {
-        const details = blockingIssues.map(issueMessage).join('\n') || 'パス付きのカットフォルダが必要です。'
-        window.alert(uiText.export.cspImportPackageBlocked(details))
-        return
-      }
-      if (isTauriHost()) {
-        const assetRootStatus = (await statNativePaths([packageBuild.assetRootPath]))[0]
-        if (!assetRootStatus?.isDirectory) {
-          window.alert(uiText.export.cspImportAssetRootMissing(packageBuild.assetRootPath))
-          return
-        }
-        const assetPaths = cspImportPackageAssetPaths(packageBuild)
-        const missingAssets = (await statNativePaths(assetPaths)).filter(status => !status.isFile)
-        if (missingAssets.length > 0) {
-          const continueWithoutMaterials = await confirmUserAction(
-            uiText.export.cspImportAssetFilesMissing(missingAssets.length, missingAssets.slice(0, 12).map(status => status.path)),
-            { title: 'オフライン素材', okLabel: 'キーのみで続行', cancelLabel: '中止' },
-          )
-          if (!continueWithoutMaterials) return
-        }
-      }
-      const files = cspImportPackageTextOutputs(packageBuild)
-      const result = await writeCspImportPackage({
-        assetRootPath: packageBuild.assetRootPath,
-        outputDirectoryName: packageBuild.outputDirectoryName,
-        files,
-      })
-      if (!result) return
-      window.alert(uiText.export.cspImportPackageSaved(result.outputDirectoryPath))
+      const notice = await saveCspImportExportPlan(plan)
+      setTimingExportDialog(null)
+      setExportOperationNotice(notice)
     } catch (error) {
-      window.alert(uiText.export.saveFailed(errorMessage(error)))
+      cspImportExport.markError(errorMessage(error), plan)
+    }
+  }
+
+  async function handleOpenExportDirectory() {
+    if (!exportOperationNotice?.directoryPath) return
+    try {
+      await openCspImportExportDirectory(exportOperationNotice.directoryPath)
+    } catch (error) {
+      setStatusHint('sheet-drop', `書き出し先を開けませんでした: ${errorMessage(error)}`)
     }
   }
 
@@ -2268,7 +2268,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
-    setTimingExportDialog, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
+    setTimingExportDialog, cspImportExportState: cspImportExport.state, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, timingExportIssues, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
@@ -2283,14 +2283,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     copySelectedCameraCueRange, pasteSelectedCameraCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
-    handleAssetNativePaths, handleAssetRootCandidates, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
+    handleAssetNativePaths, handleAssetRootCandidates, handleChooseAssetRoot, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleDeleteSharedCut, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
-    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
+    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,

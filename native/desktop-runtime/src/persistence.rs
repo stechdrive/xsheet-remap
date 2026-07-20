@@ -238,7 +238,7 @@ fn atomic_write_project_file(path: &std::path::Path, contents: &[u8]) -> Result<
     write_result
 }
 
-fn next_atomic_write_id() -> u64 {
+pub(super) fn next_atomic_write_id() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT_ID: AtomicU64 = AtomicU64::new(1);
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
@@ -364,91 +364,92 @@ mod project_file_tests {
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub(super) async fn write_csp_import_package(
-    window: tauri::WebviewWindow,
+pub(super) fn write_csp_import_package(
     asset_root_path: String,
     output_directory_name: String,
     files: Vec<CspImportPackageFile>,
-) -> Result<Option<WriteCspImportPackageResult>, String> {
+) -> Result<WriteCspImportPackageResult, String> {
     let asset_root = canonicalize_existing_path(std::path::Path::new(&asset_root_path))?;
     if !asset_root.is_dir() {
         return Err("カットフォルダが見つかりません。".to_string());
     }
     let output_directory_name = safe_single_path_component(&output_directory_name)?;
-    let Some(selected_directory) =
-        pick_csp_import_package_directory(window, &asset_root, &output_directory_name).await?
-    else {
-        return Ok(None);
-    };
-    let selected_directory = canonicalize_existing_path(&selected_directory)?;
-    let output_directory = resolve_csp_import_output_directory(
-        &asset_root,
-        &selected_directory,
-        &output_directory_name,
-    );
-    std::fs::create_dir_all(&output_directory).map_err(|error| error.to_string())?;
-    let output_directory = output_directory
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
-    if !output_directory.starts_with(&asset_root) {
-        return Err("CSP自動登録の出力先がカットフォルダの外にあります。".to_string());
-    }
+    let output_directory =
+        write_csp_import_package_files(&asset_root, &output_directory_name, files)?;
 
-    for file in files {
-        let file_path = safe_join_relative_path(&output_directory, &file.relative_path)?;
-        if let Some(parent) = file_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-        }
-        std::fs::write(&file_path, file.contents).map_err(|error| error.to_string())?;
-    }
-
-    Ok(Some(WriteCspImportPackageResult {
+    Ok(WriteCspImportPackageResult {
         output_directory_path: public_path_string(&output_directory),
-    }))
+    })
 }
 
-pub(super) async fn pick_csp_import_package_directory(
-    window: tauri::WebviewWindow,
+pub(super) fn write_csp_import_package_files(
     asset_root: &std::path::Path,
     output_directory_name: &std::path::Path,
-) -> Result<Option<std::path::PathBuf>, String> {
-    let suggested_directory = asset_root.join(output_directory_name);
-    let initial_directory = if suggested_directory.is_dir() {
-        suggested_directory
-    } else {
-        asset_root.to_path_buf()
-    };
-    let dialog = window
-        .dialog()
-        .file()
-        .set_parent(&window)
-        .set_title("CSP自動登録の書き出し先フォルダを選択")
-        .set_directory(initial_directory);
+    files: Vec<CspImportPackageFile>,
+) -> Result<std::path::PathBuf, String> {
+    let output_directory = asset_root.join(output_directory_name);
+    let unique = format!("{}.{}", std::process::id(), next_atomic_write_id());
+    let staging_directory = asset_root.join(format!(
+        ".{}.{}.tmp",
+        output_directory_name.to_string_lossy(),
+        unique
+    ));
+    let backup_directory = asset_root.join(format!(
+        ".{}.{}.bak",
+        output_directory_name.to_string_lossy(),
+        unique
+    ));
 
-    let (tx, mut rx) = tauri::async_runtime::channel(1);
-    dialog.pick_folder(move |folder| {
-        let _ = tx.blocking_send(folder);
-    });
+    let result = (|| -> Result<std::path::PathBuf, String> {
+        std::fs::create_dir(&staging_directory).map_err(|error| error.to_string())?;
+        for file in files {
+            let file_path = safe_join_relative_path(&staging_directory, &file.relative_path)?;
+            if let Some(parent) = file_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            }
+            std::fs::write(&file_path, file.contents).map_err(|error| error.to_string())?;
+        }
+        if output_directory.exists() {
+            if !output_directory.is_dir() {
+                return Err("CSP自動登録の出力先がフォルダではありません。".to_string());
+            }
+            std::fs::rename(&output_directory, &backup_directory)
+                .map_err(|error| error.to_string())?;
+        }
+        if let Err(error) = std::fs::rename(&staging_directory, &output_directory) {
+            if backup_directory.exists() {
+                let _ = std::fs::rename(&backup_directory, &output_directory);
+            }
+            return Err(error.to_string());
+        }
+        if backup_directory.exists() {
+            std::fs::remove_dir_all(&backup_directory).map_err(|error| error.to_string())?;
+        }
+        output_directory
+            .canonicalize()
+            .map_err(|error| error.to_string())
+    })();
 
-    let Some(folder_path) = rx.recv().await.flatten() else {
-        return Ok(None);
-    };
-    folder_path
-        .into_path()
-        .map(Some)
-        .map_err(|error| error.to_string())
-}
-
-pub(super) fn resolve_csp_import_output_directory(
-    asset_root: &std::path::Path,
-    selected_directory: &std::path::Path,
-    output_directory_name: &std::path::Path,
-) -> std::path::PathBuf {
-    if selected_directory == asset_root {
-        asset_root.join(output_directory_name)
-    } else {
-        selected_directory.to_path_buf()
+    if staging_directory.exists() {
+        let _ = std::fs::remove_dir_all(&staging_directory);
     }
+    if backup_directory.exists() && output_directory.exists() {
+        let _ = std::fs::remove_dir_all(&backup_directory);
+    }
+    result
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub(super) fn open_directory_in_file_manager(path: String) -> Result<(), String> {
+    let directory = canonicalize_existing_path(std::path::Path::new(&path))?;
+    if !directory.is_dir() {
+        return Err("フォルダが見つかりません。".to_string());
+    }
+    std::process::Command::new("explorer.exe")
+        .arg(directory)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command(rename_all = "camelCase")]

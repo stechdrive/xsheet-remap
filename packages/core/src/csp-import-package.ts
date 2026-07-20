@@ -22,7 +22,6 @@ import {
   updateActiveCutProjectInDocument,
 } from './project'
 import { CSP_IMPORT_STACK_END_SEPARATOR_NAME, CSP_IMPORT_STACK_START_SEPARATOR_NAME, DEFAULT_EXPORT_TIMING_ROLE } from './project-constants'
-import { validateCspMaterialAssignments } from './validation'
 
 export const CSP_IMPORT_PACKAGE_DIRECTORY = 'xsheet-csp-import'
 export const CSP_IMPORT_MANIFEST_FILE_NAME = 'csp-import.xci'
@@ -123,7 +122,14 @@ export interface CspImportPackageBuildResult {
   manifest: CspImportManifestV4
   setupOutput?: CspImportPackageSetupOutput
   cutOutputs: CspImportPackageCutOutput[]
+  materialSummary: CspImportPackageMaterialSummary
   issues: ValidationIssue[]
+}
+
+export interface CspImportPackageMaterialSummary {
+  withMaterialCount: number
+  keyOnlyCount: number
+  unavailableAssignedCount: number
 }
 
 export interface BuildCspImportPackageOptions {
@@ -186,7 +192,6 @@ export function buildCspImportPackage(
       issues.push(cspImportIssue('cspImport.importStack.required', 'CSP自動登録には仮置きスタック形式のXDTS出力設定が必要です。'))
     }
     issues.push(...cutInput.exportPlan.validation.filter(issue => issue.severity === 'error'))
-    issues.push(...validateCspMaterialAssignments(cutInput.project))
   }
   issues.push(...validateCutIdentities(cutInputs))
 
@@ -224,7 +229,22 @@ export function buildCspImportPackage(
       operationLogFileName: `${input.fileStem}-csp-import-log.json`,
       exportPlan: input.exportPlan,
     })),
+    materialSummary: summarizeManifestMaterials(cuts, issues),
     issues,
+  }
+}
+
+function summarizeManifestMaterials(
+  cuts: CspImportManifestCut[],
+  issues: ValidationIssue[],
+): CspImportPackageMaterialSummary {
+  const cels = cuts.flatMap(cut => cut.tracks.flatMap(track => track.cels))
+  return {
+    withMaterialCount: cels.filter(cel => Boolean(cel.material)).length,
+    keyOnlyCount: cels.filter(cel => !cel.material).length,
+    unavailableAssignedCount: issues.filter(issue =>
+      issue.code === 'cspImport.asset.missing' || issue.code === 'cspImport.asset.offline',
+    ).length,
   }
 }
 

@@ -745,6 +745,34 @@ button.iconButton {
   font-weight: 700;
 }
 
+.exportOperationNotice {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  color: #173528;
+}
+
+.exportOperationNotice strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exportOperationNotice button {
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+
+.exportOperationNotice button.dismiss {
+  width: 22px;
+  padding: 2px;
+}
+
 .statusIssueSummary {
   flex: 0 0 auto;
 }

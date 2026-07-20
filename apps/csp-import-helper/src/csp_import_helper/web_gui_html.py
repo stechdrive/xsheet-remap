@@ -261,7 +261,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         <section class="help-section">
           <h3>クリスタへ組み込む手順</h3>
           <ol>
-            <li><strong>xsheet-remapで「タイムシート/CSP自動登録」を書き出します。</strong> カットフォルダ内にxsheet-importer用の登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。</li>
+            <li><strong>xsheet-remapで「タイムシート/CSP自動登録」を書き出します。</strong> デスクトップ版ではカットフォルダ内のxsheet-csp-importに、PWA版では展開したZIP内に、登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。</li>
             <li><strong>この画面でxsheet-importer用ファイル(.xci)を選びます。</strong> .xciをこのウィンドウへドロップしても読み込めます。</li>
             <li><strong>操作対象のクリスタファイル(.clip)を選びます。</strong> ヘルパーはこの.clipをクリスタで開いて処理します。</li>
             <li><strong>保存先を確認します。</strong> ファイル名込みの.clipパスにしてください。フォルダだけでは保存できません。</li>

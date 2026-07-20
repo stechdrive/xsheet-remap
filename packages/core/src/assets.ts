@@ -15,11 +15,17 @@ import { nativeFileSystemPathKey, normalizeNativeFileSystemPath } from './native
 export function registerAsset(
   project: CutProject,
   file: FileRef,
-  options: { role?: CutAsset['role']; binId?: string; source?: AssetSource; relativePath?: string } = {},
+  options: { role?: CutAsset['role']; binId?: string; source?: AssetSource; relativePath?: string; matchByContentHash?: boolean; excludeAssetIds?: ReadonlySet<string> } = {},
 ): { project: CutProject; asset: CutAsset } {
   const role = options.role ?? 'cell-material'
   const source = normalizeAssetSourceNativePaths(options.source ?? assetSourceForFile(project.assetRoot, file, options.relativePath))
-  const duplicate = findMatchingAsset(project.assets, file, { role, source, root: project.assetRoot })
+  const duplicate = findMatchingAsset(project.assets, file, {
+    role,
+    source,
+    root: project.assetRoot,
+    matchByContentHash: options.matchByContentHash ?? false,
+    excludeAssetIds: options.excludeAssetIds,
+  })
   if (duplicate) {
     const merged = mergeRegisteredAsset(duplicate, file, { ...options, source })
     if (merged === duplicate) return { project, asset: duplicate }
@@ -54,12 +60,11 @@ export function registerAssetRoot(project: CutProject, input: { label: string; p
     path: normalizeNativeFileSystemPath(input.path),
     handleKind: input.handleKind ?? 'directory',
   }
-  const assets = project.assetRoot?.path
-    ? project.assets.map(asset => asset.source.kind === 'root-relative'
-      ? { ...asset, source: { kind: 'external-file' as const, absolutePath: assetAbsolutePath(asset, project.assetRoot)! } }
-      : asset)
-    : project.assets
-  return { project: { ...project, assetRoot: root, assets }, root }
+  // A root-relative source identifies a material within the cut folder; the
+  // absolute root is only its current locator. Preserve that identity when a
+  // project is moved to another drive or workstation so the following scan can
+  // reconnect existing assetIds instead of creating duplicate materials.
+  return { project: { ...project, assetRoot: root }, root }
 }
 
 export function synchronizeAssetRoot(
@@ -70,6 +75,7 @@ export function synchronizeAssetRoot(
   const rooted = registerAssetRoot(project, input)
   let nextProject = rooted.project
   const seenRelativePaths = new Set<string>()
+  const matchedAssetIds = new Set<string>()
   const assetIds: string[] = []
 
   for (const file of files) {
@@ -80,9 +86,12 @@ export function synchronizeAssetRoot(
     const registered = registerAsset(nextProject, file, {
       role: 'cell-material',
       relativePath: normalizedRelativePath,
+      matchByContentHash: true,
+      excludeAssetIds: matchedAssetIds,
     })
     nextProject = registered.project
     seenRelativePaths.add(assetRelativePathKey(normalizedRelativePath)!.toLowerCase())
+    matchedAssetIds.add(registered.asset.assetId)
     assetIds.push(registered.asset.assetId)
   }
 
@@ -94,7 +103,7 @@ export function synchronizeAssetRoot(
       ...asset,
       source: {
         kind: 'unresolved' as const,
-        lastKnownPath: assetAbsolutePath(asset, rooted.root),
+        lastKnownPath: assetAbsolutePath(asset, project.assetRoot),
       },
     }
   })
@@ -187,11 +196,12 @@ export function sameSheetImageRef(a: SheetPageImageRef, b: SheetPageImageRef): b
 function findMatchingAsset(
   assets: CutAsset[],
   file: FileRef,
-  options: { role: CutAsset['role']; source: AssetSource; root?: AssetRoot },
+  options: { role: CutAsset['role']; source: AssetSource; root?: AssetRoot; matchByContentHash: boolean; excludeAssetIds?: ReadonlySet<string> },
 ): CutAsset | undefined {
   const filePath = assetPathKey(file.path)
   const sourceKey = assetSourceKey(options.source)
-  const roleMatches = (asset: CutAsset) => (asset.role ?? 'cell-material') === options.role
+  const roleMatches = (asset: CutAsset) =>
+    (asset.role ?? 'cell-material') === options.role && !options.excludeAssetIds?.has(asset.assetId)
 
   const strongMatch = assets.find(asset => {
     if (!roleMatches(asset)) return false
@@ -200,6 +210,11 @@ function findMatchingAsset(
     return false
   })
   if (strongMatch) return strongMatch
+
+  if (options.matchByContentHash && file.contentHash) {
+    const contentMatch = assets.find(asset => roleMatches(asset) && asset.contentHash === file.contentHash)
+    if (contentMatch) return contentMatch
+  }
 
   return assets.find(asset => roleMatches(asset) && sameAssetFileMetadata(asset, file))
 }
@@ -216,6 +231,7 @@ function sameAssetFileMetadata(asset: CutAsset, file: FileRef): boolean {
 function mergeRegisteredAsset(asset: CutAsset, file: FileRef, options: { binId?: string; source: AssetSource }): CutAsset {
   const next: CutAsset = {
     ...asset,
+    originalFileName: file.name,
     binId: options.binId ?? asset.binId,
     source: options.source.kind === 'unresolved' ? asset.source : options.source,
     fileSize: file.size ?? asset.fileSize,

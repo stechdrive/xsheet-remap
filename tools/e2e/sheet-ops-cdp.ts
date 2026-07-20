@@ -12,6 +12,7 @@ import {
 import { assertSelectorsContributePaint } from './visual-paint-contract'
 import { verifyAnnotationInteractionScenario } from './scenarios/annotation-interactions'
 import { verifyCameraDialogScalability } from './scenarios/camera-dialog-scalability'
+import { verifyCspImportExportScenario } from './scenarios/csp-import-export'
 import { verifySharedCutMenuControlsScenario, verifyTopMenuBehaviorScenario } from './scenarios/shared-ui-controls'
 import { CdpClient } from './cdp-client'
 import {
@@ -84,6 +85,7 @@ const sheetOpsScenarioIds = [
   'timeline-memo',
   'annotation-interactions',
   'sheet-history',
+  'export-validation',
 ] as const
 type SheetOpsScenarioId = typeof sheetOpsScenarioIds[number]
 const scenarioId = parseSheetOpsScenarioId(args.scenario)
@@ -242,6 +244,13 @@ async function runSheetOpsScenario(scenario: SheetOpsScenarioId): Promise<void> 
       return
     case 'sheet-history':
       await verifySheetHistoryScenario()
+      return
+    case 'export-validation':
+      if (!args['cut-root']) throw new Error('--cut-root is required for export-validation')
+      await verifyCspImportExportScenario({
+        cutRoot: args['cut-root'], checks, mouseClick, centerOfSelector, waitForPageCondition,
+        clickButtonByText, evaluatePage, waitForCondition,
+      })
   }
 }
 

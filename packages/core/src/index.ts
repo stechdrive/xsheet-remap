@@ -465,7 +465,7 @@ export {
   standardA3SheetTemplate,
   standardA3SheetTemplatePreset,
 } from './sheet-template'
-export { hasBlockingIssues, validateCspMaterialAssignments, validateProject } from './validation'
+export { hasBlockingIssues, validateProject } from './validation'
 export {
   addOverlayPaperTrackAtCspTop,
   applyCellStackOrder,

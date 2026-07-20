@@ -58,11 +58,11 @@ export function createAppXdtsActions(options: AppXdtsActionsOptions) {
   function confirmTimingExport() {
     const current = options.timingExportDialog
     if (!current) return
-    options.setTimingExportDialog(null)
     if (current.kind === 'csp-import') {
       void options.saveCspImportPackage(current.timingSourceRole)
       return
     }
+    options.setTimingExportDialog(null)
     void handleSaveXdts(current.timingSourceRole, {
       includeSound: current.includeSound,
       includeCamera: current.includeCamera,

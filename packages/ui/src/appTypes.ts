@@ -10,6 +10,10 @@ export interface TimingExportDialogState {
   includeSound: boolean
   includeCamera: boolean
 }
+export interface ExportOperationNotice {
+  message: string
+  directoryPath?: string
+}
 export interface XdtsImportDialogState {
   fileName: string
   data: XdtsData

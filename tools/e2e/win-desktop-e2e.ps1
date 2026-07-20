@@ -36,8 +36,9 @@ $sheetOpsScenarios = @(
   "timeline-memo"
   "annotation-interactions"
   "sheet-history"
+  "export-validation"
 )
-$supportedScenarios = @("launch", "full-default-a3", "auto-calibration", "export-validation") + $sheetOpsScenarios
+$supportedScenarios = @("launch", "full-default-a3", "auto-calibration") + $sheetOpsScenarios
 if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }
@@ -398,6 +399,7 @@ try {
       "--asset", "$sheetOpsAssetPath",
       "--asset-secondary", "$sheetOpsSecondaryAssetPath",
       "--asset-root", "$assetRoot",
+      "--cut-root", "$runRoot",
       "--sheet-source", "$sheetOpsSourcePath",
       "--sheet-source-secondary", "$sheetOpsSecondarySourcePath",
       "--screenshot", (Join-Path $screenshotRoot "$Scenario-final.png"),

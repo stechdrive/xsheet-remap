@@ -170,6 +170,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             persistence::write_text_file,
             persistence::write_binary_file,
             persistence::write_csp_import_package,
+            persistence::open_directory_in_file_manager,
             persistence::stat_native_paths,
             persistence::confirm_user_action,
             e2e::rename_material_files,

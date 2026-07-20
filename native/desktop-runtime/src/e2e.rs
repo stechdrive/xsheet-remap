@@ -172,23 +172,39 @@ mod tests {
     use super::*;
 
     #[test]
-    fn csp_import_output_uses_default_child_when_asset_root_is_selected() {
-        let asset_root = std::path::Path::new(r"D:\cuts\C001");
-        let output_name = std::path::Path::new("xsheet-csp-import");
+    fn csp_import_output_is_replaced_as_one_managed_package() {
+        let root = std::env::temp_dir().join(format!(
+            "xsheet-csp-package-test-{}-{}",
+            std::process::id(),
+            next_atomic_write_id()
+        ));
+        std::fs::create_dir_all(root.join("xsheet-csp-import")).expect("create old package");
+        std::fs::write(root.join("xsheet-csp-import").join("stale.xdts"), "old")
+            .expect("write stale file");
+        let files = vec![CspImportPackageFile {
+            relative_path: "csp-import.xci".to_string(),
+            contents: "new manifest".to_string(),
+        }];
 
-        let output = resolve_csp_import_output_directory(asset_root, asset_root, output_name);
+        let output =
+            write_csp_import_package_files(&root, std::path::Path::new("xsheet-csp-import"), files)
+                .expect("replace package");
 
-        assert_eq!(output, asset_root.join(output_name));
+        assert_eq!(
+            std::fs::read_to_string(output.join("csp-import.xci")).expect("read manifest"),
+            "new manifest"
+        );
+        assert!(!output.join("stale.xdts").exists());
+        std::fs::remove_dir_all(root).expect("remove test package");
     }
 
     #[test]
-    fn csp_import_output_uses_selected_child_directory_directly() {
+    fn csp_import_output_uses_the_fixed_managed_child() {
         let asset_root = std::path::Path::new(r"D:\cuts\C001");
-        let selected = asset_root.join("custom-csp-import");
         let output_name = std::path::Path::new("xsheet-csp-import");
 
-        let output = resolve_csp_import_output_directory(asset_root, &selected, output_name);
+        let output = asset_root.join(output_name);
 
-        assert_eq!(output, selected);
+        assert_eq!(output, asset_root.join(output_name));
     }
 }

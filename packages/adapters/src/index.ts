@@ -288,14 +288,20 @@ export async function readProjectBackup(path: string): Promise<DecodedProjectFil
   return contentsBase64 ? decodeProjectFileBytes(base64ToBytes(contentsBase64)) : null
 }
 
-export async function writeCspImportPackage(input: WriteCspImportPackageInput): Promise<WriteCspImportPackageResult | null> {
+export async function writeCspImportPackage(input: WriteCspImportPackageInput): Promise<WriteCspImportPackageResult> {
   if (!isTauriHost()) throw new Error('CSP自動登録パッケージの書き出しはデスクトップ版でのみ使えます。')
   const { invoke } = await import('@tauri-apps/api/core')
-  return invoke<WriteCspImportPackageResult | null>('write_csp_import_package', {
+  return invoke<WriteCspImportPackageResult>('write_csp_import_package', {
     assetRootPath: input.assetRootPath,
     outputDirectoryName: input.outputDirectoryName,
     files: input.files,
   })
+}
+
+export async function openDirectoryInFileManager(path: string): Promise<void> {
+  if (!isTauriHost()) return
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('open_directory_in_file_manager', { path })
 }
 
 export async function statNativePaths(paths: string[]): Promise<NativePathStatus[]> {

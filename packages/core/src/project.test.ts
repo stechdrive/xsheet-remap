@@ -5,6 +5,7 @@ import {
   addTimelineMemo,
   addBlankSharedCutToProjectDocument,
   applyNameNormalizationPlan,
+  assetAbsolutePath,
   assignAssetToStackGuideLabel,
   activeCutProjectFromDocument,
   buildExportPlan,
@@ -1321,7 +1322,7 @@ describe('core project commands', () => {
     })
   })
 
-  it('preserves old root-relative files as external assets when the primary root changes', () => {
+  it('preserves root-relative asset identity when the cut folder moves', () => {
     const firstRoot = registerAssetRoot(createDefaultProject(), { label: 'C001', path: 'D:\\cuts\\C001' })
     const registered = registerAsset(firstRoot.project, {
       name: 'A1.png',
@@ -1330,9 +1331,10 @@ describe('core project commands', () => {
     const changedRoot = registerAssetRoot(registered.project, { label: 'C002', path: 'D:\\cuts\\C002' })
 
     expect(changedRoot.project.assets[0]?.source).toEqual({
-      kind: 'external-file',
-      absolutePath: 'D:\\cuts\\C001\\A1.png',
+      kind: 'root-relative',
+      relativePath: 'A1.png',
     })
+    expect(assetAbsolutePath(changedRoot.project.assets[0]!, changedRoot.root)).toBe('D:\\cuts\\C002\\A1.png')
   })
 
   it('adopts an external asset as root-relative when its containing root is registered and scanned', () => {

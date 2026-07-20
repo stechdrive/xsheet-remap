@@ -1674,6 +1674,84 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   gap: 5px;
 }
 
+.cspImportPreparing {
+  margin: 0;
+  color: #4d5751;
+}
+
+.cspImportPlanSummary {
+  display: grid;
+  gap: 12px;
+}
+
+.cspImportPlanSummary section {
+  display: grid;
+  gap: 5px;
+}
+
+.cspImportDestination > span {
+  color: #4d5751;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cspImportDestination > strong {
+  font-size: 15px;
+}
+
+.cspImportPlanSummary code {
+  overflow: auto hidden;
+  padding: 5px 7px;
+  border: 1px solid #d2d6d1;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 11px;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.cspImportContents ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: 12px;
+}
+
+.cspImportContents li code,
+.cspImportNextStep code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-weight: 700;
+}
+
+.cspImportMaterialSummary {
+  grid-template-columns: auto max-content max-content;
+  align-items: center;
+  padding: 8px;
+  border-radius: 5px;
+  background: #e8efea;
+  font-size: 12px;
+}
+
+.cspImportReconnect {
+  padding: 10px;
+  border-left: 4px solid #b3261e;
+  background: #fff2f0;
+}
+
+.cspImportReconnect p,
+.cspImportNextStep p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.cspImportReconnect button {
+  justify-self: start;
+}
+
 .timingExportDialog > footer {
   justify-content: flex-end;
   border-top: 1px solid #c7cbc7;

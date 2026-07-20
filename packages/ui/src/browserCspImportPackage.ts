@@ -3,9 +3,8 @@ import {
   type BuildCspImportPackageOptions,
   type CutGroupProjectDocument,
 } from '@xsheet-remap/core'
-import { browserAssetBytes, createPortableArchive, saveBinaryFile } from '@xsheet-remap/adapters'
+import { browserAssetBytes, createPortableArchive } from '@xsheet-remap/adapters'
 import { cspImportPackageTextOutputs } from './cspImportPackageOutputs'
-import { issueMessage, uiText } from './i18n'
 
 export interface BrowserCspImportPackage {
   packageBuild: ReturnType<typeof buildCspImportPackage>
@@ -49,20 +48,6 @@ export async function buildBrowserCspImportPackage(
     archiveBytes: await createPortableArchive(archiveFiles),
     archiveFileName: `${packageBuild.outputDirectoryName}.zip`,
   }
-}
-
-export async function saveBrowserCspImportPackage(
-  document: CutGroupProjectDocument,
-  options: BuildCspImportPackageOptions,
-): Promise<void> {
-  const portable = await buildBrowserCspImportPackage(document, options)
-  const blockingIssues = portable.packageBuild.issues.filter(issue => issue.severity === 'error')
-  if (blockingIssues.length > 0) {
-    window.alert(uiText.export.cspImportPackageBlocked(blockingIssues.map(issueMessage).join('\n')))
-    return
-  }
-  await saveBinaryFile(portable.archiveBytes, portable.archiveFileName, 'application/zip')
-  window.alert(`CSP自動登録用ZIP「${portable.archiveFileName}」を保存しました。展開後、xsheet-importerでcsp-import.xciを選択してください。`)
 }
 
 export function uniquePortableAssetPath(fileName: string, assetId: string, usedPaths: Set<string>): string {

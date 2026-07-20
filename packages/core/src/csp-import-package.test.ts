@@ -250,7 +250,7 @@ describe('CSP import package builder', () => {
     expect(result.issues.filter(issue => issue.severity === 'error')).toEqual([])
   })
 
-  it('keeps an unassigned cell nonblocking and identifies its CSP target', () => {
+  it('keeps an unassigned cell as a normal key-only package entry', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const withRoot = registerAssetRoot(created.project, { label: 'materials', path: 'D:\\cuts\\shared' })
     const project = upsertBinding(withRoot.project, {
@@ -263,11 +263,8 @@ describe('CSP import package builder', () => {
     const result = buildCspImportPackage(createProjectDocumentFromCutProject(project))
 
     expect(result.manifest.cuts[0]?.tracks[0]?.cels).toEqual([{ cspCellName: 'A_01', firstFrame: 0 }])
-    expect(result.issues).toContainEqual(expect.objectContaining({
-      severity: 'warning',
-      code: 'cspImport.asset.unassigned',
-      target: expect.objectContaining({ label: '作画 / A / A_01' }),
-    }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'cspImport.asset.unassigned' }))
+    expect(result.materialSummary).toMatchObject({ keyOnlyCount: 1, unavailableAssignedCount: 0 })
     expect(result.issues.filter(issue => issue.severity === 'error')).toEqual([])
   })
 

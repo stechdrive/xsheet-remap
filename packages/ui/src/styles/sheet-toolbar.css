@@ -1855,8 +1855,6 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   transition: width 120ms ease, max-height 120ms ease, padding 120ms ease;
 }
 
-.annotationFloatingPalette:hover,
-.annotationFloatingPalette:focus-within,
 .annotationFloatingPalette.open,
 .annotationFloatingPalette.annotationSessionActive {
   width: 124px;
@@ -1870,8 +1868,6 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   background: rgb(239 248 243 / 0.96);
 }
 
-.annotationFloatingPalette.timelineMemoTarget:hover,
-.annotationFloatingPalette.timelineMemoTarget:focus-within,
 .annotationFloatingPalette.timelineMemoTarget.open,
 .annotationFloatingPalette.timelineMemoTarget.annotationSessionActive {
   width: 124px;
@@ -1910,8 +1906,6 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   height: 18px;
 }
 
-.annotationFloatingPalette:hover .annotationPaletteTrigger,
-.annotationFloatingPalette:focus-within .annotationPaletteTrigger,
 .annotationFloatingPalette.open .annotationPaletteTrigger,
 .annotationFloatingPalette.annotationSessionActive .annotationPaletteTrigger {
   display: none;
@@ -1927,8 +1921,6 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   display: none;
 }
 
-.annotationFloatingPalette:hover .annotationPaletteTitle,
-.annotationFloatingPalette:focus-within .annotationPaletteTitle,
 .annotationFloatingPalette.open .annotationPaletteTitle,
 .annotationFloatingPalette.annotationSessionActive .annotationPaletteTitle {
   display: block;
@@ -1949,8 +1941,6 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   display: none;
 }
 
-.annotationFloatingPalette:hover > :not(.annotationPaletteTrigger),
-.annotationFloatingPalette:focus-within > :not(.annotationPaletteTrigger),
 .annotationFloatingPalette.open > :not(.annotationPaletteTrigger),
 .annotationFloatingPalette.annotationSessionActive > :not(.annotationPaletteTrigger) {
   display: inline-flex;

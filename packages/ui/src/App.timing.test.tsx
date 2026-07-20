@@ -94,8 +94,6 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
 
     fireEvent.pointerDown(document.body)
     expect(palette.classList.contains('open')).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.penTool }))
-    expect(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="pen"]')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: uiText.sheet.eraserTool }))
     await waitFor(() => expect(palette.getAttribute('data-annotation-tool')).toBe('eraser'))
@@ -104,6 +102,30 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
 
     fireEvent.click(screen.getByRole('button', { name: uiText.sheet.annotationSessionDone }))
     await waitFor(() => expect(document.querySelector('.pageAnnotationInputSurface')).toBeNull())
+    expect(palette.getAttribute('data-annotation-session')).toBe('idle')
+    expect(palette.classList.contains('open')).toBe(false)
+  })
+
+  it('closes an unused pen session explicitly and does not reopen it on later pointer movement', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'メモツールを開く' }))
+    const penButton = screen.getByRole('button', { name: uiText.sheet.penTool })
+    fireEvent.click(penButton)
+
+    const palette = document.querySelector<HTMLElement>('.annotationFloatingPalette')!
+    await waitFor(() => expect(palette.getAttribute('data-annotation-session')).toBe('active'))
+    expect(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="pen"]')).toBeTruthy()
+
+    penButton.focus()
+    expect(document.activeElement).toBe(penButton)
+    fireEvent.click(penButton)
+
+    await waitFor(() => expect(palette.getAttribute('data-annotation-session')).toBe('idle'))
+    expect(document.activeElement).not.toBe(penButton)
+    expect(palette.classList.contains('open')).toBe(false)
+    expect(document.querySelector('.pageAnnotationInputSurface')).toBeNull()
+
+    fireEvent.pointerMove(document.body, { pointerId: 41, pointerType: 'pen', clientX: 20, clientY: 20 })
     expect(palette.getAttribute('data-annotation-session')).toBe('idle')
     expect(palette.classList.contains('open')).toBe(false)
   })

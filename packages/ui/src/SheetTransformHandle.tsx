@@ -3,7 +3,8 @@ import type { PointerEventHandler } from 'react'
 
 export type SheetTransformHandleKind = 'move' | 'resize'
 
-const HANDLE_HIT_SIZE_PX = 16
+const MOVE_HANDLE_HIT_SIZE_PX = 16
+const RESIZE_HANDLE_HIT_SIZE_PX = 24
 const MOVE_VISUAL_WIDTH_PX = 10
 const MOVE_VISUAL_HEIGHT_PX = 8
 const RESIZE_VISUAL_SIZE_PX = 9
@@ -32,10 +33,11 @@ export function SheetTransformHandle({
 }) {
   const widthPx = Math.max(1, surface.widthPx)
   const heightPx = Math.max(1, surface.heightPx)
-  const hitW = Math.min(rect.w, HANDLE_HIT_SIZE_PX / widthPx)
-  const hitH = Math.min(rect.h, HANDLE_HIT_SIZE_PX / heightPx)
-  const hitX = kind === 'move' ? rect.x : rect.x + rect.w - hitW
-  const hitY = kind === 'move' ? rect.y : rect.y + rect.h - hitH
+  const hitSizePx = kind === 'move' ? MOVE_HANDLE_HIT_SIZE_PX : RESIZE_HANDLE_HIT_SIZE_PX
+  const hitW = kind === 'move' ? Math.min(rect.w, hitSizePx / widthPx) : hitSizePx / widthPx
+  const hitH = kind === 'move' ? Math.min(rect.h, hitSizePx / heightPx) : hitSizePx / heightPx
+  const hitX = kind === 'move' ? rect.x : rect.x + rect.w - hitW / 2
+  const hitY = kind === 'move' ? rect.y : rect.y + rect.h - hitH / 2
   const classes = ['sheetTransformHandle', kind, className].filter(Boolean).join(' ')
 
   if (kind === 'move') {

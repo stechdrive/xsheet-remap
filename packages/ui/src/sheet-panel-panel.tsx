@@ -219,6 +219,7 @@ export function SheetPanel(props: {
   const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
   const [selectedAnnotationRegion, setSelectedAnnotationRegion] = useState<TemplateRegionAnnotationTarget | null>(null)
   const sharedCutInputRef = useRef<HTMLInputElement>(null)
+  const annotationPaletteRef = useRef<HTMLDivElement>(null)
   const editMode = props.editMode
   const setEditMode = props.setEditMode
   const annotationSessionActive = editMode === 'pen' || editMode === 'eraser' || editMode === 'text'
@@ -295,15 +296,24 @@ export function SheetPanel(props: {
     setSelectedTimelineMemoId(null)
     if (editMode === 'pen' || editMode === 'eraser' || editMode === 'text') setEditMode('new')
   }, [editMode, setEditMode])
-  const finishAnnotationSession = useCallback(() => {
+  const blurAnnotationPaletteFocus = useCallback(() => {
+    const activeElement = document.activeElement
+    if (activeElement instanceof HTMLElement && annotationPaletteRef.current?.contains(activeElement)) {
+      activeElement.blur()
+    }
+  }, [])
+  const closeAnnotationPalette = useCallback(() => {
     setAnnotationPaletteOpen(false)
+    blurAnnotationPaletteFocus()
+  }, [blurAnnotationPaletteFocus])
+  const finishAnnotationSession = useCallback(() => {
+    closeAnnotationPalette()
     if (activeTimelineMemoId) {
       setSelectedTimelineMemoId(null)
     }
     setEditMode('new')
-  }, [activeTimelineMemoId, setEditMode])
+  }, [activeTimelineMemoId, closeAnnotationPalette, setEditMode])
   const zoomPaletteRef = useRef<HTMLDivElement>(null)
-  const annotationPaletteRef = useRef<HTMLDivElement>(null)
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
   const updateSheetZoom = props.setZoom
@@ -473,20 +483,20 @@ export function SheetPanel(props: {
       const target = event.target
       if (target instanceof Node && annotationPaletteRef.current?.contains(target)) return
       if (target instanceof Element && target.closest('.actionMenuPortalContent')) return
-      setAnnotationPaletteOpen(false)
+      closeAnnotationPalette()
     }
     window.addEventListener('pointerdown', closeFromOutside)
     return () => window.removeEventListener('pointerdown', closeFromOutside)
-  }, [annotationPaletteOpen, annotationSessionActive])
+  }, [annotationPaletteOpen, annotationSessionActive, closeAnnotationPalette])
 
   useEffect(() => {
     if (!annotationSessionActive) return undefined
     const finishOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setAnnotationPaletteOpen(false)
+      if (event.key === 'Escape') finishAnnotationSession()
     }
     window.addEventListener('keydown', finishOnEscape)
     return () => window.removeEventListener('keydown', finishOnEscape)
-  }, [annotationSessionActive])
+  }, [annotationSessionActive, finishAnnotationSession])
 
   useLayoutEffect(() => {
     if (didFitInitialSheetZoom.current) return
@@ -606,7 +616,9 @@ export function SheetPanel(props: {
             aria-label="メモツールを開く"
             aria-expanded={annotationPaletteExpanded}
             onClick={() => {
-              if (!annotationSessionActive) setAnnotationPaletteOpen(open => !open)
+              if (annotationSessionActive) return
+              if (annotationPaletteOpen) closeAnnotationPalette()
+              else setAnnotationPaletteOpen(true)
             }}
           >
             <PenToolIcon />
@@ -627,7 +639,10 @@ export function SheetPanel(props: {
               aria-pressed={props.editMode === 'pen'}
               aria-label={activeTimelineMemoId ? uiText.sheet.timelineMemoPenTool : uiText.sheet.penTool}
               onClick={() => {
-                if (props.editMode === 'pen') return
+                if (props.editMode === 'pen') {
+                  finishAnnotationSession()
+                  return
+                }
                 if (!activeTimelineMemoId && annotationTarget.kind === 'timed-cue') {
                   const memoId = props.onCreateTimelineMemoForCue(annotationTarget.cue.cueId)
                   if (memoId) beginTimelineMemoEdit(memoId)

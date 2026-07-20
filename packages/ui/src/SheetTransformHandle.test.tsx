@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { SheetTransformHandle } from './SheetTransformHandle'
 
 describe('SheetTransformHandle', () => {
-  it('keeps a compact resize glyph inside a fixed screen-space hit area', () => {
+  it('keeps a compact resize glyph inside a fixed screen-space hit area centered on the corner', () => {
     const { container } = render(
       <svg viewBox="0 0 1 1">
         <SheetTransformHandle
@@ -17,8 +17,18 @@ describe('SheetTransformHandle', () => {
     )
     const hit = container.querySelector('.sheetTransformHandleHitArea')
     const visual = container.querySelector('.sheetTransformHandleResizeVisual')
-    expect(hit?.getAttribute('width')).toBe(String(16 / 800))
-    expect(hit?.getAttribute('height')).toBe(String(16 / 600))
+    const x = Number(hit?.getAttribute('x'))
+    const y = Number(hit?.getAttribute('y'))
+    const width = Number(hit?.getAttribute('width'))
+    const height = Number(hit?.getAttribute('height'))
+    expect(width).toBe(24 / 800)
+    expect(height).toBe(24 / 600)
+    expect(x).toBeCloseTo(0.6 - width / 2)
+    expect(y).toBeCloseTo(0.8 - height / 2)
+    expect(x).toBeLessThan(0.6)
+    expect(x + width).toBeGreaterThan(0.6)
+    expect(y).toBeLessThan(0.8)
+    expect(y + height).toBeGreaterThan(0.8)
     expect(visual?.tagName.toLowerCase()).toBe('path')
     expect(container.querySelector('.sheetTransformHandle.resize')).toBeTruthy()
   })

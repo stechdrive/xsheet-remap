@@ -10,7 +10,7 @@ import { createSheetRenderModelContext } from './sheetRenderModel';
 import { calibrationPointsForSettings, clampPoint, viewportToRawImagePoint } from './sheetImages';
 import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel, nativeVerticalWheelDelta } from './sheetInteraction';
 import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell } from './timingEditing';
-import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
+import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TimedRangeLaneHeaderMenuState, TimelineLaneEditorState, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
 import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitForFrame, overlayHitFromPoint, processMoveOptionsForSlot } from './app-sheet-layers';
 import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
 import { autoScrollViewportForDrag, scrollSheetHitIntoView } from './sheet-panel-viewport';
@@ -35,9 +35,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const [paperTrackHeaderMenu, setPaperTrackHeaderMenu] = useState<PaperTrackHeaderMenuState | null>(null)
   const [overlayPaperTrackMenu, setOverlayPaperTrackMenu] = useState<OverlayPaperTrackMenuState | null>(null)
   const [stackGuideHeaderMenu, setStackGuideHeaderMenu] = useState<StackGuideHeaderMenuState | null>(null)
+  const [timedRangeLaneHeaderMenu, setTimedRangeLaneHeaderMenu] = useState<TimedRangeLaneHeaderMenuState | null>(null)
   const [stackGuideInsertRequest, setStackGuideInsertRequest] = useState<StackGuideInsertRequest | null>(null)
   const [stackGuideDropPreview, setStackGuideDropPreview] = useState<StackGuideDropPreviewState | null>(null)
   const [paperTrackEditor, setPaperTrackEditor] = useState<PaperTrackEditorState | null>(null)
+  const [timelineLaneEditor, setTimelineLaneEditor] = useState<TimelineLaneEditorState | null>(null)
   const [overlayTrackDrag, setOverlayTrackDrag] = useState<OverlayPaperTrackDrag | null>(null)
   const [timelineEventDrag, setTimelineEventDragState] = useState<TimelineEventDragInteraction | null>(null)
   const [soundCueDrag, setSoundCueDrag] = useState<{
@@ -438,7 +440,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }, [])
 
   useEffect(() => {
-    if (!contextMenu && !paperTrackHeaderMenu && !overlayPaperTrackMenu && !stackGuideHeaderMenu) return
+    if (!contextMenu && !paperTrackHeaderMenu && !overlayPaperTrackMenu && !stackGuideHeaderMenu && !timedRangeLaneHeaderMenu) return
     const close = (event?: globalThis.PointerEvent) => {
       const target = event?.target
       if (target instanceof Element && target.closest('.sheetContextMenu')) return
@@ -446,6 +448,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       setPaperTrackHeaderMenu(null)
       setOverlayPaperTrackMenu(null)
       setStackGuideHeaderMenu(null)
+      setTimedRangeLaneHeaderMenu(null)
     }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') close()
@@ -456,7 +459,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       window.removeEventListener('pointerdown', close, true)
       window.removeEventListener('keydown', closeOnEscape)
     }
-  }, [contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu])
+  }, [contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu])
 
   useEffect(() => () => {
     if (timelineEventLongPressTimerRef.current !== null) {
@@ -849,6 +852,42 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         paperTrack: column.paperTrack,
       }
       return materializePageHit(props.template, localHit, page)
+    }
+    return null
+  }
+
+  function timedRangeLaneHeaderHitFromPoint(
+    point: NormalizedPoint,
+    page: SheetPage,
+    viewportHeightPx?: number,
+  ): Pick<TimedRangeLaneHeaderMenuState, 'role' | 'laneId' | 'label'> | null {
+    const pageSize = resolveSheetTemplatePageSize(props.template, displayDurationFrames, {
+      paperTracks: templateTrackNames,
+      timelineLanes,
+      layoutOverrides: props.project.sheetView.layoutOverrides,
+    })
+    const headerTopOffset = (STANDARD_A3_GRID_HEADER_TOP_OFFSET * props.template.page.heightPx) / pageSize.heightPx
+    const headerHeight = (STANDARD_A3_GRID_HEADER_HEIGHT * props.template.page.heightPx) / pageSize.heightPx
+    const columnHeaderHeight = Math.max(0.001, headerTopOffset - headerHeight)
+    const minHitHeight = viewportHeightPx && viewportHeightPx > 0 ? 28 / viewportHeightPx : columnHeaderHeight
+    const hitHeight = Math.min(headerTopOffset, Math.max(columnHeaderHeight, minHitHeight))
+    const hitBottomPadding = viewportHeightPx && viewportHeightPx > 0 ? Math.min(0.0025, 4 / viewportHeightPx) : 0
+    for (const region of props.template.regions) {
+      const role = region.grid?.role
+      if (region.type !== 'exposure-grid' || (role !== 'sound' && role !== 'camera')) continue
+      const layout = resolveSheetTemplateGridLayout(props.template, region, {
+        paperTracks: templateTrackNames,
+        timelineLanes,
+        durationFrames: displayDurationFrames,
+        frameOrigin: frameOriginForPageHit(props.template, page),
+        layoutOverrides: props.project.sheetView.layoutOverrides,
+      })
+      if (!layout) continue
+      const rect = layout.rect
+      if (point.x < rect.x || point.x > rect.x + rect.w) continue
+      if (point.y < rect.y - hitHeight || point.y > rect.y + hitBottomPadding) continue
+      const column = layout.columns.find(candidate => point.x >= candidate.x && point.x <= candidate.x + candidate.w)
+      if (column?.timelineLaneId) return { role, laneId: column.timelineLaneId, label: column.label }
     }
     return null
   }
@@ -1807,6 +1846,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         x: event.clientX,
         y: event.clientY,
       })
+      setTimedRangeLaneHeaderMenu(null)
       return
     }
     const headerHit = paperTrackHeaderHitFromPoint(point, page, event.currentTarget.getBoundingClientRect().height)
@@ -1815,6 +1855,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       setContextMenu(null)
       setOverlayPaperTrackMenu(null)
       setStackGuideHeaderMenu(null)
+      setTimedRangeLaneHeaderMenu(null)
       const sheetRole = sheetRoleForHit(headerHit)
       setPaperTrackHeaderMenu({
         x: event.clientX,
@@ -1823,6 +1864,16 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         sheetRole,
         snapIndex: overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole),
       })
+      return
+    }
+    const laneHeader = timedRangeLaneHeaderHitFromPoint(point, page, event.currentTarget.getBoundingClientRect().height)
+    if (laneHeader) {
+      clearHover()
+      setContextMenu(null)
+      setPaperTrackHeaderMenu(null)
+      setOverlayPaperTrackMenu(null)
+      setStackGuideHeaderMenu(null)
+      setTimedRangeLaneHeaderMenu({ ...laneHeader, x: event.clientX, y: event.clientY })
       return
     }
     const hit = rangeHitFromPoint(point, page)
@@ -1854,6 +1905,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setPaperTrackHeaderMenu(null)
     setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
+    setTimedRangeLaneHeaderMenu(null)
   }
 
   function runContextMenuAction(action: () => void) {
@@ -1874,6 +1926,37 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function runStackGuideHeaderMenuAction(action: () => void) {
     action()
     setStackGuideHeaderMenu(null)
+  }
+
+  function runTimedRangeLaneHeaderMenuAction(action: () => void) {
+    action()
+    setTimedRangeLaneHeaderMenu(null)
+  }
+
+  function openTimelineLaneEditor(state: TimedRangeLaneHeaderMenuState, mode: 'add' | 'rename') {
+    const lanes = timelineLanes[state.role] ?? []
+    const sequence = lanes.length + 1
+    setTimelineLaneEditor({
+      ...state,
+      mode,
+      initialName: mode === 'rename' ? state.label : state.role === 'sound' ? `S${sequence}` : String(sequence),
+      insertAfterLaneId: mode === 'add' ? state.laneId : undefined,
+    })
+    setTimedRangeLaneHeaderMenu(null)
+  }
+
+  function submitTimelineLaneEditor(label: string) {
+    if (!timelineLaneEditor) return
+    if (timelineLaneEditor.mode === 'add') {
+      props.onAddTimelineLane({
+        role: timelineLaneEditor.role,
+        label,
+        insertAfterLaneId: timelineLaneEditor.insertAfterLaneId,
+      })
+    } else {
+      props.onUpdateTimelineLane(timelineLaneEditor.role, timelineLaneEditor.laneId, label)
+    }
+    setTimelineLaneEditor(null)
   }
 
   function requestStackGuideInsert(target: StackGuideInsertTarget, mode: StackGuideInsertTool) {
@@ -1909,6 +1992,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setPaperTrackHeaderMenu(null)
     setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
+    setTimedRangeLaneHeaderMenu(null)
   }
 
   function openAddOverlayPaperTrackEditor(input: { x: number; y: number; insertAfterPaperTrack?: string; snapIndex: number; sheetRole: SheetTimingRole }) {
@@ -1926,6 +2010,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setPaperTrackHeaderMenu(null)
     setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
+    setTimedRangeLaneHeaderMenu(null)
   }
 
   function openOverlayPaperTrackEditor(track: PaperTrack, position: { x: number; y: number }) {
@@ -1944,6 +2029,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setPaperTrackHeaderMenu(null)
     setOverlayPaperTrackMenu(null)
     setStackGuideHeaderMenu(null)
+    setTimedRangeLaneHeaderMenu(null)
   }
 
   function openOverlayPaperTrackMenu(track: PaperTrack, position: { x: number; y: number }) {
@@ -2275,8 +2361,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
 
     return {
     props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
-    textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, stackGuideInsertRequest,
-    setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, overlayTrackDrag,
+    textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
+    setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
@@ -2287,7 +2373,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
     handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
-    runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
+    runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, runTimedRangeLaneHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
+    openTimelineLaneEditor, submitTimelineLaneEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,

@@ -181,6 +181,22 @@ export interface StackGuideHeaderMenuState extends StackGuideInsertTarget {
   y: number
 }
 
+export type TimedRangeLaneRole = Extract<LogicalTimelineSectionRole, 'sound' | 'camera'>
+
+export interface TimedRangeLaneHeaderMenuState {
+  x: number
+  y: number
+  role: TimedRangeLaneRole
+  laneId: string
+  label: string
+}
+
+export interface TimelineLaneEditorState extends TimedRangeLaneHeaderMenuState {
+  mode: 'add' | 'rename'
+  initialName: string
+  insertAfterLaneId?: string
+}
+
 export interface StackGuideInsertContext {
   mode: StackGuideInsertTool
   correctionLayerId?: string

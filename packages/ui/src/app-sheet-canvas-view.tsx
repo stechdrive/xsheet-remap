@@ -21,6 +21,7 @@ import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { TimingEventSymbol } from './TimingEventSymbol'
 import { continuationRenderItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
+import { TimelineLaneEditorPopover } from './TimelineLaneEditorPopover'
 
 function SheetPageSurface({
   interactionOwner,
@@ -47,8 +48,8 @@ function SheetPageSurface({
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
     props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
-    textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, stackGuideInsertRequest,
-    setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, overlayTrackDrag,
+    textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
+    setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
@@ -59,7 +60,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
     handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
-    runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
+    runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, runTimedRangeLaneHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
+    openTimelineLaneEditor, submitTimelineLaneEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
@@ -768,12 +770,50 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           </button>
         </div>
       )}
+      {timedRangeLaneHeaderMenu && (
+        <div
+          className="sheetContextMenu"
+          style={sheetContextMenuStyle(timedRangeLaneHeaderMenu.x, timedRangeLaneHeaderMenu.y, 3)}
+          role="menu"
+          aria-label={`${timedRangeLaneHeaderMenu.role === 'sound' ? 'SOUND' : 'CAMERA'}列の操作`}
+          onPointerDown={event => event.stopPropagation()}
+          onContextMenu={event => event.preventDefault()}
+        >
+          <div className="sheetContextMenuTitle">{timedRangeLaneHeaderMenu.label}</div>
+          <button
+            role="menuitem"
+            onClick={() => runTimedRangeLaneHeaderMenuAction(() => openTimelineLaneEditor(timedRangeLaneHeaderMenu, 'add'))}
+          >
+            {timedRangeLaneHeaderMenu.role === 'sound' ? 'SOUND列を追加' : 'CAMERA列を追加'}
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => runTimedRangeLaneHeaderMenuAction(() => openTimelineLaneEditor(timedRangeLaneHeaderMenu, 'rename'))}
+          >
+            列名を変更
+          </button>
+          <button
+            role="menuitem"
+            disabled={(timelineLanes[timedRangeLaneHeaderMenu.role]?.length ?? 0) <= 1}
+            onClick={() => runTimedRangeLaneHeaderMenuAction(() => props.onDeleteTimelineLane(timedRangeLaneHeaderMenu.role, timedRangeLaneHeaderMenu.laneId))}
+          >
+            列を削除
+          </button>
+        </div>
+      )}
       {paperTrackEditor && (
         <PaperTrackEditorPopover
           state={paperTrackEditor}
           paperTracks={props.project.logicalSheet.paperTracks}
           onSubmit={submitPaperTrackEditor}
           onCancel={() => setPaperTrackEditor(null)}
+        />
+      )}
+      {timelineLaneEditor && (
+        <TimelineLaneEditorPopover
+          state={timelineLaneEditor}
+          onSubmit={submitTimelineLaneEditor}
+          onCancel={() => setTimelineLaneEditor(null)}
         />
       )}
     </div>

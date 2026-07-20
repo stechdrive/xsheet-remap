@@ -21,6 +21,7 @@ import type {
   TimelineMemoText,
   MemoAppearance,
   TimingSpecialMarker,
+  TimedRangeRole,
 } from '@xsheet-remap/core'
 import { updatePaperTrack } from '@xsheet-remap/core'
 import type { CameraCueClipboard, EditMode, SheetRangeSelection, SoundCueClipboard, TemplateRegionAnnotationTarget, TimingClipboard } from './appTypes'
@@ -120,6 +121,9 @@ export type SheetCanvasProps = {
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
+  onAddTimelineLane: (input: { role: TimedRangeRole; label: string; insertAfterLaneId?: string }) => void
+  onUpdateTimelineLane: (role: TimedRangeRole, laneId: string, label: string) => void
+  onDeleteTimelineLane: (role: TimedRangeRole, laneId: string) => void
   stackGuideInsertTool: StackGuideInsertContext | null
   onStackGuideInsertToolConsumed: () => void
   onClearSelection: () => void

@@ -46,9 +46,11 @@ export { applyCommand, createProjectHistory, commitHistory, undoHistory, redoHis
 export { createDefaultProjectDocument, createProjectDocumentFromCutProject, parseProjectDocument, activeCutProjectFromDocument, activeSheetRevisionFromDocument, sheetRevisionsForActiveCut, updateActiveCutProjectInDocument, switchActiveCutInProjectDocument, addBlankSharedCutToProjectDocument, deleteSharedCutFromProjectDocument, switchActiveSheetRevisionInProjectDocument, addSheetRevisionToProjectDocument, renameSheetRevisionInProjectDocument, setSheetRevisionProtectedInProjectDocument, setSheetRevisionReferenceInProjectDocument, deleteSheetRevisionInProjectDocument, migrateProject } from './project-documents'
 export {
   CAMERA_INSTRUCTION_CUE_END_POINT_ID,
+  addTimelineLane,
   createTimedRangeCue,
   defaultCameraOverlapPivotAnchorFrame,
   deleteTimedRangeCue,
+  deleteTimelineLane,
   replaceTimedRangeCues,
   resolveCameraInstructionPoints,
   resolveCameraInstructionSegments,
@@ -61,8 +63,9 @@ export {
   timelineLanesForLayout,
   transformCameraInstructionRange,
   updateTimedRangeCue,
+  updateTimelineLane,
 } from './timed-range'
-export type { TimedRangeCueInput, TimedRangeCueUpdates } from './timed-range'
+export type { AddTimelineLaneInput, TimedRangeCueInput, TimedRangeCueUpdates, TimelineLaneUpdates } from './timed-range'
 export { applyCutTimelineFrameEdit } from './timeline-frame-edit'
 export type { CutTimelineFrameEdit } from './timeline-frame-edit'
 export { nextDisplayLabel, stackGuideGapIndex, stackGuideCspCellName, stackGuideRegistrations, stackGuideRegistrationForLayer, stackGuideStackBand, defaultCorrectionLayerId, sheetTimingRoleForEvent, sheetTimingRoleForKey, defaultCspCellName, resolveCspCellName, uniqueCspCellNameForSlot, isNullLabel, isNullCellKeyId, isNullCellEvent, isSpecialTimingEvent, isSpecialTimingKeyId, specialTimingEventExportValue, timingEventValueKind, timingEventValueKindForKeyId, timingSpecialMarkerKeyId } from './project-shared'

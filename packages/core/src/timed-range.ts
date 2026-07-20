@@ -22,6 +22,72 @@ export interface TimedRangeCueUpdates {
   camera?: CameraInstruction
 }
 
+export interface AddTimelineLaneInput {
+  role: TimedRangeRole
+  label?: string
+  insertAfterLaneId?: string
+}
+
+export interface TimelineLaneUpdates {
+  label: string
+}
+
+export function addTimelineLane(project: CutProject, input: AddTimelineLaneInput): { project: CutProject; lane: LogicalTimelineLane } {
+  const section = timedRangeSection(project, input.role)
+  const lanes = orderedTimelineLanes(section.lanes)
+  const sequence = nextTimelineLaneSequence(lanes, input.role)
+  const lane: LogicalTimelineLane = {
+    laneId: `${input.role}_lane_${sequence}`,
+    label: input.label?.trim() || (input.role === 'sound' ? `S${sequence}` : String(sequence)),
+    order: lanes.length,
+  }
+  const insertIndex = input.insertAfterLaneId === undefined
+    ? lanes.length
+    : lanes.findIndex(candidate => candidate.laneId === input.insertAfterLaneId) + 1
+  if (insertIndex <= 0 && input.insertAfterLaneId !== undefined) {
+    throw new Error(`timeline lane not found: ${input.role}/${input.insertAfterLaneId}`)
+  }
+  const nextLanes = [...lanes]
+  nextLanes.splice(insertIndex, 0, lane)
+  const normalizedLanes = nextLanes.map((candidate, order) => ({ ...candidate, order }))
+  return {
+    project: replaceTimelineSectionLanes(project, input.role, normalizedLanes),
+    lane: normalizedLanes[insertIndex]!,
+  }
+}
+
+export function updateTimelineLane(project: CutProject, role: TimedRangeRole, laneId: string, updates: TimelineLaneUpdates): CutProject {
+  const section = timedRangeSection(project, role)
+  const label = updates.label.trim()
+  if (!label) throw new Error('列名は空にできません。')
+  if (!section.lanes?.some(lane => lane.laneId === laneId)) {
+    throw new Error(`timeline lane not found: ${role}/${laneId}`)
+  }
+  return replaceTimelineSectionLanes(project, role, orderedTimelineLanes(section.lanes).map(lane =>
+    lane.laneId === laneId ? { ...lane, label } : lane,
+  ))
+}
+
+export function deleteTimelineLane(project: CutProject, role: TimedRangeRole, laneId: string): CutProject {
+  const section = timedRangeSection(project, role)
+  const lanes = orderedTimelineLanes(section.lanes)
+  if (!lanes.some(lane => lane.laneId === laneId)) return project
+  if (lanes.length <= 1) throw new Error(`${role === 'sound' ? 'SOUND' : 'CAMERA'}列は1列以上必要です。`)
+  const removedCueIds = new Set(project.timedRangeCues
+    .filter(cue => cue.role === role && cue.laneId === laneId)
+    .map(cue => cue.cueId))
+  const withLanes = replaceTimelineSectionLanes(project, role, lanes
+    .filter(lane => lane.laneId !== laneId)
+    .map((lane, order) => ({ ...lane, order })))
+  return {
+    ...withLanes,
+    timedRangeCues: withLanes.timedRangeCues.filter(cue => !removedCueIds.has(cue.cueId)),
+    memos: withLanes.memos.filter(memo => !isTimelineMemo(memo)
+      || (!removedCueIds.has(memo.anchor.cueId ?? '')
+        && !(memo.anchor.role === role && memo.anchor.laneId === laneId))),
+  }
+}
+
 export function createTimedRangeCue(project: CutProject, input: TimedRangeCueInput): { project: CutProject; cue: TimedRangeCue } {
   const cue = normalizeCue(project, {
     cueId: nextCueId(project.timedRangeCues),
@@ -116,6 +182,38 @@ export function timelineLanesForLayout(project: Pick<CutProject, 'logicalSheet'>
       .filter(section => section.role === 'sound' || section.role === 'camera')
       .map(section => [section.role, [...(section.lanes ?? [])].sort((left, right) => left.order - right.order)]),
   )
+}
+
+function timedRangeSection(project: Pick<CutProject, 'logicalSheet'>, role: TimedRangeRole) {
+  const section = project.logicalSheet.timelineSections.find(candidate => candidate.role === role)
+  if (!section || section.inputMode !== 'timed-range') throw new Error(`timeline section not found: ${role}`)
+  return section
+}
+
+function orderedTimelineLanes(lanes: LogicalTimelineLane[] | undefined): LogicalTimelineLane[] {
+  return [...(lanes ?? [])].sort((left, right) => left.order - right.order)
+}
+
+function nextTimelineLaneSequence(lanes: LogicalTimelineLane[], role: TimedRangeRole): number {
+  const prefix = `${role}_lane_`
+  const usedIds = new Set(lanes.map(lane => lane.laneId))
+  let sequence = Math.max(0, ...lanes.map(lane => lane.laneId.startsWith(prefix)
+    ? Number.parseInt(lane.laneId.slice(prefix.length), 10) || 0
+    : 0)) + 1
+  while (usedIds.has(`${prefix}${sequence}`)) sequence += 1
+  return sequence
+}
+
+function replaceTimelineSectionLanes(project: CutProject, role: TimedRangeRole, lanes: LogicalTimelineLane[]): CutProject {
+  return {
+    ...project,
+    logicalSheet: {
+      ...project.logicalSheet,
+      timelineSections: project.logicalSheet.timelineSections.map(section =>
+        section.role === role ? { ...section, lanes } : section,
+      ),
+    },
+  }
 }
 
 function normalizeCue(project: CutProject, cue: TimedRangeCue): TimedRangeCue {

@@ -158,6 +158,17 @@ export function templateColumnHeaderPoint(role: SheetTimingRole, paperTrack: str
   }
 }
 
+export function templateTimelineLaneHeaderPoint(role: 'sound' | 'camera', laneId: string): { x: number; y: number } {
+  const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === role)
+  if (!region?.grid) throw new Error(`template region not found: ${role}`)
+  const columnIndex = region.grid.columns.findIndex(column => column.timelineLaneId === laneId)
+  if (columnIndex < 0) throw new Error(`template lane not found: ${role} ${laneId}`)
+  return {
+    x: (region.rect.x + (region.rect.w * (columnIndex + 0.5)) / region.grid.columns.length) * 1000,
+    y: (region.rect.y - 0.004) * 1000,
+  }
+}
+
 export function templateStackGuideHeaderPoint(role: SheetTimingRole, gapIndex: number): { x: number; y: number } {
   const region = standardA3SheetTemplate.regions.find(item => item.type === 'exposure-grid' && item.grid?.role === role)
   if (!region?.grid) throw new Error(`template region not found: ${role}`)

@@ -4,7 +4,7 @@ import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsh
 import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
-import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openDisplaySettingsMenu, openStackGuideInsertMenu, openTimingExportDialog, openTimingTextSettingsMenu, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openDisplaySettingsMenu, openStackGuideInsertMenu, openTimingExportDialog, openTimingTextSettingsMenu, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateTimelineLaneHeaderPoint } from './App.test-support'
 
 function dispatchBatchedPointerClick(target: Element, pointerId: number, clientX: number, clientY: number, releaseTarget: EventTarget = target) {
   const pointerDown = createEvent.pointerDown(target, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX, clientY })
@@ -1046,6 +1046,45 @@ it('selects SOUND ranges while rendering only the template-defined dotted column
 
     expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
   expectSelectedRange('sound', 'sound_1', 1, 3)
+})
+
+it('adds and renames a logical SOUND lane from paper, then expands it as a digital column', async () => {
+  render(<App />)
+  const displayMenu = openDisplaySettingsMenu()
+  fireEvent.click(within(displayMenu).getByRole('button', { name: 'A3標準' }))
+  const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+  setSheetRect(sheet, 0, 0)
+  const lanePoint = templateTimelineLaneHeaderPoint('sound', 'sound_lane_1')
+
+  fireEvent.contextMenu(sheet, { clientX: lanePoint.x, clientY: lanePoint.y })
+  const laneMenu = screen.getByRole('menu', { name: 'SOUND列の操作' })
+  expect(within(laneMenu).getByRole('menuitem', { name: 'SOUND列を追加' })).toBeTruthy()
+  expect(within(laneMenu).getByRole('menuitem', { name: '列名を変更' })).toBeTruthy()
+  expect(within(laneMenu).getByRole('menuitem', { name: '列を削除' })).toBeTruthy()
+  fireEvent.click(within(laneMenu).getByRole('menuitem', { name: 'SOUND列を追加' }))
+
+  const addEditor = screen.getByRole('form', { name: 'SOUND列追加' })
+  const addName = within(addEditor).getByLabelText('SOUND列名')
+  expect((addName as HTMLInputElement).value).toBe('S5')
+  fireEvent.change(addName, { target: { value: 'SE' } })
+  fireEvent.click(within(addEditor).getByRole('button', { name: '確定' }))
+  await waitFor(() => expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toContain('SOUND（欄外 +1）'))
+
+  const insertedLanePoint = templateTimelineLaneHeaderPoint('sound', 'sound_lane_2')
+  fireEvent.contextMenu(sheet, { clientX: insertedLanePoint.x, clientY: insertedLanePoint.y })
+  fireEvent.click(screen.getByRole('menuitem', { name: '列名を変更' }))
+  const renameEditor = screen.getByRole('form', { name: 'SOUND列名前変更' })
+  const renameName = within(renameEditor).getByLabelText('SOUND列名')
+  fireEvent.change(renameName, { target: { value: 'FOLEY' } })
+  fireEvent.click(within(renameEditor).getByRole('button', { name: '確定' }))
+
+  const digitalMenu = openDisplaySettingsMenu()
+  fireEvent.click(within(digitalMenu).getByRole('button', { name: 'デジタル標準' }))
+  await waitFor(() => {
+    const labels = Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)
+    expect(labels).toContain('FOLEY')
+    expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
+  })
 })
 
 it('preserves a selected SOUND range through double-click and releases native pointer state after closing', async () => {

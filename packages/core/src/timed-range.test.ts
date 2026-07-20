@@ -1,18 +1,53 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addTimelineLane,
   createDefaultProject,
   createProjectFromTemplate,
   createTimedRangeCue,
   deleteTimedRangeCue,
+  deleteTimelineLane,
   digitalStandardSheetTemplate,
   timedRangeCuesIntersecting,
   updateProjectTimelineSectionsFromTemplate,
   updateTimedRangeCue,
+  updateTimelineLane,
   validateProject,
 } from './index'
 import { addTimelineMemo } from './timeline-memo'
 
 describe('timed range cues', () => {
+  it('adds, renames, and deletes logical SOUND/CAMERA lanes without template mutation', () => {
+    const initial = createDefaultProject()
+    const addedSound = addTimelineLane(initial, { role: 'sound', insertAfterLaneId: 'sound_lane_1' })
+    expect(addedSound.lane).toEqual({ laneId: 'sound_lane_5', label: 'S5', order: 1 })
+    expect(addedSound.project.logicalSheet.timelineSections.find(section => section.role === 'sound')?.lanes).toEqual([
+      { laneId: 'sound_lane_1', label: 'S1', order: 0 },
+      { laneId: 'sound_lane_5', label: 'S5', order: 1 },
+      { laneId: 'sound_lane_2', label: 'S2', order: 2 },
+      { laneId: 'sound_lane_3', label: 'S3', order: 3 },
+      { laneId: 'sound_lane_4', label: 'S4', order: 4 },
+    ])
+    const renamed = updateTimelineLane(addedSound.project, 'sound', addedSound.lane.laneId, { label: '  SE  ' })
+    expect(renamed.logicalSheet.timelineSections.find(section => section.role === 'sound')?.lanes?.[1]?.label).toBe('SE')
+
+    const addedCamera = addTimelineLane(renamed, { role: 'camera', label: 'PAN' })
+    const withCue = createTimedRangeCue(addedCamera.project, {
+      role: 'camera', laneId: addedCamera.lane.laneId, frameStart: 1, frameEnd: 6, label: 'PAN',
+    }).project
+    const deleted = deleteTimelineLane(withCue, 'camera', addedCamera.lane.laneId)
+    expect(deleted.logicalSheet.timelineSections.find(section => section.role === 'camera')?.lanes).toHaveLength(6)
+    expect(deleted.timedRangeCues).toHaveLength(0)
+    expect(() => deleteTimelineLane({
+      ...deleted,
+      logicalSheet: {
+        ...deleted.logicalSheet,
+        timelineSections: deleted.logicalSheet.timelineSections.map(section => section.role === 'sound'
+          ? { ...section, lanes: section.lanes?.slice(0, 1) }
+          : section),
+      },
+    }, 'sound', 'sound_lane_1')).toThrow('SOUND列は1列以上必要です。')
+  })
+
   it('projects stable SOUND lanes from paper, digital, and custom template columns', () => {
     const paper = createDefaultProject().logicalSheet.timelineSections.find(section => section.role === 'sound')
     const digital = createProjectFromTemplate(digitalStandardSheetTemplate).logicalSheet.timelineSections.find(section => section.role === 'sound')

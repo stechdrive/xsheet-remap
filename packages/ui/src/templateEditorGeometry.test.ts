@@ -244,17 +244,41 @@ describe('template editor geometry', () => {
     }
   })
 
-  it('renders the digital reserve grid plus bordered metadata and memo forms', () => {
+  it('omits digital reserve columns and renders bordered metadata and memo forms', () => {
     const model = buildTemplateEditorRenderModel(digitalStandardSheetTemplate)
     const reserve = model.gridOverlays.find(item => item.regionId === 'digital_action_reserve_grid')
 
-    expect(reserve).toMatchObject({ role: 'other', labels: [], frameNumbers: [], bottomTrackLabels: [] })
-    expect(reserve?.rowPaths.find(path => path.style?.pattern === 'dotted')?.segments).toHaveLength(143)
+    expect(reserve).toBeUndefined()
     expect(model.chrome.formBoxes).toHaveLength(16)
     expect(model.chrome.formLabels.map(label => label.text)).toEqual([
       'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'ページ数', 'MEMO',
     ])
     expect(model.chrome.formBoxes.some(box => box.key === 'digital_memo_area:digital_memo_box')).toBe(true)
+  })
+
+  it('labels timed-range lanes that remain outside a fixed paper template', () => {
+    const soundLanes = Array.from({ length: 6 }, (_, index) => ({
+      laneId: `sound_lane_${index + 1}`,
+      label: `S${index + 1}`,
+      order: index,
+    }))
+    const cameraLanes = Array.from({ length: 8 }, (_, index) => ({
+      laneId: `camera_lane_${index + 1}`,
+      label: String(index + 1),
+      order: index,
+    }))
+    const paper = buildTemplateChromeRenderModel(standardA3SheetTemplate, [], undefined, {
+      timelineLanes: { sound: soundLanes, camera: cameraLanes },
+    })
+    expect(paper.headers.filter(header => header.label.includes('欄外')).map(header => header.label)).toEqual([
+      'SOUND（欄外 +2）',
+      'CAMERA（欄外 +2）',
+    ])
+
+    const digital = buildTemplateChromeRenderModel(digitalStandardSheetTemplate, [], undefined, {
+      timelineLanes: { sound: soundLanes, camera: cameraLanes },
+    })
+    expect(digital.headers.map(header => header.label)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
   })
 
   it('projects A3 process and count fields into editable form cells', () => {

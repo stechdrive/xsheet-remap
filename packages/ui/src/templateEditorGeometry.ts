@@ -850,10 +850,23 @@ function buildTemplateGridHeaderRenderModel(
   const columnHeight = columnHeightPx / pageSize.heightPx
   const y = rect.y - headerTopOffset
   const columnBaselineOffset = (0.0025 * template.page.heightPx) / pageSize.heightPx
+  const baseLabel = gridHeaderLabelForRole(template, region.grid.role)
+  const projectedLaneIds = new Set(layout.columns.flatMap(column => column.timelineLaneId ? [column.timelineLaneId] : []))
+  const hiddenLaneCount = region.grid.role === 'sound' || region.grid.role === 'camera'
+    ? (options.timelineLanes?.[region.grid.role] ?? []).filter(lane => !projectedLaneIds.has(lane.laneId)).length
+    : 0
+  const isFirstRegionForRole = template.regions.find(candidate =>
+    candidate.type === 'exposure-grid' && candidate.grid?.role === region.grid?.role,
+  )?.regionId === region.regionId
+  const overflowLabel = hiddenLaneCount > 0 && isFirstRegionForRole
+    ? `${baseLabel || gridRoleLabel(region.grid.role)}（欄外 +${hiddenLaneCount}）`
+    : baseLabel
   return {
     regionId: region.regionId,
     rect: { x: rect.x, y, w: rect.w, h: headerHeight },
-    label: region.grid.header?.showLabel === false ? '' : gridHeaderLabelForRole(template, region.grid.role),
+    label: region.grid.header?.showLabel === false
+      ? ''
+      : overflowLabel,
     labelX: rect.x + rect.w / 2,
     labelY: y + headerHeight / 2,
     labelFontSizePx: templateGridHeaderFontSizePx(template),

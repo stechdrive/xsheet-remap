@@ -347,6 +347,7 @@ export {
   stackGuideRegistrationForLayer,
   stackGuideRegistrations,
   stackGuideStackBand,
+  addTimelineLane,
   timedRangeCuesIntersecting,
   timedRangeLaneIds,
   timelineLanesForLayout,
@@ -366,6 +367,8 @@ export {
   updateStackGuideLabel,
   updateStackGuideRegistration,
   updateTimedRangeCue,
+  updateTimelineLane,
+  deleteTimelineLane,
   uniqueCspCellNameForSlot,
   upsertBinding,
 } from './project'

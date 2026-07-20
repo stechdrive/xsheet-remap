@@ -4,7 +4,7 @@ import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsh
 import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
-import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 function dispatchBatchedPointerClick(target: Element, pointerId: number, clientX: number, clientY: number, releaseTarget: EventTarget = target) {
   const pointerDown = createEvent.pointerDown(target, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX, clientY })
@@ -1561,7 +1561,7 @@ it('registers new timing at the active process without moving it when the destin
       toJSON: () => ({}),
     })
 
-    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
+    selectCspCorrectionLayer('演出')
     clickSheet(sheet, 255, 290)
     enterTimingValue('1')
     const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as Element
@@ -1570,7 +1570,7 @@ it('registers new timing at the active process without moving it when the destin
     expect(document.querySelector('.cspTreeUnregisteredStage')).toBeNull()
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
 
-    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_sakuga' } })
+    selectCspCorrectionLayer('作画')
     expect(registeredCell.closest('.cspTreeLayer')?.querySelector('.cspTreeSummaryLabel')?.textContent).toBe('演出')
     expectSelectionStatus('作画', 'CELL', 'A', formatTestFramePosition(2))
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)

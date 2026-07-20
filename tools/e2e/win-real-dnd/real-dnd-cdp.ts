@@ -506,6 +506,10 @@ async function runCspPaneRefactorScenario(): Promise<void> {
   await verifyFixedCspPaneFooter()
   checks.push('kept the CSP layer operation footer fixed while only the layer tree body scrolled')
 
+  await selectCspRegistrationTargetWithRealMouse('演出')
+  await selectCspRegistrationTargetWithRealMouse('作画')
+  checks.push('changed the active registration destination from the CSP pane and verified its header badge and fixed-footer status')
+
   await createStackGuideFromCspPaneFooter('作画', createdLabel)
   await waitForStackGuideLabelRole(createdLabel, 'action')
   await dragAssetToCspTrack('A2.png', createdLabel)
@@ -528,6 +532,22 @@ async function runCspPaneRefactorScenario(): Promise<void> {
   await waitForStackGuideLabelRole(renamedLabel, 'cell')
   checks.push('deleted the selected track from the fixed footer and restored it through application Undo')
   await captureScreenshot('remap-csp-pane-refactor-after')
+}
+
+async function selectCspRegistrationTargetWithRealMouse(label: string): Promise<void> {
+  await realMouseClick(await clientToScreen(await cspSummaryLabelPoint(label)))
+  await waitForPageCondition(
+    () => evaluatePage<boolean>(`
+      (() => {
+        const activeSummary = document.querySelector('.cspTreeLayer > summary.cspRegistrationTarget');
+        const activeLabel = activeSummary?.querySelector('.cspTreeSummaryLabel')?.textContent?.trim();
+        const footer = document.querySelector('.cspRegistrationTargetStatus');
+        return activeLabel === ${JSON.stringify(label)}
+          && footer?.textContent?.replace(/\\s+/g, '') === ${JSON.stringify(`登録先:${label}`)};
+      })()
+    `),
+    `CSP registration destination ${label}`,
+  )
 }
 
 async function dragCspPaneTrackToSheetWithRealMouse(label: string, role: SheetTimingRole): Promise<void> {

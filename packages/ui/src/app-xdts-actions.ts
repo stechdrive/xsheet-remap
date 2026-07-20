@@ -42,8 +42,8 @@ export function createAppXdtsActions(options: AppXdtsActionsOptions) {
     options.setTimingExportDialog({
       kind,
       timingSourceRole: DEFAULT_EXPORT_TIMING_ROLE,
-      includeSound: kind === 'xdts',
-      includeCamera: kind === 'xdts',
+      includeSound: false,
+      includeCamera: false,
     })
   }
 

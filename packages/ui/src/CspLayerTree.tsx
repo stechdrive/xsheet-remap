@@ -27,6 +27,7 @@ export function CspLayerTree({
   onSelectKey,
   onDeleteKey,
   activeCorrectionLayerId,
+  onActiveCorrectionLayerChange,
   onUpdateCspCellName,
   onMoveKeyBindingProcess,
   onUpdateStackGuideRegistration,
@@ -57,6 +58,7 @@ export function CspLayerTree({
   onSelectKey: (keyId: string | null) => void
   onDeleteKey: (keyId: string, bindingId?: string) => void | Promise<void>
   activeCorrectionLayerId: string
+  onActiveCorrectionLayerChange: (layerId: string) => void
   onUpdateCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
@@ -82,6 +84,7 @@ export function CspLayerTree({
   onCreateStackGuideLabel: (input: { label: string; kind: StackGuideLabel['kind']; gapIndex: number; correctionLayerId: string }) => void
 }) {
   const tree = useMemo(() => buildCspLayerTree(project, exportProfileId), [exportProfileId, project])
+  const activeCorrectionLayer = project.correctionLayers.find(layer => layer.layerId === activeCorrectionLayerId) ?? null
   const assetsById = useMemo(() => new Map(project.assets.map(asset => [asset.assetId, asset])), [project.assets])
   const [auxiliaryDraft, setAuxiliaryDraft] = useState<{
     correctionLayerId: string
@@ -264,9 +267,13 @@ export function CspLayerTree({
 
   function selectPaneNode(selection: CspPaneSelection) {
     setPaneSelection(selection)
+    const selectedCorrectionLayerId = correctionLayerIdForCspPaneSelection(selection, '')
+    if (selectedCorrectionLayerId && selectedCorrectionLayerId !== activeCorrectionLayerId) {
+      onActiveCorrectionLayerChange(selectedCorrectionLayerId)
+    }
     if (selection.kind === 'registered-cell' || selection.kind === 'unregistered-cell') {
       onSelectKey(selection.keyId)
-    } else {
+    } else if (selection.kind !== 'correction-layer') {
       onSelectKey(null)
     }
   }
@@ -759,7 +766,7 @@ export function CspLayerTree({
     : '削除する項目を選択してください'
 
   return (
-    <section ref={treeRootRef} className="cspLayerTree" aria-label="CSPレイヤー構成">
+    <section ref={treeRootRef} className="cspLayerTree" aria-label="CSPレイヤー構成" data-active-correction-layer-id={activeCorrectionLayerId}>
       <header className="cspLayerTreeHeader">
         <strong>CSPレイヤー構成</strong>
       </header>
@@ -835,10 +842,12 @@ export function CspLayerTree({
                   <summary
                     className={[
                       layer.layerId && assetDropGapId === `${layer.layerId}:0` ? 'assetDragOver' : '',
+                      layer.layerId === activeCorrectionLayerId ? 'cspRegistrationTarget' : '',
                       paneRowClass(layerSelection),
                     ].filter(Boolean).join(' ')}
                     role="treeitem"
                     aria-selected={paneSelection?.nodeId === layerSelection.nodeId}
+                    aria-current={layer.layerId === activeCorrectionLayerId ? 'true' : undefined}
                     {...paneReorderAttributes(layerSelection)}
                     data-csp-drop-kind={layer.layerId ? 'gap' : undefined}
                     data-csp-gap-id={layer.layerId ? `${layer.layerId}:0` : undefined}
@@ -1059,6 +1068,14 @@ export function CspLayerTree({
           }}>メモ</button>
           {selectedSlotId && onCreateUnplacedCard && <button type="button" onClick={() => beginNewCel(selectedSlotId)}>登録セル</button>}
         </ActionMenu>
+        <span
+          className="cspRegistrationTargetStatus"
+          aria-label={`現在の登録先: ${activeCorrectionLayer?.label ?? '未設定'}`}
+          title={`新規入力キーとシートへ直接配置する素材の登録先: ${activeCorrectionLayer?.label ?? '未設定'}`}
+        >
+          <span>登録先:</span>
+          <strong>{activeCorrectionLayer?.label ?? '未設定'}</strong>
+        </span>
         <span className="cspLayerTreeFooterSpacer" />
         <Tooltip label={deleteTooltip}>
           <button

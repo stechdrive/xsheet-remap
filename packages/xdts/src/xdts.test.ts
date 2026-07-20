@@ -185,7 +185,11 @@ describe('XDTS parse/export', () => {
     }).project
     const plan = buildExportPlan(project)
     expect(JSON.parse(exportXdts(plan).split('\n').slice(1).join('\n')).version).toBe(5)
-    const parsed = parseXdts(exportProjectXdts(plan, project))
+    const defaultParsed = parseXdts(exportProjectXdts(plan, project))
+    expect(defaultParsed.version).toBe(5)
+    expect(defaultParsed.timeTables[0]?.dialogueCues).toEqual([])
+    expect(defaultParsed.timeTables[0]?.cameraCues).toEqual([])
+    const parsed = parseXdts(exportProjectXdts(plan, project, { includeSound: true, includeCamera: true }))
     expect(parsed.version).toBe(10)
     expect(parsed.timeTables[0]?.dialogueCues[0]).toMatchObject({ frameStart: 0, frameEnd: 2, values: ['アキ', '台詞'] })
     expect(parsed.timeTables[0]?.cameraCues[0]).toMatchObject({ frameStart: 3, frameEnd: 6, values: ['FI'] })

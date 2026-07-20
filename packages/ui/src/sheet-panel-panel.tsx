@@ -7,16 +7,15 @@ import { uiText } from './i18n'
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TemplateRegionAnnotationTarget, type TimingClipboard, type WorkspaceStyle } from './appTypes'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
 import { AssetTray, type DropDiagnosticReport } from './AssetBrowser'
-import { sortedCorrectionLayers } from './sheetAssets'
 import { SHEET_ZOOM_MAX, SHEET_ZOOM_MIN } from './sheetConstants'
 import { clampSheetZoom } from './sheetInteraction'
 import { Tooltip, TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
-import { ActionMenu, IconButton, PanelResizeHandle, ToolbarGroup } from './AppControls'
+import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
 import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
-import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
+import { DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
@@ -294,7 +293,9 @@ export function SheetPanel(props: {
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
   const updateSheetZoom = props.setZoom
-  const correctionLayers = sortedCorrectionLayers(props.project)
+  const activeCutIndex = props.projectCuts.findIndex(cut => cut.cutId === props.activeCutId)
+  const activeCut = activeCutIndex >= 0 ? props.projectCuts[activeCutIndex] : props.projectCuts[0]
+  const activeCutLabel = activeCut?.metadata.cut?.trim() || `カット${Math.max(1, activeCutIndex + 1)}`
   const templatePaperTrackNames = useMemo(
     () => templatePaperTracks(props.project).map(track => track.paperTrack),
     [props.project],
@@ -539,64 +540,48 @@ export function SheetPanel(props: {
           )}
         </ToolbarGroup>
         <ToolbarGroup className="sheetToolbarGroup cutSwitchToolbarGroup">
-          <TooltipTarget label={uiText.sheet.cutSwitchTitle}>
-            {tooltipProps => (
-              <label className="compactControl cutSwitchControl" {...tooltipProps}>
-                兼用
-                <select value={props.activeCutId} onChange={event => props.onSwitchProjectCut(event.currentTarget.value)}>
-                  {props.projectCuts.map((cut, index) => (
-                    <option key={cut.cutId} value={cut.cutId}>
-                      {cut.metadata.cut?.trim() || `カット${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </TooltipTarget>
-          <Tooltip label={uiText.sheet.addSharedCutTitle}>
-            <IconButton className="cutSwitchAddButton cutSwitchIconButton" aria-label={uiText.sheet.addSharedCutTitle} onClick={props.onAddSharedCut}>
-              <PlusIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip label={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : uiText.sheet.deleteSharedCutTitle}>
-            <IconButton
-              className="cutSwitchDeleteButton cutSwitchIconButton"
-              aria-label={uiText.sheet.deleteSharedCutTitle}
-              disabled={props.projectCuts.length <= 1}
-              onClick={props.onDeleteSharedCut}
-            >
-              <TrashIcon />
-            </IconButton>
-          </Tooltip>
-          <TooltipTarget label={uiText.sheet.sharedCutNumbersTitle}>
-            {tooltipProps => (
-              <label className="compactControl sharedCutNumbersControl" {...tooltipProps}>
-                <input
-                  type="checkbox"
-                  aria-label={uiText.sheet.sharedCutNumbers}
+          <ActionMenu
+            label={<span className="cutSwitchMenuLabel"><span>兼用</span><strong>{activeCutLabel}</strong></span>}
+            ariaLabel={uiText.sheet.cutSwitchTitle}
+            tooltipLabel={`${uiText.sheet.cutSwitchTitle}（現在: ${activeCutLabel}）`}
+            className="cutSwitchMenu"
+          >
+            <label className="cutSwitchMenuSelect">
+              <span>兼用カット</span>
+              <select aria-label="兼用カット" value={props.activeCutId} onChange={event => props.onSwitchProjectCut(event.currentTarget.value)}>
+                {props.projectCuts.map((cut, index) => (
+                  <option key={cut.cutId} value={cut.cutId}>
+                    {cut.metadata.cut?.trim() || `カット${index + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <TooltipTarget label={uiText.sheet.sharedCutNumbersTitle}>
+              {tooltipProps => (
+                <label className="compactControl sharedCutNumbersControl" {...tooltipProps}>
+                  <input
+                    type="checkbox"
+                    aria-label={uiText.sheet.sharedCutNumbers}
                   checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
-                  onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
-                />
-                表示
-              </label>
-            )}
-          </TooltipTarget>
-        </ToolbarGroup>
-        <ToolbarGroup className="sheetToolbarGroup processPaletteGroup">
-          <TooltipTarget label="新規入力キーとシートへ直接配置する素材のCSP登録先">
-            {tooltipProps => (
-              <label className="compactControl processDestinationControl" {...tooltipProps}>
-                <span>{uiText.sheet.registrationProcess}</span>
-                <select
-                  aria-label={uiText.sheet.registrationProcess}
-                  value={props.activeCorrectionLayerId}
-                  onChange={event => props.setActiveCorrectionLayerId(event.currentTarget.value)}
-                >
-                  {correctionLayers.map(layer => <option key={layer.layerId} value={layer.layerId}>{layer.label}</option>)}
-                </select>
-              </label>
-            )}
-          </TooltipTarget>
+                    onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
+                  />
+                  シートに兼用カット番号を表示
+                </label>
+              )}
+            </TooltipTarget>
+            <div className="cutSwitchMenuActions">
+              <button type="button" className="cutSwitchAddButton" onClick={props.onAddSharedCut}>{uiText.sheet.addSharedCutTitle}</button>
+              <button
+                type="button"
+                className="cutSwitchDeleteButton"
+                disabled={props.projectCuts.length <= 1}
+                title={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : undefined}
+                onClick={props.onDeleteSharedCut}
+              >
+                {uiText.sheet.deleteSharedCutTitle}
+              </button>
+            </div>
+          </ActionMenu>
         </ToolbarGroup>
         <ToolbarGroup className="sheetToolbarGroup textToolbarGroup">
           <FontSizeControl
@@ -981,6 +966,7 @@ export function SheetPanel(props: {
               onSelectKey={props.onKeySelect}
               onDeleteKey={props.onDeleteKey}
               activeCorrectionLayerId={props.activeCorrectionLayerId}
+              onActiveCorrectionLayerChange={props.setActiveCorrectionLayerId}
               onUpdateCspCellName={props.onUpdateKeyCspCellName}
               onMoveKeyBindingProcess={props.onMoveKeyBindingProcess}
               onRenameProductionStage={props.onRenameProductionStage}

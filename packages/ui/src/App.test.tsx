@@ -6,7 +6,7 @@ import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
 import { ASSET_DRAG_MIME } from './sheetConstants';
-import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
+import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openSharedCutMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, selectCspCorrectionLayer, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
 
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
@@ -260,7 +260,9 @@ it('registers a sheet-first key at the active CSP destination and assigns a mate
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
-    fireEvent.change(screen.getByLabelText(uiText.sheet.registrationProcess), { target: { value: 'layer_enshutsu' } })
+    expect(screen.queryByLabelText(uiText.sheet.registrationProcess)).toBeNull()
+    selectCspCorrectionLayer('演出')
+    expect(screen.getByLabelText('現在の登録先: 演出')).toBeTruthy()
     clickTemplateFrame(sheet, 'action', 'A', 1)
     enterTimingValue('1')
 
@@ -390,6 +392,8 @@ it('opens remap XDTS export options from the export menu without adding a worksp
     render(<RemapApp />)
     const dialog = openTimingExportDialog()
     expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
+    expect((within(dialog).getByLabelText('SOUNDを含める') as HTMLInputElement).checked).toBe(false)
+    expect((within(dialog).getByLabelText('CAMERAを含める') as HTMLInputElement).checked).toBe(false)
     expect(screen.queryByText('読込開始')).toBeNull()
     expect(screen.queryByText('読込終了')).toBeNull()
   })
@@ -779,15 +783,16 @@ it('renders the default paper template chrome and grid lines', () => {
 it('toggles shared cut numbers beside the cut switch even before another cut exists', () => {
     render(<App />)
 
-    const initialToggle = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
+    const menu = openSharedCutMenu()
+    const initialToggle = within(menu).getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
     expect(initialToggle.disabled).toBe(false)
     expect(initialToggle.checked).toBe(true)
     fireEvent.click(initialToggle)
     expect(initialToggle.checked).toBe(false)
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).not.toContain('[]')
 
-    fireEvent.click(document.querySelector('.cutSwitchAddButton') as HTMLButtonElement)
-    const toggle = screen.getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.sheet.addSharedCutTitle }))
+    const toggle = within(menu).getByLabelText(uiText.sheet.sharedCutNumbers) as HTMLInputElement
     expect(toggle.disabled).toBe(false)
     expect(toggle.checked).toBe(true)
     expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent)).toContain('[001]')
@@ -795,15 +800,15 @@ it('toggles shared cut numbers beside the cut switch even before another cut exi
 
 it('deletes the selected shared cut after confirmation but keeps the last cut', async () => {
     render(<App />)
-    const deleteButton = screen.getByRole('button', { name: uiText.sheet.deleteSharedCutTitle }) as HTMLButtonElement
-    const addButton = screen.getByRole('button', { name: uiText.sheet.addSharedCutTitle }) as HTMLButtonElement
-    expect(deleteButton.classList.contains('iconButton')).toBe(true)
-    expect(deleteButton.classList.contains('cutSwitchIconButton')).toBe(true)
-    expect(addButton.classList.contains('iconButton')).toBe(true)
+    const menu = openSharedCutMenu()
+    const deleteButton = within(menu).getByRole('button', { name: uiText.sheet.deleteSharedCutTitle }) as HTMLButtonElement
+    const addButton = within(menu).getByRole('button', { name: uiText.sheet.addSharedCutTitle }) as HTMLButtonElement
+    expect(deleteButton.classList.contains('iconButton')).toBe(false)
+    expect(addButton.classList.contains('iconButton')).toBe(false)
     expect(deleteButton.disabled).toBe(true)
 
-    fireEvent.click(document.querySelector('.cutSwitchAddButton') as HTMLButtonElement)
-    const cutSelect = document.querySelector('.cutSwitchControl select') as HTMLSelectElement
+    fireEvent.click(addButton)
+    const cutSelect = within(menu).getByLabelText('兼用カット') as HTMLSelectElement
     expect(cutSelect.options).toHaveLength(2)
     expect(cutSelect.selectedOptions[0]?.textContent?.trim()).toBe('002')
     expect(deleteButton.disabled).toBe(false)

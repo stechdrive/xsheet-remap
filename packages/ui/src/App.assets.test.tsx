@@ -4,7 +4,7 @@ import { standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
 import { defaultCalibrationPoints } from './sheetImages';
-import { clickActiveStackGuideInsertHandle, clickSheet, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, dragStackGuideSvgLabel, enterTimingValue, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, stackGuideConnectorPath, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, dragStackGuideSvgLabel, enterTimingValue, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openSharedCutMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, stackGuideConnectorPath, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 describe('App: viewport and assets', () => {
 it('zooms the sheet with Ctrl+wheel and viewport controls', () => {
@@ -658,11 +658,11 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
       .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
 
-    const addCutButton = document.querySelector<HTMLButtonElement>('.cutSwitchAddButton')
-    if (!addCutButton) throw new Error('shared cut add button not found')
+    const sharedCutMenu = openSharedCutMenu()
+    const addCutButton = within(sharedCutMenu).getByRole('button', { name: uiText.sheet.addSharedCutTitle })
     fireEvent.click(addCutButton)
     await waitFor(() => {
-      const select = document.querySelector<HTMLSelectElement>('.cutSwitchControl select')
+      const select = within(sharedCutMenu).getByLabelText('兼用カット') as HTMLSelectElement
       expect(select?.options.length).toBe(2)
       expect(select?.selectedOptions[0]?.textContent?.trim()).toBe('002')
     })

@@ -491,7 +491,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
       {timingExportDialog && timingExportPlan && (
         <TimingExportDialog
           state={timingExportDialog}
-          template={template}
+          timelineSections={project.logicalSheet.timelineSections}
           assetRootPath={project.assetRoot?.path}
           issues={timingExportPlan.validation}
           onChangeRole={updateTimingExportRole}

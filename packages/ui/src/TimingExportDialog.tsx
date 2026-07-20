@@ -1,11 +1,11 @@
-import type { SheetTemplate, SheetTimingRole, ValidationIssue } from '@xsheet-remap/core'
+import type { LogicalTimelineSection, SheetTimingRole, ValidationIssue } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { issueMessage, severityLabel } from './i18n'
 import type { TimingExportDialogState } from './appTypes'
 
 export function TimingExportDialog({
   state,
-  template,
+  timelineSections,
   assetRootPath,
   issues,
   onChangeRole,
@@ -14,7 +14,7 @@ export function TimingExportDialog({
   onConfirm,
 }: {
   state: TimingExportDialogState
-  template: SheetTemplate
+  timelineSections: readonly LogicalTimelineSection[]
   assetRootPath?: string
   issues: ValidationIssue[]
   onChangeRole: (role: SheetTimingRole) => void
@@ -27,8 +27,10 @@ export function TimingExportDialog({
   const portableBrowserExport = state.kind === 'csp-import' && !isTauriHost()
   const rootMissing = state.kind === 'csp-import' && !portableBrowserExport && !assetRootPath
   const disabled = blockingIssues.length > 0 || rootMissing
-  const actionLabel = template.style?.gridHeader?.labelOverrides?.action || 'ACTION'
-  const cellLabel = template.style?.gridHeader?.labelOverrides?.cell || 'CELL'
+  const actionLabel = timelineSectionLabel(timelineSections, 'action', 'ACTION')
+  const soundLabel = timelineSectionLabel(timelineSections, 'sound', 'SOUND')
+  const cellLabel = timelineSectionLabel(timelineSections, 'cell', 'CELL')
+  const cameraLabel = timelineSectionLabel(timelineSections, 'camera', 'CAMERA')
 
   return (
     <div className="assetQuickPreviewBackdrop exportSettingsBackdrop" role="dialog" aria-modal="true" aria-label={state.kind === 'csp-import' ? 'CSP自動登録データを書き出す…' : 'XDTSを書き出す…'} onPointerDown={onCancel}>
@@ -47,8 +49,8 @@ export function TimingExportDialog({
           </fieldset>
           {state.kind === 'xdts' && (
             <div className="xdtsImportOptions">
-              <label><input type="checkbox" checked={state.includeSound} onChange={event => onChangeOptions({ includeSound: event.currentTarget.checked })} /> SOUNDを含める</label>
-              <label><input type="checkbox" checked={state.includeCamera} onChange={event => onChangeOptions({ includeCamera: event.currentTarget.checked })} /> CAMERAを含める</label>
+              <label><input type="checkbox" checked={state.includeSound} onChange={event => onChangeOptions({ includeSound: event.currentTarget.checked })} /> {soundLabel}を含める</label>
+              <label><input type="checkbox" checked={state.includeCamera} onChange={event => onChangeOptions({ includeCamera: event.currentTarget.checked })} /> {cameraLabel}を含める</label>
             </div>
           )}
           {state.kind === 'csp-import' && (
@@ -76,4 +78,12 @@ export function TimingExportDialog({
       </section>
     </div>
   )
+}
+
+function timelineSectionLabel(
+  sections: readonly LogicalTimelineSection[],
+  role: LogicalTimelineSection['role'],
+  fallback: string,
+): string {
+  return sections.find(section => section.role === role)?.label.trim() || fallback
 }

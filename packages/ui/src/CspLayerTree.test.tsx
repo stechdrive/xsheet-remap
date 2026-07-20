@@ -30,6 +30,7 @@ describe('CspLayerTree', () => {
         onSelectKey={onSelectKey}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_enshutsu"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -95,6 +96,7 @@ describe('CspLayerTree', () => {
         onSelectKey={onSelectKey}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -165,6 +167,7 @@ describe('CspLayerTree', () => {
     const onRenameCorrectionLayer = vi.fn()
     const onUpdateCspCellName = vi.fn()
     const onSelectKey = vi.fn()
+    const onActiveCorrectionLayerChange = vi.fn()
 
     render(
       <CspLayerTree
@@ -174,6 +177,7 @@ describe('CspLayerTree', () => {
         onSelectKey={onSelectKey}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={onActiveCorrectionLayerChange}
         onUpdateCspCellName={onUpdateCspCellName}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -215,6 +219,8 @@ describe('CspLayerTree', () => {
     expect(onRenameProductionStage).toHaveBeenCalledWith('stage_lo', '原画')
 
     const processLabel = screen.getByText('作画', { selector: '.cspTreeSummaryLabel' })
+    expect(screen.getByLabelText('現在の登録先: 作画')).toBeTruthy()
+    expect(processLabel.closest('summary')?.classList.contains('cspRegistrationTarget')).toBe(true)
     const processDetails = processLabel.closest('details')
     expect(processDetails?.open).toBe(true)
     fireEvent.click(processLabel)
@@ -233,6 +239,7 @@ describe('CspLayerTree', () => {
     expect(directorDetails?.open).toBe(true)
     fireEvent.pointerDown(directorSummary)
     fireEvent.click(directorSummary)
+    expect(onActiveCorrectionLayerChange).toHaveBeenCalledWith('layer_kantoku')
     expect(onRenameCorrectionLayer).toHaveBeenCalledWith('layer_sakuga', '第一原画')
     expect(screen.queryByLabelText('作画の工程名')).toBeNull()
     expect(directorDetails?.open).toBe(true)
@@ -271,6 +278,7 @@ describe('CspLayerTree', () => {
         onSelectKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -322,6 +330,7 @@ describe('CspLayerTree', () => {
         onSelectKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -404,6 +413,7 @@ describe('CspLayerTree', () => {
         onSelectKey={vi.fn()}
         onDeleteKey={onDeleteKey}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -469,6 +479,7 @@ describe('CspLayerTree', () => {
         onSelectKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={onMoveKeyBindingProcess}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -514,6 +525,7 @@ describe('CspLayerTree', () => {
         onSelectKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -572,6 +584,7 @@ describe('CspLayerTree', () => {
         onSelectKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -623,6 +636,7 @@ describe('CspLayerTree', () => {
         onSelectKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
@@ -666,6 +680,7 @@ describe('CspLayerTree', () => {
         onSelectKey={vi.fn()}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
         onUpdateCspCellName={vi.fn()}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}

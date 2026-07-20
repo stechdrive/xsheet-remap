@@ -22,10 +22,10 @@ export function exportProjectXdts(
   options: ProjectXdtsExportOptions = {},
 ): string {
   const fields: RawRangeField[] = []
-  if (options.includeSound !== false) {
+  if (options.includeSound === true) {
     fields.push(buildRangeField(project, 'sound', 3))
   }
-  if (options.includeCamera !== false) {
+  if (options.includeCamera === true) {
     fields.push(buildRangeField(project, 'camera', 5))
   }
   return serializeXdts(plan, fields.filter(field => field.tracks.length > 0))

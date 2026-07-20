@@ -12,6 +12,7 @@ import {
 import { assertSelectorsContributePaint } from './visual-paint-contract'
 import { verifyAnnotationInteractionScenario } from './scenarios/annotation-interactions'
 import { verifyCameraDialogScalability } from './scenarios/camera-dialog-scalability'
+import { verifySharedCutMenuControlsScenario, verifyTopMenuBehaviorScenario } from './scenarios/shared-ui-controls'
 import { CdpClient } from './cdp-client'
 
 interface ClientPoint {
@@ -283,7 +284,10 @@ async function verifySheetHistoryScenario(): Promise<void> {
 }
 
 async function verifyShellLayoutScenario(): Promise<void> {
-  await verifyTopMenuBehavior()
+  await verifyTopMenuBehaviorScenario({
+    checks, clickActionMenuSummary, ensureSharedCutMenuOpen, evaluatePage, mouseClick,
+    viewportOutsideMenusPoint, waitForNoActionMenu, waitForPageCondition,
+  })
   await verifyAssetBrowserShell()
   await clickActionMenuSummary('表示設定')
   await waitForPageCondition(() => {
@@ -1297,79 +1301,6 @@ async function clickActionMenuSummary(ariaLabel: string): Promise<void> {
   await mouseClick(point)
 }
 
-async function verifyTopMenuBehavior(): Promise<void> {
-  await clickActionMenuSummary('画面切替')
-  await waitForPageCondition(() => {
-    const rootMenu = document.querySelector<HTMLElement>('.actionMenuPortalContent.appNavMenu')
-    if (!rootMenu) return false
-    const rootRect = rootMenu.getBoundingClientRect()
-    return rootRect.width > 0
-      && rootRect.height > 0
-      && rootRect.left >= 0
-      && rootRect.top >= 0
-      && rootRect.right <= window.innerWidth
-      && rootRect.bottom <= window.innerHeight
-      && document.querySelectorAll('.appTooltip').length === 0
-  }, 'hamburger menu visible without tooltip overlap')
-
-  const fileTriggerPoint = await evaluatePage<ClientPoint | null>(`
-    (() => {
-      const trigger = document.querySelector('.appNavFlyoutTrigger');
-      if (!trigger) return null;
-      const box = trigger.getBoundingClientRect();
-      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-    })()
-  `)
-  if (!fileTriggerPoint) throw new Error('file flyout trigger not found')
-  await mouseClick(fileTriggerPoint)
-
-  await waitForPageCondition(() => {
-    const rootMenu = document.querySelector<HTMLElement>('.actionMenuPortalContent.appNavMenu')
-    const fileTrigger = document.querySelector<HTMLElement>('.appNavFlyoutTrigger')
-    const fileMenu = document.querySelector<HTMLElement>('.appNavFlyoutMenu')
-    if (!rootMenu || !fileTrigger || !fileMenu) return false
-    const rootRect = rootMenu.getBoundingClientRect()
-    const triggerRect = fileTrigger.getBoundingClientRect()
-    const fileRect = fileMenu.getBoundingClientRect()
-    const topElement = document.elementFromPoint(fileRect.left + 8, fileRect.top + 8)
-    return fileRect.width > 0
-      && fileRect.height > 0
-      && fileRect.left >= triggerRect.right
-      && fileRect.right <= window.innerWidth
-      && fileRect.top >= 0
-      && fileRect.bottom <= window.innerHeight
-      && fileRect.left > rootRect.left
-      && Boolean(topElement?.closest('.appNavFlyoutMenu'))
-      && document.querySelectorAll('.appTooltip').length === 0
-  }, 'hamburger file flyout appears to the side above other content')
-
-  await mouseClick(await viewportOutsideMenusPoint())
-  await waitForNoActionMenu('hamburger menu closes from outside click')
-
-  await clickActionMenuSummary('表示レイヤー')
-  await waitForPageCondition(() => {
-    const menu = document.querySelector<HTMLElement>('.actionMenuPortalContent.topViewModeMenu')
-    const list = menu?.querySelector<HTMLElement>('.viewModeMenuList')
-    const buttons = Array.from(list?.querySelectorAll('button') ?? [])
-    if (!menu || !list || buttons.length !== 3) return false
-    const menuRect = menu.getBoundingClientRect()
-    const listStyle = window.getComputedStyle(list)
-    return menuRect.width > 0
-      && menuRect.height > 0
-      && menuRect.left >= 0
-      && menuRect.top >= 0
-      && menuRect.right <= window.innerWidth
-      && menuRect.bottom <= window.innerHeight
-      && listStyle.display === 'grid'
-      && buttons.every(button => window.getComputedStyle(button).whiteSpace === 'nowrap')
-      && document.querySelectorAll('.appTooltip').length === 0
-  }, 'view mode menu is vertical and visible without tooltip overlap')
-
-  await mouseClick(await viewportOutsideMenusPoint())
-  await waitForNoActionMenu('view mode menu closes from outside click')
-  checks.push('verified top menus close from outside clicks and render flyouts above the sheet')
-}
-
 async function verifyAssetBrowserShell(): Promise<void> {
   await ensureAssetBrowserPaneOpen()
   await waitForPageCondition(() => {
@@ -1432,6 +1363,10 @@ async function dropAssetFolderOnBrowser(folderPath: string): Promise<void> {
 }
 
 async function verifyStackGuidePlacementAndSharedCuts(): Promise<void> {
+  await verifySharedCutMenuControlsScenario({
+    checks, clickActionMenuSummary, ensureSharedCutMenuOpen, evaluatePage, mouseClick,
+    viewportOutsideMenusPoint, waitForNoActionMenu, waitForPageCondition,
+  })
   await createStackGuideLabelFromHeader('action', 2, 'BOOK-E2E')
   await waitForStackGuideLabelRole('BOOK-E2E', 'action')
   checks.push('created a BG/BOOK label from the ACTION header context menu')
@@ -1550,6 +1485,7 @@ async function waitForNoStackGuideLabelRole(label: string, role: SheetTimingRole
 }
 
 async function clickAddSharedCutButton(): Promise<void> {
+  await ensureSharedCutMenuOpen()
   const point = await evaluatePage<ClientPoint | null>(`
     (() => {
       const button = document.querySelector('.cutSwitchAddButton');
@@ -1563,9 +1499,10 @@ async function clickAddSharedCutButton(): Promise<void> {
 }
 
 async function switchSharedCut(label: string): Promise<void> {
+  await ensureSharedCutMenuOpen()
   const switched = await evaluatePage<boolean>(`
     (() => {
-      const select = document.querySelector('.cutSwitchControl select');
+      const select = document.querySelector('.cutSwitchMenu.actionMenuPortalContent select');
       if (!select) return false;
       const option = Array.from(select.options).find(item => item.textContent?.trim() === ${JSON.stringify(label)});
       if (!option) return false;
@@ -1581,10 +1518,18 @@ async function switchSharedCut(label: string): Promise<void> {
 async function waitForSelectedSharedCut(label: string): Promise<void> {
   await waitForCondition(() => evaluatePage<boolean>(`
     (() => {
-      const select = document.querySelector('.cutSwitchControl select');
-      return select?.selectedOptions?.[0]?.textContent?.trim() === ${JSON.stringify(label)};
+      const current = document.querySelector('.cutSwitchMenu > summary .cutSwitchMenuLabel strong');
+      return current?.textContent?.trim() === ${JSON.stringify(label)};
     })()
   `), 10000, `selected shared cut ${label}`)
+}
+
+async function ensureSharedCutMenuOpen(): Promise<void> {
+  const visible = await evaluatePage<boolean>(`
+    Boolean(document.querySelector('.cutSwitchMenu.actionMenuPortalContent'))
+  `)
+  if (!visible) await clickActionMenuSummary('兼用カットを切り替える')
+  await waitForSelector('.cutSwitchMenu.actionMenuPortalContent')
 }
 
 async function setStackGuideEditorValue(value: string): Promise<void> {

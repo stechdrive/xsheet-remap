@@ -240,11 +240,30 @@ export function dragStackGuideSvgLabel(
 }
 
 export function switchSharedCutByLabel(label: string) {
-  const select = document.querySelector<HTMLSelectElement>('.cutSwitchControl select')
+  const menu = openSharedCutMenu()
+  const select = within(menu).getByLabelText('兼用カット') as HTMLSelectElement
   if (!select) throw new Error('cut switch select not found')
   const option = Array.from(select.options).find(item => item.textContent?.trim() === label)
   if (!option) throw new Error(`cut switch option not found: ${label}`)
   fireEvent.change(select, { target: { value: option.value } })
+}
+
+export function openSharedCutMenu(): HTMLElement {
+  const trigger = screen.getByLabelText(uiText.sheet.cutSwitchTitle)
+  const details = trigger.closest('details')
+  if (!(details instanceof HTMLDetailsElement)) throw new Error('shared cut menu not found')
+  if (!details.open) fireEvent.click(trigger)
+  const content = document.querySelector('.actionMenuPortalContent.cutSwitchMenu')
+  if (!(content instanceof HTMLElement)) throw new Error('shared cut menu content not found')
+  return content
+}
+
+export function selectCspCorrectionLayer(label: string): HTMLElement {
+  const target = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeSummaryLabel'))
+    .find(item => item.textContent?.trim() === label)
+  if (!target) throw new Error(`CSP correction layer not found: ${label}`)
+  fireEvent.click(target)
+  return target
 }
 
 export function clickTemplateDisplayFrame(sheet: HTMLElement, role: SheetTimingRole, paperTrack: string, frame: number, durationFrames: number, frameOrigin: number) {

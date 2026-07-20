@@ -290,16 +290,46 @@
   gap: 4px;
 }
 
-.cutSwitchControl {
-  gap: 5px;
-  font-weight: 700;
+.cutSwitchMenu > summary {
+  min-height: 30px;
+  padding: 4px 8px;
 }
 
-.cutSwitchControl select {
-  width: 84px;
-  height: 30px;
+.cutSwitchMenu.actionMenuContent {
+  width: min(320px, calc(100vw - 24px));
+  max-width: min(320px, calc(100vw - 24px));
+}
+
+.cutSwitchMenuLabel {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.cutSwitchMenuLabel > span {
+  color: #59635c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.cutSwitchMenuLabel > strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.cutSwitchMenuSelect {
+  display: grid;
+  gap: 5px;
+  color: #4c574f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cutSwitchMenuSelect select {
+  width: 100%;
+  height: 32px;
   min-width: 0;
-  padding: 4px 22px 4px 6px;
+  padding: 4px 24px 4px 7px;
   border: 1px solid #b8bdb9;
   border-radius: 4px;
   background: #fff;
@@ -307,29 +337,34 @@
   font: inherit;
 }
 
-.cutSwitchIconButton {
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
+.cutSwitchMenuActions {
+  display: grid;
+  gap: 4px;
+  padding-top: 5px;
+  border-top: 1px solid #d6dbd4;
 }
 
-.cutSwitchDeleteButton {
+.actionMenuContent .cutSwitchMenuActions button {
+  justify-content: flex-start;
+  min-height: 32px;
+  padding: 5px 8px;
+  font-weight: 800;
+}
+
+.actionMenuContent .cutSwitchDeleteButton {
   color: #8f2f2f;
 }
 
-.cutSwitchIconButton .topIconSvg {
-  width: 16px;
-  height: 16px;
-}
-
-.cutSwitchDeleteButton:not(:disabled):hover {
+.actionMenuContent .cutSwitchDeleteButton:not(:disabled):hover {
   border-color: #a84747;
   background: #f7e3e3;
 }
 
 .sharedCutNumbersControl {
+  justify-content: flex-start;
   gap: 5px;
-  padding-inline: 4px;
+  min-height: 30px;
+  padding: 4px 2px;
   font-size: 12px;
   font-weight: 700;
 }
@@ -560,31 +595,6 @@
 
 .workRangeMeta {
   white-space: nowrap;
-}
-
-.processPaletteGroup {
-  max-width: 180px;
-}
-
-.processDestinationControl {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  font-weight: 700;
-}
-
-.processDestinationControl > span {
-  line-height: 20px;
-}
-
-.processDestinationControl select {
-  height: 30px;
-  min-width: 72px;
-  max-width: 110px;
-  padding: 4px 24px 4px 7px;
-  font-weight: 700;
-  line-height: 20px;
 }
 
 .textToolbarGroup {
@@ -830,6 +840,24 @@
   flex: 1;
 }
 
+.cspRegistrationTargetStatus {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  min-width: 0;
+  color: #566158;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.cspRegistrationTargetStatus strong {
+  max-width: 82px;
+  overflow: hidden;
+  color: #234b38;
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
 .cspTreeNormalizeButton,
 .cspPaneDeleteButton,
 .cspPaneFooterAddMenu > summary {
@@ -983,6 +1011,23 @@ details[open] > summary > .cspTreeDisclosureButton > .cspTreeDisclosureGlyph {
 
 .cspTreeLayer > summary {
   background: #f0f3f0;
+}
+
+.cspTreeLayer > summary.cspRegistrationTarget {
+  box-shadow: inset 3px 0 #416b5a;
+  background: #e5eee8;
+}
+
+.cspTreeLayer > summary.cspRegistrationTarget::after {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  border: 1px solid #7b9a88;
+  border-radius: 999px;
+  background: #f8fbf9;
+  color: #315d47;
+  font-size: 9px;
+  font-weight: 800;
+  content: '登録先';
 }
 
 .cspTreeLayer > summary.assetDragOver {

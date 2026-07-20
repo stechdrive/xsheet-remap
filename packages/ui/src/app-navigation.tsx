@@ -492,14 +492,16 @@ function EditorHelpContent() {
   return <>
     <article className="appHelpWorkflow">
       <h2>デジタルタイムシートを作成・保存する</h2>
-      <p>カット情報と尺を設定し、ACTION、CELL、CAMERA、SOUNDの各欄へタイミングを入力します。</p>
+      <p>カット情報と尺を設定し、ACTION、CELL、CAMERA、SOUNDの各欄へタイミングを入力します。ACTIONとCELLは同じ論理セル列を共有します。</p>
       <ol>
         <li><strong>カット情報と尺を設定する</strong><span>上部のカット情報から作品名、話数、シーン、カット番号、尺を入力します。尺を変更すると、シートの作業範囲とページ数へ反映されます。</span></li>
         <li><strong>フレームまたは範囲を選んで入力する</strong><span>セルをクリックして文字を入力するか、右クリックメニューからキー、カラセル、中割、逆シートを設定します。ドラッグした範囲にはコピー、切り取り、貼り付け、リピート貼り付けを使えます。</span></li>
+        <li><strong>列とレーンを調整する</strong><span>セル列を追加・名前変更・削除すると、ACTIONとCELLの列名・順序・列数へ同時に反映されます。SOUND／CAMERAは列見出しを右クリックして、列の追加・名前変更・削除を行います。</span></li>
         <li><strong>兼用カットとシート履歴を管理する</strong><span>中央左端のシート作業レール最上部でカットの切替、名前を指定した追加、現在のカットの削除、兼用カット名の表示をまとめて操作します。最後の1カットは安全のため削除できません。レール中央のシート履歴では修正シートを追加・切替できます。</span></li>
         <li><strong>プロジェクトを保存する</strong><span>メニューの「保存」または「名前を付けて保存」で.xsrプロジェクトを保存します。デスクトップ版は選択した場所へ保存し、PWA版はブラウザからダウンロードします。</span></li>
       </ol>
     </article>
+    <SheetProjectionQuickHelp />
     <CspLayerPaneQuickHelp />
     <article className="appHelpWorkflow appHelpWorkflowPrep">
       <h2>紙タイムシートを下絵に使う（任意）</h2>
@@ -538,14 +540,30 @@ function RemapHelpContent({ appName }: { appName: string }) {
       <ol>
         <li><strong>紙シート画像を読み込む</strong><span>シート作業レールの「紙シート」から「読込」を押します。必要なら「補正」で四隅を合わせ、「レベル補正」で薄いスキャンを見やすくします。</span></li>
         <li><strong>画像素材を素材ブラウザへ入れる</strong><span>カットフォルダまたは画像ファイルを右側の素材ブラウザへドロップします。素材カードからプレビューを確認できます。</span></li>
-        <li><strong>素材をセル欄へドラッグしてキーを作る</strong><span>素材カードをシート上のCELL/ACTION/CAMERA欄へ置きます。範囲選択してから素材を置くと、開始位置へまとめて割り当てできます。</span></li>
+        <li><strong>素材をセル欄へドラッグしてキーを作る</strong><span>素材カードをシート上のACTIONまたはCELL欄へ置きます。CAMERA欄は撮影指示の区間を入力する欄なので、画像素材の配置先にはなりません。範囲選択してから素材を置くと、開始位置へ割り当てできます。</span></li>
         <li><strong>CSPレイヤー構成を確認する</strong><span>左のCSPレイヤー構成で、工程、CSPセル名、BG／BOOK、撮影指示、メモと、CSPへ渡す重ね順を確認します。具体的な追加・並び替え・削除は次の手順で行います。</span></li>
         <li><strong>クリスタ用の名前を整える</strong><span>「一括リネーム」でクリスタ用セル名と、必要なら素材ファイル名をまとめて整えます。スキャン時の連番名から内容が分かる名前へ揃えられます。</span></li>
         <li><strong>CSP自動登録データを書き出す</strong><span>書き出し前に出力先と登録件数を確認します。デスクトップ版ではカットフォルダ内のxsheet-csp-importへ毎回安全に更新し、完了後は画面下部からフォルダを開けます。画像なしのセルは警告ではなく、XDTSのキーとCSPセル名だけを登録します。</span></li>
       </ol>
     </article>
+    <SheetProjectionQuickHelp />
     <CspLayerPaneQuickHelp />
   </>
+}
+
+function SheetProjectionQuickHelp() {
+  return (
+    <article className="appHelpWorkflow">
+      <h2>セル列とSOUND／CAMERA列を調整する</h2>
+      <p>プロジェクトが持つ論理的な列と、テンプレートに表示できる列を分けて扱います。テンプレートを切り替えても論理データは失われません。</p>
+      <ol>
+        <li><strong>ACTIONとCELLは同じセル列を使う</strong><span>セル列の名前・順序・列数は両欄で共通です。セル列を追加、名前変更、削除するとACTIONとCELLへ同時に反映されます。</span></li>
+        <li><strong>デジタルは列数に合わせて横へ広がる</strong><span>追加セル列とSOUND／CAMERA列を通常の列としてすべて表示し、必要な横幅を自動で増やします。デジタルテンプレートに予備列はありません。</span></li>
+        <li><strong>紙は用紙に収まる列だけ表示する</strong><span>紙テンプレートの物理的な欄数を超えたセル列は欄外ラベルとして残り、SOUND／CAMERAは「欄外＋件数」で知らせます。デジタルへ切り替えると全列を再び表示します。</span></li>
+        <li><strong>SOUND／CAMERA列を管理する</strong><span>列見出しを右クリックし、列の追加・名前変更・削除を選びます。変更は論理データへ保存され、紙とデジタルのどちらへ切り替えても維持されます。</span></li>
+      </ol>
+    </article>
+  )
 }
 
 function CspLayerPaneQuickHelp() {
@@ -554,11 +572,12 @@ function CspLayerPaneQuickHelp() {
       <h2>CSPレイヤー構成を操作する</h2>
       <p>左ペインでは行やカードを選択し、スクロールしても消えない最下部の「一括リネーム」「項目を追加」「削除」を使います。</p>
       <ol>
-        <li><strong>ペインの＋でひとまず追加する</strong><span>追加セル列は既存セル列より上、BG／BOOKは既存セル列より下かつ既存BG／BOOKより上へ自動配置されます。名前を入力してEnterまたは✓で確定し、Escまたは×で取り消します。</span></li>
-        <li><strong>正確な挿入位置を先に決める</strong><span>シート上から右クリックして追加すると、従来どおりシート上の挿入位置を選んでから作成できます。物理位置を指定したいときはこちらを使います。</span></li>
+        <li><strong>閉じている左右ペインを開く</strong><span>中央シートの左右端にある細い開閉ボタンで、CSPレイヤー構成と画像素材を開閉します。開閉状態と幅はアプリごとに記憶されます。</span></li>
+        <li><strong>ペインの＋でひとまず追加する</strong><span>追加セル列は既存セル列より上、BG／BOOKは既存セル列より下かつ既存BG／BOOKより上へ自動配置されます。追加セル列はACTIONとCELLで共有されます。名前を入力してEnterまたは✓で確定し、Escまたは×で取り消します。</span></li>
+        <li><strong>挿入位置を先に決める</strong><span>シート上から右クリックして追加すると、選んだセル列の後ろへ挿入できます。紙テンプレートでは欄外ラベルと支柱の位置、デジタルテンプレートではACTION／CELL共通列の順序へ反映されます。</span></li>
         <li><strong>ドラッグでCSPの重ね順を変える</strong><span>制作段階、工程、セル列、BG／BOOK、撮影指示、メモの行をドラッグし、同じ階層に表示される挿入ラインへドロップします。名前は対象名をダブルクリックして編集します。</span></li>
         <li><strong>選択項目を削除・操作を元に戻す</strong><span>削除は対象を選択して最下部のごみ箱を押します。テンプレート由来など削除できない項目では無効になります。追加・並び替え・名前変更・削除は上部の元に戻す、またはCtrl+Zで戻せます。</span></li>
-        <li><strong>シート上のラベルで位置を確認する</strong><span>BG／BOOKと追加セル列の名前は、テンプレートの物理幅に収まる限り文字数で省略せず表示されます。重なりは上下へ自動で逃がされ、支柱が実際の挿入位置を示します。位置を変えるときはラベルをドラッグします。</span></li>
+        <li><strong>紙の欄外ラベルを確認する</strong><span>BG／BOOKなどの補助項目と、紙テンプレートの欄内に収まらない追加セル列は、名前を省略しないラベルと支柱で位置を示します。重なりは上下へ自動で逃がされ、ラベルをドラッグすると位置を変更できます。デジタルでは追加セル列を通常のACTION／CELL列として表示します。</span></li>
       </ol>
     </article>
   )

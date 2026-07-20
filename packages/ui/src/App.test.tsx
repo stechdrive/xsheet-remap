@@ -80,8 +80,12 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('tab', { name: 'クイックガイド' }).getAttribute('aria-selected')).toBe('true')
     expect(within(dialog).getByRole('tab', { name: '詳しい使い方' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'デジタルタイムシートを作成・保存する' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'セル列とSOUND／CAMERA列を調整する' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'CSPレイヤー構成を操作する' })).toBeTruthy()
     expect(within(dialog).getByText(/追加セル列は既存セル列より上/)).toBeTruthy()
+    expect(within(dialog).getAllByText(/ACTIONとCELLは同じ論理セル列/).length).toBeGreaterThan(0)
+    expect(within(dialog).getByText(/列見出しを右クリックして、列の追加・名前変更・削除/)).toBeTruthy()
+    expect(within(dialog).getByText(/開閉状態と幅はアプリごとに記憶/)).toBeTruthy()
     expect(within(dialog).getByText(/同じ階層に表示される挿入ライン/)).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: '紙タイムシートを下絵に使う（任意）' })).toBeTruthy()
     expect(within(dialog).getByText(/この下絵補正はOCRを使わず/)).toBeTruthy()
@@ -111,7 +115,16 @@ it('renders the main workspace shell', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: /04\s*ACTION・CELL入力/ }))
     expect(within(dialog).getByRole('heading', { name: 'ACTION・CELL入力' })).toBeTruthy()
+    expect(within(dialog).getByText('ACTIONとCELLの共通列')).toBeTruthy()
+    expect(within(dialog).getByText(/デジタルではACTION／CELLの通常列/)).toBeTruthy()
     expect(within(dialog).getByText('フレーム挿入・削除')).toBeTruthy()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /05\s*SOUND指示/ }))
+    expect(within(dialog).getByText('SOUND列の管理')).toBeTruthy()
+    expect(within(dialog).getByText(/紙で欄数を超えた列は「欄外＋件数」/)).toBeTruthy()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /06\s*CAMERA指示/ }))
+    expect(within(dialog).getByText('CAMERA列の管理')).toBeTruthy()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /12\s*読み込みと書き出し/ }))
     expect(within(dialog).getByRole('heading', { name: '読み込みと書き出し' })).toBeTruthy()
@@ -120,8 +133,8 @@ it('renders the main workspace shell', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /09\s*素材・登録セル・CSP構成/ }))
     expect(within(dialog).getByText('ペイン下部の操作')).toBeTruthy()
     expect(within(dialog).getByText('ドラッグで並び替え')).toBeTruthy()
-    expect(within(dialog).getByText('BG／BOOK・追加セル列のラベル')).toBeTruthy()
-    expect(within(dialog).getByText(/テンプレートの物理幅に収まる限り/)).toBeTruthy()
+    expect(within(dialog).getByText('BG／BOOK・紙の欄外セル列')).toBeTruthy()
+    expect(within(dialog).getByText(/デジタルでは追加セル列を通常のACTION／CELL列/)).toBeTruthy()
   })
 
 it('keeps Remap-specific CSP help in the Remap app', () => {
@@ -132,7 +145,10 @@ it('keeps Remap-specific CSP help in the Remap app', () => {
     expect(within(dialog).queryByRole('tab', { name: '詳しい使い方' })).toBeNull()
     expect(within(dialog).getByRole('heading', { name: '必ず先に準備すること' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'CSP組み込み用シートを作る' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'セル列とSOUND／CAMERA列を調整する' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'CSPレイヤー構成を操作する' })).toBeTruthy()
+    expect(within(dialog).getByText(/素材カードをシート上のACTIONまたはCELL欄/)).toBeTruthy()
+    expect(within(dialog).queryByText(/CELL\/ACTION\/CAMERA欄/)).toBeNull()
     expect(within(dialog).getByText(/最下部の「一括リネーム」「項目を追加」「削除」/)).toBeTruthy()
     expect(within(dialog).getByText(/BG／BOOKは既存セル列より下かつ既存BG／BOOKより上/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: 'デジタルタイムシートを作成・保存する' })).toBeNull()

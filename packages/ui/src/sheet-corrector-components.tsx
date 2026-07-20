@@ -77,14 +77,14 @@ export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
         <div className="sheetCorrectorHelpWorkflows">
           <article className="sheetCorrectorHelpWorkflow">
             <h2>まずは画像をドロップするだけ</h2>
-            <p>タイムシート画像をショートカットまたは「xsheet-corrector.exe」へドロップすると、自動で画像を補正してPSDを作成します。</p>
+            <p>タイムシート画像を「xsheet-corrector.exe」、または自分で作成したショートカットへドロップすると、自動で画像を補正してPSDを作成します。</p>
             <ol>
               <li>
                 <strong>補正したい画像を選ぶ</strong>
-                <span>エクスプローラーでタイムシート画像を選択します。</span>
+                <span>エクスプローラーでJPG、PNG、TGAなどのタイムシート画像を選択します。</span>
               </li>
               <li>
-                <strong>ショートカットまたはEXEへドロップ</strong>
+                <strong>EXEまたは自作ショートカットへドロップ</strong>
                 <span>画像をそのまま重ねてドロップします。</span>
               </li>
               <li>
@@ -123,14 +123,19 @@ export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
                 <span>選んだ画像が右のプレビューに表示されます。</span>
               </li>
               <li>
-                <strong>必要なら「画像補正」で調整</strong>
+                <strong>補正結果だけを先に作る</strong>
+                <span>「補正」から「選択を補正」または「一括補正」を選ぶと、PSDを作らず自動補正結果を準備できます。補正済みの画像は維持されます。</span>
+              </li>
+              <li>
+                <strong>要確認なら「画像補正」で調整</strong>
                 <span>四隅を確認・調整して「変形適用」を押します。</span>
               </li>
               <li>
                 <strong>「出力」からPSDを作成</strong>
-                <span>選択中の画像または全画像をまとめて出力できます。</span>
+                <span>「選択を出力」または「全件を出力」でPSDを作成します。未補正の画像は出力前に自動補正されます。</span>
               </li>
             </ol>
+            <p className="sheetCorrectorHelpNotice">処理中に「停止」を押すと、現在処理している1件が終わった安全な時点で停止します。</p>
           </article>
         </div>
         <footer>

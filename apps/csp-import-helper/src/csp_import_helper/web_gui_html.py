@@ -160,7 +160,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         <section class="panel">
           <h2 class="panel-title">入力ファイル</h2>
           <div class="drop-stack">
-            <div class="drop-card" id="manifestCard" title="xsheet-remapの「タイムシート/CSP自動登録」で書き出した .xci を指定します。">
+            <div class="drop-card" id="manifestCard" title="xsheet-remapの「CSP自動登録データを書き出す」で作成した .xci を指定します。">
               <div>
                 <div class="file-kind">CSP自動登録ファイル (.xci)</div>
                 <div class="path empty" id="manifestPath"></div>
@@ -261,10 +261,10 @@ HTML_TEMPLATE = r"""<!doctype html>
         <section class="help-section">
           <h3>クリスタへ組み込む手順</h3>
           <ol>
-            <li><strong>xsheet-remapで「タイムシート/CSP自動登録」を書き出します。</strong> デスクトップ版ではカットフォルダ内のxsheet-csp-importに、PWA版では展開したZIP内に、登録ファイル（csp-import.xci）、XDTS、素材参照が作られます。</li>
+            <li><strong>xsheet-remapで「CSP自動登録データを書き出す」を実行します。</strong> デスクトップ版ではカットフォルダ内のxsheet-csp-importに登録ファイル（csp-import.xci）とXDTSを作成し、画像素材はカットフォルダ内の元ファイルを参照します。PWA版ではZIP内にcsp-import.xci、XDTS、取得できた実際の画像素材がまとめられます。</li>
             <li><strong>この画面でxsheet-importer用ファイル(.xci)を選びます。</strong> .xciをこのウィンドウへドロップしても読み込めます。</li>
             <li><strong>操作対象のクリスタファイル(.clip)を選びます。</strong> ヘルパーはこの.clipをクリスタで開いて処理します。</li>
-            <li><strong>保存先を確認します。</strong> ファイル名込みの.clipパスにしてください。フォルダだけでは保存できません。</li>
+            <li><strong>保存先を確認します。</strong> ファイル名込みの.clipパスにしてください。フォルダだけでは保存できません。処理後に作業中のCLIPファイルも閉じる場合だけ「保存後にCLIPを閉じる」をオンにします。</li>
             <li><strong>「開始」を押します。</strong> クリスタにXDTSを読み込み、必要な画像セルを登録し、最後に指定先へ別名保存します。</li>
           </ol>
         </section>

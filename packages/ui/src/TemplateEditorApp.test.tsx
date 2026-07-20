@@ -106,6 +106,8 @@ describe('TemplateEditorApp', () => {
     fireEvent.click(screen.getByRole('button', { name: '06ACTION・SOUND・CELL・CAMERA' }))
     expect(screen.getByText(/原画工程でタイミング指示を記入する欄です。CELLと同じ論理セル列/)).toBeTruthy()
     expect(screen.getByText(/動画工程で動画番号とタイミングを記入する欄です。ACTIONと同じ論理セル列/)).toBeTruthy()
+    expect(screen.getByText(/実際のプロジェクトではEditor・Remapの列見出しを右クリック/)).toBeTruthy()
+    expect(screen.getByText(/デジタルは予備列を確保せず/)).toBeTruthy()
     expect(screen.queryByText(/期間/)).toBeNull()
     expect(screen.queryByText(/カウンター/)).toBeNull()
 

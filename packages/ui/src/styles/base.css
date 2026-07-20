@@ -23,6 +23,14 @@ body,
   margin: 0;
 }
 
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
 body.sheetInteractionActive,
 body.sheetInteractionActive * {
   user-select: none !important;

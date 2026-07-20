@@ -41,8 +41,73 @@
 @media (max-width: 1000px) {
   .sheetWorkspace {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "viewport";
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .sheetWorkspace:not(.leftDockClosed).rightDockClosed {
+    grid-template-areas:
+      "left"
+      "viewport";
+    grid-template-rows: minmax(160px, 24vh) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .sheetWorkspace.leftDockClosed:not(.rightDockClosed) {
+    grid-template-areas:
+      "viewport"
+      "right";
+    grid-template-rows: minmax(0, 1fr) minmax(180px, 28vh);
+    gap: 10px;
+  }
+
+  .sheetWorkspace:not(.leftDockClosed):not(.rightDockClosed) {
+    grid-template-areas:
+      "left"
+      "viewport"
+      "right";
     grid-template-rows: minmax(160px, 24vh) minmax(0, 1fr) minmax(180px, 28vh);
     gap: 10px;
+  }
+
+  .sheetWorkspace > .sheetDockLeft {
+    grid-area: left;
+  }
+
+  .sheetWorkspace > .sheetViewport,
+  .sheetWorkspace > .sheetViewportFrame {
+    grid-area: viewport;
+  }
+
+  .sheetWorkspace > .sheetDockRight {
+    grid-area: right;
+  }
+
+  .sheetWorkspace > .panelResizeRail {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 12;
+    grid-column: auto;
+    grid-row: auto;
+    width: 16px;
+    min-height: 0;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .sheetWorkspace > .sheetDockLeft + .panelResizeRail {
+    left: 0;
+  }
+
+  .sheetWorkspace > .sheetViewport + .panelResizeRail,
+  .sheetWorkspace > .sheetViewportFrame + .panelResizeRail {
+    right: 0;
+  }
+
+  .sheetWorkspace > .panelResizeRail .panelResizeToggle {
+    pointer-events: auto;
   }
 }
 

@@ -84,9 +84,30 @@ export async function verifyTopMenuBehaviorScenario(driver: SharedUiControlsDriv
 
   await driver.mouseClick(await driver.viewportOutsideMenusPoint())
   await driver.waitForNoActionMenu('hamburger menu closes from outside click')
-  await driver.clickActionMenuSummary('表示レイヤー')
   await driver.waitForPageCondition(() => {
-    const menu = document.querySelector<HTMLElement>('.actionMenuPortalContent.topViewModeMenu')
+    const topBar = document.querySelector<HTMLElement>('.topBar')
+    const rail = document.querySelector<HTMLElement>('.sheetWorkspaceRail')
+    const top = rail?.querySelector<HTMLElement>('.sheetWorkspaceRailTop')
+    const tabs = rail?.querySelector<HTMLElement>('.sheetHistoryTabs')
+    const bottom = rail?.querySelector<HTMLElement>('.sheetWorkspaceRailBottom')
+    if (!topBar || !rail || !top || !tabs || !bottom) return false
+    const topBarRect = topBar.getBoundingClientRect()
+    const railRect = rail.getBoundingClientRect()
+    const topRect = top.getBoundingClientRect()
+    const tabsRect = tabs.getBoundingClientRect()
+    const bottomRect = bottom.getBoundingClientRect()
+    return topBarRect.height <= 60
+      && !document.querySelector('.topBar .paperSheetTopGroup, .sheetToolbar')
+      && top.querySelectorAll('.workspaceRailAction').length === 1
+      && bottom.querySelectorAll('.workspaceRailAction').length >= 5
+      && topRect.top >= railRect.top
+      && tabsRect.top + 1 >= topRect.bottom
+      && bottomRect.top + 1 >= tabsRect.bottom
+      && bottomRect.bottom <= railRect.bottom + 1
+  }, 'top toolbar stays on one row and sheet controls stay fixed around the history tabs')
+  await driver.clickActionMenuSummary('表示設定')
+  await driver.waitForPageCondition(() => {
+    const menu = document.querySelector<HTMLElement>('.actionMenuPortalContent.sheetDisplaySettingsMenu')
     const list = menu?.querySelector<HTMLElement>('.viewModeMenuList')
     const buttons = Array.from(list?.querySelectorAll('button') ?? [])
     if (!menu || !list || buttons.length !== 3) return false
@@ -100,10 +121,10 @@ export async function verifyTopMenuBehaviorScenario(driver: SharedUiControlsDriv
       && window.getComputedStyle(list).display === 'grid'
       && buttons.every(button => window.getComputedStyle(button).whiteSpace === 'nowrap')
       && document.querySelectorAll('.appTooltip').length === 0
-  }, 'view mode menu is vertical and visible without tooltip overlap')
+  }, 'rail display menu is vertical and visible without tooltip overlap')
   await driver.mouseClick(await driver.viewportOutsideMenusPoint())
   await driver.waitForNoActionMenu('view mode menu closes from outside click')
-  driver.checks.push('verified top menus close from outside clicks and render fully visible single-line flyouts above the sheet')
+  driver.checks.push('verified the one-row top toolbar and fixed sheet rail actions; menus close from outside clicks and remain inside the viewport')
 }
 
 export async function verifySharedCutMenuControlsScenario(driver: SharedUiControlsDriver): Promise<void> {

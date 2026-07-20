@@ -1,7 +1,6 @@
 .sheetLayout {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 6px;
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -29,10 +28,127 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
-  padding: 1px 0 6px;
+  padding: 6px 0;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+
+.sheetWorkspaceRailTop,
+.sheetWorkspaceRailBottom {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.sheetWorkspaceRailTop {
+  padding-bottom: 6px;
+  border-bottom: 1px solid #c7cdc7;
+}
+
+.sheetWorkspaceRailBottom {
+  padding-top: 6px;
+  border-top: 1px solid #c7cdc7;
+}
+
+.workspaceRailAction {
+  width: 34px;
+  min-width: 34px;
+}
+
+.workspaceRailAction > summary {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 6px 2px 2px 6px;
+}
+
+.workspaceRailAction > summary::after {
+  display: none;
+}
+
+.workspaceRailAction > summary .topIconSvg,
+.workspaceRailAction > summary .textToolIconBox {
+  width: 18px;
+  height: 18px;
+}
+
+.workspaceRailAction.active > summary,
+.workspaceRailAction[open] > summary {
+  border-color: #2f674e;
+  background: #e5f0e9;
+  color: #173c2b;
+  box-shadow: inset -3px 0 0 #2f674e;
+}
+
+.workspaceRailTextIcon,
+.workspaceRailPageBadge {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.workspaceRailIconWithBadge {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.workspaceRailIconWithBadge .cutSwitchMenuLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.paperSheetRailMenu.actionMenuContent {
+  width: min(270px, calc(100vw - 24px));
+  max-width: min(270px, calc(100vw - 24px));
+}
+
+.paperSheetRailMenuBody,
+.timingTextRailMenuBody {
+  display: grid;
+  gap: 6px;
+}
+
+.paperSheetRailMenuBody > button,
+.paperSheetRailMenuBody > .appTooltipTrigger,
+.paperSheetRailMenuBody .compactControl {
+  width: 100%;
+}
+
+.paperSheetRailMenuBody > .appTooltipTrigger > button {
+  width: 100%;
+}
+
+.paperSheetRailMenuBody .topOpacityControl,
+.paperSheetRailMenuBody .sheetLevelCorrectionControl {
+  justify-content: space-between;
+  min-height: 32px;
+}
+
+.sheetDisplaySettingsMenu.actionMenuContent {
+  width: min(300px, calc(100vw - 24px));
+  max-width: min(300px, calc(100vw - 24px));
+  max-height: min(720px, calc(100vh - 16px));
+  overflow-y: auto;
+}
+
+.timingTextRailMenu.actionMenuContent {
+  width: min(190px, calc(100vw - 24px));
 }
 
 .sheetHistoryTabs > .appTooltipTrigger {
@@ -212,22 +328,6 @@
   gap: 8px;
 }
 
-.sheetToolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  min-height: 42px;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-}
-
-.sheetToolbar > * {
-  flex: 0 0 auto;
-}
-
 .toolbarGroup {
   display: flex;
   align-items: center;
@@ -238,30 +338,6 @@
   border: 1px solid #d5d8d2;
   border-radius: 6px;
   background: #fbfbf8;
-}
-
-.sheetToolbarGroup {
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 5px;
-  min-height: 36px;
-  padding: 3px 5px;
-}
-
-.sheetToolbar .compactControl {
-  min-height: 30px;
-  white-space: nowrap;
-}
-
-.sheetToolbar .fileButton,
-.sheetToolbar button,
-.sheetToolbar .actionMenu > summary {
-  min-height: 32px;
-  padding: 5px 8px;
-}
-
-.sheetTimingGroup {
-  flex: 0 0 auto;
 }
 
 .sheetDisplaySettingsMenu.actionMenuContent {
@@ -286,13 +362,21 @@
   padding: 3px 4px;
 }
 
-.cutSwitchToolbarGroup {
-  gap: 4px;
-}
-
 .cutSwitchMenu > summary {
   min-height: 30px;
   padding: 4px 8px;
+}
+
+.workspaceRailAction.cutSwitchMenu > summary,
+.workspaceRailAction.pageJumpMenu > summary,
+.workspaceRailAction.sheetRecognitionMenu > summary {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
 }
 
 .cutSwitchMenu.actionMenuContent {
@@ -648,10 +732,6 @@
   margin-left: -3px;
 }
 
-.dummyKToolbarGroup {
-  gap: 4px;
-}
-
 .dummyKControl {
   gap: 4px;
   font-weight: 800;
@@ -659,27 +739,6 @@
 
 .workRangeMeta {
   white-space: nowrap;
-}
-
-.textToolbarGroup {
-  gap: 5px;
-}
-
-.sheetToolbar .textToolButton {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0;
-  line-height: 1;
-}
-
-.sheetToolbar .textToolButton .topIconSvg,
-.sheetToolbar .textToolButton .textToolIconBox {
-  width: 18px;
-  height: 18px;
 }
 
 .textToolIconBox {

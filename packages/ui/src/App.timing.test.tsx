@@ -4,7 +4,7 @@ import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsh
 import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
-import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openDisplaySettingsMenu, openStackGuideInsertMenu, openTimingExportDialog, openTimingTextSettingsMenu, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 function dispatchBatchedPointerClick(target: Element, pointerId: number, clientX: number, clientY: number, releaseTarget: EventTarget = target) {
   const pointerDown = createEvent.pointerDown(target, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX, clientY })
@@ -21,8 +21,8 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
-    expect(document.querySelector('.textToolbarGroup button[aria-label="テキスト"]')).toBeNull()
-    expect(screen.getByRole('spinbutton', { name: uiText.sheet.timingTextFontSize })).toBeTruthy()
+    expect(document.querySelector('.sheetToolbar')).toBeNull()
+    expect(within(openTimingTextSettingsMenu()).getByRole('spinbutton', { name: uiText.sheet.timingTextFontSize })).toBeTruthy()
     clickTemplateFrame(sheet, 'action', 'A', 1)
     fireEvent.click(screen.getByRole('button', { name: 'メモツールを開く' }))
     expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('ACTION A 1F')
@@ -888,7 +888,7 @@ it('keeps range input as a draft until Enter and then steps by the selected rang
     expect(document.querySelector('.selectedRangeCorners')).toBeTruthy()
     expect(document.querySelector('.selectedCellCorners')).toBeTruthy()
     expectSelectedRange('cell', 'A', 1, 3)
-    expect((screen.getByRole('spinbutton', { name: uiText.sheet.timingTextFontSize }) as HTMLInputElement).disabled).toBe(true)
+    expect((within(openTimingTextSettingsMenu()).getByRole('spinbutton', { name: uiText.sheet.timingTextFontSize }) as HTMLInputElement).disabled).toBe(true)
 
     fireEvent.keyDown(window, { key: '1' })
     expect(document.querySelectorAll('.eventRect')).toHaveLength(0)
@@ -1007,7 +1007,7 @@ it('clears selections that become hidden when pre-roll display is disabled', asy
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
-    let preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
+    let preRoll = within(openDisplaySettingsMenu()).getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
     fireEvent.click(preRoll)
     expect(preRoll.checked).toBe(true)
 
@@ -1016,13 +1016,13 @@ it('clears selections that become hidden when pre-roll display is disabled', asy
     expectSelectedHit('cell', 'A', -22)
     expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toContain('9')
 
-    preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
+    preRoll = within(openDisplaySettingsMenu()).getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
     fireEvent.click(preRoll)
     expect(preRoll.checked).toBe(false)
     await waitFor(() => expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).not.toContain('9'))
 
     enterTimingValue('5')
-    preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
+    preRoll = within(openDisplaySettingsMenu()).getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
     fireEvent.click(preRoll)
     expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['9'])
   })
@@ -1354,7 +1354,7 @@ it('copies a pre-roll range into the official cut while pre-roll is visible', ()
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
-    fireEvent.click(screen.getByLabelText(uiText.sheet.preRoll))
+    fireEvent.click(within(openDisplaySettingsMenu()).getByLabelText(uiText.sheet.preRoll))
     clickTemplateDisplayFrame(sheet, 'cell', 'A', -23, 168, -23)
     enterTimingValue('9')
     clickTemplateDisplayFrame(sheet, 'cell', 'A', 1, 168, -23)
@@ -1422,7 +1422,7 @@ it('shows post-roll after insert paste beyond the cut end and clips XDTS output 
     fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.pasteInsert }))
 
-    expect(screen.getByText(uiText.sheet.postRollFrames(2))).toBeTruthy()
+    expect(within(openDisplaySettingsMenu()).getByText(uiText.sheet.postRollFrames(2))).toBeTruthy()
     expect(document.querySelectorAll('.eventRect').length).toBeGreaterThanOrEqual(4)
 
     const dialog = openTimingExportDialog()

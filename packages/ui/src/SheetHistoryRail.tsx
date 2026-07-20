@@ -1,8 +1,10 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react'
 import type { SheetRevisionDocument } from '@xsheet-remap/core'
 import { Tooltip } from './Tooltip'
 
 type SheetHistoryRailProps = {
+  topActions?: ReactNode
+  bottomActions?: ReactNode
   revisions: SheetRevisionDocument[]
   activeRevisionId: string
   processSuggestions: string[]
@@ -74,7 +76,12 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
   }
 
   return (
-    <div className="sheetHistoryRail" aria-label="シート履歴">
+    <div className="sheetHistoryRail sheetWorkspaceRail" aria-label="シート作業レール">
+      {props.topActions && (
+        <div className="sheetWorkspaceRailTop" role="toolbar" aria-label="兼用カット操作">
+          {props.topActions}
+        </div>
+      )}
       <div className="sheetHistoryTabs" role="tablist" aria-label="シート履歴" aria-orientation="vertical">
         {props.revisions.map((revision, index) => {
           const active = revision.revisionId === props.activeRevisionId
@@ -108,6 +115,11 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
           <button type="button" className="sheetHistoryAddButton" onClick={openAdd} aria-label="修正用シートを追加">＋</button>
         </Tooltip>
       </div>
+      {props.bottomActions && (
+        <div className="sheetWorkspaceRailBottom" role="toolbar" aria-label="シート表示と編集">
+          {props.bottomActions}
+        </div>
+      )}
 
       {context && contextRevision && (
         <div

@@ -46,41 +46,6 @@
   }
 }
 
-@media (max-width: 1023px) {
-  .topBar {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .topActions {
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-  }
-
-  .topUtilityActions {
-    margin-left: 0;
-  }
-
-  .sheetToolbar {
-    flex-wrap: wrap;
-    overflow: visible;
-  }
-}
-
-@media (max-width: 920px) {
-  .topBar {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .topIdentity {
-    flex-basis: 100%;
-  }
-
-}
-
 @media (max-width: 720px) {
   .topActions {
     justify-content: flex-start;

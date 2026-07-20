@@ -94,7 +94,7 @@ try {
   await clickButton('4点自動検出')
   const statusText = await waitForCondition(async () => {
     const text = await evaluatePage<string>(`
-      (() => document.querySelector('.sheetToolbar')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '')()
+      (() => document.querySelector('.paperSheetRailMenu.actionMenuPortalContent')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '')()
     `)
     if (text.includes('自動検出エラー')) return text
     if (text.includes('自動検出できませんでした')) return text
@@ -189,7 +189,23 @@ async function waitForSheet(): Promise<void> {
 }
 
 async function dropSheetSourceFile(filePath: string): Promise<void> {
-  await setFileInputFiles('.paperSheetLoadButton input[type="file"]', [filePath])
+  await ensurePaperSheetMenuOpen()
+  await setFileInputFiles('.paperSheetRailMenu .paperSheetLoadButton input[type="file"]', [filePath])
+}
+
+async function ensurePaperSheetMenuOpen(): Promise<void> {
+  const opened = await evaluatePage<boolean>(`
+    (() => {
+      if (document.querySelector('.paperSheetRailMenu.actionMenuPortalContent')) return true;
+      const summary = Array.from(document.querySelectorAll('summary'))
+        .find(item => item.getAttribute('aria-label') === '紙シート' && item.getBoundingClientRect().width > 0);
+      if (!(summary instanceof HTMLElement)) return false;
+      summary.click();
+      return true;
+    })()
+  `)
+  if (!opened) throw new Error('paper sheet rail menu trigger not found')
+  await waitForPageCondition(() => Boolean(document.querySelector('.paperSheetRailMenu.actionMenuPortalContent')), 'paper sheet rail menu')
 }
 
 async function clickButton(label: string): Promise<void> {
@@ -251,7 +267,7 @@ async function pageDebug(): Promise<Record<string, unknown>> {
       hasDropZone: Boolean(document.querySelector('.sheetSourceDropZone')),
       sheetCount: document.querySelectorAll('svg.sheetSvg').length,
       imageCount: document.querySelectorAll('image.sheetImage').length,
-      toolbarText: document.querySelector('.sheetToolbar')?.textContent?.replace(/\\s+/g, ' ').slice(0, 800) ?? null,
+      toolbarText: document.querySelector('.paperSheetRailMenu.actionMenuPortalContent')?.textContent?.replace(/\\s+/g, ' ').slice(0, 800) ?? null,
     }))()
   `)
 }

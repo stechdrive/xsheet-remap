@@ -1,6 +1,6 @@
-import { clearAnnotations, clearAnnotationsForPage, type SheetViewMode, sheetTemplatePresets, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
+import { clearAnnotations, clearAnnotationsForPage, sheetTemplatePresets, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { APP_VERSION } from './appVersion';
-import { uiText, viewModeLabels } from './i18n';
+import { uiText } from './i18n';
 import { LevelCorrectionDialog } from './LevelCorrectionDialog';
 import { roundForInput } from './sheetImages';
 import { sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
@@ -10,7 +10,7 @@ import { ActionMenu, IconButton, ScrubbableNumberInput } from './AppControls';
 import { TemplateWorkspace } from './TemplateWorkspace';
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
-import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, RecognitionActionMenu, RedoIcon, UndoIcon, ViewModeIcon } from './app-navigation';
+import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, PaperSheetIcon, RecognitionActionMenu, RedoIcon, UndoIcon } from './app-navigation';
 import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
@@ -61,6 +61,129 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   } = controller
 
+  const sheetRailExternalActions = panel === 'sheet' ? (
+    <>
+      <ActionMenu
+        label={<PaperSheetIcon />}
+        ariaLabel="紙シート"
+        tooltipLabel="紙シート画像"
+        className="workspaceRailAction paperSheetRailMenu"
+        placement="right-start"
+      >
+        <div className="paperSheetRailMenuBody" aria-label="紙シート画像の操作">
+          <TooltipTarget label={uiText.actions.loadSheetSourceFilesTitle}>
+            {tooltipProps => (
+              <>
+                <button
+                  type="button"
+                  className="paperSheetLoadButton"
+                  onClick={() => void openPaperSheetFilePicker()}
+                  {...tooltipProps}
+                >
+                  {uiText.actions.loadSheetSourceFiles}
+                </button>
+                <input
+                  ref={paperSheetInputRef}
+                  className="hiddenFileInput"
+                  type="file"
+                  aria-label={uiText.actions.loadSheetSourceFiles}
+                  accept="image/*"
+                  multiple
+                  onChange={event => {
+                    void handleSheetSourceFiles(event.currentTarget.files, activePage?.pageId)
+                    event.currentTarget.value = ''
+                  }}
+                />
+              </>
+            )}
+          </TooltipTarget>
+          <Tooltip label={uiText.sheet.imageCorrectionTitle}>
+            <button
+              type="button"
+              aria-label={uiText.sheet.imageCorrection}
+              className={editMode === 'calibrate' ? 'activeToolButton' : ''}
+              disabled={!activePageImage.imageUrl}
+              onClick={() => void startCalibrationWithLoupe()}
+            >
+              {uiText.sheet.imageCorrection}
+            </button>
+          </Tooltip>
+          <TooltipTarget label={uiText.sheet.imageOpacityTitle}>
+            {tooltipProps => (
+              <label className="compactControl topOpacityControl" {...tooltipProps}>
+                {uiText.sheet.imageOpacity}
+                <ScrubbableNumberInput
+                  value={Math.round(activePageImage.settings.opacity * 100)}
+                  min={0}
+                  max={100}
+                  pixelsPerStep={2}
+                  ariaLabel={uiText.sheet.imageOpacity}
+                  ariaValueText={value => `${value}%`}
+                  disabled={!activePageImage.sourceId}
+                  onChange={value => updateActivePageAlignment({ opacity: value / 100 })}
+                />
+              </label>
+            )}
+          </TooltipTarget>
+          <TooltipTarget label="紙シート画像の入力レベルを補正します。">
+            {tooltipProps => {
+              const levelCorrection = activePageLevelCorrectionSettings()
+              return (
+                <div className="compactControl topCheckboxControl sheetLevelCorrectionControl" {...tooltipProps}>
+                  <input
+                    type="checkbox"
+                    aria-label="レベル補正"
+                    checked={levelCorrection.enabled}
+                    disabled={!activePageImage.imageUrl}
+                    onChange={event => toggleActivePageLevelCorrection(event.currentTarget.checked)}
+                  />
+                  <button
+                    type="button"
+                    className="levelCorrectionInlineButton"
+                    disabled={!activePageImage.imageUrl}
+                    onClick={() => setSheetLevelCorrectionDialogOpen(true)}
+                  >
+                    レベル補正
+                  </button>
+                </div>
+              )
+            }}
+          </TooltipTarget>
+          {autoCalibrationMessage && <p className="muted calibrationStatus" role="status">{autoCalibrationMessage}</p>}
+        </div>
+      </ActionMenu>
+      {SHEET_OCR_AVAILABLE && (
+        <RecognitionActionMenu
+          label={<span className="workspaceRailTextIcon">OCR</span>}
+          className="workspaceRailAction"
+          placement="right-start"
+          candidates={recognitionCandidates}
+          sheetRole={recognitionRole}
+          running={recognitionRunning}
+          progress={recognitionProgress}
+          message={recognitionMessage}
+          project={project}
+          template={template}
+          disabled={!hasRecognitionSheetImages}
+          onSheetRoleChange={role => {
+            setRecognitionRole(role)
+            setRecognitionCandidates([])
+            setRecognitionMessage(null)
+          }}
+          onDetect={() => void handleRecognizeSheet()}
+          onAccept={acceptRecognitionCandidate}
+          onAcceptAll={acceptAllRecognitionCandidates}
+          onUpdateLabel={updateRecognitionCandidateLabel}
+          onRemove={candidateId => setRecognitionCandidates(current => current.filter(candidate => candidate.candidateId !== candidateId))}
+          onClear={() => {
+            setRecognitionCandidates([])
+            setRecognitionMessage(null)
+          }}
+        />
+      )}
+    </>
+  ) : null
+
   return (
     <div className="appShell" onContextMenu={event => event.preventDefault()}>
       <header className="topBar">
@@ -93,179 +216,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onMetadataChange={handleUpdateCutMetadata}
             onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
           />
-          {panel === 'sheet' && (
-            <>
-              <div className="paperSheetTopGroup" aria-label="紙シート">
-                <span className="topGroupLabel">紙シート</span>
-                <TooltipTarget label={uiText.actions.loadSheetSourceFilesTitle}>
-                  {tooltipProps => (
-                    <>
-                      <button
-                        type="button"
-                        className="paperSheetLoadButton"
-                        onClick={() => void openPaperSheetFilePicker()}
-                        {...tooltipProps}
-                      >
-                        読込
-                      </button>
-                      <input
-                        ref={paperSheetInputRef}
-                        className="hiddenFileInput"
-                        type="file"
-                        aria-label={uiText.actions.loadSheetSourceFiles}
-                        accept="image/*"
-                        multiple
-                        onChange={event => {
-                          void handleSheetSourceFiles(event.currentTarget.files, activePage?.pageId)
-                          event.currentTarget.value = ''
-                        }}
-                      />
-                    </>
-                  )}
-                </TooltipTarget>
-                <Tooltip label={uiText.sheet.imageCorrectionTitle}>
-                  <button
-                    type="button"
-                    aria-label={uiText.sheet.imageCorrection}
-                    className={editMode === 'calibrate' ? 'activeToolButton' : ''}
-                    disabled={!activePageImage.imageUrl}
-                    onClick={() => void startCalibrationWithLoupe()}
-                  >
-                    補正
-                  </button>
-                </Tooltip>
-                {SHEET_OCR_AVAILABLE && <RecognitionActionMenu
-                  candidates={recognitionCandidates}
-                  sheetRole={recognitionRole}
-                  running={recognitionRunning}
-                  progress={recognitionProgress}
-                  message={recognitionMessage}
-                  project={project}
-                  template={template}
-                  disabled={!hasRecognitionSheetImages}
-                  onSheetRoleChange={role => {
-                    setRecognitionRole(role)
-                    setRecognitionCandidates([])
-                    setRecognitionMessage(null)
-                  }}
-                  onDetect={() => void handleRecognizeSheet()}
-                  onAccept={acceptRecognitionCandidate}
-                  onAcceptAll={acceptAllRecognitionCandidates}
-                  onUpdateLabel={updateRecognitionCandidateLabel}
-                  onRemove={candidateId => setRecognitionCandidates(current => current.filter(candidate => candidate.candidateId !== candidateId))}
-                  onClear={() => {
-                    setRecognitionCandidates([])
-                    setRecognitionMessage(null)
-                  }}
-                />}
-                <TooltipTarget label={uiText.sheet.imageOpacityTitle}>
-                  {tooltipProps => (
-                    <label className="compactControl topOpacityControl" {...tooltipProps}>
-                      不透明度
-                      <ScrubbableNumberInput
-                        value={Math.round(activePageImage.settings.opacity * 100)}
-                        min={0}
-                        max={100}
-                        pixelsPerStep={2}
-                        ariaLabel={uiText.sheet.imageOpacity}
-                        ariaValueText={value => `${value}%`}
-                        disabled={!activePageImage.sourceId}
-                        onChange={value => updateActivePageAlignment({ opacity: value / 100 })}
-                      />
-                    </label>
-                  )}
-                </TooltipTarget>
-                <TooltipTarget label="紙シート画像の入力レベルを補正します。">
-                  {tooltipProps => {
-                    const levelCorrection = activePageLevelCorrectionSettings()
-                    return (
-                      <div className="compactControl topCheckboxControl sheetLevelCorrectionControl" {...tooltipProps}>
-                        <input
-                          type="checkbox"
-                          aria-label="レベル補正"
-                          checked={levelCorrection.enabled}
-                          disabled={!activePageImage.imageUrl}
-                          onChange={event => toggleActivePageLevelCorrection(event.currentTarget.checked)}
-                        />
-                        <button
-                          type="button"
-                          className="levelCorrectionInlineButton"
-                          disabled={!activePageImage.imageUrl}
-                          onClick={() => setSheetLevelCorrectionDialogOpen(true)}
-                        >
-                          レベル補正
-                        </button>
-                      </div>
-                    )
-                  }}
-                </TooltipTarget>
-              </div>
-            </>
-          )}
           <div className="topUtilityActions">
-            {panel === 'sheet' && (
-              <ActionMenu label={<ViewModeIcon />} ariaLabel={uiText.sheet.viewModeMenu} tooltipLabel={uiText.sheet.viewModeMenuTitle} className="iconActionMenu topViewModeMenu sheetLayerMenu" closeOnMenuItemClick>
-                <div className="viewModeMenuList">
-                  {([
-                    ['single-page', viewModeLabels['single-page']],
-                    ['continuous', viewModeLabels.continuous],
-                    ['spread', viewModeLabels.spread],
-                  ] as Array<[SheetViewMode, string]>).map(([viewMode, label]) => (
-                    <button
-                      key={viewMode}
-                      type="button"
-                      className={project.sheetView.viewMode === viewMode ? 'active' : ''}
-                      onClick={() => commitProject(updateSheetViewState(project, { viewMode }))}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="sheetLayerMenuList" data-action-menu-keep-open>
-                  <span className="actionMenuSectionLabel">描画レイヤー</span>
-                  <label className="compactControl">
-                    <input type="checkbox" checked={showTemplate} onChange={event => setShowTemplate(event.currentTarget.checked)} />
-                    {uiText.sheet.paperSheetImage}
-                  </label>
-                  <label className="compactControl">
-                    <input type="checkbox" checked={showTemplateGuides} onChange={event => setShowTemplateGuides(event.currentTarget.checked)} />
-                    {uiText.sheet.templateGuides}
-                  </label>
-                  <label className="compactControl">
-                    <input type="checkbox" checked={showTemplateLabels} onChange={event => setShowTemplateLabels(event.currentTarget.checked)} />
-                    {uiText.sheet.templateLabels}
-                  </label>
-                  <label className="compactControl">
-                    <input type="checkbox" checked={showInputContent} onChange={event => setShowInputContent(event.currentTarget.checked)} />
-                    {uiText.sheet.inputContent}
-                  </label>
-                  <label className="compactControl">
-                    <input
-                      type="checkbox"
-                      checked={project.sheetView.continuationDisplay.action}
-                      onChange={event => commitProject(updateSheetViewState(project, {
-                        continuationDisplay: { ...project.sheetView.continuationDisplay, action: event.currentTarget.checked },
-                      }))}
-                    />
-                    {uiText.sheet.actionContinuation}
-                  </label>
-                  <label className="compactControl">
-                    <input
-                      type="checkbox"
-                      checked={project.sheetView.continuationDisplay.cell}
-                      onChange={event => commitProject(updateSheetViewState(project, {
-                        continuationDisplay: { ...project.sheetView.continuationDisplay, cell: event.currentTarget.checked },
-                      }))}
-                    />
-                    {uiText.sheet.cellContinuation}
-                  </label>
-                  <label className="compactControl">
-                    <input type="checkbox" checked={showAnnotations} onChange={event => setShowAnnotations(event.currentTarget.checked)} />
-                    {uiText.sheet.annotations}
-                  </label>
-                </div>
-              </ActionMenu>
-            )}
             <Tooltip label={uiText.actions.undo}>
               <IconButton onClick={handleUndo} disabled={history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></IconButton>
             </Tooltip>
@@ -292,6 +243,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             templatePresets={sheetTemplatePresets}
             selectedPresetId={project.studioPresetId ?? sheetTemplatePresets.find(preset => preset.sheetTemplate.templateId === template.templateId)?.presetId}
             onPresetSelect={handlePresetSelect}
+            railExternalActions={sheetRailExternalActions}
             projectCuts={projectCuts}
             activeCutId={projectDocumentSnapshot.activeCutId}
             onSwitchProjectCut={handleSwitchProjectCut}
@@ -341,6 +293,14 @@ export function AppShellView({ controller }: { controller: AppController }) {
             showTemplateLabels={showTemplateLabels}
             showInputContent={showInputContent}
             showAnnotations={showAnnotations}
+            onShowTemplateChange={setShowTemplate}
+            onShowTemplateGuidesChange={setShowTemplateGuides}
+            onShowTemplateLabelsChange={setShowTemplateLabels}
+            onShowInputContentChange={setShowInputContent}
+            onShowAnnotationsChange={setShowAnnotations}
+            onContinuationDisplayChange={(role, visible) => commitProject(updateSheetViewState(project, {
+              continuationDisplay: { ...project.sheetView.continuationDisplay, [role]: visible },
+            }))}
             penColor={penColor}
             setPenColor={setPenColor}
             penWidth={penWidth}

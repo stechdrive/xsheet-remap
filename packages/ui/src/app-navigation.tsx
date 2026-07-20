@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
@@ -13,6 +13,9 @@ import { DurationFrameControl } from './DurationFrameControl'
 import { EditorDetailedHelp } from './EditorDetailedHelp'
 
 export function RecognitionActionMenu({
+  label = <span>OCR</span>,
+  className = '',
+  placement = 'bottom-start',
   candidates,
   sheetRole,
   running,
@@ -29,6 +32,9 @@ export function RecognitionActionMenu({
   onRemove,
   onClear,
 }: {
+  label?: ReactNode
+  className?: string
+  placement?: 'bottom-start' | 'right-start'
   candidates: RecognitionCandidate[]
   sheetRole: SheetTimingRole
   running: boolean
@@ -51,10 +57,11 @@ export function RecognitionActionMenu({
   ))
   return (
     <ActionMenu
-      label={<span>OCR</span>}
+      label={label}
       ariaLabel={uiText.recognition.menu}
       tooltipLabel={uiText.recognition.menuTitle}
-      className="sheetRecognitionMenu"
+      className={`sheetRecognitionMenu ${className}`.trim()}
+      placement={placement}
     >
       <div className="recognitionMenuBody">
         <div className="recognitionRoleControl" role="group" aria-label={uiText.recognition.targetField}>
@@ -399,6 +406,24 @@ export function DisplaySettingsIcon() {
   )
 }
 
+export function PaperSheetIcon() {
+  return (
+    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 2.5h10l4 4V21.5H5z" />
+      <path d="M15 2.5v4h4M8 11h8M8 14.5h8M8 18h5" />
+    </svg>
+  )
+}
+
+export function SharedCutIcon() {
+  return (
+    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4" width="11" height="14" rx="1.5" />
+      <path d="M9 8h12v12H9zM6.5 8h4M6.5 11h4M12 12h6M12 15h6" />
+    </svg>
+  )
+}
+
 export function AppHelpDialog({
   appName,
   appKind,
@@ -470,7 +495,7 @@ function EditorHelpContent() {
       <ol>
         <li><strong>カット情報と尺を設定する</strong><span>上部のカット情報から作品名、話数、シーン、カット番号、尺を入力します。尺を変更すると、シートの作業範囲とページ数へ反映されます。</span></li>
         <li><strong>フレームまたは範囲を選んで入力する</strong><span>セルをクリックして文字を入力するか、右クリックメニューからキー、カラセル、中割、逆シートを設定します。ドラッグした範囲にはコピー、切り取り、貼り付け、リピート貼り付けを使えます。</span></li>
-        <li><strong>兼用カットとシート履歴を管理する</strong><span>上部の「兼用」メニューでカットの切替、名前を指定した追加、現在のカットの削除、兼用カット名の表示をまとめて操作します。最後の1カットは安全のため削除できません。右側のシート履歴では修正シートを追加・切替できます。</span></li>
+        <li><strong>兼用カットとシート履歴を管理する</strong><span>中央左端のシート作業レール最上部でカットの切替、名前を指定した追加、現在のカットの削除、兼用カット名の表示をまとめて操作します。最後の1カットは安全のため削除できません。レール中央のシート履歴では修正シートを追加・切替できます。</span></li>
         <li><strong>プロジェクトを保存する</strong><span>メニューの「保存」または「名前を付けて保存」で.xsrプロジェクトを保存します。デスクトップ版は選択した場所へ保存し、PWA版はブラウザからダウンロードします。</span></li>
       </ol>
     </article>
@@ -479,7 +504,7 @@ function EditorHelpContent() {
       <h2>紙タイムシートを下絵に使う（任意）</h2>
       <p>紙シートがなくても入力できます。読み込む場合は、テンプレートに合うdpiでスキャンした画像を使います。</p>
       <ol>
-        <li><strong>紙シート画像を読み込む</strong><span>上部の「紙シート」から「読込」を選びます。複数ページもまとめて追加できます。</span></li>
+        <li><strong>紙シート画像を読み込む</strong><span>シート作業レールの「紙シート」から「読込」を選びます。複数ページもまとめて追加できます。</span></li>
         <li><strong>四隅と濃さを補正する</strong><span>「補正」または「四隅拡大」で罫線を合わせ、「レベル補正」と画像不透明度で入力内容を見やすくします。この下絵補正はOCRを使わず、PWA版でも利用できます。</span></li>
         <li><strong>必要なら認識結果を採用する</strong><span>OCRによる文字認識はデスクトップ版だけの補助機能です。PWA版では無効ですが、紙シートの表示・補正と手入力はそのまま使えます。</span></li>
       </ol>
@@ -510,7 +535,7 @@ function RemapHelpContent({ appName }: { appName: string }) {
       <h2>CSP組み込み用シートを作る</h2>
       <p>{appName}でタイムシートと素材対応を作り、ヘルパーでCLIP STUDIO PAINT（クリスタ）へ登録します。</p>
       <ol>
-        <li><strong>紙シート画像を読み込む</strong><span>上部の「紙シート」から「読込」を押します。必要なら「補正」で四隅を合わせ、「レベル補正」で薄いスキャンを見やすくします。</span></li>
+        <li><strong>紙シート画像を読み込む</strong><span>シート作業レールの「紙シート」から「読込」を押します。必要なら「補正」で四隅を合わせ、「レベル補正」で薄いスキャンを見やすくします。</span></li>
         <li><strong>画像素材を素材ブラウザへ入れる</strong><span>カットフォルダまたは画像ファイルを右側の素材ブラウザへドロップします。素材カードからプレビューを確認できます。</span></li>
         <li><strong>素材をセル欄へドラッグしてキーを作る</strong><span>素材カードをシート上のCELL/ACTION/CAMERA欄へ置きます。範囲選択してから素材を置くと、開始位置へまとめて割り当てできます。</span></li>
         <li><strong>CSPレイヤー構成を確認する</strong><span>左のCSPレイヤー構成で、工程、CSPセル名、BG／BOOK、撮影指示、メモと、CSPへ渡す重ね順を確認します。具体的な追加・並び替え・削除は次の手順で行います。</span></li>

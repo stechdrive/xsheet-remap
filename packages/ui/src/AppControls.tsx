@@ -30,6 +30,7 @@ export function ActionMenu({
   className = '',
   closeOnMenuItemClick = false,
   onOpenChange,
+  placement = 'bottom-start',
 }: {
   label: ReactNode
   children: ReactNode
@@ -38,6 +39,7 @@ export function ActionMenu({
   className?: string
   closeOnMenuItemClick?: boolean
   onOpenChange?: (open: boolean) => void
+  placement?: 'bottom-start' | 'right-start'
 }) {
   const menuId = useId()
   const menuRef = useRef<HTMLDetailsElement>(null)
@@ -58,16 +60,19 @@ export function ActionMenu({
     const contentWidth = content?.offsetWidth ?? 220
     const contentHeight = content?.offsetHeight ?? 120
     const margin = 8
-    const preferredTop = summaryRect.bottom + 5
-    const top = preferredTop + contentHeight > window.innerHeight - margin
-      ? Math.max(margin, summaryRect.top - contentHeight - 5)
-      : preferredTop
-    const left = Math.min(
-      Math.max(margin, summaryRect.left),
-      Math.max(margin, window.innerWidth - contentWidth - margin),
-    )
+    const preferredTop = placement === 'right-start' ? summaryRect.top : summaryRect.bottom + 5
+    const top = placement === 'right-start'
+      ? Math.min(Math.max(margin, preferredTop), Math.max(margin, window.innerHeight - contentHeight - margin))
+      : preferredTop + contentHeight > window.innerHeight - margin
+        ? Math.max(margin, summaryRect.top - contentHeight - 5)
+        : preferredTop
+    const preferredLeft = placement === 'right-start' ? summaryRect.right + 5 : summaryRect.left
+    const fallbackLeft = placement === 'right-start' ? summaryRect.left - contentWidth - 5 : preferredLeft
+    const left = preferredLeft + contentWidth > window.innerWidth - margin
+      ? Math.max(margin, fallbackLeft)
+      : Math.max(margin, preferredLeft)
     setMenuStyle({ top, left })
-  }, [])
+  }, [placement])
 
   useEffect(() => {
     function closeOtherMenus(event: Event) {

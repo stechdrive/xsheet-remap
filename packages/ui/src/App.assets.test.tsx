@@ -4,7 +4,7 @@ import { standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
 import { defaultCalibrationPoints } from './sheetImages';
-import { clickActiveStackGuideInsertHandle, clickSheet, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, dragStackGuideSvgLabel, enterTimingValue, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openSharedCutMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, stackGuideConnectorPath, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, dragStackGuideSvgLabel, enterTimingValue, expectSelectedHit, findAssetCardByName, getAssetCardByName, getSheetOpacitySlider, getZoomSlider, levelCorrectionFilterTableValues, mockDirectoryEntry, mockFileEntry, mockFileTransferItem, openAppNavigationMenu, openPaperSheetMenu, openSharedCutMenu, openStackGuideInsertMenu, openTimingExportDialog, registeredCellIdentityText, setSheetRect, sheetImageHrefs, stackGuideConnectorPath, switchSharedCutByLabel, templateFramePoint, templateStackGuideHeaderPoint } from './App.test-support'
 
 describe('App: viewport and assets', () => {
 it('zooms the sheet with Ctrl+wheel and viewport controls', () => {
@@ -210,6 +210,7 @@ it('pans the sheet with Space drag and middle mouse drag', () => {
 
 it('renders the structural paper template without an image underlay before a sheet scan is assigned', () => {
     render(<App />)
+    openPaperSheetMenu()
     const opacity = getSheetOpacitySlider()
     const image = document.querySelector('.sheetSvg image') as SVGImageElement | null
     const pageLabel = uiText.sheet.pageCaption(1, 1, 144)
@@ -226,7 +227,7 @@ it('opens level correction with initial correction values and updates the sheet 
     URL.createObjectURL = file => `blob:${(file as File).name}`
     render(<App />)
 
-    const sourceInput = screen.getByLabelText(uiText.actions.loadSheetSourceFiles)
+    const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
     const page = new File(['page'], 'level_sheet.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(sourceInput, { target: { files: [page] } })
     await waitFor(() => expect(sheetImageHrefs()).toContain('blob:level_sheet.png'))
@@ -263,7 +264,7 @@ it('sets imported sheet images to 50% opacity and allows manual adjustment from 
     URL.createObjectURL = file => `blob:${(file as File).name}`
     render(<App />)
 
-    const sourceInput = screen.getByLabelText(uiText.actions.loadSheetSourceFiles)
+    const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
     const page = new File(['page'], 'opacity_sheet.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(sourceInput, { target: { files: [page] } })
 
@@ -289,7 +290,7 @@ it('registers sheet scan images in filename order and sets duration from the sca
 
     expect(screen.queryByText('timesheet.png')).toBeNull()
 
-    const sourceInput = screen.getByLabelText(uiText.actions.loadSheetSourceFiles)
+    const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
     const page2 = new File(['page2'], 'sheet_02.png', { type: 'image/png', lastModified: 2 })
     const page1 = new File(['page1'], 'sheet_01.png', { type: 'image/png', lastModified: 1 })
     const extensionlessPage = new File(['page133'], '_133_sheet_e.jpg', { type: 'image/jpeg', lastModified: 3 })
@@ -328,7 +329,7 @@ it('loads sheet scan images from the sheet input toolbar', async () => {
     render(<App />)
 
     expect(screen.queryByText(uiText.sources.dropOnSheet)).toBeNull()
-    const sourceInput = screen.getByLabelText(uiText.actions.loadSheetSourceFiles)
+    const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
     const page = new File(['page'], 'toolbar_sheet.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(sourceInput, { target: { files: [page] } })
 
@@ -374,7 +375,7 @@ it('resets the working project and clears history from the top bar', async () =>
     enterTimingValue('1')
     expect(document.querySelector('.eventText')?.textContent).toBe('1')
 
-    const sourceInput = screen.getByLabelText(uiText.actions.loadSheetSourceFiles)
+    const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
     const page = new File(['page'], 'reset_sheet.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(sourceInput, { target: { files: [page] } })
     await waitFor(() => expect(sheetImageHrefs()).toContain('blob:reset_sheet.png'))
@@ -393,7 +394,7 @@ it('resets the working project and clears history from the top bar', async () =>
 it('edits sheet warp quadrilateral handles and applies template targets', async () => {
     URL.createObjectURL = file => `blob:${(file as File).name}`
     render(<App />)
-    const sourceInput = screen.getByLabelText(uiText.actions.loadSheetSourceFiles)
+    const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
     const page = new File(['page'], 'warp_sheet.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(sourceInput, { target: { files: [page] } })
     await waitFor(() => expect(sheetImageHrefs()).toContain('blob:warp_sheet.png'))

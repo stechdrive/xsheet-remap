@@ -1104,10 +1104,6 @@
   line-height: 0;
 }
 
-.sheetToolbar .durationArrowButton:first-child {
-  border-bottom: 1px solid #c6c8c3;
-}
-
 .durationArrowButton::before {
   display: block;
   width: 0;

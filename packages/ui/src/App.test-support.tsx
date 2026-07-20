@@ -258,6 +258,36 @@ export function openSharedCutMenu(): HTMLElement {
   return content
 }
 
+export function openPaperSheetMenu(): HTMLElement {
+  const trigger = screen.getByLabelText('紙シート')
+  const details = trigger.closest('details')
+  if (!(details instanceof HTMLDetailsElement)) throw new Error('paper sheet rail menu not found')
+  if (!details.open) fireEvent.click(trigger)
+  const content = document.querySelector('.actionMenuPortalContent.paperSheetRailMenu')
+  if (!(content instanceof HTMLElement)) throw new Error('paper sheet rail menu content not found')
+  return content
+}
+
+export function openDisplaySettingsMenu(): HTMLElement {
+  const trigger = screen.getByLabelText(uiText.sheet.displaySettingsMenu)
+  const details = trigger.closest('details')
+  if (!(details instanceof HTMLDetailsElement)) throw new Error('display settings rail menu not found')
+  if (!details.open) fireEvent.click(trigger)
+  const content = document.querySelector('.actionMenuPortalContent.sheetDisplaySettingsMenu')
+  if (!(content instanceof HTMLElement)) throw new Error('display settings rail menu content not found')
+  return content
+}
+
+export function openTimingTextSettingsMenu(): HTMLElement {
+  const trigger = screen.getByLabelText(uiText.sheet.timingTextSettings)
+  const details = trigger.closest('details')
+  if (!(details instanceof HTMLDetailsElement)) throw new Error('timing text rail menu not found')
+  if (!details.open) fireEvent.click(trigger)
+  const content = document.querySelector('.actionMenuPortalContent.timingTextRailMenu')
+  if (!(content instanceof HTMLElement)) throw new Error('timing text rail menu content not found')
+  return content
+}
+
 export function selectCspCorrectionLayer(label: string): HTMLElement {
   const target = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeSummaryLabel'))
     .find(item => item.textContent?.trim() === label)

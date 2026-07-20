@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type ReactNode } from 'react'
 import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
 import { normalizeMemoAppearance, type MemoAppearance } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
-import { uiText } from './i18n'
+import { uiText, viewModeLabels } from './i18n'
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TemplateRegionAnnotationTarget, type TimingClipboard, type WorkspaceStyle } from './appTypes'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
 import { AssetTray, type DropDiagnosticReport } from './AssetBrowser'
 import { SHEET_ZOOM_MAX, SHEET_ZOOM_MIN } from './sheetConstants'
 import { clampSheetZoom } from './sheetInteraction'
 import { Tooltip, TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
-import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
+import { ActionMenu, PanelResizeHandle } from './AppControls'
 import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
 import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
-import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
+import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
@@ -35,6 +35,7 @@ export function SheetPanel(props: {
   templatePresets: SheetTemplatePreset[]
   selectedPresetId?: string
   onPresetSelect: (presetId: string) => void
+  railExternalActions?: ReactNode
   projectCuts: CutGroupProjectDocument['cuts']
   activeCutId: string
   onSwitchProjectCut: (cutId: string) => void
@@ -82,6 +83,12 @@ export function SheetPanel(props: {
   showTemplateLabels: boolean
   showInputContent: boolean
   showAnnotations: boolean
+  onShowTemplateChange: (visible: boolean) => void
+  onShowTemplateGuidesChange: (visible: boolean) => void
+  onShowTemplateLabelsChange: (visible: boolean) => void
+  onShowInputContentChange: (visible: boolean) => void
+  onShowAnnotationsChange: (visible: boolean) => void
+  onContinuationDisplayChange: (role: 'action' | 'cell', visible: boolean) => void
   penColor: string
   setPenColor: (value: string) => void
   penWidth: number
@@ -521,282 +528,6 @@ export function SheetPanel(props: {
   return (
     <TooltipSuppressionProvider suppressed={suppressSheetTooltips(editMode)}>
     <section className="panel sheetLayout">
-      <div className="sheetToolbar">
-        <ToolbarGroup className="sheetToolbarGroup sheetTimingGroup">
-          <ActionMenu
-            label={<DisplaySettingsIcon />}
-            ariaLabel={uiText.sheet.displaySettingsMenu}
-            tooltipLabel={uiText.sheet.settingsMenuTitle}
-            className="iconActionMenu sheetDisplaySettingsMenu"
-            closeOnMenuItemClick
-          >
-            <div className="sheetTemplateMenuList" aria-label={uiText.sheet.viewTemplate}>
-              {!props.selectedPresetId && (
-                <div className="sheetTemplateMenuCurrent">
-                  <span>{uiText.sheet.customPreset}</span>
-                  <span aria-hidden="true">✓</span>
-                </div>
-              )}
-              {props.templatePresets.map(preset => {
-                const isActive = preset.presetId === props.selectedPresetId
-                return (
-                  <Tooltip key={preset.presetId} label={uiText.sheet.viewTemplateOptionTitle(preset.name)}>
-                    <button
-                      type="button"
-                      className={isActive ? 'sheetTemplateMenuButton active' : 'sheetTemplateMenuButton'}
-                      aria-pressed={isActive}
-                      onClick={() => props.onPresetSelect(preset.presetId)}
-                    >
-                      <span>{preset.name}</span>
-                      {isActive && <span className="sheetTemplateMenuCheck" aria-hidden="true">✓</span>}
-                    </button>
-                  </Tooltip>
-                )
-              })}
-            </div>
-          </ActionMenu>
-        </ToolbarGroup>
-        <ToolbarGroup className="sheetToolbarGroup dummyKToolbarGroup">
-          <TooltipTarget label={`${uiText.sheet.preRollTitle}\n${uiText.sheet.preRollFixedTitle(DEFAULT_PRE_ROLL_FRAMES)}`}>
-            {tooltipProps => (
-              <label className="compactControl dummyKControl" {...tooltipProps}>
-                <input
-                  type="checkbox"
-                  aria-label={uiText.sheet.preRoll}
-                  checked={workRange.showPreRoll}
-                  disabled={sheetViewLayout.workRange?.supportsPreRoll === false}
-                  onChange={event => setPreRollVisible(event.currentTarget.checked)}
-                />
-                {uiText.sheet.preRollFrames}
-              </label>
-            )}
-          </TooltipTarget>
-          {workRange.postRollFrames > 0 && (
-            <span className="muted workRangeMeta">{uiText.sheet.postRollFrames(workRange.postRollFrames)}</span>
-          )}
-        </ToolbarGroup>
-        <ToolbarGroup className="sheetToolbarGroup cutSwitchToolbarGroup">
-          <ActionMenu
-            label={<span className="cutSwitchMenuLabel"><span>兼用</span><strong>{activeCutLabel}</strong></span>}
-            ariaLabel={uiText.sheet.cutSwitchTitle}
-            tooltipLabel={`${uiText.sheet.cutSwitchTitle}（現在: ${activeCutLabel}）`}
-            className="cutSwitchMenu"
-            onOpenChange={handleSharedCutMenuOpenChange}
-          >
-            <div className="cutSwitchMenuSelectRow">
-              <label className="cutSwitchMenuSelect">
-                <span>兼用カット</span>
-                <select
-                  aria-label="兼用カット"
-                  value={props.activeCutId}
-                  disabled={addingSharedCut}
-                  onChange={event => props.onSwitchProjectCut(event.currentTarget.value)}
-                >
-                  {props.projectCuts.map((cut, index) => (
-                    <option key={cut.cutId} value={cut.cutId}>
-                      {cut.metadata.cut?.trim() || `カット${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <TooltipTarget label={uiText.sheet.addSharedCutTitle}>
-                {tooltipProps => (
-                  <button
-                    type="button"
-                    className="cutSwitchAddButton cutSwitchIconButton"
-                    aria-label={uiText.sheet.addSharedCutTitle}
-                    disabled={addingSharedCut}
-                    onClick={beginSharedCutAddition}
-                    {...tooltipProps}
-                  >
-                    <PlusIcon />
-                  </button>
-                )}
-              </TooltipTarget>
-            </div>
-            {addingSharedCut && (
-              <form className="cutSwitchAddForm" onSubmit={submitSharedCutAddition}>
-                <span className="cutSwitchAddFormLabel">{uiText.sheet.addSharedCutName}</span>
-                <div className="cutSwitchAddFormRow">
-                  <input
-                    ref={sharedCutInputRef}
-                    aria-label={uiText.sheet.addSharedCutName}
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={sharedCutDraft ?? ''}
-                    onChange={event => {
-                      setSharedCutDraft(event.currentTarget.value)
-                      if (sharedCutDraftError) setSharedCutDraftError(null)
-                    }}
-                    onKeyDown={event => {
-                      if (event.key !== 'Escape') return
-                      event.preventDefault()
-                      event.stopPropagation()
-                      cancelSharedCutAddition()
-                    }}
-                  />
-                  <TooltipTarget label={uiText.sheet.addSharedCutConfirm}>
-                    {tooltipProps => (
-                      <button
-                        type="submit"
-                        className="cutSwitchAddConfirmButton cutSwitchIconButton"
-                        aria-label={uiText.sheet.addSharedCutConfirm}
-                        {...tooltipProps}
-                      >
-                        <CheckSmallIcon />
-                      </button>
-                    )}
-                  </TooltipTarget>
-                  <TooltipTarget label={uiText.sheet.cancelSharedCutAddition}>
-                    {tooltipProps => (
-                      <button
-                        type="button"
-                        className="cutSwitchAddCancelButton cutSwitchIconButton"
-                        aria-label={uiText.sheet.cancelSharedCutAddition}
-                        onClick={cancelSharedCutAddition}
-                        {...tooltipProps}
-                      >
-                        <CloseSmallIcon />
-                      </button>
-                    )}
-                  </TooltipTarget>
-                </div>
-                {sharedCutDraftError && <p className="cutSwitchAddError" role="alert">{sharedCutDraftError}</p>}
-              </form>
-            )}
-            <TooltipTarget label={uiText.sheet.sharedCutNumbersTitle}>
-              {tooltipProps => (
-                <label className="compactControl sharedCutNumbersControl" {...tooltipProps}>
-                  <input
-                    type="checkbox"
-                    aria-label={uiText.sheet.sharedCutNumbers}
-                    checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
-                    onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
-                  />
-                  シートに兼用カット名を表示
-                </label>
-              )}
-            </TooltipTarget>
-            <div className="cutSwitchMenuActions">
-              <TooltipTarget
-                label={props.projectCuts.length <= 1
-                  ? uiText.sheet.deleteSharedCutUnavailableTitle
-                  : uiText.sheet.deleteSharedCutCurrentTitle(activeCutLabel)}
-              >
-                {tooltipProps => (
-                  <button
-                    type="button"
-                    className="cutSwitchDeleteButton cutSwitchIconButton"
-                    aria-label={uiText.sheet.deleteSharedCutTitle}
-                    disabled={props.projectCuts.length <= 1}
-                    title={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : undefined}
-                    onClick={props.onDeleteSharedCut}
-                    {...tooltipProps}
-                  >
-                    <TrashIcon />
-                  </button>
-                )}
-              </TooltipTarget>
-            </div>
-          </ActionMenu>
-        </ToolbarGroup>
-        <ToolbarGroup className="sheetToolbarGroup textToolbarGroup">
-          <FontSizeControl
-            value={props.timingTextFontSizePx}
-            active={props.hasSelectedTextTarget}
-            disabled={props.textFontSizeDisabled}
-            onChange={props.onTextFontSizeChange}
-            label={uiText.sheet.timingTextFontSize}
-            tooltip={uiText.sheet.timingTextFontSizeTitle}
-          />
-        </ToolbarGroup>
-        <ToolbarGroup className="sheetToolbarGroup sheetPageToolbarGroup">
-          <div className="pageTabs sheetPageTabs">
-            {isContinuousCanvas && activePage && (
-              <span className="pageTabsSurface">{uiText.sheet.surfaceTab(activePage.frameStart, activePage.frameEnd)}</span>
-            )}
-            {!isContinuousCanvas && activePage && props.sheetPages.length <= 1 && (
-              <span className="pageTabsSurface active">{uiText.sheet.pageTab(activePage.pageIndex + 1)}</span>
-            )}
-            {!isContinuousCanvas && activePage && props.sheetPages.length > 1 && (
-              <ActionMenu
-                label={uiText.sheet.pageTab(activePage.pageIndex + 1)}
-                ariaLabel={uiText.sheet.activePage}
-                className="pageJumpMenu"
-                closeOnMenuItemClick
-              >
-                <div className="pageJumpPanel" data-action-menu-keep-open>
-                  <div className="pageJumpGrid" aria-label={uiText.sheet.pageSelection}>
-                    {props.sheetPages.map(page => (
-                      <Tooltip key={page.pageId} label={uiText.sheet.pageJumpTitle(page.pageIndex + 1)}>
-                        <button
-                          type="button"
-                          className={page.pageIndex === props.activePageIndex ? 'pageJumpPageButton active' : 'pageJumpPageButton'}
-                          aria-pressed={page.pageIndex === props.activePageIndex}
-                          onClick={() => {
-                            setSelectedAnnotationRegion(null)
-                            props.setActivePageIndex(page.pageIndex)
-                          }}
-                        >
-                          {uiText.sheet.pageTab(page.pageIndex + 1)}
-                        </button>
-                      </Tooltip>
-                    ))}
-                  </div>
-                  {activePage && (() => {
-                    const pageState = props.project.sheetView.pages.find(item => item.pageId === activePage.pageId)
-                    const sourceId = pageState?.sourceId ?? ''
-                    return (
-                      <div className="pageJumpEditor">
-                        <strong>{uiText.sources.pageAssignmentLabel(activePage.pageIndex + 1)}</strong>
-                        <TooltipTarget label={uiText.sources.pageAssignmentTitle(activePage.pageIndex + 1)}>
-                          {tooltipProps => (
-                            <label className="pageJumpSourceSelect" {...tooltipProps}>
-                              <select
-                                value={sourceId}
-                                aria-label={uiText.sources.pageAssignmentLabel(activePage.pageIndex + 1)}
-                                onChange={event => props.onAssignSheetSource(activePage.pageId, event.currentTarget.value || null)}
-                              >
-                                <option value="">{uiText.app.unassigned}</option>
-                                {sheetScanSources.map(source => (
-                                  <option key={source.sourceId} value={source.sourceId}>{sheetSourceLabel(source)}</option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-                        </TooltipTarget>
-                        <Tooltip label={uiText.sources.clearAssignmentTitle}>
-                          <button
-                            type="button"
-                            className="pageJumpClearButton"
-                            disabled={!sourceId}
-                            onClick={() => props.onAssignSheetSource(activePage.pageId, null)}
-                          >
-                            {uiText.sources.clearAssignment}
-                          </button>
-                        </Tooltip>
-                      </div>
-                    )
-                  })()}
-                  {sheetScanSources.length === 0 && (
-                    <p className="pageJumpEmpty">{uiText.sources.empty}</p>
-                  )}
-                </div>
-              </ActionMenu>
-            )}
-            {hiddenPaperTracks.length > 0 && (
-              <Tooltip label={hiddenPaperTracks.join(', ')}>
-                <span className="muted">
-                  {uiText.sheet.hiddenPaperTracks(hiddenPaperTracks.length)}
-                </span>
-              </Tooltip>
-            )}
-          </div>
-        </ToolbarGroup>
-        {props.editMode === 'calibrate' && props.autoCalibrationMessage && (
-          <span className="muted calibrationStatus">{props.autoCalibrationMessage}</span>
-        )}
-      </div>
       <div
         className={[
           'sheetWorkspace',
@@ -1130,6 +861,281 @@ export function SheetPanel(props: {
         />
         <div className="sheetViewportFrame">
           <SheetHistoryRail
+            topActions={(
+              <ActionMenu
+                label={(
+                  <span className="workspaceRailIconWithBadge">
+                    <SharedCutIcon />
+                    <span className="cutSwitchMenuLabel"><strong>{activeCutLabel}</strong></span>
+                  </span>
+                )}
+                ariaLabel={uiText.sheet.cutSwitchTitle}
+                tooltipLabel={`${uiText.sheet.cutSwitchTitle}（現在: ${activeCutLabel}）`}
+                className="workspaceRailAction cutSwitchMenu"
+                placement="right-start"
+                onOpenChange={handleSharedCutMenuOpenChange}
+              >
+                <div className="cutSwitchMenuSelectRow">
+                  <label className="cutSwitchMenuSelect">
+                    <span>兼用カット</span>
+                    <select
+                      aria-label="兼用カット"
+                      value={props.activeCutId}
+                      disabled={addingSharedCut}
+                      onChange={event => props.onSwitchProjectCut(event.currentTarget.value)}
+                    >
+                      {props.projectCuts.map((cut, index) => (
+                        <option key={cut.cutId} value={cut.cutId}>
+                          {cut.metadata.cut?.trim() || `カット${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <TooltipTarget label={uiText.sheet.addSharedCutTitle}>
+                    {tooltipProps => (
+                      <button
+                        type="button"
+                        className="cutSwitchAddButton cutSwitchIconButton"
+                        aria-label={uiText.sheet.addSharedCutTitle}
+                        disabled={addingSharedCut}
+                        onClick={beginSharedCutAddition}
+                        {...tooltipProps}
+                      >
+                        <PlusIcon />
+                      </button>
+                    )}
+                  </TooltipTarget>
+                </div>
+                {addingSharedCut && (
+                  <form className="cutSwitchAddForm" onSubmit={submitSharedCutAddition}>
+                    <span className="cutSwitchAddFormLabel">{uiText.sheet.addSharedCutName}</span>
+                    <div className="cutSwitchAddFormRow">
+                      <input
+                        ref={sharedCutInputRef}
+                        aria-label={uiText.sheet.addSharedCutName}
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={sharedCutDraft ?? ''}
+                        onChange={event => {
+                          setSharedCutDraft(event.currentTarget.value)
+                          if (sharedCutDraftError) setSharedCutDraftError(null)
+                        }}
+                        onKeyDown={event => {
+                          if (event.key !== 'Escape') return
+                          event.preventDefault()
+                          event.stopPropagation()
+                          cancelSharedCutAddition()
+                        }}
+                      />
+                      <TooltipTarget label={uiText.sheet.addSharedCutConfirm}>
+                        {tooltipProps => (
+                          <button
+                            type="submit"
+                            className="cutSwitchAddConfirmButton cutSwitchIconButton"
+                            aria-label={uiText.sheet.addSharedCutConfirm}
+                            {...tooltipProps}
+                          >
+                            <CheckSmallIcon />
+                          </button>
+                        )}
+                      </TooltipTarget>
+                      <TooltipTarget label={uiText.sheet.cancelSharedCutAddition}>
+                        {tooltipProps => (
+                          <button
+                            type="button"
+                            className="cutSwitchAddCancelButton cutSwitchIconButton"
+                            aria-label={uiText.sheet.cancelSharedCutAddition}
+                            onClick={cancelSharedCutAddition}
+                            {...tooltipProps}
+                          >
+                            <CloseSmallIcon />
+                          </button>
+                        )}
+                      </TooltipTarget>
+                    </div>
+                    {sharedCutDraftError && <p className="cutSwitchAddError" role="alert">{sharedCutDraftError}</p>}
+                  </form>
+                )}
+                <TooltipTarget label={uiText.sheet.sharedCutNumbersTitle}>
+                  {tooltipProps => (
+                    <label className="compactControl sharedCutNumbersControl" {...tooltipProps}>
+                      <input
+                        type="checkbox"
+                        aria-label={uiText.sheet.sharedCutNumbers}
+                        checked={props.project.sheetView.metadataDisplay.sharedCutNumbers}
+                        onChange={event => props.onSetSharedCutNumbersVisible(event.currentTarget.checked)}
+                      />
+                      シートに兼用カット名を表示
+                    </label>
+                  )}
+                </TooltipTarget>
+                <div className="cutSwitchMenuActions">
+                  <TooltipTarget
+                    label={props.projectCuts.length <= 1
+                      ? uiText.sheet.deleteSharedCutUnavailableTitle
+                      : uiText.sheet.deleteSharedCutCurrentTitle(activeCutLabel)}
+                  >
+                    {tooltipProps => (
+                      <button
+                        type="button"
+                        className="cutSwitchDeleteButton cutSwitchIconButton"
+                        aria-label={uiText.sheet.deleteSharedCutTitle}
+                        disabled={props.projectCuts.length <= 1}
+                        title={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : undefined}
+                        onClick={props.onDeleteSharedCut}
+                        {...tooltipProps}
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
+                  </TooltipTarget>
+                </div>
+              </ActionMenu>
+            )}
+            bottomActions={(
+              <>
+                {props.railExternalActions}
+                <ActionMenu
+                  label={<DisplaySettingsIcon />}
+                  ariaLabel={uiText.sheet.displaySettingsMenu}
+                  tooltipLabel={uiText.sheet.viewModeMenuTitle}
+                  className="workspaceRailAction sheetDisplaySettingsMenu sheetLayerMenu"
+                  placement="right-start"
+                >
+                  <div className="viewModeMenuList" aria-label={uiText.sheet.viewModeMenu}>
+                    {([
+                      ['single-page', viewModeLabels['single-page']],
+                      ['continuous', viewModeLabels.continuous],
+                      ['spread', viewModeLabels.spread],
+                    ] as Array<[SheetViewMode, string]>).map(([viewMode, label]) => (
+                      <button
+                        key={viewMode}
+                        type="button"
+                        className={props.project.sheetView.viewMode === viewMode ? 'active' : ''}
+                        onClick={() => props.onSetViewMode(viewMode)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="sheetTemplateMenuList" aria-label={uiText.sheet.viewTemplate}>
+                    <span className="actionMenuSectionLabel">表示テンプレート</span>
+                    {!props.selectedPresetId && (
+                      <div className="sheetTemplateMenuCurrent">
+                        <span>{uiText.sheet.customPreset}</span>
+                        <span aria-hidden="true">✓</span>
+                      </div>
+                    )}
+                    {props.templatePresets.map(preset => {
+                      const isActive = preset.presetId === props.selectedPresetId
+                      return (
+                        <Tooltip key={preset.presetId} label={uiText.sheet.viewTemplateOptionTitle(preset.name)}>
+                          <button
+                            type="button"
+                            className={isActive ? 'sheetTemplateMenuButton active' : 'sheetTemplateMenuButton'}
+                            aria-pressed={isActive}
+                            onClick={() => props.onPresetSelect(preset.presetId)}
+                          >
+                            <span>{preset.name}</span>
+                            {isActive && <span className="sheetTemplateMenuCheck" aria-hidden="true">✓</span>}
+                          </button>
+                        </Tooltip>
+                      )
+                    })}
+                  </div>
+                  <div className="sheetLayerMenuList" data-action-menu-keep-open>
+                    <span className="actionMenuSectionLabel">描画レイヤー</span>
+                    <label className="compactControl"><input type="checkbox" checked={props.showTemplate} onChange={event => props.onShowTemplateChange(event.currentTarget.checked)} />{uiText.sheet.paperSheetImage}</label>
+                    <label className="compactControl"><input type="checkbox" checked={props.showTemplateGuides} onChange={event => props.onShowTemplateGuidesChange(event.currentTarget.checked)} />{uiText.sheet.templateGuides}</label>
+                    <label className="compactControl"><input type="checkbox" checked={props.showTemplateLabels} onChange={event => props.onShowTemplateLabelsChange(event.currentTarget.checked)} />{uiText.sheet.templateLabels}</label>
+                    <label className="compactControl"><input type="checkbox" checked={props.showInputContent} onChange={event => props.onShowInputContentChange(event.currentTarget.checked)} />{uiText.sheet.inputContent}</label>
+                    <label className="compactControl"><input type="checkbox" checked={props.project.sheetView.continuationDisplay.action} onChange={event => props.onContinuationDisplayChange('action', event.currentTarget.checked)} />{uiText.sheet.actionContinuation}</label>
+                    <label className="compactControl"><input type="checkbox" checked={props.project.sheetView.continuationDisplay.cell} onChange={event => props.onContinuationDisplayChange('cell', event.currentTarget.checked)} />{uiText.sheet.cellContinuation}</label>
+                    <label className="compactControl"><input type="checkbox" checked={props.showAnnotations} onChange={event => props.onShowAnnotationsChange(event.currentTarget.checked)} />{uiText.sheet.annotations}</label>
+                    <TooltipTarget label={`${uiText.sheet.preRollTitle}\n${uiText.sheet.preRollFixedTitle(DEFAULT_PRE_ROLL_FRAMES)}`}>
+                      {tooltipProps => (
+                        <label className="compactControl dummyKControl" {...tooltipProps}>
+                          <input type="checkbox" aria-label={uiText.sheet.preRoll} checked={workRange.showPreRoll} disabled={sheetViewLayout.workRange?.supportsPreRoll === false} onChange={event => setPreRollVisible(event.currentTarget.checked)} />
+                          {uiText.sheet.preRollFrames}
+                        </label>
+                      )}
+                    </TooltipTarget>
+                    {workRange.postRollFrames > 0 && <span className="muted workRangeMeta">{uiText.sheet.postRollFrames(workRange.postRollFrames)}</span>}
+                    {hiddenPaperTracks.length > 0 && <span className="muted" title={hiddenPaperTracks.join(', ')}>{uiText.sheet.hiddenPaperTracks(hiddenPaperTracks.length)}</span>}
+                  </div>
+                </ActionMenu>
+                <ActionMenu
+                  label={<TextToolIcon />}
+                  ariaLabel={uiText.sheet.timingTextSettings}
+                  tooltipLabel={uiText.sheet.timingTextFontSizeTitle}
+                  className={`workspaceRailAction timingTextRailMenu${props.hasSelectedTextTarget ? ' active' : ''}`}
+                  placement="right-start"
+                >
+                  <div className="timingTextRailMenuBody">
+                    <FontSizeControl
+                      value={props.timingTextFontSizePx}
+                      active={props.hasSelectedTextTarget}
+                      disabled={props.textFontSizeDisabled}
+                      onChange={props.onTextFontSizeChange}
+                      label={uiText.sheet.timingTextFontSize}
+                      tooltip={uiText.sheet.timingTextFontSizeTitle}
+                    />
+                  </div>
+                </ActionMenu>
+                {activePage && (
+                  <ActionMenu
+                    label={<span className="workspaceRailPageBadge">{uiText.sheet.pageTab(activePage.pageIndex + 1)}</span>}
+                    ariaLabel={uiText.sheet.activePage}
+                    tooltipLabel={isContinuousCanvas ? uiText.sheet.surfaceTab(activePage.frameStart, activePage.frameEnd) : uiText.sheet.pageJumpTitle(activePage.pageIndex + 1)}
+                    className="workspaceRailAction pageJumpMenu"
+                    placement="right-start"
+                  >
+                    <div className="pageJumpPanel" data-action-menu-keep-open>
+                      <div className="pageJumpGrid" aria-label={uiText.sheet.pageSelection}>
+                        {props.sheetPages.map(page => (
+                          <Tooltip key={page.pageId} label={uiText.sheet.pageJumpTitle(page.pageIndex + 1)}>
+                            <button
+                              type="button"
+                              className={page.pageIndex === props.activePageIndex ? 'pageJumpPageButton active' : 'pageJumpPageButton'}
+                              aria-pressed={page.pageIndex === props.activePageIndex}
+                              onClick={() => {
+                                setSelectedAnnotationRegion(null)
+                                props.setActivePageIndex(page.pageIndex)
+                              }}
+                            >
+                              {uiText.sheet.pageTab(page.pageIndex + 1)}
+                            </button>
+                          </Tooltip>
+                        ))}
+                      </div>
+                      {(() => {
+                        const pageState = props.project.sheetView.pages.find(item => item.pageId === activePage.pageId)
+                        const sourceId = pageState?.sourceId ?? ''
+                        return (
+                          <div className="pageJumpEditor">
+                            <strong>{uiText.sources.pageAssignmentLabel(activePage.pageIndex + 1)}</strong>
+                            <TooltipTarget label={uiText.sources.pageAssignmentTitle(activePage.pageIndex + 1)}>
+                              {tooltipProps => (
+                                <label className="pageJumpSourceSelect" {...tooltipProps}>
+                                  <select value={sourceId} aria-label={uiText.sources.pageAssignmentLabel(activePage.pageIndex + 1)} onChange={event => props.onAssignSheetSource(activePage.pageId, event.currentTarget.value || null)}>
+                                    <option value="">{uiText.app.unassigned}</option>
+                                    {sheetScanSources.map(source => <option key={source.sourceId} value={source.sourceId}>{sheetSourceLabel(source)}</option>)}
+                                  </select>
+                                </label>
+                              )}
+                            </TooltipTarget>
+                            <Tooltip label={uiText.sources.clearAssignmentTitle}>
+                              <button type="button" className="pageJumpClearButton" disabled={!sourceId} onClick={() => props.onAssignSheetSource(activePage.pageId, null)}>{uiText.sources.clearAssignment}</button>
+                            </Tooltip>
+                          </div>
+                        )
+                      })()}
+                      {sheetScanSources.length === 0 && <p className="pageJumpEmpty">{uiText.sources.empty}</p>}
+                    </div>
+                  </ActionMenu>
+                )}
+              </>
+            )}
             revisions={props.sheetRevisions}
             activeRevisionId={props.activeSheetRevisionId}
             processSuggestions={props.project.correctionLayers.map(layer => layer.label).filter(Boolean)}

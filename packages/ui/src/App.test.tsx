@@ -6,7 +6,7 @@ import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
 import { ASSET_DRAG_MIME } from './sheetConstants';
-import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openSharedCutMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, selectCspCorrectionLayer, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
+import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openDisplaySettingsMenu, openPaperSheetMenu, openSharedCutMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, selectCspCorrectionLayer, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
 
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
@@ -19,15 +19,19 @@ it('renders the main workspace shell', () => {
     expect(within(appNavigationMenu).queryByRole('button', { name: '認識' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.sources })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.assets })).toBeNull()
-    expect(screen.getByRole('button', { name: uiText.sheet.imageCorrection })).toBeTruthy()
-    expect(screen.getByLabelText(uiText.recognition.menu)).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.template })).toBeTruthy()
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル対応' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル重ね順' })).toBeNull()
     expect(screen.queryByText('詳細スロット一覧')).toBeNull()
     expect(screen.getByLabelText('紙シート')).toBeTruthy()
-    expect(screen.getByLabelText(uiText.actions.loadSheetSourceFiles)).toBeTruthy()
-    expect(screen.getByLabelText(uiText.sheet.viewModeMenu)).toBeTruthy()
+    expect(screen.getByLabelText(uiText.recognition.menu)).toBeTruthy()
+    expect(screen.getByLabelText(uiText.sheet.displaySettingsMenu)).toBeTruthy()
+    const paperMenu = openPaperSheetMenu()
+    expect(within(paperMenu).getByRole('button', { name: uiText.sheet.imageCorrection })).toBeTruthy()
+    expect(within(paperMenu).getByLabelText(uiText.actions.loadSheetSourceFiles)).toBeTruthy()
+    expect(document.querySelector('.topBar .paperSheetTopGroup')).toBeNull()
+    expect(document.querySelector('.sheetToolbar')).toBeNull()
+    expect(screen.getByRole('toolbar', { name: 'シート表示と編集' })).toBeTruthy()
     expect(document.querySelector('.sheetWorkspace')).toBeTruthy()
     expect(document.querySelector('.sheetDockLeft .cspLayerTreeHeader strong')?.textContent).toBe('CSPレイヤー構成')
     expect(document.querySelector('.sheetDockRight h2')?.textContent).toBe(uiText.assets.title)
@@ -401,7 +405,7 @@ it('opens remap XDTS export options from the export menu without adding a worksp
 it('keeps only one top action menu open at a time', () => {
     render(<App />)
     const projectSummary = screen.getByLabelText(uiText.nav.menu)
-    const viewModeSummary = screen.getByLabelText(uiText.sheet.viewModeMenu)
+    const viewModeSummary = screen.getByLabelText(uiText.sheet.displaySettingsMenu)
     const projectMenu = projectSummary.closest('details')
     const viewModeMenu = viewModeSummary.closest('details')
     if (!projectMenu || !viewModeMenu) throw new Error('action menus not found')
@@ -434,7 +438,7 @@ it('separates template lines and labels in the display menu', () => {
     expect(document.querySelectorAll('.gridLine').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.templateHeaderText').length).toBeGreaterThan(0)
 
-    fireEvent.click(screen.getByLabelText(uiText.sheet.viewModeMenu))
+    fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
     const menu = document.querySelector('.actionMenuPortalContent.sheetLayerMenu')
     if (!(menu instanceof HTMLElement)) throw new Error('sheet layer menu not found')
     const lines = within(menu).getByLabelText(uiText.sheet.templateGuides)
@@ -542,7 +546,7 @@ it('loads the compressed project container through the normal project command', 
     fireEvent.click(pageMenuTrigger)
     const pageMenu = document.querySelector('.actionMenuPortalContent.pageJumpMenu')
     if (!(pageMenu instanceof HTMLElement)) throw new Error('page menu not found')
-    expect(pageMenu.querySelectorAll('.pageJumpPageButton')).toHaveLength(3)
+    await waitFor(() => expect(pageMenu.querySelectorAll('.pageJumpPageButton')).toHaveLength(3))
   })
 
 it('closes the app navigation menu when a file picker item is selected', async () => {
@@ -746,7 +750,8 @@ it('dims visible paper rows outside the cut duration without creating post-roll 
     expect(screen.queryByText(uiText.sheet.postRollFrames(72))).toBeNull()
     expect(document.querySelectorAll('.inactiveFrameRect')).toHaveLength(4)
 
-    const preRoll = screen.getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
+    const displayMenu = openDisplaySettingsMenu()
+    const preRoll = within(displayMenu).getByLabelText(uiText.sheet.preRoll) as HTMLInputElement
     fireEvent.click(preRoll)
     expect(preRoll.checked).toBe(true)
     expect(document.querySelectorAll('.inactiveFrameRect')).toHaveLength(8)

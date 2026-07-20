@@ -454,7 +454,10 @@ async function dropSheetSourcesForMultiPage(): Promise<void> {
   const sheetSources = [args.sheetSource, args['sheet-source'], args.sheetSourceSecondary, args['sheet-source-secondary']]
     .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
   if (sheetSources.length < 2) throw new Error('--sheet-source and --sheet-source-secondary are required')
-  await setFileInputFiles('.paperSheetTopGroup input[type="file"]', sheetSources)
+  const menuOpen = await evaluatePage<boolean>(`Boolean(document.querySelector('.paperSheetRailMenu.actionMenuPortalContent'))`)
+  if (!menuOpen) await clickActionMenuSummary('紙シート')
+  await waitForSelector('.paperSheetRailMenu.actionMenuPortalContent')
+  await setFileInputFiles('.paperSheetRailMenu input[type="file"]', sheetSources)
 }
 
 async function verifySoundCueEditing(): Promise<void> {

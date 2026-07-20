@@ -314,6 +314,25 @@ describe('template editor geometry', () => {
     const model = buildTemplateChromeRenderModel(standardA3SheetTemplate)
     expect(model.formFields.some(field => field.fieldId === 'process.animationDirector.final' && field.definition.scope === 'revision')).toBe(true)
     expect(model.formFields.some(field => field.fieldId === 'output.sizeX' && field.definition.scope === 'cut')).toBe(true)
+    const finalProcessLabelKeys = [
+      'process_label_direction_final',
+      'process_label_supervision_final',
+      'process_label_animation_director_final',
+      'process_label_chief_animation_director_final',
+    ]
+    const finalProcessFieldIds = [
+      'process.direction.final',
+      'process.supervision.final',
+      'process.animationDirector.final',
+      'process.chiefAnimationDirector.final',
+    ]
+    const expectedLeftEdgesPx = [549, 606, 663, 720]
+    expect(finalProcessLabelKeys.map(cellId => Math.round(model.formLabels.find(
+      label => label.key === `top_process_check_area:${cellId}`,
+    )!.rect.x * model.pageSize.widthPx))).toEqual(expectedLeftEdgesPx)
+    expect(finalProcessFieldIds.map(fieldId => Math.round(model.formFields.find(
+      field => field.fieldId === fieldId,
+    )!.rect.x * model.pageSize.widthPx))).toEqual(expectedLeftEdgesPx)
     expect(model.formFields).toContainEqual(expect.objectContaining({
       regionId: 'top_memo_area',
       fieldId: 'memo.body',

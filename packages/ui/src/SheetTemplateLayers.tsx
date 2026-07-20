@@ -129,7 +129,7 @@ export function TemplateChromeLayer({
           )}
           {showLabels && header.label ? <SheetSvgText className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSizePx={header.labelFontSizePx} pageSize={model.pageSize}>{header.label}</SheetSvgText> : null}
           {showLabels && header.columns.map(column => (
-            <SheetSvgText key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" fontSizePx={column.fontSizePx} pageSize={model.pageSize}>{column.label}</SheetSvgText>
+            <SheetSvgText key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" dominantBaseline={column.dominantBaseline} fontSizePx={column.fontSizePx} pageSize={model.pageSize}>{column.label}</SheetSvgText>
           ))}
         </g>
       ))}

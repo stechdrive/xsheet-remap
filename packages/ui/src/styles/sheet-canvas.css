@@ -2071,7 +2071,7 @@
 .timelineMemoText {
   paint-order: stroke fill;
   stroke: rgb(255 255 252 / 0.9);
-  stroke-width: 0.0012;
+  stroke-width: 1.4px;
   pointer-events: visiblePainted;
   cursor: text;
   font-weight: 700;
@@ -2097,7 +2097,8 @@
   font-family: var(--font-sheet-sans);
   font-weight: 700;
   line-height: 1.25;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   overflow: auto;
 }
 

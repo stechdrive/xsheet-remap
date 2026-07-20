@@ -64,6 +64,14 @@ describe('template editor geometry', () => {
     expect(model?.rowPaths.find(path => path.className.includes('gridLineRegular'))?.segments).toHaveLength(6)
   })
 
+  it('marks template column labels as alphabetic-baseline text for screen and image parity', () => {
+    const model = buildTemplateChromeRenderModel(standardA3SheetTemplate)
+    const columns = model.headers.flatMap(header => header.columns).filter(column => column.label)
+
+    expect(columns.length).toBeGreaterThan(0)
+    expect(columns.every(column => column.dominantBaseline === 'alphabetic')).toBe(true)
+  })
+
   it('places even absolute frame numbers at the lower-right edge of paper ACTION rows', () => {
     const leftRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_action_grid')
     const rightRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'right_action_grid')

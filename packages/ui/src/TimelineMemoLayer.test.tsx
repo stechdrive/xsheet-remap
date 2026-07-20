@@ -352,12 +352,14 @@ describe('TimelineMemoLayer anchor cues', () => {
 
     const rendered = container.querySelector<SVGTextElement>('.timelineMemoText')
     expect(rendered?.querySelectorAll('tspan')).toHaveLength(2)
+    expect(rendered?.getAttribute('transform')).toBe(`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`)
     expect(rendered?.getAttribute('clip-path')).toBeNull()
     expect(container.querySelector('.timelineMemoTextLayer')?.getAttribute('clip-path')).toMatch(/^url\(#timeline-memo-clip-/)
     expect(container.querySelector('.timelineMemoTextViewport')).toBeNull()
     expect(container.querySelector('.timelineMemoLayer clipPath')).toBeTruthy()
     fireEvent.doubleClick(rendered as SVGTextElement)
-    const editor = getByLabelText('メモ文字')
+    const editor = getByLabelText('メモ文字') as HTMLTextAreaElement
+    expect(editor.wrap).toBe('soft')
     fireEvent.change(editor, { target: { value: '更新' } })
     fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true })
 
@@ -405,7 +407,7 @@ describe('TimelineMemoLayer anchor cues', () => {
     const rendered = container.querySelector<SVGTextElement>('[data-timeline-memo-text-id="text_1"]')!
     fireEvent.doubleClick(rendered)
     const editor = getByLabelText('メモ文字') as HTMLTextAreaElement
-    const committedDisplayPx = Number(rendered.getAttribute('font-size')) * pageSize.heightPx * 0.79
+    const committedDisplayPx = Number(rendered.getAttribute('font-size')) * 0.79
     expect(Number.parseFloat(editor.style.fontSize)).toBeCloseTo(committedDisplayPx, 5)
     expect(editor.classList.contains('timelineMemoTextEditor')).toBe(true)
   })

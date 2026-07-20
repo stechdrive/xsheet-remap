@@ -34,6 +34,7 @@ export type TemplateGridHeaderColumnRenderModel = {
   x: number
   y: number
   fontSizePx: number
+  dominantBaseline: 'alphabetic'
 }
 
 export type TemplateGridHeaderRenderModel = {
@@ -890,6 +891,7 @@ function buildTemplateGridHeaderRenderModel(
       x: column.x + column.w / 2,
       y: rect.y - columnBaselineOffset,
       fontSizePx: templateGridColumnFontSizePx(template),
+      dominantBaseline: 'alphabetic',
     })),
     columnHeaderRect: { x: rect.x, y: rect.y - columnHeight, w: rect.w, h: columnHeight },
     columnBoundaries: [

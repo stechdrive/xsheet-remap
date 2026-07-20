@@ -15,6 +15,7 @@ import {
 } from './timelineMemoGeometry'
 import { sheetCellCornerTrianglePoints } from './sheetCellCornerMarker'
 import { SheetTransformHandle } from './SheetTransformHandle'
+import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 
 type MemoInteraction = {
   pointerId: number
@@ -366,21 +367,22 @@ export function TimelineMemoLayer({
             <g className="timelineMemoTextLayer" data-memo-text-opacity={appearance.textOpacity} opacity={appearance.textOpacity} clipPath={`url(#${clipId})`}>
               {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
                 if (textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId) return null
-                const point = timelineMemoPointToPagePoint(segment, text)
+                const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, pageSize)
                 return <text
                   key={text.textId}
                   className="timelineMemoText"
                   data-timeline-memo-text-id={text.textId}
-                  x={point.x}
-                  y={point.y}
+                  x={layout.xPx}
+                  y={layout.yPx}
                   fill={appearance.text.color}
-                  fontSize={appearance.text.fontSizeUnits * segment.rowHeightY}
+                  fontSize={layout.fontSizePx}
+                  transform={`scale(${1 / Math.max(1, pageSize.widthPx)} ${1 / Math.max(1, pageSize.heightPx)})`}
                   dominantBaseline="hanging"
                   onDoubleClick={event => editText(event, memo, segment, text)}
-                >{text.text.split(/\r?\n/).map((line, index) => <tspan
+                >{layout.lines.map((line, index) => <tspan
                   key={`${text.textId}:${index}`}
-                  x={point.x}
-                  dy={index === 0 ? 0 : appearance.text.fontSizeUnits * segment.rowHeightY * 1.25}
+                  x={layout.xPx}
+                  dy={index === 0 ? 0 : layout.lineHeightPx}
                 >{line || '\u00a0'}</tspan>)}</text>
               })}
             </g>
@@ -408,7 +410,7 @@ export function TimelineMemoLayer({
                     color: textDraft.appearance.text.color,
                     opacity: textDraft.appearance.textOpacity,
                   }}
-                  wrap="off"
+                  wrap="soft"
                   spellCheck={false}
                   onChange={event => {
                     const text = event.currentTarget.value

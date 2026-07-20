@@ -1,7 +1,6 @@
 import {
   getSheetViewLayout,
   isRenderableSheetTemplateGridRegion,
-  memoAnchorPresentation,
   normalizeMemoAppearance,
   resolveSheetTemplateGridLayout,
   sheetAnnotationStrokes,
@@ -57,12 +56,12 @@ import {
 import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, textFontDeclaration } from './textMetrics'
 import {
   timelineMemoAnchorCellForPage,
-  timelineMemoAnchorConnectorPoints,
   timelineMemoAnchorMarkerRect,
   timelineMemoPointToPagePoint,
   timelineMemoSegmentsForPage,
   timelineMemoStrokePointsForSegment,
 } from './timelineMemoGeometry'
+import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -523,14 +522,17 @@ function drawTemplateGridHeaderLabels(
     ctx.textBaseline = label.dominantBaseline === 'hanging' ? 'top' : label.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
     ctx.fillText(label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx)
   }
+  ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   for (const header of chrome.headers) {
     if (header.label) {
+      ctx.textBaseline = 'middle'
       ctx.font = fontDeclaration(header.labelFontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.fillText(header.label, header.labelX * context.pageSize.widthPx, offsetY + header.labelY * context.pageSize.heightPx)
     }
     for (const column of header.columns) {
       if (!column.label) continue
+      ctx.textBaseline = column.dominantBaseline
       ctx.font = fontDeclaration(column.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.fillText(column.label, column.x * context.pageSize.widthPx, offsetY + column.y * context.pageSize.heightPx)
     }
@@ -1224,23 +1226,6 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
         ctx.lineWidth = 1
         roundedRectPath(ctx, markerX, markerY, markerW, markerH, Math.min(markerW, markerH) * 0.32)
         ctx.fill()
-        const firstSegment = segments[0]
-        if (firstSegment && memoAnchorPresentation(memo) === 'camera-connector') {
-          const connector = timelineMemoAnchorConnectorPoints(marker, firstSegment.rect, surface)
-          if (connector) {
-            drawNormalizedPolygon(
-              ctx,
-              connector.split(' ').map(point => {
-                const [x = 0, y = 0] = point.split(',').map(Number)
-                return { x, y }
-              }),
-              context.pageSize.widthPx,
-              context.pageSize.heightPx,
-              offsetY,
-              true,
-            )
-          }
-        }
       }
       for (const segment of segments) {
         ctx.save()
@@ -1347,17 +1332,17 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
         )
         ctx.clip()
         for (const text of texts) {
-          const lines = annotationTextLines(text.text)
-          if (lines.length === 0) continue
-          const point = timelineMemoPointToPagePoint(segment, text)
-          const fontSize = Math.max(1, appearance.text.fontSizeUnits * segment.rowHeightY * context.pageSize.heightPx)
-          const x = point.x * context.pageSize.widthPx
-          const y = offsetY + point.y * context.pageSize.heightPx
+          const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, context.pageSize)
+          if (layout.lines.length === 0) continue
           ctx.fillStyle = appearance.text.color
-          ctx.font = fontDeclaration(fontSize, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
+          ctx.font = fontDeclaration(layout.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
           ctx.textBaseline = 'top'
           ctx.textAlign = 'left'
-          lines.forEach((line, index) => ctx.fillText(line, x, y + index * fontSize * 1.25))
+          layout.lines.forEach((line, index) => ctx.fillText(
+            line,
+            layout.xPx,
+            offsetY + layout.yPx + index * layout.lineHeightPx,
+          ))
         }
         ctx.restore()
       }

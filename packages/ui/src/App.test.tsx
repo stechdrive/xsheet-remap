@@ -369,7 +369,9 @@ it('keeps CSP track order and names synchronized with the paper sheet', async ()
     enterTimingValue('1')
     clickTemplateFrame(sheet, 'action', 'B', 4)
     enterTimingValue('2')
-    expect(document.querySelectorAll('.eventRect')).toHaveLength(2)
+    expect(document.querySelectorAll('.eventRect')).toHaveLength(3)
+    expect(document.querySelectorAll('.eventBlankSymbol')).toHaveLength(1)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2'])
 
     await waitFor(() => {
       expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName')).map(label => label.textContent))

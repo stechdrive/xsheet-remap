@@ -816,6 +816,30 @@ it('creates independent keys in ACTION and CELL grid positions', () => {
     expect(document.querySelector('.cspTreeUnregisteredStage')).toBeNull()
   })
 
+it('adds and restores a leading blank atomically for the first later ACTION and CELL keys', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, 'action', 'A', 5)
+    enterTimingValue('1')
+    expect(document.querySelectorAll('.eventBlankSymbol')).toHaveLength(1)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1'])
+
+    clickTemplateFrame(sheet, 'cell', 'A', 8)
+    enterTimingValue('2')
+    expect(document.querySelectorAll('.eventBlankSymbol')).toHaveLength(2)
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2'])
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    await waitFor(() => expect(document.querySelectorAll('.eventBlankSymbol')).toHaveLength(1))
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1'])
+
+    fireEvent.keyDown(window, { key: 'Z', ctrlKey: true, shiftKey: true })
+    await waitFor(() => expect(document.querySelectorAll('.eventBlankSymbol')).toHaveLength(2))
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2'])
+  })
+
 it('groups CSP cells by column and keeps CSP top-to-bottom stacking order', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
@@ -1561,6 +1585,11 @@ it('ripples ACTION, CELL, SOUND, and CAMERA together from every frame-bearing co
     expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '6', frameEnd: '10' })
     expect(screen.getAllByText(/144F/).length).toBeGreaterThan(0)
 
+    fireEvent.keyDown(window, { key: 'Z', ctrlKey: true, shiftKey: true })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '9', frameEnd: '13' }))
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '6', frameEnd: '10' }))
     fireEvent.keyDown(window, { key: 'y', ctrlKey: true })
     await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '9', frameEnd: '13' }))
 

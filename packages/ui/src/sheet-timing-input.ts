@@ -49,24 +49,42 @@ export function setTimingValueAt(
     }
   }
 
-  const existingKeyId = project.logicalSheet.events.find(event =>
+  const projectWithLeadingBlank = ensureLeadingBlankBeforeFirstKey(project, hit.paperTrack, hit.frame, sheetRole)
+  const existingKeyId = projectWithLeadingBlank.logicalSheet.events.find(event =>
     event.paperTrack === hit.paperTrack
     && event.frame === hit.frame
     && sheetTimingRoleForEvent(event) === sheetRole,
   )?.keyId ?? null
-  const reusableKey = findTimingKeyByDisplayLabel(project, hit.paperTrack, value, sheetRole)
+  const reusableKey = findTimingKeyByDisplayLabel(projectWithLeadingBlank, hit.paperTrack, value, sheetRole)
   if (reusableKey && reusableKey.keyId !== existingKeyId) {
-    const withEvent = setEvent(project, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx })
+    const withEvent = setEvent(projectWithLeadingBlank, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx })
     return { project: registerTimingKey(withEvent, reusableKey.keyId, correctionLayerId), keyId: reusableKey.keyId }
   }
   if (existingKeyId && !isSpecialTimingKeyId(existingKeyId)) {
-    const updated = updateKey(project, existingKeyId, { displayLabel: value, paperToken: value })
+    const updated = updateKey(projectWithLeadingBlank, existingKeyId, { displayLabel: value, paperToken: value })
     return { project: registerTimingKey(updated, existingKeyId, correctionLayerId), keyId: existingKeyId }
   }
 
-  const created = createKey(project, hit.paperTrack, value, 'manual', value, sheetRole)
+  const created = createKey(projectWithLeadingBlank, hit.paperTrack, value, 'manual', value, sheetRole)
   const withEvent = setEvent(created.project, hit.paperTrack, hit.frame, created.key.keyId, sheetRole, { fontSizePx })
   return { project: registerTimingKey(withEvent, created.key.keyId, correctionLayerId), keyId: created.key.keyId }
+}
+
+function ensureLeadingBlankBeforeFirstKey(
+  project: CutProject,
+  paperTrack: string,
+  frame: number,
+  sheetRole: ReturnType<typeof sheetRoleForHit>,
+): CutProject {
+  const firstFrame = project.logicalSheet.frameOrigin
+  if (frame <= firstFrame) return project
+  const hasEarlierEvent = project.logicalSheet.events.some(event =>
+    event.paperTrack === paperTrack
+    && event.frame <= frame
+    && sheetTimingRoleForEvent(event) === sheetRole,
+  )
+  if (hasEarlierEvent) return project
+  return setTimingSpecialEvent(project, paperTrack, firstFrame, 'blank', sheetRole)
 }
 
 function registerTimingKey(project: CutProject, keyId: string, correctionLayerId: string): CutProject {

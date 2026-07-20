@@ -2154,7 +2154,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
-        handleUndo()
+        if (event.shiftKey) handleRedo(); else handleUndo()
         return
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {

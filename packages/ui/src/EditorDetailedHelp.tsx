@@ -68,7 +68,7 @@ const editorHelpChapters: HelpChapter[] = [
         items: [
           { term: '保持される編集内容', description: 'カット情報、タイミング、登録セル、素材対応、紙シート設定、注釈、テンプレート、兼用カット、シート履歴を一つのプロジェクトとして管理します。' },
           { term: '外部ファイルとの関係', description: 'デスクトップ版の画像素材は元ファイルの場所も参照します。元ファイルを移動したときは、書き出し前にカットフォルダと素材の状態を確認してください。' },
-          { term: '元に戻す／やり直し', description: '上部のボタンまたはCtrl+Z／Ctrl+Yで編集履歴を移動します。ファイル保存や確認ダイアログを伴う一部の外部操作は履歴の対象外です。' },
+          { term: '元に戻す／やり直し', description: '上部のボタンまたはCtrl+Z／Ctrl+Y／Ctrl+Shift+Zで編集履歴を移動します。ファイル保存や確認ダイアログを伴う一部の外部操作は履歴の対象外です。' },
         ],
       },
     ],
@@ -107,7 +107,7 @@ const editorHelpChapters: HelpChapter[] = [
       {
         title: 'セルへ入力する',
         items: [
-          { term: '選択と文字入力', description: 'ACTIONには原画番号や中割り指示、CELLには動画番号を入力してEnterで確定します。矢印キーで移動し、Shift＋矢印キーで選択範囲を広げられます。' },
+          { term: '選択と文字入力', description: 'ACTIONには原画番号や中割り指示、CELLには動画番号を入力してEnterで確定します。各セル列の最初のキーが1フレーム目より後ろに入力された場合は、先頭へカラセルを自動入力します。矢印キーで移動し、Shift＋矢印キーで選択範囲を広げられます。' },
           { term: '範囲選択', description: 'マスをドラッグして同じ欄内の範囲を選びます。列見出しのクリックまたは右クリックメニューでは、そのセル列全体を選べます。' },
           { term: 'キーの移動', description: '入力済みキーをAlt＋ドラッグすると、別のフレームまたは対応するセル列へ移動できます。タッチ操作では長押ししてからドラッグします。' },
           { term: 'ACTIONとCELLの共通列', description: 'ACTIONとCELLは同じ論理セル列を使うため、列名・順序・列数は常に一致します。セル列を追加、名前変更、削除すると両欄へ同時に反映されます。' },
@@ -341,7 +341,7 @@ const editorHelpChapters: HelpChapter[] = [
       {
         title: '主なキーボード操作',
         items: [
-          { term: 'Ctrl+Z／Ctrl+Y', description: '元に戻す／やり直し。タイミング入力のほか、CSPレイヤー構成での追加、並び替え、名前変更、削除にも使えます。' },
+          { term: 'Ctrl+Z／Ctrl+Y／Ctrl+Shift+Z', description: '元に戻す／やり直し。Ctrl+YとCtrl+Shift+Zはどちらもやり直しです。タイミング入力のほか、CSPレイヤー構成での追加、並び替え、名前変更、削除にも使えます。' },
           { term: 'Ctrl+C／Ctrl+X／Ctrl+V', description: '選択範囲または選択テキスト注釈をコピー／切り取り／上書き貼り付け。Ctrl+Shift+Vはタイミングのリピート貼り付け。' },
           { term: '矢印／Shift+矢印', description: '選択セルの移動／範囲の拡張。' },
           { term: 'Enter／F2', description: 'タイミング入力の確定、または選択したテキスト注釈や指示の編集開始。ダイアログやテキスト入力ではCtrl+Enterが確定に使われます。' },

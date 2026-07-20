@@ -4,7 +4,7 @@ export const DEFAULT_MEMO_APPEARANCE: Readonly<MemoAppearance> = Object.freeze({
   inkOpacity: 1,
   textOpacity: 1,
   text: Object.freeze({
-    color: '#d52b2b',
+    color: '#000000',
     fontSizeUnits: 1,
   }),
   background: Object.freeze({

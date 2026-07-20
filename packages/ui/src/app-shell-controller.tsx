@@ -32,7 +32,7 @@ import { paperTrackOrderForRole, stampAuxiliaryPlacementTemplate, templatePaperT
 import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen, updateNativeStackGuidePreviewIfOpen } from './app-registered-cells';
 import { setTimingValueAt } from './sheet-timing-input';
 import { calibrationCornersForTemplate, calibrationCornersFromPoints, imageExportFilterName, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
-import { useAppShellState } from './app-shell-state'
+import { DEFAULT_PEN_COLOR, DEFAULT_PEN_WIDTH, useAppShellState } from './app-shell-state'
 import { isAssetBrowserNativeDropTarget, nativeCspDropTarget } from './nativeFileDropTargets'
 import { deleteRegisteredCellKey } from './stack-guides-paper-track'
 import { createAppTimedRangeControllers } from './app-timed-range-controllers'
@@ -1827,8 +1827,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setShowTemplate(true)
     setShowTemplateGuides(true)
     setShowAnnotations(true)
-    setPenColor('#d52b2b')
-    setPenWidth(0.004)
+    setPenColor(DEFAULT_PEN_COLOR)
+    setPenWidth(DEFAULT_PEN_WIDTH)
     setEraserWidth(0.018)
     setTextFontSizePx(defaultTimingTextFontSizePx(preset.sheetTemplate, 'cell'))
     clearSelectionState()

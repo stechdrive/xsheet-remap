@@ -315,6 +315,46 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(source.strokes[0]?.points.at(-1)?.x).toBe(7)
   })
 
+  it('starts new anchored memo text with the default black pen color', () => {
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const source = memo('memo_1')
+    const onUpsertText = vi.fn()
+    const { getByLabelText } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[source]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
+          selectedMemoId={source.memoId}
+          editMode="text"
+          penColor="#000000"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          textFontSizePx={18}
+          onAppendStroke={vi.fn()}
+          onEraseStroke={vi.fn()}
+          onUpsertText={onUpsertText}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+
+    const editor = getByLabelText('メモ文字') as HTMLTextAreaElement
+    expect(editor.style.color).toBe('rgb(0, 0, 0)')
+    fireEvent.change(editor, { target: { value: '黒いメモ' } })
+    fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true })
+
+    expect(onUpsertText).toHaveBeenCalledWith(
+      source.memoId,
+      expect.objectContaining({ text: '黒いメモ' }),
+      expect.objectContaining({ text: expect.objectContaining({ color: '#000000' }) }),
+    )
+  })
+
   it('renders and edits text inside the selected anchored memo', () => {
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)

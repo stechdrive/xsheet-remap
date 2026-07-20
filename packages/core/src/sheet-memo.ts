@@ -9,7 +9,7 @@ import type {
   SheetPageMemoTarget,
   TimelineInkMemo,
 } from './types'
-import { normalizeMemoAppearance } from './memo-appearance'
+import { DEFAULT_MEMO_APPEARANCE, normalizeMemoAppearance } from './memo-appearance'
 
 export function isSheetPageMemo(memo: SheetMemo): memo is SheetPageMemo {
   return memo.kind === 'page'
@@ -111,7 +111,7 @@ export function normalizeSheetMemos(input: unknown): SheetMemo[] {
         : legacyText
           ? normalizeMemoAppearance({
               text: {
-                color: legacyText.color ?? '#d52b2b',
+                color: legacyText.color ?? DEFAULT_MEMO_APPEARANCE.text.color,
                 fontSizeUnits: legacyText.fontSizeUnits ?? 1,
               },
             })

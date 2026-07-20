@@ -132,7 +132,7 @@ describe('timeline memos', () => {
     expect(normalizeMemoAppearance(timelineMemos(source)[0]?.appearance)).toMatchObject({
       inkOpacity: 1,
       textOpacity: 1,
-      text: { color: '#d52b2b', fontSizeUnits: 1 },
+      text: { color: '#000000', fontSizeUnits: 1 },
       background: { enabled: false },
     })
     expect(timelineMemos(updated)[0]?.appearance).toEqual({

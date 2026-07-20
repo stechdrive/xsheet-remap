@@ -47,7 +47,7 @@ import { openCspImportExportDirectory, saveCspImportExportPlan } from './app-csp
 import { useCspImportExportPlan } from './useCspImportExportPlan'
 import { createPreferredProject, rememberSheetTemplatePreset } from './mainAppPreferences'
 import { createAppTimelineLaneActions } from './app-timeline-lane-actions'
-import { updateDialogueAudioCutStateInDocument, type DialogueAudioCutState } from './dialogueAudioProject'
+import { createAppDialogueAudioActions } from './app-dialogue-audio-actions'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
@@ -128,6 +128,16 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const sheetPages = useMemo(() => createSheetPages(template, sheetDisplayDurationFrames, sheetDisplayFrameStart), [template, sheetDisplayDurationFrames, sheetDisplayFrameStart])
   const rangeSelection = sheetSelection.kind === 'range' ? sheetSelection.range : null
   const selectedTimedRangeCueId = sheetSelection.kind === 'cue' ? sheetSelection.cueId : null
+  const dialogueAudioActions = createAppDialogueAudioActions({
+    projectRef, template, revisionId: activeSheetRevision.revisionId,
+    frameMin: sheetDisplayFrameStart, frameMax: sheetDisplayFrameEnd,
+    setProjectDocument, setSoundCueDialog, commitProject,
+  })
+  const {
+    handleCutStateChange: handleDialogueAudioCutStateChange,
+    openSoundCueEditorForAudioCandidate,
+    handleTransformSoundCues,
+  } = dialogueAudioActions
   const {
     selectedTimedRangeCue, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue,
     soundCueController, cameraCueController,
@@ -141,6 +151,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     clearSelection: clearSelectionState, selectRange: setSelectionFromRange,
     setSelectedTextAnnotationId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive,
     setSoundClipboard: setSoundCueClipboard, setSoundDialog: setSoundCueDialog, setSoundLabelHistory,
+    soundDialog: soundCueDialog, onAudioCandidateLinked: dialogueAudioActions.handleCandidateLinked,
     setCameraClipboard: setCameraCueClipboard, setCameraDialog: setCameraCueDialog,
     setCameraInstructionHistory, setCameraPointLabelHistory,
   })
@@ -830,15 +841,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     } else {
       clearSelectionState()
     }
-  }
-
-  function handleDialogueAudioCutStateChange(cutState: DialogueAudioCutState) {
-    setProjectDocument(current => updateDialogueAudioCutStateInDocument(
-      updateActiveCutProjectInDocument(current, projectRef.current, { sheetTemplate: template }),
-      projectDocumentSnapshot.activeCutId,
-      cutState,
-      project.logicalSheet.frameOrigin,
-    ))
   }
 
   function setSelectionToFrameSpan(sourceProject: CutProject, role: SheetTimingRole, paperTracks: string[], frameStart: number, spanFrames: number) {
@@ -2274,7 +2276,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
+    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, handleTransformSoundCues, openSoundCueEditorForAudioCandidate,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,

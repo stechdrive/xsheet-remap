@@ -299,15 +299,59 @@
   pointer-events: none;
 }
 
-.dialogueSpeechRange {
+.dialogueSpeechCandidate {
   position: absolute;
   z-index: 2;
   top: 4px;
   bottom: 4px;
+  height: auto !important;
   min-width: 2px;
-  border: 1px solid rgb(157 230 180 / 0.86);
-  border-radius: 2px;
-  background: rgb(93 187 124 / 0.16);
+  overflow: hidden;
+  padding: 0 3px !important;
+  border: 1px dashed rgb(157 230 180 / 0.92) !important;
+  border-radius: 2px !important;
+  background: rgb(93 187 124 / 0.18) !important;
+  color: #d9f7e2 !important;
+  cursor: pointer;
+  font-size: 9px !important;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialogueSpeechCandidate.is-linked {
+  border-style: solid !important;
+  border-color: #efbd64 !important;
+  background: rgb(164 105 27 / 0.5) !important;
+  color: #fff0cf !important;
+}
+
+.dialogueSpeechCandidate.is-ignored {
+  border-color: rgb(160 170 165 / 0.34) !important;
+  background: rgb(70 77 73 / 0.24) !important;
+  color: #7c8882 !important;
+}
+
+.dialogueSpeechCandidate.is-review,
+.dialogueSpeechCandidate.is-mismatch {
+  border-style: solid !important;
+  border-color: #ff8f74 !important;
+  background: rgb(159 63 45 / 0.34) !important;
+  color: #ffd5ca !important;
+}
+
+.dialogueSpeechCandidate.isSelected {
+  box-shadow: 0 0 0 2px rgb(185 236 204 / 0.52);
+}
+
+.dialogueAudioSelection {
+  position: absolute;
+  z-index: 3;
+  top: 1px;
+  bottom: 1px;
+  min-width: 2px;
+  border: 1px solid rgb(131 192 255 / 0.95);
+  background: rgb(73 144 217 / 0.2);
   pointer-events: none;
 }
 
@@ -338,6 +382,24 @@
   color: #b9c9c0;
   font-size: 10px;
   text-overflow: ellipsis;
+}
+
+.dialogueAudioSelectionSummary {
+  min-width: 100px;
+  color: #d7e8df;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dialogueAudioFrameCount {
+  width: 48px;
+  padding: 2px 4px;
+  border: 1px solid #657169;
+  border-radius: 3px;
+  background: #1f2824;
+  color: #f2f5f3;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .audioSheetPlayhead {

@@ -128,6 +128,11 @@ export interface SoundCueDialogState {
   laneId: string
   frameStart: number
   frameEnd: number
+  audioCandidate?: {
+    trackId: string
+    candidateId: string
+    revisionId: string
+  }
 }
 
 export interface CameraCueDialogState {

@@ -39,6 +39,8 @@ interface SoundCueControllerOptions {
   setClipboard: Dispatch<SetStateAction<SoundCueClipboard | null>>
   setDialog: Dispatch<SetStateAction<SoundCueDialogState | null>>
   setLabelHistory: Dispatch<SetStateAction<string[]>>
+  dialog: SoundCueDialogState | null
+  onAudioCandidateLinked?: (candidate: NonNullable<SoundCueDialogState['audioCandidate']>, cueId: string) => void
 }
 
 export function createSoundCueController(options: SoundCueControllerOptions) {
@@ -97,6 +99,7 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
       })
       options.commitProject(created.project)
       options.setSheetSelection({ kind: 'cue', cueId: created.cue.cueId })
+      if (options.dialog?.audioCandidate) options.onAudioCandidateLinked?.(options.dialog.audioCandidate, created.cue.cueId)
     }
     options.setLabelHistory(current => recordSoundLabelHistory(current, input.label))
     options.setDialog(null)

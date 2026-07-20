@@ -45,7 +45,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
+    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, handleTransformSoundCues, openSoundCueEditorForAudioCandidate,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
@@ -450,12 +450,16 @@ export function AppShellView({ controller }: { controller: AppController }) {
                 fps={project.logicalSheet.fps}
                 frameOrigin={project.logicalSheet.frameOrigin}
                 durationFrames={project.logicalSheet.durationFrames}
+                activeRevisionId={activeSheetRevision.revisionId}
                 soundCues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
                 selectedSoundCueId={selectedSoundCueId}
                 onCutStateChange={handleDialogueAudioCutStateChange}
                 onPlayheadChange={handleAudioPlayheadChange}
                 onSoundCueSelect={handleSoundCueSelect}
+                onSoundCueEdit={openSoundCueEditor}
                 onSoundCueTransform={handleTransformSoundCue}
+                onSoundCuesTransform={handleTransformSoundCues}
+                onSoundCandidateEdit={openSoundCueEditorForAudioCandidate}
               />
             )}
           </div>

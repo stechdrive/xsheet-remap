@@ -87,13 +87,21 @@ describe('project archive codec', () => {
     const source = createDefaultProjectDocument()
     source.extensions = {
       'xsheet-remap.dialogue-audio': {
-        schemaVersion: 1,
-        data: { cuts: { [source.activeCutId]: { tracks: [{ audioDataUrl: embeddedAudio }] } } },
+        schemaVersion: 2,
+        data: { cuts: { [source.activeCutId]: {
+          assets: [{ assetId: 'dialogue-asset-1', audioDataUrl: embeddedAudio, durationFrames: 24, waveform: [0.1, 0.8] }],
+          tracks: [{ clips: [
+            { clipId: 'clip-1', assetId: 'dialogue-asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 12 },
+            { clipId: 'clip-2', assetId: 'dialogue-asset-1', timelineStartFrame: 20, sourceOffsetFrames: 12, durationFrames: 12 },
+          ] }],
+        } } },
       },
     }
     const bytes = await encodeProjectArchive(source)
     const entries = unzipSync(bytes)
     expect(strFromU8(entries['project.json']!)).not.toContain('data:audio/wav')
+    const manifest = JSON.parse(strFromU8(entries['manifest.json']!)) as { blobs: Array<{ mediaType: string }> }
+    expect(manifest.blobs.filter(blob => blob.mediaType === 'audio/wav')).toHaveLength(1)
     const restored = await decodeProjectFileBytes(bytes)
     expect(JSON.stringify(restored.document.extensions)).toContain(embeddedAudio)
   })

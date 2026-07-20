@@ -55,7 +55,7 @@ export function buildNameNormalizationPlan(project: CutProject, options: NameNor
     .sort(compareNameNormalizationPlanItems)
   const assetRenames = options.includeAssetFiles ? buildAssetRenamePlan(project, items, sheetRole) : []
   const warnings = [
-    ...(items.length === 0 ? ['対象に正規化できるCSPセル名がありません。'] : []),
+    ...(items.length === 0 ? ['リネームできるクリスタ用セル名がありません。'] : []),
     ...assetRenames.flatMap(rename => rename.warnings.map(warning => `${rename.currentFileName}: ${warning}`)),
   ]
   return { options, items, assetRenames, warnings }
@@ -593,7 +593,7 @@ function buildAssetRenamePlan(project: CutProject, items: NameNormalizationPlanI
       const requestedNames = Array.from(new Set(assetItems.map(item => item.nextCspCellName))).sort(compareNaturalText)
       const warnings = [
         ...(currentPath ? [] : ['実ファイルパスがないためリネームできません。']),
-        ...(requestedNames.length > 1 ? [`同一素材に複数のCSPセル名候補があります: ${requestedNames.join(', ')}`] : []),
+        ...(requestedNames.length > 1 ? [`同じ素材に複数の変更後セル名があります: ${requestedNames.join(', ')}`] : []),
       ]
       const changed = currentFileName !== nextFileName
       return [{

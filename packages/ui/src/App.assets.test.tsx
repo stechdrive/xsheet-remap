@@ -584,7 +584,8 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     const stackGuideCard = Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
       .find(label => label.textContent === 'BOOK2,3')?.closest<HTMLElement>('.cspTreeTrack')
     if (!stackGuideCard) throw new Error('stack guide track not found')
-    expect(stackGuideCard.textContent).toContain('BOOK2_3.png')
+    expect(stackGuideCard.textContent).not.toContain('BOOK2_3.png')
+    expect(stackGuideCard.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: BOOK2_3.png')
     expect(stackGuideCard.closest('.cspTreeLayer')?.querySelector(':scope > summary')?.textContent).toBe('作画')
 
     const cellTarget = templateStackGuideHeaderPoint('cell', 4)
@@ -649,7 +650,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     else Reflect.deleteProperty(document, 'elementFromPoint')
     await waitFor(() => {
       expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
-        .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
+        .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')
+        ?.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: BOOK_CUT.png')
     })
 
     const firstCutLabel = Array.from(document.querySelectorAll('.stackGuideLabel')).find(label => label.textContent === 'BOOK-CUT')
@@ -657,7 +659,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     dragInternalPointer(getAssetCardByName('BOOK_CUT.png'), firstCutLabel)
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')?.textContent).toBe('BOOK-CUT'))
     expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
-      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
+      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')
+      ?.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: BOOK_CUT.png')
 
     const sharedCutMenu = openSharedCutMenu()
     const addCutButton = within(sharedCutMenu).getByRole('button', { name: uiText.sheet.addSharedCutTitle })
@@ -671,7 +674,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
       expect(select?.selectedOptions[0]?.textContent?.trim()).toBe('002')
     })
     expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
-      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
+      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')
+      ?.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: BOOK_CUT.png')
 
     const connectorBeforeDrag = stackGuideConnectorPath('BOOK-CUT')
     dragStackGuideSvgLabel('BOOK-CUT', 'cell', 4, () => {
@@ -688,7 +692,8 @@ it('keeps shared stack guide registrations while storing placement per shared cu
     await waitFor(() => expect(document.querySelector('.stackGuideLabel[data-stack-guide-role="cell"]')?.textContent).toBe('BOOK-CUT'))
     expect(Array.from(document.querySelectorAll('.stackGuideLabel[data-stack-guide-role="action"]')).some(label => label.textContent === 'BOOK-CUT')).toBe(false)
     expect(Array.from(document.querySelectorAll<HTMLElement>('.cspTreeTrackName'))
-      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')?.textContent).toContain('BOOK_CUT.png')
+      .find(label => label.textContent === 'BOOK-CUT')?.closest('.cspTreeTrack')
+      ?.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: BOOK_CUT.png')
   })
 
 it('sorts image assets by natural filename order', async () => {

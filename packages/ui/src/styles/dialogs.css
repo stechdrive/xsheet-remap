@@ -846,6 +846,19 @@
   border-bottom: 0;
 }
 
+.nameNormalizationBody {
+  min-height: 0;
+  overflow: auto;
+}
+
+.nameNormalizationDescription {
+  margin: 0;
+  padding: 10px 12px 2px;
+  color: #3f4c44;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .nameNormalizationControls {
   display: flex;
   flex-wrap: wrap;
@@ -861,8 +874,17 @@
   white-space: nowrap;
 }
 
-.nameNormalizationCheckbox {
-  padding-top: 18px;
+.nameNormalizationFileOption {
+  display: grid;
+  gap: 2px;
+  min-width: 280px;
+}
+
+.nameNormalizationFileOption small {
+  color: #5d6861;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .nameNormalizationSummary {
@@ -899,12 +921,12 @@
 
 .nameNormalizationTableWrap {
   min-height: 0;
-  overflow: auto;
   border-top: 1px solid #d4d8d0;
 }
 
 .nameNormalizationTable {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
   font-size: 12px;
 }
@@ -929,6 +951,43 @@
   top: 0;
   background: #ecefeb;
   color: #303933;
+}
+
+.nameNormalizationTargetCell {
+  line-height: 1.3;
+}
+
+.nameNormalizationTargetCell strong,
+.nameNormalizationTargetCell span {
+  display: block;
+}
+
+.nameNormalizationTargetCell span {
+  color: #637068;
+  font-size: 11px;
+}
+
+.nameNormalizationChange {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 100%;
+}
+
+.nameNormalizationChange > span:first-child {
+  color: #657169;
+}
+
+.nameNormalizationArrow {
+  color: #879188;
+}
+
+.nameNormalizationChange strong {
+  color: #173e2a;
+}
+
+.nameNormalizationUnchanged {
+  color: #657169;
 }
 
 .assetQuickPreviewHeader {

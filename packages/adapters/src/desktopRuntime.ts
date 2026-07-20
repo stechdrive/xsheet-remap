@@ -20,6 +20,12 @@ export interface NativeWindowBounds {
   y?: number
 }
 
+export interface NativeWindowState {
+  width: number
+  height: number
+  maximized: boolean
+}
+
 export interface NativeWindowLayout {
   width: number
   height: number
@@ -27,6 +33,8 @@ export interface NativeWindowLayout {
   minHeight: number
   position?: Pick<NativeWindowBounds, 'x' | 'y'>
   physicalSize?: boolean
+  center?: boolean
+  maximized?: boolean
 }
 
 export async function invokeDesktopCommand<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -86,9 +94,10 @@ export async function configureCurrentNativeWindow(layout: NativeWindowLayout): 
     : new LogicalSize(layout.width, layout.height))
   if (typeof layout.position?.x === 'number' && typeof layout.position.y === 'number') {
     await currentWindow.setPosition(new PhysicalPosition(layout.position.x, layout.position.y))
-  } else {
+  } else if (layout.center !== false) {
     await currentWindow.center()
   }
+  if (layout.maximized) await currentWindow.maximize()
   await currentWindow.show()
 }
 
@@ -104,6 +113,21 @@ export async function currentNativeWindowBounds(): Promise<NativeWindowBounds> {
   }
 }
 
+export async function currentNativeWindowState(): Promise<NativeWindowState> {
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  const currentWindow = getCurrentWindow()
+  const [size, scaleFactor, maximized] = await Promise.all([
+    currentWindow.innerSize(),
+    currentWindow.scaleFactor(),
+    currentWindow.isMaximized(),
+  ])
+  return {
+    width: Math.round(size.width / Math.max(Number.EPSILON, scaleFactor)),
+    height: Math.round(size.height / Math.max(Number.EPSILON, scaleFactor)),
+    maximized,
+  }
+}
+
 export async function watchCurrentNativeWindowBounds(handler: () => void): Promise<() => void> {
   const { getCurrentWindow } = await import('@tauri-apps/api/window')
   const currentWindow = getCurrentWindow()
@@ -112,6 +136,11 @@ export async function watchCurrentNativeWindowBounds(handler: () => void): Promi
     currentWindow.onMoved(handler),
   ])
   return () => unlisteners.forEach(unlisten => unlisten())
+}
+
+export async function watchCurrentNativeWindowSize(handler: () => void): Promise<() => void> {
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  return getCurrentWindow().onResized(handler)
 }
 
 export async function closeCurrentNativeWindow(): Promise<void> {

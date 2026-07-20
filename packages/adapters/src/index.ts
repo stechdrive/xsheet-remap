@@ -24,16 +24,19 @@ export {
   closeCurrentNativeWindow,
   configureCurrentNativeWindow,
   currentNativeWindowBounds,
+  currentNativeWindowState,
   invokeDesktopCommand,
   listenDesktopEvent,
   nativeFileSource,
   subscribeNativeDragDrop,
   watchCurrentNativeWindowBounds,
+  watchCurrentNativeWindowSize,
   type NativeDragDropPayload,
   type NativeDragDropSource,
   type NativeDropPosition,
   type NativeWindowBounds,
   type NativeWindowLayout,
+  type NativeWindowState,
 } from './desktopRuntime'
 
 export interface AssetRootCandidate {

@@ -651,11 +651,6 @@ export function CspLayerTree({
           />
         ) : <span className="cspTreeCelName">{cel.cspCellName}</span>}
         {showSheetLabel && <span className="cspTreeSheetLabel">シート: {cel.displayLabel}</span>}
-        {asset && !cel.keyId && (
-          <TooltipTarget label={asset.displayName}>
-            {tooltipProps => <span className="cspTreeSheetLabel" {...tooltipProps}>{asset.displayName}</span>}
-          </TooltipTarget>
-        )}
         <TooltipTarget label={asset ? `素材: ${asset.displayName}` : '素材未割当'}>
           {tooltipProps => (
             <span
@@ -1037,11 +1032,9 @@ export function CspLayerTree({
         })}
       </div>
       <footer className="cspLayerTreeFooter" aria-label="CSPレイヤー操作">
-        <Tooltip label="一括リネーム">
-          <button type="button" className="cspTreeNormalizeButton" aria-label="名前を正規化" onClick={onOpenNameNormalization}>
-            <NormalizeIcon />
-          </button>
-        </Tooltip>
+        <button type="button" className="cspTreeNormalizeButton" onClick={onOpenNameNormalization}>
+          一括リネーム
+        </button>
         <ActionMenu
           label={<PlusIcon />}
           ariaLabel="CSPレイヤー項目を追加"
@@ -1101,19 +1094,6 @@ function PlusIcon() {
     <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
-    </svg>
-  )
-}
-
-function NormalizeIcon() {
-  return (
-    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 6h9" />
-      <path d="M4 12h7" />
-      <path d="M4 18h9" />
-      <path d="m16 8 3-3 3 3" />
-      <path d="M19 5v14" />
-      <path d="m16 16 3 3 3-3" />
     </svg>
   )
 }

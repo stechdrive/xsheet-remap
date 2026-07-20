@@ -237,6 +237,8 @@ $encodedRustFlagSeparator = [string][char]0x1f
 $existingEncodedRustFlags = $env:CARGO_ENCODED_RUSTFLAGS
 $existingCargoTargetDir = $env:CARGO_TARGET_DIR
 $existingCargoBuildJobs = $env:CARGO_BUILD_JOBS
+$existingViteBuildChannel = $env:VITE_XSHEET_BUILD_CHANNEL
+$existingViteBuildSession = $env:VITE_XSHEET_BUILD_SESSION
 $env:CARGO_TARGET_DIR = $cargoTargetRoot
 if ([string]::IsNullOrWhiteSpace($existingCargoBuildJobs)) {
   $env:CARGO_BUILD_JOBS = [string][math]::Max(1, [math]::Min(8, [Environment]::ProcessorCount))
@@ -277,6 +279,9 @@ try {
 
   Stop-RepositoryExecutables -Apps $selectedApps
   $buildSessionId = [guid]::NewGuid().ToString("N")
+  $env:VITE_XSHEET_BUILD_CHANNEL = if ($isDevelopment) { "development" } else { "release" }
+  $env:VITE_XSHEET_BUILD_SESSION = $buildSessionId
+  Write-Host "[desktop-build] frontend channel=$($env:VITE_XSHEET_BUILD_CHANNEL) session=$buildSessionId"
 
   foreach ($app in $selectedApps) {
     Write-Host "[desktop-build] building $($app.Name)"
@@ -329,6 +334,8 @@ try {
   $env:CARGO_ENCODED_RUSTFLAGS = $existingEncodedRustFlags
   $env:CARGO_TARGET_DIR = $existingCargoTargetDir
   $env:CARGO_BUILD_JOBS = $existingCargoBuildJobs
+  $env:VITE_XSHEET_BUILD_CHANNEL = $existingViteBuildChannel
+  $env:VITE_XSHEET_BUILD_SESSION = $existingViteBuildSession
   if ($buildLock) {
     $buildLock.Dispose()
   }

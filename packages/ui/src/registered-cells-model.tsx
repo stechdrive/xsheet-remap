@@ -90,15 +90,8 @@ function sortedThumbnailRows(project: CutProject, rows: RegisteredCellThumbnailR
   )
 }
 
-export function defaultNameNormalizationTarget(
-  project: CutProject,
-  selectedKeyId: string | null,
-  selectedHit: SheetHit | null,
-  rangeSelection: SheetRangeSelection | null,
-): NameNormalizationTarget {
-  if (selectedKeyId && project.logicalSheet.keys.some(key => key.keyId === selectedKeyId)) return 'selected-key'
-  if (normalizationColumnTarget(selectedHit, rangeSelection)) return 'selected-column'
-  return 'cell'
+export function defaultNameNormalizationTarget(): NameNormalizationTarget {
+  return 'action'
 }
 
 export function nameNormalizationTargetOptions(
@@ -108,10 +101,10 @@ export function nameNormalizationTargetOptions(
   rangeSelection: SheetRangeSelection | null,
 ) {
   return [
+    { value: 'action' as const, label: uiText.nameNormalization.targets.action },
+    { value: 'cell' as const, label: uiText.nameNormalization.targets.cell },
     { value: 'selected-key' as const, label: uiText.nameNormalization.targets.selectedKey, disabled: !selectedKeyId || !project.logicalSheet.keys.some(key => key.keyId === selectedKeyId) },
     { value: 'selected-column' as const, label: uiText.nameNormalization.targets.selectedColumn, disabled: !normalizationColumnTarget(selectedHit, rangeSelection) },
-    { value: 'cell' as const, label: uiText.nameNormalization.targets.cell },
-    { value: 'action' as const, label: uiText.nameNormalization.targets.action },
   ]
 }
 

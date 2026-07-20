@@ -158,6 +158,10 @@
   padding: 8px;
 }
 
+.sheetDockLeft > .dockBody {
+  overflow: hidden;
+}
+
 .sheetDock .keyList,
 .sheetDock .assetTray {
   height: 100%;

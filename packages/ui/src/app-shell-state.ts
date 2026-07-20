@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
-  commitHistory, createDefaultProject, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId,
-  standardA3SheetTemplate, type AnnotationText, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
+  commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId,
+  type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
 import type { CameraCueClipboard, CameraCueDialogState, EditMode, ExportOperationNotice, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingExportDialogState, XdtsImportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
+import type { MainAppKind } from './app-foundation'
 import { loadSoundLabelHistory, saveSoundLabelHistory } from './soundCueEditing'
 import {
   loadCameraInstructionHistory,
@@ -15,6 +16,7 @@ import {
   saveCameraInstructionHistory,
   saveCameraPointLabelHistory,
 } from './cameraCueEditing'
+import { createPreferredProject } from './mainAppPreferences'
 
 interface WorkspaceHistorySnapshot {
   project: CutProject
@@ -27,12 +29,13 @@ interface WorkspaceHistory {
   future: WorkspaceHistorySnapshot[]
 }
 
-export function useAppShellState() {
+export function useAppShellState(appKind: MainAppKind) {
+  const [initialWorkspace] = useState(() => createInitialWorkspace(appKind))
   const [workspaceHistory, setWorkspaceHistory] = useState<WorkspaceHistory>(() => {
-    const projectHistory = createProjectHistory(createDefaultProject())
+    const projectHistory = createProjectHistory(initialWorkspace.project)
     return {
       past: [],
-      present: { project: projectHistory.present, template: standardA3SheetTemplate },
+      present: { project: projectHistory.present, template: initialWorkspace.template },
       future: [],
     }
   })
@@ -65,8 +68,8 @@ export function useAppShellState() {
       }
     })
   }, [])
-  const [projectDocument, setProjectDocument] = useState(() => createProjectDocumentFromCutProject(createDefaultProject()))
-  const [savedProjectDocumentSignature, setSavedProjectDocumentSignature] = useState(() => JSON.stringify(createProjectDocumentFromCutProject(createDefaultProject())))
+  const [projectDocument, setProjectDocument] = useState(() => initialWorkspace.document)
+  const [savedProjectDocumentSignature, setSavedProjectDocumentSignature] = useState(() => JSON.stringify(initialWorkspace.document))
   const [projectFilePath, setProjectFilePath] = useState<string | null>(null)
   const paperSheetInputRef = useRef<HTMLInputElement | null>(null)
   const project = workspaceHistory.present.project
@@ -121,7 +124,7 @@ export function useAppShellState() {
   const [xdtsImportDialog, setXdtsImportDialog] = useState<XdtsImportDialogState | null>(null)
   const [frameOperationDialog, setFrameOperationDialog] = useState<FrameOperationDialogState | null>(null)
   const [assetDropMenu, setAssetDropMenu] = useState<AssetDropMenuState | null>(null)
-  const [activeCorrectionLayerIdState, setActiveCorrectionLayerIdState] = useState(() => defaultCorrectionLayerId(createDefaultProject()) ?? '')
+  const [activeCorrectionLayerIdState, setActiveCorrectionLayerIdState] = useState(() => defaultCorrectionLayerId(initialWorkspace.project) ?? '')
   const nativeFileDropHandlerRef = useRef<(paths: string[], position: { x: number; y: number }) => void>(() => undefined)
   const nativeDragDropPayloadHandlerRef = useRef<(payload: NativeDragDropPayload, source: string) => void>(() => undefined)
   const nativeFileDropDedupeRef = useRef<{ signature: string; timestamp: number } | null>(null)
@@ -149,6 +152,19 @@ export function useAppShellState() {
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
+  }
+}
+
+function createInitialWorkspace(appKind: MainAppKind): {
+  project: CutProject
+  template: SheetTemplate
+  document: CutGroupProjectDocument
+} {
+  const { project, preset } = createPreferredProject(appKind)
+  return {
+    project,
+    template: preset.sheetTemplate,
+    document: createProjectDocumentFromCutProject(project, { sheetTemplate: preset.sheetTemplate }),
   }
 }
 

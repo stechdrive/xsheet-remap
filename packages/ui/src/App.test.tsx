@@ -5,6 +5,7 @@ import { encodeProjectArchive, XSR_PROJECT_FILE_ACCEPT, XSR_PROJECT_MIME_TYPE } 
 import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
+import { rememberSheetTemplatePreset } from './mainAppPreferences';
 import { ASSET_DRAG_MIME } from './sheetConstants';
 import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openDisplaySettingsMenu, openPaperSheetMenu, openSharedCutMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, selectCspCorrectionLayer, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
@@ -334,7 +335,12 @@ it('registers a sheet-first key at the active CSP destination and assigns a mate
 
     fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))
     expect(screen.getByRole('dialog', { name: uiText.nameNormalization.title })).toBeTruthy()
-    expect((screen.getByLabelText(uiText.nameNormalization.process) as HTMLSelectElement).value).toBe('layer_enshutsu')
+    expect((screen.getByLabelText(uiText.nameNormalization.target) as HTMLSelectElement).value).toBe('action')
+    expect((screen.getByLabelText(uiText.nameNormalization.process) as HTMLSelectElement).value).toBe('')
+    expect((screen.getByLabelText(uiText.nameNormalization.includeAssetFiles) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByText(uiText.nameNormalization.description)).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: uiText.nameNormalization.headers.cspName })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: uiText.nameNormalization.headers.assetFileName })).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: uiText.nameNormalization.cancel })[0])
   })
 
@@ -399,6 +405,16 @@ it('starts the editor with optional work panes collapsed and can reopen them', (
     expect(document.querySelectorAll('.sheetPaneEdgeToggle')).toHaveLength(0)
     expect(document.querySelectorAll('.panelResizeRail')).toHaveLength(2)
     expect(document.querySelectorAll('.panelResizeRail > .panelResizeToggle')).toHaveLength(2)
+  })
+
+it('starts from the remembered template preset for each application', () => {
+    rememberSheetTemplatePreset('editor', 'digital-standard')
+
+    render(<EditorApp />)
+    const displayMenu = openDisplaySettingsMenu()
+
+    expect(within(displayMenu).getByRole('button', { name: 'デジタル標準' }).getAttribute('aria-pressed')).toBe('true')
+    expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
   })
 
 it('persists side-pane widths and resets a resized pane to its default width', async () => {
@@ -1120,7 +1136,9 @@ it('selects a CELL grid position and creates a key from explicit input', () => {
     expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
     fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))
     expect(screen.getByRole('dialog', { name: uiText.nameNormalization.title })).toBeTruthy()
-    expect((screen.getByLabelText(uiText.nameNormalization.target) as HTMLSelectElement).value).toBe('selected-column')
+    expect((screen.getByLabelText(uiText.nameNormalization.target) as HTMLSelectElement).value).toBe('action')
+    expect((screen.getByLabelText(uiText.nameNormalization.process) as HTMLSelectElement).value).toBe('')
+    expect((screen.getByLabelText(uiText.nameNormalization.includeAssetFiles) as HTMLInputElement).checked).toBe(true)
     expect(screen.getByText(uiText.nameNormalization.targets.selectedColumn)).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: uiText.nameNormalization.cancel })[0])
     const eventText = document.querySelector('.eventText')

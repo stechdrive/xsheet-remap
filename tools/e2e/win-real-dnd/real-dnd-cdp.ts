@@ -11,6 +11,7 @@ import {
   type NormalizedRect,
   type SheetTimingRole,
 } from '@xsheet-remap/core'
+import { verifyNameNormalizationDialogLayout } from './real-dnd-name-normalization'
 
 interface ClientPoint {
   x: number
@@ -505,6 +506,9 @@ async function runCspPaneRefactorScenario(): Promise<void> {
   const renamedLabel = 'BOOK_FOOTER_LONG_REFERENCE_03'
   await verifyFixedCspPaneFooter()
   checks.push('kept the CSP layer operation footer fixed while only the layer tree body scrolled')
+  if (!client) throw new Error('CDP client not connected')
+  await verifyNameNormalizationDialogLayout({ client, evaluatePage, waitForPageCondition, captureScreenshot, diagnostics })
+  checks.push('kept the one-click rename dialog inside a 1024x720 viewport with fixed actions and a scrollable body')
 
   await selectCspRegistrationTargetWithRealMouse('演出')
   await selectCspRegistrationTargetWithRealMouse('作画')
@@ -588,28 +592,39 @@ async function verifyFixedCspPaneFooter(): Promise<void> {
   const geometry = await evaluatePage<{
     beforeTop: number
     afterTop: number
-    paneBottom: number
+    viewportBottom: number
     footerBottom: number
     scrollable: boolean
+    outerScrollable: boolean
   }>(`
     (() => {
       const pane = document.querySelector('.cspLayerTree');
       const body = document.querySelector('.cspLayerTreeBody');
       const footer = document.querySelector('.cspLayerTreeFooter');
-      if (!(pane instanceof HTMLElement) || !(body instanceof HTMLElement) || !(footer instanceof HTMLElement)) {
+      const viewport = pane?.parentElement;
+      if (!(pane instanceof HTMLElement) || !(body instanceof HTMLElement) || !(footer instanceof HTMLElement) || !(viewport instanceof HTMLElement)) {
         throw new Error('CSP pane layout elements not found');
       }
+      const overflowFixture = document.createElement('div');
+      overflowFixture.setAttribute('aria-hidden', 'true');
+      overflowFixture.style.height = '1200px';
+      overflowFixture.style.pointerEvents = 'none';
+      body.append(overflowFixture);
+      body.scrollTop = 0;
       const beforeTop = footer.getBoundingClientRect().top;
       const scrollable = body.scrollHeight > body.clientHeight;
+      const outerScrollable = viewport.scrollHeight > viewport.clientHeight;
       body.scrollTop = body.scrollHeight;
       const afterTop = footer.getBoundingClientRect().top;
-      const paneRect = pane.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
       const footerRect = footer.getBoundingClientRect();
-      return { beforeTop, afterTop, paneBottom: paneRect.bottom, footerBottom: footerRect.bottom, scrollable };
+      overflowFixture.remove();
+      body.scrollTop = 0;
+      return { beforeTop, afterTop, viewportBottom: viewportRect.bottom, footerBottom: footerRect.bottom, scrollable, outerScrollable };
     })()
   `)
   diagnostics.cspPaneFooterGeometry = geometry
-  if (Math.abs(geometry.beforeTop - geometry.afterTop) > 1 || geometry.footerBottom > geometry.paneBottom + 1) {
+  if (!geometry.scrollable || geometry.outerScrollable || Math.abs(geometry.beforeTop - geometry.afterTop) > 1 || geometry.footerBottom > geometry.viewportBottom + 1) {
     throw new Error(`CSP pane footer moved with the scroll body: ${JSON.stringify(geometry)}`)
   }
 }
@@ -1819,7 +1834,7 @@ async function normalizeSelectedRegisteredCellWithRealAssetFileName(paperTrack: 
       const dialog = document.querySelector('.nameNormalizationDialog');
       if (!dialog) return false;
       const button = Array.from(dialog.querySelectorAll('footer button'))
-        .find(item => item.textContent?.trim() === '適用' && !item.disabled);
+        .find(item => item.textContent?.trim() === 'この内容でリネーム' && !item.disabled);
       if (!button) return false;
       button.click();
       return true;

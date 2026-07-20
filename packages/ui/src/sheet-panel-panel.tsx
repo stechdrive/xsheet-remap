@@ -1243,7 +1243,6 @@ export function SheetPanel(props: {
           selectedKeyId={props.selectedKeyId}
           selectedHit={props.selectedHit}
           rangeSelection={props.rangeSelection}
-          initialCorrectionLayerId={props.appKind === 'remap' ? props.activeCorrectionLayerId : undefined}
           onClose={() => setNormalizationOpen(false)}
           onApply={async plan => {
             await props.onApplyNameNormalization(plan)

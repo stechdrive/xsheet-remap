@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { createDefaultProject, createOrSetEvent, createStackGuideLabel, upsertBinding } from '@xsheet-remap/core'
+import { assignAssetToStackGuideLabel, createDefaultProject, createOrSetEvent, createStackGuideLabel, upsertBinding } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CspLayerTree } from './CspLayerTree'
 import { dispatchInternalDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
@@ -313,7 +313,7 @@ describe('CspLayerTree', () => {
     dropInternalOn(track, { kind: 'registered-cell', keyId: created.key.keyId })
     expect(onRegisterKeyToTrack).toHaveBeenCalledWith(created.key.keyId, 'slot_A')
 
-    fireEvent.click(screen.getByRole('button', { name: '名前を正規化' }))
+    fireEvent.click(screen.getByRole('button', { name: '一括リネーム' }))
     expect(onOpenNameNormalization).toHaveBeenCalledTimes(1)
   })
 
@@ -567,6 +567,68 @@ describe('CspLayerTree', () => {
       'layer_enshutsu',
     )
     expect(track.classList.contains('assetDragOver')).toBe(false)
+  })
+
+  it('shows only the Clip Studio cel name on an assigned BG or BOOK card', () => {
+    const projectWithAsset = {
+      ...createDefaultProject(),
+      assets: [{
+        assetId: 'asset_bg',
+        binId: 'asset_bin_root',
+        originalFileName: 'K000042.png',
+        displayName: 'K000042.png',
+        role: 'cell-material' as const,
+        source: { kind: 'unresolved' as const },
+      }],
+    }
+    const created = createStackGuideLabel(projectWithAsset, {
+      label: 'BG1',
+      kind: 'background',
+      gapIndex: 0,
+      correctionLayerId: 'layer_enshutsu',
+      cspCellName: '_BG1',
+    })
+    const project = assignAssetToStackGuideLabel(created.project, created.label.labelId, 'asset_bg', 'layer_enshutsu')
+
+    render(
+      <CspLayerTree
+        project={project}
+        exportProfileId="import-stack"
+        selectedKeyId={null}
+        onSelectKey={vi.fn()}
+        onDeleteKey={vi.fn()}
+        activeCorrectionLayerId="layer_sakuga"
+        onActiveCorrectionLayerChange={vi.fn()}
+        onUpdateCspCellName={vi.fn()}
+        onMoveKeyBindingProcess={vi.fn()}
+        onUpdateStackGuideRegistration={vi.fn()}
+        onUpdateStackGuideLabel={vi.fn()}
+        onDeleteStackGuideLabel={vi.fn()}
+        onRenamePaperTrack={vi.fn()}
+        onReorderStackItem={vi.fn()}
+        onReorderProductionStage={vi.fn()}
+        onReorderCorrectionLayer={vi.fn()}
+        onDeleteCorrectionLayer={vi.fn()}
+        onDeleteOverlayPaperTrack={vi.fn()}
+        onAssignAsset={vi.fn()}
+        onAssignAssetsToStackGuideLabel={vi.fn()}
+        onRegisterAssetsToTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterAssetsToNewTrack={vi.fn(() => ({ addedCount: 0, duplicateCount: 0, missingCount: 0 }))}
+        onRegisterKeyToTrack={vi.fn(() => true)}
+        onOpenNameNormalization={vi.fn()}
+        onCreateDefaultOverlayPaperTrack={vi.fn()}
+        onCreateDefaultStackGuideLabel={vi.fn()}
+        onCreateStackGuideLabel={vi.fn()}
+      />,
+    )
+
+    const track = screen.getByLabelText('BG1（演出）へ画像素材を割り当て')
+    const card = track.closest('.cspTreeTrack')?.querySelector<HTMLElement>('.cspTreeCel')
+    if (!card) throw new Error('assigned BG1 card not found')
+    expect(card.querySelector('.cspTreeCelName')?.textContent).toBe('_BG1')
+    expect(card.querySelector('.cspTreeSheetLabel')).toBeNull()
+    expect(card.textContent).not.toContain('K000042.png')
+    expect(card.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: K000042.png')
   })
 
   it('uses the same pointer drop contract for camera notes and memos and rejects multiple assets', () => {

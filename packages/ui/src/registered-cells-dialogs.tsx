@@ -105,7 +105,6 @@ export function NameNormalizationDialog({
   selectedKeyId,
   selectedHit,
   rangeSelection,
-  initialCorrectionLayerId,
   onClose,
   onApply,
 }: {
@@ -113,17 +112,12 @@ export function NameNormalizationDialog({
   selectedKeyId: string | null
   selectedHit: SheetHit | null
   rangeSelection: SheetRangeSelection | null
-  initialCorrectionLayerId?: string
   onClose: () => void
   onApply: (plan: NameNormalizationPlan) => Promise<void>
 }) {
-  const [target, setTarget] = useState<NameNormalizationTarget>(() =>
-    defaultNameNormalizationTarget(project, selectedKeyId, selectedHit, rangeSelection),
-  )
-  const [correctionLayerId, setCorrectionLayerId] = useState(() =>
-    project.correctionLayers.some(layer => layer.layerId === initialCorrectionLayerId) ? initialCorrectionLayerId ?? '' : '',
-  )
-  const [includeAssetFiles, setIncludeAssetFiles] = useState(false)
+  const [target, setTarget] = useState<NameNormalizationTarget>(defaultNameNormalizationTarget)
+  const [correctionLayerId, setCorrectionLayerId] = useState('')
+  const [includeAssetFiles, setIncludeAssetFiles] = useState(true)
   const [sequencePadding, setSequencePadding] = useState<number | undefined>(undefined)
   const [isApplying, setIsApplying] = useState(false)
   const targetOptions = nameNormalizationTargetOptions(project, selectedKeyId, selectedHit, rangeSelection)
@@ -155,88 +149,100 @@ export function NameNormalizationDialog({
           <strong>{uiText.nameNormalization.title}</strong>
           <button onClick={onClose}>{uiText.nameNormalization.cancel}</button>
         </header>
-        <div className="nameNormalizationControls">
-          <label>
-            {uiText.nameNormalization.target}
-            <select value={target} onChange={event => setTarget(event.currentTarget.value as NameNormalizationTarget)}>
-              {targetOptions.map(option => (
-                <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {uiText.nameNormalization.process}
-            <select value={correctionLayerId} onChange={event => setCorrectionLayerId(event.currentTarget.value)}>
-              <option value="">{uiText.nameNormalization.allProcesses}</option>
-              {sortedCorrectionLayers(project).map(layer => <option key={layer.layerId} value={layer.layerId}>{layer.label}</option>)}
-            </select>
-          </label>
-          <label>
-            {uiText.nameNormalization.padding}
-            <select value={sequencePadding === undefined ? 'auto' : String(sequencePadding)} onChange={event => setSequencePadding(event.currentTarget.value === 'auto' ? undefined : Number(event.currentTarget.value))}>
-              <option value="auto">{uiText.nameNormalization.paddingAuto}</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-            </select>
-          </label>
-          <label className="nameNormalizationCheckbox">
-            <input type="checkbox" checked={includeAssetFiles} onChange={event => setIncludeAssetFiles(event.currentTarget.checked)} />
-            {uiText.nameNormalization.includeAssetFiles}
-          </label>
-        </div>
-        <div className="nameNormalizationSummary">
-          <span>{uiText.nameNormalization.cspChanges(cspChangeCount)}</span>
-          <span>{uiText.nameNormalization.assetRenames(assetRenameCount)}</span>
-        </div>
-        {plan.warnings.length > 0 && (
-          <div className="nameNormalizationWarnings">
-            {plan.warnings.slice(0, 6).map((warning, index) => <p key={`${index}-${warning}`}>{warning}</p>)}
-            {plan.warnings.length > 6 && <p>{uiText.nameNormalization.moreWarnings(plan.warnings.length - 6)}</p>}
+        <div className="nameNormalizationBody">
+          <p className="nameNormalizationDescription">{uiText.nameNormalization.description}</p>
+          <div className="nameNormalizationControls">
+            <label>
+              {uiText.nameNormalization.target}
+              <select value={target} onChange={event => setTarget(event.currentTarget.value as NameNormalizationTarget)}>
+                {targetOptions.map(option => (
+                  <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {uiText.nameNormalization.process}
+              <select value={correctionLayerId} onChange={event => setCorrectionLayerId(event.currentTarget.value)}>
+                <option value="">{uiText.nameNormalization.allProcesses}</option>
+                {sortedCorrectionLayers(project).map(layer => <option key={layer.layerId} value={layer.layerId}>{layer.label}</option>)}
+              </select>
+            </label>
+            <label>
+              {uiText.nameNormalization.padding}
+              <select value={sequencePadding === undefined ? 'auto' : String(sequencePadding)} onChange={event => setSequencePadding(event.currentTarget.value === 'auto' ? undefined : Number(event.currentTarget.value))}>
+                <option value="auto">{uiText.nameNormalization.paddingAuto}</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+            <div className="nameNormalizationFileOption">
+              <label className="nameNormalizationCheckbox">
+                <input type="checkbox" checked={includeAssetFiles} onChange={event => setIncludeAssetFiles(event.currentTarget.checked)} />
+                {uiText.nameNormalization.includeAssetFiles}
+              </label>
+              <small>{uiText.nameNormalization.includeAssetFilesHelp}</small>
+            </div>
           </div>
-        )}
-        <div className="nameNormalizationTableWrap">
-          <table className="nameNormalizationTable">
-            <thead>
-              <tr>
-                <th>{uiText.nameNormalization.headers.process}</th>
-                <th>{uiText.nameNormalization.headers.track}</th>
-                <th>{uiText.nameNormalization.headers.display}</th>
-                <th>{uiText.nameNormalization.headers.currentCsp}</th>
-                <th>{uiText.nameNormalization.headers.nextCsp}</th>
-                <th>{uiText.nameNormalization.headers.asset}</th>
-                <th>{uiText.nameNormalization.headers.nextFile}</th>
-                <th>{uiText.nameNormalization.headers.status}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plan.items.slice(0, 160).map(item => {
-                const rename = item.assetId ? assetRenameByAssetId.get(item.assetId) : undefined
-                const status = [
-                  item.cspCellNameChanged ? uiText.nameNormalization.status.csp : '',
-                  rename && rename.currentFileName !== rename.nextFileName
-                    ? rename.canRename ? uiText.nameNormalization.status.file : uiText.nameNormalization.status.fileBlocked
-                    : '',
-                ].filter(Boolean).join(' / ') || uiText.nameNormalization.status.noChange
-                return (
-                  <tr key={item.itemId}>
-                    <td>{item.processLabel ?? '-'}</td>
-                    <td>{item.paperTrack}</td>
-                    <td>{item.displayLabel}</td>
-                    <td>{item.currentCspCellName}</td>
-                    <td>{item.nextCspCellName}</td>
-                    <td>{item.assetDisplayName ?? '-'}</td>
-                    <td>
-                      <Tooltip label={rename?.representativeReason ?? ''}>
-                        <span>{rename ? rename.nextFileName : '-'}</span>
-                      </Tooltip>
-                    </td>
-                    <td>{status}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          {plan.items.length > 160 && <p className="muted">{uiText.nameNormalization.moreRows(plan.items.length - 160)}</p>}
+          <div className="nameNormalizationSummary">
+            <span>{uiText.nameNormalization.cspChanges(cspChangeCount)}</span>
+            <span>{uiText.nameNormalization.assetRenames(assetRenameCount)}</span>
+          </div>
+          {plan.warnings.length > 0 && (
+            <div className="nameNormalizationWarnings">
+              {plan.warnings.slice(0, 6).map((warning, index) => <p key={`${index}-${warning}`}>{warning}</p>)}
+              {plan.warnings.length > 6 && <p>{uiText.nameNormalization.moreWarnings(plan.warnings.length - 6)}</p>}
+            </div>
+          )}
+          <div className="nameNormalizationTableWrap">
+            <table className="nameNormalizationTable">
+              <thead>
+                <tr>
+                  <th>{uiText.nameNormalization.headers.process}</th>
+                  <th>{uiText.nameNormalization.headers.target}</th>
+                  <th>{uiText.nameNormalization.headers.cspName}</th>
+                  <th>{uiText.nameNormalization.headers.assetFileName}</th>
+                  <th>{uiText.nameNormalization.headers.status}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plan.items.slice(0, 160).map(item => {
+                  const rename = item.assetId ? assetRenameByAssetId.get(item.assetId) : undefined
+                  const status = [
+                    item.cspCellNameChanged ? uiText.nameNormalization.status.csp : '',
+                    rename && rename.currentFileName !== rename.nextFileName
+                      ? rename.canRename ? uiText.nameNormalization.status.file : uiText.nameNormalization.status.fileBlocked
+                      : '',
+                  ].filter(Boolean).join(' / ') || uiText.nameNormalization.status.noChange
+                  const currentAssetFileName = rename?.currentFileName ?? item.assetDisplayName
+                  const nextAssetFileName = rename?.nextFileName
+                    ?? (item.assetId ? uiText.nameNormalization.fileRenameDisabled : uiText.nameNormalization.noAssetFile)
+                  return (
+                    <tr key={item.itemId}>
+                      <td>{item.processLabel ?? '-'}</td>
+                      <td className="nameNormalizationTargetCell">
+                        <strong>{item.paperTrack}</strong>
+                        <span>{item.displayLabel}</span>
+                      </td>
+                      <td>
+                        <NameNormalizationChange current={item.currentCspCellName} next={item.nextCspCellName} />
+                      </td>
+                      <td>
+                        <Tooltip label={rename?.representativeReason ?? ''}>
+                          <span>
+                            {currentAssetFileName
+                              ? <NameNormalizationChange current={currentAssetFileName} next={nextAssetFileName} />
+                              : uiText.nameNormalization.noAssetFile}
+                          </span>
+                        </Tooltip>
+                      </td>
+                      <td>{status}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {plan.items.length > 160 && <p className="muted">{uiText.nameNormalization.moreRows(plan.items.length - 160)}</p>}
+          </div>
         </div>
         <footer className="nameNormalizationFooter">
           <button onClick={onClose}>{uiText.nameNormalization.cancel}</button>
@@ -246,6 +252,17 @@ export function NameNormalizationDialog({
         </footer>
       </section>
     </div>
+  )
+}
+
+function NameNormalizationChange({ current, next }: { current: string; next: string }) {
+  if (current === next) return <span className="nameNormalizationUnchanged">{current}</span>
+  return (
+    <span className="nameNormalizationChange">
+      <span>{current || '-'}</span>
+      <span className="nameNormalizationArrow" aria-hidden="true">→</span>
+      <strong>{next}</strong>
+    </span>
   )
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, isXsrProjectFileName, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
@@ -45,6 +45,7 @@ import { useAppSheetHistoryController } from './app-sheet-history-actions'
 import { createAppSharedCutActions } from './app-shared-cut-actions'
 import { openCspImportExportDirectory, saveCspImportExportPlan } from './app-csp-import-actions'
 import { useCspImportExportPlan } from './useCspImportExportPlan'
+import { createPreferredProject, rememberSheetTemplatePreset } from './mainAppPreferences'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
@@ -67,7 +68,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
-  } = useAppShellState()
+  } = useAppShellState(appKind)
   const exportProfileId = 'import-stack'
   const templatePanelKey = useMemo(() => JSON.stringify(template), [template])
   const recognitionRoles = (['action', 'cell'] as const).filter(role => template.regions.some(region =>
@@ -1640,6 +1641,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       const loadedFile = await loadProjectDocumentFile(file)
       const loadedDocument = loadedFile.document
       const loaded = activeCutProjectFromDocument(loadedDocument)
+      rememberSheetTemplatePreset(appKind, loaded.studioPresetId)
       setTemplate(loadedDocument.sheetTemplate)
       setProjectDocument(loadedDocument)
       setSavedProjectDocumentSignature(JSON.stringify(loadedDocument))
@@ -1656,14 +1658,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       window.alert(uiText.project.loadFailed(errorMessage(error)))
     }
   }
-
   const handleLoadTemplate = loadSheetTemplate
-
   async function handleImportTemplate(files: FileList | null) {
     const nextTemplate = await confirmSheetTemplateImport(files)
     if (nextTemplate) handleApplyTemplateDraft(nextTemplate)
   }
-
   function handleApplyTemplateDraft(nextTemplate: SheetTemplate) {
     syncProjectToTemplateTracks(nextTemplate, {
       studioPresetId: undefined,
@@ -1777,6 +1776,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handlePresetSelect(presetId: string) {
     const preset = sheetTemplatePresets.find(item => item.presetId === presetId)
     if (!preset) return
+    rememberSheetTemplatePreset(appKind, preset.presetId)
     syncProjectToTemplateTracks(preset.sheetTemplate, {
       studioPresetId: preset.presetId,
       resetSheetView: true,
@@ -1823,9 +1823,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       })
       if (!confirmed) return
     }
-    const nextProject = createDefaultProject()
-    const nextDocument = createProjectDocumentFromCutProject(nextProject)
-    setTemplate(standardA3SheetTemplate)
+    const { project: nextProject, preset } = createPreferredProject(appKind)
+    const nextDocument = createProjectDocumentFromCutProject(nextProject, { sheetTemplate: preset.sheetTemplate })
+    setTemplate(preset.sheetTemplate)
     setProjectDocument(nextDocument)
     setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
     setProjectFilePath(null)
@@ -1842,7 +1842,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setPenColor('#d52b2b')
     setPenWidth(0.004)
     setEraserWidth(0.018)
-    setTextFontSizePx(defaultTimingTextFontSizePx(standardA3SheetTemplate, 'cell'))
+    setTextFontSizePx(defaultTimingTextFontSizePx(preset.sheetTemplate, 'cell'))
     clearSelectionState()
     setTimingClipboard(null)
     setValueDraft('')

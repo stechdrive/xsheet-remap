@@ -1,15 +1,14 @@
 import { memo, useId, useMemo, type PointerEvent } from 'react'
-import { type CutProject, type NormalizedPoint, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTemplateLayoutResolveOptions, resolveSheetTemplateGridLayout } from '@xsheet-remap/core'
+import { type CutProject, type NormalizedPoint, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTemplateLayoutResolveOptions } from '@xsheet-remap/core'
 import { type SheetImageSettings } from './appTypes'
 import { buildTemplateChromeRenderModel, buildTemplateGridOverlayRenderModel } from './templateEditorGeometry'
-import { metadataTextRenderItemsForPage, type SheetRenderModelContext } from './sheetRenderModel'
+import { metadataTextRenderItemsForPage, workRangeShadeRenderItemsForPage, type SheetRenderModelContext } from './sheetRenderModel'
 import { rawImageToViewportPoint } from './sheetImages'
 import { clampNumber } from './sheetInteraction'
 import { SheetSvgText } from './SheetSvgText'
 import { sheetSvgTextX } from './sheetSvgTextGeometry'
 import { GridOverlayLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { AutoCalibrationOverlayState, CalibrationGuideMetrics, CalibrationPointKind } from './app-foundation'
-import { frameOriginForPageHit } from './sheet-layers-hit-geometry'
 
 export function AutoCalibrationGuideOverlay({
   overlay,
@@ -213,57 +212,17 @@ export function MetadataTextLayer({ context, page }: { context: SheetRenderModel
 }
 
 export function WorkRangeOverlay({
-  template,
+  context,
   page,
-  displayDurationFrames = template.defaults.durationFrames,
-  officialFrameStart,
-  officialFrameEnd,
 }: {
-  template: SheetTemplate
+  context: SheetRenderModelContext
   page: SheetPage
-  displayDurationFrames?: number
-  officialFrameStart: number
-  officialFrameEnd: number
 }) {
-  const frameOrigin = frameOriginForPageHit(template, page)
-  const isContinuousFrameAxis = frameOrigin === page.frameStart
-  const localFrameToGlobalFrame = (frame: number) => isContinuousFrameAxis
-    ? frame
-    : page.frameStart + (frame - template.defaults.frameOrigin)
-  const globalFrameToLocalFrame = (frame: number) => isContinuousFrameAxis
-    ? frame
-    : frame - page.frameStart + template.defaults.frameOrigin
-  const rects = template.regions.flatMap(region => {
-    if (region.type !== 'exposure-grid' || !region.grid) return []
-    const layout = resolveSheetTemplateGridLayout(template, region, { durationFrames: displayDurationFrames, frameOrigin })
-    if (!layout) return []
-    const frames = layout.frames
-    const visibleFrameStart = localFrameToGlobalFrame(frames.frameStart)
-    const visibleFrameEnd = localFrameToGlobalFrame(frames.frameEnd)
-    const dimRanges = [
-      { frameStart: visibleFrameStart, frameEnd: Math.min(visibleFrameEnd, officialFrameStart - 1) },
-      { frameStart: Math.max(visibleFrameStart, officialFrameEnd + 1), frameEnd: visibleFrameEnd },
-    ].filter(range => range.frameEnd >= range.frameStart)
-    return dimRanges.flatMap(range => {
-      const localStart = globalFrameToLocalFrame(range.frameStart)
-      const localEnd = globalFrameToLocalFrame(range.frameEnd)
-      const start = Math.max(frames.frameStart, localStart)
-      const end = Math.min(frames.frameEnd, localEnd)
-      if (end < start) return []
-      const rowIndex = start - frames.frameStart
-      const rowCount = end - start + 1
-      return [{
-        x: layout.rect.x,
-        y: layout.rect.y + frames.rowHeight * rowIndex,
-        w: layout.rect.w,
-        h: frames.rowHeight * rowCount,
-      }]
-    })
-  })
+  const items = workRangeShadeRenderItemsForPage(context, page)
   return (
     <g>
-      {rects.map((rect, index) => (
-        <rect key={index} className="inactiveFrameRect" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
+      {items.map(item => (
+        <rect key={`${item.regionId}:${item.rect.y}`} className="inactiveFrameRect" x={item.rect.x} y={item.rect.y} width={item.rect.w} height={item.rect.h} />
       ))}
     </g>
   )

@@ -34,6 +34,16 @@ describe('CAMERA cue geometry', () => {
       ['left_camera_grid', 70, 72, true, false],
       ['right_camera_grid', 73, 76, false, true],
     ])
+    const layouts = buildCameraCuePageLayouts(
+      standardA3SheetTemplate,
+      page,
+      [cue],
+      { widthPx: 1754, heightPx: 2481 },
+      { paperTracks },
+    )
+    expect(layouts).toHaveLength(1)
+    expect(layouts[0]?.segments).toHaveLength(2)
+    expect(layouts[0]?.label?.glyphs.map(glyph => glyph.value).join('')).toBe('PAN')
   })
 
   it('uses vertical auto placement for a long range and logical region coordinates for a manual box', () => {
@@ -430,6 +440,14 @@ describe('CAMERA cue geometry', () => {
       const [forward = [], reverse = []] = cameraOverlapPathsForSegment(pageCue, segment)
       return sharedPathPoints(forward, reverse)
     })).toHaveLength(1)
+    const pageLayouts = pages.flatMap(sheetPage => buildCameraCuePageLayouts(
+      standardA3SheetTemplate,
+      sheetPage,
+      [pageCue],
+      { widthPx: 1754, heightPx: 2481 },
+      { paperTracks },
+    ))
+    expect(pageLayouts.filter(layout => layout.label)).toHaveLength(1)
   })
 
   it('uses the template timing-cell font size as the CAMERA label base size', () => {

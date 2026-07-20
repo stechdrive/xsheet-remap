@@ -406,7 +406,7 @@ async function verifyTimingEditingScenario(): Promise<void> {
 
   await rightClickFrame('cell', 'A', 8)
   await waitForPageCondition(() => Boolean(document.querySelector('[role="menu"]')), 'timing delete context menu')
-  await clickMenuItem('キーを削除')
+  await clickMenuItem('キーを削除 ([Del])')
   await waitForNoEventAt('cell', 'A', 8, '2')
   checks.push('deleted a timeline event from the sheet context menu')
 }

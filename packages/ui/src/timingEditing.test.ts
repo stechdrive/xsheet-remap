@@ -14,6 +14,7 @@ import {
   buildTimingClipboard,
   deleteTimelineFrames,
   insertTimelineFrames,
+  moveTimingEventsInRange,
   pasteTimingClipboardToProject,
   rangeContainsHit,
   sameSheetHitCell,
@@ -135,6 +136,83 @@ describe('timing editing model', () => {
 
     expect(pastedEvent?.keyId).toBe(sourceEvent?.keyId)
     expect(key && sheetTimingRoleForKey(key)).toBe('action')
+  })
+
+  it('moves only the events in a selected frame range while preserving their gaps', () => {
+    const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const second = createOrSetEvent(first.project, 'A', 3, 'action')
+    const destinationGap = createOrSetEvent(second.project, 'A', 6, 'action')
+    const destinationCollision = createOrSetEvent(destinationGap.project, 'A', 5, 'action')
+
+    const moved = moveTimingEventsInRange(
+      destinationCollision.project,
+      testRange('A', 1, 3, 'action'),
+      testHit('A', 1, 'action'),
+      testHit('A', 5, 'action'),
+      ['A', 'B', 'C'],
+    )
+
+    expect(moved.status).toBe('moved')
+    expect(moved.collisionCount).toBe(1)
+    expect(moved.project.logicalSheet.events
+      .filter(event => event.paperTrack === 'A' && sheetTimingRoleForEvent(event) === 'action')
+      .map(event => event.frame)
+      .sort((a, b) => a - b)).toEqual([5, 6, 7])
+  })
+
+  it('moves an overlapping selected range atomically without losing events', () => {
+    const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell')
+    const second = createOrSetEvent(first.project, 'A', 3, 'cell')
+    const sourceKeyIds = second.project.logicalSheet.events
+      .filter(event => event.paperTrack === 'A' && sheetTimingRoleForEvent(event) === 'cell')
+      .sort((a, b) => a.frame - b.frame)
+      .map(event => event.keyId)
+
+    const moved = moveTimingEventsInRange(
+      second.project,
+      testRange('A', 1, 3, 'cell'),
+      testHit('A', 1, 'cell'),
+      testHit('A', 3, 'cell'),
+      ['A', 'B', 'C'],
+    )
+    const events = moved.project.logicalSheet.events
+      .filter(event => event.paperTrack === 'A' && sheetTimingRoleForEvent(event) === 'cell')
+      .sort((a, b) => a.frame - b.frame)
+
+    expect(moved.status).toBe('moved')
+    expect(moved.collisionCount).toBe(0)
+    expect(events.map(event => event.frame)).toEqual([3, 5])
+    expect(events.map(event => event.keyId)).toEqual(sourceKeyIds)
+  })
+
+  it('moves a multi-track range together and rejects a partially out-of-bounds destination', () => {
+    const a = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const b = createOrSetEvent(a.project, 'B', 2, 'action')
+    const range = testMultiTrackRange(['A', 'B'], 1, 2, 'action')
+    const moved = moveTimingEventsInRange(
+      b.project,
+      range,
+      testHit('A', 1, 'action'),
+      testHit('B', 5, 'action'),
+      ['A', 'B', 'C'],
+    )
+
+    expect(moved.status).toBe('moved')
+    expect(moved.destinationPaperTracks).toEqual(['B', 'C'])
+    expect(moved.project.logicalSheet.events
+      .filter(event => sheetTimingRoleForEvent(event) === 'action')
+      .map(event => `${event.paperTrack}:${event.frame}`)
+      .sort()).toEqual(['B:5', 'C:6'])
+
+    const invalid = moveTimingEventsInRange(
+      b.project,
+      range,
+      testHit('A', 1, 'action'),
+      testHit('C', 5, 'action'),
+      ['A', 'B', 'C'],
+    )
+    expect(invalid.status).toBe('invalid-target')
+    expect(invalid.project).toBe(b.project)
   })
 
   it('repeats asset-drop-only registered cells even when their display label is blank', () => {

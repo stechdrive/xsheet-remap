@@ -347,21 +347,17 @@ export function cameraCueLabelLayoutForPage(
   const font: TextFontSpec = { family: SHEET_TEXT_FONT_FAMILY, sizePx: fontSizePx, weight: 850 }
   const label = cue.label.trim()
   const values = splitTextGraphemes(label)
-  const preferredFrame = preferredCameraLabelFrame(template, cue, segments[0]!)
-  const segment = segments.find(item => preferredFrame >= item.frameStart && preferredFrame <= item.frameEnd)
-    ?? segments.find(item => item.startsCue)
-    ?? segments[0]
-  if (!segment) return null
-  const anchorFrame = Math.max(segment.frameStart, Math.min(segment.frameEnd, preferredFrame))
-  const anchor = {
-    x: segment.rect.x + segment.rect.w / 2,
-    y: segment.rect.y + (anchorFrame - segment.frameStart + 0.5) * segment.rowHeight,
-  }
 
   if (camera?.labelPlacement) {
     const placement = camera.labelPlacement
     const boxFrameStart = cue.frameStart + placement.frameOffset
-    if (boxFrameStart < segment.frameStart || boxFrameStart > segment.frameEnd) return null
+    const segment = segments.find(item => boxFrameStart >= item.frameStart && boxFrameStart <= item.frameEnd)
+    if (!segment) return null
+    const anchorFrame = Math.max(segment.frameStart, Math.min(segment.frameEnd, boxFrameStart))
+    const anchor = {
+      x: segment.rect.x + segment.rect.w / 2,
+      y: segment.rect.y + (anchorFrame - segment.frameStart + 0.5) * segment.rowHeight,
+    }
     const y = segment.rect.y + (boxFrameStart - segment.frameStart) * segment.rowHeight
     const rect = clampRectToRegion({
       x: segment.regionRect.x + segment.regionRect.w * placement.xRatio,
@@ -370,6 +366,16 @@ export function cameraCueLabelLayoutForPage(
       h: segment.rowHeight * placement.heightFrames,
     }, segment.regionRect)
     return horizontalLayout(cue.cueId, label, rect, segment, pageSize, font, true, anchor)
+  }
+
+  const preferredFramePosition = preferredCameraLabelFrame(template, cue, segments[0]!)
+  const preferredFrame = Math.round(preferredFramePosition)
+  const segment = segments.find(item => preferredFrame >= item.frameStart && preferredFrame <= item.frameEnd)
+  if (!segment) return null
+  const anchorFrame = Math.max(segment.frameStart, Math.min(segment.frameEnd, preferredFramePosition))
+  const anchor = {
+    x: segment.rect.x + segment.rect.w / 2,
+    y: segment.rect.y + (anchorFrame - segment.frameStart + 0.5) * segment.rowHeight,
   }
 
   const variants = cameraCueLabelVariants(label, values, segment, pageSize, font)

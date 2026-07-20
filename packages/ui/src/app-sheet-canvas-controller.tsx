@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type AnnotationStroke, type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetOfficialFrameEnd, sheetAnnotations } from '@xsheet-remap/core';
+import { type AnnotationStroke, type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type SheetRangeSelection, type SheetImageSettings } from './appTypes';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
@@ -25,6 +25,7 @@ import { releasePointerCaptureForElements, type DraftRangeInteraction, type Pend
 import type { SheetCanvasProps, SheetDropTargetPreview } from './app-sheet-canvas-types';
 import { gridColumnHeaderHitFromPoint } from './sheetGridHeaderHit';
 import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
+import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftStroke, setDraftStroke] = useState<AnnotationStroke | null>(null)
@@ -81,6 +82,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const draftRangeRef = useRef<DraftRangeInteraction | null>(null)
   const pendingTimelineEventDragRef = useRef<PendingTimelineEventInteraction | null>(null)
   const timelineEventDragRef = useRef<TimelineEventDragInteraction | null>(null)
+  const updateTimelineEventPointerRef = useRef<(pointerId: number, clientX: number, clientY: number) => void>(() => undefined)
+  const finishTimelineEventPointerRef = useRef<(pointerId: number, cancelled?: boolean, clientX?: number, clientY?: number) => void>(() => undefined)
   const commitDraftRangeFromPointerRef = useRef<(pointerId: number, clientX: number, clientY: number) => boolean>(() => false)
   const cancelDraftRangeInteractionRef = useRef<() => void>(() => undefined)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -98,9 +101,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const stackGuideInsertRequestIdRef = useRef(0)
   const soundCueDragRef = useRef<typeof soundCueDrag>(null)
   const cameraCueDragRef = useRef<typeof cameraCueDrag>(null)
+  const updateSoundCuePointerRef = useRef<(pointerId: number, clientX: number, clientY: number) => void>(() => undefined)
+  const finishSoundCuePointerRef = useRef<(pointerId: number, cancelled?: boolean, clientX?: number, clientY?: number) => void>(() => undefined)
   const updateCameraCuePointerRef = useRef<(pointerId: number, clientX: number, clientY: number) => void>(() => undefined)
-  const finishCameraCuePointerRef = useRef<(pointerId: number, cancelled?: boolean) => void>(() => undefined)
+  const finishCameraCuePointerRef = useRef<(pointerId: number, cancelled?: boolean, clientX?: number, clientY?: number) => void>(() => undefined)
   const onStatusHint = props.onStatusHint
+
+  useGlobalPointerDragLifecycle({ activeRef: soundCueDragRef, updateRef: updateSoundCuePointerRef, finishRef: finishSoundCuePointerRef })
+  useGlobalPointerDragLifecycle({ activeRef: cameraCueDragRef, updateRef: updateCameraCuePointerRef, finishRef: finishCameraCuePointerRef })
+  useGlobalPointerDragLifecycle({ activeRef: timelineEventDragRef, updateRef: updateTimelineEventPointerRef, finishRef: finishTimelineEventPointerRef })
 
   function setDraftRange(next: DraftRangeInteraction | null | ((current: DraftRangeInteraction | null) => DraftRangeInteraction | null)) {
     const resolved = typeof next === 'function' ? next(draftRangeRef.current) : next
@@ -203,68 +212,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     onStatusHint('overlay-paper-track', null)
   }, [onStatusHint])
   useEffect(() => {
-    const cancelCameraTransform = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || !cameraCueDragRef.current) return
-      event.preventDefault()
-      event.stopPropagation()
-      event.stopImmediatePropagation()
-      finishCameraCuePointerRef.current(cameraCueDragRef.current.pointerId, true)
-    }
-    const cancelCameraTransformOnBlur = () => {
-      if (!cameraCueDragRef.current) return
-      finishCameraCuePointerRef.current(cameraCueDragRef.current.pointerId, true)
-    }
-    const updateCameraTransform = (event: globalThis.PointerEvent) => {
-      const current = cameraCueDragRef.current
-      if (!current || current.pointerId !== event.pointerId) return
-      event.preventDefault()
-      event.stopPropagation()
-      if (event.buttons === 0) {
-        finishCameraCuePointerRef.current(event.pointerId)
-        return
-      }
-      updateCameraCuePointerRef.current(event.pointerId, event.clientX, event.clientY)
-    }
-    const finishCameraTransform = (event: globalThis.PointerEvent) => {
-      const current = cameraCueDragRef.current
-      if (!current || current.pointerId !== event.pointerId) return
-      event.preventDefault()
-      event.stopPropagation()
-      finishCameraCuePointerRef.current(event.pointerId)
-    }
-    const cancelCameraTransformFromPointer = (event: globalThis.PointerEvent) => {
-      const current = cameraCueDragRef.current
-      if (!current || current.pointerId !== event.pointerId) return
-      event.preventDefault()
-      event.stopPropagation()
-      finishCameraCuePointerRef.current(event.pointerId, true)
-    }
-    const cancelStaleCameraTransform = () => {
-      const current = cameraCueDragRef.current
-      if (current) finishCameraCuePointerRef.current(current.pointerId, true)
-    }
-    const cancelCameraTransformWhenHidden = () => {
-      if (!document.hidden || !cameraCueDragRef.current) return
-      finishCameraCuePointerRef.current(cameraCueDragRef.current.pointerId, true)
-    }
-    window.addEventListener('keydown', cancelCameraTransform, true)
-    window.addEventListener('blur', cancelCameraTransformOnBlur)
-    window.addEventListener('pointermove', updateCameraTransform, { capture: true, passive: false })
-    window.addEventListener('pointerup', finishCameraTransform, { capture: true, passive: false })
-    window.addEventListener('pointercancel', cancelCameraTransformFromPointer, { capture: true, passive: false })
-    window.addEventListener('pointerdown', cancelStaleCameraTransform, true)
-    document.addEventListener('visibilitychange', cancelCameraTransformWhenHidden)
-    return () => {
-      window.removeEventListener('keydown', cancelCameraTransform, true)
-      window.removeEventListener('blur', cancelCameraTransformOnBlur)
-      window.removeEventListener('pointermove', updateCameraTransform, true)
-      window.removeEventListener('pointerup', finishCameraTransform, true)
-      window.removeEventListener('pointercancel', cancelCameraTransformFromPointer, true)
-      window.removeEventListener('pointerdown', cancelStaleCameraTransform, true)
-      document.removeEventListener('visibilitychange', cancelCameraTransformWhenHidden)
-    }
-  }, [onStatusHint])
-  useEffect(() => {
     const clearDropStatus = () => {
       onStatusHint('sheet-drop', null)
       dropTargetPreviewRef.current = null
@@ -286,7 +233,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const displayFrameStart = logicalSheetDisplayFrameStart(props.project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(props.project.logicalSheet)
   const displayFrameEnd = logicalSheetDisplayFrameEnd(props.project.logicalSheet)
-  const officialFrameEnd = logicalSheetOfficialFrameEnd(props.project.logicalSheet)
   const templateTrackNames = useMemo(
     () => templatePaperTracks(props.project, props.template).map(track => track.paperTrack),
     [props.project, props.template],
@@ -983,7 +929,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     return target ? { page: target.page, hit: targetHit } : null
   }
 
-  function beginTimelineEventDrag(pointerId: number, sourceHit: SheetHit, startX: number, startY: number) {
+  function beginTimelineEventDrag(pointerId: number, sourceHit: SheetHit, startX: number, startY: number, sourceRange?: SheetRangeSelection) {
     clearPendingTimelineEventDrag()
     clearHover()
     setContextMenu(null)
@@ -993,6 +939,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setTimelineEventDrag({
       pointerId,
       sourceHit,
+      sourceRange,
       currentHit: sourceHit,
       startX,
       startY,
@@ -1018,6 +965,31 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       : current)
     return true
   }
+
+  function finishTimelineEventPointerById(pointerId: number, cancelled = false, clientX?: number, clientY?: number) {
+    const current = timelineEventDragRef.current
+    if (!current || current.pointerId !== pointerId) return
+    setTimelineEventDrag(null)
+    clearPendingTimelineEventDrag()
+    releasePointerCaptureForElements(pointerId, Object.values(sheetSvgRefs.current))
+    props.onStatusHint('sheet-drag', null)
+    clearHover()
+    if (cancelled) return
+    const target = typeof clientX === 'number' && typeof clientY === 'number'
+      ? dropTargetFromClientPoint(clientX, clientY)
+      : null
+    const releaseHit = target?.hit?.paperTrack && sheetRoleForHit(target.hit) === sheetRoleForHit(current.sourceHit)
+      ? target.hit
+      : current.currentHit
+    if ((current.moved || Boolean(releaseHit && !sameSheetHitCell(releaseHit, current.sourceHit))) && releaseHit?.paperTrack) {
+      props.onMoveTimelineEvent(current.sourceHit, releaseHit, current.sourceRange)
+    }
+  }
+
+  updateTimelineEventPointerRef.current = (pointerId, clientX, clientY) => {
+    updateTimelineEventDragFromClient(pointerId, clientX, clientY, viewportRef.current)
+  }
+  finishTimelineEventPointerRef.current = finishTimelineEventPointerById
 
   function updateDraftRangeFromClientPoint(pointerId: number, clientX: number, clientY: number, fallbackPage?: SheetPage) {
     const currentDraftRange = draftRangeRef.current
@@ -1162,7 +1134,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const grabOffsetFrames = pointed
       ? clampNumber(pointed.hit.frame - cue.frameStart, 0, cue.frameEnd - cue.frameStart)
       : 0
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+    event.currentTarget.ownerSVGElement?.setPointerCapture?.(event.pointerId)
     const nextDrag = {
       pointerId: event.pointerId,
       mode,
@@ -1178,18 +1150,16 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props.onStatusHint('sheet-drag', mode === 'move' ? 'SOUND区間を移動中' : 'SOUND区間の長さを変更中')
   }
 
-  function handleSoundCuePointerMove(event: PointerEvent<SVGGElement>) {
+  function updateSoundCuePointer(pointerId: number, clientX: number, clientY: number) {
     const currentDrag = soundCueDragRef.current
-    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return
-    event.preventDefault()
-    event.stopPropagation()
-    autoScrollViewportForDrag(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))
-    const pointed = soundHitFromClientPoint(event.clientX, event.clientY)
+    if (!currentDrag || currentDrag.pointerId !== pointerId) return
+    autoScrollViewportForDrag({ clientX, clientY }, viewportRef.current)
+    const pointed = soundHitFromClientPoint(clientX, clientY)
     if (!pointed) return
     setActivePageIndexIfNeeded(pointed.page.pageIndex)
     const moved = currentDrag.moved
-      || Math.abs(event.clientX - currentDrag.startX) >= 3
-      || Math.abs(event.clientY - currentDrag.startY) >= 3
+      || Math.abs(clientX - currentDrag.startX) >= 3
+      || Math.abs(clientY - currentDrag.startY) >= 3
     const origin = currentDrag.origin
     const duration = origin.frameEnd - origin.frameStart + 1
     let frameStart = origin.frameStart
@@ -1209,14 +1179,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setSoundCueDrag(nextDrag)
   }
 
-  function finishSoundCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) {
+  function finishSoundCuePointerById(pointerId: number, cancelled = false) {
     const current = soundCueDragRef.current
-    if (!current || current.pointerId !== event.pointerId) return
-    event.preventDefault()
-    event.stopPropagation()
+    if (!current || current.pointerId !== pointerId) return
     soundCueDragRef.current = null
     setSoundCueDrag(null)
     props.onStatusHint('sheet-drag', null)
+    releasePointerCaptureForElements(pointerId, Object.values(sheetSvgRefs.current))
     if (!cancelled && current.moved) {
       props.onSoundCueTransform(current.origin.cueId, {
         laneId: current.preview.laneId,
@@ -1226,6 +1195,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     } else {
       props.onSoundCueSelect(current.origin.cueId)
     }
+  }
+
+  updateSoundCuePointerRef.current = updateSoundCuePointer
+  finishSoundCuePointerRef.current = finishSoundCuePointerById
+  function handleSoundCuePointerMove(event: PointerEvent<SVGGElement>) {
+    updateSoundCuePointer(event.pointerId, event.clientX, event.clientY)
+  }
+  function finishSoundCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) {
+    finishSoundCuePointerById(event.pointerId, cancelled)
   }
 
   function handleSoundCuePointerEnter(event: PointerEvent<SVGGElement>, cueId: string) {
@@ -1526,6 +1504,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setPaperTrackHeaderMenu(null)
     setStackGuideHeaderMenu(null)
     props.setActivePageIndex(page.pageIndex)
+    const selectedRange = isPointEventRangeForUi(props.rangeSelection)
+      && rangeContainsHit(props.rangeSelection, sourceHit)
+      && (props.rangeSelection.frameStart !== props.rangeSelection.frameEnd || rangePaperTracks(props.rangeSelection).length > 1)
+      ? props.rangeSelection
+      : undefined
+    if (selectedRange) {
+      beginTimelineEventDrag(event.pointerId, sourceHit, event.clientX, event.clientY, selectedRange)
+      return
+    }
     props.onCellClick(sourceHit)
     if (event.altKey) {
       beginTimelineEventDrag(event.pointerId, sourceHit, event.clientX, event.clientY)
@@ -1614,18 +1601,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (!activeTimelineEventDrag || activeTimelineEventDrag.pointerId !== event.pointerId) return
     event.preventDefault()
     event.stopPropagation()
-    const current = activeTimelineEventDrag
-    setTimelineEventDrag(null)
-    props.onStatusHint('sheet-drag', null)
-    clearHover()
-    const target = dropTargetFromClientPoint(event.clientX, event.clientY)
-    const releaseHit = target?.hit?.paperTrack && sheetRoleForHit(target.hit) === sheetRoleForHit(current.sourceHit)
-      ? target.hit
-      : current.currentHit
-    if ((current.moved || Boolean(releaseHit && !sameSheetHitCell(releaseHit, current.sourceHit))) && releaseHit?.paperTrack) {
-      props.onMoveTimelineEvent(current.sourceHit, releaseHit)
-      return
-    }
+    finishTimelineEventPointerById(event.pointerId, false, event.clientX, event.clientY)
   }
 
   function handleTimelineEventPointerCancel(event: PointerEvent<SVGGElement>) {
@@ -1647,9 +1623,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (!activeTimelineEventDrag || activeTimelineEventDrag.pointerId !== event.pointerId) return
     event.preventDefault()
     event.stopPropagation()
-    setTimelineEventDrag(null)
-    props.onStatusHint('sheet-drag', null)
-    clearHover()
+    finishTimelineEventPointerById(event.pointerId, true, event.clientX, event.clientY)
   }
 
   function calibrationPointsForPage(page: SheetPage, settings: SheetImageSettings): SheetCalibrationPointPair[] {
@@ -1994,18 +1968,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
     const activeTimelineEventDrag = timelineEventDragRef.current
     if (activeTimelineEventDrag && activeTimelineEventDrag.pointerId === event.pointerId) {
-      const current = activeTimelineEventDrag
-      setTimelineEventDrag(null)
-      props.onStatusHint('sheet-drag', null)
-      clearHover()
-      const target = dropTargetFromClientPoint(event.clientX, event.clientY)
-      const releaseHit = target?.hit?.paperTrack && sheetRoleForHit(target.hit) === sheetRoleForHit(current.sourceHit)
-        ? target.hit
-        : current.currentHit
-      if ((current.moved || Boolean(releaseHit && !sameSheetHitCell(releaseHit, current.sourceHit))) && releaseHit?.paperTrack) {
-        props.onMoveTimelineEvent(current.sourceHit, releaseHit)
-        return
-      }
+      finishTimelineEventPointerById(event.pointerId, false, event.clientX, event.clientY)
       return
     }
     if (!draftStroke) return
@@ -2279,7 +2242,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
-    displayDurationFrames, officialFrameEnd, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
+    displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,

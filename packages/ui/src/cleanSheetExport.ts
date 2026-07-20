@@ -2,13 +2,11 @@ import {
   getSheetViewLayout,
   isRenderableSheetTemplateGridRegion,
   normalizeMemoAppearance,
-  resolveSheetTemplateGridLayout,
   sheetAnnotationStrokes,
   sheetAnnotationTexts,
   timelineMemos,
   type CutProject,
   type NormalizedRect,
-  type SheetPage,
   type SheetTemplate,
 } from '@xsheet-remap/core'
 import { alphaComposite, writeRgbPsd, type PsdLayer } from './psdWriter'
@@ -23,6 +21,7 @@ import {
   metadataTextRenderItemsForPage,
   overlayPaperTrackRenderItems,
   stackGuideFlagRenderItemsForPage,
+  workRangeShadeRenderItemsForPage,
   type FlagLabelGeometry,
   type OverlayPaperTrackRenderItem,
   type SheetRenderCutGroupContext,
@@ -39,8 +38,7 @@ import {
 } from './templateEditorGeometry'
 import { sheetImageFileName } from './outputFileNames'
 import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
-import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
-import { resolveGridTypographyFontSizes } from './sheetTextLayout'
+import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import {
   buildCameraCuePageLayouts,
   cameraCuePointLayoutsForPage,
@@ -86,6 +84,7 @@ type SheetExportLayerId =
   | 'templateImage'
   | 'templateLines'
   | 'templateLabels'
+  | 'workRangeShade'
   | 'overlayTracks'
   | 'metadataText'
   | 'timingInput'
@@ -264,6 +263,9 @@ function sheetExportLayerDescriptorsForContext(
     layers.push({ id: 'templateLines', name: 'テンプレ罫線' })
     layers.push({ id: 'templateLabels', name: 'テンプレラベル' })
   }
+  if (context.pages.some(page => workRangeShadeRenderItemsForPage(context, page).length > 0)) {
+    layers.push({ id: 'workRangeShade', name: '尺外グレー' })
+  }
   if (hasOverlayRenderContent(context)) layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル' })
   layers.push({ id: 'metadataText', name: 'シート情報' })
   layers.push({ id: 'timingInput', name: 'ACTION/CELL入力' })
@@ -291,6 +293,7 @@ async function renderSheetExportLayer(
     })
   }
   if (id === 'templateLabels') return renderTemplateDrawingLayer(context, { includeStaticChrome: false, content: 'labels' })
+  if (id === 'workRangeShade') return renderWorkRangeShadeLayer(context)
   if (id === 'overlayTracks') return renderOverlayTrackLayer(context)
   if (id === 'metadataText') return renderMetadataTextLayer(context)
   if (id === 'timingInput') return renderTimingInputLayer(context)
@@ -422,18 +425,6 @@ function renderTemplateDrawingLayer(
           ctx.globalAlpha = 1
         }
       }
-      const layout = resolveSheetTemplateGridLayout(context.template, region, {
-        paperTracks: context.paperTracks,
-        durationFrames: page.frameEnd - page.frameStart + 1,
-        frameOrigin,
-        layoutOverrides: context.project.sheetView.layoutOverrides,
-      })
-      if (!layout || options.content !== 'lines') continue
-      const rect = layout.rect
-      const x = rect.x * context.pageSize.widthPx
-      const y = offsetY + rect.y * context.pageSize.heightPx
-      const w = rect.w * context.pageSize.widthPx
-      drawInactiveRange(ctx, context, page, layout, frameOrigin, x, y, w)
     }
   }
   return ctx.getImageData(0, 0, context.width, context.height)
@@ -565,31 +556,23 @@ function templateGridCanvasStyle(className: string): { stroke: string; lineWidth
   return { stroke: '#8b908a', lineWidth: 0.8 }
 }
 
-function drawInactiveRange(
-  ctx: CanvasRenderingContext2D,
-  context: SheetExportLayerContext,
-  page: SheetPage,
-  layout: NonNullable<ReturnType<typeof resolveSheetTemplateGridLayout>>,
-  frameOrigin: number,
-  x: number,
-  y: number,
-  w: number,
-) {
-  ctx.fillStyle = 'rgba(90, 96, 104, 0.16)'
-  const inactiveRanges = [
-    { frameStart: page.frameStart, frameEnd: Math.min(page.frameEnd, context.project.logicalSheet.frameOrigin - 1) },
-    { frameStart: Math.max(page.frameStart, context.officialFrameEnd + 1), frameEnd: page.frameEnd },
-  ].filter(range => range.frameEnd >= range.frameStart)
-  for (const range of inactiveRanges) {
-    const localStart = frameOrigin === page.frameStart ? range.frameStart : range.frameStart - page.frameStart + context.template.defaults.frameOrigin
-    const localEnd = frameOrigin === page.frameStart ? range.frameEnd : range.frameEnd - page.frameStart + context.template.defaults.frameOrigin
-    const start = Math.max(layout.frames.frameStart, localStart)
-    const end = Math.min(layout.frames.frameEnd, localEnd)
-    if (end < start) continue
-    const rowIndex = start - layout.frames.frameStart
-    ctx.fillRect(x, y + layout.frames.rowHeightPx * rowIndex, w, layout.frames.rowHeightPx * (end - start + 1))
+function renderWorkRangeShadeLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  ctx.fillStyle = 'rgba(80, 80, 80, 0.18)'
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const item of workRangeShadeRenderItemsForPage(context, page)) {
+      ctx.fillRect(
+        item.rect.x * context.pageSize.widthPx,
+        offsetY + item.rect.y * context.pageSize.heightPx,
+        item.rect.w * context.pageSize.widthPx,
+        item.rect.h * context.pageSize.heightPx,
+      )
+    }
   }
-  ctx.fillStyle = '#202421'
+  return ctx.getImageData(0, 0, context.width, context.height)
 }
 
 function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
@@ -741,55 +724,48 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   const textMeasurement = createCanvasTextMeasurementProvider(() => ctx)
   const cues = context.project.timedRangeCues.filter(cue => cue.role === 'sound')
+  const pageTextLayouts = buildSoundCuePageTextLayouts(
+    context.template,
+    context.pages,
+    cues,
+    context.pageSize,
+    {
+      paperTracks: context.paperTracks,
+      timelineLanes: context.timelineLanes,
+      layoutOverrides: context.project.sheetView.layoutOverrides,
+      fontFamily: SHEET_CANVAS_FONT_FAMILY,
+      labelFontWeight: 850,
+      textMeasurement,
+    },
+  )
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const cue of cues) {
-      for (const segment of soundCueSegmentsForPage(context.template, page, cue, {
-        paperTracks: context.paperTracks,
-        layoutOverrides: context.project.sheetView.layoutOverrides,
-      })) {
-        const rect = projectedPixelRect(context, segment.rect, offsetY)
-        ctx.fillStyle = 'rgba(37, 121, 94, 0.16)'
-        ctx.strokeStyle = 'rgba(25, 91, 70, 0.74)'
-        ctx.lineWidth = 1
-        ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
-        ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
-        ctx.strokeStyle = 'rgba(18, 82, 62, 0.98)'
-        ctx.lineWidth = 3
-        if (segment.startsCue) drawCanvasLine(ctx, rect.x, rect.y, rect.x + rect.w, rect.y)
-        if (segment.endsCue) drawCanvasLine(ctx, rect.x, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h)
-        const typography = context.template.regions.find(region => region.regionId === segment.regionId)?.grid?.typography
-        const resolvedTypography = resolveGridTypographyFontSizes(context.template, context.pageSize, typography, { fontSizePx: 14, minFontSizePx: 6 })
-        const textLayout = buildSoundCueTextLayout(
-          segment.rect,
-          context.pageSize,
-          segment.startsCue ? cue.label : '',
-          cue.text,
-          {
-            fontSizePx: resolvedTypography.fontSizePx,
-            minFontSizePx: resolvedTypography.minFontSizePx,
-            regionRect: segment.regionRect,
-            fontFamily: SHEET_CANVAS_FONT_FAMILY,
-            labelFontWeight: 850,
-            textMeasurement,
-          },
-        )
-        const textClipLeft = segment.regionRect.x * context.pageSize.widthPx
-        const textClipWidth = segment.regionRect.w * context.pageSize.widthPx
-        ctx.save()
-        ctx.beginPath()
-        ctx.rect(textClipLeft, offsetY, textClipWidth, context.pageSize.heightPx)
-        ctx.clip()
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'alphabetic'
-        for (const glyph of textLayout.labelGlyphs) {
-          drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.labelFontSizePx, 850)
-        }
-        for (const glyph of textLayout.textGlyphs) {
-          drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650)
-        }
-        ctx.restore()
+    for (const { segment, textLayout } of pageTextLayouts.filter(item => item.pageId === page.pageId)) {
+      const rect = projectedPixelRect(context, segment.rect, offsetY)
+      ctx.fillStyle = 'rgba(37, 121, 94, 0.16)'
+      ctx.strokeStyle = 'rgba(25, 91, 70, 0.74)'
+      ctx.lineWidth = 1
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
+      ctx.strokeStyle = 'rgba(18, 82, 62, 0.98)'
+      ctx.lineWidth = 3
+      if (segment.startsCue) drawCanvasLine(ctx, rect.x, rect.y, rect.x + rect.w, rect.y)
+      if (segment.endsCue) drawCanvasLine(ctx, rect.x, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h)
+      const textClipLeft = segment.regionRect.x * context.pageSize.widthPx
+      const textClipWidth = segment.regionRect.w * context.pageSize.widthPx
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(textClipLeft, offsetY, textClipWidth, context.pageSize.heightPx)
+      ctx.clip()
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      for (const glyph of textLayout.labelGlyphs) {
+        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.labelFontSizePx, 850)
       }
+      for (const glyph of textLayout.textGlyphs) {
+        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650)
+      }
+      ctx.restore()
     }
   }
   return ctx.getImageData(0, 0, context.width, context.height)

@@ -135,6 +135,11 @@ export type OverlayPaperTrackRenderItem = {
   label: OverlayAuxiliaryLabelGeometry
 }
 
+export type SheetWorkRangeShadeRenderItem = {
+  regionId: string
+  rect: NormalizedRect
+}
+
 type LabelLaneOccupancy = {
   leftPx: number
   rightPx: number
@@ -176,6 +181,55 @@ export function createSheetRenderModelContext(
 
 export function hasOverlayRenderContent(context: SheetRenderModelContext): boolean {
   return context.overlayTracks.length > 0 || context.project.stackGuideLabels.some(label => stackGuideStackBand(label) === 'cell-interleave')
+}
+
+export function workRangeShadeRenderItemsForPage(
+  context: SheetRenderModelContext,
+  page: SheetPage,
+): SheetWorkRangeShadeRenderItem[] {
+  const viewLayout = getSheetViewLayout(context.template)
+  const continuousFrameAxis = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
+  const frameOrigin = continuousFrameAxis ? page.frameStart : context.template.defaults.frameOrigin
+  const localFrameToGlobalFrame = (frame: number) => continuousFrameAxis
+    ? frame
+    : page.frameStart + (frame - context.template.defaults.frameOrigin)
+  const globalFrameToLocalFrame = (frame: number) => continuousFrameAxis
+    ? frame
+    : frame - page.frameStart + context.template.defaults.frameOrigin
+  const officialFrameStart = context.project.logicalSheet.frameOrigin
+
+  return context.template.regions.flatMap(region => {
+    if (region.type !== 'exposure-grid' || !region.grid) return []
+    const layout = resolveSheetTemplateGridLayout(context.template, region, {
+      paperTracks: context.paperTracks,
+      timelineLanes: context.timelineLanes,
+      durationFrames: page.frameEnd - page.frameStart + 1,
+      frameOrigin,
+      layoutOverrides: context.project.sheetView.layoutOverrides,
+    })
+    if (!layout) return []
+    const visibleFrameStart = localFrameToGlobalFrame(layout.frames.frameStart)
+    const visibleFrameEnd = localFrameToGlobalFrame(layout.frames.frameEnd)
+    const ranges = [
+      { frameStart: visibleFrameStart, frameEnd: Math.min(visibleFrameEnd, officialFrameStart - 1) },
+      { frameStart: Math.max(visibleFrameStart, context.officialFrameEnd + 1), frameEnd: visibleFrameEnd },
+    ].filter(range => range.frameEnd >= range.frameStart)
+
+    return ranges.flatMap(range => {
+      const frameStart = Math.max(layout.frames.frameStart, globalFrameToLocalFrame(range.frameStart))
+      const frameEnd = Math.min(layout.frames.frameEnd, globalFrameToLocalFrame(range.frameEnd))
+      if (frameEnd < frameStart) return []
+      return [{
+        regionId: region.regionId,
+        rect: {
+          x: layout.rect.x,
+          y: layout.rect.y + layout.frames.rowHeight * (frameStart - layout.frames.frameStart),
+          w: layout.rect.w,
+          h: layout.frames.rowHeight * (frameEnd - frameStart + 1),
+        },
+      }]
+    })
+  })
 }
 
 export function inputTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetInputTextRenderItem[] {

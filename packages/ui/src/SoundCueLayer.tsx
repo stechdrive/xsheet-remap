@@ -1,8 +1,7 @@
 import { useId, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetTemplateLayoutResolveOptions, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
-import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
+import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
-import { resolveGridTypographyFontSizes } from './sheetTextLayout'
 
 export type SoundCueDragMode = 'move' | 'resize-start' | 'resize-end'
 
@@ -10,6 +9,7 @@ export function SoundCueLayer({
   cues,
   template,
   page,
+  pages = [page],
   paperTracks,
   timelineLanes,
   layoutOverrides,
@@ -27,6 +27,7 @@ export function SoundCueLayer({
   cues: TimedRangeCue[]
   template: SheetTemplate
   page: SheetPage
+  pages?: SheetPage[]
   paperTracks: string[]
   timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']
   layoutOverrides?: SheetViewLayoutOverrides
@@ -43,34 +44,14 @@ export function SoundCueLayer({
 }) {
   const clipIdPrefix = `sound-cue-clip-${useId().replace(/:/g, '')}`
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
-  const segments = cues
-    .flatMap(cue => soundCueSegmentsForPage(template, page, cue, { paperTracks, timelineLanes, layoutOverrides })
-      .map(segment => ({ cue, segment, key: `${cue.cueId}:${segment.regionId}:${segment.frameStart}` })))
-    .sort((left, right) => left.segment.frameStart - right.segment.frameStart
-      || left.segment.rect.x - right.segment.rect.x
-      || left.cue.cueId.localeCompare(right.cue.cueId))
-  const occupiedLabelBoundsPx = [] as NonNullable<ReturnType<typeof buildSoundCueTextLayout>['labelBoundsPx']>[]
-  const textLayouts = new Map<string, ReturnType<typeof buildSoundCueTextLayout>>()
+  const segments = buildSoundCuePageTextLayouts(template, pages, cues, pageSize, {
+    paperTracks,
+    timelineLanes,
+    layoutOverrides,
+  }).filter(entry => entry.pageId === page.pageId)
   const textClipIds = new Map<string, string>()
-  segments.forEach(({ cue, segment, key }) => {
+  segments.forEach(({ key }) => {
     textClipIds.set(key, `${clipIdPrefix}-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`)
-    const typography = template.regions.find(region => region.regionId === segment.regionId)?.grid?.typography
-    const resolvedTypography = resolveGridTypographyFontSizes(template, pageSize, typography, { fontSizePx: 14, minFontSizePx: 6 })
-    const textLayout = buildSoundCueTextLayout(
-      segment.rect,
-      pageSize,
-      segment.startsCue ? cue.label : '',
-      cue.text,
-      {
-        fontSizePx: resolvedTypography.fontSizePx,
-        minFontSizePx: resolvedTypography.minFontSizePx,
-        regionRect: segment.regionRect,
-        occupiedRects: segments.filter(item => item.key !== key).map(item => item.segment.rect),
-        occupiedLabelBoundsPx,
-      },
-    )
-    textLayouts.set(key, textLayout)
-    if (textLayout.labelBoundsPx) occupiedLabelBoundsPx.push(textLayout.labelBoundsPx)
   })
   return (
     <g className="soundCueLayer">
@@ -88,9 +69,8 @@ export function SoundCueLayer({
           </clipPath>
         ))}
       </defs>
-      {segments.map(({ cue, segment, key }) => {
+      {segments.map(({ cue, segment, key, textLayout }) => {
         const selected = selectedCueId === cue.cueId
-        const textLayout = textLayouts.get(key)!
         return (
           <g
             key={key}
@@ -105,6 +85,7 @@ export function SoundCueLayer({
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
+            onLostPointerCapture={onPointerCancel}
             onDoubleClick={event => {
               event.preventDefault()
               event.stopPropagation()

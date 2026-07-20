@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
-import { buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
+import { buildSoundCuePageTextLayouts, buildSoundCueTextLayout, soundCueSegmentsForPage } from './soundCueGeometry'
 import { createCanvasTextMeasurementProvider } from './textMetrics'
 
 describe('SOUND cue geometry', () => {
@@ -16,6 +16,48 @@ describe('SOUND cue geometry', () => {
       ['left_sound_grid', 70, 72, true, false],
       ['right_sound_grid', 73, 76, false, true],
     ])
+  })
+
+  it('flows dialogue once across folded A3 segments instead of repeating it in every segment', () => {
+    const pages = createSheetPages(standardA3SheetTemplate, 144, 1)
+    const cue: TimedRangeCue = {
+      cueId: 'cue_folded', role: 'sound', laneId: 'sound_lane_1', frameStart: 70, frameEnd: 76,
+      label: 'アキラ', text: '折り返して一度だけ表示', source: 'manual',
+    }
+    const layouts = buildSoundCuePageTextLayouts(
+      standardA3SheetTemplate,
+      pages,
+      [cue],
+      { widthPx: 1754, heightPx: 2481 },
+      { paperTracks: createDefaultProject().logicalSheet.paperTracks.map(track => track.paperTrack) },
+    )
+
+    expect(layouts.map(item => [item.segment.regionId, item.segment.frameStart, item.segment.frameEnd])).toEqual([
+      ['left_sound_grid', 70, 72],
+      ['right_sound_grid', 73, 76],
+    ])
+    expect(layouts.every(item => item.textLayout.textGlyphs.length > 0)).toBe(true)
+    expect(layouts.flatMap(item => item.textLayout.textGlyphs).map(glyph => glyph.value).join('')).toBe(cue.text)
+    expect(layouts.flatMap(item => item.textLayout.labelGlyphs).map(glyph => glyph.value).join('')).toBe(cue.label)
+  })
+
+  it('continues the same dialogue flow across A3 pages without restarting the text', () => {
+    const pages = createSheetPages(standardA3SheetTemplate, 288, 1)
+    const cue: TimedRangeCue = {
+      cueId: 'cue_paged', role: 'sound', laneId: 'sound_lane_1', frameStart: 140, frameEnd: 150,
+      label: 'ミナ', text: 'ページをまたいでも一度だけ表示', source: 'manual',
+    }
+    const layouts = buildSoundCuePageTextLayouts(
+      standardA3SheetTemplate,
+      pages,
+      [cue],
+      { widthPx: 1754, heightPx: 2481 },
+      { paperTracks: createDefaultProject().logicalSheet.paperTracks.map(track => track.paperTrack) },
+    )
+
+    expect(new Set(layouts.map(item => item.pageId)).size).toBe(2)
+    expect(layouts.flatMap(item => item.textLayout.textGlyphs).map(glyph => glyph.value).join('')).toBe(cue.text)
+    expect(layouts.flatMap(item => item.textLayout.labelGlyphs).map(glyph => glyph.value).join('')).toBe(cue.label)
   })
 
   it('never ellipsizes a label and middle-ellipsizes dialogue only when physically necessary', () => {

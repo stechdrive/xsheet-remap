@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { MaterialState, NormalizedRect, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimedRangeCue, TimingKey } from '@xsheet-remap/core'
+import type { MaterialState, NormalizedRect, SheetHit, SheetImageAlignment, SheetPageImageRef, SheetTemplateGrid, SheetTemplateInputMode, TimedRangeCue, TimelineEvent, TimingKey } from '@xsheet-remap/core'
 import type { XdtsData, XdtsImportConflictMode } from '@xsheet-remap/xdts'
 
 export type Panel = 'sheet' | 'template'
@@ -166,5 +166,6 @@ export interface TimingClipboard {
       materialState: MaterialState
     }>
     fontSizePx?: number
+    source?: TimelineEvent['source']
   }>
 }

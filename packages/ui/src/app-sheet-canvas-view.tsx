@@ -54,7 +54,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
-    displayDurationFrames, officialFrameEnd, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
+    displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
@@ -263,11 +263,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   ))}
                   {showTemplateLines && (
                     <WorkRangeOverlay
-                      template={props.template}
+                      context={sheetRenderModelContext}
                       page={page}
-                      displayDurationFrames={displayDurationFrames}
-                      officialFrameStart={props.project.logicalSheet.frameOrigin}
-                      officialFrameEnd={officialFrameEnd}
                     />
                   )}
                   {!isCalibrating && overlayTracks.length > 0 && (
@@ -300,6 +297,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       cues={soundCues}
                       template={props.template}
                       page={page}
+                      pages={sheetRenderModelContext.pages}
                       paperTracks={templateTrackNames}
                       timelineLanes={timelineLanes}
                       layoutOverrides={props.project.sheetView.layoutOverrides}

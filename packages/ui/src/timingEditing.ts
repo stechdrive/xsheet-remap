@@ -38,6 +38,15 @@ export type TimingPasteTarget = {
   hit?: SheetHit
 }
 
+export type TimingRangeMoveResult = {
+  project: CutProject
+  status: 'moved' | 'same-target' | 'invalid-target' | 'empty-source'
+  collisionCount: number
+  destinationPaperTracks: string[]
+  destinationFrameStart: number
+  destinationFrameEnd: number
+}
+
 export type TimelineFrameEditScope = 'track' | 'tracks' | 'cut'
 export type TimelineInsertDurationPolicy = 'preserve' | 'extend'
 export type TimelineDeleteDurationPolicy = 'preserve' | 'shrink'
@@ -159,7 +168,7 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
       }
       const eventKind = timingEventValueKind(event)
       if (eventKind !== 'cell') {
-        items.push({ paperTrackOffset, offsetFrames: frame - range.frameStart, kind: eventKind, fontSizePx: event.fontSizePx })
+        items.push({ paperTrackOffset, offsetFrames: frame - range.frameStart, kind: eventKind, fontSizePx: event.fontSizePx, source: event.source })
         continue
       }
       const key = keyById.get(event.keyId)
@@ -173,6 +182,7 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
         createdFrom: key?.createdFrom,
         bindings: key ? timingClipboardBindingSnapshots(project, key.keyId, slotById) : undefined,
         fontSizePx: event.fontSizePx,
+        source: event.source,
       })
     }
   }
@@ -186,6 +196,115 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
     mode,
     items,
   }
+}
+
+export function moveTimingEventsInRange(
+  project: CutProject,
+  range: SheetRangeSelection,
+  sourceHit: SheetHit,
+  targetHit: SheetHit,
+  paperTrackOrder: string[],
+): TimingRangeMoveResult {
+  const invalidResult = (): TimingRangeMoveResult => ({
+    project,
+    status: 'invalid-target',
+    collisionCount: 0,
+    destinationPaperTracks: [],
+    destinationFrameStart: range.frameStart,
+    destinationFrameEnd: range.frameEnd,
+  })
+  if (!isPointEventRangeForUi(range) || !sourceHit.paperTrack || !targetHit.paperTrack) return invalidResult()
+  if (range.role !== sheetRoleForHit(sourceHit) || range.role !== sheetRoleForHit(targetHit) || !rangeContainsHit(range, sourceHit)) return invalidResult()
+
+  const sourcePaperTracks = rangePaperTracks(range)
+  const sourceTrackIndex = paperTrackOrder.indexOf(sourceHit.paperTrack)
+  const targetTrackIndex = paperTrackOrder.indexOf(targetHit.paperTrack)
+  if (sourceTrackIndex < 0 || targetTrackIndex < 0) return invalidResult()
+  const trackDelta = targetTrackIndex - sourceTrackIndex
+  const destinationPaperTracks = sourcePaperTracks.map(paperTrack => {
+    const index = paperTrackOrder.indexOf(paperTrack)
+    return index < 0 ? undefined : paperTrackOrder[index + trackDelta]
+  })
+  if (destinationPaperTracks.some((paperTrack): paperTrack is undefined => !paperTrack)) return invalidResult()
+
+  const frameDelta = targetHit.frame - sourceHit.frame
+  const destinationFrameStart = range.frameStart + frameDelta
+  const destinationFrameEnd = range.frameEnd + frameDelta
+  const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
+  const displayFrameEnd = logicalSheetDisplayFrameEnd(project.logicalSheet)
+  if (destinationFrameStart < displayFrameStart || destinationFrameEnd > displayFrameEnd) return invalidResult()
+  if (frameDelta === 0 && trackDelta === 0) {
+    return {
+      project,
+      status: 'same-target',
+      collisionCount: 0,
+      destinationPaperTracks: sourcePaperTracks,
+      destinationFrameStart,
+      destinationFrameEnd,
+    }
+  }
+
+  const clipboard = buildTimingClipboard(project, range, 'cut')
+  const movedItems = clipboard.items.filter(item => item.kind !== 'empty')
+  if (movedItems.length === 0) {
+    return {
+      project,
+      status: 'empty-source',
+      collisionCount: 0,
+      destinationPaperTracks: destinationPaperTracks as string[],
+      destinationFrameStart,
+      destinationFrameEnd,
+    }
+  }
+
+  const sourceCells = new Set(project.logicalSheet.events
+    .filter(event => sourcePaperTracks.includes(event.paperTrack)
+      && sheetTimingRoleForEvent(event) === range.role
+      && event.frame >= range.frameStart
+      && event.frame <= range.frameEnd)
+    .map(event => timingCellSignature(event.paperTrack, event.frame)))
+  const destinationCells = new Set(movedItems.map(item => timingCellSignature(
+    destinationPaperTracks[item.paperTrackOffset] as string,
+    destinationFrameStart + item.offsetFrames,
+  )))
+  const collisionCount = project.logicalSheet.events.filter(event =>
+    sheetTimingRoleForEvent(event) === range.role
+    && destinationCells.has(timingCellSignature(event.paperTrack, event.frame))
+    && !sourceCells.has(timingCellSignature(event.paperTrack, event.frame)),
+  ).length
+
+  let next = clearTimingRange(project, range)
+  for (const item of movedItems) {
+    const destinationPaperTrack = destinationPaperTracks[item.paperTrackOffset]
+    if (!destinationPaperTrack) return invalidResult()
+    next = setTimingClipboardItem(next, range.role, destinationPaperTrack, destinationFrameStart + item.offsetFrames, item)
+  }
+  return {
+    project: next,
+    status: 'moved',
+    collisionCount,
+    destinationPaperTracks: destinationPaperTracks as string[],
+    destinationFrameStart,
+    destinationFrameEnd,
+  }
+}
+
+export function timingRangeSelectionForMoveResult(
+  template: SheetTemplate,
+  project: CutProject,
+  role: 'action' | 'cell',
+  result: TimingRangeMoveResult,
+  paperTrackOrder: string[],
+): SheetRangeSelection | null {
+  if (result.status !== 'moved') return null
+  const firstPaperTrack = result.destinationPaperTracks[0]
+  const lastPaperTrack = result.destinationPaperTracks.at(-1)
+  if (!firstPaperTrack || !lastPaperTrack) return null
+  const durationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
+  const frameOrigin = logicalSheetDisplayFrameStart(project.logicalSheet)
+  const startHit = timingHitForFrame(template, role, firstPaperTrack, result.destinationFrameStart, durationFrames, frameOrigin, paperTrackOrder)
+  const endHit = timingHitForFrame(template, role, lastPaperTrack, result.destinationFrameEnd, durationFrames, frameOrigin, paperTrackOrder)
+  return startHit && endHit ? rangeSelectionFromHits(template, startHit, endHit, paperTrackOrder) : null
 }
 
 export function clearTimingRange(project: CutProject, range: SheetRangeSelection & { role: 'action' | 'cell'; paperTrack: string }): CutProject {
@@ -348,7 +467,7 @@ function setTimingClipboardItem(
 ): CutProject {
   if (item.kind === 'empty') return clearEvent(project, targetPaperTrack, frame, targetRole)
   if (item.kind === 'blank' || item.kind === 'inbetween' || item.kind === 'reverse') {
-    return setTimingSpecialEvent(project, targetPaperTrack, frame, item.kind, targetRole, { fontSizePx: item.fontSizePx })
+    return setTimingSpecialEvent(project, targetPaperTrack, frame, item.kind, targetRole, { fontSizePx: item.fontSizePx, source: item.source })
   }
   const displayLabel = item.displayLabel ?? ''
   const sourceKey = item.keyId ? project.logicalSheet.keys.find(key => key.keyId === item.keyId) : undefined
@@ -359,16 +478,20 @@ function setTimingClipboardItem(
     : null
   if (reusableSourceKey) {
     const withBindings = applyClipboardBindingsForTarget(project, reusableSourceKey.keyId, targetPaperTrack, item)
-    return setEvent(withBindings, targetPaperTrack, frame, reusableSourceKey.keyId, targetRole, { fontSizePx: item.fontSizePx })
+    return setEvent(withBindings, targetPaperTrack, frame, reusableSourceKey.keyId, targetRole, { fontSizePx: item.fontSizePx, source: item.source })
   }
   const existingKey = findReusableClipboardKey(project, targetRole, targetPaperTrack, item)
   if (existingKey) {
     const withBindings = applyClipboardBindingsForTarget(project, existingKey.keyId, targetPaperTrack, item)
-    return setEvent(withBindings, targetPaperTrack, frame, existingKey.keyId, targetRole, { fontSizePx: item.fontSizePx })
+    return setEvent(withBindings, targetPaperTrack, frame, existingKey.keyId, targetRole, { fontSizePx: item.fontSizePx, source: item.source })
   }
   const created = createClipboardKey(project, targetRole, targetPaperTrack, item, displayLabel)
   const withBindings = applyClipboardBindingsForTarget(created.project, created.key.keyId, targetPaperTrack, item)
-  return setEvent(withBindings, targetPaperTrack, frame, created.key.keyId, targetRole, { fontSizePx: item.fontSizePx })
+  return setEvent(withBindings, targetPaperTrack, frame, created.key.keyId, targetRole, { fontSizePx: item.fontSizePx, source: item.source })
+}
+
+function timingCellSignature(paperTrack: string, frame: number): string {
+  return `${paperTrack}\u0000${frame}`
 }
 
 function timingClipboardBindingSnapshots(

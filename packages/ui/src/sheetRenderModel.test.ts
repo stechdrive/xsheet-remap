@@ -22,6 +22,7 @@ import {
   overlayPaperTrackRenderItems,
   sheetContinuationPathData,
   stackGuideFlagRenderItemsForPage,
+  workRangeShadeRenderItemsForPage,
 } from './sheetRenderModel'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import type { TextMeasurementProvider } from './textMetrics'
@@ -93,6 +94,43 @@ describe('sheet render model', () => {
     expect(items).toHaveLength(3)
     expect(items.every(item => item.rect.w > 0 && item.rect.h > 0)).toBe(true)
     expect(items.every(item => item.fontSizePx === defaultTimingTextFontSizePx(standardA3SheetTemplate, 'action'))).toBe(true)
+  })
+
+  it('projects ACTION and CELL events once when an A3 page folds between frames 72 and 73', () => {
+    let project = createDefaultProject()
+    for (const role of ['action', 'cell'] as const) {
+      for (const frame of [70, 73]) project = createOrSetEvent(project, 'A', frame, role).project
+    }
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate)
+    const items = inputTextRenderItemsForPage(context, context.pages[0])
+
+    expect(items).toHaveLength(4)
+    expect(new Set(items.map(item => item.eventId)).size).toBe(4)
+    for (const role of ['action', 'cell'] as const) {
+      const roleEventIds = project.logicalSheet.events
+        .filter(event => event.sheetRole === role)
+        .map(event => event.eventId)
+      const roleItems = items.filter(item => roleEventIds.includes(item.eventId)).sort((left, right) => left.frame - right.frame)
+      expect(roleItems.map(item => item.frame)).toEqual([70, 73])
+      expect(roleItems[0]?.rect.x).not.toBe(roleItems[1]?.rect.x)
+    }
+  })
+
+  it('shares out-of-duration shading geometry between paper and digital templates including dummy frames', () => {
+    const shortened = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 72 })
+    const paperContext = createSheetRenderModelContext(shortened, standardA3SheetTemplate)
+    expect(paperContext.pages.flatMap(page => workRangeShadeRenderItemsForPage(paperContext, page))).toHaveLength(4)
+
+    const withDummyFrames = updateLogicalSheetSettings(shortened, {
+      workRange: { ...shortened.logicalSheet.workRange, showPreRoll: true },
+    })
+    const paperDummyContext = createSheetRenderModelContext(withDummyFrames, standardA3SheetTemplate)
+    expect(paperDummyContext.pages.flatMap(page => workRangeShadeRenderItemsForPage(paperDummyContext, page))).toHaveLength(8)
+
+    const digitalContext = createSheetRenderModelContext(withDummyFrames, digitalStandardSheetTemplate)
+    const digitalShade = digitalContext.pages.flatMap(page => workRangeShadeRenderItemsForPage(digitalContext, page))
+    expect(new Set(digitalShade.map(item => item.regionId)).size).toBeGreaterThanOrEqual(4)
+    expect(digitalShade.every(item => item.rect.w > 0 && item.rect.h > 0)).toBe(true)
   })
 
   it('derives optional straight and wave continuation geometry from explicit events', () => {

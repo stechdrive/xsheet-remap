@@ -605,6 +605,53 @@ it('moves a registered timeline event after a long press', async () => {
     }
   })
 
+it.each(['action', 'cell'] as const)('moves every %s event in an existing multi-frame selection once and ends the drag on pointer release', async role => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    clickTemplateFrame(sheet, role, 'A', 1)
+    enterTimingValue('1')
+    clickTemplateFrame(sheet, role, 'A', 3)
+    enterTimingValue('2')
+    dragTemplateDisplayFrames(sheet, role, 'A', 1, 3, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    await waitFor(() => expectSelectedRange(role, 'A', 1, 3))
+
+    const source = templateFramePoint(role, 'A', 1)
+    const target = templateFramePoint(role, 'A', 5)
+    const sourceHit = timingHitForFrame(standardA3SheetTemplate, role, 'A', 1, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    const sourceRect = sourceHit
+      ? cellRectForHit(standardA3SheetTemplate, sourceHit, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+      : null
+    const eventHandle = Array.from(document.querySelectorAll<SVGGElement>('.timelineEventHandle')).find(handle => {
+      const rect = handle.querySelector<SVGRectElement>('.eventRect')
+      return rect && sourceRect && Math.abs(Number(rect.getAttribute('y')) - sourceRect.y) < 0.000001
+    })
+    if (!eventHandle) throw new Error('selected-range timeline event handle not found')
+
+    fireEvent.pointerDown(eventHandle, { pointerId: 34, pointerType: 'mouse', button: 0, buttons: 1, clientX: source.x, clientY: source.y })
+    fireEvent.pointerMove(window, { pointerId: 34, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
+    fireEvent.pointerUp(window, { pointerId: 34, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
+
+    await waitFor(() => expectSelectedRange(role, 'A', 5, 7))
+    const eventFrames = () => Array.from(document.querySelectorAll<SVGRectElement>('.eventRect'))
+      .map(rect => Number(rect.getAttribute('y')))
+      .sort((a, b) => a - b)
+    const targetFrames = [5, 7].map(frame => {
+      const hit = timingHitForFrame(standardA3SheetTemplate, role, 'A', frame, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+      const rect = hit ? cellRectForHit(standardA3SheetTemplate, hit, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin) : null
+      if (!rect) throw new Error(`target rect not found for ${frame}`)
+      return rect.y
+    }).sort((a, b) => a - b)
+    expect(eventFrames()).toEqual(targetFrames)
+
+    const staleTarget = templateFramePoint(role, 'A', 10)
+    fireEvent.pointerMove(window, { pointerId: 34, pointerType: 'mouse', buttons: 1, clientX: staleTarget.x, clientY: staleTarget.y })
+    fireEvent.pointerUp(window, { pointerId: 34, pointerType: 'mouse', button: 0, buttons: 0, clientX: staleTarget.x, clientY: staleTarget.y })
+    expect(eventFrames()).toEqual(targetFrames)
+    expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
+  })
+
 it('opens the sheet context menu on right click and prevents the browser menu', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
@@ -625,6 +672,10 @@ it('opens the sheet context menu on right click and prevents the browser menu', 
     expect(menuEvent.defaultPrevented).toBe(true)
     expect(screen.getByRole('menu')).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'カラセルを入力 ([X])' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: '中割記号を入力 ([/])' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: '逆シート記号を入力 ([.])' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'キーを削除 ([Del])' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.setNullCell }))
     expect(screen.queryByRole('menu')).toBeNull()
@@ -1212,11 +1263,12 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
     cue = document.querySelector<SVGGElement>('.soundCue')!
     const body = cue.querySelector<SVGRectElement>('.soundCueBody')!
     fireEvent.pointerDown(body, { pointerId: 81, pointerType: 'mouse', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
-    fireEvent.pointerMove(cue, { pointerId: 81, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(11) })
-    cue = document.querySelector<SVGGElement>('.soundCue')!
-    fireEvent.pointerUp(cue, { pointerId: 81, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(11) })
+    fireEvent.pointerMove(window, { pointerId: 81, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(11) })
+    fireEvent.pointerUp(window, { pointerId: 81, pointerType: 'mouse', button: 0, buttons: 0, clientX: x, clientY: frameY(11) })
     await waitFor(() => expect(document.querySelector<SVGGElement>('.soundCue')?.dataset).toMatchObject({ frameStart: '10', frameEnd: '15' }))
     expect(document.querySelector('.soundCueText.outside')).toBeTruthy()
+    fireEvent.pointerMove(window, { pointerId: 81, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(30) })
+    expect(document.querySelector<SVGGElement>('.soundCue')?.dataset).toMatchObject({ frameStart: '10', frameEnd: '15' })
 
     cue = document.querySelector<SVGGElement>('.soundCue')!
     const endHandle = cue.querySelector<SVGRectElement>('.soundCueEdgeHandle.end')!
@@ -1317,6 +1369,8 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '19', frameEnd: '30' }))
     expect(document.querySelector('.cameraCue.transforming')).toBeNull()
     expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
+    fireEvent.pointerMove(window, { pointerId: 105, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(35) })
+    expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '19', frameEnd: '30' })
 
     let intermediatePoint = document.querySelector<SVGGElement>('.cameraCuePoint.intermediate')!
     expect(intermediatePoint.dataset.cameraPointFrame).toBe('24')

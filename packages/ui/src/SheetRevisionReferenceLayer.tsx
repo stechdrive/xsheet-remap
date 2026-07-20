@@ -50,6 +50,7 @@ export function SheetRevisionReferenceLayer({
         cues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
         template={template}
         page={page}
+        pages={context.pages}
         paperTracks={paperTracks}
         layoutOverrides={project.sheetView.layoutOverrides}
         pageSize={pageSize}

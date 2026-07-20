@@ -20,6 +20,7 @@ export type PendingTimelineEventInteraction = {
 export type TimelineEventDragInteraction = {
   pointerId: number
   sourceHit: SheetHit
+  sourceRange?: SheetRangeSelection
   currentHit: SheetHit | null
   startX: number
   startY: number

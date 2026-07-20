@@ -159,7 +159,7 @@ export function SheetPanel(props: {
   onDropDiagnostic: (report: DropDiagnosticReport) => void
   onAssetAssign: (assetId: string, hit: SheetHit | null, position?: { x: number; y: number }) => void
   onRegisteredCellAssign: (keyId: string, hit: SheetHit | null) => void
-  onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit) => void
+  onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit, sourceRange?: SheetRangeSelection) => void
   onAnnotation: (stroke: AnnotationStroke) => void
   onTextAnnotation: (annotation: AnnotationText) => void
   onSelectTextAnnotation: (annotationId: string) => void

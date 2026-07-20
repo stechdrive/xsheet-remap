@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, isXsrProjectFileName, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
@@ -19,7 +19,7 @@ import { clampTextFontSizePx, defaultTimingTextFontSizePx, resolveTimingTextFont
 import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
 import { calibrationPointsForSettings, getSheetPageImage, serializableImageRef } from './sheetImages';
 import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, nextTimingHit, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
-import { buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, pasteResultRange, pasteTimingClipboardToProject, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget } from './timingEditing';
+import { buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, moveTimingEventsInRange, pasteResultRange, pasteTimingClipboardToProject, rangeContainsHit, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget, timingRangeSelectionForMoveResult } from './timingEditing';
 import { normalizeRecognitionLabel, recognizeSheetPagesIfAvailable } from './runtimeFeatures';
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
@@ -1270,36 +1270,24 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSelectionFromHit(targetHit, assigned.project, assigned.keyId)
   }
 
-  function handleMoveTimelineEvent(sourceHit: SheetHit, targetHit: SheetHit) {
+  function handleMoveTimelineEvent(sourceHit: SheetHit, targetHit: SheetHit, sourceRange?: SheetRangeSelection) {
     if (!sourceHit.paperTrack || !targetHit.paperTrack) return
     const sourceRole = sheetRoleForHit(sourceHit)
-    const targetRole = sheetRoleForHit(targetHit)
-    if (sourceRole !== targetRole) return
-    const sourceEvent = timelineEventAtHit(project, sourceHit)
-    const sourceKeyId = sourceEvent?.keyId ?? null
-    if (!sourceKeyId) return
-    const sameTarget = sourceHit.paperTrack === targetHit.paperTrack
-      && sourceHit.frame === targetHit.frame
-      && sourceRole === targetRole
-    if (sameTarget) {
-      setSelectionFromHit(targetHit, project, sourceKeyId)
-      return
-    }
-    const targetKeyId = eventKeyIdAtHit(targetHit)
-    if (targetKeyId && !window.confirm(uiText.sheet.moveEventOverwriteConfirm)) return
-
-    let next = clearEvent(project, sourceHit.paperTrack, sourceHit.frame, sourceRole)
-    if (isSpecialTimingKeyId(sourceKeyId)) {
-      next = setEvent(next, targetHit.paperTrack, targetHit.frame, sourceKeyId, targetRole, { fontSizePx: sourceEvent?.fontSizePx })
-      commitProject(next)
-      setSelectionFromHit(targetHit, next, sourceKeyId)
-      return
-    }
-
-    const assigned = assignRegisteredCellKeyToHit(next, sourceKeyId, targetHit, sourceEvent?.fontSizePx)
-    if (!assigned.keyId) return
-    commitProject(assigned.project)
-    setSelectionFromHit(targetHit, assigned.project, assigned.keyId)
+    if (sourceRole !== sheetRoleForHit(targetHit)) return
+    const trackOrder = paperTrackOrderForRole(project, sourceRole)
+    const selectedRange = sourceRange && isPointEventRange(sourceRange) && rangeContainsHit(sourceRange, sourceHit)
+      ? sourceRange
+      : rangeSelectionFromHits(template, sourceHit, sourceHit, trackOrder)
+    if (!selectedRange || !isPointEventRange(selectedRange)) return
+    const isGroupMove = selectedRange.frameStart !== selectedRange.frameEnd || rangePaperTracks(selectedRange).length > 1
+    const moved = moveTimingEventsInRange(project, selectedRange, sourceHit, targetHit, trackOrder)
+    if (moved.status !== 'moved') return
+    const confirmation = isGroupMove ? uiText.sheet.moveRangeOverwriteConfirm(moved.collisionCount) : uiText.sheet.moveEventOverwriteConfirm
+    if (moved.collisionCount > 0 && !window.confirm(confirmation)) return
+    commitProject(moved.project)
+    const nextRange = isGroupMove ? timingRangeSelectionForMoveResult(template, moved.project, sourceRole, moved, trackOrder) : null
+    if (nextRange) setSelectionFromRange(nextRange, moved.project)
+    else setSelectionFromHit(targetHit, moved.project)
   }
 
   async function handleApplyNameNormalization(plan: NameNormalizationPlan) {

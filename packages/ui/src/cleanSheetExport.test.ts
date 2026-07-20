@@ -5,6 +5,7 @@ import {
   registerSheetSource,
   standardA3SheetTemplate,
   createTimedRangeCue,
+  updateLogicalSheetSettings,
   updateSheetPageViewState,
 } from '@xsheet-remap/core'
 import {
@@ -63,6 +64,35 @@ describe('clean sheet export options', () => {
       ['annotationInk', 'メモ・手描き'],
       ['annotationText', 'メモ・テキスト'],
     ])
+  })
+
+  it('exports out-of-duration shading independently and follows the dummy-frame display setting', () => {
+    const shortened = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 72 })
+    const shortenedLayers = sheetExportLayerDescriptors(shortened, standardA3SheetTemplate, {
+      format: 'psd',
+      includePaperSheet: false,
+      includeTemplateImage: false,
+      includeTemplateDrawing: false,
+    })
+    expect(shortenedLayers.map(({ id, name }) => [id, name])).toContainEqual(['workRangeShade', '尺外グレー'])
+    expect(shortenedLayers.some(layer => layer.id === 'templateLines')).toBe(false)
+
+    const dummyFrames = updateLogicalSheetSettings(createDefaultProject(), {
+      workRange: { ...createDefaultProject().logicalSheet.workRange, showPreRoll: true },
+    })
+    const pngLayers = sheetExportLayerDescriptors(dummyFrames, standardA3SheetTemplate, {
+      format: 'png',
+      includePaperSheet: false,
+      includeTemplateImage: false,
+      includeTemplateDrawing: true,
+    })
+    expect(pngLayers.map(layer => layer.id)).toContain('workRangeShade')
+    expect(sheetExportLayerDescriptors(createDefaultProject(), standardA3SheetTemplate, {
+      format: 'png',
+      includePaperSheet: false,
+      includeTemplateImage: false,
+      includeTemplateDrawing: true,
+    }).map(layer => layer.id)).not.toContain('workRangeShade')
   })
 
   it('stores paper opacity as editable PSD layer metadata instead of baking it into pixels', () => {

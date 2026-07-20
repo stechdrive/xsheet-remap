@@ -399,6 +399,29 @@
   align-items: flex-start;
 }
 
+.templateRegionDeleteActions {
+  display: grid;
+  gap: 6px;
+}
+
+.templateRegionDeleteButton,
+.templateRegionTableDeleteButton {
+  border-color: #c67b72;
+  color: #8f261b;
+}
+
+.templateRegionDeleteButton:hover:not(:disabled),
+.templateRegionTableDeleteButton:hover:not(:disabled) {
+  border-color: #a43a2f;
+  background: #fff1ee;
+}
+
+.templateRegionTableDeleteButton {
+  min-width: 54px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
 .templateRegionHit {
   fill: transparent;
   stroke: transparent;

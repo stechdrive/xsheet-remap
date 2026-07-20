@@ -57,6 +57,27 @@ describe('TemplateEditorApp', () => {
     expect(screen.queryByRole('tab', { name: uiText.template.detailTabs.reference })).toBeNull()
   })
 
+  it('deletes individual regions from both the overview and region table as draft changes', () => {
+    render(<TemplateEditorApp />)
+
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.table }))
+    const initialRegionCount = document.querySelectorAll('.bindingTable tbody tr').length
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.addDecorativeGridRegion }))
+    expect(document.querySelectorAll('.bindingTable tbody tr')).toHaveLength(initialRegionCount + 1)
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.region }))
+    fireEvent.click(screen.getByRole('button', { name: uiText.template.deleteSelectedRegion }))
+    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.table }))
+    expect(document.querySelectorAll('.bindingTable tbody tr')).toHaveLength(initialRegionCount)
+
+    fireEvent.click(screen.getByRole('button', { name: '入力表を追加' }))
+    const addedFormDeleteButton = screen.getByRole('button', { name: /「入力表 \d+」を削除/ })
+    fireEvent.click(addedFormDeleteButton)
+
+    expect(screen.queryByRole('button', { name: /「入力表 \d+」を削除/ })).toBeNull()
+    expect(document.querySelectorAll('.bindingTable tbody tr')).toHaveLength(initialRegionCount)
+    expect((screen.getByRole('button', { name: uiText.template.cancelDraft }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('opens the chapter-based template authoring help from the app header', () => {
     render(<TemplateEditorApp />)
 
@@ -67,6 +88,11 @@ describe('TemplateEditorApp', () => {
     expect(screen.getByText('上から順番に進める')).toBeTruthy()
     expect(screen.getByText('用途を決める')).toBeTruthy()
     expect(screen.getByText('適用・保存・実機確認')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '06ACTION・SOUND・CELL・CAMERA' }))
+    expect(screen.getByText(/原画工程で、原画番号と中割りのタイミング指示を記入する欄です。/)).toBeTruthy()
+    expect(screen.getByText(/動画工程で、動画番号とそのタイミングを記入する欄です。/)).toBeTruthy()
+    expect(screen.queryByText(/期間/)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '08参照画像と補正基準枠' }))
     expect(screen.getByRole('heading', { name: '参照画像と補正基準枠' })).toBeTruthy()

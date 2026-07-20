@@ -19,7 +19,7 @@ import { sortedCorrectionLayers } from './sheetAssets'
 import { SHEET_ZOOM_MIN, TEMPLATE_ZOOM_MAX } from './sheetConstants'
 import { calibrationGridBoundsForTemplate, calibrationTargetRectForTemplate, defaultSheetImageSettings, resolveImageRefUrl } from './sheetImages'
 import { clampNumber, fitZoomForViewport } from './sheetInteraction'
-import { cloneSheetTemplate, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, resolvePixelExactUnderlayPlacement, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
+import { cloneSheetTemplate, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
 import { readTemplateImageMetadata } from './templateImageMetadata'
 import { gridHeaderLabelForRole, gridHeaderRolesForTemplate, templateEditorNormalizedRectValue, templateEditorRectPixelValue, type TemplateEditorRectKey } from './templateEditorGeometry'
 import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, resizePaperTrackLabels, setTemplateCalibrationTargetRect, trackProjectionForRole, type TemplateGridRole } from './templateEditing'
@@ -248,6 +248,17 @@ export function TemplateWorkspace({
       ...currentTemplate,
       regions: currentTemplate.regions.map(region => region.regionId === regionId ? { ...region, ...updates } : region),
     }))
+  }
+
+  function deleteRegion(regionId: string) {
+    const regionIndex = template.regions.findIndex(region => region.regionId === regionId)
+    if (regionIndex < 0 || template.regions.length <= 1) return
+    const remainingRegions = template.regions.filter(region => region.regionId !== regionId)
+    const nextSelectedRegionId = remainingRegions[Math.min(regionIndex, remainingRegions.length - 1)]?.regionId ?? null
+
+    updateTemplateDraft(currentTemplate => removeTemplateRegion(currentTemplate, regionId))
+    setSelectedRegionId(current => current === regionId ? nextSelectedRegionId : current)
+    setSelectedFormCellId(null)
   }
 
   function updateRegionFormCell(
@@ -829,6 +840,19 @@ export function TemplateWorkspace({
       <dd>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</dd>
       {selectedRegion && (
         <>
+          <dt>{uiText.template.regionActions}</dt>
+          <dd className="templateRegionDeleteActions">
+            <button
+              type="button"
+              className="templateRegionDeleteButton"
+              disabled={template.regions.length <= 1}
+              title={template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionTitle(selectedRegion.label)}
+              onClick={() => deleteRegion(selectedRegion.regionId)}
+            >
+              {uiText.template.deleteSelectedRegion}
+            </button>
+            <span className="muted">{template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionHint}</span>
+          </dd>
           <dt>{uiText.template.selectedRegionRect}</dt>
           <dd className="templateCalibrationTargetFields templateSelectedRegionFields">
             {(['x', 'y', 'w', 'h'] as const).map(key => (
@@ -1180,6 +1204,7 @@ export function TemplateWorkspace({
             <th>{uiText.template.headers.rows}</th>
             <th>{uiText.template.headers.columns}</th>
             <th>{uiText.template.headers.usage}</th>
+            <th>{uiText.template.headers.actions}</th>
           </tr>
         </thead>
         <tbody>
@@ -1248,6 +1273,21 @@ export function TemplateWorkspace({
                 )}
               </td>
               <td>{region.usage}</td>
+              <td>
+                <button
+                  type="button"
+                  className="templateRegionTableDeleteButton"
+                  disabled={template.regions.length <= 1}
+                  title={template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionTitle(region.label)}
+                  aria-label={uiText.template.deleteRegionTitle(region.label)}
+                  onClick={event => {
+                    event.stopPropagation()
+                    deleteRegion(region.regionId)
+                  }}
+                >
+                  {uiText.template.deleteRegion}
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

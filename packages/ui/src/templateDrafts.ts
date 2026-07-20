@@ -105,6 +105,39 @@ export function cloneSheetTemplate(template: SheetTemplate): SheetTemplate {
   return structuredClone(template)
 }
 
+export function removeTemplateRegion(template: SheetTemplate, regionId: string): SheetTemplate {
+  const deletedRegion = template.regions.find(region => region.regionId === regionId)
+  if (!deletedRegion) return template
+  if (template.regions.length <= 1) throw new Error(uiText.template.cannotDeleteLastRegion)
+
+  const regions = template.regions.filter(region => region.regionId !== regionId)
+  const deletedFieldIds = new Set((deletedRegion.form?.cells ?? []).flatMap(cell => cell.fieldId ? [cell.fieldId] : []))
+  const remainingFieldIds = new Set(regions.flatMap(region =>
+    (region.form?.cells ?? []).flatMap(cell => cell.fieldId ? [cell.fieldId] : []),
+  ))
+  const fields = template.fields?.filter(field =>
+    !deletedFieldIds.has(field.fieldId) || remainingFieldIds.has(field.fieldId),
+  )
+  const auxiliaryBands = template.auxiliaryBands
+    ?.map(band => ({
+      ...band,
+      anchorRegionIds: band.anchorRegionIds.filter(id => id !== regionId),
+      slotRegionIds: band.slotRegionIds.filter(id => id !== regionId),
+    }))
+    .filter(band => band.anchorRegionIds.length > 0 && band.slotRegionIds.length > 0)
+  const horizontalFlowRegionIds = template.horizontalFlow?.regionIds.filter(id => id !== regionId)
+
+  return {
+    ...template,
+    regions,
+    fields: fields?.length ? fields : undefined,
+    auxiliaryBands: auxiliaryBands?.length ? auxiliaryBands : undefined,
+    horizontalFlow: template.horizontalFlow && horizontalFlowRegionIds?.length
+      ? { ...template.horizontalFlow, regionIds: horizontalFlowRegionIds }
+      : undefined,
+  }
+}
+
 export function isBuiltInSheetTemplate(template: Pick<SheetTemplate, 'templateId'>): boolean {
   return builtInSheetTemplateForId(template.templateId) !== null
 }

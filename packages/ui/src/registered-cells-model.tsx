@@ -421,8 +421,21 @@ function assetRegistrationDetail(binding: CellBinding, key: TimingKey | undefine
   return [processLabel, sheetLabel, cellName].filter(Boolean).join(' / ')
 }
 
-export async function updateNativeRegisteredCellPreviewIfOpen(project: CutProject, key: TimingKey): Promise<boolean> {
+export async function updateNativeRegisteredCellPreviewIfOpen(project: CutProject, keyOrId: TimingKey | string): Promise<boolean> {
+  const key = typeof keyOrId === 'string'
+    ? project.logicalSheet.keys.find(item => item.keyId === keyOrId)
+    : keyOrId
+  if (!key || isSpecialTimingKeyId(key.keyId)) return false
   const payload = await nativeRegisteredCellPreviewPayload(project, key)
+  return payload ? updateNativeAssetPreviewPayloadIfOpen(payload) : false
+}
+
+export async function updateNativeStackGuidePreviewIfOpen(project: CutProject, labelOrId: StackGuideLabel | string): Promise<boolean> {
+  const label = typeof labelOrId === 'string'
+    ? project.stackGuideLabels.find(item => item.labelId === labelOrId)
+    : labelOrId
+  if (!label) return false
+  const payload = await nativeStackGuidePreviewPayload(project, label)
   return payload ? updateNativeAssetPreviewPayloadIfOpen(payload) : false
 }
 

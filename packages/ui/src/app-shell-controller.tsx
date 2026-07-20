@@ -31,7 +31,7 @@ import { readTemplateImageMetadata } from './templateImageMetadata';
 import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, cspImportPackageAssetPaths, errorMessage, exportCutProjectsFromDocument, isImageFileRef, preferredSaveDirectory, saveBinaryOutputs, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
-import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen } from './app-registered-cells';
+import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen, updateNativeStackGuidePreviewIfOpen } from './app-registered-cells';
 import { setTimingValueAt } from './sheet-timing-input';
 import { calibrationCornersForTemplate, calibrationCornersFromPoints, imageExportFilterName, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
 import { useAppShellState } from './app-shell-state'
@@ -715,10 +715,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function updateOpenNativePreviewForKey(sourceProject: CutProject, keyId: string | null) {
-    if (!keyId || isSpecialTimingKeyId(keyId)) return
-    const key = sourceProject.logicalSheet.keys.find(item => item.keyId === keyId)
-    if (!key) return
-    void updateNativeRegisteredCellPreviewIfOpen(sourceProject, key)
+    if (keyId) void updateNativeRegisteredCellPreviewIfOpen(sourceProject, keyId)
+  }
+
+  function handleStackGuideSelect(labelId: string) {
+    void updateNativeStackGuidePreviewIfOpen(projectRef.current, labelId)
   }
 
   function handleActiveCorrectionLayerChange(layerId: string) {
@@ -2274,7 +2275,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
-    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect,
+    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,

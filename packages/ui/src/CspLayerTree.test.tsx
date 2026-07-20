@@ -516,6 +516,7 @@ describe('CspLayerTree', () => {
       correctionLayerId: 'layer_enshutsu',
     })
     const onAssignAssetsToStackGuideLabel = vi.fn()
+    const onSelectStackGuideLabel = vi.fn()
 
     render(
       <CspLayerTree
@@ -523,6 +524,7 @@ describe('CspLayerTree', () => {
         exportProfileId="import-stack"
         selectedKeyId={null}
         onSelectKey={vi.fn()}
+        onSelectStackGuideLabel={onSelectStackGuideLabel}
         onDeleteKey={vi.fn()}
         activeCorrectionLayerId="layer_sakuga"
         onActiveCorrectionLayerChange={vi.fn()}
@@ -550,6 +552,11 @@ describe('CspLayerTree', () => {
     )
 
     const track = screen.getByLabelText('BG1（演出）へ画像素材を割り当て')
+    const card = track.closest('.cspTreeTrack')?.querySelector<HTMLElement>('.cspTreeCel')
+    if (!card) throw new Error('BG1 card not found')
+    fireEvent.click(card)
+    expect(onSelectStackGuideLabel).toHaveBeenCalledWith(created.label.labelId)
+
     moveInternalOver(track, { kind: 'asset', assetIds: ['asset_bg'] })
     expect(track.classList.contains('assetDragOver')).toBe(true)
     dropInternalOn(track, { kind: 'asset', assetIds: ['asset_bg'] })

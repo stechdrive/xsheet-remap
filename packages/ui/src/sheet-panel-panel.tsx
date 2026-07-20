@@ -124,6 +124,7 @@ export function SheetPanel(props: {
   onSetTimingSpecialAtHit: (hit: SheetHit, marker: TimingSpecialMarker) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
   onKeySelect: (keyId: string | null) => void
+  onStackGuideSelect: (labelId: string) => void
   onDeleteEvent: () => void
   onCopyRange: () => void
   onCutRange: () => void
@@ -812,6 +813,7 @@ export function SheetPanel(props: {
               exportProfileId={props.exportProfileId}
               selectedKeyId={props.selectedKeyId}
               onSelectKey={props.onKeySelect}
+              onSelectStackGuideLabel={props.onStackGuideSelect}
               onDeleteKey={props.onDeleteKey}
               activeCorrectionLayerId={props.activeCorrectionLayerId}
               onActiveCorrectionLayerChange={props.setActiveCorrectionLayerId}

@@ -14,6 +14,12 @@ import { verifyAnnotationInteractionScenario } from './scenarios/annotation-inte
 import { verifyCameraDialogScalability } from './scenarios/camera-dialog-scalability'
 import { verifySharedCutMenuControlsScenario, verifyTopMenuBehaviorScenario } from './scenarios/shared-ui-controls'
 import { CdpClient } from './cdp-client'
+import {
+  assetBrowserCardPointByName,
+  clickStackGuideCardByLabel,
+  dragAssetBrowserCardToStackGuide,
+  waitForStackGuideCardAsset,
+} from './csp-asset-actions'
 
 interface ClientPoint {
   x: number
@@ -443,11 +449,21 @@ async function verifyAssetPreviewScenario(): Promise<void> {
   await waitForPreviewTextMissing('A1_e.png')
   checks.push('updated the open preview from a registered CSP card selection')
 
-  await clickFrame('cell', 'A', 20)
+  await clickRegisteredCellCardByTrack('A')
   await waitForSelectedRegisteredCellCard('A')
   await waitForPreviewText('A1')
   await waitForPreviewTextMissing('A2')
-  checks.push('synchronized the preview and CSP card from a material-assigned sheet frame')
+  checks.push('switched the open preview between material-assigned registered CSP cards')
+
+  await createStackGuideLabelFromHeader('action', 2, 'BOOK-PREVIEW')
+  await waitForStackGuideLabelRole('BOOK-PREVIEW', 'action')
+  await dragAssetBrowserCardToStackGuide(activeClient(), 'A1_e.png', 'BOOK-PREVIEW')
+  await waitForStackGuideCardAsset(activeClient(), 'BOOK-PREVIEW', 'A1_e.png')
+  await clickStackGuideCardByLabel(activeClient(), 'BOOK-PREVIEW')
+  await waitForPreviewText('BOOK-PREVIEW')
+  await waitForPreviewText('A1_e.png')
+  await waitForPreviewTextMissing('A1.png')
+  checks.push('updated the open preview from a material-assigned BG/BOOK, camera-note, or memo CSP card')
 }
 
 async function dropSheetSourcesForMultiPage(): Promise<void> {
@@ -1693,20 +1709,7 @@ async function clickRegisteredCellCardByTrack(paperTrack: string): Promise<void>
 }
 
 async function clickAssetBrowserCardByName(name: string): Promise<void> {
-  const point = await evaluatePage<ClientPoint | null>(`
-    (() => {
-      const cards = Array.from(document.querySelectorAll('.assetBrowserItems .assetCard'));
-      const card = cards.find(item =>
-        item.querySelector('strong')?.textContent?.trim() === ${JSON.stringify(name)}
-      );
-      if (!card) return null;
-      card.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const box = card.getBoundingClientRect();
-      return { x: box.left + Math.min(40, box.width / 2), y: box.top + Math.min(28, box.height / 2) };
-    })()
-  `)
-  if (!point) throw new Error(`asset browser card not found: ${name}`)
-  await mouseClick(point)
+  await mouseClick(await assetBrowserCardPointByName(activeClient(), name))
 }
 
 async function waitForSelectedRegisteredCellCard(paperTrack: string): Promise<void> {
@@ -2178,8 +2181,12 @@ async function previewPageDebug(): Promise<Record<string, unknown>> {
 }
 
 async function clientSend<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  return activeClient().send<T>(method, params)
+}
+
+function activeClient(): CdpClient {
   if (!client) throw new Error('CDP client is not connected')
-  return client.send<T>(method, params)
+  return client
 }
 
 async function capturePageScreenshot(path: string): Promise<void> {

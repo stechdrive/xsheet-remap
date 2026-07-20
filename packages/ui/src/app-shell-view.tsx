@@ -41,7 +41,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
-    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect,
+    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
@@ -339,6 +339,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSetTimingSpecialAtHit={handleSetTimingSpecialAtHit}
             onDeleteEventAtHit={handleDeleteEventAtHit}
             onKeySelect={handleKeySelect}
+            onStackGuideSelect={handleStackGuideSelect}
             onDeleteEvent={handleDeleteEvent}
             onCopyRange={() => copySelectedTimingRange('copy')}
             onCutRange={() => copySelectedTimingRange('cut', false)}

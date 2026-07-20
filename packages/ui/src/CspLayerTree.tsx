@@ -25,6 +25,7 @@ export function CspLayerTree({
   exportProfileId,
   selectedKeyId,
   onSelectKey,
+  onSelectStackGuideLabel,
   onDeleteKey,
   activeCorrectionLayerId,
   onActiveCorrectionLayerChange,
@@ -56,6 +57,7 @@ export function CspLayerTree({
   exportProfileId?: string
   selectedKeyId: string | null
   onSelectKey: (keyId: string | null) => void
+  onSelectStackGuideLabel?: (labelId: string) => void
   onDeleteKey: (keyId: string, bindingId?: string) => void | Promise<void>
   activeCorrectionLayerId: string
   onActiveCorrectionLayerChange: (layerId: string) => void
@@ -276,6 +278,7 @@ export function CspLayerTree({
     } else if (selection.kind !== 'correction-layer') {
       onSelectKey(null)
     }
+    if (selection.kind === 'stack-guide') onSelectStackGuideLabel?.(selection.labelId)
   }
 
   function trackPaneSelection(track: CspLayerTreeTrack, correctionLayerId?: string): CspPaneSelection {

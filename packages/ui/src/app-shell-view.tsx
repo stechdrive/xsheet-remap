@@ -1,4 +1,5 @@
 import { clearAnnotations, clearAnnotationsForPage, sheetTemplatePresets, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
+import { XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
 import { LevelCorrectionDialog } from './LevelCorrectionDialog';
@@ -53,7 +54,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
-    handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
+    handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     handleAddSharedCut, handleDeleteSharedCut, openTimingExportDialog, confirmTimingExport, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
@@ -197,8 +198,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onLoadProject={files => void handleLoadProject(files)}
             onLoadXdts={files => void handleLoadXdts(files)}
             onLoadTemplate={files => void handleImportTemplate(files)}
-            onSaveProject={() => void handleSaveProjectJson()}
-            onSaveProjectAs={() => void handleSaveProjectJson({ saveAs: true })}
+            onSaveProject={() => void handleSaveProjectFile()}
+            onSaveProjectAs={() => void handleSaveProjectFile({ saveAs: true })}
             onSaveTemplate={() => void handleSaveTemplateJson()}
             onResetApp={handleResetApp}
             onOpenSheetImageExport={handleOpenSheetImageExport}
@@ -570,7 +571,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <div className="divider" />
         <label className="fileButton">
           {uiText.actions.loadProject}
-          <input type="file" accept=".xsr,.xsr.json,.json,application/vnd.xsheet-remap.project,application/json" onChange={event => void handleLoadProject(event.currentTarget.files)} />
+          <input type="file" accept={XSR_PROJECT_FILE_ACCEPT} onChange={event => void handleLoadProject(event.currentTarget.files)} />
         </label>
       </aside>
 

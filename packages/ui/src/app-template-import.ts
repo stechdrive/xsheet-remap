@@ -2,9 +2,15 @@ import { parseSheetTemplate, type SheetTemplate } from '@xsheet-remap/core'
 import { confirmUserAction, readJsonFile } from '@xsheet-remap/adapters'
 import { errorMessage } from './app-foundation'
 
+export const SHEET_TEMPLATE_FILE_ACCEPT = '.json,application/json'
+
 export async function loadSheetTemplate(files: FileList | null): Promise<SheetTemplate | null> {
   const file = files?.[0]
-  return file ? parseSheetTemplate(await readJsonFile<unknown>(file)) : null
+  if (!file) return null
+  if (!file.name.toLocaleLowerCase('en-US').endsWith('.json')) {
+    throw new Error('シートテンプレートはJSONファイルを選択してください。')
+  }
+  return parseSheetTemplate(await readJsonFile<unknown>(file))
 }
 
 export async function confirmSheetTemplateImport(files: FileList | null): Promise<SheetTemplate | null> {

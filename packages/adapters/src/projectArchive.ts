@@ -14,12 +14,13 @@ const MAX_BLOB_BYTES = 512 * 1024 * 1024
 const MAX_ARCHIVE_ENTRIES = 4096
 const BLOB_REFERENCE_PREFIX = 'xsr-blob://sha256/'
 
-export type ProjectFileFormat = 'archive' | 'legacy-json'
+export const XSR_PROJECT_FILE_EXTENSION = '.xsr'
+export const XSR_PROJECT_MIME_TYPE = 'application/vnd.xsheet-remap.project'
+export const XSR_PROJECT_FILE_ACCEPT = `${XSR_PROJECT_FILE_EXTENSION},${XSR_PROJECT_MIME_TYPE}`
 
 export interface DecodedProjectFile {
   document: CutGroupProjectDocument
-  format: ProjectFileFormat
-  manifest?: ProjectArchiveManifest
+  manifest: ProjectArchiveManifest
 }
 
 export interface EncodeProjectArchiveOptions {
@@ -67,6 +68,9 @@ export async function encodeProjectArchive(
 }
 
 export async function readProjectFile(file: File): Promise<DecodedProjectFile> {
+  if (!isXsrProjectFileName(file.name)) {
+    throw new Error(`プロジェクトファイルは${XSR_PROJECT_FILE_EXTENSION}形式を選択してください。`)
+  }
   if (file.size > MAX_ARCHIVE_BYTES) throw new Error('プロジェクトファイルが大きすぎます。')
   return decodeProjectFileBytes(new Uint8Array(await file.arrayBuffer()))
 }
@@ -74,8 +78,7 @@ export async function readProjectFile(file: File): Promise<DecodedProjectFile> {
 export async function decodeProjectFileBytes(bytes: Uint8Array): Promise<DecodedProjectFile> {
   if (bytes.byteLength > MAX_ARCHIVE_BYTES) throw new Error('プロジェクトファイルが大きすぎます。')
   if (looksLikeJson(bytes)) {
-    const input = JSON.parse(strFromU8(bytes).replace(/^\uFEFF/, '')) as unknown
-    return { document: parseProjectDocument(input), format: 'legacy-json' }
+    throw corruptionError('JSONファイルはXSRプロジェクトとして開けません。シートテンプレートJSONは「シートテンプレートを読み込む」から選択してください。')
   }
 
   let entries: Record<string, Uint8Array>
@@ -119,7 +122,11 @@ export async function decodeProjectFileBytes(bytes: Uint8Array): Promise<Decoded
   if (document.schemaVersion !== manifest.documentSchemaVersion) {
     throw corruptionError('マニフェストとプロジェクトのスキーマバージョンが一致しません。')
   }
-  return { document, format: 'archive', manifest }
+  return { document, manifest }
+}
+
+export function isXsrProjectFileName(fileNameOrPath: string): boolean {
+  return fileNameOrPath.toLocaleLowerCase('en-US').endsWith(XSR_PROJECT_FILE_EXTENSION)
 }
 
 export function projectDocumentWithoutRuntimePreviews(document: CutGroupProjectDocument): CutGroupProjectDocument {

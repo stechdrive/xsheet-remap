@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProjectDocument } from '@xsheet-remap/core'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
-import { decodeProjectFileBytes, encodeProjectArchive } from './projectArchive'
+import {
+  decodeProjectFileBytes,
+  encodeProjectArchive,
+  isXsrProjectFileName,
+  XSR_PROJECT_FILE_ACCEPT,
+  XSR_PROJECT_MIME_TYPE,
+} from './projectArchive'
 
 const embeddedImage = 'data:image/png;base64,aGVsbG8='
 
@@ -38,7 +44,6 @@ describe('project archive codec', () => {
     expect(archivedJson).not.toContain('thumbnailUrl')
 
     const restored = await decodeProjectFileBytes(bytes)
-    expect(restored.format).toBe('archive')
     expect(restored.manifest?.createdWith).toBe('test')
     expect(restored.document.sheetTemplate.defaultUnderlay?.assetPath).toBe(embeddedImage)
     expect(restored.document.sheetTemplate.defaultUnderlay?.imageRef.assetPath).toBe(embeddedImage)
@@ -89,10 +94,16 @@ describe('project archive codec', () => {
     await expect(decodeProjectFileBytes(zipSync(entries))).rejects.toThrow('対応していない必須プロジェクト機能')
   })
 
-  it('keeps current JSON projects readable for one-way migration', async () => {
+  it('rejects raw JSON as a project file', async () => {
     const source = createDefaultProjectDocument()
-    const restored = await decodeProjectFileBytes(strToU8(JSON.stringify(source)))
-    expect(restored.format).toBe('legacy-json')
-    expect(restored.document.projectId).toBe(source.projectId)
+    await expect(decodeProjectFileBytes(strToU8(JSON.stringify(source)))).rejects.toThrow('JSONファイルはXSRプロジェクトとして開けません')
+  })
+
+  it('defines XSR as the only public project file type', () => {
+    expect(XSR_PROJECT_FILE_ACCEPT).toBe(`.xsr,${XSR_PROJECT_MIME_TYPE}`)
+    expect(isXsrProjectFileName('cut.xsr')).toBe(true)
+    expect(isXsrProjectFileName('CUT.XSR')).toBe(true)
+    expect(isXsrProjectFileName('cut.xsr.json')).toBe(false)
+    expect(isXsrProjectFileName('cut.json')).toBe(false)
   })
 })

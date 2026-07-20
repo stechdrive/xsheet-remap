@@ -22,6 +22,7 @@ pub(super) async fn save_project_file(
     else {
         return Ok(None);
     };
+    ensure_xsr_project_path(&path)?;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(contents_base64)
         .map_err(|error| error.to_string())?;
@@ -34,6 +35,7 @@ pub(super) fn write_project_file(path: String, contents_base64: String) -> Resul
     use base64::Engine as _;
 
     let path = std::path::PathBuf::from(path);
+    ensure_xsr_project_path(&path)?;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(contents_base64)
         .map_err(|error| error.to_string())?;
@@ -44,7 +46,9 @@ pub(super) fn write_project_file(path: String, contents_base64: String) -> Resul
 pub(super) fn read_project_backup(path: String) -> Result<Option<String>, String> {
     use base64::Engine as _;
 
-    let backup_path = project_backup_path(std::path::Path::new(&path))?;
+    let project_path = std::path::Path::new(&path);
+    ensure_xsr_project_path(project_path)?;
+    let backup_path = project_backup_path(project_path)?;
     if !backup_path.is_file() {
         return Ok(None);
     }
@@ -52,6 +56,18 @@ pub(super) fn read_project_backup(path: String) -> Result<Option<String>, String
     Ok(Some(
         base64::engine::general_purpose::STANDARD.encode(bytes),
     ))
+}
+
+fn ensure_xsr_project_path(path: &std::path::Path) -> Result<(), String> {
+    let is_xsr = path
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("xsr"));
+    if is_xsr {
+        Ok(())
+    } else {
+        Err("XSRプロジェクトのパスは.xsrで終わる必要があります。".to_string())
+    }
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -336,6 +352,14 @@ mod project_file_tests {
         );
 
         std::fs::remove_dir_all(root).expect("remove test directory");
+    }
+
+    #[test]
+    fn project_path_contract_accepts_only_xsr() {
+        assert!(ensure_xsr_project_path(std::path::Path::new("sample.xsr")).is_ok());
+        assert!(ensure_xsr_project_path(std::path::Path::new("SAMPLE.XSR")).is_ok());
+        assert!(ensure_xsr_project_path(std::path::Path::new("sample.xsr.json")).is_err());
+        assert!(ensure_xsr_project_path(std::path::Path::new("sample.json")).is_err());
     }
 }
 

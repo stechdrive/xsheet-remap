@@ -29,13 +29,9 @@ export async function loadProjectDocumentFile(file: File): Promise<LoadedProject
   }
   return {
     document: await hydrateProjectAssetPreviews(decodedProject.document),
-    projectFilePath: decodedProject.format === 'archive' && !recoveredFromBackup ? nativePath ?? null : null,
+    projectFilePath: !recoveredFromBackup ? nativePath ?? null : null,
     recoveredFromBackup,
   }
-}
-
-export function isProjectArchivePath(path: string): boolean {
-  return path.toLocaleLowerCase('en-US').endsWith('.xsr')
 }
 
 export function projectRuntimeSourceImageUrls(document: CutGroupProjectDocument): Record<string, string> {

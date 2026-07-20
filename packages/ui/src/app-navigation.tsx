@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
-import { isTauriHost } from '@xsheet-remap/adapters'
+import { isTauriHost, XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel } from './appTypes'
 import { type SheetImageExportFormat } from './cleanSheetExport'
@@ -11,6 +11,7 @@ import { CalibrationPointKind, RegisteredCellSortDirection, type MainAppKind } f
 import { gridHeaderLabelForRole } from './templateEditorGeometry'
 import { DurationFrameControl } from './DurationFrameControl'
 import { EditorDetailedHelp } from './EditorDetailedHelp'
+import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 
 export function RecognitionActionMenu({
   label = <span>OCR</span>,
@@ -612,14 +613,14 @@ export function AppNavigationMenu({
             {tooltipProps => (
               <label className="fileButton appNavMenuItem" {...tooltipProps}>
                 プロジェクトを開く…
-                <input type="file" accept=".json,application/json" onChange={event => { onLoadProject(event.currentTarget.files); event.currentTarget.value = '' }} />
+                <input type="file" accept={XSR_PROJECT_FILE_ACCEPT} onChange={event => { onLoadProject(event.currentTarget.files); event.currentTarget.value = '' }} />
               </label>
             )}
           </TooltipTarget>
           <Tooltip label={uiText.actions.saveProjectTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveProject}>{uiText.actions.saveProject}</button>
           </Tooltip>
-          <Tooltip label={uiText.actions.projectJsonTitle}>
+          <Tooltip label={uiText.actions.saveProjectAsTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveProjectAs}>名前を付けて保存…</button>
           </Tooltip>
         </div>
@@ -641,7 +642,7 @@ export function AppNavigationMenu({
             {tooltipProps => (
               <label className="fileButton appNavMenuItem" {...tooltipProps}>
                 シートテンプレートを読み込む…
-                <input type="file" accept=".json,application/json" onChange={event => { onLoadTemplate(event.currentTarget.files); event.currentTarget.value = '' }} />
+                <input type="file" accept={SHEET_TEMPLATE_FILE_ACCEPT} onChange={event => { onLoadTemplate(event.currentTarget.files); event.currentTarget.value = '' }} />
               </label>
             )}
           </TooltipTarget>

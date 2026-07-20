@@ -1,12 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
-import { encodeProjectArchive } from '@xsheet-remap/adapters';
+import { encodeProjectArchive, XSR_PROJECT_FILE_ACCEPT, XSR_PROJECT_MIME_TYPE } from '@xsheet-remap/adapters';
 import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
 import { ASSET_DRAG_MIME } from './sheetConstants';
 import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openDisplaySettingsMenu, openPaperSheetMenu, openSharedCutMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, selectCspCorrectionLayer, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
+import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
+
+async function createXsrTestFile(document: Parameters<typeof encodeProjectArchive>[0], fileName = 'project.xsr'): Promise<File> {
+  const archive = await encodeProjectArchive(document, { createdWith: 'test' })
+  return new File([new Uint8Array(archive)], fileName, { type: XSR_PROJECT_MIME_TYPE })
+}
 
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
@@ -52,6 +58,15 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('heading', { name: '紙タイムシートを下絵に使う（任意）' })).toBeTruthy()
     expect(within(dialog).getByText(/この下絵補正はOCRを使わず/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
+  })
+
+  it('keeps project and template file selectors on separate format contracts', () => {
+    render(<App />)
+    const menu = openAppNavigationMenu()
+    const projectInput = within(menu).getByText(uiText.actions.loadProject).closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
+    const templateInput = within(menu).getByText('シートテンプレートを読み込む…').closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(projectInput?.accept).toBe(XSR_PROJECT_FILE_ACCEPT)
+    expect(templateInput?.accept).toBe(SHEET_TEMPLATE_FILE_ACCEPT)
   })
 
   it('opens the chapter-based Editor manual from help', () => {
@@ -517,7 +532,7 @@ it('edits cut metadata from a template-defined sheet region', () => {
 
 it('uses one page grid and one selected-page source editor for multipage sheets', async () => {
     const project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 300 })
-    const file = new File([JSON.stringify(createProjectDocumentFromCutProject(project))], 'multipage.json', { type: 'application/json' })
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(project), 'multipage.xsr')
     render(<App />)
     const menu = openAppNavigationMenu()
     const input = within(menu).getByText(uiText.actions.loadProject).closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
@@ -528,14 +543,13 @@ it('uses one page grid and one selected-page source editor for multipage sheets'
     fireEvent.click(pageMenuTrigger)
     const pageMenu = document.querySelector('.actionMenuPortalContent.pageJumpMenu')
     if (!(pageMenu instanceof HTMLElement)) throw new Error('page menu not found')
-    expect(pageMenu.querySelectorAll('.pageJumpPageButton')).toHaveLength(3)
+    await waitFor(() => expect(pageMenu.querySelectorAll('.pageJumpPageButton')).toHaveLength(3))
     expect(pageMenu.querySelectorAll('.pageJumpSourceSelect select')).toHaveLength(1)
   })
 
 it('loads the compressed project container through the normal project command', async () => {
     const project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 300 })
-    const archive = await encodeProjectArchive(createProjectDocumentFromCutProject(project), { createdWith: 'test' })
-    const file = new File([new Uint8Array(archive)], 'multipage.xsr', { type: 'application/vnd.xsheet-remap.project' })
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(project), 'multipage.xsr')
     render(<App />)
     const menu = openAppNavigationMenu()
     const input = within(menu).getByText(uiText.actions.loadProject).closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
@@ -565,7 +579,7 @@ it('closes the app navigation menu when a file picker item is selected', async (
     await new Promise(resolve => window.setTimeout(resolve, 0))
     expect(details.open).toBe(true)
 
-    const file = new File([JSON.stringify(createProjectDocumentFromCutProject(createDefaultProject()))], 'project.json', { type: 'application/json' })
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(createDefaultProject()))
     fireEvent.change(loadProjectInput, { target: { files: [file] } })
     await waitFor(() => expect(details.open).toBe(false))
     expect(document.querySelector('.actionMenuPortalContent.appNavMenu')).toBeNull()
@@ -581,7 +595,7 @@ it('restores paper sheet images from saved project file paths', async () => {
       lastModified: 1,
     })
     const projectWithSheet = assignSheetSourceToPage(registered.project, 'page_1', registered.source.sourceId)
-    const file = new File([JSON.stringify(createProjectDocumentFromCutProject(projectWithSheet))], 'project.json', { type: 'application/json' })
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(projectWithSheet))
 
     render(<App />)
     const menu = openAppNavigationMenu()
@@ -625,7 +639,7 @@ it('warns on project load when registered material files are missing on disk', a
       materialState: 'assigned',
       assetId: asset.asset.assetId,
     })
-    const file = new File([JSON.stringify(createProjectDocumentFromCutProject(bound))], 'project.json', { type: 'application/json' })
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(bound))
 
     render(<App />)
     const menu = openAppNavigationMenu()

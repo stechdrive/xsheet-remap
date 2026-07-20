@@ -18,6 +18,7 @@ SUPPORTED_TRACK_KINDS = {
     "memo",
     "separator",
 }
+CSP_IMPORT_MANIFEST_SUFFIX = ".xci"
 
 
 @dataclass(frozen=True)
@@ -121,6 +122,8 @@ class CspImportManifest:
 
 def load_manifest(path: str | Path) -> CspImportManifest:
     manifest_path = Path(path).expanduser().resolve()
+    if manifest_path.suffix.casefold() != CSP_IMPORT_MANIFEST_SUFFIX:
+        raise ManifestError(f"CSP import manifest must use the {CSP_IMPORT_MANIFEST_SUFFIX} extension: {manifest_path}")
     try:
         raw = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError as exc:

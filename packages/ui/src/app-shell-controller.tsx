@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createDefaultProject, createProjectDocumentFromCutProject, createDefaultSheetViewState, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, getSheetTemplatePaperTracks, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, resolveSheetTemplatePageSize, setEvent, sheetTimingRoleForEvent, sheetTemplatePresets, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateProjectPaperTracks, updateProjectTimelineSectionsFromTemplate, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateCspMaterialAssignments, validateProject, standardA3SheetTemplate, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
-import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
+import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, isXsrProjectFileName, nativeFileSource, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeCspImportPackage, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
 import { issueMessage, uiText } from './i18n';
 import { type Panel, type SheetRangeSelection, type TimingClipboard } from './appTypes';
-import { isProjectArchivePath, loadProjectDocumentFile, projectRuntimeSourceImageUrls } from './projectFileModel';
+import { loadProjectDocumentFile, projectRuntimeSourceImageUrls } from './projectFileModel';
 import { defaultSheetImageExportOptions, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions } from './cleanSheetExport';
 import { cspImportPackageTextOutputs } from './cspImportPackageOutputs';
 import { projectFileName } from './outputFileNames';
@@ -1676,10 +1676,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  async function handleSaveProjectJson(options: { saveAs?: boolean } = {}) {
+  async function handleSaveProjectFile(options: { saveAs?: boolean } = {}) {
     try {
       const nextDocument = updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template })
-      if (!options.saveAs && projectFilePath && isProjectArchivePath(projectFilePath)) {
+      if (!options.saveAs && projectFilePath && isXsrProjectFileName(projectFilePath)) {
         await writeProjectFile(projectFilePath, nextDocument, { createdWith: APP_VERSION })
         setProjectDocument(nextDocument)
         setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
@@ -2287,7 +2287,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
-    handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectJson, handleUpdateCutMetadata, handleSwitchProjectCut,
+    handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleDeleteSharedCut, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,

@@ -187,6 +187,14 @@ class ManifestTests(unittest.TestCase):
             with self.assertRaisesRegex(ManifestError, "unsupported schemaVersion"):
                 load_manifest(manifest_path)
 
+    def test_rejects_non_xci_manifest_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "csp-import.json"
+            manifest_path.write_text(json.dumps({"schemaVersion": 4}), encoding="utf-8")
+
+            with self.assertRaisesRegex(ManifestError, r"\.xci extension"):
+                load_manifest(manifest_path)
+
 
 def _cut(cut_id: str, cut_number: str, xdts: str, *, order: int = 0) -> dict[str, object]:
     return {

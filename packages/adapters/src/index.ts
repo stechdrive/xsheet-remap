@@ -1,6 +1,6 @@
 import type { CutGroupProjectDocument, FileRef, NameNormalizationAssetRename, NameNormalizationAssetRenameResult } from '@xsheet-remap/core'
 import { isTauriHost } from './environment'
-import { decodeProjectFileBytes, encodeProjectArchive, type DecodedProjectFile } from './projectArchive'
+import { decodeProjectFileBytes, encodeProjectArchive, isXsrProjectFileName, XSR_PROJECT_MIME_TYPE, type DecodedProjectFile } from './projectArchive'
 import { browserAssetDataUrl } from './browserFiles'
 
 export { isTauriHost, isTauriLikeWindow } from './environment'
@@ -9,13 +9,16 @@ export { createPortableArchive, type PortableArchiveFile } from './portableArchi
 export {
   decodeProjectFileBytes,
   encodeProjectArchive,
+  isXsrProjectFileName,
   projectDocumentWithoutRuntimePreviews,
   projectFileErrorCanRecoverFromBackup,
   readProjectFile,
   RecoverableProjectFileError,
+  XSR_PROJECT_FILE_ACCEPT,
+  XSR_PROJECT_FILE_EXTENSION,
+  XSR_PROJECT_MIME_TYPE,
   type DecodedProjectFile,
   type EncodeProjectArchiveOptions,
-  type ProjectFileFormat,
 } from './projectArchive'
 export {
   closeCurrentNativeWindow,
@@ -231,6 +234,7 @@ export async function saveProjectFile(
   fileName: string,
   options: Pick<SaveTextFileOptions, 'initialDirectory'> & { createdWith?: string } = {},
 ): Promise<SaveFileResult> {
+  if (!isXsrProjectFileName(fileName)) throw new Error('XSRプロジェクトのファイル名は.xsrで終わる必要があります。')
   const tauriHost = isTauriHost()
   const archiveDocument = tauriHost ? document : await documentWithBrowserAssetPreviews(document)
   const bytes = await encodeProjectArchive(archiveDocument, {
@@ -247,7 +251,7 @@ export async function saveProjectFile(
     return path ? { saved: true, path } : { saved: false }
   }
   const copy = new Uint8Array(bytes)
-  downloadBlob(new Blob([copy.buffer as ArrayBuffer], { type: 'application/vnd.xsheet-remap.project' }), fileName)
+  downloadBlob(new Blob([copy.buffer as ArrayBuffer], { type: XSR_PROJECT_MIME_TYPE }), fileName)
   return { saved: true }
 }
 
@@ -270,6 +274,7 @@ export async function writeProjectFile(
   options: { createdWith?: string } = {},
 ): Promise<SaveFileResult> {
   if (!isTauriHost()) return { saved: false }
+  if (!isXsrProjectFileName(path)) throw new Error('XSRプロジェクトの保存先は.xsrで終わる必要があります。')
   const bytes = await encodeProjectArchive(document, { createdWith: options.createdWith })
   const { invoke } = await import('@tauri-apps/api/core')
   await invoke('write_project_file', { path, contentsBase64: bytesToBase64(bytes) })

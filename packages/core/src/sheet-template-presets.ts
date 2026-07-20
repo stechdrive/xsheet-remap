@@ -816,7 +816,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
     regionIds: ['digital_action_grid', 'digital_sound_grid', 'digital_cell_grid', 'digital_camera_grid'],
     leftPx: DIGITAL_STANDARD_MARGIN_X_PX,
     rightPx: DIGITAL_STANDARD_MARGIN_X_PX,
-    gapPx: 8,
+    gapPx: 24,
   },
   regions: [
     {

@@ -33,7 +33,7 @@ describe('dynamic sheet template layout', () => {
     expect(memo).toEqual({ x: 32, y: 160, w: 1856, h: 300 })
     expect(digitalStandardSheetTemplate.regions.some(region => region.regionId.includes('reserve'))).toBe(false)
     expect(action).toMatchObject({ x: 32, y: 620, h: 2880 })
-    expect(camera.x + camera.w).toBe(1840)
+    expect(camera.x + camera.w).toBe(1888)
     expect(action.y).toBeGreaterThan(memo.y + memo.h)
     expect(actionGrid?.rowCount).toBe(144)
     expect(action.h / (actionGrid?.rowCount ?? 1)).toBe(20)
@@ -64,11 +64,13 @@ describe('dynamic sheet template layout', () => {
     expect(pageSize.widthPx).toBeGreaterThan(digitalStandardSheetTemplate.page.widthPx)
     expect(layouts.map(layout => layout.columns.length)).toEqual([12, 6, 12, 7])
     expect(layouts.map(layout => Math.round(layout.rect.w * pageSize.widthPx))).toEqual([560, 330, 1067, 602])
+    const gaps = []
     for (let index = 1; index < layouts.length; index += 1) {
       const previous = layouts[index - 1]!
       const current = layouts[index]!
-      expect(Math.round((current.rect.x - previous.rect.x - previous.rect.w) * pageSize.widthPx)).toBe(8)
+      gaps.push(Math.round((current.rect.x - previous.rect.x - previous.rect.w) * pageSize.widthPx))
     }
+    expect(gaps).toEqual([24, 24, 24])
     for (const regionId of ['digital_metadata_form', 'digital_memo_area']) {
       const region = digitalStandardSheetTemplate.regions.find(candidate => candidate.regionId === regionId)!
       const rect = resolveSheetTemplateRegionRect(digitalStandardSheetTemplate, region, 144, { paperTracks, timelineLanes })

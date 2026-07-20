@@ -89,6 +89,9 @@ describe('template editor geometry', () => {
     expect(model?.frameNumbers.map(item => item.text)).toEqual(['102', '104', '106', '108'])
     expect(model!.frameNumbers[0].fontSizePx).toBe(9)
     expect(model?.pageSize).toEqual({ widthPx: 1920, heightPx: 3600 })
+    const frameBoundaries = model!.rowPaths.flatMap(path => path.segments).map(segment => segment.y1).sort((a, b) => a - b)
+    const firstFrameBoundaryY = frameBoundaries[2]!
+    expect((firstFrameBoundaryY - model!.frameNumbers[0].y) * model!.pageSize.heightPx).toBeCloseTo(3)
   })
 
   it('places elapsed seconds at the lower-left edge of paper CELL grids across pages', () => {
@@ -121,6 +124,9 @@ describe('template editor geometry', () => {
     expect(cell!.secondCounters[0].fontSizePx).toBe(17)
     expect(cell!.pageSize).toEqual({ widthPx: 1920, heightPx: 3600 })
     expect(cell!.secondCounters[0].fontSizePx).toBeGreaterThan(action!.frameNumbers[0].fontSizePx)
+    const secondBoundaries = cell!.rowPaths.flatMap(path => path.segments).map(segment => segment.y1).sort((a, b) => a - b)
+    const firstSecondBoundaryY = secondBoundaries[24]!
+    expect((firstSecondBoundaryY - cell!.secondCounters[0].y) * cell!.pageSize.heightPx).toBeCloseTo(3)
   })
 
   it('keeps digital seconds cumulative when the visible timeline starts after frame one', () => {

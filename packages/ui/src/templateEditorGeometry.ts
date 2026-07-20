@@ -933,7 +933,7 @@ function buildActionFrameNumberRenderModels(
     ? layout.columns.at(-1)!.x + layout.columns.at(-1)!.w
     : layout.rect.x + layout.rect.w
   const x = rightEdge + 2 / layout.pageSize.widthPx
-  const bottomInset = 1 / layout.pageSize.heightPx
+  const bottomInset = 3 / layout.pageSize.heightPx
   const fontSizePx = gridCounterFontSizePx(layout)
   const frameOffset = gridTimelineFrameOffset(template, grid, pageFrameStart)
 
@@ -959,7 +959,7 @@ function buildSecondCounterRenderModels(
 ): TemplateGridCounterRenderModel[] {
   const leftEdge = layout.columns[0]?.x ?? layout.rect.x
   const x = leftEdge - 2 / layout.pageSize.widthPx
-  const bottomInset = 1 / layout.pageSize.heightPx
+  const bottomInset = 3 / layout.pageSize.heightPx
   const fontSizePx = gridSecondCounterFontSizePx(layout)
   const frameOffset = gridTimelineFrameOffset(template, grid, options.pageFrameStart)
   const framesPerSecond = Math.max(1, Math.round(template.defaults.fps))

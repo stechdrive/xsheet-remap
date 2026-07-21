@@ -367,14 +367,13 @@ function New-LocalReleaseZip {
     -ExpectedRootNames $ExpectedRootNames
 
   $stageRoot = Join-Path $repoRoot ".tmp\local-release-zip\$([System.Guid]::NewGuid().ToString("N"))"
-  $packageRoot = Join-Path $stageRoot $PackageName
 
   try {
-    New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path $stageRoot | Out-Null
 
     foreach ($rootName in $ExpectedRootNames) {
       $sourcePath = Join-Path $releaseRoot $rootName
-      Copy-Item -LiteralPath $sourcePath -Destination $packageRoot -Recurse -Force
+      Copy-Item -LiteralPath $sourcePath -Destination $stageRoot -Recurse -Force
     }
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -387,13 +386,12 @@ function New-LocalReleaseZip {
 
     Assert-ReleaseZipInventory `
       -ArchivePath $zipPath `
-      -ExpectedPackageName $PackageName `
       -ExpectedRootNames $ExpectedRootNames
 
     $zipHash = Get-Sha256Hex $zipPath
     ("{0}  {1}" -f $zipHash, "$PackageName.zip") |
       Set-Content -LiteralPath $zipChecksumPath -Encoding UTF8
-    Write-Host "[local-package] packaged $PackageName.zip with top-level $PackageName/ folder"
+    Write-Host "[local-package] packaged $PackageName.zip with release files at the archive root"
   } finally {
     Remove-RepositoryTempPathSafely $stageRoot
   }

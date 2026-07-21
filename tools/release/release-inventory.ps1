@@ -108,19 +108,11 @@ function Assert-ReleaseZipChecksum {
 function Assert-ReleaseZipInventory {
   param(
     [string]$ArchivePath,
-    [string]$ExpectedPackageName,
     [string[]]$ExpectedRootNames
   )
 
   if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) {
     throw "release ZIP does not exist: $ArchivePath"
-  }
-  if (
-    [string]::IsNullOrWhiteSpace($ExpectedPackageName) -or
-    $ExpectedPackageName -in @(".", "..") -or
-    $ExpectedPackageName -match '[\\/]'
-  ) {
-    throw "release package name must be one path segment: '$ExpectedPackageName'"
   }
 
   Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -142,21 +134,18 @@ function Assert-ReleaseZipInventory {
         $entryName.StartsWith("/", [System.StringComparison]::Ordinal) -or
         $entryName.Contains("//") -or
         $segments.Count -eq 0 -or
-        $segments[0] -ne $ExpectedPackageName -or
         $hasUnsafeSegment
       ) {
         $invalidPaths.Add($entryName)
         continue
       }
 
-      if ($segments.Count -ge 2) {
-        $actualRootNames.Add($segments[1])
-      }
+      $actualRootNames.Add($segments[0])
     }
 
     if ($invalidPaths.Count -gt 0) {
       throw (
-        "release ZIP '$ArchivePath' contains paths outside the expected package root: " +
+        "release ZIP '$ArchivePath' contains unsafe paths: " +
         (@($invalidPaths | Sort-Object -Unique) -join ", ")
       )
     }

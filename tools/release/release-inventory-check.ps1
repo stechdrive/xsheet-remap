@@ -31,7 +31,6 @@ if (-not [string]::IsNullOrWhiteSpace($ZipPath)) {
   }
   Assert-ReleaseZipInventory `
     -ArchivePath $ZipPath `
-    -ExpectedPackageName $PackageName `
     -ExpectedRootNames $expectedRootNames
 }
 if (-not [string]::IsNullOrWhiteSpace($ChecksumPath) -and [string]::IsNullOrWhiteSpace($ZipPath)) {

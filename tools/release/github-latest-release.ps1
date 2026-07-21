@@ -147,7 +147,6 @@ try {
       -ExpectedArchiveName "xsheet-remap.zip"
     Assert-ReleaseZipInventory `
       -ArchivePath $releaseZipPath `
-      -ExpectedPackageName "xsheet-remap" `
       -ExpectedRootNames $expectedPackageRootNames
   }
 

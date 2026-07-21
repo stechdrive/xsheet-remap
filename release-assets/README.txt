@@ -30,6 +30,7 @@ CLIP STUDIO PAINTのオートアクションパレットから読み込みます
 重要
 ----
 ・ZIP全体を展開してから使用してください。
+・Windowsの「すべて展開」で作成されたフォルダの直下に、各EXEと同梱フォルダが展開されます。
 ・xsheet-importer.exe と csp-import-helper フォルダを分離しないでください。
 ・csp-import-helper フォルダ内のファイルは直接起動しません。
 ・csp-import.xci はCLIP STUDIO PAINTへ直接読み込むファイルではありません。

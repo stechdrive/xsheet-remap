@@ -32,8 +32,8 @@ function runInventory(options: { releaseRoot?: string; zipPath?: string; checksu
   return spawnSync(windowsPowerShell, args, { encoding: 'utf8' })
 }
 
-function createZip(stageRoot: string, zipPath: string, packageName: string) {
-  const result = spawnSync('tar.exe', ['-a', '-cf', zipPath, '-C', stageRoot, packageName], { encoding: 'utf8' })
+function createZip(stageRoot: string, zipPath: string, entryNames: string[]) {
+  const result = spawnSync('tar.exe', ['-a', '-cf', zipPath, '-C', stageRoot, ...entryNames], { encoding: 'utf8' })
   expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0)
 }
 
@@ -58,31 +58,47 @@ describe.skipIf(process.platform !== 'win32')('release inventory', () => {
     }
   })
 
-  it('rejects an unexpected file inside the release ZIP', () => {
+  it('accepts an exact flat ZIP and rejects an unexpected file at its root', () => {
     const testRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-zip-'))
-    const packageName = 'xsheet-remap'
-    const packageRoot = path.join(testRoot, packageName)
     const zipPath = path.join(testRoot, 'xsheet-remap.zip')
     const checksumPath = path.join(testRoot, 'xsheet-remap.zip.sha256')
     const contaminatedZipPath = path.join(testRoot, 'xsheet-remap-contaminated.zip')
     const expectedRoots = ['README.txt', 'xsheet-editor.exe']
     try {
-      mkdirSync(packageRoot)
-      for (const fileName of expectedRoots) writeFileSync(path.join(packageRoot, fileName), fileName)
-      createZip(testRoot, zipPath, packageName)
+      for (const fileName of expectedRoots) writeFileSync(path.join(testRoot, fileName), fileName)
+      createZip(testRoot, zipPath, expectedRoots)
       const zipHash = createHash('sha256').update(readFileSync(zipPath)).digest('hex')
       writeFileSync(checksumPath, `${zipHash}  xsheet-remap.zip\n`)
 
       const cleanResult = runInventory({ zipPath, checksumPath, expectedRoots })
       expect(cleanResult.status, `${cleanResult.stdout}\n${cleanResult.stderr}`).toBe(0)
 
-      writeFileSync(path.join(packageRoot, 'rogue-test.xdts'), 'test fixture')
-      createZip(testRoot, contaminatedZipPath, packageName)
+      writeFileSync(path.join(testRoot, 'rogue-test.xdts'), 'test fixture')
+      createZip(testRoot, contaminatedZipPath, [...expectedRoots, 'rogue-test.xdts'])
       const contaminatedResult = runInventory({ zipPath: contaminatedZipPath, expectedRoots })
       expect(contaminatedResult.status).not.toBe(0)
       expect(`${contaminatedResult.stdout}\n${contaminatedResult.stderr}`).toContain(
         'unexpected=[rogue-test.xdts]',
       )
+    } finally {
+      rmSync(testRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects the former xsheet-remap wrapper folder layout', () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-wrapper-'))
+    const packageName = 'xsheet-remap'
+    const packageRoot = path.join(testRoot, packageName)
+    const zipPath = path.join(testRoot, 'xsheet-remap.zip')
+    const expectedRoots = ['README.txt', 'xsheet-editor.exe']
+    try {
+      mkdirSync(packageRoot)
+      for (const fileName of expectedRoots) writeFileSync(path.join(packageRoot, fileName), fileName)
+      createZip(testRoot, zipPath, [packageName])
+
+      const result = runInventory({ zipPath, expectedRoots })
+      expect(result.status).not.toBe(0)
+      expect(`${result.stdout}\n${result.stderr}`).toContain('unexpected=[xsheet-remap]')
     } finally {
       rmSync(testRoot, { recursive: true, force: true })
     }

@@ -6,7 +6,7 @@ xsheet-remapは、デジタルタイムシートの編集、紙シート画像�
 
 ## ダウンロードと起動
 
-[GitHub Releasesの`latest`](https://github.com/stechdrive/xsheet-remap/releases/tag/latest)から`xsheet-remap.zip`をダウンロードし、ZIP全体を展開して使います。インストールは不要です。
+[GitHub Releasesの`latest`](https://github.com/stechdrive/xsheet-remap/releases/tag/latest)から`xsheet-remap.zip`をダウンロードし、ZIP全体を展開して使います。Windowsの「すべて展開」を使うと、作成された`xsheet-remap`フォルダの直下に各EXEと同梱フォルダが配置されます。インストールは不要です。
 
 迷った場合は、まず全機能版の`xsheet-editor.exe`を起動してください。CSP組み込み作業だけを行う場合は`xsheet-remap.exe`を使います。
 

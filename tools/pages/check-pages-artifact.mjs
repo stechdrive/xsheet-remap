@@ -2,6 +2,13 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import {
+  PAGES_APP_ID,
+  PAGES_ARTIFACT_SCHEMA_VERSION,
+  classifyPagesAsset,
+  createPagesCachePlan,
+} from './pages-cache-policy.mjs'
+import { createPagesServiceWorker } from './pages-service-worker.mjs'
 
 const repoRoot = process.cwd()
 const outputRoot = path.join(repoRoot, 'apps', 'web', 'dist-pages')
@@ -9,6 +16,9 @@ const MAX_FILES = 1000
 // Silero VADはモデルとWASMを初回音声解析時にだけ取得する。OCRは引き続きPages対象外。
 const MAX_TOTAL_BYTES = 48 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
+const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024
+const MAX_RUNTIME_WASM_BYTES = 16 * 1024 * 1024
+const MAX_RUNTIME_WASM_FILES = 1
 const allowedExtensions = new Set([
   '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.json', '.mjs', '.png',
   '.onnx', '.svg', '.ttf', '.wasm', '.webmanifest', '.webp', '.woff', '.woff2',
@@ -85,11 +95,15 @@ for (const [iconPath, expectedSize] of [['icons/icon-192.png', 192], ['icons/ico
 }
 
 const serviceWorker = await fs.readFile(path.join(outputRoot, 'sw.js'), 'utf8')
-if (!serviceWorker.includes('KNOWN_PATHS.has(url.pathname)') || !serviceWorker.includes('url.origin !== self.location.origin')) {
+if (
+  !serviceWorker.includes('KNOWN_PATHS.has(url.pathname)')
+  || !serviceWorker.includes('url.origin !== self.location.origin')
+  || !serviceWorker.includes('RUNTIME_REVISION_PARAM')
+) {
   findings.push('service worker must restrict caching to generated same-origin assets')
 }
 
-await verifyInventory(files)
+await verifyInventory(files, serviceWorker)
 
 if (findings.length > 0) {
   console.error('[pages-artifact] rejected:')
@@ -98,9 +112,15 @@ if (findings.length > 0) {
 }
 console.log(`[pages-artifact] passed: ${files.length} files, ${(totalBytes / 1024 / 1024).toFixed(2)} MiB`)
 
-async function verifyInventory(allFiles) {
+async function verifyInventory(allFiles, serviceWorker) {
   const inventory = JSON.parse(await fs.readFile(path.join(outputRoot, 'pages-artifact.json'), 'utf8'))
-  if (inventory.schemaVersion !== 1 || inventory.app !== 'xsheet-editor-pwa' || !Array.isArray(inventory.files)) {
+  if (
+    inventory.schemaVersion !== PAGES_ARTIFACT_SCHEMA_VERSION
+    || inventory.app !== PAGES_APP_ID
+    || typeof inventory.version !== 'string'
+    || !inventory.cachePolicy
+    || !Array.isArray(inventory.files)
+  ) {
     findings.push('pages-artifact.json has an invalid schema')
     return
   }
@@ -116,6 +136,58 @@ async function verifyInventory(allFiles) {
     if (record.bytes !== bytes.byteLength || record.sha256 !== sha256) {
       findings.push(`pages-artifact.json hash mismatch: ${record.path}`)
     }
+    const expectedCacheClass = classifyPagesAsset(record.path)
+    if (record.cacheClass !== expectedCacheClass) {
+      findings.push(`pages-artifact.json cache class mismatch: ${record.path}`)
+    }
+  }
+
+  const sourceRecords = inventory.files
+    .filter(record => record.cacheClass !== 'metadata')
+    .map(({ path: recordPath, bytes, sha256 }) => ({ path: recordPath, bytes, sha256 }))
+  let cachePlan
+  try {
+    cachePlan = createPagesCachePlan(inventory.version, sourceRecords)
+  } catch (error) {
+    findings.push(`Pages cache plan is invalid: ${error instanceof Error ? error.message : String(error)}`)
+    return
+  }
+  const expectedPolicy = {
+    schemaVersion: cachePlan.schemaVersion,
+    appCachePrefix: cachePlan.appCachePrefix,
+    appRevision: cachePlan.appRevision,
+    runtimeCachePrefix: cachePlan.runtimeCachePrefix,
+    runtimeCacheSchema: cachePlan.runtimeCacheSchema,
+    appFileCount: inventory.files.filter(record => record.cacheClass === 'app').length,
+    runtimeFileCount: inventory.files.filter(record => record.cacheClass === 'runtime').length,
+  }
+  if (JSON.stringify(inventory.cachePolicy) !== JSON.stringify(expectedPolicy)) {
+    findings.push('pages-artifact.json cache policy does not match generated assets')
+  }
+  if (serviceWorker !== createPagesServiceWorker(cachePlan)) {
+    findings.push('sw.js does not match the generated cache policy')
+  }
+
+  const appBytes = inventory.files
+    .filter(record => record.cacheClass === 'app')
+    .reduce((sum, record) => sum + record.bytes, 0)
+  if (appBytes > MAX_APP_PRECACHE_BYTES) {
+    findings.push(`app precache size ${appBytes} exceeds ${MAX_APP_PRECACHE_BYTES} bytes`)
+  }
+  const runtimeFiles = inventory.files.filter(record => record.cacheClass === 'runtime')
+  const runtimeHashes = new Map()
+  for (const record of runtimeFiles) {
+    const duplicate = runtimeHashes.get(record.sha256)
+    if (duplicate) findings.push(`duplicate runtime payload: ${duplicate}, ${record.path}`)
+    else runtimeHashes.set(record.sha256, record.path)
+  }
+  const wasmFiles = runtimeFiles.filter(record => path.extname(record.path).toLowerCase() === '.wasm')
+  const wasmBytes = wasmFiles.reduce((sum, record) => sum + record.bytes, 0)
+  if (wasmFiles.length > MAX_RUNTIME_WASM_FILES) {
+    findings.push(`runtime WASM count ${wasmFiles.length} exceeds ${MAX_RUNTIME_WASM_FILES}`)
+  }
+  if (wasmBytes > MAX_RUNTIME_WASM_BYTES) {
+    findings.push(`runtime WASM size ${wasmBytes} exceeds ${MAX_RUNTIME_WASM_BYTES} bytes`)
   }
 }
 

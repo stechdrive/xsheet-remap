@@ -65,6 +65,46 @@ function Assert-ReleaseRootInventory {
     -Context "release root '$RootPath'"
 }
 
+function Get-ReleaseFileSha256Hex {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw "release file does not exist: $Path"
+  }
+
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+  $stream = [System.IO.File]::OpenRead($Path)
+  try {
+    return (($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString("x2") }) -join "")
+  } finally {
+    $stream.Dispose()
+    $sha256.Dispose()
+  }
+}
+
+function Assert-ReleaseZipChecksum {
+  param(
+    [string]$ArchivePath,
+    [string]$ArchiveChecksumPath,
+    [string]$ExpectedArchiveName
+  )
+
+  if (-not (Test-Path -LiteralPath $ArchiveChecksumPath -PathType Leaf)) {
+    throw "release checksum file does not exist: $ArchiveChecksumPath"
+  }
+  $checksumText = (Get-Content -LiteralPath $ArchiveChecksumPath -Raw -Encoding UTF8).Trim()
+  $escapedArchiveName = [regex]::Escape($ExpectedArchiveName)
+  if ($checksumText -notmatch "^([0-9A-Fa-f]{64})\s+\*?$escapedArchiveName$") {
+    throw "release checksum file has an invalid format: $ArchiveChecksumPath"
+  }
+
+  $expectedHash = $Matches[1].ToLowerInvariant()
+  $actualHash = Get-ReleaseFileSha256Hex -Path $ArchivePath
+  if ($actualHash -ne $expectedHash) {
+    throw "release ZIP checksum mismatch: expected $expectedHash, got $actualHash"
+  }
+}
+
 function Assert-ReleaseZipInventory {
   param(
     [string]$ArchivePath,

@@ -107,24 +107,6 @@ function Assert-AssetPath {
   }
 }
 
-function Assert-ReleaseZipChecksum {
-  param(
-    [string]$ArchivePath,
-    [string]$ArchiveChecksumPath
-  )
-
-  $checksumText = (Get-Content -LiteralPath $ArchiveChecksumPath -Raw -Encoding UTF8).Trim()
-  if ($checksumText -notmatch '^([0-9A-Fa-f]{64})\s+\*?xsheet-remap\.zip$') {
-    throw "release checksum file has an invalid format: $ArchiveChecksumPath"
-  }
-
-  $expectedHash = $Matches[1].ToLowerInvariant()
-  $actualHash = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-  if ($actualHash -ne $expectedHash) {
-    throw "release ZIP checksum mismatch: expected $expectedHash, got $actualHash"
-  }
-}
-
 function Get-ReleaseJson {
   param([string]$Tag)
 
@@ -161,7 +143,8 @@ try {
     Assert-AssetPath -Path $releaseChecksumPath -ExpectedName "xsheet-remap.zip.sha256"
     Assert-ReleaseZipChecksum `
       -ArchivePath $releaseZipPath `
-      -ArchiveChecksumPath $releaseChecksumPath
+      -ArchiveChecksumPath $releaseChecksumPath `
+      -ExpectedArchiveName "xsheet-remap.zip"
     Assert-ReleaseZipInventory `
       -ArchivePath $releaseZipPath `
       -ExpectedPackageName "xsheet-remap" `

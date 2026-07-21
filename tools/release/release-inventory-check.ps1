@@ -1,6 +1,7 @@
 param(
   [string]$ReleaseRoot = "",
   [string]$ZipPath = "",
+  [string]$ChecksumPath = "",
   [string]$PackageName = "xsheet-remap",
   [Parameter(Mandatory = $true)]
   [string]$ExpectedRootsBase64
@@ -22,10 +23,19 @@ if (-not [string]::IsNullOrWhiteSpace($ReleaseRoot)) {
   Assert-ReleaseRootInventory -RootPath $ReleaseRoot -ExpectedRootNames $expectedRootNames
 }
 if (-not [string]::IsNullOrWhiteSpace($ZipPath)) {
+  if (-not [string]::IsNullOrWhiteSpace($ChecksumPath)) {
+    Assert-ReleaseZipChecksum `
+      -ArchivePath $ZipPath `
+      -ArchiveChecksumPath $ChecksumPath `
+      -ExpectedArchiveName "$PackageName.zip"
+  }
   Assert-ReleaseZipInventory `
     -ArchivePath $ZipPath `
     -ExpectedPackageName $PackageName `
     -ExpectedRootNames $expectedRootNames
+}
+if (-not [string]::IsNullOrWhiteSpace($ChecksumPath) -and [string]::IsNullOrWhiteSpace($ZipPath)) {
+  throw "ZipPath is required when ChecksumPath is provided"
 }
 
 Write-Host "[release-inventory] passed"

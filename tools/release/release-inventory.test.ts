@@ -1,4 +1,5 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -15,7 +16,7 @@ const windowsPowerShell = path.join(
   'powershell.exe',
 )
 
-function runInventory(options: { releaseRoot?: string; zipPath?: string; expectedRoots: string[] }) {
+function runInventory(options: { releaseRoot?: string; zipPath?: string; checksumPath?: string; expectedRoots: string[] }) {
   const args = [
     '-NoProfile',
     '-ExecutionPolicy',
@@ -27,6 +28,7 @@ function runInventory(options: { releaseRoot?: string; zipPath?: string; expecte
   ]
   if (options.releaseRoot) args.push('-ReleaseRoot', options.releaseRoot)
   if (options.zipPath) args.push('-ZipPath', options.zipPath)
+  if (options.checksumPath) args.push('-ChecksumPath', options.checksumPath)
   return spawnSync(windowsPowerShell, args, { encoding: 'utf8' })
 }
 
@@ -61,14 +63,17 @@ describe.skipIf(process.platform !== 'win32')('release inventory', () => {
     const packageName = 'xsheet-remap'
     const packageRoot = path.join(testRoot, packageName)
     const zipPath = path.join(testRoot, 'xsheet-remap.zip')
+    const checksumPath = path.join(testRoot, 'xsheet-remap.zip.sha256')
     const contaminatedZipPath = path.join(testRoot, 'xsheet-remap-contaminated.zip')
     const expectedRoots = ['README.txt', 'xsheet-editor.exe']
     try {
       mkdirSync(packageRoot)
       for (const fileName of expectedRoots) writeFileSync(path.join(packageRoot, fileName), fileName)
       createZip(testRoot, zipPath, packageName)
+      const zipHash = createHash('sha256').update(readFileSync(zipPath)).digest('hex')
+      writeFileSync(checksumPath, `${zipHash}  xsheet-remap.zip\n`)
 
-      const cleanResult = runInventory({ zipPath, expectedRoots })
+      const cleanResult = runInventory({ zipPath, checksumPath, expectedRoots })
       expect(cleanResult.status, `${cleanResult.stdout}\n${cleanResult.stderr}`).toBe(0)
 
       writeFileSync(path.join(packageRoot, 'rogue-test.xdts'), 'test fixture')

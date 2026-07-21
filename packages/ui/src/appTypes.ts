@@ -130,7 +130,7 @@ export interface SoundCueDialogState {
   frameEnd: number
   audioCandidate?: {
     trackId: string
-    candidateId: string
+    candidateIds: string[]
     revisionId: string
   }
 }

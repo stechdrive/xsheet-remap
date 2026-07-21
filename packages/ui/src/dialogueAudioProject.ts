@@ -1,9 +1,10 @@
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 
 export const DIALOGUE_AUDIO_EXTENSION = 'xsheet-remap.dialogue-audio'
-export const DIALOGUE_AUDIO_SCHEMA_VERSION = 3
+export const DIALOGUE_AUDIO_SCHEMA_VERSION = 4
 
 export type DialogueAudioVadPreset = 'quiet' | 'normal' | 'noisy'
+export type DialogueAudioVadMode = 'off' | 'candidates' | 'auto-sound'
 
 export type DialogueSpeechCandidateStatus = 'pending' | 'linked' | 'ignored' | 'review'
 
@@ -36,6 +37,8 @@ export interface DialogueAudioAsset {
 
 export interface DialogueAudioClip {
   clipId: string
+  /** Stable placement lineage. Split clips keep this ID; pasted clips receive a new one. */
+  placementId: string
   assetId: string
   timelineStartFrame: number
   sourceOffsetFrames: number
@@ -48,8 +51,33 @@ export interface DialogueAudioTrackState {
   color: string
   clips: DialogueAudioClip[]
   speechCandidates: DialogueSpeechCandidate[]
+  vadMode: DialogueAudioVadMode
   muted: boolean
   solo: boolean
+}
+
+export interface DialogueCueAudioAnchor {
+  anchorId: string
+  placementId: string
+  assetId: string
+  sourceFrameStart: number
+  sourceFrameEnd: number
+  candidateIds: string[]
+}
+
+export interface DialogueCueAudioBinding {
+  bindingId: string
+  cueId: string
+  revisionId: string
+  trackId: string
+  anchors: DialogueCueAudioAnchor[]
+  headPaddingFrames: number
+  tailPaddingFrames: number
+  cueFrameStart: number
+  cueFrameEnd: number
+  provisional: boolean
+  status: 'linked' | 'review' | 'orphaned'
+  reviewReason?: string
 }
 
 export interface DialogueAudioCutState {
@@ -59,6 +87,7 @@ export interface DialogueAudioCutState {
   detectionPreset: DialogueAudioVadPreset
   assets: DialogueAudioAsset[]
   tracks: DialogueAudioTrackState[]
+  bindings: DialogueCueAudioBinding[]
 }
 
 const TRACK_COLORS = ['#d7855f', '#5f9aaa', '#8a82b5']
@@ -71,6 +100,7 @@ export function createDefaultDialogueAudioCutState(frameOrigin: number): Dialogu
     color,
     clips: [],
     speechCandidates: [],
+    vadMode: 'candidates',
     muted: false,
     solo: false,
   }))
@@ -81,6 +111,7 @@ export function createDefaultDialogueAudioCutState(frameOrigin: number): Dialogu
     detectionPreset: 'quiet',
     assets: [],
     tracks,
+    bindings: [],
   }
 }
 
@@ -95,7 +126,7 @@ export function dialogueAudioCutStateFromDocument(
   const cuts = isRecord(extension.data.cuts) ? extension.data.cuts : null
   const value = cuts?.[cutId]
   if (extension.schemaVersion === 1) return migrateV1CutState(value, fallback, frameOrigin)
-  if (extension.schemaVersion !== 2 && extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
+  if (extension.schemaVersion !== 2 && extension.schemaVersion !== 3 && extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
   return normalizeCutState(value, fallback)
 }
 
@@ -106,7 +137,7 @@ export function updateDialogueAudioCutStateInDocument(
   frameOrigin: number,
 ): CutGroupProjectDocument {
   const extension = document.extensions?.[DIALOGUE_AUDIO_EXTENSION]
-  const currentData = (extension?.schemaVersion === 2 || extension?.schemaVersion === DIALOGUE_AUDIO_SCHEMA_VERSION) && isRecord(extension.data)
+  const currentData = (extension?.schemaVersion === 2 || extension?.schemaVersion === 3 || extension?.schemaVersion === DIALOGUE_AUDIO_SCHEMA_VERSION) && isRecord(extension.data)
     ? extension.data
     : {}
   const currentCuts = isRecord(currentData.cuts) ? currentData.cuts : {}
@@ -120,32 +151,6 @@ export function updateDialogueAudioCutStateInDocument(
         data: { ...currentData, cuts: { ...currentCuts, [cutId]: normalized } },
       },
     },
-  }
-}
-
-export function linkDialogueAudioCandidate(
-  cutState: DialogueAudioCutState,
-  trackId: string,
-  candidateId: string,
-  cueId: string,
-  revisionId: string,
-): DialogueAudioCutState {
-  return {
-    ...cutState,
-    tracks: cutState.tracks.map(track => track.trackId !== trackId ? track : {
-      ...track,
-      speechCandidates: track.speechCandidates.map(candidate => candidate.candidateId !== candidateId ? candidate : {
-        ...candidate,
-        status: 'linked',
-        cueId,
-        revisionId,
-        cueLinks: [
-          ...(candidate.cueLinks ?? []).filter(link => link.revisionId !== revisionId),
-          { cueId, revisionId },
-        ],
-        reviewReason: undefined,
-      }),
-    }),
   }
 }
 
@@ -181,6 +186,7 @@ function migrateV1CutState(value: unknown, fallback: DialogueAudioCutState, fram
       color: typeof raw.color === 'string' && raw.color ? raw.color : defaultTrack.color,
       clips: audioDataUrl && durationFrames > 0 ? [{
         clipId: `dialogue-v1-clip-${index + 1}`,
+        placementId: `dialogue-v1-clip-${index + 1}`,
         assetId,
         timelineStartFrame: integer(raw.audioStartFrame, frameOrigin),
         sourceOffsetFrames: 0,
@@ -191,6 +197,7 @@ function migrateV1CutState(value: unknown, fallback: DialogueAudioCutState, fram
         ...range,
         status: 'pending',
       })),
+      vadMode: 'candidates',
       muted: raw.muted === true,
       solo: raw.solo === true,
     }
@@ -205,6 +212,7 @@ function migrateV1CutState(value: unknown, fallback: DialogueAudioCutState, fram
     detectionPreset: fallback.detectionPreset,
     assets,
     tracks,
+    bindings: [],
   }
 }
 
@@ -214,6 +222,10 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState): Dia
   const assetIds = new Set(assets.map(asset => asset.assetId))
   const rawTracks = value.tracks
   const tracks = fallback.tracks.map((defaultTrack, index) => normalizeTrackState(rawTracks[index], defaultTrack, assetIds))
+  const trackIds = new Set(tracks.map(track => track.trackId))
+  const bindings = Array.isArray(value.bindings)
+    ? value.bindings.flatMap(item => normalizeBinding(item, trackIds, assetIds))
+    : []
   const activeTrackId = typeof value.activeTrackId === 'string' && tracks.some(track => track.trackId === value.activeTrackId)
     ? value.activeTrackId
     : tracks[0].trackId
@@ -224,6 +236,7 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState): Dia
     detectionPreset: normalizeVadPreset(value.detectionPreset, fallback.detectionPreset),
     assets,
     tracks,
+    bindings,
   }
 }
 
@@ -253,6 +266,7 @@ function normalizeTrackState(value: unknown, fallback: DialogueAudioTrackState, 
     color: typeof value.color === 'string' && value.color ? value.color : fallback.color,
     clips: clips.sort((left, right) => left.timelineStartFrame - right.timelineStartFrame || left.clipId.localeCompare(right.clipId)),
     speechCandidates: speechCandidates.sort((left, right) => left.frameStart - right.frameStart || left.candidateId.localeCompare(right.candidateId)),
+    vadMode: normalizeVadMode(value.vadMode, fallback.vadMode),
     muted: value.muted === true,
     solo: value.solo === true,
   }
@@ -266,6 +280,7 @@ function normalizeClip(value: unknown, assetIds: Set<string>): DialogueAudioClip
   if (!clipId || !assetId || !assetIds.has(assetId) || durationFrames < 1) return []
   return [{
     clipId,
+    placementId: normalizedId(value.placementId) || clipId,
     assetId,
     timelineStartFrame: integer(value.timelineStartFrame, 1),
     sourceOffsetFrames: Math.max(0, integer(value.sourceOffsetFrames, 0)),
@@ -302,6 +317,44 @@ function normalizeCandidate(value: unknown): DialogueSpeechCandidate[] {
   }]
 }
 
+function normalizeBinding(value: unknown, trackIds: Set<string>, assetIds: Set<string>): DialogueCueAudioBinding[] {
+  if (!isRecord(value)) return []
+  const bindingId = normalizedId(value.bindingId)
+  const cueId = normalizedId(value.cueId)
+  const revisionId = normalizedId(value.revisionId)
+  const trackId = normalizedId(value.trackId)
+  if (!bindingId || !cueId || !revisionId || !trackIds.has(trackId)) return []
+  const anchors = Array.isArray(value.anchors) ? value.anchors.flatMap((item): DialogueCueAudioAnchor[] => {
+    if (!isRecord(item)) return []
+    const anchorId = normalizedId(item.anchorId)
+    const placementId = normalizedId(item.placementId)
+    const assetId = normalizedId(item.assetId)
+    const sourceFrameStart = Math.max(0, integer(item.sourceFrameStart, Number.NaN))
+    const sourceFrameEnd = Math.max(0, integer(item.sourceFrameEnd, Number.NaN))
+    if (!anchorId || !placementId || !assetIds.has(assetId) || !Number.isFinite(sourceFrameStart) || !Number.isFinite(sourceFrameEnd) || sourceFrameEnd < sourceFrameStart) return []
+    const candidateIds = Array.isArray(item.candidateIds) ? item.candidateIds.map(normalizedId).filter(Boolean) : []
+    return [{ anchorId, placementId, assetId, sourceFrameStart, sourceFrameEnd, candidateIds }]
+  }) : []
+  const cueFrameStart = integer(value.cueFrameStart, Number.NaN)
+  const cueFrameEnd = integer(value.cueFrameEnd, Number.NaN)
+  if (!Number.isFinite(cueFrameStart) || !Number.isFinite(cueFrameEnd) || cueFrameEnd < cueFrameStart) return []
+  const status = value.status === 'review' || value.status === 'orphaned' ? value.status : 'linked'
+  return [{
+    bindingId,
+    cueId,
+    revisionId,
+    trackId,
+    anchors,
+    headPaddingFrames: integer(value.headPaddingFrames, 0),
+    tailPaddingFrames: integer(value.tailPaddingFrames, 0),
+    cueFrameStart,
+    cueFrameEnd,
+    provisional: value.provisional === true,
+    status: anchors.length === 0 && status === 'linked' ? 'orphaned' : status,
+    reviewReason: typeof value.reviewReason === 'string' ? value.reviewReason.slice(0, 160) : undefined,
+  }]
+}
+
 function normalizeRanges(value: unknown): DialogueSpeechRange[] {
   if (!Array.isArray(value)) return []
   return value.flatMap(range => {
@@ -328,6 +381,10 @@ function normalizedId(value: unknown): string {
 
 function normalizeVadPreset(value: unknown, fallback: DialogueAudioVadPreset): DialogueAudioVadPreset {
   return value === 'normal' || value === 'noisy' || value === 'quiet' ? value : fallback
+}
+
+function normalizeVadMode(value: unknown, fallback: DialogueAudioVadMode): DialogueAudioVadMode {
+  return value === 'off' || value === 'candidates' || value === 'auto-sound' ? value : fallback
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

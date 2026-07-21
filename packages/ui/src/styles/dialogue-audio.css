@@ -25,8 +25,8 @@
   z-index: 20;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  height: clamp(230px, 31vh, 340px);
-  min-height: 210px;
+  height: clamp(340px, 42vh, 400px);
+  min-height: 300px;
   border-top: 1px solid #8f9892;
   background: #202724;
   color: #edf2ee;
@@ -167,7 +167,7 @@
 
 .dialogueAudioTrackHeaders {
   display: grid;
-  grid-template-rows: 25px 32px repeat(3, 51px);
+  grid-template-rows: 25px 32px repeat(3, 64px);
   border-right: 1px solid #5d6862;
   background: #252d29;
 }
@@ -185,11 +185,22 @@
 
 .dialogueAudioTrackHeader {
   display: grid;
-  grid-template-columns: 18px 9px minmax(0, 1fr) 25px 25px;
+  grid-template-columns: 18px 9px minmax(52px, 1fr) 64px 25px 25px;
   align-items: center;
   gap: 5px;
   padding: 5px 6px;
   border-bottom: 1px solid #3f4944;
+}
+
+.dialogueAudioTrackVadMode {
+  width: 64px;
+  min-width: 0;
+  padding: 2px;
+  border: 1px solid #56645d;
+  border-radius: 3px;
+  background: #202925;
+  color: #dfe8e2;
+  font-size: 9px;
 }
 
 .dialogueAudioTrackHeader.isActive {
@@ -242,9 +253,9 @@
 .dialogueAudioContent {
   position: relative;
   min-width: 100%;
-  height: 210px;
+  height: 249px;
   background-image: linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px);
-  background-size: 24px 100%;
+  background-size: var(--audio-frame-width, 24px) 100%;
 }
 
 .dialogueAudioRuler {
@@ -292,6 +303,22 @@
   box-shadow: 0 0 0 2px rgb(255 223 137 / 0.42);
 }
 
+.dialogueAudioCue.isTrackLayer {
+  top: 1px;
+  height: 20px;
+}
+
+.dialogueAudioCue.isProvisional {
+  border-style: dashed !important;
+  background: #68562e !important;
+}
+
+.dialogueAudioCue.is-review,
+.dialogueAudioCue.is-orphaned {
+  border-color: #ff9078 !important;
+  background: #743c32 !important;
+}
+
 .dialogueAudioCueHandle {
   position: absolute;
   top: 0;
@@ -312,10 +339,24 @@
 
 .dialogueAudioTrack {
   position: relative;
-  height: 51px;
+  height: 64px;
   overflow: hidden;
   border-bottom: 1px solid #3b4540;
   background: rgb(255 255 255 / 0.012);
+}
+
+.dialogueAudioTrackCueLayer {
+  position: relative;
+  z-index: 5;
+  height: 21px;
+  border-bottom: 1px solid #48534d;
+  background: rgb(255 255 255 / 0.018);
+}
+
+.dialogueAudioWaveformLane {
+  position: relative;
+  height: 42px;
+  overflow: hidden;
 }
 
 .dialogueAudioTrack.isActive {
@@ -324,7 +365,7 @@
 
 .dialogueAudioEmpty {
   position: absolute;
-  top: 17px;
+  top: 13px;
   left: 10px;
   color: #66736c;
   font-size: 10px;
@@ -335,10 +376,32 @@
   position: absolute;
   z-index: 1;
   top: 1px;
-  height: 48px;
+  height: 42px;
   min-width: 1px;
   opacity: 0.82;
   pointer-events: none;
+}
+
+.dialogueAudioClipHandle {
+  position: absolute;
+  z-index: 4;
+  top: 1px;
+  height: 12px !important;
+  min-width: 12px !important;
+  overflow: hidden;
+  padding: 0 2px !important;
+  border: 0 !important;
+  border-radius: 0 0 3px 0 !important;
+  background: rgb(16 24 20 / 0.54) !important;
+  color: rgb(235 243 238 / 0.72) !important;
+  cursor: grab;
+  font-size: 8px !important;
+  line-height: 10px;
+  text-align: left;
+}
+
+.dialogueAudioClipHandle:active {
+  cursor: grabbing;
 }
 
 .dialogueSpeechCandidate {
@@ -454,6 +517,6 @@
 
 @media (max-height: 720px) {
   .dialogueAudioTimeline {
-    height: 220px;
+    height: 340px;
   }
 }

@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import {
+  createTimedRangeCue,
   timelineLanesForLayout,
   updateActiveCutProjectInDocument,
   updateTimedRangeCue,
@@ -10,10 +11,10 @@ import {
 import type { SoundCueDialogState } from './appTypes'
 import {
   dialogueAudioCutStateFromDocument,
-  linkDialogueAudioCandidate,
   updateDialogueAudioCutStateInDocument,
   type DialogueAudioCutState,
 } from './dialogueAudioProject'
+import { linkDialogueAudioCandidates } from './dialogueAudioBinding'
 
 interface AppDialogueAudioActionsOptions {
   projectRef: MutableRefObject<CutProject>
@@ -49,16 +50,15 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     candidate: NonNullable<SoundCueDialogState['audioCandidate']>,
     cueId: string,
   ) {
-    updateDocumentAudio(state => linkDialogueAudioCandidate(
-      state,
-      candidate.trackId,
-      candidate.candidateId,
-      cueId,
-      candidate.revisionId,
-    ))
+    updateDocumentAudio(state => {
+      const cue = options.projectRef.current.timedRangeCues.find(item => item.cueId === cueId && item.role === 'sound')
+      return cue
+        ? linkDialogueAudioCandidates(state, candidate.trackId, candidate.candidateIds, cue, candidate.revisionId)
+        : state
+    })
   }
 
-  function openSoundCueEditorForAudioCandidate(trackId: string, candidateId: string, frameStart: number, frameEnd: number) {
+  function openSoundCueEditorForAudioCandidate(trackId: string, candidateIds: string[], frameStart: number, frameEnd: number) {
     const lane = timelineLanesForLayout(options.projectRef.current).sound?.[0]
     if (!lane) return
     options.setSoundCueDialog({
@@ -66,8 +66,38 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
       laneId: lane.laneId,
       frameStart: clamp(frameStart, options.frameMin, options.frameMax),
       frameEnd: clamp(frameEnd, options.frameMin, options.frameMax),
-      audioCandidate: { trackId, candidateId, revisionId: options.revisionId },
+      audioCandidate: { trackId, candidateIds, revisionId: options.revisionId },
     })
+  }
+
+  function autoCreateSoundCues(
+    stateInput: DialogueAudioCutState,
+    trackId: string,
+    candidateIds: string[],
+  ): DialogueAudioCutState {
+    const lane = timelineLanesForLayout(options.projectRef.current).sound?.[0]
+    const track = stateInput.tracks.find(item => item.trackId === trackId)
+    if (!lane || !track) return stateInput
+    let project = options.projectRef.current
+    let state = stateInput
+    let sequence = project.timedRangeCues.filter(cue => cue.role === 'sound' && cue.label.startsWith(`仮・${track.name}`)).length + 1
+    for (const candidateId of candidateIds) {
+      const candidate = track.speechCandidates.find(item => item.candidateId === candidateId)
+      if (!candidate || state.bindings.some(binding => binding.revisionId === options.revisionId && binding.anchors.some(anchor => anchor.candidateIds.includes(candidateId)))) continue
+      const created = createTimedRangeCue(project, {
+        role: 'sound',
+        laneId: lane.laneId,
+        frameStart: Math.max(options.frameMin, candidate.frameStart),
+        frameEnd: Math.min(options.frameMax, candidate.frameEnd),
+        label: `仮・${track.name} ${sequence}`,
+        text: '',
+      })
+      sequence += 1
+      project = created.project
+      state = linkDialogueAudioCandidates(state, trackId, [candidateId], created.cue, options.revisionId, true)
+    }
+    if (project !== options.projectRef.current) options.commitProject(project)
+    return state
   }
 
   function handleTransformSoundCues(updates: Array<{ cueId: string; frameStart: number; frameEnd: number }>) {
@@ -83,6 +113,7 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     handleCutStateChange,
     handleCandidateLinked,
     openSoundCueEditorForAudioCandidate,
+    autoCreateSoundCues,
     handleTransformSoundCues,
   }
 }

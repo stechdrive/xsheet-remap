@@ -12,7 +12,7 @@ export interface DialogueAudioRange {
 
 export interface DialogueAudioClipboard {
   spanFrames: number
-  clips: Array<Omit<DialogueAudioClip, 'clipId' | 'timelineStartFrame'> & { offsetFrames: number }>
+  clips: Array<Omit<DialogueAudioClip, 'clipId' | 'placementId' | 'timelineStartFrame'> & { offsetFrames: number }>
   candidates: Array<Pick<DialogueSpeechCandidate, 'frameStart' | 'frameEnd'> & { offsetStart: number; offsetEnd: number }>
 }
 
@@ -20,6 +20,30 @@ export function normalizeDialogueAudioRange(frameStart: number, frameEnd: number
   return {
     frameStart: Math.round(Math.min(frameStart, frameEnd)),
     frameEnd: Math.round(Math.max(frameStart, frameEnd)),
+  }
+}
+
+export function moveDialogueAudioClip(
+  track: DialogueAudioTrackState,
+  clipId: string,
+  timelineStartFrameInput: number,
+): DialogueAudioTrackState {
+  const source = track.clips.find(clip => clip.clipId === clipId)
+  if (!source) return track
+  const timelineStartFrame = Math.round(timelineStartFrameInput)
+  const delta = timelineStartFrame - source.timelineStartFrame
+  if (delta === 0) return track
+  const sourceEnd = source.timelineStartFrame + source.durationFrames - 1
+  return {
+    ...track,
+    clips: orderedClips(track.clips.map(clip => clip.clipId === clipId ? { ...clip, timelineStartFrame } : clip)),
+    speechCandidates: track.speechCandidates.map(candidate => {
+      if (candidate.frameStart >= source.timelineStartFrame && candidate.frameEnd <= sourceEnd) {
+        return { ...candidate, frameStart: candidate.frameStart + delta, frameEnd: candidate.frameEnd + delta }
+      }
+      if (!rangesOverlap(candidate, { frameStart: source.timelineStartFrame, frameEnd: sourceEnd })) return candidate
+      return { ...candidate, status: 'review', reviewReason: '複数クリップにまたがるVAD区間の音声が移動されました。' }
+    }),
   }
 }
 
@@ -145,6 +169,7 @@ export function pasteDialogueAudioClipboard(
     usedClipIds.add(clipId)
     return {
       clipId,
+      placementId: clipId,
       assetId: clip.assetId,
       timelineStartFrame: atFrame + clip.offsetFrames,
       sourceOffsetFrames: clip.sourceOffsetFrames,

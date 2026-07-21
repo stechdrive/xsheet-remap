@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   copyDialogueAudioRange,
   insertDialogueAudioSilence,
+  moveDialogueAudioClip,
   pasteDialogueAudioClipboard,
   reconcileDialogueSpeechCandidates,
   rippleDeleteDialogueAudioRange,
@@ -14,11 +15,12 @@ function track(): DialogueAudioTrackState {
     trackId: 'dialogue-1',
     name: 'セリフ 1',
     color: '#fff',
-    clips: [{ clipId: 'clip-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }],
+    clips: [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }],
     speechCandidates: [
       { candidateId: 'candidate-1', frameStart: 3, frameEnd: 8, status: 'pending' },
       { candidateId: 'candidate-2', frameStart: 15, frameEnd: 20, status: 'linked', cueLinks: [{ revisionId: 'revision-1', cueId: 'cue-1' }] },
     ],
+    vadMode: 'candidates',
     muted: false,
     solo: false,
   }
@@ -60,6 +62,16 @@ describe('dialogue audio non-destructive editing', () => {
     const pasted = pasteDialogueAudioClipboard(source, clipboard, 12, 'insert')
     expect(clipboard.spanFrames).toBe(4)
     expect(pasted.clips.some(clip => clip.assetId === 'asset-1' && clip.timelineStartFrame === 12 && clip.sourceOffsetFrames === 4 && clip.durationFrames === 4)).toBe(true)
+    expect(pasted.clips.find(clip => clip.timelineStartFrame === 12)?.placementId).not.toBe('placement-1')
+  })
+
+  it('moves a clip and its contained VAD regions without changing source offsets', () => {
+    const moved = moveDialogueAudioClip(track(), 'clip-1', 9)
+    expect(moved.clips[0]).toMatchObject({ timelineStartFrame: 9, sourceOffsetFrames: 0, placementId: 'placement-1' })
+    expect(moved.speechCandidates).toEqual([
+      expect.objectContaining({ candidateId: 'candidate-1', frameStart: 11, frameEnd: 16 }),
+      expect.objectContaining({ candidateId: 'candidate-2', frameStart: 23, frameEnd: 28 }),
+    ])
   })
 
   it('preserves processed labels across re-detection and marks unmatched links for review', () => {

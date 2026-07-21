@@ -33,7 +33,7 @@ describe('sound cue controller audio integration', () => {
         laneId: 'sound_lane_1',
         frameStart: 12,
         frameEnd: 24,
-        audioCandidate: { trackId: 'dialogue-1', candidateId: 'candidate-1', revisionId: 'revision-1' },
+        audioCandidate: { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       },
       onAudioCandidateLinked,
     })
@@ -42,7 +42,7 @@ describe('sound cue controller audio integration', () => {
       expect.objectContaining({ role: 'sound', frameStart: 12, frameEnd: 24, label: '主人公', text: '行こう' }),
     ])
     expect(onAudioCandidateLinked).toHaveBeenCalledWith(
-      { trackId: 'dialogue-1', candidateId: 'candidate-1', revisionId: 'revision-1' },
+      { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       current.timedRangeCues[0].cueId,
     )
   })

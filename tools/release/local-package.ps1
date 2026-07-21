@@ -10,6 +10,8 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+. (Join-Path $PSScriptRoot "release-inventory.ps1")
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $releaseRoot = if ($OutputDir) {
   [System.IO.Path]::GetFullPath($OutputDir)
@@ -272,6 +274,7 @@ function Remove-StaleHelperFromRelease {
   Remove-ReleasePathSafely (Join-Path $releaseRoot "xsheet-csp-import-helper.bat")
   Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
   Remove-ReleasePathSafely (Join-Path $releaseRoot "csp-import-helper")
+  Remove-ReleasePathSafely (Join-Path $releaseRoot "assets")
   return $null
 }
 
@@ -297,6 +300,12 @@ function Copy-HelperDirectoryToReleaseRoot {
   if (-not (Test-Path -LiteralPath $sourceRuntimePath)) {
     throw "missing helper runtime directory in portable source: $sourceRuntimePath"
   }
+  Assert-ReleaseRootInventory `
+    -RootPath $sourcePath `
+    -ExpectedRootNames @("assets", "csp-import-helper", "xsheet-importer.exe")
+  Assert-ReleaseRootInventory `
+    -RootPath (Join-Path $sourcePath "assets") `
+    -ExpectedRootNames @("xsheet-remap.laf")
   $helperVersion = Assert-HelperLauncherVersion -LauncherPath $sourceLauncherPath -ExpectedVersion $expectedReleaseVersion
 
   $destinationLauncherPath = Join-Path $releaseRoot $launcherName
@@ -304,11 +313,13 @@ function Copy-HelperDirectoryToReleaseRoot {
   $destinationLegacyExePath = Join-Path $releaseRoot "xsheet-csp-import-helper.exe"
   $destinationInternalPath = Join-Path $releaseRoot "_internal"
   $destinationRuntimePath = Join-Path $releaseRoot "csp-import-helper"
+  $destinationAssetsPath = Join-Path $releaseRoot "assets"
   Remove-ReleasePathSafely $destinationLauncherPath
   Remove-ReleasePathSafely $destinationLegacyBatPath
   Remove-ReleasePathSafely $destinationLegacyExePath
   Remove-ReleasePathSafely $destinationInternalPath
   Remove-ReleasePathSafely $destinationRuntimePath
+  Remove-ReleasePathSafely $destinationAssetsPath
 
   Get-ChildItem -LiteralPath $sourcePath -Force |
     ForEach-Object {
@@ -342,12 +353,18 @@ function Get-Sha256Hex {
 }
 
 function New-LocalReleaseZip {
-  param([string]$PackageName)
+  param(
+    [string]$PackageName,
+    [string[]]$ExpectedRootNames
+  )
 
   $zipPath = Join-Path $releaseRoot "$PackageName.zip"
   $zipChecksumPath = Join-Path $releaseRoot "$PackageName.zip.sha256"
   Remove-ReleasePathSafely $zipPath
   Remove-ReleasePathSafely $zipChecksumPath
+  Assert-ReleaseRootInventory `
+    -RootPath $releaseRoot `
+    -ExpectedRootNames $ExpectedRootNames
 
   $stageRoot = Join-Path $repoRoot ".tmp\local-release-zip\$([System.Guid]::NewGuid().ToString("N"))"
   $packageRoot = Join-Path $stageRoot $PackageName
@@ -355,15 +372,10 @@ function New-LocalReleaseZip {
   try {
     New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
 
-    $excludedRootNames = @(
-      "$PackageName.zip",
-      "$PackageName.zip.sha256"
-    )
-    Get-ChildItem -LiteralPath $releaseRoot -Force |
-      Where-Object { $excludedRootNames -notcontains $_.Name } |
-      ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $packageRoot -Recurse -Force
-      }
+    foreach ($rootName in $ExpectedRootNames) {
+      $sourcePath = Join-Path $releaseRoot $rootName
+      Copy-Item -LiteralPath $sourcePath -Destination $packageRoot -Recurse -Force
+    }
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::CreateFromDirectory(
@@ -373,15 +385,10 @@ function New-LocalReleaseZip {
       $false
     )
 
-    $archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-    try {
-      $guideEntryName = "$PackageName/README.txt"
-      if (-not ($archive.Entries | Where-Object { ($_.FullName -replace "\\", "/") -eq $guideEntryName })) {
-        throw "release ZIP is missing guide: $guideEntryName"
-      }
-    } finally {
-      $archive.Dispose()
-    }
+    Assert-ReleaseZipInventory `
+      -ArchivePath $zipPath `
+      -ExpectedPackageName $PackageName `
+      -ExpectedRootNames $ExpectedRootNames
 
     $zipHash = Get-Sha256Hex $zipPath
     ("{0}  {1}" -f $zipHash, "$PackageName.zip") |
@@ -521,6 +528,12 @@ $helperLauncherPath = Join-Path $releaseRoot $helperLauncherName
 $helperLegacyExePath = Join-Path $releaseRoot $helperLegacyExeName
 $helperLegacyBatPath = Join-Path $releaseRoot $helperLegacyBatName
 $helperRuntimePath = Join-Path $releaseRoot "csp-import-helper"
+$helperAssetsPath = Join-Path $releaseRoot "assets"
+$helperCliPath = Join-Path $releaseRoot "csp-import-helper-cli"
+
+if (-not $IncludeHelperCli) {
+  Remove-ReleasePathSafely $helperCliPath
+}
 
 if (-not $SkipHelper) {
   if (Test-Path -LiteralPath $helperSource) {
@@ -535,6 +548,12 @@ if (-not $SkipHelper) {
     Remove-ReleasePathSafely $helperLegacyExePath
     Remove-ReleasePathSafely $helperLegacyBatPath
     Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
+    if (-not (Test-Path -LiteralPath $helperRuntimePath -PathType Container)) {
+      throw "preserved CSP import helper runtime is missing: $helperRuntimePath"
+    }
+    Assert-ReleaseRootInventory `
+      -RootPath $helperAssetsPath `
+      -ExpectedRootNames @("xsheet-remap.laf")
     $components.Add([pscustomobject]@{
       name = "xsheet-importer"
       type = "portable-python-native-launcher"
@@ -548,6 +567,8 @@ if (-not $SkipHelper) {
     Remove-ReleasePathSafely $helperLegacyExePath
     Remove-ReleasePathSafely $helperLegacyBatPath
     Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
+    Remove-ReleasePathSafely $helperRuntimePath
+    Remove-ReleasePathSafely $helperAssetsPath
     Write-Host "[local-package] helper portable source not found; skipping: $helperSource" -ForegroundColor Yellow
   }
 
@@ -571,6 +592,12 @@ if (-not $SkipHelper) {
       Remove-ReleasePathSafely $helperLegacyBatPath
       Remove-ReleasePathSafely $helperLegacyExePath
       Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
+      if (-not (Test-Path -LiteralPath $helperRuntimePath -PathType Container)) {
+        throw "preserved CSP import helper runtime is missing: $helperRuntimePath"
+      }
+      Assert-ReleaseRootInventory `
+        -RootPath $helperAssetsPath `
+        -ExpectedRootNames @("xsheet-remap.laf")
       $components.Add([pscustomobject]@{
         name = "xsheet-importer"
         type = "portable-python-native-launcher"
@@ -585,6 +612,8 @@ if (-not $SkipHelper) {
     Remove-ReleasePathSafely $helperLegacyExePath
     Remove-ReleasePathSafely $helperLegacyBatPath
     Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
+    Remove-ReleasePathSafely $helperRuntimePath
+    Remove-ReleasePathSafely $helperAssetsPath
   }
 }
 
@@ -625,7 +654,33 @@ foreach ($relativePath in $checksumTargets) {
   }
 }
 $checksumLines | Set-Content -LiteralPath (Join-Path $releaseRoot "CHECKSUMS.sha256") -Encoding UTF8
-New-LocalReleaseZip -PackageName $releasePackageName
+
+$expectedReleaseRootNames = New-Object System.Collections.Generic.List[string]
+@("README.txt", "RELEASE.json", "CHECKSUMS.sha256") |
+  ForEach-Object { $expectedReleaseRootNames.Add($_) }
+foreach ($desktopComponent in $desktopComponents) {
+  if (Test-Path -LiteralPath (Join-Path $releaseRoot $desktopComponent.Destination) -PathType Leaf) {
+    $expectedReleaseRootNames.Add($desktopComponent.Destination)
+  }
+}
+if (Test-Path -LiteralPath $helperLauncherPath -PathType Leaf) {
+  if (-not (Test-Path -LiteralPath $helperRuntimePath -PathType Container)) {
+    throw "release helper launcher exists without its runtime: $helperRuntimePath"
+  }
+  if (-not (Test-Path -LiteralPath $helperAssetsPath -PathType Container)) {
+    throw "release helper launcher exists without its assets: $helperAssetsPath"
+  }
+  $expectedReleaseRootNames.Add($helperLauncherName)
+  $expectedReleaseRootNames.Add("csp-import-helper")
+  $expectedReleaseRootNames.Add("assets")
+}
+if ($IncludeHelperCli -and (Test-Path -LiteralPath $helperCliPath -PathType Container)) {
+  $expectedReleaseRootNames.Add("csp-import-helper-cli")
+}
+
+New-LocalReleaseZip `
+  -PackageName $releasePackageName `
+  -ExpectedRootNames @($expectedReleaseRootNames)
 
 if (-not $SkipLeakCheck) {
   & (Join-Path $repoRoot "tools/checks/repo-hygiene.ps1") -IncludeLocalRelease

@@ -55,4 +55,21 @@ const retiredDesktopScript = path.join(repoRoot, 'tools', 'desktop', 'win-deskto
 if (!fs.existsSync(desktopScript)) throw new Error('managed desktop build implementation is missing')
 if (fs.existsSync(retiredDesktopScript)) throw new Error('retired win-desktop-release.ps1 still exists')
 
+const inventoryScript = path.join(repoRoot, 'tools', 'release', 'release-inventory.ps1')
+if (!fs.existsSync(inventoryScript)) throw new Error('release inventory implementation is missing')
+
+const localPackageScript = fs.readFileSync(path.join(repoRoot, 'tools', 'release', 'local-package.ps1'), 'utf8')
+for (const requiredCall of ['Assert-ReleaseRootInventory', 'Assert-ReleaseZipInventory']) {
+  if (!localPackageScript.includes(requiredCall)) {
+    throw new Error(`local release packaging must enforce ${requiredCall}`)
+  }
+}
+
+const githubReleaseScript = fs.readFileSync(path.join(repoRoot, 'tools', 'release', 'github-latest-release.ps1'), 'utf8')
+for (const requiredCall of ['Assert-ReleaseZipChecksum', 'Assert-ReleaseZipInventory']) {
+  if (!githubReleaseScript.includes(requiredCall)) {
+    throw new Error(`GitHub release update must enforce ${requiredCall}`)
+  }
+}
+
 console.log('[build-contract] passed')

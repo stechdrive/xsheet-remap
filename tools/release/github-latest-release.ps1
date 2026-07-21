@@ -19,6 +19,20 @@ $defaultChecksumPath = Join-Path $repoRoot "release-local\xsheet-remap.zip.sha25
 $releaseZipPath = if ($ZipPath) { [System.IO.Path]::GetFullPath($ZipPath) } else { $defaultZipPath }
 $releaseChecksumPath = if ($ChecksumPath) { [System.IO.Path]::GetFullPath($ChecksumPath) } else { $defaultChecksumPath }
 $expectedAssetNames = @("xsheet-remap.zip", "xsheet-remap.zip.sha256")
+$expectedPackageRootNames = @(
+  "assets",
+  "CHECKSUMS.sha256",
+  "csp-import-helper",
+  "README.txt",
+  "RELEASE.json",
+  "xsheet-corrector.exe",
+  "xsheet-editor.exe",
+  "xsheet-importer.exe",
+  "xsheet-remap.exe",
+  "xsheet-template.exe"
+)
+
+. (Join-Path $PSScriptRoot "release-inventory.ps1")
 
 function Invoke-ExternalCommand {
   param(
@@ -93,6 +107,24 @@ function Assert-AssetPath {
   }
 }
 
+function Assert-ReleaseZipChecksum {
+  param(
+    [string]$ArchivePath,
+    [string]$ArchiveChecksumPath
+  )
+
+  $checksumText = (Get-Content -LiteralPath $ArchiveChecksumPath -Raw -Encoding UTF8).Trim()
+  if ($checksumText -notmatch '^([0-9A-Fa-f]{64})\s+\*?xsheet-remap\.zip$') {
+    throw "release checksum file has an invalid format: $ArchiveChecksumPath"
+  }
+
+  $expectedHash = $Matches[1].ToLowerInvariant()
+  $actualHash = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actualHash -ne $expectedHash) {
+    throw "release ZIP checksum mismatch: expected $expectedHash, got $actualHash"
+  }
+}
+
 function Get-ReleaseJson {
   param([string]$Tag)
 
@@ -127,6 +159,13 @@ try {
   if (-not $SkipBuildArtifactCheck) {
     Assert-AssetPath -Path $releaseZipPath -ExpectedName "xsheet-remap.zip"
     Assert-AssetPath -Path $releaseChecksumPath -ExpectedName "xsheet-remap.zip.sha256"
+    Assert-ReleaseZipChecksum `
+      -ArchivePath $releaseZipPath `
+      -ArchiveChecksumPath $releaseChecksumPath
+    Assert-ReleaseZipInventory `
+      -ArchivePath $releaseZipPath `
+      -ExpectedPackageName "xsheet-remap" `
+      -ExpectedRootNames $expectedPackageRootNames
   }
 
   $head = (Get-ExternalCommandOutput -FilePath "git" -ArgumentList @("rev-parse", "HEAD")).Text

@@ -6,10 +6,11 @@ import { annotationTextCssLayout, annotationTextLines, resolveAnnotationTextFont
 import { clampNumber } from './sheetInteraction'
 import { TooltipTarget } from './Tooltip'
 import { SheetSvgText } from './SheetSvgText'
-import { sheetSvgTextX } from './sheetSvgTextGeometry'
+import { sheetSvgTextX, sheetSvgTextY } from './sheetSvgTextGeometry'
 import { ActionMenu, ScrubbableNumberInput } from './AppControls'
 import { TextAnnotationUpdate } from './app-foundation'
 import { CheckSmallIcon, CloseSmallIcon } from './app-navigation'
+import { SvgMultilineTspans } from './SvgMultilineTspans'
 
 export function AnnotationTextLayer({
   annotations,
@@ -292,11 +293,13 @@ export function AnnotationSvgText({
       pageSize={pageSize}
       dominantBaseline="hanging"
     >
-      {lines.map((line, index) => (
-        <tspan key={index} x={sheetSvgTextX(annotation.x, pageSize)} dy={index === 0 ? 0 : '1.25em'}>
-          {line}
-        </tspan>
-      ))}
+      <SvgMultilineTspans
+        lines={lines}
+        xPx={sheetSvgTextX(annotation.x, pageSize)}
+        yPx={sheetSvgTextY(annotation.y, pageSize)}
+        lineHeightPx={fontSizePx * 1.25}
+        keyPrefix={annotation.annotationId}
+      />
     </SheetSvgText>
   )
 }

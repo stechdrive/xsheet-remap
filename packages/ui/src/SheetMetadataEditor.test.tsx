@@ -208,13 +208,13 @@ describe('SheetMetadataEditor page fields', () => {
     expect(Number.parseFloat(editor.style.lineHeight)).toBeCloseTo(10, 1)
     expect(Number.parseFloat(editor.style.padding)).toBeCloseTo(4, 1)
 
-    fireEvent.change(editor, { target: { value: 'ページ固有のメモ' } })
+    fireEvent.change(editor, { target: { value: '1行目\n\n3行目' } })
     expect(onFormFieldChange).not.toHaveBeenCalled()
 
     fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true })
     expect(onFormFieldChange).toHaveBeenCalledWith(
       expect.objectContaining({ fieldId: 'memo.body', scope: 'page', valueType: 'multiline' }),
-      'ページ固有のメモ',
+      '1行目\n\n3行目',
       'page_1',
     )
 

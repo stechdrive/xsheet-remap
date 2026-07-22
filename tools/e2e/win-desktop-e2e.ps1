@@ -34,6 +34,7 @@ $sheetOpsScenarios = @(
   "camera-ops",
   "timeline-ripple",
   "timeline-memo"
+  "multiline-memo"
   "annotation-interactions"
   "sheet-history"
   "export-validation"

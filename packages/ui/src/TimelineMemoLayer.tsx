@@ -16,6 +16,7 @@ import {
 import { sheetCellCornerTrianglePoints } from './sheetCellCornerMarker'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
+import { SvgMultilineTspans } from './SvgMultilineTspans'
 
 type MemoInteraction = {
   pointerId: number
@@ -379,11 +380,13 @@ export function TimelineMemoLayer({
                   transform={`scale(${1 / Math.max(1, pageSize.widthPx)} ${1 / Math.max(1, pageSize.heightPx)})`}
                   dominantBaseline="hanging"
                   onDoubleClick={event => editText(event, memo, segment, text)}
-                >{layout.lines.map((line, index) => <tspan
-                  key={`${text.textId}:${index}`}
-                  x={layout.xPx}
-                  dy={index === 0 ? 0 : layout.lineHeightPx}
-                >{line || '\u00a0'}</tspan>)}</text>
+                ><SvgMultilineTspans
+                  lines={layout.lines}
+                  xPx={layout.xPx}
+                  yPx={layout.yPx}
+                  lineHeightPx={layout.lineHeightPx}
+                  keyPrefix={text.textId}
+                /></text>
               })}
             </g>
             {selected && <g className="timelineMemoBoundsEdges">

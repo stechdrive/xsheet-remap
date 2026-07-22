@@ -6,9 +6,10 @@ import { metadataTextRenderItemsForPage, workRangeShadeRenderItemsForPage, type 
 import { rawImageToViewportPoint } from './sheetImages'
 import { clampNumber } from './sheetInteraction'
 import { SheetSvgText } from './SheetSvgText'
-import { sheetSvgTextX } from './sheetSvgTextGeometry'
+import { sheetSvgTextX, sheetSvgTextY } from './sheetSvgTextGeometry'
 import { GridOverlayLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { AutoCalibrationOverlayState, CalibrationGuideMetrics, CalibrationPointKind } from './app-foundation'
+import { SvgMultilineTspans } from './SvgMultilineTspans'
 
 export function AutoCalibrationGuideOverlay({
   overlay,
@@ -195,15 +196,13 @@ export function MetadataTextLayer({ context, page }: { context: SheetRenderModel
             pageSize={context.pageSize}
             fontWeight={item.fontWeight}
           >
-            {item.lines.map((line, index) => (
-              <tspan
-                key={`${item.regionId}_${index}`}
-                x={sheetSvgTextX(item.x, context.pageSize)}
-                dy={index === 0 ? 0 : item.lineHeightPx}
-              >
-                {line}
-              </tspan>
-            ))}
+            <SvgMultilineTspans
+              lines={item.lines}
+              xPx={sheetSvgTextX(item.x, context.pageSize)}
+              yPx={sheetSvgTextY(item.y, context.pageSize)}
+              lineHeightPx={item.lineHeightPx}
+              keyPrefix={item.regionId}
+            />
           </SheetSvgText>
         </g>
       ))}

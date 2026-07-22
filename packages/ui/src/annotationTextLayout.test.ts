@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AnnotationText } from '@xsheet-remap/core'
 import {
   annotationTextCssLayout,
+  annotationTextLines,
   annotationTextSheetLayout,
   annotationTextSvgFontSize,
   resolveAnnotationTextFontSizePx,
@@ -29,6 +30,10 @@ function textAnnotation(input: Partial<AnnotationText> = {}): AnnotationText {
 }
 
 describe('annotation text layout', () => {
+  it('preserves explicit blank lines while normalizing Windows line endings', () => {
+    expect(annotationTextLines('first\r\n\r\nthird')).toEqual(['first', '', 'third'])
+  })
+
   it('resolves stored font size through the annotation surface anchor', () => {
     const annotation = textAnnotation()
 

@@ -60,6 +60,7 @@ import {
   timelineMemoStrokePointsForSegment,
 } from './timelineMemoGeometry'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
+import { positionMultilineTextLines } from './multilineTextLayout'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -598,13 +599,18 @@ function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
       ctx.textBaseline = item.dominantBaseline === 'hanging' || item.dominantBaseline === 'text-before-edge'
         ? 'top'
         : item.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
-      item.lines.forEach((line, index) => {
+      for (const line of positionMultilineTextLines(
+        item.lines,
+        item.x * context.pageSize.widthPx,
+        offsetY + item.y * context.pageSize.heightPx,
+        item.lineHeightPx,
+      )) {
         ctx.fillText(
-          line,
-          item.x * context.pageSize.widthPx,
-          offsetY + item.y * context.pageSize.heightPx + index * item.lineHeightPx,
+          line.text,
+          line.xPx,
+          line.yPx,
         )
-      })
+      }
       ctx.restore()
     }
   }
@@ -1284,9 +1290,9 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
       ctx.font = fontDeclaration(fontSize, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.textBaseline = 'top'
       ctx.textAlign = 'left'
-      lines.forEach((line, index) => {
-        ctx.fillText(line, x, y + index * fontSize * 1.25)
-      })
+      for (const line of positionMultilineTextLines(lines, x, y, fontSize * 1.25)) {
+        ctx.fillText(line.text, line.xPx, line.yPx)
+      }
     }
     for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
       const appearance = normalizeMemoAppearance(memo.appearance)
@@ -1314,11 +1320,14 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
           ctx.font = fontDeclaration(layout.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
           ctx.textBaseline = 'top'
           ctx.textAlign = 'left'
-          layout.lines.forEach((line, index) => ctx.fillText(
-            line,
+          for (const line of positionMultilineTextLines(
+            layout.lines,
             layout.xPx,
-            offsetY + layout.yPx + index * layout.lineHeightPx,
-          ))
+            offsetY + layout.yPx,
+            layout.lineHeightPx,
+          )) {
+            ctx.fillText(line.text, line.xPx, line.yPx)
+          }
         }
         ctx.restore()
       }

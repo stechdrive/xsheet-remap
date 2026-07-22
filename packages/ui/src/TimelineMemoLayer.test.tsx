@@ -365,7 +365,7 @@ describe('TimelineMemoLayer anchor cues', () => {
       text: { color: '#123456', fontSizeUnits: 1 },
       background: { enabled: false, color: '#fff6a8', opacity: 0.28 },
     }
-    source.texts = [{ textId: 'text_1', text: '指示\n補足', x: 1, y: 1 }]
+    source.texts = [{ textId: 'text_1', text: '指示\n\n補足', x: 1, y: 1 }]
     const onUpsertText = vi.fn()
     const { container, getByLabelText } = render(
       <svg viewBox="0 0 1 1">
@@ -391,7 +391,15 @@ describe('TimelineMemoLayer anchor cues', () => {
     )
 
     const rendered = container.querySelector<SVGTextElement>('.timelineMemoText')
-    expect(rendered?.querySelectorAll('tspan')).toHaveLength(2)
+    const renderedLines = [...(rendered?.querySelectorAll('tspan') ?? [])]
+    expect(renderedLines.map(line => line.textContent)).toEqual(['指示', '', '補足'])
+    expect(renderedLines.map(line => Number(line.getAttribute('y')))).toEqual([
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Number),
+    ])
+    expect(Number(renderedLines[2]?.getAttribute('y')) - Number(renderedLines[0]?.getAttribute('y')))
+      .toBeCloseTo(2 * (Number(renderedLines[1]?.getAttribute('y')) - Number(renderedLines[0]?.getAttribute('y'))))
     expect(rendered?.getAttribute('transform')).toBe(`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`)
     expect(rendered?.getAttribute('clip-path')).toBeNull()
     expect(container.querySelector('.timelineMemoTextLayer')?.getAttribute('clip-path')).toMatch(/^url\(#timeline-memo-clip-/)

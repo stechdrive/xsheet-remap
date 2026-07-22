@@ -29,3 +29,7 @@ export function sheetSvgTextGeometry(
 export function sheetSvgTextX(x: number, pageSize: SheetSvgPageSize): number {
   return x * Math.max(1, pageSize.widthPx)
 }
+
+export function sheetSvgTextY(y: number, pageSize: SheetSvgPageSize): number {
+  return y * Math.max(1, pageSize.heightPx)
+}

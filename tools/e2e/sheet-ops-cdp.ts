@@ -13,6 +13,7 @@ import { assertSelectorsContributePaint } from './visual-paint-contract'
 import { verifyAnnotationInteractionScenario } from './scenarios/annotation-interactions'
 import { verifyCameraDialogScalability } from './scenarios/camera-dialog-scalability'
 import { verifyCspImportExportScenario } from './scenarios/csp-import-export'
+import { verifyMultilineMemoScenario } from './scenarios/multiline-memo'
 import { verifySharedCutMenuControlsScenario, verifyTopMenuBehaviorScenario } from './scenarios/shared-ui-controls'
 import { CdpClient } from './cdp-client'
 import {
@@ -83,6 +84,7 @@ const sheetOpsScenarioIds = [
   'camera-ops',
   'timeline-ripple',
   'timeline-memo',
+  'multiline-memo',
   'annotation-interactions',
   'sheet-history',
   'export-validation',
@@ -210,6 +212,12 @@ async function runSheetOpsScenario(scenario: SheetOpsScenarioId): Promise<void> 
       return
     case 'timeline-memo':
       await verifyTimelineMemoEditing()
+      return
+    case 'multiline-memo':
+      await verifyMultilineMemoScenario({
+        checks, evaluatePage, waitForSelector, waitForPageCondition, inputPointForSelector,
+        mouseDoubleClick, setReactFieldValue, keyboardShortcut, keyPress, captureScreenshotArtifact: captureScenarioScreenshot,
+      })
       return
     case 'annotation-interactions':
       await verifyAnnotationInteractionScenario({

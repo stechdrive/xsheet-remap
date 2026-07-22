@@ -608,9 +608,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       </div>
       {hoveredSoundCue && soundCueHoverStyle && !soundCueDrag && (
         <div className="soundCueHoverCard" style={soundCueHoverStyle} role="tooltip">
-          <strong>{hoveredSoundCue.label}</strong>
+          <strong>{hoveredSoundCue.label || hoveredSoundCue.text || 'SOUND'}</strong>
           <span>{hoveredSoundCue.frameStart}–{hoveredSoundCue.frameEnd}F</span>
-          {hoveredSoundCue.text && <p>{hoveredSoundCue.text}</p>}
+          {hoveredSoundCue.label && hoveredSoundCue.text && <p>{hoveredSoundCue.text}</p>}
         </div>
       )}
       {hoveredCameraCue && cameraCueHoverStyle && !cameraCueDrag && (

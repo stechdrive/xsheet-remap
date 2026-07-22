@@ -61,6 +61,7 @@ import {
 } from './timelineMemoGeometry'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { positionMultilineTextLines } from './multilineTextLayout'
+import { buildTimedRangeCueToneMap, TIMED_RANGE_CUE_TONE_PALETTE, timedRangeCueToneFor } from './timedRangeCueAppearance'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -730,6 +731,7 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   const textMeasurement = createCanvasTextMeasurementProvider(() => ctx)
   const cues = context.project.timedRangeCues.filter(cue => cue.role === 'sound')
+  const cueTones = buildTimedRangeCueToneMap(cues)
   const pageTextLayouts = buildSoundCuePageTextLayouts(
     context.template,
     context.pages,
@@ -746,9 +748,9 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
   )
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const { segment, textLayout } of pageTextLayouts.filter(item => item.pageId === page.pageId)) {
+    for (const { cue, segment, textLayout } of pageTextLayouts.filter(item => item.pageId === page.pageId)) {
       const rect = projectedPixelRect(context, segment.rect, offsetY)
-      ctx.fillStyle = 'rgba(37, 121, 94, 0.16)'
+      ctx.fillStyle = TIMED_RANGE_CUE_TONE_PALETTE[timedRangeCueToneFor(cue.cueId, cueTones)].fill
       ctx.strokeStyle = 'rgba(25, 91, 70, 0.74)'
       ctx.lineWidth = 1
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
@@ -782,6 +784,7 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   const cues = context.project.timedRangeCues.filter(cue => cue.role === 'camera')
+  const cueTones = buildTimedRangeCueToneMap(cues)
   const pageWidth = context.pageSize.widthPx
   const pageHeight = context.pageSize.heightPx
   for (const page of context.pages) {
@@ -792,9 +795,10 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
     })
     for (const { cue, segments } of layouts) {
       const instructionSpans = cameraInstructionSpans(cue)
+      const tone = timedRangeCueToneFor(cue.cueId, cueTones)
       for (const segment of segments) {
         ctx.strokeStyle = 'rgba(22, 67, 52, 0.96)'
-        ctx.fillStyle = 'rgba(55, 112, 87, 0.13)'
+        ctx.fillStyle = TIMED_RANGE_CUE_TONE_PALETTE[tone].fill
         ctx.lineWidth = 1.5
         for (const path of cameraRangePathsForSegment(cue, segment, context.pageSize)) {
           drawNormalizedCameraRangePath(ctx, path.commands, pageWidth, pageHeight, offsetY)
@@ -882,7 +886,7 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         ctx.restore()
       }
     }
-    for (const { label } of layouts) {
+    for (const { cue, label } of layouts) {
       if (!label) continue
       if (label.connector) {
         ctx.save()
@@ -898,6 +902,12 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         )
         ctx.restore()
       }
+      const labelRect = projectedPixelRect(context, label.rect, offsetY)
+      ctx.fillStyle = TIMED_RANGE_CUE_TONE_PALETTE[timedRangeCueToneFor(cue.cueId, cueTones)].fill
+      ctx.strokeStyle = 'rgba(25, 91, 70, 0.74)'
+      ctx.lineWidth = 1
+      ctx.fillRect(labelRect.x, labelRect.y, labelRect.w, labelRect.h)
+      ctx.strokeRect(labelRect.x, labelRect.y, labelRect.w, labelRect.h)
       ctx.textAlign = 'center'
       ctx.textBaseline = 'alphabetic'
       ctx.save()

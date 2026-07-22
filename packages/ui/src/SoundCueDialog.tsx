@@ -68,17 +68,12 @@ export function SoundCueDialog({
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const normalizedLabel = label.trim()
-    if (!normalizedLabel) {
-      labelInputRef.current?.focus()
-      return
-    }
     onSubmit({
       cueId: state.cueId,
       laneId: state.laneId,
       frameStart,
       frameEnd,
-      label: normalizedLabel,
+      label: label.trim(),
       text: text.trim(),
     })
   }
@@ -99,7 +94,7 @@ export function SoundCueDialog({
         </header>
         <div className="soundCueDialogBody">
           <label>
-            <span>ラベル</span>
+            <span>ラベル（任意）</span>
             <HistoryInput
               inputRef={labelInputRef}
               aria-label={`${normalizedSectionLabel}ラベル`}
@@ -107,7 +102,6 @@ export function SoundCueDialog({
               onChange={event => setLabel(event.currentTarget.value)}
               history={labelHistory}
               historyLimit={24}
-              required
             />
           </label>
           <label className="soundCueContentField">

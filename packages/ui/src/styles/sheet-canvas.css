@@ -982,7 +982,8 @@
 
 .sheetRevisionReferenceLayer .soundCueBody,
 .sheetRevisionReferenceLayer .cameraCueFade,
-.sheetRevisionReferenceLayer .cameraCueOverlapFill {
+.sheetRevisionReferenceLayer .cameraCueOverlapFill,
+.sheetRevisionReferenceLayer .cameraCueLabelBody {
   fill: rgb(212 76 88 / 0.14) !important;
 }
 
@@ -990,6 +991,7 @@
 .sheetRevisionReferenceLayer .soundCueCap,
 .sheetRevisionReferenceLayer .cameraCueStroke,
 .sheetRevisionReferenceLayer .cameraCueFade,
+.sheetRevisionReferenceLayer .cameraCueLabelBody,
 .sheetRevisionReferenceLayer .cameraCueConnector,
 .sheetRevisionReferenceLayer .cameraCuePivotMark {
   stroke: #bd3e4d !important;
@@ -1021,7 +1023,7 @@
 }
 
 .soundCueBody {
-  fill: rgb(37 121 94 / 0.16);
+  fill: var(--timed-range-cue-fill, rgb(37 121 94 / 0.16));
   stroke: rgb(25 91 70 / 0.74);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
@@ -1030,7 +1032,7 @@
 }
 
 .soundCue:hover .soundCueBody {
-  fill: rgb(37 121 94 / 0.24);
+  fill: var(--timed-range-cue-hover-fill, rgb(37 121 94 / 0.24));
   stroke: rgb(18 82 62 / 0.96);
 }
 
@@ -1152,13 +1154,17 @@
 }
 
 .cameraCueFade {
-  fill: rgb(55 112 87 / 0.13);
+  fill: var(--timed-range-cue-fill, rgb(37 121 94 / 0.16));
 }
 
 .cameraCueOverlapFill {
-  fill: rgb(55 112 87 / 0.13);
+  fill: var(--timed-range-cue-fill, rgb(37 121 94 / 0.16));
   stroke: none;
   pointer-events: none;
+}
+
+.cameraCue:hover .cameraCueFill {
+  fill: var(--timed-range-cue-hover-fill, rgb(37 121 94 / 0.24));
 }
 
 .cameraCueMarker {
@@ -1273,11 +1279,22 @@
 }
 
 .cameraCueLabelBody {
+  fill: var(--timed-range-cue-fill, rgb(37 121 94 / 0.16));
+  stroke: rgb(25 91 70 / 0.74);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.cameraCueLabel:hover .cameraCueLabelBody {
+  fill: var(--timed-range-cue-hover-fill, rgb(37 121 94 / 0.24));
+  stroke: rgb(18 82 62 / 0.96);
+}
+
+.cameraCueLabel.selected .cameraCueLabelBody {
   fill: rgb(237 246 255 / 0.9);
   stroke: rgb(21 94 220 / 0.98);
   stroke-width: 2px;
-  vector-effect: non-scaling-stroke;
-  pointer-events: none;
 }
 
 .cameraCueLabel.overflow.selected .cameraCueLabelBody {

@@ -15,6 +15,7 @@ import {
 } from './cameraCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { SheetTransformHandle } from './SheetTransformHandle'
+import { buildTimedRangeCueToneMap, timedRangeCueToneClass, timedRangeCueToneFor, timedRangeCueToneStyle } from './timedRangeCueAppearance'
 
 export type CameraCueDragMode = 'move' | 'resize-start' | 'resize-end' | 'pivot' | 'move-label' | 'resize-label' | 'point'
 
@@ -44,6 +45,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
   onPointerLeave: () => void
 }) {
   const pageLayouts = buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, timelineLanes, layoutOverrides })
+  const cueTones = buildTimedRangeCueToneMap(cues)
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
   const pivotRadiusX = 5 / Math.max(1, surface.widthPx)
   const pivotRadiusY = 5 / Math.max(1, surface.heightPx)
@@ -52,6 +54,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
     <g className="cameraCueLayer">
       {pageLayouts.flatMap(({ cue, segments }) => segments.map(segment => {
         const selected = selectedCueId === cue.cueId
+        const tone = timedRangeCueToneFor(cue.cueId, cueTones)
         const camera = cue.camera ?? { shape: 'range' as const, points: [] }
         const instructionSpans = cameraInstructionSpans(cue)
         const intersectsSegment = (span: (typeof instructionSpans)[number]) => span.frameEndExclusive > segment.frameStart && span.frameStart < segment.frameEnd + 1
@@ -64,8 +67,10 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
         return (
           <g
             key={`${cue.cueId}:${segment.regionId}:${segment.frameStart}`}
-            className={`cameraCue ${camera.shape}${selected ? ' selected' : ''}${draggingCueId === cue.cueId ? ' transforming' : ''}`}
+            className={`cameraCue ${camera.shape} ${timedRangeCueToneClass(tone)}${selected ? ' selected' : ''}${draggingCueId === cue.cueId ? ' transforming' : ''}`}
+            style={timedRangeCueToneStyle(tone)}
             data-camera-cue-id={cue.cueId}
+            data-cue-tone={tone}
             data-camera-lane-id={cue.laneId}
             data-frame-start={cue.frameStart}
             data-frame-end={cue.frameEnd}
@@ -161,12 +166,15 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
         if (!layout) return null
         const cueId = cue.cueId
         const selected = selectedCueId === cueId
+        const tone = timedRangeCueToneFor(cueId, cueTones)
         const clipId = `camera-cue-label-clip-${safeSvgId(page.pageId)}-${safeSvgId(cueId)}`
         return (
           <g
             key={`label:${cueId}`}
-            className={`cameraCueLabel${selected ? ' selected' : ''}${layout.manual ? ' manual' : ''}${layout.overflow ? ' overflow' : ''}`}
+            className={`cameraCueLabel ${timedRangeCueToneClass(tone)}${selected ? ' selected' : ''}${layout.manual ? ' manual' : ''}${layout.overflow ? ' overflow' : ''}`}
+            style={timedRangeCueToneStyle(tone)}
             data-camera-cue-id={cueId}
+            data-cue-tone={tone}
             data-camera-label-overflow={layout.overflow ? 'true' : 'false'}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -182,7 +190,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             </defs>
             {layout.overflow && <title>CAMERA欄に指示全文を表示できません。指示を短くするか、アンカー付きメモで補足してください。</title>}
             {layout.connector && <line className="cameraCueLabelConnector" x1={layout.connector.from.x} y1={layout.connector.from.y} x2={layout.connector.to.x} y2={layout.connector.to.y} />}
-            {selected && <rect className="cameraCueLabelBody" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} />}
+            <rect className="cameraCueLabelBody" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} />
             <rect className="cameraCueLabelHit" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} onPointerDown={event => onPointerDown(event, cue, 'move-label', { labelLayout: layout })} onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); onDoubleClick(cueId) }} />
             <g clipPath={`url(#${clipId})`}>
               <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`} className="cameraCueLabelText">

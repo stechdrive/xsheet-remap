@@ -63,4 +63,34 @@ describe('SoundCueDialog', () => {
     fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true })
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
+
+  it('allows a template SOUND-equivalent instruction with content and no label', () => {
+    const onSubmit = vi.fn()
+    render(
+      <SoundCueDialog
+        state={{ mode: 'create', laneId: 'sound_lane_1', frameStart: 1, frameEnd: 6 }}
+        cue={null}
+        sectionLabel="効果"
+        fps={24}
+        frameMin={1}
+        frameMax={144}
+        labelHistory={['人物名']}
+        onSubmit={onSubmit}
+        onCancel={() => undefined}
+      />,
+    )
+    const label = screen.getByLabelText('効果ラベル')
+    expect(label.hasAttribute('required')).toBe(false)
+    fireEvent.change(screen.getByLabelText('効果内容'), { target: { value: '  SE  ' } })
+    fireEvent.click(screen.getByRole('button', { name: '追加' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      cueId: undefined,
+      laneId: 'sound_lane_1',
+      frameStart: 1,
+      frameEnd: 6,
+      label: '',
+      text: 'SE',
+    })
+  })
 })

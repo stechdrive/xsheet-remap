@@ -117,6 +117,20 @@ describe('timed range cues', () => {
     expect(deleteTimedRangeCue(updated, created.cue.cueId).timedRangeCues).toEqual([])
   })
 
+  it('preserves SOUND content when its optional label is blank', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'sound',
+      laneId: 'sound_lane_1',
+      frameStart: 1,
+      frameEnd: 6,
+      label: '   ',
+      text: '  SE  ',
+    })
+
+    expect(created.cue).toMatchObject({ label: '', text: 'SE' })
+    expect(validateProject(created.project).filter(issue => issue.severity === 'error')).toEqual([])
+  })
+
   it('keeps cue-linked memos synchronized and removes them with their cue', () => {
     const created = createTimedRangeCue(createDefaultProject(), {
       role: 'sound', laneId: 'sound_lane_1', frameStart: 4, frameEnd: 10, label: '声',

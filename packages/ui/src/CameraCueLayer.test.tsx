@@ -53,13 +53,40 @@ describe('CameraCueLayer', () => {
     expect(container.querySelectorAll('.cameraCue.range .cameraCueMarker.end')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCue.fade-in .cameraCueMarker, .cameraCue.fade-out .cameraCueMarker, .cameraCue.overlap .cameraCueMarker')).toHaveLength(0)
     expect(container.querySelectorAll('.cameraCueLabelHit')).toHaveLength(4)
-    expect(container.querySelectorAll('.cameraCueLabelBody')).toHaveLength(1)
+    expect(container.querySelectorAll('.cameraCueLabelBody')).toHaveLength(4)
     expect(container.querySelector('.cameraCueLabelResizeHandle.sheetTransformHandle.resize')).toBeTruthy()
     expect(container.querySelector('.cameraCueLabelResizeHandle .sheetTransformHandleResizeVisual')).toBeTruthy()
     expect(container.querySelectorAll('.cameraCueLabel defs rect')).toHaveLength(4)
     expect(container.querySelectorAll('.cameraCueLabel[data-camera-label-overflow="false"]')).toHaveLength(4)
     expect(container.querySelectorAll('.cameraCueLabelText[clip-path]')).toHaveLength(0)
     expect(container.querySelectorAll('.cameraCueLabel [clip-path] .cameraCueLabelText')).toHaveLength(4)
+  })
+
+  it('alternates cue and label tones by frame order within a CAMERA lane', () => {
+    const cues = [
+      cameraCue('cue_later', 'camera_lane_1', 20, 24, 'fade-out'),
+      cameraCue('cue_first', 'camera_lane_1', 1, 6, 'fade-in'),
+      cameraCue('cue_middle', 'camera_lane_1', 10, 14, 'range'),
+    ]
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const { container } = render(
+      <svg><CameraCueLayer
+        cues={cues}
+        template={standardA3SheetTemplate}
+        page={page}
+        paperTracks={createDefaultProject().logicalSheet.paperTracks.map(track => track.paperTrack)}
+        pageSize={{ widthPx: 1754, heightPx: 2481 }}
+        surface={{ widthPx: 1000, heightPx: 1000 }}
+        selectedCueId={null}
+        onPointerDown={vi.fn()} onPointerMove={vi.fn()} onPointerUp={vi.fn()} onPointerCancel={vi.fn()}
+        onDoubleClick={vi.fn()} onPointerEnter={vi.fn()} onPointerLeave={vi.fn()}
+      /></svg>,
+    )
+
+    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_first"]')?.getAttribute('data-cue-tone')).toBe('primary')
+    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_middle"]')?.getAttribute('data-cue-tone')).toBe('alternate')
+    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_later"]')?.getAttribute('data-cue-tone')).toBe('primary')
+    expect(container.querySelector('.cameraCueLabel[data-camera-cue-id="cue_middle"]')?.getAttribute('data-cue-tone')).toBe('alternate')
   })
 
   it('marks an unavoidably overflowing label while clipping it to the CAMERA region', () => {

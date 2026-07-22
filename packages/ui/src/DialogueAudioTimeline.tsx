@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { formatLogicalSheetFrameTimecode, type TimedRangeCue } from '@xsheet-remap/core'
 import {
   copyDialogueAudioRange,
@@ -22,6 +31,7 @@ import {
   decodeAudioDataUrl,
   durationFramesForAudio,
   pcmToWavBlob,
+  slicePcmForDialogueScrub,
   summarizeDialogueWaveform,
   type PcmAudio,
 } from './dialogueAudioEngine'
@@ -71,6 +81,7 @@ interface AudioHistory {
 
 const MIN_PIXELS_PER_FRAME = 1.2
 const MAX_PIXELS_PER_FRAME = 9
+const SCRUB_WINDOW_SECONDS = 0.12
 
 export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const {
@@ -78,7 +89,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     onCutStateChange, onPlayheadChange, onSoundCueSelect, onSoundCueEdit, onSoundCueTransform, onSoundCuesTransform,
     onSoundCandidateEdit, onAutoCreateSoundCues,
   } = props
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
   const [playheadFrame, setPlayheadFrame] = useState(frameOrigin)
   const [pixelsPerFrame, setPixelsPerFrame] = useState(2.4)
   const [playing, setPlaying] = useState(false)
@@ -110,11 +121,15 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const cutStateRef = useRef(cutState)
   const audioContextRef = useRef<AudioContext | null>(null)
   const sourcesRef = useRef<AudioBufferSourceNode[]>([])
+  const scrubSourcesRef = useRef<AudioBufferSourceNode[]>([])
+  const scrubRequestRef = useRef(0)
+  const scrubDragRef = useRef<{ pointerId: number; lastFrame: number } | null>(null)
   const animationRef = useRef<number | null>(null)
   const playSessionRef = useRef<{ contextStart: number; frameStart: number; frameEnd: number; loop: boolean } | null>(null)
   const recorderRef = useRef<{ recorder: MediaRecorder; stream: MediaStream; chunks: Blob[]; startFrame: number; trackId: string } | null>(null)
   const decodedRef = useRef(new Map<string, { dataUrl: string; audio: PcmAudio }>())
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const timelineContentRef = useRef<HTMLDivElement | null>(null)
   const timelineWidth = Math.max(720, durationFrames * pixelsPerFrame)
   const frameEnd = frameOrigin + Math.max(1, durationFrames) - 1
   const activeTrack = cutState.tracks.find(track => track.trackId === cutState.activeTrackId) ?? cutState.tracks[0]
@@ -140,6 +155,8 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
   useEffect(() => () => {
     stopSources(sourcesRef.current)
+    stopSources(scrubSourcesRef.current)
+    scrubRequestRef.current += 1
     if (animationRef.current !== null) cancelAnimationFrame(animationRef.current)
     recorderRef.current?.stream.getTracks().forEach(track => track.stop())
     void audioContextRef.current?.close()
@@ -175,7 +192,14 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     setPlaying(false)
   }
 
+  function stopScrubPlayback() {
+    scrubRequestRef.current += 1
+    stopSources(scrubSourcesRef.current)
+    scrubSourcesRef.current = []
+  }
+
   async function startPlayback(fromFrame = playheadFrame, omitTrackId?: string) {
+    stopScrubPlayback()
     stopPlayback(false)
     const context = audioContext()
     await context.resume()
@@ -240,6 +264,81 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     animationRef.current = requestAnimationFrame(tickPlayback)
   }
 
+  async function playDialogueScrub(previousFrame: number, nextFrame: number) {
+    const direction = nextFrame < previousFrame ? -1 : nextFrame > previousFrame ? 1 : 0
+    if (direction === 0) return
+    const state = cutStateRef.current
+    const soloed = state.tracks.some(track => track.solo)
+    const audibleTracks = state.tracks.filter(track => !track.muted && (!soloed || track.solo))
+    if (!audibleTracks.some(track => track.clips.length > 0)) {
+      stopScrubPlayback()
+      setStatus(direction < 0 ? '逆スクラブ（音声なし）' : 'スクラブ（音声なし）')
+      return
+    }
+
+    const scrubFrameCount = Math.max(2, Math.ceil(Math.max(1, fps) * SCRUB_WINDOW_SECONDS))
+    const windowStart = direction > 0
+      ? nextFrame
+      : Math.max(frameOrigin, nextFrame - scrubFrameCount + 1)
+    const windowEnd = direction > 0
+      ? Math.min(frameEnd, nextFrame + scrubFrameCount - 1)
+      : nextFrame
+    const assetById = new Map(state.assets.map(asset => [asset.assetId, asset]))
+    const clips = audibleTracks.flatMap(track => track.clips.flatMap(clip => {
+      const clipEnd = clip.timelineStartFrame + clip.durationFrames - 1
+      const intersectionStart = Math.max(windowStart, clip.timelineStartFrame)
+      const intersectionEnd = Math.min(windowEnd, clipEnd)
+      const asset = assetById.get(clip.assetId)
+      return asset && intersectionEnd >= intersectionStart
+        ? [{ asset, clip, intersectionStart, intersectionEnd }]
+        : []
+    }))
+    if (clips.length === 0) {
+      stopScrubPlayback()
+      setStatus(direction < 0 ? '逆スクラブ（この位置は無音）' : 'スクラブ（この位置は無音）')
+      return
+    }
+
+    const requestId = scrubRequestRef.current + 1
+    scrubRequestRef.current = requestId
+    stopSources(scrubSourcesRef.current)
+    scrubSourcesRef.current = []
+    const context = audioContext()
+    await context.resume()
+    const decoded = await Promise.all(clips.map(async item => ({ ...item, audio: await decodedAsset(item.asset, context) })))
+    if (requestId !== scrubRequestRef.current) return
+
+    const startAt = context.currentTime + 0.008
+    const sources: AudioBufferSourceNode[] = []
+    decoded.forEach(({ audio, clip, intersectionStart, intersectionEnd }) => {
+      const frameCount = intersectionEnd - intersectionStart + 1
+      const sourceFrameStart = clip.sourceOffsetFrames + intersectionStart - clip.timelineStartFrame
+      const sliced = slicePcmForDialogueScrub(audio, sourceFrameStart, frameCount, fps, direction < 0)
+      if (sliced.samples.length === 0) return
+      const source = context.createBufferSource()
+      const gain = context.createGain()
+      const delayFrames = direction > 0 ? intersectionStart - windowStart : windowEnd - intersectionEnd
+      const sourceStart = startAt + delayFrames / Math.max(1, fps)
+      const durationSeconds = sliced.samples.length / sliced.sampleRate
+      const fadeSeconds = Math.min(0.008, durationSeconds / 3)
+      source.buffer = audioBufferFromPcm(context, sliced)
+      source.connect(gain)
+      gain.connect(context.destination)
+      gain.gain.setValueAtTime(0, sourceStart)
+      gain.gain.linearRampToValueAtTime(0.88, sourceStart + fadeSeconds)
+      gain.gain.setValueAtTime(0.88, Math.max(sourceStart + fadeSeconds, sourceStart + durationSeconds - fadeSeconds))
+      gain.gain.linearRampToValueAtTime(0, sourceStart + durationSeconds)
+      source.onended = () => {
+        source.disconnect()
+        gain.disconnect()
+      }
+      source.start(sourceStart)
+      sources.push(source)
+    })
+    scrubSourcesRef.current = sources
+    setStatus(direction < 0 ? '全トラックを逆スクラブ中' : '全トラックをスクラブ中')
+  }
+
   async function toggleRecording() {
     if (recording) {
       recorderRef.current?.recorder.stop()
@@ -278,8 +377,8 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     }
     try {
       const recorded = await decodeAudioBlob(new Blob(chunks, { type: mimeType }), audioContext())
-      const analysis = await addAudioAssetClip(recorded, startFrame, trackId, 'マイク録音')
       setPlayhead(startFrame + durationFramesForAudio(recorded, fps))
+      const analysis = await addAudioAssetClip(recorded, startFrame, trackId, 'マイク録音')
       setStatus(`録音を非破壊クリップとして反映しました。${vadResultSuffix(analysis)}`)
     } catch (error) {
       setStatus(`録音を処理できませんでした: ${error instanceof Error ? error.message : String(error)}`)
@@ -291,28 +390,58 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     const track = current.tracks.find(item => item.trackId === trackId)
     if (!track) return
     const duration = durationFramesForAudio(audio, fps)
-    const analysis = track.vadMode === 'off' ? undefined : await analyzeSpeech(audio, timelineStartFrame, current)
     const usedAssetIds = new Set(current.assets.map(asset => asset.assetId))
     const usedClipIds = new Set(current.tracks.flatMap(item => item.clips.map(clip => clip.clipId)))
     const assetId = nextUniqueId('dialogue-asset', usedAssetIds)
     const clipId = nextUniqueId(`${trackId}-clip`, usedClipIds)
     const audioDataUrl = await blobToDataUrl(pcmToWavBlob(audio))
-    const asset: DialogueAudioAsset = { assetId, audioDataUrl, durationFrames: duration, waveform: analysis?.waveform ?? summarizeDialogueWaveform(audio.samples, 1024), sourceName }
+    const asset: DialogueAudioAsset = { assetId, audioDataUrl, durationFrames: duration, waveform: summarizeDialogueWaveform(audio.samples, 1024), sourceName }
     const clip: DialogueAudioClip = { clipId, placementId: clipId, assetId, timelineStartFrame, sourceOffsetFrames: 0, durationFrames: duration }
     decodedRef.current.set(assetId, { dataUrl: audioDataUrl, audio })
     const range = { frameStart: timelineStartFrame, frameEnd: timelineStartFrame + Math.max(1, duration) - 1 }
-    const nextTrack = replaceDialogueAudioRangeWithClip(track, range, clip, analysis?.speechRanges ?? [])
-    let nextState: DialogueAudioCutState = {
+    const nextTrack = replaceDialogueAudioRangeWithClip(track, range, clip, [])
+    const waveformState: DialogueAudioCutState = {
       ...current,
       assets: [...current.assets, asset],
       tracks: current.tracks.map(item => item.trackId === trackId ? nextTrack : item),
     }
-    if (track.vadMode === 'auto-sound') {
-      const previousIds = new Set(track.speechCandidates.map(candidate => candidate.candidateId))
-      const candidateIds = nextTrack.speechCandidates.filter(candidate => candidate.status === 'pending' && !previousIds.has(candidate.candidateId)).map(candidate => candidate.candidateId)
-      nextState = onAutoCreateSoundCues(nextState, trackId, candidateIds)
+    commitCutState(waveformState)
+    if (track.vadMode === 'off') return
+
+    setStatus(`${sourceName}の波形を反映しました。セリフ区間を解析しています…`)
+    const analysis = await analyzeSpeech(audio, timelineStartFrame, waveformState)
+    const latest = cutStateRef.current
+    const latestTrack = latest.tracks.find(item => item.trackId === trackId)
+    const currentClip = latestTrack?.clips.find(item => item.clipId === clipId)
+    if (!latestTrack || !currentClip) return analysis
+    const currentClipRange = {
+      frameStart: currentClip.timelineStartFrame,
+      frameEnd: currentClip.timelineStartFrame + currentClip.durationFrames - 1,
     }
-    commitCutState(nextState)
+    const detectedRanges = analysis.speechRanges.flatMap(detected => {
+      const mappedStart = currentClip.timelineStartFrame + detected.frameStart - timelineStartFrame - currentClip.sourceOffsetFrames
+      const mappedEnd = currentClip.timelineStartFrame + detected.frameEnd - timelineStartFrame - currentClip.sourceOffsetFrames
+      const frameStart = Math.max(currentClipRange.frameStart, mappedStart)
+      const frameEnd = Math.min(currentClipRange.frameEnd, mappedEnd)
+      return frameEnd >= frameStart ? [{ frameStart, frameEnd }] : []
+    })
+    const affectedCandidates = latestTrack.speechCandidates.filter(candidate => rangesOverlap(candidate, currentClipRange))
+    const unaffectedCandidates = latestTrack.speechCandidates.filter(candidate => !rangesOverlap(candidate, currentClipRange))
+    const analyzedCandidates = reconcileDialogueSpeechCandidates(affectedCandidates, detectedRanges, trackId)
+    const analyzedTrack = {
+      ...latestTrack,
+      speechCandidates: [...unaffectedCandidates, ...analyzedCandidates].sort((left, right) => left.frameStart - right.frameStart || left.candidateId.localeCompare(right.candidateId)),
+    }
+    let analyzedState: DialogueAudioCutState = {
+      ...latest,
+      tracks: latest.tracks.map(item => item.trackId === trackId ? analyzedTrack : item),
+    }
+    if (track.vadMode === 'auto-sound') {
+      const previousIds = new Set(latestTrack.speechCandidates.map(candidate => candidate.candidateId))
+      const candidateIds = analyzedTrack.speechCandidates.filter(candidate => candidate.status === 'pending' && !previousIds.has(candidate.candidateId)).map(candidate => candidate.candidateId)
+      analyzedState = onAutoCreateSoundCues(analyzedState, trackId, candidateIds)
+    }
+    commitCutState(analyzedState, false)
     return analysis
   }
 
@@ -332,12 +461,16 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   function updateTrack(trackId: string, updates: Partial<DialogueAudioTrackState>, recordHistory = true) {
     const next = { ...cutState, tracks: cutState.tracks.map(track => track.trackId === trackId ? { ...track, ...updates } : track) }
     if (recordHistory) commitCutState(next)
-    else onCutStateChange(next)
+    else {
+      cutStateRef.current = next
+      onCutStateChange(next)
+    }
   }
 
   function commitCutState(nextInput: DialogueAudioCutState, recordHistory = true) {
     const next = synchronizeAudioBindings(pruneUnusedDialogueAudioAssets(nextInput))
     if (recordHistory) setAudioHistory(current => ({ past: [...current.past.slice(-49), cutState], future: [] }))
+    cutStateRef.current = next
     onCutStateChange(next)
   }
 
@@ -496,17 +629,60 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     )
   }
 
-  function seekFromPointer(event: ReactPointerEvent<HTMLElement>) {
-    if (recording) return
+  function beginPlayheadScrub(event: ReactPointerEvent<HTMLElement>) {
+    if (recording || event.button !== 0) return
+    event.preventDefault()
     if (playing) stopPlayback()
-    setPlayhead(frameForPointer(event))
+    else stopScrubPlayback()
+    const frame = frameForClientX(event.clientX)
+    const previousFrame = playheadFrame
+    event.currentTarget.setPointerCapture(event.pointerId)
+    scrubDragRef.current = { pointerId: event.pointerId, lastFrame: frame }
+    focusTimeline()
+    setPlayhead(frame)
+    void playDialogueScrub(previousFrame, frame)
+  }
+
+  function movePlayheadScrub(event: ReactPointerEvent<HTMLElement>) {
+    const drag = scrubDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const frame = frameForClientX(event.clientX)
+    if (frame === drag.lastFrame) return
+    scrubDragRef.current = { ...drag, lastFrame: frame }
+    setPlayhead(frame)
+    void playDialogueScrub(drag.lastFrame, frame)
+  }
+
+  function finishPlayheadScrub(event: ReactPointerEvent<HTMLElement>) {
+    const drag = scrubDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    scrubDragRef.current = null
+  }
+
+  function handleTimelineKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.target !== event.currentTarget || recording) return
+    const direction = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
+    if (direction === 0) return
+    event.preventDefault()
+    if (playing) stopPlayback()
+    const nextFrame = Math.max(frameOrigin, Math.min(frameEnd, playheadFrame + direction))
+    if (nextFrame === playheadFrame) return
+    setPlayhead(nextFrame)
+    void playDialogueScrub(playheadFrame, nextFrame)
+  }
+
+  function focusTimeline() {
+    timelineContentRef.current?.focus({ preventScroll: true })
   }
 
   function beginRangeSelection(event: ReactPointerEvent<HTMLDivElement>, trackId: string) {
     if (recording || event.button !== 0) return
     if (playing) stopPlayback()
-    const frame = frameForPointer(event)
+    else stopScrubPlayback()
+    const frame = frameForClientX(event.clientX)
     event.currentTarget.setPointerCapture(event.pointerId)
+    focusTimeline()
     if (cutState.activeTrackId !== trackId) onCutStateChange({ ...cutState, activeTrackId: trackId })
     setSelectionDrag({ trackId, anchorFrame: frame })
     setAudioSelection({ trackId, frameStart: frame, frameEnd: frame })
@@ -516,7 +692,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
   function moveRangeSelection(event: ReactPointerEvent<HTMLDivElement>) {
     if (!selectionDrag) return
-    const frame = frameForPointer(event)
+    const frame = frameForClientX(event.clientX)
     setAudioSelection({ trackId: selectionDrag.trackId, ...normalizeDialogueAudioRange(selectionDrag.anchorFrame, frame) })
   }
 
@@ -526,9 +702,10 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     setSelectionDrag(null)
   }
 
-  function frameForPointer(event: ReactPointerEvent<HTMLElement>): number {
-    const rect = event.currentTarget.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
+  function frameForClientX(clientX: number): number {
+    const rect = timelineContentRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= 0) return playheadFrame
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
     return Math.max(frameOrigin, Math.min(frameEnd, Math.round(frameOrigin + ratio * Math.max(0, durationFrames - 1))))
   }
 
@@ -682,9 +859,31 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         </aside>
 
         <div className="dialogueAudioScroller">
-          <div className="dialogueAudioContent" style={{ width: timelineWidth, '--audio-frame-width': `${timelineWidth / Math.max(1, durationFrames)}px` } as CSSProperties}>
-            <TimeRuler frameOrigin={frameOrigin} durationFrames={durationFrames} fps={fps} onPointerDown={seekFromPointer} />
-            <div className="dialogueAudioCueLane" onPointerDown={seekFromPointer}>
+          <div
+            ref={timelineContentRef}
+            className="dialogueAudioContent"
+            style={{ width: timelineWidth, '--audio-frame-width': `${timelineWidth / Math.max(1, durationFrames)}px` } as CSSProperties}
+            role="group"
+            aria-label="音声トラック編集領域"
+            tabIndex={0}
+            onKeyDown={handleTimelineKeyDown}
+          >
+            <TimeRuler
+              frameOrigin={frameOrigin}
+              durationFrames={durationFrames}
+              fps={fps}
+              onPointerDown={beginPlayheadScrub}
+              onPointerMove={movePlayheadScrub}
+              onPointerUp={finishPlayheadScrub}
+              onPointerCancel={finishPlayheadScrub}
+            />
+            <div
+              className="dialogueAudioCueLane"
+              onPointerDown={beginPlayheadScrub}
+              onPointerMove={movePlayheadScrub}
+              onPointerUp={finishPlayheadScrub}
+              onPointerCancel={finishPlayheadScrub}
+            >
               {soundCues.filter(cue => !bindingForCue(cutState, cue.cueId, activeRevisionId)).map(cue => renderCueButton(cue))}
             </div>
             {cutState.tracks.map(track => (
@@ -739,7 +938,22 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 </div>
               </div>
             ))}
-            <span className="dialogueAudioPlayhead" style={{ left: `${(playheadFrame - frameOrigin) / Math.max(1, durationFrames) * 100}%` }} />
+            <span
+              className="dialogueAudioPlayhead"
+              style={{ left: `${(playheadFrame - frameOrigin) / Math.max(1, durationFrames) * 100}%` }}
+              role="slider"
+              aria-label="音声再生ヘッド"
+              aria-valuemin={frameOrigin}
+              aria-valuemax={frameEnd}
+              aria-valuenow={playheadFrame}
+              aria-valuetext={formatFrame(playheadFrame, frameOrigin, fps)}
+              tabIndex={0}
+              onKeyDown={handleTimelineKeyDown}
+              onPointerDown={beginPlayheadScrub}
+              onPointerMove={movePlayheadScrub}
+              onPointerUp={finishPlayheadScrub}
+              onPointerCancel={finishPlayheadScrub}
+            />
           </div>
         </div>
       </div>
@@ -772,11 +986,25 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   )
 }
 
-function TimeRuler(props: { frameOrigin: number; durationFrames: number; fps: number; onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void }) {
+function TimeRuler(props: {
+  frameOrigin: number
+  durationFrames: number
+  fps: number
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) => void
+}) {
   const step = props.durationFrames > 480 ? props.fps * 2 : props.fps
   const ticks: number[] = []
   for (let offset = 0; offset < props.durationFrames; offset += step) ticks.push(props.frameOrigin + offset)
-  return <div className="dialogueAudioRuler" onPointerDown={props.onPointerDown}>{ticks.map(frame => <span key={frame} style={{ left: `${(frame - props.frameOrigin) / props.durationFrames * 100}%` }}>{formatFrame(frame, props.frameOrigin, props.fps)}</span>)}</div>
+  return <div
+    className="dialogueAudioRuler"
+    onPointerDown={props.onPointerDown}
+    onPointerMove={props.onPointerMove}
+    onPointerUp={props.onPointerUp}
+    onPointerCancel={props.onPointerCancel}
+  >{ticks.map(frame => <span key={frame} style={{ left: `${(frame - props.frameOrigin) / props.durationFrames * 100}%` }}>{formatFrame(frame, props.frameOrigin, props.fps)}</span>)}</div>
 }
 
 function Waveform(props: { asset: DialogueAudioAsset; clip: DialogueAudioClip; color: string; frameOrigin: number; durationFrames: number }) {
@@ -841,6 +1069,13 @@ function rangeStyle(frameStart: number, rangeFrameEnd: number, frameOrigin: numb
     left: `${(frameStart - frameOrigin) / Math.max(1, durationFrames) * 100}%`,
     width: `${Math.max(1, rangeFrameEnd - frameStart + 1) / Math.max(1, durationFrames) * 100}%`,
   }
+}
+
+function rangesOverlap(
+  left: { frameStart: number; frameEnd: number },
+  right: { frameStart: number; frameEnd: number },
+): boolean {
+  return left.frameStart <= right.frameEnd && right.frameStart <= left.frameEnd
 }
 
 function formatFrame(frame: number, frameOrigin: number, fps: number): string {

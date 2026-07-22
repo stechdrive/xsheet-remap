@@ -128,6 +128,29 @@ export function audioBufferFromPcm(context: BaseAudioContext, audio: PcmAudio): 
   return buffer
 }
 
+/**
+ * Extracts an inclusive frame span from an asset. Reverse scrubbing uses the
+ * same source span with its PCM samples reversed, so silence and clip timing
+ * can still be scheduled on the project timeline by the caller.
+ */
+export function slicePcmForDialogueScrub(
+  audio: PcmAudio,
+  sourceFrameStart: number,
+  frameCount: number,
+  fps: number,
+  reverse: boolean,
+): PcmAudio {
+  const safeFps = Math.max(1, fps)
+  const safeFrameStart = Math.max(0, sourceFrameStart)
+  const safeFrameCount = Math.max(1, frameCount)
+  const sampleStart = Math.max(0, Math.min(audio.samples.length, Math.round(safeFrameStart * audio.sampleRate / safeFps)))
+  const requestedEnd = Math.round((safeFrameStart + safeFrameCount) * audio.sampleRate / safeFps)
+  const sampleEnd = Math.max(sampleStart, Math.min(audio.samples.length, requestedEnd))
+  const samples = audio.samples.slice(sampleStart, sampleEnd)
+  if (reverse) samples.reverse()
+  return { samples, sampleRate: audio.sampleRate }
+}
+
 export function pcmToWavBlob(audio: PcmAudio): Blob {
   const dataBytes = audio.samples.length * 2
   const buffer = new ArrayBuffer(44 + dataBytes)

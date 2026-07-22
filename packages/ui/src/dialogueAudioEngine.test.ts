@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeDialogueAudio, deleteAudioAtFrame, insertSilenceAtFrame, overwritePcmAtFrame } from './dialogueAudioEngine'
+import { analyzeDialogueAudio, deleteAudioAtFrame, insertSilenceAtFrame, overwritePcmAtFrame, slicePcmForDialogueScrub } from './dialogueAudioEngine'
 
 describe('dialogue audio engine', () => {
   it('detects separated speech while preserving the silence between lines', () => {
@@ -25,5 +25,11 @@ describe('dialogue audio engine', () => {
     const inserted = insertSilenceAtFrame(audio, 2, 1, 1, 4)
     expect([...inserted.samples]).toEqual([1, 0, 2, 3, 4])
     expect([...deleteAudioAtFrame(inserted, 2, 1, 1, 4).samples]).toEqual([1, 2, 3, 4])
+  })
+
+  it('extracts forward and reversed PCM from the same scrub frame span', () => {
+    const audio = { samples: Float32Array.from([1, 2, 3, 4, 5]), sampleRate: 4 }
+    expect([...slicePcmForDialogueScrub(audio, 1, 2, 4, false).samples]).toEqual([2, 3])
+    expect([...slicePcmForDialogueScrub(audio, 1, 2, 4, true).samples]).toEqual([3, 2])
   })
 })

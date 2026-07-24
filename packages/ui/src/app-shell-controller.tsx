@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
-import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, isXsrProjectFileName, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, saveProjectFile, statNativePaths, subscribeNativeDragDrop, writeProjectFile, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
+import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
 import { uiText } from './i18n';
 import { type Panel, type SheetRangeSelection, type TimingClipboard } from './appTypes';
 import { loadProjectDocumentFile, projectRuntimeSourceImageUrls } from './projectFileModel';
-import { defaultSheetImageExportOptions, renderSheetImageExports, type SheetImageExportFormat, type SheetImageExportOptions } from './cleanSheetExport';
-import { projectFileName } from './outputFileNames';
 import { type DropDiagnosticReport } from './AssetBrowser';
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection';
 import { compareAssetNames, compareFileNames, isImageAssetFile, sheetImageRefFromAsset } from './assetFiles';
@@ -26,12 +24,12 @@ import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
 import { createPaperTemplateDraftFromImage, createTemplateDraft, readFileAsDataUrl, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
 import { readTemplateImageMetadata } from './templateImageMetadata';
-import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, exportCutProjectsFromDocument, isImageFileRef, preferredSaveDirectory, saveBinaryOutputs, timelineEventAtHit } from './app-foundation';
+import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, isImageFileRef, preferredSaveDirectory, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, stampAuxiliaryPlacementTemplate, templatePaperTracks } from './app-sheet-geometry';
 import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen, updateNativeStackGuidePreviewIfOpen } from './app-registered-cells';
 import { setTimingValueAt } from './sheet-timing-input';
-import { calibrationCornersForTemplate, calibrationCornersFromPoints, imageExportFilterName, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
+import { calibrationCornersForTemplate, calibrationCornersFromPoints, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
 import { DEFAULT_PEN_COLOR, DEFAULT_PEN_WIDTH, useAppShellState } from './app-shell-state'
 import { isAssetBrowserNativeDropTarget, nativeCspDropTarget } from './nativeFileDropTargets'
 import { deleteRegisteredCellKey } from './stack-guides-paper-track'
@@ -48,6 +46,9 @@ import { useCspImportExportPlan } from './useCspImportExportPlan'
 import { createPreferredProject, rememberSheetTemplatePreset } from './mainAppPreferences'
 import { createAppTimelineLaneActions } from './app-timeline-lane-actions'
 import { createAppDialogueAudioActions } from './app-dialogue-audio-actions'
+import { applyTimingEditSession } from './timingEditSession'
+import { createAppProjectPersistenceActions } from './app-project-persistence-actions'
+import { useTimingEditOperationBoundaries } from './useTimingEditOperationBoundaries'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
@@ -66,11 +67,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog,
     cameraInstructionHistory, setCameraInstructionHistory, cameraPointLabelHistory, setCameraPointLabelHistory,
     statusHints, setStatusHints,
-    valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
+    timingEditSession, timingEditSessionRef, setTimingEditSession, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
   } = useAppShellState(appKind)
+  const valueDraft = timingEditSession?.value ?? ''
+  const valueDraftActive = timingEditSession !== null
   const exportProfileId = 'import-stack'
   const templatePanelKey = useMemo(() => JSON.stringify(template), [template])
   const recognitionRoles = (['action', 'cell'] as const).filter(role => template.regions.some(region =>
@@ -81,19 +84,23 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     : recognitionRoles[0] ?? 'action'
   const issues = useMemo(() => validateProject(project, project.exportProfiles.find(profile => profile.profileId === exportProfileId)), [project, exportProfileId])
   const projectDocumentSnapshot = useMemo(() => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }), [projectDocument, project, template])
-  const hasUnsavedProjectChanges = useMemo(() => JSON.stringify(projectDocumentSnapshot) !== savedProjectDocumentSignature, [projectDocumentSnapshot, savedProjectDocumentSignature])
+  const { resolvedProjectDocument, handleSaveProjectFile, handleOpenSheetImageExport, handleSaveSheetImageExport } = createAppProjectPersistenceActions({
+    projectDocument, template, resolveProject: () => commitTimingDraft(false), projectFilePath,
+    setProjectFilePath, setProjectDocument, setSavedProjectDocumentSignature, runtimeSourceImageUrls, setSheetImageExportDraft,
+  })
+  const hasUnsavedProjectChanges = useMemo(() => timingEditSession !== null || JSON.stringify(projectDocumentSnapshot) !== savedProjectDocumentSignature, [projectDocumentSnapshot, savedProjectDocumentSignature, timingEditSession])
   const projectCuts = projectDocumentSnapshot.cuts
   const {
     activeSheetRevision, sheetRevisions, referenceProject,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision,
     handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
   } = useAppSheetHistoryController({
-    projectDocument: projectDocumentSnapshot, project, setProjectDocument, setHistory, projectRef,
+    projectDocument: projectDocumentSnapshot, project, resolveProject: () => commitTimingDraft(false), setProjectDocument, setHistory, projectRef,
     setActiveCorrectionLayerId: setActiveCorrectionLayerIdState,
     setRuntimeSourceImageUrls, clearSelection: clearSelectionState, alertError: error => window.alert(errorMessage(error)),
   })
   const { handleSwitchProjectCut, handleAddSharedCut, handleDeleteSharedCut } = createAppSharedCutActions({
-    projectDocument: projectDocumentSnapshot, project, template, setProjectDocument, setHistory, projectRef,
+    projectDocument: projectDocumentSnapshot, resolveProject: () => commitTimingDraft(false), template, setProjectDocument, setHistory, projectRef,
     setActiveCorrectionLayerId: setActiveCorrectionLayerIdState,
     setRuntimeSourceImageUrls, clearSelection: clearSelectionState, alertError: error => window.alert(errorMessage(error)),
   })
@@ -111,8 +118,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleSaveXdts, handleLoadXdts, updateXdtsImportDialog, confirmXdtsImport,
   } = createAppXdtsActions({
     project,
-    getProject: () => projectRef.current,
-    projectDocument: projectDocumentSnapshot,
+    resolveProject: () => commitTimingDraft(false),
+    getProjectDocument: resolvedProjectDocument,
     exportProfileId,
     timingExportDialog,
     setTimingExportDialog,
@@ -147,9 +154,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   } = createAppTimedRangeControllers({
     project, getProject: () => projectRef.current, template, rangeSelection, selectedCueId: selectedTimedRangeCueId,
     soundClipboard: soundCueClipboard, cameraClipboard: cameraCueClipboard,
-    frameMin: sheetDisplayFrameStart, frameMax: sheetDisplayFrameEnd, commitProject, commitTimingDraft,
+    frameMin: sheetDisplayFrameStart, frameMax: sheetDisplayFrameEnd, commitProject, commitTimingDraft, cancelTimingDraft,
     clearSelection: clearSelectionState, selectRange: setSelectionFromRange,
-    setSelectedTextAnnotationId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive,
+    setSelectedTextAnnotationId, setSelectedKeyId, setSheetSelection,
     setSoundClipboard: setSoundCueClipboard, setSoundDialog: setSoundCueDialog, setSoundLabelHistory,
     soundDialog: soundCueDialog, onAudioCandidateLinked: dialogueAudioActions.handleCandidateLinked,
     setCameraClipboard: setCameraCueClipboard, setCameraDialog: setCameraCueDialog,
@@ -245,7 +252,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       return { ...current, [source]: text }
     })
   }, [setStatusHints])
-  const switchPanel = useCallback((nextPanel: Panel) => {
+  const setPanelView = useCallback((nextPanel: Panel) => {
     setStatusHints({})
     setPanel(nextPanel)
   }, [setPanel, setStatusHints])
@@ -258,9 +265,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (!selectedTimedRangeCueId || selectedTimedRangeCue) return
     setSheetSelection({ kind: 'none' })
     setSelectedKeyId(null)
-    setValueDraft('')
-    setValueDraftActive(false)
-  }, [selectedTimedRangeCue, selectedTimedRangeCueId, setSelectedKeyId, setSheetSelection, setValueDraft, setValueDraftActive])
+    setTimingEditSession(null)
+  }, [selectedTimedRangeCue, selectedTimedRangeCueId, setSelectedKeyId, setSheetSelection, setTimingEditSession])
   useEffect(() => {
     if (!selectedKey || isSpecialTimingKeyId(selectedKey.keyId)) return
     void updateNativeRegisteredCellPreviewIfOpen(project, selectedKey)
@@ -273,11 +279,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         setProjectDocument(createProjectDocumentFromCutProject(nextProject, { sheetTemplate: nextTemplate }))
         setProjectFilePath(null)
         setHistory(createProjectHistory(nextProject))
-        switchPanel(initialPanel)
+        setPanelView(initialPanel)
         setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
       },
     })
-  }, [setActiveCorrectionLayerIdState, setHistory, setProjectDocument, setProjectFilePath, setTemplate, setTextFontSizePx, switchPanel])
+  }, [setActiveCorrectionLayerIdState, setHistory, setPanelView, setProjectDocument, setProjectFilePath, setTemplate, setTextFontSizePx])
 
   useEffect(() => {
     if (!isTauriHost() || sheetSourceRuntimePathEntries.length === 0) return undefined
@@ -310,11 +316,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function commitProject(nextProject: CutProject) {
     if (activeSheetRevision.protected) {
       window.alert('このシートは編集保護中です。シート履歴のメニューから保護を解除してください。')
-      return
+      return false
     }
     projectRef.current = nextProject
     setHistory(current => commitHistory(current, nextProject))
     if (selectionIsOutsideProjectDisplay(nextProject)) clearSelectionState()
+    return true
   }
 
   async function handleNativeFileDrop(paths: string[], position: { x: number; y: number }) {
@@ -524,8 +531,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSelectedKeyId(null)
     setSelectedTextAnnotationId(null)
     setEditingTextAnnotationId(null)
-    setValueDraft('')
-    setValueDraftActive(false)
+    setTimingEditSession(null)
   }
 
   function setActivePageIndex(pageIndex: number, sourceProject: CutProject = project) {
@@ -535,7 +541,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function updateTiming(updates: Parameters<typeof updateLogicalSheetSettings>[1]) {
-    commitProject(updateLogicalSheetSettings(project, updates.workRange
+    runProjectCommand(sourceProject => updateLogicalSheetSettings(sourceProject, updates.workRange
       ? { ...updates, workRange: { ...updates.workRange, preRollFrames: DEFAULT_PRE_ROLL_FRAMES, showPostRoll: true } }
       : updates))
   }
@@ -565,8 +571,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSelectedTextAnnotationId(null)
     setSheetSelection({ kind: 'cell', hit })
     setSelectedKeyId(keyId)
-    setValueDraft(keyDisplayLabelForId(keyId, sourceProject))
-    setValueDraftActive(false)
+    setTimingEditSession(null)
     updateOpenNativePreviewForKey(sourceProject, keyId)
   }
 
@@ -576,8 +581,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSelectedTextAnnotationId(null)
     setSheetSelection({ kind: 'range', range })
     setSelectedKeyId(keyId)
-    setValueDraft(keyDisplayLabelForId(keyId, sourceProject))
-    setValueDraftActive(false)
+    setTimingEditSession(null)
     updateOpenNativePreviewForKey(sourceProject, keyId)
   }
 
@@ -610,34 +614,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     return rangeSelectionForFrames(range, nextStart, nextEnd)
   }
 
-  function applyTimingValueToRange(range: SheetRangeSelection, rawValue: string, advance: boolean, sourceProject: CutProject = project): CutProject {
-    if (!isPointEventRange(range)) return sourceProject
-    const trackOrder = paperTrackOrderForRole(sourceProject, range.role)
-    const value = rawValue.trim()
-    let next = { project: sourceProject, keyId: null as string | null }
-    for (const paperTrack of rangePaperTracks(range)) {
-      const startHit = timingHitForFrame(template, range.role, paperTrack, range.frameStart, sheetDisplayDurationFrames, sheetDisplayFrameStart, trackOrder)
-      if (startHit) next = setTimingValueAt(next.project, startHit, value, activeTextFontSizePx, activeCorrectionLayerId)
-    }
-    commitProject(next.project)
-    const nextRange = advance ? nextSteppedRange(range) : null
-    if (nextRange) {
-      setSelectionFromRange(nextRange, next.project)
-    } else {
-      setSelectionFromRange(range, next.project)
-    }
-    setValueDraft(value)
-    setValueDraftActive(false)
-    return next.project
-  }
-
   function applyTimingValue(hit: SheetHit | null, rawValue: string, advance = false, sourceProject: CutProject = project): CutProject {
     if (!hit?.paperTrack) return sourceProject
     const value = rawValue.trim()
     const next = setTimingValueAt(sourceProject, hit, value, activeTextFontSizePx, activeCorrectionLayerId)
     commitProject(next.project)
-    setValueDraft(value)
-    setValueDraftActive(false)
+    setTimingEditSession(null)
     const nextHit = advance
       ? nextTimingHit(template, sheetDisplayDurationFrames, sheetDisplayFrameStart, hit, 0, 1)
       : null
@@ -651,19 +633,66 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function commitTimingDraft(advance: boolean): CutProject {
-    if (!valueDraftActive) return project
-    if (rangeSelection) {
-      return applyTimingValueToRange(rangeSelection, valueDraft, advance)
+    const session = timingEditSessionRef.current
+    const sourceProject = projectRef.current
+    if (!session) return sourceProject
+    const nextProject = applyTimingEditSession(sourceProject, template, session)
+    if (nextProject !== sourceProject && !commitProject(nextProject)) return sourceProject
+    setTimingEditSession(null)
+    if (session.target.kind === 'range') {
+      const nextRange = advance ? nextSteppedRange(session.target.range) : null
+      setSelectionFromRange(nextRange ?? session.target.range, nextProject)
+    } else {
+      const nextHit = advance
+        ? nextTimingHit(template, sheetDisplayDurationFrames, sheetDisplayFrameStart, session.target.hit, 0, 1)
+        : null
+      if (nextHit && typeof nextHit.pageIndex === 'number') setActivePageIndex(nextHit.pageIndex, nextProject)
+      setSelectionFromHit(nextHit ?? session.target.hit, nextProject)
     }
-    return applyTimingValue(selection.hit, valueDraft, advance)
+    return nextProject
+  }
+
+  function cancelTimingDraft() {
+    setTimingEditSession(null)
+  }
+
+  function runProjectCommand(transform: (sourceProject: CutProject) => CutProject): CutProject {
+    const sourceProject = commitTimingDraft(false)
+    const nextProject = transform(sourceProject)
+    if (nextProject !== sourceProject) commitProject(nextProject)
+    return nextProject
+  }
+
+  function switchPanel(nextPanel: Panel) {
+    commitTimingDraft(false)
+    setPanelView(nextPanel)
   }
 
   function handleTimingCharacterInput(character: string) {
-    if (!selection.hit) return
-    const nextValue = valueDraftActive ? `${valueDraft}${character}` : character
-    setValueDraft(nextValue)
-    setValueDraftActive(true)
+    if (!selection.hit || activeSheetRevision.protected) return
+    setTimingEditSession(current => {
+      if (current) return { ...current, value: `${current.value}${character}` }
+      const sourceProject = projectRef.current
+      const target = rangeSelection && isPointEventRange(rangeSelection)
+        ? { kind: 'range' as const, range: rangeSelection }
+        : { kind: 'cell' as const, hit: selection.hit! }
+      return {
+        target,
+        value: character,
+        originalValue: keyDisplayLabelForId(selection.keyId, sourceProject),
+        cutId: projectDocumentSnapshot.activeCutId,
+        revisionId: activeSheetRevision.revisionId,
+        correctionLayerId: activeCorrectionLayerId,
+        fontSizePx: activeTextFontSizePx,
+      }
+    })
   }
+
+  useTimingEditOperationBoundaries({
+    sessionRef: timingEditSessionRef,
+    commitActiveEdit: () => { commitTimingDraft(false) },
+    hasUnsavedChanges: hasUnsavedProjectChanges,
+  })
 
   function handleRangeSelect(range: SheetRangeSelection) {
     const sourceProject = commitTimingDraft(false)
@@ -683,14 +712,16 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
   function handleSetTimingSpecialAtHit(hit: SheetHit, marker: 'blank' | 'inbetween' | 'reverse') {
     if (!hit.paperTrack) return
-    if (typeof hit.pageIndex === 'number') setActivePageIndex(hit.pageIndex)
-    applyTimingValue(hit, marker === 'blank' ? 'x' : marker === 'inbetween' ? '/' : '.')
+    const sourceProject = commitTimingDraft(false)
+    if (typeof hit.pageIndex === 'number') setActivePageIndex(hit.pageIndex, sourceProject)
+    applyTimingValue(hit, marker === 'blank' ? 'x' : marker === 'inbetween' ? '/' : '.', false, sourceProject)
   }
   const handleSetNullAtHit = (hit: SheetHit) => handleSetTimingSpecialAtHit(hit, 'blank')
   function handleDeleteEventAtHit(hit: SheetHit) {
     if (!hit.paperTrack) return
+    const sourceProject = commitTimingDraft(false)
     const sheetRole = sheetRoleForHit(hit)
-    const next = clearEvent(project, hit.paperTrack, hit.frame, sheetRole)
+    const next = clearEvent(sourceProject, hit.paperTrack, hit.frame, sheetRole)
     commitProject(next)
     if (typeof hit.pageIndex === 'number') setActivePageIndex(hit.pageIndex, next)
     setSelectionFromHit(hit, next, null)
@@ -703,7 +734,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSelectedKeyId(keyId)
     if (!keyId) {
       setSheetSelection({ kind: 'none' })
-      setValueDraftActive(false)
+      setTimingEditSession(null)
       return
     }
     const key = sourceProject.logicalSheet.keys.find(item => item.keyId === keyId)
@@ -711,8 +742,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const firstUse = firstTimelineUseForKey(sourceProject, key, registeredCellTrackOrder(sourceProject))
     if (!firstUse) {
       setSheetSelection({ kind: 'none' })
-      setValueDraft(key.displayLabel)
-      setValueDraftActive(false)
+      setTimingEditSession(null)
       updateOpenNativePreviewForKey(sourceProject, keyId)
       return
     }
@@ -726,8 +756,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       templatePaperTracks(sourceProject, template).map(track => track.paperTrack),
     )
     if (!hit) {
-      setValueDraft(key.displayLabel)
-      setValueDraftActive(false)
+      setTimingEditSession(null)
       updateOpenNativePreviewForKey(sourceProject, keyId)
       return
     }
@@ -745,6 +774,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleActiveCorrectionLayerChange(layerId: string) {
+    commitTimingDraft(false)
     setActiveCorrectionLayerIdState(layerId)
   }
 
@@ -769,14 +799,16 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handleDeleteEvent() {
     if (cameraCueController.deleteSelection()) return
     if (soundCueController.deleteSelection()) return
+    if (timingEditSessionRef.current) cancelTimingDraft()
+    const sourceProject = projectRef.current
     if (isPointEventRange(rangeSelection)) {
-      const next = clearTimingRange(project, rangeSelection)
+      const next = clearTimingRange(sourceProject, rangeSelection)
       commitProject(next)
       setSelectionFromRange(rangeSelection, next)
       return
     }
     if (!selection.hit?.paperTrack) return
-    const next = clearEvent(project, selection.hit.paperTrack, selection.hit.frame, sheetRoleForHit(selection.hit))
+    const next = clearEvent(sourceProject, selection.hit.paperTrack, selection.hit.frame, sheetRoleForHit(selection.hit))
     commitProject(next)
     setSelectionFromHit(selection.hit, next, null)
   }
@@ -792,29 +824,30 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const keyDeleted = !nextProject.logicalSheet.keys.some(key => key.keyId === keyId)
     if (selection.keyId === keyId && keyDeleted) {
       setSelectedKeyId(null)
-      setValueDraft('')
-      setValueDraftActive(false)
+      setTimingEditSession(null)
     }
   }
 
   function copySelectedTimingRange(mode: TimingClipboard['mode'], rippleDelete: boolean = false) {
     if (!isPointEventRange(rangeSelection)) return
-    const clipboard = buildTimingClipboard(project, rangeSelection, mode)
+    const sourceProject = commitTimingDraft(false)
+    const clipboard = buildTimingClipboard(sourceProject, rangeSelection, mode)
     setTimingClipboard(clipboard)
     if (mode !== 'cut') return
     const next = rippleDelete
-      ? rippleDeleteTimingRange(project, rangeSelection)
-      : clearTimingRange(project, rangeSelection)
+      ? rippleDeleteTimingRange(sourceProject, rangeSelection)
+      : clearTimingRange(sourceProject, rangeSelection)
     commitProject(next)
     setSelectionFromRange(rangeSelection, next)
   }
 
   function pasteTimingClipboard(mode: 'overwrite' | 'insert' | 'repeat-range' | 'repeat-to-end') {
+    const sourceProject = commitTimingDraft(false)
     const baseTarget = timingPasteTarget(selection.hit, rangeSelection)
-    const target = baseTarget ? { ...baseTarget, paperTrackOrder: paperTrackOrderForRole(project, baseTarget.role) } : null
+    const target = baseTarget ? { ...baseTarget, paperTrackOrder: paperTrackOrderForRole(sourceProject, baseTarget.role) } : null
     if (!timingClipboard || !target || timingClipboard.role !== target.role) return
     if (mode === 'repeat-range' && !isPointEventRange(rangeSelection)) return
-    const next = pasteTimingClipboardToProject(project, timingClipboard, target, mode)
+    const next = pasteTimingClipboardToProject(sourceProject, timingClipboard, target, mode)
     commitProject(next)
     const nextRange = pasteResultRange(template, next, target, timingClipboard, mode)
     if (nextRange) {
@@ -825,15 +858,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function openFrameOperationDialog(kind: FrameOperationKind, hit: SheetHit) {
+    commitTimingDraft(false)
     const state = frameOperationDialogStateForHit(kind, hit, rangeSelection)
     if (state) setFrameOperationDialog(state)
   }
 
   function applyFrameOperation(input: FrameOperationSubmit) {
     if (!frameOperationDialog) return
+    const sourceProject = commitTimingDraft(false)
     const frameCount = Math.max(1, Math.round(input.frameCount))
     const pointRole = pointRoleForFrameOperation(frameOperationDialog)
-    const next = applyFrameOperationToProject(project, frameOperationDialog, input)
+    const next = applyFrameOperationToProject(sourceProject, frameOperationDialog, input)
     commitProject(next)
     setFrameOperationDialog(null)
     if (pointRole) {
@@ -1171,6 +1206,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   async function handleAssetRootCandidates(candidates: AssetRootCandidate[]) {
     if (candidates.length === 0) return false
+    commitTimingDraft(false)
     const candidate = candidates[0]!
     try {
       const previousAssetIds = new Set(projectRef.current.assets.map(asset => asset.assetId))
@@ -1209,7 +1245,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleAssetFileRefs(refs: FileRef[], targetHit: SheetHit | null = null, position?: { x: number; y: number }): string[] {
     if (refs.length === 0) return []
-    const sourceProject = projectRef.current
+    const sourceProject = commitTimingDraft(false)
     const existingKey = keyAtHit(sourceProject, targetHit)
     if (refs.length === 1 && existingKey) {
       const registered = registerMaterialAssetRef(sourceProject, refs[0])
@@ -1239,16 +1275,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       }
     }
     if (selectedAfterDrop) {
-      const key = selectedAfterDrop.keyId ? next.logicalSheet.keys.find(item => item.keyId === selectedAfterDrop.keyId) ?? null : null
       setSelectionFromHit(selectedAfterDrop.hit, next, selectedAfterDrop.keyId)
-      setValueDraft(key?.displayLabel ?? '')
     }
     commitProject(next)
     return assetIds
   }
 
   function handleAssignAsset(assetId: string, targetHit: SheetHit | null, position?: { x: number; y: number }) {
-    const sourceProject = projectRef.current
+    const sourceProject = commitTimingDraft(false)
     const asset = sourceProject.assets.find(item => item.assetId === assetId)
     if (!asset || !targetHit?.paperTrack) {
       setAssetDropMenu(null)
@@ -1276,7 +1310,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleAssignRegisteredCell(keyId: string, targetHit: SheetHit | null) {
     if (!targetHit?.paperTrack) return
-    const assigned = assignRegisteredCellKeyToHit(project, keyId, targetHit, activeTextFontSizePx)
+    const sourceProject = commitTimingDraft(false)
+    const assigned = assignRegisteredCellKeyToHit(sourceProject, keyId, targetHit, activeTextFontSizePx)
     if (!assigned.keyId) return
     commitProject(assigned.project)
     setSelectionFromHit(targetHit, assigned.project, assigned.keyId)
@@ -1284,15 +1319,16 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleMoveTimelineEvent(sourceHit: SheetHit, targetHit: SheetHit, sourceRange?: SheetRangeSelection) {
     if (!sourceHit.paperTrack || !targetHit.paperTrack) return
+    const sourceProject = commitTimingDraft(false)
     const sourceRole = sheetRoleForHit(sourceHit)
     if (sourceRole !== sheetRoleForHit(targetHit)) return
-    const trackOrder = paperTrackOrderForRole(project, sourceRole)
+    const trackOrder = paperTrackOrderForRole(sourceProject, sourceRole)
     const selectedRange = sourceRange && isPointEventRange(sourceRange) && rangeContainsHit(sourceRange, sourceHit)
       ? sourceRange
       : rangeSelectionFromHits(template, sourceHit, sourceHit, trackOrder)
     if (!selectedRange || !isPointEventRange(selectedRange)) return
     const isGroupMove = selectedRange.frameStart !== selectedRange.frameEnd || rangePaperTracks(selectedRange).length > 1
-    const moved = moveTimingEventsInRange(project, selectedRange, sourceHit, targetHit, trackOrder)
+    const moved = moveTimingEventsInRange(sourceProject, selectedRange, sourceHit, targetHit, trackOrder)
     if (moved.status !== 'moved') return
     const confirmation = isGroupMove ? uiText.sheet.moveRangeOverwriteConfirm(moved.collisionCount) : uiText.sheet.moveEventOverwriteConfirm
     if (moved.collisionCount > 0 && !window.confirm(confirmation)) return
@@ -1705,30 +1741,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  async function handleSaveProjectFile(options: { saveAs?: boolean } = {}) {
-    try {
-      const nextDocument = updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template })
-      if (!options.saveAs && projectFilePath && isXsrProjectFileName(projectFilePath)) {
-        await writeProjectFile(projectFilePath, nextDocument, { createdWith: APP_VERSION })
-        setProjectDocument(nextDocument)
-        setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
-        return
-      }
-      const result = await saveProjectFile(nextDocument, projectFileName(nextDocument), {
-        initialDirectory: preferredSaveDirectory(project),
-        createdWith: APP_VERSION,
-      })
-      if (!result.saved) return
-      if (result.path) setProjectFilePath(result.path)
-      setProjectDocument(nextDocument)
-      setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
-    } catch (error) {
-      window.alert(uiText.project.saveFailed(errorMessage(error)))
-    }
-  }
-
   function handleUpdateCutMetadata(field: CutMetadataFieldId, value: string, customKey?: string) {
-    commitProject(updateCutMetadata(project, field, value, customKey))
+    runProjectCommand(sourceProject => updateCutMetadata(sourceProject, field, value, customKey))
   }
 
   async function handleSaveCspImportPackage() {
@@ -1753,34 +1767,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  function handleOpenSheetImageExport(format: SheetImageExportFormat) {
-    setSheetImageExportDraft(defaultSheetImageExportOptions(project, template, format))
-  }
-
-  async function handleSaveSheetImageExport(options: SheetImageExportOptions) {
-    try {
-      const outputs = []
-      const cutProjects = exportCutProjectsFromDocument(projectDocumentSnapshot)
-      for (const [index, cutProject] of cutProjects.entries()) {
-        outputs.push(...await renderSheetImageExports(cutProject, template, runtimeSourceImageUrls, options, {
-          cutGroup: {
-            activeCutId: projectDocumentSnapshot.cuts[index]?.cutId ?? projectDocumentSnapshot.activeCutId,
-            cuts: projectDocumentSnapshot.cuts,
-          },
-        }))
-      }
-      const saved = await saveBinaryOutputs(outputs, {
-        filterName: imageExportFilterName(options.format),
-        extensions: [options.format],
-        defaultExtension: options.format,
-        initialDirectory: preferredSaveDirectory(project),
-      })
-      if (saved) setSheetImageExportDraft(null)
-    } catch (error) {
-      window.alert(uiText.export.saveFailed(errorMessage(error)))
-    }
-  }
-
   function handlePresetSelect(presetId: string) {
     const preset = sheetTemplatePresets.find(item => item.presetId === presetId)
     if (!preset) return
@@ -1796,8 +1782,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     nextTemplate: SheetTemplate,
     options: { studioPresetId?: string; resetSheetView?: boolean; commitTemplate?: boolean } = {},
   ) {
+    const sourceProject = commitTimingDraft(false)
     const nextProjectWithTemplate = reprojectProjectToTemplate(
-      stampAuxiliaryPlacementTemplate(project, project.sheetTemplateId ?? template.templateId),
+      stampAuxiliaryPlacementTemplate(sourceProject, sourceProject.sheetTemplateId ?? template.templateId),
       nextTemplate,
       { studioPresetId: options.studioPresetId, resetSheetView: options.resetSheetView },
     )
@@ -1812,8 +1799,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setTextFontSizePx(defaultTimingTextFontSizePx(nextTemplate, 'cell'))
   }
 
-  function handleUndo() { if (!activeSheetRevision.protected) setHistory(current => undoHistory(current)) }
-  function handleRedo() { if (!activeSheetRevision.protected) setHistory(current => redoHistory(current)) }
+  function handleUndo() {
+    if (timingEditSessionRef.current) {
+      cancelTimingDraft()
+      return
+    }
+    if (!activeSheetRevision.protected) setHistory(current => undoHistory(current))
+  }
+  function handleRedo() {
+    if (timingEditSessionRef.current) return
+    if (!activeSheetRevision.protected) setHistory(current => redoHistory(current))
+  }
 
   async function handleResetApp() {
     if (hasUnsavedProjectChanges) {
@@ -1833,7 +1829,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
     setRuntimeSourceImageUrls({})
     setRecognitionCandidates([])
-    switchPanel('sheet')
+    setPanelView('sheet')
     setEditMode('new')
     setZoom(1)
     setShowTemplate(true)
@@ -1845,8 +1841,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setTextFontSizePx(defaultTimingTextFontSizePx(preset.sheetTemplate, 'cell'))
     clearSelectionState()
     setTimingClipboard(null)
-    setValueDraft('')
-    setValueDraftActive(false)
+    setTimingEditSession(null)
     setAssetDropMenu(null)
   }
 
@@ -1922,13 +1917,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function selectTextAnnotationState(annotation: AnnotationText, options: { edit?: boolean } = {}) {
+    commitTimingDraft(false)
     setSelectedTextAnnotationId(annotation.annotationId)
     setEditingTextAnnotationId(options.edit ? annotation.annotationId : null)
     setMemoTextFontSizePx(resolveAnnotationTextFontSizePx(annotation, activeSheetPageSize))
     setSheetSelection({ kind: 'none' })
     setSelectedKeyId(null)
-    setValueDraft('')
-    setValueDraftActive(false)
+    setTimingEditSession(null)
   }
 
   function handleUpdateTextAnnotation(annotationId: string, updates: TextAnnotationUpdate) {
@@ -2212,13 +2207,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         const mode = modeShortcut(event.key)
         if (mode) {
           event.preventDefault()
+          commitTimingDraft(false)
           setEditMode(mode)
           return
         }
       }
       if (event.key === 'Backspace' && valueDraftActive && selection.hit) {
         event.preventDefault()
-        setValueDraft(current => current.slice(0, -1))
+        setTimingEditSession(current => current ? { ...current, value: current.value.slice(0, -1) } : current)
         return
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -2233,9 +2229,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       if (event.key === 'Escape') {
         event.preventDefault()
         if (valueDraftActive && selection.hit) {
-          const keyId = eventKeyIdAtHit(selection.hit)
-          setValueDraft(keyDisplayLabelForId(keyId))
-          setValueDraftActive(false)
+          cancelTimingDraft()
           return
         }
         setAssetDropMenu(null)
@@ -2273,7 +2267,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
-    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
+    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, handleTransformSoundCues, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueSoundCues,

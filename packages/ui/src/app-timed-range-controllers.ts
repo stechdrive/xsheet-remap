@@ -23,13 +23,12 @@ interface AppTimedRangeControllersOptions {
   frameMax: number
   commitProject: (project: CutProject) => void
   commitTimingDraft: (advance: boolean) => CutProject
+  cancelTimingDraft: () => void
   clearSelection: () => void
   selectRange: (range: SheetRangeSelection, project?: CutProject) => void
   setSelectedTextAnnotationId: (annotationId: string | null) => void
   setSelectedKeyId: (keyId: string | null) => void
   setSheetSelection: Dispatch<SetStateAction<SheetSelection>>
-  setValueDraft: Dispatch<SetStateAction<string>>
-  setValueDraftActive: Dispatch<SetStateAction<boolean>>
   setSoundClipboard: Dispatch<SetStateAction<SoundCueClipboard | null>>
   setSoundDialog: Dispatch<SetStateAction<SoundCueDialogState | null>>
   setSoundLabelHistory: Dispatch<SetStateAction<string[]>>
@@ -56,13 +55,12 @@ export function createAppTimedRangeControllers(options: AppTimedRangeControllers
     frameMax: options.frameMax,
     commitProject: options.commitProject,
     commitTimingDraft: options.commitTimingDraft,
+    cancelTimingDraft: options.cancelTimingDraft,
     clearSelection: options.clearSelection,
     selectRange: options.selectRange,
     setSelectedTextAnnotationId: options.setSelectedTextAnnotationId,
     setSelectedKeyId: options.setSelectedKeyId,
     setSheetSelection: options.setSheetSelection,
-    setValueDraft: options.setValueDraft,
-    setValueDraftActive: options.setValueDraftActive,
   }
   const soundCueController = createSoundCueController({
       ...shared,

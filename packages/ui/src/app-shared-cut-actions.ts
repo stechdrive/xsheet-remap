@@ -17,7 +17,7 @@ import { projectRuntimeSourceImageUrls } from './projectFileModel'
 
 export function createAppSharedCutActions(input: {
   projectDocument: CutGroupProjectDocument
-  project: CutProject
+  resolveProject: () => CutProject
   template: SheetTemplate
   setProjectDocument: Dispatch<SetStateAction<CutGroupProjectDocument>>
   setHistory: Dispatch<SetStateAction<ProjectHistory>>
@@ -48,22 +48,24 @@ export function createAppSharedCutActions(input: {
   return {
     handleSwitchProjectCut(cutId: string) {
       if (!cutId || cutId === input.projectDocument.activeCutId) return
-      run(() => activateDocument(switchActiveCutInProjectDocument(input.projectDocument, input.project, cutId, { sheetTemplate: input.template })))
+      run(() => activateDocument(switchActiveCutInProjectDocument(input.projectDocument, input.resolveProject(), cutId, { sheetTemplate: input.template })))
     },
     handleAddSharedCut(label: string) {
       const normalizedLabel = label.trim()
       run(() => {
+        const sourceProject = input.resolveProject()
         if (!normalizedLabel) throw new Error(uiText.sheet.sharedCutNameRequired)
         if (input.projectDocument.cuts.some(cut => cut.metadata.cut?.trim() === normalizedLabel)) {
           throw new Error(uiText.sheet.sharedCutNameDuplicate(normalizedLabel))
         }
-        activateDocument(addBlankSharedCutToProjectDocument(input.projectDocument, input.project, {
+        activateDocument(addBlankSharedCutToProjectDocument(input.projectDocument, sourceProject, {
           cut: { cut: normalizedLabel },
         }))
       })
     },
     async handleDeleteSharedCut() {
       if (input.projectDocument.cuts.length <= 1) return
+      const sourceProject = input.resolveProject()
       const activeCut = input.projectDocument.cuts.find(cut => cut.cutId === input.projectDocument.activeCutId)
       if (!activeCut) return
       const label = activeCut.metadata.cut?.trim() || `カット${activeCut.order + 1}`
@@ -75,7 +77,7 @@ export function createAppSharedCutActions(input: {
       if (!confirmed) return
       run(() => activateDocument(deleteSharedCutFromProjectDocument(
         input.projectDocument,
-        input.project,
+        sourceProject,
         activeCut.cutId,
         { sheetTemplate: input.template },
       )))

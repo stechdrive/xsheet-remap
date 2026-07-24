@@ -92,6 +92,18 @@ export type SheetSelection =
   | { kind: 'range'; range: SheetRangeSelection }
   | { kind: 'cue'; cueId: string }
 
+export interface TimingEditSession {
+  target:
+    | { kind: 'cell'; hit: SheetHit }
+    | { kind: 'range'; range: SheetRangeSelection }
+  value: string
+  originalValue: string
+  cutId: string
+  revisionId: string
+  correctionLayerId: string
+  fontSizePx: number
+}
+
 export interface TemplateRegionAnnotationTarget {
   kind: 'template-region'
   pageId: string

@@ -10,6 +10,7 @@ import {
   setSheetRevisionProtectedInProjectDocument,
   setSheetRevisionReferenceInProjectDocument,
   switchActiveSheetRevisionInProjectDocument,
+  updateActiveCutProjectInDocument,
   type CutGroupProjectDocument,
   type CutProject,
   type ProjectHistory,
@@ -19,6 +20,7 @@ import {
 export function createAppSheetHistoryActions(input: {
   projectDocument: CutGroupProjectDocument
   project: CutProject
+  resolveProject: () => CutProject
   activeRevisionId: string
   revisions: SheetRevisionDocument[]
   setProjectDocument: Dispatch<SetStateAction<CutGroupProjectDocument>>
@@ -46,30 +48,31 @@ export function createAppSheetHistoryActions(input: {
       input.alertError(error)
     }
   }
+  const resolvedDocument = () => updateActiveCutProjectInDocument(input.projectDocument, input.resolveProject())
 
   return {
     handleSwitchSheetRevision(revisionId: string) {
       if (!revisionId || revisionId === input.activeRevisionId) return
-      run(() => activateDocument(switchActiveSheetRevisionInProjectDocument(input.projectDocument, input.project, revisionId)))
+      run(() => activateDocument(switchActiveSheetRevisionInProjectDocument(input.projectDocument, input.resolveProject(), revisionId)))
     },
     handleAddSheetRevision(options: { name: string; mode: 'duplicate' | 'blank'; showSourceReference: boolean }) {
-      run(() => activateDocument(addSheetRevisionToProjectDocument(input.projectDocument, input.project, options)))
+      run(() => activateDocument(addSheetRevisionToProjectDocument(input.projectDocument, input.resolveProject(), options)))
     },
     handleRenameSheetRevision(revisionId: string, name: string | undefined) {
-      run(() => input.setProjectDocument(renameSheetRevisionInProjectDocument(input.projectDocument, revisionId, name)))
+      run(() => input.setProjectDocument(renameSheetRevisionInProjectDocument(resolvedDocument(), revisionId, name)))
     },
     handleToggleSheetRevisionProtected(revisionId: string, protectedState: boolean) {
-      run(() => input.setProjectDocument(setSheetRevisionProtectedInProjectDocument(input.projectDocument, revisionId, protectedState)))
+      run(() => input.setProjectDocument(setSheetRevisionProtectedInProjectDocument(resolvedDocument(), revisionId, protectedState)))
     },
     handleToggleSheetRevisionSourceReference(revisionId: string, enabled: boolean) {
       run(() => {
         const revision = input.revisions.find(candidate => candidate.revisionId === revisionId)
         const reference = enabled && revision?.sourceRevisionId ? { revisionId: revision.sourceRevisionId } : undefined
-        input.setProjectDocument(setSheetRevisionReferenceInProjectDocument(input.projectDocument, revisionId, reference))
+        input.setProjectDocument(setSheetRevisionReferenceInProjectDocument(resolvedDocument(), revisionId, reference))
       })
     },
     handleDeleteSheetRevision(revisionId: string) {
-      run(() => activateDocument(deleteSheetRevisionInProjectDocument(input.projectDocument, revisionId)))
+      run(() => activateDocument(deleteSheetRevisionInProjectDocument(resolvedDocument(), revisionId)))
     },
   }
 }

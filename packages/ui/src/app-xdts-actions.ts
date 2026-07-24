@@ -25,8 +25,8 @@ import { uiText } from './i18n'
 
 interface AppXdtsActionsOptions {
   project: CutProject
-  getProject: () => CutProject
-  projectDocument: CutGroupProjectDocument
+  resolveProject: () => CutProject
+  getProjectDocument: () => CutGroupProjectDocument
   exportProfileId: string
   timingExportDialog: TimingExportDialogState | null
   setTimingExportDialog: Dispatch<SetStateAction<TimingExportDialogState | null>>
@@ -39,6 +39,7 @@ interface AppXdtsActionsOptions {
 
 export function createAppXdtsActions(options: AppXdtsActionsOptions) {
   function openTimingExportDialog(kind: TimingExportDialogState['kind']) {
+    options.getProjectDocument()
     options.setTimingExportDialog({
       kind,
       timingSourceRole: DEFAULT_EXPORT_TIMING_ROLE,
@@ -74,13 +75,14 @@ export function createAppXdtsActions(options: AppXdtsActionsOptions) {
     exportOptions: ProjectXdtsExportOptions = {},
   ) {
     try {
-      const outputs = exportCutProjectsFromDocument(options.projectDocument).map((cutProject, index) => ({
+      const projectDocument = options.getProjectDocument()
+      const outputs = exportCutProjectsFromDocument(projectDocument).map((cutProject, index) => ({
         fileName: sheetXdtsFileName(cutProject),
         contents: exportProjectXdts(buildExportPlan(cutProject, {
           profileId: options.exportProfileId,
           timingSourceRole,
-          sheetTemplate: options.projectDocument.sheetTemplate,
-          fallbackCutId: options.projectDocument.cuts[index]?.cutId,
+          sheetTemplate: projectDocument.sheetTemplate,
+          fallbackCutId: projectDocument.cuts[index]?.cutId,
         }), cutProject, exportOptions),
       }))
       await saveTextOutputs(outputs, 'text/plain;charset=utf-8', {
@@ -134,7 +136,7 @@ export function createAppXdtsActions(options: AppXdtsActionsOptions) {
         applyCutIdentity: current.applyCutIdentity,
         expandDuration: current.expandDuration,
       }
-      const result = importXdtsIntoProject(options.getProject(), current.data, importOptions)
+      const result = importXdtsIntoProject(options.resolveProject(), current.data, importOptions)
       options.commitProject(result.project)
       options.clearSelection()
       options.setXdtsImportDialog(null)

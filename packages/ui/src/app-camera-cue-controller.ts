@@ -38,13 +38,12 @@ interface CameraCueControllerOptions {
   frameMax: number
   commitProject: (project: CutProject) => void
   commitTimingDraft: (advance: boolean) => CutProject
+  cancelTimingDraft: () => void
   clearSelection: () => void
   selectRange: (range: SheetRangeSelection, project?: CutProject) => void
   setSelectedTextAnnotationId: (annotationId: string | null) => void
   setSelectedKeyId: (keyId: string | null) => void
   setSheetSelection: Dispatch<SetStateAction<SheetSelection>>
-  setValueDraft: Dispatch<SetStateAction<string>>
-  setValueDraftActive: Dispatch<SetStateAction<boolean>>
   setClipboard: Dispatch<SetStateAction<CameraCueClipboard | null>>
   setDialog: Dispatch<SetStateAction<CameraCueDialogState | null>>
   setInstructionHistory: Dispatch<SetStateAction<string[]>>
@@ -61,8 +60,7 @@ export function createCameraCueController(options: CameraCueControllerOptions) {
     options.setSelectedTextAnnotationId(null)
     options.setSelectedKeyId(null)
     options.setSheetSelection({ kind: 'cue', cueId })
-    options.setValueDraft('')
-    options.setValueDraftActive(false)
+    options.cancelTimingDraft()
   }
 
   function openEditor(cueId: string) {

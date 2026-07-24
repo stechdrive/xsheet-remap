@@ -42,7 +42,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
-    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject,
+    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, handleTransformSoundCues, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueSoundCues,
@@ -233,14 +233,14 @@ export function AppShellView({ controller }: { controller: AppController }) {
             project={project}
             template={template}
             onMetadataChange={handleUpdateCutMetadata}
-            onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
+            onDurationChange={durationFrames => runProjectCommand(sourceProject => updateLogicalSheetSettings(sourceProject, { durationFrames }))}
           />
           <div className="topUtilityActions">
             <Tooltip label={uiText.actions.undo}>
-              <IconButton onClick={handleUndo} disabled={history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></IconButton>
+              <IconButton data-timing-edit-boundary="manual" onClick={handleUndo} disabled={!valueDraftActive && history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></IconButton>
             </Tooltip>
             <Tooltip label={uiText.actions.redo}>
-              <IconButton onClick={handleRedo} disabled={history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></IconButton>
+              <IconButton onClick={handleRedo} disabled={valueDraftActive || history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></IconButton>
             </Tooltip>
             <Tooltip label={`${appProfile.appName}のクイックガイドと詳しい使い方を開く`}>
               <IconButton onClick={() => setAppHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></IconButton>
@@ -277,8 +277,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onToggleSheetRevisionProtected={handleToggleSheetRevisionProtected}
             onToggleSheetRevisionSourceReference={handleToggleSheetRevisionSourceReference}
             onDeleteSheetRevision={handleDeleteSheetRevision}
-            onSetSharedCutNumbersVisible={visible => commitProject(updateSheetViewState(project, {
-              metadataDisplay: { ...project.sheetView.metadataDisplay, sharedCutNumbers: visible },
+            onSetSharedCutNumbersVisible={visible => runProjectCommand(sourceProject => updateSheetViewState(sourceProject, {
+              metadataDisplay: { ...sourceProject.sheetView.metadataDisplay, sharedCutNumbers: visible },
             }))}
             sheetPages={sheetPages}
             activePageIndex={clampedActivePageIndex}
@@ -319,8 +319,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onShowTemplateLabelsChange={setShowTemplateLabels}
             onShowInputContentChange={setShowInputContent}
             onShowAnnotationsChange={setShowAnnotations}
-            onContinuationDisplayChange={(role, visible) => commitProject(updateSheetViewState(project, {
-              continuationDisplay: { ...project.sheetView.continuationDisplay, [role]: visible },
+            onContinuationDisplayChange={(role, visible) => runProjectCommand(sourceProject => updateSheetViewState(sourceProject, {
+              continuationDisplay: { ...sourceProject.sheetView.continuationDisplay, [role]: visible },
             }))}
             penColor={penColor}
             setPenColor={setPenColor}
@@ -339,8 +339,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onUpsertTimelineMemoText={handleUpsertTimelineMemoText}
             onUpdateTimelineMemoAppearance={handleUpdateTimelineMemoAppearance}
             onMetadataChange={handleUpdateCutMetadata}
-            onDurationChange={durationFrames => commitProject(updateLogicalSheetSettings(project, { durationFrames }))}
-            onFormFieldChange={(definition, value, pageId) => commitProject(updateSheetFormField(project, definition, value, pageId))}
+            onDurationChange={durationFrames => runProjectCommand(sourceProject => updateLogicalSheetSettings(sourceProject, { durationFrames }))}
+            onFormFieldChange={(definition, value, pageId) => runProjectCommand(sourceProject => updateSheetFormField(sourceProject, definition, value, pageId))}
             autoCalibrationRunning={autoCalibrationRunning}
             autoCalibrationMessage={autoCalibrationMessage}
             autoCalibrationOverlay={autoCalibrationOverlay}
@@ -403,10 +403,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onCommitFocusedTextAnnotationDraft={handleCommitFocusedTextAnnotationDraft}
             onEraseAnnotation={handleEraseAnnotation}
             onCalibrationPoints={updatePageCalibrationPoints}
-            onClearPageAnnotations={pageId => commitProject(clearAnnotationsForPage(project, pageId))}
+            onClearPageAnnotations={pageId => runProjectCommand(sourceProject => clearAnnotationsForPage(sourceProject, pageId))}
             onClearAllAnnotations={() => {
               if (!window.confirm(uiText.actions.clearAllInkConfirm)) return
-              commitProject(clearAnnotations(project))
+              runProjectCommand(clearAnnotations)
             }}
             onUpdateActivePageAlignment={updateActivePageAlignment}
             onStartSheetImageWarp={startSheetImageWarp}
@@ -414,7 +414,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onAutoDetectSheetImageWarp={autoDetectSheetImageWarp}
             onApplySheetImageWarp={applySheetImageWarp}
             onUpdateTiming={updateTiming}
-            onSetViewMode={viewMode => commitProject(updateSheetViewState(project, { viewMode }))}
+            onSetViewMode={viewMode => runProjectCommand(sourceProject => updateSheetViewState(sourceProject, { viewMode }))}
             onDeleteKey={handleDeleteCspCard}
             onUpdateKeyCspCellName={handleUpdateKeyCspCellName}
             onMoveKeyBindingProcess={handleMoveKeyBindingProcess}

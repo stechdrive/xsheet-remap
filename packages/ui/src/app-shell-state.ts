@@ -4,7 +4,7 @@ import {
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
-import type { CameraCueClipboard, CameraCueDialogState, EditMode, ExportOperationNotice, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingExportDialogState, XdtsImportDialogState } from './appTypes'
+import type { CameraCueClipboard, CameraCueDialogState, EditMode, ExportOperationNotice, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingEditSession, TimingExportDialogState, XdtsImportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
@@ -117,8 +117,15 @@ export function useAppShellState(appKind: MainAppKind) {
   const [cameraInstructionHistory, setCameraInstructionHistory] = useState<string[]>(loadCameraInstructionHistory)
   const [cameraPointLabelHistory, setCameraPointLabelHistory] = useState<string[]>(loadCameraPointLabelHistory)
   const [statusHints, setStatusHints] = useState<StatusHints>({})
-  const [valueDraft, setValueDraft] = useState('')
-  const [valueDraftActive, setValueDraftActive] = useState(false)
+  const [timingEditSession, setTimingEditSessionState] = useState<TimingEditSession | null>(null)
+  const timingEditSessionRef = useRef<TimingEditSession | null>(null)
+  const setTimingEditSession = useCallback<Dispatch<SetStateAction<TimingEditSession | null>>>(nextState => {
+    const next = typeof nextState === 'function'
+      ? nextState(timingEditSessionRef.current)
+      : nextState
+    timingEditSessionRef.current = next
+    setTimingEditSessionState(next)
+  }, [])
   const [sheetImageExportDraft, setSheetImageExportDraft] = useState<SheetImageExportOptions | null>(null)
   const [sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen] = useState(false)
   const [appHelpDialogOpen, setAppHelpDialogOpen] = useState(false)
@@ -151,7 +158,7 @@ export function useAppShellState(appKind: MainAppKind) {
     cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog,
     cameraInstructionHistory, setCameraInstructionHistory, cameraPointLabelHistory, setCameraPointLabelHistory,
     statusHints, setStatusHints,
-    valueDraft, setValueDraft, valueDraftActive, setValueDraftActive, sheetImageExportDraft, setSheetImageExportDraft,
+    timingEditSession, timingEditSessionRef, setTimingEditSession, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,

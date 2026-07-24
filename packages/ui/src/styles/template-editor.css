@@ -701,6 +701,56 @@
   background: #fbfbf8;
 }
 
+.sheetThemeEditor {
+  gap: 12px;
+}
+
+.sheetThemeGroup {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #d5d8d2;
+  border-radius: 6px;
+}
+
+.sheetThemeGroup legend {
+  padding: 0 5px;
+  color: #465048;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sheetThemeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+.sheetThemeColorControl,
+.sheetThemeOpacityControl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.sheetThemeColorControl input[type="color"] {
+  width: 34px;
+  height: 26px;
+  padding: 1px;
+}
+
+.sheetThemeOpacityControl {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(90px, auto) minmax(80px, 1fr) 38px;
+}
+
+.sheetThemeOpacityControl output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .templateMeta dt {
   color: #66706a;
 }

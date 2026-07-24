@@ -230,7 +230,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   onContextMenu={event => handleContextMenu(event, page)}
                   aria-label={isContinuousCanvas ? uiText.sheet.canvasSurfaceLabel : page.pageIndex === 0 ? uiText.sheet.canvasLabel : uiText.sheet.canvasPageLabel(page.pageIndex + 1)}
                 >
-                  <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
+                  <rect className="sheetPaperBackground" x="0" y="0" width="1" height="1" fill={props.template.theme.paper.color} />
                   {props.showTemplate && pageImage.imageUrl && (
                     <SheetImageLayer
                       imageUrl={pageImage.imageUrl}

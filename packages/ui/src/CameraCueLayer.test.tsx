@@ -62,11 +62,12 @@ describe('CameraCueLayer', () => {
     expect(container.querySelectorAll('.cameraCueLabel [clip-path] .cameraCueLabelText')).toHaveLength(4)
   })
 
-  it('alternates cue and label tones by frame order within a CAMERA lane', () => {
+  it('colors adjacent CAMERA columns while keeping cue and label colors stable within a lane', () => {
     const cues = [
       cameraCue('cue_later', 'camera_lane_1', 20, 24, 'fade-out'),
       cameraCue('cue_first', 'camera_lane_1', 1, 6, 'fade-in'),
       cameraCue('cue_middle', 'camera_lane_1', 10, 14, 'range'),
+      cameraCue('cue_adjacent', 'camera_lane_2', 1, 6, 'range'),
     ]
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const { container } = render(
@@ -83,10 +84,12 @@ describe('CameraCueLayer', () => {
       /></svg>,
     )
 
-    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_first"]')?.getAttribute('data-cue-tone')).toBe('primary')
-    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_middle"]')?.getAttribute('data-cue-tone')).toBe('alternate')
-    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_later"]')?.getAttribute('data-cue-tone')).toBe('primary')
-    expect(container.querySelector('.cameraCueLabel[data-camera-cue-id="cue_middle"]')?.getAttribute('data-cue-tone')).toBe('alternate')
+    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_first"]')?.getAttribute('data-cue-column-index')).toBe('0')
+    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_middle"]')?.getAttribute('data-cue-column-index')).toBe('0')
+    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_later"]')?.getAttribute('data-cue-column-index')).toBe('0')
+    expect(container.querySelector('.cameraCue[data-camera-cue-id="cue_adjacent"]')?.getAttribute('data-cue-column-index')).toBe('1')
+    expect(container.querySelector('.cameraCueLabel[data-camera-cue-id="cue_middle"]')?.getAttribute('data-cue-column-index')).toBe('0')
+    expect(container.querySelector('.cameraCueLabel[data-camera-cue-id="cue_adjacent"]')?.getAttribute('data-cue-column-index')).toBe('1')
   })
 
   it('marks an unavoidably overflowing label while clipping it to the CAMERA region', () => {

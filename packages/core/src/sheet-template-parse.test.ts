@@ -20,6 +20,16 @@ describe('parseSheetTemplate', () => {
     expect(() => parseSheetTemplate(template)).toThrow('対応していないシートテンプレートバージョン')
   })
 
+  it('requires a complete template-owned paper theme', () => {
+    const missing = structuredClone(standardA3SheetTemplate) as unknown as Record<string, unknown>
+    delete missing.theme
+    expect(() => parseSheetTemplate(missing)).toThrow('用紙テーマが不正')
+
+    const invalid = structuredClone(standardA3SheetTemplate)
+    invalid.theme.paper.color = 'white'
+    expect(() => parseSheetTemplate(invalid)).toThrow('用紙テーマが不正')
+  })
+
   it('rejects duplicate region identifiers', () => {
     const template = structuredClone(standardA3SheetTemplate)
     template.regions[1]!.regionId = template.regions[0]!.regionId

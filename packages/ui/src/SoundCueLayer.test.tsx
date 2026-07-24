@@ -4,11 +4,12 @@ import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type T
 import { SoundCueLayer } from './SoundCueLayer'
 
 describe('SoundCueLayer', () => {
-  it('alternates by frame order and renders content when the label is empty', () => {
+  it('colors adjacent SOUND columns while keeping every cue in one column stable', () => {
     const cues: TimedRangeCue[] = [
       soundCue('cue_later', 20, 24, '二行目'),
       soundCue('cue_first', 1, 6, 'SE', ''),
       soundCue('cue_middle', 10, 14, '一行目'),
+      soundCue('cue_adjacent', 1, 6, '隣接列', '隣', 'sound_lane_2'),
     ]
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const { container } = render(
@@ -25,15 +26,16 @@ describe('SoundCueLayer', () => {
       /></svg>,
     )
 
-    expect(container.querySelector('.soundCue[data-sound-cue-id="cue_first"]')?.getAttribute('data-cue-tone')).toBe('primary')
-    expect(container.querySelector('.soundCue[data-sound-cue-id="cue_middle"]')?.getAttribute('data-cue-tone')).toBe('alternate')
-    expect(container.querySelector('.soundCue[data-sound-cue-id="cue_later"]')?.getAttribute('data-cue-tone')).toBe('primary')
+    expect(container.querySelector('.soundCue[data-sound-cue-id="cue_first"]')?.getAttribute('data-cue-column-index')).toBe('0')
+    expect(container.querySelector('.soundCue[data-sound-cue-id="cue_middle"]')?.getAttribute('data-cue-column-index')).toBe('0')
+    expect(container.querySelector('.soundCue[data-sound-cue-id="cue_later"]')?.getAttribute('data-cue-column-index')).toBe('0')
+    expect(container.querySelector('.soundCue[data-sound-cue-id="cue_adjacent"]')?.getAttribute('data-cue-column-index')).toBe('1')
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_first"]')?.getAttribute('aria-label')).toContain('SE')
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_first"] .soundCueLabel')).toBeNull()
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_first"] .soundCueDialogue')?.textContent).toContain('S')
   })
 })
 
-function soundCue(cueId: string, frameStart: number, frameEnd: number, text: string, label = cueId): TimedRangeCue {
-  return { cueId, role: 'sound', laneId: 'sound_lane_1', frameStart, frameEnd, label, text, source: 'manual' }
+function soundCue(cueId: string, frameStart: number, frameEnd: number, text: string, label = cueId, laneId = 'sound_lane_1'): TimedRangeCue {
+  return { cueId, role: 'sound', laneId, frameStart, frameEnd, label, text, source: 'manual' }
 }

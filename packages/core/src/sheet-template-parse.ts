@@ -1,4 +1,5 @@
 import { SHEET_TEMPLATE_SCHEMA_VERSION, type NormalizedRect, type SheetTemplate, type SheetTemplateRegion } from './sheet-template-schema'
+import { isSheetTemplateTheme } from './sheet-template-theme'
 
 /** Validates an external JSON value before it becomes an editable sheet template. */
 export function parseSheetTemplate(input: unknown): SheetTemplate {
@@ -8,6 +9,9 @@ export function parseSheetTemplate(input: unknown): SheetTemplate {
   }
   if (!nonEmptyString(input.templateId) || !nonEmptyString(input.name)) {
     throw new Error('テンプレートIDまたは名前がありません。')
+  }
+  if (!isSheetTemplateTheme(input.theme)) {
+    throw new Error('テンプレートの用紙テーマが不正です。')
   }
   if (!isRecord(input.page)
     || !positiveNumber(input.page.widthPx)

@@ -4,6 +4,7 @@ import {
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
   resolveSheetTemplateTextStyle,
+  sheetTemplateLineColor,
   sheetTemplateLengthForReferencePx,
   sheetGridRowY,
   type NormalizedPoint,
@@ -18,6 +19,7 @@ import {
   type SheetTemplateFieldDefinition,
   type SheetTemplateLineStyle,
   type SheetTemplateTextStyle,
+  type SheetTemplateTheme,
 } from '@xsheet-remap/core'
 import {
   STANDARD_A3_GRID_HEADER_HEIGHT,
@@ -99,6 +101,7 @@ export type TemplateReferenceRegionRenderModel = {
 
 export type TemplateChromeRenderModel = {
   pageSize: SheetSvgPageSize
+  theme: SheetTemplateTheme
   showOuterFrame: boolean
   referenceRegions: TemplateReferenceRegionRenderModel[]
   headers: TemplateGridHeaderRenderModel[]
@@ -153,12 +156,21 @@ export type TemplateGridOverlayRenderModel = {
   regionId: string
   role: SheetTemplateGridRole
   pageSize: SheetSvgPageSize
+  theme: SheetTemplateTheme
+  backgroundBands: TemplateGridBackgroundBandRenderModel[]
   rowPaths: TemplateGridPathRenderModel[]
   columnPath: TemplateGridPathRenderModel | null
   labels: TemplateGridRowLabelRenderModel[]
   frameNumbers: TemplateGridCounterRenderModel[]
   secondCounters: TemplateGridCounterRenderModel[]
   bottomTrackLabels: TemplateBottomTrackLabelRenderModel[]
+}
+
+export type TemplateGridBackgroundBandRenderModel = {
+  key: string
+  rect: NormalizedRect
+  color: string
+  opacity: number
 }
 
 export interface TemplateGridOverlayOptions extends SheetGridLayoutOptions {
@@ -227,6 +239,7 @@ export function buildTemplateEditorRegionRenderModel(
   return {
     chrome: {
       pageSize: resolveSheetTemplatePageSize(template, durationFrames, resolveOptions),
+      theme: template.theme,
       showOuterFrame: false,
       referenceRegions: !region.form && !region.grid && region.type !== 'metadata-field' && region.usage !== 'ignored'
         ? [{
@@ -258,6 +271,7 @@ export function buildTemplateChromeRenderModel(
   const forms = template.regions.map(region => buildTemplateFormRenderModels(template, region, paperTracks, durationFrames, resolveOptions))
   return {
     pageSize,
+    theme: template.theme,
     showOuterFrame: template.templateKind !== 'digital-native' && template.style?.outerFrame?.visible !== false,
     referenceRegions: template.regions
       .filter(region => !region.form && !region.grid && region.type !== 'metadata-field' && region.usage !== 'ignored')
@@ -293,7 +307,7 @@ export function buildTemplateFormRenderModels(
   if (!form || region.usage === 'ignored') return { boxes: [], labels: [], fields: [], annotationTargets: [] }
   const regionRect = resolveSheetTemplateRegionRect(template, region, durationFrames, { ...options, paperTracks })
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, { ...options, paperTracks })
-  const borderStyle = normalizeTemplateLineStyle(form.borderStyle)
+  const borderStyle = normalizeTemplateLineStyle(form.borderStyle, template.theme)
   const cells = form.projection
     ? projectedTrackCountCells(template, region.regionId, form.projection, paperTracks)
     : [...(form.cells ?? [])]
@@ -331,7 +345,7 @@ export function buildTemplateFormRenderModels(
     const rect = formCellRect(cell.row, cell.column, cell.rowSpan ?? 1, cell.columnSpan ?? 1, rowEdges, columnEdges)
     if (!rect) continue
     if (cell.border !== false) {
-      boxes.push({ key: `${region.regionId}:${cell.cellId}`, rect, style: normalizeTemplateLineStyle(cell.borderStyle, borderStyle) })
+      boxes.push({ key: `${region.regionId}:${cell.cellId}`, rect, style: normalizeTemplateLineStyle(cell.borderStyle, template.theme, borderStyle) })
     }
     if (cell.kind === 'label' && cell.label) {
       labels.push(templateFormLabel(`${region.regionId}:${cell.cellId}`, cell.label, rect, cell.textStyle, template, pageSize))
@@ -525,6 +539,7 @@ function templateFormLabel(
 
 export function normalizeTemplateLineStyle(
   style: SheetTemplateLineStyle | undefined,
+  theme: SheetTemplateTheme,
   fallback?: TemplateLineRenderStyle,
 ): TemplateLineRenderStyle {
   const pattern = style?.pattern ?? fallback?.pattern ?? 'solid'
@@ -532,7 +547,7 @@ export function normalizeTemplateLineStyle(
   const dashPx = style?.dashPx ?? (pattern === 'dotted' ? [1, Math.max(2, widthPx * 2.5)] : pattern === 'dashed' ? [6, 4] : [])
   return {
     pattern,
-    color: style?.color ?? fallback?.color ?? '#2f3430',
+    color: style?.color ?? fallback?.color ?? sheetTemplateLineColor(theme, style?.weight ?? 'outer'),
     widthPx,
     dashPx,
   }
@@ -669,7 +684,7 @@ export function buildTemplateGridOverlayRenderModel(
         className: `gridLine gridLineCustom gridLine${rule.axis === 'row' ? 'Row' : 'Column'}`,
         d: segments.map(segment => `M ${segment.x1} ${segment.y1} L ${segment.x2} ${segment.y2}`).join(' '),
         segments,
-        style: normalizeTemplateLineStyle(rule.style),
+        style: normalizeTemplateLineStyle(rule.style, template.theme),
       })
       void ruleIndex
     }
@@ -710,21 +725,71 @@ export function buildTemplateGridOverlayRenderModel(
     ? buildSecondCounterRenderModels(template, region.grid, layout, options)
     : []
   const bottomTrackLabels = buildBottomTrackLabelRenderModels(template, region.grid, layout)
+  const backgroundBands = buildSecondBandRenderModels(template, region.grid, layout, options)
   return {
     regionId: region.regionId,
     role: region.grid.role,
     pageSize,
+    theme: template.theme,
+    backgroundBands,
     rowPaths: [...Array.from(rowPaths, ([className, segments]) => ({
       className,
       d: segments.map(segment => `M ${segment.x1} ${segment.y1} H ${segment.x2}`).join(' '),
       segments,
+      style: implicitGridLineStyle(template.theme, className),
     })), ...explicitPaths],
-    columnPath,
+    columnPath: columnPath ? { ...columnPath, style: implicitGridLineStyle(template.theme, columnPath.className) } : null,
     labels,
     frameNumbers,
     secondCounters,
     bottomTrackLabels,
   }
+}
+
+function implicitGridLineStyle(theme: SheetTemplateTheme, className: string): TemplateLineRenderStyle {
+  const weight = className.includes('gridLineStrong')
+    ? 'strong'
+    : className.includes('gridLineMedium')
+      ? 'medium'
+      : className.includes('gridLineRegular')
+        ? 'regular'
+        : 'thin'
+  return normalizeTemplateLineStyle({ weight }, theme)
+}
+
+function buildSecondBandRenderModels(
+  template: SheetTemplate,
+  grid: SheetTemplateGrid,
+  layout: SheetGridLayout,
+  options: TemplateGridOverlayOptions,
+): TemplateGridBackgroundBandRenderModel[] {
+  const theme = template.theme.paper.secondBands
+  if (!theme.enabled || !['action', 'sound', 'cell', 'camera'].includes(grid.role)) return []
+  const framesPerSecond = Math.max(1, Math.round(template.defaults.fps))
+  const frameOffset = gridTimelineFrameOffset(template, grid, options.pageFrameStart)
+  const bands: TemplateGridBackgroundBandRenderModel[] = []
+  let bandStartRow: number | null = null
+
+  for (let row = 0; row <= layout.frames.rowCount; row += 1) {
+    const frame = layout.frames.frameStart + frameOffset + row
+    const secondIndex = Math.floor((frame - template.defaults.frameOrigin) / framesPerSecond)
+    const shaded = row < layout.frames.rowCount && normalizedModulo(secondIndex, 2) === 1
+    if (shaded && bandStartRow === null) {
+      bandStartRow = row
+      continue
+    }
+    if (shaded || bandStartRow === null) continue
+    const startY = sheetGridRowY(layout, bandStartRow)
+    const endY = sheetGridRowY(layout, row)
+    bands.push({
+      key: `second-band-${bandStartRow}-${row}`,
+      rect: { x: layout.rect.x, y: startY, w: layout.rect.w, h: endY - startY },
+      color: theme.color,
+      opacity: theme.opacity,
+    })
+    bandStartRow = null
+  }
+  return bands
 }
 
 export function templateEditorPointFromClientRect(
@@ -1028,6 +1093,10 @@ function gridTimelineFrameOffset(template: SheetTemplate, grid: SheetTemplateGri
   return grid.frameProjection?.source === 'logical-frames'
     ? 0
     : (pageFrameStart ?? template.defaults.frameOrigin) - template.defaults.frameOrigin
+}
+
+function normalizedModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor
 }
 
 function pointInNormalizedRectStroke(point: NormalizedPoint, rect: NormalizedRect, radius: NormalizedPoint): boolean {

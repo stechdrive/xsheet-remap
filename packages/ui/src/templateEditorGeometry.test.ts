@@ -115,6 +115,39 @@ describe('template editor geometry', () => {
     expect(left!.secondCounters[0].x).toBeLessThan(leftRegion!.rect.x)
   })
 
+  it('alternates whole-second background bands with a continuous phase across paper columns', () => {
+    const leftRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_cell_grid')!
+    const rightRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'right_cell_grid')!
+    const left = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, leftRegion, { pageFrameStart: 145 })!
+    const right = buildTemplateGridOverlayRenderModel(standardA3SheetTemplate, rightRegion, { pageFrameStart: 145 })!
+    const rowHeight = leftRegion.rect.h / leftRegion.grid!.rowCount
+
+    expect(left.backgroundBands[0]).toMatchObject({
+      color: standardA3SheetTemplate.theme.paper.secondBands.color,
+      opacity: standardA3SheetTemplate.theme.paper.secondBands.opacity,
+    })
+    expect(left.backgroundBands[0]!.rect.y).toBeCloseTo(leftRegion.rect.y + rowHeight * 24)
+    expect(left.backgroundBands[0]!.rect.h).toBeCloseTo(rowHeight * 24)
+    expect(right.backgroundBands[0]!.rect.y).toBeCloseTo(rightRegion.rect.y)
+    expect(right.backgroundBands[0]!.rect.h).toBeCloseTo(rowHeight * 24)
+  })
+
+  it('removes second background bands without affecting the grid model when disabled', () => {
+    const region = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_cell_grid')!
+    const template: SheetTemplate = {
+      ...digitalStandardSheetTemplate,
+      theme: {
+        ...digitalStandardSheetTemplate.theme,
+        paper: {
+          ...digitalStandardSheetTemplate.theme.paper,
+          secondBands: { ...digitalStandardSheetTemplate.theme.paper.secondBands, enabled: false },
+        },
+      },
+    }
+
+    expect(buildTemplateGridOverlayRenderModel(template, region)?.backgroundBands).toEqual([])
+  })
+
   it('places digital seconds beside CELL and keeps SOUND column-only', () => {
     const cellRegion = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'cell')
     const actionRegion = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'action')

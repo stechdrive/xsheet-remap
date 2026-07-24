@@ -1,6 +1,6 @@
 import type { CutMetadataFieldId, Id, LogicalTimelineLane, LogicalTimelineSectionRole, PaperTrackName, SheetImageAlignment, SheetPageImageRef, SheetViewLayoutOverrides, SheetViewMode } from './types'
 
-export const SHEET_TEMPLATE_SCHEMA_VERSION = 5
+export const SHEET_TEMPLATE_SCHEMA_VERSION = 6
 
 export interface NormalizedRect {
   x: number
@@ -398,6 +398,45 @@ export interface SheetTemplateStyle {
   secondCounter?: SheetTemplateSecondCounterStyle
 }
 
+export interface SheetTemplateSecondBandTheme {
+  enabled: boolean
+  color: string
+  opacity: number
+}
+
+export interface SheetTemplateLineColorTheme {
+  thin: string
+  regular: string
+  medium: string
+  strong: string
+  outer: string
+}
+
+export interface SheetTemplateTimedRangeCueTheme {
+  columnColors: [string, string]
+  fillOpacity: number
+  hoverOpacity: number
+  strokeColor: string
+  textColor: string
+}
+
+export interface SheetTemplateTheme {
+  presetId?: string
+  paper: {
+    color: string
+    secondBands: SheetTemplateSecondBandTheme
+  }
+  ink: {
+    text: string
+    reference: string
+    lines: SheetTemplateLineColorTheme
+  }
+  timedRangeCues: {
+    sound: SheetTemplateTimedRangeCueTheme
+    camera: SheetTemplateTimedRangeCueTheme
+  }
+}
+
 export type SheetViewLayoutType = 'paged' | 'continuous' | 'infinite'
 
 export type SheetFrameAxisLayoutType = 'paged' | 'continuous' | 'infinite'
@@ -470,6 +509,7 @@ export interface SheetTemplate {
   schemaVersion: number
   templateId: string
   name: string
+  theme: SheetTemplateTheme
   templateKind?: 'japanese-a3-paper' | 'studio-paper' | 'paper-scan' | 'paper-clean' | 'digital-native'
   layoutMode?: 'fixed-page' | 'paged-digital' | 'infinite-digital'
   naming?: SheetTemplateNaming

@@ -1,62 +1,50 @@
 import type { CSSProperties } from 'react'
-import type { TimedRangeCue } from '@xsheet-remap/core'
+import {
+  timedRangeCuePaint,
+  type ResolvedTimedRangeCuePaint,
+  type SheetTemplateTheme,
+  type TimedRangeRole,
+} from '@xsheet-remap/core'
 
-export type TimedRangeCueTone = 'primary' | 'alternate'
-
-export const TIMED_RANGE_CUE_TONE_PALETTE = {
-  primary: {
-    fill: 'rgba(37, 121, 94, 0.16)',
-    hoverFill: 'rgba(37, 121, 94, 0.24)',
-  },
-  alternate: {
-    fill: 'rgba(167, 112, 36, 0.16)',
-    hoverFill: 'rgba(167, 112, 36, 0.24)',
-  },
-} as const satisfies Record<TimedRangeCueTone, { fill: string; hoverFill: string }>
-
-type TimedRangeCueToneInput = Pick<TimedRangeCue, 'cueId' | 'role' | 'laneId' | 'frameStart' | 'frameEnd'>
-type TimedRangeCueToneStyle = CSSProperties & {
+type TimedRangeCuePaintStyle = CSSProperties & {
   '--timed-range-cue-fill': string
   '--timed-range-cue-hover-fill': string
+  '--timed-range-cue-stroke': string
+  '--timed-range-cue-text': string
 }
 
-export function buildTimedRangeCueToneMap(cues: readonly TimedRangeCueToneInput[]): ReadonlyMap<string, TimedRangeCueTone> {
-  const sorted = [...cues].sort(compareTimedRangeCueToneOrder)
-  const tones = new Map<string, TimedRangeCueTone>()
-  const nextRowByLane = new Map<string, number>()
-  for (const cue of sorted) {
-    const laneKey = `${cue.role}\u0000${cue.laneId}`
-    const row = nextRowByLane.get(laneKey) ?? 0
-    tones.set(cue.cueId, row % 2 === 0 ? 'primary' : 'alternate')
-    nextRowByLane.set(laneKey, row + 1)
-  }
-  return tones
+export function timedRangeCueColumnPaint(
+  theme: SheetTemplateTheme,
+  role: Extract<TimedRangeRole, 'sound' | 'camera'>,
+  columnIndex: number,
+): ResolvedTimedRangeCuePaint {
+  return timedRangeCuePaint(theme, role, columnIndex)
 }
 
-export function timedRangeCueToneFor(cueId: string, tones: ReadonlyMap<string, TimedRangeCueTone>): TimedRangeCueTone {
-  return tones.get(cueId) ?? 'primary'
-}
-
-export function timedRangeCueToneClass(tone: TimedRangeCueTone): string {
-  return tone === 'alternate' ? 'timedRangeCueToneAlternate' : 'timedRangeCueTonePrimary'
-}
-
-export function timedRangeCueToneStyle(tone: TimedRangeCueTone): TimedRangeCueToneStyle {
-  const palette = TIMED_RANGE_CUE_TONE_PALETTE[tone]
+export function timedRangeCueColumnStyle(
+  theme: SheetTemplateTheme,
+  role: Extract<TimedRangeRole, 'sound' | 'camera'>,
+  columnIndex: number,
+): TimedRangeCuePaintStyle {
+  const paint = timedRangeCueColumnPaint(theme, role, columnIndex)
   return {
-    '--timed-range-cue-fill': palette.fill,
-    '--timed-range-cue-hover-fill': palette.hoverFill,
+    '--timed-range-cue-fill': colorWithOpacity(paint.fillColor, paint.fillOpacity),
+    '--timed-range-cue-hover-fill': colorWithOpacity(paint.fillColor, paint.hoverOpacity),
+    '--timed-range-cue-stroke': paint.strokeColor,
+    '--timed-range-cue-text': paint.textColor,
   }
 }
 
-function compareTimedRangeCueToneOrder(left: TimedRangeCueToneInput, right: TimedRangeCueToneInput): number {
-  return compareText(left.role, right.role)
-    || compareText(left.laneId, right.laneId)
-    || left.frameStart - right.frameStart
-    || left.frameEnd - right.frameEnd
-    || compareText(left.cueId, right.cueId)
+export function colorWithOpacity(color: string, opacity: number): string {
+  const normalized = color.replace(/^#/, '')
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) return color
+  const red = Number.parseInt(normalized.slice(0, 2), 16)
+  const green = Number.parseInt(normalized.slice(2, 4), 16)
+  const blue = Number.parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${red}, ${green}, ${blue}, ${clampOpacity(opacity)})`
 }
 
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
+function clampOpacity(opacity: number): number {
+  if (!Number.isFinite(opacity)) return 1
+  return Math.min(1, Math.max(0, opacity))
 }

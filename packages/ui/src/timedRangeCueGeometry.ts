@@ -14,6 +14,7 @@ export interface TimedRangeCueSegment {
   cueId: string
   regionId: string
   laneId: string
+  columnIndex: number
   frameStart: number
   frameEnd: number
   rect: NormalizedRect
@@ -58,6 +59,7 @@ export function timedRangeCueSegmentsForPage(
       cueId: cue.cueId,
       regionId: region.regionId,
       laneId: cue.laneId,
+      columnIndex,
       frameStart: globalStart,
       frameEnd: globalEnd,
       rect: { ...firstRect, h: layout.frames.rowHeight * (localEnd - localStart + 1) },

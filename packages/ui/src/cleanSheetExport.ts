@@ -61,7 +61,7 @@ import {
 } from './timelineMemoGeometry'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { positionMultilineTextLines } from './multilineTextLayout'
-import { buildTimedRangeCueToneMap, TIMED_RANGE_CUE_TONE_PALETTE, timedRangeCueToneFor } from './timedRangeCueAppearance'
+import { colorWithOpacity, timedRangeCueColumnPaint } from './timedRangeCueAppearance'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -81,7 +81,8 @@ export type SheetImageExportResult = {
 }
 
 type SheetExportLayerId =
-  | 'white'
+  | 'paperBackground'
+  | 'secondBands'
   | 'paperSheet'
   | 'templateImage'
   | 'templateLines'
@@ -249,7 +250,7 @@ function sheetExportLayerDescriptorsForContext(
   context: SheetExportLayerContext,
   options: SheetImageExportOptions,
 ): SheetExportLayerDescriptor[] {
-  const layers: SheetExportLayerDescriptor[] = [{ id: 'white', name: '白地' }]
+  const layers: SheetExportLayerDescriptor[] = [{ id: 'paperBackground', name: '用紙色' }]
   if (options.includeTemplateImage && context.template.defaultUnderlay && context.template.defaultUnderlayUsage !== 'reference-only') layers.push({ id: 'templateImage', name: 'テンプレ画像' })
   if (options.includePaperSheet) {
     layers.push({
@@ -262,6 +263,7 @@ function sheetExportLayerDescriptorsForContext(
     })
   }
   if (options.includeTemplateDrawing) {
+    if (context.template.theme.paper.secondBands.enabled) layers.push({ id: 'secondBands', name: '秒背景帯' })
     layers.push({ id: 'templateLines', name: 'テンプレ罫線' })
     layers.push({ id: 'templateLabels', name: 'テンプレラベル' })
   }
@@ -285,9 +287,10 @@ async function renderSheetExportLayer(
   options: SheetImageExportOptions,
   id: SheetExportLayerId,
 ): Promise<ImageData> {
-  if (id === 'white') return solidWhiteImageData(context.width, context.height)
+  if (id === 'paperBackground') return solidColorImageData(context.width, context.height, context.template.theme.paper.color)
   if (id === 'templateImage') return renderTemplateImageLayer(context)
   if (id === 'paperSheet') return renderPaperSheetLayer(context)
+  if (id === 'secondBands') return renderSecondBandLayer(context)
   if (id === 'templateLines') {
     return renderTemplateDrawingLayer(context, {
       includeStaticChrome: !options.includePaperSheet && !options.includeTemplateImage,
@@ -405,7 +408,7 @@ function renderTemplateDrawingLayer(
           for (const path of model.rowPaths) drawTemplateGridPath(ctx, context, path, offsetY)
           if (model.columnPath) drawTemplateGridPath(ctx, context, model.columnPath, offsetY)
         } else {
-          ctx.fillStyle = '#2a302c'
+          ctx.fillStyle = model.theme.ink.text
           ctx.textBaseline = 'middle'
           for (const label of model.labels) {
             ctx.font = fontDeclaration(label.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
@@ -432,6 +435,37 @@ function renderTemplateDrawingLayer(
   return ctx.getImageData(0, 0, context.width, context.height)
 }
 
+function renderSecondBandLayer(context: SheetExportLayerContext): ImageData {
+  const canvas = createCanvas(context.width, context.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return blankTransparentImageData(context.width, context.height)
+  for (const page of context.pages) {
+    const offsetY = page.pageIndex * context.pageSize.heightPx
+    for (const region of context.template.regions.filter(isRenderableSheetTemplateGridRegion)) {
+      const viewLayout = getSheetViewLayout(context.template)
+      const frameOrigin = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
+        ? page.frameStart
+        : context.template.defaults.frameOrigin
+      const model = buildTemplateGridOverlayRenderModel(context.template, region, {
+        paperTracks: context.paperTracks,
+        durationFrames: page.frameEnd - page.frameStart + 1,
+        frameOrigin,
+        pageFrameStart: page.frameStart,
+        layoutOverrides: context.project.sheetView.layoutOverrides,
+      })
+      if (!model) continue
+      for (const band of model.backgroundBands) {
+        const rect = projectedPixelRect(context, band.rect, offsetY)
+        ctx.globalAlpha = band.opacity
+        ctx.fillStyle = band.color
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
+      }
+    }
+  }
+  ctx.globalAlpha = 1
+  return ctx.getImageData(0, 0, context.width, context.height)
+}
+
 function drawTemplateStaticChrome(
   ctx: CanvasRenderingContext2D,
   context: SheetExportLayerContext,
@@ -439,7 +473,7 @@ function drawTemplateStaticChrome(
   offsetY: number,
 ) {
   ctx.fillStyle = 'transparent'
-  ctx.strokeStyle = '#2f3430'
+  ctx.strokeStyle = chrome.theme.ink.lines.outer
   ctx.lineWidth = 1
   ctx.setLineDash([])
   if (chrome.showOuterFrame) {
@@ -452,7 +486,7 @@ function drawTemplateStaticChrome(
   }
   for (const region of chrome.referenceRegions) {
     if (region.type === 'memo-area') continue
-    ctx.strokeStyle = '#416b5a'
+    ctx.strokeStyle = chrome.theme.ink.reference
     ctx.setLineDash([6, 4])
     const pixelRect = projectedPixelRect(context, region.rect, offsetY)
     ctx.strokeRect(pixelRect.x + 0.5, pixelRect.y + 0.5, Math.max(0, pixelRect.w - 1), Math.max(0, pixelRect.h - 1))
@@ -473,10 +507,11 @@ function drawTemplateGridHeaderLines(
   chrome: ReturnType<typeof buildTemplateChromeRenderModel>,
   offsetY: number,
 ) {
-  ctx.strokeStyle = '#2f3430'
+  ctx.strokeStyle = chrome.theme.ink.lines.outer
   ctx.lineWidth = 1
   ctx.setLineDash([])
   for (const header of chrome.headers) {
+    ctx.strokeStyle = chrome.theme.ink.lines.outer
     ctx.strokeRect(
       header.rect.x * context.pageSize.widthPx,
       offsetY + header.rect.y * context.pageSize.heightPx,
@@ -484,6 +519,7 @@ function drawTemplateGridHeaderLines(
       header.rect.h * context.pageSize.heightPx,
     )
     if (header.columnHeaderRect.h > 0) {
+      ctx.strokeStyle = chrome.theme.ink.lines.outer
       ctx.strokeRect(
         header.columnHeaderRect.x * context.pageSize.widthPx,
         offsetY + header.columnHeaderRect.y * context.pageSize.heightPx,
@@ -491,6 +527,7 @@ function drawTemplateGridHeaderLines(
         header.columnHeaderRect.h * context.pageSize.heightPx,
       )
       ctx.beginPath()
+      ctx.strokeStyle = chrome.theme.ink.lines.thin
       for (const x of header.columnBoundaries) {
         ctx.moveTo(x * context.pageSize.widthPx, offsetY + header.columnHeaderRect.y * context.pageSize.heightPx)
         ctx.lineTo(x * context.pageSize.widthPx, offsetY + (header.columnHeaderRect.y + header.columnHeaderRect.h) * context.pageSize.heightPx)
@@ -506,7 +543,7 @@ function drawTemplateGridHeaderLabels(
   chrome: ReturnType<typeof buildTemplateChromeRenderModel>,
   offsetY: number,
 ) {
-  ctx.fillStyle = '#1f2421'
+  ctx.fillStyle = chrome.theme.ink.text
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   for (const label of chrome.formLabels) {
@@ -731,7 +768,6 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   const textMeasurement = createCanvasTextMeasurementProvider(() => ctx)
   const cues = context.project.timedRangeCues.filter(cue => cue.role === 'sound')
-  const cueTones = buildTimedRangeCueToneMap(cues)
   const pageTextLayouts = buildSoundCuePageTextLayouts(
     context.template,
     context.pages,
@@ -748,14 +784,15 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
   )
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const { cue, segment, textLayout } of pageTextLayouts.filter(item => item.pageId === page.pageId)) {
+    for (const { segment, textLayout } of pageTextLayouts.filter(item => item.pageId === page.pageId)) {
       const rect = projectedPixelRect(context, segment.rect, offsetY)
-      ctx.fillStyle = TIMED_RANGE_CUE_TONE_PALETTE[timedRangeCueToneFor(cue.cueId, cueTones)].fill
-      ctx.strokeStyle = 'rgba(25, 91, 70, 0.74)'
+      const paint = timedRangeCueColumnPaint(context.template.theme, 'sound', segment.columnIndex)
+      ctx.fillStyle = colorWithOpacity(paint.fillColor, paint.fillOpacity)
+      ctx.strokeStyle = paint.strokeColor
       ctx.lineWidth = 1
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
-      ctx.strokeStyle = 'rgba(18, 82, 62, 0.98)'
+      ctx.strokeStyle = paint.strokeColor
       ctx.lineWidth = 3
       if (segment.startsCue) drawCanvasLine(ctx, rect.x, rect.y, rect.x + rect.w, rect.y)
       if (segment.endsCue) drawCanvasLine(ctx, rect.x, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h)
@@ -768,10 +805,10 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
       ctx.textAlign = 'center'
       ctx.textBaseline = 'alphabetic'
       for (const glyph of textLayout.labelGlyphs) {
-        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.labelFontSizePx, 850)
+        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.labelFontSizePx, 850, paint.textColor)
       }
       for (const glyph of textLayout.textGlyphs) {
-        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650)
+        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650, paint.textColor)
       }
       ctx.restore()
     }
@@ -784,7 +821,6 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   const cues = context.project.timedRangeCues.filter(cue => cue.role === 'camera')
-  const cueTones = buildTimedRangeCueToneMap(cues)
   const pageWidth = context.pageSize.widthPx
   const pageHeight = context.pageSize.heightPx
   for (const page of context.pages) {
@@ -795,10 +831,11 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
     })
     for (const { cue, segments } of layouts) {
       const instructionSpans = cameraInstructionSpans(cue)
-      const tone = timedRangeCueToneFor(cue.cueId, cueTones)
+      const cuePaint = timedRangeCueColumnPaint(context.template.theme, 'camera', segments[0]?.columnIndex ?? 0)
       for (const segment of segments) {
-        ctx.strokeStyle = 'rgba(22, 67, 52, 0.96)'
-        ctx.fillStyle = TIMED_RANGE_CUE_TONE_PALETTE[tone].fill
+        const paint = timedRangeCueColumnPaint(context.template.theme, 'camera', segment.columnIndex)
+        ctx.strokeStyle = paint.strokeColor
+        ctx.fillStyle = colorWithOpacity(paint.fillColor, paint.fillOpacity)
         ctx.lineWidth = 1.5
         for (const path of cameraRangePathsForSegment(cue, segment, context.pageSize)) {
           drawNormalizedCameraRangePath(ctx, path.commands, pageWidth, pageHeight, offsetY)
@@ -821,7 +858,7 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
             ctx.strokeStyle = 'rgba(255, 255, 252, 0.96)'
             ctx.lineWidth = 5
             drawCanvasLine(ctx, pivotMark.x1 * pageWidth, offsetY + pivotMark.y * pageHeight, pivotMark.x2 * pageWidth, offsetY + pivotMark.y * pageHeight)
-            ctx.strokeStyle = 'rgba(22, 67, 52, 0.98)'
+            ctx.strokeStyle = paint.strokeColor
             ctx.lineWidth = 3
             drawCanvasLine(ctx, pivotMark.x1 * pageWidth, offsetY + pivotMark.y * pageHeight, pivotMark.x2 * pageWidth, offsetY + pivotMark.y * pageHeight)
             ctx.restore()
@@ -831,10 +868,10 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         const endKind = instructionSpans.at(-1)?.kind
         const marker = cameraRangeMarkerGeometryForSegment(segment, context.pageSize)
         if ((startKind === 'straight' || startKind === 'wave') && segment.startsCue) {
-          drawCanvasPolygon(ctx, marker.start.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), '#194f3c')
+          drawCanvasPolygon(ctx, marker.start.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), paint.strokeColor)
         }
         if ((endKind === 'straight' || endKind === 'wave') && segment.endsCue) {
-          drawCanvasPolygon(ctx, marker.end.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), '#194f3c')
+          drawCanvasPolygon(ctx, marker.end.map(point => [point.x * pageWidth, offsetY + point.y * pageHeight] as [number, number]), paint.strokeColor)
         }
       }
       for (const point of cameraCuePointLayoutsForPage(context.template, cue, segments, context.pageSize)) {
@@ -857,7 +894,7 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
             point.mark.x2 * pageWidth,
             offsetY + point.mark.y * pageHeight,
           )
-          ctx.strokeStyle = 'rgba(22, 67, 52, 0.98)'
+          ctx.strokeStyle = cuePaint.strokeColor
           ctx.lineWidth = 3
           drawCanvasLine(
             ctx,
@@ -868,7 +905,7 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
           )
         }
         if (point.connector) {
-          ctx.strokeStyle = 'rgba(47, 95, 76, 0.82)'
+          ctx.strokeStyle = cuePaint.strokeColor
           ctx.lineWidth = 1.25
           drawCanvasLine(
             ctx,
@@ -881,16 +918,17 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         if (point.point.label) {
           ctx.textAlign = 'center'
           ctx.textBaseline = 'alphabetic'
-          drawCueText(ctx, point.point.label, point.textXpx, offsetY + point.textYpx, point.fontSizePx, 850)
+          drawCueText(ctx, point.point.label, point.textXpx, offsetY + point.textYpx, point.fontSizePx, 850, cuePaint.textColor)
         }
         ctx.restore()
       }
     }
-    for (const { cue, label } of layouts) {
+    for (const { label, segments } of layouts) {
       if (!label) continue
+      const paint = timedRangeCueColumnPaint(context.template.theme, 'camera', segments[0]?.columnIndex ?? 0)
       if (label.connector) {
         ctx.save()
-        ctx.strokeStyle = 'rgba(47, 95, 76, 0.72)'
+        ctx.strokeStyle = paint.strokeColor
         ctx.lineWidth = 1
         ctx.setLineDash([2, 2])
         drawCanvasLine(
@@ -903,8 +941,8 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         ctx.restore()
       }
       const labelRect = projectedPixelRect(context, label.rect, offsetY)
-      ctx.fillStyle = TIMED_RANGE_CUE_TONE_PALETTE[timedRangeCueToneFor(cue.cueId, cueTones)].fill
-      ctx.strokeStyle = 'rgba(25, 91, 70, 0.74)'
+      ctx.fillStyle = colorWithOpacity(paint.fillColor, paint.fillOpacity)
+      ctx.strokeStyle = paint.strokeColor
       ctx.lineWidth = 1
       ctx.fillRect(labelRect.x, labelRect.y, labelRect.w, labelRect.h)
       ctx.strokeRect(labelRect.x, labelRect.y, labelRect.w, labelRect.h)
@@ -919,7 +957,7 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         label.regionRect.h * pageHeight,
       )
       ctx.clip()
-      for (const glyph of label.glyphs) drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, label.fontSizePx, 850)
+      for (const glyph of label.glyphs) drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, label.fontSizePx, 850, paint.textColor)
       ctx.restore()
     }
   }
@@ -933,13 +971,14 @@ function drawCueText(
   y: number,
   fontSizePx: number,
   fontWeight: number,
+  color: string,
 ) {
   ctx.font = fontDeclaration(fontSizePx, SHEET_CANVAS_FONT_FAMILY, fontWeight)
   ctx.lineJoin = 'round'
   ctx.lineWidth = 3
   ctx.strokeStyle = 'rgba(255, 255, 252, 0.94)'
   ctx.strokeText(value, x, y)
-  ctx.fillStyle = '#173f32'
+  ctx.fillStyle = color
   ctx.fillText(value, x, y)
 }
 
@@ -1385,15 +1424,13 @@ function cropImageData(imageData: ImageData, x: number, y: number, width: number
   return context.getImageData(0, 0, width, height)
 }
 
-function solidWhiteImageData(width: number, height: number): ImageData {
-  const output = new ImageData(width, height)
-  for (let index = 0; index < output.data.length; index += 4) {
-    output.data[index] = 255
-    output.data[index + 1] = 255
-    output.data[index + 2] = 255
-    output.data[index + 3] = 255
-  }
-  return output
+function solidColorImageData(width: number, height: number, color: string): ImageData {
+  const canvas = createCanvas(width, height)
+  const context = canvas.getContext('2d')
+  if (!context) return new ImageData(width, height)
+  context.fillStyle = color
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  return context.getImageData(0, 0, canvas.width, canvas.height)
 }
 
 function blankTransparentImageData(width: number, height: number): ImageData {

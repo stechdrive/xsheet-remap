@@ -84,11 +84,11 @@ export function TemplateChromeLayer({
 }) {
   return (
     <g className="templateChrome" aria-hidden="true">
-      {showLines && model.showOuterFrame && <rect className="templateOuterFrame" x="0.02" y="0.019" width="0.96" height="0.952" />}
+      {showLines && model.showOuterFrame && <rect className="templateOuterFrame" style={{ stroke: model.theme.ink.lines.outer }} x="0.02" y="0.019" width="0.96" height="0.952" />}
       {showLines && <g>
         {model.referenceRegions.map(region => (
           <g key={region.regionId} className={`templateReferenceRegion ${region.type}`}>
-            <rect className="templateReferenceBox" x={region.rect.x} y={region.rect.y} width={region.rect.w} height={region.rect.h} />
+            <rect className="templateReferenceBox" style={{ stroke: model.theme.ink.reference }} x={region.rect.x} y={region.rect.y} width={region.rect.w} height={region.rect.h} />
           </g>
         ))}
       </g>}
@@ -114,22 +114,23 @@ export function TemplateChromeLayer({
           fontSizePx={label.fontSizePx}
           fontWeight={label.fontWeight}
           pageSize={model.pageSize}
+          style={{ fill: model.theme.ink.text }}
         >
           {label.text}
         </SheetSvgText>
       ))}
       {model.headers.map(header => (
         <g key={header.regionId}>
-          {showLines && <rect className="templateHeaderBox" style={{ fill: 'none' }} x={header.rect.x} y={header.rect.y} width={header.rect.w} height={header.rect.h} />}
+          {showLines && <rect className="templateHeaderBox" style={{ fill: 'none', stroke: model.theme.ink.lines.outer }} x={header.rect.x} y={header.rect.y} width={header.rect.w} height={header.rect.h} />}
           {showLines && header.columnHeaderRect.h > 0 && (
             <>
-              <rect className="templateHeaderBox" x={header.columnHeaderRect.x} y={header.columnHeaderRect.y} width={header.columnHeaderRect.w} height={header.columnHeaderRect.h} />
-              <path className="templateThinLine" d={header.columnBoundaries.map(x => `M ${x} ${header.columnHeaderRect.y} V ${header.columnHeaderRect.y + header.columnHeaderRect.h}`).join(' ')} />
+              <rect className="templateHeaderBox" style={{ stroke: model.theme.ink.lines.outer }} x={header.columnHeaderRect.x} y={header.columnHeaderRect.y} width={header.columnHeaderRect.w} height={header.columnHeaderRect.h} />
+              <path className="templateThinLine" style={{ stroke: model.theme.ink.lines.thin }} d={header.columnBoundaries.map(x => `M ${x} ${header.columnHeaderRect.y} V ${header.columnHeaderRect.y + header.columnHeaderRect.h}`).join(' ')} />
             </>
           )}
-          {showLabels && header.label ? <SheetSvgText className="templateHeaderText" x={header.labelX} y={header.labelY} textAnchor="middle" fontSizePx={header.labelFontSizePx} pageSize={model.pageSize}>{header.label}</SheetSvgText> : null}
+          {showLabels && header.label ? <SheetSvgText className="templateHeaderText" style={{ fill: model.theme.ink.text }} x={header.labelX} y={header.labelY} textAnchor="middle" fontSizePx={header.labelFontSizePx} pageSize={model.pageSize}>{header.label}</SheetSvgText> : null}
           {showLabels && header.columns.map(column => (
-            <SheetSvgText key={column.columnId} className="templateColumnText" x={column.x} y={column.y} textAnchor="middle" dominantBaseline={column.dominantBaseline} fontSizePx={column.fontSizePx} pageSize={model.pageSize}>{column.label}</SheetSvgText>
+            <SheetSvgText key={column.columnId} className="templateColumnText" style={{ fill: model.theme.ink.text }} x={column.x} y={column.y} textAnchor="middle" dominantBaseline={column.dominantBaseline} fontSizePx={column.fontSizePx} pageSize={model.pageSize}>{column.label}</SheetSvgText>
           ))}
         </g>
       ))}
@@ -148,6 +149,18 @@ export function GridOverlayLayer({
 }) {
   return (
     <g className={`gridOverlay gridOverlay-${model.role}`}>
+      {showLines && model.backgroundBands.map(band => (
+        <rect
+          key={band.key}
+          className="gridSecondBand"
+          x={band.rect.x}
+          y={band.rect.y}
+          width={band.rect.w}
+          height={band.rect.h}
+          fill={band.color}
+          opacity={band.opacity}
+        />
+      ))}
       {showLines && model.rowPaths.map(path => (
         <path key={`${path.className}:${path.d}`} className={path.className} d={path.d} style={path.style ? svgLineStyle(path.style) : undefined} />
       ))}
@@ -161,6 +174,7 @@ export function GridOverlayLayer({
           textAnchor={label.textAnchor}
           fontSizePx={label.fontSizePx}
           pageSize={model.pageSize}
+          style={{ fill: model.theme.ink.text }}
         >
           {label.text}
         </SheetSvgText>
@@ -175,6 +189,7 @@ export function GridOverlayLayer({
           dominantBaseline="text-after-edge"
           fontSizePx={item.fontSizePx}
           pageSize={model.pageSize}
+          style={{ fill: model.theme.ink.text }}
         >
           {item.text}
         </SheetSvgText>
@@ -189,6 +204,7 @@ export function GridOverlayLayer({
           dominantBaseline="text-after-edge"
           fontSizePx={item.fontSizePx}
           pageSize={model.pageSize}
+          style={{ fill: model.theme.ink.text }}
         >
           {item.text}
         </SheetSvgText>
@@ -204,6 +220,7 @@ export function GridOverlayLayer({
           fontSizePx={item.fontSizePx}
           pageSize={model.pageSize}
           opacity={item.opacity}
+          style={{ fill: model.theme.ink.text }}
         >
           {item.text}
         </SheetSvgText>

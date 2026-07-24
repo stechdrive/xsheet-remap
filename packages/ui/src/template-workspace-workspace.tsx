@@ -29,6 +29,7 @@ import { METADATA_BINDING_OPTION_IDS, TEMPLATE_CALIBRATION_TARGET_ID, errorMessa
 import { TemplateRegionEditor } from './template-workspace-region-editor'
 import { TemplateCreateDialog, type DigitalTemplateCreateOptions, type PaperTemplateCreateOptions } from './TemplateCreateDialog'
 import { templatePaperPixelSize } from './templatePaper'
+import { SheetThemeEditor } from './SheetThemeEditor'
 
 export function TemplateWorkspace({
   project,
@@ -170,6 +171,10 @@ export function TemplateWorkspace({
         },
       }),
     }))
+  }
+
+  function updateTemplateTheme(theme: SheetTemplate['theme']) {
+    updateTemplateDraft(currentTemplate => ({ ...currentTemplate, theme }))
   }
 
   function updateTemplateNaming(updates: Partial<NonNullable<SheetTemplate['naming']>>) {
@@ -1162,6 +1167,7 @@ export function TemplateWorkspace({
 
   const displayControls = (
     <div className="detailStack">
+      <SheetThemeEditor theme={template.theme} onChange={updateTemplateTheme} />
       {template.page.isPhysical && (
         <label className="compactControl templateBottomTrackLabelsControl">
           <input

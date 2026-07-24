@@ -1,27 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import type { TimedRangeCue } from '@xsheet-remap/core'
-import { buildTimedRangeCueToneMap, timedRangeCueToneFor } from './timedRangeCueAppearance'
+import { createDefaultSheetTemplateTheme } from '@xsheet-remap/core'
+import { colorWithOpacity, timedRangeCueColumnPaint, timedRangeCueColumnStyle } from './timedRangeCueAppearance'
 
 describe('timed range cue appearance', () => {
-  it('alternates by visual row within each role and lane regardless of project order', () => {
-    const cues: TimedRangeCue[] = [
-      cue('sound-lane-1-third', 'sound', 'sound_lane_1', 30, 36),
-      cue('camera-lane-1-first', 'camera', 'camera_lane_1', 1, 6),
-      cue('sound-lane-2-first', 'sound', 'sound_lane_2', 5, 8),
-      cue('sound-lane-1-second', 'sound', 'sound_lane_1', 20, 24),
-      cue('sound-lane-1-first', 'sound', 'sound_lane_1', 10, 12),
-    ]
+  it('uses the resolved column index instead of cue order', () => {
+    const theme = createDefaultSheetTemplateTheme()
 
-    const tones = buildTimedRangeCueToneMap(cues)
+    expect(timedRangeCueColumnPaint(theme, 'sound', 0).fillColor).toBe(theme.timedRangeCues.sound.columnColors[0])
+    expect(timedRangeCueColumnPaint(theme, 'sound', 1).fillColor).toBe(theme.timedRangeCues.sound.columnColors[1])
+    expect(timedRangeCueColumnPaint(theme, 'sound', 2).fillColor).toBe(theme.timedRangeCues.sound.columnColors[0])
+  })
 
-    expect(timedRangeCueToneFor('sound-lane-1-first', tones)).toBe('primary')
-    expect(timedRangeCueToneFor('sound-lane-1-second', tones)).toBe('alternate')
-    expect(timedRangeCueToneFor('sound-lane-1-third', tones)).toBe('primary')
-    expect(timedRangeCueToneFor('sound-lane-2-first', tones)).toBe('primary')
-    expect(timedRangeCueToneFor('camera-lane-1-first', tones)).toBe('primary')
+  it('creates identical SVG and canvas fill colors from one theme paint', () => {
+    const theme = createDefaultSheetTemplateTheme()
+    const paint = timedRangeCueColumnPaint(theme, 'camera', 1)
+    const style = timedRangeCueColumnStyle(theme, 'camera', 1)
+
+    expect(style['--timed-range-cue-fill']).toBe(colorWithOpacity(paint.fillColor, paint.fillOpacity))
+    expect(style['--timed-range-cue-stroke']).toBe(paint.strokeColor)
+    expect(style['--timed-range-cue-text']).toBe(paint.textColor)
   })
 })
-
-function cue(cueId: string, role: TimedRangeCue['role'], laneId: string, frameStart: number, frameEnd: number): TimedRangeCue {
-  return { cueId, role, laneId, frameStart, frameEnd, label: cueId, text: '', source: 'manual' }
-}

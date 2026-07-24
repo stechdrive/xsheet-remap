@@ -15,7 +15,7 @@ import {
 } from './cameraCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { SheetTransformHandle } from './SheetTransformHandle'
-import { buildTimedRangeCueToneMap, timedRangeCueToneClass, timedRangeCueToneFor, timedRangeCueToneStyle } from './timedRangeCueAppearance'
+import { timedRangeCueColumnStyle } from './timedRangeCueAppearance'
 
 export type CameraCueDragMode = 'move' | 'resize-start' | 'resize-end' | 'pivot' | 'move-label' | 'resize-label' | 'point'
 
@@ -45,7 +45,6 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
   onPointerLeave: () => void
 }) {
   const pageLayouts = buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, timelineLanes, layoutOverrides })
-  const cueTones = buildTimedRangeCueToneMap(cues)
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
   const pivotRadiusX = 5 / Math.max(1, surface.widthPx)
   const pivotRadiusY = 5 / Math.max(1, surface.heightPx)
@@ -54,7 +53,6 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
     <g className="cameraCueLayer">
       {pageLayouts.flatMap(({ cue, segments }) => segments.map(segment => {
         const selected = selectedCueId === cue.cueId
-        const tone = timedRangeCueToneFor(cue.cueId, cueTones)
         const camera = cue.camera ?? { shape: 'range' as const, points: [] }
         const instructionSpans = cameraInstructionSpans(cue)
         const intersectsSegment = (span: (typeof instructionSpans)[number]) => span.frameEndExclusive > segment.frameStart && span.frameStart < segment.frameEnd + 1
@@ -67,10 +65,10 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
         return (
           <g
             key={`${cue.cueId}:${segment.regionId}:${segment.frameStart}`}
-            className={`cameraCue ${camera.shape} ${timedRangeCueToneClass(tone)}${selected ? ' selected' : ''}${draggingCueId === cue.cueId ? ' transforming' : ''}`}
-            style={timedRangeCueToneStyle(tone)}
+            className={`cameraCue ${camera.shape}${selected ? ' selected' : ''}${draggingCueId === cue.cueId ? ' transforming' : ''}`}
+            style={timedRangeCueColumnStyle(template.theme, 'camera', segment.columnIndex)}
             data-camera-cue-id={cue.cueId}
-            data-cue-tone={tone}
+            data-cue-column-index={segment.columnIndex}
             data-camera-lane-id={cue.laneId}
             data-frame-start={cue.frameStart}
             data-frame-end={cue.frameEnd}
@@ -162,19 +160,19 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
           </g>
         )
       }))}
-      {pageLayouts.map(({ cue, label: layout }) => {
+      {pageLayouts.map(({ cue, label: layout, segments }) => {
         if (!layout) return null
         const cueId = cue.cueId
         const selected = selectedCueId === cueId
-        const tone = timedRangeCueToneFor(cueId, cueTones)
+        const columnIndex = segments[0]?.columnIndex ?? 0
         const clipId = `camera-cue-label-clip-${safeSvgId(page.pageId)}-${safeSvgId(cueId)}`
         return (
           <g
             key={`label:${cueId}`}
-            className={`cameraCueLabel ${timedRangeCueToneClass(tone)}${selected ? ' selected' : ''}${layout.manual ? ' manual' : ''}${layout.overflow ? ' overflow' : ''}`}
-            style={timedRangeCueToneStyle(tone)}
+            className={`cameraCueLabel${selected ? ' selected' : ''}${layout.manual ? ' manual' : ''}${layout.overflow ? ' overflow' : ''}`}
+            style={timedRangeCueColumnStyle(template.theme, 'camera', columnIndex)}
             data-camera-cue-id={cueId}
-            data-cue-tone={tone}
+            data-cue-column-index={columnIndex}
             data-camera-label-overflow={layout.overflow ? 'true' : 'false'}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}

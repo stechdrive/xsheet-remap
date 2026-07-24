@@ -394,7 +394,7 @@ const TemplateStaticPreview = memo(function TemplateStaticPreview({
   return (
     <svg viewBox="0 0 1 1" preserveAspectRatio="none" className="templatePreviewSvg templateStaticPreviewSvg" aria-hidden="true">
       <g className="templateStaticLayer">
-        <rect x="0" y="0" width="1" height="1" fill="#f7f7f4" />
+        <rect className="sheetPaperBackground" x="0" y="0" width="1" height="1" fill={template.theme.paper.color} />
         {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={template} placement={template.defaultUnderlay?.placement} forceRaw preview />}
         <TemplateChromeLayer model={chrome} />
         {renderModel.gridOverlays

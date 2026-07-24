@@ -2,7 +2,7 @@ import { useId, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetTemplateLayoutResolveOptions, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
-import { buildTimedRangeCueToneMap, timedRangeCueToneClass, timedRangeCueToneFor, timedRangeCueToneStyle } from './timedRangeCueAppearance'
+import { timedRangeCueColumnStyle } from './timedRangeCueAppearance'
 
 export type SoundCueDragMode = 'move' | 'resize-start' | 'resize-end'
 
@@ -50,7 +50,6 @@ export function SoundCueLayer({
     timelineLanes,
     layoutOverrides,
   }).filter(entry => entry.pageId === page.pageId)
-  const cueTones = buildTimedRangeCueToneMap(cues)
   const textClipIds = new Map<string, string>()
   segments.forEach(({ key }) => {
     textClipIds.set(key, `${clipIdPrefix}-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`)
@@ -73,14 +72,13 @@ export function SoundCueLayer({
       </defs>
       {segments.map(({ cue, segment, key, textLayout }) => {
         const selected = selectedCueId === cue.cueId
-        const tone = timedRangeCueToneFor(cue.cueId, cueTones)
         return (
           <g
             key={key}
-            className={`soundCue ${timedRangeCueToneClass(tone)}${selected ? ' selected' : ''}`}
-            style={timedRangeCueToneStyle(tone)}
+            className={`soundCue${selected ? ' selected' : ''}`}
+            style={timedRangeCueColumnStyle(template.theme, 'sound', segment.columnIndex)}
             data-sound-cue-id={cue.cueId}
-            data-cue-tone={tone}
+            data-cue-column-index={segment.columnIndex}
             data-sound-lane-id={cue.laneId}
             data-frame-start={cue.frameStart}
             data-frame-end={cue.frameEnd}

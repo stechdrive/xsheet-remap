@@ -1024,7 +1024,7 @@
 
 .soundCueBody {
   fill: var(--timed-range-cue-fill, rgb(37 121 94 / 0.16));
-  stroke: rgb(25 91 70 / 0.74);
+  stroke: var(--timed-range-cue-stroke, #195b46);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   cursor: grab;
@@ -1033,7 +1033,7 @@
 
 .soundCue:hover .soundCueBody {
   fill: var(--timed-range-cue-hover-fill, rgb(37 121 94 / 0.24));
-  stroke: rgb(18 82 62 / 0.96);
+  stroke: var(--timed-range-cue-stroke, #195b46);
 }
 
 .soundCue.selected .soundCueBody {
@@ -1047,7 +1047,7 @@
 }
 
 .soundCueCap {
-  stroke: rgb(18 82 62 / 0.98);
+  stroke: var(--timed-range-cue-stroke, #195b46);
   stroke-width: 3px;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
@@ -1068,7 +1068,7 @@
 
 .soundCueLabel,
 .soundCueDialogue {
-  fill: #173f32;
+  fill: var(--timed-range-cue-text, #173f32);
   dominant-baseline: alphabetic;
   paint-order: stroke fill;
   stroke: rgb(255 255 252 / 0.86);
@@ -1147,7 +1147,7 @@
 .cameraCueStroke,
 .cameraCueFade {
   fill: none;
-  stroke: rgb(22 67 52 / 0.96);
+  stroke: var(--timed-range-cue-stroke, #195b46);
   stroke-width: 1.5px;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
@@ -1168,7 +1168,7 @@
 }
 
 .cameraCueMarker {
-  fill: #194f3c;
+  fill: var(--timed-range-cue-stroke, #195b46);
   stroke: rgb(255 255 252 / 0.92);
   stroke-width: 1px;
   paint-order: stroke fill;
@@ -1224,7 +1224,7 @@
 
 .cameraCueEndpointLabel,
 .cameraCueLabelText {
-  fill: #173f32;
+  fill: var(--timed-range-cue-text, #173f32);
   font-family: var(--font-sheet-sans);
   font-weight: 850;
   paint-order: stroke fill;
@@ -1280,7 +1280,7 @@
 
 .cameraCueLabelBody {
   fill: var(--timed-range-cue-fill, rgb(37 121 94 / 0.16));
-  stroke: rgb(25 91 70 / 0.74);
+  stroke: var(--timed-range-cue-stroke, #195b46);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
@@ -1288,7 +1288,7 @@
 
 .cameraCueLabel:hover .cameraCueLabelBody {
   fill: var(--timed-range-cue-hover-fill, rgb(37 121 94 / 0.24));
-  stroke: rgb(18 82 62 / 0.96);
+  stroke: var(--timed-range-cue-stroke, #195b46);
 }
 
 .cameraCueLabel.selected .cameraCueLabelBody {

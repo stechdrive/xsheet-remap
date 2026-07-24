@@ -53,7 +53,8 @@ describe('clean sheet export options', () => {
       includeTemplateImage: true,
       includeTemplateDrawing: true,
     }).map(({ id, name }) => [id, name])).toEqual([
-      ['white', '白地'],
+      ['paperBackground', '用紙色'],
+      ['secondBands', '秒背景帯'],
       ['templateLines', 'テンプレ罫線'],
       ['templateLabels', 'テンプレラベル'],
       ['metadataText', 'シート情報'],

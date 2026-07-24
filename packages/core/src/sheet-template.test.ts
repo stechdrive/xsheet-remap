@@ -215,6 +215,7 @@ function variableLayoutTemplate(gridOverrides: Partial<NonNullable<SheetTemplate
     schemaVersion: 1,
     templateId: 'test-variable-layout',
     name: 'Variable layout test',
+    theme: digitalStandardSheetTemplate.theme,
     templateKind: 'digital-native',
     layoutMode: 'infinite-digital',
     viewLayout: {

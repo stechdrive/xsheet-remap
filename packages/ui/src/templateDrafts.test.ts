@@ -1,4 +1,4 @@
-import { parseSheetTemplate, SHEET_TEMPLATE_SCHEMA_VERSION, type SheetTemplate } from '@xsheet-remap/core'
+import { createDefaultSheetTemplateTheme, parseSheetTemplate, SHEET_TEMPLATE_SCHEMA_VERSION, type SheetTemplate } from '@xsheet-remap/core'
 import { describe, expect, it } from 'vitest'
 import { removeTemplateRegion } from './templateDrafts'
 
@@ -7,6 +7,7 @@ function templateWithRegionReferences(): SheetTemplate {
     schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
     templateId: 'region-delete-test',
     name: '領域削除テスト',
+    theme: createDefaultSheetTemplateTheme(),
     page: { widthPx: 1000, heightPx: 1000, coordinateSpace: 'normalized' },
     defaults: { fps: 24, durationFrames: 24, frameOrigin: 1, paperTracks: ['A'] },
     fields: [

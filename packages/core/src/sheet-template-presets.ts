@@ -1,6 +1,7 @@
 import type { CutMetadataFieldId } from './types'
 import { createAlphabeticTrackLabels, createPaperTrackColumns } from './sheet-template-layout'
 import { NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFieldDefinition, SheetTemplateFormCell, SheetTemplateFrameProjection, SheetTemplateGridLineStyleRule, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplateLength, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
+import { createDefaultSheetTemplateTheme } from './sheet-template-theme'
 
 export const standardA3DefaultPaperTracks = createAlphabeticTrackLabels(9)
 
@@ -63,9 +64,9 @@ const STANDARD_A3_GRID_HEADER = { topOffsetPx: 71, heightPx: 48, columnHeightPx:
 
 const STANDARD_A3_TIMED_RANGE_GRID_HEADER = { ...STANDARD_A3_GRID_HEADER, showColumnLabels: false }
 
-const STANDARD_A3_FORM_BORDER = { weight: 'thin' as const, pattern: 'solid' as const, color: '#2f3430', widthPx: 1 }
+const STANDARD_A3_FORM_BORDER = { weight: 'thin' as const, pattern: 'solid' as const, widthPx: 1 }
 
-const STANDARD_A3_SOUND_LINE_STYLE = { pattern: 'dotted' as const, widthPx: 1, color: '#727872' }
+const STANDARD_A3_SOUND_LINE_STYLE = { weight: 'thin' as const, pattern: 'dotted' as const, widthPx: 1 }
 
 const STANDARD_A3_SOUND_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
   { axis: 'column', target: 'all', style: STANDARD_A3_SOUND_LINE_STYLE },
@@ -84,7 +85,7 @@ const STANDARD_A3_RESERVE_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
   {
     axis: 'row',
     target: 'inner',
-    style: { pattern: 'dotted', widthPx: 1, color: '#727872' },
+    style: { weight: 'thin', pattern: 'dotted', widthPx: 1 },
   },
   {
     axis: 'row',
@@ -233,6 +234,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
   schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
   templateId: 'standard-a3-timesheet-v2',
   name: 'A3標準',
+  theme: createDefaultSheetTemplateTheme(),
   templateKind: 'japanese-a3-paper',
   layoutMode: 'fixed-page',
   defaultUnderlay: standardA3DefaultUnderlay,
@@ -751,6 +753,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
   schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
   templateId: 'digital-standard-v2',
   name: 'デジタル標準',
+  theme: createDefaultSheetTemplateTheme(),
   templateKind: 'digital-native',
   layoutMode: 'infinite-digital',
   style: {

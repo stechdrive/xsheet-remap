@@ -433,11 +433,6 @@
   height: 20px;
 }
 
-.dialogueAudioCue.isProvisional {
-  border-style: dashed !important;
-  background: #68562e !important;
-}
-
 .dialogueAudioCue.is-review,
 .dialogueAudioCue.is-orphaned {
   border-color: #ff9078 !important;

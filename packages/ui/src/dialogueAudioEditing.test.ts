@@ -17,7 +17,7 @@ function track(): DialogueAudioTrackState {
     clips: [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }],
     speechCandidates: [
       { candidateId: 'candidate-1', frameStart: 3, frameEnd: 8, status: 'pending' },
-      { candidateId: 'candidate-2', frameStart: 15, frameEnd: 20, status: 'linked', cueLinks: [{ revisionId: 'revision-1', cueId: 'cue-1' }] },
+      { candidateId: 'candidate-2', frameStart: 15, frameEnd: 20, status: 'linked' },
     ],
     dialogueRegions: [],
     vadMode: 'candidates',

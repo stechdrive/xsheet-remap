@@ -708,6 +708,7 @@ export interface NameNormalizationAssetRenameResult {
 export interface CutProject {
   schemaVersion: number
   projectId: Id
+  extensions?: Record<string, ProjectExtensionPayload>
   cut: CutMetadata
   sheetFormData: SheetFormData
   studioPresetId?: string
@@ -771,6 +772,7 @@ export interface SheetRevisionDocument {
 export interface CutSheetDocument {
   cutId: Id
   order: number
+  extensions?: Record<string, ProjectExtensionPayload>
   metadata: CutSheetMetadata
   activeRevisionId: Id
   revisions: SheetRevisionDocument[]

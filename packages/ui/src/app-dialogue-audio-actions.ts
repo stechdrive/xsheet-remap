@@ -1,21 +1,30 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import {
   timelineLanesForLayout,
-  updateActiveCutProjectInDocument,
   updateTimedRangeCue,
-  type CutGroupProjectDocument,
   type CutProject,
   type SheetTemplate,
 } from '@xsheet-remap/core'
 import type { SoundCueDialogState } from './appTypes'
 import type { SoundCueAudioAlignment } from './SoundCueDialog'
 import {
-  dialogueAudioCutStateFromDocument,
-  updateDialogueAudioCutStateInDocument,
+  DIALOGUE_AUDIO_EXTENSION,
+  dialogueAudioCutStateFromProject,
+  updateDialogueAudioCutStateInProject,
   type DialogueAudioCutState,
 } from './dialogueAudioProject'
-import { assignDialogueRegionsToCue, createDialogueRegionFromCandidates } from './dialogueAudioBinding'
+import {
+  applySoundCueChangesToDialogueAudio,
+  assignDialogueRegionsToCue,
+  createDialogueRegionFromCandidates,
+} from './dialogueAudioBinding'
 import { moveDialogueRegionAudioToFrame } from './dialogueAudioEditing'
+
+export interface DialogueAudioProjectChange {
+  cutState: DialogueAudioCutState
+  cueUpdates?: Array<{ cueId: string; frameStart: number; frameEnd: number }>
+  recordHistory?: boolean
+}
 
 interface AppDialogueAudioActionsOptions {
   projectRef: MutableRefObject<CutProject>
@@ -23,56 +32,68 @@ interface AppDialogueAudioActionsOptions {
   revisionId: string
   frameMin: number
   frameMax: number
-  setProjectDocument: Dispatch<SetStateAction<CutGroupProjectDocument>>
   setSoundCueDialog: Dispatch<SetStateAction<SoundCueDialogState | null>>
   commitProject: (project: CutProject) => void
+  replaceProject: (project: CutProject) => void
 }
 
 export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOptions) {
-  function updateDocumentAudio(transform: (state: DialogueAudioCutState) => DialogueAudioCutState) {
-    options.setProjectDocument(current => {
-      const project = options.projectRef.current
-      const document = updateActiveCutProjectInDocument(current, project, { sheetTemplate: options.template })
-      const state = dialogueAudioCutStateFromDocument(
-        document,
-        document.activeCutId,
-        project.logicalSheet.frameOrigin,
-        project.logicalSheet.durationFrames,
-      )
-      return updateDialogueAudioCutStateInDocument(
-        document,
-        document.activeCutId,
-        transform(state),
-        project.logicalSheet.frameOrigin,
-        project.logicalSheet.durationFrames,
-      )
-    })
+  function handleCutStateChange(change: DialogueAudioProjectChange) {
+    const source = options.projectRef.current
+    const next = applyDialogueAudioProjectChange(source, change)
+    if (change.recordHistory === false) options.replaceProject(next)
+    else options.commitProject(next)
   }
 
-  function handleCutStateChange(cutState: DialogueAudioCutState) {
-    updateDocumentAudio(() => cutState)
-  }
-
-  function handleCandidateLinked(
+  function applyCandidateLink(
+    project: CutProject,
     candidate: NonNullable<SoundCueDialogState['audioCandidate']>,
     cueId: string,
     alignment: SoundCueAudioAlignment,
-  ) {
-    updateDocumentAudio(state => {
-      const cue = options.projectRef.current.timedRangeCues.find(item => item.cueId === cueId && item.role === 'sound')
-      if (!cue) return state
-      const created = createDialogueRegionFromCandidates(state, candidate.trackId, candidate.candidateIds)
-      if (!created) return state
-      const positioned = alignment === 'move-audio-to-cue'
-        ? moveDialogueRegionAudioToFrame(created.state, candidate.trackId, created.region.regionId, cue.frameStart)
-        : created.state
-      return assignDialogueRegionsToCue(
-        positioned,
-        [{ trackId: candidate.trackId, regionId: created.region.regionId }],
-        cue,
-        candidate.revisionId,
-      )
-    })
+  ): CutProject {
+    const cue = project.timedRangeCues.find(item => item.cueId === cueId && item.role === 'sound')
+    if (!cue) return project
+    const state = dialogueAudioCutStateFromProject(
+      project,
+      project.logicalSheet.frameOrigin,
+      project.logicalSheet.durationFrames,
+    )
+    const created = createDialogueRegionFromCandidates(state, candidate.trackId, candidate.candidateIds)
+    if (!created) return project
+    const positioned = alignment === 'move-audio-to-cue'
+      ? moveDialogueRegionAudioToFrame(created.state, candidate.trackId, created.region.regionId, cue.frameStart)
+      : created.state
+    const assigned = assignDialogueRegionsToCue(
+      positioned,
+      [{ trackId: candidate.trackId, regionId: created.region.regionId }],
+      cue,
+      candidate.revisionId,
+      project.timedRangeCues.filter(item => item.role === 'sound'),
+    )
+    return updateDialogueAudioCutStateInProject(
+      project,
+      assigned,
+      project.logicalSheet.frameOrigin,
+      project.logicalSheet.durationFrames,
+    )
+  }
+
+  function applySoundCueProjectChange(previousProject: CutProject, nextProject: CutProject): CutProject {
+    if (!previousProject.extensions?.[DIALOGUE_AUDIO_EXTENSION]) return nextProject
+    const previousCues = previousProject.timedRangeCues.filter(cue => cue.role === 'sound')
+    const nextCues = nextProject.timedRangeCues.filter(cue => cue.role === 'sound')
+    const sourceState = dialogueAudioCutStateFromProject(
+      previousProject,
+      previousProject.logicalSheet.frameOrigin,
+      previousProject.logicalSheet.durationFrames,
+    )
+    const nextState = applySoundCueChangesToDialogueAudio(sourceState, previousCues, nextCues, options.revisionId)
+    return updateDialogueAudioCutStateInProject(
+      nextProject,
+      nextState,
+      nextProject.logicalSheet.frameOrigin,
+      nextProject.logicalSheet.durationFrames,
+    )
   }
 
   function openSoundCueEditorForAudioCandidate(trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string) {
@@ -103,22 +124,36 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     return state
   }
 
-  function handleTransformSoundCues(updates: Array<{ cueId: string; frameStart: number; frameEnd: number }>) {
-    let next = options.projectRef.current
-    for (const update of updates) {
-      const cue = next.timedRangeCues.find(item => item.cueId === update.cueId && item.role === 'sound')
-      if (cue) next = updateTimedRangeCue(next, cue.cueId, { laneId: cue.laneId, frameStart: update.frameStart, frameEnd: update.frameEnd })
-    }
-    if (next !== options.projectRef.current) options.commitProject(next)
-  }
-
   return {
     handleCutStateChange,
-    handleCandidateLinked,
+    applyCandidateLink,
+    applySoundCueProjectChange,
     openSoundCueEditorForAudioCandidate,
     autoCreateDialogueRegions,
-    handleTransformSoundCues,
   }
+}
+
+export function applyDialogueAudioProjectChange(
+  project: CutProject,
+  change: DialogueAudioProjectChange,
+): CutProject {
+  let next = project
+  for (const update of change.cueUpdates ?? []) {
+    const cue = next.timedRangeCues.find(item => item.cueId === update.cueId && item.role === 'sound')
+    if (cue) {
+      next = updateTimedRangeCue(next, cue.cueId, {
+        laneId: cue.laneId,
+        frameStart: update.frameStart,
+        frameEnd: update.frameEnd,
+      })
+    }
+  }
+  return updateDialogueAudioCutStateInProject(
+    next,
+    change.cutState,
+    next.logicalSheet.frameOrigin,
+    next.logicalSheet.durationFrames,
+  )
 }
 
 function clamp(value: number, min: number, max: number): number {

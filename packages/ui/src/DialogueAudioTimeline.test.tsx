@@ -30,7 +30,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={state => state}
     />)
@@ -71,7 +70,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={state => state}
     />)
@@ -86,6 +84,38 @@ describe('DialogueAudioTimeline', () => {
     expect(timeline.style.height).toBe('180px')
     expect(document.querySelector('.dialogueAudioScroller')).toBeTruthy()
     expect(document.querySelector('.dialogueAudioCueLane')).toBeNull()
+  })
+
+  it('uses the shared application Undo and Redo instead of a separate audio history', () => {
+    const onUndo = vi.fn()
+    const onRedo = vi.fn()
+    render(<DialogueAudioTimeline
+      cutState={createDefaultDialogueAudioCutState(1)}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={72}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      canUndo
+      canRedo
+      onUndo={onUndo}
+      onRedo={onRedo}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={state => state}
+    />)
+    openAudioTimeline()
+
+    fireEvent.click(screen.getByRole('button', { name: '元に戻す' }))
+    fireEvent.click(screen.getByRole('button', { name: 'やり直す' }))
+
+    expect(onUndo).toHaveBeenCalledTimes(1)
+    expect(onRedo).toHaveBeenCalledTimes(1)
   })
 
   it('moves the audio playhead when a linked sheet SOUND is selected', async () => {
@@ -113,7 +143,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect: vi.fn(),
       onSoundCueEdit: vi.fn(),
       onSoundCueTransform: vi.fn(),
-      onSoundCuesTransform: vi.fn(),
       onSoundCandidateEdit: vi.fn(),
       onAutoCreateDialogueRegions: (current: typeof state) => current,
     }
@@ -159,7 +188,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={current => current}
     />)
@@ -199,13 +227,13 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={state => state}
     />)
     openAudioTimeline()
     fireEvent.click(screen.getByLabelText('音声トラック2を録音対象にする'))
-    expect(onCutStateChange.mock.calls[0][0].activeTrackId).toBe('dialogue-2')
+    expect(onCutStateChange.mock.calls[0][0].cutState.activeTrackId).toBe('dialogue-2')
+    expect(onCutStateChange.mock.calls[0][0].recordHistory).toBe(false)
   })
 
   it('uses a compact name-free track rail with icon mute and contextual VAD settings', () => {
@@ -223,7 +251,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={current => current}
     />)
@@ -240,7 +267,7 @@ describe('DialogueAudioTimeline', () => {
     expect(muteButton.textContent).toBe('')
     expect(muteButton.querySelector('svg')).toBeTruthy()
     fireEvent.click(muteButton)
-    expect(onCutStateChange.mock.calls.at(-1)?.[0].tracks[0].muted).toBe(true)
+    expect(onCutStateChange.mock.calls.at(-1)?.[0].cutState.tracks[0].muted).toBe(true)
 
     const firstTrackHeader = document.querySelector('.dialogueAudioTrackHeader') as HTMLDivElement
     fireEvent.contextMenu(firstTrackHeader, { clientX: 80, clientY: 120 })
@@ -270,7 +297,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={onSoundCandidateEdit}
       onAutoCreateDialogueRegions={state => state}
     />)
@@ -288,7 +314,6 @@ describe('DialogueAudioTimeline', () => {
       frameStart: 15,
       frameEnd: 20,
       status: 'linked',
-      cueLinks: [{ revisionId: 'revision-1', cueId: 'cue-1' }],
     }]
     state = linkDialogueAudioCandidates(
       state,
@@ -297,7 +322,7 @@ describe('DialogueAudioTimeline', () => {
       { cueId: 'cue-1', frameStart: 15, frameEnd: 20 },
       'revision-1',
     )
-    const onSoundCuesTransform = vi.fn()
+    const onCutStateChange = vi.fn()
     render(<DialogueAudioTimeline
       cutState={state}
       fps={24}
@@ -306,18 +331,20 @@ describe('DialogueAudioTimeline', () => {
       activeRevisionId="revision-1"
       soundCues={[{ cueId: 'cue-1', role: 'sound', laneId: 'sound_lane_1', frameStart: 15, frameEnd: 20, label: '主人公', text: '' }]}
       selectedSoundCueId={null}
-      onCutStateChange={vi.fn()}
+      onCutStateChange={onCutStateChange}
       onPlayheadChange={vi.fn()}
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={onSoundCuesTransform}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={state => state}
     />)
     openAudioTimeline()
     fireEvent.click(screen.getByRole('button', { name: '+1F' }))
-    expect(onSoundCuesTransform).toHaveBeenCalledWith([{ cueId: 'cue-1', frameStart: 16, frameEnd: 21 }])
+    expect(onCutStateChange).toHaveBeenCalledWith(expect.objectContaining({
+      cueUpdates: [{ cueId: 'cue-1', frameStart: 16, frameEnd: 21 }],
+      recordHistory: true,
+    }))
   })
 
   it('uses the sheet counter and resets the ruler frame row at a template-defined 25 fps rate', () => {
@@ -334,7 +361,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={state => state}
     />)
@@ -371,7 +397,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={onSoundCueEdit}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={onSoundCandidateEdit}
       onAutoCreateDialogueRegions={current => current}
     />)
@@ -407,7 +432,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={onSoundCandidateEdit}
       onAutoCreateDialogueRegions={current => current}
     />)
@@ -434,7 +458,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={current => current}
     />)
@@ -475,15 +498,14 @@ describe('DialogueAudioTimeline', () => {
         activeRevisionId="revision-1"
         soundCues={[]}
         selectedSoundCueId={null}
-        onCutStateChange={next => {
-          onCutStateChange(next)
-          setState(next)
+        onCutStateChange={change => {
+          onCutStateChange(change)
+          setState(change.cutState)
         }}
         onPlayheadChange={vi.fn()}
         onSoundCueSelect={vi.fn()}
         onSoundCueEdit={vi.fn()}
         onSoundCueTransform={vi.fn()}
-        onSoundCuesTransform={vi.fn()}
         onSoundCandidateEdit={vi.fn()}
         onAutoCreateDialogueRegions={current => current}
       />
@@ -504,8 +526,8 @@ describe('DialogueAudioTimeline', () => {
 
     await waitFor(() => {
       const next = onCutStateChange.mock.calls.at(-1)?.[0]
-      expect(next?.tracks[0].clips[0].timelineStartFrame).toBe(61)
-      expect(next?.timelineDurationFrames).toBe(72)
+      expect(next?.cutState.tracks[0].clips[0].timelineStartFrame).toBe(61)
+      expect(next?.cutState.timelineDurationFrames).toBe(72)
     })
     expect(screen.getByRole('img', { name: '最終音声位置 2+24 / 72F' })).toBeTruthy()
   })
@@ -525,7 +547,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={current => current}
     />)
@@ -573,13 +594,12 @@ describe('DialogueAudioTimeline', () => {
         activeRevisionId="revision-1"
         soundCues={[]}
         selectedSoundCueId={null}
-        onCutStateChange={setState}
+        onCutStateChange={change => setState(change.cutState)}
         onCutDurationChange={onCutDurationChange}
         onPlayheadChange={vi.fn()}
         onSoundCueSelect={vi.fn()}
         onSoundCueEdit={vi.fn()}
         onSoundCueTransform={vi.fn()}
-        onSoundCuesTransform={vi.fn()}
         onSoundCandidateEdit={vi.fn()}
         onAutoCreateDialogueRegions={current => current}
       />
@@ -616,7 +636,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={current => current}
     />)
@@ -654,7 +673,6 @@ describe('DialogueAudioTimeline', () => {
         onSoundCueSelect={vi.fn()}
         onSoundCueEdit={vi.fn()}
         onSoundCueTransform={vi.fn()}
-        onSoundCuesTransform={vi.fn()}
         onSoundCandidateEdit={onSoundCandidateEdit}
         onAutoCreateDialogueRegions={current => current}
       />
@@ -684,7 +702,6 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueSelect={vi.fn()}
       onSoundCueEdit={vi.fn()}
       onSoundCueTransform={vi.fn()}
-      onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
       onAutoCreateDialogueRegions={current => current}
     />)

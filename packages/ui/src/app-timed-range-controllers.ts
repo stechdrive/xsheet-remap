@@ -34,7 +34,13 @@ interface AppTimedRangeControllersOptions {
   setSoundDialog: Dispatch<SetStateAction<SoundCueDialogState | null>>
   setSoundLabelHistory: Dispatch<SetStateAction<string[]>>
   soundDialog: SoundCueDialogState | null
-  onAudioCandidateLinked?: (candidate: NonNullable<SoundCueDialogState['audioCandidate']>, cueId: string, alignment: SoundCueAudioAlignment) => void
+  applyAudioCandidateLink?: (
+    project: CutProject,
+    candidate: NonNullable<SoundCueDialogState['audioCandidate']>,
+    cueId: string,
+    alignment: SoundCueAudioAlignment,
+  ) => CutProject
+  applySoundCueProjectChange?: (previousProject: CutProject, nextProject: CutProject) => CutProject
   setCameraClipboard: Dispatch<SetStateAction<CameraCueClipboard | null>>
   setCameraDialog: Dispatch<SetStateAction<CameraCueDialogState | null>>
   setCameraInstructionHistory: Dispatch<SetStateAction<string[]>>
@@ -71,7 +77,8 @@ export function createAppTimedRangeControllers(options: AppTimedRangeControllers
       setDialog: options.setSoundDialog,
       setLabelHistory: options.setSoundLabelHistory,
       dialog: options.soundDialog,
-      onAudioCandidateLinked: options.onAudioCandidateLinked,
+      applyAudioCandidateLink: options.applyAudioCandidateLink,
+      applySoundCueProjectChange: options.applySoundCueProjectChange,
     })
   const cameraCueController = createCameraCueController({
       ...shared,

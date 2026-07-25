@@ -347,6 +347,7 @@ export function migrateProject(input: Partial<CutProject> & { annotations?: Anno
   const project: CutProject = {
     ...base,
     ...input,
+    extensions: parseProjectExtensions(input.extensions),
     sheetFormData: normalizeSheetFormData(input.sheetFormData),
     logicalSheet: {
       ...base.logicalSheet,
@@ -496,6 +497,7 @@ function applyStackGuideLabelPlacements(labels: StackGuideLabel[], placements: S
 function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMetadata> = {}): CutProject {
   return {
     ...baseProject,
+    extensions: undefined,
     cut: {
       ...baseProject.cut,
       ...withoutUndefined({
@@ -541,6 +543,7 @@ export function cutSheetFromProject(project: CutProject, cutId: string, order: n
   return {
     cutId,
     order,
+    extensions: project.extensions,
     metadata: cutSheetMetadataFromProject(project),
     activeRevisionId: revisionId,
     revisions: [sheetRevisionFromProject(project, revisionId, 0)],
@@ -593,6 +596,7 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
   const revision = activeRevisionForCut(cut)
   const base = migrateProject({
     projectId: document.projectId,
+    extensions: cut.extensions,
     cut: cutMetadataWithProduction(cut.metadata, revision.metadata, document.production),
     sheetFormData: {
       production: normalizeSheetFormFieldValues(document.production.sheetFields),
@@ -646,6 +650,7 @@ function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSh
   return {
     cutId: input.cutId,
     order: typeof input.order === 'number' && Number.isFinite(input.order) ? Math.max(0, Math.round(input.order)) : fallbackOrder,
+    extensions: parseProjectExtensions(input.extensions),
     metadata,
     activeRevisionId,
     revisions: orderedRevisions,
@@ -753,6 +758,7 @@ function updateCutActiveRevisionFromProject(cut: CutSheetDocument, project: CutP
   const nextRevision = sheetRevisionFromProject(project, active.revisionId, active.order, active)
   return {
     ...cut,
+    extensions: project.extensions,
     metadata: cutSheetMetadataFromProject(project),
     revisions: cut.revisions.map(revision => revision.revisionId === active.revisionId ? nextRevision : revision),
   }

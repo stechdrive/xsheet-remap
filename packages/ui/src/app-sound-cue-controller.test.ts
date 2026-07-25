@@ -6,7 +6,8 @@ describe('sound cue controller audio integration', () => {
   it('creates a SOUND cue from an audio candidate and reports the revision link', () => {
     const source = createDefaultProject()
     let current = source
-    const onAudioCandidateLinked = vi.fn()
+    const applyAudioCandidateLink = vi.fn(project => project)
+    const commitProject = vi.fn(project => { current = project })
     const controller = createSoundCueController({
       project: source,
       getProject: () => current,
@@ -16,7 +17,7 @@ describe('sound cue controller audio integration', () => {
       clipboard: null,
       frameMin: 1,
       frameMax: 144,
-      commitProject: project => { current = project },
+      commitProject,
       commitTimingDraft: () => current,
       cancelTimingDraft: vi.fn(),
       clearSelection: vi.fn(),
@@ -34,17 +35,19 @@ describe('sound cue controller audio integration', () => {
         frameEnd: 24,
         audioCandidate: { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       },
-      onAudioCandidateLinked,
+      applyAudioCandidateLink,
     })
     controller.submitDialog({ laneId: 'sound_lane_1', frameStart: 12, frameEnd: 24, label: '', text: 'SE' })
     expect(current.timedRangeCues).toEqual([
       expect.objectContaining({ role: 'sound', frameStart: 12, frameEnd: 24, label: '', text: 'SE' }),
     ])
-    expect(onAudioCandidateLinked).toHaveBeenCalledWith(
+    expect(applyAudioCandidateLink).toHaveBeenCalledWith(
+      expect.objectContaining({ timedRangeCues: [expect.objectContaining({ frameStart: 12, frameEnd: 24 })] }),
       { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       current.timedRangeCues[0].cueId,
       'keep-offset',
     )
+    expect(commitProject).toHaveBeenCalledTimes(1)
   })
 
   it('links to an existing cue and can align the cue to the audio region without creating another cue', () => {
@@ -57,7 +60,8 @@ describe('sound cue controller audio integration', () => {
       text: '',
     })
     let current = created.project
-    const onAudioCandidateLinked = vi.fn()
+    const applyAudioCandidateLink = vi.fn(project => project)
+    const commitProject = vi.fn(project => { current = project })
     const controller = createSoundCueController({
       project: current,
       getProject: () => current,
@@ -67,7 +71,7 @@ describe('sound cue controller audio integration', () => {
       clipboard: null,
       frameMin: 1,
       frameMax: 144,
-      commitProject: project => { current = project },
+      commitProject,
       commitTimingDraft: () => current,
       cancelTimingDraft: vi.fn(),
       clearSelection: vi.fn(),
@@ -85,7 +89,7 @@ describe('sound cue controller audio integration', () => {
         frameEnd: 24,
         audioCandidate: { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       },
-      onAudioCandidateLinked,
+      applyAudioCandidateLink,
     })
     controller.submitDialog({
       laneId: 'sound_lane_1',
@@ -98,10 +102,12 @@ describe('sound cue controller audio integration', () => {
     })
     expect(current.timedRangeCues).toHaveLength(1)
     expect(current.timedRangeCues[0]).toMatchObject({ cueId: created.cue.cueId, frameStart: 12, frameEnd: 24 })
-    expect(onAudioCandidateLinked).toHaveBeenCalledWith(
+    expect(applyAudioCandidateLink).toHaveBeenCalledWith(
+      expect.objectContaining({ timedRangeCues: [expect.objectContaining({ frameStart: 12, frameEnd: 24 })] }),
       { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       created.cue.cueId,
       'move-cue-to-audio',
     )
+    expect(commitProject).toHaveBeenCalledTimes(1)
   })
 })

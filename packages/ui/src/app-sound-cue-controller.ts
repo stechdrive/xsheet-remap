@@ -39,7 +39,13 @@ interface SoundCueControllerOptions {
   setDialog: Dispatch<SetStateAction<SoundCueDialogState | null>>
   setLabelHistory: Dispatch<SetStateAction<string[]>>
   dialog: SoundCueDialogState | null
-  onAudioCandidateLinked?: (candidate: NonNullable<SoundCueDialogState['audioCandidate']>, cueId: string, alignment: SoundCueAudioAlignment) => void
+  applyAudioCandidateLink?: (
+    project: CutProject,
+    candidate: NonNullable<SoundCueDialogState['audioCandidate']>,
+    cueId: string,
+    alignment: SoundCueAudioAlignment,
+  ) => CutProject
+  applySoundCueProjectChange?: (previousProject: CutProject, nextProject: CutProject) => CutProject
 }
 
 export function createSoundCueController(options: SoundCueControllerOptions) {
@@ -86,18 +92,19 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
       const cue = sourceProject.timedRangeCues.find(item => item.cueId === input.existingCueId && item.role === 'sound')
       if (!cue) return
       const alignment = input.alignment ?? 'keep-offset'
-      const next = alignment === 'move-cue-to-audio'
+      let next = alignment === 'move-cue-to-audio'
         ? updateTimedRangeCue(sourceProject, cue.cueId, {
             laneId: cue.laneId,
             frameStart: input.frameStart,
             frameEnd: input.frameEnd,
           })
         : sourceProject
+      next = options.applyAudioCandidateLink?.(next, options.dialog.audioCandidate, cue.cueId, alignment) ?? next
       if (next !== sourceProject) options.commitProject(next)
       options.setSheetSelection({ kind: 'cue', cueId: cue.cueId })
-      options.onAudioCandidateLinked?.(options.dialog.audioCandidate, cue.cueId, alignment)
     } else if (input.cueId) {
-      const next = updateTimedRangeCue(sourceProject, input.cueId, input)
+      const updated = updateTimedRangeCue(sourceProject, input.cueId, input)
+      const next = options.applySoundCueProjectChange?.(sourceProject, updated) ?? updated
       if (next !== sourceProject) options.commitProject(next)
       options.setSheetSelection({ kind: 'cue', cueId: input.cueId })
     } else {
@@ -109,9 +116,11 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
         label: input.label,
         text: input.text,
       })
-      options.commitProject(created.project)
+      const next = options.dialog?.audioCandidate
+        ? options.applyAudioCandidateLink?.(created.project, options.dialog.audioCandidate, created.cue.cueId, 'keep-offset') ?? created.project
+        : created.project
+      options.commitProject(next)
       options.setSheetSelection({ kind: 'cue', cueId: created.cue.cueId })
-      if (options.dialog?.audioCandidate) options.onAudioCandidateLinked?.(options.dialog.audioCandidate, created.cue.cueId, 'keep-offset')
     }
     options.setLabelHistory(current => recordSoundLabelHistory(current, input.label))
     options.setDialog(null)
@@ -119,7 +128,8 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
 
   function transform(cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) {
     const sourceProject = options.getProject()
-    const next = updateTimedRangeCue(sourceProject, cueId, updates)
+    const updated = updateTimedRangeCue(sourceProject, cueId, updates)
+    const next = options.applySoundCueProjectChange?.(sourceProject, updated) ?? updated
     if (next !== sourceProject) options.commitProject(next)
     options.setSheetSelection({ kind: 'cue', cueId })
   }
@@ -139,7 +149,8 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
     if (!clipboard) return
     options.setClipboard(clipboard)
     if (mode !== 'cut') return
-    const next = cutSoundCuesToClipboard(options.project, clipboard)
+    const updated = cutSoundCuesToClipboard(options.project, clipboard)
+    const next = options.applySoundCueProjectChange?.(options.project, updated) ?? updated
     if (next !== options.project) options.commitProject(next)
     if (selectedCue) options.clearSelection()
     else if (options.rangeSelection) options.selectRange(options.rangeSelection, next)
@@ -151,26 +162,29 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
     const frameStart = selectedCue?.frameStart ?? options.rangeSelection?.frameStart
     if (!laneId || frameStart === undefined) return
     const result = pasteSoundCueClipboard(options.project, options.clipboard, { laneId, frameStart }, mode)
-    if (result.project !== options.project) options.commitProject(result.project)
+    const next = options.applySoundCueProjectChange?.(options.project, result.project) ?? result.project
+    if (next !== options.project) options.commitProject(next)
     const cueId = result.cueIds[0]
     if (cueId) options.setSheetSelection({ kind: 'cue', cueId })
   }
 
   function deleteSelection(): boolean {
     if (options.selectedCueId) {
-      const next = deleteTimedRangeCue(options.project, options.selectedCueId)
+      const updated = deleteTimedRangeCue(options.project, options.selectedCueId)
+      const next = options.applySoundCueProjectChange?.(options.project, updated) ?? updated
       if (next !== options.project) options.commitProject(next)
       options.clearSelection()
       return true
     }
     const laneId = soundLaneIdForRange(options.template, options.rangeSelection)
     if (options.rangeSelection?.role !== 'sound' || !laneId) return false
-    const next = deleteSoundCuesInRange(
+    const updated = deleteSoundCuesInRange(
       options.project,
       laneId,
       options.rangeSelection.frameStart,
       options.rangeSelection.frameEnd,
     )
+    const next = options.applySoundCueProjectChange?.(options.project, updated) ?? updated
     if (next !== options.project) options.commitProject(next)
     options.selectRange(options.rangeSelection, next)
     return true

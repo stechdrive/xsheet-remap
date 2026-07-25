@@ -68,9 +68,13 @@ export function buildProjectArchiveManifest(
     requiredFeatures.push('embedded-blobs')
   }
 
-  for (const [namespace, extension] of Object.entries(document.extensions ?? {})) {
+  const extensions = [
+    ...Object.entries(document.extensions ?? {}),
+    ...document.cuts.flatMap(cut => Object.entries(cut.extensions ?? {})),
+  ]
+  for (const [namespace, extension] of extensions) {
     const featureId = extensionFeatureId(namespace)
-    features[featureId] = extension.schemaVersion
+    features[featureId] = Math.max(features[featureId] ?? 0, extension.schemaVersion)
     if (extension.required) requiredFeatures.push(featureId)
   }
 

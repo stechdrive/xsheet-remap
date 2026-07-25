@@ -21,7 +21,7 @@ import { CameraCueDialog } from './CameraCueDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
 import { SHEET_OCR_AVAILABLE } from './runtimeFeatures'
 import { DialogueAudioTimeline } from './DialogueAudioTimeline'
-import { dialogueAudioCutStateFromDocument } from './dialogueAudioProject'
+import { dialogueAudioCutStateFromProject } from './dialogueAudioProject'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -45,7 +45,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, handleTransformSoundCues, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
+    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
@@ -74,12 +74,11 @@ export function AppShellView({ controller }: { controller: AppController }) {
     const pageIndex = sheetPages.findIndex(page => frame >= page.frameStart && frame <= page.frameEnd)
     if (pageIndex >= 0 && pageIndex !== clampedActivePageIndex) setActivePageIndex(pageIndex)
   }
-  const dialogueAudioCutState = useMemo(() => dialogueAudioCutStateFromDocument(
-    projectDocumentSnapshot,
-    projectDocumentSnapshot.activeCutId,
+  const dialogueAudioCutState = useMemo(() => dialogueAudioCutStateFromProject(
+    project,
     project.logicalSheet.frameOrigin,
     project.logicalSheet.durationFrames,
-  ), [project.logicalSheet.durationFrames, project.logicalSheet.frameOrigin, projectDocumentSnapshot])
+  ), [project])
 
   const sheetRailExternalActions = panel === 'sheet' ? (
     <>
@@ -455,12 +454,15 @@ export function AppShellView({ controller }: { controller: AppController }) {
                 soundCues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
                 selectedSoundCueId={selectedSoundCueId}
                 onCutStateChange={handleDialogueAudioCutStateChange}
+                canUndo={history.past.length > 0}
+                canRedo={history.future.length > 0}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
                 onCutDurationChange={durationFrames => runProjectCommand(sourceProject => updateLogicalSheetSettings(sourceProject, { durationFrames }))}
                 onPlayheadChange={handleAudioPlayheadChange}
                 onSoundCueSelect={handleSoundCueSelect}
                 onSoundCueEdit={openSoundCueEditor}
                 onSoundCueTransform={handleTransformSoundCue}
-                onSoundCuesTransform={handleTransformSoundCues}
                 onSoundCandidateEdit={openSoundCueEditorForAudioCandidate}
                 onAutoCreateDialogueRegions={handleAutoCreateDialogueRegions}
               />

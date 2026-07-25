@@ -20,6 +20,20 @@ describe('project archive contract', () => {
     expect(buildProjectArchiveManifest(source).features['extension:studio.example.review']).toBe(2)
   })
 
+  it('preserves cut-scoped extensions and exposes them in the archive feature manifest', () => {
+    const source = createDefaultProjectDocument()
+    source.cuts[0].extensions = {
+      'studio.example.cut-audio': {
+        schemaVersion: 3,
+        data: { tracks: [{ id: 'a1' }] },
+      },
+    }
+
+    const parsed = parseProjectDocument(source)
+    expect(parsed.cuts[0].extensions).toEqual(source.cuts[0].extensions)
+    expect(buildProjectArchiveManifest(parsed).features['extension:studio.example.cut-audio']).toBe(3)
+  })
+
   it('rejects malformed extension namespaces', () => {
     const source = createDefaultProjectDocument()
     source.extensions = {

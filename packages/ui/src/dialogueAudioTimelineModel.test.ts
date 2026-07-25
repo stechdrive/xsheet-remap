@@ -127,9 +127,6 @@ describe('dialogue audio timeline view model', () => {
       regionRefs: [{ trackId: 'dialogue-1', regionId: 'missing' }],
       headPaddingFrames: 0,
       tailPaddingFrames: 0,
-      cueFrameStart: 1,
-      cueFrameEnd: 144,
-      provisional: false,
       status: 'orphaned',
     }]
     expect(ensureDialogueAudioTimelineDuration(state, 1, 1).timelineDurationFrames).toBe(1)

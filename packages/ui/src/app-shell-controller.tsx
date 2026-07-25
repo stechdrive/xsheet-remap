@@ -138,12 +138,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const dialogueAudioActions = createAppDialogueAudioActions({
     projectRef, template, revisionId: activeSheetRevision.revisionId,
     frameMin: sheetDisplayFrameStart, frameMax: sheetDisplayFrameEnd,
-    setProjectDocument, setSoundCueDialog, commitProject,
+    setSoundCueDialog, commitProject, replaceProject,
   })
   const {
     handleCutStateChange: handleDialogueAudioCutStateChange,
     openSoundCueEditorForAudioCandidate, autoCreateDialogueRegions: handleAutoCreateDialogueRegions,
-    handleTransformSoundCues,
+    applyCandidateLink: applyDialogueAudioCandidateLink,
+    applySoundCueProjectChange,
   } = dialogueAudioActions
   const {
     selectedTimedRangeCue, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue,
@@ -158,7 +159,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     clearSelection: clearSelectionState, selectRange: setSelectionFromRange,
     setSelectedTextAnnotationId, setSelectedKeyId, setSheetSelection,
     setSoundClipboard: setSoundCueClipboard, setSoundDialog: setSoundCueDialog, setSoundLabelHistory,
-    soundDialog: soundCueDialog, onAudioCandidateLinked: dialogueAudioActions.handleCandidateLinked,
+    soundDialog: soundCueDialog,
+    applyAudioCandidateLink: applyDialogueAudioCandidateLink,
+    applySoundCueProjectChange,
     setCameraClipboard: setCameraCueClipboard, setCameraDialog: setCameraCueDialog,
     setCameraInstructionHistory, setCameraPointLabelHistory,
   })
@@ -323,6 +326,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (selectionIsOutsideProjectDisplay(nextProject)) clearSelectionState()
     return true
   }
+
+  function replaceProject(nextProject: CutProject) { projectRef.current = nextProject; setHistory(current => current.present === nextProject ? current : { ...current, present: nextProject }) }
 
   async function handleNativeFileDrop(paths: string[], position: { x: number; y: number }) {
     const clientPoints = clientPointCandidatesFromNativeDropPosition(position)
@@ -2270,7 +2275,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, handleTransformSoundCues, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
+    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,

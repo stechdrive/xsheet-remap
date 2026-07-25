@@ -5,8 +5,8 @@ import {
   assignDialogueRegionsToCue,
   createDialogueRegionFromCandidates,
   linkDialogueAudioCandidates,
-  synchronizeDialogueBindingsAfterAudioEdit,
-  synchronizeDialogueBindingsFromCues,
+  synchronizeDialogueAssignmentsAfterAudioEdit,
+  synchronizeDialogueAssignmentsFromCues,
 } from './dialogueAudioBinding'
 import { createDefaultDialogueAudioCutState } from './dialogueAudioProject'
 
@@ -84,18 +84,18 @@ describe('dialogue region and sound assignments', () => {
     const state = linkedState()
     const movedTrack = moveDialogueAudioClip(state.tracks[0], 'clip-1', 9)
     const moved = { ...state, tracks: state.tracks.map(track => track.trackId === movedTrack.trackId ? movedTrack : track) }
-    expect(synchronizeDialogueBindingsAfterAudioEdit(moved, [cue()], 'revision-1').cueUpdates)
+    expect(synchronizeDialogueAssignmentsAfterAudioEdit(moved, [cue()], 'revision-1').cueUpdates)
       .toEqual([{ cueId: 'cue-1', frameStart: 18, frameEnd: 46 }])
   })
 
   it('treats a cue-side stretch as assignment padding without moving audio', () => {
     const state = linkedState()
-    const stretched = synchronizeDialogueBindingsFromCues(state, [cue(10, 40)], 'revision-1')
+    const stretched = synchronizeDialogueAssignmentsFromCues(state, [cue(10, 40)], 'revision-1')
     expect(stretched.tracks[0].clips[0].timelineStartFrame).toBe(1)
-    expect(stretched.assignments[0]).toMatchObject({ tailPaddingFrames: 5, cueFrameEnd: 40 })
+    expect(stretched.assignments[0]).toMatchObject({ tailPaddingFrames: 5 })
     const movedTrack = moveDialogueAudioClip(stretched.tracks[0], 'clip-1', 9)
     const moved = { ...stretched, tracks: stretched.tracks.map(track => track.trackId === movedTrack.trackId ? movedTrack : track) }
-    expect(synchronizeDialogueBindingsAfterAudioEdit(moved, [cue(10, 40)], 'revision-1').cueUpdates)
+    expect(synchronizeDialogueAssignmentsAfterAudioEdit(moved, [cue(10, 40)], 'revision-1').cueUpdates)
       .toEqual([{ cueId: 'cue-1', frameStart: 18, frameEnd: 48 }])
   })
 
@@ -116,7 +116,7 @@ describe('dialogue region and sound assignments', () => {
     const editedTrack = insertDialogueAudioSilence(state.tracks[0], 22, 3)
     expect(new Set(editedTrack.clips.map(clip => clip.placementId))).toEqual(new Set(['placement-1']))
     const edited = { ...state, tracks: state.tracks.map(track => track.trackId === editedTrack.trackId ? editedTrack : track) }
-    expect(synchronizeDialogueBindingsAfterAudioEdit(edited, [cue()], 'revision-1').cueUpdates)
+    expect(synchronizeDialogueAssignmentsAfterAudioEdit(edited, [cue()], 'revision-1').cueUpdates)
       .toEqual([{ cueId: 'cue-1', frameStart: 10, frameEnd: 41 }])
   })
 
@@ -124,7 +124,7 @@ describe('dialogue region and sound assignments', () => {
     const state = linkedState()
     const editedTrack = rippleDeleteDialogueAudioRange(state.tracks[0], { frameStart: 1, frameEnd: 48 })
     const edited = { ...state, tracks: state.tracks.map(track => track.trackId === editedTrack.trackId ? editedTrack : track) }
-    const synchronized = synchronizeDialogueBindingsAfterAudioEdit(edited, [cue()], 'revision-1')
+    const synchronized = synchronizeDialogueAssignmentsAfterAudioEdit(edited, [cue()], 'revision-1')
     expect(synchronized.cueUpdates).toEqual([])
     expect(synchronized.state.assignments[0]).toMatchObject({ status: 'orphaned' })
     expect(synchronized.state.tracks[0].dialogueRegions[0]).toMatchObject({ status: 'orphaned' })
@@ -132,7 +132,7 @@ describe('dialogue region and sound assignments', () => {
 
   it('leaves ordinary audio-less cues unassigned', () => {
     const state = createDefaultDialogueAudioCutState(1)
-    const synchronized = synchronizeDialogueBindingsFromCues(state, [cue()], 'revision-1')
+    const synchronized = synchronizeDialogueAssignmentsFromCues(state, [cue()], 'revision-1')
     expect(synchronized).toBe(state)
     expect(synchronized.assignments).toEqual([])
   })

@@ -4,6 +4,7 @@ import type {
   DialogueAudioTrackState,
   DialogueSpeechCandidate,
   DialogueSpeechRange,
+  DialogueSpeechSource,
 } from './dialogueAudioProject'
 
 export function moveDialogueRegionAudioToFrame(
@@ -75,8 +76,15 @@ export interface DialogueAudioRange {
 
 export interface DialogueAudioClipboard {
   spanFrames: number
-  clips: Array<Omit<DialogueAudioClip, 'clipId' | 'placementId' | 'timelineStartFrame'> & { offsetFrames: number }>
-  candidates: Array<Pick<DialogueSpeechCandidate, 'frameStart' | 'frameEnd'> & { offsetStart: number; offsetEnd: number }>
+  clips: Array<Omit<DialogueAudioClip, 'clipId' | 'placementId' | 'timelineStartFrame'> & {
+    offsetFrames: number
+    placementKey: string
+  }>
+  candidates: Array<Pick<DialogueSpeechCandidate, 'frameStart' | 'frameEnd'> & {
+    offsetStart: number
+    offsetEnd: number
+    source?: Omit<DialogueSpeechSource, 'placementId'> & { placementKey: string }
+  }>
 }
 
 export function normalizeDialogueAudioRange(frameStart: number, frameEnd: number): DialogueAudioRange {
@@ -94,19 +102,26 @@ export function moveDialogueAudioClip(
   const source = track.clips.find(clip => clip.clipId === clipId)
   if (!source) return track
   const timelineStartFrame = Math.round(timelineStartFrameInput)
-  const delta = timelineStartFrame - source.timelineStartFrame
-  if (delta === 0) return track
-  const sourceEnd = source.timelineStartFrame + source.durationFrames - 1
+  return moveDialogueAudioClips(track, [clipId], timelineStartFrame - source.timelineStartFrame)
+}
+
+export function moveDialogueAudioClips(
+  track: DialogueAudioTrackState,
+  clipIdsInput: string[],
+  deltaFramesInput: number,
+): DialogueAudioTrackState {
+  const selectedIds = new Set(clipIdsInput)
+  const selectedClips = track.clips.filter(clip => selectedIds.has(clip.clipId))
+  const deltaFrames = Math.round(deltaFramesInput)
+  if (selectedClips.length === 0 || deltaFrames === 0) return track
   return {
     ...track,
-    clips: orderedClips(track.clips.map(clip => clip.clipId === clipId ? { ...clip, timelineStartFrame } : clip)),
-    speechCandidates: track.speechCandidates.map(candidate => {
-      if (candidate.frameStart >= source.timelineStartFrame && candidate.frameEnd <= sourceEnd) {
-        return { ...candidate, frameStart: candidate.frameStart + delta, frameEnd: candidate.frameEnd + delta }
-      }
-      if (!rangesOverlap(candidate, { frameStart: source.timelineStartFrame, frameEnd: sourceEnd })) return candidate
-      return { ...candidate, status: 'review', reviewReason: '複数クリップにまたがるVAD区間の音声が移動されました。' }
-    }),
+    clips: orderedClips(track.clips.map(clip => selectedIds.has(clip.clipId)
+      ? { ...clip, timelineStartFrame: clip.timelineStartFrame + deltaFrames }
+      : clip)),
+    speechCandidates: track.speechCandidates
+      .map(candidate => moveCandidateWithSelectedClips(candidate, track.clips, selectedIds, deltaFrames))
+      .sort(compareCandidates),
   }
 }
 
@@ -173,24 +188,13 @@ export function insertDialogueAudioSilence(track: DialogueAudioTrackState, atFra
   }
 }
 
-export function replaceDialogueAudioRangeWithClip(
+export function addDialogueAudioClip(
   track: DialogueAudioTrackState,
-  range: DialogueAudioRange,
   clip: DialogueAudioClip,
-  detectedRanges: DialogueSpeechRange[],
 ): DialogueAudioTrackState {
-  const silenced = silenceDialogueAudioRange(track, range)
-  const unaffected = silenced.speechCandidates.filter(candidate => !rangesOverlap(candidate, range))
-  const affectedProcessed = silenced.speechCandidates.filter(candidate => rangesOverlap(candidate, range))
-  const nextCandidates = reconcileDialogueSpeechCandidates(
-    affectedProcessed,
-    detectedRanges,
-    track.trackId,
-  )
   return {
-    ...silenced,
-    clips: orderedClips([...silenced.clips, clip]),
-    speechCandidates: [...unaffected, ...nextCandidates].sort(compareCandidates),
+    ...track,
+    clips: orderedClips([...track.clips, clip]),
   }
 }
 
@@ -205,14 +209,53 @@ export function copyDialogueAudioRange(track: DialogueAudioTrackState, rangeInpu
         sourceOffsetFrames: sliced.sourceOffsetFrames,
         durationFrames: sliced.durationFrames,
         offsetFrames: sliced.timelineStartFrame - range.frameStart,
+        placementKey: sliced.placementId,
       }] : []
     }),
     candidates: track.speechCandidates.flatMap(candidate => {
       if (!rangesOverlap(candidate, range)) return []
       const frameStart = Math.max(candidate.frameStart, range.frameStart)
       const frameEnd = Math.min(candidate.frameEnd, range.frameEnd)
-      return [{ frameStart, frameEnd, offsetStart: frameStart - range.frameStart, offsetEnd: frameEnd - range.frameStart }]
+      return [{
+        frameStart,
+        frameEnd,
+        offsetStart: frameStart - range.frameStart,
+        offsetEnd: frameEnd - range.frameStart,
+        source: clipboardSourceForCandidate(candidate, frameStart, frameEnd),
+      }]
     }),
+  }
+}
+
+export function copyDialogueAudioClips(track: DialogueAudioTrackState, clipIdsInput: string[]): DialogueAudioClipboard | null {
+  const selectedIds = new Set(clipIdsInput)
+  const clips = track.clips.filter(clip => selectedIds.has(clip.clipId))
+  if (clips.length === 0) return null
+  const frameStart = Math.min(...clips.map(clip => clip.timelineStartFrame))
+  const frameEnd = Math.max(...clips.map(clip => clip.timelineStartFrame + clip.durationFrames - 1))
+  const candidates = track.speechCandidates.filter(candidate =>
+    candidateBelongsExclusivelyToSelectedClips(candidate, track.clips, selectedIds))
+  return {
+    spanFrames: frameEnd - frameStart + 1,
+    clips: clips.map(clip => ({
+      assetId: clip.assetId,
+      sourceOffsetFrames: clip.sourceOffsetFrames,
+      durationFrames: clip.durationFrames,
+      offsetFrames: clip.timelineStartFrame - frameStart,
+      placementKey: clip.placementId,
+    })),
+    candidates: candidates.map(candidate => ({
+      frameStart: candidate.frameStart,
+      frameEnd: candidate.frameEnd,
+      offsetStart: candidate.frameStart - frameStart,
+      offsetEnd: candidate.frameEnd - frameStart,
+      source: candidate.source ? {
+        placementKey: candidate.source.placementId,
+        assetId: candidate.source.assetId,
+        sourceFrameStart: candidate.source.sourceFrameStart,
+        sourceFrameEnd: candidate.source.sourceFrameEnd,
+      } : undefined,
+    })),
   }
 }
 
@@ -227,12 +270,20 @@ export function pasteDialogueAudioClipboard(
     ? insertDialogueAudioSilence(track, atFrame, clipboard.spanFrames)
     : silenceDialogueAudioRange(track, { frameStart: atFrame, frameEnd: atFrame + clipboard.spanFrames - 1 })
   const usedClipIds = new Set(prepared.clips.map(item => item.clipId))
+  const usedPlacementIds = new Set(prepared.clips.map(item => item.placementId))
+  const pastedPlacementIds = new Map<string, string>()
   const clips = clipboard.clips.map(clip => {
     const clipId = nextUniqueId(`${track.trackId}-clip-paste`, usedClipIds)
     usedClipIds.add(clipId)
+    let placementId = pastedPlacementIds.get(clip.placementKey)
+    if (!placementId) {
+      placementId = nextUniqueId(`${track.trackId}-placement-paste`, usedPlacementIds)
+      usedPlacementIds.add(placementId)
+      pastedPlacementIds.set(clip.placementKey, placementId)
+    }
     return {
       clipId,
-      placementId: clipId,
+      placementId,
       assetId: clip.assetId,
       timelineStartFrame: atFrame + clip.offsetFrames,
       sourceOffsetFrames: clip.sourceOffsetFrames,
@@ -248,6 +299,12 @@ export function pasteDialogueAudioClipboard(
       frameStart: atFrame + candidate.offsetStart,
       frameEnd: atFrame + candidate.offsetEnd,
       status: 'pending' as const,
+      source: candidate.source && pastedPlacementIds.has(candidate.source.placementKey) ? {
+        placementId: pastedPlacementIds.get(candidate.source.placementKey)!,
+        assetId: candidate.source.assetId,
+        sourceFrameStart: candidate.source.sourceFrameStart,
+        sourceFrameEnd: candidate.source.sourceFrameEnd,
+      } : undefined,
     }
   })
   return {
@@ -257,15 +314,63 @@ export function pasteDialogueAudioClipboard(
   }
 }
 
+export function removeDialogueAudioClips(
+  track: DialogueAudioTrackState,
+  clipIdsInput: string[],
+): DialogueAudioTrackState {
+  const removedIds = new Set(clipIdsInput)
+  if (!track.clips.some(clip => removedIds.has(clip.clipId))) return track
+  const remainingClips = track.clips.filter(clip => !removedIds.has(clip.clipId))
+  return {
+    ...track,
+    clips: remainingClips,
+    speechCandidates: track.speechCandidates.flatMap(candidate => {
+      const removedCoverage = candidateCoverage(candidate, track.clips.filter(clip => removedIds.has(clip.clipId)))
+      if (!removedCoverage) return [candidate]
+      const remainingCoverage = candidateCoverage(candidate, remainingClips)
+      if (remainingCoverage) {
+        return [{
+          ...candidate,
+          status: 'review' as const,
+          reviewReason: 'VAD区間に対応する音声クリップの一部が削除されました。',
+        }]
+      }
+      if (candidate.status === 'linked' || candidate.status === 'review') {
+        return [{
+          ...candidate,
+          status: 'review' as const,
+          reviewReason: 'リンク済みVAD区間の音声クリップが削除されました。',
+        }]
+      }
+      return []
+    }),
+  }
+}
+
+export interface DialogueSpeechDetectionSource {
+  placementId: string
+  assetId: string
+  timelineStartFrame: number
+  sourceOffsetFrames: number
+  sourceFrameStart: number
+  sourceFrameEnd: number
+}
+
 export function reconcileDialogueSpeechCandidates(
   existing: DialogueSpeechCandidate[],
   detectedRanges: DialogueSpeechRange[],
   trackId: string,
+  detectionSource?: DialogueSpeechDetectionSource,
 ): DialogueSpeechCandidate[] {
-  const processed = existing.filter(candidate => candidate.status !== 'pending')
+  const processed = existing.filter(candidate =>
+    candidate.status !== 'pending'
+    && (!detectionSource || candidateIsInDetectionScope(candidate, detectionSource)))
+  const retained = detectionSource
+    ? existing.filter(candidate => !candidateIsInDetectionScope(candidate, detectionSource))
+    : []
   const usedProcessed = new Set<string>()
   const usedIds = new Set(existing.map(candidate => candidate.candidateId))
-  const result: DialogueSpeechCandidate[] = []
+  const result: DialogueSpeechCandidate[] = [...retained]
   for (const detected of detectedRanges.map(range => normalizeDialogueAudioRange(range.frameStart, range.frameEnd))) {
     const match = processed
       .filter(candidate => !usedProcessed.has(candidate.candidateId))
@@ -273,12 +378,21 @@ export function reconcileDialogueSpeechCandidates(
       .sort((left, right) => right.score - left.score)[0]
     if (match && match.score >= 0.25) {
       usedProcessed.add(match.candidate.candidateId)
-      result.push({ ...match.candidate, ...detected })
+      result.push({
+        ...match.candidate,
+        ...detected,
+        source: detectionSource ? sourceForDetectedRange(detected, detectionSource) : match.candidate.source,
+      })
       continue
     }
     const candidateId = nextUniqueId(`${trackId}-candidate`, usedIds)
     usedIds.add(candidateId)
-    result.push({ candidateId, ...detected, status: 'pending' })
+    result.push({
+      candidateId,
+      ...detected,
+      status: 'pending',
+      source: detectionSource ? sourceForDetectedRange(detected, detectionSource) : undefined,
+    })
   }
   for (const candidate of processed) {
     if (usedProcessed.has(candidate.candidateId)) continue
@@ -293,6 +407,28 @@ export function reconcileDialogueSpeechCandidates(
     })
   }
   return result.sort(compareCandidates)
+}
+
+function candidateIsInDetectionScope(
+  candidate: DialogueSpeechCandidate,
+  source: DialogueSpeechDetectionSource,
+): boolean {
+  return candidate.source?.placementId === source.placementId
+    && candidate.source.assetId === source.assetId
+    && candidate.source.sourceFrameStart <= source.sourceFrameEnd
+    && candidate.source.sourceFrameEnd >= source.sourceFrameStart
+}
+
+function sourceForDetectedRange(
+  detected: DialogueAudioRange,
+  source: DialogueSpeechDetectionSource,
+): DialogueSpeechSource {
+  return {
+    placementId: source.placementId,
+    assetId: source.assetId,
+    sourceFrameStart: source.sourceOffsetFrames + detected.frameStart - source.timelineStartFrame,
+    sourceFrameEnd: source.sourceOffsetFrames + detected.frameEnd - source.timelineStartFrame,
+  }
 }
 
 export function ignoreDialogueSpeechCandidate(track: DialogueAudioTrackState, candidateId: string): DialogueAudioTrackState {
@@ -383,6 +519,90 @@ function transformCandidateAfterDelete(
     frameStart: hasLeft ? candidate.frameStart : range.frameStart,
     frameEnd: hasRight ? candidate.frameEnd - frameCount : range.frameStart - 1,
   }]
+}
+
+function moveCandidateWithSelectedClips(
+  candidate: DialogueSpeechCandidate,
+  clips: DialogueAudioClip[],
+  selectedIds: Set<string>,
+  deltaFrames: number,
+): DialogueSpeechCandidate {
+  const selectedClips = clips.filter(clip => selectedIds.has(clip.clipId))
+  const unselectedClips = clips.filter(clip => !selectedIds.has(clip.clipId))
+  const selectedCoverage = candidateCoverage(candidate, selectedClips)
+  if (!selectedCoverage) return candidate
+  const unselectedCoverage = candidateCoverage(candidate, unselectedClips)
+  if (!unselectedCoverage && candidateBelongsExclusivelyToSelectedClips(candidate, clips, selectedIds)) {
+    return {
+      ...candidate,
+      frameStart: candidate.frameStart + deltaFrames,
+      frameEnd: candidate.frameEnd + deltaFrames,
+    }
+  }
+  return {
+    ...candidate,
+    status: 'review',
+    reviewReason: 'VAD区間が移動対象と未選択の音声クリップにまたがっています。',
+  }
+}
+
+function candidateBelongsExclusivelyToSelectedClips(
+  candidate: DialogueSpeechCandidate,
+  clips: DialogueAudioClip[],
+  selectedIds: Set<string>,
+): boolean {
+  const relevant = clips.filter(clip => candidateCoverage(candidate, [clip]))
+  if (relevant.length === 0 || relevant.some(clip => !selectedIds.has(clip.clipId))) return false
+  if (candidate.source) return sourceRangeCovered(candidate.source, relevant)
+  return relevant.some(clip =>
+    candidate.frameStart >= clip.timelineStartFrame
+    && candidate.frameEnd <= clip.timelineStartFrame + clip.durationFrames - 1)
+}
+
+function candidateCoverage(candidate: DialogueSpeechCandidate, clips: DialogueAudioClip[]): boolean {
+  if (candidate.source) {
+    return clips.some(clip =>
+      clip.placementId === candidate.source!.placementId
+      && clip.assetId === candidate.source!.assetId
+      && clip.sourceOffsetFrames <= candidate.source!.sourceFrameEnd
+      && clip.sourceOffsetFrames + clip.durationFrames - 1 >= candidate.source!.sourceFrameStart)
+  }
+  return clips.some(clip => rangesOverlap(candidate, {
+    frameStart: clip.timelineStartFrame,
+    frameEnd: clip.timelineStartFrame + clip.durationFrames - 1,
+  }))
+}
+
+function sourceRangeCovered(source: DialogueSpeechSource, clips: DialogueAudioClip[]): boolean {
+  const ranges = clips
+    .filter(clip => clip.placementId === source.placementId && clip.assetId === source.assetId)
+    .map(clip => ({
+      frameStart: Math.max(source.sourceFrameStart, clip.sourceOffsetFrames),
+      frameEnd: Math.min(source.sourceFrameEnd, clip.sourceOffsetFrames + clip.durationFrames - 1),
+    }))
+    .filter(range => range.frameEnd >= range.frameStart)
+    .sort((left, right) => left.frameStart - right.frameStart)
+  if (ranges.length === 0 || ranges[0].frameStart > source.sourceFrameStart) return false
+  let coveredEnd = ranges[0].frameEnd
+  for (const range of ranges.slice(1)) {
+    if (range.frameStart > coveredEnd + 1) return false
+    coveredEnd = Math.max(coveredEnd, range.frameEnd)
+  }
+  return coveredEnd >= source.sourceFrameEnd
+}
+
+function clipboardSourceForCandidate(
+  candidate: DialogueSpeechCandidate,
+  frameStart: number,
+  frameEnd: number,
+): DialogueAudioClipboard['candidates'][number]['source'] {
+  if (!candidate.source) return undefined
+  return {
+    placementKey: candidate.source.placementId,
+    assetId: candidate.source.assetId,
+    sourceFrameStart: candidate.source.sourceFrameStart + frameStart - candidate.frameStart,
+    sourceFrameEnd: candidate.source.sourceFrameEnd - (candidate.frameEnd - frameEnd),
+  }
 }
 
 function rangesOverlap(left: DialogueAudioRange, right: DialogueAudioRange): boolean {

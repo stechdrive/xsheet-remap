@@ -13,7 +13,7 @@ describe('dialogueAudioContextCommands', () => {
       { kind: 'track', trackId: 'dialogue-1' },
       { kind: 'empty', trackId: 'dialogue-1', frame: 12 },
       { kind: 'range', trackId: 'dialogue-1', frameStart: 12, frameEnd: 24 },
-      { kind: 'clip', trackId: 'dialogue-1', clipId: 'clip-1', frameStart: 12, frameEnd: 24 },
+      { kind: 'clip', trackId: 'dialogue-1', clipIds: ['clip-1'], frameStart: 12, frameEnd: 24 },
       { kind: 'candidate', trackId: 'dialogue-1', candidateIds: ['vad-1'], ignored: false },
       { kind: 'region', trackId: 'dialogue-1', regionId: 'region-1', linked: true },
       { kind: 'cue', cueId: 'cue-1', trackId: 'dialogue-1', linked: true },
@@ -48,6 +48,16 @@ describe('dialogueAudioContextCommands', () => {
     }, available)).toEqual(['assign-sound', 'ignore-candidate'])
   })
 
+  it('uses ID-based clip commands instead of destructive time-range commands', () => {
+    expect(dialogueAudioContextCommands({
+      kind: 'clip',
+      trackId: 'dialogue-1',
+      clipIds: ['clip-1', 'clip-2'],
+      frameStart: 10,
+      frameEnd: 30,
+    }, available)).toEqual(['copy', 'cut', 'delete-clips', 'redetect-clips'])
+  })
+
   it('shows link maintenance only for linked regions and cues', () => {
     expect(dialogueAudioContextCommands({
       kind: 'region',
@@ -80,7 +90,7 @@ describe('resolveDialogueAudioContextTarget', () => {
     { kind: 'empty' as const, trackId: 'dialogue-1', frame: 20 },
     { kind: 'candidate' as const, trackId: 'dialogue-1', candidateIds: ['vad-1'], ignored: false },
     { kind: 'region' as const, trackId: 'dialogue-1', regionId: 'region-1', linked: true },
-    { kind: 'clip' as const, trackId: 'dialogue-1', clipId: 'clip-1', frameStart: 1, frameEnd: 40 },
+    { kind: 'clip' as const, trackId: 'dialogue-1', clipIds: ['clip-1'], frameStart: 1, frameEnd: 40 },
   ])('keeps a manual range active over an overlapping $kind hit', hitTarget => {
     expect(resolveDialogueAudioContextTarget(hitTarget, manualRange, 20)).toEqual({
       kind: 'range',
@@ -105,6 +115,7 @@ describe('resolveDialogueAudioContextTarget', () => {
     expect(resolveDialogueAudioContextTarget(candidate, {
       kind: 'candidate',
       trackId: 'dialogue-1',
+      candidateIds: ['vad-1'],
       frameStart: 10,
       frameEnd: 30,
     }, 20)).toBe(candidate)
@@ -115,5 +126,22 @@ describe('resolveDialogueAudioContextTarget', () => {
     const track = { kind: 'track' as const, trackId: 'dialogue-1' }
     expect(resolveDialogueAudioContextTarget(cue, manualRange, 20)).toBe(cue)
     expect(resolveDialogueAudioContextTarget(track, manualRange, 20)).toBe(track)
+  })
+
+  it('keeps the complete multi-clip selection when a selected handle is right-clicked', () => {
+    const selection = {
+      kind: 'clip' as const,
+      trackId: 'dialogue-1',
+      clipIds: ['clip-1', 'clip-2'],
+      frameStart: 10,
+      frameEnd: 42,
+    }
+    expect(resolveDialogueAudioContextTarget({
+      kind: 'clip',
+      trackId: 'dialogue-1',
+      clipIds: ['clip-2'],
+      frameStart: 30,
+      frameEnd: 42,
+    }, selection, 35)).toEqual(selection)
   })
 })

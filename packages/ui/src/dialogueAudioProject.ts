@@ -13,9 +13,18 @@ export interface DialogueSpeechRange {
   frameEnd: number
 }
 
+export interface DialogueSpeechSource {
+  placementId: string
+  assetId: string
+  sourceFrameStart: number
+  sourceFrameEnd: number
+}
+
 export interface DialogueSpeechCandidate extends DialogueSpeechRange {
   candidateId: string
   status: DialogueSpeechCandidateStatus
+  /** Stable source identity used when clips overlap or a placement is split. */
+  source?: DialogueSpeechSource
   reviewReason?: string
 }
 
@@ -226,7 +235,7 @@ function normalizeTrackState(value: unknown, fallback: DialogueAudioTrackState, 
   if (!isRecord(value)) return fallback
   const clips = Array.isArray(value.clips) ? value.clips.flatMap(item => normalizeClip(item, assetIds)) : []
   const speechCandidates = Array.isArray(value.speechCandidates)
-    ? value.speechCandidates.flatMap(normalizeCandidate)
+    ? value.speechCandidates.flatMap(item => normalizeCandidate(item, assetIds))
     : []
   const candidateIds = new Set(speechCandidates.map(candidate => candidate.candidateId))
   const dialogueRegions = Array.isArray(value.dialogueRegions)
@@ -259,7 +268,7 @@ function normalizeClip(value: unknown, assetIds: Set<string>): DialogueAudioClip
   }]
 }
 
-function normalizeCandidate(value: unknown): DialogueSpeechCandidate[] {
+function normalizeCandidate(value: unknown, assetIds: Set<string>): DialogueSpeechCandidate[] {
   if (!isRecord(value)) return []
   const candidateId = normalizedId(value.candidateId)
   const frameStart = integer(value.frameStart, Number.NaN)
@@ -273,8 +282,21 @@ function normalizeCandidate(value: unknown): DialogueSpeechCandidate[] {
     frameStart,
     frameEnd,
     status,
+    source: normalizeSpeechSource(value.source, assetIds),
     reviewReason: typeof value.reviewReason === 'string' ? value.reviewReason.slice(0, 160) : undefined,
   }]
+}
+
+function normalizeSpeechSource(value: unknown, assetIds: Set<string>): DialogueSpeechSource | undefined {
+  if (!isRecord(value)) return undefined
+  const placementId = normalizedId(value.placementId)
+  const assetId = normalizedId(value.assetId)
+  const sourceFrameStart = Math.max(0, integer(value.sourceFrameStart, Number.NaN))
+  const sourceFrameEnd = Math.max(0, integer(value.sourceFrameEnd, Number.NaN))
+  if (!placementId || !assetIds.has(assetId) || !Number.isFinite(sourceFrameStart) || !Number.isFinite(sourceFrameEnd) || sourceFrameEnd < sourceFrameStart) {
+    return undefined
+  }
+  return { placementId, assetId, sourceFrameStart, sourceFrameEnd }
 }
 
 function normalizeRegion(value: unknown, assetIds: Set<string>, availableCandidateIds: Set<string>): DialogueRegion[] {

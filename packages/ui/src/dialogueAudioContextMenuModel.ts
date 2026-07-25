@@ -2,17 +2,16 @@ export type DialogueAudioContextTarget =
   | { kind: 'track'; trackId: string }
   | { kind: 'empty'; trackId: string; frame: number }
   | { kind: 'range'; trackId: string; frameStart: number; frameEnd: number }
-  | { kind: 'clip'; trackId: string; clipId: string; frameStart: number; frameEnd: number }
+  | { kind: 'clip'; trackId: string; clipIds: string[]; frameStart: number; frameEnd: number }
   | { kind: 'candidate'; trackId: string; candidateIds: string[]; ignored: boolean }
   | { kind: 'region'; trackId: string; regionId: string; linked: boolean }
   | { kind: 'cue'; cueId: string; trackId: string; linked: boolean }
 
-export type DialogueAudioSelectionFocus = {
-  kind: 'range' | 'candidate' | 'region' | 'clip'
-  trackId: string
-  frameStart: number
-  frameEnd: number
-}
+export type DialogueAudioSelectionFocus =
+  | { kind: 'range'; trackId: string; frameStart: number; frameEnd: number }
+  | { kind: 'candidate'; trackId: string; candidateIds: string[]; frameStart: number; frameEnd: number }
+  | { kind: 'region'; trackId: string; regionId: string; candidateIds: string[]; frameStart: number; frameEnd: number }
+  | { kind: 'clip'; trackId: string; clipIds: string[]; frameStart: number; frameEnd: number }
 
 export type DialogueAudioContextCommand =
   | 'track-vad-mode'
@@ -28,8 +27,8 @@ export type DialogueAudioContextCommand =
   | 'cut'
   | 'silence'
   | 'ripple-delete'
-  | 'select-clip'
-  | 'redetect-clip'
+  | 'delete-clips'
+  | 'redetect-clips'
   | 'ignore-candidate'
   | 'restore-candidate'
   | 'edit-sound'
@@ -63,6 +62,18 @@ export function resolveDialogueAudioContextTarget(
     return {
       kind: 'range',
       trackId: selection.trackId,
+      frameStart: selection.frameStart,
+      frameEnd: selection.frameEnd,
+    }
+  }
+  if (hitTarget.kind === 'clip'
+    && selection?.kind === 'clip'
+    && selection.trackId === hitTarget.trackId
+    && hitTarget.clipIds.some(clipId => selection.clipIds.includes(clipId))) {
+    return {
+      kind: 'clip',
+      trackId: selection.trackId,
+      clipIds: selection.clipIds,
       frameStart: selection.frameStart,
       frameEnd: selection.frameEnd,
     }
@@ -105,9 +116,8 @@ export function dialogueAudioContextCommands(
       ]
     case 'clip':
       return [
-        'select-clip',
         'copy',
-        ...(!availability.busy ? ['cut', 'silence', 'ripple-delete', 'redetect-clip'] as const : []),
+        ...(!availability.busy ? ['cut', 'delete-clips', 'redetect-clips'] as const : []),
       ]
     case 'candidate':
       return target.ignored ? ['restore-candidate'] : ['assign-sound', 'ignore-candidate']

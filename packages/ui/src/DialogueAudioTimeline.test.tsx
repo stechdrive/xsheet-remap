@@ -689,6 +689,91 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.getByRole('img', { name: '最終音声位置 2+24 / 72F' })).toBeTruthy()
   })
 
+  it('multi-selects overlapping clip handles and moves the selected clips as one history edit', async () => {
+    const initial = createDefaultDialogueAudioCutState(1, 48)
+    initial.assets = [
+      { assetId: 'asset-a', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 12, waveform: [0.2], sourceName: 'a.wav' },
+      { assetId: 'asset-b', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 12, waveform: [0.3], sourceName: 'b.wav' },
+    ]
+    initial.tracks[0].clips = [
+      { clipId: 'clip-a', placementId: 'placement-a', assetId: 'asset-a', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 12 },
+      { clipId: 'clip-b', placementId: 'placement-b', assetId: 'asset-b', timelineStartFrame: 5, sourceOffsetFrames: 0, durationFrames: 12 },
+    ]
+    const onCutStateChange = vi.fn()
+    function MultiDragHarness() {
+      const [state, setState] = useState(initial)
+      const [previous, setPrevious] = useState<typeof initial | null>(null)
+      return <DialogueAudioTimeline
+        cutState={state}
+        fps={24}
+        frameOrigin={1}
+        cutDurationFrames={48}
+        activeRevisionId="revision-1"
+        soundCues={[]}
+        selectedSoundCueId={null}
+        onCutStateChange={change => {
+          onCutStateChange(change)
+          if (change.recordHistory !== false) setPrevious(state)
+          setState(change.cutState)
+        }}
+        canUndo={Boolean(previous)}
+        onUndo={() => {
+          if (previous) {
+            setState(previous)
+            setPrevious(null)
+          }
+        }}
+        onPlayheadChange={vi.fn()}
+        onSoundCueSelect={vi.fn()}
+        onSoundCueEdit={vi.fn()}
+        onSoundCueTransform={vi.fn()}
+        onSoundCandidateEdit={vi.fn()}
+        onAutoCreateDialogueRegions={current => current}
+      />
+    }
+
+    render(<MultiDragHarness />)
+    openAudioTimeline()
+    const clipA = screen.getByRole('button', { name: '音声クリップ a.wav' })
+    const clipB = screen.getByRole('button', { name: '音声クリップ b.wav' })
+    for (const clip of [clipA, clipB]) {
+      Object.defineProperties(clip, {
+        setPointerCapture: { configurable: true, value: vi.fn() },
+        hasPointerCapture: { configurable: true, value: vi.fn(() => true) },
+        releasePointerCapture: { configurable: true, value: vi.fn() },
+      })
+    }
+
+    fireEvent.pointerDown(clipA, { button: 0, pointerId: 11, clientX: 0 })
+    fireEvent.pointerUp(clipA, { pointerId: 11, clientX: 0 })
+    fireEvent.pointerDown(clipB, { button: 0, pointerId: 12, clientX: 0, ctrlKey: true })
+    fireEvent.pointerUp(clipB, { pointerId: 12, clientX: 0 })
+
+    expect(clipA.classList.contains('isSelected')).toBe(true)
+    expect(clipB.classList.contains('isSelected')).toBe(true)
+    expect(clipA.style.top).toBe('1px')
+    expect(clipB.style.top).toBe('14px')
+    expect(screen.getByText(/2クリップ/)).toBeTruthy()
+
+    onCutStateChange.mockClear()
+    fireEvent.pointerDown(clipA, { button: 0, pointerId: 13, clientX: 0 })
+    fireEvent.pointerMove(clipA, { pointerId: 13, clientX: 150 })
+    fireEvent.pointerUp(clipA, { pointerId: 13, clientX: 150 })
+
+    await waitFor(() => {
+      const change = onCutStateChange.mock.calls.at(-1)?.[0]
+      expect(change?.cutState.tracks[0].clips.map((clip: { timelineStartFrame: number }) => clip.timelineStartFrame)).toEqual([11, 15])
+    })
+    expect(onCutStateChange).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: '元に戻す' }))
+    await waitFor(() => {
+      expect(clipA.style.left).toBe('0%')
+      expect(clipB.style.left).toBe(`${4 / 48 * 100}%`)
+      expect(clipA.classList.contains('isSelected')).toBe(true)
+      expect(clipB.classList.contains('isSelected')).toBe(true)
+    })
+  })
+
   it('drags the playhead from the ruler and moves it one frame with focused arrow keys', () => {
     const onPlayheadChange = vi.fn()
     render(<DialogueAudioTimeline
@@ -741,6 +826,21 @@ describe('DialogueAudioTimeline', () => {
       const [state, setState] = useState(() => {
         const initial = createDefaultDialogueAudioCutState(1)
         initial.tracks[0].vadMode = 'off'
+        initial.assets = [{
+          assetId: 'existing-asset',
+          audioDataUrl: 'data:audio/wav;base64,UklGRg==',
+          durationFrames: 24,
+          waveform: [0.1, 0.2],
+          sourceName: 'existing.wav',
+        }]
+        initial.tracks[0].clips = [{
+          clipId: 'existing-clip',
+          placementId: 'existing-placement',
+          assetId: 'existing-asset',
+          timelineStartFrame: 1,
+          sourceOffsetFrames: 0,
+          durationFrames: 24,
+        }]
         return initial
       })
       return <DialogueAudioTimeline
@@ -768,11 +868,11 @@ describe('DialogueAudioTimeline', () => {
     await screen.findByRole('button', { name: '■ 録音終了' })
     fireEvent.click(screen.getByRole('button', { name: '■ 録音終了' }))
 
-    await waitFor(() => {
-      const waveform = document.querySelector('.dialogueWaveform path')
-      expect(waveform?.getAttribute('d')?.length).toBeGreaterThan(20)
-    })
-    expect(screen.getByRole('button', { name: '音声クリップ マイク録音' })).toBeTruthy()
+    await waitFor(() => expect(screen.getByRole('button', { name: '音声クリップ マイク録音' })).toBeTruthy())
+    const waveforms = [...document.querySelectorAll('.dialogueWaveform path')]
+    expect(waveforms.some(waveform => (waveform.getAttribute('d')?.length ?? 0) > 20)).toBe(true)
+    expect(screen.getByRole('button', { name: '音声クリップ existing.wav' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /音声クリップ/ })).toHaveLength(2)
     expect(screen.getByRole('img', { name: 'タイムシート終端 0+12 / 12F' })).toBeTruthy()
     expect(screen.getByRole('img', { name: '最終音声位置 0+24 / 24F' })).toBeTruthy()
     expect(onCutDurationChange).not.toHaveBeenCalled()

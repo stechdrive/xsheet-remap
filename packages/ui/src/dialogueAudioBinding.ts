@@ -384,6 +384,24 @@ function regionForRef(
 function anchorsForCandidates(clips: DialogueAudioClip[], candidates: DialogueSpeechCandidate[]): DialogueRegionAudioAnchor[] {
   const raw: DialogueRegionAudioAnchor[] = []
   for (const candidate of candidates) {
+    if (candidate.source) {
+      for (const clip of clips) {
+        if (clip.placementId !== candidate.source.placementId || clip.assetId !== candidate.source.assetId) continue
+        const clipSourceEnd = clip.sourceOffsetFrames + clip.durationFrames - 1
+        const sourceFrameStart = Math.max(candidate.source.sourceFrameStart, clip.sourceOffsetFrames)
+        const sourceFrameEnd = Math.min(candidate.source.sourceFrameEnd, clipSourceEnd)
+        if (sourceFrameEnd < sourceFrameStart) continue
+        raw.push({
+          anchorId: `${candidate.candidateId}-${clip.clipId}`,
+          placementId: clip.placementId,
+          assetId: clip.assetId,
+          sourceFrameStart,
+          sourceFrameEnd,
+          candidateIds: [candidate.candidateId],
+        })
+      }
+      continue
+    }
     for (const clip of clips) {
       const clipEnd = clip.timelineStartFrame + clip.durationFrames - 1
       const frameStart = Math.max(candidate.frameStart, clip.timelineStartFrame)

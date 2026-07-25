@@ -52,6 +52,34 @@ describe('dialogue region and sound assignments', () => {
     expect(state.tracks[0].dialogueRegions[0].anchors.flatMap(anchor => anchor.candidateIds).sort()).toEqual(['vad-1', 'vad-2'])
   })
 
+  it('anchors a detected range to its source placement instead of every overlapping clip', () => {
+    const state = sourceState()
+    state.assets.push({ assetId: 'asset-2', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 48, waveform: [] })
+    state.tracks[0].clips.push({
+      clipId: 'clip-2', placementId: 'placement-2', assetId: 'asset-2', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 48,
+    })
+    state.tracks[0].speechCandidates = [{
+      candidateId: 'vad-1',
+      frameStart: 12,
+      frameEnd: 20,
+      status: 'pending',
+      source: {
+        placementId: 'placement-1',
+        assetId: 'asset-1',
+        sourceFrameStart: 11,
+        sourceFrameEnd: 19,
+      },
+    }]
+    const linked = linkDialogueAudioCandidates(state, 'dialogue-1', ['vad-1'], cue(10, 22), 'revision-1')
+    expect(linked.tracks[0].dialogueRegions[0].anchors).toEqual([
+      expect.objectContaining({ placementId: 'placement-1', assetId: 'asset-1' }),
+    ])
+
+    const movedOtherTrack = moveDialogueAudioClip(linked.tracks[0], 'clip-2', 20)
+    const movedOther = { ...linked, tracks: linked.tracks.map(track => track.trackId === movedOtherTrack.trackId ? movedOtherTrack : track) }
+    expect(synchronizeDialogueAssignmentsAfterAudioEdit(movedOther, [cue(10, 22)], 'revision-1').cueUpdates).toEqual([])
+  })
+
   it('lets one cue aggregate regions from different fixed audio tracks', () => {
     let state = sourceState()
     state.tracks[1].clips = [{

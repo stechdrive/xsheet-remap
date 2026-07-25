@@ -10,6 +10,7 @@ import type {
 } from './appTypes'
 import { createCameraCueController } from './app-camera-cue-controller'
 import { createSoundCueController } from './app-sound-cue-controller'
+import type { SoundCueAudioAlignment } from './SoundCueDialog'
 
 interface AppTimedRangeControllersOptions {
   project: CutProject
@@ -33,7 +34,7 @@ interface AppTimedRangeControllersOptions {
   setSoundDialog: Dispatch<SetStateAction<SoundCueDialogState | null>>
   setSoundLabelHistory: Dispatch<SetStateAction<string[]>>
   soundDialog: SoundCueDialogState | null
-  onAudioCandidateLinked?: (candidate: NonNullable<SoundCueDialogState['audioCandidate']>, cueId: string) => void
+  onAudioCandidateLinked?: (candidate: NonNullable<SoundCueDialogState['audioCandidate']>, cueId: string, alignment: SoundCueAudioAlignment) => void
   setCameraClipboard: Dispatch<SetStateAction<CameraCueClipboard | null>>
   setCameraDialog: Dispatch<SetStateAction<CameraCueDialogState | null>>
   setCameraInstructionHistory: Dispatch<SetStateAction<string[]>>

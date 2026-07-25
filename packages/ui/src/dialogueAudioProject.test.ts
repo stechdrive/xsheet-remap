@@ -16,8 +16,9 @@ describe('dialogue audio project extension', () => {
     expect(state.tracks.map(track => track.trackId)).toEqual(['dialogue-1', 'dialogue-2', 'dialogue-3'])
     expect(state.tracks.every(track => track.clips.length === 0)).toBe(true)
     expect(state.assets).toEqual([])
-    expect(state.bindings).toEqual([])
-    expect(state.timelineDurationFrames).toBe(144)
+    expect(state.assignments).toEqual([])
+    expect(state.tracks.every(track => track.dialogueRegions.length === 0)).toBe(true)
+    expect(state.timelineDurationFrames).toBe(1)
     expect(state.tracks.every(track => track.vadMode === 'candidates')).toBe(true)
     expect(state).toMatchObject({ detectionPreset: 'quiet', detectionStability: 0.4, detectionSensitivity: 0.5 })
   })
@@ -68,8 +69,8 @@ describe('dialogue audio project extension', () => {
       clips: [{ timelineStartFrame: 3, durationFrames: 48 }],
       speechCandidates: [{ candidateId: 'candidate-1', cueLinks: [{ cueId: 'cue-1', revisionId: 'revision-1' }] }],
     })
-    expect(dialogueAudioCutStateFromDocument(updated, document.activeCutId, 1).bindings[0]).toMatchObject({
-      cueId: 'cue-1', trackId: 'dialogue-1', status: 'linked',
+    expect(dialogueAudioCutStateFromDocument(updated, document.activeCutId, 1).assignments[0]).toMatchObject({
+      cueId: 'cue-1', regionRefs: [{ trackId: 'dialogue-1', regionId: linked.tracks[0].dialogueRegions[0].regionId }], status: 'linked',
     })
   })
 
@@ -134,7 +135,63 @@ describe('dialogue audio project extension', () => {
       ...legacyDocument,
       extensions: { [DIALOGUE_AUDIO_EXTENSION]: { schemaVersion: 3, data: { cuts: { [document.activeCutId]: v2State } } } },
     }
-    expect(dialogueAudioCutStateFromDocument(v3Document, document.activeCutId, 1)).toMatchObject({ bindings: [] })
+    expect(dialogueAudioCutStateFromDocument(v3Document, document.activeCutId, 1)).toMatchObject({ assignments: [] })
+  })
+
+  it('migrates schema 6 cue bindings into region-level assignments without losing source anchors', () => {
+    const project = createDefaultProject()
+    const document = createProjectDocumentFromCutProject(project, { sheetTemplate: standardA3SheetTemplate })
+    const legacyState = createDefaultDialogueAudioCutState(1) as unknown as Record<string, unknown>
+    const tracks = legacyState.tracks as Array<Record<string, unknown>>
+    legacyState.assets = [{ assetId: 'asset-1', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 48, waveform: [] }]
+    tracks[0].clips = [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 48 }]
+    tracks[0].speechCandidates = [{ candidateId: 'vad-1', frameStart: 12, frameEnd: 20, status: 'linked', cueId: 'cue-1', revisionId: 'revision-1' }]
+    tracks.forEach(track => { delete track.dialogueRegions })
+    delete legacyState.assignments
+    legacyState.bindings = [{
+      bindingId: 'binding-1',
+      cueId: 'cue-1',
+      revisionId: 'revision-1',
+      trackId: 'dialogue-1',
+      anchors: [{
+        anchorId: 'anchor-1',
+        placementId: 'placement-1',
+        assetId: 'asset-1',
+        sourceFrameStart: 11,
+        sourceFrameEnd: 19,
+        candidateIds: ['vad-1'],
+      }],
+      headPaddingFrames: 2,
+      tailPaddingFrames: 3,
+      cueFrameStart: 10,
+      cueFrameEnd: 23,
+      provisional: false,
+      status: 'linked',
+    }]
+    const legacyDocument = {
+      ...document,
+      extensions: {
+        [DIALOGUE_AUDIO_EXTENSION]: {
+          schemaVersion: 6,
+          data: { cuts: { [document.activeCutId]: legacyState } },
+        },
+      },
+    }
+
+    const migrated = dialogueAudioCutStateFromDocument(legacyDocument, document.activeCutId, 1)
+    expect(migrated.tracks[0].dialogueRegions[0]).toMatchObject({
+      frameStart: 12,
+      frameEnd: 20,
+      candidateIds: ['vad-1'],
+      anchors: [expect.objectContaining({ placementId: 'placement-1', sourceFrameStart: 11, sourceFrameEnd: 19 })],
+    })
+    expect(migrated.assignments[0]).toMatchObject({
+      assignmentId: 'binding-1',
+      cueId: 'cue-1',
+      regionRefs: [{ trackId: 'dialogue-1', regionId: 'binding-1-region' }],
+      headPaddingFrames: 2,
+      tailPaddingFrames: 3,
+    })
   })
 
   it('drops the retired solo flag from previously saved tracks', () => {

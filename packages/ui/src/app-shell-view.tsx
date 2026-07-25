@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { clearAnnotations, clearAnnotationsForPage, sheetTemplatePresets, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
+import { clearAnnotations, clearAnnotationsForPage, sheetTemplatePresets, timelineLanesForLayout, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
@@ -45,7 +45,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, handleTransformSoundCues, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueSoundCues,
+    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, handleTransformSoundCues, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
@@ -462,7 +462,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
                 onSoundCueTransform={handleTransformSoundCue}
                 onSoundCuesTransform={handleTransformSoundCues}
                 onSoundCandidateEdit={openSoundCueEditorForAudioCandidate}
-                onAutoCreateSoundCues={handleAutoCreateDialogueSoundCues}
+                onAutoCreateDialogueRegions={handleAutoCreateDialogueRegions}
               />
             )}
           </div>
@@ -533,6 +533,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             frameMin={project.logicalSheet.frameOrigin}
             frameMax={project.logicalSheet.frameOrigin + project.logicalSheet.durationFrames - 1}
             labelHistory={soundLabelHistory}
+            soundLanes={timelineLanesForLayout(project).sound ?? []}
+            soundCues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
             onSubmit={submitSoundCueDialog}
             onCancel={() => setSoundCueDialog(null)}
           />

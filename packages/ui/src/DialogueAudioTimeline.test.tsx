@@ -32,7 +32,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={state => state}
+      onAutoCreateDialogueRegions={state => state}
     />)
     expect(screen.getByRole('region', { name: 'セリフ音声タイムライン' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '音声タイムラインを開く' })).toBeTruthy()
@@ -51,7 +51,10 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.queryByText('範囲未選択')).toBeNull()
     expect(screen.queryByText(/紙 144F/)).toBeNull()
     expect(screen.queryByText(/音声尺 144F/)).toBeNull()
-    expect(screen.getByRole('img', { name: 'タイムシートと音声タイムラインの終端 5+24 / 144F' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'タイムシート終端 5+24 / 144F' })).toBeTruthy()
+    expect(screen.queryByRole('img', { name: /最終音声位置/ })).toBeNull()
+    expect(document.querySelector('.dialogueAudioCueLane')).toBeNull()
+    expect(screen.queryByText('A')).toBeNull()
   })
 
   it('shrinks from its top edge and leaves the track body scrollable', () => {
@@ -70,7 +73,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={state => state}
+      onAutoCreateDialogueRegions={state => state}
     />)
     openAudioTimeline()
     const timeline = screen.getByRole('region', { name: 'セリフ音声タイムライン' })
@@ -82,6 +85,7 @@ describe('DialogueAudioTimeline', () => {
 
     expect(timeline.style.height).toBe('180px')
     expect(document.querySelector('.dialogueAudioScroller')).toBeTruthy()
+    expect(document.querySelector('.dialogueAudioCueLane')).toBeNull()
   })
 
   it('moves the audio playhead when a linked sheet SOUND is selected', async () => {
@@ -111,7 +115,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform: vi.fn(),
       onSoundCuesTransform: vi.fn(),
       onSoundCandidateEdit: vi.fn(),
-      onAutoCreateSoundCues: (current: typeof state) => current,
+      onAutoCreateDialogueRegions: (current: typeof state) => current,
     }
     const view = render(<DialogueAudioTimeline {...commonProps} cutState={state} selectedSoundCueId={null} />)
 
@@ -124,6 +128,7 @@ describe('DialogueAudioTimeline', () => {
 
   it('uses the shared application tooltip foundation without native title attributes', async () => {
     const state = createDefaultDialogueAudioCutState(1, 96)
+    state.timelineDurationFrames = 96
     state.assets = [{
       assetId: 'asset-1',
       audioDataUrl: 'data:audio/wav;base64,UklGRg==',
@@ -156,7 +161,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={current => current}
+      onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
 
@@ -166,7 +171,8 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.queryByText('カット外')).toBeNull()
     const cutBoundary = screen.getByRole('img', { name: 'タイムシート終端 1+24 / 48F' })
     expect(cutBoundary).toBeTruthy()
-    expect(screen.getByRole('img', { name: '音声タイムライン終端 3+24 / 96F' })).toBeTruthy()
+    const audioBoundary = screen.getByRole('img', { name: '最終音声位置 0+24 / 24F' })
+    expect(audioBoundary.parentElement?.getAttribute('style')).toContain('25%')
     fireEvent.pointerEnter(cutBoundary)
     expect((await screen.findByRole('tooltip')).textContent).toBe('タイムシート終端 1+24 / 48F')
     fireEvent.pointerLeave(cutBoundary)
@@ -195,7 +201,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={state => state}
+      onAutoCreateDialogueRegions={state => state}
     />)
     openAudioTimeline()
     fireEvent.click(screen.getByLabelText('音声トラック2を録音対象にする'))
@@ -219,7 +225,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={current => current}
+      onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
 
@@ -243,7 +249,7 @@ describe('DialogueAudioTimeline', () => {
     expect([...vadMode.options].map(option => option.textContent)).toEqual([
       '検出しない',
       '発話区間を検出',
-      '仮SOUNDを自動作成',
+      'セリフ区間を自動作成',
     ])
   })
 
@@ -266,7 +272,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={onSoundCandidateEdit}
-      onAutoCreateSoundCues={state => state}
+      onAutoCreateDialogueRegions={state => state}
     />)
     openAudioTimeline()
     fireEvent.doubleClick(screen.getByLabelText('発話候補 12–24F VAD'))
@@ -307,7 +313,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={onSoundCuesTransform}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={state => state}
+      onAutoCreateDialogueRegions={state => state}
     />)
     openAudioTimeline()
     fireEvent.click(screen.getByRole('button', { name: '+1F' }))
@@ -330,7 +336,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={state => state}
+      onAutoCreateDialogueRegions={state => state}
     />)
     openAudioTimeline()
     expect(screen.getAllByText('0+1 / 1F').length).toBeGreaterThan(0)
@@ -341,13 +347,14 @@ describe('DialogueAudioTimeline', () => {
     ])
   })
 
-  it('renders linked labels over their audio track and keeps audio-less SOUND in the unlinked lane', () => {
+  it('renders linked labels over their audio track without reserving a lane for audio-less SOUND', () => {
     let state = createDefaultDialogueAudioCutState(1)
     state.assets = [{ assetId: 'asset-1', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 24, waveform: [] }]
     state.tracks[0].clips = [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }]
     state.tracks[0].speechCandidates = [{ candidateId: 'vad-1', frameStart: 3, frameEnd: 8, status: 'pending' }]
     state = linkDialogueAudioCandidates(state, 'dialogue-1', ['vad-1'], { cueId: 'cue-1', frameStart: 2, frameEnd: 10 }, 'revision-1')
     const onSoundCueEdit = vi.fn()
+    const onSoundCandidateEdit = vi.fn()
     render(<DialogueAudioTimeline
       cutState={state}
       fps={24}
@@ -365,12 +372,17 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueEdit={onSoundCueEdit}
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
-      onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={current => current}
+      onSoundCandidateEdit={onSoundCandidateEdit}
+      onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
     expect(document.querySelector('.dialogueAudioTrackCueLayer .dialogueAudioCue.isTrackLayer')?.textContent).toContain('主人公')
-    expect(document.querySelector('.dialogueAudioCueLane .dialogueAudioCue.isUnlinked')?.textContent).toContain('音声なし')
+    expect(document.querySelector('.dialogueAudioCueLane')).toBeNull()
+    expect(screen.queryByText('音声なし')).toBeNull()
+    const region = screen.getByLabelText('セリフ区間 3–8F 主人公へ割付済み')
+    expect(region.classList.contains('dialogueAudioRegion')).toBe(true)
+    fireEvent.doubleClick(region)
+    expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['vad-1'], 3, 8, 'cue-1')
     fireEvent.doubleClick(screen.getByRole('button', { name: '主人公' }))
     expect(onSoundCueEdit).toHaveBeenCalledWith('cue-1')
   })
@@ -397,13 +409,105 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={onSoundCandidateEdit}
-      onAutoCreateSoundCues={current => current}
+      onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
     fireEvent.pointerDown(screen.getByLabelText('発話候補 12–20F VAD'))
     fireEvent.pointerDown(screen.getByLabelText('発話候補 24–35F VAD'), { ctrlKey: true })
-    fireEvent.click(screen.getByRole('button', { name: '選択区間をタイムシートへSOUND反映' }))
+    fireEvent.click(screen.getByRole('button', { name: '音響指示へ割付…' }))
     expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['vad-1', 'vad-2'], 12, 35)
+  })
+
+  it('keeps a wide VAD hit target while preserving the exact detected range visual', () => {
+    const state = createDefaultDialogueAudioCutState(1, 2400)
+    state.tracks[0].speechCandidates = [{ candidateId: 'one-frame', frameStart: 1200, frameEnd: 1200, status: 'pending' }]
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      cutDurationFrames={2400}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCuesTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    const candidate = screen.getByLabelText('発話候補 1200–1200F VAD')
+    expect(candidate.style.width).toBe('16px')
+    expect(candidate.querySelector('.dialogueSpeechCandidateVisual')).toBeTruthy()
+    expect(candidate.getAttribute('style')).toContain('--candidate-visual-width: 1px')
+  })
+
+  it('extends the editable workspace when a clip is dragged past its previous end', async () => {
+    const initial = createDefaultDialogueAudioCutState(1, 48)
+    initial.assets = [{
+      assetId: 'asset-1',
+      audioDataUrl: 'data:audio/wav;base64,UklGRg==',
+      durationFrames: 12,
+      waveform: [0.2, 0.4],
+      sourceName: 'drag.wav',
+    }]
+    initial.tracks[0].clips = [{
+      clipId: 'clip-1',
+      placementId: 'clip-1',
+      assetId: 'asset-1',
+      timelineStartFrame: 1,
+      sourceOffsetFrames: 0,
+      durationFrames: 12,
+    }]
+    const onCutStateChange = vi.fn()
+
+    function DragHarness() {
+      const [state, setState] = useState(initial)
+      return <DialogueAudioTimeline
+        cutState={state}
+        fps={24}
+        frameOrigin={1}
+        cutDurationFrames={48}
+        activeRevisionId="revision-1"
+        soundCues={[]}
+        selectedSoundCueId={null}
+        onCutStateChange={next => {
+          onCutStateChange(next)
+          setState(next)
+        }}
+        onPlayheadChange={vi.fn()}
+        onSoundCueSelect={vi.fn()}
+        onSoundCueEdit={vi.fn()}
+        onSoundCueTransform={vi.fn()}
+        onSoundCuesTransform={vi.fn()}
+        onSoundCandidateEdit={vi.fn()}
+        onAutoCreateDialogueRegions={current => current}
+      />
+    }
+
+    render(<DragHarness />)
+    openAudioTimeline()
+    const clip = screen.getByRole('button', { name: '音声クリップ drag.wav' })
+    Object.defineProperties(clip, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+    })
+
+    fireEvent.pointerDown(clip, { button: 0, pointerId: 9, clientX: 0 })
+    fireEvent.pointerMove(clip, { pointerId: 9, clientX: 900 })
+    fireEvent.pointerUp(clip, { pointerId: 9, clientX: 900 })
+
+    await waitFor(() => {
+      const next = onCutStateChange.mock.calls.at(-1)?.[0]
+      expect(next?.tracks[0].clips[0].timelineStartFrame).toBe(61)
+      expect(next?.timelineDurationFrames).toBe(72)
+    })
+    expect(screen.getByRole('img', { name: '最終音声位置 2+24 / 72F' })).toBeTruthy()
   })
 
   it('drags the playhead from the ruler and moves it one frame with focused arrow keys', () => {
@@ -423,7 +527,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={current => current}
+      onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
     const timeline = screen.getByRole('group', { name: '音声トラック編集領域' })
@@ -477,7 +581,7 @@ describe('DialogueAudioTimeline', () => {
         onSoundCueTransform={vi.fn()}
         onSoundCuesTransform={vi.fn()}
         onSoundCandidateEdit={vi.fn()}
-        onAutoCreateSoundCues={current => current}
+        onAutoCreateDialogueRegions={current => current}
       />
     }
 
@@ -493,7 +597,7 @@ describe('DialogueAudioTimeline', () => {
     })
     expect(screen.getByRole('button', { name: '音声クリップ マイク録音' })).toBeTruthy()
     expect(screen.getByRole('img', { name: 'タイムシート終端 0+12 / 12F' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: '音声タイムライン終端 0+24 / 24F' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: '最終音声位置 0+24 / 24F' })).toBeTruthy()
     expect(onCutDurationChange).not.toHaveBeenCalled()
     expect(mediaTrack.stop).toHaveBeenCalled()
   })
@@ -514,7 +618,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={current => current}
+      onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
     const track = document.querySelector('.dialogueAudioTrack') as HTMLDivElement
@@ -552,14 +656,14 @@ describe('DialogueAudioTimeline', () => {
         onSoundCueTransform={vi.fn()}
         onSoundCuesTransform={vi.fn()}
         onSoundCandidateEdit={onSoundCandidateEdit}
-        onAutoCreateSoundCues={current => current}
+        onAutoCreateDialogueRegions={current => current}
       />
     }
     render(<ExtensionHarness />)
     openAudioTimeline()
     fireEvent.doubleClick(screen.getByLabelText('発話候補 60–90F VAD'))
-    expect(screen.getByRole('alertdialog', { name: 'SOUND区間がカット尺を越えています' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'カット尺を延長して反映' }))
+    expect(screen.getByRole('alertdialog', { name: '音響指示がカット尺を越えます' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'カット尺を延長して割り付け' }))
     expect(onCutDurationChange).toHaveBeenCalledWith(90)
     await waitFor(() => expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['long-line'], 60, 90))
   })
@@ -582,7 +686,7 @@ describe('DialogueAudioTimeline', () => {
       onSoundCueTransform={vi.fn()}
       onSoundCuesTransform={vi.fn()}
       onSoundCandidateEdit={vi.fn()}
-      onAutoCreateSoundCues={current => current}
+      onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
     const timeline = screen.getByRole('group', { name: '音声トラック編集領域' })

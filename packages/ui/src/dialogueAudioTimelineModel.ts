@@ -166,10 +166,18 @@ export function requiredDialogueAudioTimelineDuration(
       frameEnd = Math.max(frameEnd, candidate.frameEnd)
     })
   })
-  state.bindings.forEach(binding => {
-    frameEnd = Math.max(frameEnd, binding.cueFrameEnd)
-  })
   return Math.max(1, frameEnd - frameOrigin + 1)
+}
+
+export function dialogueAudioContentEndFrame(state: DialogueAudioCutState): number | null {
+  let frameEnd: number | null = null
+  state.tracks.forEach(track => {
+    track.clips.forEach(clip => {
+      const clipFrameEnd = clip.timelineStartFrame + clip.durationFrames - 1
+      frameEnd = frameEnd === null ? clipFrameEnd : Math.max(frameEnd, clipFrameEnd)
+    })
+  })
+  return frameEnd
 }
 
 export function ensureDialogueAudioTimelineDuration(

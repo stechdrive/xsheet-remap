@@ -8,6 +8,7 @@ import {
   DIALOGUE_AUDIO_MIN_TRACK_HEIGHT,
   clampDialogueAudioPanelHeight,
   clampDialogueAudioTrackHeight,
+  dialogueAudioContentEndFrame,
   dialogueAudioPixelsPerFrameFromZoomSlider,
   dialogueAudioZoomSliderValue,
   effectiveDialogueAudioPixelsPerFrame,
@@ -90,5 +91,47 @@ describe('dialogue audio timeline view model', () => {
     }]
 
     expect(ensureDialogueAudioTimelineDuration(state, 1, 48).timelineDurationFrames).toBe(199)
+  })
+
+  it('derives the audio content end only from placed clips', () => {
+    const state = createDefaultDialogueAudioCutState(1, 144)
+    expect(dialogueAudioContentEndFrame(state)).toBeNull()
+
+    state.tracks[0].speechCandidates = [{ candidateId: 'candidate', frameStart: 120, frameEnd: 150, status: 'pending' }]
+    state.tracks[0].clips = [{
+      clipId: 'clip-a',
+      placementId: 'clip-a',
+      assetId: 'asset-a',
+      timelineStartFrame: 10,
+      sourceOffsetFrames: 0,
+      durationFrames: 24,
+    }]
+    state.tracks[2].clips = [{
+      clipId: 'clip-b',
+      placementId: 'clip-b',
+      assetId: 'asset-b',
+      timelineStartFrame: 70,
+      sourceOffsetFrames: 0,
+      durationFrames: 12,
+    }]
+
+    expect(dialogueAudioContentEndFrame(state)).toBe(81)
+  })
+
+  it('does not extend the stored audio workspace merely because a linked timesheet cue is longer', () => {
+    const state = createDefaultDialogueAudioCutState(1, 144)
+    state.assignments = [{
+      assignmentId: 'assignment',
+      cueId: 'cue',
+      revisionId: 'revision',
+      regionRefs: [{ trackId: 'dialogue-1', regionId: 'missing' }],
+      headPaddingFrames: 0,
+      tailPaddingFrames: 0,
+      cueFrameStart: 1,
+      cueFrameEnd: 144,
+      provisional: false,
+      status: 'orphaned',
+    }]
+    expect(ensureDialogueAudioTimelineDuration(state, 1, 1).timelineDurationFrames).toBe(1)
   })
 })

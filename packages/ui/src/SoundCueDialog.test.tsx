@@ -5,6 +5,80 @@ import { SoundCueDialog } from './SoundCueDialog'
 afterEach(() => cleanup())
 
 describe('SoundCueDialog', () => {
+  it('assigns an audio region to any existing cue and exposes an explicit alignment choice', () => {
+    const onSubmit = vi.fn()
+    render(
+      <SoundCueDialog
+        state={{
+          mode: 'create',
+          laneId: 'sound_lane_1',
+          frameStart: 20,
+          frameEnd: 28,
+          audioCandidate: { trackId: 'dialogue-2', candidateIds: ['vad-1'], revisionId: 'revision-1', cueId: 'cue-2' },
+        }}
+        cue={null}
+        sectionLabel="セリフ"
+        fps={24}
+        frameMin={1}
+        frameMax={144}
+        labelHistory={[]}
+        soundLanes={[
+          { laneId: 'sound_lane_1', label: '声', order: 0 },
+          { laneId: 'sound_lane_2', label: '効果', order: 1 },
+        ]}
+        soundCues={[
+          { cueId: 'cue-2', role: 'sound', laneId: 'sound_lane_2', frameStart: 40, frameEnd: 52, label: '主人公', text: 'はい' },
+        ]}
+        onSubmit={onSubmit}
+        onCancel={() => undefined}
+      />,
+    )
+    expect((screen.getByLabelText('音響指示の割付先') as HTMLSelectElement).value).toBe('cue-2')
+    fireEvent.change(screen.getByLabelText('位置の合わせ方'), { target: { value: 'move-audio-to-cue' } })
+    fireEvent.click(screen.getByRole('button', { name: '割り付け' }))
+    expect(onSubmit).toHaveBeenCalledWith({
+      cueId: undefined,
+      laneId: 'sound_lane_1',
+      frameStart: 20,
+      frameEnd: 28,
+      label: '',
+      text: '',
+      existingCueId: 'cue-2',
+      alignment: 'move-audio-to-cue',
+    })
+  })
+
+  it('creates a new cue in a user-selected logical sound lane', () => {
+    const onSubmit = vi.fn()
+    render(
+      <SoundCueDialog
+        state={{
+          mode: 'create',
+          laneId: 'sound_lane_1',
+          frameStart: 10,
+          frameEnd: 12,
+          audioCandidate: { trackId: 'dialogue-1', candidateIds: ['vad-1'], revisionId: 'revision-1' },
+        }}
+        cue={null}
+        sectionLabel="SOUND"
+        fps={24}
+        frameMin={1}
+        frameMax={144}
+        labelHistory={[]}
+        soundLanes={[
+          { laneId: 'sound_lane_1', label: 'A', order: 0 },
+          { laneId: 'sound_lane_2', label: 'B', order: 1 },
+        ]}
+        onSubmit={onSubmit}
+        onCancel={() => undefined}
+      />,
+    )
+    fireEvent.change(screen.getByLabelText('SOUND列'), { target: { value: 'sound_lane_2' } })
+    fireEvent.change(screen.getByLabelText('SOUNDラベル'), { target: { value: 'B用' } })
+    fireEvent.click(screen.getByRole('button', { name: '作成して割り付け' }))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ laneId: 'sound_lane_2', label: 'B用' }))
+  })
+
   it('edits a single label plus dialogue and converts seconds + frames to an inclusive range', () => {
     const onSubmit = vi.fn()
     render(

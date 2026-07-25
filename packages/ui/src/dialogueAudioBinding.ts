@@ -2,8 +2,11 @@ import type { TimedRangeCue } from '@xsheet-remap/core'
 import {
   type DialogueAudioClip,
   type DialogueAudioCutState,
-  type DialogueCueAudioAnchor,
-  type DialogueCueAudioBinding,
+  type DialogueAudioTrackState,
+  type DialogueRegion,
+  type DialogueRegionAudioAnchor,
+  type DialogueRegionReference,
+  type DialogueSoundAssignment,
   type DialogueSpeechCandidate,
 } from './dialogueAudioProject'
 
@@ -11,6 +14,118 @@ export interface DialogueBindingResolution {
   frameStart: number
   frameEnd: number
   complete: boolean
+}
+
+export function createDialogueRegionFromCandidates(
+  state: DialogueAudioCutState,
+  trackId: string,
+  candidateIds: string[],
+): { state: DialogueAudioCutState; region: DialogueRegion } | null {
+  const track = state.tracks.find(item => item.trackId === trackId)
+  if (!track) return null
+  const selectedIds = new Set(candidateIds)
+  const candidates = track.speechCandidates.filter(candidate => selectedIds.has(candidate.candidateId))
+  if (candidates.length === 0) return null
+  const orderedIds = candidates.map(candidate => candidate.candidateId).sort()
+  const existing = track.dialogueRegions.find(region =>
+    region.candidateIds.length === orderedIds.length
+    && [...region.candidateIds].sort().every((candidateId, index) => candidateId === orderedIds[index]))
+  if (existing) return { state, region: existing }
+  const anchors = anchorsForCandidates(track.clips, candidates)
+  const region: DialogueRegion = {
+    regionId: nextId('dialogue-region', new Set(state.tracks.flatMap(item => item.dialogueRegions.map(itemRegion => itemRegion.regionId)))),
+    frameStart: Math.min(...candidates.map(candidate => candidate.frameStart)),
+    frameEnd: Math.max(...candidates.map(candidate => candidate.frameEnd)),
+    candidateIds: orderedIds,
+    anchors,
+    headPaddingFrames: 0,
+    tailPaddingFrames: 0,
+    status: anchors.length > 0 ? 'ready' : 'orphaned',
+    reviewReason: anchors.length > 0 ? undefined : '対応する音声クリップがありません。',
+  }
+  return {
+    region,
+    state: {
+      ...state,
+      tracks: state.tracks.map(item => item.trackId === trackId
+        ? { ...item, dialogueRegions: [...item.dialogueRegions, region].sort(compareRegions) }
+        : item),
+    },
+  }
+}
+
+export function assignDialogueRegionsToCue(
+  state: DialogueAudioCutState,
+  regionRefsInput: DialogueRegionReference[],
+  cue: Pick<TimedRangeCue, 'cueId' | 'frameStart' | 'frameEnd'>,
+  revisionId: string,
+  provisional = false,
+): DialogueAudioCutState {
+  const regionRefs = uniqueRegionRefs(regionRefsInput).filter(ref => regionForRef(state, ref))
+  if (regionRefs.length === 0) return state
+  const selectedKeys = new Set(regionRefs.map(regionRefKey))
+  const target = state.assignments.find(item => item.cueId === cue.cueId && item.revisionId === revisionId)
+  const retainedAssignments = state.assignments.flatMap(assignment => {
+    if (assignment.revisionId !== revisionId || assignment === target) return assignment === target ? [] : [assignment]
+    const retainedRefs = assignment.regionRefs.filter(ref => !selectedKeys.has(regionRefKey(ref)))
+    if (retainedRefs.length === 0) return []
+    const retainedResolution = resolveRegionRefs(state, retainedRefs)
+    return [{
+      ...assignment,
+      regionRefs: retainedRefs,
+      headPaddingFrames: retainedResolution ? retainedResolution.frameStart - assignment.cueFrameStart : assignment.headPaddingFrames,
+      tailPaddingFrames: retainedResolution ? assignment.cueFrameEnd - retainedResolution.frameEnd : assignment.tailPaddingFrames,
+      status: retainedResolution ? (retainedResolution.complete ? 'linked' as const : 'review' as const) : 'orphaned' as const,
+      reviewReason: retainedResolution ? (retainedResolution.complete ? undefined : 'リンク音声の一部が削除されています。') : 'リンク対象の音声がありません。',
+    }]
+  })
+  const targetRefs = uniqueRegionRefs([...(target?.regionRefs ?? []), ...regionRefs])
+  const resolution = resolveRegionRefs(state, targetRefs)
+  const assignment: DialogueSoundAssignment = {
+    assignmentId: target?.assignmentId
+      ?? nextId(`dialogue-assignment-${cue.cueId}`, new Set(state.assignments.map(item => item.assignmentId))),
+    cueId: cue.cueId,
+    revisionId,
+    regionRefs: targetRefs,
+    headPaddingFrames: resolution ? resolution.frameStart - cue.frameStart : 0,
+    tailPaddingFrames: resolution ? cue.frameEnd - resolution.frameEnd : 0,
+    cueFrameStart: cue.frameStart,
+    cueFrameEnd: cue.frameEnd,
+    provisional,
+    status: resolution ? (resolution.complete ? 'linked' : 'review') : 'orphaned',
+    reviewReason: resolution ? (resolution.complete ? undefined : 'リンク音声の一部が削除されています。') : 'リンク対象の音声がありません。',
+  }
+  const assignedCandidateIdsByTrack = new Map<string, Set<string>>()
+  for (const ref of targetRefs) {
+    const region = regionForRef(state, ref)
+    if (!region) continue
+    assignedCandidateIdsByTrack.set(ref.trackId, new Set([
+      ...(assignedCandidateIdsByTrack.get(ref.trackId) ?? []),
+      ...region.candidateIds,
+    ]))
+  }
+  return {
+    ...state,
+    assignments: [...retainedAssignments, assignment],
+    tracks: state.tracks.map(track => {
+      const assignedCandidateIds = assignedCandidateIdsByTrack.get(track.trackId)
+      if (!assignedCandidateIds) return track
+      return {
+        ...track,
+        speechCandidates: track.speechCandidates.map(candidate => !assignedCandidateIds.has(candidate.candidateId) ? candidate : {
+          ...candidate,
+          status: 'linked',
+          cueId: cue.cueId,
+          revisionId,
+          cueLinks: [
+            ...(candidate.cueLinks ?? []).filter(link => link.revisionId !== revisionId),
+            { cueId: cue.cueId, revisionId },
+          ],
+          reviewReason: undefined,
+        }),
+      }
+    }),
+  }
 }
 
 export function linkDialogueAudioCandidates(
@@ -21,50 +136,10 @@ export function linkDialogueAudioCandidates(
   revisionId: string,
   provisional = false,
 ): DialogueAudioCutState {
-  const track = state.tracks.find(item => item.trackId === trackId)
-  if (!track) return state
-  const selectedIds = new Set(candidateIds)
-  const candidates = track.speechCandidates.filter(candidate => selectedIds.has(candidate.candidateId))
-  if (candidates.length === 0) return state
-  const anchors = anchorsForCandidates(track.clips, candidates)
-  const envelope = anchorTimelineEnvelope(track.clips, anchors)
-  const usedBindingIds = new Set(state.bindings.map(binding => binding.bindingId))
-  const bindingId = nextBindingId(`dialogue-binding-${cue.cueId}`, usedBindingIds)
-  const binding: DialogueCueAudioBinding = {
-    bindingId,
-    cueId: cue.cueId,
-    revisionId,
-    trackId,
-    anchors,
-    headPaddingFrames: envelope ? envelope.frameStart - cue.frameStart : 0,
-    tailPaddingFrames: envelope ? cue.frameEnd - envelope.frameEnd : 0,
-    cueFrameStart: cue.frameStart,
-    cueFrameEnd: cue.frameEnd,
-    provisional,
-    status: anchors.length > 0 ? 'linked' : 'orphaned',
-    reviewReason: anchors.length > 0 ? undefined : '対応する音声クリップがありません。',
-  }
-  return {
-    ...state,
-    bindings: [
-      ...state.bindings.filter(item => !(item.cueId === cue.cueId && item.revisionId === revisionId)),
-      binding,
-    ],
-    tracks: state.tracks.map(item => item.trackId !== trackId ? item : {
-      ...item,
-      speechCandidates: item.speechCandidates.map(candidate => !selectedIds.has(candidate.candidateId) ? candidate : {
-        ...candidate,
-        status: 'linked',
-        cueId: cue.cueId,
-        revisionId,
-        cueLinks: [
-          ...(candidate.cueLinks ?? []).filter(link => link.revisionId !== revisionId),
-          { cueId: cue.cueId, revisionId },
-        ],
-        reviewReason: undefined,
-      }),
-    }),
-  }
+  const created = createDialogueRegionFromCandidates(state, trackId, candidateIds)
+  return created
+    ? assignDialogueRegionsToCue(created.state, [{ trackId, regionId: created.region.regionId }], cue, revisionId, provisional)
+    : state
 }
 
 export function migrateLegacyDialogueBindings(
@@ -78,7 +153,7 @@ export function migrateLegacyDialogueBindings(
     const candidateIdsByCue = new Map<string, string[]>()
     for (const candidate of track.speechCandidates) {
       const link = candidate.cueLinks?.find(item => item.revisionId === revisionId)
-      if (!link || next.bindings.some(binding => binding.revisionId === revisionId && binding.cueId === link.cueId)) continue
+      if (!link || assignmentForCandidate(next, candidate.candidateId, revisionId)) continue
       candidateIdsByCue.set(link.cueId, [...(candidateIdsByCue.get(link.cueId) ?? []), candidate.candidateId])
     }
     for (const [cueId, candidateIds] of candidateIdsByCue) {
@@ -96,28 +171,28 @@ export function synchronizeDialogueBindingsFromCues(
 ): DialogueAudioCutState {
   const cueById = new Map(soundCues.map(cue => [cue.cueId, cue]))
   let changed = false
-  const bindings = state.bindings.map(binding => {
-    if (binding.revisionId !== revisionId) return binding
-    const cue = cueById.get(binding.cueId)
+  const assignments = state.assignments.map(assignment => {
+    if (assignment.revisionId !== revisionId) return assignment
+    const cue = cueById.get(assignment.cueId)
     if (!cue) {
-      if (binding.status === 'review' && binding.reviewReason === 'リンク先のSOUNDが見つかりません。') return binding
+      if (assignment.status === 'review' && assignment.reviewReason === 'リンク先の音響指示が見つかりません。') return assignment
       changed = true
-      return { ...binding, status: 'review' as const, reviewReason: 'リンク先のSOUNDが見つかりません。' }
+      return { ...assignment, status: 'review' as const, reviewReason: 'リンク先の音響指示が見つかりません。' }
     }
-    const provisional = binding.provisional && cue.label.startsWith('仮・')
-    if (cue.frameStart === binding.cueFrameStart && cue.frameEnd === binding.cueFrameEnd && provisional === binding.provisional) return binding
-    const resolution = resolveDialogueBinding(state, binding)
+    const provisional = assignment.provisional && cue.label.startsWith('仮・')
+    if (cue.frameStart === assignment.cueFrameStart && cue.frameEnd === assignment.cueFrameEnd && provisional === assignment.provisional) return assignment
+    const resolution = resolveDialogueAssignment(state, assignment)
     changed = true
     return {
-      ...binding,
-      headPaddingFrames: resolution ? resolution.frameStart - cue.frameStart : binding.headPaddingFrames,
-      tailPaddingFrames: resolution ? cue.frameEnd - resolution.frameEnd : binding.tailPaddingFrames,
+      ...assignment,
+      headPaddingFrames: resolution ? resolution.frameStart - cue.frameStart : assignment.headPaddingFrames,
+      tailPaddingFrames: resolution ? cue.frameEnd - resolution.frameEnd : assignment.tailPaddingFrames,
       cueFrameStart: cue.frameStart,
       cueFrameEnd: cue.frameEnd,
       provisional,
     }
   })
-  return changed ? { ...state, bindings } : state
+  return changed ? { ...state, assignments } : state
 }
 
 export function synchronizeDialogueBindingsAfterAudioEdit(
@@ -125,42 +200,162 @@ export function synchronizeDialogueBindingsAfterAudioEdit(
   soundCues: TimedRangeCue[],
   revisionId: string,
 ): { state: DialogueAudioCutState; cueUpdates: Array<{ cueId: string; frameStart: number; frameEnd: number }> } {
-  const state = synchronizeDialogueBindingsFromCues(stateInput, soundCues, revisionId)
+  const fromCues = synchronizeDialogueBindingsFromCues(stateInput, soundCues, revisionId)
+  let changed = fromCues !== stateInput
+  const tracks = fromCues.tracks.map(track => {
+    let trackChanged = false
+    const dialogueRegions = track.dialogueRegions.map(region => {
+      const resolution = resolveDialogueRegion(track, region)
+      if (!resolution) {
+        if (region.status === 'orphaned' && region.reviewReason === 'リンク対象の音声がありません。') return region
+        trackChanged = true
+        return { ...region, status: 'orphaned' as const, reviewReason: 'リンク対象の音声がありません。' }
+      }
+      const frameStart = resolution.frameStart - region.headPaddingFrames
+      const frameEnd = Math.max(frameStart, resolution.frameEnd + region.tailPaddingFrames)
+      const status = resolution.complete ? 'ready' as const : 'review' as const
+      const reviewReason = resolution.complete ? undefined : 'セリフ区間の音声の一部が削除されています。'
+      if (region.frameStart === frameStart && region.frameEnd === frameEnd && region.status === status && region.reviewReason === reviewReason) return region
+      trackChanged = true
+      return { ...region, frameStart, frameEnd, status, reviewReason }
+    })
+    if (!trackChanged) return track
+    changed = true
+    return { ...track, dialogueRegions }
+  })
+  const stateWithRegions = tracks === fromCues.tracks ? fromCues : { ...fromCues, tracks }
   const cueById = new Map(soundCues.map(cue => [cue.cueId, cue]))
   const cueUpdates: Array<{ cueId: string; frameStart: number; frameEnd: number }> = []
-  let changed = state !== stateInput
-  const bindings = state.bindings.map(binding => {
-    if (binding.revisionId !== revisionId) return binding
-    const resolution = resolveDialogueBinding(state, binding)
+  const assignments = stateWithRegions.assignments.map(assignment => {
+    if (assignment.revisionId !== revisionId) return assignment
+    const resolution = resolveDialogueAssignment(stateWithRegions, assignment)
     if (!resolution) {
-      if (binding.status === 'orphaned' && binding.reviewReason === 'リンク対象の音声がありません。') return binding
+      if (assignment.status === 'orphaned' && assignment.reviewReason === 'リンク対象の音声がありません。') return assignment
       changed = true
-      return { ...binding, status: 'orphaned' as const, reviewReason: 'リンク対象の音声がありません。' }
+      return { ...assignment, status: 'orphaned' as const, reviewReason: 'リンク対象の音声がありません。' }
     }
-    const frameStart = resolution.frameStart - binding.headPaddingFrames
-    const frameEnd = Math.max(frameStart, resolution.frameEnd + binding.tailPaddingFrames)
-    const cue = cueById.get(binding.cueId)
+    const frameStart = resolution.frameStart - assignment.headPaddingFrames
+    const frameEnd = Math.max(frameStart, resolution.frameEnd + assignment.tailPaddingFrames)
+    const cue = cueById.get(assignment.cueId)
     if (cue && (cue.frameStart !== frameStart || cue.frameEnd !== frameEnd)) cueUpdates.push({ cueId: cue.cueId, frameStart, frameEnd })
     const status = resolution.complete ? 'linked' as const : 'review' as const
     const reviewReason = resolution.complete ? undefined : 'リンク音声の一部が削除されています。'
-    if (binding.cueFrameStart === frameStart && binding.cueFrameEnd === frameEnd && binding.status === status && binding.reviewReason === reviewReason) return binding
+    if (assignment.cueFrameStart === frameStart && assignment.cueFrameEnd === frameEnd && assignment.status === status && assignment.reviewReason === reviewReason) return assignment
     changed = true
-    return { ...binding, cueFrameStart: frameStart, cueFrameEnd: frameEnd, status, reviewReason }
+    return { ...assignment, cueFrameStart: frameStart, cueFrameEnd: frameEnd, status, reviewReason }
   })
-  return { state: changed ? { ...state, bindings } : state, cueUpdates }
+  return { state: changed ? { ...stateWithRegions, assignments } : stateWithRegions, cueUpdates }
 }
 
-export function resolveDialogueBinding(
-  state: Pick<DialogueAudioCutState, 'tracks'>,
-  binding: DialogueCueAudioBinding,
+export function resolveDialogueRegion(
+  track: Pick<DialogueAudioTrackState, 'clips'>,
+  region: Pick<DialogueRegion, 'anchors' | 'headPaddingFrames' | 'tailPaddingFrames'>,
 ): DialogueBindingResolution | null {
-  const track = state.tracks.find(item => item.trackId === binding.trackId)
-  if (!track || binding.anchors.length === 0) return null
+  const resolution = anchorTimelineEnvelope(track.clips, region.anchors)
+  return resolution ? {
+    frameStart: resolution.frameStart - region.headPaddingFrames,
+    frameEnd: resolution.frameEnd + region.tailPaddingFrames,
+    complete: resolution.complete,
+  } : null
+}
+
+export function resolveDialogueAssignment(
+  state: Pick<DialogueAudioCutState, 'tracks'>,
+  assignment: Pick<DialogueSoundAssignment, 'regionRefs'>,
+): DialogueBindingResolution | null {
+  return resolveRegionRefs(state, assignment.regionRefs)
+}
+
+export function assignmentForCue(state: DialogueAudioCutState, cueId: string, revisionId: string): DialogueSoundAssignment | undefined {
+  return state.assignments.find(assignment => assignment.cueId === cueId && assignment.revisionId === revisionId)
+}
+
+export function assignmentForRegion(state: DialogueAudioCutState, ref: DialogueRegionReference, revisionId: string): DialogueSoundAssignment | undefined {
+  const key = regionRefKey(ref)
+  return state.assignments.find(assignment => assignment.revisionId === revisionId && assignment.regionRefs.some(item => regionRefKey(item) === key))
+}
+
+export function assignmentForCandidate(state: DialogueAudioCutState, candidateId: string, revisionId: string): DialogueSoundAssignment | undefined {
+  for (const assignment of state.assignments) {
+    if (assignment.revisionId !== revisionId) continue
+    for (const ref of assignment.regionRefs) {
+      if (regionForRef(state, ref)?.candidateIds.includes(candidateId)) return assignment
+    }
+  }
+  return undefined
+}
+
+/** Compatibility aliases retained while timeline call sites migrate to assignment terminology. */
+export const bindingForCue = assignmentForCue
+export const bindingForCandidate = assignmentForCandidate
+
+function resolveRegionRefs(
+  state: Pick<DialogueAudioCutState, 'tracks'>,
+  refs: DialogueRegionReference[],
+): DialogueBindingResolution | null {
+  const resolutions = refs.flatMap(ref => {
+    const track = state.tracks.find(item => item.trackId === ref.trackId)
+    const region = track?.dialogueRegions.find(item => item.regionId === ref.regionId)
+    if (!track || !region) return []
+    const resolution = resolveDialogueRegion(track, region)
+    return resolution ? [resolution] : []
+  })
+  if (resolutions.length === 0) return null
+  return {
+    frameStart: Math.min(...resolutions.map(item => item.frameStart)),
+    frameEnd: Math.max(...resolutions.map(item => item.frameEnd)),
+    complete: resolutions.length === refs.length && resolutions.every(item => item.complete),
+  }
+}
+
+function regionForRef(
+  state: Pick<DialogueAudioCutState, 'tracks'>,
+  ref: DialogueRegionReference,
+): DialogueRegion | undefined {
+  return state.tracks.find(track => track.trackId === ref.trackId)?.dialogueRegions.find(region => region.regionId === ref.regionId)
+}
+
+function anchorsForCandidates(clips: DialogueAudioClip[], candidates: DialogueSpeechCandidate[]): DialogueRegionAudioAnchor[] {
+  const raw: DialogueRegionAudioAnchor[] = []
+  for (const candidate of candidates) {
+    for (const clip of clips) {
+      const clipEnd = clip.timelineStartFrame + clip.durationFrames - 1
+      const frameStart = Math.max(candidate.frameStart, clip.timelineStartFrame)
+      const frameEnd = Math.min(candidate.frameEnd, clipEnd)
+      if (frameEnd < frameStart) continue
+      raw.push({
+        anchorId: `${candidate.candidateId}-${clip.clipId}`,
+        placementId: clip.placementId,
+        assetId: clip.assetId,
+        sourceFrameStart: clip.sourceOffsetFrames + frameStart - clip.timelineStartFrame,
+        sourceFrameEnd: clip.sourceOffsetFrames + frameEnd - clip.timelineStartFrame,
+        candidateIds: [candidate.candidateId],
+      })
+    }
+  }
+  return mergeAnchors(raw)
+}
+
+function mergeAnchors(anchors: DialogueRegionAudioAnchor[]): DialogueRegionAudioAnchor[] {
+  return anchors
+    .sort((left, right) => left.placementId.localeCompare(right.placementId) || left.sourceFrameStart - right.sourceFrameStart)
+    .reduce<DialogueRegionAudioAnchor[]>((result, anchor) => {
+      const previous = result.at(-1)
+      if (previous && previous.placementId === anchor.placementId && previous.assetId === anchor.assetId && anchor.sourceFrameStart <= previous.sourceFrameEnd + 1) {
+        previous.sourceFrameEnd = Math.max(previous.sourceFrameEnd, anchor.sourceFrameEnd)
+        previous.candidateIds = [...new Set([...previous.candidateIds, ...anchor.candidateIds])]
+      } else result.push({ ...anchor, candidateIds: [...anchor.candidateIds] })
+      return result
+    }, [])
+}
+
+function anchorTimelineEnvelope(clips: DialogueAudioClip[], anchors: DialogueRegionAudioAnchor[]): DialogueBindingResolution | null {
+  if (anchors.length === 0) return null
   const mapped: Array<{ frameStart: number; frameEnd: number }> = []
   let complete = true
-  for (const anchor of binding.anchors) {
+  for (const anchor of anchors) {
     let coveredFrames = 0
-    for (const clip of track.clips) {
+    for (const clip of clips) {
       if (clip.placementId !== anchor.placementId || clip.assetId !== anchor.assetId) continue
       const clipSourceEnd = clip.sourceOffsetFrames + clip.durationFrames - 1
       const sourceStart = Math.max(anchor.sourceFrameStart, clip.sourceOffsetFrames)
@@ -182,57 +377,25 @@ export function resolveDialogueBinding(
   }
 }
 
-export function bindingForCue(state: DialogueAudioCutState, cueId: string, revisionId: string): DialogueCueAudioBinding | undefined {
-  return state.bindings.find(binding => binding.cueId === cueId && binding.revisionId === revisionId)
-}
-
-export function bindingForCandidate(state: DialogueAudioCutState, candidateId: string, revisionId: string): DialogueCueAudioBinding | undefined {
-  return state.bindings.find(binding => binding.revisionId === revisionId && binding.anchors.some(anchor => anchor.candidateIds.includes(candidateId)))
-}
-
-function anchorsForCandidates(clips: DialogueAudioClip[], candidates: DialogueSpeechCandidate[]): DialogueCueAudioAnchor[] {
-  const raw: DialogueCueAudioAnchor[] = []
-  for (const candidate of candidates) {
-    for (const clip of clips) {
-      const clipEnd = clip.timelineStartFrame + clip.durationFrames - 1
-      const frameStart = Math.max(candidate.frameStart, clip.timelineStartFrame)
-      const frameEnd = Math.min(candidate.frameEnd, clipEnd)
-      if (frameEnd < frameStart) continue
-      raw.push({
-        anchorId: `${candidate.candidateId}-${clip.clipId}`,
-        placementId: clip.placementId,
-        assetId: clip.assetId,
-        sourceFrameStart: clip.sourceOffsetFrames + frameStart - clip.timelineStartFrame,
-        sourceFrameEnd: clip.sourceOffsetFrames + frameEnd - clip.timelineStartFrame,
-        candidateIds: [candidate.candidateId],
-      })
-    }
-  }
-  return mergeAnchors(raw)
-}
-
-function mergeAnchors(anchors: DialogueCueAudioAnchor[]): DialogueCueAudioAnchor[] {
-  return anchors
-    .sort((left, right) => left.placementId.localeCompare(right.placementId) || left.sourceFrameStart - right.sourceFrameStart)
-    .reduce<DialogueCueAudioAnchor[]>((result, anchor) => {
-      const previous = result.at(-1)
-      if (previous && previous.placementId === anchor.placementId && previous.assetId === anchor.assetId && anchor.sourceFrameStart <= previous.sourceFrameEnd + 1) {
-        previous.sourceFrameEnd = Math.max(previous.sourceFrameEnd, anchor.sourceFrameEnd)
-        previous.candidateIds = [...new Set([...previous.candidateIds, ...anchor.candidateIds])]
-      } else result.push({ ...anchor, candidateIds: [...anchor.candidateIds] })
-      return result
-    }, [])
-}
-
-function anchorTimelineEnvelope(clips: DialogueAudioClip[], anchors: DialogueCueAudioAnchor[]): DialogueBindingResolution | null {
-  return resolveDialogueBinding({ tracks: [{ trackId: 'track', color: '', clips, speechCandidates: [], vadMode: 'candidates', muted: false }] }, {
-    bindingId: '', cueId: '', revisionId: '', trackId: 'track', anchors,
-    headPaddingFrames: 0, tailPaddingFrames: 0, cueFrameStart: 0, cueFrameEnd: 0,
-    provisional: false, status: 'linked',
+function uniqueRegionRefs(refs: DialogueRegionReference[]): DialogueRegionReference[] {
+  const seen = new Set<string>()
+  return refs.filter(ref => {
+    const key = regionRefKey(ref)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
   })
 }
 
-function nextBindingId(prefix: string, usedIds: Set<string>): string {
+function regionRefKey(ref: DialogueRegionReference): string {
+  return `${ref.trackId}\u0000${ref.regionId}`
+}
+
+function compareRegions(left: DialogueRegion, right: DialogueRegion): number {
+  return left.frameStart - right.frameStart || left.regionId.localeCompare(right.regionId)
+}
+
+function nextId(prefix: string, usedIds: Set<string>): string {
   if (!usedIds.has(prefix)) return prefix
   let sequence = 2
   while (usedIds.has(`${prefix}-${sequence}`)) sequence += 1

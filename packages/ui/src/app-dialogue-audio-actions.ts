@@ -1,6 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import {
-  createTimedRangeCue,
   timelineLanesForLayout,
   updateActiveCutProjectInDocument,
   updateTimedRangeCue,
@@ -9,12 +8,14 @@ import {
   type SheetTemplate,
 } from '@xsheet-remap/core'
 import type { SoundCueDialogState } from './appTypes'
+import type { SoundCueAudioAlignment } from './SoundCueDialog'
 import {
   dialogueAudioCutStateFromDocument,
   updateDialogueAudioCutStateInDocument,
   type DialogueAudioCutState,
 } from './dialogueAudioProject'
-import { linkDialogueAudioCandidates } from './dialogueAudioBinding'
+import { assignDialogueRegionsToCue, createDialogueRegionFromCandidates } from './dialogueAudioBinding'
+import { moveDialogueRegionAudioToFrame } from './dialogueAudioEditing'
 
 interface AppDialogueAudioActionsOptions {
   projectRef: MutableRefObject<CutProject>
@@ -55,16 +56,26 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
   function handleCandidateLinked(
     candidate: NonNullable<SoundCueDialogState['audioCandidate']>,
     cueId: string,
+    alignment: SoundCueAudioAlignment,
   ) {
     updateDocumentAudio(state => {
       const cue = options.projectRef.current.timedRangeCues.find(item => item.cueId === cueId && item.role === 'sound')
-      return cue
-        ? linkDialogueAudioCandidates(state, candidate.trackId, candidate.candidateIds, cue, candidate.revisionId)
-        : state
+      if (!cue) return state
+      const created = createDialogueRegionFromCandidates(state, candidate.trackId, candidate.candidateIds)
+      if (!created) return state
+      const positioned = alignment === 'move-audio-to-cue'
+        ? moveDialogueRegionAudioToFrame(created.state, candidate.trackId, created.region.regionId, cue.frameStart)
+        : created.state
+      return assignDialogueRegionsToCue(
+        positioned,
+        [{ trackId: candidate.trackId, regionId: created.region.regionId }],
+        cue,
+        candidate.revisionId,
+      )
     })
   }
 
-  function openSoundCueEditorForAudioCandidate(trackId: string, candidateIds: string[], frameStart: number, frameEnd: number) {
+  function openSoundCueEditorForAudioCandidate(trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string) {
     const lane = timelineLanesForLayout(options.projectRef.current).sound?.[0]
     if (!lane) return
     options.setSoundCueDialog({
@@ -72,38 +83,23 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
       laneId: lane.laneId,
       frameStart: clamp(frameStart, options.frameMin, options.frameMax),
       frameEnd: clamp(frameEnd, options.frameMin, options.frameMax),
-      audioCandidate: { trackId, candidateIds, revisionId: options.revisionId },
+      audioCandidate: { trackId, candidateIds, revisionId: options.revisionId, ...(cueId ? { cueId } : {}) },
     })
   }
 
-  function autoCreateSoundCues(
+  function autoCreateDialogueRegions(
     stateInput: DialogueAudioCutState,
     trackId: string,
     candidateIds: string[],
   ): DialogueAudioCutState {
-    const lane = timelineLanesForLayout(options.projectRef.current).sound?.[0]
     const track = stateInput.tracks.find(item => item.trackId === trackId)
-    if (!lane || !track) return stateInput
-    let project = options.projectRef.current
+    if (!track) return stateInput
     let state = stateInput
-    let sequence = project.timedRangeCues.filter(cue => cue.role === 'sound' && cue.label.startsWith('仮・発話 ')).length + 1
     for (const candidateId of candidateIds) {
       const candidate = track.speechCandidates.find(item => item.candidateId === candidateId)
-      if (!candidate || state.bindings.some(binding => binding.revisionId === options.revisionId && binding.anchors.some(anchor => anchor.candidateIds.includes(candidateId)))) continue
-      if (candidate.frameStart < options.frameMin || candidate.frameEnd > options.frameMax) continue
-      const created = createTimedRangeCue(project, {
-        role: 'sound',
-        laneId: lane.laneId,
-        frameStart: candidate.frameStart,
-        frameEnd: candidate.frameEnd,
-        label: `仮・発話 ${sequence}`,
-        text: '',
-      })
-      sequence += 1
-      project = created.project
-      state = linkDialogueAudioCandidates(state, trackId, [candidateId], created.cue, options.revisionId, true)
+      if (!candidate || state.tracks.some(item => item.dialogueRegions.some(region => region.candidateIds.includes(candidateId)))) continue
+      state = createDialogueRegionFromCandidates(state, trackId, [candidateId])?.state ?? state
     }
-    if (project !== options.projectRef.current) options.commitProject(project)
     return state
   }
 
@@ -120,7 +116,7 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     handleCutStateChange,
     handleCandidateLinked,
     openSoundCueEditorForAudioCandidate,
-    autoCreateSoundCues,
+    autoCreateDialogueRegions,
     handleTransformSoundCues,
   }
 }

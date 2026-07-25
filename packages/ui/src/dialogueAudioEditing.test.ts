@@ -19,6 +19,7 @@ function track(): DialogueAudioTrackState {
       { candidateId: 'candidate-1', frameStart: 3, frameEnd: 8, status: 'pending' },
       { candidateId: 'candidate-2', frameStart: 15, frameEnd: 20, status: 'linked', cueLinks: [{ revisionId: 'revision-1', cueId: 'cue-1' }] },
     ],
+    dialogueRegions: [],
     vadMode: 'candidates',
     muted: false,
   }

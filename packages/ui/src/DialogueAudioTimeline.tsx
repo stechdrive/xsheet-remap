@@ -45,6 +45,7 @@ import {
   type DialogueVadEngineStatus,
 } from './dialogueAudioSileroVad'
 import {
+  assignmentForRegion,
   bindingForCandidate,
   bindingForCue,
   migrateLegacyDialogueBindings,
@@ -65,6 +66,7 @@ import {
   clampDialogueAudioPanelHeight,
   clampDialogueAudioPixelsPerFrame,
   clampDialogueAudioTrackHeight,
+  dialogueAudioContentEndFrame,
   dialogueAudioPixelsPerFrameFromZoomSlider,
   dialogueAudioZoomSliderValue,
   effectiveDialogueAudioPixelsPerFrame,
@@ -94,8 +96,8 @@ interface DialogueAudioTimelineProps {
   onSoundCueEdit: (cueId: string) => void
   onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
   onSoundCuesTransform: (updates: Array<{ cueId: string; frameStart: number; frameEnd: number }>) => void
-  onSoundCandidateEdit: (trackId: string, candidateIds: string[], frameStart: number, frameEnd: number) => void
-  onAutoCreateSoundCues: (state: DialogueAudioCutState, trackId: string, candidateIds: string[]) => DialogueAudioCutState
+  onSoundCandidateEdit: (trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string) => void
+  onAutoCreateDialogueRegions: (state: DialogueAudioCutState, trackId: string, candidateIds: string[]) => DialogueAudioCutState
 }
 
 interface AudioHistory {
@@ -105,7 +107,6 @@ interface AudioHistory {
 
 const SCRUB_EDGE_FADE_SECONDS = 0.001
 const TIME_RULER_HEIGHT = 40
-const CUE_LANE_HEIGHT = 32
 const CONTEXT_MENU_EDGE = 8
 const CONTEXT_MENU_WIDTH = 260
 const CONTEXT_MENU_MAX_HEIGHT = 520
@@ -114,10 +115,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const {
     cutState, fps, frameOrigin, activeRevisionId, soundCues, selectedSoundCueId,
     onCutStateChange, onPlayheadChange, onSoundCueSelect, onSoundCueEdit, onSoundCueTransform, onSoundCuesTransform,
-    onSoundCandidateEdit, onAutoCreateSoundCues, onCutDurationChange,
+    onSoundCandidateEdit, onAutoCreateDialogueRegions, onCutDurationChange,
   } = props
   const cutDurationFrames = Math.max(1, props.cutDurationFrames ?? props.durationFrames ?? 144)
-  const timelineDurationFrames = Math.max(cutDurationFrames, cutState.timelineDurationFrames)
   const [collapsed, setCollapsed] = useState(true)
   const [playheadFrame, setPlayheadFrame] = useState(frameOrigin)
   const [viewPreferences, setViewPreferences] = useState(loadDialogueAudioViewPreferences)
@@ -126,6 +126,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const [recording, setRecording] = useState(false)
   const [audioSelection, setAudioSelection] = useState<(DialogueAudioRange & { trackId: string }) | null>(null)
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([])
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null)
   const [selectionDrag, setSelectionDrag] = useState<{ trackId: string; anchorFrame: number } | null>(null)
   const [silenceFrameCount, setSilenceFrameCount] = useState(1)
   const [clipboard, setClipboard] = useState<DialogueAudioClipboard | null>(null)
@@ -154,7 +155,18 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     originFrame: number
     previewFrame: number
     durationFrames: number
+    pixelsPerFrame: number
   } | null>(null)
+  const audioContentFrameEnd = clipDrag
+    ? cutState.tracks.reduce<number | null>((latest, track) => track.clips.reduce<number | null>((trackLatest, clip) => {
+        const clipFrameEnd = clip.clipId === clipDrag.clipId
+          ? clipDrag.previewFrame + clipDrag.durationFrames - 1
+          : clip.timelineStartFrame + clip.durationFrames - 1
+        return trackLatest === null ? clipFrameEnd : Math.max(trackLatest, clipFrameEnd)
+      }, latest), null)
+    : dialogueAudioContentEndFrame(cutState)
+  const audioContentDurationFrames = audioContentFrameEnd === null ? 0 : audioContentFrameEnd - frameOrigin + 1
+  const timelineDurationFrames = Math.max(cutDurationFrames, cutState.timelineDurationFrames, audioContentDurationFrames)
   const [status, setStatus] = useState('')
   const cutStateRef = useRef(cutState)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -183,7 +195,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const selectedCue = soundCues.find(cue => cue.cueId === selectedSoundCueId) ?? null
   const selectedCueBinding = selectedCue ? bindingForCue(cutState, selectedCue.cueId, activeRevisionId) : undefined
   const selectedCueFrameStart = selectedCue?.frameStart
-  const selectedCueBindingId = selectedCueBinding?.bindingId
+  const selectedCueBindingId = selectedCueBinding?.assignmentId
   const selectedCandidates = activeTrack?.speechCandidates.filter(candidate => selectedCandidateIds.includes(candidate.candidateId)) ?? []
   const selectedCandidate = selectedCandidates[0] ?? null
 
@@ -304,9 +316,17 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       animationRef.current = null
       setPlaying(false)
       setPlayhead(selectedCueFrameStart)
+      const firstRef = selectedCueBinding?.regionRefs[0]
+      const regionTrack = firstRef ? cutState.tracks.find(track => track.trackId === firstRef.trackId) : undefined
+      const region = regionTrack?.dialogueRegions.find(item => item.regionId === firstRef?.regionId)
+      if (firstRef && region) {
+        setSelectedRegionId(region.regionId)
+        setSelectedCandidateIds(region.candidateIds)
+        if (cutState.activeTrackId !== firstRef.trackId) onCutStateChange({ ...cutState, activeTrackId: firstRef.trackId })
+      }
     })
     return () => { cancelled = true }
-  }, [selectedCueBindingId, selectedCueFrameStart, setPlayhead])
+  }, [cutState, onCutStateChange, selectedCueBinding, selectedCueBindingId, selectedCueFrameStart, setPlayhead])
 
   useEffect(() => () => {
     stopSources(sourcesRef.current)
@@ -617,10 +637,10 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       ...latest,
       tracks: latest.tracks.map(item => item.trackId === trackId ? analyzedTrack : item),
     }
-    if (track.vadMode === 'auto-sound') {
+    if (track.vadMode === 'auto-region') {
       const previousIds = new Set(latestTrack.speechCandidates.map(candidate => candidate.candidateId))
       const candidateIds = analyzedTrack.speechCandidates.filter(candidate => candidate.status === 'pending' && !previousIds.has(candidate.candidateId)).map(candidate => candidate.candidateId)
-      analyzedState = onAutoCreateSoundCues(analyzedState, trackId, candidateIds)
+      analyzedState = onAutoCreateDialogueRegions(analyzedState, trackId, candidateIds)
     }
     commitCutState(analyzedState, false)
     return analysis
@@ -652,7 +672,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     const next = ensureDialogueAudioTimelineDuration(
       synchronizeAudioBindings(pruneUnusedDialogueAudioAssets(nextInput)),
       frameOrigin,
-      cutDurationFrames,
+      1,
     )
     if (recordHistory) setAudioHistory(current => ({ past: [...current.past.slice(-49), cutState], future: [] }))
     cutStateRef.current = next
@@ -797,13 +817,29 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     openCandidateSound(activeTrack.trackId, candidates)
   }
 
+  function openDialogueRegion(track: DialogueAudioTrackState, regionId: string) {
+    const region = track.dialogueRegions.find(item => item.regionId === regionId)
+    if (!region) return
+    const candidates = track.speechCandidates.filter(candidate => region.candidateIds.includes(candidate.candidateId))
+    setSelectedRegionId(regionId)
+    setSelectedCandidateIds(region.candidateIds)
+    setAudioSelection({ trackId: track.trackId, frameStart: region.frameStart, frameEnd: region.frameEnd })
+    if (candidates.length > 0) openCandidateSound(track.trackId, candidates)
+  }
+
   function openCandidateSound(trackId: string, candidates: DialogueSpeechCandidate[]) {
-    const bindings = candidates.map(candidate => bindingForCandidate(cutState, candidate.candidateId, activeRevisionId)).filter(Boolean)
-    const linkedCueId = bindings.length === candidates.length && new Set(bindings.map(binding => binding?.cueId)).size === 1 ? bindings[0]?.cueId : undefined
+    const assignments = candidates.map(candidate => bindingForCandidate(cutState, candidate.candidateId, activeRevisionId)).filter(Boolean)
+    const linkedCueId = assignments.length === candidates.length && new Set(assignments.map(assignment => assignment?.cueId)).size === 1 ? assignments[0]?.cueId : undefined
     const cue = linkedCueId ? soundCues.find(item => item.cueId === linkedCueId) : undefined
     if (cue) {
       onSoundCueSelect(cue.cueId)
-      onSoundCueEdit(cue.cueId)
+      onSoundCandidateEdit(
+        trackId,
+        candidates.map(candidate => candidate.candidateId),
+        Math.min(...candidates.map(candidate => candidate.frameStart)),
+        Math.max(...candidates.map(candidate => candidate.frameEnd)),
+        cue.cueId,
+      )
       return
     }
     const frameEnd = Math.max(...candidates.map(candidate => candidate.frameEnd))
@@ -980,15 +1016,32 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     if (recording || playing || event.button !== 0) return
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
-    setClipDrag({ trackId, clipId: clip.clipId, clientX: event.clientX, originFrame: clip.timelineStartFrame, previewFrame: clip.timelineStartFrame, durationFrames: clip.durationFrames })
+    setClipDrag({
+      trackId,
+      clipId: clip.clipId,
+      clientX: event.clientX,
+      originFrame: clip.timelineStartFrame,
+      previewFrame: clip.timelineStartFrame,
+      durationFrames: clip.durationFrames,
+      pixelsPerFrame,
+    })
+    if (viewPreferences.fitTimeline) {
+      setViewPreferences(current => ({ ...current, fitTimeline: false, pixelsPerFrame }))
+    }
     if (cutState.activeTrackId !== trackId) onCutStateChange({ ...cutState, activeTrackId: trackId })
   }
 
   function moveClipDrag(event: ReactPointerEvent<HTMLButtonElement>) {
     if (!clipDrag) return
-    const delta = Math.round((event.clientX - clipDrag.clientX) / (timelineWidth / timelineDurationFrames))
-    const maxStart = Math.max(frameOrigin, frameEnd - clipDrag.durationFrames + 1)
-    setClipDrag({ ...clipDrag, previewFrame: Math.max(frameOrigin, Math.min(maxStart, clipDrag.originFrame + delta)) })
+    const delta = Math.round((event.clientX - clipDrag.clientX) / clipDrag.pixelsPerFrame)
+    const previewFrame = Math.max(frameOrigin, clipDrag.originFrame + delta)
+    setClipDrag({ ...clipDrag, previewFrame })
+
+    const scroller = timelineScrollerRef.current
+    if (!scroller) return
+    const rect = scroller.getBoundingClientRect()
+    if (event.clientX > rect.right - 32) scroller.scrollLeft += Math.max(12, clipDrag.pixelsPerFrame * 2)
+    else if (event.clientX < rect.left + 32) scroller.scrollLeft = Math.max(0, scroller.scrollLeft - Math.max(12, clipDrag.pixelsPerFrame * 2))
   }
 
   function finishClipDrag(event: ReactPointerEvent<HTMLButtonElement>, cancelled = false) {
@@ -1005,14 +1058,14 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     setClipDrag(null)
   }
 
-  function renderCueButton(sourceCue: TimedRangeCue, trackLayer = false) {
+  function renderCueButton(sourceCue: TimedRangeCue) {
     const cue = cueDrag?.cueId === sourceCue.cueId ? cueDrag.preview : sourceCue
     const binding = bindingForCue(cutState, cue.cueId, activeRevisionId)
-    const tooltipLabel = `${binding?.provisional ? '仮SOUND' : 'SOUND'}「${cue.label}」 ${formatFrame(cue.frameStart, frameOrigin, fps)}–${formatFrame(cue.frameEnd, frameOrigin, fps)}${binding?.reviewReason ? ` / ${binding.reviewReason}` : ''}`
+    const tooltipLabel = `${binding?.provisional ? '旧形式の仮ラベル' : '音響指示'}「${cue.label}」 ${formatFrame(cue.frameStart, frameOrigin, fps)}–${formatFrame(cue.frameEnd, frameOrigin, fps)}${binding?.reviewReason ? ` / ${binding.reviewReason}` : ''}`
     return <TooltipTarget key={cue.cueId} label={tooltipLabel}>
       {tooltipProps => <button
         type="button"
-        className={`dialogueAudioCue ${trackLayer ? 'isTrackLayer' : 'isUnlinked'} is-${binding?.status ?? 'unlinked'} ${binding?.provisional ? 'isProvisional' : ''} ${cue.cueId === selectedSoundCueId ? 'isSelected' : ''}`}
+        className={`dialogueAudioCue isTrackLayer is-${binding?.status ?? 'unlinked'} ${binding?.provisional ? 'isProvisional' : ''} ${cue.cueId === selectedSoundCueId ? 'isSelected' : ''}`}
         style={rangeStyle(cue.frameStart, cue.frameEnd, frameOrigin, timelineDurationFrames)}
         {...tooltipProps}
         onPointerDown={event => {
@@ -1101,7 +1154,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   const trackRows = cutState.tracks.map(track => `${trackHeight(track.trackId)}px`).join(' ')
-  const contentHeight = TIME_RULER_HEIGHT + CUE_LANE_HEIGHT + cutState.tracks.reduce((sum, track) => sum + trackHeight(track.trackId), 0)
+  const headerRows = `${TIME_RULER_HEIGHT}px ${trackRows}`
+  const contentHeight = TIME_RULER_HEIGHT + cutState.tracks.reduce((sum, track) => sum + trackHeight(track.trackId), 0)
+  const audioEndsAtCut = audioContentDurationFrames === cutDurationFrames
 
   if (collapsed) {
     return (
@@ -1180,7 +1235,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             className="dialogueAudioReflectButton"
             onClick={createSoundFromSelection}
             disabled={selectedCandidates.length === 0 && !audioSelection}
-          >{selectedCandidates.length > 1 ? '選択区間をタイムシートへSOUND反映' : selectedCandidate && bindingForCandidate(cutState, selectedCandidate.candidateId, activeRevisionId) ? 'タイムシートのSOUNDを編集' : 'タイムシートへSOUND反映'}</button>
+          >{selectedCandidate && bindingForCandidate(cutState, selectedCandidate.candidateId, activeRevisionId) ? '音響指示を編集' : '音響指示へ割付…'}</button>
           {audioSelection && <span className="dialogueAudioSelectionSummary">{audioSelection.frameStart}–{audioSelection.frameEnd}F ({audioSelection.frameEnd - audioSelection.frameStart + 1}F)</span>}
           <span className="dialogueAudioToolbarSpacer" />
           <TooltipTarget label={vadEngine.error ?? ''} disabled={!vadEngine.error}>
@@ -1197,7 +1252,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
               aria-label="音声タイムラインのズーム"
               aria-valuetext={viewPreferences.fitTimeline ? '全体表示' : '拡大表示'}
             />
-            <Tooltip label="音声尺全体を表示">
+            <Tooltip label="タイムラインの編集範囲全体を表示">
               <button type="button" className={`dialogueAudioFitButton ${viewPreferences.fitTimeline ? 'isOn' : ''}`} onClick={fitTimeline} aria-label="音声タイムライン全体を表示">全体</button>
             </Tooltip>
           </span>
@@ -1212,9 +1267,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         <aside
           ref={timelineHeaderRef}
           className="dialogueAudioTrackHeaders"
-          style={{ gridTemplateRows: `${TIME_RULER_HEIGHT}px ${CUE_LANE_HEIGHT}px ${trackRows}` }}
+          style={{ gridTemplateRows: headerRows }}
         >
-          <div className="dialogueAudioCueHeader" aria-hidden="true" />
+          <div className="dialogueAudioRulerHeader" aria-hidden="true" />
           {cutState.tracks.map((track, trackIndex) => (
             <div
               key={track.trackId}
@@ -1289,26 +1344,17 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
               onPointerUp={finishPlayheadScrub}
               onPointerCancel={finishPlayheadScrub}
             />
-            <div
-              className="dialogueAudioCueLane"
-              onPointerDown={beginPlayheadScrub}
-              onPointerMove={movePlayheadScrub}
-              onPointerUp={finishPlayheadScrub}
-              onPointerCancel={finishPlayheadScrub}
-            >
-              {soundCues.filter(cue => !bindingForCue(cutState, cue.cueId, activeRevisionId)).map(cue => renderCueButton(cue))}
-            </div>
             <TimelineBoundaryMarker
-              kind={timelineDurationFrames === cutDurationFrames ? 'combined' : 'cut'}
+              kind={audioEndsAtCut ? 'combined' : 'cut'}
               positionPercent={cutDurationFrames / timelineDurationFrames * 100}
-              label={timelineDurationFrames === cutDurationFrames
-                ? `タイムシートと音声タイムラインの終端 ${formatFrame(cutFrameEnd, frameOrigin, fps)}`
+              label={audioEndsAtCut
+                ? `タイムシート終端・最終音声位置 ${formatFrame(cutFrameEnd, frameOrigin, fps)}`
                 : `タイムシート終端 ${formatFrame(cutFrameEnd, frameOrigin, fps)}`}
             />
-            {timelineDurationFrames > cutDurationFrames && <TimelineBoundaryMarker
+            {audioContentFrameEnd !== null && !audioEndsAtCut && <TimelineBoundaryMarker
               kind="audio"
-              positionPercent={100}
-              label={`音声タイムライン終端 ${formatFrame(frameEnd, frameOrigin, fps)}`}
+              positionPercent={audioContentDurationFrames / timelineDurationFrames * 100}
+              label={`最終音声位置 ${formatFrame(audioContentFrameEnd, frameOrigin, fps)}`}
             />}
             {cutState.tracks.map(track => (
               <div
@@ -1321,7 +1367,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 }}
               >
                 <div className="dialogueAudioTrackCueLayer">
-                  {soundCues.filter(cue => bindingForCue(cutState, cue.cueId, activeRevisionId)?.trackId === track.trackId).map(cue => renderCueButton(cue, true))}
+                  {soundCues.filter(cue => bindingForCue(cutState, cue.cueId, activeRevisionId)?.regionRefs.some(ref => ref.trackId === track.trackId)).map(cue => renderCueButton(cue))}
                 </div>
                 <div
                   className="dialogueAudioWaveformLane"
@@ -1361,7 +1407,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       {tooltipProps => <button
                         type="button"
                         className={`dialogueSpeechCandidate is-${presentation.state} ${selectedCandidateIds.includes(candidate.candidateId) ? 'isSelected' : ''}`}
-                        style={rangeStyle(candidate.frameStart, candidate.frameEnd, frameOrigin, timelineDurationFrames)}
+                        style={candidateHitStyle(candidate.frameStart, candidate.frameEnd, frameOrigin, timelineDurationFrames, timelineWidth)}
                         {...tooltipProps}
                         onPointerDown={event => {
                           tooltipProps.onPointerDown()
@@ -1369,7 +1415,32 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                         }}
                         onDoubleClick={event => { event.stopPropagation(); openCandidateSound(track.trackId, openCandidates) }}
                         aria-label={`発話候補 ${candidate.frameStart}–${candidate.frameEnd}F ${presentation.label}`}
-                      ><span>{presentation.label}</span></button>}
+                      ><span className="dialogueSpeechCandidateVisual">{presentation.label}</span></button>}
+                    </TooltipTarget>
+                  })}
+                  {track.dialogueRegions.map(region => {
+                    const assignment = assignmentForRegion(cutState, { trackId: track.trackId, regionId: region.regionId }, activeRevisionId)
+                    const cue = assignment ? soundCues.find(item => item.cueId === assignment.cueId) : undefined
+                    const label = cue?.label || cue?.text || 'セリフ区間'
+                    return <TooltipTarget key={region.regionId} label={`${assignment ? '割付済み' : '未割付'}：${label} ${region.frameStart}–${region.frameEnd}F`}>
+                      {tooltipProps => <button
+                        type="button"
+                        className={`dialogueAudioRegion ${assignment ? `is-${assignment.status}` : 'is-unassigned'} ${selectedRegionId === region.regionId ? 'isSelected' : ''}`}
+                        style={rangeStyle(region.frameStart, region.frameEnd, frameOrigin, timelineDurationFrames)}
+                        {...tooltipProps}
+                        onClick={event => {
+                          event.stopPropagation()
+                          if (track.trackId !== cutState.activeTrackId) onCutStateChange({ ...cutState, activeTrackId: track.trackId })
+                          setSelectedRegionId(region.regionId)
+                          setSelectedCandidateIds(region.candidateIds)
+                          setAudioSelection({ trackId: track.trackId, frameStart: region.frameStart, frameEnd: region.frameEnd })
+                        }}
+                        onDoubleClick={event => {
+                          event.stopPropagation()
+                          openDialogueRegion(track, region.regionId)
+                        }}
+                        aria-label={`セリフ区間 ${region.frameStart}–${region.frameEnd}F ${assignment ? `${label}へ割付済み` : '未割付'}`}
+                      >{label}</button>}
                     </TooltipTarget>
                   })}
                   {audioSelection?.trackId === track.trackId && <span className="dialogueAudioSelection" style={rangeStyle(audioSelection.frameStart, audioSelection.frameEnd, frameOrigin, timelineDurationFrames)} />}
@@ -1408,13 +1479,13 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
           <label>録音後の処理<select value={contextTrack.vadMode} disabled={recording || vadEngine.status === 'loading'} onChange={event => updateTrack(contextTrack.trackId, { vadMode: event.target.value as DialogueAudioTrackState['vadMode'] })}>
             <option value="off">検出しない</option>
             <option value="candidates">発話区間を検出</option>
-            <option value="auto-sound">仮SOUNDを自動作成</option>
+            <option value="auto-region">セリフ区間を自動作成</option>
           </select></label>
           <button type="button" role="menuitem" onClick={() => updateTrack(contextTrack.trackId, { muted: !contextTrack.muted })}>{contextTrack.muted ? 'ミュートを解除' : 'このトラックをミュート'}</button>
           <div className="dialogueAudioMenuSeparator" />
         </>}
         <button type="button" role="menuitem" onClick={() => { setContextMenu(null); fileInputRef.current?.click() }} disabled={recording || playing || vadEngine.status === 'loading'}>音声を再生ヘッドへ読み込む</button>
-        <button type="button" role="menuitem" onClick={() => { setContextMenu(null); createSoundFromSelection() }} disabled={selectedCandidates.length === 0 && !audioSelection}>タイムシートへSOUND反映</button>
+        <button type="button" role="menuitem" onClick={() => { setContextMenu(null); createSoundFromSelection() }} disabled={selectedCandidates.length === 0 && !audioSelection}>音響指示へ割り付け…</button>
         <div className="dialogueAudioMenuSeparator" />
         <button type="button" role="menuitem" onClick={() => { setContextMenu(null); copySelection(false) }} disabled={!audioSelection}>コピー</button>
         <button type="button" role="menuitem" onClick={() => { setContextMenu(null); copySelection(true) }} disabled={!audioSelection}>切り取り</button>
@@ -1447,11 +1518,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
       {pendingSoundRequest && !pendingSoundRequest.awaitingCutUpdate && <div className="dialogueAudioPromptBackdrop">
         <div className="dialogueAudioPrompt" role="alertdialog" aria-modal="true" aria-labelledby="dialogue-audio-extend-title">
-          <h3 id="dialogue-audio-extend-title">SOUND区間がカット尺を越えています</h3>
-          <p>音声は{pendingSoundRequest.requiredCutDuration}Fまであります。区間を切り捨てず、タイムシートのカット尺も延長して反映しますか？</p>
+          <h3 id="dialogue-audio-extend-title">音響指示がカット尺を越えます</h3>
+          <p>セリフ区間は{pendingSoundRequest.requiredCutDuration}Fまであります。音声タイムラインの尺は変えず、タイムシートのカット尺だけを明示的に延長して割り付けますか？</p>
           <div>
             <button type="button" onClick={() => setPendingSoundRequest(null)}>キャンセル</button>
-            <button type="button" className="dialogueAudioReflectButton" onClick={confirmSoundCutExtension}>カット尺を延長して反映</button>
+            <button type="button" className="dialogueAudioReflectButton" onClick={confirmSoundCutExtension}>カット尺を延長して割り付け</button>
           </div>
         </div>
       </div>}
@@ -1556,9 +1627,9 @@ function TimelineBoundaryMarker(props: {
 function candidatePresentation(candidate: DialogueSpeechCandidate, state: DialogueAudioCutState, activeRevisionId: string) {
   if (candidate.status === 'ignored') return { state: 'ignored', label: '無視', title: `無視した発話候補 ${candidate.frameStart}–${candidate.frameEnd}F` }
   const binding = bindingForCandidate(state, candidate.candidateId, activeRevisionId)
-  if (binding?.status === 'linked') return { state: 'linked', label: 'VAD', title: `SOUNDリンク済みVAD ${candidate.frameStart}–${candidate.frameEnd}F` }
+  if (binding?.status === 'linked') return { state: 'linked', label: 'VAD', title: `音響指示へ割付済みのVAD ${candidate.frameStart}–${candidate.frameEnd}F` }
   if (binding || candidate.status === 'review') return { state: 'review', label: '要確認', title: binding?.reviewReason ?? candidate.reviewReason ?? 'リンク状態を確認してください。' }
-  return { state: 'pending', label: 'VAD', title: `ダブルクリックでSOUNDを作成 ${candidate.frameStart}–${candidate.frameEnd}F` }
+  return { state: 'pending', label: 'VAD', title: `ダブルクリックでセリフ区間を作成して音響指示へ割り付け ${candidate.frameStart}–${candidate.frameEnd}F` }
 }
 
 function mergeRanges(ranges: DialogueAudioRange[]): DialogueAudioRange[] {
@@ -1589,6 +1660,27 @@ function rangeStyle(frameStart: number, rangeFrameEnd: number, frameOrigin: numb
     left: `${(frameStart - frameOrigin) / Math.max(1, durationFrames) * 100}%`,
     width: `${Math.max(1, rangeFrameEnd - frameStart + 1) / Math.max(1, durationFrames) * 100}%`,
   }
+}
+
+function candidateHitStyle(
+  frameStart: number,
+  rangeFrameEnd: number,
+  frameOrigin: number,
+  durationFrames: number,
+  timelineWidth: number,
+): CSSProperties {
+  const safeDuration = Math.max(1, durationFrames)
+  const safeWidth = Math.max(1, timelineWidth)
+  const visualLeft = (frameStart - frameOrigin) / safeDuration * safeWidth
+  const visualWidth = Math.max(1, (rangeFrameEnd - frameStart + 1) / safeDuration * safeWidth)
+  const hitWidth = Math.min(safeWidth, Math.max(16, visualWidth))
+  const hitLeft = Math.max(0, Math.min(safeWidth - hitWidth, visualLeft - (hitWidth - visualWidth) / 2))
+  return {
+    left: `${hitLeft}px`,
+    width: `${hitWidth}px`,
+    '--candidate-visual-left': `${visualLeft - hitLeft}px`,
+    '--candidate-visual-width': `${visualWidth}px`,
+  } as CSSProperties
 }
 
 function rangesOverlap(

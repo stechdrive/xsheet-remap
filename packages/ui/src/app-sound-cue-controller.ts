@@ -7,7 +7,7 @@ import {
   type SheetTemplate,
 } from '@xsheet-remap/core'
 import type { SheetRangeSelection, SheetSelection, SoundCueClipboard, SoundCueDialogState } from './appTypes'
-import type { SoundCueDialogSubmit } from './SoundCueDialog'
+import type { SoundCueAudioAlignment, SoundCueDialogSubmit } from './SoundCueDialog'
 import {
   buildSoundCueClipboard,
   cueForId,
@@ -39,7 +39,7 @@ interface SoundCueControllerOptions {
   setDialog: Dispatch<SetStateAction<SoundCueDialogState | null>>
   setLabelHistory: Dispatch<SetStateAction<string[]>>
   dialog: SoundCueDialogState | null
-  onAudioCandidateLinked?: (candidate: NonNullable<SoundCueDialogState['audioCandidate']>, cueId: string) => void
+  onAudioCandidateLinked?: (candidate: NonNullable<SoundCueDialogState['audioCandidate']>, cueId: string, alignment: SoundCueAudioAlignment) => void
 }
 
 export function createSoundCueController(options: SoundCueControllerOptions) {
@@ -82,7 +82,21 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
 
   function submitDialog(input: SoundCueDialogSubmit) {
     const sourceProject = options.getProject()
-    if (input.cueId) {
+    if (input.existingCueId && options.dialog?.audioCandidate) {
+      const cue = sourceProject.timedRangeCues.find(item => item.cueId === input.existingCueId && item.role === 'sound')
+      if (!cue) return
+      const alignment = input.alignment ?? 'keep-offset'
+      const next = alignment === 'move-cue-to-audio'
+        ? updateTimedRangeCue(sourceProject, cue.cueId, {
+            laneId: cue.laneId,
+            frameStart: input.frameStart,
+            frameEnd: input.frameEnd,
+          })
+        : sourceProject
+      if (next !== sourceProject) options.commitProject(next)
+      options.setSheetSelection({ kind: 'cue', cueId: cue.cueId })
+      options.onAudioCandidateLinked?.(options.dialog.audioCandidate, cue.cueId, alignment)
+    } else if (input.cueId) {
       const next = updateTimedRangeCue(sourceProject, input.cueId, input)
       if (next !== sourceProject) options.commitProject(next)
       options.setSheetSelection({ kind: 'cue', cueId: input.cueId })
@@ -97,7 +111,7 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
       })
       options.commitProject(created.project)
       options.setSheetSelection({ kind: 'cue', cueId: created.cue.cueId })
-      if (options.dialog?.audioCandidate) options.onAudioCandidateLinked?.(options.dialog.audioCandidate, created.cue.cueId)
+      if (options.dialog?.audioCandidate) options.onAudioCandidateLinked?.(options.dialog.audioCandidate, created.cue.cueId, 'keep-offset')
     }
     options.setLabelHistory(current => recordSoundLabelHistory(current, input.label))
     options.setDialog(null)

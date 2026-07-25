@@ -144,6 +144,7 @@ export interface SoundCueDialogState {
     trackId: string
     candidateIds: string[]
     revisionId: string
+    cueId?: string
   }
 }
 

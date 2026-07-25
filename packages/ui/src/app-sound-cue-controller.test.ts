@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createDefaultProject, standardA3SheetTemplate } from '@xsheet-remap/core'
+import { createDefaultProject, createTimedRangeCue, standardA3SheetTemplate } from '@xsheet-remap/core'
 import { createSoundCueController } from './app-sound-cue-controller'
 
 describe('sound cue controller audio integration', () => {
@@ -43,6 +43,65 @@ describe('sound cue controller audio integration', () => {
     expect(onAudioCandidateLinked).toHaveBeenCalledWith(
       { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       current.timedRangeCues[0].cueId,
+      'keep-offset',
+    )
+  })
+
+  it('links to an existing cue and can align the cue to the audio region without creating another cue', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'sound',
+      laneId: 'sound_lane_1',
+      frameStart: 40,
+      frameEnd: 50,
+      label: '既存',
+      text: '',
+    })
+    let current = created.project
+    const onAudioCandidateLinked = vi.fn()
+    const controller = createSoundCueController({
+      project: current,
+      getProject: () => current,
+      template: standardA3SheetTemplate,
+      rangeSelection: null,
+      selectedCueId: null,
+      clipboard: null,
+      frameMin: 1,
+      frameMax: 144,
+      commitProject: project => { current = project },
+      commitTimingDraft: () => current,
+      cancelTimingDraft: vi.fn(),
+      clearSelection: vi.fn(),
+      selectRange: vi.fn(),
+      setSelectedTextAnnotationId: vi.fn(),
+      setSelectedKeyId: vi.fn(),
+      setSheetSelection: vi.fn(),
+      setClipboard: vi.fn(),
+      setDialog: vi.fn(),
+      setLabelHistory: vi.fn(),
+      dialog: {
+        mode: 'create',
+        laneId: 'sound_lane_1',
+        frameStart: 12,
+        frameEnd: 24,
+        audioCandidate: { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
+      },
+      onAudioCandidateLinked,
+    })
+    controller.submitDialog({
+      laneId: 'sound_lane_1',
+      frameStart: 12,
+      frameEnd: 24,
+      label: '',
+      text: '',
+      existingCueId: created.cue.cueId,
+      alignment: 'move-cue-to-audio',
+    })
+    expect(current.timedRangeCues).toHaveLength(1)
+    expect(current.timedRangeCues[0]).toMatchObject({ cueId: created.cue.cueId, frameStart: 12, frameEnd: 24 })
+    expect(onAudioCandidateLinked).toHaveBeenCalledWith(
+      { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
+      created.cue.cueId,
+      'move-cue-to-audio',
     )
   })
 })

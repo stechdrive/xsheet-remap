@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/xdts",
-  "version": "0.1.679",
+  "version": "0.1.680",
   "private": true,
   "type": "module",
   "main": "src/index.ts",

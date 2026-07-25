@@ -690,7 +690,7 @@
   margin-left: -5px;
   background: linear-gradient(to right, transparent 4px, #ff665f 4px, #ff665f 6px, transparent 6px);
   cursor: ew-resize;
-  pointer-events: auto;
+  pointer-events: none;
   touch-action: none;
 }
 

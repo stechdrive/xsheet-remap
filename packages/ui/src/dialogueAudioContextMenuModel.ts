@@ -7,6 +7,13 @@ export type DialogueAudioContextTarget =
   | { kind: 'region'; trackId: string; regionId: string; linked: boolean }
   | { kind: 'cue'; cueId: string; trackId: string; linked: boolean }
 
+export type DialogueAudioSelectionFocus = {
+  kind: 'range' | 'candidate' | 'region' | 'clip'
+  trackId: string
+  frameStart: number
+  frameEnd: number
+}
+
 export type DialogueAudioContextCommand =
   | 'track-vad-mode'
   | 'redetect-track'
@@ -36,6 +43,31 @@ export interface DialogueAudioContextAvailability {
   hasClipboard: boolean
   busy: boolean
   targetHasAudio: boolean
+}
+
+/**
+ * Resolves overlapping timeline layers before any menu changes selection.
+ * A manually dragged range owns its covered track area; semantic selections
+ * (VAD, dialogue region, clip) do not mask a newly hit object.
+ */
+export function resolveDialogueAudioContextTarget(
+  hitTarget: DialogueAudioContextTarget,
+  selection: DialogueAudioSelectionFocus | null,
+  frame: number,
+): DialogueAudioContextTarget {
+  if (hitTarget.kind === 'track' || hitTarget.kind === 'cue') return hitTarget
+  if (selection?.kind === 'range'
+    && selection.trackId === hitTarget.trackId
+    && frame >= selection.frameStart
+    && frame <= selection.frameEnd) {
+    return {
+      kind: 'range',
+      trackId: selection.trackId,
+      frameStart: selection.frameStart,
+      frameEnd: selection.frameEnd,
+    }
+  }
+  return hitTarget
 }
 
 /**

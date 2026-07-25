@@ -388,10 +388,78 @@ describe('DialogueAudioTimeline', () => {
     />)
     openAudioTimeline()
 
-    fireEvent.pointerDown(screen.getByLabelText('発話候補 12–18F VAD'))
+    fireEvent.click(screen.getByLabelText('発話候補 12–18F VAD'))
     fireEvent.contextMenu(screen.getByLabelText('発話候補 30–36F VAD'), { clientX: 200, clientY: 220 })
     fireEvent.click(screen.getByRole('menuitem', { name: 'SOUNDへ割り付け…' }))
     expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['candidate-2'], 30, 36)
+  })
+
+  it('prioritizes a manually dragged range over an overlapping VAD hit and can switch back to VAD explicitly', () => {
+    const state = createDefaultDialogueAudioCutState(1)
+    state.tracks[0].speechCandidates = [{ candidateId: 'candidate-1', frameStart: 12, frameEnd: 24, status: 'pending' }]
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={72}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    const timeline = screen.getByRole('group', { name: '音声トラック編集領域' })
+    const lane = document.querySelector('.dialogueAudioWaveformLane') as HTMLDivElement
+    const candidate = screen.getByLabelText('発話候補 12–24F VAD')
+    vi.spyOn(timeline, 'getBoundingClientRect').mockReturnValue(rectangle(0, 720))
+    Object.defineProperties(lane, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+    })
+
+    fireEvent.pointerDown(candidate, { button: 0, pointerId: 4, clientX: 100 })
+    fireEvent.pointerMove(lane, { pointerId: 4, clientX: 300 })
+    fireEvent.pointerUp(lane, { pointerId: 4, clientX: 300 })
+    fireEvent.contextMenu(candidate, { clientX: 160, clientY: 220 })
+
+    expect(screen.getByRole('menu', { name: '選択範囲 11–31Fの操作' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'コピー　Ctrl+C' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'VAD候補を無視' })).toBeNull()
+
+    fireEvent.pointerDown(document.body)
+    fireEvent.click(candidate)
+    fireEvent.contextMenu(candidate, { clientX: 160, clientY: 220 })
+    expect(screen.getByRole('menu', { name: 'VAD候補 1区間の操作' })).toBeTruthy()
+  })
+
+  it('keeps the playhead line from intercepting timeline pointer targets', () => {
+    render(<DialogueAudioTimeline
+      cutState={createDefaultDialogueAudioCutState(1)}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={72}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+    const playhead = screen.getByRole('slider', { name: '音声再生ヘッド' })
+    expect(playhead.style.pointerEvents).toBe('none')
   })
 
   it('moves a linked SOUND cue with inserted track silence', () => {
@@ -525,8 +593,8 @@ describe('DialogueAudioTimeline', () => {
       onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
-    fireEvent.pointerDown(screen.getByLabelText('発話候補 12–20F VAD'))
-    fireEvent.pointerDown(screen.getByLabelText('発話候補 24–35F VAD'), { ctrlKey: true })
+    fireEvent.click(screen.getByLabelText('発話候補 12–20F VAD'))
+    fireEvent.click(screen.getByLabelText('発話候補 24–35F VAD'), { ctrlKey: true })
     fireEvent.click(screen.getByRole('button', { name: '音響指示へ割付…' }))
     expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['vad-1', 'vad-2'], 12, 35)
   })

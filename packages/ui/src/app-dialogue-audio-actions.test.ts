@@ -18,14 +18,13 @@ describe('app dialogue audio actions', () => {
       commitProject: (next: CutProject) => { project = next; projectRef.current = next },
     })
     const state = createDefaultDialogueAudioCutState(1)
-    state.tracks[0].name = '主人公'
     state.assets = [{ assetId: 'asset-1', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 24, waveform: [] }]
     state.tracks[0].clips = [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }]
     state.tracks[0].speechCandidates = [{ candidateId: 'vad-1', frameStart: 3, frameEnd: 8, status: 'pending' }]
 
     const next = actions.autoCreateSoundCues(state, 'dialogue-1', ['vad-1'])
 
-    expect(project.timedRangeCues[0]).toMatchObject({ role: 'sound', frameStart: 3, frameEnd: 8, label: '仮・主人公 1' })
+    expect(project.timedRangeCues[0]).toMatchObject({ role: 'sound', frameStart: 3, frameEnd: 8, label: '仮・発話 1' })
     expect(next.bindings[0]).toMatchObject({ cueId: project.timedRangeCues[0].cueId, provisional: true, status: 'linked' })
     expect(next.tracks[0].speechCandidates[0]).toMatchObject({ status: 'linked' })
   })

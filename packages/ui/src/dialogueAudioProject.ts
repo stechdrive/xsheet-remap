@@ -1,7 +1,7 @@
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 
 export const DIALOGUE_AUDIO_EXTENSION = 'xsheet-remap.dialogue-audio'
-export const DIALOGUE_AUDIO_SCHEMA_VERSION = 5
+export const DIALOGUE_AUDIO_SCHEMA_VERSION = 6
 
 export type DialogueAudioVadPreset = 'quiet' | 'normal' | 'noisy'
 export type DialogueAudioVadMode = 'off' | 'candidates' | 'auto-sound'
@@ -47,13 +47,11 @@ export interface DialogueAudioClip {
 
 export interface DialogueAudioTrackState {
   trackId: string
-  name: string
   color: string
   clips: DialogueAudioClip[]
   speechCandidates: DialogueSpeechCandidate[]
   vadMode: DialogueAudioVadMode
   muted: boolean
-  solo: boolean
 }
 
 export interface DialogueCueAudioAnchor {
@@ -98,13 +96,11 @@ export function createDefaultDialogueAudioCutState(frameOrigin: number, cutDurat
   void frameOrigin
   const tracks = TRACK_COLORS.map((color, index): DialogueAudioTrackState => ({
     trackId: `dialogue-${index + 1}`,
-    name: `セリフ ${index + 1}`,
     color,
     clips: [],
     speechCandidates: [],
     vadMode: 'candidates',
     muted: false,
-    solo: false,
   }))
   return {
     timelineDurationFrames: Math.max(1, Math.round(cutDurationFrames)),
@@ -130,7 +126,7 @@ export function dialogueAudioCutStateFromDocument(
   const cuts = isRecord(extension.data.cuts) ? extension.data.cuts : null
   const value = cuts?.[cutId]
   if (extension.schemaVersion === 1) return migrateV1CutState(value, fallback, frameOrigin)
-  if (extension.schemaVersion !== 2 && extension.schemaVersion !== 3 && extension.schemaVersion !== 4 && extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
+  if (extension.schemaVersion !== 2 && extension.schemaVersion !== 3 && extension.schemaVersion !== 4 && extension.schemaVersion !== 5 && extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
   return normalizeCutState(value, fallback, frameOrigin)
 }
 
@@ -142,7 +138,7 @@ export function updateDialogueAudioCutStateInDocument(
   cutDurationFrames = 144,
 ): CutGroupProjectDocument {
   const extension = document.extensions?.[DIALOGUE_AUDIO_EXTENSION]
-  const currentData = (extension?.schemaVersion === 2 || extension?.schemaVersion === 3 || extension?.schemaVersion === 4 || extension?.schemaVersion === DIALOGUE_AUDIO_SCHEMA_VERSION) && isRecord(extension.data)
+  const currentData = (extension?.schemaVersion === 2 || extension?.schemaVersion === 3 || extension?.schemaVersion === 4 || extension?.schemaVersion === 5 || extension?.schemaVersion === DIALOGUE_AUDIO_SCHEMA_VERSION) && isRecord(extension.data)
     ? extension.data
     : {}
   const currentCuts = isRecord(currentData.cuts) ? currentData.cuts : {}
@@ -185,13 +181,12 @@ function migrateV1CutState(value: unknown, fallback: DialogueAudioCutState, fram
         audioDataUrl,
         durationFrames,
         waveform: normalizeWaveform(raw.waveform),
-        sourceName: `${typeof raw.name === 'string' ? raw.name : defaultTrack.name}（旧形式）`,
+        sourceName: `旧形式の音声トラック${index + 1}`,
       })
     }
     const speechRanges = normalizeRanges(raw.speechRanges)
     return {
       ...defaultTrack,
-      name: normalizedTrackName(raw.name, defaultTrack.name),
       color: typeof raw.color === 'string' && raw.color ? raw.color : defaultTrack.color,
       clips: audioDataUrl && durationFrames > 0 ? [{
         clipId: `dialogue-v1-clip-${index + 1}`,
@@ -208,7 +203,6 @@ function migrateV1CutState(value: unknown, fallback: DialogueAudioCutState, fram
       })),
       vadMode: 'candidates',
       muted: raw.muted === true,
-      solo: raw.solo === true,
     }
   })
   const activeTrackId = typeof value.activeTrackId === 'string' && tracks.some(track => track.trackId === value.activeTrackId)
@@ -297,13 +291,11 @@ function normalizeTrackState(value: unknown, fallback: DialogueAudioTrackState, 
     : []
   return {
     trackId: fallback.trackId,
-    name: normalizedTrackName(value.name, fallback.name),
     color: typeof value.color === 'string' && value.color ? value.color : fallback.color,
     clips: clips.sort((left, right) => left.timelineStartFrame - right.timelineStartFrame || left.clipId.localeCompare(right.clipId)),
     speechCandidates: speechCandidates.sort((left, right) => left.frameStart - right.frameStart || left.candidateId.localeCompare(right.candidateId)),
     vadMode: normalizeVadMode(value.vadMode, fallback.vadMode),
     muted: value.muted === true,
-    solo: value.solo === true,
   }
 }
 
@@ -404,10 +396,6 @@ function normalizeRanges(value: unknown): DialogueSpeechRange[] {
 
 function normalizeWaveform(value: unknown): number[] {
   return Array.isArray(value) ? value.slice(0, 4096).map(sample => clampNumber(sample, 0, 1, 0)) : []
-}
-
-function normalizedTrackName(value: unknown, fallback: string): string {
-  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 32) : fallback
 }
 
 function normalizedId(value: unknown): string {

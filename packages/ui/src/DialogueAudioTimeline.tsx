@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { formatLogicalSheetFrameTimecode, type TimedRangeCue } from '@xsheet-remap/core'
 import {
   copyDialogueAudioRange,
@@ -60,14 +61,17 @@ import {
   type DialogueSpeechRange,
 } from './dialogueAudioProject'
 import {
-  DIALOGUE_AUDIO_MAX_PIXELS_PER_FRAME,
-  DIALOGUE_AUDIO_MIN_PIXELS_PER_FRAME,
   DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS,
+  clampDialogueAudioPanelHeight,
   clampDialogueAudioPixelsPerFrame,
   clampDialogueAudioTrackHeight,
+  dialogueAudioPixelsPerFrameFromZoomSlider,
+  dialogueAudioZoomSliderValue,
   effectiveDialogueAudioPixelsPerFrame,
   ensureDialogueAudioTimelineDuration,
+  fitDialogueAudioPixelsPerFrame,
   loadDialogueAudioViewPreferences,
+  planDialogueAudioRulerTicks,
   saveDialogueAudioViewPreferences,
   type DialogueAudioTrackHeightPreset,
 } from './dialogueAudioTimelineModel'
@@ -100,6 +104,11 @@ interface AudioHistory {
 }
 
 const SCRUB_EDGE_FADE_SECONDS = 0.001
+const TIME_RULER_HEIGHT = 40
+const CUE_LANE_HEIGHT = 32
+const CONTEXT_MENU_EDGE = 8
+const CONTEXT_MENU_WIDTH = 260
+const CONTEXT_MENU_MAX_HEIGHT = 520
 
 export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const {
@@ -115,7 +124,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(720)
   const [playing, setPlaying] = useState(false)
   const [recording, setRecording] = useState(false)
-  const [loopSelectedCue, setLoopSelectedCue] = useState(false)
   const [audioSelection, setAudioSelection] = useState<(DialogueAudioRange & { trackId: string }) | null>(null)
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([])
   const [selectionDrag, setSelectionDrag] = useState<{ trackId: string; anchorFrame: number } | null>(null)
@@ -130,6 +138,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     requiredCutDuration: number
     awaitingCutUpdate: boolean
   } | null>(null)
+  const [panelResize, setPanelResize] = useState<{ startY: number; startHeight: number } | null>(null)
   const [trackResize, setTrackResize] = useState<{ trackId: string; startY: number; startHeight: number } | null>(null)
   const [cueDrag, setCueDrag] = useState<{
     cueId: string
@@ -146,7 +155,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     previewFrame: number
     durationFrames: number
   } | null>(null)
-  const [status, setStatus] = useState('カット頭または再生ヘッドから、3トラックを通して確認できます。')
+  const [status, setStatus] = useState('')
   const cutStateRef = useRef(cutState)
   const audioContextRef = useRef<AudioContext | null>(null)
   const sourcesRef = useRef<AudioBufferSourceNode[]>([])
@@ -154,19 +163,27 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const scrubRequestRef = useRef(0)
   const scrubDragRef = useRef<{ pointerId: number; lastFrame: number } | null>(null)
   const animationRef = useRef<number | null>(null)
-  const playSessionRef = useRef<{ contextStart: number; frameStart: number; frameEnd: number; loop: boolean } | null>(null)
+  const playSessionRef = useRef<{ contextStart: number; frameStart: number; frameEnd: number } | null>(null)
   const recorderRef = useRef<{ recorder: MediaRecorder; stream: MediaStream; chunks: Blob[]; startFrame: number; trackId: string } | null>(null)
   const decodedRef = useRef(new Map<string, { dataUrl: string; audio: PcmAudio }>())
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const timelineContentRef = useRef<HTMLDivElement | null>(null)
   const timelineScrollerRef = useRef<HTMLDivElement | null>(null)
   const timelineHeaderRef = useRef<HTMLElement | null>(null)
+  const fittedPixelsPerFrame = fitDialogueAudioPixelsPerFrame(timelineViewportWidth, timelineDurationFrames)
   const pixelsPerFrame = effectiveDialogueAudioPixelsPerFrame(viewPreferences, timelineViewportWidth, timelineDurationFrames)
+  const zoomSliderValue = dialogueAudioZoomSliderValue(pixelsPerFrame, fittedPixelsPerFrame)
   const timelineWidth = Math.max(timelineViewportWidth, timelineDurationFrames * pixelsPerFrame)
   const frameEnd = frameOrigin + timelineDurationFrames - 1
   const cutFrameEnd = frameOrigin + cutDurationFrames - 1
   const activeTrack = cutState.tracks.find(track => track.trackId === cutState.activeTrackId) ?? cutState.tracks[0]
+  const contextTrack = contextMenu
+    ? cutState.tracks.find(track => track.trackId === (contextMenu.trackId ?? cutState.activeTrackId)) ?? activeTrack
+    : null
   const selectedCue = soundCues.find(cue => cue.cueId === selectedSoundCueId) ?? null
+  const selectedCueBinding = selectedCue ? bindingForCue(cutState, selectedCue.cueId, activeRevisionId) : undefined
+  const selectedCueFrameStart = selectedCue?.frameStart
+  const selectedCueBindingId = selectedCueBinding?.bindingId
   const selectedCandidates = activeTrack?.speechCandidates.filter(candidate => selectedCandidateIds.includes(candidate.candidateId)) ?? []
   const selectedCandidate = selectedCandidates[0] ?? null
 
@@ -177,6 +194,12 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   useEffect(() => {
     saveDialogueAudioViewPreferences(viewPreferences)
   }, [viewPreferences])
+
+  useEffect(() => {
+    if (!status || recording) return
+    const timeout = window.setTimeout(() => setStatus(''), 3600)
+    return () => window.clearTimeout(timeout)
+  }, [recording, status])
 
   useEffect(() => {
     const scroller = timelineScrollerRef.current
@@ -206,6 +229,24 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }, [cutDurationFrames, onSoundCandidateEdit, pendingSoundRequest])
 
   useEffect(() => {
+    if (!panelResize) return
+    const move = (event: PointerEvent) => {
+      const maximum = Math.max(180, window.innerHeight - 96)
+      const height = clampDialogueAudioPanelHeight(panelResize.startHeight + panelResize.startY - event.clientY, maximum)
+      setViewPreferences(current => ({ ...current, panelHeight: height }))
+    }
+    const finish = () => setPanelResize(null)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', finish, { once: true })
+    window.addEventListener('pointercancel', finish, { once: true })
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+    }
+  }, [panelResize])
+
+  useEffect(() => {
     if (!trackResize) return
     const move = (event: PointerEvent) => {
       const height = clampDialogueAudioTrackHeight(trackResize.startHeight + event.clientY - trackResize.startY)
@@ -227,9 +268,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     const close = () => setContextMenu(null)
     window.addEventListener('pointerdown', close)
     window.addEventListener('blur', close)
+    window.addEventListener('resize', close)
     return () => {
       window.removeEventListener('pointerdown', close)
       window.removeEventListener('blur', close)
+      window.removeEventListener('resize', close)
     }
   }, [contextMenu])
 
@@ -245,6 +288,25 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     setPlayheadFrame(next)
     onPlayheadChange(next)
   }, [cutDurationFrames, frameOrigin, onPlayheadChange])
+
+  useEffect(() => {
+    if (selectedCueFrameStart === undefined || !selectedCueBindingId) return
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      stopSources(sourcesRef.current)
+      stopSources(scrubSourcesRef.current)
+      sourcesRef.current = []
+      scrubSourcesRef.current = []
+      scrubRequestRef.current += 1
+      playSessionRef.current = null
+      if (animationRef.current !== null) cancelAnimationFrame(animationRef.current)
+      animationRef.current = null
+      setPlaying(false)
+      setPlayhead(selectedCueFrameStart)
+    })
+    return () => { cancelled = true }
+  }, [selectedCueBindingId, selectedCueFrameStart, setPlayhead])
 
   useEffect(() => () => {
     stopSources(sourcesRef.current)
@@ -296,19 +358,15 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     stopPlayback(false)
     const context = audioContext()
     await context.resume()
-    const loopRange = loopSelectedCue && selectedCue
-      ? { start: selectedCue.frameStart, end: selectedCue.frameEnd }
-      : null
-    const requestedStart = loopRange?.start ?? fromFrame
-    const restartAtOrigin = !loopRange && !recorderRef.current && requestedStart >= frameEnd
+    const requestedStart = fromFrame
+    const restartAtOrigin = !recorderRef.current && requestedStart >= frameEnd
     const playbackStart = Math.max(frameOrigin, Math.min(frameEnd, restartAtOrigin ? frameOrigin : requestedStart))
-    const playbackEnd = Math.max(playbackStart, Math.min(frameEnd, loopRange?.end ?? frameEnd))
-    const soloed = cutState.tracks.some(track => track.solo)
+    const playbackEnd = frameEnd
     const assetById = new Map(cutState.assets.map(asset => [asset.assetId, asset]))
     const sources: AudioBufferSourceNode[] = []
     const scheduled: Array<{ source: AudioBufferSourceNode; audibleStart: number; clip: DialogueAudioClip; audio: PcmAudio }> = []
     for (const track of cutState.tracks) {
-      if (track.trackId === omitTrackId || track.muted || (soloed && !track.solo)) continue
+      if (track.trackId === omitTrackId || track.muted) continue
       for (const clip of track.clips) {
         const clipEnd = clip.timelineStartFrame + clip.durationFrames - 1
         if (clipEnd < playbackStart || clip.timelineStartFrame > playbackEnd) continue
@@ -335,10 +393,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       )
     })
     sourcesRef.current = sources
-    playSessionRef.current = { contextStart: startAt, frameStart: playbackStart, frameEnd: playbackEnd, loop: Boolean(loopRange) }
+    playSessionRef.current = { contextStart: startAt, frameStart: playbackStart, frameEnd: playbackEnd }
     setPlayhead(playbackStart)
     setPlaying(true)
-    setStatus(sources.length > 0 ? '全トラックをミックス再生中' : '音声はありません。再生ヘッドだけを進めています。')
     tickPlayback()
   }
 
@@ -360,8 +417,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         }
         setPlayhead(next)
         animationRef.current = requestAnimationFrame(tickPlayback)
-      } else if (session.loop) void startPlayback(session.frameStart)
-      else {
+      } else {
         setPlayhead(session.frameEnd)
         stopPlayback(false)
       }
@@ -375,11 +431,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     const direction = nextFrame < previousFrame ? -1 : nextFrame > previousFrame ? 1 : 0
     if (direction === 0) return
     const state = cutStateRef.current
-    const soloed = state.tracks.some(track => track.solo)
-    const audibleTracks = state.tracks.filter(track => !track.muted && (!soloed || track.solo))
+    const audibleTracks = state.tracks.filter(track => !track.muted)
     if (!audibleTracks.some(track => track.clips.length > 0)) {
       stopScrubPlayback()
-      setStatus(direction < 0 ? '逆スクラブ（音声なし）' : 'スクラブ（音声なし）')
       return
     }
 
@@ -398,7 +452,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     }))
     if (clips.length === 0) {
       stopScrubPlayback()
-      setStatus(direction < 0 ? '逆スクラブ（この位置は無音）' : 'スクラブ（この位置は無音）')
       return
     }
 
@@ -439,7 +492,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       sources.push(source)
     })
     scrubSourcesRef.current = sources
-    setStatus(direction < 0 ? '全トラックを1F逆スクラブ中' : '全トラックを1Fスクラブ中')
   }
 
   async function toggleRecording() {
@@ -462,7 +514,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       recorderRef.current = { recorder, stream, chunks, startFrame: playheadFrame, trackId: activeTrack.trackId }
       recorder.start(100)
       setRecording(true)
-      setStatus(`${activeTrack.name}へパンチイン録音中。ほかのトラックは再生されます。`)
+      setStatus('パンチイン録音中。ほかのトラックは再生されます。')
       void startPlayback(playheadFrame, activeTrack.trackId)
     } catch (error) {
       setStatus(`録音を開始できませんでした: ${error instanceof Error ? error.message : String(error)}`)
@@ -696,7 +748,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       }
       const candidates = reconcileDialogueSpeechCandidates(activeTrack.speechCandidates, mergeRanges(ranges), activeTrack.trackId)
       updateTrack(activeTrack.trackId, { speechCandidates: candidates })
-      setStatus(`${activeTrack.name}から${ranges.length}区間を再検出しました。処理済みラベルは保持しています。${vadResultSuffix(lastAnalysis)}`)
+      setStatus(`${ranges.length}区間を再検出しました。処理済みラベルは保持しています。${vadResultSuffix(lastAnalysis)}`)
     } catch (error) {
       setStatus(`再検出に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -783,7 +835,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     if (onCutDurationChange) onCutDurationChange(request.requiredCutDuration)
     else {
       setPendingSoundRequest(null)
-      setStatus('紙シートのカット尺を変更できないため、SOUNDへ反映できませんでした。')
+      setStatus('タイムシートのカット尺を変更できないため、SOUNDへ反映できませんでした。')
     }
   }
 
@@ -976,16 +1028,28 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     </TooltipTarget>
   }
 
-  function zoomTimeline(direction: -1 | 1) {
+  function fitTimeline() {
+    setViewPreferences(current => ({ ...current, fitTimeline: true }))
+  }
+
+  function setTimelineZoom(value: number) {
+    if (value <= 0) {
+      fitTimeline()
+      return
+    }
     setViewPreferences(current => ({
       ...current,
       fitTimeline: false,
-      pixelsPerFrame: clampDialogueAudioPixelsPerFrame(pixelsPerFrame * (direction < 0 ? 0.8 : 1.25)),
+      pixelsPerFrame: dialogueAudioPixelsPerFrameFromZoomSlider(value, fittedPixelsPerFrame),
     }))
   }
 
-  function fitTimeline() {
-    setViewPreferences(current => ({ ...current, fitTimeline: true }))
+  function resizePanelBy(delta: number) {
+    const maximum = Math.max(180, window.innerHeight - 96)
+    setViewPreferences(current => ({
+      ...current,
+      panelHeight: clampDialogueAudioPanelHeight(current.panelHeight + delta, maximum),
+    }))
   }
 
   function handleTimelineWheel(event: ReactWheelEvent<HTMLDivElement>) {
@@ -1014,9 +1078,15 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     event.preventDefault()
     event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
+    const anchorX = event.clientX || rect.left
+    const anchorY = event.clientY || rect.bottom
+    const menuHeight = Math.min(CONTEXT_MENU_MAX_HEIGHT, Math.max(1, window.innerHeight - CONTEXT_MENU_EDGE * 2))
+    const spaceBelow = window.innerHeight - anchorY - CONTEXT_MENU_EDGE
     setContextMenu({
-      x: Math.max(8, Math.min(window.innerWidth - 260, event.clientX || rect.left)),
-      y: Math.max(8, Math.min(window.innerHeight - 420, event.clientY || rect.bottom)),
+      x: Math.max(CONTEXT_MENU_EDGE, Math.min(window.innerWidth - CONTEXT_MENU_WIDTH, anchorX)),
+      y: spaceBelow >= menuHeight
+        ? Math.max(CONTEXT_MENU_EDGE, anchorY)
+        : Math.max(CONTEXT_MENU_EDGE, anchorY - menuHeight),
       trackId,
     })
   }
@@ -1031,7 +1101,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   const trackRows = cutState.tracks.map(track => `${trackHeight(track.trackId)}px`).join(' ')
-  const contentHeight = 57 + cutState.tracks.reduce((sum, track) => sum + trackHeight(track.trackId), 0)
+  const contentHeight = TIME_RULER_HEIGHT + CUE_LANE_HEIGHT + cutState.tracks.reduce((sum, track) => sum + trackHeight(track.trackId), 0)
 
   if (collapsed) {
     return (
@@ -1044,10 +1114,41 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   return (
-    <section className="dialogueAudioTimeline" aria-label="セリフ音声タイムライン">
+    <section className="dialogueAudioTimeline" aria-label="セリフ音声タイムライン" style={{ height: viewPreferences.panelHeight }}>
+      <div
+        className="dialogueAudioPanelResizeHandle"
+        role="separator"
+        aria-label="音声タイムラインの高さを変更"
+        aria-orientation="horizontal"
+        aria-valuemin={180}
+        aria-valuemax={720}
+        aria-valuenow={viewPreferences.panelHeight}
+        tabIndex={0}
+        onPointerDown={event => {
+          if (event.button !== 0) return
+          event.preventDefault()
+          setPanelResize({ startY: event.clientY, startHeight: viewPreferences.panelHeight })
+        }}
+        onKeyDown={event => {
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            resizePanelBy(24)
+          } else if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            resizePanelBy(-24)
+          } else if (event.key === 'Home') {
+            event.preventDefault()
+            setViewPreferences(current => ({ ...current, panelHeight: clampDialogueAudioPanelHeight(180) }))
+          } else if (event.key === 'End') {
+            event.preventDefault()
+            resizePanelBy(720)
+          }
+        }}
+      />
       <div className="dialogueAudioToolbar">
         <div className="dialogueAudioToolbarMain">
           <button type="button" className="dialogueAudioCollapse" onClick={() => setCollapsed(true)} aria-expanded="true" disabled={recording}>▾ 音声</button>
+          <span className="dialogueAudioTime">{formatFrame(playheadFrame, frameOrigin, fps)}</span>
           <span className="dialogueAudioToolGroup" aria-label="再生と録音">
             <Tooltip label="カット頭から再生">
               <button type="button" className="dialogueAudioIconButton" aria-label="⏮ カット頭から" onClick={() => { setPlayhead(frameOrigin); void startPlayback(frameOrigin) }} disabled={recording}>⏮</button>
@@ -1079,43 +1180,42 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             className="dialogueAudioReflectButton"
             onClick={createSoundFromSelection}
             disabled={selectedCandidates.length === 0 && !audioSelection}
-          >{selectedCandidates.length > 1 ? '選択区間を紙シートへSOUND反映' : selectedCandidate && bindingForCandidate(cutState, selectedCandidate.candidateId, activeRevisionId) ? '紙シートのSOUNDを編集' : '紙シートへSOUND反映'}</button>
-          <span className="dialogueAudioTime">{formatFrame(playheadFrame, frameOrigin, fps)}</span>
+          >{selectedCandidates.length > 1 ? '選択区間をタイムシートへSOUND反映' : selectedCandidate && bindingForCandidate(cutState, selectedCandidate.candidateId, activeRevisionId) ? 'タイムシートのSOUNDを編集' : 'タイムシートへSOUND反映'}</button>
+          {audioSelection && <span className="dialogueAudioSelectionSummary">{audioSelection.frameStart}–{audioSelection.frameEnd}F ({audioSelection.frameEnd - audioSelection.frameStart + 1}F)</span>}
+          <span className="dialogueAudioToolbarSpacer" />
+          <TooltipTarget label={vadEngine.error ?? ''} disabled={!vadEngine.error}>
+            {tooltipProps => <span className={`dialogueVadEngine is-${vadEngine.status}`} role="status" {...tooltipProps}>{vadEngineLabel(vadEngine.status)}</span>}
+          </TooltipTarget>
           <span className="dialogueAudioZoomTools" aria-label="タイムライン表示倍率">
-            <Tooltip label="縮小">
-              <button type="button" className="dialogueAudioIconButton" onClick={() => zoomTimeline(-1)} disabled={viewPreferences.fitTimeline || pixelsPerFrame <= DIALOGUE_AUDIO_MIN_PIXELS_PER_FRAME} aria-label="タイムラインを縮小">−</button>
-            </Tooltip>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={zoomSliderValue}
+              onChange={event => setTimelineZoom(Number(event.currentTarget.value))}
+              aria-label="音声タイムラインのズーム"
+              aria-valuetext={viewPreferences.fitTimeline ? '全体表示' : '拡大表示'}
+            />
             <Tooltip label="音声尺全体を表示">
-              <button type="button" className={viewPreferences.fitTimeline ? 'isOn' : ''} onClick={fitTimeline} aria-label="音声タイムライン全体を表示">全体</button>
-            </Tooltip>
-            <output aria-label="タイムライン表示倍率">{pixelsPerFrame.toFixed(1)} px/F</output>
-            <Tooltip label="拡大">
-              <button type="button" className="dialogueAudioIconButton" onClick={() => zoomTimeline(1)} disabled={pixelsPerFrame >= DIALOGUE_AUDIO_MAX_PIXELS_PER_FRAME} aria-label="タイムラインを拡大">＋</button>
+              <button type="button" className={`dialogueAudioFitButton ${viewPreferences.fitTimeline ? 'isOn' : ''}`} onClick={fitTimeline} aria-label="音声タイムライン全体を表示">全体</button>
             </Tooltip>
           </span>
           <Tooltip label="編集ツールとVAD設定">
             <button type="button" className="dialogueAudioIconButton" onClick={openToolsMenu} aria-label="音声タイムラインのツール">⋯</button>
           </Tooltip>
         </div>
-        <div className="dialogueAudioToolbarStatus">
-          <label className="dialogueAudioToggle"><input type="checkbox" checked={loopSelectedCue} disabled={recording} onChange={event => setLoopSelectedCue(event.target.checked)} />選択SOUNDをループ</label>
-          <span className="dialogueAudioSelectionSummary">{audioSelection ? `${audioSelection.frameStart}–${audioSelection.frameEnd}F (${audioSelection.frameEnd - audioSelection.frameStart + 1}F)` : '範囲未選択'}</span>
-          <TooltipTarget label={vadEngine.error ?? ''} disabled={!vadEngine.error}>
-            {tooltipProps => <span className={`dialogueVadEngine is-${vadEngine.status}`} role="status" {...tooltipProps}>{vadEngineLabel(vadEngine.status)}</span>}
-          </TooltipTarget>
-          <span className="dialogueAudioDurationSummary">紙 {cutDurationFrames}F / 音声 {timelineDurationFrames}F</span>
-          <span className="dialogueAudioStatus" role="status">{status}</span>
-        </div>
       </div>
+      {status && <div className="dialogueAudioNotice" role="status">{status}</div>}
 
       <div className="dialogueAudioBody">
         <aside
           ref={timelineHeaderRef}
           className="dialogueAudioTrackHeaders"
-          style={{ gridTemplateRows: `25px 32px ${trackRows}` }}
+          style={{ gridTemplateRows: `${TIME_RULER_HEIGHT}px ${CUE_LANE_HEIGHT}px ${trackRows}` }}
         >
-          <div className="dialogueAudioCueHeader">未リンクSOUND / トラック別ラベル</div>
-          {cutState.tracks.map(track => (
+          <div className="dialogueAudioCueHeader" aria-hidden="true" />
+          {cutState.tracks.map((track, trackIndex) => (
             <div
               key={track.trackId}
               className={`dialogueAudioTrackHeader ${track.trackId === cutState.activeTrackId ? 'isActive' : ''}`}
@@ -1125,20 +1225,33 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 openToolsMenu(event, track.trackId)
               }}
             >
-              <input type="radio" name="dialogue-track" checked={track.trackId === cutState.activeTrackId} disabled={recording} onChange={() => onCutStateChange({ ...cutState, activeTrackId: track.trackId })} aria-label={`${track.name}を録音対象にする`} />
-              <span className="dialogueAudioTrackDot" style={{ background: track.color }} />
-              <input className="dialogueAudioTrackName" value={track.name} onChange={event => updateTrack(track.trackId, { name: event.target.value })} aria-label="トラック名" />
-              <select className="dialogueAudioTrackVadMode" value={track.vadMode} disabled={recording || vadEngine.status === 'loading'} onChange={event => updateTrack(track.trackId, { vadMode: event.target.value as DialogueAudioTrackState['vadMode'] })} aria-label={`${track.name} 録音VAD`}>
-                <option value="off">VADなし</option>
-                <option value="candidates">候補</option>
-                <option value="auto-sound">仮SOUND</option>
-              </select>
-              <button type="button" className={track.muted ? 'isOn' : ''} onClick={() => updateTrack(track.trackId, { muted: !track.muted })} aria-label={`${track.name}をミュート`}>M</button>
-              <button type="button" className={track.solo ? 'isOn' : ''} onClick={() => updateTrack(track.trackId, { solo: !track.solo })} aria-label={`${track.name}をソロ`}>S</button>
+              <TooltipTarget label={track.trackId === cutState.activeTrackId ? '録音先' : 'このトラックを録音先にする'}>
+                {tooltipProps => <button
+                  type="button"
+                  className={`dialogueAudioTrackTarget ${track.trackId === cutState.activeTrackId ? 'isActive' : ''}`}
+                  onClick={() => onCutStateChange({ ...cutState, activeTrackId: track.trackId })}
+                  disabled={recording}
+                  aria-label={`音声トラック${trackIndex + 1}を録音対象にする`}
+                  aria-pressed={track.trackId === cutState.activeTrackId}
+                  {...tooltipProps}
+                >
+                  <span className="dialogueAudioTrackColorBar" style={{ background: track.color }} />
+                </button>}
+              </TooltipTarget>
+              <TooltipTarget label={track.muted ? 'ミュートを解除' : 'このトラックをミュート'}>
+                {tooltipProps => <button
+                  type="button"
+                  className={`dialogueAudioTrackMute ${track.muted ? 'isMuted' : ''}`}
+                  onClick={() => updateTrack(track.trackId, { muted: !track.muted })}
+                  aria-label={track.muted ? `音声トラック${trackIndex + 1}のミュートを解除` : `音声トラック${trackIndex + 1}をミュート`}
+                  aria-pressed={track.muted}
+                  {...tooltipProps}
+                ><SpeakerIcon muted={track.muted} /></button>}
+              </TooltipTarget>
               <span
                 className="dialogueAudioTrackResizeHandle"
                 role="separator"
-                aria-label={`${track.name}の高さを変更`}
+                aria-label={`音声トラック${trackIndex + 1}の高さを変更`}
                 aria-orientation="horizontal"
                 onPointerDown={event => {
                   event.preventDefault()
@@ -1168,9 +1281,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             onContextMenu={event => openToolsMenu(event)}
           >
             <TimeRuler
-              frameOrigin={frameOrigin}
               durationFrames={timelineDurationFrames}
               fps={fps}
+              pixelsPerFrame={pixelsPerFrame}
               onPointerDown={beginPlayheadScrub}
               onPointerMove={movePlayheadScrub}
               onPointerUp={finishPlayheadScrub}
@@ -1185,16 +1298,18 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             >
               {soundCues.filter(cue => !bindingForCue(cutState, cue.cueId, activeRevisionId)).map(cue => renderCueButton(cue))}
             </div>
-            {timelineDurationFrames > cutDurationFrames && <TooltipTarget label="紙シートのカット尺より後の音声領域">
-              {tooltipProps => <span
-                className="dialogueAudioPostCut"
-                style={{
-                  left: `${cutDurationFrames / timelineDurationFrames * 100}%`,
-                  width: `${(timelineDurationFrames - cutDurationFrames) / timelineDurationFrames * 100}%`,
-                }}
-                {...tooltipProps}
-              ><span>カット外</span></span>}
-            </TooltipTarget>}
+            <TimelineBoundaryMarker
+              kind={timelineDurationFrames === cutDurationFrames ? 'combined' : 'cut'}
+              positionPercent={cutDurationFrames / timelineDurationFrames * 100}
+              label={timelineDurationFrames === cutDurationFrames
+                ? `タイムシートと音声タイムラインの終端 ${formatFrame(cutFrameEnd, frameOrigin, fps)}`
+                : `タイムシート終端 ${formatFrame(cutFrameEnd, frameOrigin, fps)}`}
+            />
+            {timelineDurationFrames > cutDurationFrames && <TimelineBoundaryMarker
+              kind="audio"
+              positionPercent={100}
+              label={`音声タイムライン終端 ${formatFrame(frameEnd, frameOrigin, fps)}`}
+            />}
             {cutState.tracks.map(track => (
               <div
                 key={track.trackId}
@@ -1281,7 +1396,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         </div>
       </div>
 
-      {contextMenu && <div
+      {contextMenu && createPortal(<div
         className="dialogueAudioContextMenu"
         role="menu"
         aria-label="音声タイムラインの操作"
@@ -1289,8 +1404,17 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         onPointerDown={event => event.stopPropagation()}
         onContextMenu={event => event.preventDefault()}
       >
+        {contextTrack && <>
+          <label>録音後の処理<select value={contextTrack.vadMode} disabled={recording || vadEngine.status === 'loading'} onChange={event => updateTrack(contextTrack.trackId, { vadMode: event.target.value as DialogueAudioTrackState['vadMode'] })}>
+            <option value="off">検出しない</option>
+            <option value="candidates">発話区間を検出</option>
+            <option value="auto-sound">仮SOUNDを自動作成</option>
+          </select></label>
+          <button type="button" role="menuitem" onClick={() => updateTrack(contextTrack.trackId, { muted: !contextTrack.muted })}>{contextTrack.muted ? 'ミュートを解除' : 'このトラックをミュート'}</button>
+          <div className="dialogueAudioMenuSeparator" />
+        </>}
         <button type="button" role="menuitem" onClick={() => { setContextMenu(null); fileInputRef.current?.click() }} disabled={recording || playing || vadEngine.status === 'loading'}>音声を再生ヘッドへ読み込む</button>
-        <button type="button" role="menuitem" onClick={() => { setContextMenu(null); createSoundFromSelection() }} disabled={selectedCandidates.length === 0 && !audioSelection}>紙シートへSOUND反映</button>
+        <button type="button" role="menuitem" onClick={() => { setContextMenu(null); createSoundFromSelection() }} disabled={selectedCandidates.length === 0 && !audioSelection}>タイムシートへSOUND反映</button>
         <div className="dialogueAudioMenuSeparator" />
         <button type="button" role="menuitem" onClick={() => { setContextMenu(null); copySelection(false) }} disabled={!audioSelection}>コピー</button>
         <button type="button" role="menuitem" onClick={() => { setContextMenu(null); copySelection(true) }} disabled={!audioSelection}>切り取り</button>
@@ -1319,12 +1443,12 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         <button type="button" role="menuitem" onClick={() => { setContextMenu(null); void redetectActiveTrack() }} disabled={recording || playing || vadEngine.status === 'loading' || !activeTrack?.clips.length}>セリフ区間を再検出</button>
         <button type="button" role="menuitem" onClick={() => { setContextMenu(null); ignoreSelectedCandidate() }} disabled={selectedCandidates.length === 0 || selectedCandidates.every(candidate => Boolean(bindingForCandidate(cutState, candidate.candidateId, activeRevisionId)))}>候補を無視</button>
         <button type="button" role="menuitem" className="isDanger" onClick={() => { setContextMenu(null); clearActiveTrack() }} disabled={recording || !activeTrack?.clips.length}>トラックをクリア</button>
-      </div>}
+      </div>, document.body)}
 
       {pendingSoundRequest && !pendingSoundRequest.awaitingCutUpdate && <div className="dialogueAudioPromptBackdrop">
         <div className="dialogueAudioPrompt" role="alertdialog" aria-modal="true" aria-labelledby="dialogue-audio-extend-title">
           <h3 id="dialogue-audio-extend-title">SOUND区間がカット尺を越えています</h3>
-          <p>音声は{pendingSoundRequest.requiredCutDuration}Fまであります。区間を切り捨てず、紙シートのカット尺も延長して反映しますか？</p>
+          <p>音声は{pendingSoundRequest.requiredCutDuration}Fまであります。区間を切り捨てず、タイムシートのカット尺も延長して反映しますか？</p>
           <div>
             <button type="button" onClick={() => setPendingSoundRequest(null)}>キャンセル</button>
             <button type="button" className="dialogueAudioReflectButton" onClick={confirmSoundCutExtension}>カット尺を延長して反映</button>
@@ -1335,25 +1459,50 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   )
 }
 
+function SpeakerIcon({ muted }: { muted: boolean }) {
+  return <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor" />
+    {muted
+      ? <path d="m16 9 5 6m0-6-5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      : <>
+          <path d="M16 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M18.5 5.5a9 9 0 0 1 0 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </>}
+  </svg>
+}
+
 function TimeRuler(props: {
-  frameOrigin: number
   durationFrames: number
   fps: number
+  pixelsPerFrame: number
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void
   onPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) => void
 }) {
-  const step = props.durationFrames > 480 ? props.fps * 2 : props.fps
-  const ticks: number[] = []
-  for (let offset = 0; offset < props.durationFrames; offset += step) ticks.push(props.frameOrigin + offset)
+  const plan = planDialogueAudioRulerTicks(props.durationFrames, props.fps, props.pixelsPerFrame)
   return <div
     className="dialogueAudioRuler"
     onPointerDown={props.onPointerDown}
     onPointerMove={props.onPointerMove}
     onPointerUp={props.onPointerUp}
     onPointerCancel={props.onPointerCancel}
-  >{ticks.map(frame => <span key={frame} style={{ left: `${(frame - props.frameOrigin) / props.durationFrames * 100}%` }}>{formatFrame(frame, props.frameOrigin, props.fps)}</span>)}</div>
+  >
+    <div className="dialogueAudioRulerSeconds" aria-hidden="true">
+      {plan.secondTicks.map(tick => <span
+        key={tick.offsetFrames}
+        className="dialogueAudioSecondTick"
+        style={{ left: tick.offsetFrames * props.pixelsPerFrame }}
+      ><span>{tick.second}秒</span></span>)}
+    </div>
+    <div className="dialogueAudioRulerFrames" aria-label="秒内フレーム目盛り">
+      {plan.frameTicks.map(tick => <span
+        key={tick.offsetFrames}
+        className="dialogueAudioFrameTick"
+        style={{ left: tick.offsetFrames * props.pixelsPerFrame }}
+      ><span>{tick.frameInSecond}</span></span>)}
+    </div>
+  </div>
 }
 
 function Waveform(props: { asset: DialogueAudioAsset; clip: DialogueAudioClip; color: string; frameOrigin: number; durationFrames: number }) {
@@ -1380,6 +1529,28 @@ function Waveform(props: { asset: DialogueAudioAsset; clip: DialogueAudioClip; c
     style={rangeStyle(props.clip.timelineStartFrame, props.clip.timelineStartFrame + props.clip.durationFrames - 1, props.frameOrigin, props.durationFrames)}
     aria-hidden="true"
   ><path d={`${path} ${lowerPath} Z`} fill={props.color} /></svg>
+}
+
+function TimelineBoundaryMarker(props: {
+  kind: 'cut' | 'audio' | 'combined'
+  positionPercent: number
+  label: string
+}) {
+  return (
+    <span
+      className={`dialogueAudioBoundary dialogueAudioBoundary-${props.kind}`}
+      style={{ left: `${props.positionPercent}%` }}
+    >
+      <TooltipTarget label={props.label}>
+        {tooltipProps => <span
+          className="dialogueAudioBoundaryHandle"
+          role="img"
+          aria-label={props.label}
+          {...tooltipProps}
+        />}
+      </TooltipTarget>
+    </span>
+  )
 }
 
 function candidatePresentation(candidate: DialogueSpeechCandidate, state: DialogueAudioCutState, activeRevisionId: string) {

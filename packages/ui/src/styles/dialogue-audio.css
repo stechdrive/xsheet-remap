@@ -20,18 +20,18 @@
 }
 
 .dialogueAudioTimeline {
-  --audio-header-width: 248px;
+  --audio-header-width: 66px;
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  height: clamp(380px, 48vh, 520px);
-  min-height: 300px;
+  grid-template-rows: 8px auto minmax(0, 1fr);
+  height: 480px;
+  min-height: 180px;
+  max-height: calc(100vh - 96px);
   border-top: 1px solid #8f9892;
   background: #202724;
   color: #edf2ee;
   box-shadow: 0 -5px 16px rgb(20 27 24 / 0.16);
-  resize: vertical;
   overflow: hidden;
 }
 
@@ -43,6 +43,32 @@
   min-height: 40px;
   padding: 5px 10px;
   resize: none;
+}
+
+.dialogueAudioPanelResizeHandle {
+  position: relative;
+  z-index: 2;
+  min-height: 8px;
+  background: #252d29;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.dialogueAudioPanelResizeHandle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 52px;
+  height: 2px;
+  border-radius: 999px;
+  background: #6d7b74;
+  transform: translateX(-50%);
+}
+
+.dialogueAudioPanelResizeHandle:hover::after,
+.dialogueAudioPanelResizeHandle:focus-visible::after {
+  background: #a6b8ae;
 }
 
 .dialogueAudioTimeline button {
@@ -65,14 +91,9 @@
 }
 
 .dialogueAudioToolbar {
-  display: grid;
-  gap: 4px;
   min-width: 0;
-  padding: 5px 8px;
+  padding: 4px 8px;
   background: #29312e;
-}
-
-.dialogueAudioToolbar {
   border-bottom: 1px solid #4a5550;
 }
 
@@ -94,7 +115,6 @@
   color: #fff;
 }
 
-.dialogueAudioToggle,
 .dialogueAudioContextMenu label {
   display: inline-flex;
   align-items: center;
@@ -103,6 +123,7 @@
 }
 
 .dialogueAudioContextMenu select {
+  max-width: 150px;
   min-height: 25px;
   padding: 2px 5px;
   border: 1px solid #657169;
@@ -131,16 +152,29 @@
   font-weight: 800;
 }
 
-.dialogueAudioZoomTools output {
-  min-width: 60px;
-  padding: 0 4px;
-  color: #c8d7cf;
-  font-size: 9px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+.dialogueAudioToolbarSpacer {
+  flex: 1 1 12px;
 }
 
-.dialogueAudioZoomTools button.isOn {
+.dialogueAudioZoomTools {
+  gap: 6px;
+  padding-left: 7px;
+}
+
+.dialogueAudioZoomTools input[type="range"] {
+  width: clamp(90px, 10vw, 150px);
+  height: 18px;
+  margin: 0;
+  accent-color: #8db5a0;
+  cursor: ew-resize;
+}
+
+.dialogueAudioZoomTools .dialogueAudioFitButton {
+  min-height: 25px;
+  padding-inline: 7px;
+}
+
+.dialogueAudioZoomTools .dialogueAudioFitButton.isOn {
   border-color: #87ad98;
   background: #496354;
 }
@@ -150,22 +184,6 @@
   background: #795a25;
   color: #fff3d9;
   font-weight: 800;
-}
-
-.dialogueAudioToolbarStatus {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  min-height: 21px;
-  color: #aebdb5;
-  font-size: 10px;
-}
-
-.dialogueAudioDurationSummary {
-  flex: none;
-  color: #d7e4dc;
-  font-variant-numeric: tabular-nums;
 }
 
 .dialogueVadEngine {
@@ -197,12 +215,12 @@
 }
 
 .dialogueAudioTime {
-  min-width: 94px;
-  margin-left: auto;
+  min-width: 78px;
   color: #d6e7dc;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
-  text-align: right;
+  text-align: left;
 }
 
 .dialogueAudioBody {
@@ -223,23 +241,17 @@
 
 .dialogueAudioCueHeader {
   grid-row: span 2;
-  display: flex;
-  align-items: end;
-  padding: 0 9px 7px;
   border-bottom: 1px solid #4a5550;
-  color: #b8c5be;
-  font-size: 11px;
-  font-weight: 700;
 }
 
 .dialogueAudioTrackHeader {
   position: relative;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: 18px 9px minmax(52px, 1fr) 64px 25px 25px;
+  grid-template-columns: 22px 30px;
   align-items: center;
-  gap: 5px;
-  padding: 5px 6px;
+  gap: 3px;
+  padding: 4px 5px;
   border-bottom: 1px solid #3f4944;
 }
 
@@ -264,20 +276,8 @@
   background: rgb(167 185 175 / 0.25);
 }
 
-.dialogueAudioTrackVadMode {
-  width: 64px;
-  min-width: 0;
-  padding: 2px;
-  border: 1px solid #56645d;
-  border-radius: 3px;
-  background: #202925;
-  color: #dfe8e2;
-  font-size: 9px;
-}
-
 .dialogueAudioTrackHeader.isActive {
-  background: #354139;
-  box-shadow: inset 3px 0 #91bca4;
+  background: #303a35;
 }
 
 .dialogueAudioTrackHeader button {
@@ -286,33 +286,50 @@
   font-weight: 800;
 }
 
-.dialogueAudioTrackHeader button.isOn {
-  border-color: #c5d56f;
-  background: #66782c;
-  color: #fff;
+.dialogueAudioTrackHeader .dialogueAudioTrackTarget {
+  display: grid;
+  width: 22px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border-color: transparent;
+  background: #252d29;
 }
 
-.dialogueAudioTrackDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.dialogueAudioTrackHeader .dialogueAudioTrackTarget:hover {
+  border-color: #607169;
+  background: #39453f;
 }
 
-.dialogueAudioTrackName {
-  width: 100%;
-  min-width: 0;
-  padding: 3px 5px;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  background: transparent;
-  color: #f0f4f1;
-  font-size: 11px;
+.dialogueAudioTrackHeader .dialogueAudioTrackTarget.isActive {
+  border-color: #6f9f87;
+  background: #40594d;
+  box-shadow: inset 0 0 0 1px rgb(180 224 199 / 0.15);
 }
 
-.dialogueAudioTrackName:focus {
-  border-color: #7f9f8d;
-  background: #1d2421;
-  outline: none;
+.dialogueAudioTrackColorBar {
+  width: 5px;
+  height: 20px;
+  border-radius: 2px;
+}
+
+.dialogueAudioTrackHeader .dialogueAudioTrackMute {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 5px;
+}
+
+.dialogueAudioTrackMute svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dialogueAudioTrackHeader .dialogueAudioTrackMute.isMuted {
+  border-color: #c77168;
+  background: #743a35;
+  color: #ffe1dc;
 }
 
 .dialogueAudioScroller {
@@ -336,22 +353,60 @@
 
 .dialogueAudioRuler {
   position: relative;
-  height: 25px;
+  height: 40px;
   border-bottom: 1px solid #505a55;
   background: #28302c;
   color: #aebbb4;
   cursor: ew-resize;
-  font-size: 9px;
+  font-size: 10px;
   touch-action: none;
+  user-select: none;
 }
 
-.dialogueAudioRuler span {
+.dialogueAudioRulerSeconds,
+.dialogueAudioRulerFrames {
   position: absolute;
-  top: 5px;
-  padding-left: 4px;
+  right: 0;
+  left: 0;
+  height: 20px;
+  overflow: hidden;
+}
+
+.dialogueAudioRulerSeconds {
+  top: 0;
+  border-bottom: 1px solid #46514b;
+  color: #d7e2dc;
+  font-weight: 700;
+}
+
+.dialogueAudioRulerFrames {
+  top: 20px;
+  color: #aebbb4;
+  font-size: 9px;
+}
+
+.dialogueAudioSecondTick,
+.dialogueAudioFrameTick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
   border-left: 1px solid #718078;
+}
+
+.dialogueAudioSecondTick > span,
+.dialogueAudioFrameTick > span {
+  display: block;
+  padding: 3px 0 0 4px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.dialogueAudioFrameTick {
+  border-left-color: #59665f;
+}
+
+.dialogueAudioFrameTick > span {
+  padding-left: 3px;
 }
 
 .dialogueAudioCueLane {
@@ -564,17 +619,26 @@
   border-left: 5px solid transparent;
 }
 
-.dialogueAudioStatus {
-  flex: 1 1 auto;
-  min-width: 180px;
-  overflow: hidden;
-  color: #b9c9c0;
-  font-size: 10px;
+.dialogueAudioNotice {
+  position: absolute;
+  z-index: 30;
+  bottom: 14px;
+  left: 50%;
+  max-width: min(620px, calc(100% - 32px));
+  padding: 7px 12px;
+  border: 1px solid #78877f;
+  border-radius: 5px;
+  background: rgb(24 31 28 / 0.94);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
+  color: #e5eee9;
+  font-size: 11px;
   text-overflow: ellipsis;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .dialogueAudioSelectionSummary {
-  min-width: 100px;
+  min-width: 0;
   color: #d7e8df;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
@@ -591,45 +655,99 @@
   font-variant-numeric: tabular-nums;
 }
 
-.dialogueAudioPostCut {
+.dialogueAudioBoundary {
   position: absolute;
   z-index: 7;
-  top: 25px;
+  top: 0;
   bottom: 0;
-  box-sizing: border-box;
-  border-left: 2px solid rgb(255 199 109 / 0.72);
-  background: repeating-linear-gradient(
-    -45deg,
-    rgb(245 174 91 / 0.06),
-    rgb(245 174 91 / 0.06) 8px,
-    rgb(22 28 25 / 0.04) 8px,
-    rgb(22 28 25 / 0.04) 16px
-  );
-  color: #e6bd7e;
-  font-size: 9px;
+  width: 0;
   pointer-events: none;
 }
 
-.dialogueAudioPostCut > span {
-  position: sticky;
-  left: 4px;
-  display: inline-block;
-  padding: 3px 5px;
-  background: rgb(55 45 31 / 0.84);
+.dialogueAudioBoundary::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgb(242 190 105 / 0.82) 0 5px,
+    transparent 5px 9px
+  );
+  content: "";
+}
+
+.dialogueAudioBoundary-audio::after {
+  left: -2px;
+  width: 2px;
+  background: rgb(188 220 205 / 0.92);
+}
+
+.dialogueAudioBoundary-combined::after {
+  left: -3px;
+  width: 3px;
+  background: linear-gradient(
+    to right,
+    rgb(242 190 105 / 0.9) 0 1px,
+    rgb(188 220 205 / 0.94) 1px 3px
+  );
+}
+
+.dialogueAudioBoundaryHandle {
+  position: absolute;
+  top: 0;
+  left: -6px;
+  width: 11px;
+  height: 10px;
+  background: #e8b761;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  cursor: help;
+  pointer-events: auto;
+}
+
+.dialogueAudioBoundary-audio .dialogueAudioBoundaryHandle {
+  left: -10px;
+  background: #bcdccd;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+
+.dialogueAudioBoundary-combined .dialogueAudioBoundaryHandle {
+  left: -10px;
+  background: linear-gradient(to right, #e8b761 0 42%, #bcdccd 42% 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
 }
 
 .dialogueAudioContextMenu {
   position: fixed;
   z-index: 1200;
+  box-sizing: border-box;
   display: grid;
   width: 244px;
-  max-height: min(520px, calc(100vh - 20px));
+  max-height: min(520px, calc(100dvh - 16px));
   overflow-y: auto;
   padding: 6px;
   border: 1px solid #768179;
   border-radius: 5px;
   background: #202724;
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.48);
+  color: #f3f5f2;
+  font-size: 11px;
+}
+
+.dialogueAudioContextMenu button {
+  min-height: 27px;
+  padding: 3px 8px;
+  border: 1px solid #66726c;
+  background: #303a35;
+  color: #f3f5f2;
+  font-size: 11px;
+}
+
+.dialogueAudioContextMenu button:disabled {
+  border-color: #48504c;
+  background: #29302d;
+  color: #727c77;
 }
 
 .dialogueAudioContextMenu > button {
@@ -714,20 +832,11 @@
 
 @media (max-width: 900px) {
   .dialogueAudioTimeline {
-    --audio-header-width: 210px;
+    --audio-header-width: 66px;
   }
 
   .dialogueAudioTrackHeader {
-    grid-template-columns: 18px 8px minmax(44px, 1fr) 25px 25px;
-  }
-
-  .dialogueAudioTrackVadMode {
-    display: none;
-  }
-
-  .dialogueAudioToolbarStatus .dialogueAudioToggle,
-  .dialogueAudioToolbarStatus .dialogueAudioSelectionSummary {
-    display: none;
+    grid-template-columns: 22px 30px;
   }
 
   .dialogueAudioReflectButton {
@@ -741,10 +850,4 @@
   vector-effect: non-scaling-stroke;
   filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.9));
   pointer-events: none;
-}
-
-@media (max-height: 720px) {
-  .dialogueAudioTimeline {
-    height: 340px;
-  }
 }

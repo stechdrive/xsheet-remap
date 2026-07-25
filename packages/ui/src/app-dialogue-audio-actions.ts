@@ -86,7 +86,7 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     if (!lane || !track) return stateInput
     let project = options.projectRef.current
     let state = stateInput
-    let sequence = project.timedRangeCues.filter(cue => cue.role === 'sound' && cue.label.startsWith(`仮・${track.name}`)).length + 1
+    let sequence = project.timedRangeCues.filter(cue => cue.role === 'sound' && cue.label.startsWith('仮・発話 ')).length + 1
     for (const candidateId of candidateIds) {
       const candidate = track.speechCandidates.find(item => item.candidateId === candidateId)
       if (!candidate || state.bindings.some(binding => binding.revisionId === options.revisionId && binding.anchors.some(anchor => anchor.candidateIds.includes(candidateId)))) continue
@@ -96,7 +96,7 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
         laneId: lane.laneId,
         frameStart: candidate.frameStart,
         frameEnd: candidate.frameEnd,
-        label: `仮・${track.name} ${sequence}`,
+        label: `仮・発話 ${sequence}`,
         text: '',
       })
       sequence += 1

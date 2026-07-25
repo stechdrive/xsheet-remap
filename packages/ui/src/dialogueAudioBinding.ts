@@ -225,7 +225,7 @@ function mergeAnchors(anchors: DialogueCueAudioAnchor[]): DialogueCueAudioAnchor
 }
 
 function anchorTimelineEnvelope(clips: DialogueAudioClip[], anchors: DialogueCueAudioAnchor[]): DialogueBindingResolution | null {
-  return resolveDialogueBinding({ tracks: [{ trackId: 'track', name: '', color: '', clips, speechCandidates: [], vadMode: 'candidates', muted: false, solo: false }] }, {
+  return resolveDialogueBinding({ tracks: [{ trackId: 'track', color: '', clips, speechCandidates: [], vadMode: 'candidates', muted: false }] }, {
     bindingId: '', cueId: '', revisionId: '', trackId: 'track', anchors,
     headPaddingFrames: 0, tailPaddingFrames: 0, cueFrameStart: 0, cueFrameEnd: 0,
     provisional: false, status: 'linked',

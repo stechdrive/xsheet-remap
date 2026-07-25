@@ -13,7 +13,6 @@ import type { DialogueAudioTrackState } from './dialogueAudioProject'
 function track(): DialogueAudioTrackState {
   return {
     trackId: 'dialogue-1',
-    name: 'セリフ 1',
     color: '#fff',
     clips: [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }],
     speechCandidates: [
@@ -22,7 +21,6 @@ function track(): DialogueAudioTrackState {
     ],
     vadMode: 'candidates',
     muted: false,
-    solo: false,
   }
 }
 

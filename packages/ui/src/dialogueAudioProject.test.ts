@@ -13,7 +13,7 @@ describe('dialogue audio project extension', () => {
   it('creates exactly three non-destructive tracks for a new cut', () => {
     const state = createDefaultDialogueAudioCutState(1, 144)
     expect(state.tracks).toHaveLength(3)
-    expect(state.tracks.map(track => track.name)).toEqual(['セリフ 1', 'セリフ 2', 'セリフ 3'])
+    expect(state.tracks.map(track => track.trackId)).toEqual(['dialogue-1', 'dialogue-2', 'dialogue-3'])
     expect(state.tracks.every(track => track.clips.length === 0)).toBe(true)
     expect(state.assets).toEqual([])
     expect(state.bindings).toEqual([])
@@ -57,7 +57,6 @@ describe('dialogue audio project extension', () => {
     }]
     state.tracks[0] = {
       ...state.tracks[0],
-      name: '主人公',
       clips: [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 3, sourceOffsetFrames: 0, durationFrames: 48 }],
       speechCandidates: [{ candidateId: 'candidate-1', frameStart: 3, frameEnd: 16, status: 'pending' }],
     }
@@ -66,7 +65,6 @@ describe('dialogue audio project extension', () => {
     expect(updated.extensions?.existing).toEqual(document.extensions.existing)
     expect(updated.extensions?.[DIALOGUE_AUDIO_EXTENSION]?.schemaVersion).toBe(DIALOGUE_AUDIO_SCHEMA_VERSION)
     expect(dialogueAudioCutStateFromDocument(updated, document.activeCutId, 1).tracks[0]).toMatchObject({
-      name: '主人公',
       clips: [{ timelineStartFrame: 3, durationFrames: 48 }],
       speechCandidates: [{ candidateId: 'candidate-1', cueLinks: [{ cueId: 'cue-1', revisionId: 'revision-1' }] }],
     })
@@ -105,7 +103,6 @@ describe('dialogue audio project extension', () => {
     const migrated = dialogueAudioCutStateFromDocument(legacy, document.activeCutId, 1)
     expect(migrated.assets).toHaveLength(1)
     expect(migrated.tracks[0]).toMatchObject({
-      name: '旧トラック',
       clips: [{ timelineStartFrame: 10, durationFrames: 24 }],
       speechCandidates: [{ frameStart: 12, frameEnd: 20, status: 'pending' }],
     })
@@ -138,5 +135,24 @@ describe('dialogue audio project extension', () => {
       extensions: { [DIALOGUE_AUDIO_EXTENSION]: { schemaVersion: 3, data: { cuts: { [document.activeCutId]: v2State } } } },
     }
     expect(dialogueAudioCutStateFromDocument(v3Document, document.activeCutId, 1)).toMatchObject({ bindings: [] })
+  })
+
+  it('drops the retired solo flag from previously saved tracks', () => {
+    const project = createDefaultProject()
+    const document = createProjectDocumentFromCutProject(project, { sheetTemplate: standardA3SheetTemplate })
+    const legacyState = createDefaultDialogueAudioCutState(1) as unknown as { tracks: Array<Record<string, unknown>> }
+    legacyState.tracks[0].solo = true
+    const legacyDocument = {
+      ...document,
+      extensions: {
+        [DIALOGUE_AUDIO_EXTENSION]: {
+          schemaVersion: DIALOGUE_AUDIO_SCHEMA_VERSION,
+          data: { cuts: { [document.activeCutId]: legacyState } },
+        },
+      },
+    }
+
+    const restored = dialogueAudioCutStateFromDocument(legacyDocument, document.activeCutId, 1)
+    expect('solo' in restored.tracks[0]).toBe(false)
   })
 })

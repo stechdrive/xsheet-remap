@@ -3,6 +3,7 @@ import {
   DIALOGUE_VAD_STEP_SAMPLES,
   analyzeDialogueAudioWithRmsVad,
   analyzeDialogueVadProbabilities,
+  dialogueVadFramesToPrerollRanges,
   dialogueVadFramesToSpeechRanges,
   getDialogueVadTuning,
   resampleDialogueAudioTo16k,
@@ -52,6 +53,22 @@ describe('dialogue Silero VAD tuning', () => {
     expect(ranges[0].frameEnd).toBeLessThan(ranges[1].frameStart - 8)
     expect(ranges[1].frameEnd).toBeGreaterThanOrEqual(68)
     expect(result.debug).toMatchObject({ usedFallbackRms: false, baseThreshold: 0.5, thresholdScale: 1 })
+  })
+
+  it('reports only the volume-qualified frames added by the three-frame onset preroll', () => {
+    const sampleRate = 2_400
+    const fps = 24
+    const samples = new Float32Array(sampleRate)
+    samples.fill(0.001)
+    samples.fill(0.02, 700, 1_000)
+    const tuning = getDialogueVadTuning('quiet', 0.4, 0.5)
+    const probabilities = new Float32Array(Math.ceil(16_000 / DIALOGUE_VAD_STEP_SAMPLES))
+    markProbabilityRange(probabilities, 0.42, 0.8, 0.9)
+
+    const result = analyzeDialogueVadProbabilities(samples, sampleRate, fps, tuning, probabilities)
+
+    expect(dialogueVadFramesToPrerollRanges(result.frames, 1)).toEqual([{ frameStart: 8, frameEnd: 10 }])
+    expect(dialogueVadFramesToSpeechRanges(result.frames, 1)[0]).toMatchObject({ frameStart: 8 })
   })
 
   it('falls back to the tuned RMS hysteresis only when probabilities are unavailable', () => {

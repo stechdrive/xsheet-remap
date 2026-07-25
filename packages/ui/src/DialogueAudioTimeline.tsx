@@ -57,6 +57,7 @@ import {
   type DialogueAudioCutState,
   type DialogueAudioTrackState,
   type DialogueSpeechCandidate,
+  type DialogueSpeechRange,
 } from './dialogueAudioProject'
 import {
   DIALOGUE_AUDIO_MAX_PIXELS_PER_FRAME,
@@ -121,6 +122,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const [clipboard, setClipboard] = useState<DialogueAudioClipboard | null>(null)
   const [audioHistory, setAudioHistory] = useState<AudioHistory>({ past: [], future: [] })
   const [vadEngine, setVadEngine] = useState<{ status: DialogueVadEngineStatus; error?: string }>({ status: 'idle' })
+  const [vadPrerollDebugRanges, setVadPrerollDebugRanges] = useState<Record<string, DialogueSpeechRange[]>>({})
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; trackId?: string } | null>(null)
   const [pendingSoundRequest, setPendingSoundRequest] = useState<{
     trackId: string
@@ -525,6 +527,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
     setStatus(`${sourceName}の波形を反映しました。セリフ区間を解析しています…`)
     const analysis = await analyzeSpeech(audio, timelineStartFrame, waveformState)
+    setVadPrerollDebugRanges(current => ({ ...current, [trackId]: analysis.prerollRanges }))
     let latest = cutStateRef.current
     if (normalizeDetectedSpeech && analysis.speechRanges.length > 0) {
       const normalized = normalizeDetectedDialogueSpeech(audio, analysis.speechRanges, timelineStartFrame, fps)
@@ -680,7 +683,8 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     try {
       setVadEngine({ status: 'loading' })
       const assetById = new Map(cutState.assets.map(asset => [asset.assetId, asset]))
-      const ranges = []
+      const ranges: DialogueSpeechRange[] = []
+      const prerollRanges: DialogueSpeechRange[] = []
       let lastAnalysis: DialogueSileroAnalysis | undefined
       for (const clip of activeTrack.clips) {
         const asset = assetById.get(clip.assetId)
@@ -695,9 +699,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         )
         lastAnalysis = analysis
         ranges.push(...analysis.speechRanges)
+        prerollRanges.push(...analysis.prerollRanges)
       }
       const candidates = reconcileDialogueSpeechCandidates(activeTrack.speechCandidates, mergeRanges(ranges), activeTrack.trackId)
       updateTrack(activeTrack.trackId, { speechCandidates: candidates })
+      setVadPrerollDebugRanges(current => ({ ...current, [activeTrack.trackId]: mergeRanges(prerollRanges) }))
       setStatus(`${activeTrack.name}から${ranges.length}区間を再検出しました。処理済みラベルは保持しています。${vadResultSuffix(lastAnalysis)}`)
     } catch (error) {
       setStatus(`再検出に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
@@ -1021,6 +1027,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   function clearActiveTrack() {
     stopPlayback(false)
     if (!activeTrack) return
+    setVadPrerollDebugRanges(current => ({ ...current, [activeTrack.trackId]: [] }))
     commitCutState({
       ...cutState,
       tracks: cutState.tracks.map(track => track.trackId === activeTrack.trackId ? { ...track, clips: [], speechCandidates: [] } : track),
@@ -1076,6 +1083,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
           <label className="dialogueAudioToggle"><input type="checkbox" checked={loopSelectedCue} disabled={recording} onChange={event => setLoopSelectedCue(event.target.checked)} />選択SOUNDをループ</label>
           <span className="dialogueAudioSelectionSummary">{audioSelection ? `${audioSelection.frameStart}–${audioSelection.frameEnd}F (${audioSelection.frameEnd - audioSelection.frameStart + 1}F)` : '範囲未選択'}</span>
           <span className={`dialogueVadEngine is-${vadEngine.status}`} role="status" title={vadEngine.error}>{vadEngineLabel(vadEngine.status)}</span>
+          <span className="dialogueVadPrerollLegend">紫＝VAD前倒し（テスト）</span>
           <span className="dialogueAudioDurationSummary">紙 {cutDurationFrames}F / 音声 {timelineDurationFrames}F</span>
           <span className="dialogueAudioStatus" role="status">{status}</span>
         </div>
@@ -1219,6 +1227,12 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       aria-label={`発話候補 ${candidate.frameStart}–${candidate.frameEnd}F ${presentation.label}`}
                     ><span>{presentation.label}</span></button>
                   })}
+                  {(vadPrerollDebugRanges[track.trackId] ?? []).map((range, index) => <span
+                    key={`vad-preroll-${range.frameStart}-${range.frameEnd}-${index}`}
+                    className="dialogueVadPrerollDebug"
+                    style={rangeStyle(range.frameStart, range.frameEnd, frameOrigin, timelineDurationFrames)}
+                    aria-label={`VAD前倒し ${range.frameStart}–${range.frameEnd}F`}
+                  />)}
                   {audioSelection?.trackId === track.trackId && <span className="dialogueAudioSelection" style={rangeStyle(audioSelection.frameStart, audioSelection.frameEnd, frameOrigin, timelineDurationFrames)} />}
                 </div>
               </div>

@@ -196,6 +196,16 @@
   color: #ffd4c7;
 }
 
+.dialogueVadPrerollLegend {
+  padding: 2px 6px;
+  border: 1px solid #ff69d4;
+  border-radius: 999px;
+  background: rgb(201 48 161 / 0.22);
+  color: #ffc9ef;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .dialogueAudioTime {
   min-width: 94px;
   margin-left: auto;
@@ -528,6 +538,18 @@
 
 .dialogueSpeechCandidate.isSelected {
   box-shadow: 0 0 0 2px rgb(185 236 204 / 0.52);
+}
+
+.dialogueVadPrerollDebug {
+  position: absolute;
+  z-index: 3;
+  top: 4px;
+  bottom: 4px;
+  min-width: 2px;
+  border: 1px solid #ff4fc7;
+  background: rgb(224 38 174 / 0.72);
+  box-shadow: 0 0 5px rgb(255 79 199 / 0.72);
+  pointer-events: none;
 }
 
 .dialogueAudioSelection {

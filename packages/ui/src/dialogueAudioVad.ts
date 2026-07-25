@@ -27,6 +27,7 @@ export interface DialogueVadFrame {
   time: number
   volume: number
   isSpeech: boolean
+  isPreroll: boolean
 }
 
 export interface DialogueVadDebug {
@@ -140,7 +141,7 @@ export function analyzeDialogueVadProbabilities(
       active = true
       belowCount = 0
     }
-    frames.push({ frameIndex, time: frameIndex / fps, volume: rms, isSpeech: active })
+    frames.push({ frameIndex, time: frameIndex / fps, volume: rms, isSpeech: active, isPreroll: false })
   }
 
   applySpeechPreroll(frames, tuning)
@@ -192,7 +193,7 @@ export function analyzeDialogueAudioWithRmsVad(
       active = true
       belowCount = 0
     }
-    frames.push({ frameIndex, time: frameIndex / fps, volume: rms, isSpeech: active })
+    frames.push({ frameIndex, time: frameIndex / fps, volume: rms, isSpeech: active, isPreroll: false })
   }
   applySpeechPreroll(frames, tuning)
   return { frames, debug: fallbackDebug(tuning) }
@@ -202,12 +203,27 @@ export function dialogueVadFramesToSpeechRanges(
   frames: DialogueVadFrame[],
   audioStartFrame: number,
 ): DialogueSpeechRange[] {
+  return dialogueVadFramesToRanges(frames, audioStartFrame, frame => frame.isSpeech)
+}
+
+export function dialogueVadFramesToPrerollRanges(
+  frames: DialogueVadFrame[],
+  audioStartFrame: number,
+): DialogueSpeechRange[] {
+  return dialogueVadFramesToRanges(frames, audioStartFrame, frame => frame.isPreroll)
+}
+
+function dialogueVadFramesToRanges(
+  frames: DialogueVadFrame[],
+  audioStartFrame: number,
+  matches: (frame: DialogueVadFrame) => boolean,
+): DialogueSpeechRange[] {
   const ranges: DialogueSpeechRange[] = []
   let rangeStart = -1
   for (let index = 0; index <= frames.length; index += 1) {
-    const speech = frames[index]?.isSpeech === true
-    if (speech && rangeStart < 0) rangeStart = index
-    if (!speech && rangeStart >= 0) {
+    const matched = frames[index] ? matches(frames[index]) : false
+    if (matched && rangeStart < 0) rangeStart = index
+    if (!matched && rangeStart >= 0) {
       ranges.push({ frameStart: audioStartFrame + rangeStart, frameEnd: audioStartFrame + index - 1 })
       rangeStart = -1
     }
@@ -222,7 +238,10 @@ function applySpeechPreroll(frames: DialogueVadFrame[], tuning: DialogueVadTunin
     for (let offset = 1; offset <= START_PREROLL_FRAMES; offset += 1) {
       const target = frames[index - offset]
       if (!target) break
-      if (!target.isSpeech && target.volume >= volumeThreshold) target.isSpeech = true
+      if (!target.isSpeech && target.volume >= volumeThreshold) {
+        target.isSpeech = true
+        target.isPreroll = true
+      }
     }
   }
 }

@@ -3,6 +3,7 @@ import type { DialogueAudioVadPreset, DialogueSpeechRange } from './dialogueAudi
 import {
   analyzeDialogueAudioWithRmsVad,
   analyzeDialogueVadProbabilities,
+  dialogueVadFramesToPrerollRanges,
   dialogueVadFramesToSpeechRanges,
   getDialogueVadTuning,
   type DialogueVadDebug,
@@ -13,6 +14,7 @@ export type DialogueVadEngineStatus = 'idle' | 'loading' | 'silero' | 'fallback'
 export interface DialogueSileroAnalysis {
   waveform: number[]
   speechRanges: DialogueSpeechRange[]
+  prerollRanges: DialogueSpeechRange[]
   engine: Exclude<DialogueVadEngineStatus, 'idle' | 'loading'>
   debug: DialogueVadDebug
   error?: string
@@ -56,6 +58,7 @@ export async function analyzeDialogueAudioWithSileroVad(
     return {
       waveform,
       speechRanges: dialogueVadFramesToSpeechRanges(analysis.frames, audioStartFrame),
+      prerollRanges: dialogueVadFramesToPrerollRanges(analysis.frames, audioStartFrame),
       engine: analysis.debug.usedFallbackRms ? 'fallback' : 'silero',
       debug: analysis.debug,
     }
@@ -64,6 +67,7 @@ export async function analyzeDialogueAudioWithSileroVad(
     return {
       waveform,
       speechRanges: dialogueVadFramesToSpeechRanges(fallback.frames, audioStartFrame),
+      prerollRanges: dialogueVadFramesToPrerollRanges(fallback.frames, audioStartFrame),
       engine: 'fallback',
       debug: fallback.debug,
       error: error instanceof Error ? error.message : String(error),

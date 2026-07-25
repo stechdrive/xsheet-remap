@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-template"
-version = "0.1.681"
+version = "0.1.682"
 description = "Sheet template authoring and validation tool"
 authors = ["xsheet-remap contributors"]
 license = "MIT"

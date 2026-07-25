@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -53,6 +54,7 @@ import {
   assignmentForRegion,
   assignmentForCandidate,
   assignmentForCue,
+  createDialogueAudioClipDragPreview,
   removeDialogueAudioRegion,
   resolveDialogueAssignment,
   resolveDialogueRegion,
@@ -174,19 +176,26 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     trackId: string
     clipIds: string[]
     clientX: number
-    originFrames: Record<string, number>
     minimumOriginFrame: number
     deltaFrames: number
     pixelsPerFrame: number
   } | null>(null)
-  const audioContentFrameEnd = clipDrag
-    ? cutState.tracks.reduce<number | null>((latest, track) => track.clips.reduce<number | null>((trackLatest, clip) => {
-        const clipFrameEnd = clipDrag.clipIds.includes(clip.clipId)
-          ? clip.timelineStartFrame + clipDrag.deltaFrames + clip.durationFrames - 1
-          : clip.timelineStartFrame + clip.durationFrames - 1
-        return trackLatest === null ? clipFrameEnd : Math.max(trackLatest, clipFrameEnd)
-      }, latest), null)
-    : dialogueAudioContentEndFrame(cutState)
+  const clipDragDisplay = useMemo(
+    () => clipDrag && clipDrag.deltaFrames !== 0
+      ? createDialogueAudioClipDragPreview(
+          cutState,
+          soundCues,
+          activeRevisionId,
+          clipDrag.trackId,
+          clipDrag.clipIds,
+          clipDrag.deltaFrames,
+        )
+      : null,
+    [activeRevisionId, clipDrag, cutState, soundCues],
+  )
+  const displayCutState = clipDragDisplay?.cutState ?? cutState
+  const displaySoundCues = clipDragDisplay?.soundCues ?? soundCues
+  const audioContentFrameEnd = dialogueAudioContentEndFrame(displayCutState)
   const audioContentDurationFrames = audioContentFrameEnd === null ? 0 : audioContentFrameEnd - frameOrigin + 1
   const timelineDurationFrames = Math.max(cutDurationFrames, cutState.timelineDurationFrames, audioContentDurationFrames)
   const [status, setStatus] = useState('')
@@ -1242,7 +1251,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       trackId,
       clipIds: selection.clipIds,
       clientX: event.clientX,
-      originFrames: Object.fromEntries(selectedClips.map(item => [item.clipId, item.timelineStartFrame])),
       minimumOriginFrame: Math.min(...selectedClips.map(item => item.timelineStartFrame)),
       deltaFrames: 0,
       pixelsPerFrame,
@@ -1259,7 +1267,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     if (!clipDrag) return
     const requestedDelta = Math.round((event.clientX - clipDrag.clientX) / clipDrag.pixelsPerFrame)
     const deltaFrames = Math.max(frameOrigin - clipDrag.minimumOriginFrame, requestedDelta)
-    setClipDrag({ ...clipDrag, deltaFrames })
+    if (deltaFrames !== clipDrag.deltaFrames) {
+      setClipDrag({ ...clipDrag, deltaFrames })
+    }
 
     const scroller = timelineScrollerRef.current
     if (!scroller) return
@@ -1282,9 +1292,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     setClipDrag(null)
   }
 
-  function renderCueButton(sourceCue: TimedRangeCue, trackId: string) {
+  function renderCueButton(sourceCue: TimedRangeCue, trackId: string, presentationState = cutState) {
     const cue = cueDrag?.cueId === sourceCue.cueId ? cueDrag.preview : sourceCue
-    const assignment = assignmentForCue(cutState, cue.cueId, activeRevisionId)
+    const assignment = assignmentForCue(presentationState, cue.cueId, activeRevisionId)
     const tooltipLabel = `音響指示「${cue.label}」 ${formatFrame(cue.frameStart, frameOrigin, fps)}–${formatFrame(cue.frameEnd, frameOrigin, fps)}${assignment?.reviewReason ? ` / ${assignment.reviewReason}` : ''}`
     return <TooltipTarget key={cue.cueId} label={tooltipLabel}>
       {tooltipProps => <button
@@ -1823,7 +1833,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
               positionPercent={audioContentDurationFrames / timelineDurationFrames * 100}
               label={`最終音声位置 ${formatFrame(audioContentFrameEnd, frameOrigin, fps)}`}
             />}
-            {cutState.tracks.map(track => (
+            {displayCutState.tracks.map(track => (
               <div
                 key={track.trackId}
                 className={`dialogueAudioTrack ${track.trackId === cutState.activeTrackId ? 'isActive' : ''}`}
@@ -1834,7 +1844,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 }}
               >
                 <div className="dialogueAudioTrackCueLayer">
-                  {soundCues.filter(cue => assignmentForCue(cutState, cue.cueId, activeRevisionId)?.regionRefs.some(ref => ref.trackId === track.trackId)).map(cue => renderCueButton(cue, track.trackId))}
+                  {displaySoundCues
+                    .filter(cue => assignmentForCue(displayCutState, cue.cueId, activeRevisionId)?.regionRefs.some(ref => ref.trackId === track.trackId))
+                    .map(cue => renderCueButton(cue, track.trackId, displayCutState))}
                 </div>
                 <div
                   className="dialogueAudioWaveformLane"
@@ -1845,19 +1857,15 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 >
                   {track.clips.length === 0 && <span className="dialogueAudioEmpty">録音または音声読込</span>}
                   {track.clips.map(sourceClip => {
-                    const dragOrigin = clipDrag?.originFrames[sourceClip.clipId]
-                    const clip = dragOrigin !== undefined
-                      ? { ...sourceClip, timelineStartFrame: dragOrigin + clipDrag!.deltaFrames }
-                      : sourceClip
-                    const asset = cutState.assets.find(item => item.assetId === clip.assetId)
-                    return asset ? <span key={clip.clipId} className="dialogueAudioClip">
-                      <Waveform asset={asset} clip={clip} color={track.color} frameOrigin={frameOrigin} durationFrames={timelineDurationFrames} />
+                    const asset = cutState.assets.find(item => item.assetId === sourceClip.assetId)
+                    return asset ? <span key={sourceClip.clipId} className="dialogueAudioClip">
+                      <Waveform asset={asset} clip={sourceClip} color={track.color} frameOrigin={frameOrigin} durationFrames={timelineDurationFrames} />
                       <TooltipTarget label="クリックで選択 / Ctrlクリックで複数選択 / ドラッグで移動">
                         {tooltipProps => <button
                           type="button"
                           className={`dialogueAudioClipHandle ${selectedClipIds.includes(sourceClip.clipId) ? 'isSelected' : ''}`}
                           style={{
-                            ...rangeStyle(clip.timelineStartFrame, clip.timelineStartFrame + clip.durationFrames - 1, frameOrigin, timelineDurationFrames),
+                            ...rangeStyle(sourceClip.timelineStartFrame, sourceClip.timelineStartFrame + sourceClip.durationFrames - 1, frameOrigin, timelineDurationFrames),
                             top: 1 + dialogueAudioClipHandleLane(track.clips, sourceClip.clipId) * 13,
                           }}
                           {...tooltipProps}
@@ -1875,13 +1883,13 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                             frameStart: sourceClip.timelineStartFrame,
                             frameEnd: sourceClip.timelineStartFrame + sourceClip.durationFrames - 1,
                           })}
-                          aria-label={`音声クリップ ${asset.sourceName ?? clip.clipId}`}
+                          aria-label={`音声クリップ ${asset.sourceName ?? sourceClip.clipId}`}
                         >⋮⋮</button>}
                       </TooltipTarget>
                     </span> : null
                   })}
                   {track.speechCandidates.map(candidate => {
-                    const presentation = candidatePresentation(candidate, cutState, activeRevisionId)
+                    const presentation = candidatePresentation(candidate, displayCutState, activeRevisionId)
                     const openCandidates = selectedCandidateIds.includes(candidate.candidateId) ? track.speechCandidates.filter(item => selectedCandidateIds.includes(item.candidateId)) : [candidate]
                     return <TooltipTarget key={candidate.candidateId} label={presentation.title}>
                       {tooltipProps => <button
@@ -1905,8 +1913,8 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                     </TooltipTarget>
                   })}
                   {track.dialogueRegions.map(region => {
-                    const assignment = assignmentForRegion(cutState, { trackId: track.trackId, regionId: region.regionId }, activeRevisionId)
-                    const cue = assignment ? soundCues.find(item => item.cueId === assignment.cueId) : undefined
+                    const assignment = assignmentForRegion(displayCutState, { trackId: track.trackId, regionId: region.regionId }, activeRevisionId)
+                    const cue = assignment ? displaySoundCues.find(item => item.cueId === assignment.cueId) : undefined
                     const label = cue?.label || cue?.text || 'セリフ区間'
                     return <TooltipTarget key={region.regionId} label={`${assignment ? '割付済み' : '未割付'}：${label} ${region.frameStart}–${region.frameEnd}F`}>
                       {tooltipProps => <button

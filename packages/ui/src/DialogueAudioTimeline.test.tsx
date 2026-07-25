@@ -689,6 +689,96 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.getByRole('img', { name: '最終音声位置 2+24 / 72F' })).toBeTruthy()
   })
 
+  it('previews VAD, dialogue-region, and linked SOUND positions while a clip handle is moving', async () => {
+    const cue = { cueId: 'cue-1', role: 'sound' as const, laneId: 'sound-1', frameStart: 3, frameEnd: 6, label: '主人公', text: '' }
+    const source = createDefaultDialogueAudioCutState(1, 48)
+    source.assets = [{
+      assetId: 'asset-1',
+      audioDataUrl: 'data:audio/wav;base64,UklGRg==',
+      durationFrames: 12,
+      waveform: [0.2, 0.4],
+      sourceName: 'linked.wav',
+    }]
+    source.tracks[0].clips = [{
+      clipId: 'clip-1',
+      placementId: 'placement-1',
+      assetId: 'asset-1',
+      timelineStartFrame: 1,
+      sourceOffsetFrames: 0,
+      durationFrames: 12,
+    }]
+    source.tracks[0].speechCandidates = [{
+      candidateId: 'candidate-1',
+      frameStart: 3,
+      frameEnd: 6,
+      status: 'pending',
+      source: {
+        placementId: 'placement-1',
+        assetId: 'asset-1',
+        sourceFrameStart: 2,
+        sourceFrameEnd: 5,
+      },
+    }]
+    const initial = linkDialogueAudioCandidates(source, 'dialogue-1', ['candidate-1'], cue, 'revision-1')
+    const onCutStateChange = vi.fn()
+    function LinkedDragHarness() {
+      const [state, setState] = useState(initial)
+      const [cues, setCues] = useState([cue])
+      return <DialogueAudioTimeline
+        cutState={state}
+        fps={24}
+        frameOrigin={1}
+        cutDurationFrames={48}
+        activeRevisionId="revision-1"
+        soundCues={cues}
+        selectedSoundCueId={null}
+        onCutStateChange={change => {
+          onCutStateChange(change)
+          setState(change.cutState)
+          if (change.cueUpdates?.length) {
+            const updates = new Map(change.cueUpdates.map(update => [update.cueId, update]))
+            setCues(current => current.map(item => {
+              const update = updates.get(item.cueId)
+              return update ? { ...item, frameStart: update.frameStart, frameEnd: update.frameEnd } : item
+            }))
+          }
+        }}
+        onPlayheadChange={vi.fn()}
+        onSoundCueSelect={vi.fn()}
+        onSoundCueEdit={vi.fn()}
+        onSoundCueTransform={vi.fn()}
+        onSoundCandidateEdit={vi.fn()}
+        onAutoCreateDialogueRegions={current => current}
+      />
+    }
+
+    render(<LinkedDragHarness />)
+    openAudioTimeline()
+    const clip = screen.getByRole('button', { name: '音声クリップ linked.wav' })
+    const region = document.querySelector('.dialogueAudioRegion') as HTMLButtonElement
+    const linkedSound = document.querySelector('.dialogueAudioCue') as HTMLButtonElement
+    Object.defineProperties(clip, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+    })
+
+    expect(screen.getByLabelText('発話候補 3–6F VAD')).toBeTruthy()
+    fireEvent.pointerDown(clip, { button: 0, pointerId: 21, clientX: 0 })
+    fireEvent.pointerMove(clip, { pointerId: 21, clientX: 150 })
+
+    expect(onCutStateChange).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('発話候補 13–16F VAD')).toBeTruthy()
+    expect(region.style.left).toBe('25%')
+    expect(linkedSound.style.left).toBe('25%')
+
+    fireEvent.pointerUp(clip, { pointerId: 21, clientX: 150 })
+    await waitFor(() => {
+      expect(screen.getByLabelText('発話候補 13–16F VAD')).toBeTruthy()
+      expect(onCutStateChange).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('multi-selects overlapping clip handles and moves the selected clips as one history edit', async () => {
     const initial = createDefaultDialogueAudioCutState(1, 48)
     initial.assets = [

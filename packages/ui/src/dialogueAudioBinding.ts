@@ -9,7 +9,7 @@ import {
   type DialogueSoundAssignment,
   type DialogueSpeechCandidate,
 } from './dialogueAudioProject'
-import { moveDialogueRegionAudioToFrame } from './dialogueAudioEditing'
+import { moveDialogueAudioClips, moveDialogueRegionAudioToFrame } from './dialogueAudioEditing'
 
 export interface DialogueAssignmentResolution {
   frameStart: number
@@ -238,6 +238,33 @@ export function synchronizeDialogueAssignmentsAfterAudioEdit(
     return { ...assignment, status, reviewReason }
   })
   return { state: changed ? { ...stateWithRegions, assignments } : stateWithRegions, cueUpdates }
+}
+
+export function createDialogueAudioClipDragPreview(
+  cutState: DialogueAudioCutState,
+  soundCues: TimedRangeCue[],
+  activeRevisionId: string,
+  trackId: string,
+  clipIds: string[],
+  deltaFrames: number,
+): { cutState: DialogueAudioCutState; soundCues: TimedRangeCue[] } {
+  const track = cutState.tracks.find(item => item.trackId === trackId)
+  if (!track || deltaFrames === 0) return { cutState, soundCues }
+  const movedTrack = moveDialogueAudioClips(track, clipIds, deltaFrames)
+  const movedState = {
+    ...cutState,
+    tracks: cutState.tracks.map(item => item.trackId === trackId ? movedTrack : item),
+  }
+  const synchronized = synchronizeDialogueAssignmentsAfterAudioEdit(movedState, soundCues, activeRevisionId)
+  if (synchronized.cueUpdates.length === 0) return { cutState: synchronized.state, soundCues }
+  const cueUpdates = new Map(synchronized.cueUpdates.map(update => [update.cueId, update]))
+  return {
+    cutState: synchronized.state,
+    soundCues: soundCues.map(cue => {
+      const update = cueUpdates.get(cue.cueId)
+      return update ? { ...cue, frameStart: update.frameStart, frameEnd: update.frameEnd } : cue
+    }),
+  }
 }
 
 export function resolveDialogueRegion(

@@ -304,6 +304,15 @@ export function ignoreDialogueSpeechCandidate(track: DialogueAudioTrackState, ca
   }
 }
 
+export function restoreDialogueSpeechCandidate(track: DialogueAudioTrackState, candidateId: string): DialogueAudioTrackState {
+  return {
+    ...track,
+    speechCandidates: track.speechCandidates.map(candidate => candidate.candidateId === candidateId && candidate.status === 'ignored'
+      ? { ...candidate, status: 'pending', reviewReason: undefined }
+      : candidate),
+  }
+}
+
 export function nextUniqueId(prefix: string, usedIds: ReadonlySet<string>): string {
   let sequence = 1
   let candidate = `${prefix}-${sequence}`

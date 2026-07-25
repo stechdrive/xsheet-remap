@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { TimedRangeCue } from '@xsheet-remap/core'
-import { insertDialogueAudioSilence, moveDialogueAudioClip, moveDialogueRegionAudioToFrame, rippleDeleteDialogueAudioRange } from './dialogueAudioEditing'
+import { insertDialogueAudioSilence, moveDialogueAudioClip, moveDialogueRegionAudioToFrame, restoreDialogueSpeechCandidate, rippleDeleteDialogueAudioRange } from './dialogueAudioEditing'
 import {
   assignDialogueRegionsToCue,
   createDialogueRegionFromCandidates,
   linkDialogueAudioCandidates,
+  removeDialogueAudioRegion,
   synchronizeDialogueAssignmentsAfterAudioEdit,
   synchronizeDialogueAssignmentsFromCues,
+  unlinkDialogueAudioCue,
+  unlinkDialogueAudioRegion,
 } from './dialogueAudioBinding'
 import { createDefaultDialogueAudioCutState } from './dialogueAudioProject'
 
@@ -135,5 +138,60 @@ describe('dialogue region and sound assignments', () => {
     const synchronized = synchronizeDialogueAssignmentsFromCues(state, [cue()], 'revision-1')
     expect(synchronized).toBe(state)
     expect(synchronized.assignments).toEqual([])
+  })
+
+  it('unlinks one region without deleting its audio, VAD candidate, or semantic region', () => {
+    const state = linkedState()
+    const region = state.tracks[0].dialogueRegions[0]
+    const unlinked = unlinkDialogueAudioRegion(state, { trackId: 'dialogue-1', regionId: region.regionId }, 'revision-1')
+    expect(unlinked.assignments).toEqual([])
+    expect(unlinked.tracks[0].clips).toEqual(state.tracks[0].clips)
+    expect(unlinked.tracks[0].dialogueRegions).toEqual(state.tracks[0].dialogueRegions)
+    expect(unlinked.tracks[0].speechCandidates.map(candidate => candidate.status)).toEqual(['pending', 'pending'])
+  })
+
+  it('preserves the cue range when one of several linked regions is unlinked', () => {
+    const source = sourceState()
+    const first = createDialogueRegionFromCandidates(source, 'dialogue-1', ['vad-1'])!
+    const second = createDialogueRegionFromCandidates(first.state, 'dialogue-1', ['vad-2'])!
+    const assigned = assignDialogueRegionsToCue(second.state, [
+      { trackId: 'dialogue-1', regionId: first.region.regionId },
+      { trackId: 'dialogue-1', regionId: second.region.regionId },
+    ], cue(), 'revision-1')
+    const unlinked = unlinkDialogueAudioRegion(
+      assigned,
+      { trackId: 'dialogue-1', regionId: first.region.regionId },
+      'revision-1',
+    )
+    const repadded = synchronizeDialogueAssignmentsFromCues(unlinked, [cue()], 'revision-1')
+
+    expect(repadded.assignments[0].regionRefs).toEqual([
+      { trackId: 'dialogue-1', regionId: second.region.regionId },
+    ])
+    expect(synchronizeDialogueAssignmentsAfterAudioEdit(repadded, [cue()], 'revision-1').cueUpdates).toEqual([])
+  })
+
+  it('unlinks a cue assignment while preserving every referenced region', () => {
+    const state = linkedState()
+    const unlinked = unlinkDialogueAudioCue(state, 'cue-1', 'revision-1')
+    expect(unlinked.assignments).toEqual([])
+    expect(unlinked.tracks[0].dialogueRegions).toHaveLength(1)
+    expect(unlinked.tracks[0].clips).toEqual(state.tracks[0].clips)
+  })
+
+  it('dissolves a semantic region while preserving audio and VAD candidates', () => {
+    const state = linkedState()
+    const region = state.tracks[0].dialogueRegions[0]
+    const removed = removeDialogueAudioRegion(state, 'dialogue-1', region.regionId)
+    expect(removed.assignments).toEqual([])
+    expect(removed.tracks[0].dialogueRegions).toEqual([])
+    expect(removed.tracks[0].clips).toEqual(state.tracks[0].clips)
+    expect(removed.tracks[0].speechCandidates).toHaveLength(2)
+  })
+
+  it('restores an ignored candidate to a pending VAD candidate', () => {
+    const track = sourceState().tracks[0]
+    track.speechCandidates[0] = { ...track.speechCandidates[0], status: 'ignored' }
+    expect(restoreDialogueSpeechCandidate(track, 'vad-1').speechCandidates[0].status).toBe('pending')
   })
 })

@@ -57,8 +57,8 @@ export function ActionMenu({
     if (!summary) return
     const summaryRect = summary.getBoundingClientRect()
     const content = contentRef.current
-    const contentWidth = content?.offsetWidth ?? 220
-    const contentHeight = content?.offsetHeight ?? 120
+    const contentWidth = content?.offsetWidth || 220
+    const contentHeight = content?.offsetHeight || 120
     const margin = 8
     const preferredTop = placement === 'right-start' ? summaryRect.top : summaryRect.bottom + 5
     const top = placement === 'right-start'
@@ -67,7 +67,7 @@ export function ActionMenu({
         ? Math.max(margin, summaryRect.top - contentHeight - 5)
         : preferredTop
     const preferredLeft = placement === 'right-start' ? summaryRect.right + 5 : summaryRect.left
-    const fallbackLeft = placement === 'right-start' ? summaryRect.left - contentWidth - 5 : preferredLeft
+    const fallbackLeft = placement === 'right-start' ? summaryRect.left - contentWidth - 5 : summaryRect.right - contentWidth
     const left = preferredLeft + contentWidth > window.innerWidth - margin
       ? Math.max(margin, fallbackLeft)
       : Math.max(margin, preferredLeft)

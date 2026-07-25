@@ -278,6 +278,35 @@ describe('DialogueAudioTimeline', () => {
       '発話区間を検出',
       'セリフ区間を自動作成',
     ])
+    expect(screen.queryByLabelText('録音VAD環境')).toBeNull()
+    expect(screen.queryByText('このトラックをミュート')).toBeNull()
+  })
+
+  it('keeps global VAD settings in the gear menu instead of edit context menus', () => {
+    render(<DialogueAudioTimeline
+      cutState={createDefaultDialogueAudioCutState(1)}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={72}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    fireEvent.click(screen.getByLabelText('音声タイムライン設定'))
+    expect(screen.getByLabelText('録音VAD環境')).toBeTruthy()
+    expect(screen.getByLabelText('検出感度')).toBeTruthy()
+    expect(screen.getByLabelText('途切れにくさ')).toBeTruthy()
+    expect(screen.queryByText('コピー　Ctrl+C')).toBeNull()
+    expect(screen.queryByText('トラックをクリア')).toBeNull()
   })
 
   it('opens SOUND creation directly from a detected speech candidate', () => {
@@ -303,6 +332,66 @@ describe('DialogueAudioTimeline', () => {
     openAudioTimeline()
     fireEvent.doubleClick(screen.getByLabelText('発話候補 12–24F VAD'))
     expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['candidate-1'], 12, 24)
+  })
+
+  it('opens only candidate operations when a VAD candidate is right-clicked', () => {
+    const state = createDefaultDialogueAudioCutState(1)
+    state.tracks[0].speechCandidates = [{ candidateId: 'candidate-1', frameStart: 12, frameEnd: 24, status: 'pending' }]
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={72}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    fireEvent.contextMenu(screen.getByLabelText('発話候補 12–24F VAD'), { clientX: 100, clientY: 220 })
+    expect(screen.getByRole('menu', { name: 'VAD候補 1区間の操作' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'SOUNDへ割り付け…' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'VAD候補を無視' })).toBeTruthy()
+    expect(screen.queryByText('トラックをクリア')).toBeNull()
+    expect(screen.queryByText('録音VAD環境')).toBeNull()
+  })
+
+  it('uses the right-clicked candidate instead of a stale prior selection', () => {
+    const state = createDefaultDialogueAudioCutState(1)
+    state.tracks[0].speechCandidates = [
+      { candidateId: 'candidate-1', frameStart: 12, frameEnd: 18, status: 'pending' },
+      { candidateId: 'candidate-2', frameStart: 30, frameEnd: 36, status: 'pending' },
+    ]
+    const onSoundCandidateEdit = vi.fn()
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={72}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={onSoundCandidateEdit}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    fireEvent.pointerDown(screen.getByLabelText('発話候補 12–18F VAD'))
+    fireEvent.contextMenu(screen.getByLabelText('発話候補 30–36F VAD'), { clientX: 200, clientY: 220 })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'SOUNDへ割り付け…' }))
+    expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['candidate-2'], 30, 36)
   })
 
   it('moves a linked SOUND cue with inserted track silence', () => {
@@ -622,7 +711,7 @@ describe('DialogueAudioTimeline', () => {
     expect(mediaTrack.stop).toHaveBeenCalled()
   })
 
-  it('opens the timeline tool menu from right click and applies a track-height preset', () => {
+  it('opens track management from the track header and applies a track-height preset', () => {
     render(<DialogueAudioTimeline
       cutState={createDefaultDialogueAudioCutState(1, 72)}
       fps={24}
@@ -641,8 +730,9 @@ describe('DialogueAudioTimeline', () => {
     />)
     openAudioTimeline()
     const track = document.querySelector('.dialogueAudioTrack') as HTMLDivElement
-    fireEvent.contextMenu(track, { clientX: 80, clientY: 740 })
-    const menu = screen.getByRole('menu', { name: '音声タイムラインの操作' })
+    const header = document.querySelector('.dialogueAudioTrackHeader') as HTMLDivElement
+    fireEvent.contextMenu(header, { clientX: 80, clientY: 740 })
+    const menu = screen.getByRole('menu', { name: 'トラックの操作' })
     expect(menu.parentElement).toBe(document.body)
     expect(Number.parseFloat(menu.style.top)).toBeLessThan(740)
     fireEvent.click(screen.getByRole('button', { name: 'トラック高 大' }))

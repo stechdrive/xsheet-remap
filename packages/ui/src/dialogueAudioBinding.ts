@@ -278,6 +278,83 @@ export function assignmentForCandidate(state: DialogueAudioCutState, candidateId
   return undefined
 }
 
+export function unlinkDialogueAudioRegion(
+  state: DialogueAudioCutState,
+  ref: DialogueRegionReference,
+  revisionId: string,
+): DialogueAudioCutState {
+  const key = regionRefKey(ref)
+  const assignments = state.assignments.flatMap(assignment => {
+    if (assignment.revisionId !== revisionId) return [assignment]
+    const regionRefs = assignment.regionRefs.filter(item => regionRefKey(item) !== key)
+    return regionRefs.length > 0 ? [{ ...assignment, regionRefs }] : []
+  })
+  return refreshCandidateLinkStatus({ ...state, assignments })
+}
+
+export function unlinkDialogueAudioCue(
+  state: DialogueAudioCutState,
+  cueId: string,
+  revisionId: string,
+): DialogueAudioCutState {
+  return refreshCandidateLinkStatus({
+    ...state,
+    assignments: state.assignments.filter(assignment => assignment.cueId !== cueId || assignment.revisionId !== revisionId),
+  })
+}
+
+export function removeDialogueAudioRegion(
+  state: DialogueAudioCutState,
+  trackId: string,
+  regionId: string,
+): DialogueAudioCutState {
+  const key = regionRefKey({ trackId, regionId })
+  const assignments = state.assignments.flatMap(assignment => {
+    const regionRefs = assignment.regionRefs.filter(ref => regionRefKey(ref) !== key)
+    return regionRefs.length > 0 ? [{ ...assignment, regionRefs }] : []
+  })
+  return refreshCandidateLinkStatus({
+    ...state,
+    assignments,
+    tracks: state.tracks.map(track => track.trackId === trackId
+      ? { ...track, dialogueRegions: track.dialogueRegions.filter(region => region.regionId !== regionId) }
+      : track),
+  })
+}
+
+function refreshCandidateLinkStatus(state: DialogueAudioCutState): DialogueAudioCutState {
+  const linkedCandidateIdsByTrack = new Map<string, Set<string>>()
+  for (const assignment of state.assignments) {
+    for (const ref of assignment.regionRefs) {
+      const region = regionForRef(state, ref)
+      if (!region) continue
+      linkedCandidateIdsByTrack.set(ref.trackId, new Set([
+        ...(linkedCandidateIdsByTrack.get(ref.trackId) ?? []),
+        ...region.candidateIds,
+      ]))
+    }
+  }
+  return {
+    ...state,
+    tracks: state.tracks.map(track => {
+      const linkedIds = linkedCandidateIdsByTrack.get(track.trackId) ?? new Set<string>()
+      return {
+        ...track,
+        speechCandidates: track.speechCandidates.map(candidate => {
+          if (linkedIds.has(candidate.candidateId)) {
+            return candidate.status === 'pending'
+              ? { ...candidate, status: 'linked' as const, reviewReason: undefined }
+              : candidate
+          }
+          return candidate.status === 'linked'
+            ? { ...candidate, status: 'pending' as const, reviewReason: undefined }
+            : candidate
+        }),
+      }
+    }),
+  }
+}
+
 function resolveRegionRefs(
   state: Pick<DialogueAudioCutState, 'tracks'>,
   refs: DialogueRegionReference[],

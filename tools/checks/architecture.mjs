@@ -31,6 +31,13 @@ async function checkImports(relativeDirectory, checks) {
   }
 }
 
+async function checkFilePatterns(relativePath, checks) {
+  const source = await readFile(path.join(root, relativePath), 'utf8')
+  for (const check of checks) {
+    if (check.pattern.test(source)) violations.push(`${relativePath}: ${check.message}`)
+  }
+}
+
 async function checkFileSizes(relativeDirectory) {
   for (const relativePath of await sourceFiles(relativeDirectory)) {
     const source = await readFile(path.join(root, relativePath), 'utf8')
@@ -54,6 +61,13 @@ await checkImports('packages/ui/src', [
   {
     pattern: /(?:from\s+|import\s*\()['"]@tauri-apps\/api/,
     message: 'ui must access Tauri through @xsheet-remap/adapters',
+  },
+])
+
+await checkFilePatterns('packages/ui/src/DialogueAudioTimeline.tsx', [
+  {
+    pattern: /\btitle\s*=/,
+    message: 'audio timeline tooltips must use the shared Tooltip or TooltipTarget foundation instead of native title attributes',
   },
 ])
 

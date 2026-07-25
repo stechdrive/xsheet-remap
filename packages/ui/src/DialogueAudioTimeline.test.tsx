@@ -43,6 +43,54 @@ describe('DialogueAudioTimeline', () => {
     expect((screen.getByLabelText('選択SOUNDをループ') as HTMLInputElement).checked).toBe(false)
   })
 
+  it('uses the shared application tooltip foundation without native title attributes', async () => {
+    const state = createDefaultDialogueAudioCutState(1, 96)
+    state.assets = [{
+      assetId: 'asset-1',
+      audioDataUrl: 'data:audio/wav;base64,UklGRg==',
+      durationFrames: 24,
+      waveform: [0.2, 0.4],
+      sourceName: 'test.wav',
+    }]
+    state.tracks[0].clips = [{
+      clipId: 'clip-1',
+      placementId: 'placement-1',
+      assetId: 'asset-1',
+      timelineStartFrame: 1,
+      sourceOffsetFrames: 0,
+      durationFrames: 24,
+    }]
+    state.tracks[0].speechCandidates = [{ candidateId: 'vad-1', frameStart: 3, frameEnd: 8, status: 'pending' }]
+
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      cutDurationFrames={48}
+      activeRevisionId="revision-1"
+      soundCues={[{ cueId: 'cue-1', role: 'sound', laneId: 'sound-lane-1', frameStart: 12, frameEnd: 18, label: '主人公', text: '' }]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCuesTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateSoundCues={current => current}
+    />)
+    openAudioTimeline()
+
+    const timeline = screen.getByRole('region', { name: 'セリフ音声タイムライン' })
+    expect(timeline.querySelectorAll('[title]')).toHaveLength(0)
+
+    const playButton = screen.getByRole('button', { name: '▶ 再生ヘッドから' })
+    const tooltipTrigger = playButton.closest('.appTooltipTrigger')
+    expect(tooltipTrigger).toBeTruthy()
+    fireEvent.pointerEnter(tooltipTrigger!)
+    expect((await screen.findByRole('tooltip')).textContent).toBe('再生。末尾では頭から再開')
+  })
+
   it('selects the armed track without changing the SOUND selection', () => {
     const onCutStateChange = vi.fn()
     render(<DialogueAudioTimeline

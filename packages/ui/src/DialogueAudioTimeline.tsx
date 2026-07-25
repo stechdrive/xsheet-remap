@@ -71,6 +71,7 @@ import {
   saveDialogueAudioViewPreferences,
   type DialogueAudioTrackHeightPreset,
 } from './dialogueAudioTimelineModel'
+import { Tooltip, TooltipTarget } from './Tooltip'
 
 interface DialogueAudioTimelineProps {
   cutState: DialogueAudioCutState
@@ -122,7 +123,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const [clipboard, setClipboard] = useState<DialogueAudioClipboard | null>(null)
   const [audioHistory, setAudioHistory] = useState<AudioHistory>({ past: [], future: [] })
   const [vadEngine, setVadEngine] = useState<{ status: DialogueVadEngineStatus; error?: string }>({ status: 'idle' })
-  const [vadPrerollDebugRanges, setVadPrerollDebugRanges] = useState<Record<string, DialogueSpeechRange[]>>({})
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; trackId?: string } | null>(null)
   const [pendingSoundRequest, setPendingSoundRequest] = useState<{
     trackId: string
@@ -523,7 +523,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
     setStatus(`${sourceName}の波形を反映しました。セリフ区間を解析しています…`)
     const analysis = await analyzeSpeech(audio, timelineStartFrame, waveformState)
-    setVadPrerollDebugRanges(current => ({ ...current, [trackId]: analysis.prerollRanges }))
     let latest = cutStateRef.current
     if (normalizeDetectedSpeech && analysis.speechRanges.length > 0) {
       const normalized = normalizeDetectedDialogueSpeech(audio, analysis.speechRanges, timelineStartFrame, fps)
@@ -680,7 +679,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       setVadEngine({ status: 'loading' })
       const assetById = new Map(cutState.assets.map(asset => [asset.assetId, asset]))
       const ranges: DialogueSpeechRange[] = []
-      const prerollRanges: DialogueSpeechRange[] = []
       let lastAnalysis: DialogueSileroAnalysis | undefined
       for (const clip of activeTrack.clips) {
         const asset = assetById.get(clip.assetId)
@@ -695,11 +693,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         )
         lastAnalysis = analysis
         ranges.push(...analysis.speechRanges)
-        prerollRanges.push(...analysis.prerollRanges)
       }
       const candidates = reconcileDialogueSpeechCandidates(activeTrack.speechCandidates, mergeRanges(ranges), activeTrack.trackId)
       updateTrack(activeTrack.trackId, { speechCandidates: candidates })
-      setVadPrerollDebugRanges(current => ({ ...current, [activeTrack.trackId]: mergeRanges(prerollRanges) }))
       setStatus(`${activeTrack.name}から${ranges.length}区間を再検出しました。処理済みラベルは保持しています。${vadResultSuffix(lastAnalysis)}`)
     } catch (error) {
       setStatus(`再検出に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
@@ -960,19 +956,24 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   function renderCueButton(sourceCue: TimedRangeCue, trackLayer = false) {
     const cue = cueDrag?.cueId === sourceCue.cueId ? cueDrag.preview : sourceCue
     const binding = bindingForCue(cutState, cue.cueId, activeRevisionId)
-    return <button
-      type="button"
-      key={cue.cueId}
-      className={`dialogueAudioCue ${trackLayer ? 'isTrackLayer' : 'isUnlinked'} is-${binding?.status ?? 'unlinked'} ${binding?.provisional ? 'isProvisional' : ''} ${cue.cueId === selectedSoundCueId ? 'isSelected' : ''}`}
-      style={rangeStyle(cue.frameStart, cue.frameEnd, frameOrigin, timelineDurationFrames)}
-      onPointerDown={event => beginCueDrag(event, cue)}
-      onPointerMove={moveCueDrag}
-      onPointerUp={event => finishCueDrag(event)}
-      onPointerCancel={event => finishCueDrag(event, true)}
-      onClick={() => onSoundCueSelect(cue.cueId)}
-      onDoubleClick={event => { event.stopPropagation(); onSoundCueEdit(cue.cueId) }}
-      title={`${binding?.provisional ? '仮SOUND' : 'SOUND'}「${cue.label}」 ${formatFrame(cue.frameStart, frameOrigin, fps)}–${formatFrame(cue.frameEnd, frameOrigin, fps)}${binding?.reviewReason ? ` / ${binding.reviewReason}` : ''}`}
-    ><span className="dialogueAudioCueHandle isStart" />{cue.label || cue.text || 'SOUND'}<span className="dialogueAudioCueHandle isEnd" /></button>
+    const tooltipLabel = `${binding?.provisional ? '仮SOUND' : 'SOUND'}「${cue.label}」 ${formatFrame(cue.frameStart, frameOrigin, fps)}–${formatFrame(cue.frameEnd, frameOrigin, fps)}${binding?.reviewReason ? ` / ${binding.reviewReason}` : ''}`
+    return <TooltipTarget key={cue.cueId} label={tooltipLabel}>
+      {tooltipProps => <button
+        type="button"
+        className={`dialogueAudioCue ${trackLayer ? 'isTrackLayer' : 'isUnlinked'} is-${binding?.status ?? 'unlinked'} ${binding?.provisional ? 'isProvisional' : ''} ${cue.cueId === selectedSoundCueId ? 'isSelected' : ''}`}
+        style={rangeStyle(cue.frameStart, cue.frameEnd, frameOrigin, timelineDurationFrames)}
+        {...tooltipProps}
+        onPointerDown={event => {
+          tooltipProps.onPointerDown()
+          beginCueDrag(event, cue)
+        }}
+        onPointerMove={moveCueDrag}
+        onPointerUp={event => finishCueDrag(event)}
+        onPointerCancel={event => finishCueDrag(event, true)}
+        onClick={() => onSoundCueSelect(cue.cueId)}
+        onDoubleClick={event => { event.stopPropagation(); onSoundCueEdit(cue.cueId) }}
+      ><span className="dialogueAudioCueHandle isStart" />{cue.label || cue.text || 'SOUND'}<span className="dialogueAudioCueHandle isEnd" /></button>}
+    </TooltipTarget>
   }
 
   function zoomTimeline(direction: -1 | 1) {
@@ -1023,7 +1024,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   function clearActiveTrack() {
     stopPlayback(false)
     if (!activeTrack) return
-    setVadPrerollDebugRanges(current => ({ ...current, [activeTrack.trackId]: [] }))
     commitCutState({
       ...cutState,
       tracks: cutState.tracks.map(track => track.trackId === activeTrack.trackId ? { ...track, clips: [], speechCandidates: [] } : track),
@@ -1049,15 +1049,29 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         <div className="dialogueAudioToolbarMain">
           <button type="button" className="dialogueAudioCollapse" onClick={() => setCollapsed(true)} aria-expanded="true" disabled={recording}>▾ 音声</button>
           <span className="dialogueAudioToolGroup" aria-label="再生と録音">
-            <button type="button" className="dialogueAudioIconButton" aria-label="⏮ カット頭から" title="カット頭から再生" onClick={() => { setPlayhead(frameOrigin); void startPlayback(frameOrigin) }} disabled={recording}>⏮</button>
-            <button type="button" className="dialogueAudioIconButton" aria-label={playing ? '⏸ 一時停止' : '▶ 再生ヘッドから'} title={playing ? '一時停止' : '再生。末尾では頭から再開'} onClick={() => playing ? stopPlayback() : void startPlayback()} disabled={recording}>{playing ? '⏸' : '▶'}</button>
-            <button type="button" className={`dialogueAudioIconButton ${recording ? 'isRecording' : ''}`} aria-label={recording ? '■ 録音終了' : '● 録音'} title={recording ? '録音終了' : '録音'} onClick={() => void toggleRecording()} disabled={!recording && vadEngine.status === 'loading'}>{recording ? '■' : '●'}</button>
+            <Tooltip label="カット頭から再生">
+              <button type="button" className="dialogueAudioIconButton" aria-label="⏮ カット頭から" onClick={() => { setPlayhead(frameOrigin); void startPlayback(frameOrigin) }} disabled={recording}>⏮</button>
+            </Tooltip>
+            <Tooltip label={playing ? '一時停止' : '再生。末尾では頭から再開'}>
+              <button type="button" className="dialogueAudioIconButton" aria-label={playing ? '⏸ 一時停止' : '▶ 再生ヘッドから'} onClick={() => playing ? stopPlayback() : void startPlayback()} disabled={recording}>{playing ? '⏸' : '▶'}</button>
+            </Tooltip>
+            <Tooltip label={recording ? '録音終了' : '録音'}>
+              <button type="button" className={`dialogueAudioIconButton ${recording ? 'isRecording' : ''}`} aria-label={recording ? '■ 録音終了' : '● 録音'} onClick={() => void toggleRecording()} disabled={!recording && vadEngine.status === 'loading'}>{recording ? '■' : '●'}</button>
+            </Tooltip>
           </span>
           <span className="dialogueAudioToolGroup" aria-label="音声編集">
-            <button type="button" className="dialogueAudioIconButton" onClick={undoAudioEdit} disabled={recording || playing || audioHistory.past.length === 0} aria-label="音声編集を元に戻す" title="元に戻す">↶</button>
-            <button type="button" className="dialogueAudioIconButton" onClick={redoAudioEdit} disabled={recording || playing || audioHistory.future.length === 0} aria-label="音声編集をやり直す" title="やり直す">↷</button>
-            <button type="button" className="dialogueAudioIconButton" onClick={() => insertSilence(1)} disabled={recording || playing || !activeTrack?.clips.length} aria-label="+1F" title="1フレーム挿入">+F</button>
-            <button type="button" className="dialogueAudioIconButton" onClick={() => rippleDelete()} disabled={recording || playing || !activeTrack?.clips.length} aria-label="−1F" title="1フレームをリップル削除">−F</button>
+            <Tooltip label="元に戻す">
+              <button type="button" className="dialogueAudioIconButton" onClick={undoAudioEdit} disabled={recording || playing || audioHistory.past.length === 0} aria-label="音声編集を元に戻す">↶</button>
+            </Tooltip>
+            <Tooltip label="やり直す">
+              <button type="button" className="dialogueAudioIconButton" onClick={redoAudioEdit} disabled={recording || playing || audioHistory.future.length === 0} aria-label="音声編集をやり直す">↷</button>
+            </Tooltip>
+            <Tooltip label="1フレーム挿入">
+              <button type="button" className="dialogueAudioIconButton" onClick={() => insertSilence(1)} disabled={recording || playing || !activeTrack?.clips.length} aria-label="+1F">+F</button>
+            </Tooltip>
+            <Tooltip label="1フレームをリップル削除">
+              <button type="button" className="dialogueAudioIconButton" onClick={() => rippleDelete()} disabled={recording || playing || !activeTrack?.clips.length} aria-label="−1F">−F</button>
+            </Tooltip>
           </span>
           <input ref={fileInputRef} type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden onChange={event => void importAudio(event)} />
           <button
@@ -1068,18 +1082,27 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
           >{selectedCandidates.length > 1 ? '選択区間を紙シートへSOUND反映' : selectedCandidate && bindingForCandidate(cutState, selectedCandidate.candidateId, activeRevisionId) ? '紙シートのSOUNDを編集' : '紙シートへSOUND反映'}</button>
           <span className="dialogueAudioTime">{formatFrame(playheadFrame, frameOrigin, fps)}</span>
           <span className="dialogueAudioZoomTools" aria-label="タイムライン表示倍率">
-            <button type="button" className="dialogueAudioIconButton" onClick={() => zoomTimeline(-1)} disabled={viewPreferences.fitTimeline || pixelsPerFrame <= DIALOGUE_AUDIO_MIN_PIXELS_PER_FRAME} aria-label="タイムラインを縮小" title="縮小">−</button>
-            <button type="button" className={viewPreferences.fitTimeline ? 'isOn' : ''} onClick={fitTimeline} aria-label="音声タイムライン全体を表示" title="音声尺全体を表示">全体</button>
+            <Tooltip label="縮小">
+              <button type="button" className="dialogueAudioIconButton" onClick={() => zoomTimeline(-1)} disabled={viewPreferences.fitTimeline || pixelsPerFrame <= DIALOGUE_AUDIO_MIN_PIXELS_PER_FRAME} aria-label="タイムラインを縮小">−</button>
+            </Tooltip>
+            <Tooltip label="音声尺全体を表示">
+              <button type="button" className={viewPreferences.fitTimeline ? 'isOn' : ''} onClick={fitTimeline} aria-label="音声タイムライン全体を表示">全体</button>
+            </Tooltip>
             <output aria-label="タイムライン表示倍率">{pixelsPerFrame.toFixed(1)} px/F</output>
-            <button type="button" className="dialogueAudioIconButton" onClick={() => zoomTimeline(1)} disabled={pixelsPerFrame >= DIALOGUE_AUDIO_MAX_PIXELS_PER_FRAME} aria-label="タイムラインを拡大" title="拡大">＋</button>
+            <Tooltip label="拡大">
+              <button type="button" className="dialogueAudioIconButton" onClick={() => zoomTimeline(1)} disabled={pixelsPerFrame >= DIALOGUE_AUDIO_MAX_PIXELS_PER_FRAME} aria-label="タイムラインを拡大">＋</button>
+            </Tooltip>
           </span>
-          <button type="button" className="dialogueAudioIconButton" onClick={openToolsMenu} aria-label="音声タイムラインのツール" title="編集ツールとVAD設定">⋯</button>
+          <Tooltip label="編集ツールとVAD設定">
+            <button type="button" className="dialogueAudioIconButton" onClick={openToolsMenu} aria-label="音声タイムラインのツール">⋯</button>
+          </Tooltip>
         </div>
         <div className="dialogueAudioToolbarStatus">
           <label className="dialogueAudioToggle"><input type="checkbox" checked={loopSelectedCue} disabled={recording} onChange={event => setLoopSelectedCue(event.target.checked)} />選択SOUNDをループ</label>
           <span className="dialogueAudioSelectionSummary">{audioSelection ? `${audioSelection.frameStart}–${audioSelection.frameEnd}F (${audioSelection.frameEnd - audioSelection.frameStart + 1}F)` : '範囲未選択'}</span>
-          <span className={`dialogueVadEngine is-${vadEngine.status}`} role="status" title={vadEngine.error}>{vadEngineLabel(vadEngine.status)}</span>
-          <span className="dialogueVadPrerollLegend">紫＝VAD前倒し（テスト）</span>
+          <TooltipTarget label={vadEngine.error ?? ''} disabled={!vadEngine.error}>
+            {tooltipProps => <span className={`dialogueVadEngine is-${vadEngine.status}`} role="status" {...tooltipProps}>{vadEngineLabel(vadEngine.status)}</span>}
+          </TooltipTarget>
           <span className="dialogueAudioDurationSummary">紙 {cutDurationFrames}F / 音声 {timelineDurationFrames}F</span>
           <span className="dialogueAudioStatus" role="status">{status}</span>
         </div>
@@ -1162,14 +1185,16 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             >
               {soundCues.filter(cue => !bindingForCue(cutState, cue.cueId, activeRevisionId)).map(cue => renderCueButton(cue))}
             </div>
-            {timelineDurationFrames > cutDurationFrames && <span
-              className="dialogueAudioPostCut"
-              style={{
-                left: `${cutDurationFrames / timelineDurationFrames * 100}%`,
-                width: `${(timelineDurationFrames - cutDurationFrames) / timelineDurationFrames * 100}%`,
-              }}
-              title="紙シートのカット尺より後の音声領域"
-            ><span>カット外</span></span>}
+            {timelineDurationFrames > cutDurationFrames && <TooltipTarget label="紙シートのカット尺より後の音声領域">
+              {tooltipProps => <span
+                className="dialogueAudioPostCut"
+                style={{
+                  left: `${cutDurationFrames / timelineDurationFrames * 100}%`,
+                  width: `${(timelineDurationFrames - cutDurationFrames) / timelineDurationFrames * 100}%`,
+                }}
+                {...tooltipProps}
+              ><span>カット外</span></span>}
+            </TooltipTarget>}
             {cutState.tracks.map(track => (
               <div
                 key={track.trackId}
@@ -1196,39 +1221,42 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                     const asset = cutState.assets.find(item => item.assetId === clip.assetId)
                     return asset ? <span key={clip.clipId} className="dialogueAudioClip">
                       <Waveform asset={asset} clip={clip} color={track.color} frameOrigin={frameOrigin} durationFrames={timelineDurationFrames} />
-                      <button
-                        type="button"
-                        className="dialogueAudioClipHandle"
-                        style={rangeStyle(clip.timelineStartFrame, clip.timelineStartFrame + clip.durationFrames - 1, frameOrigin, timelineDurationFrames)}
-                        onPointerDown={event => beginClipDrag(event, track.trackId, sourceClip)}
-                        onPointerMove={moveClipDrag}
-                        onPointerUp={event => finishClipDrag(event)}
-                        onPointerCancel={event => finishClipDrag(event, true)}
-                        aria-label={`音声クリップ ${asset.sourceName ?? clip.clipId}`}
-                        title="ドラッグで音声クリップを移動"
-                      >⋮⋮</button>
+                      <TooltipTarget label="ドラッグで音声クリップを移動">
+                        {tooltipProps => <button
+                          type="button"
+                          className="dialogueAudioClipHandle"
+                          style={rangeStyle(clip.timelineStartFrame, clip.timelineStartFrame + clip.durationFrames - 1, frameOrigin, timelineDurationFrames)}
+                          {...tooltipProps}
+                          onPointerDown={event => {
+                            tooltipProps.onPointerDown()
+                            beginClipDrag(event, track.trackId, sourceClip)
+                          }}
+                          onPointerMove={moveClipDrag}
+                          onPointerUp={event => finishClipDrag(event)}
+                          onPointerCancel={event => finishClipDrag(event, true)}
+                          aria-label={`音声クリップ ${asset.sourceName ?? clip.clipId}`}
+                        >⋮⋮</button>}
+                      </TooltipTarget>
                     </span> : null
                   })}
                   {track.speechCandidates.map(candidate => {
                     const presentation = candidatePresentation(candidate, cutState, activeRevisionId)
                     const openCandidates = selectedCandidateIds.includes(candidate.candidateId) ? track.speechCandidates.filter(item => selectedCandidateIds.includes(item.candidateId)) : [candidate]
-                    return <button
-                      type="button"
-                      key={candidate.candidateId}
-                      className={`dialogueSpeechCandidate is-${presentation.state} ${selectedCandidateIds.includes(candidate.candidateId) ? 'isSelected' : ''}`}
-                      style={rangeStyle(candidate.frameStart, candidate.frameEnd, frameOrigin, timelineDurationFrames)}
-                      onPointerDown={event => selectCandidate(event, track, candidate)}
-                      onDoubleClick={event => { event.stopPropagation(); openCandidateSound(track.trackId, openCandidates) }}
-                      title={presentation.title}
-                      aria-label={`発話候補 ${candidate.frameStart}–${candidate.frameEnd}F ${presentation.label}`}
-                    ><span>{presentation.label}</span></button>
+                    return <TooltipTarget key={candidate.candidateId} label={presentation.title}>
+                      {tooltipProps => <button
+                        type="button"
+                        className={`dialogueSpeechCandidate is-${presentation.state} ${selectedCandidateIds.includes(candidate.candidateId) ? 'isSelected' : ''}`}
+                        style={rangeStyle(candidate.frameStart, candidate.frameEnd, frameOrigin, timelineDurationFrames)}
+                        {...tooltipProps}
+                        onPointerDown={event => {
+                          tooltipProps.onPointerDown()
+                          selectCandidate(event, track, candidate)
+                        }}
+                        onDoubleClick={event => { event.stopPropagation(); openCandidateSound(track.trackId, openCandidates) }}
+                        aria-label={`発話候補 ${candidate.frameStart}–${candidate.frameEnd}F ${presentation.label}`}
+                      ><span>{presentation.label}</span></button>}
+                    </TooltipTarget>
                   })}
-                  {(vadPrerollDebugRanges[track.trackId] ?? []).map((range, index) => <span
-                    key={`vad-preroll-${range.frameStart}-${range.frameEnd}-${index}`}
-                    className="dialogueVadPrerollDebug"
-                    style={rangeStyle(range.frameStart, range.frameEnd, frameOrigin, timelineDurationFrames)}
-                    aria-label={`VAD前倒し ${range.frameStart}–${range.frameEnd}F`}
-                  />)}
                   {audioSelection?.trackId === track.trackId && <span className="dialogueAudioSelection" style={rangeStyle(audioSelection.frameStart, audioSelection.frameEnd, frameOrigin, timelineDurationFrames)} />}
                 </div>
               </div>

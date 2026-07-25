@@ -3,7 +3,6 @@ import {
   DIALOGUE_VAD_STEP_SAMPLES,
   analyzeDialogueAudioWithRmsVad,
   analyzeDialogueVadProbabilities,
-  dialogueVadFramesToPrerollRanges,
   dialogueVadFramesToSpeechRanges,
   getDialogueVadTuning,
   resampleDialogueAudioTo16k,
@@ -55,7 +54,7 @@ describe('dialogue Silero VAD tuning', () => {
     expect(result.debug).toMatchObject({ usedFallbackRms: false, baseThreshold: 0.5, thresholdScale: 1 })
   })
 
-  it('reports only the volume-qualified frames added by the three-frame onset preroll', () => {
+  it('advances the onset only across volume-qualified frames in the three-frame preroll', () => {
     const sampleRate = 2_400
     const fps = 24
     const samples = new Float32Array(sampleRate)
@@ -67,8 +66,39 @@ describe('dialogue Silero VAD tuning', () => {
 
     const result = analyzeDialogueVadProbabilities(samples, sampleRate, fps, tuning, probabilities)
 
-    expect(dialogueVadFramesToPrerollRanges(result.frames, 1)).toEqual([{ frameStart: 8, frameEnd: 10 }])
     expect(dialogueVadFramesToSpeechRanges(result.frames, 1)[0]).toMatchObject({ frameStart: 8 })
+  })
+
+  it('ends on the first frame below the end threshold in quiet mode without fixed tail padding', () => {
+    const samples = new Float32Array(DIALOGUE_VAD_STEP_SAMPLES * 12).fill(0.001)
+    const probabilities = Float32Array.from([0.08, 0.08, 0.9, 0.9, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08])
+
+    const result = analyzeDialogueVadProbabilities(
+      samples,
+      16_000,
+      31.25,
+      getDialogueVadTuning('quiet', 0.4, 0.5),
+      probabilities,
+    )
+
+    expect(result.debug.holdFrames).toBe(1)
+    expect(dialogueVadFramesToSpeechRanges(result.frames, 1)).toEqual([{ frameStart: 3, frameEnd: 4 }])
+  })
+
+  it('keeps five below-threshold tail frames before ending on the sixth in normal mode', () => {
+    const samples = new Float32Array(DIALOGUE_VAD_STEP_SAMPLES * 12).fill(0.001)
+    const probabilities = Float32Array.from([0.08, 0.08, 0.9, 0.9, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08])
+
+    const result = analyzeDialogueVadProbabilities(
+      samples,
+      16_000,
+      31.25,
+      getDialogueVadTuning('normal', 0.4, 0.5),
+      probabilities,
+    )
+
+    expect(result.debug.holdFrames).toBe(6)
+    expect(dialogueVadFramesToSpeechRanges(result.frames, 1)).toEqual([{ frameStart: 3, frameEnd: 9 }])
   })
 
   it('falls back to the tuned RMS hysteresis only when probabilities are unavailable', () => {

@@ -71,6 +71,7 @@ import {
   ensureDialogueAudioTimelineDuration,
   fitDialogueAudioPixelsPerFrame,
   loadDialogueAudioViewPreferences,
+  planDialogueAudioClipPlayback,
   planDialogueAudioRulerTicks,
   saveDialogueAudioViewPreferences,
   type DialogueAudioTrackHeightPreset,
@@ -171,6 +172,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const cutStateRef = useRef(cutState)
   const audioContextRef = useRef<AudioContext | null>(null)
   const sourcesRef = useRef<AudioBufferSourceNode[]>([])
+  const playbackRequestRef = useRef(0)
   const scrubSourcesRef = useRef<AudioBufferSourceNode[]>([])
   const scrubRequestRef = useRef(0)
   const scrubDragRef = useRef<{ pointerId: number; lastFrame: number } | null>(null)
@@ -350,6 +352,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   function stopPlayback(updateFrame = true) {
+    playbackRequestRef.current += 1
     const session = playSessionRef.current
     const context = audioContextRef.current
     if (updateFrame && session && context) {
@@ -372,42 +375,59 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   async function startPlayback(fromFrame = playheadFrame, omitTrackId?: string) {
     stopScrubPlayback()
     stopPlayback(false)
+    const requestId = playbackRequestRef.current
     const context = audioContext()
     await context.resume()
+    if (requestId !== playbackRequestRef.current) return
+    const state = cutStateRef.current
     const requestedStart = fromFrame
-    const restartAtOrigin = !recorderRef.current && requestedStart >= frameEnd
-    const playbackStart = Math.max(frameOrigin, Math.min(frameEnd, restartAtOrigin ? frameOrigin : requestedStart))
-    const playbackEnd = frameEnd
-    const assetById = new Map(cutState.assets.map(asset => [asset.assetId, asset]))
+    const playbackEnd = frameOrigin + Math.max(cutDurationFrames, state.timelineDurationFrames) - 1
+    const restartAtOrigin = !recorderRef.current && requestedStart >= playbackEnd
+    const playbackStart = Math.max(frameOrigin, Math.min(playbackEnd, restartAtOrigin ? frameOrigin : requestedStart))
+    const assetById = new Map(state.assets.map(asset => [asset.assetId, asset]))
     const sources: AudioBufferSourceNode[] = []
-    const scheduled: Array<{ source: AudioBufferSourceNode; audibleStart: number; clip: DialogueAudioClip; audio: PcmAudio }> = []
-    for (const track of cutState.tracks) {
+    const clipRequests: Array<{ clip: DialogueAudioClip; asset: DialogueAudioAsset }> = []
+    for (const track of state.tracks) {
       if (track.trackId === omitTrackId || track.muted) continue
       for (const clip of track.clips) {
         const clipEnd = clip.timelineStartFrame + clip.durationFrames - 1
         if (clipEnd < playbackStart || clip.timelineStartFrame > playbackEnd) continue
         const asset = assetById.get(clip.assetId)
         if (!asset) continue
-        const audio = await decodedAsset(asset, context)
-        const audibleStart = Math.max(playbackStart, clip.timelineStartFrame)
-        const source = context.createBufferSource()
-        source.buffer = audioBufferFromPcm(context, audio)
-        source.connect(context.destination)
-        sources.push(source)
-        scheduled.push({ source, audibleStart, clip, audio })
+        clipRequests.push({ clip, asset })
       }
     }
+    const decoded = await Promise.all(clipRequests.map(async request => {
+      try {
+        return { ...request, audio: await decodedAsset(request.asset, context) }
+      } catch {
+        return null
+      }
+    }))
+    if (requestId !== playbackRequestRef.current || cutStateRef.current !== state) return
     const startAt = context.currentTime + 0.05
-    scheduled.forEach(({ source, audibleStart, clip, audio }) => {
-      const offsetSeconds = (clip.sourceOffsetFrames + audibleStart - clip.timelineStartFrame) / fps
-      const requestedDuration = (Math.min(playbackEnd, clip.timelineStartFrame + clip.durationFrames - 1) - audibleStart + 1) / fps
-      const availableDuration = Math.max(0, audio.samples.length / audio.sampleRate - offsetSeconds)
-      source.start(
-        startAt + (audibleStart - playbackStart) / fps,
-        Math.max(0, offsetSeconds),
-        Math.max(0.001, Math.min(requestedDuration, availableDuration)),
-      )
-    })
+    let failedClipCount = decoded.filter(request => request === null).length
+    for (const request of decoded) {
+      if (!request) continue
+      const segment = planDialogueAudioClipPlayback(request.clip, playbackStart, playbackEnd, fps, {
+        sampleLength: request.audio.samples.length,
+        sampleRate: request.audio.sampleRate,
+      })
+      if (!segment) {
+        failedClipCount += 1
+        continue
+      }
+      try {
+        const source = context.createBufferSource()
+        source.buffer = audioBufferFromPcm(context, request.audio)
+        source.connect(context.destination)
+        source.start(startAt + segment.delaySeconds, segment.sourceOffsetSeconds, segment.durationSeconds)
+        sources.push(source)
+      } catch {
+        failedClipCount += 1
+      }
+    }
+    if (failedClipCount > 0) setStatus(`${failedClipCount}個の音声クリップを再生できませんでした。`)
     sourcesRef.current = sources
     playSessionRef.current = { contextStart: startAt, frameStart: playbackStart, frameEnd: playbackEnd }
     setPlayhead(playbackStart)

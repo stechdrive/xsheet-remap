@@ -14,6 +14,7 @@ import {
   effectiveDialogueAudioPixelsPerFrame,
   ensureDialogueAudioTimelineDuration,
   fitDialogueAudioPixelsPerFrame,
+  planDialogueAudioClipPlayback,
   planDialogueAudioRulerTicks,
 } from './dialogueAudioTimelineModel'
 
@@ -130,5 +131,58 @@ describe('dialogue audio timeline view model', () => {
       status: 'orphaned',
     }]
     expect(ensureDialogueAudioTimelineDuration(state, 1, 1).timelineDurationFrames).toBe(1)
+  })
+
+  it('plans moved clip playback from its current timeline position after the cut is extended', () => {
+    const segment = planDialogueAudioClipPlayback({
+      clipId: 'moved',
+      placementId: 'placement',
+      assetId: 'asset',
+      timelineStartFrame: 181,
+      sourceOffsetFrames: 24,
+      durationFrames: 48,
+    }, 145, 288, 24, {
+      sampleLength: 96_000,
+      sampleRate: 48_000,
+    })
+
+    expect(segment).toEqual({
+      timelineFrameStart: 181,
+      delaySeconds: 1.5,
+      sourceOffsetSeconds: 1,
+      durationSeconds: 1,
+    })
+  })
+
+  it('clamps a rounded final source frame to real PCM samples instead of scheduling an invalid range', () => {
+    const segment = planDialogueAudioClipPlayback({
+      clipId: 'tail',
+      placementId: 'placement',
+      assetId: 'asset',
+      timelineStartFrame: 49,
+      sourceOffsetFrames: 48,
+      durationFrames: 1,
+    }, 1, 96, 24, {
+      sampleLength: 96_100,
+      sampleRate: 48_000,
+    })
+
+    expect(segment).toEqual({
+      timelineFrameStart: 49,
+      delaySeconds: 2,
+      sourceOffsetSeconds: 2,
+      durationSeconds: 100 / 48_000,
+    })
+    expect(planDialogueAudioClipPlayback({
+      clipId: 'past-tail',
+      placementId: 'placement',
+      assetId: 'asset',
+      timelineStartFrame: 50,
+      sourceOffsetFrames: 49,
+      durationFrames: 1,
+    }, 1, 96, 24, {
+      sampleLength: 96_100,
+      sampleRate: 48_000,
+    })).toBeNull()
   })
 })

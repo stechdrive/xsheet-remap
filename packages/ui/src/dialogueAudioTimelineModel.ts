@@ -1,4 +1,4 @@
-import type { DialogueAudioCutState } from './dialogueAudioProject'
+import type { DialogueAudioClip, DialogueAudioCutState } from './dialogueAudioProject'
 
 export const DIALOGUE_AUDIO_MIN_PIXELS_PER_FRAME = 0.5
 export const DIALOGUE_AUDIO_MAX_PIXELS_PER_FRAME = 24
@@ -26,6 +26,13 @@ export interface DialogueAudioViewPreferences {
 export interface DialogueAudioRulerPlan {
   secondTicks: Array<{ offsetFrames: number; second: number }>
   frameTicks: Array<{ offsetFrames: number; frameInSecond: number }>
+}
+
+export interface DialogueAudioPlaybackSegment {
+  timelineFrameStart: number
+  delaySeconds: number
+  sourceOffsetSeconds: number
+  durationSeconds: number
 }
 
 export const DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS: Record<DialogueAudioTrackHeightPreset, number> = {
@@ -180,6 +187,37 @@ export function dialogueAudioContentEndFrame(state: DialogueAudioCutState): numb
   return frameEnd
 }
 
+export function planDialogueAudioClipPlayback(
+  clip: DialogueAudioClip,
+  playbackFrameStartInput: number,
+  playbackFrameEndInput: number,
+  fpsInput: number,
+  source: { sampleLength: number; sampleRate: number },
+): DialogueAudioPlaybackSegment | null {
+  const fps = Math.max(1, fpsInput)
+  const sampleRate = Math.max(1, source.sampleRate)
+  const sampleLength = Math.max(0, Math.round(source.sampleLength))
+  const playbackFrameStart = Math.round(Math.min(playbackFrameStartInput, playbackFrameEndInput))
+  const playbackFrameEnd = Math.round(Math.max(playbackFrameStartInput, playbackFrameEndInput))
+  const clipFrameEnd = clip.timelineStartFrame + clip.durationFrames - 1
+  const timelineFrameStart = Math.max(playbackFrameStart, clip.timelineStartFrame)
+  const timelineFrameEnd = Math.min(playbackFrameEnd, clipFrameEnd)
+  if (timelineFrameEnd < timelineFrameStart || sampleLength === 0) return null
+
+  const sourceFrameStart = clip.sourceOffsetFrames + timelineFrameStart - clip.timelineStartFrame
+  const sourceFrameEndExclusive = clip.sourceOffsetFrames + timelineFrameEnd - clip.timelineStartFrame + 1
+  const sampleStart = clampInteger(Math.round(sourceFrameStart * sampleRate / fps), 0, sampleLength)
+  const sampleEnd = clampInteger(Math.round(sourceFrameEndExclusive * sampleRate / fps), sampleStart, sampleLength)
+  if (sampleEnd <= sampleStart) return null
+
+  return {
+    timelineFrameStart,
+    delaySeconds: (timelineFrameStart - playbackFrameStart) / fps,
+    sourceOffsetSeconds: sampleStart / sampleRate,
+    durationSeconds: (sampleEnd - sampleStart) / sampleRate,
+  }
+}
+
 export function ensureDialogueAudioTimelineDuration(
   state: DialogueAudioCutState,
   frameOrigin: number,
@@ -191,4 +229,8 @@ export function ensureDialogueAudioTimelineDuration(
 
 function preferredRulerStep(minimum: number, candidates: number[]): number {
   return candidates.find(candidate => candidate >= minimum) ?? Math.max(1, Math.ceil(minimum))
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.round(value)))
 }

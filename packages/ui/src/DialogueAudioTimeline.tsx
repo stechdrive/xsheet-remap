@@ -98,7 +98,7 @@ interface AudioHistory {
   future: DialogueAudioCutState[]
 }
 
-const SCRUB_WINDOW_SECONDS = 0.12
+const SCRUB_EDGE_FADE_SECONDS = 0.001
 
 export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const {
@@ -383,13 +383,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       return
     }
 
-    const scrubFrameCount = Math.max(2, Math.ceil(Math.max(1, fps) * SCRUB_WINDOW_SECONDS))
-    const windowStart = direction > 0
-      ? nextFrame
-      : Math.max(frameOrigin, nextFrame - scrubFrameCount + 1)
-    const windowEnd = direction > 0
-      ? Math.min(frameEnd, nextFrame + scrubFrameCount - 1)
-      : nextFrame
+    // Scrub feedback must match the destination project frame exactly; do not audition future frames.
+    const windowStart = nextFrame
+    const windowEnd = nextFrame
     const assetById = new Map(state.assets.map(asset => [asset.assetId, asset]))
     const clips = audibleTracks.flatMap(track => track.clips.flatMap(clip => {
       const clipEnd = clip.timelineStartFrame + clip.durationFrames - 1
@@ -427,7 +423,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       const delayFrames = direction > 0 ? intersectionStart - windowStart : windowEnd - intersectionEnd
       const sourceStart = startAt + delayFrames / Math.max(1, fps)
       const durationSeconds = sliced.samples.length / sliced.sampleRate
-      const fadeSeconds = Math.min(0.008, durationSeconds / 3)
+      const fadeSeconds = Math.min(SCRUB_EDGE_FADE_SECONDS, durationSeconds / 3)
       source.buffer = audioBufferFromPcm(context, sliced)
       source.connect(gain)
       gain.connect(context.destination)
@@ -443,7 +439,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       sources.push(source)
     })
     scrubSourcesRef.current = sources
-    setStatus(direction < 0 ? '全トラックを逆スクラブ中' : '全トラックをスクラブ中')
+    setStatus(direction < 0 ? '全トラックを1F逆スクラブ中' : '全トラックを1Fスクラブ中')
   }
 
   async function toggleRecording() {

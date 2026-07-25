@@ -34,10 +34,25 @@ describe('dialogue audio engine', () => {
     expect([...deleteAudioAtFrame(inserted, 2, 1, 1, 4).samples]).toEqual([1, 2, 3, 4])
   })
 
-  it('extracts forward and reversed PCM from the same scrub frame span', () => {
-    const audio = { samples: Float32Array.from([1, 2, 3, 4, 5]), sampleRate: 4 }
-    expect([...slicePcmForDialogueScrub(audio, 1, 2, 4, false).samples]).toEqual([2, 3])
-    expect([...slicePcmForDialogueScrub(audio, 1, 2, 4, true).samples]).toEqual([3, 2])
+  it('extracts exactly one project frame for forward and reverse scrubbing', () => {
+    const audio = { samples: Float32Array.from([1, 2, 3, 4, 5, 6]), sampleRate: 6 }
+    expect([...slicePcmForDialogueScrub(audio, 1, 1, 3, false).samples]).toEqual([3, 4])
+    expect([...slicePcmForDialogueScrub(audio, 1, 1, 3, true).samples]).toEqual([4, 3])
+  })
+
+  it('rounds adjacent sample boundaries without extending a fractional-fps scrub past one frame', () => {
+    const sampleRate = 48_000
+    const fps = 24_000 / 1_001
+    const sourceFrame = 7
+    const expectedStart = Math.round(sourceFrame * sampleRate / fps)
+    const expectedEnd = Math.round((sourceFrame + 1) * sampleRate / fps)
+    const audio = { samples: Float32Array.from({ length: expectedEnd + 10 }, (_, index) => index), sampleRate }
+
+    const scrub = slicePcmForDialogueScrub(audio, sourceFrame, 1, fps, false)
+
+    expect(scrub.samples).toHaveLength(expectedEnd - expectedStart)
+    expect(scrub.samples[0]).toBe(expectedStart)
+    expect(scrub.samples.at(-1)).toBe(expectedEnd - 1)
   })
 
   it('normalizes only VAD-detected speech and preserves sound outside the detected ranges', () => {

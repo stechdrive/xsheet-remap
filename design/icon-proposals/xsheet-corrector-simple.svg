@@ -3,8 +3,8 @@
   <rect x="14" y="14" width="100" height="100" rx="21" fill="none" stroke="#7fb8c7" stroke-width="7"/>
   <path d="M42 29L88 36L82 97L36 89Z" fill="#f2f7f1"/>
   <path d="M42 29L88 36L82 97L36 89Z" fill="none" stroke="#214854" stroke-width="5" stroke-linejoin="round"/>
-  <circle cx="42" cy="29" r="10" fill="#66d2af"/>
-  <circle cx="88" cy="36" r="10" fill="#66d2af"/>
-  <circle cx="82" cy="97" r="10" fill="#66d2af"/>
-  <circle cx="36" cy="89" r="10" fill="#66d2af"/>
+  <circle cx="42" cy="29" r="10" fill="#f0806b"/>
+  <circle cx="88" cy="36" r="10" fill="#f0806b"/>
+  <circle cx="82" cy="97" r="10" fill="#f0806b"/>
+  <circle cx="36" cy="89" r="10" fill="#f0806b"/>
 </svg>

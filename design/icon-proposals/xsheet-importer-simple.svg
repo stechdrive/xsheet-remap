@@ -3,6 +3,6 @@
   <rect x="14" y="14" width="100" height="100" rx="21" fill="none" stroke="#7fb8c7" stroke-width="7"/>
   <rect x="27" y="26" width="42" height="76" rx="6" fill="#f2f7f1"/>
   <path d="M37 43H59M37 58H55M37 87H59" fill="none" stroke="#214854" stroke-width="5" stroke-linecap="round"/>
-  <path d="M51 72H82M75 63L85 72L75 81" fill="none" stroke="#66d2af" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M51 72H82M75 63L85 72L75 81" fill="none" stroke="#59bde8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M79 39H99M84 51H99M89 91H99" fill="none" stroke="#f2f7f1" stroke-width="7" stroke-linecap="round"/>
 </svg>

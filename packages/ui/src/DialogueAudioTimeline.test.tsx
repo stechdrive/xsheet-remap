@@ -218,7 +218,7 @@ describe('DialogueAudioTimeline', () => {
     openAudioTimeline()
     fireEvent.pointerDown(screen.getByLabelText('発話候補 12–20F VAD'))
     fireEvent.pointerDown(screen.getByLabelText('発話候補 24–35F VAD'), { ctrlKey: true })
-    fireEvent.click(screen.getByRole('button', { name: '候補をまとめてSOUND作成' }))
+    fireEvent.click(screen.getByRole('button', { name: '選択区間を紙シートへSOUND反映' }))
     expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['vad-1', 'vad-2'], 12, 35)
   })
 
@@ -307,6 +307,106 @@ describe('DialogueAudioTimeline', () => {
     })
     expect(screen.getByRole('button', { name: '音声クリップ マイク録音' })).toBeTruthy()
     expect(mediaTrack.stop).toHaveBeenCalled()
+  })
+
+  it('opens the timeline tool menu from right click and applies a track-height preset', () => {
+    render(<DialogueAudioTimeline
+      cutState={createDefaultDialogueAudioCutState(1, 72)}
+      fps={24}
+      frameOrigin={1}
+      cutDurationFrames={72}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCuesTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateSoundCues={current => current}
+    />)
+    openAudioTimeline()
+    const track = document.querySelector('.dialogueAudioTrack') as HTMLDivElement
+    fireEvent.contextMenu(track, { clientX: 80, clientY: 120 })
+    expect(screen.getByRole('menu', { name: '音声タイムラインの操作' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'トラック高 大' }))
+    expect((track.getAttribute('style') ?? '')).toContain('132px')
+  })
+
+  it('offers to extend the paper cut before reflecting a detected region beyond it', async () => {
+    const state = createDefaultDialogueAudioCutState(1, 96)
+    state.tracks[0].speechCandidates = [{ candidateId: 'long-line', frameStart: 60, frameEnd: 90, status: 'pending' }]
+    const onCutDurationChange = vi.fn()
+    const onSoundCandidateEdit = vi.fn()
+    function ExtensionHarness() {
+      const [cutDurationFrames, setCutDurationFrames] = useState(72)
+      return <DialogueAudioTimeline
+        cutState={state}
+        fps={24}
+        frameOrigin={1}
+        cutDurationFrames={cutDurationFrames}
+        activeRevisionId="revision-1"
+        soundCues={[]}
+        selectedSoundCueId={null}
+        onCutStateChange={vi.fn()}
+        onCutDurationChange={value => {
+          onCutDurationChange(value)
+          setCutDurationFrames(value)
+        }}
+        onPlayheadChange={vi.fn()}
+        onSoundCueSelect={vi.fn()}
+        onSoundCueEdit={vi.fn()}
+        onSoundCueTransform={vi.fn()}
+        onSoundCuesTransform={vi.fn()}
+        onSoundCandidateEdit={onSoundCandidateEdit}
+        onAutoCreateSoundCues={current => current}
+      />
+    }
+    render(<ExtensionHarness />)
+    openAudioTimeline()
+    fireEvent.doubleClick(screen.getByLabelText('発話候補 60–90F VAD'))
+    expect(screen.getByRole('alertdialog', { name: 'SOUND区間がカット尺を越えています' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'カット尺を延長して反映' }))
+    expect(onCutDurationChange).toHaveBeenCalledWith(90)
+    await waitFor(() => expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['long-line'], 60, 90))
+  })
+
+  it('restarts from the audio origin when Play is pressed at the end', async () => {
+    vi.stubGlobal('AudioContext', FakeAudioContext)
+    const onPlayheadChange = vi.fn()
+    render(<DialogueAudioTimeline
+      cutState={createDefaultDialogueAudioCutState(1, 24)}
+      fps={24}
+      frameOrigin={1}
+      cutDurationFrames={24}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={onPlayheadChange}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCuesTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateSoundCues={current => current}
+    />)
+    openAudioTimeline()
+    const timeline = screen.getByRole('group', { name: '音声トラック編集領域' })
+    const ruler = document.querySelector('.dialogueAudioRuler') as HTMLDivElement
+    vi.spyOn(timeline, 'getBoundingClientRect').mockReturnValue(rectangle(0, 720))
+    Object.defineProperties(ruler, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+    })
+    fireEvent.pointerDown(ruler, { button: 0, pointerId: 8, clientX: 720 })
+    fireEvent.pointerUp(ruler, { pointerId: 8, clientX: 720 })
+    expect(onPlayheadChange).toHaveBeenLastCalledWith(24)
+    fireEvent.click(screen.getByRole('button', { name: '▶ 再生ヘッドから' }))
+    await waitFor(() => expect(onPlayheadChange).toHaveBeenLastCalledWith(1))
   })
 })
 

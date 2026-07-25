@@ -11,14 +11,35 @@ import { linkDialogueAudioCandidates } from './dialogueAudioBinding'
 
 describe('dialogue audio project extension', () => {
   it('creates exactly three non-destructive tracks for a new cut', () => {
-    const state = createDefaultDialogueAudioCutState(1)
+    const state = createDefaultDialogueAudioCutState(1, 144)
     expect(state.tracks).toHaveLength(3)
     expect(state.tracks.map(track => track.name)).toEqual(['セリフ 1', 'セリフ 2', 'セリフ 3'])
     expect(state.tracks.every(track => track.clips.length === 0)).toBe(true)
     expect(state.assets).toEqual([])
     expect(state.bindings).toEqual([])
+    expect(state.timelineDurationFrames).toBe(144)
     expect(state.tracks.every(track => track.vadMode === 'candidates')).toBe(true)
     expect(state).toMatchObject({ detectionPreset: 'quiet', detectionStability: 0.4, detectionSensitivity: 0.5 })
+  })
+
+  it('keeps the audio timeline longer than the paper cut and never truncates placed audio', () => {
+    const project = createDefaultProject()
+    const document = createProjectDocumentFromCutProject(project, { sheetTemplate: standardA3SheetTemplate })
+    const state = createDefaultDialogueAudioCutState(1, 72)
+    state.assets = [{ assetId: 'long-take', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 180, waveform: [] }]
+    state.tracks[0].clips = [{
+      clipId: 'long-clip',
+      placementId: 'long-clip',
+      assetId: 'long-take',
+      timelineStartFrame: 1,
+      sourceOffsetFrames: 0,
+      durationFrames: 180,
+    }]
+    const updated = updateDialogueAudioCutStateInDocument(document, document.activeCutId, state, 1, 72)
+    const restored = dialogueAudioCutStateFromDocument(updated, document.activeCutId, 1, 48)
+
+    expect(restored.timelineDurationFrames).toBe(180)
+    expect(restored.tracks[0].clips[0].durationFrames).toBe(180)
   })
 
   it('stores shared audio assets and revision-specific candidate links per cut', () => {

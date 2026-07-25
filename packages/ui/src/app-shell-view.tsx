@@ -78,7 +78,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
     projectDocumentSnapshot,
     projectDocumentSnapshot.activeCutId,
     project.logicalSheet.frameOrigin,
-  ), [project.logicalSheet.frameOrigin, projectDocumentSnapshot])
+    project.logicalSheet.durationFrames,
+  ), [project.logicalSheet.durationFrames, project.logicalSheet.frameOrigin, projectDocumentSnapshot])
 
   const sheetRailExternalActions = panel === 'sheet' ? (
     <>
@@ -449,11 +450,12 @@ export function AppShellView({ controller }: { controller: AppController }) {
                 cutState={dialogueAudioCutState}
                 fps={project.logicalSheet.fps}
                 frameOrigin={project.logicalSheet.frameOrigin}
-                durationFrames={project.logicalSheet.durationFrames}
+                cutDurationFrames={project.logicalSheet.durationFrames}
                 activeRevisionId={activeSheetRevision.revisionId}
                 soundCues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
                 selectedSoundCueId={selectedSoundCueId}
                 onCutStateChange={handleDialogueAudioCutStateChange}
+                onCutDurationChange={durationFrames => runProjectCommand(sourceProject => updateLogicalSheetSettings(sourceProject, { durationFrames }))}
                 onPlayheadChange={handleAudioPlayheadChange}
                 onSoundCueSelect={handleSoundCueSelect}
                 onSoundCueEdit={openSoundCueEditor}

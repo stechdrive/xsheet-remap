@@ -32,12 +32,18 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     options.setProjectDocument(current => {
       const project = options.projectRef.current
       const document = updateActiveCutProjectInDocument(current, project, { sheetTemplate: options.template })
-      const state = dialogueAudioCutStateFromDocument(document, document.activeCutId, project.logicalSheet.frameOrigin)
+      const state = dialogueAudioCutStateFromDocument(
+        document,
+        document.activeCutId,
+        project.logicalSheet.frameOrigin,
+        project.logicalSheet.durationFrames,
+      )
       return updateDialogueAudioCutStateInDocument(
         document,
         document.activeCutId,
         transform(state),
         project.logicalSheet.frameOrigin,
+        project.logicalSheet.durationFrames,
       )
     })
   }
@@ -84,11 +90,12 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     for (const candidateId of candidateIds) {
       const candidate = track.speechCandidates.find(item => item.candidateId === candidateId)
       if (!candidate || state.bindings.some(binding => binding.revisionId === options.revisionId && binding.anchors.some(anchor => anchor.candidateIds.includes(candidateId)))) continue
+      if (candidate.frameStart < options.frameMin || candidate.frameEnd > options.frameMax) continue
       const created = createTimedRangeCue(project, {
         role: 'sound',
         laneId: lane.laneId,
-        frameStart: Math.max(options.frameMin, candidate.frameStart),
-        frameEnd: Math.min(options.frameMax, candidate.frameEnd),
+        frameStart: candidate.frameStart,
+        frameEnd: candidate.frameEnd,
         label: `仮・${track.name} ${sequence}`,
         text: '',
       })

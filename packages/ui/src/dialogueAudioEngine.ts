@@ -10,6 +10,68 @@ export interface PcmAudio {
   sampleRate: number
 }
 
+export interface DialogueSpeechNormalization {
+  frameStart: number
+  frameEnd: number
+  gainDb: number
+}
+
+export interface DialogueSpeechNormalizationResult extends PcmAudio {
+  normalizedRanges: DialogueSpeechNormalization[]
+}
+
+/**
+ * Normalizes only VAD-detected speech. Ambient sound and pauses remain byte-for-byte
+ * unchanged, while short gain ramps avoid clicks at each detected boundary.
+ */
+export function normalizeDetectedDialogueSpeech(
+  audio: PcmAudio,
+  speechRanges: DialogueSpeechRange[],
+  audioStartFrame: number,
+  fps: number,
+  options: { targetRmsDb?: number; peakCeilingDb?: number; minGainDb?: number; maxGainDb?: number; rampMs?: number } = {},
+): DialogueSpeechNormalizationResult {
+  const targetRms = dbToGain(options.targetRmsDb ?? -18)
+  const peakCeiling = dbToGain(options.peakCeilingDb ?? -1)
+  const minGainDb = options.minGainDb ?? -12
+  const maxGainDb = options.maxGainDb ?? 18
+  const rampSamples = Math.max(1, Math.round(audio.sampleRate * (options.rampMs ?? 6) / 1000))
+  const samples = audio.samples.slice()
+  const normalizedRanges: DialogueSpeechNormalization[] = []
+
+  for (const range of mergeTouchingRanges(speechRanges.map(item => ({ ...item })))) {
+    const start = Math.max(0, Math.min(samples.length, Math.floor((range.frameStart - audioStartFrame) * audio.sampleRate / Math.max(1, fps))))
+    const end = Math.max(start, Math.min(samples.length, Math.ceil((range.frameEnd - audioStartFrame + 1) * audio.sampleRate / Math.max(1, fps))))
+    if (end <= start) continue
+    let energy = 0
+    let peak = 0
+    for (let index = start; index < end; index += 1) {
+      const magnitude = Math.abs(audio.samples[index])
+      energy += magnitude * magnitude
+      peak = Math.max(peak, magnitude)
+    }
+    const rms = Math.sqrt(energy / (end - start))
+    if (rms < 1e-6 || peak < 1e-6) continue
+    const targetGain = targetRms / rms
+    const ceilingGain = peakCeiling / peak
+    const gain = Math.min(
+      dbToGain(maxGainDb),
+      Math.max(dbToGain(minGainDb), targetGain),
+      ceilingGain,
+    )
+    for (let index = start; index < end; index += 1) {
+      const distanceFromStart = index - start
+      const distanceFromEnd = end - index - 1
+      const ramp = Math.min(1, (distanceFromStart + 1) / rampSamples, (distanceFromEnd + 1) / rampSamples)
+      const smoothedGain = 1 + (gain - 1) * ramp
+      samples[index] = Math.max(-peakCeiling, Math.min(peakCeiling, audio.samples[index] * smoothedGain))
+    }
+    normalizedRanges.push({ ...range, gainDb: Math.round(gainToDb(gain) * 10) / 10 })
+  }
+
+  return { samples, sampleRate: audio.sampleRate, normalizedRanges }
+}
+
 export function analyzeDialogueAudio(
   samples: Float32Array,
   sampleRate: number,
@@ -210,6 +272,14 @@ function mergeTouchingRanges(ranges: DialogueSpeechRange[]): DialogueSpeechRange
 function percentile(sorted: number[], ratio: number): number {
   if (sorted.length === 0) return 0
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)))]
+}
+
+function dbToGain(db: number): number {
+  return 10 ** (db / 20)
+}
+
+function gainToDb(gain: number): number {
+  return 20 * Math.log10(Math.max(Number.EPSILON, gain))
 }
 
 function resampleLinear(samples: Float32Array, sourceRate: number, targetRate: number): Float32Array {

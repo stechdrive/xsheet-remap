@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeDialogueAudio, deleteAudioAtFrame, insertSilenceAtFrame, overwritePcmAtFrame, slicePcmForDialogueScrub } from './dialogueAudioEngine'
+import {
+  analyzeDialogueAudio,
+  deleteAudioAtFrame,
+  insertSilenceAtFrame,
+  normalizeDetectedDialogueSpeech,
+  overwritePcmAtFrame,
+  slicePcmForDialogueScrub,
+} from './dialogueAudioEngine'
 
 describe('dialogue audio engine', () => {
   it('detects separated speech while preserving the silence between lines', () => {
@@ -31,5 +38,27 @@ describe('dialogue audio engine', () => {
     const audio = { samples: Float32Array.from([1, 2, 3, 4, 5]), sampleRate: 4 }
     expect([...slicePcmForDialogueScrub(audio, 1, 2, 4, false).samples]).toEqual([2, 3])
     expect([...slicePcmForDialogueScrub(audio, 1, 2, 4, true).samples]).toEqual([3, 2])
+  })
+
+  it('normalizes only VAD-detected speech and preserves sound outside the detected ranges', () => {
+    const samples = new Float32Array(1000).fill(0.01)
+    samples.fill(0.05, 200, 400)
+    samples.fill(0.5, 600, 800)
+    const result = normalizeDetectedDialogueSpeech(
+      { samples, sampleRate: 1000 },
+      [{ frameStart: 2, frameEnd: 3 }, { frameStart: 6, frameEnd: 7 }],
+      0,
+      10,
+      { rampMs: 1 },
+    )
+
+    expect(result.samples[100]).toBe(samples[100])
+    expect(result.samples[500]).toBe(samples[500])
+    expect(result.samples[300]).toBeGreaterThan(samples[300])
+    expect(result.samples[700]).toBeLessThan(samples[700])
+    expect(Math.max(...result.samples)).toBeLessThanOrEqual(10 ** (-1 / 20))
+    expect(result.normalizedRanges).toHaveLength(2)
+    expect(result.normalizedRanges[0].gainDb).toBeGreaterThan(0)
+    expect(result.normalizedRanges[1].gainDb).toBeLessThan(0)
   })
 })

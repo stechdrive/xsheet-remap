@@ -1,7 +1,7 @@
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 
 export const DIALOGUE_AUDIO_EXTENSION = 'xsheet-remap.dialogue-audio'
-export const DIALOGUE_AUDIO_SCHEMA_VERSION = 4
+export const DIALOGUE_AUDIO_SCHEMA_VERSION = 5
 
 export type DialogueAudioVadPreset = 'quiet' | 'normal' | 'noisy'
 export type DialogueAudioVadMode = 'off' | 'candidates' | 'auto-sound'
@@ -81,6 +81,8 @@ export interface DialogueCueAudioBinding {
 }
 
 export interface DialogueAudioCutState {
+  /** Length of the audio workspace. It shares the cut origin, but is not limited by the paper-sheet cut length. */
+  timelineDurationFrames: number
   activeTrackId: string
   detectionSensitivity: number
   detectionStability: number
@@ -92,7 +94,7 @@ export interface DialogueAudioCutState {
 
 const TRACK_COLORS = ['#d7855f', '#5f9aaa', '#8a82b5']
 
-export function createDefaultDialogueAudioCutState(frameOrigin: number): DialogueAudioCutState {
+export function createDefaultDialogueAudioCutState(frameOrigin: number, cutDurationFrames = 1): DialogueAudioCutState {
   void frameOrigin
   const tracks = TRACK_COLORS.map((color, index): DialogueAudioTrackState => ({
     trackId: `dialogue-${index + 1}`,
@@ -105,6 +107,7 @@ export function createDefaultDialogueAudioCutState(frameOrigin: number): Dialogu
     solo: false,
   }))
   return {
+    timelineDurationFrames: Math.max(1, Math.round(cutDurationFrames)),
     activeTrackId: tracks[0].trackId,
     detectionSensitivity: 0.5,
     detectionStability: 0.4,
@@ -119,15 +122,16 @@ export function dialogueAudioCutStateFromDocument(
   document: CutGroupProjectDocument,
   cutId: string,
   frameOrigin: number,
+  cutDurationFrames = 144,
 ): DialogueAudioCutState {
-  const fallback = createDefaultDialogueAudioCutState(frameOrigin)
+  const fallback = createDefaultDialogueAudioCutState(frameOrigin, cutDurationFrames)
   const extension = document.extensions?.[DIALOGUE_AUDIO_EXTENSION]
   if (!extension || !isRecord(extension.data)) return fallback
   const cuts = isRecord(extension.data.cuts) ? extension.data.cuts : null
   const value = cuts?.[cutId]
   if (extension.schemaVersion === 1) return migrateV1CutState(value, fallback, frameOrigin)
-  if (extension.schemaVersion !== 2 && extension.schemaVersion !== 3 && extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
-  return normalizeCutState(value, fallback)
+  if (extension.schemaVersion !== 2 && extension.schemaVersion !== 3 && extension.schemaVersion !== 4 && extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
+  return normalizeCutState(value, fallback, frameOrigin)
 }
 
 export function updateDialogueAudioCutStateInDocument(
@@ -135,13 +139,18 @@ export function updateDialogueAudioCutStateInDocument(
   cutId: string,
   cutState: DialogueAudioCutState,
   frameOrigin: number,
+  cutDurationFrames = 144,
 ): CutGroupProjectDocument {
   const extension = document.extensions?.[DIALOGUE_AUDIO_EXTENSION]
-  const currentData = (extension?.schemaVersion === 2 || extension?.schemaVersion === 3 || extension?.schemaVersion === DIALOGUE_AUDIO_SCHEMA_VERSION) && isRecord(extension.data)
+  const currentData = (extension?.schemaVersion === 2 || extension?.schemaVersion === 3 || extension?.schemaVersion === 4 || extension?.schemaVersion === DIALOGUE_AUDIO_SCHEMA_VERSION) && isRecord(extension.data)
     ? extension.data
     : {}
   const currentCuts = isRecord(currentData.cuts) ? currentData.cuts : {}
-  const normalized = normalizeCutState(pruneUnusedDialogueAudioAssets(cutState), createDefaultDialogueAudioCutState(frameOrigin))
+  const normalized = normalizeCutState(
+    pruneUnusedDialogueAudioAssets(cutState),
+    createDefaultDialogueAudioCutState(frameOrigin, cutDurationFrames),
+    frameOrigin,
+  )
   return {
     ...document,
     extensions: {
@@ -206,6 +215,7 @@ function migrateV1CutState(value: unknown, fallback: DialogueAudioCutState, fram
     ? value.activeTrackId
     : tracks[0].trackId
   return {
+    timelineDurationFrames: requiredTimelineDurationFrames({ assets, tracks, bindings: [] }, frameOrigin, fallback.timelineDurationFrames),
     activeTrackId,
     detectionSensitivity: clampNumber(value.detectionSensitivity, 0, 1, fallback.detectionSensitivity),
     detectionStability: fallback.detectionStability,
@@ -216,7 +226,7 @@ function migrateV1CutState(value: unknown, fallback: DialogueAudioCutState, fram
   }
 }
 
-function normalizeCutState(value: unknown, fallback: DialogueAudioCutState): DialogueAudioCutState {
+function normalizeCutState(value: unknown, fallback: DialogueAudioCutState, frameOrigin: number): DialogueAudioCutState {
   if (!isRecord(value) || !Array.isArray(value.tracks)) return fallback
   const assets = Array.isArray(value.assets) ? value.assets.flatMap(normalizeAsset) : []
   const assetIds = new Set(assets.map(asset => asset.assetId))
@@ -230,6 +240,11 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState): Dia
     ? value.activeTrackId
     : tracks[0].trackId
   return {
+    timelineDurationFrames: requiredTimelineDurationFrames(
+      { assets, tracks, bindings },
+      frameOrigin,
+      Math.max(fallback.timelineDurationFrames, integer(value.timelineDurationFrames, fallback.timelineDurationFrames)),
+    ),
     activeTrackId,
     detectionSensitivity: clampNumber(value.detectionSensitivity, 0, 1, fallback.detectionSensitivity),
     detectionStability: clampNumber(value.detectionStability, 0, 1, fallback.detectionStability),
@@ -238,6 +253,26 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState): Dia
     tracks,
     bindings,
   }
+}
+
+function requiredTimelineDurationFrames(
+  state: Pick<DialogueAudioCutState, 'assets' | 'tracks' | 'bindings'>,
+  frameOrigin: number,
+  minimum: number,
+): number {
+  let frameEnd = frameOrigin + Math.max(1, minimum) - 1
+  state.tracks.forEach(track => {
+    track.clips.forEach(clip => {
+      frameEnd = Math.max(frameEnd, clip.timelineStartFrame + clip.durationFrames - 1)
+    })
+    track.speechCandidates.forEach(candidate => {
+      frameEnd = Math.max(frameEnd, candidate.frameEnd)
+    })
+  })
+  state.bindings.forEach(binding => {
+    frameEnd = Math.max(frameEnd, binding.cueFrameEnd)
+  })
+  return Math.max(1, frameEnd - frameOrigin + 1)
 }
 
 function normalizeAsset(value: unknown): DialogueAudioAsset[] {

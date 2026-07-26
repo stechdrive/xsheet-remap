@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, type CSSProperties, type FocusEvent, type PointerEvent } from 'react'
 import { type AnnotationText } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { TEXT_FONT_SIZE_MAX_PX, TEXT_FONT_SIZE_MIN_PX, TEXT_FONT_SIZE_PRESETS, clampTextFontSizePx } from './sheetTextLayout'
@@ -11,6 +11,7 @@ import { ActionMenu, ScrubbableNumberInput } from './AppControls'
 import { TextAnnotationUpdate } from './app-foundation'
 import { CheckSmallIcon, CloseSmallIcon } from './app-navigation'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
+import { usePointerDragSession } from './usePointerDragSession'
 
 export function AnnotationTextLayer({
   annotations,
@@ -83,7 +84,7 @@ function AnnotationTextItem({
 }) {
   const editorRef = useRef<HTMLTextAreaElement | null>(null)
   const closeHandledRef = useRef(false)
-  const dragRef = useRef<{
+  const drag = usePointerDragSession<{
     pointerId: number
     startClientX: number
     startClientY: number
@@ -92,10 +93,29 @@ function AnnotationTextItem({
     x: number
     y: number
     moved: boolean
-  } | null>(null)
-  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null)
-  const renderedX = dragPosition?.x ?? annotation.x
-  const renderedY = dragPosition?.y ?? annotation.y
+  }>({
+    onUpdate: (current, point) => {
+      const deltaX = point.clientX - current.startClientX
+      const deltaY = point.clientY - current.startClientY
+      const moved = current.moved || Math.hypot(deltaX, deltaY) >= 3
+      if (!moved) return current
+      const surfaceWidth = Math.max(1, pageSize.widthPx * Math.max(zoom, 0.001))
+      const surfaceHeight = Math.max(1, pageSize.heightPx * Math.max(zoom, 0.001))
+      return {
+        ...current,
+        x: clampNumber(current.startX + deltaX / surfaceWidth, 0, 1),
+        y: clampNumber(current.startY + deltaY / surfaceHeight, 0, 1),
+        moved: true,
+      }
+    },
+    onFinish: (current, finish) => {
+      if (finish.cancelled) return
+      if (current.moved) onUpdate(annotation.annotationId, { x: current.x, y: current.y })
+      onSelect(annotation.annotationId)
+    },
+  })
+  const renderedX = drag.active?.x ?? annotation.x
+  const renderedY = drag.active?.y ?? annotation.y
   const layout = annotationTextCssLayout(annotation, pageSize, zoom, { x: renderedX, y: renderedY })
   const commonStyle = {
     left: `${layout.leftPx}px`,
@@ -135,8 +155,7 @@ function AnnotationTextItem({
     event.preventDefault()
     event.stopPropagation()
     onSelect(annotation.annotationId)
-    event.currentTarget.setPointerCapture(event.pointerId)
-    dragRef.current = {
+    drag.begin({
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
@@ -145,45 +164,7 @@ function AnnotationTextItem({
       x: annotation.x,
       y: annotation.y,
       moved: false,
-    }
-  }
-
-  function handleDisplayPointerMove(event: PointerEvent<HTMLButtonElement>) {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    event.preventDefault()
-    event.stopPropagation()
-    const deltaX = event.clientX - drag.startClientX
-    const deltaY = event.clientY - drag.startClientY
-    const moved = drag.moved || Math.hypot(deltaX, deltaY) >= 3
-    if (!moved) return
-    const surfaceWidth = Math.max(1, pageSize.widthPx * Math.max(zoom, 0.001))
-    const surfaceHeight = Math.max(1, pageSize.heightPx * Math.max(zoom, 0.001))
-    const x = clampNumber(drag.startX + deltaX / surfaceWidth, 0, 1)
-    const y = clampNumber(drag.startY + deltaY / surfaceHeight, 0, 1)
-    dragRef.current = { ...drag, x, y, moved: true }
-    setDragPosition({ x, y })
-  }
-
-  function handleDisplayPointerEnd(event: PointerEvent<HTMLButtonElement>) {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    event.preventDefault()
-    event.stopPropagation()
-    event.currentTarget.releasePointerCapture?.(event.pointerId)
-    dragRef.current = null
-    setDragPosition(null)
-    if (drag.moved) {
-      onUpdate(annotation.annotationId, { x: drag.x, y: drag.y })
-    }
-    onSelect(annotation.annotationId)
-  }
-
-  function handleDisplayPointerCancel(event: PointerEvent<HTMLButtonElement>) {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    dragRef.current = null
-    setDragPosition(null)
+    }, event.currentTarget)
   }
 
   if (editing) {
@@ -257,11 +238,8 @@ function AnnotationTextItem({
       aria-label={uiText.sheet.textTool}
       data-annotation-region-id={annotation.anchor?.kind === 'view-surface' ? annotation.anchor.regionId : undefined}
       data-annotation-target-id={annotation.anchor?.kind === 'view-surface' ? annotation.anchor.targetId : undefined}
-      data-dragging={dragPosition ? 'true' : undefined}
+      data-dragging={drag.active ? 'true' : undefined}
       onPointerDown={handleDisplayPointerDown}
-      onPointerMove={handleDisplayPointerMove}
-      onPointerUp={handleDisplayPointerEnd}
-      onPointerCancel={handleDisplayPointerCancel}
       onDoubleClick={event => {
         event.preventDefault()
         event.stopPropagation()

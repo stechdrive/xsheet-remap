@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
+import { useMemo, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { memoAnchorPresentation, normalizeMemoAppearance, type SheetMemoAnchorPresentation, type SheetPage, type SheetTemplate, type SheetViewLayoutOverrides, type TimelineInkMemo, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core'
 import type { EditMode } from './appTypes'
@@ -17,6 +17,7 @@ import { sheetCellCornerTrianglePoints } from './sheetCellCornerMarker'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
+import { usePointerDragSession } from './usePointerDragSession'
 
 type MemoInteraction = {
   pointerId: number
@@ -24,6 +25,7 @@ type MemoInteraction = {
   memo: TimelineInkMemo
   segment: TimelineMemoSegment
   startClient: { x: number; y: number }
+  svgRect: { left: number; top: number; width: number; height: number }
   points: TimelineMemoPoint[]
   previewPlacement: TimelineMemoPlacement
 }
@@ -90,10 +92,63 @@ export function TimelineMemoLayer({
   onUpsertText: (memoId: string, text: TimelineMemoText, appearance: ReturnType<typeof normalizeMemoAppearance>) => void
   onUpdatePlacement: (memoId: string, placement: TimelineMemoPlacement) => void
 }) {
-  const [interaction, setInteraction] = useState<MemoInteraction | null>(null)
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
   const [automaticTextSessionKey, setAutomaticTextSessionKey] = useState<string | null>(null)
-  const interactionRef = useRef<MemoInteraction | null>(null)
+  const memoDrag = usePointerDragSession<MemoInteraction>({
+    onUpdate: (current, point) => {
+      if (current.mode === 'draw' || current.mode === 'erase') {
+        return {
+          ...current,
+          points: [
+            ...current.points,
+            timelineMemoPointFromPagePoint(
+              current.segment,
+              pagePointFromClient(current.svgRect, point.clientX, point.clientY),
+            ),
+          ],
+        }
+      }
+      const deltaUnits = (point.clientX - current.startClient.x) / Math.max(1, current.svgRect.width * current.segment.rowHeightX)
+      const deltaFrames = (point.clientY - current.startClient.y) / Math.max(1, current.svgRect.height * current.segment.rowHeightY)
+      return {
+        ...current,
+        previewPlacement: current.mode === 'move'
+          ? {
+              ...current.memo.placement,
+              crossOffsetUnits: current.memo.placement.crossOffsetUnits + deltaUnits,
+              frameOffset: current.memo.placement.frameOffset + deltaFrames,
+            }
+          : {
+              ...current.memo.placement,
+              widthUnits: Math.max(1, current.memo.placement.widthUnits + deltaUnits),
+              heightFrames: Math.max(1, current.memo.placement.heightFrames + deltaFrames),
+            },
+      }
+    },
+    onFinish: (current, finish) => {
+      if (finish.cancelled) return
+      if (current.mode === 'draw') {
+        if (current.points.length > 1) {
+          onAppendStroke(current.memo.memoId, {
+            color: penColor,
+            widthUnits: Math.max(0.04, penWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
+            points: current.points,
+          })
+        }
+        return
+      }
+      if (current.mode === 'erase') {
+        onEraseStroke(
+          current.memo.memoId,
+          current.points,
+          Math.max(0.04, eraserWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
+        )
+        return
+      }
+      onUpdatePlacement(current.memo.memoId, current.previewPlacement)
+    },
+  })
+  const interaction = memoDrag.active
   const renderedMemos = useMemo(() => memos
     .slice()
     .sort((left, right) => left.order - right.order)
@@ -177,81 +232,27 @@ export function TimelineMemoLayer({
     if (memo.memoId !== selectedMemoId) return
     event.preventDefault()
     event.stopPropagation()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    const point = timelineMemoPointFromPagePoint(segment, pagePoint(event))
-    const next: MemoInteraction = {
+    const svgRect = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
+    if (!svgRect) return
+    const point = timelineMemoPointFromPagePoint(
+      segment,
+      pagePointFromClient(svgRect, event.clientX, event.clientY),
+    )
+    memoDrag.begin({
       pointerId: event.pointerId,
       mode,
       memo,
       segment,
       startClient: { x: event.clientX, y: event.clientY },
+      svgRect: {
+        left: svgRect.left,
+        top: svgRect.top,
+        width: svgRect.width,
+        height: svgRect.height,
+      },
       points: mode === 'draw' ? [point] : [],
       previewPlacement: memo.placement,
-    }
-    interactionRef.current = next
-    setInteraction(next)
-  }
-
-  function move(event: PointerEvent<SVGElement>) {
-    const current = interactionRef.current
-    if (!current || current.pointerId !== event.pointerId) return
-    event.preventDefault()
-    event.stopPropagation()
-    if (current.mode === 'draw' || current.mode === 'erase') {
-      const points = [...current.points, timelineMemoPointFromPagePoint(current.segment, pagePoint(event))]
-      const next = { ...current, points }
-      interactionRef.current = next
-      setInteraction(next)
-      return
-    }
-    const svg = event.currentTarget.ownerSVGElement
-    const rect = svg?.getBoundingClientRect()
-    if (!rect) return
-    const deltaUnits = (event.clientX - current.startClient.x) / Math.max(1, rect.width * current.segment.rowHeightX)
-    const deltaFrames = (event.clientY - current.startClient.y) / Math.max(1, rect.height * current.segment.rowHeightY)
-    const previewPlacement = current.mode === 'move'
-      ? {
-          ...current.memo.placement,
-          crossOffsetUnits: current.memo.placement.crossOffsetUnits + deltaUnits,
-          frameOffset: current.memo.placement.frameOffset + deltaFrames,
-        }
-      : {
-          ...current.memo.placement,
-          widthUnits: Math.max(1, current.memo.placement.widthUnits + deltaUnits),
-          heightFrames: Math.max(1, current.memo.placement.heightFrames + deltaFrames),
-        }
-    const next = { ...current, previewPlacement }
-    interactionRef.current = next
-    setInteraction(next)
-  }
-
-  function finish(event: PointerEvent<SVGElement>, cancelled = false) {
-    const current = interactionRef.current
-    if (!current || current.pointerId !== event.pointerId) return
-    event.preventDefault()
-    event.stopPropagation()
-    interactionRef.current = null
-    setInteraction(null)
-    if (cancelled) return
-    if (current.mode === 'draw') {
-      if (current.points.length > 1) {
-        onAppendStroke(current.memo.memoId, {
-          color: penColor,
-          widthUnits: Math.max(0.04, penWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
-          points: current.points,
-        })
-      }
-      return
-    }
-    if (current.mode === 'erase') {
-      onEraseStroke(
-        current.memo.memoId,
-        current.points,
-        Math.max(0.04, eraserWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
-      )
-      return
-    }
-    onUpdatePlacement(current.memo.memoId, current.previewPlacement)
+    }, event.currentTarget)
   }
 
   function beginText(event: PointerEvent<SVGElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment) {
@@ -348,9 +349,6 @@ export function TimelineMemoLayer({
               width={segment.rect.w}
               height={segment.rect.h}
               onPointerDown={event => begin(event, memo, segment, editMode === 'eraser' ? 'erase' : 'draw')}
-              onPointerMove={move}
-              onPointerUp={finish}
-              onPointerCancel={event => finish(event, true)}
             />}
             {selected && <rect
               className="timelineMemoMoveFrame"
@@ -361,9 +359,6 @@ export function TimelineMemoLayer({
               width={segment.rect.w}
               height={segment.rect.h}
               onPointerDown={event => begin(event, memo, segment, 'move')}
-              onPointerMove={move}
-              onPointerUp={finish}
-              onPointerCancel={event => finish(event, true)}
             />}
             <g className="timelineMemoTextLayer" data-memo-text-opacity={appearance.textOpacity} opacity={appearance.textOpacity} clipPath={`url(#${clipId})`}>
               {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
@@ -434,9 +429,6 @@ export function TimelineMemoLayer({
               className="timelineMemoResizeHandle"
               label="メモの大きさを変更"
               onPointerDown={event => begin(event, memo, segment, 'resize')}
-              onPointerMove={move}
-              onPointerUp={finish}
-              onPointerCancel={event => finish(event, true)}
             />}
           </g>
         )
@@ -478,9 +470,17 @@ export function TimelineMemoLayer({
 function pagePoint(event: PointerEvent<SVGElement>) {
   const svg = event.currentTarget.ownerSVGElement
   const rect = svg?.getBoundingClientRect()
+  return rect ? pagePointFromClient(rect, event.clientX, event.clientY) : { x: 0, y: 0 }
+}
+
+function pagePointFromClient(
+  rect: { left: number; top: number; width: number; height: number },
+  clientX: number,
+  clientY: number,
+) {
   return {
-    x: rect ? (event.clientX - rect.left) / Math.max(1, rect.width) : 0,
-    y: rect ? (event.clientY - rect.top) / Math.max(1, rect.height) : 0,
+    x: (clientX - rect.left) / Math.max(1, rect.width),
+    y: (clientY - rect.top) / Math.max(1, rect.height),
   }
 }
 

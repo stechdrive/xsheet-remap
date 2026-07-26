@@ -38,6 +38,13 @@ async function checkFilePatterns(relativePath, checks) {
   }
 }
 
+async function checkFileRequirements(relativePath, checks) {
+  const source = await readFile(path.join(root, relativePath), 'utf8')
+  for (const check of checks) {
+    if (!check.pattern.test(source)) violations.push(`${relativePath}: ${check.message}`)
+  }
+}
+
 async function checkFileSizes(relativeDirectory) {
   for (const relativePath of await sourceFiles(relativeDirectory)) {
     const source = await readFile(path.join(root, relativePath), 'utf8')
@@ -70,6 +77,31 @@ await checkFilePatterns('packages/ui/src/DialogueAudioTimeline.tsx', [
     message: 'audio timeline tooltips must use the shared Tooltip or TooltipTarget foundation instead of native title attributes',
   },
 ])
+
+for (const relativePath of [
+  'packages/ui/src/useDialogueAudioSegmentDrag.ts',
+  'packages/ui/src/sheet-panel-annotation.tsx',
+  'packages/ui/src/TimelineMemoLayer.tsx',
+  'packages/ui/src/useSheetCalibrationDrag.ts',
+  'packages/ui/src/app-sheet-canvas-controller.tsx',
+]) {
+  await checkFileRequirements(relativePath, [{
+    pattern: /\busePointerDragSession\b/,
+    message: 'pointer-driven edits must use the shared pointer drag session contract',
+  }])
+}
+
+for (const relativePath of [
+  'packages/ui/src/useDialogueAudioSegmentDrag.ts',
+  'packages/ui/src/sheet-panel-annotation.tsx',
+  'packages/ui/src/TimelineMemoLayer.tsx',
+  'packages/ui/src/useSheetCalibrationDrag.ts',
+]) {
+  await checkFilePatterns(relativePath, [{
+    pattern: /(?:window|document)\.addEventListener\(\s*['"]pointer(?:move|up|cancel|down)['"]/,
+    message: 'feature components must not install private pointer drag lifecycle listeners',
+  }])
+}
 
 for (const directory of ['apps', 'packages', 'tools']) {
   await checkImports(directory, [

@@ -7,7 +7,7 @@ import { setInternalDragDropValidity, subscribeInternalDrag } from './internalDr
 import { cellAssetPreviewItemsForHit, cellAssetPreviewPosition } from './sheetAssets';
 import { ASSET_MULTI_DRAG_MIME, ASSET_DRAG_MIME, REGISTERED_CELL_DRAG_MIME, STACK_GUIDE_DRAG_MIME, SHEET_ZOOM_WHEEL_FACTOR } from './sheetConstants';
 import { createSheetRenderModelContext } from './sheetRenderModel';
-import { calibrationPointsForSettings, clampPoint, viewportToRawImagePoint } from './sheetImages';
+import { calibrationPointsForSettings } from './sheetImages';
 import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel, nativeVerticalWheelDelta } from './sheetInteraction';
 import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TimedRangeLaneHeaderMenuState, TimelineLaneEditorState, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
@@ -26,9 +26,16 @@ import type { SheetCanvasProps, SheetDropTargetPreview } from './app-sheet-canva
 import { gridColumnHeaderHitFromPoint } from './sheetGridHeaderHit';
 import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
+import { usePointerDragSession } from './usePointerDragSession';
+import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
+
+type AnnotationStrokeDragSession = {
+  pointerId: number
+  stroke: AnnotationStroke
+  svgRect: { left: number; top: number; width: number; height: number }
+}
 
 export function useSheetCanvasController(props: SheetCanvasProps) {
-  const [draftStroke, setDraftStroke] = useState<AnnotationStroke | null>(null)
   const [draftRange, setDraftRangeState] = useState<DraftRangeInteraction | null>(null)
   const [hoveredHit, setHoveredHit] = useState<SheetHit | null>(null)
   const [dropTargetPreview, setDropTargetPreview] = useState<SheetDropTargetPreview | null>(null)
@@ -110,6 +117,36 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   useGlobalPointerDragLifecycle({ activeRef: soundCueDragRef, updateRef: updateSoundCuePointerRef, finishRef: finishSoundCuePointerRef })
   useGlobalPointerDragLifecycle({ activeRef: cameraCueDragRef, updateRef: updateCameraCuePointerRef, finishRef: finishCameraCuePointerRef })
   useGlobalPointerDragLifecycle({ activeRef: timelineEventDragRef, updateRef: updateTimelineEventPointerRef, finishRef: finishTimelineEventPointerRef })
+  const calibrationDrag = useSheetCalibrationDrag({
+    onPreview: (pageId, points) => setDraftCalibration({ pageId, points }),
+    onCommit: (page, points) => props.onCalibrationPoints(page, points, false),
+    onClear: () => setDraftCalibration(null),
+  })
+  const annotationStrokeDrag = usePointerDragSession<AnnotationStrokeDragSession>({
+    onUpdate: (current, point) => ({
+      ...current,
+      stroke: {
+        ...current.stroke,
+        points: [
+          ...current.stroke.points,
+          {
+            x: (point.clientX - current.svgRect.left) / Math.max(1, current.svgRect.width),
+            y: (point.clientY - current.svgRect.top) / Math.max(1, current.svgRect.height),
+            pressure: point.pressure || 1,
+          },
+        ],
+      },
+    }),
+    onFinish: (current, finish) => {
+      if (finish.cancelled) return
+      if (current.stroke.tool === 'eraser') {
+        props.onEraseAnnotation(current.stroke.pageId, current.stroke.points, current.stroke.width, props.pageAnnotationTarget)
+      } else {
+        props.onAnnotation(current.stroke)
+      }
+    },
+  })
+  const draftStroke = annotationStrokeDrag.active?.stroke ?? null
 
   function setDraftRange(next: DraftRangeInteraction | null | ((current: DraftRangeInteraction | null) => DraftRangeInteraction | null)) {
     const resolved = typeof next === 'function' ? next(draftRangeRef.current) : next
@@ -1427,17 +1464,21 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
     if (props.editMode === 'pen' || props.editMode === 'eraser') {
       const tool = props.editMode
-      event.currentTarget.setPointerCapture(event.pointerId)
-      setDraftStroke({
-        annotationId: nextAnnotationId(sheetAnnotations(props.project)),
-        pageId: page.pageId,
-        tool,
-        color: tool === 'pen' ? props.penColor : '#2f7f6a',
-        width: tool === 'pen' ? props.penWidth : props.eraserWidth,
-        coordinateSpace: 'view-surface',
-        anchor: pageAnnotationAnchor(page),
-        points: [{ ...point, pressure: event.pressure || 1 }],
-      })
+      const box = event.currentTarget.getBoundingClientRect()
+      annotationStrokeDrag.begin({
+        pointerId: event.pointerId,
+        svgRect: { left: box.left, top: box.top, width: box.width, height: box.height },
+        stroke: {
+          annotationId: nextAnnotationId(sheetAnnotations(props.project)),
+          pageId: page.pageId,
+          tool,
+          color: tool === 'pen' ? props.penColor : '#2f7f6a',
+          width: tool === 'pen' ? props.penWidth : props.eraserWidth,
+          coordinateSpace: 'view-surface',
+          anchor: pageAnnotationAnchor(page),
+          points: [{ ...point, pressure: event.pressure || 1 }],
+        },
+      }, event.currentTarget)
       return
     }
     const headerHit = paperTrackHeaderHitFromPoint(point, page, event.currentTarget.getBoundingClientRect().height)
@@ -1641,45 +1682,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     event.preventDefault()
     event.stopPropagation()
     props.setActivePageIndex(page.pageIndex)
-    const svg = event.currentTarget.ownerSVGElement
-    if (!svg) return
-    const pointerId = event.pointerId
-    const basePoints = calibrationPointsForPage(page, settings)
-    let latestPoints = basePoints
-
-    const updateFromClient = (clientX: number, clientY: number) => {
-      const box = svg.getBoundingClientRect()
-      const viewportPoint = {
-        x: (clientX - box.left) / box.width,
-        y: (clientY - box.top) / box.height,
-      }
-      latestPoints = basePoints.map((point, index) => {
-        if (index !== pointIndex) return point
-        return pointKind === 'source'
-          ? { ...point, source: viewportToRawImagePoint(viewportPoint, settings) }
-          : { ...point, target: clampPoint(viewportPoint) }
-      })
-      setDraftCalibration({ pageId: page.pageId, points: latestPoints })
-    }
-
-    const handleMove = (nextEvent: globalThis.PointerEvent) => {
-      if (nextEvent.pointerId !== pointerId) return
-      updateFromClient(nextEvent.clientX, nextEvent.clientY)
-    }
-    const handleStop = (nextEvent: globalThis.PointerEvent) => {
-      if (nextEvent.pointerId !== pointerId) return
-      window.removeEventListener('pointermove', handleMove)
-      window.removeEventListener('pointerup', handleStop)
-      window.removeEventListener('pointercancel', handleStop)
-      props.onCalibrationPoints(page, latestPoints, false)
-      setDraftCalibration(null)
-    }
-
-    event.currentTarget.setPointerCapture?.(pointerId)
-    updateFromClient(event.clientX, event.clientY)
-    window.addEventListener('pointermove', handleMove)
-    window.addEventListener('pointerup', handleStop)
-    window.addEventListener('pointercancel', handleStop)
+    calibrationDrag.begin(event, page, settings, pointIndex, pointKind, calibrationPointsForPage(page, settings))
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
@@ -1734,11 +1737,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (activeTimelineEventDrag && activeTimelineEventDrag.pointerId === event.pointerId) {
       event.preventDefault()
       updateTimelineEventDragFromClient(event.pointerId, event.clientX, event.clientY, viewport)
-      return
-    }
-    if (draftStroke) {
-      const point = pointFromEvent(event)
-      setDraftStroke(current => current ? { ...current, points: [...current.points, { ...point, pressure: event.pressure || 1 }] } : current)
       return
     }
     if (page && props.editMode !== 'pen' && props.editMode !== 'eraser' && props.editMode !== 'calibrate') {
@@ -1971,13 +1969,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       finishTimelineEventPointerById(event.pointerId, false, event.clientX, event.clientY)
       return
     }
-    if (!draftStroke) return
-    if (draftStroke.tool === 'eraser') {
-      props.onEraseAnnotation(draftStroke.pageId, draftStroke.points, draftStroke.width, props.pageAnnotationTarget)
-    } else {
-      props.onAnnotation(draftStroke)
-    }
-    setDraftStroke(null)
   }
 
   async function handleDrop(event: DragEvent<SVGSVGElement>, page: SheetPage) {
@@ -2235,7 +2226,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   ].filter(Boolean).join(' ')
 
     return {
-    props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
+    props, draftStroke, cancelAnnotationStroke: annotationStrokeDrag.cancel, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,

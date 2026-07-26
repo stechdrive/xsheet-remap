@@ -74,7 +74,7 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
     setSheetRect(surface as unknown as HTMLElement, 0, 0)
     surface.setPointerCapture = vi.fn()
     fireEvent.pointerDown(surface, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 1, clientX: 300, clientY: 300 })
-    fireEvent.pointerMove(surface, { pointerId: 31, pointerType: 'mouse', buttons: 1, clientX: 420, clientY: 360 })
+    fireEvent.pointerMove(window, { pointerId: 31, pointerType: 'mouse', buttons: 1, clientX: 420, clientY: 360 })
 
     await waitFor(() => expect(surface.querySelector('.annotationDraftStroke')).toBeTruthy())
     expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('対象: MEMO')
@@ -85,7 +85,7 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
     expect(preview.closest('.pageAnnotationInputSurface')).toBe(surface)
     expect(document.querySelector('.sheetSvg .annotationDraftStroke')).toBeNull()
 
-    fireEvent.pointerUp(surface, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 0, clientX: 420, clientY: 360 })
+    fireEvent.pointerUp(window, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 0, clientX: 440, clientY: 370 })
     await waitFor(() => expect(surface.querySelector('.annotationDraftStroke')).toBeNull())
     const committedStroke = document.querySelector('.sheetSvg .annotationStroke:not(.annotationEraserPreview)')
     expect(committedStroke).toBeTruthy()

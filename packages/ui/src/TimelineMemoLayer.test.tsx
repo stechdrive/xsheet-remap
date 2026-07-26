@@ -150,8 +150,9 @@ describe('TimelineMemoLayer anchor cues', () => {
 
     fireEvent.pointerDown(moveFrame as SVGRectElement, { pointerId: 9, clientX: 10, clientY: 20 })
     expect(moveFrame?.getAttribute('data-dragging')).toBe('true')
-    fireEvent.pointerMove(moveFrame as SVGRectElement, { pointerId: 9, clientX: 110, clientY: 70 })
-    fireEvent.pointerUp(moveFrame as SVGRectElement, { pointerId: 9, clientX: 110, clientY: 70 })
+    fireEvent.pointerMove(window, { pointerId: 9, buttons: 1, clientX: 110, clientY: 70 })
+    fireEvent.pointerUp(window, { pointerId: 9, buttons: 0, clientX: 160, clientY: 100 })
+    fireEvent.pointerMove(window, { pointerId: 9, buttons: 1, clientX: 300, clientY: 300 })
 
     expect(onUpdatePlacement).toHaveBeenCalledTimes(1)
     const placement = onUpdatePlacement.mock.calls[0]?.[1]

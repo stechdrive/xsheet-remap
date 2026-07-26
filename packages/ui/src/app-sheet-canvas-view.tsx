@@ -47,7 +47,7 @@ function SheetPageSurface({
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
-    props, draftStroke, setDraftStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
+    props, draftStroke, cancelAnnotationStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
@@ -217,7 +217,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={() => {
-                    setDraftStroke(null)
+                    cancelAnnotationStroke()
                     setDraftRange(null)
                     setTimelineEventDrag(null)
                     props.onStatusHint('sheet-drag', null)
@@ -523,7 +523,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
                     onPointerCancel={() => {
-                      setDraftStroke(null)
+                      cancelAnnotationStroke()
                       setDraftRange(null)
                       setTimelineEventDrag(null)
                       props.onStatusHint('sheet-drag', null)

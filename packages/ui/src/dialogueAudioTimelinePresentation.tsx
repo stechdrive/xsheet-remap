@@ -275,8 +275,6 @@ export function DialogueSpeechSegmentButton(props: {
   regionId?: string
   suppressClick: () => boolean
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void
-  onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void
-  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>, cancelled: boolean) => void
   onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void
   onOpen: () => void
   onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void
@@ -292,9 +290,6 @@ export function DialogueSpeechSegmentButton(props: {
         tooltipProps.onPointerDown()
         props.onPointerDown(event)
       }}
-      onPointerMove={props.onPointerMove}
-      onPointerUp={event => props.onPointerUp(event, false)}
-      onPointerCancel={event => props.onPointerUp(event, true)}
       onClick={event => {
         if (props.suppressClick()) {
           event.stopPropagation()

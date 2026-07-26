@@ -775,6 +775,45 @@ describe('DialogueAudioTimeline', () => {
     expect(committed.cueUpdates).toEqual([{ cueId: 'cue-1', frameStart: 3, frameEnd: 10 }])
   })
 
+  it('commits a candidate edge drag after its preview replaces the captured button', () => {
+    const state = createDefaultDialogueAudioCutState(1)
+    state.tracks[0].speechCandidates = [{ candidateId: 'vad-1', frameStart: 3, frameEnd: 8, status: 'pending' }]
+    const onCutStateChange = vi.fn()
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      cutDurationFrames={48}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={onCutStateChange}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    const candidate = screen.getByLabelText('セリフ区間候補 3–8F')
+    const endHandle = candidate.querySelector('.dialogueSpeechSegmentHandle.isEnd') as HTMLElement
+    fireEvent.pointerDown(endHandle, { button: 0, pointerId: 32, clientX: 120 })
+    fireEvent.pointerMove(candidate, { pointerId: 32, clientX: 140, buttons: 1 })
+    expect(screen.queryByLabelText('セリフ区間候補 3–8F')).toBeNull()
+
+    fireEvent.pointerUp(window, { pointerId: 32, clientX: 150 })
+    expect(onCutStateChange).toHaveBeenCalledTimes(1)
+    expect(onCutStateChange.mock.calls[0][0].cutState.tracks[0].dialogueRegions[0]).toMatchObject({
+      frameStart: 3,
+      frameEnd: 10,
+    })
+
+    fireEvent.pointerMove(window, { pointerId: 32, clientX: 180, buttons: 0 })
+    expect(onCutStateChange).toHaveBeenCalledTimes(1)
+  })
+
   it('groups multiple selected VAD regions into one SOUND creation request', () => {
     const state = createDefaultDialogueAudioCutState(1)
     state.tracks[0].speechCandidates = [

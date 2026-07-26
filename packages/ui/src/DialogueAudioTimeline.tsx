@@ -30,7 +30,6 @@ import {
   restoreDialogueSpeechCandidate,
   rippleDeleteDialogueAudioRange,
   silenceDialogueAudioRange,
-  transformDialogueRegionInterval,
   type DialogueAudioClipboard,
   type DialogueAudioRange,
 } from './dialogueAudioEditing'
@@ -55,7 +54,6 @@ import {
   assignmentForRegion,
   assignmentForCandidate,
   assignmentForCue,
-  createDialogueRegionFromCandidates,
   createDialogueAudioClipDragPreview,
   removeDialogueAudioRegion,
   resolveDialogueAssignment,
@@ -140,6 +138,10 @@ import {
 import { ActionMenu } from './AppControls'
 import { DialogueAudioWaveform } from './DialogueAudioWaveform'
 import { Tooltip, TooltipTarget } from './Tooltip'
+import {
+  useDialogueAudioSegmentDrag,
+  type DialogueAudioSegmentDragSession,
+} from './useDialogueAudioSegmentDrag'
 
 const SCRUB_EDGE_FADE_SECONDS = 0.001
 const TIME_RULER_HEIGHT = 40
@@ -184,20 +186,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   } | null>(null)
   const [panelResize, setPanelResize] = useState<{ startY: number; startHeight: number } | null>(null)
   const [trackResize, setTrackResize] = useState<{ trackId: string; startY: number; startHeight: number } | null>(null)
-  const [segmentDrag, setSegmentDrag] = useState<{
-    pointerId: number
-    trackId: string
-    kind: 'candidate' | 'region'
-    id: string
-    mode: 'start' | 'body' | 'end'
-    clientX: number
-    pixelsPerFrame: number
-    originFrameStart: number
-    originFrameEnd: number
-    previewFrameStart: number
-    previewFrameEnd: number
-    moved: boolean
-  } | null>(null)
   const [clipDrag, setClipDrag] = useState<{
     trackId: string
     clipIds: string[]
@@ -206,6 +194,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     deltaFrames: number
     pixelsPerFrame: number
   } | null>(null)
+  const timelineScrollerRef = useRef<HTMLDivElement | null>(null)
   const clipDragDisplay = useMemo(
     () => clipDrag && clipDrag.deltaFrames !== 0
       ? createDialogueAudioClipDragPreview(
@@ -219,24 +208,25 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       : null,
     [activeRevisionId, clipDrag, cutState, soundCues],
   )
-  const segmentDragDisplay = useMemo(() => {
-    if (!segmentDrag?.moved) return null
-    let state = cutState
-    let regionId = segmentDrag.id
-    if (segmentDrag.kind === 'candidate') {
-      const created = createDialogueRegionFromCandidates(state, segmentDrag.trackId, [segmentDrag.id])
-      if (!created) return null
-      state = created.state
-      regionId = created.region.regionId
-    }
-    return transformDialogueRegionInterval(
-      state,
-      segmentDrag.trackId,
-      regionId,
-      segmentDrag.previewFrameStart,
-      segmentDrag.previewFrameEnd,
-    )
-  }, [cutState, segmentDrag])
+  const {
+    begin: beginSegmentDrag,
+    preview: segmentDragDisplay,
+    suppressClick: suppressSegmentClick,
+  } = useDialogueAudioSegmentDrag({
+    cutState,
+    frameOrigin,
+    getPixelsPerFrame: () => pixelsPerFrame,
+    getFrameEnd: () => frameEnd,
+    disabled: recording || playing || timelineTool === 'range',
+    timelineScrollerRef,
+    onSelect: selectSegmentEntity,
+    onDragStart: () => {
+      if (viewPreferences.fitTimeline) {
+        setViewPreferences(current => ({ ...current, fitTimeline: false, pixelsPerFrame }))
+      }
+    },
+    onCommit: commitSegmentDrag,
+  })
   const displayCutState = segmentDragDisplay ?? clipDragDisplay?.cutState ?? cutState
   const audioContentFrameEnd = dialogueAudioContentEndFrame(displayCutState)
   const audioContentDurationFrames = audioContentFrameEnd === null ? 0 : audioContentFrameEnd - frameOrigin + 1
@@ -258,9 +248,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const pendingImportRef = useRef<{ trackId: string; frame: number } | null>(null)
   const timelineContentRef = useRef<HTMLDivElement | null>(null)
-  const timelineScrollerRef = useRef<HTMLDivElement | null>(null)
   const timelineHeaderRef = useRef<HTMLElement | null>(null)
-  const suppressSegmentClickRef = useRef(false)
   const fittedPixelsPerFrame = fitDialogueAudioPixelsPerFrame(timelineViewportWidth, timelineDurationFrames)
   const pixelsPerFrame = effectiveDialogueAudioPixelsPerFrame(viewPreferences, timelineViewportWidth, timelineDurationFrames)
   const zoomSliderValue = dialogueAudioZoomSliderValue(pixelsPerFrame, fittedPixelsPerFrame)
@@ -1376,91 +1364,23 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     }, additive))
   }
 
-  function beginSegmentDrag(
-    event: ReactPointerEvent<HTMLButtonElement>,
-    track: DialogueAudioTrackState,
-    target: { kind: 'candidate' | 'region'; id: string; frameStart: number; frameEnd: number },
-  ) {
-    if (recording || playing || event.button !== 0) return
-    if (timelineTool === 'range') return
-    event.stopPropagation()
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    const edge = (event.target as HTMLElement).closest<HTMLElement>('[data-segment-edge]')?.dataset.segmentEdge
-    const mode = edge === 'start' || edge === 'end' ? edge : 'body'
-    selectSegmentEntity(track, target, event.ctrlKey || event.metaKey || event.shiftKey)
-    setSegmentDrag({
-      pointerId: event.pointerId,
-      trackId: track.trackId,
-      kind: target.kind,
-      id: target.id,
-      mode,
-      clientX: event.clientX,
-      pixelsPerFrame,
-      originFrameStart: target.frameStart,
-      originFrameEnd: target.frameEnd,
-      previewFrameStart: target.frameStart,
-      previewFrameEnd: target.frameEnd,
-      moved: false,
-    })
-    if (viewPreferences.fitTimeline) {
-      setViewPreferences(current => ({ ...current, fitTimeline: false, pixelsPerFrame }))
-    }
-  }
-
-  function moveSegmentDrag(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!segmentDrag || segmentDrag.pointerId !== event.pointerId) return
-    const delta = Math.round((event.clientX - segmentDrag.clientX) / segmentDrag.pixelsPerFrame)
-    let frameStart = segmentDrag.originFrameStart
-    let rangeFrameEnd = segmentDrag.originFrameEnd
-    if (segmentDrag.mode === 'start') {
-      frameStart = Math.max(frameOrigin, Math.min(rangeFrameEnd, frameStart + delta))
-    } else if (segmentDrag.mode === 'end') {
-      rangeFrameEnd = Math.min(frameEnd, Math.max(frameStart, rangeFrameEnd + delta))
-    } else {
-      const duration = rangeFrameEnd - frameStart
-      frameStart = Math.max(frameOrigin, Math.min(frameEnd - duration, frameStart + delta))
-      rangeFrameEnd = frameStart + duration
-    }
-    const moved = frameStart !== segmentDrag.originFrameStart || rangeFrameEnd !== segmentDrag.originFrameEnd
-    if (frameStart !== segmentDrag.previewFrameStart || rangeFrameEnd !== segmentDrag.previewFrameEnd) {
-      setSegmentDrag({
-        ...segmentDrag,
-        previewFrameStart: frameStart,
-        previewFrameEnd: rangeFrameEnd,
-        moved,
-      })
-    }
-    const scroller = timelineScrollerRef.current
-    if (!scroller) return
-    const rect = scroller.getBoundingClientRect()
-    if (event.clientX > rect.right - 32) scroller.scrollLeft += Math.max(12, segmentDrag.pixelsPerFrame * 2)
-    else if (event.clientX < rect.left + 32) scroller.scrollLeft = Math.max(0, scroller.scrollLeft - Math.max(12, segmentDrag.pixelsPerFrame * 2))
-  }
-
-  function finishSegmentDrag(event: ReactPointerEvent<HTMLButtonElement>, cancelled = false) {
-    if (!segmentDrag || segmentDrag.pointerId !== event.pointerId) return
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId)
-    suppressSegmentClickRef.current = true
-    window.setTimeout(() => { suppressSegmentClickRef.current = false }, 0)
-    if (!cancelled && segmentDrag.moved && segmentDragDisplay) {
-      const accepted = commitCutState(segmentDragDisplay)
-      if (accepted && segmentDrag.kind === 'candidate') {
-        const region = segmentDragDisplay.tracks
-          .find(track => track.trackId === segmentDrag.trackId)
-          ?.dialogueRegions.find(item => item.candidateIds.includes(segmentDrag.id))
-        if (region) {
-          setAudioSelectionState(replaceDialogueAudioSelection([{
-            kind: 'region',
-            trackId: segmentDrag.trackId,
-            id: region.regionId,
-          }]))
-        }
-      }
-      if (accepted) {
-        setStatus(`セリフ区間を${segmentDrag.previewFrameStart}–${segmentDrag.previewFrameEnd}Fへ変更しました。`)
+  function commitSegmentDrag(preview: DialogueAudioCutState, session: DialogueAudioSegmentDragSession) {
+    const accepted = commitCutState(preview)
+    if (accepted && session.kind === 'candidate') {
+      const region = preview.tracks
+        .find(track => track.trackId === session.trackId)
+        ?.dialogueRegions.find(item => item.candidateIds.includes(session.id))
+      if (region) {
+        setAudioSelectionState(replaceDialogueAudioSelection([{
+          kind: 'region',
+          trackId: session.trackId,
+          id: region.regionId,
+        }]))
       }
     }
-    setSegmentDrag(null)
+    if (accepted) {
+      setStatus(`セリフ区間を${session.previewFrameStart}–${session.previewFrameEnd}Fへ変更しました。`)
+    }
   }
 
   function beginClipDrag(event: ReactPointerEvent<HTMLButtonElement>, trackId: string, clip: DialogueAudioClip) {
@@ -2145,15 +2065,13 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       style={candidateHitStyle(candidate.frameStart, candidate.frameEnd, frameOrigin, timelineDurationFrames, timelineWidth)}
                       label={presentation.label}
                       ariaLabel={`セリフ区間候補 ${candidate.frameStart}–${candidate.frameEnd}F${presentation.label ? ` ${presentation.label}` : ''}`}
-                      suppressClick={() => suppressSegmentClickRef.current}
+                      suppressClick={suppressSegmentClick}
                       onPointerDown={event => beginSegmentDrag(event, track, {
                         kind: 'candidate',
                         id: candidate.candidateId,
                         frameStart: candidate.frameStart,
                         frameEnd: candidate.frameEnd,
                       })}
-                      onPointerMove={moveSegmentDrag}
-                      onPointerUp={finishSegmentDrag}
                       onSelect={event => selectCandidate(event, track, candidate)}
                       onOpen={() => {
                         if (timelineTool !== 'range') openCandidateSound(track.trackId, openCandidates)
@@ -2187,15 +2105,13 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       label={label}
                       ariaLabel={`セリフ区間 ${region.frameStart}–${region.frameEnd}F ${assignment ? `${label || '名称なし'}へ割付済み` : '未割付'}`}
                       regionId={region.regionId}
-                      suppressClick={() => suppressSegmentClickRef.current}
+                      suppressClick={suppressSegmentClick}
                       onPointerDown={event => beginSegmentDrag(event, track, {
                         kind: 'region',
                         id: region.regionId,
                         frameStart: region.frameStart,
                         frameEnd: region.frameEnd,
                       })}
-                      onPointerMove={moveSegmentDrag}
-                      onPointerUp={finishSegmentDrag}
                       onSelect={event => selectRegion(event, track, region)}
                       onOpen={() => {
                         if (timelineTool !== 'range') openDialogueRegion(track, region.regionId)

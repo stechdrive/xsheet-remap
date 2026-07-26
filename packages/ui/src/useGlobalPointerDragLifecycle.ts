@@ -8,7 +8,7 @@ export function useGlobalPointerDragLifecycle<TInteraction extends PointerDragIn
   finishRef,
 }: {
   activeRef: RefObject<TInteraction>
-  updateRef: RefObject<(pointerId: number, clientX: number, clientY: number) => void>
+  updateRef: RefObject<(pointerId: number, clientX: number, clientY: number, pressure?: number) => void>
   finishRef: RefObject<(pointerId: number, cancelled?: boolean, clientX?: number, clientY?: number) => void>
 }) {
   useEffect(() => {
@@ -30,16 +30,18 @@ export function useGlobalPointerDragLifecycle<TInteraction extends PointerDragIn
       event.preventDefault()
       event.stopPropagation()
       if (event.buttons === 0) {
+        updateRef.current(event.pointerId, event.clientX, event.clientY, event.pressure)
         finishRef.current(event.pointerId, false, event.clientX, event.clientY)
         return
       }
-      updateRef.current(event.pointerId, event.clientX, event.clientY)
+      updateRef.current(event.pointerId, event.clientX, event.clientY, event.pressure)
     }
     const finishFromPointer = (event: globalThis.PointerEvent) => {
       const current = activeRef.current
       if (!current || current.pointerId !== event.pointerId) return
       event.preventDefault()
       event.stopPropagation()
+      updateRef.current(event.pointerId, event.clientX, event.clientY, event.pressure)
       finishRef.current(event.pointerId, false, event.clientX, event.clientY)
     }
     const cancelFromPointer = (event: globalThis.PointerEvent) => {

@@ -16,10 +16,12 @@ for (const [name, expected] of Object.entries(expectedScripts)) {
 const workflowPath = path.join(root, '.github', 'workflows', 'pages.yml')
 const workflow = fs.readFileSync(workflowPath, 'utf8')
 const requiredSnippets = [
+  'name: CI and Pages',
   'persist-credentials: false',
   'npm run check',
   'npm run build:pages',
   'npm run check:pages-artifact',
+  'cancel-in-progress: true',
   'path: apps/web/dist-pages',
   'pages: write',
   'id-token: write',
@@ -28,8 +30,17 @@ const requiredSnippets = [
 for (const snippet of requiredSnippets) {
   if (!workflow.includes(snippet)) throw new Error(`Pages workflow is missing: ${snippet}`)
 }
+const repositoryCheckCount = [...workflow.matchAll(/^\s*-\s+run:\s+npm run check\s*$/gm)].length
+if (repositoryCheckCount !== 1) {
+  throw new Error(`Pages workflow must run the repository check exactly once, found ${repositoryCheckCount}`)
+}
 if (/\bsecrets\s*\./.test(workflow)) throw new Error('Pages workflow must not receive repository secrets')
 if (/\bpull_request(?:_target)?\s*:/.test(workflow)) throw new Error('Pages deployments must not run from pull requests')
+
+const retiredCiWorkflowPath = path.join(root, '.github', 'workflows', 'ci.yml')
+if (fs.existsSync(retiredCiWorkflowPath)) {
+  throw new Error('The standalone CI workflow duplicates the check already owned by the Pages pipeline')
+}
 
 const actionReferences = [...workflow.matchAll(/^\s*uses:\s*([^\s#]+)\s*(?:#.*)?$/gm)].map(match => match[1])
 if (actionReferences.length === 0) throw new Error('Pages workflow has no pinned actions')

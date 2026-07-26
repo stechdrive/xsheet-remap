@@ -1,4 +1,4 @@
-name: Pages PWA
+name: CI and Pages
 
 on:
   push:
@@ -10,11 +10,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: false
+  group: ci-pages-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  verify:
+  check:
     runs-on: windows-latest
     steps:
       - name: Checkout without persisted credentials
@@ -37,7 +37,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: verify
+    needs: check
     steps:
       - name: Checkout without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

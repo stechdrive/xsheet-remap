@@ -1,6 +1,12 @@
-import type { CSSProperties } from 'react'
+import type {
+  CSSProperties,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react'
+import { formatLogicalSheetFrameTimecode, type TimedRangeCue } from '@xsheet-remap/core'
 import { assignmentForCandidate } from './dialogueAudioBinding'
 import type { DialogueAudioRange } from './dialogueAudioEditing'
+import type { DialogueSileroAnalysis, DialogueVadEngineStatus } from './dialogueAudioSileroVad'
 import type {
   DialogueAudioClip,
   DialogueAudioCutState,
@@ -16,8 +22,38 @@ import type {
   DialogueAudioSelectionEntity,
   DialogueAudioSelectionState,
 } from './dialogueAudioSelectionModel'
+import { planDialogueAudioRulerTicks } from './dialogueAudioTimelineModel'
+import { TooltipTarget } from './Tooltip'
 
 export type DialogueAudioTimelineTool = 'select' | 'range'
+
+export interface DialogueAudioTimelineProps {
+  cutState: DialogueAudioCutState
+  fps: number
+  frameOrigin: number
+  cutDurationFrames?: number
+  /** @deprecated Kept for embedders while they migrate to cutDurationFrames. */
+  durationFrames?: number
+  activeRevisionId: string
+  soundCues: TimedRangeCue[]
+  selectedSoundCueId: string | null
+  onCutStateChange: (change: {
+    cutState: DialogueAudioCutState
+    cueUpdates?: Array<{ cueId: string; frameStart: number; frameEnd: number }>
+    recordHistory?: boolean
+  }) => boolean | void
+  canUndo?: boolean
+  canRedo?: boolean
+  onUndo?: () => void
+  onRedo?: () => void
+  onCutDurationChange?: (durationFrames: number) => void
+  onPlayheadChange: (frame: number) => void
+  onSoundCueSelect: (cueId: string) => void
+  onSoundCueEdit: (cueId: string) => void
+  onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
+  onSoundCandidateEdit: (trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string) => void
+  onAutoCreateDialogueRegions: (state: DialogueAudioCutState, trackId: string, candidateIds: string[]) => DialogueAudioCutState
+}
 
 export interface DialogueAudioTimelineGesture {
   pointerId: number
@@ -99,10 +135,10 @@ export function dialogueAudioSelectionSummary(
   }
   const counts = new Map<DialogueAudioSelectionEntity['kind'], number>()
   selection.entities.forEach(entity => counts.set(entity.kind, (counts.get(entity.kind) ?? 0) + 1))
+  const speechCount = (counts.get('candidate') ?? 0) + (counts.get('region') ?? 0)
   const labels = [
     counts.get('clip') ? `${counts.get('clip')}クリップ` : '',
-    counts.get('candidate') ? `セリフ区間${counts.get('candidate')}個` : '',
-    counts.get('region') ? `割付区間${counts.get('region')}個` : '',
+    speechCount ? `セリフ区間${speechCount}個` : '',
   ].filter(Boolean)
   return `${labels.join('・')} / ${range.frameStart}–${range.frameEnd}F`
 }
@@ -190,10 +226,10 @@ export function candidatePresentation(
   state: DialogueAudioCutState,
   activeRevisionId: string,
 ) {
-  if (candidate.status === 'ignored') return { state: 'ignored', label: '無視', title: `無視したセリフ区間 ${candidate.frameStart}–${candidate.frameEnd}F` }
+  if (candidate.status === 'ignored') return { state: 'ignored', label: '', title: `無視したセリフ区間 ${candidate.frameStart}–${candidate.frameEnd}F` }
   const assignment = assignmentForCandidate(state, candidate.candidateId, activeRevisionId)
   if (assignment?.status === 'linked') return { state: 'linked', label: '', title: `音響指示へ割付済みのセリフ区間 ${candidate.frameStart}–${candidate.frameEnd}F` }
-  if (assignment || candidate.status === 'review') return { state: 'review', label: '要確認', title: assignment?.reviewReason ?? candidate.reviewReason ?? 'リンク状態を確認してください。' }
+  if (assignment || candidate.status === 'review') return { state: 'review', label: '', title: assignment?.reviewReason ?? candidate.reviewReason ?? 'リンク状態を確認してください。' }
   return { state: 'pending', label: '', title: `セリフ区間 ${candidate.frameStart}–${candidate.frameEnd}F。ダブルクリックで音響指示へ割り付け` }
 }
 
@@ -230,6 +266,58 @@ export function candidateHitStyle(
   } as CSSProperties
 }
 
+export function DialogueSpeechSegmentButton(props: {
+  tooltip: string
+  className: string
+  style: CSSProperties
+  label: string
+  ariaLabel: string
+  regionId?: string
+  suppressClick: () => boolean
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void
+  onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void
+  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>, cancelled: boolean) => void
+  onSelect: (event: ReactMouseEvent<HTMLButtonElement>) => void
+  onOpen: () => void
+  onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void
+}) {
+  return <TooltipTarget label={props.tooltip}>
+    {tooltipProps => <button
+      type="button"
+      className={props.className}
+      style={props.style}
+      data-region-id={props.regionId}
+      {...tooltipProps}
+      onPointerDown={event => {
+        tooltipProps.onPointerDown()
+        props.onPointerDown(event)
+      }}
+      onPointerMove={props.onPointerMove}
+      onPointerUp={event => props.onPointerUp(event, false)}
+      onPointerCancel={event => props.onPointerUp(event, true)}
+      onClick={event => {
+        if (props.suppressClick()) {
+          event.stopPropagation()
+          return
+        }
+        props.onSelect(event)
+      }}
+      onDoubleClick={event => {
+        event.stopPropagation()
+        props.onOpen()
+      }}
+      onContextMenu={props.onContextMenu}
+      aria-label={props.ariaLabel}
+    >
+      <span className="dialogueSpeechSegmentVisual">
+        <span className="dialogueSpeechSegmentHandle isStart" data-segment-edge="start" />
+        {props.label && <span className="dialogueSpeechSegmentLabel">{props.label}</span>}
+        <span className="dialogueSpeechSegmentHandle isEnd" data-segment-edge="end" />
+      </span>
+    </button>}
+  </TooltipTarget>
+}
+
 export function SelectionToolIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M5 3.5 18 13l-6.2 1.1L8.6 20Z" fill="currentColor" />
@@ -261,4 +349,95 @@ export function AudioImportIcon() {
     <circle cx="8.8" cy="16.2" r="1.6" fill="currentColor" />
     <circle cx="13.8" cy="14.8" r="1.6" fill="currentColor" />
   </svg>
+}
+
+export function DialogueAudioTimeRuler(props: {
+  durationFrames: number
+  fps: number
+  pixelsPerFrame: number
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) => void
+}) {
+  const plan = planDialogueAudioRulerTicks(props.durationFrames, props.fps, props.pixelsPerFrame)
+  return <div
+    className="dialogueAudioRuler"
+    onPointerDown={props.onPointerDown}
+    onPointerMove={props.onPointerMove}
+    onPointerUp={props.onPointerUp}
+    onPointerCancel={props.onPointerCancel}
+  >
+    <div className="dialogueAudioRulerSeconds" aria-hidden="true">
+      {plan.secondTicks.map(tick => <span
+        key={tick.offsetFrames}
+        className="dialogueAudioSecondTick"
+        style={{ left: tick.offsetFrames * props.pixelsPerFrame }}
+      ><span>{tick.second}秒</span></span>)}
+    </div>
+    <div className="dialogueAudioRulerFrames" aria-label="秒内フレーム目盛り">
+      {plan.frameTicks.map(tick => <span
+        key={tick.offsetFrames}
+        className="dialogueAudioFrameTick"
+        style={{ left: tick.offsetFrames * props.pixelsPerFrame }}
+      ><span>{tick.frameInSecond}</span></span>)}
+    </div>
+  </div>
+}
+
+export function DialogueAudioTimelineBoundaryMarker(props: {
+  kind: 'cut' | 'audio' | 'combined'
+  positionPercent: number
+  label: string
+}) {
+  return (
+    <span
+      className={`dialogueAudioBoundary dialogueAudioBoundary-${props.kind}`}
+      style={{ left: `${props.positionPercent}%` }}
+    >
+      <TooltipTarget label={props.label}>
+        {tooltipProps => <span
+          className="dialogueAudioBoundaryHandle"
+          role="img"
+          aria-label={props.label}
+          {...tooltipProps}
+        />}
+      </TooltipTarget>
+    </span>
+  )
+}
+
+export function mergeDialogueAudioRanges(ranges: DialogueAudioRange[]): DialogueAudioRange[] {
+  return ranges.sort((left, right) => left.frameStart - right.frameStart).reduce<DialogueAudioRange[]>((result, range) => {
+    const previous = result.at(-1)
+    if (previous && range.frameStart <= previous.frameEnd + 1) previous.frameEnd = Math.max(previous.frameEnd, range.frameEnd)
+    else result.push({ ...range })
+    return result
+  }, [])
+}
+
+export function dialogueVadEngineLabel(status: DialogueVadEngineStatus): string {
+  if (status === 'loading') return 'Silero解析中…'
+  if (status === 'silero') return 'Silero VAD'
+  if (status === 'fallback') return '簡易検出'
+  return 'Silero待機'
+}
+
+export function dialogueVadResultSuffix(analysis: DialogueSileroAnalysis | undefined): string {
+  if (!analysis) return ''
+  return analysis.engine === 'silero'
+    ? ' Silero VADで検出しました。'
+    : ` 簡易検出へ切り替えました${analysis.error ? `（${analysis.error}）` : '。'}`
+}
+
+export function formatDialogueAudioFrame(frame: number, frameOrigin: number, fps: number): string {
+  const logicalFrame = Math.round(frame) - Math.round(frameOrigin) + 1
+  return `${formatLogicalSheetFrameTimecode(frame, frameOrigin, fps)} / ${logicalFrame}F`
+}
+
+export function stopDialogueAudioSources(sources: AudioBufferSourceNode[]) {
+  sources.forEach(source => {
+    try { source.stop() } catch { /* already stopped */ }
+    source.disconnect()
+  })
 }

@@ -45,7 +45,7 @@ describe('sound cue controller audio integration', () => {
       expect.objectContaining({ timedRangeCues: [expect.objectContaining({ frameStart: 12, frameEnd: 24 })] }),
       { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       current.timedRangeCues[0].cueId,
-      'keep-offset',
+      'move-cue-to-audio',
     )
     expect(commitProject).toHaveBeenCalledTimes(1)
   })
@@ -109,5 +109,58 @@ describe('sound cue controller audio integration', () => {
       'move-cue-to-audio',
     )
     expect(commitProject).toHaveBeenCalledTimes(1)
+  })
+
+  it('moves a colliding SOUND transform to the first free logical lane', () => {
+    let project = createTimedRangeCue(createDefaultProject(), {
+      role: 'sound',
+      laneId: 'sound_lane_1',
+      frameStart: 10,
+      frameEnd: 20,
+      label: 'A',
+    }).project
+    const created = createTimedRangeCue(project, {
+      role: 'sound',
+      laneId: 'sound_lane_1',
+      frameStart: 30,
+      frameEnd: 40,
+      label: 'B',
+    })
+    project = created.project
+    let current = project
+    const controller = createSoundCueController({
+      project,
+      getProject: () => current,
+      template: standardA3SheetTemplate,
+      rangeSelection: null,
+      selectedCueId: created.cue.cueId,
+      clipboard: null,
+      frameMin: 1,
+      frameMax: 144,
+      commitProject: next => { current = next },
+      commitTimingDraft: () => current,
+      cancelTimingDraft: vi.fn(),
+      clearSelection: vi.fn(),
+      selectRange: vi.fn(),
+      setSelectedTextAnnotationId: vi.fn(),
+      setSelectedKeyId: vi.fn(),
+      setSheetSelection: vi.fn(),
+      setClipboard: vi.fn(),
+      setDialog: vi.fn(),
+      setLabelHistory: vi.fn(),
+      dialog: null,
+    })
+
+    controller.transform(created.cue.cueId, {
+      laneId: 'sound_lane_1',
+      frameStart: 15,
+      frameEnd: 25,
+    })
+
+    expect(current.timedRangeCues.find(cue => cue.cueId === created.cue.cueId)).toMatchObject({
+      laneId: 'sound_lane_2',
+      frameStart: 15,
+      frameEnd: 25,
+    })
   })
 })

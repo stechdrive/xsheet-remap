@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultProject, createTimedRangeCue, standardA3SheetTemplate } from '@xsheet-remap/core'
+import { createDefaultProject, createTimedRangeCue, standardA3SheetTemplate, timelineLanesForLayout } from '@xsheet-remap/core'
 import {
   buildSoundCueClipboard,
   cutSoundCuesToClipboard,
   normalizeSoundLabelHistory,
   pasteSoundCueClipboard,
   recordSoundLabelHistory,
+  resolveAvailableSoundCueLane,
   soundLaneIdForHit,
 } from './soundCueEditing'
 
@@ -58,5 +59,32 @@ describe('SOUND cue editing helpers', () => {
       ['B', 18, 24],
       ['A', 12, 17],
     ])
+  })
+
+  it('keeps a requested SOUND lane when free and otherwise chooses the first free template lane', () => {
+    let project = createDefaultProject()
+    project = createTimedRangeCue(project, {
+      role: 'sound', laneId: 'sound_lane_1', frameStart: 10, frameEnd: 20, label: 'A',
+    }).project
+
+    expect(resolveAvailableSoundCueLane(project, 'sound_lane_1', 24, 30)).toEqual({
+      laneId: 'sound_lane_1',
+      reassigned: false,
+    })
+    expect(resolveAvailableSoundCueLane(project, 'sound_lane_1', 12, 18)).toEqual({
+      laneId: 'sound_lane_2',
+      reassigned: true,
+    })
+  })
+
+  it('reports no placement when every template SOUND lane overlaps', () => {
+    let project = createDefaultProject()
+    const laneIds = timelineLanesForLayout(project).sound!.map(lane => lane.laneId)
+    laneIds.forEach((laneId, index) => {
+      project = createTimedRangeCue(project, {
+        role: 'sound', laneId, frameStart: 10, frameEnd: 20, label: `L${index + 1}`,
+      }).project
+    })
+    expect(resolveAvailableSoundCueLane(project, laneIds[0], 12, 18)).toBeNull()
   })
 })

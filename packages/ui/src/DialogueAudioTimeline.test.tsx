@@ -662,7 +662,7 @@ describe('DialogueAudioTimeline', () => {
     ])
   })
 
-  it('renders linked labels over their audio track without reserving a lane for audio-less SOUND', () => {
+  it('renders one editable linked segment and does not duplicate its VAD candidate or sheet cue', () => {
     let state = createDefaultDialogueAudioCutState(1)
     state.assets = [{ assetId: 'asset-1', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 24, waveform: [] }]
     state.tracks[0].clips = [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }]
@@ -690,15 +690,89 @@ describe('DialogueAudioTimeline', () => {
       onAutoCreateDialogueRegions={current => current}
     />)
     openAudioTimeline()
-    expect(document.querySelector('.dialogueAudioTrackCueLayer .dialogueAudioCue.isTrackLayer')?.textContent).toContain('主人公')
+    expect(document.querySelector('.dialogueAudioTrackCueLayer')).toBeNull()
     expect(document.querySelector('.dialogueAudioCueLane')).toBeNull()
     expect(screen.queryByText('音声なし')).toBeNull()
     const region = screen.getByLabelText('セリフ区間 3–8F 主人公へ割付済み')
-    expect(region.classList.contains('dialogueAudioRegion')).toBe(true)
+    expect(region.classList.contains('dialogueSpeechSegment')).toBe(true)
+    expect(region.textContent).toBe('主人公')
+    expect(screen.queryByLabelText('セリフ区間候補 3–8F')).toBeNull()
     fireEvent.doubleClick(region)
     expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['vad-1'], 3, 8, 'cue-1')
-    fireEvent.doubleClick(screen.getByRole('button', { name: '主人公' }))
-    expect(onSoundCueEdit).toHaveBeenCalledWith('cue-1')
+    expect(onSoundCueEdit).not.toHaveBeenCalled()
+  })
+
+  it('keeps a linked segment text-free when the sheet cue label is blank', () => {
+    let state = createDefaultDialogueAudioCutState(1)
+    state.assets = [{ assetId: 'asset-1', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 24, waveform: [] }]
+    state.tracks[0].clips = [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }]
+    state.tracks[0].speechCandidates = [{ candidateId: 'vad-1', frameStart: 3, frameEnd: 8, status: 'pending' }]
+    state = linkDialogueAudioCandidates(state, 'dialogue-1', ['vad-1'], { cueId: 'cue-1', frameStart: 3, frameEnd: 8 }, 'revision-1')
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      cutDurationFrames={48}
+      activeRevisionId="revision-1"
+      soundCues={[{ cueId: 'cue-1', role: 'sound', laneId: 'sound_lane_1', frameStart: 3, frameEnd: 8, label: '', text: '表示しない本文' }]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    const region = screen.getByLabelText('セリフ区間 3–8F 名称なしへ割付済み')
+    expect(region.textContent).toBe('')
+    expect(region.classList.contains('is-linked')).toBe(true)
+    expect(screen.queryByText('表示しない本文')).toBeNull()
+  })
+
+  it('resizes a linked speech segment from its edge and emits one synchronized SOUND update', () => {
+    let state = createDefaultDialogueAudioCutState(1)
+    state.assets = [{ assetId: 'asset-1', audioDataUrl: 'data:audio/wav;base64,UklGRg==', durationFrames: 24, waveform: [] }]
+    state.tracks[0].clips = [{ clipId: 'clip-1', placementId: 'placement-1', assetId: 'asset-1', timelineStartFrame: 1, sourceOffsetFrames: 0, durationFrames: 24 }]
+    state.tracks[0].speechCandidates = [{ candidateId: 'vad-1', frameStart: 3, frameEnd: 8, status: 'pending' }]
+    const cue = { cueId: 'cue-1', role: 'sound' as const, laneId: 'sound_lane_1', frameStart: 3, frameEnd: 8, label: '主人公', text: '' }
+    state = linkDialogueAudioCandidates(state, 'dialogue-1', ['vad-1'], cue, 'revision-1')
+    const onCutStateChange = vi.fn()
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      cutDurationFrames={48}
+      activeRevisionId="revision-1"
+      soundCues={[cue]}
+      selectedSoundCueId={null}
+      onCutStateChange={onCutStateChange}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    const region = screen.getByLabelText('セリフ区間 3–8F 主人公へ割付済み')
+    const endHandle = region.querySelector('.dialogueSpeechSegmentHandle.isEnd') as HTMLElement
+    fireEvent.pointerDown(endHandle, { button: 0, pointerId: 31, clientX: 120 })
+    fireEvent.pointerMove(region, { pointerId: 31, clientX: 150 })
+    fireEvent.pointerUp(region, { pointerId: 31, clientX: 150 })
+
+    expect(onCutStateChange).toHaveBeenCalledTimes(1)
+    const committed = onCutStateChange.mock.calls[0][0]
+    expect(committed.cutState.tracks[0].dialogueRegions[0]).toMatchObject({
+      frameStart: 3,
+      frameEnd: 10,
+      tailPaddingFrames: 2,
+    })
+    expect(committed.cutState.tracks[0].clips).toEqual(state.tracks[0].clips)
+    expect(committed.cueUpdates).toEqual([{ cueId: 'cue-1', frameStart: 3, frameEnd: 10 }])
   })
 
   it('groups multiple selected VAD regions into one SOUND creation request', () => {
@@ -754,7 +828,7 @@ describe('DialogueAudioTimeline', () => {
 
     const candidate = screen.getByLabelText('セリフ区間候補 1200–1200F')
     expect(candidate.style.width).toBe('16px')
-    expect(candidate.querySelector('.dialogueSpeechCandidateVisual')).toBeTruthy()
+    expect(candidate.querySelector('.dialogueSpeechSegmentVisual')).toBeTruthy()
     expect(candidate.getAttribute('style')).toContain('--candidate-visual-width: 1px')
   })
 
@@ -821,7 +895,7 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.getByRole('img', { name: '最終音声位置 2+24 / 72F' })).toBeTruthy()
   })
 
-  it('previews VAD, dialogue-region, and linked SOUND positions while a clip handle is moving', async () => {
+  it('previews the unified linked segment while a clip handle is moving', async () => {
     const cue = { cueId: 'cue-1', role: 'sound' as const, laneId: 'sound-1', frameStart: 3, frameEnd: 6, label: '主人公', text: '' }
     const source = createDefaultDialogueAudioCutState(1, 48)
     source.assets = [{
@@ -887,26 +961,25 @@ describe('DialogueAudioTimeline', () => {
     render(<LinkedDragHarness />)
     openAudioTimeline()
     const clip = screen.getByRole('button', { name: '音声クリップ linked.wav' })
-    const region = document.querySelector('.dialogueAudioRegion') as HTMLButtonElement
-    const linkedSound = document.querySelector('.dialogueAudioCue') as HTMLButtonElement
+    const region = document.querySelector('[data-region-id]') as HTMLButtonElement
     Object.defineProperties(clip, {
       setPointerCapture: { configurable: true, value: vi.fn() },
       hasPointerCapture: { configurable: true, value: vi.fn(() => true) },
       releasePointerCapture: { configurable: true, value: vi.fn() },
     })
 
-    expect(screen.getByLabelText('セリフ区間候補 3–6F')).toBeTruthy()
+    expect(screen.queryByLabelText('セリフ区間候補 3–6F')).toBeNull()
+    expect(screen.getByLabelText('セリフ区間 3–6F 主人公へ割付済み')).toBeTruthy()
     fireEvent.pointerDown(clip, { button: 0, pointerId: 21, clientX: 0 })
     fireEvent.pointerMove(clip, { pointerId: 21, clientX: 150 })
 
     expect(onCutStateChange).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('セリフ区間候補 13–16F')).toBeTruthy()
-    expect(region.style.left).toBe('25%')
-    expect(linkedSound.style.left).toBe('25%')
+    expect(screen.getByLabelText('セリフ区間 13–16F 主人公へ割付済み')).toBeTruthy()
+    expect(region.getAttribute('style')).toContain('--candidate-visual-left')
 
     fireEvent.pointerUp(clip, { pointerId: 21, clientX: 150 })
     await waitFor(() => {
-      expect(screen.getByLabelText('セリフ区間候補 13–16F')).toBeTruthy()
+      expect(screen.getByLabelText('セリフ区間 13–16F 主人公へ割付済み')).toBeTruthy()
       expect(onCutStateChange).toHaveBeenCalledTimes(1)
     })
   })

@@ -2,10 +2,43 @@ import type {
   DialogueAudioClip,
   DialogueAudioCutState,
   DialogueAudioTrackState,
+  DialogueRegion,
   DialogueSpeechCandidate,
   DialogueSpeechRange,
   DialogueSpeechSource,
 } from './dialogueAudioProject'
+
+export function transformDialogueRegionInterval(
+  state: DialogueAudioCutState,
+  trackId: string,
+  regionId: string,
+  frameStartInput: number,
+  frameEndInput: number,
+): DialogueAudioCutState {
+  const track = state.tracks.find(item => item.trackId === trackId)
+  const region = track?.dialogueRegions.find(item => item.regionId === regionId)
+  if (!track || !region) return state
+  const frameStart = Math.round(Math.min(frameStartInput, frameEndInput))
+  const frameEnd = Math.round(Math.max(frameStartInput, frameEndInput))
+  if (frameStart === region.frameStart && frameEnd === region.frameEnd) return state
+  const startDelta = frameStart - region.frameStart
+  const endDelta = frameEnd - region.frameEnd
+  if (startDelta === endDelta) return moveDialogueRegionAudioToFrame(state, trackId, regionId, frameStart)
+  const transformed: DialogueRegion = {
+    ...region,
+    frameStart,
+    frameEnd,
+    headPaddingFrames: region.headPaddingFrames + region.frameStart - frameStart,
+    tailPaddingFrames: region.tailPaddingFrames + frameEnd - region.frameEnd,
+  }
+  return {
+    ...state,
+    tracks: state.tracks.map(item => item.trackId === trackId ? {
+      ...item,
+      dialogueRegions: item.dialogueRegions.map(candidate => candidate.regionId === regionId ? transformed : candidate),
+    } : item),
+  }
+}
 
 export function moveDialogueRegionAudioToFrame(
   state: DialogueAudioCutState,

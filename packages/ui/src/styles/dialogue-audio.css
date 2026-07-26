@@ -453,76 +453,12 @@
   padding-left: 3px;
 }
 
-.dialogueAudioCue {
-  position: absolute;
-  top: 4px;
-  height: 23px;
-  min-width: 3px;
-  overflow: hidden;
-  border: 1px solid #c08a3b !important;
-  border-radius: 3px !important;
-  background: rgb(117 83 30 / 0.2) !important;
-  color: #fff4da !important;
-  text-shadow: 0 1px 2px #111;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dialogueAudioCue.isSelected {
-  border-color: #ffdf89 !important;
-  box-shadow: 0 0 0 2px rgb(255 223 137 / 0.42);
-}
-
-.dialogueAudioCue.isTrackLayer {
-  top: 1px;
-  height: 20px;
-}
-
-.dialogueAudioCue.is-review,
-.dialogueAudioCue.is-orphaned {
-  border-color: #ff9078 !important;
-  background: rgb(116 60 50 / 0.22) !important;
-}
-
-.dialogueAudioCueHandle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 5px;
-  background: rgb(255 238 193 / 0.18);
-}
-
-.dialogueAudioCueHandle.isStart {
-  left: 0;
-  cursor: ew-resize;
-}
-
-.dialogueAudioCueHandle.isEnd {
-  right: 0;
-  cursor: ew-resize;
-}
-
 .dialogueAudioTrack {
   position: relative;
   box-sizing: border-box;
   overflow: hidden;
   border-bottom: 1px solid #3b4540;
   background: rgb(255 255 255 / 0.012);
-}
-
-.dialogueAudioTrackCueLayer {
-  position: absolute;
-  z-index: 5;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 21px;
-  pointer-events: none;
-}
-
-.dialogueAudioTrackCueLayer .dialogueAudioCue {
-  pointer-events: auto;
 }
 
 .dialogueAudioWaveformLane {
@@ -557,7 +493,7 @@
 
 .dialogueAudioClipHandle {
   position: absolute;
-  z-index: 4;
+  z-index: 6;
   top: 1px;
   height: 12px !important;
   min-width: 12px !important;
@@ -584,15 +520,15 @@
 }
 
 .dialogueAudioClipHandle.isSelected {
-  z-index: 5;
+  z-index: 7;
   background: transparent !important;
   color: #f4fff8 !important;
   box-shadow: inset 0 0 0 1px #9ce1b8;
 }
 
-.dialogueSpeechCandidate {
+.dialogueSpeechSegment {
   position: absolute;
-  z-index: 2;
+  z-index: 5;
   top: 0;
   bottom: 0;
   height: auto !important;
@@ -602,10 +538,14 @@
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  cursor: pointer;
+  cursor: grab;
 }
 
-.dialogueSpeechCandidateVisual {
+.dialogueSpeechSegment:active {
+  cursor: grabbing;
+}
+
+.dialogueSpeechSegmentVisual {
   position: absolute;
   top: 2px;
   bottom: 2px;
@@ -621,73 +561,68 @@
   color: #d9f7e2;
   font-size: 9px !important;
   line-height: normal;
-  pointer-events: none;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.dialogueSpeechCandidate.is-linked .dialogueSpeechCandidateVisual {
+.dialogueSpeechSegment.is-linked .dialogueSpeechSegmentVisual {
   border-style: solid !important;
   border-color: #efbd64 !important;
-  background: rgb(164 105 27 / 0.14) !important;
+  background: rgb(164 105 27 / 0.2) !important;
   color: #fff0cf !important;
   text-shadow: 0 1px 2px #111;
 }
 
-.dialogueSpeechCandidate.is-ignored .dialogueSpeechCandidateVisual {
+.dialogueSpeechSegment.is-ignored .dialogueSpeechSegmentVisual {
   border-color: rgb(160 170 165 / 0.34) !important;
   background: rgb(70 77 73 / 0.24) !important;
   color: #7c8882 !important;
 }
 
-.dialogueSpeechCandidate.is-review .dialogueSpeechCandidateVisual,
-.dialogueSpeechCandidate.is-mismatch .dialogueSpeechCandidateVisual {
+.dialogueSpeechSegment.is-review .dialogueSpeechSegmentVisual,
+.dialogueSpeechSegment.is-orphaned .dialogueSpeechSegmentVisual,
+.dialogueSpeechSegment.is-mismatch .dialogueSpeechSegmentVisual {
   border-style: solid !important;
   border-color: #ff8f74 !important;
   background: rgb(159 63 45 / 0.34) !important;
   color: #ffd5ca !important;
 }
 
-.dialogueSpeechCandidate.isSelected .dialogueSpeechCandidateVisual {
+.dialogueSpeechSegment.isSelected .dialogueSpeechSegmentVisual {
   box-shadow: 0 0 0 2px rgb(185 236 204 / 0.52);
 }
 
-.dialogueAudioRegion {
+.dialogueSpeechSegmentHandle {
   position: absolute;
-  z-index: 4;
-  bottom: 2px;
-  min-width: 16px;
-  height: 18px !important;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  opacity: 0;
+  background: rgb(236 255 243 / 0.38);
+  cursor: ew-resize;
+  transition: opacity 80ms ease;
+}
+
+.dialogueSpeechSegmentHandle.isStart {
+  left: 0;
+}
+
+.dialogueSpeechSegmentHandle.isEnd {
+  right: 0;
+}
+
+.dialogueSpeechSegment:hover .dialogueSpeechSegmentHandle,
+.dialogueSpeechSegment.isSelected .dialogueSpeechSegmentHandle {
+  opacity: 1;
+}
+
+.dialogueSpeechSegmentLabel {
+  display: block;
   overflow: hidden;
-  padding: 0 4px !important;
-  border: 1px solid rgb(108 186 143 / 0.9) !important;
-  border-radius: 3px !important;
-  background: rgb(31 92 63 / 0.14) !important;
-  color: #e4f8eb !important;
-  cursor: pointer;
-  font-size: 9px !important;
-  line-height: 16px !important;
-  text-align: left;
+  padding: 0 7px;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 2px #111;
-  white-space: nowrap;
-}
-
-.dialogueAudioRegion.is-linked {
-  border-color: #e7bb64 !important;
-  background: rgb(105 73 27 / 0.16) !important;
-  color: #fff1d1 !important;
-}
-
-.dialogueAudioRegion.is-review,
-.dialogueAudioRegion.is-orphaned {
-  border-color: #ff8f74 !important;
-  background: rgb(124 54 40 / 0.18) !important;
-}
-
-.dialogueAudioRegion.isSelected {
-  box-shadow: 0 0 0 2px rgb(207 245 221 / 0.7);
 }
 
 .dialogueAudioSelection {

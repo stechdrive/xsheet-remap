@@ -138,7 +138,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const dialogueAudioActions = createAppDialogueAudioActions({
     projectRef, template, revisionId: activeSheetRevision.revisionId,
     frameMin: sheetDisplayFrameStart, frameMax: sheetDisplayFrameEnd,
-    setSoundCueDialog, commitProject, replaceProject,
+    setSoundCueDialog, commitProject, replaceProject, onPlacementConflict: message => window.alert(message),
   })
   const {
     handleCutStateChange: handleDialogueAudioCutStateChange,
@@ -162,6 +162,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     soundDialog: soundCueDialog,
     applyAudioCandidateLink: applyDialogueAudioCandidateLink,
     applySoundCueProjectChange,
+    onSoundCuePlacementConflict: message => window.alert(message),
     setCameraClipboard: setCameraCueClipboard, setCameraDialog: setCameraCueDialog,
     setCameraInstructionHistory, setCameraPointLabelHistory,
   })

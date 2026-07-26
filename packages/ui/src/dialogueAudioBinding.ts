@@ -9,7 +9,7 @@ import {
   type DialogueSoundAssignment,
   type DialogueSpeechCandidate,
 } from './dialogueAudioProject'
-import { moveDialogueAudioClips, moveDialogueRegionAudioToFrame } from './dialogueAudioEditing'
+import { moveDialogueAudioClips, moveDialogueRegionAudioToFrame, transformDialogueRegionInterval } from './dialogueAudioEditing'
 
 export interface DialogueAssignmentResolution {
   frameStart: number
@@ -179,14 +179,73 @@ export function applySoundCueChangesToDialogueAudio(
     if (!previous || !next) continue
     const startDelta = next.frameStart - previous.frameStart
     const endDelta = next.frameEnd - previous.frameEnd
-    if (startDelta === 0 || startDelta !== endDelta) continue
-    for (const ref of assignment.regionRefs) {
-      const region = regionForRef(state, ref)
-      if (!region) continue
-      state = moveDialogueRegionAudioToFrame(state, ref.trackId, ref.regionId, region.frameStart + startDelta)
+    if (startDelta === endDelta) {
+      if (startDelta === 0) continue
+      for (const ref of assignment.regionRefs) {
+        const region = regionForRef(state, ref)
+        if (!region) continue
+        state = moveDialogueRegionAudioToFrame(state, ref.trackId, ref.regionId, region.frameStart + startDelta)
+      }
+    } else {
+      state = transformDialogueAssignmentEnvelope(state, assignment, next.frameStart, next.frameEnd)
     }
   }
   return synchronizeDialogueAssignmentsFromCues(state, nextSoundCues, revisionId)
+}
+
+function transformDialogueAssignmentEnvelope(
+  stateInput: DialogueAudioCutState,
+  assignment: Pick<DialogueSoundAssignment, 'regionRefs'>,
+  targetFrameStart: number,
+  targetFrameEnd: number,
+): DialogueAudioCutState {
+  const resolved = assignment.regionRefs.flatMap(ref => {
+    const track = stateInput.tracks.find(item => item.trackId === ref.trackId)
+    const region = track?.dialogueRegions.find(item => item.regionId === ref.regionId)
+    const range = track && region ? resolveDialogueRegion(track, region) : null
+    return region && range ? [{ ref, region, range }] : []
+  })
+  if (resolved.length === 0) return stateInput
+  const first = [...resolved].sort((left, right) =>
+    left.range.frameStart - right.range.frameStart
+    || left.range.frameEnd - right.range.frameEnd
+    || left.ref.trackId.localeCompare(right.ref.trackId)
+    || left.ref.regionId.localeCompare(right.ref.regionId))[0]!
+  const last = [...resolved].sort((left, right) =>
+    right.range.frameEnd - left.range.frameEnd
+    || right.range.frameStart - left.range.frameStart
+    || left.ref.trackId.localeCompare(right.ref.trackId)
+    || left.ref.regionId.localeCompare(right.ref.regionId))[0]!
+  const envelopeStart = Math.min(...resolved.map(item => item.range.frameStart))
+  const envelopeEnd = Math.max(...resolved.map(item => item.range.frameEnd))
+  const nextFirstStart = first.region.frameStart + targetFrameStart - envelopeStart
+  const nextLastEnd = last.region.frameEnd + targetFrameEnd - envelopeEnd
+  if (first.ref.trackId === last.ref.trackId && first.ref.regionId === last.ref.regionId) {
+    return transformDialogueRegionInterval(
+      stateInput,
+      first.ref.trackId,
+      first.ref.regionId,
+      nextFirstStart,
+      nextLastEnd,
+    )
+  }
+  let state = transformDialogueRegionInterval(
+    stateInput,
+    first.ref.trackId,
+    first.ref.regionId,
+    nextFirstStart,
+    first.region.frameEnd,
+  )
+  const lastAfterStart = regionForRef(state, last.ref)
+  if (!lastAfterStart) return state
+  state = transformDialogueRegionInterval(
+    state,
+    last.ref.trackId,
+    last.ref.regionId,
+    lastAfterStart.frameStart,
+    nextLastEnd,
+  )
+  return state
 }
 
 export function synchronizeDialogueAssignmentsAfterAudioEdit(
@@ -198,7 +257,7 @@ export function synchronizeDialogueAssignmentsAfterAudioEdit(
   const tracks = stateInput.tracks.map(track => {
     let trackChanged = false
     const dialogueRegions = track.dialogueRegions.map(region => {
-      const resolution = resolveDialogueRegion(track, region)
+      const resolution = anchorTimelineEnvelope(track.clips, region.anchors)
       if (!resolution) {
         if (region.status === 'orphaned' && region.reviewReason === 'リンク対象の音声がありません。') return region
         trackChanged = true

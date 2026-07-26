@@ -1,5 +1,6 @@
 import {
   deleteTimedRangeCue,
+  timelineLanesForLayout,
   type CutProject,
   type SheetHit,
   type SheetTemplate,
@@ -23,6 +24,35 @@ import {
 
 export const SOUND_LABEL_HISTORY_LIMIT = 24
 export const SOUND_LABEL_HISTORY_STORAGE_KEY = 'xsheet:sound-label-history'
+export const SOUND_CUE_PLACEMENT_CONFLICT_MESSAGE = 'この区間を配置できる空きSOUND列がありません。'
+
+export interface SoundCueLanePlacement {
+  laneId: string
+  reassigned: boolean
+}
+
+export function resolveAvailableSoundCueLane(
+  project: CutProject,
+  preferredLaneId: string,
+  frameStartInput: number,
+  frameEndInput: number,
+  excludeCueId?: string,
+): SoundCueLanePlacement | null {
+  const frameStart = Math.min(Math.round(frameStartInput), Math.round(frameEndInput))
+  const frameEnd = Math.max(Math.round(frameStartInput), Math.round(frameEndInput))
+  const laneIds = timelineLanesForLayout(project).sound?.map(lane => lane.laneId) ?? []
+  const orderedLaneIds = [
+    ...(laneIds.includes(preferredLaneId) ? [preferredLaneId] : []),
+    ...laneIds.filter(laneId => laneId !== preferredLaneId),
+  ]
+  const laneId = orderedLaneIds.find(candidateLaneId => !project.timedRangeCues.some(cue =>
+    cue.role === 'sound'
+    && cue.cueId !== excludeCueId
+    && cue.laneId === candidateLaneId
+    && cue.frameStart <= frameEnd
+    && cue.frameEnd >= frameStart))
+  return laneId ? { laneId, reassigned: laneId !== preferredLaneId } : null
+}
 
 export function soundLaneIdForHit(template: SheetTemplate, hit: Pick<SheetHit, 'regionId' | 'columnId' | 'columnIndex'>): string | null {
   return timedRangeLaneIdForHit(template, 'sound', hit)

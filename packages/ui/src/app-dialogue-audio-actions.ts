@@ -18,7 +18,11 @@ import {
   assignDialogueRegionsToCue,
   createDialogueRegionFromCandidates,
 } from './dialogueAudioBinding'
-import { moveDialogueRegionAudioToFrame } from './dialogueAudioEditing'
+import { moveDialogueRegionAudioToFrame, transformDialogueRegionInterval } from './dialogueAudioEditing'
+import {
+  resolveAvailableSoundCueLane,
+  SOUND_CUE_PLACEMENT_CONFLICT_MESSAGE,
+} from './soundCueEditing'
 
 export interface DialogueAudioProjectChange {
   cutState: DialogueAudioCutState
@@ -35,14 +39,20 @@ interface AppDialogueAudioActionsOptions {
   setSoundCueDialog: Dispatch<SetStateAction<SoundCueDialogState | null>>
   commitProject: (project: CutProject) => void
   replaceProject: (project: CutProject) => void
+  onPlacementConflict?: (message: string) => void
 }
 
 export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOptions) {
   function handleCutStateChange(change: DialogueAudioProjectChange) {
     const source = options.projectRef.current
-    const next = applyDialogueAudioProjectChange(source, change)
-    if (change.recordHistory === false) options.replaceProject(next)
-    else options.commitProject(next)
+    const result = applyDialogueAudioProjectChangeResult(source, change)
+    if (result.conflict) {
+      options.onPlacementConflict?.(SOUND_CUE_PLACEMENT_CONFLICT_MESSAGE)
+      return false
+    }
+    if (change.recordHistory === false) options.replaceProject(result.project)
+    else options.commitProject(result.project)
+    return true
   }
 
   function applyCandidateLink(
@@ -51,37 +61,76 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     cueId: string,
     alignment: SoundCueAudioAlignment,
   ): CutProject {
-    const cue = project.timedRangeCues.find(item => item.cueId === cueId && item.role === 'sound')
+    let nextProject = project
+    let cue = nextProject.timedRangeCues.find(item => item.cueId === cueId && item.role === 'sound')
     if (!cue) return project
     const state = dialogueAudioCutStateFromProject(
-      project,
-      project.logicalSheet.frameOrigin,
-      project.logicalSheet.durationFrames,
+      nextProject,
+      nextProject.logicalSheet.frameOrigin,
+      nextProject.logicalSheet.durationFrames,
     )
     const created = createDialogueRegionFromCandidates(state, candidate.trackId, candidate.candidateIds)
     if (!created) return project
-    const positioned = alignment === 'move-audio-to-cue'
+    let positioned = alignment === 'move-audio-to-cue'
       ? moveDialogueRegionAudioToFrame(created.state, candidate.trackId, created.region.regionId, cue.frameStart)
       : created.state
+    if (alignment === 'move-audio-to-cue') {
+      const movedRegion = positioned.tracks
+        .find(track => track.trackId === candidate.trackId)
+        ?.dialogueRegions.find(region => region.regionId === created.region.regionId)
+      if (movedRegion) {
+        positioned = transformDialogueRegionInterval(
+          positioned,
+          candidate.trackId,
+          movedRegion.regionId,
+          cue.frameStart,
+          cue.frameEnd,
+        )
+      }
+    } else if (alignment === 'move-cue-to-audio') {
+      const placement = resolveAvailableSoundCueLane(
+        nextProject,
+        cue.laneId,
+        created.region.frameStart,
+        created.region.frameEnd,
+        cue.cueId,
+      )
+      if (!placement) {
+        options.onPlacementConflict?.(SOUND_CUE_PLACEMENT_CONFLICT_MESSAGE)
+        return project
+      }
+      nextProject = updateTimedRangeCue(nextProject, cue.cueId, {
+        laneId: placement.laneId,
+        frameStart: created.region.frameStart,
+        frameEnd: created.region.frameEnd,
+      })
+      cue = nextProject.timedRangeCues.find(item => item.cueId === cueId && item.role === 'sound')
+      if (!cue) return project
+    }
     const assigned = assignDialogueRegionsToCue(
       positioned,
       [{ trackId: candidate.trackId, regionId: created.region.regionId }],
       cue,
       candidate.revisionId,
-      project.timedRangeCues.filter(item => item.role === 'sound'),
+      nextProject.timedRangeCues.filter(item => item.role === 'sound'),
     )
     return updateDialogueAudioCutStateInProject(
-      project,
+      nextProject,
       assigned,
-      project.logicalSheet.frameOrigin,
-      project.logicalSheet.durationFrames,
+      nextProject.logicalSheet.frameOrigin,
+      nextProject.logicalSheet.durationFrames,
     )
   }
 
   function applySoundCueProjectChange(previousProject: CutProject, nextProject: CutProject): CutProject {
     if (!previousProject.extensions?.[DIALOGUE_AUDIO_EXTENSION]) return nextProject
+    const placedProject = resolveChangedSoundCuePlacements(previousProject, nextProject)
+    if (!placedProject) {
+      options.onPlacementConflict?.(SOUND_CUE_PLACEMENT_CONFLICT_MESSAGE)
+      return previousProject
+    }
     const previousCues = previousProject.timedRangeCues.filter(cue => cue.role === 'sound')
-    const nextCues = nextProject.timedRangeCues.filter(cue => cue.role === 'sound')
+    const nextCues = placedProject.timedRangeCues.filter(cue => cue.role === 'sound')
     const sourceState = dialogueAudioCutStateFromProject(
       previousProject,
       previousProject.logicalSheet.frameOrigin,
@@ -89,10 +138,10 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     )
     const nextState = applySoundCueChangesToDialogueAudio(sourceState, previousCues, nextCues, options.revisionId)
     return updateDialogueAudioCutStateInProject(
-      nextProject,
+      placedProject,
       nextState,
-      nextProject.logicalSheet.frameOrigin,
-      nextProject.logicalSheet.durationFrames,
+      placedProject.logicalSheet.frameOrigin,
+      placedProject.logicalSheet.durationFrames,
     )
   }
 
@@ -137,23 +186,59 @@ export function applyDialogueAudioProjectChange(
   project: CutProject,
   change: DialogueAudioProjectChange,
 ): CutProject {
+  return applyDialogueAudioProjectChangeResult(project, change).project
+}
+
+export function applyDialogueAudioProjectChangeResult(
+  project: CutProject,
+  change: DialogueAudioProjectChange,
+): { project: CutProject; conflict: boolean } {
   let next = project
   for (const update of change.cueUpdates ?? []) {
     const cue = next.timedRangeCues.find(item => item.cueId === update.cueId && item.role === 'sound')
     if (cue) {
+      const placement = resolveAvailableSoundCueLane(
+        next,
+        cue.laneId,
+        update.frameStart,
+        update.frameEnd,
+        cue.cueId,
+      )
+      if (!placement) return { project, conflict: true }
       next = updateTimedRangeCue(next, cue.cueId, {
-        laneId: cue.laneId,
+        laneId: placement.laneId,
         frameStart: update.frameStart,
         frameEnd: update.frameEnd,
       })
     }
   }
-  return updateDialogueAudioCutStateInProject(
-    next,
-    change.cutState,
-    next.logicalSheet.frameOrigin,
-    next.logicalSheet.durationFrames,
-  )
+  return {
+    project: updateDialogueAudioCutStateInProject(
+      next,
+      change.cutState,
+      next.logicalSheet.frameOrigin,
+      next.logicalSheet.durationFrames,
+    ),
+    conflict: false,
+  }
+}
+
+function resolveChangedSoundCuePlacements(previousProject: CutProject, nextProject: CutProject): CutProject | null {
+  const previousById = new Map(previousProject.timedRangeCues.map(cue => [cue.cueId, cue]))
+  let placed = nextProject
+  for (const cue of nextProject.timedRangeCues.filter(item => item.role === 'sound')) {
+    const previous = previousById.get(cue.cueId)
+    if (previous
+      && previous.laneId === cue.laneId
+      && previous.frameStart === cue.frameStart
+      && previous.frameEnd === cue.frameEnd) continue
+    const placement = resolveAvailableSoundCueLane(placed, cue.laneId, cue.frameStart, cue.frameEnd, cue.cueId)
+    if (!placement) return null
+    if (placement.reassigned) {
+      placed = updateTimedRangeCue(placed, cue.cueId, { laneId: placement.laneId })
+    }
+  }
+  return placed
 }
 
 function clamp(value: number, min: number, max: number): number {

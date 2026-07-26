@@ -274,6 +274,12 @@ export function DialogueSpeechSegmentButton(props: {
   style: CSSProperties
   label: string
   ariaLabel: string
+  segmentKind: 'candidate' | 'region'
+  trackId: string
+  segmentId: string
+  frameStart: number
+  frameEnd: number
+  linked?: boolean
   regionId?: string
   suppressClick: () => boolean
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void
@@ -286,6 +292,12 @@ export function DialogueSpeechSegmentButton(props: {
       type="button"
       className={props.className}
       style={props.style}
+      data-segment-kind={props.segmentKind}
+      data-track-id={props.trackId}
+      data-segment-id={props.segmentId}
+      data-frame-start={props.frameStart}
+      data-frame-end={props.frameEnd}
+      data-linked={props.linked ? 'true' : 'false'}
       data-region-id={props.regionId}
       {...tooltipProps}
       onPointerDown={event => {

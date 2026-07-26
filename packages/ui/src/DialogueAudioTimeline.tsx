@@ -1741,7 +1741,17 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   return (
-    <section className="dialogueAudioTimeline" aria-label="セリフ音声タイムライン" style={{ height: viewPreferences.panelHeight }}>
+    <section
+      className="dialogueAudioTimeline"
+      aria-label="セリフ音声タイムライン"
+      style={{ height: viewPreferences.panelHeight }}
+      data-frame-origin={frameOrigin}
+      data-cut-duration-frames={cutDurationFrames}
+      data-timeline-duration-frames={timelineDurationFrames}
+      data-audio-content-end-frame={audioContentFrameEnd ?? ''}
+      data-vad-engine={vadEngine.status}
+      data-active-track-id={cutState.activeTrackId}
+    >
       <div
         className="dialogueAudioPanelResizeHandle"
         role="separator"
@@ -1900,6 +1910,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             <div
               key={track.trackId}
               className={`dialogueAudioTrackHeader ${track.trackId === cutState.activeTrackId ? 'isActive' : ''}`}
+              data-track-id={track.trackId}
               style={{ height: trackHeight(track.trackId) }}
               onContextMenu={event => {
                 openContextMenu(event, { kind: 'track', trackId: track.trackId })
@@ -1989,6 +2000,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
               return <div
                 key={track.trackId}
                 className={`dialogueAudioTrack ${track.trackId === cutState.activeTrackId ? 'isActive' : ''}`}
+                data-track-id={track.trackId}
                 style={{ height: trackHeight(track.trackId) }}
                 onContextMenu={event => {
                   openContextMenu(event, { kind: 'empty', trackId: track.trackId })
@@ -2014,6 +2026,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                             trackId: track.trackId,
                             id: sourceClip.clipId,
                           }) ? 'isSelected' : ''}`}
+                          data-track-id={track.trackId}
+                          data-clip-id={sourceClip.clipId}
+                          data-source-name={asset.sourceName ?? ''}
+                          data-frame-start={sourceClip.timelineStartFrame}
+                          data-frame-end={sourceClip.timelineStartFrame + sourceClip.durationFrames - 1}
                           style={{
                             ...rangeStyle(sourceClip.timelineStartFrame, sourceClip.timelineStartFrame + sourceClip.durationFrames - 1, frameOrigin, timelineDurationFrames),
                             top: 1 + dialogueAudioClipHandleLane(track.clips, sourceClip.clipId) * 13,
@@ -2058,6 +2075,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       style={candidateHitStyle(candidate.frameStart, candidate.frameEnd, frameOrigin, timelineDurationFrames, timelineWidth)}
                       label={presentation.label}
                       ariaLabel={`セリフ区間候補 ${candidate.frameStart}–${candidate.frameEnd}F${presentation.label ? ` ${presentation.label}` : ''}`}
+                      segmentKind="candidate"
+                      trackId={track.trackId}
+                      segmentId={candidate.candidateId}
+                      frameStart={candidate.frameStart}
+                      frameEnd={candidate.frameEnd}
                       suppressClick={suppressSegmentClick}
                       onPointerDown={event => beginSegmentDrag(event, track, {
                         kind: 'candidate',
@@ -2097,6 +2119,12 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       style={candidateHitStyle(region.frameStart, region.frameEnd, frameOrigin, timelineDurationFrames, timelineWidth)}
                       label={label}
                       ariaLabel={`セリフ区間 ${region.frameStart}–${region.frameEnd}F ${assignment ? `${label || '名称なし'}へ割付済み` : '未割付'}`}
+                      segmentKind="region"
+                      trackId={track.trackId}
+                      segmentId={region.regionId}
+                      frameStart={region.frameStart}
+                      frameEnd={region.frameEnd}
+                      linked={Boolean(assignment)}
                       regionId={region.regionId}
                       suppressClick={suppressSegmentClick}
                       onPointerDown={event => beginSegmentDrag(event, track, {

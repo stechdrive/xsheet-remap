@@ -39,7 +39,13 @@ $sheetOpsScenarios = @(
   "sheet-history"
   "export-validation"
 )
-$supportedScenarios = @("launch", "full-default-a3", "auto-calibration") + $sheetOpsScenarios
+$dialogueAudioScenarios = @(
+  "dialogue-audio-import-vad",
+  "dialogue-audio-editing",
+  "dialogue-audio-playback",
+  "dialogue-audio-linking"
+)
+$supportedScenarios = @("launch", "full-default-a3", "auto-calibration") + $sheetOpsScenarios + $dialogueAudioScenarios
 if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }
@@ -205,12 +211,54 @@ function New-FullDefaultA3FixtureSet {
   }
 }
 
+function New-E2ESpeechAudio {
+  param([string]$Path)
+
+  $voice = $null
+  $stream = $null
+  $format = $null
+  try {
+    $voice = New-Object -ComObject SAPI.SpVoice
+    $text = "Audio timeline regression test. Dialogue regions and sheet labels stay synchronized. " +
+      "This is the second speech region. The audio content end remains independent from the timesheet cut. " +
+      "The final sentence keeps this generated fixture longer than the default timesheet duration."
+    $voice.Rate = -1
+    $stream = New-Object -ComObject SAPI.SpFileStream
+    $format = New-Object -ComObject SAPI.SpAudioFormat
+    $format.Type = 18
+    $stream.Format = $format
+    $stream.Open($Path, 3, $false)
+    $voice.AudioOutputStream = $stream
+    [void]$voice.Speak($text)
+  } finally {
+    if ($stream) {
+      try { $stream.Close() } catch {}
+    }
+    if ($voice) {
+      try { $voice.AudioOutputStream = $null } catch {}
+    }
+    foreach ($comObject in @($format, $stream, $voice)) {
+      if ($comObject) {
+        try { [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($comObject) } catch {}
+      }
+    }
+  }
+  if (-not (Test-Path -LiteralPath $Path) -or (Get-Item -LiteralPath $Path).Length -lt 32044) {
+    throw "failed to generate a usable speech WAV fixture: $Path"
+  }
+}
+
 function Copy-E2EFixtures {
   param(
     [string]$Source,
     [string]$Destination,
     [string]$ScenarioName
   )
+
+  if ($dialogueAudioScenarios -contains $ScenarioName) {
+    New-E2ESpeechAudio -Path (Join-Path $Destination "dialogue-e2e.wav")
+    return
+  }
 
   if ([string]::IsNullOrWhiteSpace($Source)) {
     if ($ScenarioName -eq "full-default-a3") {
@@ -294,7 +342,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
 $summaryPath = Join-Path $runRoot "summary.json"
 $scenarioResultPath = Join-Path $runRoot "result.json"
 $screenshotPath = Join-Path $screenshotRoot "launch.png"
-$remoteDebugPort = if (($sheetOpsScenarios -contains $Scenario) -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
+$remoteDebugPort = if (($sheetOpsScenarios -contains $Scenario) -or ($dialogueAudioScenarios -contains $Scenario) -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
 $previousEnvironment = @{}
 $environmentOverrides = @{
   "XSHEET_REMAP_E2E" = "1"
@@ -410,6 +458,25 @@ try {
     $sheetOpsExitCode = $LASTEXITCODE
     if ($sheetOpsExitCode -ne 0 -and -not (Test-Path -LiteralPath $scenarioResultPath)) {
       throw "sheet-ops CDP scenario failed before writing result.json. Exit code: $sheetOpsExitCode"
+    }
+  }
+
+  if ($dialogueAudioScenarios -contains $Scenario) {
+    $dialogueAudioReportPath = Join-Path $runRoot "$Scenario-report.json"
+    $dialogueAudioFixturePath = Join-Path $assetRoot "dialogue-e2e.wav"
+    $tsxPath = Join-Path $repoRoot "node_modules\.bin\tsx.cmd"
+    Write-Host "[desktop-e2e] running $Scenario CDP scenario on port $remoteDebugPort"
+    & $tsxPath "tools/e2e/dialogue-audio-cdp.ts" `
+      "--port" "$remoteDebugPort" `
+      "--scenario" "$Scenario" `
+      "--result" "$scenarioResultPath" `
+      "--report" "$dialogueAudioReportPath" `
+      "--audio" "$dialogueAudioFixturePath" `
+      "--screenshot" (Join-Path $screenshotRoot "$Scenario-final.png") `
+      "--failure-screenshot" (Join-Path $screenshotRoot "$Scenario-failure.png")
+    $dialogueAudioExitCode = $LASTEXITCODE
+    if ($dialogueAudioExitCode -ne 0 -and -not (Test-Path -LiteralPath $scenarioResultPath)) {
+      throw "dialogue audio CDP scenario failed before writing result.json. Exit code: $dialogueAudioExitCode"
     }
   }
 

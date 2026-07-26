@@ -54,6 +54,13 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.queryByRole('img', { name: /最終音声位置/ })).toBeNull()
     expect(document.querySelector('.dialogueAudioCueLane')).toBeNull()
     expect(screen.queryByText('A')).toBeNull()
+    expect(screen.getByRole('region', { name: 'セリフ音声タイムライン' }).dataset).toMatchObject({
+      frameOrigin: '1',
+      cutDurationFrames: '144',
+      timelineDurationFrames: '144',
+      audioContentEndFrame: '',
+      activeTrackId: 'dialogue-1',
+    })
   })
 
   it('shrinks from its top edge and leaves the track body scrollable', () => {
@@ -483,6 +490,14 @@ describe('DialogueAudioTimeline', () => {
     openAudioTimeline()
 
     const candidate = screen.getByLabelText('セリフ区間候補 12–24F')
+    expect(candidate.dataset).toMatchObject({
+      segmentKind: 'candidate',
+      trackId: 'dialogue-1',
+      segmentId: 'candidate-1',
+      frameStart: '12',
+      frameEnd: '24',
+      linked: 'false',
+    })
     fireEvent.pointerDown(candidate, { button: 0, pointerId: 4, clientX: 100 })
     fireEvent.pointerUp(candidate, { pointerId: 4, clientX: 100 })
     fireEvent.click(candidate)
@@ -1136,6 +1151,20 @@ describe('DialogueAudioTimeline', () => {
     openAudioTimeline()
     const clipA = screen.getByRole('button', { name: '音声クリップ a.wav' })
     const clipB = screen.getByRole('button', { name: '音声クリップ b.wav' })
+    expect(clipA.dataset).toMatchObject({
+      trackId: 'dialogue-1',
+      clipId: 'clip-a',
+      sourceName: 'a.wav',
+      frameStart: '1',
+      frameEnd: '12',
+    })
+    expect(clipB.dataset).toMatchObject({
+      trackId: 'dialogue-1',
+      clipId: 'clip-b',
+      sourceName: 'b.wav',
+      frameStart: '5',
+      frameEnd: '16',
+    })
     for (const clip of [clipA, clipB]) {
       Object.defineProperties(clip, {
         setPointerCapture: { configurable: true, value: vi.fn() },

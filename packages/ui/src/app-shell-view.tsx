@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { clearAnnotations, clearAnnotationsForPage, sheetTemplatePresets, timelineLanesForLayout, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
@@ -34,6 +34,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
+    audioPlayheadFrame, soundCueNavigationRequest,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
@@ -45,7 +46,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
+    handleSoundCueSelect, handleAudioPlayheadChange, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
@@ -65,15 +66,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   } = controller
 
-  const [audioPlayhead, setAudioPlayhead] = useState({ cutId: projectDocumentSnapshot.activeCutId, frame: project.logicalSheet.frameOrigin })
-  const audioPlayheadFrame = audioPlayhead.cutId === projectDocumentSnapshot.activeCutId
-    ? audioPlayhead.frame
-    : project.logicalSheet.frameOrigin
-  const handleAudioPlayheadChange = (frame: number) => {
-    setAudioPlayhead({ cutId: projectDocumentSnapshot.activeCutId, frame })
-    const pageIndex = sheetPages.findIndex(page => frame >= page.frameStart && frame <= page.frameEnd)
-    if (pageIndex >= 0 && pageIndex !== clampedActivePageIndex) setActivePageIndex(pageIndex)
-  }
   const dialogueAudioCutState = useMemo(() => dialogueAudioCutStateFromProject(
     project,
     project.logicalSheet.frameOrigin,
@@ -453,6 +445,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
                 activeRevisionId={activeSheetRevision.revisionId}
                 soundCues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
                 selectedSoundCueId={selectedSoundCueId}
+                soundCueNavigationRequest={soundCueNavigationRequest}
                 onCutStateChange={handleDialogueAudioCutStateChange}
                 canUndo={history.past.length > 0}
                 canRedo={history.future.length > 0}

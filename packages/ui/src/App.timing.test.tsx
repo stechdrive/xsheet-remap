@@ -1145,6 +1145,26 @@ it('selects SOUND ranges while rendering only the template-defined dotted column
   expectSelectedRange('sound', 'sound_1', 1, 3)
 })
 
+it('clears primary sheet selection from gray viewport space while preserving pan and context gestures', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    const viewport = sheet.closest('.sheetViewport') as HTMLElement
+    const pageStack = viewport.querySelector('.sheetPageStack') as HTMLElement
+
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    expect(document.querySelector('.selectedCellRect')).toBeTruthy()
+    fireEvent.pointerDown(viewport, { pointerId: 81, pointerType: 'mouse', button: 2, buttons: 2 })
+    expect(document.querySelector('.selectedCellRect')).toBeTruthy()
+
+    fireEvent.pointerDown(viewport, { pointerId: 82, pointerType: 'mouse', button: 1, buttons: 4 })
+    expect(document.querySelector('.selectedCellRect')).toBeTruthy()
+    fireEvent.pointerUp(window, { pointerId: 82, pointerType: 'mouse', button: 1, buttons: 0 })
+
+    fireEvent.pointerDown(pageStack, { pointerId: 83, pointerType: 'mouse', button: 0, buttons: 1 })
+    expect(document.querySelector('.selectedCellRect')).toBeNull()
+  })
+
 it('adds and renames a logical SOUND lane from paper, then expands it as a digital column', async () => {
   render(<App />)
   const displayMenu = openDisplaySettingsMenu()

@@ -118,7 +118,7 @@ describe('DialogueAudioTimeline', () => {
     expect(onRedo).toHaveBeenCalledTimes(1)
   })
 
-  it('moves the audio playhead when a linked sheet SOUND is selected', async () => {
+  it('navigates once when a linked sheet SOUND emits a navigation request without taking audio edit selection', async () => {
     const cue = { cueId: 'cue-1', role: 'sound' as const, laneId: 'sound-lane-1', frameStart: 25, frameEnd: 48, label: '主人公', text: '' }
     const state = createDefaultDialogueAudioCutState(1, 72)
     state.tracks[0].clips = [{
@@ -146,13 +146,79 @@ describe('DialogueAudioTimeline', () => {
       onSoundCandidateEdit: vi.fn(),
       onAutoCreateDialogueRegions: (current: typeof state) => current,
     }
-    const view = render(<DialogueAudioTimeline {...commonProps} cutState={state} selectedSoundCueId={null} />)
-
-    view.rerender(<DialogueAudioTimeline {...commonProps} cutState={state} selectedSoundCueId="cue-1" />)
+    const view = render(<DialogueAudioTimeline
+      {...commonProps}
+      cutState={state}
+      selectedSoundCueId="cue-1"
+      soundCueNavigationRequest={{ requestId: 1, cueId: 'cue-1' }}
+    />)
     expect(onPlayheadChange).not.toHaveBeenCalled()
 
-    view.rerender(<DialogueAudioTimeline {...commonProps} cutState={linkedState} selectedSoundCueId="cue-1" />)
+    view.rerender(<DialogueAudioTimeline
+      {...commonProps}
+      cutState={linkedState}
+      selectedSoundCueId="cue-1"
+      soundCueNavigationRequest={{ requestId: 1, cueId: 'cue-1' }}
+    />)
     await waitFor(() => expect(onPlayheadChange).toHaveBeenLastCalledWith(25))
+    expect(onPlayheadChange).toHaveBeenCalledTimes(1)
+
+    openAudioTimeline()
+    const linkedRegion = document.querySelector('[data-region-id]') as HTMLElement
+    expect(linkedRegion.classList.contains('isLinkedHighlight')).toBe(true)
+    expect(linkedRegion.classList.contains('isSelected')).toBe(false)
+
+    view.rerender(<DialogueAudioTimeline
+      {...commonProps}
+      cutState={{ ...linkedState }}
+      selectedSoundCueId="cue-1"
+      soundCueNavigationRequest={{ requestId: 1, cueId: 'cue-1' }}
+    />)
+    await waitFor(() => expect(onPlayheadChange).toHaveBeenCalledTimes(1))
+  })
+
+  it('keeps the armed recording track independent from a linked sheet SOUND selection', async () => {
+    const cue = { cueId: 'cue-1', role: 'sound' as const, laneId: 'sound-lane-1', frameStart: 25, frameEnd: 48, label: '主人公', text: '' }
+    const initialState = createDefaultDialogueAudioCutState(1, 72)
+    initialState.tracks[0].clips = [{
+      clipId: 'clip-1',
+      placementId: 'placement-1',
+      assetId: 'asset-1',
+      timelineStartFrame: 1,
+      sourceOffsetFrames: 0,
+      durationFrames: 72,
+    }]
+    initialState.tracks[0].speechCandidates = [{ candidateId: 'candidate-1', frameStart: 25, frameEnd: 48, status: 'pending' }]
+    const linkedState = linkDialogueAudioCandidates(initialState, 'dialogue-1', ['candidate-1'], cue, 'revision-1')
+    const onPlayheadChange = vi.fn()
+
+    function ControlledTimeline() {
+      const [state, setState] = useState(linkedState)
+      return <DialogueAudioTimeline
+        cutState={state}
+        fps={24}
+        frameOrigin={1}
+        durationFrames={72}
+        activeRevisionId="revision-1"
+        soundCues={[cue]}
+        selectedSoundCueId="cue-1"
+        soundCueNavigationRequest={{ requestId: 1, cueId: 'cue-1' }}
+        onCutStateChange={change => setState(change.cutState)}
+        onPlayheadChange={onPlayheadChange}
+        onSoundCueSelect={vi.fn()}
+        onSoundCueEdit={vi.fn()}
+        onSoundCueTransform={vi.fn()}
+        onSoundCandidateEdit={vi.fn()}
+        onAutoCreateDialogueRegions={current => current}
+      />
+    }
+
+    render(<ControlledTimeline />)
+    openAudioTimeline()
+    await waitFor(() => expect(onPlayheadChange).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByLabelText('音声トラック2を録音対象にする'))
+    await waitFor(() => expect(screen.getByLabelText('音声トラック2を録音対象にする').getAttribute('aria-pressed')).toBe('true'))
+    expect(onPlayheadChange).toHaveBeenCalledTimes(1)
   })
 
   it('uses the shared application tooltip foundation without native title attributes', async () => {

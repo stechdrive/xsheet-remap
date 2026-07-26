@@ -28,6 +28,7 @@ import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { usePointerDragSession } from './usePointerDragSession';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
+import { resolveSheetViewportPointerIntent, sheetViewportPointerTarget } from './workspaceInteractionPolicy';
 
 type AnnotationStrokeDragSession = {
   pointerId: number
@@ -2135,7 +2136,22 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function handleViewportPointerDown(event: PointerEvent<HTMLDivElement>) {
-    beginViewportPan(event, event.currentTarget)
+    const intent = resolveSheetViewportPointerIntent({
+      pointerType: event.pointerType,
+      button: event.button,
+      spacePanReady: spacePanReadyRef.current,
+      target: sheetViewportPointerTarget(event.target, event.currentTarget),
+    })
+    if (intent === 'begin-pan') {
+      beginViewportPan(event, event.currentTarget)
+      return
+    }
+    if (intent === 'clear-primary-selection') {
+      setContextMenu(null)
+      setPaperTrackHeaderMenu(null)
+      setStackGuideHeaderMenu(null)
+      props.onClearSelection()
+    }
   }
 
   function beginViewportPan(event: PointerEvent<HTMLElement> | PointerEvent<SVGSVGElement>, viewport: HTMLElement | null) {

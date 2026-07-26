@@ -78,6 +78,27 @@ await checkFilePatterns('packages/ui/src/DialogueAudioTimeline.tsx', [
   },
 ])
 
+await checkFileRequirements('packages/ui/src/app-shell-controller.tsx', [
+  {
+    pattern: /from\s+['"]\.\/workspaceInteractionPolicy['"]/,
+    message: 'cross-surface SOUND navigation must use the shared workspace interaction policy',
+  },
+  {
+    pattern: /from\s+['"]\.\/workspaceSelectionModel['"]/,
+    message: 'sheet selection lookup must use the shared workspace selection model',
+  },
+])
+
+await checkFileRequirements('packages/ui/src/app-sheet-canvas-controller.tsx', [{
+  pattern: /\bresolveSheetViewportPointerIntent\b/,
+  message: 'sheet viewport background and pan gestures must use the shared workspace interaction policy',
+}])
+
+await checkFileRequirements('packages/ui/src/DialogueAudioTimeline.tsx', [{
+  pattern: /\bconsumedSoundCueNavigationRequestRef\b/,
+  message: 'linked SOUND navigation must be consumed as a one-shot request instead of observed as persistent selection state',
+}])
+
 for (const relativePath of [
   'packages/ui/src/useDialogueAudioSegmentDrag.ts',
   'packages/ui/src/sheet-panel-annotation.tsx',

@@ -17,6 +17,7 @@ import {
   saveCameraPointLabelHistory,
 } from './cameraCueEditing'
 import { createPreferredProject } from './mainAppPreferences'
+import type { SoundCueNavigationRequest } from './workspaceInteractionPolicy'
 
 export const DEFAULT_PEN_COLOR = '#000000'
 export const DEFAULT_PEN_WIDTH = 0.002
@@ -106,6 +107,11 @@ export function useAppShellState(appKind: MainAppKind) {
   const [editingTextAnnotationId, setEditingTextAnnotationId] = useState<string | null>(null)
   const [textAnnotationClipboard, setTextAnnotationClipboard] = useState<AnnotationText | null>(null)
   const [sheetSelection, setSheetSelection] = useState<SheetSelection>({ kind: 'none' })
+  const [audioPlayhead, setAudioPlayhead] = useState({
+    cutId: initialWorkspace.document.activeCutId,
+    frame: initialWorkspace.project.logicalSheet.frameOrigin,
+  })
+  const [soundCueNavigationRequest, setSoundCueNavigationRequest] = useState<SoundCueNavigationRequest | null>(null)
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null)
   const [sheetScrollRequest, setSheetScrollRequest] = useState<SheetScrollRequest | null>(null)
   const [timingClipboard, setTimingClipboard] = useState<TimingClipboard | null>(null)
@@ -153,6 +159,7 @@ export function useAppShellState(appKind: MainAppKind) {
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
+    audioPlayhead, setAudioPlayhead, soundCueNavigationRequest, setSoundCueNavigationRequest,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
     cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog,

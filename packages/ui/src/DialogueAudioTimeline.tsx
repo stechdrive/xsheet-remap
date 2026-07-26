@@ -151,7 +151,7 @@ const TIMELINE_DRAG_THRESHOLD = 4
 
 export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const {
-    cutState, fps, frameOrigin, activeRevisionId, soundCues, selectedSoundCueId,
+    cutState, fps, frameOrigin, activeRevisionId, soundCues, selectedSoundCueId, soundCueNavigationRequest,
     onCutStateChange, onPlayheadChange, onSoundCueSelect, onSoundCueEdit, onSoundCueTransform,
     canUndo = false, canRedo = false, onUndo = () => undefined, onRedo = () => undefined,
     onSoundCandidateEdit, onAutoCreateDialogueRegions, onCutDurationChange,
@@ -261,8 +261,10 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     : null
   const selectedCue = soundCues.find(cue => cue.cueId === selectedSoundCueId) ?? null
   const selectedCueAssignment = selectedCue ? assignmentForCue(cutState, selectedCue.cueId, activeRevisionId) : undefined
-  const selectedCueFrameStart = selectedCue?.frameStart
-  const selectedCueAssignmentId = selectedCueAssignment?.assignmentId
+  const linkedHighlightRegionKeys = useMemo(
+    () => new Set(selectedCueAssignment?.regionRefs.map(reference => `${reference.trackId}:${reference.regionId}`) ?? []),
+    [selectedCueAssignment],
+  )
   const audioSelection = resolveDialogueAudioSelectionFocus(audioSelectionState, cutState)
   const selectedCandidateRefs = audioSelectionState.entities.filter(entity => entity.kind === 'candidate')
   const selectedRegionRefs = audioSelectionState.entities.filter(entity => entity.kind === 'region')
@@ -395,8 +397,12 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     onPlayheadChange(next)
   }, [cutDurationFrames, frameOrigin, onPlayheadChange])
 
+  const consumedSoundCueNavigationRequestRef = useRef(0)
   useEffect(() => {
-    if (selectedCueFrameStart === undefined || !selectedCueAssignmentId) return
+    if (!soundCueNavigationRequest || soundCueNavigationRequest.requestId === consumedSoundCueNavigationRequestRef.current) return
+    const cue = soundCues.find(item => item.cueId === soundCueNavigationRequest.cueId)
+    if (!cue || !assignmentForCue(cutState, cue.cueId, activeRevisionId)) return
+    consumedSoundCueNavigationRequestRef.current = soundCueNavigationRequest.requestId
     let cancelled = false
     queueMicrotask(() => {
       if (cancelled) return
@@ -409,23 +415,10 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       if (animationRef.current !== null) cancelAnimationFrame(animationRef.current)
       animationRef.current = null
       setPlaying(false)
-      setPlayhead(selectedCueFrameStart)
-      const firstRef = selectedCueAssignment?.regionRefs[0]
-      const regionTrack = firstRef ? cutState.tracks.find(track => track.trackId === firstRef.trackId) : undefined
-      const region = regionTrack?.dialogueRegions.find(item => item.regionId === firstRef?.regionId)
-      if (firstRef && region) {
-        setAudioSelectionState(replaceDialogueAudioSelection([{
-          kind: 'region',
-          trackId: firstRef.trackId,
-          id: region.regionId,
-        }]))
-        if (cutState.activeTrackId !== firstRef.trackId) {
-          onCutStateChange({ cutState: { ...cutState, activeTrackId: firstRef.trackId }, recordHistory: false })
-        }
-      }
+      setPlayhead(cue.frameStart)
     })
     return () => { cancelled = true }
-  }, [cutState, onCutStateChange, selectedCueAssignment, selectedCueAssignmentId, selectedCueFrameStart, setPlayhead])
+  }, [activeRevisionId, cutState, setPlayhead, soundCueNavigationRequest, soundCues])
 
   useEffect(() => () => {
     stopSources(sourcesRef.current)
@@ -2100,7 +2093,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                     return <DialogueSpeechSegmentButton
                       key={region.regionId}
                       tooltip={tooltipLabel}
-                      className={`dialogueSpeechSegment is-region is-${presentationState} ${regionSelected ? 'isSelected' : ''}`}
+                      className={`dialogueSpeechSegment is-region is-${presentationState} ${linkedHighlightRegionKeys.has(`${track.trackId}:${region.regionId}`) ? 'isLinkedHighlight' : ''} ${regionSelected ? 'isSelected' : ''}`}
                       style={candidateHitStyle(region.frameStart, region.frameEnd, frameOrigin, timelineDurationFrames, timelineWidth)}
                       label={label}
                       ariaLabel={`セリフ区間 ${region.frameStart}–${region.frameEnd}F ${assignment ? `${label || '名称なし'}へ割付済み` : '未割付'}`}

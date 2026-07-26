@@ -24,6 +24,7 @@ import type {
 } from './dialogueAudioSelectionModel'
 import { planDialogueAudioRulerTicks } from './dialogueAudioTimelineModel'
 import { TooltipTarget } from './Tooltip'
+import type { SoundCueNavigationRequest } from './workspaceInteractionPolicy'
 
 export type DialogueAudioTimelineTool = 'select' | 'range'
 
@@ -37,6 +38,7 @@ export interface DialogueAudioTimelineProps {
   activeRevisionId: string
   soundCues: TimedRangeCue[]
   selectedSoundCueId: string | null
+  soundCueNavigationRequest?: SoundCueNavigationRequest | null
   onCutStateChange: (change: {
     cutState: DialogueAudioCutState
     cueUpdates?: Array<{ cueId: string; frameStart: number; frameEnd: number }>

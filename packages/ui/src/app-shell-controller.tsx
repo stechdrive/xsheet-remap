@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, INBETWEEN_KEY_ID, NULL_CELL_DISPLAY_LABEL, NULL_CELL_KEY_ID, REVERSE_SHEET_KEY_ID, type CutAsset, type TimingKey, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { updateCutMetadata } from './cutMetadata';
@@ -49,6 +49,8 @@ import { createAppDialogueAudioActions } from './app-dialogue-audio-actions'
 import { applyTimingEditSession } from './timingEditSession'
 import { createAppProjectPersistenceActions } from './app-project-persistence-actions'
 import { useTimingEditOperationBoundaries } from './useTimingEditOperationBoundaries'
+import { nextSoundCueNavigationRequest } from './workspaceInteractionPolicy'
+import { eventKeyIdAtSheetHit, timingKeyAtSheetHit, timingKeyDisplayLabel } from './workspaceSelectionModel'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
@@ -62,6 +64,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
+    audioPlayhead, setAudioPlayhead, soundCueNavigationRequest, setSoundCueNavigationRequest,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
     cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog,
@@ -150,7 +153,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     selectedTimedRangeCue, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue,
     soundCueController, cameraCueController,
     handleTimedRangeKeyDown,
-    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
+    handleSoundCueSelect: selectSoundCue, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue, copySelectedCameraCueRange, pasteSelectedCameraCueRange,
   } = createAppTimedRangeControllers({
     project, getProject: () => projectRef.current, template, rangeSelection, selectedCueId: selectedTimedRangeCueId,
@@ -172,6 +175,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       ? inputHitForRange(project, template, sheetSelection.range, sheetDisplayDurationFrames, sheetDisplayFrameStart)
       : null
   const selection = { hit: selectedHit, keyId: selectedKeyId }
+  const audioPlayheadFrame = audioPlayhead.cutId === projectDocumentSnapshot.activeCutId ? audioPlayhead.frame : project.logicalSheet.frameOrigin
   const sheetSourceRuntimePathEntries = useMemo(() => {
     const assetPathById = new Map(project.assets.map(asset => [asset.assetId, assetAbsolutePath(asset, project.assetRoot)]))
     return project.sheetView.sources.flatMap(source => {
@@ -209,7 +213,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const activeCalibrationPointsKey = calibrationPointsSignature(activeCalibrationPoints)
   const selectedKeySummary = selection.keyId
     ? isSpecialTimingKeyId(selection.keyId)
-      ? keyDisplayLabelForId(selection.keyId)
+      ? timingKeyDisplayLabel(project, selection.keyId)
       : selectedKey ? `${selectedKey.displayLabel} (${selectedKey.keyId})` : '-'
     : '-'
   const selectedTextAnnotation = selectedTextAnnotationId
@@ -552,28 +556,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       : updates))
   }
 
-  function eventKeyIdAtHit(hit: SheetHit | null, sourceProject: CutProject = project): string | null {
-    if (!hit?.paperTrack) return null
-    const sheetRole = sheetRoleForHit(hit)
-    return sourceProject.logicalSheet.events.find(event => event.paperTrack === hit.paperTrack && event.frame === hit.frame && sheetTimingRoleForEvent(event) === sheetRole)?.keyId ?? null
-  }
-
-  function keyAtHit(sourceProject: CutProject, hit: SheetHit | null): TimingKey | null {
-    const keyId = eventKeyIdAtHit(hit, sourceProject)
-    if (!keyId || isSpecialTimingKeyId(keyId)) return null
-    return sourceProject.logicalSheet.keys.find(key => key.keyId === keyId) ?? null
-  }
-
-  function keyDisplayLabelForId(keyId: string | null | undefined, sourceProject: CutProject = project): string {
-    if (!keyId) return ''
-    if (keyId === NULL_CELL_KEY_ID) return NULL_CELL_DISPLAY_LABEL
-    if (keyId === INBETWEEN_KEY_ID) return '/'
-    if (keyId === REVERSE_SHEET_KEY_ID) return '.'
-    return sourceProject.logicalSheet.keys.find(item => item.keyId === keyId)?.displayLabel ?? ''
-  }
-
   function setSelectionFromHit(hit: SheetHit, sourceProject: CutProject = project, keyIdOverride?: string | null) {
-    const keyId = keyIdOverride === undefined ? eventKeyIdAtHit(hit, sourceProject) : keyIdOverride
+    const keyId = keyIdOverride === undefined ? eventKeyIdAtSheetHit(sourceProject, hit) : keyIdOverride
     setSelectedTextAnnotationId(null)
     setSheetSelection({ kind: 'cell', hit })
     setSelectedKeyId(keyId)
@@ -583,7 +567,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function setSelectionFromRange(range: SheetRangeSelection, sourceProject: CutProject = project) {
     const inputHit = inputHitForRange(sourceProject, template, range, sheetDisplayDurationFrames, sheetDisplayFrameStart)
-    const keyId = eventKeyIdAtHit(inputHit, sourceProject)
+    const keyId = eventKeyIdAtSheetHit(sourceProject, inputHit)
     setSelectedTextAnnotationId(null)
     setSheetSelection({ kind: 'range', range })
     setSelectedKeyId(keyId)
@@ -685,7 +669,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       return {
         target,
         value: character,
-        originalValue: keyDisplayLabelForId(selection.keyId, sourceProject),
+        originalValue: timingKeyDisplayLabel(sourceProject, selection.keyId),
         cutId: projectDocumentSnapshot.activeCutId,
         revisionId: activeSheetRevision.revisionId,
         correctionLayerId: activeCorrectionLayerId,
@@ -703,6 +687,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handleRangeSelect(range: SheetRangeSelection) {
     const sourceProject = commitTimingDraft(false)
     setSelectionFromRange(range, sourceProject)
+  }
+  function handleSoundCueSelect(cueId: string) { selectSoundCue(cueId); setSoundCueNavigationRequest(current => nextSoundCueNavigationRequest(current, cueId)) }
+  function handleAudioPlayheadChange(frame: number) {
+    setAudioPlayhead({ cutId: projectDocumentSnapshot.activeCutId, frame })
+    const pageIndex = sheetPages.findIndex(page => frame >= page.frameStart && frame <= page.frameEnd)
+    if (pageIndex >= 0 && pageIndex !== clampedActivePageIndex) setActivePageIndex(pageIndex)
   }
   function handleCellClick(hit: SheetHit) {
     if (!hit.paperTrack) return
@@ -1252,7 +1242,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handleAssetFileRefs(refs: FileRef[], targetHit: SheetHit | null = null, position?: { x: number; y: number }): string[] {
     if (refs.length === 0) return []
     const sourceProject = commitTimingDraft(false)
-    const existingKey = keyAtHit(sourceProject, targetHit)
+    const existingKey = timingKeyAtSheetHit(sourceProject, targetHit)
     if (refs.length === 1 && existingKey) {
       const registered = registerMaterialAssetRef(sourceProject, refs[0])
       const menuPosition = position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
@@ -1294,7 +1284,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       setAssetDropMenu(null)
       return
     }
-    const existingKey = keyAtHit(sourceProject, targetHit)
+    const existingKey = timingKeyAtSheetHit(sourceProject, targetHit)
     if (existingKey && position) {
       setSelectionFromHit(targetHit, sourceProject, existingKey.keyId)
       setAssetDropMenu({
@@ -2265,6 +2255,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
+    audioPlayheadFrame, soundCueNavigationRequest,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
@@ -2276,7 +2267,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
+    handleSoundCueSelect, handleAudioPlayheadChange, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,

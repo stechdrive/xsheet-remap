@@ -18,9 +18,14 @@ describe('sheet workspace rail icons', () => {
       Icon: PaperSheetIcon,
       className: 'paperSheetIcon',
       paths: [
-        'M6 2.5h9l3 3v16H6z',
-        'M15 2.5v3h3M8.5 8.5h7M8.5 11.5h4',
-        'M13.5 20v-6.5M10.5 16.5l3-3 3 3',
+        'M5.5 2.5h8.7l4.3 4.3v14.7h-13z',
+        'M14.2 2.5v4.3h4.3',
+        'M12 20.5V10.2M7.8 14.4 12 10.2l4.2 4.2',
+        'M12 20.5V10.2M7.8 14.4 12 10.2l4.2 4.2',
+      ],
+      arrowStrokes: [
+        { stroke: '#fff', strokeWidth: '5.4' },
+        { stroke: 'currentColor', strokeWidth: '2.45' },
       ],
     },
     {
@@ -39,15 +44,16 @@ describe('sheet workspace rail icons', () => {
         'M19.5 19v-6.2c0-1.5-1.1-2.4-2.7-2.4-1.4 0-2.4.7-2.8 1.8M19.5 15.1h-2.3c-2 0-3.2.8-3.2 2.1 0 1.2 1 2 2.4 2 1.8 0 3.1-1.2 3.1-2.7',
       ],
     },
-  ])('renders the approved $className metaphor at the shared 24-unit size', ({ Icon, className, paths, circle }) => {
+  ])('renders the approved $className metaphor at the shared 24-unit size', ({ Icon, className, paths, circle, arrowStrokes }) => {
     const { container } = render(<Icon />)
     const svg = container.querySelector('svg')
+    const renderedPaths = Array.from(svg?.querySelectorAll('path') ?? [])
 
     expect(svg?.getAttribute('viewBox')).toBe('0 0 24 24')
     expect(svg?.getAttribute('aria-hidden')).toBe('true')
     expect(svg?.classList.contains('topIconSvg')).toBe(true)
     expect(svg?.classList.contains(className)).toBe(true)
-    expect(Array.from(svg?.querySelectorAll('path') ?? [], path => path.getAttribute('d'))).toEqual(paths)
+    expect(renderedPaths.map(path => path.getAttribute('d'))).toEqual(paths)
 
     if (circle) {
       const element = svg?.querySelector('circle')
@@ -55,6 +61,13 @@ describe('sheet workspace rail icons', () => {
       expect(Object.fromEntries(Object.keys(circle).map(key => [key, element?.getAttribute(key)]))).toEqual(circle)
     } else {
       expect(svg?.querySelector('circle')).toBeNull()
+    }
+
+    if (arrowStrokes) {
+      expect(renderedPaths.slice(-2).map(path => ({
+        stroke: path.getAttribute('stroke'),
+        strokeWidth: path.getAttribute('stroke-width'),
+      }))).toEqual(arrowStrokes)
     }
   })
 })

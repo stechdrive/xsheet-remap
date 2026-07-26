@@ -414,9 +414,18 @@ export function DisplaySettingsIcon() {
 export function PaperSheetIcon() {
   return (
     <svg className="topIconSvg paperSheetIcon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 2.5h9l3 3v16H6z" />
-      <path d="M15 2.5v3h3M8.5 8.5h7M8.5 11.5h4" />
-      <path d="M13.5 20v-6.5M10.5 16.5l3-3 3 3" />
+      <path d="M5.5 2.5h8.7l4.3 4.3v14.7h-13z" />
+      <path d="M14.2 2.5v4.3h4.3" />
+      <path
+        d="M12 20.5V10.2M7.8 14.4 12 10.2l4.2 4.2"
+        stroke="#fff"
+        strokeWidth="5.4"
+      />
+      <path
+        d="M12 20.5V10.2M7.8 14.4 12 10.2l4.2 4.2"
+        stroke="currentColor"
+        strokeWidth="2.45"
+      />
     </svg>
   )
 }

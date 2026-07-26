@@ -96,6 +96,7 @@ import {
   type DialogueAudioSelectionFocus,
 } from './dialogueAudioContextMenuModel'
 import { ActionMenu } from './AppControls'
+import { DialogueAudioWaveform } from './DialogueAudioWaveform'
 import { Tooltip, TooltipTarget } from './Tooltip'
 
 interface DialogueAudioTimelineProps {
@@ -1859,7 +1860,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                   {track.clips.map(sourceClip => {
                     const asset = cutState.assets.find(item => item.assetId === sourceClip.assetId)
                     return asset ? <span key={sourceClip.clipId} className="dialogueAudioClip">
-                      <Waveform asset={asset} clip={sourceClip} color={track.color} frameOrigin={frameOrigin} durationFrames={timelineDurationFrames} />
+                      <DialogueAudioWaveform asset={asset} clip={sourceClip} color={track.color} frameOrigin={frameOrigin} durationFrames={timelineDurationFrames} />
                       <TooltipTarget label="クリックで選択 / Ctrlクリックで複数選択 / ドラッグで移動">
                         {tooltipProps => <button
                           type="button"
@@ -2177,32 +2178,6 @@ function TimeRuler(props: {
       ><span>{tick.frameInSecond}</span></span>)}
     </div>
   </div>
-}
-
-function Waveform(props: { asset: DialogueAudioAsset; clip: DialogueAudioClip; color: string; frameOrigin: number; durationFrames: number }) {
-  const points = props.asset.waveform
-  if (points.length === 0) return null
-  const path = points.map((value, index) => {
-    const x = index / Math.max(1, points.length - 1) * 1000
-    const y = 24 - value * 21
-    return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`
-  }).join(' ')
-  const lowerPath = [...points].reverse().map((value, reverseIndex) => {
-    const index = points.length - reverseIndex - 1
-    const x = index / Math.max(1, points.length - 1) * 1000
-    const y = 24 + value * 21
-    return `L${x.toFixed(1)} ${y.toFixed(1)}`
-  }).join(' ')
-  const assetFrames = Math.max(1, props.asset.durationFrames)
-  const viewX = props.clip.sourceOffsetFrames / assetFrames * 1000
-  const viewWidth = Math.max(1, props.clip.durationFrames / assetFrames * 1000)
-  return <svg
-    className="dialogueWaveform"
-    viewBox={`${viewX} 0 ${viewWidth} 48`}
-    preserveAspectRatio="none"
-    style={rangeStyle(props.clip.timelineStartFrame, props.clip.timelineStartFrame + props.clip.durationFrames - 1, props.frameOrigin, props.durationFrames)}
-    aria-hidden="true"
-  ><path d={`${path} ${lowerPath} Z`} fill={props.color} /></svg>
 }
 
 function TimelineBoundaryMarker(props: {

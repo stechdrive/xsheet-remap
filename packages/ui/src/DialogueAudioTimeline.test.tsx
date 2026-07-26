@@ -969,6 +969,54 @@ describe('DialogueAudioTimeline', () => {
     expect(mediaTrack.stop).toHaveBeenCalled()
   })
 
+  it('shows low-level waveform across the full clip independently of its VAD range', () => {
+    const state = createDefaultDialogueAudioCutState(1, 24)
+    state.assets = [{
+      assetId: 'quiet-asset',
+      audioDataUrl: 'data:audio/wav;base64,UklGRg==',
+      durationFrames: 24,
+      waveform: [0.000001, 0, 0.25, 0.000001],
+      sourceName: 'quiet.wav',
+    }]
+    state.tracks[0].clips = [{
+      clipId: 'quiet-clip',
+      placementId: 'quiet-placement',
+      assetId: 'quiet-asset',
+      timelineStartFrame: 1,
+      sourceOffsetFrames: 0,
+      durationFrames: 24,
+    }]
+    state.tracks[0].speechCandidates = [{
+      candidateId: 'middle-vad',
+      frameStart: 9,
+      frameEnd: 16,
+      status: 'pending',
+    }]
+
+    render(<DialogueAudioTimeline
+      cutState={state}
+      fps={24}
+      frameOrigin={1}
+      cutDurationFrames={24}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    expect(screen.getByLabelText('発話候補 9–16F VAD')).toBeTruthy()
+    expect(document.querySelector('.dialogueWaveform path')?.getAttribute('d')).toBe(
+      'M0.0 22.75 L333.3 24.00 L666.7 13.50 L1000.0 22.75 L1000.0 25.25 L666.7 34.50 L333.3 24.00 L0.0 25.25 Z',
+    )
+  })
+
   it('opens track management from the track header and applies a track-height preset', () => {
     render(<DialogueAudioTimeline
       cutState={createDefaultDialogueAudioCutState(1, 72)}

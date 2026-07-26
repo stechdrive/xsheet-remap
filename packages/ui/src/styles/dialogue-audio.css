@@ -539,7 +539,7 @@
 
 .dialogueWaveform {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   display: block;
   top: 1px;
   height: calc(100% - 2px);
@@ -558,12 +558,18 @@
   padding: 0 2px !important;
   border: 0 !important;
   border-radius: 0 0 3px 0 !important;
-  background: rgb(16 24 20 / 0.54) !important;
-  color: rgb(235 243 238 / 0.72) !important;
+  background: transparent !important;
+  color: rgb(235 243 238 / 0.5) !important;
   cursor: grab;
   font-size: 8px !important;
   line-height: 10px;
   text-align: left;
+  text-shadow: 0 1px 2px rgb(4 9 6 / 0.9);
+}
+
+.dialogueAudioClipHandle:hover {
+  color: #f4fff8 !important;
+  box-shadow: inset 0 1px 0 rgb(156 225 184 / 0.65);
 }
 
 .dialogueAudioClipHandle:active {
@@ -572,9 +578,9 @@
 
 .dialogueAudioClipHandle.isSelected {
   z-index: 5;
-  background: rgb(34 92 66 / 0.88) !important;
+  background: transparent !important;
   color: #f4fff8 !important;
-  box-shadow: inset 0 0 0 1px #9ce1b8, 0 0 0 1px rgb(8 15 11 / 0.7);
+  box-shadow: inset 0 0 0 1px #9ce1b8;
 }
 
 .dialogueSpeechCandidate {

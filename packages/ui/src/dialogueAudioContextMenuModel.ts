@@ -1,6 +1,6 @@
 export type DialogueAudioContextTarget =
   | { kind: 'track'; trackId: string }
-  | { kind: 'empty'; trackId: string; frame: number }
+  | { kind: 'empty'; trackId: string }
   | { kind: 'range'; trackId: string; frameStart: number; frameEnd: number }
   | { kind: 'clip'; trackId: string; clipIds: string[]; frameStart: number; frameEnd: number }
   | { kind: 'candidate'; trackId: string; candidateIds: string[]; ignored: boolean }
@@ -46,8 +46,8 @@ export interface DialogueAudioContextAvailability {
 
 /**
  * Resolves overlapping timeline layers before any menu changes selection.
- * A manually dragged range owns its covered track area; semantic selections
- * (VAD, dialogue region, clip) do not mask a newly hit object.
+ * An explicitly dragged time range owns its covered track area; semantic
+ * selections (dialogue segment, region, clip) do not mask a newly hit object.
  */
 export function resolveDialogueAudioContextTarget(
   hitTarget: DialogueAudioContextTarget,

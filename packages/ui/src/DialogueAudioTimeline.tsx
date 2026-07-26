@@ -95,6 +95,37 @@ import {
   type DialogueAudioContextTarget,
   type DialogueAudioSelectionFocus,
 } from './dialogueAudioContextMenuModel'
+import {
+  applyDialogueAudioMarqueeSelection,
+  collectDialogueAudioMarqueeEntities,
+  dialogueAudioSelectionContains,
+  dialogueAudioSelectionFrameRange,
+  EMPTY_DIALOGUE_AUDIO_SELECTION,
+  reconcileDialogueAudioSelection,
+  replaceDialogueAudioSelection,
+  toggleDialogueAudioSelectionEntity,
+  type DialogueAudioSelectionState,
+} from './dialogueAudioSelectionModel'
+import {
+  AudioImportIcon,
+  candidateHitStyle,
+  candidatePresentation,
+  candidateSelection,
+  clipSelectionForIds,
+  contextCommandLabel,
+  contextMenuAriaLabel,
+  contextMenuTitle,
+  dialogueAudioClipHandleLane,
+  dialogueAudioSelectionSummary,
+  RangeToolIcon,
+  rangeStyle,
+  resolveDialogueAudioSelectionFocus,
+  SelectionToolIcon,
+  SpeakerIcon,
+  timelineMarqueeStyle,
+  type DialogueAudioTimelineGesture,
+  type DialogueAudioTimelineTool,
+} from './dialogueAudioTimelinePresentation'
 import { ActionMenu } from './AppControls'
 import { DialogueAudioWaveform } from './DialogueAudioWaveform'
 import { Tooltip, TooltipTarget } from './Tooltip'
@@ -131,6 +162,7 @@ const SCRUB_EDGE_FADE_SECONDS = 0.001
 const TIME_RULER_HEIGHT = 40
 const CONTEXT_MENU_EDGE = 8
 const CONTEXT_MENU_WIDTH = 260
+const TIMELINE_DRAG_THRESHOLD = 4
 
 export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const {
@@ -146,8 +178,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(720)
   const [playing, setPlaying] = useState(false)
   const [recording, setRecording] = useState(false)
-  const [audioSelection, setAudioSelection] = useState<DialogueAudioSelectionFocus | null>(null)
-  const [selectionDrag, setSelectionDrag] = useState<{ trackId: string; anchorFrame: number } | null>(null)
+  const [audioSelectionState, setAudioSelectionState] = useState<DialogueAudioSelectionState>(EMPTY_DIALOGUE_AUDIO_SELECTION)
+  const [timelineTool, setTimelineTool] = useState<DialogueAudioTimelineTool>('select')
+  const [timelineGesture, setTimelineGesture] = useState<DialogueAudioTimelineGesture | null>(null)
   const [silenceFrameCount, setSilenceFrameCount] = useState(1)
   const [clipboard, setClipboard] = useState<DialogueAudioClipboard | null>(null)
   const [vadEngine, setVadEngine] = useState<{ status: DialogueVadEngineStatus; error?: string }>({ status: 'idle' })
@@ -207,6 +240,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const scrubSourcesRef = useRef<AudioBufferSourceNode[]>([])
   const scrubRequestRef = useRef(0)
   const scrubDragRef = useRef<{ pointerId: number; lastFrame: number } | null>(null)
+  const timelineGestureRef = useRef<DialogueAudioTimelineGesture | null>(null)
   const animationRef = useRef<number | null>(null)
   const playSessionRef = useRef<{ contextStart: number; frameStart: number; frameEnd: number } | null>(null)
   const recorderRef = useRef<{ recorder: MediaRecorder; stream: MediaStream; chunks: Blob[]; startFrame: number; trackId: string } | null>(null)
@@ -231,13 +265,17 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const selectedCueAssignment = selectedCue ? assignmentForCue(cutState, selectedCue.cueId, activeRevisionId) : undefined
   const selectedCueFrameStart = selectedCue?.frameStart
   const selectedCueAssignmentId = selectedCueAssignment?.assignmentId
-  const selectedCandidateIds = audioSelection?.kind === 'candidate' || audioSelection?.kind === 'region'
-    ? audioSelection.candidateIds
-    : []
-  const selectedRegionId = audioSelection?.kind === 'region' ? audioSelection.regionId : null
-  const selectedClipIds = audioSelection?.kind === 'clip' ? audioSelection.clipIds : []
+  const audioSelection = resolveDialogueAudioSelectionFocus(audioSelectionState, cutState)
+  const selectedCandidateRefs = audioSelectionState.entities.filter(entity => entity.kind === 'candidate')
+  const selectedCandidateIds = selectedCandidateRefs
+    .filter(entity => entity.trackId === activeTrack?.trackId)
+    .map(entity => entity.id)
   const selectedCandidates = activeTrack?.speechCandidates.filter(candidate => selectedCandidateIds.includes(candidate.candidateId)) ?? []
   const selectedCandidate = selectedCandidates[0] ?? null
+  const selectedFrameRange = dialogueAudioSelectionFrameRange(audioSelectionState, cutState)
+  const marqueeStyle = timelineGesture?.moved && timelineGesture.tool === 'select'
+    ? timelineMarqueeStyle(timelineGesture, TIME_RULER_HEIGHT)
+    : null
 
   useEffect(() => {
     cutStateRef.current = cutState
@@ -247,27 +285,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     let cancelled = false
     queueMicrotask(() => {
       if (cancelled) return
-      setAudioSelection(current => {
-        if (!current || current.kind === 'range') return current
-        const track = cutState.tracks.find(item => item.trackId === current.trackId)
-        if (!track) return null
-        if (current.kind === 'clip') {
-          return clipSelectionForIds(track, current.clipIds)
-        }
-        if (current.kind === 'candidate') {
-          const candidates = track.speechCandidates.filter(candidate => current.candidateIds.includes(candidate.candidateId))
-          return candidates.length > 0 ? candidateSelection(track.trackId, candidates) : null
-        }
-        const region = track.dialogueRegions.find(item => item.regionId === current.regionId)
-        return region ? {
-          kind: 'region',
-          trackId: track.trackId,
-          regionId: region.regionId,
-          candidateIds: region.candidateIds,
-          frameStart: region.frameStart,
-          frameEnd: region.frameEnd,
-        } : null
-      })
+      setAudioSelectionState(current => reconcileDialogueAudioSelection(current, cutState))
     })
     return () => { cancelled = true }
   }, [cutState])
@@ -395,14 +413,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       const regionTrack = firstRef ? cutState.tracks.find(track => track.trackId === firstRef.trackId) : undefined
       const region = regionTrack?.dialogueRegions.find(item => item.regionId === firstRef?.regionId)
       if (firstRef && region) {
-        setAudioSelection({
+        setAudioSelectionState(replaceDialogueAudioSelection([{
           kind: 'region',
           trackId: firstRef.trackId,
-          regionId: region.regionId,
-          candidateIds: region.candidateIds,
-          frameStart: region.frameStart,
-          frameEnd: region.frameEnd,
-        })
+          id: region.regionId,
+        }]))
         if (cutState.activeTrackId !== firstRef.trackId) {
           onCutStateChange({ cutState: { ...cutState, activeTrackId: firstRef.trackId }, recordHistory: false })
         }
@@ -814,7 +829,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
   function insertSilence(frameCount = silenceFrameCount) {
     if (!activeTrack) return
-    insertSilenceAt(activeTrack.trackId, audioSelection?.frameStart ?? playheadFrame, frameCount)
+    insertSilenceAt(activeTrack.trackId, playheadFrame, frameCount)
   }
 
   function insertSilenceAt(trackId: string, frame: number, frameCount = silenceFrameCount) {
@@ -827,7 +842,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
   function rippleDelete(rangeInput?: DialogueAudioRange & { trackId: string }) {
     const range = rangeInput
-      ?? (audioSelection?.kind !== 'clip' ? audioSelection : null)
       ?? { frameStart: playheadFrame, frameEnd: playheadFrame, trackId: activeTrack?.trackId ?? '' }
     if (!range.trackId) return
     applyTrackEditTo(
@@ -971,7 +985,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         status: 'pending',
       }
       updateTrack(activeTrack.trackId, { speechCandidates: [...activeTrack.speechCandidates, candidate] })
-      setAudioSelection(candidateSelection(activeTrack.trackId, [candidate]))
+      setAudioSelectionState(replaceDialogueAudioSelection([{
+        kind: 'candidate',
+        trackId: activeTrack.trackId,
+        id: candidate.candidateId,
+      }]))
       candidates = [candidate]
     }
     if (candidates.length === 0) return
@@ -982,14 +1000,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     const region = track.dialogueRegions.find(item => item.regionId === regionId)
     if (!region) return
     const candidates = track.speechCandidates.filter(candidate => region.candidateIds.includes(candidate.candidateId))
-    setAudioSelection({
+    setAudioSelectionState(replaceDialogueAudioSelection([{
       kind: 'region',
       trackId: track.trackId,
-      regionId,
-      candidateIds: region.candidateIds,
-      frameStart: region.frameStart,
-      frameEnd: region.frameEnd,
-    })
+      id: regionId,
+    }]))
     if (candidates.length > 0) openCandidateSound(track.trackId, candidates)
   }
 
@@ -1088,6 +1103,13 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       }
       return
     }
+    const toolKey = event.key.toLowerCase()
+    if (toolKey === 'v' || toolKey === 'r') {
+      event.preventDefault()
+      setTimelineTool(toolKey === 'v' ? 'select' : 'range')
+      setStatus(toolKey === 'v' ? '選択ツール' : '時間範囲選択ツール')
+      return
+    }
     if (event.key === 'Delete' && audioSelection && !playing) {
       event.preventDefault()
       if (audioSelection.kind === 'clip') deleteClipSelection(audioSelection)
@@ -1122,42 +1144,142 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     timelineContentRef.current?.focus({ preventScroll: true })
   }
 
-  function setAudioFocus(
-    kind: DialogueAudioSelectionFocus['kind'],
-    selection: DialogueAudioRange & { trackId: string },
-  ) {
-    if (kind === 'range') setAudioSelection({ kind, ...selection })
+  function setSelectionFromFocus(selection: DialogueAudioSelectionFocus | null) {
+    if (!selection) {
+      setAudioSelectionState(EMPTY_DIALOGUE_AUDIO_SELECTION)
+      return
+    }
+    if (selection.kind === 'range') {
+      setAudioSelectionState(current => ({ entities: current.entities, timeRange: selection }))
+      return
+    }
+    if (selection.kind === 'clip') {
+      setAudioSelectionState(replaceDialogueAudioSelection(selection.clipIds.map(id => ({
+        kind: 'clip',
+        trackId: selection.trackId,
+        id,
+      }))))
+      return
+    }
+    if (selection.kind === 'candidate') {
+      setAudioSelectionState(replaceDialogueAudioSelection(selection.candidateIds.map(id => ({
+        kind: 'candidate',
+        trackId: selection.trackId,
+        id,
+      }))))
+      return
+    }
+    setAudioSelectionState(replaceDialogueAudioSelection([{
+      kind: 'region',
+      trackId: selection.trackId,
+      id: selection.regionId,
+    }]))
   }
 
   function clearAudioFocus() {
-    setAudioSelection(null)
+    setAudioSelectionState(EMPTY_DIALOGUE_AUDIO_SELECTION)
   }
 
-  function beginRangeSelection(event: ReactPointerEvent<HTMLDivElement>, trackId: string) {
-    if (recording || event.button !== 0) return
+  function beginTimelineGesture(event: ReactPointerEvent<HTMLDivElement>, trackId: string) {
+    if (recording || event.button !== 0 || (timelineTool === 'select' && event.target !== event.currentTarget)) return
+    event.preventDefault()
     if (playing) stopPlayback()
     else stopScrubPlayback()
     const frame = frameForClientX(event.clientX)
+    const contentRect = timelineContentRef.current?.getBoundingClientRect()
+      ?? event.currentTarget.getBoundingClientRect()
     event.currentTarget.setPointerCapture(event.pointerId)
     focusTimeline()
     if (cutState.activeTrackId !== trackId) {
       onCutStateChange({ cutState: { ...cutState, activeTrackId: trackId }, recordHistory: false })
     }
-    setSelectionDrag({ trackId, anchorFrame: frame })
-    setAudioFocus('range', { trackId, frameStart: frame, frameEnd: frame })
-    setPlayhead(frame)
+    const gesture: DialogueAudioTimelineGesture = {
+      pointerId: event.pointerId,
+      trackId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      currentClientX: event.clientX,
+      currentClientY: event.clientY,
+      anchorFrame: frame,
+      moved: false,
+      additive: event.ctrlKey || event.metaKey || event.shiftKey,
+      tool: timelineTool,
+      initialSelection: audioSelectionState,
+      contentRect: {
+        left: contentRect.left,
+        top: contentRect.top,
+        width: contentRect.width,
+        height: contentRect.height,
+      },
+    }
+    timelineGestureRef.current = gesture
+    setTimelineGesture(gesture)
   }
 
-  function moveRangeSelection(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!selectionDrag) return
+  function moveTimelineGesture(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = timelineGestureRef.current
+    if (!current || current.pointerId !== event.pointerId) return
+    const moved = current.moved || Math.hypot(
+      event.clientX - current.startClientX,
+      event.clientY - current.startClientY,
+    ) >= TIMELINE_DRAG_THRESHOLD
+    const next = {
+      ...current,
+      currentClientX: event.clientX,
+      currentClientY: event.clientY,
+      moved,
+    }
+    timelineGestureRef.current = next
+    setTimelineGesture(next)
+    if (!moved) return
     const frame = frameForClientX(event.clientX)
-    setAudioFocus('range', { trackId: selectionDrag.trackId, ...normalizeDialogueAudioRange(selectionDrag.anchorFrame, frame) })
+    const range = normalizeDialogueAudioRange(current.anchorFrame, frame)
+    if (current.tool === 'range') {
+      setAudioSelectionState({
+        entities: current.initialSelection.entities,
+        timeRange: { trackId: current.trackId, ...range },
+      })
+      return
+    }
+    const trackIds = tracksIntersectingMarquee(current.startClientY, event.clientY)
+    const hits = collectDialogueAudioMarqueeEntities(cutState, trackIds, range)
+    setAudioSelectionState(applyDialogueAudioMarqueeSelection(
+      current.initialSelection,
+      hits,
+      current.additive,
+    ))
   }
 
-  function finishRangeSelection(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!selectionDrag) return
+  function finishTimelineGesture(event: ReactPointerEvent<HTMLDivElement>, cancelled = false) {
+    const current = timelineGestureRef.current
+    if (!current || current.pointerId !== event.pointerId) return
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    setSelectionDrag(null)
+    if (cancelled) {
+      setAudioSelectionState(current.initialSelection)
+    } else if (!current.moved) {
+      if (current.tool === 'range') {
+        setAudioSelectionState({ entities: current.initialSelection.entities, timeRange: null })
+      } else if (!current.additive) {
+        clearAudioFocus()
+      }
+      setPlayhead(frameForClientX(event.clientX))
+    }
+    timelineGestureRef.current = null
+    setTimelineGesture(null)
+  }
+
+  function tracksIntersectingMarquee(startClientY: number, currentClientY: number): string[] {
+    const rect = timelineContentRef.current?.getBoundingClientRect()
+    if (!rect) return []
+    const top = Math.min(startClientY, currentClientY) - rect.top
+    const bottom = Math.max(startClientY, currentClientY) - rect.top
+    let trackTop = TIME_RULER_HEIGHT
+    return cutState.tracks.flatMap(track => {
+      const trackBottom = trackTop + trackHeight(track.trackId)
+      const intersects = top <= trackBottom && bottom >= trackTop
+      trackTop = trackBottom
+      return intersects ? [track.trackId] : []
+    })
   }
 
   function frameForClientX(clientX: number): number {
@@ -1169,22 +1291,15 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
 
   function selectCandidate(event: ReactMouseEvent<HTMLButtonElement>, track: DialogueAudioTrackState, candidate: DialogueSpeechCandidate) {
     event.stopPropagation()
+    if (timelineTool === 'range') return
     if (cutState.activeTrackId !== track.trackId) {
       onCutStateChange({ cutState: { ...cutState, activeTrackId: track.trackId }, recordHistory: false })
     }
-    const currentIds = audioSelection?.kind === 'candidate' && audioSelection.trackId === track.trackId
-      ? audioSelection.candidateIds
-      : []
-    const selectedIds = (event.ctrlKey || event.metaKey || event.shiftKey)
-      ? currentIds.includes(candidate.candidateId)
-        ? currentIds.filter(id => id !== candidate.candidateId)
-        : [...currentIds, candidate.candidateId]
-      : [candidate.candidateId]
-    const selected = track.speechCandidates.filter(item => selectedIds.includes(item.candidateId))
-    if (selected.length > 0) {
-      setAudioSelection(candidateSelection(track.trackId, selected))
-    } else clearAudioFocus()
-    setPlayhead(candidate.frameStart)
+    setAudioSelectionState(current => toggleDialogueAudioSelectionEntity(current, {
+      kind: 'candidate',
+      trackId: track.trackId,
+      id: candidate.candidateId,
+    }, event.ctrlKey || event.metaKey || event.shiftKey))
   }
 
   function beginCueDrag(event: ReactPointerEvent<HTMLButtonElement>, cue: TimedRangeCue) {
@@ -1232,9 +1347,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     event.stopPropagation()
     const track = cutState.tracks.find(item => item.trackId === trackId)
     if (!track) return
-    const currentIds = audioSelection?.kind === 'clip' && audioSelection.trackId === trackId
-      ? audioSelection.clipIds
-      : []
+    const currentIds = audioSelectionState.entities
+      .filter(entity => entity.kind === 'clip' && entity.trackId === trackId)
+      .map(entity => entity.id)
     const additive = event.ctrlKey || event.metaKey || event.shiftKey
     const clipIds = additive
       ? currentIds.includes(clip.clipId)
@@ -1244,7 +1359,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         ? currentIds
         : [clip.clipId]
     const selection = clipSelectionForIds(track, clipIds)
-    setAudioSelection(selection)
+    setSelectionFromFocus(selection)
     if (!selection || !selection.clipIds.includes(clip.clipId)) return
     event.currentTarget.setPointerCapture(event.pointerId)
     const selectedClips = track.clips.filter(item => selection.clipIds.includes(item.clipId))
@@ -1373,24 +1488,23 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       onCutStateChange({ cutState: { ...cutState, activeTrackId: target.trackId }, recordHistory: false })
     }
     if (target.kind === 'empty') {
-      clearAudioFocus()
-      setPlayhead(target.frame)
+      return
     } else if (target.kind === 'range') {
-      setAudioSelection(target)
+      setSelectionFromFocus(target)
     } else if (target.kind === 'clip') {
       const track = cutState.tracks.find(item => item.trackId === target.trackId)
-      setAudioSelection(track ? clipSelectionForIds(track, target.clipIds) : null)
+      setSelectionFromFocus(track ? clipSelectionForIds(track, target.clipIds) : null)
     } else if (target.kind === 'candidate') {
       const track = cutState.tracks.find(item => item.trackId === target.trackId)
       const candidates = track?.speechCandidates.filter(candidate => target.candidateIds.includes(candidate.candidateId)) ?? []
       if (candidates.length > 0) {
-        setAudioSelection(candidateSelection(target.trackId, candidates))
+        setSelectionFromFocus(candidateSelection(target.trackId, candidates))
       } else clearAudioFocus()
     } else if (target.kind === 'region') {
       const track = cutState.tracks.find(item => item.trackId === target.trackId)
       const region = track?.dialogueRegions.find(item => item.regionId === target.regionId)
       if (region) {
-        setAudioSelection({
+        setSelectionFromFocus({
           kind: 'region',
           trackId: target.trackId,
           regionId: region.regionId,
@@ -1478,7 +1592,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       status: 'pending',
     }
     updateTrack(track.trackId, { speechCandidates: [...track.speechCandidates, candidate] })
-    setAudioSelection(candidateSelection(track.trackId, [candidate]))
+    setAudioSelectionState(replaceDialogueAudioSelection([{
+      kind: 'candidate',
+      trackId: track.trackId,
+      id: candidate.candidateId,
+    }]))
     openCandidateSound(track.trackId, [candidate])
   }
 
@@ -1540,14 +1658,14 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     const range = targetRange(target)
     if (command === 'redetect-track' && target.kind === 'track') void redetectTrack(target.trackId)
     else if (command === 'clear-track' && target.kind === 'track') clearTrack(target.trackId)
-    else if (command === 'import-here' && target.kind === 'empty') requestAudioImport(target.trackId, target.frame)
-    else if (command === 'paste-overwrite' && target.kind === 'empty') pasteClipboardAt(target.trackId, target.frame, 'overwrite')
-    else if (command === 'paste-insert' && target.kind === 'empty') pasteClipboardAt(target.trackId, target.frame, 'insert')
+    else if (command === 'import-here' && target.kind === 'empty') requestAudioImport(target.trackId, playheadFrame)
+    else if (command === 'paste-overwrite' && target.kind === 'empty') pasteClipboardAt(target.trackId, playheadFrame, 'overwrite')
+    else if (command === 'paste-insert' && target.kind === 'empty') pasteClipboardAt(target.trackId, playheadFrame, 'insert')
     else if (command === 'paste-overwrite' && range) pasteClipboardAt(range.trackId, range.frameStart, 'overwrite')
     else if (command === 'paste-insert' && range) pasteClipboardAt(range.trackId, range.frameStart, 'insert')
     else if (command === 'insert-silence') {
       const trackId = 'trackId' in target ? target.trackId : cutState.activeTrackId
-      const frame = target.kind === 'empty' ? target.frame : range?.frameStart ?? playheadFrame
+      const frame = range?.frameStart ?? playheadFrame
       insertSilenceAt(trackId, frame)
     } else if (command === 'assign-sound') createSoundForTarget(target)
     else if (command === 'copy' && target.kind === 'clip') copyClipSelection(target, false)
@@ -1567,7 +1685,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
           : restoreDialogueSpeechCandidate(current, candidateId)
       ), track)
       updateTrack(target.trackId, nextTrack)
-      setStatus(command === 'ignore-candidate' ? 'VAD候補を無視しました。' : 'VAD候補を検出対象へ戻しました。')
+      setStatus(command === 'ignore-candidate' ? 'セリフ区間を無視しました。' : 'セリフ区間を検出対象へ戻しました。')
     } else if (command === 'edit-sound') {
       if (target.kind === 'cue') onSoundCueEdit(target.cueId)
       else if (target.kind === 'region') createSoundForTarget(target)
@@ -1588,7 +1706,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       const removed = removeDialogueAudioRegion(cutState, target.trackId, target.regionId)
       commitCutState(synchronizeDialogueAssignmentsFromCues(removed, soundCues, activeRevisionId))
       clearAudioFocus()
-      setStatus('セリフ区間を解除しました。音声とVAD候補は保持しています。')
+      setStatus('セリフ区間の割付を解除しました。音声と検出区間は保持しています。')
     }
   }
 
@@ -1652,6 +1770,26 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         <div className="dialogueAudioToolbarMain">
           <button type="button" className="dialogueAudioCollapse" onClick={() => setCollapsed(true)} aria-expanded="true" disabled={recording}>▾ 音声</button>
           <span className="dialogueAudioTime">{formatFrame(playheadFrame, frameOrigin, fps)}</span>
+          <span className="dialogueAudioToolGroup" aria-label="タイムラインツール">
+            <Tooltip label="選択ツール（V）。クリックで項目選択、空白からドラッグで矩形選択">
+              <button
+                type="button"
+                className={`dialogueAudioIconButton ${timelineTool === 'select' ? 'isActiveTool' : ''}`}
+                aria-label="選択ツール"
+                aria-pressed={timelineTool === 'select'}
+                onClick={() => setTimelineTool('select')}
+              ><SelectionToolIcon /></button>
+            </Tooltip>
+            <Tooltip label="時間範囲選択ツール（R）。ドラッグした場合だけ範囲を作成">
+              <button
+                type="button"
+                className={`dialogueAudioIconButton ${timelineTool === 'range' ? 'isActiveTool' : ''}`}
+                aria-label="時間範囲選択ツール"
+                aria-pressed={timelineTool === 'range'}
+                onClick={() => setTimelineTool('range')}
+              ><RangeToolIcon /></button>
+            </Tooltip>
+          </span>
           <span className="dialogueAudioToolGroup" aria-label="再生と録音">
             <Tooltip label="カット頭から再生">
               <button type="button" className="dialogueAudioIconButton" aria-label="⏮ カット頭から" onClick={() => { setPlayhead(frameOrigin); void startPlayback(frameOrigin) }} disabled={recording}>⏮</button>
@@ -1691,9 +1829,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             type="button"
             className="dialogueAudioReflectButton"
             onClick={createSoundFromSelection}
-            disabled={selectedCandidates.length === 0 && audioSelection?.kind !== 'range'}
+            disabled={selectedCandidates.length === 0 && !audioSelectionState.timeRange}
           >{selectedCandidate && assignmentForCandidate(cutState, selectedCandidate.candidateId, activeRevisionId) ? '音響指示を編集' : '音響指示へ割付…'}</button>
-          {audioSelection && <span className="dialogueAudioSelectionSummary">{audioSelection.kind === 'clip' ? `${audioSelection.clipIds.length}クリップ / ` : ''}{audioSelection.frameStart}–{audioSelection.frameEnd}F ({audioSelection.frameEnd - audioSelection.frameStart + 1}F)</span>}
+          {selectedFrameRange && <span className="dialogueAudioSelectionSummary">{dialogueAudioSelectionSummary(audioSelectionState, selectedFrameRange)}</span>}
           <span className="dialogueAudioToolbarSpacer" />
           <TooltipTarget label={vadEngine.error ?? ''} disabled={!vadEngine.error}>
             {tooltipProps => <span className={`dialogueVadEngine is-${vadEngine.status}`} role="status" {...tooltipProps}>{vadEngineLabel(vadEngine.status)}</span>}
@@ -1840,8 +1978,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 className={`dialogueAudioTrack ${track.trackId === cutState.activeTrackId ? 'isActive' : ''}`}
                 style={{ height: trackHeight(track.trackId) }}
                 onContextMenu={event => {
-                  const frame = frameForClientX(event.clientX)
-                  openContextMenu(event, { kind: 'empty', trackId: track.trackId, frame })
+                  openContextMenu(event, { kind: 'empty', trackId: track.trackId })
                 }}
               >
                 <div className="dialogueAudioTrackCueLayer">
@@ -1851,10 +1988,10 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 </div>
                 <div
                   className="dialogueAudioWaveformLane"
-                  onPointerDown={event => beginRangeSelection(event, track.trackId)}
-                  onPointerMove={moveRangeSelection}
-                  onPointerUp={finishRangeSelection}
-                  onPointerCancel={finishRangeSelection}
+                  onPointerDown={event => beginTimelineGesture(event, track.trackId)}
+                  onPointerMove={moveTimelineGesture}
+                  onPointerUp={event => finishTimelineGesture(event)}
+                  onPointerCancel={event => finishTimelineGesture(event, true)}
                 >
                   {track.clips.length === 0 && <span className="dialogueAudioEmpty">録音または音声読込</span>}
                   {track.clips.map(sourceClip => {
@@ -1864,7 +2001,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       <TooltipTarget label="クリックで選択 / Ctrlクリックで複数選択 / ドラッグで移動">
                         {tooltipProps => <button
                           type="button"
-                          className={`dialogueAudioClipHandle ${selectedClipIds.includes(sourceClip.clipId) ? 'isSelected' : ''}`}
+                          className={`dialogueAudioClipHandle ${dialogueAudioSelectionContains(audioSelectionState, {
+                            kind: 'clip',
+                            trackId: track.trackId,
+                            id: sourceClip.clipId,
+                          }) ? 'isSelected' : ''}`}
                           style={{
                             ...rangeStyle(sourceClip.timelineStartFrame, sourceClip.timelineStartFrame + sourceClip.durationFrames - 1, frameOrigin, timelineDurationFrames),
                             top: 1 + dialogueAudioClipHandleLane(track.clips, sourceClip.clipId) * 13,
@@ -1872,7 +2013,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                           {...tooltipProps}
                           onPointerDown={event => {
                             tooltipProps.onPointerDown()
-                            beginClipDrag(event, track.trackId, sourceClip)
+                            if (timelineTool !== 'range') beginClipDrag(event, track.trackId, sourceClip)
                           }}
                           onPointerMove={moveClipDrag}
                           onPointerUp={event => finishClipDrag(event)}
@@ -1891,25 +2032,39 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                   })}
                   {track.speechCandidates.map(candidate => {
                     const presentation = candidatePresentation(candidate, displayCutState, activeRevisionId)
-                    const openCandidates = selectedCandidateIds.includes(candidate.candidateId) ? track.speechCandidates.filter(item => selectedCandidateIds.includes(item.candidateId)) : [candidate]
+                    const candidateSelected = dialogueAudioSelectionContains(audioSelectionState, {
+                      kind: 'candidate',
+                      trackId: track.trackId,
+                      id: candidate.candidateId,
+                    })
+                    const trackSelectedCandidateIds = selectedCandidateRefs
+                      .filter(entity => entity.trackId === track.trackId)
+                      .map(entity => entity.id)
+                    const openCandidates = candidateSelected
+                      ? track.speechCandidates.filter(item => trackSelectedCandidateIds.includes(item.candidateId))
+                      : [candidate]
                     return <TooltipTarget key={candidate.candidateId} label={presentation.title}>
                       {tooltipProps => <button
                         type="button"
-                        className={`dialogueSpeechCandidate is-${presentation.state} ${selectedCandidateIds.includes(candidate.candidateId) ? 'isSelected' : ''}`}
+                        className={`dialogueSpeechCandidate is-${presentation.state} ${candidateSelected ? 'isSelected' : ''}`}
                         style={candidateHitStyle(candidate.frameStart, candidate.frameEnd, frameOrigin, timelineDurationFrames, timelineWidth)}
                         {...tooltipProps}
-                        onPointerDown={() => {
+                        onPointerDown={event => {
+                          if (timelineTool !== 'range') event.stopPropagation()
                           tooltipProps.onPointerDown()
                         }}
                         onClick={event => selectCandidate(event, track, candidate)}
-                        onDoubleClick={event => { event.stopPropagation(); openCandidateSound(track.trackId, openCandidates) }}
+                        onDoubleClick={event => {
+                          event.stopPropagation()
+                          if (timelineTool !== 'range') openCandidateSound(track.trackId, openCandidates)
+                        }}
                         onContextMenu={event => openContextMenu(event, {
                           kind: 'candidate',
                           trackId: track.trackId,
                           candidateIds: openCandidates.map(item => item.candidateId),
                           ignored: openCandidates.every(item => item.status === 'ignored'),
                         })}
-                        aria-label={`発話候補 ${candidate.frameStart}–${candidate.frameEnd}F ${presentation.label}`}
+                        aria-label={`セリフ区間候補 ${candidate.frameStart}–${candidate.frameEnd}F${presentation.label ? ` ${presentation.label}` : ''}`}
                       ><span className="dialogueSpeechCandidateVisual">{presentation.label}</span></button>}
                     </TooltipTarget>
                   })}
@@ -1920,26 +2075,32 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                     return <TooltipTarget key={region.regionId} label={`${assignment ? '割付済み' : '未割付'}：${label} ${region.frameStart}–${region.frameEnd}F`}>
                       {tooltipProps => <button
                         type="button"
-                        className={`dialogueAudioRegion ${assignment ? `is-${assignment.status}` : 'is-unassigned'} ${selectedRegionId === region.regionId ? 'isSelected' : ''}`}
+                        className={`dialogueAudioRegion ${assignment ? `is-${assignment.status}` : 'is-unassigned'} ${dialogueAudioSelectionContains(audioSelectionState, {
+                          kind: 'region',
+                          trackId: track.trackId,
+                          id: region.regionId,
+                        }) ? 'isSelected' : ''}`}
                         style={rangeStyle(region.frameStart, region.frameEnd, frameOrigin, timelineDurationFrames)}
                         {...tooltipProps}
+                        onPointerDown={event => {
+                          if (timelineTool !== 'range') event.stopPropagation()
+                          tooltipProps.onPointerDown()
+                        }}
                         onClick={event => {
                           event.stopPropagation()
+                          if (timelineTool === 'range') return
                           if (track.trackId !== cutState.activeTrackId) {
                             onCutStateChange({ cutState: { ...cutState, activeTrackId: track.trackId }, recordHistory: false })
                           }
-                          setAudioSelection({
+                          setAudioSelectionState(current => toggleDialogueAudioSelectionEntity(current, {
                             kind: 'region',
                             trackId: track.trackId,
-                            regionId: region.regionId,
-                            candidateIds: region.candidateIds,
-                            frameStart: region.frameStart,
-                            frameEnd: region.frameEnd,
-                          })
+                            id: region.regionId,
+                          }, event.ctrlKey || event.metaKey || event.shiftKey))
                         }}
                         onDoubleClick={event => {
                           event.stopPropagation()
-                          openDialogueRegion(track, region.regionId)
+                          if (timelineTool !== 'range') openDialogueRegion(track, region.regionId)
                         }}
                         onContextMenu={event => openContextMenu(event, {
                           kind: 'region',
@@ -1951,10 +2112,16 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       >{label}</button>}
                     </TooltipTarget>
                   })}
-                  {audioSelection?.kind !== 'clip' && audioSelection?.trackId === track.trackId && <span className="dialogueAudioSelection" style={rangeStyle(audioSelection.frameStart, audioSelection.frameEnd, frameOrigin, timelineDurationFrames)} />}
+                  {audioSelectionState.timeRange?.trackId === track.trackId && <span className="dialogueAudioSelection" style={rangeStyle(
+                    audioSelectionState.timeRange.frameStart,
+                    audioSelectionState.timeRange.frameEnd,
+                    frameOrigin,
+                    timelineDurationFrames,
+                  )} />}
                 </div>
               </div>
             ))}
+            {marqueeStyle && <span className="dialogueAudioMarquee" style={marqueeStyle} />}
             <span
               className="dialogueAudioPlayhead"
               style={{
@@ -2035,117 +2202,6 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   )
 }
 
-function clipSelectionForIds(
-  track: DialogueAudioTrackState,
-  clipIdsInput: string[],
-): Extract<DialogueAudioSelectionFocus, { kind: 'clip' }> | null {
-  const requested = new Set(clipIdsInput)
-  const clips = track.clips.filter(clip => requested.has(clip.clipId))
-  if (clips.length === 0) return null
-  return {
-    kind: 'clip',
-    trackId: track.trackId,
-    clipIds: clips.map(clip => clip.clipId),
-    frameStart: Math.min(...clips.map(clip => clip.timelineStartFrame)),
-    frameEnd: Math.max(...clips.map(clip => clip.timelineStartFrame + clip.durationFrames - 1)),
-  }
-}
-
-function candidateSelection(
-  trackId: string,
-  candidates: DialogueSpeechCandidate[],
-): Extract<DialogueAudioSelectionFocus, { kind: 'candidate' }> {
-  return {
-    kind: 'candidate',
-    trackId,
-    candidateIds: candidates.map(candidate => candidate.candidateId),
-    frameStart: Math.min(...candidates.map(candidate => candidate.frameStart)),
-    frameEnd: Math.max(...candidates.map(candidate => candidate.frameEnd)),
-  }
-}
-
-function dialogueAudioClipHandleLane(clips: DialogueAudioClip[], targetClipId: string): number {
-  const laneEnds: number[] = []
-  const ordered = [...clips].sort((left, right) =>
-    left.timelineStartFrame - right.timelineStartFrame
-    || left.timelineStartFrame + left.durationFrames - (right.timelineStartFrame + right.durationFrames)
-    || left.clipId.localeCompare(right.clipId))
-  for (const clip of ordered) {
-    const frameEnd = clip.timelineStartFrame + clip.durationFrames - 1
-    let lane = laneEnds.findIndex(end => end < clip.timelineStartFrame)
-    if (lane < 0) lane = laneEnds.length
-    laneEnds[lane] = frameEnd
-    if (clip.clipId === targetClipId) return lane
-  }
-  return 0
-}
-
-function contextMenuTitle(target: DialogueAudioContextTarget): string {
-  switch (target.kind) {
-    case 'track': return 'トラック'
-    case 'empty': return `${target.frame}F`
-    case 'range': return `選択範囲 ${target.frameStart}–${target.frameEnd}F`
-    case 'clip': return `音声クリップ ${target.clipIds.length}個 / ${target.frameStart}–${target.frameEnd}F`
-    case 'candidate': return `VAD候補 ${target.candidateIds.length}区間`
-    case 'region': return 'セリフ区間'
-    case 'cue': return 'リンクSOUND'
-  }
-}
-
-function contextMenuAriaLabel(target: DialogueAudioContextTarget): string {
-  return `${contextMenuTitle(target)}の操作`
-}
-
-function contextCommandLabel(command: DialogueAudioContextCommand): string {
-  switch (command) {
-    case 'redetect-track': return 'トラック全体をVAD再検出'
-    case 'clear-track': return 'トラックをクリア'
-    case 'import-here': return 'ここへ音声ファイルを読み込む'
-    case 'paste-overwrite': return 'ここへ上書き貼り付け　Ctrl+V'
-    case 'paste-insert': return 'ここへ挿入貼り付け　Ctrl+Shift+V'
-    case 'assign-sound': return 'SOUNDへ割り付け…'
-    case 'copy': return 'コピー　Ctrl+C'
-    case 'cut': return '切り取り　Ctrl+X'
-    case 'silence': return '無音化（リフト）　Delete'
-    case 'ripple-delete': return 'リップル削除　Shift+Delete'
-    case 'delete-clips': return '選択クリップを削除　Delete'
-    case 'redetect-clips': return '選択クリップをVAD再検出'
-    case 'ignore-candidate': return 'VAD候補を無視'
-    case 'restore-candidate': return 'VAD候補を検出対象へ戻す'
-    case 'edit-sound': return 'リンクSOUNDを編集…'
-    case 'select-sheet-cue': return 'タイムシート側のSOUNDを選択'
-    case 'align-audio-to-cue': return '音声をSOUND位置へ揃える'
-    case 'align-cue-to-audio': return 'SOUNDを音声位置へ揃える'
-    case 'unlink-sound': return 'SOUNDとのリンクを解除'
-    case 'remove-region': return 'セリフ区間を解除'
-    case 'track-vad-mode':
-    case 'track-height':
-    case 'insert-silence':
-      return ''
-  }
-}
-
-function SpeakerIcon({ muted }: { muted: boolean }) {
-  return <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor" />
-    {muted
-      ? <path d="m16 9 5 6m0-6-5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      : <>
-          <path d="M16 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <path d="M18.5 5.5a9 9 0 0 1 0 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </>}
-  </svg>
-}
-
-function AudioImportIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M3.5 6.5h6l2 2h9v10h-17Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-    <path d="M10 16v-4.5l5-1v4.2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    <circle cx="8.8" cy="16.2" r="1.6" fill="currentColor" />
-    <circle cx="13.8" cy="14.8" r="1.6" fill="currentColor" />
-  </svg>
-}
-
 function TimeRuler(props: {
   durationFrames: number
   fps: number
@@ -2202,14 +2258,6 @@ function TimelineBoundaryMarker(props: {
   )
 }
 
-function candidatePresentation(candidate: DialogueSpeechCandidate, state: DialogueAudioCutState, activeRevisionId: string) {
-  if (candidate.status === 'ignored') return { state: 'ignored', label: '無視', title: `無視した発話候補 ${candidate.frameStart}–${candidate.frameEnd}F` }
-  const assignment = assignmentForCandidate(state, candidate.candidateId, activeRevisionId)
-  if (assignment?.status === 'linked') return { state: 'linked', label: 'VAD', title: `音響指示へ割付済みのVAD ${candidate.frameStart}–${candidate.frameEnd}F` }
-  if (assignment || candidate.status === 'review') return { state: 'review', label: '要確認', title: assignment?.reviewReason ?? candidate.reviewReason ?? 'リンク状態を確認してください。' }
-  return { state: 'pending', label: 'VAD', title: `ダブルクリックでセリフ区間を作成して音響指示へ割り付け ${candidate.frameStart}–${candidate.frameEnd}F` }
-}
-
 function mergeRanges(ranges: DialogueAudioRange[]): DialogueAudioRange[] {
   return ranges.sort((left, right) => left.frameStart - right.frameStart).reduce<DialogueAudioRange[]>((result, range) => {
     const previous = result.at(-1)
@@ -2231,34 +2279,6 @@ function vadResultSuffix(analysis: DialogueSileroAnalysis | undefined): string {
   return analysis.engine === 'silero'
     ? ' Silero VADで検出しました。'
     : ` 簡易検出へ切り替えました${analysis.error ? `（${analysis.error}）` : '。'}`
-}
-
-function rangeStyle(frameStart: number, rangeFrameEnd: number, frameOrigin: number, durationFrames: number) {
-  return {
-    left: `${(frameStart - frameOrigin) / Math.max(1, durationFrames) * 100}%`,
-    width: `${Math.max(1, rangeFrameEnd - frameStart + 1) / Math.max(1, durationFrames) * 100}%`,
-  }
-}
-
-function candidateHitStyle(
-  frameStart: number,
-  rangeFrameEnd: number,
-  frameOrigin: number,
-  durationFrames: number,
-  timelineWidth: number,
-): CSSProperties {
-  const safeDuration = Math.max(1, durationFrames)
-  const safeWidth = Math.max(1, timelineWidth)
-  const visualLeft = (frameStart - frameOrigin) / safeDuration * safeWidth
-  const visualWidth = Math.max(1, (rangeFrameEnd - frameStart + 1) / safeDuration * safeWidth)
-  const hitWidth = Math.min(safeWidth, Math.max(16, visualWidth))
-  const hitLeft = Math.max(0, Math.min(safeWidth - hitWidth, visualLeft - (hitWidth - visualWidth) / 2))
-  return {
-    left: `${hitLeft}px`,
-    width: `${hitWidth}px`,
-    '--candidate-visual-left': `${visualLeft - hitLeft}px`,
-    '--candidate-visual-width': `${visualWidth}px`,
-  } as CSSProperties
 }
 
 function formatFrame(frame: number, frameOrigin: number, fps: number): string {

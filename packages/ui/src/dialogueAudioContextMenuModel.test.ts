@@ -11,7 +11,7 @@ describe('dialogueAudioContextCommands', () => {
   it('keeps global VAD settings out of every context target', () => {
     const targets: DialogueAudioContextTarget[] = [
       { kind: 'track', trackId: 'dialogue-1' },
-      { kind: 'empty', trackId: 'dialogue-1', frame: 12 },
+      { kind: 'empty', trackId: 'dialogue-1' },
       { kind: 'range', trackId: 'dialogue-1', frameStart: 12, frameEnd: 24 },
       { kind: 'clip', trackId: 'dialogue-1', clipIds: ['clip-1'], frameStart: 12, frameEnd: 24 },
       { kind: 'candidate', trackId: 'dialogue-1', candidateIds: ['vad-1'], ignored: false },
@@ -30,8 +30,8 @@ describe('dialogueAudioContextCommands', () => {
     ])
   })
 
-  it('uses the clicked empty frame only for placement operations', () => {
-    expect(dialogueAudioContextCommands({ kind: 'empty', trackId: 'dialogue-2', frame: 48 }, available)).toEqual([
+  it('uses the playhead for placement operations on an empty track area', () => {
+    expect(dialogueAudioContextCommands({ kind: 'empty', trackId: 'dialogue-2' }, available)).toEqual([
       'import-here',
       'paste-overwrite',
       'paste-insert',
@@ -87,7 +87,7 @@ describe('resolveDialogueAudioContextTarget', () => {
   const manualRange = { kind: 'range' as const, trackId: 'dialogue-1', frameStart: 10, frameEnd: 30 }
 
   it.each([
-    { kind: 'empty' as const, trackId: 'dialogue-1', frame: 20 },
+    { kind: 'empty' as const, trackId: 'dialogue-1' },
     { kind: 'candidate' as const, trackId: 'dialogue-1', candidateIds: ['vad-1'], ignored: false },
     { kind: 'region' as const, trackId: 'dialogue-1', regionId: 'region-1', linked: true },
     { kind: 'clip' as const, trackId: 'dialogue-1', clipIds: ['clip-1'], frameStart: 1, frameEnd: 40 },

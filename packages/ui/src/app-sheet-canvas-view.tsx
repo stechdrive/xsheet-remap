@@ -58,8 +58,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
-    handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
-    handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
+    handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCueDoubleClick, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
+    handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCueDoubleClick, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, runTimedRangeLaneHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openTimelineLaneEditor, submitTimelineLaneEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
@@ -322,7 +322,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onPointerMove={handleSoundCuePointerMove}
                       onPointerUp={event => finishSoundCuePointer(event)}
                       onPointerCancel={event => finishSoundCuePointer(event, true)}
-                      onDoubleClick={props.onSoundCueEdit}
+                      onDoubleClick={handleSoundCueDoubleClick}
                       onPointerEnter={handleSoundCuePointerEnter}
                       onPointerLeave={handleSoundCuePointerLeave}
                     />
@@ -343,7 +343,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onPointerMove={handleCameraCuePointerMove}
                       onPointerUp={event => finishCameraCuePointer(event)}
                       onPointerCancel={event => finishCameraCuePointer(event, true)}
-                      onDoubleClick={props.onCameraCueEdit}
+                      onDoubleClick={handleCameraCueDoubleClick}
                       onPointerEnter={handleCameraCuePointerEnter}
                       onPointerLeave={handleCameraCuePointerLeave}
                     />

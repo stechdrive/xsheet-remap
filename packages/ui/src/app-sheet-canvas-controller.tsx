@@ -28,7 +28,7 @@ import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { usePointerDragSession } from './usePointerDragSession';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
-import { resolveSheetViewportPointerIntent, sheetViewportPointerTarget } from './workspaceInteractionPolicy';
+import { advancePrimaryPointerActivation, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
 
 type AnnotationStrokeDragSession = {
   pointerId: number
@@ -65,6 +65,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   } | null>(null)
   const [hoveredSoundCueId, setHoveredSoundCueId] = useState<string | null>(null)
   const [soundCueHoverAnchor, setSoundCueHoverAnchor] = useState<{ x: number; y: number } | null>(null)
+  const lastSoundCueActivationRef = useRef<PrimaryPointerActivation | null>(null)
   const [cameraCueDrag, setCameraCueDrag] = useState<{
     pointerId: number
     mode: CameraCueDragMode
@@ -78,6 +79,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     labelPointerOffset?: { x: number; frames: number }
     labelOriginPlacement?: NonNullable<CameraInstruction['labelPlacement']>
   } | null>(null)
+  const lastCameraCueActivationRef = useRef<PrimaryPointerActivation | null>(null)
   const [hoveredCameraCueId, setHoveredCameraCueId] = useState<string | null>(null)
   const [cameraCueHoverAnchor, setCameraCueHoverAnchor] = useState<{ x: number; y: number } | null>(null)
   const [pendingTimelineEventDrag, setPendingTimelineEventDragState] = useState<PendingTimelineEventInteraction | null>(null)
@@ -1162,7 +1164,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function handleSoundCuePointerDown(event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: SoundCueDragMode) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     if (props.editMode === 'pen' || props.editMode === 'eraser' || props.editMode === 'text' || props.editMode === 'calibrate') return
-    event.preventDefault()
+    if (event.pointerType !== 'mouse') event.preventDefault()
     event.stopPropagation()
     clearHover()
     setHoveredSoundCueId(null)
@@ -1172,7 +1174,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const grabOffsetFrames = pointed
       ? clampNumber(pointed.hit.frame - cue.frameStart, 0, cue.frameEnd - cue.frameStart)
       : 0
-    event.currentTarget.ownerSVGElement?.setPointerCapture?.(event.pointerId)
     const nextDrag = {
       pointerId: event.pointerId,
       mode,
@@ -1217,7 +1218,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setSoundCueDrag(nextDrag)
   }
 
-  function finishSoundCuePointerById(pointerId: number, cancelled = false) {
+  function finishSoundCuePointerById(pointerId: number, cancelled = false, clientX?: number, clientY?: number) {
     const current = soundCueDragRef.current
     if (!current || current.pointerId !== pointerId) return
     soundCueDragRef.current = null
@@ -1225,13 +1226,20 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props.onStatusHint('sheet-drag', null)
     releasePointerCaptureForElements(pointerId, Object.values(sheetSvgRefs.current))
     if (!cancelled && current.moved) {
+      lastSoundCueActivationRef.current = null
       props.onSoundCueTransform(current.origin.cueId, {
         laneId: current.preview.laneId,
         frameStart: current.preview.frameStart,
         frameEnd: current.preview.frameEnd,
       })
+    } else if (!cancelled) {
+      const activation = primaryPointerActivation(current.origin.cueId, performance.now(), clientX ?? current.startX, clientY ?? current.startY)
+      const transition = advancePrimaryPointerActivation(lastSoundCueActivationRef.current, activation)
+      lastSoundCueActivationRef.current = transition.next
+      if (transition.repeated) props.onSoundCueEdit(current.origin.cueId)
+      else props.onSoundCueSelect(current.origin.cueId)
     } else {
-      props.onSoundCueSelect(current.origin.cueId)
+      lastSoundCueActivationRef.current = null
     }
   }
 
@@ -1241,7 +1249,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     updateSoundCuePointer(event.pointerId, event.clientX, event.clientY)
   }
   function finishSoundCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) {
-    finishSoundCuePointerById(event.pointerId, cancelled)
+    finishSoundCuePointerById(event.pointerId, cancelled, event.clientX, event.clientY)
+  }
+
+  function handleSoundCueDoubleClick(cueId: string) {
+    lastSoundCueActivationRef.current = null
+    props.onSoundCueEdit(cueId)
   }
 
   function handleSoundCuePointerEnter(event: PointerEvent<SVGGElement>, cueId: string) {
@@ -1259,7 +1272,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function handleCameraCuePointerDown(event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: CameraCueDragMode, geometry?: CameraCueDragGeometry) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     if (props.editMode === 'pen' || props.editMode === 'eraser' || props.editMode === 'text' || props.editMode === 'calibrate') return
-    event.preventDefault()
+    if (event.pointerType !== 'mouse') event.preventDefault()
     event.stopPropagation()
     clearHover()
     setHoveredCameraCueId(null)
@@ -1283,7 +1296,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
           heightFrames: Math.max(1, Math.round(labelLayout.rect.h / Math.max(0.000001, labelLayout.rowHeight))),
         }
       : undefined
-    event.currentTarget.ownerSVGElement?.setPointerCapture?.(event.pointerId)
     const nextDrag = {
       pointerId: event.pointerId,
       mode,
@@ -1376,7 +1388,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setCameraCueDrag(nextDrag)
   }
 
-  function finishCameraCuePointerById(pointerId: number, cancelled = false) {
+  function finishCameraCuePointerById(pointerId: number, cancelled = false, clientX?: number, clientY?: number) {
     const current = cameraCueDragRef.current
     if (!current || current.pointerId !== pointerId) return
     cameraCueDragRef.current = null
@@ -1384,14 +1396,21 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props.onStatusHint('sheet-drag', null)
     releasePointerCaptureForElements(pointerId, Object.values(sheetSvgRefs.current))
     if (!cancelled && current.moved) {
+      lastCameraCueActivationRef.current = null
       props.onCameraCueTransform(current.origin.cueId, {
         laneId: current.preview.laneId,
         frameStart: current.preview.frameStart,
         frameEnd: current.preview.frameEnd,
         camera: current.preview.camera,
       })
+    } else if (!cancelled) {
+      const activation = primaryPointerActivation(current.origin.cueId, performance.now(), clientX ?? current.startX, clientY ?? current.startY)
+      const transition = advancePrimaryPointerActivation(lastCameraCueActivationRef.current, activation)
+      lastCameraCueActivationRef.current = transition.next
+      if (transition.repeated) props.onCameraCueEdit(current.origin.cueId)
+      else props.onCameraCueSelect(current.origin.cueId)
     } else {
-      props.onCameraCueSelect(current.origin.cueId)
+      lastCameraCueActivationRef.current = null
     }
   }
 
@@ -1400,7 +1419,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function handleCameraCuePointerMove(event: PointerEvent<SVGGElement>) {
     updateCameraCuePointer(event.pointerId, event.clientX, event.clientY)
   }
-  function finishCameraCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) { finishCameraCuePointerById(event.pointerId, cancelled) }
+  function finishCameraCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) { finishCameraCuePointerById(event.pointerId, cancelled, event.clientX, event.clientY) }
+
+  function handleCameraCueDoubleClick(cueId: string) {
+    lastCameraCueActivationRef.current = null
+    props.onCameraCueEdit(cueId)
+  }
 
   function handleCameraCuePointerEnter(event: PointerEvent<SVGGElement>, cueId: string) {
     if (cameraCueDragRef.current) return
@@ -1432,6 +1456,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>, page: SheetPage) {
+    lastSoundCueActivationRef.current = null
+    lastCameraCueActivationRef.current = null
     if (beginViewportPan(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
     event.preventDefault(); if (props.selectedTimelineMemoId) { props.onSelectTimelineMemo(null); return }
@@ -2136,6 +2162,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function handleViewportPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget || (event.target instanceof HTMLElement && event.target.classList.contains('sheetPageStack'))) {
+      lastSoundCueActivationRef.current = null
+      lastCameraCueActivationRef.current = null
+    }
     const intent = resolveSheetViewportPointerIntent({
       pointerType: event.pointerType,
       button: event.button,
@@ -2253,8 +2283,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
-    handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
-    handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
+    handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCueDoubleClick, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
+    handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCueDoubleClick, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     ...timelineLaneEditorActions,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,

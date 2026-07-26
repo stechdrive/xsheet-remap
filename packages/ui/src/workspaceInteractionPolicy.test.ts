@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  advancePrimaryPointerActivation,
+  isRepeatedPrimaryPointerActivation,
   nextSoundCueNavigationRequest,
   resolveSheetViewportPointerIntent,
   sheetViewportPointerTarget,
@@ -37,5 +39,19 @@ describe('workspace interaction policy', () => {
     expect(sheetViewportPointerTarget(viewport, viewport)).toBe('background')
     expect(sheetViewportPointerTarget(stack, viewport)).toBe('background')
     expect(sheetViewportPointerTarget(page, viewport)).toBe('sheet-content')
+  })
+
+  it('recognizes a repeated activation only on the same nearby target within the double-click window', () => {
+    const first = { targetId: 'cue-1', timeStamp: 100, clientX: 20, clientY: 30 }
+    expect(isRepeatedPrimaryPointerActivation(first, { targetId: 'cue-1', timeStamp: 450, clientX: 22, clientY: 32 })).toBe(true)
+    expect(isRepeatedPrimaryPointerActivation(first, { targetId: 'cue-2', timeStamp: 450, clientX: 22, clientY: 32 })).toBe(false)
+    expect(isRepeatedPrimaryPointerActivation(first, { targetId: 'cue-1', timeStamp: 700, clientX: 22, clientY: 32 })).toBe(false)
+    expect(isRepeatedPrimaryPointerActivation(first, { targetId: 'cue-1', timeStamp: 450, clientX: 30, clientY: 40 })).toBe(false)
+  })
+
+  it('clears a completed double activation and retains a new first activation', () => {
+    const first = { targetId: 'cue-1', timeStamp: 100, clientX: 20, clientY: 30 }
+    expect(advancePrimaryPointerActivation(null, first)).toEqual({ repeated: false, next: first })
+    expect(advancePrimaryPointerActivation(first, { ...first, timeStamp: 300 })).toEqual({ repeated: true, next: null })
   })
 })

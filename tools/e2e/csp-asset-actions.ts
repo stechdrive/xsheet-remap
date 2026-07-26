@@ -68,7 +68,8 @@ export async function waitForStackGuideCardAsset(
       (() => {
         const tracks = Array.from(document.querySelectorAll('.cspTreeTrack'));
         const track = tracks.find(item => item.querySelector('.cspTreeTrackName')?.textContent?.trim() === ${JSON.stringify(label)});
-        return Boolean(track && (track.textContent || '').includes(${JSON.stringify(fileName)}));
+        const assetState = track?.querySelector('.cspTreeAssetState');
+        return assetState?.getAttribute('aria-label') === ${JSON.stringify(`素材: ${fileName}`)};
       })()
     `),
     10000,

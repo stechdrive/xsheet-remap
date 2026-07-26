@@ -1296,7 +1296,9 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
     expect(screen.queryByRole('dialog', { name: 'SOUND指示' })).toBeNull()
     expect(document.querySelector('.draftRangeRect')).toBeNull()
 
-    fireEvent.doubleClick(cue)
+    cue = document.querySelector<SVGGElement>('.soundCue')!
+    const soundBody = cue.querySelector<SVGRectElement>('.soundCueBody')!
+    fireEvent.doubleClick(soundBody, { button: 0, clientX: x, clientY: frameY(2) })
     expect((screen.getByLabelText('SOUNDラベル') as HTMLInputElement).value).toBe('アキラ')
     fireEvent.change(screen.getByLabelText('SOUNDラベル'), { target: { value: 'SE' } })
     fireEvent.click(screen.getByRole('button', { name: '更新' }))
@@ -1439,7 +1441,9 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     fireEvent.pointerUp(movedLabelGroup, { pointerId: 107, pointerType: 'mouse', button: 0, buttons: 0, clientX: x + laneWidth * 2000, clientY: frameY(27) })
     await waitFor(() => expect(document.querySelector('.cameraCueLabel')?.classList.contains('manual')).toBe(true))
 
-    fireEvent.doubleClick(document.querySelector<SVGGElement>('.cameraCue')!)
+    cue = document.querySelector<SVGGElement>('.cameraCue')!
+    const cameraEditHit = document.querySelector<SVGRectElement>('.cameraCueLabelHit')!
+    fireEvent.doubleClick(cameraEditHit, { button: 0, clientX: x, clientY: frameY(28) })
     expect((screen.getByLabelText('中間ラベル1から次の点までの交差フレーム') as HTMLInputElement).value).toBe('28')
     expect(screen.getByRole('button', { name: '自動配置に戻す' })).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: '開始から次の点までをフェードイン・ワイプイン' }))

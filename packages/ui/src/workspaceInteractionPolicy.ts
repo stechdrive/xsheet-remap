@@ -10,6 +10,22 @@ export type SheetViewportPointerIntent =
   | 'clear-primary-selection'
   | 'delegate'
 
+export interface PrimaryPointerActivation {
+  targetId: string
+  timeStamp: number
+  clientX: number
+  clientY: number
+}
+
+export function primaryPointerActivation(
+  targetId: string,
+  timeStamp: number,
+  clientX: number,
+  clientY: number,
+): PrimaryPointerActivation {
+  return { targetId, timeStamp, clientX, clientY }
+}
+
 export function nextSoundCueNavigationRequest(
   current: SoundCueNavigationRequest | null,
   cueId: string,
@@ -40,4 +56,24 @@ export function sheetViewportPointerTarget(
   if (target === viewport) return 'background'
   if (target instanceof HTMLElement && target.classList.contains('sheetPageStack')) return 'background'
   return 'sheet-content'
+}
+
+export function isRepeatedPrimaryPointerActivation(
+  previous: PrimaryPointerActivation | null,
+  current: PrimaryPointerActivation,
+  options: { maxDelayMs?: number; maxDistancePx?: number } = {},
+): boolean {
+  if (!previous || previous.targetId !== current.targetId) return false
+  const delay = current.timeStamp - previous.timeStamp
+  if (delay < 0 || delay > (options.maxDelayMs ?? 500)) return false
+  return Math.hypot(current.clientX - previous.clientX, current.clientY - previous.clientY)
+    <= (options.maxDistancePx ?? 4)
+}
+
+export function advancePrimaryPointerActivation(
+  previous: PrimaryPointerActivation | null,
+  current: PrimaryPointerActivation,
+): { repeated: boolean; next: PrimaryPointerActivation | null } {
+  const repeated = isRepeatedPrimaryPointerActivation(previous, current)
+  return { repeated, next: repeated ? null : current }
 }

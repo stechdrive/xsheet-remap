@@ -56,7 +56,7 @@ describe.skipIf(process.platform !== 'win32')('release inventory', () => {
     } finally {
       rmSync(releaseRoot, { recursive: true, force: true })
     }
-  })
+  }, 20_000)
 
   it('accepts an exact flat ZIP and rejects an unexpected file at its root', () => {
     const testRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-zip-'))

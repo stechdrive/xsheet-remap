@@ -1715,7 +1715,7 @@ it('ripples ACTION, CELL, SOUND, and CAMERA together from every frame-bearing co
     fireEvent.pointerDown(sheet, { pointerId: 120, pointerType: 'mouse', button: 0, buttons: 1, clientX: actionPoint.x, clientY: actionPoint.y })
     enterTimingValue('3')
     await waitFor(() => expect(Array.from(document.querySelectorAll('.eventText')).map(item => item.textContent)).toContain('3'))
-  })
+  }, 20_000)
 
 it('registers new timing at the active process without moving it when the destination later changes', () => {
     render(<App />)

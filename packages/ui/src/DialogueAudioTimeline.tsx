@@ -1479,7 +1479,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   function trackHeight(trackId: string): number {
-    return viewPreferences.trackHeights[trackId] ?? DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS.medium
+    return viewPreferences.trackHeights[trackId] ?? DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS.small
   }
 
   function setTrackHeightPreset(trackId: string, preset: DialogueAudioTrackHeightPreset) {

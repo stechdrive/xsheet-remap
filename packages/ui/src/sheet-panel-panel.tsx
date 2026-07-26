@@ -15,7 +15,7 @@ import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrack
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
 import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
-import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
+import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextSizeIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
 import { SheetCanvas } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
@@ -1020,7 +1020,7 @@ export function SheetPanel(props: {
                 <ActionMenu
                   label={<DisplaySettingsIcon />}
                   ariaLabel={uiText.sheet.displaySettingsMenu}
-                  tooltipLabel={uiText.sheet.viewModeMenuTitle}
+                  tooltipLabel={uiText.sheet.displaySettingsMenu}
                   className="workspaceRailAction sheetDisplaySettingsMenu sheetLayerMenu"
                   placement="right-start"
                 >
@@ -1087,9 +1087,9 @@ export function SheetPanel(props: {
                   </div>
                 </ActionMenu>
                 <ActionMenu
-                  label={<TextToolIcon />}
+                  label={<TextSizeIcon />}
                   ariaLabel={uiText.sheet.timingTextSettings}
-                  tooltipLabel={uiText.sheet.timingTextFontSizeTitle}
+                  tooltipLabel="入力文字サイズ"
                   className={`workspaceRailAction timingTextRailMenu${props.hasSelectedTextTarget ? ' active' : ''}`}
                   placement="right-start"
                 >

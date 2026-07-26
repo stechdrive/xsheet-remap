@@ -1,24 +1,60 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { createDefaultDialogueAudioCutState } from './dialogueAudioProject'
 import {
   DIALOGUE_AUDIO_DEFAULT_PANEL_HEIGHT,
+  DIALOGUE_AUDIO_DEFAULT_TRACK_HEIGHT,
   DIALOGUE_AUDIO_MAX_PANEL_HEIGHT,
   DIALOGUE_AUDIO_MIN_PANEL_HEIGHT,
   DIALOGUE_AUDIO_MAX_TRACK_HEIGHT,
   DIALOGUE_AUDIO_MIN_TRACK_HEIGHT,
+  DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS,
   clampDialogueAudioPanelHeight,
   clampDialogueAudioTrackHeight,
+  defaultDialogueAudioViewPreferences,
   dialogueAudioContentEndFrame,
   dialogueAudioPixelsPerFrameFromZoomSlider,
   dialogueAudioZoomSliderValue,
   effectiveDialogueAudioPixelsPerFrame,
   ensureDialogueAudioTimelineDuration,
   fitDialogueAudioPixelsPerFrame,
+  loadDialogueAudioViewPreferences,
   planDialogueAudioClipPlayback,
   planDialogueAudioRulerTicks,
+  saveDialogueAudioViewPreferences,
 } from './dialogueAudioTimelineModel'
 
+afterEach(() => {
+  localStorage.clear()
+})
+
 describe('dialogue audio timeline view model', () => {
+  it('starts with compact small tracks and migrates the former untouched panel default', () => {
+    expect(defaultDialogueAudioViewPreferences()).toMatchObject({
+      panelHeight: 288,
+      trackHeights: {},
+    })
+    expect(DIALOGUE_AUDIO_DEFAULT_TRACK_HEIGHT).toBe(DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS.small)
+
+    saveDialogueAudioViewPreferences({
+      fitTimeline: true,
+      pixelsPerFrame: 4,
+      panelHeight: 480,
+      trackHeights: {},
+    })
+    expect(loadDialogueAudioViewPreferences().panelHeight).toBe(DIALOGUE_AUDIO_DEFAULT_PANEL_HEIGHT)
+
+    saveDialogueAudioViewPreferences({
+      fitTimeline: true,
+      pixelsPerFrame: 4,
+      panelHeight: 480,
+      trackHeights: { 'dialogue-1': DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS.large },
+    })
+    expect(loadDialogueAudioViewPreferences()).toMatchObject({
+      panelHeight: 480,
+      trackHeights: { 'dialogue-1': DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS.large },
+    })
+  })
+
   it('fits the complete independent audio duration to the available viewport', () => {
     expect(fitDialogueAudioPixelsPerFrame(960, 240)).toBe(4)
     expect(fitDialogueAudioPixelsPerFrame(960, 9600)).toBe(0.1)

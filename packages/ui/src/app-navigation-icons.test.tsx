@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { DisplaySettingsIcon, PaperSheetIcon, SharedCutIcon } from './app-navigation'
+import { DisplaySettingsIcon, PaperSheetIcon, SharedCutIcon, TextSizeIcon } from './app-navigation'
 
 describe('sheet workspace rail icons', () => {
   it.each([
@@ -18,23 +18,28 @@ describe('sheet workspace rail icons', () => {
       Icon: PaperSheetIcon,
       className: 'paperSheetIcon',
       paths: [
-        'M7 2.5h9.5L19 5v6.5H7z',
-        'M16.5 2.5V5H19M9.5 7.5h7',
-        'M4 10.5h16l1.5 4v5H2.5v-5z',
-        'M5 14.5h14',
-        'M6 19.5v2h12v-2',
+        'M6 2.5h9l3 3v16H6z',
+        'M15 2.5v3h3M8.5 8.5h7M8.5 11.5h4',
+        'M13.5 20v-6.5M10.5 16.5l3-3 3 3',
       ],
     },
     {
       Icon: DisplaySettingsIcon,
       className: 'pageDisplayIcon',
       paths: [
-        'M2.5 12S6 6 12 6s9.5 6 9.5 6S18 18 12 18 2.5 12 2.5 12z',
-        'M12 9v6',
+        'M9.6 3.5h4.8l.5 2.1c.6.2 1.2.6 1.7 1l2.1-.6 2.4 4.1-1.6 1.5v.8l1.6 1.5-2.4 4.1-2.1-.6c-.5.4-1.1.8-1.7 1l-.5 2.1H9.6l-.5-2.1c-.6-.2-1.2-.6-1.7-1l-2.1.6-2.4-4.1 1.6-1.5v-.8l-1.6-1.5L5.3 6l2.1.6c.5-.4 1.1-.8 1.7-1z',
       ],
-      rect: { x: '8', y: '9', width: '8', height: '6', rx: '0.7' },
+      circle: { cx: '12', cy: '12', r: '3' },
     },
-  ])('renders the approved $className metaphor at the shared 24-unit size', ({ Icon, className, paths, rect }) => {
+    {
+      Icon: TextSizeIcon,
+      className: 'textSizeIcon',
+      paths: [
+        'M3.5 19 8 6l4.5 13M5.2 14h5.6',
+        'M19.5 19v-6.2c0-1.5-1.1-2.4-2.7-2.4-1.4 0-2.4.7-2.8 1.8M19.5 15.1h-2.3c-2 0-3.2.8-3.2 2.1 0 1.2 1 2 2.4 2 1.8 0 3.1-1.2 3.1-2.7',
+      ],
+    },
+  ])('renders the approved $className metaphor at the shared 24-unit size', ({ Icon, className, paths, circle }) => {
     const { container } = render(<Icon />)
     const svg = container.querySelector('svg')
 
@@ -44,12 +49,12 @@ describe('sheet workspace rail icons', () => {
     expect(svg?.classList.contains(className)).toBe(true)
     expect(Array.from(svg?.querySelectorAll('path') ?? [], path => path.getAttribute('d'))).toEqual(paths)
 
-    if (rect) {
-      const element = svg?.querySelector('rect')
+    if (circle) {
+      const element = svg?.querySelector('circle')
       expect(element).not.toBeNull()
-      expect(Object.fromEntries(Object.keys(rect).map(key => [key, element?.getAttribute(key)]))).toEqual(rect)
+      expect(Object.fromEntries(Object.keys(circle).map(key => [key, element?.getAttribute(key)]))).toEqual(circle)
     } else {
-      expect(svg?.querySelector('rect')).toBeNull()
+      expect(svg?.querySelector('circle')).toBeNull()
     }
   })
 })

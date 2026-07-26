@@ -40,6 +40,12 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.getByRole('button', { name: '⏮ カット頭から' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '▶ 再生ヘッドから' })).toBeTruthy()
     expect(screen.getAllByLabelText(/を録音対象にする/)).toHaveLength(3)
+    expect(screen.getByRole('region', { name: 'セリフ音声タイムライン' }).style.height).toBe('288px')
+    expect(Array.from(document.querySelectorAll<HTMLElement>('.dialogueAudioTrack')).map(track => track.style.height)).toEqual([
+      '60px',
+      '60px',
+      '60px',
+    ])
     expect(screen.queryByLabelText('選択SOUNDをループ')).toBeNull()
     expect(screen.getByRole('separator', { name: '音声タイムラインの高さを変更' })).toBeTruthy()
     const zoomSlider = screen.getByRole('slider', { name: '音声タイムラインのズーム' })

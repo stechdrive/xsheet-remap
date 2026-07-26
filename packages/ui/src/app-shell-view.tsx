@@ -77,7 +77,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
       <ActionMenu
         label={<PaperSheetIcon />}
         ariaLabel="紙シート"
-        tooltipLabel="紙シート画像"
+        tooltipLabel="シート画像の読込・補正"
         className="workspaceRailAction paperSheetRailMenu"
         placement="right-start"
       >

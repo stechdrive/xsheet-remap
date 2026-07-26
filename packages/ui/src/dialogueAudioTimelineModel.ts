@@ -5,12 +5,13 @@ export const DIALOGUE_AUDIO_MAX_PIXELS_PER_FRAME = 24
 export const DIALOGUE_AUDIO_DEFAULT_PIXELS_PER_FRAME = 4
 export const DIALOGUE_AUDIO_MIN_TRACK_HEIGHT = 52
 export const DIALOGUE_AUDIO_MAX_TRACK_HEIGHT = 196
-export const DIALOGUE_AUDIO_DEFAULT_TRACK_HEIGHT = 88
+export const DIALOGUE_AUDIO_DEFAULT_TRACK_HEIGHT = 60
 export const DIALOGUE_AUDIO_MIN_PANEL_HEIGHT = 180
 export const DIALOGUE_AUDIO_MAX_PANEL_HEIGHT = 720
-export const DIALOGUE_AUDIO_DEFAULT_PANEL_HEIGHT = 480
+export const DIALOGUE_AUDIO_DEFAULT_PANEL_HEIGHT = 288
 
 const VIEW_PREFERENCE_KEY = 'xsheet:editor:dialogue-audio-view-v1'
+const LEGACY_DEFAULT_PANEL_HEIGHT = 480
 const RULER_MIN_SECOND_LABEL_SPACING = 38
 const RULER_MIN_FRAME_LABEL_SPACING = 12
 
@@ -36,8 +37,8 @@ export interface DialogueAudioPlaybackSegment {
 }
 
 export const DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS: Record<DialogueAudioTrackHeightPreset, number> = {
-  small: 60,
-  medium: DIALOGUE_AUDIO_DEFAULT_TRACK_HEIGHT,
+  small: DIALOGUE_AUDIO_DEFAULT_TRACK_HEIGHT,
+  medium: 88,
   large: 132,
 }
 
@@ -58,10 +59,13 @@ export function loadDialogueAudioViewPreferences(): DialogueAudioViewPreferences
     const trackHeights = Object.fromEntries(
       Object.entries(value.trackHeights ?? {}).map(([trackId, height]) => [trackId, clampDialogueAudioTrackHeight(height)]),
     )
+    const panelHeight = value.panelHeight === LEGACY_DEFAULT_PANEL_HEIGHT && Object.keys(trackHeights).length === 0
+      ? fallback.panelHeight
+      : value.panelHeight
     return {
       fitTimeline: value.fitTimeline !== false,
       pixelsPerFrame: clampDialogueAudioPixelsPerFrame(value.pixelsPerFrame ?? fallback.pixelsPerFrame),
-      panelHeight: clampDialogueAudioPanelHeight(value.panelHeight),
+      panelHeight: clampDialogueAudioPanelHeight(panelHeight),
       trackHeights,
     }
   } catch {

@@ -290,7 +290,7 @@ async function acquireLock() {
         continue
       }
       if (Date.now() - start > lockTimeoutMs) {
-        throw new Error('Timed out waiting for version sync lock')
+        throw new Error('Timed out waiting for version sync lock', { cause: error })
       }
       await sleep(50)
     }

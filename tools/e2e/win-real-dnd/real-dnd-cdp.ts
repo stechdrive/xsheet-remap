@@ -1386,7 +1386,7 @@ async function runMouseOpJson<T = unknown>(mouseArgs: string[]): Promise<T> {
     } catch {
       // Preserve the process error when the helper could not emit JSON.
     }
-    throw new Error(message)
+    throw new Error(message, { cause: error })
   }
 }
 

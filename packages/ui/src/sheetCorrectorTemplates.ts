@@ -24,7 +24,9 @@ export function parseSheetCorrectorTemplateJson(contents: string): SheetTemplate
   try {
     parsed = JSON.parse(contents.replace(/^\uFEFF/, ''))
   } catch (error) {
-    throw new Error(`テンプレJSONを読み込めません: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`テンプレJSONを読み込めません: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    })
   }
   if (!isSheetTemplateCandidate(parsed)) {
     throw new Error('シートテンプレートJSONではありません。')

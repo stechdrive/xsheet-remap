@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-remap"
-version = "0.1.689"
+version = "0.1.690"
 description = "CSP timesheet remapping workflow"
 authors = ["xsheet-remap contributors"]
 license = "MIT"
@@ -11,12 +11,12 @@ name = "xsheet_remap_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.5.3", features = [] }
+tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.9.5", features = ["protocol-asset"] }
-tauri-plugin-dialog = "2.4.0"
-tauri-plugin-fs = "2.4.2"
+tauri = { version = "2.11.5", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2.7.2"
+tauri-plugin-fs = "2.5.1"
 xsheet-desktop-runtime = { path = "../../../native/desktop-runtime" }
 
 [profile.release]

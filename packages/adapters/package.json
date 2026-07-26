@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/adapters",
-  "version": "0.1.689",
+  "version": "0.1.690",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -9,7 +9,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/api": "^2.11.1",
     "@xsheet-remap/core": "*",
     "fflate": "^0.8.3"
   },

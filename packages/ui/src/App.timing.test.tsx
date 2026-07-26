@@ -1441,7 +1441,6 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     fireEvent.pointerUp(movedLabelGroup, { pointerId: 107, pointerType: 'mouse', button: 0, buttons: 0, clientX: x + laneWidth * 2000, clientY: frameY(27) })
     await waitFor(() => expect(document.querySelector('.cameraCueLabel')?.classList.contains('manual')).toBe(true))
 
-    cue = document.querySelector<SVGGElement>('.cameraCue')!
     const cameraEditHit = document.querySelector<SVGRectElement>('.cameraCueLabelHit')!
     fireEvent.doubleClick(cameraEditHit, { button: 0, clientX: x, clientY: frameY(28) })
     expect((screen.getByLabelText('中間ラベル1から次の点までの交差フレーム') as HTMLInputElement).value).toBe('28')

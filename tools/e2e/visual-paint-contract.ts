@@ -45,7 +45,7 @@ export async function assertSelectorsContributePaint(
   }
 
   const visibleScreenshot = await driver.captureScreenshot()
-  let hiddenScreenshot = ''
+  let hiddenScreenshot: string
   try {
     await driver.evaluate<void>(`
       (() => {

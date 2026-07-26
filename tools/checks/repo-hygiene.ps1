@@ -12,8 +12,9 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
 
 $binaryExtensions = @(
-  ".bin", ".bmp", ".clip", ".dll", ".exe", ".gif", ".ico", ".jpeg", ".jpg",
-  ".pdf", ".png", ".psb", ".psd", ".tar", ".tif", ".tiff", ".webp", ".zip"
+  ".bin", ".bmp", ".clip", ".dll", ".eot", ".exe", ".gif", ".ico", ".jpeg", ".jpg",
+  ".mp3", ".mp4", ".ogg", ".onnx", ".otf", ".pdf", ".png", ".psb", ".psd", ".tar",
+  ".tif", ".tiff", ".ttf", ".wasm", ".wav", ".webm", ".webp", ".woff", ".woff2", ".zip"
 )
 
 function Test-IsTextScanCandidate {

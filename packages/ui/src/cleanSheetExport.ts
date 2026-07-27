@@ -15,7 +15,7 @@ import { defaultSheetImageSettings, loadImage, resolveImageRefUrl, warpSheetImag
 import { defaultLevelCorrectionSettings } from './levelCorrection'
 import {
   createSheetRenderModelContext,
-  continuationRenderItemsForPage,
+  continuationRenderItemsForPages,
   hasOverlayRenderContent,
   inputTextRenderItemsForPage,
   metadataTextRenderItemsForPage,
@@ -659,12 +659,13 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
+  const continuationItemsByPage = continuationRenderItemsForPages(context, context.pages)
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
     ctx.strokeStyle = '#113c2d'
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    for (const item of continuationRenderItemsForPage(context, page)) {
+    for (const item of continuationItemsByPage.get(page.pageId) ?? []) {
       const first = item.path[0]
       if (!first) continue
       ctx.beginPath()

@@ -13,7 +13,7 @@ import {
 import { calibrationGuideMetrics } from './sheet-layers-calibration-render'
 import { eventRectsForPages } from './sheet-layers-hit-geometry'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
-import { continuationRenderItemsForPage, type SheetRenderModelContext } from './sheetRenderModel'
+import { continuationRenderItemsForPages, type SheetRenderModelContext } from './sheetRenderModel'
 
 export function useSheetCanvasRenderCaches({
   project,
@@ -27,6 +27,8 @@ export function useSheetCanvasRenderCaches({
   paperTracks,
   soundCuePreview,
   cameraCuePreview,
+  referenceProject,
+  referenceRenderContext,
 }: {
   project: CutProject
   template: SheetTemplate
@@ -39,6 +41,8 @@ export function useSheetCanvasRenderCaches({
   paperTracks: string[]
   soundCuePreview?: TimedRangeCue
   cameraCuePreview?: TimedRangeCue
+  referenceProject?: CutProject | null
+  referenceRenderContext?: SheetRenderModelContext | null
 }) {
   const visiblePages = useMemo(
     () => viewMode === 'single-page'
@@ -51,8 +55,20 @@ export function useSheetCanvasRenderCaches({
     [activeOverlayPaperTrack, project, template, visiblePages],
   )
   const continuationItemsByPage = useMemo(
-    () => new Map(visiblePages.map(page => [page.pageId, continuationRenderItemsForPage(renderContext, page)])),
+    () => continuationRenderItemsForPages(renderContext, visiblePages),
     [renderContext, visiblePages],
+  )
+  const referenceEventRectsByPage = useMemo(
+    () => referenceProject
+      ? eventRectsForPages(referenceProject, template, visiblePages)
+      : new Map(visiblePages.map(page => [page.pageId, []])),
+    [referenceProject, template, visiblePages],
+  )
+  const referenceContinuationItemsByPage = useMemo(
+    () => referenceRenderContext
+      ? continuationRenderItemsForPages(referenceRenderContext, visiblePages)
+      : new Map(visiblePages.map(page => [page.pageId, []])),
+    [referenceRenderContext, visiblePages],
   )
   const annotationStrokesByPage = useMemo(() => {
     const grouped = new Map<string, AnnotationStroke[]>()
@@ -111,6 +127,8 @@ export function useSheetCanvasRenderCaches({
     visiblePages,
     eventRectsByPage,
     continuationItemsByPage,
+    referenceEventRectsByPage,
+    referenceContinuationItemsByPage,
     annotationStrokesByPage,
     annotationTextsByPage,
     timelineMemoItems,

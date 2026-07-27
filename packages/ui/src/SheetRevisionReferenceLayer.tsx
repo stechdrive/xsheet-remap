@@ -1,6 +1,7 @@
 import { sheetAnnotationStrokes, sheetAnnotationTexts, timelineMemos, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
-import { MetadataTextLayer, eventRectsForPage, strokePath } from './app-sheet-layers'
-import type { SheetRenderModelContext } from './sheetRenderModel'
+import { MetadataTextLayer, strokePath } from './app-sheet-layers'
+import type { SheetEventRectRenderItem } from './sheet-layers-hit-geometry'
+import type { SheetContinuationRenderItem, SheetRenderModelContext } from './sheetRenderModel'
 import { SheetSvgText } from './SheetSvgText'
 import { clampTextFontSizePx } from './sheetTextLayout'
 import { SoundCueLayer } from './SoundCueLayer'
@@ -8,7 +9,7 @@ import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { AnnotationSvgText } from './sheet-panel-annotation'
 import { TimingEventSymbol } from './TimingEventSymbol'
-import { continuationRenderItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
+import { sheetContinuationPathData } from './sheetRenderModel'
 
 const noop = () => undefined
 
@@ -21,6 +22,8 @@ export function SheetRevisionReferenceLayer({
   surface,
   context,
   opacity,
+  events,
+  continuationItems,
 }: {
   project: CutProject
   template: SheetTemplate
@@ -30,9 +33,9 @@ export function SheetRevisionReferenceLayer({
   surface: { widthPx: number; heightPx: number }
   context: SheetRenderModelContext
   opacity: number
+  events: SheetEventRectRenderItem[]
+  continuationItems: SheetContinuationRenderItem[]
 }) {
-  const events = eventRectsForPage(project, template, page)
-  const continuationItems = continuationRenderItemsForPage(context, page)
   const strokes = sheetAnnotationStrokes(project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')
   const textAnnotations = sheetAnnotationTexts(project).filter(annotation => annotation.pageId === page.pageId)
   return (

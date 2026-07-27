@@ -16,6 +16,7 @@ import {
 import {
   createSheetRenderModelContext,
   continuationRenderItemsForPage,
+  continuationRenderItemsForPages,
   hasOverlayRenderContent,
   inputTextRenderItemsForPage,
   metadataTextRenderItemsForPage,
@@ -161,6 +162,66 @@ describe('sheet render model', () => {
     }), standardA3SheetTemplate)
     const hidden = continuationRenderItemsForPage(hiddenContext, hiddenContext.pages[0])
     expect(hidden).toHaveLength(0)
+  })
+
+  it('preserves exact continuation geometry when calculating all visible pages in one pass', () => {
+    let project = updateLogicalSheetSettings(createDefaultProject(), {
+      durationFrames: 360,
+      workRange: {
+        preRollFrames: 24,
+        postRollFrames: 24,
+        showPreRoll: true,
+        showPostRoll: true,
+      },
+    })
+    project = createOrSetEvent(project, 'A', -20, 'action').project
+    project = createOrSetEvent(project, 'A', 1, 'action').project
+    project = setTimingSpecialEvent(project, 'B', 138, 'blank', 'action')
+    project = createOrSetEvent(project, 'B', 150, 'action').project
+    project = createOrSetEvent(project, 'C', 140, 'cell').project
+    project = setTimingSpecialEvent(project, 'C', 145, 'inbetween', 'cell')
+    project = setTimingSpecialEvent(project, 'C', 152, 'reverse', 'cell')
+    project = createOrSetEvent(project, 'C', 160, 'cell').project
+    project = createOrSetEvent(project, 'D', 280, 'cell').project
+    project = updateSheetViewState(project, {
+      continuationDisplay: { action: true, cell: true },
+    })
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate)
+
+    const allPages = continuationRenderItemsForPages(context, context.pages)
+    for (const page of context.pages) {
+      expect(allPages.get(page.pageId)).toEqual(continuationRenderItemsForPage(context, page))
+    }
+
+    const middlePage = context.pages[1]
+    expect(middlePage).toBeDefined()
+    const middleOnly = continuationRenderItemsForPages(context, [middlePage!])
+    expect(middleOnly.get(middlePage!.pageId)).toEqual(continuationRenderItemsForPage(context, middlePage!))
+    expect(middleOnly.size).toBe(1)
+
+    const digitalContext = createSheetRenderModelContext(project, digitalStandardSheetTemplate)
+    const digitalItems = continuationRenderItemsForPages(digitalContext, digitalContext.pages)
+    for (const page of digitalContext.pages) {
+      expect(digitalItems.get(page.pageId)).toEqual(continuationRenderItemsForPage(digitalContext, page))
+    }
+
+    const overlay = addOverlayPaperTrack(createDefaultProject(), {
+      paperTrack: 'J',
+      label: 'J',
+      insertAfterPaperTrack: 'A',
+      snapIndex: 1,
+      sheetRole: 'action',
+    })
+    const overlayStart = createOrSetEvent(overlay.project, 'J', 1, 'action')
+    const overlayEnd = createOrSetEvent(overlayStart.project, 'J', 12, 'action')
+    const overlayProject = updateSheetViewState(overlayEnd.project, {
+      continuationDisplay: { action: true, cell: false },
+    })
+    const overlayContext = createSheetRenderModelContext(overlayProject, standardA3SheetTemplate)
+    const overlayItems = continuationRenderItemsForPages(overlayContext, overlayContext.pages)
+    for (const page of overlayContext.pages) {
+      expect(overlayItems.get(page.pageId)).toEqual(continuationRenderItemsForPage(overlayContext, page))
+    }
   })
 
   it('resolves input text font size from the active display template', () => {

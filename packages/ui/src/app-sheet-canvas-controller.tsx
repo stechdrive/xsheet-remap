@@ -325,6 +325,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     activePageIndex: props.activePageIndex, viewMode: props.sheetView.viewMode, activeOverlayPaperTrack,
     renderContext: sheetRenderModelContext, pageSize: sheetPageSize, paperTracks: templateTrackNames,
     soundCuePreview: soundCueDrag?.preview, cameraCuePreview: cameraCueDrag?.preview,
+    referenceProject: props.referenceProject, referenceRenderContext: referenceRenderModelContext,
   })
   const { visiblePages } = renderCaches
   const isCalibratingSheet = props.editMode === 'calibrate'

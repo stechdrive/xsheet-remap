@@ -13,6 +13,7 @@ import {
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
   resolveSheetTemplateTextStyle,
+  sheetGridCellRect,
   sheetTemplateLengthForReferencePx,
   sheetFormFieldsForScope,
   sheetFormFieldValueText,
@@ -277,33 +278,70 @@ export function continuationRenderItemsForPage(context: SheetRenderModelContext,
           if (rect) rects.push({ frame, rect })
         }
         for (const segment of contiguousContinuationSegments(rects)) {
-          const first = segment[0]?.rect
-          const last = segment.at(-1)?.rect
-          if (!first || !last) continue
-          const centerX = first.x + first.w / 2
-          const startY = first.y + first.h / 2
-          const endY = last.y + last.h / 2
-          const cellSize = Math.min(first.w, first.h)
-          const strokeWidth = Math.max(0.00045, Math.min(0.0015, cellSize * 0.075))
-          const path = valueKind === 'blank'
-            ? waveContinuationPath(centerX, startY, endY, first.w, first.h)
-            : [
-                { kind: 'move' as const, x: centerX, y: startY },
-                { kind: 'line' as const, x: centerX, y: endY },
-              ]
-          items.push({
-            eventId: event.eventId,
-            paperTrack,
-            role,
-            kind: valueKind === 'blank' ? 'wave' : 'straight',
-            path,
-            strokeWidth,
-          })
+          const item = continuationRenderItem(event.eventId, paperTrack, role, valueKind, segment)
+          if (item) items.push(item)
         }
       }
     }
   }
   return items
+}
+
+export function continuationRenderItemsForPages(
+  context: SheetRenderModelContext,
+  pages: SheetPage[],
+): Map<string, SheetContinuationRenderItem[]> {
+  const itemsByPage = new Map(pages.map(page => [page.pageId, [] as SheetContinuationRenderItem[]]))
+  if (pages.length === 0 || context.project.logicalSheet.events.length === 0) return itemsByPage
+
+  const pageById = new Map(pages.map(page => [page.pageId, page]))
+  const resolveContinuationRect = createContinuationRectResolver(context, pages, pageById)
+  const eventsByRoleAndTrack = new Map<string, CutProject['logicalSheet']['events']>()
+  for (const event of context.project.logicalSheet.events) {
+    const role = sheetTimingRoleForEvent(event)
+    if (role !== 'action' && role !== 'cell') continue
+    const key = continuationGroupKey(role, event.paperTrack)
+    const events = eventsByRoleAndTrack.get(key) ?? []
+    events.push(event)
+    eventsByRoleAndTrack.set(key, events)
+  }
+  for (const events of eventsByRoleAndTrack.values()) {
+    events.sort((left, right) => left.frame - right.frame)
+  }
+
+  for (const role of ['action', 'cell'] as const) {
+    if (!context.project.sheetView.continuationDisplay[role]) continue
+    for (const paperTrack of context.project.logicalSheet.paperTracks.map(track => track.paperTrack)) {
+      const events = eventsByRoleAndTrack.get(continuationGroupKey(role, paperTrack)) ?? []
+      for (let index = 0; index < events.length; index += 1) {
+        const event = events[index]!
+        const valueKind = timingEventValueKind(event)
+        if (valueKind === 'inbetween' || valueKind === 'reverse') continue
+        const nextFrame = events[index + 1]?.frame ?? context.officialFrameEnd + 1
+        const frameEnd = Math.min(context.officialFrameEnd, nextFrame - 1)
+        if (frameEnd - event.frame + 1 < 4) continue
+
+        const rectsByPage = new Map<string, Array<{ frame: number; rect: NormalizedRect }>>()
+        for (let frame = event.frame + 1; frame <= frameEnd; frame += 1) {
+          const resolved = resolveContinuationRect(role, paperTrack, frame)
+          if (!resolved) continue
+          const rects = rectsByPage.get(resolved.pageId) ?? []
+          rects.push({ frame, rect: resolved.rect })
+          rectsByPage.set(resolved.pageId, rects)
+        }
+
+        for (const page of pages) {
+          const rects = rectsByPage.get(page.pageId)
+          if (!rects) continue
+          for (const segment of contiguousContinuationSegments(rects)) {
+            const item = continuationRenderItem(event.eventId, paperTrack, role, valueKind, segment)
+            if (item) itemsByPage.get(page.pageId)?.push(item)
+          }
+        }
+      }
+    }
+  }
+  return itemsByPage
 }
 
 export function sheetContinuationPathData(commands: SheetContinuationPathCommand[]): string {
@@ -979,6 +1017,114 @@ function contiguousContinuationSegments(items: Array<{ frame: number; rect: Norm
     }
   }
   return segments
+}
+
+function continuationGroupKey(role: 'action' | 'cell', paperTrack: string): string {
+  return `${role}\u0000${paperTrack}`
+}
+
+function createContinuationRectResolver(
+  context: SheetRenderModelContext,
+  pages: SheetPage[],
+  pageById: Map<string, SheetPage>,
+) {
+  const trackByName = new Map(context.project.logicalSheet.paperTracks.map(track => [track.paperTrack, track]))
+  const overlayTrackNames = new Set(context.overlayTracks.map(track => track.paperTrack))
+  const layoutOptions = {
+    paperTracks: context.paperTracks,
+    timelineLanes: context.timelineLanes,
+    durationFrames: context.displayDurationFrames,
+    frameOrigin: context.displayFrameStart,
+    layoutOverrides: context.project.sheetView.layoutOverrides,
+  }
+  const layoutsByRole = new Map((['action', 'cell'] as const).map(role => [
+    role,
+    context.template.regions.flatMap(region => {
+      if (region.type !== 'exposure-grid' || region.grid?.role !== role) return []
+      const layout = resolveSheetTemplateGridLayout(context.template, region, layoutOptions)
+      if (!layout) return []
+      return [{
+        layout,
+        columnsByTrack: new Map(layout.columns.flatMap(column =>
+          column.paperTrack ? [[column.paperTrack, column] as const] : [],
+        )),
+      }]
+    }),
+  ]))
+  const overlayColumns = new Map<string, ReturnType<typeof overlayColumnRectForPage>>()
+  for (const track of context.overlayTracks) {
+    for (const page of pages) {
+      overlayColumns.set(`${track.paperTrack}\u0000${page.pageId}`, overlayColumnRectForPage(context, track, page))
+    }
+  }
+
+  return (role: 'action' | 'cell', paperTrack: string, frame: number): { pageId: string; rect: NormalizedRect } | null => {
+    const localized = localizeFrameToSheetPage(
+      context.template,
+      frame,
+      context.displayDurationFrames,
+      context.displayFrameStart,
+    )
+    const page = localized ? pageById.get(localized.page.pageId) : undefined
+    if (!localized || !page) return null
+
+    const track = trackByName.get(paperTrack)
+    if (track && overlayTrackNames.has(track.paperTrack)) {
+      const column = overlayColumns.get(`${track.paperTrack}\u0000${page.pageId}`)
+      if (!column || localized.localFrame < column.frames.frameStart || localized.localFrame > column.frames.frameEnd) return null
+      const rowIndex = localized.localFrame - column.frames.frameStart
+      const rowH = column.rect.h / column.frames.rowCount
+      return {
+        pageId: page.pageId,
+        rect: {
+          x: column.rect.x,
+          y: column.rect.y + rowH * rowIndex,
+          w: column.rect.w,
+          h: rowH,
+        },
+      }
+    }
+
+    for (const { layout, columnsByTrack } of layoutsByRole.get(role) ?? []) {
+      if (localized.localFrame < layout.frames.frameStart || localized.localFrame > layout.frames.frameEnd) continue
+      const column = columnsByTrack.get(paperTrack)
+      if (!column) continue
+      const rect = sheetGridCellRect(layout, column.index, localized.localFrame - layout.frames.frameStart)
+      if (rect) return { pageId: page.pageId, rect }
+    }
+    return null
+  }
+}
+
+function continuationRenderItem(
+  eventId: string,
+  paperTrack: string,
+  role: 'action' | 'cell',
+  valueKind: ReturnType<typeof timingEventValueKind>,
+  segment: Array<{ frame: number; rect: NormalizedRect }>,
+): SheetContinuationRenderItem | null {
+  const first = segment[0]?.rect
+  const last = segment.at(-1)?.rect
+  if (!first || !last) return null
+  const centerX = first.x + first.w / 2
+  const startY = first.y + first.h / 2
+  const endY = last.y + last.h / 2
+  const cellSize = Math.min(first.w, first.h)
+  const strokeWidth = Math.max(0.00045, Math.min(0.0015, cellSize * 0.075))
+  const path = valueKind === 'blank'
+    ? waveContinuationPath(centerX, startY, endY, first.w, first.h)
+    : [
+        { kind: 'move' as const, x: centerX, y: startY },
+        { kind: 'line' as const, x: centerX, y: endY },
+      ]
+  return {
+    eventId,
+    paperTrack,
+    role,
+    kind: valueKind === 'blank' ? 'wave' : 'straight',
+    path,
+    strokeWidth,
+  }
 }
 
 function waveContinuationPath(centerX: number, startY: number, endY: number, cellWidth: number, cellHeight: number): SheetContinuationPathCommand[] {

@@ -26,8 +26,11 @@ import type { SheetCanvasProps, SheetDropTargetPreview } from './app-sheet-canva
 import { gridColumnHeaderHitFromPoint } from './sheetGridHeaderHit';
 import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
+import { useAnimationFramePointerUpdate } from './useAnimationFramePointerUpdate';
 import { usePointerDragSession } from './usePointerDragSession';
+import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
+import { beginSheetViewportPan } from './sheetViewportPan';
 import { advancePrimaryPointerActivation, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
 
 type AnnotationStrokeDragSession = {
@@ -116,6 +119,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const updateCameraCuePointerRef = useRef<(pointerId: number, clientX: number, clientY: number) => void>(() => undefined)
   const finishCameraCuePointerRef = useRef<(pointerId: number, cancelled?: boolean, clientX?: number, clientY?: number) => void>(() => undefined)
   const onStatusHint = props.onStatusHint
+  const soundCuePointerUpdates = useAnimationFramePointerUpdate(updateSoundCuePointer)
+  const cameraCuePointerUpdates = useAnimationFramePointerUpdate(updateCameraCuePointer)
 
   useGlobalPointerDragLifecycle({ activeRef: soundCueDragRef, updateRef: updateSoundCuePointerRef, finishRef: finishSoundCuePointerRef })
   useGlobalPointerDragLifecycle({ activeRef: cameraCueDragRef, updateRef: updateCameraCuePointerRef, finishRef: finishCameraCuePointerRef })
@@ -315,9 +320,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
   const selectedSoundRangeContainingHit = (hit: SheetHit) => selectedTimedRangeContainingHit(hit, 'sound')
   const selectedCameraRangeContainingHit = (hit: SheetHit) => selectedTimedRangeContainingHit(hit, 'camera')
-  const visiblePages = props.sheetView.viewMode === 'single-page'
-    ? props.sheetPages.filter(page => page.pageIndex === props.activePageIndex)
-    : props.sheetPages
+  const renderCaches = useSheetCanvasRenderCaches({
+    project: props.project, template: props.template, sheetPages: props.sheetPages,
+    activePageIndex: props.activePageIndex, viewMode: props.sheetView.viewMode, activeOverlayPaperTrack,
+    renderContext: sheetRenderModelContext, pageSize: sheetPageSize, paperTracks: templateTrackNames,
+    soundCuePreview: soundCueDrag?.preview, cameraCuePreview: cameraCueDrag?.preview,
+  })
+  const { visiblePages } = renderCaches
   const isCalibratingSheet = props.editMode === 'calibrate'
 
   useEffect(() => {
@@ -1167,6 +1176,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (event.pointerType !== 'mouse') event.preventDefault()
     event.stopPropagation()
     clearHover()
+    soundCuePointerUpdates.cancel()
     setHoveredSoundCueId(null)
     setSoundCueHoverAnchor(null)
     props.onSoundCueSelect(cue.cueId)
@@ -1219,6 +1229,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function finishSoundCuePointerById(pointerId: number, cancelled = false, clientX?: number, clientY?: number) {
+    if (cancelled) {
+      soundCuePointerUpdates.cancel()
+    } else if (clientX !== undefined && clientY !== undefined) {
+      soundCuePointerUpdates.flush({ pointerId, clientX, clientY })
+    } else {
+      soundCuePointerUpdates.flush()
+    }
     const current = soundCueDragRef.current
     if (!current || current.pointerId !== pointerId) return
     soundCueDragRef.current = null
@@ -1243,10 +1260,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
   }
 
-  updateSoundCuePointerRef.current = updateSoundCuePointer
+  updateSoundCuePointerRef.current = soundCuePointerUpdates.schedule
   finishSoundCuePointerRef.current = finishSoundCuePointerById
   function handleSoundCuePointerMove(event: PointerEvent<SVGGElement>) {
-    updateSoundCuePointer(event.pointerId, event.clientX, event.clientY)
+    soundCuePointerUpdates.schedule(event.pointerId, event.clientX, event.clientY)
   }
   function finishSoundCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) {
     finishSoundCuePointerById(event.pointerId, cancelled, event.clientX, event.clientY)
@@ -1275,6 +1292,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (event.pointerType !== 'mouse') event.preventDefault()
     event.stopPropagation()
     clearHover()
+    cameraCuePointerUpdates.cancel()
     setHoveredCameraCueId(null)
     setCameraCueHoverAnchor(null)
     props.onCameraCueSelect(cue.cueId)
@@ -1389,6 +1407,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function finishCameraCuePointerById(pointerId: number, cancelled = false, clientX?: number, clientY?: number) {
+    if (cancelled) {
+      cameraCuePointerUpdates.cancel()
+    } else if (clientX !== undefined && clientY !== undefined) {
+      cameraCuePointerUpdates.flush({ pointerId, clientX, clientY })
+    } else {
+      cameraCuePointerUpdates.flush()
+    }
     const current = cameraCueDragRef.current
     if (!current || current.pointerId !== pointerId) return
     cameraCueDragRef.current = null
@@ -1414,10 +1439,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
   }
 
-  updateCameraCuePointerRef.current = updateCameraCuePointer
+  updateCameraCuePointerRef.current = cameraCuePointerUpdates.schedule
   finishCameraCuePointerRef.current = finishCameraCuePointerById
   function handleCameraCuePointerMove(event: PointerEvent<SVGGElement>) {
-    updateCameraCuePointer(event.pointerId, event.clientX, event.clientY)
+    cameraCuePointerUpdates.schedule(event.pointerId, event.clientX, event.clientY)
   }
   function finishCameraCuePointer(event: PointerEvent<SVGGElement>, cancelled = false) { finishCameraCuePointerById(event.pointerId, cancelled, event.clientX, event.clientY) }
 
@@ -1766,7 +1791,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       updateTimelineEventDragFromClient(event.pointerId, event.clientX, event.clientY, viewport)
       return
     }
-    if (page && props.editMode !== 'pen' && props.editMode !== 'eraser' && props.editMode !== 'calibrate') {
+    if (event.pointerType !== 'touch' && page && props.editMode !== 'pen' && props.editMode !== 'eraser' && props.editMode !== 'calibrate') {
       const hit = hitFromPoint(pointFromEvent(event), page)
       updateHover(hit, { x: event.clientX, y: event.clientY })
     }
@@ -2185,49 +2210,23 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function beginViewportPan(event: PointerEvent<HTMLElement> | PointerEvent<SVGSVGElement>, viewport: HTMLElement | null) {
-    const isMiddlePan = event.pointerType === 'mouse' && event.button === 1
-    const isSpacePan = event.pointerType === 'mouse' && event.button === 0 && spacePanReadyRef.current
-    if (!viewport || (!isMiddlePan && !isSpacePan)) return false
-
-    event.preventDefault()
-    event.stopPropagation()
-    setContextMenu(null)
-    setPaperTrackHeaderMenu(null)
-    setStackGuideHeaderMenu(null)
-    setStackGuideDropPreview(null)
-    clearHover()
-
-    const panViewport = viewport
-    const pointerId = event.pointerId
-    const startX = event.clientX
-    const startY = event.clientY
-    const startScrollLeft = panViewport.scrollLeft
-    const startScrollTop = panViewport.scrollTop
-    panningRef.current = true
-    setIsPanning(true)
-    props.onStatusHint('sheet-drag', uiText.statusHints.panning)
-
-    function stopPan(nextEvent: globalThis.PointerEvent) {
-      if (nextEvent.pointerId !== pointerId) return
-      window.removeEventListener('pointermove', movePan)
-      window.removeEventListener('pointerup', stopPan)
-      window.removeEventListener('pointercancel', stopPan)
-      panningRef.current = false
-      setIsPanning(false)
-      props.onStatusHint('sheet-drag', null)
-    }
-
-    function movePan(nextEvent: globalThis.PointerEvent) {
-      if (nextEvent.pointerId !== pointerId) return
-      nextEvent.preventDefault()
-      panViewport.scrollLeft = startScrollLeft - (nextEvent.clientX - startX)
-      panViewport.scrollTop = startScrollTop - (nextEvent.clientY - startY)
-    }
-
-    window.addEventListener('pointermove', movePan)
-    window.addEventListener('pointerup', stopPan)
-    window.addEventListener('pointercancel', stopPan)
-    return true
+    return beginSheetViewportPan(event, viewport, {
+      spacePanReady: spacePanReadyRef.current,
+      panningRef,
+      onBegin: () => {
+        setContextMenu(null)
+        setPaperTrackHeaderMenu(null)
+        setStackGuideHeaderMenu(null)
+        setStackGuideDropPreview(null)
+        clearHover()
+        setIsPanning(true)
+        props.onStatusHint('sheet-drag', uiText.statusHints.panning)
+      },
+      onEnd: () => {
+        setIsPanning(false)
+        props.onStatusHint('sheet-drag', null)
+      },
+    })
   }
 
   const contextProcessMove = contextMenu?.hit ? singleMovableBindingForHit(props.project, contextMenu.hit) : null
@@ -2280,7 +2279,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
-    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
+    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, ...renderCaches,
+    isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCueDoubleClick, handleSoundCuePointerEnter, handleSoundCuePointerLeave,

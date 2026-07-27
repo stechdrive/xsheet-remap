@@ -1,6 +1,6 @@
-import { useId, type PointerEvent } from 'react'
+import { useId, useMemo, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetTemplateLayoutResolveOptions, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
-import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
+import { buildSoundCuePageTextLayouts, type SoundCuePageTextLayout } from './soundCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { timedRangeCueColumnStyle } from './timedRangeCueAppearance'
 
@@ -8,6 +8,7 @@ export type SoundCueDragMode = 'move' | 'resize-start' | 'resize-end'
 
 export function SoundCueLayer({
   cues,
+  layouts,
   template,
   page,
   pages = [page],
@@ -26,6 +27,7 @@ export function SoundCueLayer({
   onPointerLeave,
 }: {
   cues: TimedRangeCue[]
+  layouts?: SoundCuePageTextLayout[]
   template: SheetTemplate
   page: SheetPage
   pages?: SheetPage[]
@@ -45,11 +47,14 @@ export function SoundCueLayer({
 }) {
   const clipIdPrefix = `sound-cue-clip-${useId().replace(/:/g, '')}`
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
-  const segments = buildSoundCuePageTextLayouts(template, pages, cues, pageSize, {
-    paperTracks,
-    timelineLanes,
-    layoutOverrides,
-  }).filter(entry => entry.pageId === page.pageId)
+  const segments = useMemo(
+    () => layouts ?? buildSoundCuePageTextLayouts(template, pages, cues, pageSize, {
+        paperTracks,
+        timelineLanes,
+        layoutOverrides,
+      }).filter(entry => entry.pageId === page.pageId),
+    [cues, layoutOverrides, layouts, page.pageId, pageSize, pages, paperTracks, template, timelineLanes],
+  )
   const textClipIds = new Map<string, string>()
   segments.forEach(({ key }) => {
     textClipIds.set(key, `${clipIdPrefix}-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`)

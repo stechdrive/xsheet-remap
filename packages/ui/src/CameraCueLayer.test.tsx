@@ -1,9 +1,46 @@
 import { render } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
 import { CameraCueLayer } from './CameraCueLayer'
+import * as cameraCueGeometry from './cameraCueGeometry'
 
 describe('CameraCueLayer', () => {
+  it('reuses camera layout geometry when only interaction callbacks change', () => {
+    const layoutSpy = vi.spyOn(cameraCueGeometry, 'buildCameraCuePageLayouts')
+    const cue = cameraCue('cue_cached', 'camera_lane_1', 1, 12, 'range')
+    const cues = [cue]
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const paperTracks = createDefaultProject().logicalSheet.paperTracks.map(track => track.paperTrack)
+    const pageSize = { widthPx: 1754, heightPx: 2481 }
+    const surface = { widthPx: 1000, heightPx: 1000 }
+    const renderLayer = (onPointerDown: ComponentProps<typeof CameraCueLayer>['onPointerDown']) => (
+      <svg><CameraCueLayer
+        cues={cues}
+        template={standardA3SheetTemplate}
+        page={page}
+        paperTracks={paperTracks}
+        pageSize={pageSize}
+        surface={surface}
+        selectedCueId={null}
+        onPointerDown={onPointerDown}
+        onPointerMove={vi.fn()}
+        onPointerUp={vi.fn()}
+        onPointerCancel={vi.fn()}
+        onDoubleClick={vi.fn()}
+        onPointerEnter={vi.fn()}
+        onPointerLeave={vi.fn()}
+      /></svg>
+    )
+    const { rerender } = render(renderLayer(vi.fn()))
+    expect(layoutSpy).toHaveBeenCalledTimes(1)
+
+    rerender(renderLayer(vi.fn()))
+
+    expect(layoutSpy).toHaveBeenCalledTimes(1)
+    layoutSpy.mockRestore()
+  })
+
   it('renders all four semantic instruction shapes and an editable overlap pivot', () => {
     const rangeCue = cameraCue('cue_1', 'camera_lane_1', 1, 12, 'range')
     rangeCue.camera = {

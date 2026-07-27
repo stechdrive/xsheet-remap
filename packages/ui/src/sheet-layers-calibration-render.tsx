@@ -163,7 +163,7 @@ export const GridOverlay = memo(function GridOverlay({
   return model ? <GridOverlayLayer model={model} showLines={showLines} showLabels={showLabels} /> : null
 })
 
-export function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext; page: SheetPage }) {
+export const MetadataTextLayer = memo(function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext; page: SheetPage }) {
   const items = metadataTextRenderItemsForPage(context, page)
   const clipPrefix = useId().replace(/:/g, '')
   if (items.length === 0) return null
@@ -208,9 +208,9 @@ export function MetadataTextLayer({ context, page }: { context: SheetRenderModel
       ))}
     </g>
   )
-}
+})
 
-export function WorkRangeOverlay({
+export const WorkRangeOverlay = memo(function WorkRangeOverlay({
   context,
   page,
 }: {
@@ -225,4 +225,4 @@ export function WorkRangeOverlay({
       ))}
     </g>
   )
-}
+})

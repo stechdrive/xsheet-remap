@@ -1,9 +1,48 @@
 import { render } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
 import { SoundCueLayer } from './SoundCueLayer'
+import * as soundCueGeometry from './soundCueGeometry'
 
 describe('SoundCueLayer', () => {
+  it('reuses sound layout geometry when only interaction callbacks change', () => {
+    const layoutSpy = vi.spyOn(soundCueGeometry, 'buildSoundCuePageTextLayouts')
+    const cue = soundCue('cue_cached', 1, 12, 'cached')
+    const cues = [cue]
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pages = [page]
+    const paperTracks = createDefaultProject().logicalSheet.paperTracks.map(track => track.paperTrack)
+    const pageSize = { widthPx: 1754, heightPx: 2481 }
+    const surface = { widthPx: 1000, heightPx: 1000 }
+    const renderLayer = (onPointerDown: ComponentProps<typeof SoundCueLayer>['onPointerDown']) => (
+      <svg><SoundCueLayer
+        cues={cues}
+        template={standardA3SheetTemplate}
+        page={page}
+        pages={pages}
+        paperTracks={paperTracks}
+        pageSize={pageSize}
+        surface={surface}
+        selectedCueId={null}
+        onPointerDown={onPointerDown}
+        onPointerMove={vi.fn()}
+        onPointerUp={vi.fn()}
+        onPointerCancel={vi.fn()}
+        onDoubleClick={vi.fn()}
+        onPointerEnter={vi.fn()}
+        onPointerLeave={vi.fn()}
+      /></svg>
+    )
+    const { rerender } = render(renderLayer(vi.fn()))
+    expect(layoutSpy).toHaveBeenCalledTimes(1)
+
+    rerender(renderLayer(vi.fn()))
+
+    expect(layoutSpy).toHaveBeenCalledTimes(1)
+    layoutSpy.mockRestore()
+  })
+
   it('colors adjacent SOUND columns while keeping every cue in one column stable', () => {
     const cues: TimedRangeCue[] = [
       soundCue('cue_later', 20, 24, '二行目'),

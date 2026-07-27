@@ -3,39 +3,84 @@ import { resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { clampNumber } from './sheetInteraction'
 import { overlayBandSegments, overlayPaperTracks, overlayVisibleSnapIndex, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 
-export function eventRectsForPage(project: CutProject, template: SheetTemplate, page: SheetPage, options: { activeOverlayPaperTrack?: string | null } = {}) {
+export type SheetEventRectRenderItem = {
+  event: CutProject['logicalSheet']['events'][number]
+  eventKind: ReturnType<typeof timingEventValueKind>
+  displayLabel: string
+  fontSizePx: number
+  rect: NormalizedRect
+  hasAssetBinding: boolean
+}
+
+export function eventRectsForPages(
+  project: CutProject,
+  template: SheetTemplate,
+  pages: SheetPage[],
+  options: { activeOverlayPaperTrack?: string | null } = {},
+): Map<string, SheetEventRectRenderItem[]> {
+  const result = new Map(pages.map(page => [page.pageId, [] as SheetEventRectRenderItem[]]))
+  if (pages.length === 0 || project.logicalSheet.events.length === 0) return result
+
   const paperTracks = templatePaperTracks(project, template).map(track => track.paperTrack)
   const timelineLanes = timelineLanesForLayout(project)
   const presentedOverlayTracks = new Set(overlayPaperTracks(project, template).map(track => track.paperTrack))
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
+  const pageById = new Map(pages.map(page => [page.pageId, page]))
+  const keyById = new Map(project.logicalSheet.keys.map(key => [key.keyId, key]))
+  const trackByName = new Map(project.logicalSheet.paperTracks.map(track => [track.paperTrack, track]))
+  const assetBoundKeyIds = new Set(project.bindings.filter(binding => Boolean(binding.assetId)).map(binding => binding.keyId))
   const activeOverlayTrack = options.activeOverlayPaperTrack
-    ? project.logicalSheet.paperTracks.find(track => track.paperTrack === options.activeOverlayPaperTrack && track.source === 'overlay')
+    ? trackByName.get(options.activeOverlayPaperTrack)
     : undefined
-  const activeOverlayColumn = activeOverlayTrack ? overlayColumnRectForPage(template, project, activeOverlayTrack, page) : null
-  return project.logicalSheet.events.flatMap(event => {
-    const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
-    if (!key && !isSpecialTimingEvent(event)) return []
+  const activeOverlayColumnByPage = new Map(pages.map(page => [
+    page.pageId,
+    activeOverlayTrack?.source === 'overlay' ? overlayColumnRectForPage(template, project, activeOverlayTrack, page) : null,
+  ]))
+
+  for (const event of project.logicalSheet.events) {
+    const key = keyById.get(event.keyId)
+    if (!key && !isSpecialTimingEvent(event)) continue
     const eventKind = timingEventValueKind(event)
     const displayLabel = eventKind === 'cell' ? key?.displayLabel ?? '' : ''
     const sheetRole = sheetTimingRoleForEvent(event)
     const fontSizePx = resolveTimingTextFontSizePx(template, sheetRole, event.fontSizePx)
-    const track = project.logicalSheet.paperTracks.find(item => item.paperTrack === event.paperTrack)
-    const rect = track && presentedOverlayTracks.has(track.paperTrack)
-      ? overlayCellRectForFrame(template, project, track, event.frame, page)
-      : (() => {
-          const hit = timingHitForFrame(template, sheetRole, event.paperTrack, event.frame, displayDurationFrames, displayFrameStart, paperTracks)
-          if (!hit || hit.pageId !== page.pageId) return null
-          return cellRectForHit(template, hit, displayDurationFrames, displayFrameStart, {
+    const track = trackByName.get(event.paperTrack)
+    let page: SheetPage | undefined
+    let rect: NormalizedRect | null
+
+    if (track && presentedOverlayTracks.has(track.paperTrack)) {
+      const localized = localizeFrameToSheetPage(template, event.frame, displayDurationFrames, displayFrameStart)
+      page = localized ? pageById.get(localized.page.pageId) : undefined
+      rect = page ? overlayCellRectForFrame(template, project, track, event.frame, page) : null
+    } else {
+      const hit = timingHitForFrame(template, sheetRole, event.paperTrack, event.frame, displayDurationFrames, displayFrameStart, paperTracks)
+      page = hit?.pageId ? pageById.get(hit.pageId) : undefined
+      rect = hit && page
+        ? cellRectForHit(template, hit, displayDurationFrames, displayFrameStart, {
             paperTracks,
             timelineLanes,
             layoutOverrides: project.sheetView.layoutOverrides,
           })
-        })()
-    const hasAssetBinding = project.bindings.some(binding => binding.keyId === event.keyId && Boolean(binding.assetId))
-    if (rect && shouldSuppressRectUnderActiveOverlay(track, rect, activeOverlayColumn)) return []
-    return rect ? [{ event, eventKind, displayLabel, fontSizePx, rect, hasAssetBinding }] : []
-  })
+        : null
+    }
+
+    if (!page || !rect || shouldSuppressRectUnderActiveOverlay(track, rect, activeOverlayColumnByPage.get(page.pageId) ?? null)) continue
+    result.get(page.pageId)?.push({
+      event,
+      eventKind,
+      displayLabel,
+      fontSizePx,
+      rect,
+      hasAssetBinding: assetBoundKeyIds.has(event.keyId),
+    })
+  }
+
+  return result
+}
+
+export function eventRectsForPage(project: CutProject, template: SheetTemplate, page: SheetPage, options: { activeOverlayPaperTrack?: string | null } = {}) {
+  return eventRectsForPages(project, template, [page], options).get(page.pageId) ?? []
 }
 
 export function shouldSuppressRectUnderActiveOverlay(track: PaperTrack | undefined, rect: NormalizedRect, activeOverlayColumn: (OverlayBandSegment & { rect: NormalizedRect }) | null): boolean {

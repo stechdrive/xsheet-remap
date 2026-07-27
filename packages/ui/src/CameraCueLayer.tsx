@@ -1,4 +1,4 @@
-import type { PointerEvent } from 'react'
+import { useMemo, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetTemplateLayoutResolveOptions, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
 import {
   buildCameraCuePageLayouts,
@@ -44,7 +44,10 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
   onPointerEnter: (event: PointerEvent<SVGGElement>, cueId: string) => void
   onPointerLeave: () => void
 }) {
-  const pageLayouts = buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, timelineLanes, layoutOverrides })
+  const pageLayouts = useMemo(
+    () => buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, timelineLanes, layoutOverrides }),
+    [cues, layoutOverrides, page, pageSize, paperTracks, template, timelineLanes],
+  )
   const edgeHeight = 8 / Math.max(1, surface.heightPx)
   const pivotRadiusX = 5 / Math.max(1, surface.widthPx)
   const pivotRadiusY = 5 / Math.max(1, surface.heightPx)

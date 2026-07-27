@@ -1,4 +1,4 @@
-import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, sheetAnnotationStrokes, sheetAnnotationTexts, sheetGridRowY, timelineMemos, type SheetHit } from '@xsheet-remap/core';
+import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, sheetGridRowY, type SheetHit } from '@xsheet-remap/core';
 import { useState, type ReactNode } from 'react'
 import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
@@ -7,7 +7,7 @@ import { rangeRectsForPage } from './sheetInteraction';
 import { rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { SheetSvgText } from './SheetSvgText';
 import { SheetImageLayer } from './SheetTemplateLayers';
-import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, calibrationGuideMetrics, eventRectsForPage, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay, strokePath } from './app-sheet-layers';
+import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay, strokePath } from './app-sheet-layers';
 import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { sheetContextMenuStyle } from './app-registered-cells';
@@ -19,7 +19,7 @@ import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { TimingEventSymbol } from './TimingEventSymbol'
-import { continuationRenderItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
+import { sheetContinuationPathData } from './sheetRenderModel'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
 import { TimelineLaneEditorPopover } from './TimelineLaneEditorPopover'
 
@@ -55,7 +55,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
-    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, isCalibratingSheet, updateStackGuideDropPreview, clearHover,
+    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, eventRectsByPage, continuationItemsByPage,
+    annotationStrokesByPage, annotationTextsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
+    isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCueDoubleClick, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
@@ -102,18 +104,14 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
         {visiblePages.map(page => {
           const isCalibrating = isCalibratingSheet
           const pageImage = getSheetPageImage(props.sheetView, props.runtimeSourceImageUrls, page.pageId, props.template)
-          const strokes = !isCalibrating && props.showAnnotations
-            ? sheetAnnotationStrokes(props.project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')
-            : []
-          const textAnnotations = !isCalibrating && props.showAnnotations
-            ? sheetAnnotationTexts(props.project).filter(annotation => annotation.pageId === page.pageId)
-            : []
+          const strokes = !isCalibrating && props.showAnnotations ? annotationStrokesByPage.get(page.pageId) ?? [] : []
+          const textAnnotations = !isCalibrating && props.showAnnotations ? annotationTextsByPage.get(page.pageId) ?? [] : []
           const activeOverlayTrack = !isCalibrating && activeOverlayPaperTrack
             ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === activeOverlayPaperTrack && track.source === 'overlay')
             : undefined
           const activeOverlayColumn = activeOverlayTrack ? overlayColumnRectForPage(props.template, props.project, activeOverlayTrack, page) : null
-          const eventRects = isCalibrating ? [] : eventRectsForPage(props.project, props.template, page, { activeOverlayPaperTrack })
-          const continuationItems = isCalibrating ? [] : continuationRenderItemsForPage(sheetRenderModelContext, page)
+          const eventRects = isCalibrating ? [] : eventRectsByPage.get(page.pageId) ?? []
+          const continuationItems = isCalibrating ? [] : continuationItemsByPage.get(page.pageId) ?? []
           const candidateRects = isCalibrating
             ? []
             : props.recognitionCandidates.filter(candidate => {
@@ -122,7 +120,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                 return !shouldSuppressRectUnderActiveOverlay(candidateTrack, candidate.bbox, activeOverlayColumn)
               })
           const calibrationPoints = calibrationPointsForPage(page, pageImage.settings)
-          const calibrationMetrics = calibrationGuideMetrics(props.template, sheetPageSize)
           const calibrationDebugOverlay = isCalibrating && props.autoCalibrationOverlay?.pageId === page.pageId
             ? props.autoCalibrationOverlay
             : null
@@ -161,12 +158,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const rangeRects = [...normalRangeRects, ...overlayRangeRects]
           const rangeBoundaryRects = mergeAdjacentRangeRects(rangeRects)
           const selectionSurface = { widthPx: sheetPageWidth, heightPx: sheetPageHeight }
-          const soundCues = props.project.timedRangeCues
-            .filter(cue => cue.role === 'sound')
-            .map(cue => soundCueDrag?.origin.cueId === cue.cueId ? soundCueDrag.preview : cue)
-          const cameraCues = props.project.timedRangeCues
-            .filter(cue => cue.role === 'camera')
-            .map(cue => cameraCueDrag?.origin.cueId === cue.cueId ? cameraCueDrag.preview : cue)
           const playheadRegion = props.template.regions.find(region => isRenderableSheetTemplateGridRegion(region) && (region.grid?.role === 'action' || region.grid?.role === 'cell'))
           const playheadLayout = playheadRegion ? resolveSheetTemplateGridLayout(props.template, playheadRegion, {
             paperTracks: templateTrackNames,
@@ -309,6 +300,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   {showInputContent && (
                     <SoundCueLayer
                       cues={soundCues}
+                      layouts={soundCueLayoutsByPage.get(page.pageId) ?? []}
                       template={props.template}
                       page={page}
                       pages={sheetRenderModelContext.pages}
@@ -418,7 +410,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                   {!isCalibrating && props.showAnnotations && (
                     <TimelineMemoLayer
-                      memos={timelineMemos(props.project)}
+                      memos={timelineMemoItems}
                       template={props.template}
                       page={page}
                       paperTracks={templateTrackNames}

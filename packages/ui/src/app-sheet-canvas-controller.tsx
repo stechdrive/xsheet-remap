@@ -1231,7 +1231,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         laneId: current.preview.laneId,
         frameStart: current.preview.frameStart,
         frameEnd: current.preview.frameEnd,
-      })
+      }, current.mode === 'move' ? 'move-binding' : 'resize-cue')
     } else if (!cancelled) {
       const activation = primaryPointerActivation(current.origin.cueId, performance.now(), clientX ?? current.startX, clientY ?? current.startY)
       const transition = advancePrimaryPointerActivation(lastSoundCueActivationRef.current, activation)

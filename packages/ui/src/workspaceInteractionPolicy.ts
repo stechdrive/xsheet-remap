@@ -3,6 +3,42 @@ export interface SoundCueNavigationRequest {
   cueId: string
 }
 
+export type WorkspaceFocusOwner = 'sheet' | 'audio' | 'none'
+export type WorkspaceKeyboardScope = 'sheet' | 'global-history' | 'ignore'
+
+export function resolveWorkspaceKeyboardScope(input: {
+  owner: WorkspaceFocusOwner
+  defaultPrevented: boolean
+  modifier: boolean
+  key: string
+}): WorkspaceKeyboardScope {
+  if (input.defaultPrevented) return 'ignore'
+  if (input.owner !== 'audio') return 'sheet'
+  return input.modifier && (input.key.toLowerCase() === 'z' || input.key.toLowerCase() === 'y')
+    ? 'global-history'
+    : 'ignore'
+}
+
+export function handleWorkspaceKeyboardBoundary(
+  event: Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'shiftKey' | 'key' | 'defaultPrevented' | 'preventDefault'>,
+  owner: WorkspaceFocusOwner,
+  history: { undo: () => void; redo: () => void },
+): boolean {
+  const scope = resolveWorkspaceKeyboardScope({
+    owner,
+    defaultPrevented: event.defaultPrevented,
+    modifier: event.ctrlKey || event.metaKey,
+    key: event.key,
+  })
+  if (scope === 'sheet') return false
+  if (scope === 'global-history') {
+    event.preventDefault()
+    if (event.key.toLowerCase() === 'y' || event.shiftKey) history.redo()
+    else history.undo()
+  }
+  return true
+}
+
 export type SheetViewportPointerTarget = 'background' | 'sheet-content'
 
 export type SheetViewportPointerIntent =

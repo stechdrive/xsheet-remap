@@ -28,6 +28,7 @@ import type { CameraCueClipboard, EditMode, SheetRangeSelection, SoundCueClipboa
 import type { DropDiagnosticReport } from './AssetBrowser'
 import type { AutoCalibrationOverlayState, FrameOperationKind, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate } from './app-foundation'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
+import type { DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 
 export type SheetCanvasProps = {
   project: CutProject
@@ -79,7 +80,11 @@ export type SheetCanvasProps = {
   onSoundCueSelect: (cueId: string) => void
   onSoundCueEdit: (cueId: string) => void
   onSoundRangeEdit: (range: SheetRangeSelection) => void
-  onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
+  onSoundCueTransform: (
+    cueId: string,
+    updates: { laneId: string; frameStart: number; frameEnd: number },
+    intent?: DialogueSoundCueChangeIntent,
+  ) => void
   onCameraCueSelect: (cueId: string) => void
   onCameraCueEdit: (cueId: string) => void
   onCameraRangeEdit: (range: SheetRangeSelection) => void

@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   advancePrimaryPointerActivation,
+  handleWorkspaceKeyboardBoundary,
   isRepeatedPrimaryPointerActivation,
   nextSoundCueNavigationRequest,
   resolveSheetViewportPointerIntent,
+  resolveWorkspaceKeyboardScope,
   sheetViewportPointerTarget,
 } from './workspaceInteractionPolicy'
 
@@ -13,6 +15,50 @@ describe('workspace interaction policy', () => {
     const second = nextSoundCueNavigationRequest(first, 'cue-1')
     expect(first).toEqual({ requestId: 1, cueId: 'cue-1' })
     expect(second).toEqual({ requestId: 2, cueId: 'cue-1' })
+  })
+
+  it('routes shortcuts to the focused workspace without leaking audio commands into sheet selection', () => {
+    expect(resolveWorkspaceKeyboardScope({
+      owner: 'audio',
+      defaultPrevented: true,
+      modifier: true,
+      key: 'c',
+    })).toBe('ignore')
+    expect(resolveWorkspaceKeyboardScope({
+      owner: 'audio',
+      defaultPrevented: false,
+      modifier: false,
+      key: 'Delete',
+    })).toBe('ignore')
+    expect(resolveWorkspaceKeyboardScope({
+      owner: 'audio',
+      defaultPrevented: false,
+      modifier: true,
+      key: 'z',
+    })).toBe('global-history')
+    expect(resolveWorkspaceKeyboardScope({
+      owner: 'sheet',
+      defaultPrevented: false,
+      modifier: false,
+      key: 'ArrowRight',
+    })).toBe('sheet')
+  })
+
+  it('keeps global history available while audio owns the workspace keyboard', () => {
+    const undo = vi.fn()
+    const redo = vi.fn()
+    const preventDefault = vi.fn()
+    expect(handleWorkspaceKeyboardBoundary({
+      ctrlKey: true,
+      metaKey: false,
+      shiftKey: false,
+      key: 'z',
+      defaultPrevented: false,
+      preventDefault,
+    }, 'audio', { undo, redo })).toBe(true)
+    expect(undo).toHaveBeenCalledTimes(1)
+    expect(redo).not.toHaveBeenCalled()
+    expect(preventDefault).toHaveBeenCalledTimes(1)
   })
 
   it.each([

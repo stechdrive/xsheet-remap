@@ -6,6 +6,7 @@ import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText, viewModeLabels } from './i18n'
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TemplateRegionAnnotationTarget, type TimingClipboard, type WorkspaceStyle } from './appTypes'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
+import type { DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 import { AssetTray, type DropDiagnosticReport } from './AssetBrowser'
 import { SHEET_ZOOM_MAX, SHEET_ZOOM_MIN } from './sheetConstants'
 import { clampSheetZoom } from './sheetInteraction'
@@ -116,7 +117,11 @@ export function SheetPanel(props: {
   onSoundCueSelect: (cueId: string) => void
   onSoundCueEdit: (cueId: string) => void
   onSoundRangeEdit: (range: SheetRangeSelection) => void
-  onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
+  onSoundCueTransform: (
+    cueId: string,
+    updates: { laneId: string; frameStart: number; frameEnd: number },
+    intent?: DialogueSoundCueChangeIntent,
+  ) => void
   onCameraCueSelect: (cueId: string) => void
   onCameraCueEdit: (cueId: string) => void
   onCameraRangeEdit: (range: SheetRangeSelection) => void

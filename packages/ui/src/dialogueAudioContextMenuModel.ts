@@ -22,6 +22,7 @@ export type DialogueAudioContextCommand =
   | 'paste-overwrite'
   | 'paste-insert'
   | 'insert-silence'
+  | 'add-to-selected-sound'
   | 'assign-sound'
   | 'copy'
   | 'cut'
@@ -42,6 +43,7 @@ export interface DialogueAudioContextAvailability {
   hasClipboard: boolean
   busy: boolean
   targetHasAudio: boolean
+  canAddToSelectedSound: boolean
 }
 
 /**
@@ -120,9 +122,16 @@ export function dialogueAudioContextCommands(
         ...(!availability.busy ? ['cut', 'delete-clips', 'redetect-clips'] as const : []),
       ]
     case 'candidate':
-      return target.ignored ? ['restore-candidate'] : ['assign-sound', 'ignore-candidate']
+      return target.ignored
+        ? ['restore-candidate']
+        : [
+            ...(availability.canAddToSelectedSound ? ['add-to-selected-sound'] as const : []),
+            'assign-sound',
+            'ignore-candidate',
+          ]
     case 'region':
       return [
+        ...(availability.canAddToSelectedSound ? ['add-to-selected-sound'] as const : []),
         target.linked ? 'edit-sound' : 'assign-sound',
         ...(target.linked
           ? ['select-sheet-cue', 'align-audio-to-cue', 'align-cue-to-audio', 'unlink-sound'] as const

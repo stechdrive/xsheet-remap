@@ -50,7 +50,7 @@ export function SoundCueDialog({
   const [durationFrames, setDurationFrames] = useState(initialDuration)
   const [laneId, setLaneId] = useState(state.laneId)
   const [assignmentTarget, setAssignmentTarget] = useState(state.audioCandidate?.cueId ?? 'new')
-  const [alignment, setAlignment] = useState<SoundCueAudioAlignment>('move-cue-to-audio')
+  const [alignment, setAlignment] = useState<SoundCueAudioAlignment>('keep-offset')
   const labelInputRef = useRef<HTMLInputElement>(null)
   const frameStart = Math.max(frameMin, Math.min(frameMax, initialFrameStart))
   const maxDuration = Math.max(1, frameMax - frameStart + 1)
@@ -134,10 +134,11 @@ export function SoundCueDialog({
               <label>
                 <span>位置の合わせ方</span>
                 <select aria-label="位置の合わせ方" value={alignment} onChange={event => setAlignment(event.currentTarget.value as SoundCueAudioAlignment)}>
+                  <option value="keep-offset">現在位置のまま追加</option>
                   <option value="move-cue-to-audio">ラベルを音声区間へ移動</option>
                   <option value="move-audio-to-cue">音声区間をラベルへ移動</option>
                 </select>
-                <small>リンク時に両方の区間を一致させ、以後は音声側とタイムシート側を同期します。</small>
+                <small>通常は現在位置のまま追加します。位置を揃える操作は必要な場合だけ選択してください。</small>
               </label>
             </>
           ) : (

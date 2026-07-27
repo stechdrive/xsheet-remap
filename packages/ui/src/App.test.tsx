@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, resolveSheetTemplatePageSize, timelineLanesForLayout, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
+import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, createTimedRangeCue, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, resolveSheetTemplatePageSize, timelineLanesForLayout, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
 import { encodeProjectArchive, XSR_PROJECT_FILE_ACCEPT, XSR_PROJECT_MIME_TYPE } from '@xsheet-remap/adapters';
 import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
@@ -9,6 +9,7 @@ import { rememberSheetTemplatePreset } from './mainAppPreferences';
 import { ASSET_DRAG_MIME } from './sheetConstants';
 import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openDisplaySettingsMenu, openPaperSheetMenu, openSharedCutMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, selectCspCorrectionLayer, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
+import { createDefaultDialogueAudioCutState, updateDialogueAudioCutStateInProject } from './dialogueAudioProject'
 
 async function createXsrTestFile(document: Parameters<typeof encodeProjectArchive>[0], fileName = 'project.xsr'): Promise<File> {
   const archive = await encodeProjectArchive(document, { createdWith: 'test' })
@@ -823,6 +824,86 @@ it('edits the cut duration as seconds and frames with stepper buttons', () => {
     fireEvent.click(screen.getByRole('button', { name: uiText.sheet.durationSecondsDown }))
     expect((screen.getByLabelText(uiText.sheet.durationSeconds) as HTMLInputElement).value).toBe('06')
     expect((screen.getByLabelText(uiText.sheet.durationFrames) as HTMLInputElement).value).toBe('13')
+  })
+
+it('restores a linked SOUND range when the duration expands over deferred audio', async () => {
+    let project = createDefaultProject()
+    const laneId = timelineLanesForLayout(project).sound![0].laneId
+    const created = createTimedRangeCue(project, {
+      role: 'sound',
+      laneId,
+      frameStart: 144,
+      frameEnd: 144,
+      label: '主人公',
+      text: '尺外のセリフ',
+    })
+    project = created.project
+    const audioState = createDefaultDialogueAudioCutState(1)
+    audioState.assets = [{
+      assetId: 'asset-1',
+      audioDataUrl: 'data:audio/wav;base64,UklGRg==',
+      durationFrames: 24,
+      waveform: [],
+    }]
+    audioState.tracks[0].clips = [{
+      clipId: 'clip-1',
+      placementId: 'placement-1',
+      assetId: 'asset-1',
+      timelineStartFrame: 141,
+      sourceOffsetFrames: 0,
+      durationFrames: 24,
+    }]
+    audioState.tracks[0].dialogueRegions = [{
+      regionId: 'dialogue-region-1',
+      frameStart: 151,
+      frameEnd: 159,
+      candidateIds: [],
+      anchors: [{
+        anchorId: 'anchor-1',
+        placementId: 'placement-1',
+        assetId: 'asset-1',
+        sourceFrameStart: 10,
+        sourceFrameEnd: 18,
+        candidateIds: [],
+      }],
+      headPaddingFrames: 0,
+      tailPaddingFrames: 0,
+      status: 'ready',
+    }]
+    audioState.soundBindings = [{
+      bindingId: 'binding-1',
+      cueId: created.cue.cueId,
+      revisionId: 'sheet_revision_1',
+      members: [{
+        memberId: 'member-1',
+        regionRef: { trackId: 'dialogue-1', regionId: 'dialogue-region-1' },
+      }],
+      headPaddingFrames: 0,
+      tailPaddingFrames: 0,
+      status: 'linked',
+    }]
+    project = updateDialogueAudioCutStateInProject(project, audioState, 1, project.logicalSheet.durationFrames)
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(project), 'deferred-sound-range.xsr')
+
+    render(<App />)
+    const menu = openAppNavigationMenu()
+    const input = within(menu)
+      .getByText(uiText.actions.loadProject)
+      .closest('label')
+      ?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!input) throw new Error('load project file input not found')
+    fireEvent.change(input, { target: { files: [file] } })
+
+    const cueSelector = `.soundCue[data-sound-cue-id="${created.cue.cueId}"]`
+    await waitFor(() => expect(document.querySelector(cueSelector)?.getAttribute('data-frame-start')).toBe('144'))
+
+    openCutMetadataMenu()
+    fireEvent.change(screen.getByLabelText(uiText.sheet.durationSeconds), { target: { value: '8' } })
+
+    await waitFor(() => {
+      expect(document.querySelector(cueSelector)?.getAttribute('data-frame-start')).toBe('151')
+      expect(document.querySelector(cueSelector)?.getAttribute('data-frame-end')).toBe('159')
+    })
   })
 
 it('dims visible paper rows outside the cut duration without creating post-roll state', () => {

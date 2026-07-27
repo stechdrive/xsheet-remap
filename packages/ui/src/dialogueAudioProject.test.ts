@@ -17,6 +17,7 @@ import {
   pruneUnusedDialogueAudioAssets,
   updateDialogueAudioCutStateInProject,
 } from './dialogueAudioProject'
+import { linkDialogueAudioCandidates } from './dialogueAudioBinding'
 
 describe('dialogue audio project state', () => {
   it('stores audio inside the cut project so project history restores it atomically', () => {
@@ -40,6 +41,41 @@ describe('dialogue audio project state', () => {
       timelineStartFrame: 12,
       durationFrames: 24,
     })
+  })
+
+  it('round-trips stable many-to-one SOUND binding members', () => {
+    let state = audioState()
+    state.tracks[0].speechCandidates = [
+      { candidateId: 'base', frameStart: 14, frameEnd: 18, status: 'pending' },
+      { candidateId: 'patch', frameStart: 28, frameEnd: 32, status: 'pending' },
+    ]
+    const cue = {
+      cueId: 'cue-1',
+      role: 'sound' as const,
+      laneId: 'sound_lane_1',
+      frameStart: 12,
+      frameEnd: 35,
+      label: '主人公',
+      text: '',
+    }
+    state = linkDialogueAudioCandidates(state, 'dialogue-1', ['base'], cue, 'revision-1')
+    state = linkDialogueAudioCandidates(state, 'dialogue-1', ['patch'], cue, 'revision-1')
+    const source = {
+      ...createDefaultProject(),
+      timedRangeCues: [cue],
+    }
+    const project = updateDialogueAudioCutStateInProject(source, state, 1, 144)
+    const restored = activeCutProjectFromDocument(parseProjectDocument(
+      structuredClone(createProjectDocumentFromCutProject(project)),
+    ))
+    const binding = dialogueAudioCutStateFromProject(restored, 1).soundBindings[0]
+
+    expect(binding.bindingId).toBeTruthy()
+    expect(new Set(binding.members.map(member => member.memberId)).size).toBe(2)
+    expect(binding.members.map(member => member.regionRef.regionId)).toEqual([
+      'dialogue-region',
+      'dialogue-region-2',
+    ])
   })
 
   it('keeps each shared cut audio extension independent', () => {

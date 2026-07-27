@@ -1,7 +1,7 @@
 import type { CutProject } from '@xsheet-remap/core'
 
 export const DIALOGUE_AUDIO_EXTENSION = 'xsheet-remap.dialogue-audio'
-export const DIALOGUE_AUDIO_SCHEMA_VERSION = 1
+export const DIALOGUE_AUDIO_SCHEMA_VERSION = 2
 
 export type DialogueAudioVadPreset = 'quiet' | 'normal' | 'noisy'
 export type DialogueAudioVadMode = 'off' | 'candidates' | 'auto-region'
@@ -80,11 +80,21 @@ export interface DialogueRegionReference {
   regionId: string
 }
 
-export interface DialogueSoundAssignment {
-  assignmentId: string
+export interface DialogueSoundBindingMember {
+  memberId: string
+  regionRef: DialogueRegionReference
+}
+
+export interface DialogueSoundBinding {
+  bindingId: string
   cueId: string
   revisionId: string
-  regionRefs: DialogueRegionReference[]
+  members: DialogueSoundBindingMember[]
+  /**
+   * The semantic SOUND range can include deliberate space before and after
+   * the linked audio envelope. Audio-side edits preserve this relationship;
+   * cue-edge edits recalculate it without stretching audio.
+   */
   headPaddingFrames: number
   tailPaddingFrames: number
   status: 'linked' | 'review' | 'orphaned'
@@ -100,7 +110,7 @@ export interface DialogueAudioCutState {
   detectionPreset: DialogueAudioVadPreset
   assets: DialogueAudioAsset[]
   tracks: DialogueAudioTrackState[]
-  assignments: DialogueSoundAssignment[]
+  soundBindings: DialogueSoundBinding[]
 }
 
 const TRACK_COLORS = ['#d7855f', '#5f9aaa', '#8a82b5']
@@ -125,7 +135,7 @@ export function createDefaultDialogueAudioCutState(frameOrigin: number, cutDurat
     detectionPreset: 'quiet',
     assets: [],
     tracks,
-    assignments: [],
+    soundBindings: [],
   }
 }
 
@@ -175,8 +185,8 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState, fram
   const assetIds = new Set(assets.map(asset => asset.assetId))
   const rawTracks = value.tracks
   const tracks = fallback.tracks.map((defaultTrack, index) => normalizeTrackState(rawTracks[index], defaultTrack, assetIds))
-  const assignments = Array.isArray(value.assignments)
-    ? value.assignments.flatMap(item => normalizeAssignment(item, tracks))
+  const soundBindings = Array.isArray(value.soundBindings)
+    ? value.soundBindings.flatMap(item => normalizeSoundBinding(item, tracks))
     : []
   const activeTrackId = typeof value.activeTrackId === 'string' && tracks.some(track => track.trackId === value.activeTrackId)
     ? value.activeTrackId
@@ -193,7 +203,7 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState, fram
     detectionPreset: normalizeVadPreset(value.detectionPreset, fallback.detectionPreset),
     assets,
     tracks,
-    assignments,
+    soundBindings,
   }
 }
 
@@ -337,26 +347,37 @@ function normalizeRegionAnchor(value: unknown, assetIds: Set<string>): DialogueR
   return [{ anchorId, placementId, assetId, sourceFrameStart, sourceFrameEnd, candidateIds }]
 }
 
-function normalizeAssignment(value: unknown, tracks: DialogueAudioTrackState[]): DialogueSoundAssignment[] {
+function normalizeSoundBinding(value: unknown, tracks: DialogueAudioTrackState[]): DialogueSoundBinding[] {
   if (!isRecord(value)) return []
-  const assignmentId = normalizedId(value.assignmentId)
+  const bindingId = normalizedId(value.bindingId)
   const cueId = normalizedId(value.cueId)
   const revisionId = normalizedId(value.revisionId)
-  if (!assignmentId || !cueId || !revisionId) return []
+  if (!bindingId || !cueId || !revisionId) return []
   const regionIdsByTrack = new Map(tracks.map(track => [track.trackId, new Set(track.dialogueRegions.map(region => region.regionId))]))
-  const regionRefs = Array.isArray(value.regionRefs) ? value.regionRefs.flatMap((item): DialogueRegionReference[] => {
+  const memberIds = new Set<string>()
+  const regionKeys = new Set<string>()
+  const members = Array.isArray(value.members) ? value.members.flatMap((item): DialogueSoundBindingMember[] => {
     if (!isRecord(item)) return []
-    const trackId = normalizedId(item.trackId)
-    const regionId = normalizedId(item.regionId)
-    return regionIdsByTrack.get(trackId)?.has(regionId) ? [{ trackId, regionId }] : []
+    const memberId = normalizedId(item.memberId)
+    const regionRef = isRecord(item.regionRef) ? item.regionRef : null
+    const trackId = normalizedId(regionRef?.trackId)
+    const regionId = normalizedId(regionRef?.regionId)
+    const regionKey = `${trackId}\u0000${regionId}`
+    if (!memberId
+      || memberIds.has(memberId)
+      || regionKeys.has(regionKey)
+      || !regionIdsByTrack.get(trackId)?.has(regionId)) return []
+    memberIds.add(memberId)
+    regionKeys.add(regionKey)
+    return [{ memberId, regionRef: { trackId, regionId } }]
   }) : []
-  if (regionRefs.length === 0) return []
+  if (members.length === 0) return []
   const status = value.status === 'review' || value.status === 'orphaned' ? value.status : 'linked'
   return [{
-    assignmentId,
+    bindingId,
     cueId,
     revisionId,
-    regionRefs,
+    members,
     headPaddingFrames: integer(value.headPaddingFrames, 0),
     tailPaddingFrames: integer(value.tailPaddingFrames, 0),
     status,

@@ -49,8 +49,9 @@ import { createAppDialogueAudioActions } from './app-dialogue-audio-actions'
 import { applyTimingEditSession } from './timingEditSession'
 import { createAppProjectPersistenceActions } from './app-project-persistence-actions'
 import { useTimingEditOperationBoundaries } from './useTimingEditOperationBoundaries'
-import { nextSoundCueNavigationRequest } from './workspaceInteractionPolicy'
+import { handleWorkspaceKeyboardBoundary, nextSoundCueNavigationRequest } from './workspaceInteractionPolicy'
 import { eventKeyIdAtSheetHit, timingKeyAtSheetHit, timingKeyDisplayLabel } from './workspaceSelectionModel'
+import { EMPTY_DIALOGUE_AUDIO_SELECTION } from './dialogueAudioSelectionModel'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
@@ -64,6 +65,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
+    dialogueAudioSelection, setDialogueAudioSelection, workspaceFocusOwner, setWorkspaceFocusOwner,
     audioPlayhead, setAudioPlayhead, soundCueNavigationRequest, setSoundCueNavigationRequest,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
@@ -148,6 +150,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     openSoundCueEditorForAudioCandidate, autoCreateDialogueRegions: handleAutoCreateDialogueRegions,
     applyCandidateLink: applyDialogueAudioCandidateLink,
     applySoundCueProjectChange,
+    reconcileAfterSheetRangeChange: reconcileDialogueAudioAfterSheetRangeChange,
   } = dialogueAudioActions
   const {
     selectedTimedRangeCue, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue,
@@ -538,6 +541,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function clearSelectionState() {
     setSheetSelection({ kind: 'none' })
+    setDialogueAudioSelection(EMPTY_DIALOGUE_AUDIO_SELECTION)
+    setWorkspaceFocusOwner('none')
     setSelectedKeyId(null)
     setSelectedTextAnnotationId(null)
     setEditingTextAnnotationId(null)
@@ -560,6 +565,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const keyId = keyIdOverride === undefined ? eventKeyIdAtSheetHit(sourceProject, hit) : keyIdOverride
     setSelectedTextAnnotationId(null)
     setSheetSelection({ kind: 'cell', hit })
+    setWorkspaceFocusOwner('sheet')
     setSelectedKeyId(keyId)
     setTimingEditSession(null)
     updateOpenNativePreviewForKey(sourceProject, keyId)
@@ -570,6 +576,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const keyId = eventKeyIdAtSheetHit(sourceProject, inputHit)
     setSelectedTextAnnotationId(null)
     setSheetSelection({ kind: 'range', range })
+    setWorkspaceFocusOwner('sheet')
     setSelectedKeyId(keyId)
     setTimingEditSession(null)
     updateOpenNativePreviewForKey(sourceProject, keyId)
@@ -648,7 +655,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function runProjectCommand(transform: (sourceProject: CutProject) => CutProject): CutProject {
     const sourceProject = commitTimingDraft(false)
-    const nextProject = transform(sourceProject)
+    const transformedProject = transform(sourceProject)
+    const nextProject = reconcileDialogueAudioAfterSheetRangeChange(sourceProject, transformedProject)
     if (nextProject !== sourceProject) commitProject(nextProject)
     return nextProject
   }
@@ -683,12 +691,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitActiveEdit: () => { commitTimingDraft(false) },
     hasUnsavedChanges: hasUnsavedProjectChanges,
   })
-
   function handleRangeSelect(range: SheetRangeSelection) {
     const sourceProject = commitTimingDraft(false)
     setSelectionFromRange(range, sourceProject)
   }
-  function handleSoundCueSelect(cueId: string) { selectSoundCue(cueId); setSoundCueNavigationRequest(current => nextSoundCueNavigationRequest(current, cueId)) }
+  function handleSoundCueSelect(cueId: string) { setWorkspaceFocusOwner('sheet'); selectSoundCue(cueId); setSoundCueNavigationRequest(current => nextSoundCueNavigationRequest(current, cueId)) }
+  function handleDialogueAudioSelectionChange(nextSelection: typeof dialogueAudioSelection) { setDialogueAudioSelection(nextSelection); setWorkspaceFocusOwner('audio') }
+  function handleDialogueAudioFocus() { setWorkspaceFocusOwner('audio') }
   function handleAudioPlayheadChange(frame: number) {
     setAudioPlayhead({ cutId: projectDocumentSnapshot.activeCutId, frame })
     const pageIndex = sheetPages.findIndex(page => frame >= page.frameStart && frame <= page.frameEnd)
@@ -2091,7 +2100,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setRecognitionCandidates(conflicts)
     setRecognitionMessage(conflicts.length > 0 ? uiText.recognition.conflictsRemain(conflicts.length) : null)
   }
-
   function updateRecognitionCandidateLabel(candidateId: string, value: string) {
     setRecognitionCandidates(current => current.map(candidate => candidate.candidateId === candidateId
       ? { ...candidate, normalizedLabel: normalizeRecognitionLabel(value) ?? value.trim() }
@@ -2113,6 +2121,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     function onKeyDown(event: KeyboardEvent) {
       if (event.isComposing) return
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return
+      if (handleWorkspaceKeyboardBoundary(event, workspaceFocusOwner, { undo: handleUndo, redo: handleRedo })) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && selectedTextAnnotation) {
         event.preventDefault()
         handleCopyTextAnnotation()
@@ -2255,7 +2264,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
-    audioPlayheadFrame, soundCueNavigationRequest,
+    audioPlayheadFrame, soundCueNavigationRequest, dialogueAudioSelection,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
@@ -2267,7 +2276,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, handleAudioPlayheadChange, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
+    handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,

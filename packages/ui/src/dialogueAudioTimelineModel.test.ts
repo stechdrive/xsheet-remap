@@ -157,11 +157,14 @@ describe('dialogue audio timeline view model', () => {
 
   it('does not extend the stored audio workspace merely because a linked timesheet cue is longer', () => {
     const state = createDefaultDialogueAudioCutState(1, 144)
-    state.assignments = [{
-      assignmentId: 'assignment',
+    state.soundBindings = [{
+      bindingId: 'binding',
       cueId: 'cue',
       revisionId: 'revision',
-      regionRefs: [{ trackId: 'dialogue-1', regionId: 'missing' }],
+      members: [{
+        memberId: 'member',
+        regionRef: { trackId: 'dialogue-1', regionId: 'missing' },
+      }],
       headPaddingFrames: 0,
       tailPaddingFrames: 0,
       status: 'orphaned',

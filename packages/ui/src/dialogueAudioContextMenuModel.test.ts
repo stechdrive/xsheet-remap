@@ -5,7 +5,7 @@ import {
   type DialogueAudioContextTarget,
 } from './dialogueAudioContextMenuModel'
 
-const available = { hasClipboard: true, busy: false, targetHasAudio: true }
+const available = { hasClipboard: true, busy: false, targetHasAudio: true, canAddToSelectedSound: false }
 
 describe('dialogueAudioContextCommands', () => {
   it('keeps global VAD settings out of every context target', () => {
@@ -79,7 +79,35 @@ describe('dialogueAudioContextCommands', () => {
       trackId: 'dialogue-1',
       frameStart: 1,
       frameEnd: 12,
-    }, { hasClipboard: true, busy: true, targetHasAudio: true })).toEqual(['assign-sound', 'copy'])
+    }, {
+      hasClipboard: true,
+      busy: true,
+      targetHasAudio: true,
+      canAddToSelectedSound: false,
+    })).toEqual(['assign-sound', 'copy'])
+  })
+
+  it('offers the selected SOUND as a direct destination for speech objects only', () => {
+    const withSelectedSound = { ...available, canAddToSelectedSound: true }
+    expect(dialogueAudioContextCommands({
+      kind: 'candidate',
+      trackId: 'dialogue-1',
+      candidateIds: ['vad-1'],
+      ignored: false,
+    }, withSelectedSound)[0]).toBe('add-to-selected-sound')
+    expect(dialogueAudioContextCommands({
+      kind: 'region',
+      trackId: 'dialogue-1',
+      regionId: 'region-1',
+      linked: false,
+    }, withSelectedSound)[0]).toBe('add-to-selected-sound')
+    expect(dialogueAudioContextCommands({
+      kind: 'clip',
+      trackId: 'dialogue-1',
+      clipIds: ['clip-1'],
+      frameStart: 1,
+      frameEnd: 12,
+    }, withSelectedSound)).not.toContain('add-to-selected-sound')
   })
 })
 

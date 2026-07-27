@@ -1,5 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import {
+  logicalSheetDisplayFrameEnd,
+  logicalSheetDisplayFrameStart,
   timelineLanesForLayout,
   updateTimedRangeCue,
   type CutProject,
@@ -15,8 +17,10 @@ import {
 } from './dialogueAudioProject'
 import {
   applySoundCueChangesToDialogueAudio,
-  assignDialogueRegionsToCue,
+  bindDialogueRegionsToCue,
   createDialogueRegionFromCandidates,
+  synchronizeDialogueBindingsAfterAudioEdit,
+  type DialogueSoundCueChangeIntent,
 } from './dialogueAudioBinding'
 import { moveDialogueRegionAudioToFrame, transformDialogueRegionInterval } from './dialogueAudioEditing'
 import {
@@ -107,7 +111,7 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
       cue = nextProject.timedRangeCues.find(item => item.cueId === cueId && item.role === 'sound')
       if (!cue) return project
     }
-    const assigned = assignDialogueRegionsToCue(
+    const assigned = bindDialogueRegionsToCue(
       positioned,
       [{ trackId: candidate.trackId, regionId: created.region.regionId }],
       cue,
@@ -122,7 +126,11 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     )
   }
 
-  function applySoundCueProjectChange(previousProject: CutProject, nextProject: CutProject): CutProject {
+  function applySoundCueProjectChange(
+    previousProject: CutProject,
+    nextProject: CutProject,
+    intent: DialogueSoundCueChangeIntent = 'reconcile',
+  ): CutProject {
     if (!previousProject.extensions?.[DIALOGUE_AUDIO_EXTENSION]) return nextProject
     const placedProject = resolveChangedSoundCuePlacements(previousProject, nextProject)
     if (!placedProject) {
@@ -136,13 +144,19 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
       previousProject.logicalSheet.frameOrigin,
       previousProject.logicalSheet.durationFrames,
     )
-    const nextState = applySoundCueChangesToDialogueAudio(sourceState, previousCues, nextCues, options.revisionId)
+    const nextState = applySoundCueChangesToDialogueAudio(sourceState, previousCues, nextCues, options.revisionId, intent)
     return updateDialogueAudioCutStateInProject(
       placedProject,
       nextState,
       placedProject.logicalSheet.frameOrigin,
       placedProject.logicalSheet.durationFrames,
     )
+  }
+
+  function reconcileAfterSheetRangeChange(previousProject: CutProject, nextProject: CutProject): CutProject {
+    const result = reconcileDialogueAudioAfterSheetRangeChange(previousProject, nextProject, options.revisionId)
+    if (result.conflict) options.onPlacementConflict?.(SOUND_CUE_PLACEMENT_CONFLICT_MESSAGE)
+    return result.project
   }
 
   function openSoundCueEditorForAudioCandidate(trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string) {
@@ -177,9 +191,39 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     handleCutStateChange,
     applyCandidateLink,
     applySoundCueProjectChange,
+    reconcileAfterSheetRangeChange,
     openSoundCueEditorForAudioCandidate,
     autoCreateDialogueRegions,
   }
+}
+
+export function reconcileDialogueAudioAfterSheetRangeChange(
+  previousProject: CutProject,
+  nextProject: CutProject,
+  revisionId: string,
+): { project: CutProject; conflict: boolean } {
+  const previousFrameStart = logicalSheetDisplayFrameStart(previousProject.logicalSheet)
+  const previousFrameEnd = logicalSheetDisplayFrameEnd(previousProject.logicalSheet)
+  const nextFrameStart = logicalSheetDisplayFrameStart(nextProject.logicalSheet)
+  const nextFrameEnd = logicalSheetDisplayFrameEnd(nextProject.logicalSheet)
+  if ((previousFrameStart === nextFrameStart && previousFrameEnd === nextFrameEnd)
+    || !nextProject.extensions?.[DIALOGUE_AUDIO_EXTENSION]) {
+    return { project: nextProject, conflict: false }
+  }
+  const cutState = dialogueAudioCutStateFromProject(
+    nextProject,
+    nextProject.logicalSheet.frameOrigin,
+    nextProject.logicalSheet.durationFrames,
+  )
+  const synchronized = synchronizeDialogueBindingsAfterAudioEdit(
+    cutState,
+    nextProject.timedRangeCues.filter(cue => cue.role === 'sound'),
+    revisionId,
+  )
+  return applyDialogueAudioProjectChangeResult(nextProject, {
+    cutState: synchronized.state,
+    cueUpdates: synchronized.cueUpdates,
+  })
 }
 
 export function applyDialogueAudioProjectChange(

@@ -18,6 +18,11 @@ import {
 } from './cameraCueEditing'
 import { createPreferredProject } from './mainAppPreferences'
 import type { SoundCueNavigationRequest } from './workspaceInteractionPolicy'
+import type { WorkspaceFocusOwner } from './workspaceInteractionPolicy'
+import {
+  EMPTY_DIALOGUE_AUDIO_SELECTION,
+  type DialogueAudioSelectionState,
+} from './dialogueAudioSelectionModel'
 
 export const DEFAULT_PEN_COLOR = '#000000'
 export const DEFAULT_PEN_WIDTH = 0.002
@@ -107,6 +112,8 @@ export function useAppShellState(appKind: MainAppKind) {
   const [editingTextAnnotationId, setEditingTextAnnotationId] = useState<string | null>(null)
   const [textAnnotationClipboard, setTextAnnotationClipboard] = useState<AnnotationText | null>(null)
   const [sheetSelection, setSheetSelection] = useState<SheetSelection>({ kind: 'none' })
+  const [dialogueAudioSelection, setDialogueAudioSelection] = useState<DialogueAudioSelectionState>(EMPTY_DIALOGUE_AUDIO_SELECTION)
+  const [workspaceFocusOwner, setWorkspaceFocusOwner] = useState<WorkspaceFocusOwner>('none')
   const [audioPlayhead, setAudioPlayhead] = useState({
     cutId: initialWorkspace.document.activeCutId,
     frame: initialWorkspace.project.logicalSheet.frameOrigin,
@@ -159,6 +166,7 @@ export function useAppShellState(appKind: MainAppKind) {
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
+    dialogueAudioSelection, setDialogueAudioSelection, workspaceFocusOwner, setWorkspaceFocusOwner,
     audioPlayhead, setAudioPlayhead, soundCueNavigationRequest, setSoundCueNavigationRequest,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,

@@ -34,8 +34,8 @@ describe('SoundCueDialog', () => {
       />,
     )
     expect((screen.getByLabelText('音響指示の割付先') as HTMLSelectElement).value).toBe('cue-2')
-    expect((screen.getByLabelText('位置の合わせ方') as HTMLSelectElement).value).toBe('move-cue-to-audio')
-    expect(screen.queryByRole('option', { name: '現在位置のままリンク' })).toBeNull()
+    expect((screen.getByLabelText('位置の合わせ方') as HTMLSelectElement).value).toBe('keep-offset')
+    expect(screen.getByRole('option', { name: '現在位置のまま追加' })).toBeTruthy()
     fireEvent.change(screen.getByLabelText('位置の合わせ方'), { target: { value: 'move-audio-to-cue' } })
     fireEvent.click(screen.getByRole('button', { name: '割り付け' }))
     expect(onSubmit).toHaveBeenCalledWith({

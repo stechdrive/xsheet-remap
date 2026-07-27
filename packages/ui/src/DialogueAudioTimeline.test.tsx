@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { DialogueAudioTimeline } from './DialogueAudioTimeline'
-import { createDefaultDialogueAudioCutState } from './dialogueAudioProject'
+import { createDefaultDialogueAudioCutState, type DialogueAudioCutState } from './dialogueAudioProject'
 import { linkDialogueAudioCandidates } from './dialogueAudioBinding'
 
 let restoreMediaDevices: (() => void) | undefined
@@ -66,6 +66,50 @@ describe('DialogueAudioTimeline', () => {
       timelineDurationFrames: '144',
       audioContentEndFrame: '',
       activeTrackId: 'dialogue-1',
+    })
+  })
+
+  it('uses the App Shell audio selection as a controlled workspace selection', () => {
+    const state = createDefaultDialogueAudioCutState(1)
+    state.tracks[0].speechCandidates = [{
+      candidateId: 'candidate-1',
+      frameStart: 10,
+      frameEnd: 12,
+      status: 'pending',
+    }]
+    const onAudioSelectionChange = vi.fn()
+    const onWorkspaceFocus = vi.fn()
+    render(<DialogueAudioTimeline
+      cutState={state}
+      audioSelection={{
+        entities: [{ kind: 'candidate', trackId: 'dialogue-1', id: 'candidate-1' }],
+        timeRange: null,
+      }}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={144}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onAudioSelectionChange={onAudioSelectionChange}
+      onWorkspaceFocus={onWorkspaceFocus}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+
+    fireEvent.pointerDown(screen.getByRole('region', { name: 'セリフ音声タイムライン' }))
+    expect(onWorkspaceFocus).toHaveBeenCalledTimes(1)
+    openAudioTimeline()
+    expect(screen.getByText('セリフ区間1個 / 10–12F')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('セリフ区間候補 10–12F'))
+    expect(onAudioSelectionChange).toHaveBeenCalledWith({
+      entities: [{ kind: 'candidate', trackId: 'dialogue-1', id: 'candidate-1' }],
+      timeRange: null,
     })
   })
 
@@ -929,6 +973,74 @@ describe('DialogueAudioTimeline', () => {
     fireEvent.click(screen.getByLabelText('セリフ区間候補 24–35F'), { ctrlKey: true })
     fireEvent.click(screen.getByRole('button', { name: '音響指示へ割付…' }))
     expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['vad-1', 'vad-2'], 12, 35)
+  })
+
+  it('adds selected retake candidates to the selected SOUND without moving either range', () => {
+    const state = createDefaultDialogueAudioCutState(1)
+    state.assets = [{
+      assetId: 'asset-1',
+      audioDataUrl: 'data:audio/wav;base64,UklGRg==',
+      durationFrames: 48,
+      waveform: [],
+    }]
+    state.tracks[0].clips = [{
+      clipId: 'clip-1',
+      placementId: 'placement-1',
+      assetId: 'asset-1',
+      timelineStartFrame: 1,
+      sourceOffsetFrames: 0,
+      durationFrames: 48,
+    }]
+    state.tracks[0].speechCandidates = [
+      { candidateId: 'base', frameStart: 8, frameEnd: 16, status: 'pending' },
+      { candidateId: 'retake', frameStart: 28, frameEnd: 34, status: 'pending' },
+    ]
+    const cue = {
+      cueId: 'cue-1',
+      role: 'sound' as const,
+      laneId: 'sound_lane_1',
+      frameStart: 6,
+      frameEnd: 38,
+      label: '主人公',
+      text: '',
+    }
+    const withBase = linkDialogueAudioCandidates(state, 'dialogue-1', ['base'], cue, 'revision-1')
+    const onCutStateChange = vi.fn()
+    render(<DialogueAudioTimeline
+      cutState={withBase}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={48}
+      activeRevisionId="revision-1"
+      soundCues={[cue]}
+      selectedSoundCueId={cue.cueId}
+      onCutStateChange={onCutStateChange}
+      onPlayheadChange={vi.fn()}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    fireEvent.click(screen.getByLabelText('セリフ区間候補 28–34F'))
+    fireEvent.click(screen.getByRole('button', { name: '選択中のSOUNDへ追加' }))
+
+    expect(onCutStateChange).toHaveBeenCalledTimes(1)
+    const committed = onCutStateChange.mock.calls[0][0].cutState as DialogueAudioCutState
+    expect(committed.soundBindings[0].members.map(member => member.regionRef)).toEqual([
+      { trackId: 'dialogue-1', regionId: 'dialogue-region' },
+      { trackId: 'dialogue-1', regionId: 'dialogue-region-2' },
+    ])
+    expect(committed.tracks[0].dialogueRegions.map(region => [region.frameStart, region.frameEnd])).toEqual([
+      [8, 16],
+      [28, 34],
+    ])
+    expect(committed.soundBindings[0]).toMatchObject({
+      headPaddingFrames: 2,
+      tailPaddingFrames: 4,
+    })
   })
 
   it('keeps a wide VAD hit target while preserving the exact detected range visual', () => {

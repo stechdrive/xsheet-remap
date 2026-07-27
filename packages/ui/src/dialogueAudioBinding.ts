@@ -6,16 +6,27 @@ import {
   type DialogueRegion,
   type DialogueRegionAudioAnchor,
   type DialogueRegionReference,
-  type DialogueSoundAssignment,
+  type DialogueSoundBinding,
   type DialogueSpeechCandidate,
 } from './dialogueAudioProject'
-import { moveDialogueAudioClips, moveDialogueRegionAudioToFrame, transformDialogueRegionInterval } from './dialogueAudioEditing'
+import { moveDialogueAudioClips, moveDialogueRegionAudioToFrame } from './dialogueAudioEditing'
 
-export interface DialogueAssignmentResolution {
+export interface DialogueBindingResolution {
   frameStart: number
   frameEnd: number
   complete: boolean
 }
+
+export type DialogueSoundBindingCommand =
+  | {
+      type: 'add-members'
+      cue: Pick<TimedRangeCue, 'cueId' | 'frameStart' | 'frameEnd'>
+      regionRefs: DialogueRegionReference[]
+      revisionId: string
+      soundCues?: Array<Pick<TimedRangeCue, 'cueId' | 'frameStart' | 'frameEnd'>>
+    }
+  | { type: 'remove-member'; regionRef: DialogueRegionReference; revisionId: string }
+  | { type: 'remove-binding'; cueId: string; revisionId: string }
 
 export function createDialogueRegionFromCandidates(
   state: DialogueAudioCutState,
@@ -55,7 +66,26 @@ export function createDialogueRegionFromCandidates(
   }
 }
 
-export function assignDialogueRegionsToCue(
+export function applyDialogueSoundBindingCommand(
+  state: DialogueAudioCutState,
+  command: DialogueSoundBindingCommand,
+): DialogueAudioCutState {
+  if (command.type === 'add-members') {
+    return bindDialogueRegionsToCue(
+      state,
+      command.regionRefs,
+      command.cue,
+      command.revisionId,
+      command.soundCues ?? [command.cue],
+    )
+  }
+  if (command.type === 'remove-member') {
+    return unlinkDialogueAudioRegion(state, command.regionRef, command.revisionId)
+  }
+  return unlinkDialogueAudioCue(state, command.cueId, command.revisionId)
+}
+
+export function bindDialogueRegionsToCue(
   state: DialogueAudioCutState,
   regionRefsInput: DialogueRegionReference[],
   cue: Pick<TimedRangeCue, 'cueId' | 'frameStart' | 'frameEnd'>,
@@ -65,30 +95,42 @@ export function assignDialogueRegionsToCue(
   const regionRefs = uniqueRegionRefs(regionRefsInput).filter(ref => regionForRef(state, ref))
   if (regionRefs.length === 0) return state
   const selectedKeys = new Set(regionRefs.map(regionRefKey))
-  const target = state.assignments.find(item => item.cueId === cue.cueId && item.revisionId === revisionId)
-  const retainedAssignments = state.assignments.flatMap(assignment => {
-    if (assignment.revisionId !== revisionId || assignment === target) return assignment === target ? [] : [assignment]
-    const retainedRefs = assignment.regionRefs.filter(ref => !selectedKeys.has(regionRefKey(ref)))
-    if (retainedRefs.length === 0) return []
+  const target = state.soundBindings.find(item => item.cueId === cue.cueId && item.revisionId === revisionId)
+  const retainedBindings = state.soundBindings.flatMap(binding => {
+    if (binding.revisionId !== revisionId || binding === target) return binding === target ? [] : [binding]
+    const retainedMembers = binding.members.filter(member => !selectedKeys.has(regionRefKey(member.regionRef)))
+    if (retainedMembers.length === 0) return []
+    const retainedRefs = retainedMembers.map(member => member.regionRef)
     const retainedResolution = resolveRegionRefs(state, retainedRefs)
-    const retainedCue = soundCues.find(item => item.cueId === assignment.cueId)
+    const retainedCue = soundCues.find(item => item.cueId === binding.cueId)
     return [{
-      ...assignment,
-      regionRefs: retainedRefs,
-      headPaddingFrames: retainedResolution && retainedCue ? retainedResolution.frameStart - retainedCue.frameStart : assignment.headPaddingFrames,
-      tailPaddingFrames: retainedResolution && retainedCue ? retainedCue.frameEnd - retainedResolution.frameEnd : assignment.tailPaddingFrames,
+      ...binding,
+      members: retainedMembers,
+      headPaddingFrames: retainedResolution && retainedCue ? retainedResolution.frameStart - retainedCue.frameStart : binding.headPaddingFrames,
+      tailPaddingFrames: retainedResolution && retainedCue ? retainedCue.frameEnd - retainedResolution.frameEnd : binding.tailPaddingFrames,
       status: retainedResolution ? (retainedResolution.complete ? 'linked' as const : 'review' as const) : 'orphaned' as const,
       reviewReason: retainedResolution ? (retainedResolution.complete ? undefined : 'リンク音声の一部が削除されています。') : 'リンク対象の音声がありません。',
     }]
   })
-  const targetRefs = uniqueRegionRefs([...(target?.regionRefs ?? []), ...regionRefs])
+  const usedMemberIds = new Set(state.soundBindings.flatMap(binding => binding.members.map(member => member.memberId)))
+  const targetMembers = [...(target?.members ?? [])]
+  const targetKeys = new Set(targetMembers.map(member => regionRefKey(member.regionRef)))
+  for (const regionRef of regionRefs) {
+    const key = regionRefKey(regionRef)
+    if (targetKeys.has(key)) continue
+    const memberId = nextId(`dialogue-sound-member-${regionRef.trackId}-${regionRef.regionId}`, usedMemberIds)
+    usedMemberIds.add(memberId)
+    targetKeys.add(key)
+    targetMembers.push({ memberId, regionRef })
+  }
+  const targetRefs = targetMembers.map(member => member.regionRef)
   const resolution = resolveRegionRefs(state, targetRefs)
-  const assignment: DialogueSoundAssignment = {
-    assignmentId: target?.assignmentId
-      ?? nextId(`dialogue-assignment-${cue.cueId}`, new Set(state.assignments.map(item => item.assignmentId))),
+  const binding: DialogueSoundBinding = {
+    bindingId: target?.bindingId
+      ?? nextId(`dialogue-sound-binding-${cue.cueId}`, new Set(state.soundBindings.map(item => item.bindingId))),
     cueId: cue.cueId,
     revisionId,
-    regionRefs: targetRefs,
+    members: targetMembers,
     headPaddingFrames: resolution ? resolution.frameStart - cue.frameStart : 0,
     tailPaddingFrames: resolution ? cue.frameEnd - resolution.frameEnd : 0,
     status: resolution ? (resolution.complete ? 'linked' : 'review') : 'orphaned',
@@ -105,7 +147,7 @@ export function assignDialogueRegionsToCue(
   }
   return {
     ...state,
-    assignments: [...retainedAssignments, assignment],
+    soundBindings: [...retainedBindings, binding],
     tracks: state.tracks.map(track => {
       const assignedCandidateIds = assignedCandidateIdsByTrack.get(track.trackId)
       if (!assignedCandidateIds) return track
@@ -130,125 +172,74 @@ export function linkDialogueAudioCandidates(
 ): DialogueAudioCutState {
   const created = createDialogueRegionFromCandidates(state, trackId, candidateIds)
   return created
-    ? assignDialogueRegionsToCue(created.state, [{ trackId, regionId: created.region.regionId }], cue, revisionId)
+    ? bindDialogueRegionsToCue(created.state, [{ trackId, regionId: created.region.regionId }], cue, revisionId)
     : state
 }
 
-export function synchronizeDialogueAssignmentsFromCues(
+export function synchronizeDialogueBindingsFromCues(
   state: DialogueAudioCutState,
   soundCues: TimedRangeCue[],
   revisionId: string,
 ): DialogueAudioCutState {
   const cueById = new Map(soundCues.map(cue => [cue.cueId, cue]))
   let changed = false
-  const assignments = state.assignments.map(assignment => {
-    if (assignment.revisionId !== revisionId) return assignment
-    const cue = cueById.get(assignment.cueId)
+  const soundBindings = state.soundBindings.map(binding => {
+    if (binding.revisionId !== revisionId) return binding
+    const cue = cueById.get(binding.cueId)
     if (!cue) {
-      if (assignment.status === 'review' && assignment.reviewReason === 'リンク先の音響指示が見つかりません。') return assignment
+      if (binding.status === 'review' && binding.reviewReason === 'リンク先の音響指示が見つかりません。') return binding
       changed = true
-      return { ...assignment, status: 'review' as const, reviewReason: 'リンク先の音響指示が見つかりません。' }
+      return { ...binding, status: 'review' as const, reviewReason: 'リンク先の音響指示が見つかりません。' }
     }
-    const resolution = resolveDialogueAssignment(state, assignment)
+    const resolution = resolveDialogueBinding(state, binding)
     const next = {
-      ...assignment,
-      headPaddingFrames: resolution ? resolution.frameStart - cue.frameStart : assignment.headPaddingFrames,
-      tailPaddingFrames: resolution ? cue.frameEnd - resolution.frameEnd : assignment.tailPaddingFrames,
+      ...binding,
+      headPaddingFrames: resolution ? resolution.frameStart - cue.frameStart : binding.headPaddingFrames,
+      tailPaddingFrames: resolution ? cue.frameEnd - resolution.frameEnd : binding.tailPaddingFrames,
+      status: resolution ? (resolution.complete ? 'linked' as const : 'review' as const) : 'orphaned' as const,
+      reviewReason: resolution ? (resolution.complete ? undefined : 'リンク音声の一部が削除されています。') : 'リンク対象の音声がありません。',
     }
-    if (next.headPaddingFrames === assignment.headPaddingFrames
-      && next.tailPaddingFrames === assignment.tailPaddingFrames) return assignment
+    if (next.headPaddingFrames === binding.headPaddingFrames
+      && next.tailPaddingFrames === binding.tailPaddingFrames
+      && next.status === binding.status
+      && next.reviewReason === binding.reviewReason) return binding
     changed = true
     return next
   })
-  return changed ? { ...state, assignments } : state
+  return changed ? { ...state, soundBindings } : state
 }
+
+export type DialogueSoundCueChangeIntent = 'move-binding' | 'resize-cue' | 'reconcile'
 
 export function applySoundCueChangesToDialogueAudio(
   stateInput: DialogueAudioCutState,
   previousSoundCues: TimedRangeCue[],
   nextSoundCues: TimedRangeCue[],
   revisionId: string,
+  intent: DialogueSoundCueChangeIntent = 'reconcile',
 ): DialogueAudioCutState {
   const previousById = new Map(previousSoundCues.map(cue => [cue.cueId, cue]))
   const nextById = new Map(nextSoundCues.map(cue => [cue.cueId, cue]))
   let state = stateInput
-  for (const assignment of stateInput.assignments) {
-    if (assignment.revisionId !== revisionId) continue
-    const previous = previousById.get(assignment.cueId)
-    const next = nextById.get(assignment.cueId)
+  for (const binding of stateInput.soundBindings) {
+    if (binding.revisionId !== revisionId) continue
+    const previous = previousById.get(binding.cueId)
+    const next = nextById.get(binding.cueId)
     if (!previous || !next) continue
-    const startDelta = next.frameStart - previous.frameStart
-    const endDelta = next.frameEnd - previous.frameEnd
-    if (startDelta === endDelta) {
-      if (startDelta === 0) continue
-      for (const ref of assignment.regionRefs) {
-        const region = regionForRef(state, ref)
-        if (!region) continue
-        state = moveDialogueRegionAudioToFrame(state, ref.trackId, ref.regionId, region.frameStart + startDelta)
-      }
-    } else {
-      state = transformDialogueAssignmentEnvelope(state, assignment, next.frameStart, next.frameEnd)
+    if (intent !== 'move-binding') continue
+    const delta = next.frameStart - previous.frameStart
+    if (delta === 0 || next.frameEnd - previous.frameEnd !== delta) continue
+    for (const member of binding.members) {
+      const ref = member.regionRef
+      const region = regionForRef(state, ref)
+      if (!region) continue
+      state = moveDialogueRegionAudioToFrame(state, ref.trackId, ref.regionId, region.frameStart + delta)
     }
   }
-  return synchronizeDialogueAssignmentsFromCues(state, nextSoundCues, revisionId)
+  return synchronizeDialogueBindingsFromCues(state, nextSoundCues, revisionId)
 }
 
-function transformDialogueAssignmentEnvelope(
-  stateInput: DialogueAudioCutState,
-  assignment: Pick<DialogueSoundAssignment, 'regionRefs'>,
-  targetFrameStart: number,
-  targetFrameEnd: number,
-): DialogueAudioCutState {
-  const resolved = assignment.regionRefs.flatMap(ref => {
-    const track = stateInput.tracks.find(item => item.trackId === ref.trackId)
-    const region = track?.dialogueRegions.find(item => item.regionId === ref.regionId)
-    const range = track && region ? resolveDialogueRegion(track, region) : null
-    return region && range ? [{ ref, region, range }] : []
-  })
-  if (resolved.length === 0) return stateInput
-  const first = [...resolved].sort((left, right) =>
-    left.range.frameStart - right.range.frameStart
-    || left.range.frameEnd - right.range.frameEnd
-    || left.ref.trackId.localeCompare(right.ref.trackId)
-    || left.ref.regionId.localeCompare(right.ref.regionId))[0]!
-  const last = [...resolved].sort((left, right) =>
-    right.range.frameEnd - left.range.frameEnd
-    || right.range.frameStart - left.range.frameStart
-    || left.ref.trackId.localeCompare(right.ref.trackId)
-    || left.ref.regionId.localeCompare(right.ref.regionId))[0]!
-  const envelopeStart = Math.min(...resolved.map(item => item.range.frameStart))
-  const envelopeEnd = Math.max(...resolved.map(item => item.range.frameEnd))
-  const nextFirstStart = first.region.frameStart + targetFrameStart - envelopeStart
-  const nextLastEnd = last.region.frameEnd + targetFrameEnd - envelopeEnd
-  if (first.ref.trackId === last.ref.trackId && first.ref.regionId === last.ref.regionId) {
-    return transformDialogueRegionInterval(
-      stateInput,
-      first.ref.trackId,
-      first.ref.regionId,
-      nextFirstStart,
-      nextLastEnd,
-    )
-  }
-  let state = transformDialogueRegionInterval(
-    stateInput,
-    first.ref.trackId,
-    first.ref.regionId,
-    nextFirstStart,
-    first.region.frameEnd,
-  )
-  const lastAfterStart = regionForRef(state, last.ref)
-  if (!lastAfterStart) return state
-  state = transformDialogueRegionInterval(
-    state,
-    last.ref.trackId,
-    last.ref.regionId,
-    lastAfterStart.frameStart,
-    nextLastEnd,
-  )
-  return state
-}
-
-export function synchronizeDialogueAssignmentsAfterAudioEdit(
+export function synchronizeDialogueBindingsAfterAudioEdit(
   stateInput: DialogueAudioCutState,
   soundCues: TimedRangeCue[],
   revisionId: string,
@@ -278,25 +269,25 @@ export function synchronizeDialogueAssignmentsAfterAudioEdit(
   const stateWithRegions = changed ? { ...stateInput, tracks } : stateInput
   const cueById = new Map(soundCues.map(cue => [cue.cueId, cue]))
   const cueUpdates: Array<{ cueId: string; frameStart: number; frameEnd: number }> = []
-  const assignments = stateWithRegions.assignments.map(assignment => {
-    if (assignment.revisionId !== revisionId) return assignment
-    const resolution = resolveDialogueAssignment(stateWithRegions, assignment)
+  const soundBindings = stateWithRegions.soundBindings.map(binding => {
+    if (binding.revisionId !== revisionId) return binding
+    const resolution = resolveDialogueBinding(stateWithRegions, binding)
     if (!resolution) {
-      if (assignment.status === 'orphaned' && assignment.reviewReason === 'リンク対象の音声がありません。') return assignment
+      if (binding.status === 'orphaned' && binding.reviewReason === 'リンク対象の音声がありません。') return binding
       changed = true
-      return { ...assignment, status: 'orphaned' as const, reviewReason: 'リンク対象の音声がありません。' }
+      return { ...binding, status: 'orphaned' as const, reviewReason: 'リンク対象の音声がありません。' }
     }
-    const frameStart = resolution.frameStart - assignment.headPaddingFrames
-    const frameEnd = Math.max(frameStart, resolution.frameEnd + assignment.tailPaddingFrames)
-    const cue = cueById.get(assignment.cueId)
+    const frameStart = resolution.frameStart - binding.headPaddingFrames
+    const frameEnd = Math.max(frameStart, resolution.frameEnd + binding.tailPaddingFrames)
+    const cue = cueById.get(binding.cueId)
     if (cue && (cue.frameStart !== frameStart || cue.frameEnd !== frameEnd)) cueUpdates.push({ cueId: cue.cueId, frameStart, frameEnd })
     const status = resolution.complete ? 'linked' as const : 'review' as const
     const reviewReason = resolution.complete ? undefined : 'リンク音声の一部が削除されています。'
-    if (assignment.status === status && assignment.reviewReason === reviewReason) return assignment
+    if (binding.status === status && binding.reviewReason === reviewReason) return binding
     changed = true
-    return { ...assignment, status, reviewReason }
+    return { ...binding, status, reviewReason }
   })
-  return { state: changed ? { ...stateWithRegions, assignments } : stateWithRegions, cueUpdates }
+  return { state: changed ? { ...stateWithRegions, soundBindings } : stateWithRegions, cueUpdates }
 }
 
 export function createDialogueAudioClipDragPreview(
@@ -314,7 +305,7 @@ export function createDialogueAudioClipDragPreview(
     ...cutState,
     tracks: cutState.tracks.map(item => item.trackId === trackId ? movedTrack : item),
   }
-  const synchronized = synchronizeDialogueAssignmentsAfterAudioEdit(movedState, soundCues, activeRevisionId)
+  const synchronized = synchronizeDialogueBindingsAfterAudioEdit(movedState, soundCues, activeRevisionId)
   if (synchronized.cueUpdates.length === 0) return { cutState: synchronized.state, soundCues }
   const cueUpdates = new Map(synchronized.cueUpdates.map(update => [update.cueId, update]))
   return {
@@ -329,7 +320,7 @@ export function createDialogueAudioClipDragPreview(
 export function resolveDialogueRegion(
   track: Pick<DialogueAudioTrackState, 'clips'>,
   region: Pick<DialogueRegion, 'anchors' | 'headPaddingFrames' | 'tailPaddingFrames'>,
-): DialogueAssignmentResolution | null {
+): DialogueBindingResolution | null {
   const resolution = anchorTimelineEnvelope(track.clips, region.anchors)
   return resolution ? {
     frameStart: resolution.frameStart - region.headPaddingFrames,
@@ -338,27 +329,29 @@ export function resolveDialogueRegion(
   } : null
 }
 
-export function resolveDialogueAssignment(
+export function resolveDialogueBinding(
   state: Pick<DialogueAudioCutState, 'tracks'>,
-  assignment: Pick<DialogueSoundAssignment, 'regionRefs'>,
-): DialogueAssignmentResolution | null {
-  return resolveRegionRefs(state, assignment.regionRefs)
+  binding: Pick<DialogueSoundBinding, 'members'>,
+): DialogueBindingResolution | null {
+  return resolveRegionRefs(state, binding.members.map(member => member.regionRef))
 }
 
-export function assignmentForCue(state: DialogueAudioCutState, cueId: string, revisionId: string): DialogueSoundAssignment | undefined {
-  return state.assignments.find(assignment => assignment.cueId === cueId && assignment.revisionId === revisionId)
+export function bindingForCue(state: DialogueAudioCutState, cueId: string, revisionId: string): DialogueSoundBinding | undefined {
+  return state.soundBindings.find(binding => binding.cueId === cueId && binding.revisionId === revisionId)
 }
 
-export function assignmentForRegion(state: DialogueAudioCutState, ref: DialogueRegionReference, revisionId: string): DialogueSoundAssignment | undefined {
+export function bindingForRegion(state: DialogueAudioCutState, ref: DialogueRegionReference, revisionId: string): DialogueSoundBinding | undefined {
   const key = regionRefKey(ref)
-  return state.assignments.find(assignment => assignment.revisionId === revisionId && assignment.regionRefs.some(item => regionRefKey(item) === key))
+  return state.soundBindings.find(binding =>
+    binding.revisionId === revisionId
+    && binding.members.some(member => regionRefKey(member.regionRef) === key))
 }
 
-export function assignmentForCandidate(state: DialogueAudioCutState, candidateId: string, revisionId: string): DialogueSoundAssignment | undefined {
-  for (const assignment of state.assignments) {
-    if (assignment.revisionId !== revisionId) continue
-    for (const ref of assignment.regionRefs) {
-      if (regionForRef(state, ref)?.candidateIds.includes(candidateId)) return assignment
+export function bindingForCandidate(state: DialogueAudioCutState, candidateId: string, revisionId: string): DialogueSoundBinding | undefined {
+  for (const binding of state.soundBindings) {
+    if (binding.revisionId !== revisionId) continue
+    for (const member of binding.members) {
+      if (regionForRef(state, member.regionRef)?.candidateIds.includes(candidateId)) return binding
     }
   }
   return undefined
@@ -370,12 +363,12 @@ export function unlinkDialogueAudioRegion(
   revisionId: string,
 ): DialogueAudioCutState {
   const key = regionRefKey(ref)
-  const assignments = state.assignments.flatMap(assignment => {
-    if (assignment.revisionId !== revisionId) return [assignment]
-    const regionRefs = assignment.regionRefs.filter(item => regionRefKey(item) !== key)
-    return regionRefs.length > 0 ? [{ ...assignment, regionRefs }] : []
+  const soundBindings = state.soundBindings.flatMap(binding => {
+    if (binding.revisionId !== revisionId) return [binding]
+    const members = binding.members.filter(member => regionRefKey(member.regionRef) !== key)
+    return members.length > 0 ? [{ ...binding, members }] : []
   })
-  return refreshCandidateLinkStatus({ ...state, assignments })
+  return refreshCandidateLinkStatus({ ...state, soundBindings })
 }
 
 export function unlinkDialogueAudioCue(
@@ -385,7 +378,7 @@ export function unlinkDialogueAudioCue(
 ): DialogueAudioCutState {
   return refreshCandidateLinkStatus({
     ...state,
-    assignments: state.assignments.filter(assignment => assignment.cueId !== cueId || assignment.revisionId !== revisionId),
+    soundBindings: state.soundBindings.filter(binding => binding.cueId !== cueId || binding.revisionId !== revisionId),
   })
 }
 
@@ -395,13 +388,13 @@ export function removeDialogueAudioRegion(
   regionId: string,
 ): DialogueAudioCutState {
   const key = regionRefKey({ trackId, regionId })
-  const assignments = state.assignments.flatMap(assignment => {
-    const regionRefs = assignment.regionRefs.filter(ref => regionRefKey(ref) !== key)
-    return regionRefs.length > 0 ? [{ ...assignment, regionRefs }] : []
+  const soundBindings = state.soundBindings.flatMap(binding => {
+    const members = binding.members.filter(member => regionRefKey(member.regionRef) !== key)
+    return members.length > 0 ? [{ ...binding, members }] : []
   })
   return refreshCandidateLinkStatus({
     ...state,
-    assignments,
+    soundBindings,
     tracks: state.tracks.map(track => track.trackId === trackId
       ? { ...track, dialogueRegions: track.dialogueRegions.filter(region => region.regionId !== regionId) }
       : track),
@@ -410,12 +403,12 @@ export function removeDialogueAudioRegion(
 
 function refreshCandidateLinkStatus(state: DialogueAudioCutState): DialogueAudioCutState {
   const linkedCandidateIdsByTrack = new Map<string, Set<string>>()
-  for (const assignment of state.assignments) {
-    for (const ref of assignment.regionRefs) {
-      const region = regionForRef(state, ref)
+  for (const binding of state.soundBindings) {
+    for (const member of binding.members) {
+      const region = regionForRef(state, member.regionRef)
       if (!region) continue
-      linkedCandidateIdsByTrack.set(ref.trackId, new Set([
-        ...(linkedCandidateIdsByTrack.get(ref.trackId) ?? []),
+      linkedCandidateIdsByTrack.set(member.regionRef.trackId, new Set([
+        ...(linkedCandidateIdsByTrack.get(member.regionRef.trackId) ?? []),
         ...region.candidateIds,
       ]))
     }
@@ -444,7 +437,7 @@ function refreshCandidateLinkStatus(state: DialogueAudioCutState): DialogueAudio
 function resolveRegionRefs(
   state: Pick<DialogueAudioCutState, 'tracks'>,
   refs: DialogueRegionReference[],
-): DialogueAssignmentResolution | null {
+): DialogueBindingResolution | null {
   const resolutions = refs.flatMap(ref => {
     const track = state.tracks.find(item => item.trackId === ref.trackId)
     const region = track?.dialogueRegions.find(item => item.regionId === ref.regionId)
@@ -519,7 +512,7 @@ function mergeAnchors(anchors: DialogueRegionAudioAnchor[]): DialogueRegionAudio
     }, [])
 }
 
-function anchorTimelineEnvelope(clips: DialogueAudioClip[], anchors: DialogueRegionAudioAnchor[]): DialogueAssignmentResolution | null {
+function anchorTimelineEnvelope(clips: DialogueAudioClip[], anchors: DialogueRegionAudioAnchor[]): DialogueBindingResolution | null {
   if (anchors.length === 0) return null
   const mapped: Array<{ frameStart: number; frameEnd: number }> = []
   let complete = true

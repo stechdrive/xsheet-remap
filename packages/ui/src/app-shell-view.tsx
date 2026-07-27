@@ -34,7 +34,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
-    audioPlayheadFrame, soundCueNavigationRequest,
+    audioPlayheadFrame, soundCueNavigationRequest, dialogueAudioSelection,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
@@ -46,7 +46,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
-    handleSoundCueSelect, handleAudioPlayheadChange, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
+    handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
@@ -439,6 +439,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
               <DialogueAudioTimeline
                 key={projectDocumentSnapshot.activeCutId}
                 cutState={dialogueAudioCutState}
+                audioSelection={dialogueAudioSelection}
                 fps={project.logicalSheet.fps}
                 frameOrigin={project.logicalSheet.frameOrigin}
                 cutDurationFrames={project.logicalSheet.durationFrames}
@@ -447,6 +448,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
                 selectedSoundCueId={selectedSoundCueId}
                 soundCueNavigationRequest={soundCueNavigationRequest}
                 onCutStateChange={handleDialogueAudioCutStateChange}
+                onAudioSelectionChange={handleDialogueAudioSelectionChange}
+                onWorkspaceFocus={handleDialogueAudioFocus}
                 canUndo={history.past.length > 0}
                 canRedo={history.future.length > 0}
                 onUndo={handleUndo}

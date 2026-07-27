@@ -11,6 +11,7 @@ import type {
 import { createCameraCueController } from './app-camera-cue-controller'
 import { createSoundCueController } from './app-sound-cue-controller'
 import type { SoundCueAudioAlignment } from './SoundCueDialog'
+import type { DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 
 interface AppTimedRangeControllersOptions {
   project: CutProject
@@ -40,7 +41,11 @@ interface AppTimedRangeControllersOptions {
     cueId: string,
     alignment: SoundCueAudioAlignment,
   ) => CutProject
-  applySoundCueProjectChange?: (previousProject: CutProject, nextProject: CutProject) => CutProject
+  applySoundCueProjectChange?: (
+    previousProject: CutProject,
+    nextProject: CutProject,
+    intent?: DialogueSoundCueChangeIntent,
+  ) => CutProject
   onSoundCuePlacementConflict?: (message: string) => void
   setCameraClipboard: Dispatch<SetStateAction<CameraCueClipboard | null>>
   setCameraDialog: Dispatch<SetStateAction<CameraCueDialogState | null>>

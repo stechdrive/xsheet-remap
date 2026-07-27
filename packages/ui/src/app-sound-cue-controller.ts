@@ -8,6 +8,7 @@ import {
 } from '@xsheet-remap/core'
 import type { SheetRangeSelection, SheetSelection, SoundCueClipboard, SoundCueDialogState } from './appTypes'
 import type { SoundCueAudioAlignment, SoundCueDialogSubmit } from './SoundCueDialog'
+import type { DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 import {
   buildSoundCueClipboard,
   cueForId,
@@ -47,7 +48,11 @@ interface SoundCueControllerOptions {
     cueId: string,
     alignment: SoundCueAudioAlignment,
   ) => CutProject
-  applySoundCueProjectChange?: (previousProject: CutProject, nextProject: CutProject) => CutProject
+  applySoundCueProjectChange?: (
+    previousProject: CutProject,
+    nextProject: CutProject,
+    intent?: DialogueSoundCueChangeIntent,
+  ) => CutProject
   onPlacementConflict?: (message: string) => void
 }
 
@@ -111,7 +116,7 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
       const placement = resolveAvailableSoundCueLane(sourceProject, input.laneId, input.frameStart, input.frameEnd, input.cueId)
       if (!placement) return notifyPlacementConflict()
       const updated = updateTimedRangeCue(sourceProject, input.cueId, { ...input, laneId: placement.laneId })
-      const next = options.applySoundCueProjectChange?.(sourceProject, updated) ?? updated
+      const next = options.applySoundCueProjectChange?.(sourceProject, updated, 'resize-cue') ?? updated
       if (next !== sourceProject) options.commitProject(next)
       options.setSheetSelection({ kind: 'cue', cueId: input.cueId })
     } else {
@@ -135,12 +140,16 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
     options.setDialog(null)
   }
 
-  function transform(cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) {
+  function transform(
+    cueId: string,
+    updates: { laneId: string; frameStart: number; frameEnd: number },
+    intent: DialogueSoundCueChangeIntent = 'resize-cue',
+  ) {
     const sourceProject = options.getProject()
     const placement = resolveAvailableSoundCueLane(sourceProject, updates.laneId, updates.frameStart, updates.frameEnd, cueId)
     if (!placement) return notifyPlacementConflict()
     const updated = updateTimedRangeCue(sourceProject, cueId, { ...updates, laneId: placement.laneId })
-    const next = options.applySoundCueProjectChange?.(sourceProject, updated) ?? updated
+    const next = options.applySoundCueProjectChange?.(sourceProject, updated, intent) ?? updated
     if (next !== sourceProject) options.commitProject(next)
     options.setSheetSelection({ kind: 'cue', cueId })
   }
@@ -177,7 +186,11 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
     const frameStart = selectedCue?.frameStart ?? options.rangeSelection?.frameStart
     if (!laneId || frameStart === undefined) return
     const result = pasteSoundCueClipboard(options.project, options.clipboard, { laneId, frameStart }, mode)
-    const next = options.applySoundCueProjectChange?.(options.project, result.project) ?? result.project
+    const next = options.applySoundCueProjectChange?.(
+      options.project,
+      result.project,
+      mode === 'insert' ? 'move-binding' : 'reconcile',
+    ) ?? result.project
     if (next !== options.project) options.commitProject(next)
     const cueId = result.cueIds[0]
     if (cueId) options.setSheetSelection({ kind: 'cue', cueId })

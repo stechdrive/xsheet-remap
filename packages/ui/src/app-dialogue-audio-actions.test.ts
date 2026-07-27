@@ -10,6 +10,7 @@ import {
   standardA3SheetTemplate,
   timelineLanesForLayout,
   undoHistory,
+  updateLogicalSheetSettings,
   updateTimedRangeCue,
   type CutProject,
 } from '@xsheet-remap/core'
@@ -17,6 +18,7 @@ import {
   applyDialogueAudioProjectChange,
   applyDialogueAudioProjectChangeResult,
   createAppDialogueAudioActions,
+  reconcileDialogueAudioAfterSheetRangeChange,
 } from './app-dialogue-audio-actions'
 import type { SoundCueDialogState } from './appTypes'
 import {
@@ -24,7 +26,7 @@ import {
   dialogueAudioCutStateFromProject,
   updateDialogueAudioCutStateInProject,
 } from './dialogueAudioProject'
-import { synchronizeDialogueAssignmentsAfterAudioEdit } from './dialogueAudioBinding'
+import { synchronizeDialogueBindingsAfterAudioEdit } from './dialogueAudioBinding'
 import { moveDialogueAudioClip, transformDialogueRegionInterval } from './dialogueAudioEditing'
 
 describe('app dialogue audio actions', () => {
@@ -34,7 +36,7 @@ describe('app dialogue audio actions', () => {
 
     const next = actions.autoCreateDialogueRegions(state, 'dialogue-1', ['vad-1'])
 
-    expect(next.assignments).toEqual([])
+    expect(next.soundBindings).toEqual([])
     expect(next.tracks[0].dialogueRegions[0]).toMatchObject({
       frameStart: 12,
       frameEnd: 20,
@@ -65,7 +67,12 @@ describe('app dialogue audio actions', () => {
     const state = dialogueAudioCutStateFromProject(linked, 1)
 
     expect(state.tracks[0].dialogueRegions[0]).toMatchObject({ frameStart: 30, frameEnd: 40 })
-    expect(state.assignments[0]).toMatchObject({ cueId, regionRefs: [{ trackId: 'dialogue-1', regionId: 'dialogue-region' }] })
+    expect(state.soundBindings[0]).toMatchObject({
+      cueId,
+      members: [expect.objectContaining({
+        regionRef: { trackId: 'dialogue-1', regionId: 'dialogue-region' },
+      })],
+    })
     expect(linked.logicalSheet.durationFrames).toBe(project.logicalSheet.durationFrames)
   })
 
@@ -79,18 +86,18 @@ describe('app dialogue audio actions', () => {
       frameEnd: cue.frameEnd + 8,
     })
 
-    const moved = actions.applySoundCueProjectChange(linked, movedCueProject)
+    const moved = actions.applySoundCueProjectChange(linked, movedCueProject, 'move-binding')
     const state = dialogueAudioCutStateFromProject(moved, 1)
 
     expect(state.tracks[0].dialogueRegions[0]).toMatchObject({ frameStart: 20, frameEnd: 28 })
-    expect(state.assignments[0]).toMatchObject({
+    expect(state.soundBindings[0]).toMatchObject({
       headPaddingFrames: 0,
       tailPaddingFrames: 0,
     })
     expect(state.tracks[0].clips.some(clip => clip.timelineStartFrame === 20 && clip.durationFrames === 9)).toBe(true)
   })
 
-  it('mirrors sheet-side edge resizing to the audio interval without stretching audio', () => {
+  it('keeps every audio member fixed when a sheet-side cue edge is resized', () => {
     const linked = linkedProject()
     const actions = actionsFor(linked)
     const cue = linked.timedRangeCues[0]
@@ -100,11 +107,11 @@ describe('app dialogue audio actions', () => {
       frameEnd: cue.frameEnd + 5,
     })
 
-    const resized = actions.applySoundCueProjectChange(linked, resizedCueProject)
+    const resized = actions.applySoundCueProjectChange(linked, resizedCueProject, 'resize-cue')
     const state = dialogueAudioCutStateFromProject(resized, 1)
 
-    expect(state.tracks[0].dialogueRegions[0]).toMatchObject({ frameStart: 12, frameEnd: 25, tailPaddingFrames: 5 })
-    expect(state.assignments[0]).toMatchObject({ headPaddingFrames: 0, tailPaddingFrames: 0 })
+    expect(state.tracks[0].dialogueRegions[0]).toMatchObject({ frameStart: 12, frameEnd: 20, tailPaddingFrames: 0 })
+    expect(state.soundBindings[0]).toMatchObject({ headPaddingFrames: 0, tailPaddingFrames: 5 })
     expect(state.tracks[0].clips).toEqual(dialogueAudioCutStateFromProject(linked, 1).tracks[0].clips)
   })
 
@@ -117,7 +124,7 @@ describe('app dialogue audio actions', () => {
       frameStart: cue.frameStart + 6,
       frameEnd: cue.frameEnd + 6,
     })
-    const moved = actions.applySoundCueProjectChange(linked, movedCueProject)
+    const moved = actions.applySoundCueProjectChange(linked, movedCueProject, 'move-binding')
     const committed = commitHistory(createProjectHistory(linked), moved)
 
     const undone = undoHistory(committed)
@@ -133,7 +140,7 @@ describe('app dialogue audio actions', () => {
       ...sourceState,
       tracks: sourceState.tracks.map(track => track.trackId === movedTrack.trackId ? movedTrack : track),
     }
-    const synchronized = synchronizeDialogueAssignmentsAfterAudioEdit(
+    const synchronized = synchronizeDialogueBindingsAfterAudioEdit(
       movedState,
       linked.timedRangeCues.filter(cue => cue.role === 'sound'),
       'revision-1',
@@ -151,6 +158,52 @@ describe('app dialogue audio actions', () => {
     })
     expect(undoHistory(committed).present).toEqual(linked)
     expect(redoHistory(undoHistory(committed)).present).toEqual(moved)
+  })
+
+  it('restores a linked SOUND range after the sheet duration expands over audio moved beyond the old end', () => {
+    const linked = linkedProject()
+    const sourceState = dialogueAudioCutStateFromProject(linked, 1)
+    const movedTrack = moveDialogueAudioClip(sourceState.tracks[0], 'clip-1', 140)
+    const movedState = {
+      ...sourceState,
+      tracks: sourceState.tracks.map(track => track.trackId === movedTrack.trackId ? movedTrack : track),
+    }
+    const synchronized = synchronizeDialogueBindingsAfterAudioEdit(
+      movedState,
+      linked.timedRangeCues.filter(cue => cue.role === 'sound'),
+      'revision-1',
+    )
+    const movedBeyondSheet = applyDialogueAudioProjectChange(linked, {
+      cutState: synchronized.state,
+      cueUpdates: synchronized.cueUpdates,
+    })
+
+    expect(movedBeyondSheet.timedRangeCues[0]).toMatchObject({ frameStart: 144, frameEnd: 144 })
+    expect(dialogueAudioCutStateFromProject(movedBeyondSheet, 1).tracks[0].dialogueRegions[0]).toMatchObject({
+      frameStart: 151,
+      frameEnd: 159,
+    })
+    expect(dialogueAudioCutStateFromProject(movedBeyondSheet, 1).soundBindings[0]).toMatchObject({
+      headPaddingFrames: 0,
+      tailPaddingFrames: 0,
+    })
+
+    const expanded = updateLogicalSheetSettings(movedBeyondSheet, { durationFrames: 200 })
+    const reconciled = reconcileDialogueAudioAfterSheetRangeChange(
+      movedBeyondSheet,
+      expanded,
+      'revision-1',
+    ).project
+
+    expect(reconciled.logicalSheet.durationFrames).toBe(200)
+    expect(reconciled.timedRangeCues[0]).toMatchObject({ frameStart: 151, frameEnd: 159 })
+    expect(dialogueAudioCutStateFromProject(reconciled, 1).tracks[0].dialogueRegions[0]).toMatchObject({
+      frameStart: 151,
+      frameEnd: 159,
+    })
+    const committed = commitHistory(createProjectHistory(movedBeyondSheet), reconciled)
+    expect(undoHistory(committed).present).toEqual(movedBeyondSheet)
+    expect(redoHistory(undoHistory(committed)).present).toEqual(reconciled)
   })
 
   it('moves linked regions from multiple fixed audio tracks as one cue group', () => {
@@ -180,10 +233,10 @@ describe('app dialogue audio actions', () => {
       frameEnd: cue.frameEnd + 4,
     })
 
-    const moved = actionsFor(project).applySoundCueProjectChange(project, movedCueProject)
+    const moved = actionsFor(project).applySoundCueProjectChange(project, movedCueProject, 'move-binding')
     const movedState = dialogueAudioCutStateFromProject(moved, 1)
 
-    expect(movedState.assignments[0].regionRefs).toEqual([
+    expect(movedState.soundBindings[0].members.map(member => member.regionRef)).toEqual([
       { trackId: 'dialogue-1', regionId: 'dialogue-region' },
       { trackId: 'dialogue-2', regionId: 'dialogue-region-2' },
     ])
@@ -196,7 +249,7 @@ describe('app dialogue audio actions', () => {
     const withoutCue = deleteTimedRangeCue(linked, linked.timedRangeCues[0].cueId)
     const reconciled = actionsFor(linked).applySoundCueProjectChange(linked, withoutCue)
     const state = dialogueAudioCutStateFromProject(reconciled, 1)
-    expect(state.assignments[0]).toMatchObject({
+    expect(state.soundBindings[0]).toMatchObject({
       status: 'review',
       reviewReason: 'リンク先の音響指示が見つかりません。',
     })
@@ -246,7 +299,7 @@ describe('app dialogue audio actions', () => {
     const state = dialogueAudioCutStateFromProject(project, 1)
     const region = state.tracks[0].dialogueRegions[0]
     const movedState = transformDialogueRegionInterval(state, 'dialogue-1', region.regionId, 30, 38)
-    const synchronized = synchronizeDialogueAssignmentsAfterAudioEdit(
+    const synchronized = synchronizeDialogueBindingsAfterAudioEdit(
       movedState,
       project.timedRangeCues.filter(cue => cue.role === 'sound'),
       'revision-1',
@@ -284,7 +337,7 @@ describe('app dialogue audio actions', () => {
     const state = dialogueAudioCutStateFromProject(project, 1)
     const region = state.tracks[0].dialogueRegions[0]
     const movedState = transformDialogueRegionInterval(state, 'dialogue-1', region.regionId, 30, 38)
-    const synchronized = synchronizeDialogueAssignmentsAfterAudioEdit(
+    const synchronized = synchronizeDialogueBindingsAfterAudioEdit(
       movedState,
       project.timedRangeCues.filter(cue => cue.role === 'sound'),
       'revision-1',

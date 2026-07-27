@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { TimedRangeCue } from '@xsheet-remap/core'
 import { insertDialogueAudioSilence, moveDialogueAudioClip, moveDialogueRegionAudioToFrame, restoreDialogueSpeechCandidate, rippleDeleteDialogueAudioRange } from './dialogueAudioEditing'
 import {
-  assignDialogueRegionsToCue,
+  bindDialogueRegionsToCue,
   createDialogueRegionFromCandidates,
   linkDialogueAudioCandidates,
   removeDialogueAudioRegion,
-  synchronizeDialogueAssignmentsAfterAudioEdit,
-  synchronizeDialogueAssignmentsFromCues,
+  synchronizeDialogueBindingsAfterAudioEdit,
+  synchronizeDialogueBindingsFromCues,
   unlinkDialogueAudioCue,
   unlinkDialogueAudioRegion,
 } from './dialogueAudioBinding'
@@ -34,16 +34,18 @@ function linkedState() {
   return linkDialogueAudioCandidates(sourceState(), 'dialogue-1', ['vad-1', 'vad-2'], cue(), 'revision-1')
 }
 
-describe('dialogue region and sound assignments', () => {
+describe('dialogue region and SOUND bindings', () => {
   it('groups discontinuous VAD candidates into one continuous semantic region and assigns it to a wider cue', () => {
     const state = linkedState()
     expect(state.tracks[0].dialogueRegions).toEqual([
       expect.objectContaining({ frameStart: 12, frameEnd: 35, candidateIds: ['vad-1', 'vad-2'], status: 'ready' }),
     ])
-    expect(state.assignments).toEqual([
+    expect(state.soundBindings).toEqual([
       expect.objectContaining({
         cueId: 'cue-1',
-        regionRefs: [{ trackId: 'dialogue-1', regionId: state.tracks[0].dialogueRegions[0].regionId }],
+        members: [expect.objectContaining({
+          regionRef: { trackId: 'dialogue-1', regionId: state.tracks[0].dialogueRegions[0].regionId },
+        })],
         headPaddingFrames: 2,
         tailPaddingFrames: 3,
         status: 'linked',
@@ -77,7 +79,7 @@ describe('dialogue region and sound assignments', () => {
 
     const movedOtherTrack = moveDialogueAudioClip(linked.tracks[0], 'clip-2', 20)
     const movedOther = { ...linked, tracks: linked.tracks.map(track => track.trackId === movedOtherTrack.trackId ? movedOtherTrack : track) }
-    expect(synchronizeDialogueAssignmentsAfterAudioEdit(movedOther, [cue(10, 22)], 'revision-1').cueUpdates).toEqual([])
+    expect(synchronizeDialogueBindingsAfterAudioEdit(movedOther, [cue(10, 22)], 'revision-1').cueUpdates).toEqual([])
   })
 
   it('lets one cue aggregate regions from different fixed audio tracks', () => {
@@ -88,14 +90,14 @@ describe('dialogue region and sound assignments', () => {
     state.tracks[1].speechCandidates = [{ candidateId: 'vad-b', frameStart: 32, frameEnd: 40, status: 'pending' }]
     const first = createDialogueRegionFromCandidates(state, 'dialogue-1', ['vad-1'])!
     const second = createDialogueRegionFromCandidates(first.state, 'dialogue-2', ['vad-b'])!
-    state = assignDialogueRegionsToCue(second.state, [
+    state = bindDialogueRegionsToCue(second.state, [
       { trackId: 'dialogue-1', regionId: first.region.regionId },
     ], cue(10, 42), 'revision-1')
-    state = assignDialogueRegionsToCue(state, [
+    state = bindDialogueRegionsToCue(state, [
       { trackId: 'dialogue-2', regionId: second.region.regionId },
     ], cue(10, 42), 'revision-1')
 
-    expect(state.assignments[0].regionRefs).toEqual([
+    expect(state.soundBindings[0].members.map(member => member.regionRef)).toEqual([
       { trackId: 'dialogue-1', regionId: first.region.regionId },
       { trackId: 'dialogue-2', regionId: second.region.regionId },
     ])
@@ -104,10 +106,10 @@ describe('dialogue region and sound assignments', () => {
   it('supports region-level reassignment between arbitrary cue lanes', () => {
     const created = createDialogueRegionFromCandidates(sourceState(), 'dialogue-1', ['vad-1'])!
     const ref = { trackId: 'dialogue-1', regionId: created.region.regionId }
-    const assignedA = assignDialogueRegionsToCue(created.state, [ref], cue(12, 20, 'cue-a', 'sound_lane_1'), 'revision-1')
-    const assignedB = assignDialogueRegionsToCue(assignedA, [ref], cue(12, 20, 'cue-b', 'sound_lane_3'), 'revision-1')
-    expect(assignedB.assignments).toEqual([
-      expect.objectContaining({ cueId: 'cue-b', regionRefs: [ref] }),
+    const assignedA = bindDialogueRegionsToCue(created.state, [ref], cue(12, 20, 'cue-a', 'sound_lane_1'), 'revision-1')
+    const assignedB = bindDialogueRegionsToCue(assignedA, [ref], cue(12, 20, 'cue-b', 'sound_lane_3'), 'revision-1')
+    expect(assignedB.soundBindings).toEqual([
+      expect.objectContaining({ cueId: 'cue-b', members: [expect.objectContaining({ regionRef: ref })] }),
     ])
   })
 
@@ -115,18 +117,18 @@ describe('dialogue region and sound assignments', () => {
     const state = linkedState()
     const movedTrack = moveDialogueAudioClip(state.tracks[0], 'clip-1', 9)
     const moved = { ...state, tracks: state.tracks.map(track => track.trackId === movedTrack.trackId ? movedTrack : track) }
-    expect(synchronizeDialogueAssignmentsAfterAudioEdit(moved, [cue()], 'revision-1').cueUpdates)
+    expect(synchronizeDialogueBindingsAfterAudioEdit(moved, [cue()], 'revision-1').cueUpdates)
       .toEqual([{ cueId: 'cue-1', frameStart: 18, frameEnd: 46 }])
   })
 
   it('treats a cue-side stretch as assignment padding without moving audio', () => {
     const state = linkedState()
-    const stretched = synchronizeDialogueAssignmentsFromCues(state, [cue(10, 40)], 'revision-1')
+    const stretched = synchronizeDialogueBindingsFromCues(state, [cue(10, 40)], 'revision-1')
     expect(stretched.tracks[0].clips[0].timelineStartFrame).toBe(1)
-    expect(stretched.assignments[0]).toMatchObject({ tailPaddingFrames: 5 })
+    expect(stretched.soundBindings[0]).toMatchObject({ tailPaddingFrames: 5 })
     const movedTrack = moveDialogueAudioClip(stretched.tracks[0], 'clip-1', 9)
     const moved = { ...stretched, tracks: stretched.tracks.map(track => track.trackId === movedTrack.trackId ? movedTrack : track) }
-    expect(synchronizeDialogueAssignmentsAfterAudioEdit(moved, [cue(10, 40)], 'revision-1').cueUpdates)
+    expect(synchronizeDialogueBindingsAfterAudioEdit(moved, [cue(10, 40)], 'revision-1').cueUpdates)
       .toEqual([{ cueId: 'cue-1', frameStart: 18, frameEnd: 48 }])
   })
 
@@ -147,7 +149,7 @@ describe('dialogue region and sound assignments', () => {
     const editedTrack = insertDialogueAudioSilence(state.tracks[0], 22, 3)
     expect(new Set(editedTrack.clips.map(clip => clip.placementId))).toEqual(new Set(['placement-1']))
     const edited = { ...state, tracks: state.tracks.map(track => track.trackId === editedTrack.trackId ? editedTrack : track) }
-    expect(synchronizeDialogueAssignmentsAfterAudioEdit(edited, [cue()], 'revision-1').cueUpdates)
+    expect(synchronizeDialogueBindingsAfterAudioEdit(edited, [cue()], 'revision-1').cueUpdates)
       .toEqual([{ cueId: 'cue-1', frameStart: 10, frameEnd: 41 }])
   })
 
@@ -155,24 +157,24 @@ describe('dialogue region and sound assignments', () => {
     const state = linkedState()
     const editedTrack = rippleDeleteDialogueAudioRange(state.tracks[0], { frameStart: 1, frameEnd: 48 })
     const edited = { ...state, tracks: state.tracks.map(track => track.trackId === editedTrack.trackId ? editedTrack : track) }
-    const synchronized = synchronizeDialogueAssignmentsAfterAudioEdit(edited, [cue()], 'revision-1')
+    const synchronized = synchronizeDialogueBindingsAfterAudioEdit(edited, [cue()], 'revision-1')
     expect(synchronized.cueUpdates).toEqual([])
-    expect(synchronized.state.assignments[0]).toMatchObject({ status: 'orphaned' })
+    expect(synchronized.state.soundBindings[0]).toMatchObject({ status: 'orphaned' })
     expect(synchronized.state.tracks[0].dialogueRegions[0]).toMatchObject({ status: 'orphaned' })
   })
 
   it('leaves ordinary audio-less cues unassigned', () => {
     const state = createDefaultDialogueAudioCutState(1)
-    const synchronized = synchronizeDialogueAssignmentsFromCues(state, [cue()], 'revision-1')
+    const synchronized = synchronizeDialogueBindingsFromCues(state, [cue()], 'revision-1')
     expect(synchronized).toBe(state)
-    expect(synchronized.assignments).toEqual([])
+    expect(synchronized.soundBindings).toEqual([])
   })
 
   it('unlinks one region without deleting its audio, VAD candidate, or semantic region', () => {
     const state = linkedState()
     const region = state.tracks[0].dialogueRegions[0]
     const unlinked = unlinkDialogueAudioRegion(state, { trackId: 'dialogue-1', regionId: region.regionId }, 'revision-1')
-    expect(unlinked.assignments).toEqual([])
+    expect(unlinked.soundBindings).toEqual([])
     expect(unlinked.tracks[0].clips).toEqual(state.tracks[0].clips)
     expect(unlinked.tracks[0].dialogueRegions).toEqual(state.tracks[0].dialogueRegions)
     expect(unlinked.tracks[0].speechCandidates.map(candidate => candidate.status)).toEqual(['pending', 'pending'])
@@ -182,7 +184,7 @@ describe('dialogue region and sound assignments', () => {
     const source = sourceState()
     const first = createDialogueRegionFromCandidates(source, 'dialogue-1', ['vad-1'])!
     const second = createDialogueRegionFromCandidates(first.state, 'dialogue-1', ['vad-2'])!
-    const assigned = assignDialogueRegionsToCue(second.state, [
+    const assigned = bindDialogueRegionsToCue(second.state, [
       { trackId: 'dialogue-1', regionId: first.region.regionId },
       { trackId: 'dialogue-1', regionId: second.region.regionId },
     ], cue(), 'revision-1')
@@ -191,18 +193,18 @@ describe('dialogue region and sound assignments', () => {
       { trackId: 'dialogue-1', regionId: first.region.regionId },
       'revision-1',
     )
-    const repadded = synchronizeDialogueAssignmentsFromCues(unlinked, [cue()], 'revision-1')
+    const repadded = synchronizeDialogueBindingsFromCues(unlinked, [cue()], 'revision-1')
 
-    expect(repadded.assignments[0].regionRefs).toEqual([
+    expect(repadded.soundBindings[0].members.map(member => member.regionRef)).toEqual([
       { trackId: 'dialogue-1', regionId: second.region.regionId },
     ])
-    expect(synchronizeDialogueAssignmentsAfterAudioEdit(repadded, [cue()], 'revision-1').cueUpdates).toEqual([])
+    expect(synchronizeDialogueBindingsAfterAudioEdit(repadded, [cue()], 'revision-1').cueUpdates).toEqual([])
   })
 
   it('unlinks a cue assignment while preserving every referenced region', () => {
     const state = linkedState()
     const unlinked = unlinkDialogueAudioCue(state, 'cue-1', 'revision-1')
-    expect(unlinked.assignments).toEqual([])
+    expect(unlinked.soundBindings).toEqual([])
     expect(unlinked.tracks[0].dialogueRegions).toHaveLength(1)
     expect(unlinked.tracks[0].clips).toEqual(state.tracks[0].clips)
   })
@@ -211,7 +213,7 @@ describe('dialogue region and sound assignments', () => {
     const state = linkedState()
     const region = state.tracks[0].dialogueRegions[0]
     const removed = removeDialogueAudioRegion(state, 'dialogue-1', region.regionId)
-    expect(removed.assignments).toEqual([])
+    expect(removed.soundBindings).toEqual([])
     expect(removed.tracks[0].dialogueRegions).toEqual([])
     expect(removed.tracks[0].clips).toEqual(state.tracks[0].clips)
     expect(removed.tracks[0].speechCandidates).toHaveLength(2)

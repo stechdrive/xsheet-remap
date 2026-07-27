@@ -4,7 +4,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react'
 import { formatLogicalSheetFrameTimecode, type TimedRangeCue } from '@xsheet-remap/core'
-import { assignmentForCandidate } from './dialogueAudioBinding'
+import { bindingForCandidate, type DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 import type { DialogueAudioRange } from './dialogueAudioEditing'
 import type { DialogueSileroAnalysis, DialogueVadEngineStatus } from './dialogueAudioSileroVad'
 import type {
@@ -30,6 +30,7 @@ export type DialogueAudioTimelineTool = 'select' | 'range'
 
 export interface DialogueAudioTimelineProps {
   cutState: DialogueAudioCutState
+  audioSelection?: DialogueAudioSelectionState
   fps: number
   frameOrigin: number
   cutDurationFrames?: number
@@ -44,6 +45,8 @@ export interface DialogueAudioTimelineProps {
     cueUpdates?: Array<{ cueId: string; frameStart: number; frameEnd: number }>
     recordHistory?: boolean
   }) => boolean | void
+  onAudioSelectionChange?: (selection: DialogueAudioSelectionState) => void
+  onWorkspaceFocus?: () => void
   canUndo?: boolean
   canRedo?: boolean
   onUndo?: () => void
@@ -52,7 +55,11 @@ export interface DialogueAudioTimelineProps {
   onPlayheadChange: (frame: number) => void
   onSoundCueSelect: (cueId: string) => void
   onSoundCueEdit: (cueId: string) => void
-  onSoundCueTransform: (cueId: string, updates: { laneId: string; frameStart: number; frameEnd: number }) => void
+  onSoundCueTransform: (
+    cueId: string,
+    updates: { laneId: string; frameStart: number; frameEnd: number },
+    intent?: DialogueSoundCueChangeIntent,
+  ) => void
   onSoundCandidateEdit: (trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string) => void
   onAutoCreateDialogueRegions: (state: DialogueAudioCutState, trackId: string, candidateIds: string[]) => DialogueAudioCutState
 }
@@ -201,6 +208,7 @@ export function contextCommandLabel(command: DialogueAudioContextCommand): strin
     case 'import-here': return '再生ヘッドへ音声ファイルを読み込む'
     case 'paste-overwrite': return '再生ヘッドへ上書き貼り付け　Ctrl+V'
     case 'paste-insert': return '再生ヘッドへ挿入貼り付け　Ctrl+Shift+V'
+    case 'add-to-selected-sound': return '選択中のSOUNDへ追加'
     case 'assign-sound': return 'SOUNDへ割り付け…'
     case 'copy': return 'コピー　Ctrl+C'
     case 'cut': return '切り取り　Ctrl+X'
@@ -229,9 +237,9 @@ export function candidatePresentation(
   activeRevisionId: string,
 ) {
   if (candidate.status === 'ignored') return { state: 'ignored', label: '', title: `無視したセリフ区間 ${candidate.frameStart}–${candidate.frameEnd}F` }
-  const assignment = assignmentForCandidate(state, candidate.candidateId, activeRevisionId)
-  if (assignment?.status === 'linked') return { state: 'linked', label: '', title: `音響指示へ割付済みのセリフ区間 ${candidate.frameStart}–${candidate.frameEnd}F` }
-  if (assignment || candidate.status === 'review') return { state: 'review', label: '', title: assignment?.reviewReason ?? candidate.reviewReason ?? 'リンク状態を確認してください。' }
+  const binding = bindingForCandidate(state, candidate.candidateId, activeRevisionId)
+  if (binding?.status === 'linked') return { state: 'linked', label: '', title: `音響指示へ割付済みのセリフ区間 ${candidate.frameStart}–${candidate.frameEnd}F` }
+  if (binding || candidate.status === 'review') return { state: 'review', label: '', title: binding?.reviewReason ?? candidate.reviewReason ?? 'リンク状態を確認してください。' }
   return { state: 'pending', label: '', title: `セリフ区間 ${candidate.frameStart}–${candidate.frameEnd}F。ダブルクリックで音響指示へ割り付け` }
 }
 

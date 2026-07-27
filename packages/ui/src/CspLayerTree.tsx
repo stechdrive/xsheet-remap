@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { Fragment, useEffect, useEffectEvent, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { buildCspLayerTree, defaultCorrectionLayerId, stackGuideStackBand, suggestUnplacedCspCellName, type CspLayerTreeCel, type CspLayerTreeTrack, type CutProject, type StackGuideLabel } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
-import { setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag, type InternalDragPayload } from './internalDrag'
+import { setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag, type InternalDragDetail, type InternalDragPayload } from './internalDrag'
 import { autoScrollListForPointer, listReorderTargetFromContainer, type ListReorderTarget } from './listReorder'
 import { correctionLayerIdForCspPaneSelection, cspPaneNodeCapabilities, cspPaneSelectionCurrentLabel, cspPaneSelectionExists, stackGuideSelectionBand, type CspPaneSelection } from './cspPaneModel'
 import { nextOverlayTrackNameForUi } from './sheet-layers-hit-geometry'
@@ -400,7 +400,7 @@ export function CspLayerTree({
     setPaneSelection(null)
   }
 
-  useEffect(() => subscribeInternalDrag(detail => {
+  const handleInternalDrag = useEffectEvent((detail: InternalDragDetail) => {
     if (detail.payload.kind === 'csp-pane-node') {
       const body = treeBodyRef.current
       const target = listReorderTargetFromContainer(body, detail.payload.reorderScope, detail.clientX, detail.clientY)
@@ -485,7 +485,12 @@ export function CspLayerTree({
     if (!target.correctionLayerId || target.gapIndex === undefined) return
     const layer = tree.stages.flatMap(stage => stage.layers).find(item => item.layerId === target.correctionLayerId)
     if (layer) beginNewTrackDrop(detail.payload.assetIds, target.correctionLayerId, layer.tracks, target.gapIndex)
-  }))
+  })
+
+  useEffect(
+    () => subscribeInternalDrag(handleInternalDrag),
+    [],
+  )
 
   function submitNewTrack(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

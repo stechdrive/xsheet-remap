@@ -84,7 +84,7 @@ try {
   await waitForPageCondition(() => document.querySelectorAll('image.sheetImage').length > 0, 'sheet source assigned')
   checks.push('loaded a sheet source image through the paper sheet loader')
 
-  await clickButton('補正')
+  await clickButton('シート画像補正')
   await waitForPageCondition(() => {
     const dialog = document.querySelector('.calibrationLoupeDialog')
     return Boolean(dialog && document.querySelectorAll('.calibrationLoupeView').length === 4)
@@ -190,7 +190,7 @@ async function waitForSheet(): Promise<void> {
 
 async function dropSheetSourceFile(filePath: string): Promise<void> {
   await ensurePaperSheetMenuOpen()
-  await setFileInputFiles('.paperSheetRailMenu .paperSheetLoadButton input[type="file"]', [filePath])
+  await setFileInputFiles('.paperSheetRailMenu input.hiddenFileInput[type="file"]', [filePath])
 }
 
 async function ensurePaperSheetMenuOpen(): Promise<void> {

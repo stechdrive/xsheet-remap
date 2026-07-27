@@ -95,9 +95,9 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     || memoTextClipContract.clipPaths < 3
     || memoTextClipContract.viewports !== 0
     || memoTextClipContract.textLayers < 3
-    || memoTextClipContract.textStrokeWidths.some(width => !Number.isFinite(width) || width > 0.01)
+    || memoTextClipContract.textStrokeWidths.some(width => !Number.isFinite(width) || Math.abs(width - 1.4) > 0.01)
   ) {
-    throw new Error(`timeline memo text clipping can obscure the sheet background: ${JSON.stringify(memoTextClipContract)}`)
+    throw new Error(`timeline memo text clipping or outline contract drifted: ${JSON.stringify(memoTextClipContract)}`)
   }
   checks.push('created direct text comments for SOUND and text plus handwritten comments for ACTION and CAMERA')
 
@@ -176,7 +176,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     const rect = document.querySelector('.sheetPageSurface').getBoundingClientRect();
     return {
       x: Math.min(rect.right - 10, window.innerWidth - 24),
-      y: Math.min(rect.bottom - 10, window.innerHeight - 40),
+      y: Math.min(rect.bottom - 10, window.innerHeight - 140),
     };
   })()`)
   await mouseClick(pageTargetPoint)
@@ -354,13 +354,18 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       5000,
       `${anchorRole} memo text`,
     )
-    const committedFont = await evaluatePage<{ logical: number; surfaceHeight: number }>(`(() => {
+    const committedFont = await evaluatePage<{ logical: number; screenScaleY: number }>(`(() => {
       const textNode = Array.from(document.querySelectorAll('.timelineMemoSegment.selected .timelineMemoText')).find(element => element.textContent === ${JSON.stringify(text)});
-      const surface = textNode?.closest('svg');
-      if (!(textNode instanceof SVGTextElement) || !(surface instanceof SVGSVGElement)) throw new Error('committed memo text geometry missing');
-      return { logical: Number(textNode.getAttribute('font-size')), surfaceHeight: surface.getBoundingClientRect().height };
+      if (!(textNode instanceof SVGTextElement)) throw new Error('committed memo text geometry missing');
+      const screenMatrix = textNode.getScreenCTM();
+      if (!screenMatrix) throw new Error('committed memo text screen transform missing');
+      return {
+        logical: Number(textNode.getAttribute('font-size')),
+        screenScaleY: Math.hypot(screenMatrix.c, screenMatrix.d),
+      };
     })()`)
-    const committedDisplayFontSize = committedFont.logical * committedFont.surfaceHeight
+    if (!(committedFont.screenScaleY > 0)) throw new Error('committed memo text screen scale is invalid')
+    const committedDisplayFontSize = committedFont.logical * committedFont.screenScaleY
     if (Math.abs(editorFontSize - committedDisplayFontSize) > 0.75) {
       throw new Error(`timeline text changed size after commit: ${JSON.stringify({ editorFontSize, committedDisplayFontSize })}`)
     }

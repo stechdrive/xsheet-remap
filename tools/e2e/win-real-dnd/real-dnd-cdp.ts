@@ -183,7 +183,11 @@ try {
   diagnostics.cardDropAssetScreen = cardDropAssetScreen
   diagnostics.registeredCellAssetTargetClient = registeredCellAssetTargetClient
   diagnostics.registeredCellAssetTargetScreen = registeredCellAssetTargetScreen
-  await realMouseDrag(cardDropAssetScreen, registeredCellAssetTargetScreen)
+  await realMouseDragAssetToRegisteredCell(
+    cardDropAssetScreen,
+    registeredCellAssetTargetScreen,
+    registeredCellAssetTargetClient,
+  )
   await waitForRegisteredCellCardAsset('A', 'A1_e.png')
   checks.push('dragged an asset card with real mouse input onto a CSP layer cell and assigned it to that process')
 
@@ -218,7 +222,11 @@ try {
   await waitForAssetEventAt('cell', 'B', 2)
   checks.push('dragged a real Windows image file from Explorer directly onto a sheet frame')
 
-  await verifyAssetDropOnlyRepeatPasteWithRealMouse()
+  await navigateAssetCatalogUp()
+  await navigateAssetCatalogFolder('cut-folder')
+  await waitForAssetBrowserFile('A2.png')
+
+  await verifyAssetDropOnlyRepeatPasteWithRealMouse('A2.png')
   checks.push('repeated a material-drop-only registered frame into a selected range through the real EXE context menu')
 
   await dragSelectSheetRange('cell', 'A', 20, 24, 'range')
@@ -245,15 +253,7 @@ try {
 
   await createStackGuideLabelFromHeader('action', 2, 'BOOK-REAL')
   await waitForStackGuideLabelRole('BOOK-REAL', 'action')
-  const stackGuideCardAssetClient = await assetCardPoint('A2.png')
-  const stackGuideCardAssetScreen = await clientToScreen(stackGuideCardAssetClient)
-  const stackGuideCardClient = await stackGuideCardPoint('BOOK-REAL')
-  const stackGuideCardScreen = await clientToScreen(stackGuideCardClient)
-  diagnostics.stackGuideCardAssetClient = stackGuideCardAssetClient
-  diagnostics.stackGuideCardAssetScreen = stackGuideCardAssetScreen
-  diagnostics.stackGuideCardClient = stackGuideCardClient
-  diagnostics.stackGuideCardScreen = stackGuideCardScreen
-  await realMouseDrag(stackGuideCardAssetScreen, stackGuideCardScreen)
+  await dragAssetToCspTrack('A2.png', 'BOOK-REAL')
   await waitForStackGuideCardAsset('BOOK-REAL', 'A2.png')
   checks.push('dragged an asset card with real mouse input onto an additional CSP track')
 
@@ -1039,6 +1039,79 @@ async function realMouseDragRegisteredCellToSheet(
   await realMouseDragInternalToSheet(from, to, targetClient, 'registered cell sheet drop', 'registered-cell')
 }
 
+async function realMouseDragAssetToRegisteredCell(
+  from: ScreenPoint,
+  to: ScreenPoint,
+  targetClient: ClientPoint,
+): Promise<void> {
+  await evaluatePage<void>(`
+    (() => {
+      window.__assetRegisteredCellDragEvents = [];
+      if (window.__assetRegisteredCellDragListener) {
+        window.removeEventListener('xsheet-remap:internal-drag', window.__assetRegisteredCellDragListener);
+      }
+      window.__assetRegisteredCellDragListener = event => {
+        const detail = event.detail;
+        if (detail?.payload?.kind !== 'asset') return;
+        const element = document.elementFromPoint(detail.clientX, detail.clientY);
+        const card = element?.closest?.('.cspTreeCel[data-csp-key-id]');
+        window.__assetRegisteredCellDragEvents.push({
+          phase: detail.phase,
+          clientX: detail.clientX,
+          clientY: detail.clientY,
+          targetTag: element?.tagName || '',
+          targetClass: element?.className || '',
+          cardKeyId: card?.dataset?.cspKeyId || '',
+          cardSlotId: card?.dataset?.cspSlotId || '',
+        });
+      };
+      window.addEventListener('xsheet-remap:internal-drag', window.__assetRegisteredCellDragListener);
+    })()
+  `)
+  let mouseIsDown = false
+  try {
+    await runMouseOp([
+      'mouse-down-screen',
+      '--x', String(from.x),
+      '--y', String(from.y),
+      '--app-pid', args['app-pid'] as string,
+    ])
+    mouseIsDown = true
+    await runMouseOp([
+      'mouse-move-screen',
+      '--x', String(to.x),
+      '--y', String(to.y),
+      '--duration', '0.8',
+    ])
+    await waitForPageCondition(
+      () => evaluatePage<boolean>(`Boolean(document.querySelector('.internalDragPreviewShell.pointerDragGhost .internalDragPreview'))`),
+      'asset registered-cell drop ghost',
+      3000,
+    )
+    await waitForPageCondition(
+      () => evaluatePage<boolean>(`Boolean(document.querySelector('.cspTreeCel.assetDragOver'))`),
+      'asset registered-cell drop target',
+      3000,
+    )
+    const state = await currentInternalDragVisualState(targetClient)
+    diagnostics.assetRegisteredCellDrop = state
+    if (state.dragKind !== 'asset') {
+      throw new Error(`asset registered-cell drop used the wrong drag kind: ${JSON.stringify(state)}`)
+    }
+    assertGhostDoesNotCoverPoint(state.ghostRect, targetClient, 'asset registered-cell drop')
+  } finally {
+    if (mouseIsDown) {
+      await runMouseOp([
+        'mouse-up-screen',
+        '--x', String(to.x),
+        '--y', String(to.y),
+      ])
+    }
+  }
+  await waitForInternalPointerDragCleanup()
+  diagnostics.assetRegisteredCellDragEvents = await evaluatePage(`window.__assetRegisteredCellDragEvents || []`)
+}
+
 async function realMouseDragInternalToSheet(
   from: ScreenPoint,
   to: ScreenPoint,
@@ -1189,8 +1262,8 @@ async function clickMenuItemWithRealMouse(label: string, diagnosticKey: string):
   await delay(100)
 }
 
-async function verifyAssetDropOnlyRepeatPasteWithRealMouse(): Promise<void> {
-  await dragAssetCardToFrame('A2.png', 'cell', 'C', 10, 'assetDropRepeatSource')
+async function verifyAssetDropOnlyRepeatPasteWithRealMouse(fileName: string): Promise<void> {
+  await dragAssetCardToFrame(fileName, 'cell', 'C', 10, 'assetDropRepeatSource')
   await waitForNoAssetEventAt('cell', 'C', 11)
   await dragSelectSheetRange('cell', 'C', 11, 10, 'assetDropRepeatSourceRange')
   await clickSheetContextMenuItemAtFrame('cell', 'C', 10, 'コピー', 'assetDropRepeatCopy')
@@ -1218,11 +1291,17 @@ async function realMouseDragStackGuideLabel(label: string, from: ScreenPoint, to
       '--app-pid', args['app-pid'] as string,
     ])
     mouseIsDown = true
+    await runMouseOp(['mouse-move-screen', '--x', String(from.x + 18), '--y', String(from.y + 6), '--duration', '0.2'])
     await waitForPageCondition(
       () => evaluatePage<boolean>(`
-        (() => Array.from(document.querySelectorAll('.stackGuideSvgLabel.dragging')).some(item =>
-          item.textContent?.trim() === ${JSON.stringify(label)}
-        ))()
+        (() => {
+          const svgLabel = Array.from(document.querySelectorAll('.stackGuideSvgLabel'))
+            .find(item => item.textContent?.trim() === ${JSON.stringify(label)});
+          const labelId = svgLabel?.dataset.stackGuideLabelId;
+          if (!labelId) return false;
+          return svgLabel.classList.contains('dragging') || Array.from(document.querySelectorAll('.stackGuideLabelDragHandle.dragging'))
+            .some(item => item.dataset.stackGuideLabelId === labelId);
+        })()
       `),
       `stack guide label ${label} drag start`,
       3000,
@@ -1555,6 +1634,23 @@ async function navigateAssetCatalogUp(): Promise<void> {
   )
 }
 
+async function navigateAssetCatalogFolder(folderName: string): Promise<void> {
+  if (await evaluatePage<string>(`document.querySelector('.assetLocationText')?.textContent?.trim() || ''`) === folderName) return
+  const point = await evaluatePage<ClientPoint | null>(`
+    (() => {
+      const card = Array.from(document.querySelectorAll('.assetCatalogFolderCard'))
+        .find(item => item.querySelector('.assetCardMeta strong')?.textContent?.trim() === ${JSON.stringify(folderName)});
+      if (!card) return null;
+      const rect = card.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()
+  `)
+  if (!point) throw new Error(`asset catalog folder not found: ${folderName}`)
+  await realMouseClick(await clientToScreen(point))
+  await waitForPageCondition(() => evaluatePage<boolean>(
+    `document.querySelector('.assetLocationText')?.textContent?.trim() === ${JSON.stringify(folderName)}`,
+  ), `asset catalog folder ${folderName}`)
+}
 async function createStackGuideLabelFromHeader(role: SheetTimingRole, gapIndex: number, label: string): Promise<void> {
   const headerPoint = await stackGuideHeaderPoint(role, gapIndex)
   await cdpMouseClick(headerPoint, 'right')
@@ -1621,28 +1717,12 @@ async function waitForRegisteredCellCardAsset(paperTrack: string, fileName: stri
       (() => {
         const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'));
         const card = cards.find(item => item.dataset.cspPaperTrack === ${JSON.stringify(paperTrack)});
-        return Boolean(card && (card.textContent || '').includes(${JSON.stringify(fileName)}));
+        const assetState = card?.querySelector('.cspTreeAssetState');
+        return Boolean(assetState?.getAttribute('aria-label')?.includes(${JSON.stringify(fileName)}));
       })()
     `),
     `registered cell card ${paperTrack} asset ${fileName}`,
   )
-}
-
-async function stackGuideCardPoint(label: string): Promise<ClientPoint> {
-  const point = await evaluatePage<ClientPoint | null>(`
-    (() => {
-      const input = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).find(item => item.value === ${JSON.stringify(label)});
-      const text = Array.from(document.querySelectorAll('.cspTreeTrackName')).find(item => item.textContent?.trim() === ${JSON.stringify(label)});
-      const card = (input || text)?.closest('.cspTreeTrack');
-      if (!card) return null;
-      card.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const handle = card.querySelector('.cspTreeTrackRow') || card;
-      const rect = handle.getBoundingClientRect();
-      return { x: rect.left + Math.min(Math.max(rect.width / 2, 24), rect.width - 8), y: rect.top + rect.height / 2 };
-    })()
-  `)
-  if (!point) throw new Error(`stack guide card not found: ${label}`)
-  return point
 }
 
 async function waitForStackGuideCardAsset(label: string, fileName: string): Promise<void> {
@@ -1652,7 +1732,8 @@ async function waitForStackGuideCardAsset(label: string, fileName: string): Prom
       const input = Array.from(document.querySelectorAll('.cspTreeTrackNameInput')).find(item => item.value === ${JSON.stringify(label)});
       const text = Array.from(document.querySelectorAll('.cspTreeTrackName')).find(item => item.textContent?.trim() === ${JSON.stringify(label)});
       const card = (input || text)?.closest('.cspTreeTrack');
-        return Boolean(card && (card.textContent || '').includes(${JSON.stringify(fileName)}));
+        const assetState = card?.querySelector('.cspTreeAssetState');
+        return Boolean(assetState?.getAttribute('aria-label')?.includes(${JSON.stringify(fileName)}));
       })()
     `),
     `stack guide card ${label} asset ${fileName}`,
@@ -1912,7 +1993,7 @@ async function assetCardPoint(fileName: string): Promise<ClientPoint> {
   return evaluatePage<ClientPoint>(`
     (() => {
       const cards = Array.from(document.querySelectorAll('.assetCard:not(.assetCatalogFolderCard)'));
-      const card = cards.find(item => (item.textContent || '').includes(${JSON.stringify(fileName)}));
+      const card = cards.find(item => item.querySelector('.assetCardMeta strong')?.textContent?.trim() === ${JSON.stringify(fileName)});
       if (!card) throw new Error('asset card not found: ${escapeForSingleQuotedError(fileName)}');
       const rect = card.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };

@@ -35,6 +35,8 @@ $scenarios = @(
   "camera-ops",
   "timeline-ripple",
   "timeline-memo"
+  "multiline-memo"
+  "annotation-interactions"
   "sheet-history"
 )
 

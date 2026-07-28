@@ -18,6 +18,7 @@ import { SheetTransformHandle } from './SheetTransformHandle'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
 import { LowLatencyInkCanvas, useLowLatencyInkCanvas } from './LowLatencyInkCanvas'
+import { useInkStrokeSession } from './useInkStrokeSession'
 import { usePointerDragSession } from './usePointerDragSession'
 
 type MemoInkInteraction = {
@@ -106,12 +107,9 @@ export function TimelineMemoLayer({
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
   const [automaticTextSessionKey, setAutomaticTextSessionKey] = useState<string | null>(null)
   const inkCanvas = useLowLatencyInkCanvas()
-  const memoInkDrag = usePointerDragSession<MemoInkInteraction>({
-    previewMode: 'none',
-    sampleMode: 'coalesced',
-    preferRawUpdates: true,
+  const memoInkDrag = useInkStrokeSession<MemoInkInteraction>({
     onPointerEvent: inkCanvas.updateDelegatedInk,
-    onUpdateBatch: (current, points) => {
+    onActualPoints: (current, points) => {
       current.points.push(...points.map(point => timelineMemoPointFromPagePoint(
         current.segment,
         pagePointFromClient(current.svgRect, point.clientX, point.clientY),
@@ -121,6 +119,12 @@ export function TimelineMemoLayer({
         y: point.clientY - current.svgRect.top,
       })))
       return { ...current }
+    },
+    onPredictedPoints: (current, points) => {
+      inkCanvas.replacePredicted(points.map(point => ({
+        x: point.clientX - current.svgRect.left,
+        y: point.clientY - current.svgRect.top,
+      })))
     },
     onFinish: (current, finish) => {
       inkCanvas.clear()
@@ -279,6 +283,14 @@ export function TimelineMemoLayer({
       const normalizedLineWidth = mode === 'draw' ? penWidth : eraserWidth
       const lineWidth = normalizedLineWidth * Math.min(svgRect.width, svgRect.height)
       const appearance = normalizeMemoAppearance(memo.appearance)
+      const inputMode = memoInkDrag.begin({
+        pointerId: event.pointerId,
+        mode,
+        memo,
+        segment,
+        svgRect: rect,
+        points: mode === 'draw' ? [point] : [],
+      }, event.currentTarget, event.nativeEvent)
       inkCanvas.begin({
         width: svgRect.width,
         height: svgRect.height,
@@ -296,15 +308,8 @@ export function TimelineMemoLayer({
           y: event.clientY - svgRect.top,
         },
         pointerEvent: mode === 'draw' ? event.nativeEvent : undefined,
+        inputMode,
       })
-      memoInkDrag.begin({
-        pointerId: event.pointerId,
-        mode,
-        memo,
-        segment,
-        svgRect: rect,
-        points: mode === 'draw' ? [point] : [],
-      }, event.currentTarget)
       return
     }
     memoInkDrag.cancel()
@@ -356,7 +361,9 @@ export function TimelineMemoLayer({
       {editorHost && selectedMemoId && (editMode === 'pen' || editMode === 'eraser') && createPortal(
         <LowLatencyInkCanvas
           canvasRef={inkCanvas.canvasRef}
+          predictionLayerRef={inkCanvas.predictionLayerRef}
           className="timelineMemoInkCanvas"
+          predictionClassName="timelineMemoInkPredictionLayer"
           label="タイムラインメモの手描きプレビュー"
         />,
         editorHost,

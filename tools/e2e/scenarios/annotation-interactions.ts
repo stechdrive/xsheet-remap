@@ -494,24 +494,48 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       backingWidth: number
       backingHeight: number
       incrementalCanvas: boolean
+      inputMode: string
       visible: boolean
+      predictionLayerCount: number
+      predictedSampleCount: number
+      predictionVisible: boolean
       paletteOpen: boolean
     } | null>(`
       (() => {
         const canvas = document.querySelector('.pageAnnotationInkCanvas[data-ink-active="true"]');
         if (!(canvas instanceof HTMLCanvasElement)) return null;
         const style = getComputedStyle(canvas);
+        const prediction = canvas.parentElement?.querySelector('.pageAnnotationInkPredictionLayer') ?? null;
+        const predictionStyle = prediction ? getComputedStyle(prediction) : null;
         return {
           sampleCount: Number(canvas.dataset.inkSampleCount ?? 0),
           backingWidth: canvas.width,
           backingHeight: canvas.height,
           incrementalCanvas: canvas.dataset.inkRenderMode === 'incremental-canvas',
+          inputMode: canvas.dataset.inkInputMode ?? '',
           visible: style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0,
+          predictionLayerCount: canvas.parentElement?.querySelectorAll('.pageAnnotationInkPredictionLayer[data-ink-render-mode="predicted-svg"]').length ?? 0,
+          predictedSampleCount: Number(prediction?.getAttribute('data-ink-predicted-sample-count') ?? 0),
+          predictionVisible: Boolean(predictionStyle)
+            && predictionStyle.display !== 'none'
+            && predictionStyle.visibility !== 'hidden'
+            && Number(predictionStyle.opacity) > 0,
           paletteOpen: document.querySelector('.annotationFloatingPalette[data-annotation-session="active"]')?.classList.contains('open') === true,
         };
       })()
     `), 5000, 'live page annotation preview while pointer remains pressed')
-    if (preview.sampleCount < 2 || preview.backingWidth <= 1 || preview.backingHeight <= 1 || !preview.incrementalCanvas || !preview.visible || !preview.paletteOpen) {
+    if (
+      preview.sampleCount < 2
+      || preview.backingWidth <= 1
+      || preview.backingHeight <= 1
+      || !preview.incrementalCanvas
+      || preview.inputMode !== 'pointermove'
+      || !preview.visible
+      || preview.predictionLayerCount !== 1
+      || preview.predictedSampleCount !== 0
+      || preview.predictionVisible
+      || !preview.paletteOpen
+    ) {
       throw new Error(`page annotation preview is not using the active incremental canvas: ${JSON.stringify(preview)}`)
     }
     const previewPixels = await assertSelectorsContributePaint({
@@ -529,7 +553,9 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       type: 'mouseReleased', x: end.x, y: end.y, button: 'left', buttons: 0, clickCount: 1,
     })
     await waitForPageCondition(
-      () => document.querySelector('.pageAnnotationInkCanvas')?.getAttribute('data-ink-active') === 'false',
+      () => document.querySelector('.pageAnnotationInkCanvas')?.getAttribute('data-ink-active') === 'false'
+        && document.querySelector('.pageAnnotationInkPredictionLayer')?.hasAttribute('hidden') === true
+        && document.querySelector('.pageAnnotationInkPredictionLayer')?.getAttribute('data-ink-predicted-sample-count') === '0',
       'live page annotation preview clears after commit',
     )
   }

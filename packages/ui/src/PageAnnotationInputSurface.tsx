@@ -3,7 +3,7 @@ import type { AnnotationStroke, SheetPage, SheetPageMemoTarget } from '@xsheet-r
 import type { EditMode } from './appTypes'
 import { SHEET_INTERACTION_ACTIVE_CLASS } from './app-foundation'
 import { LowLatencyInkCanvas, useLowLatencyInkCanvas } from './LowLatencyInkCanvas'
-import { usePointerDragSession } from './usePointerDragSession'
+import { useInkStrokeSession } from './useInkStrokeSession'
 
 export type PageAnnotationStrokeStart = {
   pointerId: number
@@ -40,12 +40,9 @@ export function PageAnnotationInputSurface({
   onEraseAnnotation: (pageId: string, points: AnnotationStroke['points'], width: number, target: SheetPageMemoTarget) => void
 }) {
   const inkCanvas = useLowLatencyInkCanvas()
-  const strokeDrag = usePointerDragSession<PageAnnotationStrokeSession>({
-    previewMode: 'none',
-    sampleMode: 'coalesced',
-    preferRawUpdates: true,
+  const strokeDrag = useInkStrokeSession<PageAnnotationStrokeSession>({
     onPointerEvent: inkCanvas.updateDelegatedInk,
-    onUpdateBatch: (current, points) => {
+    onActualPoints: (current, points) => {
       current.stroke.points.push(...points.map(point => ({
         x: (point.clientX - current.svgRect.left) / Math.max(1, current.svgRect.width),
         y: (point.clientY - current.svgRect.top) / Math.max(1, current.svgRect.height),
@@ -56,6 +53,12 @@ export function PageAnnotationInputSurface({
         y: point.clientY - current.svgRect.top,
       })))
       return { ...current }
+    },
+    onPredictedPoints: (current, points) => {
+      inkCanvas.replacePredicted(points.map(point => ({
+        x: point.clientX - current.svgRect.left,
+        y: point.clientY - current.svgRect.top,
+      })))
     },
     onFinish: (current, finish) => {
       inkCanvas.clear()
@@ -99,6 +102,7 @@ export function PageAnnotationInputSurface({
           if (!start) return
           strokeDrag.cancel()
           const lineWidth = start.stroke.width * Math.min(start.svgRect.width, start.svgRect.height)
+          const inputMode = strokeDrag.begin(start, event.currentTarget, event.nativeEvent)
           inkCanvas.begin({
             width: start.svgRect.width,
             height: start.svgRect.height,
@@ -111,8 +115,8 @@ export function PageAnnotationInputSurface({
               y: event.clientY - start.svgRect.top,
             },
             pointerEvent: start.stroke.tool === 'pen' ? event.nativeEvent : undefined,
+            inputMode,
           })
-          strokeDrag.begin(start, event.currentTarget)
         }}
         onPointerMove={editMode === 'text' ? onPointerMove : undefined}
         onPointerUp={editMode === 'text' ? onPointerUp : undefined}
@@ -129,7 +133,9 @@ export function PageAnnotationInputSurface({
       </svg>
       <LowLatencyInkCanvas
         canvasRef={inkCanvas.canvasRef}
+        predictionLayerRef={inkCanvas.predictionLayerRef}
         className="pageAnnotationInkCanvas"
+        predictionClassName="pageAnnotationInkPredictionLayer"
         label={`${page.pageIndex + 1}ページの手描きプレビュー`}
       />
     </div>

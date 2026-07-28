@@ -794,7 +794,8 @@
   -webkit-user-select: none;
 }
 
-.lowLatencyInkCanvas {
+.lowLatencyInkCanvas,
+.lowLatencyInkPredictionLayer {
   position: absolute;
   inset: 0;
   display: block;
@@ -804,7 +805,8 @@
   touch-action: none;
 }
 
-.lowLatencyInkCanvas[hidden] {
+.lowLatencyInkCanvas[hidden],
+.lowLatencyInkPredictionLayer[hidden] {
   display: none;
 }
 
@@ -812,8 +814,16 @@
   z-index: 1;
 }
 
+.pageAnnotationInkPredictionLayer {
+  z-index: 2;
+}
+
 .timelineMemoInkCanvas {
   z-index: 8;
+}
+
+.timelineMemoInkPredictionLayer {
+  z-index: 9;
 }
 
 .pageAnnotationInputSurface[data-annotation-tool="text"] {

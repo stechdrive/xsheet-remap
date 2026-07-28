@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import type { InkPointerInputMode } from './useInkStrokeSession'
 
 export type LowLatencyInkPoint = {
   x: number
@@ -15,6 +16,7 @@ export type LowLatencyInkCanvasStart = {
   clip?: { x: number; y: number; width: number; height: number }
   point: LowLatencyInkPoint
   pointerEvent?: globalThis.PointerEvent
+  inputMode?: InkPointerInputMode
 }
 
 type DelegatedInkTrailStyle = {
@@ -43,8 +45,11 @@ type InkEnhancedNavigator = Navigator & {
 type ActiveInkCanvas = {
   canvas: HTMLCanvasElement
   context: CanvasRenderingContext2D | null
+  predictionLayer: SVGSVGElement | null
+  predictionPath: SVGPathElement | null
   lastPoint: LowLatencyInkPoint
   sampleCount: number
+  delegatedInkEnabled: boolean
   delegatedStyle: DelegatedInkTrailStyle
 }
 
@@ -74,6 +79,19 @@ function updateInkCanvasVisibility(canvas: HTMLCanvasElement, hidden: boolean) {
   canvas.hidden = hidden
 }
 
+function updatePredictionLayerVisibility(layer: SVGSVGElement | null, hidden: boolean) {
+  layer?.toggleAttribute('hidden', hidden)
+}
+
+function clearPredictionLayer(
+  layer: SVGSVGElement | null,
+  path: SVGPathElement | null,
+) {
+  updatePredictionLayerVisibility(layer, true)
+  if (layer) layer.dataset.inkPredictedSampleCount = '0'
+  path?.removeAttribute('d')
+}
+
 function resizeInkCanvasBackingStore(canvas: HTMLCanvasElement, width: number, height: number) {
   canvas.width = width
   canvas.height = height
@@ -96,6 +114,7 @@ export function lowLatencyCanvasPixelRatio(
 
 export function useLowLatencyInkCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const predictionLayerRef = useRef<SVGSVGElement | null>(null)
   const activeRef = useRef<ActiveInkCanvas | null>(null)
   const presenterRef = useRef<DelegatedInkTrailPresenter | null>(null)
   const presenterRequestRef = useRef<Promise<DelegatedInkTrailPresenter> | null>(null)
@@ -133,6 +152,12 @@ export function useLowLatencyInkCanvas() {
     updateInkCanvasDataset(canvas, false, 0)
   }, [])
 
+  const setPredictionLayerRef = useCallback((layer: SVGSVGElement | null) => {
+    predictionLayerRef.current = layer
+    if (!layer) return
+    clearPredictionLayer(layer, layer.querySelector<SVGPathElement>('path'))
+  }, [])
+
   const clear = useCallback(() => {
     const active = activeRef.current
     activeRef.current = null
@@ -151,12 +176,21 @@ export function useLowLatencyInkCanvas() {
     if (canvas) {
       resizeInkCanvasBackingStore(canvas, 1, 1)
     }
+    clearPredictionLayer(
+      active?.predictionLayer ?? predictionLayerRef.current,
+      active?.predictionPath ?? predictionLayerRef.current?.querySelector('path') ?? null,
+    )
   }, [])
 
   const updateDelegatedInk = useCallback((event?: globalThis.PointerEvent) => {
     const active = activeRef.current
     const presenter = presenterRef.current
-    if (!active || !presenter || !event?.isTrusted || event.pointerType !== 'pen') return
+    if (
+      !active?.delegatedInkEnabled
+      || !presenter
+      || !event?.isTrusted
+      || event.pointerType !== 'pen'
+    ) return
     try {
       presenter.updateInkTrailStartPoint(event, active.delegatedStyle)
     } catch {
@@ -167,6 +201,8 @@ export function useLowLatencyInkCanvas() {
   const begin = useCallback((start: LowLatencyInkCanvasStart) => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const predictionLayer = predictionLayerRef.current
+    const predictionPath = predictionLayer?.querySelector<SVGPathElement>('path') ?? null
     const width = Math.max(1, start.width)
     const height = Math.max(1, start.height)
     const pixelRatio = lowLatencyCanvasPixelRatio(
@@ -176,6 +212,7 @@ export function useLowLatencyInkCanvas() {
     )
     updateInkCanvasVisibility(canvas, true)
     updateInkCanvasDataset(canvas, false, 0)
+    canvas.dataset.inkInputMode = start.inputMode ?? 'pointermove'
     resizeInkCanvasBackingStore(
       canvas,
       Math.max(1, Math.round(width * pixelRatio)),
@@ -212,17 +249,48 @@ export function useLowLatencyInkCanvas() {
       context.stroke()
     }
 
+    if (predictionLayer) {
+      predictionLayer.setAttribute('viewBox', `0 0 ${width} ${height}`)
+      predictionLayer.dataset.inkInputMode = start.inputMode ?? 'pointermove'
+      predictionLayer.dataset.inkPredictedSampleCount = '0'
+      if (start.clip) {
+        const right = Math.max(0, width - start.clip.x - start.clip.width)
+        const bottom = Math.max(0, height - start.clip.y - start.clip.height)
+        predictionLayer.style.clipPath = `inset(${start.clip.y}px ${right}px ${bottom}px ${start.clip.x}px)`
+      } else {
+        predictionLayer.style.removeProperty('clip-path')
+      }
+    }
+    if (predictionPath) {
+      predictionPath.removeAttribute('d')
+      predictionPath.setAttribute('fill', 'none')
+      predictionPath.setAttribute('stroke', start.color)
+      predictionPath.setAttribute('stroke-width', String(Math.max(0.5, start.lineWidth)))
+      predictionPath.setAttribute('stroke-linecap', 'round')
+      predictionPath.setAttribute('stroke-linejoin', 'round')
+      predictionPath.setAttribute('opacity', String(start.opacity ?? 1))
+      if (start.lineDash?.length) {
+        predictionPath.setAttribute('stroke-dasharray', start.lineDash.join(' '))
+      } else {
+        predictionPath.removeAttribute('stroke-dasharray')
+      }
+    }
+
     activeRef.current = {
       canvas,
       context,
+      predictionLayer,
+      predictionPath,
       lastPoint: start.point,
       sampleCount: 1,
+      delegatedInkEnabled: start.pointerEvent?.pointerType === 'pen',
       delegatedStyle: {
         color: start.color,
         diameter: Math.max(0.5, start.lineWidth),
       },
     }
     updateInkCanvasVisibility(canvas, false)
+    updatePredictionLayerVisibility(predictionLayer, true)
     updateInkCanvasDataset(canvas, true, 1, pixelRatio)
     if (start.pointerEvent?.pointerType === 'pen') requestDelegatedInkPresenter(canvas)
     updateDelegatedInk(start.pointerEvent)
@@ -231,6 +299,7 @@ export function useLowLatencyInkCanvas() {
   const append = useCallback((points: readonly LowLatencyInkPoint[]) => {
     const active = activeRef.current
     if (!active || points.length === 0) return
+    clearPredictionLayer(active.predictionLayer, active.predictionPath)
     const context = active.context
     if (context) {
       context.beginPath()
@@ -243,12 +312,30 @@ export function useLowLatencyInkCanvas() {
     updateInkCanvasDataset(active.canvas, true, active.sampleCount)
   }, [])
 
+  const replacePredicted = useCallback((points: readonly LowLatencyInkPoint[]) => {
+    const active = activeRef.current
+    if (!active?.predictionLayer || !active.predictionPath) return
+    if (points.length === 0) {
+      clearPredictionLayer(active.predictionLayer, active.predictionPath)
+      return
+    }
+    const pathData = [
+      `M ${active.lastPoint.x} ${active.lastPoint.y}`,
+      ...points.map(point => `L ${point.x} ${point.y}`),
+    ].join(' ')
+    active.predictionPath.setAttribute('d', pathData)
+    active.predictionLayer.dataset.inkPredictedSampleCount = String(points.length)
+    updatePredictionLayerVisibility(active.predictionLayer, false)
+  }, [])
+
   useEffect(() => clear, [clear])
 
   return {
     canvasRef: setCanvasRef,
+    predictionLayerRef: setPredictionLayerRef,
     begin,
     append,
+    replacePredicted,
     clear,
     updateDelegatedInk,
   }
@@ -256,18 +343,35 @@ export function useLowLatencyInkCanvas() {
 
 export function LowLatencyInkCanvas({
   canvasRef,
+  predictionLayerRef,
   className,
+  predictionClassName,
   label,
 }: {
   canvasRef: (canvas: HTMLCanvasElement | null) => void
+  predictionLayerRef: (layer: SVGSVGElement | null) => void
   className?: string
+  predictionClassName?: string
   label: string
 }) {
-  return <canvas
-    ref={canvasRef}
-    className={['lowLatencyInkCanvas', className].filter(Boolean).join(' ')}
-    data-ink-render-mode="incremental-canvas"
-    data-ink-label={label}
-    aria-hidden="true"
-  />
+  return <>
+    <canvas
+      ref={canvasRef}
+      className={['lowLatencyInkCanvas', className].filter(Boolean).join(' ')}
+      data-ink-render-mode="incremental-canvas"
+      data-ink-label={label}
+      aria-hidden="true"
+    />
+    <svg
+      ref={predictionLayerRef}
+      className={['lowLatencyInkPredictionLayer', predictionClassName].filter(Boolean).join(' ')}
+      data-ink-render-mode="predicted-svg"
+      data-ink-label={`${label}の予測線`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path />
+    </svg>
+  </>
 }

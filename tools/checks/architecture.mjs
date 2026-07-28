@@ -102,13 +102,21 @@ await checkFileRequirements('packages/ui/src/DialogueAudioTimeline.tsx', [{
 for (const relativePath of [
   'packages/ui/src/useDialogueAudioSegmentDrag.ts',
   'packages/ui/src/sheet-panel-annotation.tsx',
-  'packages/ui/src/TimelineMemoLayer.tsx',
   'packages/ui/src/useSheetCalibrationDrag.ts',
-  'packages/ui/src/PageAnnotationInputSurface.tsx',
 ]) {
   await checkFileRequirements(relativePath, [{
     pattern: /\busePointerDragSession\b/,
     message: 'pointer-driven edits must use the shared pointer drag session contract',
+  }])
+}
+
+for (const relativePath of [
+  'packages/ui/src/TimelineMemoLayer.tsx',
+  'packages/ui/src/PageAnnotationInputSurface.tsx',
+]) {
+  await checkFileRequirements(relativePath, [{
+    pattern: /\buseInkStrokeSession\b/,
+    message: 'freehand ink must use the dedicated actual/predicted pointer session contract',
   }])
 }
 

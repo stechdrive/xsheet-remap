@@ -174,8 +174,10 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   background: #d6d5ce;
   border: 1px solid #bfc3bd;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }

@@ -67,7 +67,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, runTimedRangeLaneHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openTimelineLaneEditor, submitTimelineLaneEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
-    handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
+    handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown,
+    handlePointerDownCapture, handlePointerMoveCapture, handlePointerUpCapture, handlePointerCancelCapture, handleLostPointerCapture,
+    contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   } = controller
@@ -97,6 +99,11 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     <div
       ref={viewportRef}
       className={viewportClassName}
+      onPointerDownCapture={handlePointerDownCapture}
+      onPointerMoveCapture={handlePointerMoveCapture}
+      onPointerUpCapture={handlePointerUpCapture}
+      onPointerCancelCapture={handlePointerCancelCapture}
+      onLostPointerCapture={handleLostPointerCapture}
       onPointerDown={handleViewportPointerDown}
       onDragOver={handleViewportDragOver}
       onDragLeave={handleViewportDragLeave}

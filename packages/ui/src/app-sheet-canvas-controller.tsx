@@ -29,6 +29,8 @@ import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { useAnimationFramePointerUpdate } from './useAnimationFramePointerUpdate';
 import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
+import { useSheetTouchPan } from './useSheetTouchPan';
+import { runSheetTouchTap } from './sheetTouchTap';
 import { beginSheetViewportPan } from './sheetViewportPan';
 import { advancePrimaryPointerActivation, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
 import type { PageAnnotationStrokeStart } from './PageAnnotationInputSurface';
@@ -297,6 +299,32 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   })
   const { visiblePages } = renderCaches
   const isCalibratingSheet = props.editMode === 'calibrate'
+  const touchPan = useSheetTouchPan({
+    enabled: !isCalibratingSheet,
+    onTap: tap => runSheetTouchTap(tap, {
+      props, pageHitUnderClientPoint, svgForPage, setActivePageIndexIfNeeded, pageAnnotationAnchor,
+      paperTrackHeaderHitFromPoint, selectPaperTrackColumn, rangeFromHits,
+      beforeTap: () => {
+        lastSoundCueActivationRef.current = null; lastCameraCueActivationRef.current = null
+        setContextMenu(null); setPaperTrackHeaderMenu(null); setOverlayPaperTrackMenu(null)
+        setStackGuideHeaderMenu(null); setTimedRangeLaneHeaderMenu(null); clearHover()
+      },
+    }),
+    onBegin: () => {
+      setContextMenu(null)
+      setPaperTrackHeaderMenu(null)
+      setOverlayPaperTrackMenu(null)
+      setStackGuideHeaderMenu(null)
+      setStackGuideDropPreview(null)
+      clearHover()
+      setIsPanning(true)
+      props.onStatusHint('sheet-drag', uiText.statusHints.touchPanning)
+    },
+    onEnd: () => {
+      setIsPanning(false)
+      props.onStatusHint('sheet-drag', null)
+    },
+  })
 
   useEffect(() => {
     activePageIndexRef.current = props.activePageIndex
@@ -2258,7 +2286,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     ...timelineLaneEditorActions,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
-    handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
+    handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, ...touchPan, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   }

@@ -16,7 +16,7 @@ export const uiText = {
     unassigned: '未割当',
   },
   statusHints: {
-    sheetIdle: 'ホイール: 縦スクロール / Shift+ホイール: 横スクロール / Ctrl+ホイール: ズーム / Space+ドラッグ・中ボタン: 表示移動',
+    sheetIdle: '指ドラッグ: 表示移動 / 指タップ: 選択 / ホイール: 縦スクロール / Shift+ホイール: 横スクロール / Ctrl+ホイール: ズーム / Space+ドラッグ・中ボタン: 表示移動',
     selectedCell: (hasEvent: boolean) => hasEvent
       ? '選択セル: 入力でキー変更 / Deleteで削除 / Alt+ドラッグでキー移動 / 右クリックでセル操作'
       : '選択セル: 入力でキー登録 / 画像素材ドロップで登録 / 右クリックでセル操作',
@@ -29,6 +29,7 @@ export const uiText = {
     rangeDragging: 'ドラッグ中: 範囲選択',
     eventDragging: 'キー移動中: ドロップ先セルへ移動',
     panning: '表示位置を移動中',
+    touchPanning: '指で表示位置を移動中',
     dropAsset: (target: string) => `ドロップ: ${target} に素材を登録して配置`,
     dropRegisteredCell: (target: string) => `ドロップ: ${target} に登録セルを配置`,
     dropFiles: (target: string) => `ドロップ: ${target} に画像素材を登録して配置`,
@@ -38,8 +39,8 @@ export const uiText = {
     overlayPaperTrack: (label: string, isInputTarget: boolean) =>
       `${label}追加セル列: ${isInputTarget ? '入力先' : 'クリックで入力先'} / ドラッグで位置移動 / 右クリックで編集`,
     overlayPaperTrackDragging: (label: string) => `${label}追加セル列を移動中: 離すと表示位置を確定`,
-    penMode: 'ペン: シート上をドラッグして注記。完了またはEscで終了',
-    eraserMode: '消しゴム: シート上をドラッグして注記を消去。完了またはEscで終了',
+    penMode: 'ペン: ペンまたはマウスでドラッグして注記 / 指ドラッグで表示移動。完了またはEscで終了',
+    eraserMode: '消しゴム: ペンまたはマウスでドラッグして消去 / 指ドラッグで表示移動。完了またはEscで終了',
     textMode: 'テキスト注釈を入力 / Ctrl+Enterで確定 / Escで終了',
     calibrateMode: '四隅合わせ: ハンドルをドラッグして紙シート画像を補正',
   },

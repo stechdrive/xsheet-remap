@@ -104,7 +104,7 @@ for (const relativePath of [
   'packages/ui/src/sheet-panel-annotation.tsx',
   'packages/ui/src/TimelineMemoLayer.tsx',
   'packages/ui/src/useSheetCalibrationDrag.ts',
-  'packages/ui/src/app-sheet-canvas-controller.tsx',
+  'packages/ui/src/PageAnnotationInputSurface.tsx',
 ]) {
   await checkFileRequirements(relativePath, [{
     pattern: /\busePointerDragSession\b/,
@@ -117,6 +117,7 @@ for (const relativePath of [
   'packages/ui/src/sheet-panel-annotation.tsx',
   'packages/ui/src/TimelineMemoLayer.tsx',
   'packages/ui/src/useSheetCalibrationDrag.ts',
+  'packages/ui/src/PageAnnotationInputSurface.tsx',
 ]) {
   await checkFilePatterns(relativePath, [{
     pattern: /(?:window|document)\.addEventListener\(\s*['"]pointer(?:move|up|cancel|down)['"]/,

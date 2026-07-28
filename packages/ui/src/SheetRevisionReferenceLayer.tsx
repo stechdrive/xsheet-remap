@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { sheetAnnotationStrokes, sheetAnnotationTexts, timelineMemos, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
 import { MetadataTextLayer, strokePath } from './app-sheet-layers'
 import type { SheetEventRectRenderItem } from './sheet-layers-hit-geometry'
@@ -36,8 +37,13 @@ export function SheetRevisionReferenceLayer({
   events: SheetEventRectRenderItem[]
   continuationItems: SheetContinuationRenderItem[]
 }) {
-  const strokes = sheetAnnotationStrokes(project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')
-  const textAnnotations = sheetAnnotationTexts(project).filter(annotation => annotation.pageId === page.pageId)
+  const strokeRenderItems = useMemo(() => sheetAnnotationStrokes(project)
+    .filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')
+    .map(stroke => ({ stroke, path: strokePath(stroke) })), [page.pageId, project])
+  const textAnnotations = useMemo(
+    () => sheetAnnotationTexts(project).filter(annotation => annotation.pageId === page.pageId),
+    [page.pageId, project],
+  )
   return (
     <g className="sheetRevisionReferenceLayer" opacity={opacity} aria-label="元のシート">
       <MetadataTextLayer context={context} page={page} />
@@ -123,8 +129,8 @@ export function SheetRevisionReferenceLayer({
         onUpsertText={noop}
         onUpdatePlacement={noop}
       />
-      {strokes.map(stroke => (
-        <path key={stroke.annotationId} className="sheetRevisionReferenceStroke" d={strokePath(stroke)} strokeWidth={stroke.width} />
+      {strokeRenderItems.map(({ stroke, path }) => (
+        <path key={stroke.annotationId} className="sheetRevisionReferenceStroke" d={path} strokeWidth={stroke.width} />
       ))}
       {textAnnotations.map(annotation => <AnnotationSvgText key={annotation.annotationId} annotation={{ ...annotation, color: '#b83f4d' }} pageSize={pageSize} />)}
     </g>

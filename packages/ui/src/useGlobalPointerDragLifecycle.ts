@@ -1,17 +1,20 @@
-import { useEffect, type RefObject } from 'react'
+import { useLayoutEffect, type RefObject } from 'react'
 
 type PointerDragInteraction = { pointerId: number } | null
 
 export function useGlobalPointerDragLifecycle<TInteraction extends PointerDragInteraction>({
+  active,
   activeRef,
   updateRef,
   finishRef,
 }: {
+  active: boolean
   activeRef: RefObject<TInteraction>
   updateRef: RefObject<(pointerId: number, clientX: number, clientY: number, pressure?: number) => void>
   finishRef: RefObject<(pointerId: number, cancelled?: boolean, clientX?: number, clientY?: number) => void>
 }) {
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!active) return
     const cancelFromKeyboard = (event: KeyboardEvent) => {
       const current = activeRef.current
       if (event.key !== 'Escape' || !current) return
@@ -76,5 +79,5 @@ export function useGlobalPointerDragLifecycle<TInteraction extends PointerDragIn
       window.removeEventListener('pointerdown', cancelStaleInteraction, true)
       document.removeEventListener('visibilitychange', cancelWhenHidden)
     }
-  }, [activeRef, finishRef, updateRef])
+  }, [active, activeRef, finishRef, updateRef])
 }

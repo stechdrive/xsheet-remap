@@ -14,16 +14,21 @@ type TestSession = {
 function PointerDragHarness({
   onCommit,
   onCancel,
+  onPreview,
   replaceTarget = false,
+  previewMode,
 }: {
   onCommit: (x: number) => void
   onCancel: () => void
+  onPreview?: (x: number) => void
   replaceTarget?: boolean
+  previewMode?: 'immediate' | 'animation-frame'
 }) {
   const [moved, setMoved] = useState(false)
   const drag = usePointerDragSession<TestSession>({
     onUpdate: (session, point) => {
       setMoved(true)
+      onPreview?.(point.clientX)
       return { ...session, x: point.clientX }
     },
     onFinish: (session, finish) => {
@@ -31,6 +36,7 @@ function PointerDragHarness({
       else onCommit(session.x)
       setMoved(false)
     },
+    previewMode,
   })
   const label = replaceTarget && moved ? '置換後の対象' : 'ドラッグ対象'
   return <button
@@ -100,5 +106,36 @@ describe('usePointerDragSession', () => {
     fireEvent.pointerDown(document.body, { pointerId: 8, button: 0, buttons: 1, clientX: 40 })
 
     expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('publishes at most one preview per animation frame while preserving the final coordinate', () => {
+    const queuedFrames: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      queuedFrames.push(callback)
+      return queuedFrames.length
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    const onCommit = vi.fn()
+    const onPreview = vi.fn()
+    render(<PointerDragHarness
+      onCommit={onCommit}
+      onCancel={vi.fn()}
+      onPreview={onPreview}
+      previewMode="animation-frame"
+    />)
+    const target = screen.getByRole('button', { name: 'ドラッグ対象' })
+
+    fireEvent.pointerDown(target, { pointerId: 9, button: 0, buttons: 1, clientX: 10 })
+    for (let clientX = 11; clientX <= 1010; clientX += 1) {
+      fireEvent.pointerMove(window, { pointerId: 9, buttons: 1, clientX })
+    }
+
+    expect(onPreview).toHaveBeenCalledTimes(1000)
+    expect(queuedFrames).toHaveLength(1)
+    queuedFrames[0]?.(16)
+    fireEvent.pointerUp(window, { pointerId: 9, buttons: 0, clientX: 1200 })
+
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(onCommit).toHaveBeenCalledWith(1200)
   })
 })

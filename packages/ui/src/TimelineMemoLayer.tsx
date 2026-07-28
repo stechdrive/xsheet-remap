@@ -95,18 +95,14 @@ export function TimelineMemoLayer({
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
   const [automaticTextSessionKey, setAutomaticTextSessionKey] = useState<string | null>(null)
   const memoDrag = usePointerDragSession<MemoInteraction>({
+    previewMode: 'animation-frame',
     onUpdate: (current, point) => {
       if (current.mode === 'draw' || current.mode === 'erase') {
-        return {
-          ...current,
-          points: [
-            ...current.points,
-            timelineMemoPointFromPagePoint(
-              current.segment,
-              pagePointFromClient(current.svgRect, point.clientX, point.clientY),
-            ),
-          ],
-        }
+        current.points.push(timelineMemoPointFromPagePoint(
+          current.segment,
+          pagePointFromClient(current.svgRect, point.clientX, point.clientY),
+        ))
+        return { ...current }
       }
       const deltaUnits = (point.clientX - current.startClient.x) / Math.max(1, current.svgRect.width * current.segment.rowHeightX)
       const deltaFrames = (point.clientY - current.startClient.y) / Math.max(1, current.svgRect.height * current.segment.rowHeightY)
@@ -132,7 +128,7 @@ export function TimelineMemoLayer({
           onAppendStroke(current.memo.memoId, {
             color: penColor,
             widthUnits: Math.max(0.04, penWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
-            points: current.points,
+            points: current.points.slice(),
           })
         }
         return
@@ -140,7 +136,7 @@ export function TimelineMemoLayer({
       if (current.mode === 'erase') {
         onEraseStroke(
           current.memo.memoId,
-          current.points,
+          current.points.slice(),
           Math.max(0.04, eraserWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
         )
         return
@@ -149,44 +145,58 @@ export function TimelineMemoLayer({
     },
   })
   const interaction = memoDrag.active
+  const placementInteraction = interaction?.mode === 'move' || interaction?.mode === 'resize'
+    ? interaction
+    : null
   const renderedMemos = useMemo(() => memos
     .slice()
     .sort((left, right) => left.order - right.order)
-    .map(memo => interaction?.memo.memoId === memo.memoId ? { ...memo, placement: interaction.previewPlacement } : memo), [interaction, memos])
+    .map(memo => placementInteraction?.memo.memoId === memo.memoId
+      ? { ...memo, placement: placementInteraction.previewPlacement }
+      : memo), [memos, placementInteraction])
   const edgeW = 1.25 / Math.max(1, pageSize.widthPx)
   const edgeH = 1.25 / Math.max(1, pageSize.heightPx)
-  const renderedMemoSegments = renderedMemos.map(memo => ({
+  const renderedMemoSegments = useMemo(() => renderedMemos.map(memo => ({
     memo,
-    segments: timelineMemoSegmentsForPage(template, page, memo, { paperTracks, layoutOverrides }),
-  }))
-  const anchorGroups = new Map<string, {
-    anchorCell: NonNullable<ReturnType<typeof timelineMemoAnchorCellForPage>>
-    anchorFrame: number
-    anchorRole: TimelineInkMemo['anchor']['role']
-    anchorPaperTrack?: string
-    anchorCueIds: string[]
-    presentation: SheetMemoAnchorPresentation
-    memoIds: string[]
-  }>()
-  for (const memo of renderedMemos) {
-    const anchorCell = timelineMemoAnchorCellForPage(template, page, memo, { paperTracks, layoutOverrides })
-    if (!anchorCell) continue
-    const key = [anchorCell.regionId, memo.anchor.role, memo.anchor.frame, memo.anchor.paperTrack ?? '', memo.anchor.laneId ?? ''].join(':')
-    const existing = anchorGroups.get(key)
-    if (existing) {
-      existing.memoIds.push(memo.memoId)
-      if (memo.anchor.cueId && !existing.anchorCueIds.includes(memo.anchor.cueId)) existing.anchorCueIds.push(memo.anchor.cueId)
+    segments: timelineMemoSegmentsForPage(template, page, memo, { paperTracks, layoutOverrides }).map(segment => ({
+      ...segment,
+      strokeRenderItems: memo.strokes.map(stroke => ({
+        stroke,
+        path: timelineMemoStrokePath(segment, stroke.points),
+      })),
+    })),
+  })), [layoutOverrides, page, paperTracks, renderedMemos, template])
+  const anchorGroups = useMemo(() => {
+    const groups = new Map<string, {
+      anchorCell: NonNullable<ReturnType<typeof timelineMemoAnchorCellForPage>>
+      anchorFrame: number
+      anchorRole: TimelineInkMemo['anchor']['role']
+      anchorPaperTrack?: string
+      anchorCueIds: string[]
+      presentation: SheetMemoAnchorPresentation
+      memoIds: string[]
+    }>()
+    for (const memo of renderedMemos) {
+      const anchorCell = timelineMemoAnchorCellForPage(template, page, memo, { paperTracks, layoutOverrides })
+      if (!anchorCell) continue
+      const key = [anchorCell.regionId, memo.anchor.role, memo.anchor.frame, memo.anchor.paperTrack ?? '', memo.anchor.laneId ?? ''].join(':')
+      const existing = groups.get(key)
+      if (existing) {
+        existing.memoIds.push(memo.memoId)
+        if (memo.anchor.cueId && !existing.anchorCueIds.includes(memo.anchor.cueId)) existing.anchorCueIds.push(memo.anchor.cueId)
+      }
+      else groups.set(key, {
+        anchorCell,
+        anchorFrame: memo.anchor.frame,
+        anchorRole: memo.anchor.role,
+        anchorPaperTrack: memo.anchor.paperTrack,
+        anchorCueIds: memo.anchor.cueId ? [memo.anchor.cueId] : [],
+        presentation: memoAnchorPresentation(memo),
+        memoIds: [memo.memoId],
+      })
     }
-    else anchorGroups.set(key, {
-      anchorCell,
-      anchorFrame: memo.anchor.frame,
-      anchorRole: memo.anchor.role,
-      anchorPaperTrack: memo.anchor.paperTrack,
-      anchorCueIds: memo.anchor.cueId ? [memo.anchor.cueId] : [],
-      presentation: memoAnchorPresentation(memo),
-      memoIds: [memo.memoId],
-    })
-  }
+    return groups
+  }, [layoutOverrides, page, paperTracks, renderedMemos, template])
   const selectedRender = renderedMemoSegments.find(item => item.memo.memoId === selectedMemoId)
   const selectedAnchorGroup = [...anchorGroups.values()].find(group => selectedMemoId && group.memoIds.includes(selectedMemoId))
   const selectedStartSegment = selectedRender?.segments.find(segment => segment.startsMemo)
@@ -318,8 +328,7 @@ export function TimelineMemoLayer({
             />}
             {selected && <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />}
             <g className="timelineMemoInkLayer" data-memo-ink-opacity={appearance.inkOpacity} opacity={appearance.inkOpacity} clipPath={`url(#${clipId})`}>
-              {memo.strokes.map(stroke => {
-                const path = timelineMemoStrokePath(segment, stroke.points)
+              {segment.strokeRenderItems.map(({ stroke, path }) => {
                 return path ? <g key={stroke.strokeId}>
                   {!selected && <path className="timelineMemoStrokeHit" d={path} />}
                   <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />

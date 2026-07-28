@@ -1,7 +1,11 @@
 import { createSheetPages, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
-import { fireEvent, render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function memo(memoId: string, frameOffset = 0): TimelineInkMemo {
   return {
@@ -225,6 +229,66 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(onEraseStroke).toHaveBeenCalledTimes(1)
     expect(onEraseStroke.mock.calls[0]?.[0]).toBe(selected.memoId)
     expect(onEraseStroke.mock.calls[0]?.[2]).toBeGreaterThan(0)
+  })
+
+  it('preserves dense memo pen samples across animation-frame preview batching', () => {
+    const queuedFrames: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      queuedFrames.push(callback)
+      return queuedFrames.length
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
+    const selected = memo('memo_1')
+    const onAppendStroke = vi.fn()
+    const { container } = render(
+      <svg viewBox="0 0 1 1">
+        <TimelineMemoLayer
+          memos={[selected]}
+          template={standardA3SheetTemplate}
+          page={page}
+          paperTracks={['A']}
+          pageSize={pageSize}
+          surface={{ widthPx: 1000, heightPx: 1000 }}
+          selectedMemoId={selected.memoId}
+          editMode="pen"
+          penColor="#111"
+          penWidth={0.002}
+          eraserWidth={0.018}
+          textFontSizePx={18}
+          onAppendStroke={onAppendStroke}
+          onEraseStroke={vi.fn()}
+          onUpsertText={vi.fn()}
+          onUpdatePlacement={vi.fn()}
+        />
+      </svg>,
+    )
+    const svg = container.querySelector('svg')!
+    const drawSurface = container.querySelector<SVGRectElement>('.timelineMemoDrawSurface')!
+    Object.defineProperty(svg, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(drawSurface, 'setPointerCapture', { value: vi.fn() })
+
+    fireEvent.pointerDown(drawSurface, { pointerId: 18, button: 0, buttons: 1, clientX: 100, clientY: 100 })
+    for (let index = 0; index < 500; index += 1) {
+      fireEvent.pointerMove(window, {
+        pointerId: 18,
+        buttons: 1,
+        clientX: 101 + index,
+        clientY: 101 + index,
+        pressure: 0.6,
+      })
+    }
+
+    expect(queuedFrames).toHaveLength(1)
+    act(() => queuedFrames[0]?.(16))
+    expect(container.querySelector('.timelineMemoStroke.draft')?.getAttribute('d')).toContain('L ')
+    fireEvent.pointerUp(window, { pointerId: 18, buttons: 0, clientX: 700, clientY: 700 })
+
+    expect(onAppendStroke).toHaveBeenCalledTimes(1)
+    expect(onAppendStroke.mock.calls[0]?.[1].points).toHaveLength(502)
   })
 
   it('releases an unselected transparent canvas while keeping ink and the anchor targetable', () => {

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type AnnotationStroke, type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
+import { type CameraInstruction, type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type SheetRangeSelection, type SheetImageSettings } from './appTypes';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
@@ -27,17 +27,11 @@ import { gridColumnHeaderHitFromPoint } from './sheetGridHeaderHit';
 import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { useAnimationFramePointerUpdate } from './useAnimationFramePointerUpdate';
-import { usePointerDragSession } from './usePointerDragSession';
 import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
 import { beginSheetViewportPan } from './sheetViewportPan';
 import { advancePrimaryPointerActivation, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
-
-type AnnotationStrokeDragSession = {
-  pointerId: number
-  stroke: AnnotationStroke
-  svgRect: { left: number; top: number; width: number; height: number }
-}
+import type { PageAnnotationStrokeStart } from './PageAnnotationInputSurface';
 
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftRange, setDraftRangeState] = useState<DraftRangeInteraction | null>(null)
@@ -122,40 +116,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const soundCuePointerUpdates = useAnimationFramePointerUpdate(updateSoundCuePointer)
   const cameraCuePointerUpdates = useAnimationFramePointerUpdate(updateCameraCuePointer)
 
-  useGlobalPointerDragLifecycle({ activeRef: soundCueDragRef, updateRef: updateSoundCuePointerRef, finishRef: finishSoundCuePointerRef })
-  useGlobalPointerDragLifecycle({ activeRef: cameraCueDragRef, updateRef: updateCameraCuePointerRef, finishRef: finishCameraCuePointerRef })
-  useGlobalPointerDragLifecycle({ activeRef: timelineEventDragRef, updateRef: updateTimelineEventPointerRef, finishRef: finishTimelineEventPointerRef })
+  useGlobalPointerDragLifecycle({ active: soundCueDrag !== null, activeRef: soundCueDragRef, updateRef: updateSoundCuePointerRef, finishRef: finishSoundCuePointerRef })
+  useGlobalPointerDragLifecycle({ active: cameraCueDrag !== null, activeRef: cameraCueDragRef, updateRef: updateCameraCuePointerRef, finishRef: finishCameraCuePointerRef })
+  useGlobalPointerDragLifecycle({ active: timelineEventDrag !== null, activeRef: timelineEventDragRef, updateRef: updateTimelineEventPointerRef, finishRef: finishTimelineEventPointerRef })
   const calibrationDrag = useSheetCalibrationDrag({
     onPreview: (pageId, points) => setDraftCalibration({ pageId, points }),
     onCommit: (page, points) => props.onCalibrationPoints(page, points, false),
     onClear: () => setDraftCalibration(null),
   })
-  const annotationStrokeDrag = usePointerDragSession<AnnotationStrokeDragSession>({
-    onUpdate: (current, point) => ({
-      ...current,
-      stroke: {
-        ...current.stroke,
-        points: [
-          ...current.stroke.points,
-          {
-            x: (point.clientX - current.svgRect.left) / Math.max(1, current.svgRect.width),
-            y: (point.clientY - current.svgRect.top) / Math.max(1, current.svgRect.height),
-            pressure: point.pressure || 1,
-          },
-        ],
-      },
-    }),
-    onFinish: (current, finish) => {
-      if (finish.cancelled) return
-      if (current.stroke.tool === 'eraser') {
-        props.onEraseAnnotation(current.stroke.pageId, current.stroke.points, current.stroke.width, props.pageAnnotationTarget)
-      } else {
-        props.onAnnotation(current.stroke)
-      }
-    },
-  })
-  const draftStroke = annotationStrokeDrag.active?.stroke ?? null
-
   function setDraftRange(next: DraftRangeInteraction | null | ((current: DraftRangeInteraction | null) => DraftRangeInteraction | null)) {
     const resolved = typeof next === 'function' ? next(draftRangeRef.current) : next
     draftRangeRef.current = resolved
@@ -270,7 +238,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       window.removeEventListener('drop', clearDropStatus)
     }
   }, [onStatusHint])
-  const hasActiveSheetInteraction = Boolean(draftStroke || draftRange || timelineEventDrag || pendingTimelineEventDrag || soundCueDrag || cameraCueDrag || isPanning)
+  const hasActiveSheetInteraction = Boolean(draftRange || timelineEventDrag || pendingTimelineEventDrag || soundCueDrag || cameraCueDrag || isPanning)
   const zoom = props.zoom
   const setZoom = props.setZoom
   const sheetViewLayout = getSheetViewLayout(props.template)
@@ -1481,12 +1449,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     else props.onCameraRangeEdit(range)
   }
 
-  function handlePointerDown(event: PointerEvent<SVGSVGElement>, page: SheetPage) {
+  function handlePointerDown(event: PointerEvent<SVGSVGElement>, page: SheetPage): PageAnnotationStrokeStart | null {
     lastSoundCueActivationRef.current = null
     lastCameraCueActivationRef.current = null
-    if (beginViewportPan(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))) return
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    event.preventDefault(); if (props.selectedTimelineMemoId) { props.onSelectTimelineMemo(null); return }
+    if (beginViewportPan(event, event.currentTarget.closest<HTMLElement>('.sheetViewport'))) return null
+    if (event.pointerType === 'mouse' && event.button !== 0) return null
+    event.preventDefault(); if (props.selectedTimelineMemoId) { props.onSelectTimelineMemo(null); return null }
     setContextMenu(null)
     setPaperTrackHeaderMenu(null)
     setOverlayPaperTrackMenu(null)
@@ -1494,12 +1462,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props.setActivePageIndex(page.pageIndex)
     const point = pointFromEvent(event)
     if (props.editMode === 'calibrate') {
-      return
+      return null
     }
     if (props.editMode === 'text') {
       if (props.editingTextAnnotationId) {
         props.onCommitFocusedTextAnnotationDraft()
-        return
+        return null
       }
       props.onTextAnnotation({
         annotationId: nextAnnotationId(sheetAnnotations(props.project)),
@@ -1513,14 +1481,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         coordinateSpace: 'view-surface',
         anchor: pageAnnotationAnchor(page),
       })
-      return
+      return null
     }
     if (props.editMode === 'pen' || props.editMode === 'eraser') {
       const tool = props.editMode
       const box = event.currentTarget.getBoundingClientRect()
-      annotationStrokeDrag.begin({
+      return {
         pointerId: event.pointerId,
         svgRect: { left: box.left, top: box.top, width: box.width, height: box.height },
+        target: props.pageAnnotationTarget,
         stroke: {
           annotationId: nextAnnotationId(sheetAnnotations(props.project)),
           pageId: page.pageId,
@@ -1531,14 +1500,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
           anchor: pageAnnotationAnchor(page),
           points: [{ ...point, pressure: event.pressure || 1 }],
         },
-      }, event.currentTarget)
-      return
+      }
     }
     const headerHit = paperTrackHeaderHitFromPoint(point, page, event.currentTarget.getBoundingClientRect().height)
     if (headerHit?.paperTrack) {
       clearHover()
       selectPaperTrackColumn(headerHit)
-      return
+      return null
     }
     const hit = rangeHitFromPoint(point, page)
     if (hit) {
@@ -1564,9 +1532,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         preserveRangeOnClick,
       })
       props.onStatusHint('sheet-drag', uiText.statusHints.rangeDragging)
-      return
+      return null
     }
     props.onClearSelection()
+    return null
   }
 
   function timelineEventHitForPage(
@@ -2272,7 +2241,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   ].filter(Boolean).join(' ')
 
     return {
-    props, draftStroke, cancelAnnotationStroke: annotationStrokeDrag.cancel, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
+    props, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,

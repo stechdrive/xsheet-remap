@@ -14,6 +14,7 @@ import { calibrationGuideMetrics } from './sheet-layers-calibration-render'
 import { eventRectsForPages } from './sheet-layers-hit-geometry'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import { continuationRenderItemsForPages, type SheetRenderModelContext } from './sheetRenderModel'
+import { strokePath } from './sheet-layers-annotation'
 
 export function useSheetCanvasRenderCaches({
   project,
@@ -70,12 +71,12 @@ export function useSheetCanvasRenderCaches({
       : new Map(visiblePages.map(page => [page.pageId, []])),
     [referenceRenderContext, visiblePages],
   )
-  const annotationStrokesByPage = useMemo(() => {
-    const grouped = new Map<string, AnnotationStroke[]>()
+  const annotationStrokeRenderItemsByPage = useMemo(() => {
+    const grouped = new Map<string, Array<{ stroke: AnnotationStroke; path: string }>>()
     for (const annotation of sheetAnnotations(project)) {
       if (annotation.kind === 'text' || annotation.tool !== 'pen') continue
       const items = grouped.get(annotation.pageId) ?? []
-      items.push(annotation)
+      items.push({ stroke: annotation, path: strokePath(annotation) })
       grouped.set(annotation.pageId, items)
     }
     return grouped
@@ -129,7 +130,7 @@ export function useSheetCanvasRenderCaches({
     continuationItemsByPage,
     referenceEventRectsByPage,
     referenceContinuationItemsByPage,
-    annotationStrokesByPage,
+    annotationStrokeRenderItemsByPage,
     annotationTextsByPage,
     timelineMemoItems,
     soundCues,

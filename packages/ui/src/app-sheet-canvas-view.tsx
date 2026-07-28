@@ -7,7 +7,7 @@ import { rangeRectsForPage } from './sheetInteraction';
 import { rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { SheetSvgText } from './SheetSvgText';
 import { SheetImageLayer } from './SheetTemplateLayers';
-import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay, strokePath } from './app-sheet-layers';
+import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay } from './app-sheet-layers';
 import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { sheetContextMenuStyle } from './app-registered-cells';
@@ -22,6 +22,7 @@ import { TimingEventSymbol } from './TimingEventSymbol'
 import { sheetContinuationPathData } from './sheetRenderModel'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
 import { TimelineLaneEditorPopover } from './TimelineLaneEditorPopover'
+import { PageAnnotationInputSurface } from './PageAnnotationInputSurface'
 
 function SheetPageSurface({
   interactionOwner,
@@ -47,7 +48,7 @@ function SheetPageSurface({
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
-    props, draftStroke, cancelAnnotationStroke, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
+    props, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
@@ -57,7 +58,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, eventRectsByPage, continuationItemsByPage,
     referenceEventRectsByPage, referenceContinuationItemsByPage,
-    annotationStrokesByPage, annotationTextsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
+    annotationStrokeRenderItemsByPage, annotationTextsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
@@ -105,7 +106,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
         {visiblePages.map(page => {
           const isCalibrating = isCalibratingSheet
           const pageImage = getSheetPageImage(props.sheetView, props.runtimeSourceImageUrls, page.pageId, props.template)
-          const strokes = !isCalibrating && props.showAnnotations ? annotationStrokesByPage.get(page.pageId) ?? [] : []
+          const strokeRenderItems = !isCalibrating && props.showAnnotations ? annotationStrokeRenderItemsByPage.get(page.pageId) ?? [] : []
           const textAnnotations = !isCalibrating && props.showAnnotations ? annotationTextsByPage.get(page.pageId) ?? [] : []
           const activeOverlayTrack = !isCalibrating && activeOverlayPaperTrack
             ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === activeOverlayPaperTrack && track.source === 'overlay')
@@ -209,7 +210,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={() => {
-                    cancelAnnotationStroke()
                     setDraftRange(null)
                     setTimelineEventDrag(null)
                     props.onStatusHint('sheet-drag', null)
@@ -434,11 +434,11 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onUpdatePlacement={props.onUpdateTimelineMemoPlacement}
                     />
                   )}
-                  {strokes.map(stroke => (
+                  {strokeRenderItems.map(({ stroke, path }) => (
                     <path
                       key={stroke.annotationId}
                       className={stroke.tool === 'eraser' ? 'annotationStroke annotationEraserPreview' : 'annotationStroke'}
-                      d={strokePath(stroke)}
+                      d={path}
                       stroke={stroke.color}
                       strokeWidth={stroke.width}
                       data-annotation-region-id={stroke.anchor?.kind === 'view-surface' ? stroke.anchor.regionId : undefined}
@@ -507,42 +507,24 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   />
                 )}
                 {!isCalibrating && pageAnnotationCaptureActive && (
-                  <svg
-                    viewBox="0 0 1 1"
-                    preserveAspectRatio="none"
-                    className="pageAnnotationInputSurface"
-                    data-page-id={page.pageId}
-                    data-annotation-tool={props.editMode}
-                    style={{ width: `${sheetPageWidth}px`, height: `${sheetPageHeight}px` }}
-                    onPointerDown={event => handlePointerDown(event, page)}
+                  <PageAnnotationInputSurface
+                    page={page}
+                    editMode={props.editMode}
+                    width={sheetPageWidth}
+                    height={sheetPageHeight}
+                    onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
-                    onPointerCancel={() => {
-                      cancelAnnotationStroke()
+                    onCancelOtherInteractions={() => {
                       setDraftRange(null)
                       setTimelineEventDrag(null)
                       props.onStatusHint('sheet-drag', null)
                       clearHover()
                     }}
                     onPointerLeave={clearHover}
-                    onDragStart={event => event.preventDefault()}
-                    onContextMenu={event => event.preventDefault()}
-                    aria-label={`${page.pageIndex + 1}ページの注釈入力`}
-                  >
-                    <rect x="0" y="0" width="1" height="1" fill="transparent" />
-                    {draftStroke?.pageId === page.pageId && (
-                      <path
-                        className={draftStroke.tool === 'eraser'
-                          ? 'annotationStroke annotationDraftStroke annotationEraserPreview'
-                          : 'annotationStroke annotationDraftStroke'}
-                        d={strokePath(draftStroke)}
-                        stroke={draftStroke.color}
-                        strokeWidth={draftStroke.width}
-                        data-annotation-region-id={draftStroke.anchor?.kind === 'view-surface' ? draftStroke.anchor.regionId : undefined}
-                        data-annotation-target-id={draftStroke.anchor?.kind === 'view-surface' ? draftStroke.anchor.targetId : undefined}
-                      />
-                    )}
-                  </svg>
+                    onAnnotation={props.onAnnotation}
+                    onEraseAnnotation={props.onEraseAnnotation}
+                  />
                 )}
                 {props.editMode === 'text' && pageAnnotationCaptureActive && !props.editingTextAnnotationId && textCursorBadge?.pageId === page.pageId && (
                   <div

@@ -10,7 +10,7 @@ import { nextAnnotationId } from './app-sheet-layers'
 import type { SheetCanvasProps } from './app-sheet-canvas-types'
 import { clampNumber } from './sheetInteraction'
 import { resolveTimelineMemoContextTargets } from './timelineMemoEditing'
-import type { SheetTouchTap } from './useSheetTouchPan'
+import type { SheetTouchTap } from './sheetTouchNavigation'
 
 interface SheetTouchTapContext {
   props: SheetCanvasProps

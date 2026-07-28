@@ -29,7 +29,7 @@ import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { useAnimationFramePointerUpdate } from './useAnimationFramePointerUpdate';
 import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
-import { useSheetTouchPan } from './useSheetTouchPan';
+import { useSheetTouchNavigation } from './useSheetTouchNavigation';
 import { runSheetTouchTap } from './sheetTouchTap';
 import { beginSheetViewportPan } from './sheetViewportPan';
 import { advancePrimaryPointerActivation, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
@@ -96,6 +96,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const commitDraftRangeFromPointerRef = useRef<(pointerId: number, clientX: number, clientY: number) => boolean>(() => false)
   const cancelDraftRangeInteractionRef = useRef<() => void>(() => undefined)
   const viewportRef = useRef<HTMLDivElement>(null)
+  const pageStackRef = useRef<HTMLDivElement>(null)
   const sheetSvgRefs = useRef<Record<string, SVGSVGElement | null>>({})
   const activePageIndexRef = useRef(props.activePageIndex)
   const hoveredHitSignatureRef = useRef<string | null>(null)
@@ -299,8 +300,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   })
   const { visiblePages } = renderCaches
   const isCalibratingSheet = props.editMode === 'calibrate'
-  const touchPan = useSheetTouchPan({
+  const touchNavigation = useSheetTouchNavigation({
     enabled: !isCalibratingSheet,
+    zoom,
+    setZoom,
+    viewportRef,
+    pageStackRef,
     onTap: tap => runSheetTouchTap(tap, {
       props, pageHitUnderClientPoint, svgForPage, setActivePageIndexIfNeeded, pageAnnotationAnchor,
       paperTrackHeaderHitFromPoint, selectPaperTrackColumn, rangeFromHits,
@@ -325,6 +330,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       props.onStatusHint('sheet-drag', null)
     },
   })
+  const commitZoomAtClientPoint = touchNavigation.commitZoomAtClientPoint
 
   useEffect(() => {
     activePageIndexRef.current = props.activePageIndex
@@ -371,25 +377,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       if (rawVerticalDelta === 0) return
       event.preventDefault()
 
-      const rect = wheelViewport.getBoundingClientRect()
-      const localX = event.clientX - rect.left
-      const localY = event.clientY - rect.top
-      const contentX = wheelViewport.scrollLeft + localX
-      const contentY = wheelViewport.scrollTop + localY
       const factor = rawVerticalDelta < 0 ? SHEET_ZOOM_WHEEL_FACTOR : 1 / SHEET_ZOOM_WHEEL_FACTOR
       const nextZoom = clampSheetZoom(zoom * factor)
-      const ratio = nextZoom / zoom
 
-      setZoom(nextZoom)
-      window.requestAnimationFrame(() => {
-        wheelViewport.scrollLeft = contentX * ratio - localX
-        wheelViewport.scrollTop = contentY * ratio - localY
-      })
+      commitZoomAtClientPoint(nextZoom, event.clientX, event.clientY)
     }
 
     viewport.addEventListener('wheel', handleViewportWheel, { passive: false })
     return () => viewport.removeEventListener('wheel', handleViewportWheel)
-  }, [props.zoomMode, setZoom, zoom])
+  }, [commitZoomAtClientPoint, props.zoomMode, zoom])
 
   useLayoutEffect(() => {
     const request = props.scrollRequest
@@ -2275,7 +2271,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
-    draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
+    draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, ...renderCaches,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,
@@ -2286,7 +2282,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     ...timelineLaneEditorActions,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
-    handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, ...touchPan, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
+    handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, ...touchNavigation, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   }

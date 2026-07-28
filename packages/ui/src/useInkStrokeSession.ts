@@ -103,6 +103,7 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
   const activeRef = useRef<TSession | null>(null)
   const captureRef = useRef<ActiveCapture | null>(null)
   const inputModeRef = useRef<InkPointerInputMode>('pointermove')
+  const activePointerTypeRef = useRef('')
   const lastActualPointRef = useRef<InkPointerPoint | null>(null)
   const moveListenerRef = useRef<{
     type: InkPointerInputMode
@@ -191,6 +192,7 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
       const current = activeRef.current
       if (!current || current.pointerId !== pointerId) return
       activeRef.current = null
+      activePointerTypeRef.current = ''
       lastActualPointRef.current = null
       detachMoveListener()
       releaseCapture(pointerId)
@@ -232,9 +234,11 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
       event.stopPropagation()
       finishRef.current(event.pointerId, true, event.clientX, event.clientY)
     }
-    const cancelStaleInteraction = () => {
+    const cancelStaleInteraction = (event: globalThis.PointerEvent) => {
       const current = activeRef.current
-      if (current) finishRef.current(current.pointerId, true)
+      if (!current || event.pointerId === current.pointerId) return
+      if (activePointerTypeRef.current === 'pen' && event.pointerType === 'touch') return
+      finishRef.current(current.pointerId, true)
     }
     const cancelWhenHidden = () => {
       const current = activeRef.current
@@ -273,6 +277,7 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
     inputModeRef.current = inputMode
     lastActualPointRef.current = pointerPoint(event, event)
     activeRef.current = session
+    activePointerTypeRef.current = event.pointerType
     setActiveState(session)
     attachMoveListener(inputMode)
     if (captureElement) {

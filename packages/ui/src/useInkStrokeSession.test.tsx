@@ -259,4 +259,53 @@ describe('useInkStrokeSession', () => {
     expect(onCommit.mock.calls[0]?.[0].map((point: InkPointerPoint) => [point.clientX, point.clientY]))
       .toEqual([[10, 10], [30, 30], [40, 40]])
   })
+
+  it('keeps a pen stroke active when a touch pointer lands during drawing', () => {
+    const onCommit = vi.fn()
+    render(<InkHarness onCommit={onCommit} onPredicted={vi.fn()} />)
+    const target = screen.getByRole('button', { name: '描画対象' })
+
+    fireEvent(target, pointerEvent('pointerdown', {
+      pointerId: 9,
+      pointerType: 'pen',
+      button: 0,
+      buttons: 1,
+      clientX: 10,
+      clientY: 10,
+      pressure: 0.5,
+      timeStamp: 300,
+    }, { predicted: [] }))
+    fireEvent(window, pointerEvent('pointerdown', {
+      pointerId: 10,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: 80,
+      clientY: 80,
+      pressure: 0.5,
+      timeStamp: 301,
+    }))
+    fireEvent(window, pointerEvent('pointermove', {
+      pointerId: 9,
+      pointerType: 'pen',
+      buttons: 1,
+      clientX: 20,
+      clientY: 20,
+      pressure: 0.6,
+      timeStamp: 302,
+    }))
+    fireEvent(window, pointerEvent('pointerup', {
+      pointerId: 9,
+      pointerType: 'pen',
+      buttons: 0,
+      clientX: 30,
+      clientY: 30,
+      pressure: 0,
+      timeStamp: 303,
+    }))
+
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(onCommit.mock.calls[0]?.[0].map((point: InkPointerPoint) => [point.clientX, point.clientY]))
+      .toEqual([[10, 10], [20, 20], [30, 30]])
+  })
 })

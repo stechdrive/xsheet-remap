@@ -25,11 +25,13 @@ import { TimelineLaneEditorPopover } from './TimelineLaneEditorPopover'
 import { PageAnnotationInputSurface } from './PageAnnotationInputSurface'
 
 function SheetPageSurface({
+  pageId,
   interactionOwner,
   width,
   height,
   children,
 }: {
+  pageId: string
   interactionOwner: string
   width: number
   height: number
@@ -38,6 +40,7 @@ function SheetPageSurface({
   const [host, setHost] = useState<HTMLDivElement | null>(null)
   return <div
     className="sheetPageSurface"
+    data-page-id={pageId}
     data-sheet-interaction-owner={interactionOwner}
     style={{ width: `${width}px`, height: `${height}px` }}
     ref={setHost}
@@ -54,7 +57,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
-    draftCalibration, viewportRef, sheetSvgRefs, zoom, isContinuousCanvas,
+    draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, eventRectsByPage, continuationItemsByPage,
     referenceEventRectsByPage, referenceContinuationItemsByPage,
@@ -109,7 +112,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       onDragLeave={handleViewportDragLeave}
       onDrop={event => void handleViewportDrop(event)}
     >
-      <div className={`sheetPageStack ${props.sheetView.viewMode}`}>
+      <div ref={pageStackRef} className={`sheetPageStack ${props.sheetView.viewMode}`}>
         {visiblePages.map(page => {
           const isCalibrating = isCalibratingSheet
           const pageImage = getSheetPageImage(props.sheetView, props.runtimeSourceImageUrls, page.pageId, props.template)
@@ -192,7 +195,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               className={page.pageIndex === props.activePageIndex ? 'sheetPage active' : 'sheetPage'}
               aria-label={pageAccessibleLabel}
             >
-              <SheetPageSurface interactionOwner={interactionOwner} width={sheetPageWidth} height={sheetPageHeight}>
+              <SheetPageSurface pageId={page.pageId} interactionOwner={interactionOwner} width={sheetPageWidth} height={sheetPageHeight}>
                 {editorHost => <>
                 <svg
                   viewBox="0 0 1 1"

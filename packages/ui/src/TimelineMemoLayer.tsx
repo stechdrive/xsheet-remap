@@ -17,18 +17,29 @@ import { sheetCellCornerTrianglePoints } from './sheetCellCornerMarker'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
+import { LowLatencyInkCanvas, useLowLatencyInkCanvas } from './LowLatencyInkCanvas'
 import { usePointerDragSession } from './usePointerDragSession'
 
-type MemoInteraction = {
+type MemoInkInteraction = {
   pointerId: number
-  mode: 'draw' | 'erase' | 'move' | 'resize'
+  mode: 'draw' | 'erase'
+  memo: TimelineInkMemo
+  segment: TimelineMemoSegment
+  svgRect: { left: number; top: number; width: number; height: number }
+  points: TimelineMemoPoint[]
+}
+
+type MemoTransformInteraction = {
+  pointerId: number
+  mode: 'move' | 'resize'
   memo: TimelineInkMemo
   segment: TimelineMemoSegment
   startClient: { x: number; y: number }
   svgRect: { left: number; top: number; width: number; height: number }
-  points: TimelineMemoPoint[]
   previewPlacement: TimelineMemoPlacement
 }
+
+type MemoInteractionMode = MemoInkInteraction['mode'] | MemoTransformInteraction['mode']
 
 type TimelineTextDraft = {
   memoId: string
@@ -94,16 +105,46 @@ export function TimelineMemoLayer({
 }) {
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
   const [automaticTextSessionKey, setAutomaticTextSessionKey] = useState<string | null>(null)
-  const memoDrag = usePointerDragSession<MemoInteraction>({
+  const inkCanvas = useLowLatencyInkCanvas()
+  const memoInkDrag = usePointerDragSession<MemoInkInteraction>({
+    previewMode: 'none',
+    sampleMode: 'coalesced',
+    preferRawUpdates: true,
+    onPointerEvent: inkCanvas.updateDelegatedInk,
+    onUpdateBatch: (current, points) => {
+      current.points.push(...points.map(point => timelineMemoPointFromPagePoint(
+        current.segment,
+        pagePointFromClient(current.svgRect, point.clientX, point.clientY),
+      )))
+      inkCanvas.append(points.map(point => ({
+        x: point.clientX - current.svgRect.left,
+        y: point.clientY - current.svgRect.top,
+      })))
+      return { ...current }
+    },
+    onFinish: (current, finish) => {
+      inkCanvas.clear()
+      if (finish.cancelled) return
+      if (current.mode === 'draw') {
+        if (current.points.length > 1) {
+          onAppendStroke(current.memo.memoId, {
+            color: penColor,
+            widthUnits: Math.max(0.04, penWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
+            points: current.points.slice(),
+          })
+        }
+      } else {
+        onEraseStroke(
+          current.memo.memoId,
+          current.points.slice(),
+          Math.max(0.04, eraserWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
+        )
+      }
+    },
+  })
+  const memoTransformDrag = usePointerDragSession<MemoTransformInteraction>({
     previewMode: 'animation-frame',
     onUpdate: (current, point) => {
-      if (current.mode === 'draw' || current.mode === 'erase') {
-        current.points.push(timelineMemoPointFromPagePoint(
-          current.segment,
-          pagePointFromClient(current.svgRect, point.clientX, point.clientY),
-        ))
-        return { ...current }
-      }
       const deltaUnits = (point.clientX - current.startClient.x) / Math.max(1, current.svgRect.width * current.segment.rowHeightX)
       const deltaFrames = (point.clientY - current.startClient.y) / Math.max(1, current.svgRect.height * current.segment.rowHeightY)
       return {
@@ -122,32 +163,10 @@ export function TimelineMemoLayer({
       }
     },
     onFinish: (current, finish) => {
-      if (finish.cancelled) return
-      if (current.mode === 'draw') {
-        if (current.points.length > 1) {
-          onAppendStroke(current.memo.memoId, {
-            color: penColor,
-            widthUnits: Math.max(0.04, penWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
-            points: current.points.slice(),
-          })
-        }
-        return
-      }
-      if (current.mode === 'erase') {
-        onEraseStroke(
-          current.memo.memoId,
-          current.points.slice(),
-          Math.max(0.04, eraserWidth / Math.max(Number.EPSILON, current.segment.rowHeightY)),
-        )
-        return
-      }
-      onUpdatePlacement(current.memo.memoId, current.previewPlacement)
+      if (!finish.cancelled) onUpdatePlacement(current.memo.memoId, current.previewPlacement)
     },
   })
-  const interaction = memoDrag.active
-  const placementInteraction = interaction?.mode === 'move' || interaction?.mode === 'resize'
-    ? interaction
-    : null
+  const placementInteraction = memoTransformDrag.active
   const renderedMemos = useMemo(() => memos
     .slice()
     .sort((left, right) => left.order - right.order)
@@ -238,7 +257,7 @@ export function TimelineMemoLayer({
       : null)
   }
 
-  function begin(event: PointerEvent<SVGElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment, mode: MemoInteraction['mode']) {
+  function begin(event: PointerEvent<SVGElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment, mode: MemoInteractionMode) {
     if (memo.memoId !== selectedMemoId) return
     event.preventDefault()
     event.stopPropagation()
@@ -248,19 +267,55 @@ export function TimelineMemoLayer({
       segment,
       pagePointFromClient(svgRect, event.clientX, event.clientY),
     )
-    memoDrag.begin({
+    const rect = {
+      left: svgRect.left,
+      top: svgRect.top,
+      width: svgRect.width,
+      height: svgRect.height,
+    }
+    if (mode === 'draw' || mode === 'erase') {
+      memoTransformDrag.cancel()
+      memoInkDrag.cancel()
+      const normalizedLineWidth = mode === 'draw' ? penWidth : eraserWidth
+      const lineWidth = normalizedLineWidth * Math.min(svgRect.width, svgRect.height)
+      const appearance = normalizeMemoAppearance(memo.appearance)
+      inkCanvas.begin({
+        width: svgRect.width,
+        height: svgRect.height,
+        color: mode === 'draw' ? penColor : 'rgb(36 121 94 / 0.56)',
+        lineWidth,
+        opacity: mode === 'draw' ? 0.72 * appearance.inkOpacity : 1,
+        clip: {
+          x: segment.rect.x * svgRect.width,
+          y: segment.rect.y * svgRect.height,
+          width: segment.rect.w * svgRect.width,
+          height: segment.rect.h * svgRect.height,
+        },
+        point: {
+          x: event.clientX - svgRect.left,
+          y: event.clientY - svgRect.top,
+        },
+        pointerEvent: mode === 'draw' ? event.nativeEvent : undefined,
+      })
+      memoInkDrag.begin({
+        pointerId: event.pointerId,
+        mode,
+        memo,
+        segment,
+        svgRect: rect,
+        points: mode === 'draw' ? [point] : [],
+      }, event.currentTarget)
+      return
+    }
+    memoInkDrag.cancel()
+    memoTransformDrag.cancel()
+    memoTransformDrag.begin({
       pointerId: event.pointerId,
       mode,
       memo,
       segment,
       startClient: { x: event.clientX, y: event.clientY },
-      svgRect: {
-        left: svgRect.left,
-        top: svgRect.top,
-        width: svgRect.width,
-        height: svgRect.height,
-      },
-      points: mode === 'draw' ? [point] : [],
+      svgRect: rect,
       previewPlacement: memo.placement,
     }, event.currentTarget)
   }
@@ -297,7 +352,16 @@ export function TimelineMemoLayer({
   }
 
   return (
-    <g className="timelineMemoLayer" aria-label="フレームに紐づくメモ">
+    <>
+      {editorHost && selectedMemoId && (editMode === 'pen' || editMode === 'eraser') && createPortal(
+        <LowLatencyInkCanvas
+          canvasRef={inkCanvas.canvasRef}
+          className="timelineMemoInkCanvas"
+          label="タイムラインメモの手描きプレビュー"
+        />,
+        editorHost,
+      )}
+      <g className="timelineMemoLayer" aria-label="フレームに紐づくメモ">
       <defs>
         {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
           const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
@@ -309,8 +373,6 @@ export function TimelineMemoLayer({
       {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
         const selected = memo.memoId === selectedMemoId
         const appearance = normalizeMemoAppearance(memo.appearance)
-        const draftPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'draw' ? interaction.points : null
-        const eraserPoints = interaction?.memo.memoId === memo.memoId && interaction.mode === 'erase' ? interaction.points : null
         const drawingToolActive = editMode === 'pen' || editMode === 'eraser'
         const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
         return (
@@ -334,14 +396,6 @@ export function TimelineMemoLayer({
                   <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />
                 </g> : null
               })}
-              {draftPoints && (() => {
-                const path = timelineMemoStrokePath(segment, draftPoints)
-                return path ? <path className="timelineMemoStroke draft" d={path} stroke={penColor} strokeWidth={Math.max(penWidth, 0.001)} /> : null
-              })()}
-              {eraserPoints && (() => {
-                const path = timelineMemoStrokePath(segment, eraserPoints)
-                return path ? <path className="timelineMemoEraserPreview" d={path} strokeWidth={Math.max(eraserWidth, 0.001)} /> : null
-              })()}
             </g>
             {selected && editMode === 'text' && <rect
               className="timelineMemoTextSurface"
@@ -361,7 +415,7 @@ export function TimelineMemoLayer({
             />}
             {selected && <rect
               className="timelineMemoMoveFrame"
-              data-dragging={interaction?.memo.memoId === memo.memoId && interaction.mode === 'move'}
+              data-dragging={placementInteraction?.memo.memoId === memo.memoId && placementInteraction.mode === 'move'}
               aria-label="メモの枠をドラッグして移動"
               x={segment.rect.x}
               y={segment.rect.y}
@@ -472,7 +526,8 @@ export function TimelineMemoLayer({
           </g>
         )
       })}
-    </g>
+      </g>
+    </>
   )
 }
 

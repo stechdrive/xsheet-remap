@@ -37,6 +37,10 @@ function createZip(stageRoot: string, zipPath: string, entryNames: string[]) {
   expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0)
 }
 
+function compactPowerShellOutput(result: ReturnType<typeof runInventory>) {
+  return `${result.stdout}\n${result.stderr}`.replace(/\s+/g, '')
+}
+
 describe.skipIf(process.platform !== 'win32')('release inventory', () => {
   it('rejects an unexpected file left in the release root', () => {
     const releaseRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-root-'))
@@ -50,7 +54,7 @@ describe.skipIf(process.platform !== 'win32')('release inventory', () => {
       writeFileSync(path.join(releaseRoot, 'xdts-multi-timetable-csp-test.xdts'), 'test fixture')
       const contaminatedResult = runInventory({ releaseRoot, expectedRoots })
       expect(contaminatedResult.status).not.toBe(0)
-      expect(`${contaminatedResult.stdout}\n${contaminatedResult.stderr}`).toContain(
+      expect(compactPowerShellOutput(contaminatedResult)).toContain(
         'unexpected=[xdts-multi-timetable-csp-test.xdts]',
       )
     } finally {
@@ -77,7 +81,7 @@ describe.skipIf(process.platform !== 'win32')('release inventory', () => {
       createZip(testRoot, contaminatedZipPath, [...expectedRoots, 'rogue-test.xdts'])
       const contaminatedResult = runInventory({ zipPath: contaminatedZipPath, expectedRoots })
       expect(contaminatedResult.status).not.toBe(0)
-      expect(`${contaminatedResult.stdout}\n${contaminatedResult.stderr}`).toContain(
+      expect(compactPowerShellOutput(contaminatedResult)).toContain(
         'unexpected=[rogue-test.xdts]',
       )
     } finally {
@@ -98,7 +102,7 @@ describe.skipIf(process.platform !== 'win32')('release inventory', () => {
 
       const result = runInventory({ zipPath, expectedRoots })
       expect(result.status).not.toBe(0)
-      expect(`${result.stdout}\n${result.stderr}`).toContain('unexpected=[xsheet-remap]')
+      expect(compactPowerShellOutput(result)).toContain('unexpected=[xsheet-remap]')
     } finally {
       rmSync(testRoot, { recursive: true, force: true })
     }

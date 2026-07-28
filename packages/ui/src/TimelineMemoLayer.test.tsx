@@ -1,5 +1,5 @@
 import { createSheetPages, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
-import { act, fireEvent, render } from '@testing-library/react'
+import { fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 
@@ -231,13 +231,24 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(onEraseStroke.mock.calls[0]?.[2]).toBeGreaterThan(0)
   })
 
-  it('preserves dense memo pen samples across animation-frame preview batching', () => {
-    const queuedFrames: FrameRequestCallback[] = []
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
-      queuedFrames.push(callback)
-      return queuedFrames.length
-    })
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+  it('preserves dense memo pen samples while drawing incremental canvas segments', () => {
+    const context = {
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      clip: vi.fn(),
+      lineTo: vi.fn(),
+      moveTo: vi.fn(),
+      rect: vi.fn(),
+      restore: vi.fn(),
+      save: vi.fn(),
+      setLineDash: vi.fn(),
+      setTransform: vi.fn(),
+      stroke: vi.fn(),
+    } as unknown as CanvasRenderingContext2D
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame')
+    const editorHost = document.createElement('div')
+    document.body.append(editorHost)
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const pageSize = resolveSheetTemplatePageSize(standardA3SheetTemplate)
     const selected = memo('memo_1')
@@ -257,6 +268,7 @@ describe('TimelineMemoLayer anchor cues', () => {
           penWidth={0.002}
           eraserWidth={0.018}
           textFontSizePx={18}
+          editorHost={editorHost}
           onAppendStroke={onAppendStroke}
           onEraseStroke={vi.fn()}
           onUpsertText={vi.fn()}
@@ -266,6 +278,7 @@ describe('TimelineMemoLayer anchor cues', () => {
     )
     const svg = container.querySelector('svg')!
     const drawSurface = container.querySelector<SVGRectElement>('.timelineMemoDrawSurface')!
+    const canvas = editorHost.querySelector<HTMLCanvasElement>('.timelineMemoInkCanvas')!
     Object.defineProperty(svg, 'getBoundingClientRect', {
       value: () => ({ left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, x: 0, y: 0, toJSON: () => ({}) }),
     })
@@ -282,13 +295,17 @@ describe('TimelineMemoLayer anchor cues', () => {
       })
     }
 
-    expect(queuedFrames).toHaveLength(1)
-    act(() => queuedFrames[0]?.(16))
-    expect(container.querySelector('.timelineMemoStroke.draft')?.getAttribute('d')).toContain('L ')
+    expect(requestFrame).not.toHaveBeenCalled()
+    expect(canvas.dataset.inkActive).toBe('true')
+    expect(canvas.dataset.inkSampleCount).toBe('501')
+    expect(context.lineTo).toHaveBeenCalledTimes(501)
+    expect(container.querySelector('.timelineMemoStroke.draft')).toBeNull()
     fireEvent.pointerUp(window, { pointerId: 18, buttons: 0, clientX: 700, clientY: 700 })
 
+    expect(canvas.dataset.inkActive).toBe('false')
     expect(onAppendStroke).toHaveBeenCalledTimes(1)
     expect(onAppendStroke.mock.calls[0]?.[1].points).toHaveLength(502)
+    editorHost.remove()
   })
 
   it('releases an unselected transparent canvas while keeping ink and the anchor targetable', () => {

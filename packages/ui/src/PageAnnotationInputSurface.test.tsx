@@ -1,5 +1,5 @@
 import { createSheetPages, standardA3SheetTemplate } from '@xsheet-remap/core'
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PageAnnotationInputSurface } from './PageAnnotationInputSurface'
 
@@ -9,13 +9,22 @@ afterEach(() => {
 })
 
 describe('PageAnnotationInputSurface', () => {
-  it('keeps every dense pointer sample while publishing one preview per frame', () => {
-    const queuedFrames: FrameRequestCallback[] = []
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
-      queuedFrames.push(callback)
-      return queuedFrames.length
-    })
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+  it('keeps every dense pointer sample while drawing only incremental canvas segments', () => {
+    const context = {
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      clip: vi.fn(),
+      lineTo: vi.fn(),
+      moveTo: vi.fn(),
+      rect: vi.fn(),
+      restore: vi.fn(),
+      save: vi.fn(),
+      setLineDash: vi.fn(),
+      setTransform: vi.fn(),
+      stroke: vi.fn(),
+    } as unknown as CanvasRenderingContext2D
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame')
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const onAnnotation = vi.fn()
     const { container } = render(
@@ -46,6 +55,7 @@ describe('PageAnnotationInputSurface', () => {
       />,
     )
     const surface = container.querySelector<SVGSVGElement>('.pageAnnotationInputSurface')!
+    const canvas = container.querySelector<HTMLCanvasElement>('.pageAnnotationInkCanvas')!
     Object.defineProperty(surface, 'setPointerCapture', { value: vi.fn() })
 
     fireEvent.pointerDown(surface, { pointerId: 12, button: 0, buttons: 1, clientX: 10, clientY: 10, pressure: 0.5 })
@@ -59,11 +69,15 @@ describe('PageAnnotationInputSurface', () => {
       })
     }
 
-    expect(queuedFrames).toHaveLength(1)
-    act(() => queuedFrames[0]?.(16))
-    expect(container.querySelector('.annotationDraftStroke')?.getAttribute('d')).toContain('L ')
+    expect(requestFrame).not.toHaveBeenCalled()
+    expect(canvas.dataset.inkActive).toBe('true')
+    expect(canvas.dataset.inkSampleCount).toBe('1001')
+    expect(context.lineTo).toHaveBeenCalledTimes(1001)
+    expect(container.querySelector('.annotationDraftStroke')).toBeNull()
     fireEvent.pointerUp(window, { pointerId: 12, buttons: 0, clientX: 1200, clientY: 1250, pressure: 0.25 })
 
+    expect(canvas.dataset.inkActive).toBe('false')
+    expect(canvas.dataset.inkSampleCount).toBe('0')
     expect(onAnnotation).toHaveBeenCalledTimes(1)
     const committed = onAnnotation.mock.calls[0]?.[0]
     expect(committed.points).toHaveLength(1002)

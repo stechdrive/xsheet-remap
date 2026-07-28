@@ -773,9 +773,17 @@
   -webkit-user-select: none;
 }
 
-.pageAnnotationInputSurface {
+.pageAnnotationInteractionLayer {
   position: absolute;
   z-index: 10;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.pageAnnotationInputSurface {
+  position: absolute;
+  z-index: 0;
   inset: 0;
   display: block;
   background: transparent;
@@ -784,6 +792,24 @@
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.lowLatencyInkCanvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.pageAnnotationInkCanvas {
+  z-index: 1;
+}
+
+.timelineMemoInkCanvas {
+  z-index: 8;
 }
 
 .pageAnnotationInputSurface[data-annotation-tool="text"] {
@@ -2016,11 +2042,6 @@
   pointer-events: none;
 }
 
-.annotationDraftStroke {
-  opacity: 1;
-  filter: drop-shadow(0 0 0.45px rgb(255 255 255 / 0.9));
-}
-
 .timelineMemoSegment {
   color: #16634f;
 }
@@ -2081,10 +2102,6 @@
   pointer-events: none;
 }
 
-.timelineMemoStroke.draft {
-  opacity: 0.72;
-}
-
 .timelineMemoText {
   paint-order: stroke fill;
   stroke: rgb(255 255 252 / 0.9);
@@ -2120,14 +2137,6 @@
 }
 
 .timelineMemoBackground {
-  pointer-events: none;
-}
-
-.timelineMemoEraserPreview {
-  fill: none;
-  stroke: rgb(36 121 94 / 0.56);
-  stroke-linecap: round;
-  stroke-linejoin: round;
   pointer-events: none;
 }
 

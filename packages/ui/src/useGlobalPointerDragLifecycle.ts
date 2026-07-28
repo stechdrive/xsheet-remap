@@ -6,12 +6,16 @@ export function useGlobalPointerDragLifecycle<TInteraction extends PointerDragIn
   active,
   activeRef,
   updateRef,
+  updateEventRef,
   finishRef,
+  preferRawUpdates = false,
 }: {
   active: boolean
   activeRef: RefObject<TInteraction>
-  updateRef: RefObject<(pointerId: number, clientX: number, clientY: number, pressure?: number) => void>
+  updateRef?: RefObject<(pointerId: number, clientX: number, clientY: number, pressure?: number) => void>
+  updateEventRef?: RefObject<(event: globalThis.PointerEvent) => void>
   finishRef: RefObject<(pointerId: number, cancelled?: boolean, clientX?: number, clientY?: number) => void>
+  preferRawUpdates?: boolean
 }) {
   useLayoutEffect(() => {
     if (!active) return
@@ -32,19 +36,24 @@ export function useGlobalPointerDragLifecycle<TInteraction extends PointerDragIn
       if (!current || current.pointerId !== event.pointerId) return
       event.preventDefault()
       event.stopPropagation()
+      const update = () => {
+        if (updateEventRef) updateEventRef.current(event)
+        else updateRef?.current(event.pointerId, event.clientX, event.clientY, event.pressure)
+      }
       if (event.buttons === 0) {
-        updateRef.current(event.pointerId, event.clientX, event.clientY, event.pressure)
+        update()
         finishRef.current(event.pointerId, false, event.clientX, event.clientY)
         return
       }
-      updateRef.current(event.pointerId, event.clientX, event.clientY, event.pressure)
+      update()
     }
     const finishFromPointer = (event: globalThis.PointerEvent) => {
       const current = activeRef.current
       if (!current || current.pointerId !== event.pointerId) return
       event.preventDefault()
       event.stopPropagation()
-      updateRef.current(event.pointerId, event.clientX, event.clientY, event.pressure)
+      if (updateEventRef) updateEventRef.current(event)
+      else updateRef?.current(event.pointerId, event.clientX, event.clientY, event.pressure)
       finishRef.current(event.pointerId, false, event.clientX, event.clientY)
     }
     const cancelFromPointer = (event: globalThis.PointerEvent) => {
@@ -66,6 +75,9 @@ export function useGlobalPointerDragLifecycle<TInteraction extends PointerDragIn
     window.addEventListener('keydown', cancelFromKeyboard, true)
     window.addEventListener('blur', cancelOnBlur)
     window.addEventListener('pointermove', updateFromPointer, { capture: true, passive: false })
+    if (preferRawUpdates && 'onpointerrawupdate' in window) {
+      window.addEventListener('pointerrawupdate', updateFromPointer as EventListener, { capture: true, passive: false })
+    }
     window.addEventListener('pointerup', finishFromPointer, { capture: true, passive: false })
     window.addEventListener('pointercancel', cancelFromPointer, { capture: true, passive: false })
     window.addEventListener('pointerdown', cancelStaleInteraction, true)
@@ -74,10 +86,13 @@ export function useGlobalPointerDragLifecycle<TInteraction extends PointerDragIn
       window.removeEventListener('keydown', cancelFromKeyboard, true)
       window.removeEventListener('blur', cancelOnBlur)
       window.removeEventListener('pointermove', updateFromPointer, true)
+      if (preferRawUpdates && 'onpointerrawupdate' in window) {
+        window.removeEventListener('pointerrawupdate', updateFromPointer as EventListener, true)
+      }
       window.removeEventListener('pointerup', finishFromPointer, true)
       window.removeEventListener('pointercancel', cancelFromPointer, true)
       window.removeEventListener('pointerdown', cancelStaleInteraction, true)
       document.removeEventListener('visibilitychange', cancelWhenHidden)
     }
-  }, [active, activeRef, finishRef, updateRef])
+  }, [active, activeRef, finishRef, preferRawUpdates, updateEventRef, updateRef])
 }

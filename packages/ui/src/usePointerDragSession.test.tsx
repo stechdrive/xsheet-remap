@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { usePointerDragSession } from './usePointerDragSession'
+import { pointerDragPointsFromEvent, usePointerDragSession } from './usePointerDragSession'
 
 afterEach(cleanup)
 
@@ -22,7 +22,7 @@ function PointerDragHarness({
   onCancel: () => void
   onPreview?: (x: number) => void
   replaceTarget?: boolean
-  previewMode?: 'immediate' | 'animation-frame'
+  previewMode?: 'immediate' | 'animation-frame' | 'none'
 }) {
   const [moved, setMoved] = useState(false)
   const drag = usePointerDragSession<TestSession>({
@@ -137,5 +137,26 @@ describe('usePointerDragSession', () => {
 
     expect(onCommit).toHaveBeenCalledTimes(1)
     expect(onCommit).toHaveBeenCalledWith(1200)
+  })
+
+  it('extracts every coalesced pen sample and keeps a distinct latest event', () => {
+    const samples = [
+      { clientX: 10, clientY: 20, pressure: 0.25, timeStamp: 100 },
+      { clientX: 12, clientY: 23, pressure: 0.5, timeStamp: 101 },
+    ] as globalThis.PointerEvent[]
+    const event = {
+      pointerId: 14,
+      clientX: 15,
+      clientY: 27,
+      pressure: 0.75,
+      timeStamp: 102,
+      getCoalescedEvents: () => samples,
+    } as globalThis.PointerEvent
+
+    expect(pointerDragPointsFromEvent(event, 'coalesced')).toEqual([
+      { pointerId: 14, clientX: 10, clientY: 20, pressure: 0.25, timeStamp: 100 },
+      { pointerId: 14, clientX: 12, clientY: 23, pressure: 0.5, timeStamp: 101 },
+      { pointerId: 14, clientX: 15, clientY: 27, pressure: 0.75, timeStamp: 102 },
+    ])
   })
 })

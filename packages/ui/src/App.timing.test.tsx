@@ -1,10 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsheet-remap/core';
 import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
 import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openDisplaySettingsMenu, openStackGuideInsertMenu, openTimingExportDialog, openTimingTextSettingsMenu, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateTimelineLaneHeaderPoint } from './App.test-support'
+
+beforeEach(() => {
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function dispatchBatchedPointerClick(target: Element, pointerId: number, clientX: number, clientY: number, releaseTarget: EventTarget = target) {
   const pointerDown = createEvent.pointerDown(target, { pointerId, pointerType: 'mouse', button: 0, buttons: 1, clientX, clientY })
@@ -76,17 +84,16 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
     fireEvent.pointerDown(surface, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 1, clientX: 300, clientY: 300 })
     fireEvent.pointerMove(window, { pointerId: 31, pointerType: 'mouse', buttons: 1, clientX: 420, clientY: 360 })
 
-    await waitFor(() => expect(surface.querySelector('.annotationDraftStroke')).toBeTruthy())
+    const preview = surface.closest('.pageAnnotationInteractionLayer')?.querySelector<HTMLCanvasElement>('.pageAnnotationInkCanvas')
+    await waitFor(() => expect(preview?.dataset.inkActive).toBe('true'))
+    expect(Number(preview?.dataset.inkSampleCount)).toBeGreaterThanOrEqual(2)
     expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('対象: MEMO')
     expect(palette.getAttribute('data-annotation-target-kind')).toBe('template-region')
     expect(screen.getByRole('button', { name: 'MEMOを編集' }).getAttribute('data-annotation-target-selected')).toBe('true')
-    const preview = surface.querySelector<SVGPathElement>('.annotationDraftStroke')!
-    expect(preview.getAttribute('d')).toContain('L')
-    expect(preview.closest('.pageAnnotationInputSurface')).toBe(surface)
     expect(document.querySelector('.sheetSvg .annotationDraftStroke')).toBeNull()
 
     fireEvent.pointerUp(window, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 0, clientX: 440, clientY: 370 })
-    await waitFor(() => expect(surface.querySelector('.annotationDraftStroke')).toBeNull())
+    await waitFor(() => expect(preview?.dataset.inkActive).toBe('false'))
     const committedStroke = document.querySelector('.sheetSvg .annotationStroke:not(.annotationEraserPreview)')
     expect(committedStroke).toBeTruthy()
     expect(committedStroke?.getAttribute('data-annotation-region-id')).toBe('top_memo_area')

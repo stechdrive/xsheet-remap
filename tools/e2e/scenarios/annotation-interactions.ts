@@ -490,31 +490,35 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       })
     }
     const preview = await waitForCondition(async () => evaluatePage<{
-      pathLength: number
-      inInputSurface: boolean
+      sampleCount: number
+      backingWidth: number
+      backingHeight: number
+      incrementalCanvas: boolean
       visible: boolean
       paletteOpen: boolean
     } | null>(`
       (() => {
-        const path = document.querySelector('.pageAnnotationInputSurface .annotationDraftStroke');
-        if (!(path instanceof SVGPathElement)) return null;
-        const style = getComputedStyle(path);
+        const canvas = document.querySelector('.pageAnnotationInkCanvas[data-ink-active="true"]');
+        if (!(canvas instanceof HTMLCanvasElement)) return null;
+        const style = getComputedStyle(canvas);
         return {
-          pathLength: path.getTotalLength(),
-          inInputSurface: Boolean(path.closest('.pageAnnotationInputSurface')),
+          sampleCount: Number(canvas.dataset.inkSampleCount ?? 0),
+          backingWidth: canvas.width,
+          backingHeight: canvas.height,
+          incrementalCanvas: canvas.dataset.inkRenderMode === 'incremental-canvas',
           visible: style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0,
           paletteOpen: document.querySelector('.annotationFloatingPalette[data-annotation-session="active"]')?.classList.contains('open') === true,
         };
       })()
     `), 5000, 'live page annotation preview while pointer remains pressed')
-    if (!(preview.pathLength > 0) || !preview.inInputSurface || !preview.visible || !preview.paletteOpen) {
-      throw new Error(`page annotation preview is not visibly owned by the input surface: ${JSON.stringify(preview)}`)
+    if (preview.sampleCount < 2 || preview.backingWidth <= 1 || preview.backingHeight <= 1 || !preview.incrementalCanvas || !preview.visible || !preview.paletteOpen) {
+      throw new Error(`page annotation preview is not using the active incremental canvas: ${JSON.stringify(preview)}`)
     }
     const previewPixels = await assertSelectorsContributePaint({
       evaluate: evaluatePage,
       captureScreenshot,
     }, {
-      selector: '.pageAnnotationInputSurface .annotationDraftStroke',
+      selector: '.pageAnnotationInkCanvas[data-ink-active="true"]',
       expectedCount: 1,
       label: `${artifactLabel} draft stroke while the pointer remains pressed`,
       minimumChangedPixels: 12,
@@ -524,7 +528,10 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     await clientSend('Input.dispatchMouseEvent', {
       type: 'mouseReleased', x: end.x, y: end.y, button: 'left', buttons: 0, clickCount: 1,
     })
-    await waitForPageCondition(() => !document.querySelector('.pageAnnotationInputSurface .annotationDraftStroke'), 'live page annotation preview clears after commit')
+    await waitForPageCondition(
+      () => document.querySelector('.pageAnnotationInkCanvas')?.getAttribute('data-ink-active') === 'false',
+      'live page annotation preview clears after commit',
+    )
   }
 
   async function topElementSummary(point: ClientPoint): Promise<string> {

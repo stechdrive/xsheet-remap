@@ -1,8 +1,8 @@
 import { useEffect, type PointerEvent } from 'react'
 import type { AnnotationStroke, SheetPage, SheetPageMemoTarget } from '@xsheet-remap/core'
 import type { EditMode } from './appTypes'
-import { strokePath } from './app-sheet-layers'
 import { SHEET_INTERACTION_ACTIVE_CLASS } from './app-foundation'
+import { LowLatencyInkCanvas, useLowLatencyInkCanvas } from './LowLatencyInkCanvas'
 import { usePointerDragSession } from './usePointerDragSession'
 
 export type PageAnnotationStrokeStart = {
@@ -39,17 +39,26 @@ export function PageAnnotationInputSurface({
   onAnnotation: (stroke: AnnotationStroke) => void
   onEraseAnnotation: (pageId: string, points: AnnotationStroke['points'], width: number, target: SheetPageMemoTarget) => void
 }) {
+  const inkCanvas = useLowLatencyInkCanvas()
   const strokeDrag = usePointerDragSession<PageAnnotationStrokeSession>({
-    previewMode: 'animation-frame',
-    onUpdate: (current, point) => {
-      current.stroke.points.push({
+    previewMode: 'none',
+    sampleMode: 'coalesced',
+    preferRawUpdates: true,
+    onPointerEvent: inkCanvas.updateDelegatedInk,
+    onUpdateBatch: (current, points) => {
+      current.stroke.points.push(...points.map(point => ({
         x: (point.clientX - current.svgRect.left) / Math.max(1, current.svgRect.width),
         y: (point.clientY - current.svgRect.top) / Math.max(1, current.svgRect.height),
         pressure: point.pressure || 1,
-      })
+      })))
+      inkCanvas.append(points.map(point => ({
+        x: point.clientX - current.svgRect.left,
+        y: point.clientY - current.svgRect.top,
+      })))
       return { ...current }
     },
     onFinish: (current, finish) => {
+      inkCanvas.clear()
       if (finish.cancelled) return
       const stroke = {
         ...current.stroke,
@@ -62,8 +71,7 @@ export function PageAnnotationInputSurface({
       }
     },
   })
-  const draftStroke = strokeDrag.active?.stroke ?? null
-  const isDrawing = draftStroke !== null
+  const isDrawing = strokeDrag.active !== null
 
   useEffect(() => {
     if (!isDrawing) return
@@ -75,41 +83,55 @@ export function PageAnnotationInputSurface({
   }, [isDrawing])
 
   return (
-    <svg
-      viewBox="0 0 1 1"
-      preserveAspectRatio="none"
-      className="pageAnnotationInputSurface"
-      data-page-id={page.pageId}
-      data-annotation-tool={editMode}
+    <div
+      className="pageAnnotationInteractionLayer"
       style={{ width: `${width}px`, height: `${height}px` }}
-      onPointerDown={event => {
-        const start = onPointerDown(event, page)
-        if (start) strokeDrag.begin(start, event.currentTarget)
-      }}
-      onPointerMove={editMode === 'text' ? onPointerMove : undefined}
-      onPointerUp={editMode === 'text' ? onPointerUp : undefined}
-      onPointerCancel={() => {
-        strokeDrag.cancel()
-        onCancelOtherInteractions()
-      }}
-      onPointerLeave={onPointerLeave}
-      onDragStart={event => event.preventDefault()}
-      onContextMenu={event => event.preventDefault()}
-      aria-label={`${page.pageIndex + 1}ページの注釈入力`}
     >
-      <rect x="0" y="0" width="1" height="1" fill="transparent" />
-      {draftStroke?.pageId === page.pageId && (
-        <path
-          className={draftStroke.tool === 'eraser'
-            ? 'annotationStroke annotationDraftStroke annotationEraserPreview'
-            : 'annotationStroke annotationDraftStroke'}
-          d={strokePath(draftStroke)}
-          stroke={draftStroke.color}
-          strokeWidth={draftStroke.width}
-          data-annotation-region-id={draftStroke.anchor?.kind === 'view-surface' ? draftStroke.anchor.regionId : undefined}
-          data-annotation-target-id={draftStroke.anchor?.kind === 'view-surface' ? draftStroke.anchor.targetId : undefined}
-        />
-      )}
-    </svg>
+      <svg
+        viewBox="0 0 1 1"
+        preserveAspectRatio="none"
+        className="pageAnnotationInputSurface"
+        data-page-id={page.pageId}
+        data-annotation-tool={editMode}
+        style={{ width: `${width}px`, height: `${height}px` }}
+        onPointerDown={event => {
+          const start = onPointerDown(event, page)
+          if (!start) return
+          strokeDrag.cancel()
+          const lineWidth = start.stroke.width * Math.min(start.svgRect.width, start.svgRect.height)
+          inkCanvas.begin({
+            width: start.svgRect.width,
+            height: start.svgRect.height,
+            color: start.stroke.color,
+            lineWidth,
+            opacity: start.stroke.tool === 'eraser' ? 0.78 : 1,
+            lineDash: start.stroke.tool === 'eraser' ? [lineWidth * 3, lineWidth * 2] : undefined,
+            point: {
+              x: event.clientX - start.svgRect.left,
+              y: event.clientY - start.svgRect.top,
+            },
+            pointerEvent: start.stroke.tool === 'pen' ? event.nativeEvent : undefined,
+          })
+          strokeDrag.begin(start, event.currentTarget)
+        }}
+        onPointerMove={editMode === 'text' ? onPointerMove : undefined}
+        onPointerUp={editMode === 'text' ? onPointerUp : undefined}
+        onPointerCancel={() => {
+          strokeDrag.cancel()
+          onCancelOtherInteractions()
+        }}
+        onPointerLeave={onPointerLeave}
+        onDragStart={event => event.preventDefault()}
+        onContextMenu={event => event.preventDefault()}
+        aria-label={`${page.pageIndex + 1}ページの注釈入力`}
+      >
+        <rect x="0" y="0" width="1" height="1" fill="transparent" />
+      </svg>
+      <LowLatencyInkCanvas
+        canvasRef={inkCanvas.canvasRef}
+        className="pageAnnotationInkCanvas"
+        label={`${page.pageIndex + 1}ページの手描きプレビュー`}
+      />
+    </div>
   )
 }

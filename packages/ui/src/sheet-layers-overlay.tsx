@@ -191,6 +191,7 @@ export function OverlayPaperTrackInteractionLayer({
                 {...tooltipProps}
                 type="button"
                 className={isInputTarget ? 'overlayPaperTrackDragHandle inputActive' : 'overlayPaperTrackDragHandle inputInactive'}
+                data-sheet-touch-interaction="direct"
                 aria-pressed={isInputTarget}
                 aria-label={inputStateLabel}
                 style={{

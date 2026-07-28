@@ -52,6 +52,10 @@ export interface PendingSheetZoomCommit {
   localY: number
 }
 
+export type SheetTouchTargetIntent = 'navigate' | 'direct' | 'native-control'
+
+export const SHEET_DIRECT_TOUCH_ATTRIBUTE = 'data-sheet-touch-interaction'
+
 export function sheetTouchPanExceededThreshold(
   startX: number,
   startY: number,
@@ -113,9 +117,10 @@ export function sheetPinchPreview(input: {
   }
 }
 
-export function isSheetTouchNavigationTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return true
-  return !target.closest([
+export function sheetTouchTargetIntent(target: EventTarget | null): SheetTouchTargetIntent {
+  if (!(target instanceof Element)) return 'navigate'
+  if (target.closest(`[${SHEET_DIRECT_TOUCH_ATTRIBUTE}="direct"]`)) return 'direct'
+  if (target.closest([
     'button',
     'input',
     'select',
@@ -123,7 +128,12 @@ export function isSheetTouchNavigationTarget(target: EventTarget | null): boolea
     '[contenteditable="true"]',
     '.sheetContextMenu',
     '.timelineMemoTextEditor',
-  ].join(','))
+  ].join(','))) return 'native-control'
+  return 'navigate'
+}
+
+export function isSheetTouchNavigationTarget(target: EventTarget | null): boolean {
+  return sheetTouchTargetIntent(target) === 'navigate'
 }
 
 function pageSurfaceAtClientPoint(

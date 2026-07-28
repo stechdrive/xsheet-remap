@@ -383,7 +383,12 @@ export function TimelineMemoLayer({
         const drawingToolActive = editMode === 'pen' || editMode === 'eraser'
         const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
         return (
-          <g key={`${memo.memoId}:${segment.regionId}`} data-timeline-memo-id={memo.memoId} className={selected ? 'timelineMemoSegment selected' : 'timelineMemoSegment'}>
+          <g
+            key={`${memo.memoId}:${segment.regionId}`}
+            data-timeline-memo-id={memo.memoId}
+            data-sheet-touch-interaction={selected && editMode !== 'pen' && editMode !== 'eraser' ? 'direct' : undefined}
+            className={selected ? 'timelineMemoSegment selected' : 'timelineMemoSegment'}
+          >
             {appearance.background.enabled && <rect
               className="timelineMemoBackground"
               data-memo-background="solid"

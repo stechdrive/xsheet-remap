@@ -11,9 +11,9 @@ import {
   applySheetPinchPreview,
   captureSheetViewportZoomAnchor,
   clearSheetPinchPreview,
-  isSheetTouchNavigationTarget,
   settleSheetViewportZoomAnchor,
   sheetPinchPreview,
+  sheetTouchTargetIntent,
   sheetTouchPairMetrics,
   sheetTouchPanExceededThreshold,
   sheetTouchPanScrollPosition,
@@ -77,6 +77,7 @@ export function useSheetTouchNavigation({
 }) {
   const sessionRef = useRef<SheetTouchNavigationSession | null>(null)
   const blockedPointerIdsRef = useRef(new Set<number>())
+  const directPointerIdsRef = useRef(new Set<number>())
   const activePenPointerIdsRef = useRef(new Set<number>())
   const pendingZoomCommitRef = useRef<PendingSheetZoomCommit | null>(null)
   const zoomRef = useRef(zoom)
@@ -326,9 +327,15 @@ export function useSheetTouchNavigation({
     function trackPointerEnd(event: globalThis.PointerEvent) {
       if (event.pointerType === 'pen') activePenPointerIdsRef.current.delete(event.pointerId)
     }
+    function cleanupDirectTouch(event: globalThis.PointerEvent) {
+      if (event.pointerType !== 'touch') return
+      directPointerIdsRef.current.delete(event.pointerId)
+      blockedPointerIdsRef.current.delete(event.pointerId)
+    }
     function cancelAllInput() {
       cancelActiveTouchRef.current({ revertPinch: true, blockPointers: false })
       blockedPointerIdsRef.current.clear()
+      directPointerIdsRef.current.clear()
       activePenPointerIdsRef.current.clear()
       pendingZoomCommitRef.current = null
       const pageStack = pageStackRef.current
@@ -340,12 +347,16 @@ export function useSheetTouchNavigation({
     window.addEventListener('pointerdown', trackPointerDown, true)
     window.addEventListener('pointerup', trackPointerEnd, true)
     window.addEventListener('pointercancel', trackPointerEnd, true)
+    window.addEventListener('pointerup', cleanupDirectTouch)
+    window.addEventListener('pointercancel', cleanupDirectTouch)
     window.addEventListener('blur', cancelAllInput)
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       window.removeEventListener('pointerdown', trackPointerDown, true)
       window.removeEventListener('pointerup', trackPointerEnd, true)
       window.removeEventListener('pointercancel', trackPointerEnd, true)
+      window.removeEventListener('pointerup', cleanupDirectTouch)
+      window.removeEventListener('pointercancel', cleanupDirectTouch)
       window.removeEventListener('blur', cancelAllInput)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       cancelAllInput()
@@ -366,9 +377,17 @@ export function useSheetTouchNavigation({
     const viewport = event.currentTarget
     const pageStack = pageStackRef.current
     const active = sessionRef.current
+    const targetIntent = sheetTouchTargetIntent(event.target)
     const shouldBlock = activePenPointerIdsRef.current.size > 0
       || blockedPointerIdsRef.current.size > 0
-    if (!active && !shouldBlock && (!pageStack || !isSheetTouchNavigationTarget(event.target))) return
+      || directPointerIdsRef.current.size > 0
+    if (!active && !shouldBlock) {
+      if (!pageStack || targetIntent === 'native-control') return
+      if (targetIntent === 'direct') {
+        directPointerIdsRef.current.add(event.pointerId)
+        return
+      }
+    }
     stopTouchEvent(event)
     capturePointer(viewport, event.pointerId)
     if (shouldBlock) {
@@ -420,6 +439,7 @@ export function useSheetTouchNavigation({
 
   function handlePointerMoveCapture(event: PointerEvent<HTMLElement>) {
     if (event.pointerType !== 'touch') return
+    if (directPointerIdsRef.current.has(event.pointerId)) return
     if (blockedPointerIdsRef.current.has(event.pointerId)) {
       stopTouchEvent(event)
       return
@@ -448,6 +468,7 @@ export function useSheetTouchNavigation({
 
   function handlePointerUpCapture(event: PointerEvent<HTMLElement>) {
     if (event.pointerType !== 'touch') return
+    if (directPointerIdsRef.current.delete(event.pointerId)) return
     if (blockedPointerIdsRef.current.has(event.pointerId)) {
       stopTouchEvent(event)
       blockedPointerIdsRef.current.delete(event.pointerId)
@@ -470,6 +491,7 @@ export function useSheetTouchNavigation({
 
   function handlePointerCancelCapture(event: PointerEvent<HTMLElement>) {
     if (event.pointerType !== 'touch') return
+    if (directPointerIdsRef.current.delete(event.pointerId)) return
     if (blockedPointerIdsRef.current.has(event.pointerId)) {
       blockedPointerIdsRef.current.delete(event.pointerId)
       releasePointer(event.currentTarget, event.pointerId)
@@ -483,6 +505,7 @@ export function useSheetTouchNavigation({
 
   function handleLostPointerCapture(event: PointerEvent<HTMLElement>) {
     if (event.pointerType !== 'touch') return
+    if (directPointerIdsRef.current.delete(event.pointerId)) return
     if (blockedPointerIdsRef.current.has(event.pointerId)) {
       blockedPointerIdsRef.current.delete(event.pointerId)
       return

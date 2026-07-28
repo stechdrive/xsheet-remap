@@ -584,6 +584,7 @@ it('adds stack guide labels, assigns image assets, and includes them in XDTS exp
     if (!labelButton) throw new Error('stack guide label was not rendered')
     const labelHandle = document.querySelector<HTMLElement>(`.stackGuideLabelDragHandle[data-stack-guide-label-id="${(labelButton as HTMLElement).dataset.stackGuideLabelId}"]`)
     if (!labelHandle) throw new Error('stack guide label interaction target was not rendered')
+    expect(labelHandle.dataset.sheetTouchInteraction).toBe('direct')
     dragInternalPointer(getAssetCardByName('BOOK2_3.png'), labelHandle)
 
     await waitFor(() => expect(document.querySelector('.stackGuideLabel.assigned')).toBeTruthy())

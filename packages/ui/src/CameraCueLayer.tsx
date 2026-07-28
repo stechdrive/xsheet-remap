@@ -25,7 +25,7 @@ export interface CameraCueDragGeometry {
   segmentEndPointId?: string
 }
 
-export function CameraCueLayer({ cues, template, page, paperTracks, timelineLanes, layoutOverrides, pageSize, surface, selectedCueId, draggingCueId, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onDoubleClick, onPointerEnter, onPointerLeave }: {
+export function CameraCueLayer({ cues, template, page, paperTracks, timelineLanes, layoutOverrides, pageSize, surface, selectedCueId, draggingCueId, touchInteractive = false, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onDoubleClick, onPointerEnter, onPointerLeave }: {
   cues: TimedRangeCue[]
   template: SheetTemplate
   page: SheetPage
@@ -36,6 +36,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
   surface: SheetSelectionSurface
   selectedCueId: string | null
   draggingCueId?: string | null
+  touchInteractive?: boolean
   onPointerDown: (event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: CameraCueDragMode, geometry?: CameraCueDragGeometry) => void
   onPointerMove: (event: PointerEvent<SVGGElement>) => void
   onPointerUp: (event: PointerEvent<SVGGElement>) => void
@@ -75,6 +76,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             data-camera-lane-id={cue.laneId}
             data-frame-start={cue.frameStart}
             data-frame-end={cue.frameEnd}
+            data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined}
             aria-label={`${cue.label || 'CAMERA'} ${cue.frameStart}-${cue.frameEnd}`}
             onPointerEnter={event => onPointerEnter(event, cue.cueId)}
             onPointerLeave={onPointerLeave}
@@ -130,6 +132,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             data-camera-cue-id={cue.cueId}
             data-camera-point-id={layout.point.pointId}
             data-camera-point-frame={layout.frame}
+            data-sheet-touch-interaction={touchInteractive && movable ? 'direct' : undefined}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
@@ -177,6 +180,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             data-camera-cue-id={cueId}
             data-cue-column-index={columnIndex}
             data-camera-label-overflow={layout.overflow ? 'true' : 'false'}
+            data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}

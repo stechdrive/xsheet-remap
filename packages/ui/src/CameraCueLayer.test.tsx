@@ -64,6 +64,7 @@ describe('CameraCueLayer', () => {
           pageSize={{ widthPx: 1754, heightPx: 2481 }}
           surface={{ widthPx: 1000, heightPx: 1000 }}
           selectedCueId="cue_4"
+          touchInteractive
           onPointerDown={vi.fn()}
           onPointerMove={vi.fn()}
           onPointerUp={vi.fn()}
@@ -95,6 +96,9 @@ describe('CameraCueLayer', () => {
     expect(container.querySelector('.cameraCueLabelResizeHandle .sheetTransformHandleResizeVisual')).toBeTruthy()
     expect(container.querySelectorAll('.cameraCueLabel defs rect')).toHaveLength(4)
     expect(container.querySelectorAll('.cameraCueLabel[data-camera-label-overflow="false"]')).toHaveLength(4)
+    expect(container.querySelectorAll('.cameraCue[data-sheet-touch-interaction="direct"]')).toHaveLength(4)
+    expect(container.querySelectorAll('.cameraCueLabel[data-sheet-touch-interaction="direct"]')).toHaveLength(4)
+    expect(container.querySelectorAll('.cameraCuePoint.movable[data-sheet-touch-interaction="direct"]')).toHaveLength(1)
     expect(container.querySelectorAll('.cameraCueLabelText[clip-path]')).toHaveLength(0)
     expect(container.querySelectorAll('.cameraCueLabel [clip-path] .cameraCueLabelText')).toHaveLength(4)
   })

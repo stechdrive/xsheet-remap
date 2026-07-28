@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import {
   isSheetTouchNavigationTarget,
   sheetPinchPreview,
+  sheetTouchTargetIntent,
   sheetTouchPairMetrics,
   sheetTouchPanExceededThreshold,
   sheetTouchPanScrollPosition,
@@ -17,12 +18,16 @@ function TouchNavigationHarness({
   onEnd,
   onSheetPointerDown,
   onControlPointerDown,
+  onDirectPointerDown,
+  onDirectPointerUp,
 }: {
   onTap: (tap: SheetTouchTap) => void
   onBegin: () => void
   onEnd: () => void
   onSheetPointerDown?: () => void
   onControlPointerDown?: () => void
+  onDirectPointerDown?: () => void
+  onDirectPointerUp?: () => void
 }) {
   const [zoom, setZoom] = useState(1)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -51,6 +56,13 @@ function TouchNavigationHarness({
         <div className="sheetPageSurface" data-page-id="page_1">
           <svg data-testid="sheet" onPointerDown={onSheetPointerDown}>
             <rect />
+            <g data-sheet-touch-interaction="direct">
+              <rect
+                data-testid="direct"
+                onPointerDown={onDirectPointerDown}
+                onPointerUp={onDirectPointerUp}
+              />
+            </g>
           </svg>
         </div>
       </div>
@@ -113,11 +125,97 @@ describe('sheet touch navigation', () => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
     const button = document.createElement('button')
     const buttonLabel = document.createElement('span')
+    const direct = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    const directHit = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+    direct.setAttribute('data-sheet-touch-interaction', 'direct')
+    direct.append(directHit)
     button.append(buttonLabel)
-    root.append(svg, button)
+    root.append(svg, button, direct)
 
     expect(isSheetTouchNavigationTarget(svg)).toBe(true)
     expect(isSheetTouchNavigationTarget(buttonLabel)).toBe(false)
+    expect(sheetTouchTargetIntent(svg)).toBe('navigate')
+    expect(sheetTouchTargetIntent(buttonLabel)).toBe('native-control')
+    expect(sheetTouchTargetIntent(directHit)).toBe('direct')
+  })
+
+  it('delegates the first touch to a direct editor and blocks added fingers until release', () => {
+    const onTap = vi.fn()
+    const onBegin = vi.fn()
+    const onEnd = vi.fn()
+    const onDirectPointerDown = vi.fn()
+    const onDirectPointerUp = vi.fn()
+    const onControlPointerDown = vi.fn()
+    render(<TouchNavigationHarness {...{
+      onTap,
+      onBegin,
+      onEnd,
+      onDirectPointerDown,
+      onDirectPointerUp,
+      onControlPointerDown,
+    }} />)
+    const direct = screen.getByTestId('direct')
+    const control = screen.getByRole('button', { name: '操作' })
+    const viewport = screen.getByTestId('viewport')
+    const sheet = screen.getByTestId('sheet')
+
+    fireEvent.pointerDown(direct, {
+      pointerId: 60,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: 80,
+      clientY: 90,
+    })
+    expect(onDirectPointerDown).toHaveBeenCalledTimes(1)
+
+    fireEvent.pointerDown(control, {
+      pointerId: 61,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: 100,
+      clientY: 110,
+    })
+    expect(onControlPointerDown).not.toHaveBeenCalled()
+    expect(onTap).not.toHaveBeenCalled()
+    expect(onBegin).not.toHaveBeenCalled()
+
+    fireEvent.pointerUp(direct, {
+      pointerId: 60,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: 82,
+      clientY: 92,
+    })
+    expect(onDirectPointerUp).toHaveBeenCalledTimes(1)
+    fireEvent.pointerUp(viewport, {
+      pointerId: 61,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: 100,
+      clientY: 110,
+    })
+
+    fireEvent.pointerDown(sheet, {
+      pointerId: 62,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: 120,
+      clientY: 130,
+    })
+    fireEvent.pointerUp(viewport, {
+      pointerId: 62,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: 122,
+      clientY: 132,
+    })
+    expect(onTap).toHaveBeenCalledTimes(1)
   })
 
   it('delays a touch tap until release and never forwards it to the sheet handler', () => {

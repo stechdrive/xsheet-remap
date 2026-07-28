@@ -321,6 +321,7 @@ export function StackGuideOverlay({
               type="button"
               className={labelDrag?.labelId === label.labelId ? 'stackGuideLabelDragHandle dragging' : 'stackGuideLabelDragHandle'}
               data-stack-guide-label-id={label.labelId}
+              data-sheet-touch-interaction={onUpdateLabel ? 'direct' : undefined}
               aria-label={uiText.stackGuides.labelTitle(label.label, label.assetIds.length)}
               style={{
                 left: `${geometry.labelX * pageWidth}px`,

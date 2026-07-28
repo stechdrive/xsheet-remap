@@ -18,6 +18,7 @@ export function SoundCueLayer({
   pageSize,
   surface,
   selectedCueId,
+  touchInteractive = false,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -37,6 +38,7 @@ export function SoundCueLayer({
   pageSize: { widthPx: number; heightPx: number }
   surface: SheetSelectionSurface
   selectedCueId: string | null
+  touchInteractive?: boolean
   onPointerDown: (event: PointerEvent<SVGElement>, cue: TimedRangeCue, mode: SoundCueDragMode) => void
   onPointerMove: (event: PointerEvent<SVGGElement>) => void
   onPointerUp: (event: PointerEvent<SVGGElement>) => void
@@ -87,6 +89,7 @@ export function SoundCueLayer({
             data-sound-lane-id={cue.laneId}
             data-frame-start={cue.frameStart}
             data-frame-end={cue.frameEnd}
+            data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined}
             aria-label={`${cue.label || cue.text || 'SOUND'} ${cue.frameStart}-${cue.frameEnd}`}
             onPointerEnter={event => onPointerEnter(event, cue.cueId)}
             onPointerLeave={onPointerLeave}

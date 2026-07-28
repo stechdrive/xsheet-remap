@@ -323,6 +323,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       pageSize={sheetPageSize}
                       surface={selectionSurface}
                       selectedCueId={props.selectedSoundCueId}
+                      touchInteractive={props.editMode === 'new'}
                       onPointerDown={handleSoundCuePointerDown}
                       onPointerMove={handleSoundCuePointerMove}
                       onPointerUp={event => finishSoundCuePointer(event)}
@@ -344,6 +345,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       surface={selectionSurface}
                       selectedCueId={props.selectedCameraCueId}
                       draggingCueId={cameraCueDrag?.origin.cueId ?? null}
+                      touchInteractive={props.editMode === 'new'}
                       onPointerDown={handleCameraCuePointerDown}
                       onPointerMove={handleCameraCuePointerMove}
                       onPointerUp={event => finishCameraCuePointer(event)}
@@ -382,6 +384,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       <g
                         key={event.eventId}
                         className={timelineEventClassName}
+                        data-sheet-touch-interaction={eventHit && props.editMode === 'new' ? 'direct' : undefined}
                         onPointerDown={eventHit ? pointerEvent => handleTimelineEventPointerDown(pointerEvent, event, page) : undefined}
                         onPointerMove={handleTimelineEventPointerMove}
                         onPointerUp={handleTimelineEventPointerUp}

@@ -60,6 +60,7 @@ describe('SoundCueLayer', () => {
         pageSize={{ widthPx: 1754, heightPx: 2481 }}
         surface={{ widthPx: 1000, heightPx: 1000 }}
         selectedCueId={null}
+        touchInteractive
         onPointerDown={vi.fn()} onPointerMove={vi.fn()} onPointerUp={vi.fn()} onPointerCancel={vi.fn()}
         onDoubleClick={vi.fn()} onPointerEnter={vi.fn()} onPointerLeave={vi.fn()}
       /></svg>,
@@ -69,6 +70,7 @@ describe('SoundCueLayer', () => {
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_middle"]')?.getAttribute('data-cue-column-index')).toBe('0')
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_later"]')?.getAttribute('data-cue-column-index')).toBe('0')
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_adjacent"]')?.getAttribute('data-cue-column-index')).toBe('1')
+    expect(container.querySelectorAll('.soundCue[data-sheet-touch-interaction="direct"]')).toHaveLength(cues.length)
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_first"]')?.getAttribute('aria-label')).toContain('SE')
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_first"] .soundCueLabel')).toBeNull()
     expect(container.querySelector('.soundCue[data-sound-cue-id="cue_first"] .soundCueDialogue')?.textContent).toContain('S')

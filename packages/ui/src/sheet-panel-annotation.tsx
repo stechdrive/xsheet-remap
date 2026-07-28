@@ -238,6 +238,7 @@ function AnnotationTextItem({
       aria-label={uiText.sheet.textTool}
       data-annotation-region-id={annotation.anchor?.kind === 'view-surface' ? annotation.anchor.regionId : undefined}
       data-annotation-target-id={annotation.anchor?.kind === 'view-surface' ? annotation.anchor.targetId : undefined}
+      data-sheet-touch-interaction="direct"
       data-dragging={drag.active ? 'true' : undefined}
       onPointerDown={handleDisplayPointerDown}
       onDoubleClick={event => {

@@ -87,6 +87,7 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(container.querySelector('.timelineMemoAnchorCue.selected')).toBeTruthy()
     expect(container.querySelector('.timelineMemoAnchorCue.selected .timelineMemoAnchorHitArea')).toBeNull()
     expect(container.querySelector('.timelineMemoAnchorConnector')).toBeTruthy()
+    expect(container.querySelector('.timelineMemoSegment')?.hasAttribute('data-sheet-touch-interaction')).toBe(false)
 
     rerender(
       <svg viewBox="0 0 1 1">
@@ -130,7 +131,7 @@ describe('TimelineMemoLayer anchor cues', () => {
           pageSize={pageSize}
           surface={{ widthPx: pageSize.widthPx * 0.5, heightPx: pageSize.heightPx * 0.5 }}
           selectedMemoId={selected.memoId}
-          editMode="pen"
+          editMode="new"
           penColor="#111"
           penWidth={0.002}
           eraserWidth={0.018}
@@ -146,6 +147,7 @@ describe('TimelineMemoLayer anchor cues', () => {
     const moveFrame = container.querySelector<SVGRectElement>('.timelineMemoMoveFrame')
     expect(svg).toBeTruthy()
     expect(moveFrame).toBeTruthy()
+    expect(container.querySelector('.timelineMemoSegment')?.getAttribute('data-sheet-touch-interaction')).toBe('direct')
     expect(container.querySelector('.timelineMemoMoveHandle')).toBeNull()
     Object.defineProperty(svg, 'getBoundingClientRect', {
       value: () => ({ left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, x: 0, y: 0, toJSON: () => ({}) }),

@@ -1,6 +1,7 @@
 import { clampSheetZoom } from './sheetInteraction'
 
 export const SHEET_TOUCH_PAN_THRESHOLD_PX = 8
+export const SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS = 520
 
 export interface SheetTouchTap {
   target: Element | null

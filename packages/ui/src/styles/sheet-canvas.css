@@ -35,11 +35,101 @@
 }
 
 .sheetViewportFrame {
+  position: relative;
   display: grid;
   grid-template-columns: var(--sheet-history-rail-width, 42px) minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.sheetTouchControls {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 24;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  max-height: calc(100% - 24px);
+  pointer-events: none;
+}
+
+.sheetTouchCommandBar,
+.sheetTouchTimingPad {
+  pointer-events: auto;
+  border: 1px solid rgb(65 107 90 / 0.5);
+  border-radius: 10px;
+  background: rgb(251 251 248 / 0.96);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.2);
+  backdrop-filter: blur(4px);
+}
+
+.sheetTouchCommandBar {
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+}
+
+.sheetTouchCommandBar button,
+.sheetTouchTimingPad button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 9px;
+  border-color: #aeb7b0;
+  background: #fff;
+  color: #173528;
+  font-weight: 700;
+  touch-action: manipulation;
+}
+
+.sheetTouchCommandBar button.active,
+.sheetTouchTimingPad button.primary {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173a2b;
+}
+
+.sheetTouchTimingPad {
+  display: grid;
+  gap: 7px;
+  width: min(224px, calc(100vw - 36px));
+  max-height: calc(100vh - 120px);
+  padding: 8px;
+  overflow: auto;
+}
+
+.sheetTouchTimingValue {
+  min-height: 34px;
+  padding: 6px 9px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #e9ece7;
+  color: #173528;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetTouchTimingKeys {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.sheetTouchTimingActions {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 5px;
+}
+
+.sheetTouchTimingNavigation {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
 }
 
 .sheetViewportFrame > .sheetViewport {

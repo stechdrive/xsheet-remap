@@ -51,6 +51,8 @@ export type SheetCanvasProps = {
   pageAnnotationTarget: SheetPageMemoTarget
   timingDraftValue: string
   timingDraftActive: boolean
+  touchRangeSelectionMode?: boolean
+  onInputModalityChange?: (modality: 'mouse' | 'pen' | 'touch') => void
   scrollRequest: SheetScrollRequest | null
   rangeSelection: SheetRangeSelection | null
   timingClipboard: TimingClipboard | null

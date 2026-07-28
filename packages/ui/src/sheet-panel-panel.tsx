@@ -17,13 +17,15 @@ import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUT
 import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
 import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextSizeIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
-import { SheetCanvas } from './app-sheet-canvas'
+import { SheetCanvas, type SheetCanvasHandle } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
 import { templateMemoTargetLabel } from './templateMemoTargets'
 import { SheetHistoryRail } from './SheetHistoryRail'
 import { suppressSheetTooltips } from './sheetInteractionOwnership'
 import { resolveSheetAnnotationTarget } from './sheetAnnotationTarget'
+import { SheetTouchControls } from './SheetTouchControls'
+import { timingKeyDisplayLabel } from './workspaceSelectionModel'
 
 export function SheetPanel(props: {
   appKind: MainAppKind
@@ -66,6 +68,11 @@ export function SheetPanel(props: {
   selectedCameraCueId: string | null
   timingDraftValue: string
   timingDraftActive: boolean
+  timingInputDisabled: boolean
+  onTimingInputCharacter: (character: string) => void
+  onTimingInputBackspace: () => void
+  onTimingInputCommit: (advance: boolean) => void
+  onTimingInputMove: (trackDelta: number, frameDelta: number) => void
   scrollRequest: SheetScrollRequest | null
   rangeSelection: SheetRangeSelection | null
   timingClipboard: TimingClipboard | null
@@ -224,15 +231,31 @@ export function SheetPanel(props: {
   const [sharedCutDraftError, setSharedCutDraftError] = useState<string | null>(null)
   const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
   const [selectedAnnotationRegion, setSelectedAnnotationRegion] = useState<TemplateRegionAnnotationTarget | null>(null)
+  const [touchControlsVisible, setTouchControlsVisible] = useState(false)
+  const [touchRangeSelectionMode, setTouchRangeSelectionMode] = useState(false)
   const sharedCutInputRef = useRef<HTMLInputElement>(null)
   const annotationPaletteRef = useRef<HTMLDivElement>(null)
+  const sheetCanvasRef = useRef<SheetCanvasHandle>(null)
   const editMode = props.editMode
   const setEditMode = props.setEditMode
+  const onTimingInputCommit = props.onTimingInputCommit
   const annotationSessionActive = editMode === 'pen' || editMode === 'eraser' || editMode === 'text'
   const annotationPaletteExpanded = annotationPaletteOpen || annotationSessionActive
   const activeTimelineMemoId = selectedTimelineMemoId && timelineMemos(props.project).some(memo => memo.memoId === selectedTimelineMemoId)
     ? selectedTimelineMemoId
     : null
+  const touchTimingInputVisible = Boolean(
+    props.selectedHit?.paperTrack
+      && (props.selectedHit.role === 'action' || props.selectedHit.role === 'cell'),
+  )
+  const touchContextMenuAvailable = Boolean(
+    props.selectedHit
+      || props.rangeSelection
+      || props.selectedSoundCueId
+      || props.selectedCameraCueId
+      || activeTimelineMemoId,
+  )
+  const touchTimingDisplayValue = timingKeyDisplayLabel(props.project, props.selectedKeyId)
   const activeTimelineMemo = activeTimelineMemoId
     ? timelineMemos(props.project).find(memo => memo.memoId === activeTimelineMemoId) ?? null
     : null
@@ -312,6 +335,29 @@ export function SheetPanel(props: {
     setAnnotationPaletteOpen(false)
     blurAnnotationPaletteFocus()
   }, [blurAnnotationPaletteFocus])
+  const handleSheetInputModalityChange = useCallback((modality: 'mouse' | 'pen' | 'touch') => {
+    if (modality === 'touch') {
+      setTouchControlsVisible(true)
+      return
+    }
+    setTouchControlsVisible(false)
+    setTouchRangeSelectionMode(false)
+  }, [])
+  const toggleTouchRangeSelectionMode = useCallback(() => {
+    onTimingInputCommit(false)
+    setEditMode('new')
+    setTouchRangeSelectionMode(current => !current)
+  }, [onTimingInputCommit, setEditMode])
+  const openTouchContextMenu = useCallback((anchor: HTMLElement) => {
+    onTimingInputCommit(false)
+    const rect = anchor.getBoundingClientRect()
+    sheetCanvasRef.current?.openSelectionContextMenu(rect.left, rect.top)
+  }, [onTimingInputCommit])
+  const closeTouchControls = useCallback(() => {
+    onTimingInputCommit(false)
+    setTouchRangeSelectionMode(false)
+    setTouchControlsVisible(false)
+  }, [onTimingInputCommit])
   const finishAnnotationSession = useCallback(() => {
     closeAnnotationPalette()
     if (activeTimelineMemoId) {
@@ -1174,7 +1220,10 @@ export function SheetPanel(props: {
             onDelete={props.onDeleteSheetRevision}
           />
           <SheetCanvas
+            ref={sheetCanvasRef}
             {...props}
+            touchRangeSelectionMode={touchRangeSelectionMode}
+            onInputModalityChange={handleSheetInputModalityChange}
             selectedTimelineMemoId={activeTimelineMemoId}
             pageAnnotationTarget={pageAnnotationTarget}
             setActivePageIndex={pageIndex => {
@@ -1191,6 +1240,7 @@ export function SheetPanel(props: {
             }}
             onRangeSelect={range => {
               setSelectedAnnotationRegion(null)
+              if (touchRangeSelectionMode) setTouchRangeSelectionMode(false)
               props.onRangeSelect(range)
             }}
             onSoundCueSelect={cueId => {
@@ -1231,6 +1281,22 @@ export function SheetPanel(props: {
             onDeleteTimelineLane={props.onDeleteTimelineLane}
             stackGuideInsertTool={stackGuideInsertTool}
             onStackGuideInsertToolConsumed={() => setStackGuideInsertTool(null)}
+          />
+          <SheetTouchControls
+            visible={touchControlsVisible}
+            timingInputVisible={touchTimingInputVisible}
+            timingInputDisabled={props.timingInputDisabled}
+            timingDraftValue={props.timingDraftActive ? props.timingDraftValue : ''}
+            timingDisplayValue={touchTimingDisplayValue}
+            rangeSelectionMode={touchRangeSelectionMode}
+            contextMenuAvailable={touchContextMenuAvailable}
+            onTimingCharacter={props.onTimingInputCharacter}
+            onTimingBackspace={props.onTimingInputBackspace}
+            onTimingCommit={() => props.onTimingInputCommit(true)}
+            onTimingMove={props.onTimingInputMove}
+            onToggleRangeSelectionMode={toggleTouchRangeSelectionMode}
+            onOpenContextMenu={openTouchContextMenu}
+            onClose={closeTouchControls}
           />
         </div>
         <PanelResizeHandle

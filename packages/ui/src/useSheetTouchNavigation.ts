@@ -17,6 +17,7 @@ import {
   sheetTouchPairMetrics,
   sheetTouchPanExceededThreshold,
   sheetTouchPanScrollPosition,
+  SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS,
   type PendingSheetZoomCommit,
   type SheetTouchPoint,
   type SheetTouchTap,
@@ -54,6 +55,7 @@ interface SheetTouchNavigationSession {
   pointers: Map<number, SheetTouchPoint>
   pinch: SheetTouchPinchSession | null
   frameId: number | null
+  longPressTimerId: number | null
 }
 
 export function useSheetTouchNavigation({
@@ -63,6 +65,9 @@ export function useSheetTouchNavigation({
   viewportRef,
   pageStackRef,
   onTap,
+  onLongPress,
+  onInputModalityChange,
+  rangeSelectionMode = false,
   onBegin,
   onEnd,
 }: {
@@ -72,6 +77,9 @@ export function useSheetTouchNavigation({
   viewportRef: RefObject<HTMLElement | null>
   pageStackRef: RefObject<HTMLElement | null>
   onTap: (tap: SheetTouchTap) => void
+  onLongPress?: (tap: SheetTouchTap) => boolean
+  onInputModalityChange?: (modality: 'mouse' | 'pen' | 'touch') => void
+  rangeSelectionMode?: boolean
   onBegin: () => void
   onEnd: () => void
 }) {
@@ -83,6 +91,8 @@ export function useSheetTouchNavigation({
   const zoomRef = useRef(zoom)
   const setZoomRef = useRef(setZoom)
   const onTapRef = useRef(onTap)
+  const onLongPressRef = useRef(onLongPress)
+  const onInputModalityChangeRef = useRef(onInputModalityChange)
   const onBeginRef = useRef(onBegin)
   const onEndRef = useRef(onEnd)
   const cancelActiveTouchRef = useRef<(options: {
@@ -95,6 +105,8 @@ export function useSheetTouchNavigation({
     zoomRef.current = zoom
     setZoomRef.current = setZoom
     onTapRef.current = onTap
+    onLongPressRef.current = onLongPress
+    onInputModalityChangeRef.current = onInputModalityChange
     onBeginRef.current = onBegin
     onEndRef.current = onEnd
 
@@ -107,12 +119,18 @@ export function useSheetTouchNavigation({
       settleSheetViewportZoomAnchor(viewport, pageStack, pending)
     }
     pendingZoomCommitRef.current = null
-  }, [onBegin, onEnd, onTap, pageStackRef, setZoom, viewportRef, zoom])
+  }, [onBegin, onEnd, onInputModalityChange, onLongPress, onTap, pageStackRef, setZoom, viewportRef, zoom])
 
   function cancelFrame(session: SheetTouchNavigationSession) {
     if (session.frameId === null) return
     window.cancelAnimationFrame(session.frameId)
     session.frameId = null
+  }
+
+  function cancelLongPress(session: SheetTouchNavigationSession) {
+    if (session.longPressTimerId === null) return
+    window.clearTimeout(session.longPressTimerId)
+    session.longPressTimerId = null
   }
 
   function capturePointer(viewport: HTMLElement, pointerId: number) {
@@ -196,6 +214,7 @@ export function useSheetTouchNavigation({
   function transitionToPinch(session: SheetTouchNavigationSession) {
     const pointerIds = Array.from(session.pointers.keys())
     if (pointerIds.length < 2) return
+    cancelLongPress(session)
     if (session.phase === 'pan') applyPan(session)
     else cancelFrame(session)
     beginInteraction(session)
@@ -240,6 +259,7 @@ export function useSheetTouchNavigation({
     pointerId: number,
     cancelled: boolean,
   ) {
+    cancelLongPress(session)
     if (session.phase === 'pan') applyPan(session)
     else cancelFrame(session)
     sessionRef.current = null
@@ -259,6 +279,7 @@ export function useSheetTouchNavigation({
     pointerId: number,
     cancelled: boolean,
   ) {
+    cancelLongPress(session)
     applyPinch(session)
     const pinch = session.pinch
     sessionRef.current = null
@@ -293,6 +314,7 @@ export function useSheetTouchNavigation({
   }) {
     const session = sessionRef.current
     if (!session) return
+    cancelLongPress(session)
     cancelFrame(session)
     if (session.phase === 'pan') applyPan(session)
     if (session.phase === 'pinch') {
@@ -373,6 +395,9 @@ export function useSheetTouchNavigation({
   }
 
   function handlePointerDownCapture(event: PointerEvent<HTMLElement>) {
+    if (event.pointerType === 'mouse' || event.pointerType === 'pen' || event.pointerType === 'touch') {
+      onInputModalityChangeRef.current?.(event.pointerType)
+    }
     if (event.pointerType !== 'touch' || event.button !== 0 || !enabled) return
     const viewport = event.currentTarget
     const pageStack = pageStackRef.current
@@ -383,7 +408,7 @@ export function useSheetTouchNavigation({
       || directPointerIdsRef.current.size > 0
     if (!active && !shouldBlock) {
       if (!pageStack || targetIntent === 'native-control') return
-      if (targetIntent === 'direct') {
+      if (targetIntent === 'direct' || rangeSelectionMode) {
         directPointerIdsRef.current.add(event.pointerId)
         return
       }
@@ -433,8 +458,21 @@ export function useSheetTouchNavigation({
       ]]),
       pinch: null,
       frameId: null,
+      longPressTimerId: null,
     }
     sessionRef.current = session
+    if (onLongPressRef.current) {
+      session.longPressTimerId = window.setTimeout(() => {
+        session.longPressTimerId = null
+        if (sessionRef.current !== session || session.phase !== 'tap') return
+        const handled = onLongPressRef.current?.({
+          target: session.target,
+          clientX: session.latestX,
+          clientY: session.latestY,
+        }) ?? false
+        if (handled) session.suppressTap = true
+      }, SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS)
+    }
   }
 
   function handlePointerMoveCapture(event: PointerEvent<HTMLElement>) {
@@ -454,12 +492,13 @@ export function useSheetTouchNavigation({
       session.latestX = event.clientX
       session.latestY = event.clientY
     }
-    if (session.phase === 'tap' && sheetTouchPanExceededThreshold(
+    if (session.phase === 'tap' && !session.suppressTap && sheetTouchPanExceededThreshold(
       session.startX,
       session.startY,
       event.clientX,
       event.clientY,
     )) {
+      cancelLongPress(session)
       session.phase = 'pan'
       beginInteraction(session)
     }

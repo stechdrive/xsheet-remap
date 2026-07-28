@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { App } from './App'
-import { expectSelectedHit, setSheetRect, templateFramePoint } from './App.test-support'
+import { expectSelectedHit, expectSelectedRange, setSheetRect, templateFramePoint } from './App.test-support'
 import { uiText } from './i18n'
 
 beforeEach(() => {
@@ -75,6 +75,102 @@ describe('App: touch sheet interactions', () => {
     expect(viewport.scrollLeft).toBe(150)
     expect(viewport.scrollTop).toBe(270)
     expectSelectedHit('cell', 'A', 1)
+  })
+
+  it('uses the touch timing pad without changing the shared timing edit result', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    const viewport = sheet.closest('.sheetViewport') as HTMLElement
+    setSheetRect(sheet, 0, 0)
+    const point = templateFramePoint('cell', 'A', 1)
+
+    fireEvent.pointerDown(sheet, {
+      pointerId: 301,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: point.x,
+      clientY: point.y,
+    })
+    fireEvent.pointerUp(viewport, {
+      pointerId: 301,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: point.x,
+      clientY: point.y,
+    })
+    await waitFor(() => expectSelectedHit('cell', 'A', 1))
+
+    expect(screen.getByRole('group', { name: 'タッチタイミング入力' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'タイミング 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'タイミング 2' }))
+    expect(document.querySelector('.timingDraftText')?.textContent).toBe('12')
+    fireEvent.click(screen.getByRole('button', { name: '入力を確定して次へ' }))
+
+    await waitFor(() => expectSelectedHit('cell', 'A', 2))
+    expect(document.querySelector('.timingDraftText')).toBeNull()
+    expect(sheet.textContent).toContain('12')
+  })
+
+  it('uses a one-shot touch range mode and exposes the selected item menu', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    const viewport = sheet.closest('.sheetViewport') as HTMLElement
+    setSheetRect(sheet, 0, 0)
+    const start = templateFramePoint('cell', 'A', 1)
+    const end = templateFramePoint('cell', 'A', 4)
+
+    fireEvent.pointerDown(sheet, {
+      pointerId: 302,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+    })
+    fireEvent.pointerUp(viewport, {
+      pointerId: 302,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: start.x,
+      clientY: start.y,
+    })
+    await waitFor(() => expectSelectedHit('cell', 'A', 1))
+
+    const rangeButton = screen.getByRole('button', { name: '指で範囲選択' })
+    fireEvent.click(rangeButton)
+    expect(rangeButton.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.pointerDown(sheet, {
+      pointerId: 303,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+    })
+    fireEvent.pointerMove(sheet, {
+      pointerId: 303,
+      pointerType: 'touch',
+      buttons: 1,
+      clientX: end.x,
+      clientY: end.y,
+    })
+    fireEvent.pointerUp(sheet, {
+      pointerId: 303,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: end.x,
+      clientY: end.y,
+    })
+    await waitFor(() => expectSelectedRange('cell', 'A', 1, 4))
+    expect(screen.getByRole('button', { name: '指で範囲選択' }).getAttribute('aria-pressed')).toBe('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'シート操作メニュー' }))
+    expect(await screen.findByRole('menu')).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: uiText.actions.copyRange })).toBeTruthy()
   })
 
   it('keeps finger drags as viewport movement while the pen tool is active', async () => {

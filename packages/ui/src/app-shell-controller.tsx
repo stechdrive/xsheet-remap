@@ -661,10 +661,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     return nextProject
   }
 
-  function switchPanel(nextPanel: Panel) {
-    commitTimingDraft(false)
-    setPanelView(nextPanel)
-  }
+  function switchPanel(nextPanel: Panel) { commitTimingDraft(false); setPanelView(nextPanel) }
 
   function handleTimingCharacterInput(character: string) {
     if (!selection.hit || activeSheetRevision.protected) return
@@ -672,16 +669,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       if (current) return { ...current, value: `${current.value}${character}` }
       const sourceProject = projectRef.current
       const target = rangeSelection && isPointEventRange(rangeSelection)
-        ? { kind: 'range' as const, range: rangeSelection }
-        : { kind: 'cell' as const, hit: selection.hit! }
+        ? { kind: 'range' as const, range: rangeSelection } : { kind: 'cell' as const, hit: selection.hit! }
       return {
-        target,
-        value: character,
-        originalValue: timingKeyDisplayLabel(sourceProject, selection.keyId),
-        cutId: projectDocumentSnapshot.activeCutId,
-        revisionId: activeSheetRevision.revisionId,
-        correctionLayerId: activeCorrectionLayerId,
-        fontSizePx: activeTextFontSizePx,
+        target, value: character, originalValue: timingKeyDisplayLabel(sourceProject, selection.keyId),
+        cutId: projectDocumentSnapshot.activeCutId, revisionId: activeSheetRevision.revisionId,
+        correctionLayerId: activeCorrectionLayerId, fontSizePx: activeTextFontSizePx,
       }
     })
   }
@@ -2112,10 +2104,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const result = navigatePointEventSelection({ template, durationFrames: sheetDisplayDurationFrames, frameOrigin: sheetDisplayFrameStart, currentHit: selection.hit, range: rangeSelection, paperTracks: trackOrder, trackDelta, frameDelta, extendRange })
     if (!result) return
     if (typeof result.focusHit.pageIndex === 'number') setActivePageIndex(result.focusHit.pageIndex, sourceProject)
-    if (result.kind === 'range') setSelectionFromRange(result.range, sourceProject)
-    else setSelectionFromHit(result.hit, sourceProject)
+    if (result.kind === 'range') setSelectionFromRange(result.range, sourceProject); else setSelectionFromHit(result.hit, sourceProject)
     setSheetScrollRequest(current => ({ requestId: (current?.requestId ?? 0) + 1, hit: result.focusHit }))
   }
+
+  function handleTimingInputBackspace() {
+    if (!selection.hit || activeSheetRevision.protected) return
+    if (timingEditSessionRef.current) return setTimingEditSession(current => current ? { ...current, value: current.value.slice(0, -1) } : current)
+    handleDeleteEvent()
+  }
+  const handleTimingInputCommit = (advance: boolean) => selection.hit?.paperTrack ? void commitTimingDraft(advance) : undefined
+  const handleTimingInputMove = (trackDelta: number, frameDelta: number) => moveSelection(trackDelta, frameDelta, false)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -2181,7 +2180,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         }
         if (event.key === 'Enter' && selection.hit?.paperTrack) {
           event.preventDefault()
-          commitTimingDraft(true)
+          handleTimingInputCommit(true)
           return
         }
         if (selectedTextAnnotation && !editingTextAnnotation && (event.key === 'Enter' || event.key === 'F2')) {
@@ -2219,7 +2218,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       }
       if (event.key === 'Backspace' && valueDraftActive && selection.hit) {
         event.preventDefault()
-        setTimingEditSession(current => current ? { ...current, value: current.value.slice(0, -1) } : current)
+        handleTimingInputBackspace()
         return
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -2275,7 +2274,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
-    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleKeySelect, handleStackGuideSelect,
+    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,

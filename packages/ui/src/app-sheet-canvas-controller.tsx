@@ -302,6 +302,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const isCalibratingSheet = props.editMode === 'calibrate'
   const touchNavigation = useSheetTouchNavigation({
     enabled: !isCalibratingSheet,
+    rangeSelectionMode: props.touchRangeSelectionMode,
     zoom,
     setZoom,
     viewportRef,
@@ -315,6 +316,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         setStackGuideHeaderMenu(null); setTimedRangeLaneHeaderMenu(null); clearHover()
       },
     }),
+    onLongPress: tap => {
+      const pointed = pageHitUnderClientPoint(tap.clientX, tap.clientY)
+      const svg = pointed ? svgForPage(pointed.page) : null
+      if (!pointed || !svg) return false
+      return openContextMenuAt(tap.clientX, tap.clientY, tap.target, pointed.page, svg)
+    },
+    onInputModalityChange: props.onInputModalityChange,
     onBegin: () => {
       setContextMenu(null)
       setPaperTrackHeaderMenu(null)
@@ -462,13 +470,21 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
   }, [])
 
-  function pointFromEvent(event: PointerEvent<SVGSVGElement> | DragEvent<SVGSVGElement> | MouseEvent<SVGSVGElement>) {
-    const svg = event.currentTarget
+  function pointFromClient(svg: SVGSVGElement, clientX: number, clientY: number) {
     const box = svg.getBoundingClientRect()
     return {
-      x: (event.clientX - box.left) / box.width,
-      y: (event.clientY - box.top) / box.height,
+      x: (clientX - box.left) / box.width,
+      y: (clientY - box.top) / box.height,
     }
+  }
+
+  function pointFromEvent(event: PointerEvent<SVGSVGElement> | DragEvent<SVGSVGElement> | MouseEvent<SVGSVGElement>) {
+    return pointFromClient(event.currentTarget, event.clientX, event.clientY)
+  }
+
+  function closeContextMenus() {
+    setContextMenu(null); setPaperTrackHeaderMenu(null); setOverlayPaperTrackMenu(null)
+    setStackGuideHeaderMenu(null); setTimedRangeLaneHeaderMenu(null)
   }
 
   function setActivePageIndexIfNeeded(pageIndex: number) {
@@ -1791,54 +1807,34 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
   }
 
-  function handleContextMenu(event: MouseEvent<SVGSVGElement>, page: SheetPage) {
-    event.preventDefault()
-    event.stopPropagation()
+  function openContextMenuAt(clientX: number, clientY: number, target: Element | null, page: SheetPage, svg: SVGSVGElement): boolean {
     props.setActivePageIndex(page.pageIndex)
-    const point = pointFromEvent(event)
+    const point = pointFromClient(svg, clientX, clientY)
     const stackGuideTarget = stackGuideHeaderInsertTargetFromPoint(point, page)
     if (stackGuideTarget) {
       clearHover()
-      setContextMenu(null)
-      setPaperTrackHeaderMenu(null)
-      setOverlayPaperTrackMenu(null)
-      setStackGuideHeaderMenu({
-        ...stackGuideTarget,
-        x: event.clientX,
-        y: event.clientY,
-      })
-      setTimedRangeLaneHeaderMenu(null)
-      return
+      closeContextMenus()
+      setStackGuideHeaderMenu({ ...stackGuideTarget, x: clientX, y: clientY })
+      return true
     }
-    const headerHit = paperTrackHeaderHitFromPoint(point, page, event.currentTarget.getBoundingClientRect().height)
+    const headerHit = paperTrackHeaderHitFromPoint(point, page, svg.getBoundingClientRect().height)
     if (headerHit?.paperTrack) {
       clearHover()
-      setContextMenu(null)
-      setOverlayPaperTrackMenu(null)
-      setStackGuideHeaderMenu(null)
-      setTimedRangeLaneHeaderMenu(null)
       const sheetRole = sheetRoleForHit(headerHit)
-      setPaperTrackHeaderMenu({
-        x: event.clientX,
-        y: event.clientY,
-        hit: headerHit,
-        sheetRole,
-        snapIndex: overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole),
-      })
-      return
+      closeContextMenus()
+      setPaperTrackHeaderMenu({ x: clientX, y: clientY, hit: headerHit, sheetRole, snapIndex: overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole) })
+      return true
     }
-    const laneHeader = timedRangeLaneHeaderHitFromPoint(point, page, event.currentTarget.getBoundingClientRect().height)
+    const laneHeader = timedRangeLaneHeaderHitFromPoint(point, page, svg.getBoundingClientRect().height)
     if (laneHeader) {
       clearHover()
-      setContextMenu(null)
-      setPaperTrackHeaderMenu(null)
-      setOverlayPaperTrackMenu(null)
-      setStackGuideHeaderMenu(null)
-      setTimedRangeLaneHeaderMenu({ ...laneHeader, x: event.clientX, y: event.clientY })
-      return
+      closeContextMenus()
+      setTimedRangeLaneHeaderMenu({ ...laneHeader, x: clientX, y: clientY })
+      return true
     }
     const hit = rangeHitFromPoint(point, page)
-    const { timelineMemoIds, soundCueId, cameraCueId } = resolveTimelineMemoContextTargets(event.target instanceof Element ? event.target : null, props.project, props.template, hit)
+    const { timelineMemoIds, soundCueId, cameraCueId } = resolveTimelineMemoContextTargets(target, props.project, props.template, hit)
+    if (!hit && !timelineMemoIds?.length && !soundCueId && !cameraCueId) return false
     if (soundCueId && !(hit && frameOperationRangeContainsHit(props.rangeSelection, hit))) {
       props.onSoundCueSelect(soundCueId)
     } else if (cameraCueId && !(hit && frameOperationRangeContainsHit(props.rangeSelection, hit))) {
@@ -1854,19 +1850,25 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     clearHover()
     const sheetRole = hit?.role === 'action' || hit?.role === 'cell' ? sheetRoleForHit(hit) : undefined
     const snapIndex = sheetRole === undefined ? undefined : overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole)
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      hit,
-      timelineMemoIds,
-      snapIndex,
-      sheetRole,
-      insertAfterPaperTrack: hit?.paperTrack,
-    })
-    setPaperTrackHeaderMenu(null)
-    setOverlayPaperTrackMenu(null)
-    setStackGuideHeaderMenu(null)
-    setTimedRangeLaneHeaderMenu(null)
+    closeContextMenus()
+    setContextMenu({ x: clientX, y: clientY, hit, timelineMemoIds, snapIndex, sheetRole, insertAfterPaperTrack: hit?.paperTrack })
+    return true
+  }
+
+  function handleContextMenu(event: MouseEvent<SVGSVGElement>, page: SheetPage) {
+    event.preventDefault(); event.stopPropagation()
+    openContextMenuAt(event.clientX, event.clientY, event.target instanceof Element ? event.target : null, page, event.currentTarget)
+  }
+
+  function openSelectionContextMenu(clientX: number, clientY: number): boolean {
+    const hit = props.selectedHit ?? props.rangeSelection?.anchorHit ?? null
+    const timelineMemoIds = props.selectedTimelineMemoId ? [props.selectedTimelineMemoId] : undefined
+    if (!hit && !timelineMemoIds?.length && !props.selectedSoundCueId && !props.selectedCameraCueId) return false
+    const sheetRole = hit?.role === 'action' || hit?.role === 'cell' ? sheetRoleForHit(hit) : undefined
+    clearHover()
+    closeContextMenus()
+    setContextMenu({ x: clientX, y: clientY, hit, timelineMemoIds, sheetRole, insertAfterPaperTrack: hit?.paperTrack })
+    return true
   }
 
   function runContextMenuAction(action: () => void) {
@@ -2243,7 +2245,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const canPasteContextInsert = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'insert', contextPaperTrackOrder)
   const canPasteContextRepeatRange = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-range', contextPaperTrackOrder)
   const canPasteContextRepeatToEnd = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-to-end', contextPaperTrackOrder)
-  const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera')
+  const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera' || timelineMemoContext || soundContext || cameraContext)
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
   const timelineMemoItemCount = (contextMenu?.timelineMemoIds?.length ?? 0) * 2
   const sheetContextMenuItemCount = (timedRangeContext ? 10 : 15) + timelineMemoItemCount + contextProcessMoveItemCount
@@ -2276,7 +2278,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, ...renderCaches,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
-    handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
+    handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, openSelectionContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCueDoubleClick, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
     handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCueDoubleClick, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
     runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,

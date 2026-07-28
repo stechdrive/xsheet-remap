@@ -8,6 +8,7 @@ import {
   sheetTouchPairMetrics,
   sheetTouchPanExceededThreshold,
   sheetTouchPanScrollPosition,
+  SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS,
   type SheetTouchTap,
 } from './sheetTouchNavigation'
 import { useSheetTouchNavigation } from './useSheetTouchNavigation'
@@ -20,6 +21,9 @@ function TouchNavigationHarness({
   onControlPointerDown,
   onDirectPointerDown,
   onDirectPointerUp,
+  onLongPress,
+  onInputModalityChange,
+  rangeSelectionMode,
 }: {
   onTap: (tap: SheetTouchTap) => void
   onBegin: () => void
@@ -28,6 +32,9 @@ function TouchNavigationHarness({
   onControlPointerDown?: () => void
   onDirectPointerDown?: () => void
   onDirectPointerUp?: () => void
+  onLongPress?: (tap: SheetTouchTap) => boolean
+  onInputModalityChange?: (modality: 'mouse' | 'pen' | 'touch') => void
+  rangeSelectionMode?: boolean
 }) {
   const [zoom, setZoom] = useState(1)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -39,6 +46,9 @@ function TouchNavigationHarness({
     viewportRef,
     pageStackRef,
     onTap,
+    onLongPress,
+    onInputModalityChange,
+    rangeSelectionMode,
     onBegin,
     onEnd,
   })
@@ -83,6 +93,7 @@ describe('sheet touch navigation', () => {
 
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -252,6 +263,76 @@ describe('sheet touch navigation', () => {
     }))
     expect(onBegin).not.toHaveBeenCalled()
     expect(onEnd).not.toHaveBeenCalled()
+  })
+
+  it('opens a long-press command without forwarding a tap or starting a pan', () => {
+    vi.useFakeTimers()
+    const onTap = vi.fn()
+    const onBegin = vi.fn()
+    const onEnd = vi.fn()
+    const onLongPress = vi.fn(() => true)
+    render(<TouchNavigationHarness {...{ onTap, onBegin, onEnd, onLongPress }} />)
+    const sheet = screen.getByTestId('sheet')
+    const viewport = screen.getByTestId('viewport')
+
+    fireEvent.pointerDown(sheet, {
+      pointerId: 701,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: 120,
+      clientY: 180,
+    })
+    vi.advanceTimersByTime(SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS)
+    expect(onLongPress).toHaveBeenCalledWith(expect.objectContaining({
+      clientX: 120,
+      clientY: 180,
+    }))
+
+    fireEvent.pointerMove(viewport, {
+      pointerId: 701,
+      pointerType: 'touch',
+      buttons: 1,
+      clientX: 160,
+      clientY: 220,
+    })
+    fireEvent.pointerUp(viewport, {
+      pointerId: 701,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: 160,
+      clientY: 220,
+    })
+    expect(onTap).not.toHaveBeenCalled()
+    expect(onBegin).not.toHaveBeenCalled()
+    expect(onEnd).not.toHaveBeenCalled()
+  })
+
+  it('delegates a touch range gesture to the sheet and reports the active input modality', () => {
+    const onTap = vi.fn()
+    const onBegin = vi.fn()
+    const onEnd = vi.fn()
+    const onSheetPointerDown = vi.fn()
+    const onInputModalityChange = vi.fn()
+    render(<TouchNavigationHarness
+      {...{ onTap, onBegin, onEnd, onSheetPointerDown, onInputModalityChange }}
+      rangeSelectionMode
+    />)
+    const sheet = screen.getByTestId('sheet')
+
+    fireEvent.pointerDown(sheet, {
+      pointerId: 702,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: 120,
+      clientY: 180,
+    })
+    expect(onInputModalityChange).toHaveBeenCalledWith('touch')
+    expect(onSheetPointerDown).toHaveBeenCalledTimes(1)
+    expect(onTap).not.toHaveBeenCalled()
+    expect(onBegin).not.toHaveBeenCalled()
   })
 
   it('moves the scroll viewport directly after the threshold and suppresses the tap', () => {

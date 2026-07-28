@@ -30,6 +30,9 @@ type DelegatedInkTrailPresenter = {
 }
 
 type InkEnhancedNavigator = Navigator & {
+  userAgentData?: {
+    mobile?: boolean
+  }
   ink?: {
     requestPresenter: (options: {
       presentationArea: HTMLCanvasElement
@@ -48,6 +51,14 @@ type ActiveInkCanvas = {
 const MAX_CANVAS_PIXEL_RATIO = 2
 const MAX_CANVAS_BACKING_PIXELS = 4_000_000
 
+export function shouldUseDelegatedInk(environment: {
+  userAgent?: string
+  userAgentData?: { mobile?: boolean }
+}) {
+  if (environment.userAgentData?.mobile) return false
+  return !/Android/i.test(environment.userAgent ?? '')
+}
+
 function updateInkCanvasDataset(
   canvas: HTMLCanvasElement,
   active: boolean,
@@ -57,6 +68,15 @@ function updateInkCanvasDataset(
   canvas.dataset.inkActive = String(active)
   canvas.dataset.inkSampleCount = String(sampleCount)
   if (pixelRatio !== undefined) canvas.dataset.inkPixelRatio = pixelRatio.toFixed(3)
+}
+
+function updateInkCanvasVisibility(canvas: HTMLCanvasElement, hidden: boolean) {
+  canvas.hidden = hidden
+}
+
+function resizeInkCanvasBackingStore(canvas: HTMLCanvasElement, width: number, height: number) {
+  canvas.width = width
+  canvas.height = height
 }
 
 export function lowLatencyCanvasPixelRatio(
@@ -81,12 +101,11 @@ export function useLowLatencyInkCanvas() {
   const presenterRequestRef = useRef<Promise<DelegatedInkTrailPresenter> | null>(null)
 
   const requestDelegatedInkPresenter = useCallback((canvas: HTMLCanvasElement) => {
-    presenterRef.current = null
-    presenterRequestRef.current = null
     const ink = typeof navigator === 'undefined'
       ? undefined
       : (navigator as InkEnhancedNavigator).ink
-    if (!ink?.requestPresenter) return
+    if (!ink?.requestPresenter || !shouldUseDelegatedInk(navigator as InkEnhancedNavigator)) return
+    if (presenterRef.current || presenterRequestRef.current) return
     try {
       const request = ink.requestPresenter({ presentationArea: canvas })
       presenterRequestRef.current = request
@@ -102,29 +121,36 @@ export function useLowLatencyInkCanvas() {
   }, [])
 
   const setCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
-    canvasRef.current = canvas
-    activeRef.current = null
-    if (!canvas) {
+    if (canvasRef.current !== canvas) {
       presenterRef.current = null
       presenterRequestRef.current = null
-      return
     }
+    canvasRef.current = canvas
+    activeRef.current = null
+    if (!canvas) return
+    updateInkCanvasVisibility(canvas, true)
+    resizeInkCanvasBackingStore(canvas, 1, 1)
     updateInkCanvasDataset(canvas, false, 0)
-    requestDelegatedInkPresenter(canvas)
-  }, [requestDelegatedInkPresenter])
+  }, [])
 
   const clear = useCallback(() => {
     const active = activeRef.current
     activeRef.current = null
     const canvas = active?.canvas ?? canvasRef.current
     const context = active?.context
+    if (canvas) {
+      updateInkCanvasVisibility(canvas, true)
+      updateInkCanvasDataset(canvas, false, 0)
+    }
     if (canvas && context) {
       context.save()
       context.setTransform(1, 0, 0, 1, 0, 0)
       context.clearRect(0, 0, canvas.width, canvas.height)
       context.restore()
     }
-    if (canvas) updateInkCanvasDataset(canvas, false, 0)
+    if (canvas) {
+      resizeInkCanvasBackingStore(canvas, 1, 1)
+    }
   }, [])
 
   const updateDelegatedInk = useCallback((event?: globalThis.PointerEvent) => {
@@ -148,15 +174,18 @@ export function useLowLatencyInkCanvas() {
       height,
       typeof window === 'undefined' ? 1 : window.devicePixelRatio,
     )
-    canvas.width = Math.max(1, Math.round(width * pixelRatio))
-    canvas.height = Math.max(1, Math.round(height * pixelRatio))
-    updateInkCanvasDataset(canvas, true, 1, pixelRatio)
+    updateInkCanvasVisibility(canvas, true)
+    updateInkCanvasDataset(canvas, false, 0)
+    resizeInkCanvasBackingStore(
+      canvas,
+      Math.max(1, Math.round(width * pixelRatio)),
+      Math.max(1, Math.round(height * pixelRatio)),
+    )
 
     let context: CanvasRenderingContext2D | null = null
     try {
       context = canvas.getContext('2d', {
         alpha: true,
-        desynchronized: true,
       })
     } catch {
       // jsdom and older WebViews may expose canvas without a 2D implementation.
@@ -193,8 +222,11 @@ export function useLowLatencyInkCanvas() {
         diameter: Math.max(0.5, start.lineWidth),
       },
     }
+    updateInkCanvasVisibility(canvas, false)
+    updateInkCanvasDataset(canvas, true, 1, pixelRatio)
+    if (start.pointerEvent?.pointerType === 'pen') requestDelegatedInkPresenter(canvas)
     updateDelegatedInk(start.pointerEvent)
-  }, [updateDelegatedInk])
+  }, [requestDelegatedInkPresenter, updateDelegatedInk])
 
   const append = useCallback((points: readonly LowLatencyInkPoint[]) => {
     const active = activeRef.current

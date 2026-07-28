@@ -804,6 +804,10 @@
   touch-action: none;
 }
 
+.lowLatencyInkCanvas[hidden] {
+  display: none;
+}
+
 .pageAnnotationInkCanvas {
   z-index: 1;
 }

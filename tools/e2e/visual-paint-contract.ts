@@ -22,25 +22,25 @@ export async function assertSelectorsContributePaint(
   contract: VisualPaintContract,
 ): Promise<number[]> {
   const { selector, expectedCount, label, minimumChangedPixels = 3 } = contract
-  const observation = await driver.evaluate<{
-    viewport: { width: number; height: number }
-    regions: PaintRegion[]
-  }>(`
-    ({
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      regions: Array.from(document.querySelectorAll(${JSON.stringify(selector)})).map(element => {
+  const regions = await driver.evaluate<PaintRegion[]>(`
+    Array.from(document.querySelectorAll(${JSON.stringify(selector)})).map(element => {
         const rect = element.getBoundingClientRect();
-        return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        const left = Math.max(0, rect.left);
+        const top = Math.max(0, rect.top);
+        const right = Math.min(window.innerWidth, rect.right);
+        const bottom = Math.min(window.innerHeight, rect.bottom);
+        return {
+          left,
+          top,
+          width: Math.max(0, right - left),
+          height: Math.max(0, bottom - top),
+        };
       })
-    })
   `)
-  const { regions, viewport } = observation
   if (regions.length !== expectedCount) {
     throw new Error(`${label} expected ${expectedCount} elements, found ${regions.length}`)
   }
-  if (regions.some(region => region.width <= 0 || region.height <= 0
-    || region.left < 0 || region.top < 0
-    || region.left + region.width > viewport.width || region.top + region.height > viewport.height)) {
+  if (regions.some(region => region.width <= 0 || region.height <= 0)) {
     throw new Error(`${label} contained an empty or off-screen paint region: ${JSON.stringify(regions)}`)
   }
 

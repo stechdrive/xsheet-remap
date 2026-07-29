@@ -831,6 +831,33 @@
   width: 92px;
 }
 
+.dialogueAudioTimeline[data-input-modality="touch"] .dialogueAudioToolbar button,
+.dialogueAudioTimeline[data-input-modality="touch"] .dialogueAudioTrackHeader button,
+.dialogueAudioTimeline[data-input-modality="touch"] .dialogueAudioContextMenu button {
+  min-width: 40px;
+  min-height: 40px;
+  touch-action: manipulation;
+}
+
+.dialogueAudioTimeline[data-input-modality="touch"] .dialogueAudioPanelResizeHandle {
+  min-height: 16px;
+}
+
+.dialogueAudioTimeline[data-input-modality="touch"] .dialogueAudioTrackResizeHandle {
+  bottom: -8px;
+  height: 18px;
+}
+
+.dialogueAudioTimeline[data-input-modality="touch"] .dialogueAudioClipHandle {
+  height: 28px !important;
+  min-height: 28px !important;
+  min-width: 28px !important;
+}
+
+.dialogueAudioTimeline[data-input-modality="touch"] .dialogueSpeechSegmentHandle {
+  width: 18px;
+}
+
 .dialogueAudioMenuSeparator {
   height: 1px;
   margin: 5px 3px;

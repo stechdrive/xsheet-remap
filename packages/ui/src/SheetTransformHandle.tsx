@@ -46,7 +46,7 @@ export function SheetTransformHandle({
     const visualX = hitX + Math.max(0, (hitW - visualW) / 2)
     const visualY = hitY + Math.max(0, (hitH - visualH) / 2)
     return (
-      <g className={classes} aria-label={label} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
+      <g className={classes} data-sheet-touch-interaction="direct" aria-label={label} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
         <title>{label}</title>
         <rect className="sheetTransformHandleHitArea" x={hitX} y={hitY} width={hitW} height={hitH} />
         <rect className="sheetTransformHandleMoveVisual" x={visualX} y={visualY} width={visualW} height={visualH} rx={Math.min(visualW, visualH) * 0.34} />
@@ -67,7 +67,7 @@ export function SheetTransformHandle({
   const right = rect.x + rect.w - Math.min(RESIZE_VISUAL_INSET_PX / widthPx, visualW * 0.2)
   const bottom = rect.y + rect.h - Math.min(RESIZE_VISUAL_INSET_PX / heightPx, visualH * 0.2)
   return (
-    <g className={classes} aria-label={label} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
+    <g className={classes} data-sheet-touch-interaction="direct" aria-label={label} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
       <title>{label}</title>
       <rect className="sheetTransformHandleHitArea" x={hitX} y={hitY} width={hitW} height={hitH} />
       <path className="sheetTransformHandleResizeVisual" d={`M ${right - visualW} ${bottom} H ${right} V ${bottom - visualH}`} />

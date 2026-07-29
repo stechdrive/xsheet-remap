@@ -48,7 +48,7 @@ export function SoundCueLayer({
   onPointerLeave: () => void
 }) {
   const clipIdPrefix = `sound-cue-clip-${useId().replace(/:/g, '')}`
-  const edgeHeight = 8 / Math.max(1, surface.heightPx)
+  const edgeHeight = (touchInteractive ? 24 : 8) / Math.max(1, surface.heightPx)
   const segments = useMemo(
     () => layouts ?? buildSoundCuePageTextLayouts(template, pages, cues, pageSize, {
         paperTracks,
@@ -89,7 +89,6 @@ export function SoundCueLayer({
             data-sound-lane-id={cue.laneId}
             data-frame-start={cue.frameStart}
             data-frame-end={cue.frameEnd}
-            data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined}
             aria-label={`${cue.label || cue.text || 'SOUND'} ${cue.frameStart}-${cue.frameEnd}`}
             onPointerEnter={event => onPointerEnter(event, cue.cueId)}
             onPointerLeave={onPointerLeave}
@@ -143,6 +142,7 @@ export function SoundCueLayer({
             {selected && segment.startsCue && (
               <rect
                 className="soundCueEdgeHandle start"
+                data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined}
                 x={segment.rect.x}
                 y={segment.rect.y - edgeHeight / 2}
                 width={segment.rect.w}
@@ -153,6 +153,7 @@ export function SoundCueLayer({
             {selected && segment.endsCue && (
               <rect
                 className="soundCueEdgeHandle end"
+                data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined}
                 x={segment.rect.x}
                 y={segment.rect.y + segment.rect.h - edgeHeight / 2}
                 width={segment.rect.w}

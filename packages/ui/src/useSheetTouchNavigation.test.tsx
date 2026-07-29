@@ -9,6 +9,7 @@ import {
   sheetTouchPanExceededThreshold,
   sheetTouchPanScrollPosition,
   SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS,
+  type SheetTouchLongPressAction,
   type SheetTouchTap,
 } from './sheetTouchNavigation'
 import { useSheetTouchNavigation } from './useSheetTouchNavigation'
@@ -32,7 +33,7 @@ function TouchNavigationHarness({
   onControlPointerDown?: () => void
   onDirectPointerDown?: () => void
   onDirectPointerUp?: () => void
-  onLongPress?: (tap: SheetTouchTap) => boolean
+  onLongPress?: (tap: SheetTouchTap) => boolean | SheetTouchLongPressAction
   onInputModalityChange?: (modality: 'mouse' | 'pen' | 'touch') => void
   rangeSelectionMode?: boolean
 }) {
@@ -304,6 +305,59 @@ describe('sheet touch navigation', () => {
       clientX: 160,
       clientY: 220,
     })
+    expect(onTap).not.toHaveBeenCalled()
+    expect(onBegin).not.toHaveBeenCalled()
+    expect(onEnd).not.toHaveBeenCalled()
+  })
+
+  it('hands a long-press edit action the remaining touch movement and one finish', () => {
+    vi.useFakeTimers()
+    const onTap = vi.fn()
+    const onBegin = vi.fn()
+    const onEnd = vi.fn()
+    const move = vi.fn()
+    const finish = vi.fn()
+    const onLongPress = vi.fn((): SheetTouchLongPressAction => ({ move, finish }))
+    render(<TouchNavigationHarness {...{ onTap, onBegin, onEnd, onLongPress }} />)
+    const sheet = screen.getByTestId('sheet')
+    const viewport = screen.getByTestId('viewport')
+
+    fireEvent.pointerDown(sheet, {
+      pointerId: 703,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: 120,
+      clientY: 180,
+    })
+    vi.advanceTimersByTime(SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS)
+
+    expect(onLongPress).toHaveBeenCalledWith(expect.objectContaining({
+      pointerId: 703,
+      target: sheet,
+      clientX: 120,
+      clientY: 180,
+    }))
+
+    fireEvent.pointerMove(viewport, {
+      pointerId: 703,
+      pointerType: 'touch',
+      buttons: 1,
+      clientX: 160,
+      clientY: 220,
+    })
+    expect(move).toHaveBeenCalledWith(160, 220)
+
+    fireEvent.pointerUp(viewport, {
+      pointerId: 703,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: 170,
+      clientY: 230,
+    })
+    expect(finish).toHaveBeenCalledWith(false, 170, 230)
+    expect(finish).toHaveBeenCalledTimes(1)
     expect(onTap).not.toHaveBeenCalled()
     expect(onBegin).not.toHaveBeenCalled()
     expect(onEnd).not.toHaveBeenCalled()

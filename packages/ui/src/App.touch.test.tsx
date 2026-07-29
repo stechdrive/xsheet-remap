@@ -173,6 +173,66 @@ describe('App: touch sheet interactions', () => {
     expect(screen.getByRole('menuitem', { name: uiText.actions.copyRange })).toBeTruthy()
   })
 
+  it('lets one-shot touch range selection start on an existing timing event', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    const viewport = sheet.closest('.sheetViewport') as HTMLElement
+    setSheetRect(sheet, 0, 0)
+    const start = templateFramePoint('cell', 'A', 1)
+    const end = templateFramePoint('cell', 'A', 4)
+
+    fireEvent.pointerDown(sheet, {
+      pointerId: 304,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+    })
+    fireEvent.pointerUp(viewport, {
+      pointerId: 304,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: start.x,
+      clientY: start.y,
+    })
+    await waitFor(() => expectSelectedHit('cell', 'A', 1))
+    fireEvent.click(screen.getByRole('button', { name: 'タイミング 1' }))
+    fireEvent.click(screen.getByRole('button', { name: '入力を確定して次へ' }))
+
+    const eventHandle = document.querySelector<SVGGElement>('.timelineEventHandle')
+    if (!eventHandle) throw new Error('timeline event handle not found')
+    fireEvent.click(screen.getByRole('button', { name: '指で範囲選択' }))
+    fireEvent.pointerDown(eventHandle, {
+      pointerId: 305,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+    })
+    fireEvent.pointerMove(sheet, {
+      pointerId: 305,
+      pointerType: 'touch',
+      buttons: 1,
+      clientX: end.x,
+      clientY: end.y,
+    })
+    fireEvent.pointerUp(sheet, {
+      pointerId: 305,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+      clientX: end.x,
+      clientY: end.y,
+    })
+
+    await waitFor(() => expectSelectedRange('cell', 'A', 1, 4))
+    expect(sheet.textContent).toContain('1')
+    expect(screen.getByRole('button', { name: '指で範囲選択' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
   it('keeps finger drags as viewport movement while the pen tool is active', async () => {
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
       callback(0)

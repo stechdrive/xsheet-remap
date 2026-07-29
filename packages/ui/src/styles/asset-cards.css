@@ -115,6 +115,14 @@
   background: rgb(23 58 43 / 0.92);
 }
 
+.assetBrowser[data-input-modality="touch"] .assetQuickPreviewButton {
+  width: 40px;
+  height: 40px;
+  opacity: 1;
+  transform: translateY(0);
+  touch-action: manipulation;
+}
+
 .assetQuickPreviewIcon {
   position: relative;
   width: 9px;

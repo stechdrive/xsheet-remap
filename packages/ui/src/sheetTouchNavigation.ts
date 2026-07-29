@@ -4,9 +4,15 @@ export const SHEET_TOUCH_PAN_THRESHOLD_PX = 8
 export const SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS = 520
 
 export interface SheetTouchTap {
+  pointerId: number
   target: Element | null
   clientX: number
   clientY: number
+}
+
+export interface SheetTouchLongPressAction {
+  move: (clientX: number, clientY: number) => void
+  finish: (cancelled: boolean, clientX: number, clientY: number) => void
 }
 
 export interface SheetTouchPoint {

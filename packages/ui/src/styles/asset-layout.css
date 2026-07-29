@@ -145,6 +145,12 @@
   font-size: 11px;
 }
 
+.assetBrowser[data-input-modality="touch"] .assetSelectionControls button {
+  min-width: 40px;
+  min-height: 40px;
+  touch-action: manipulation;
+}
+
 .iconSegmentedControl {
   display: inline-flex;
   align-items: center;

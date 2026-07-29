@@ -12,6 +12,7 @@ import type {
   DialogueAudioTrackState,
 } from './dialogueAudioProject'
 import { usePointerDragSession } from './usePointerDragSession'
+import { useTouchLongPress } from './useTouchLongPress'
 
 export interface DialogueAudioSegmentDragTarget {
   kind: 'candidate' | 'region'
@@ -41,6 +42,7 @@ interface UseDialogueAudioSegmentDragOptions {
   getPixelsPerFrame: () => number
   getFrameEnd: () => number
   disabled: boolean
+  touchAdditiveSelection?: boolean
   timelineScrollerRef: RefObject<HTMLDivElement | null>
   onSelect: (
     track: DialogueAudioTrackState,
@@ -57,6 +59,7 @@ interface UseDialogueAudioSegmentDragOptions {
 export function useDialogueAudioSegmentDrag(options: UseDialogueAudioSegmentDragOptions) {
   const suppressClickRef = useRef(false)
   const suppressClickTimerRef = useRef<number | null>(null)
+  const touchLongPress = useTouchLongPress()
   const drag = usePointerDragSession<DialogueAudioSegmentDragSession>({
     onUpdate: (current, point) => {
       const delta = Math.round((point.clientX - current.clientX) / current.pixelsPerFrame)
@@ -114,15 +117,43 @@ export function useDialogueAudioSegmentDrag(options: UseDialogueAudioSegmentDrag
     target: DialogueAudioSegmentDragTarget,
   ) {
     if (options.disabled || event.button !== 0 || drag.activeRef.current) return
+    const edge = (event.target as HTMLElement).closest<HTMLElement>('[data-segment-edge]')?.dataset.segmentEdge
+    const mode = edge === 'start' || edge === 'end' ? edge : 'body'
+    if (event.pointerType === 'touch' && mode === 'body') {
+      event.stopPropagation()
+      touchLongPress.begin(event, activation => {
+        beginDrag(activation.pointerId, activation.clientX, activation.target, track, target, 'body', options.touchAdditiveSelection === true)
+      })
+      return
+    }
     event.preventDefault()
     event.stopPropagation()
-    const edge = (event.target as HTMLElement).closest<HTMLElement>('[data-segment-edge]')?.dataset.segmentEdge
+    beginDrag(
+      event.pointerId,
+      event.clientX,
+      event.currentTarget,
+      track,
+      target,
+      mode,
+      event.ctrlKey || event.metaKey || event.shiftKey,
+    )
+  }
+
+  function beginDrag(
+    pointerId: number,
+    clientX: number,
+    captureTarget: HTMLElement,
+    track: DialogueAudioTrackState,
+    target: DialogueAudioSegmentDragTarget,
+    mode: DialogueAudioSegmentDragSession['mode'],
+    additive: boolean,
+  ) {
     const next: DialogueAudioSegmentDragSession = {
       ...target,
-      pointerId: event.pointerId,
+      pointerId,
       trackId: track.trackId,
-      mode: edge === 'start' || edge === 'end' ? edge : 'body',
-      clientX: event.clientX,
+      mode,
+      clientX,
       pixelsPerFrame: options.getPixelsPerFrame(),
       frameOrigin: options.frameOrigin,
       frameEndLimit: options.getFrameEnd(),
@@ -132,8 +163,8 @@ export function useDialogueAudioSegmentDrag(options: UseDialogueAudioSegmentDrag
       previewFrameEnd: target.frameEnd,
       moved: false,
     }
-    drag.begin(next, event.currentTarget)
-    options.onSelect(track, target, event.ctrlKey || event.metaKey || event.shiftKey)
+    drag.begin(next, captureTarget)
+    options.onSelect(track, target, additive)
     options.onDragStart()
   }
 

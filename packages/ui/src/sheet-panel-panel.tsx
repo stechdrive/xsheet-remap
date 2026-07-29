@@ -1222,6 +1222,7 @@ export function SheetPanel(props: {
           <SheetCanvas
             ref={sheetCanvasRef}
             {...props}
+            touchInputActive={touchControlsVisible}
             touchRangeSelectionMode={touchRangeSelectionMode}
             onInputModalityChange={handleSheetInputModalityChange}
             selectedTimelineMemoId={activeTimelineMemoId}

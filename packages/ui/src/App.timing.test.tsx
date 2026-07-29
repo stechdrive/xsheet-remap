@@ -4,6 +4,7 @@ import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsh
 import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
+import { SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS } from './sheetTouchNavigation'
 import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openDisplaySettingsMenu, openStackGuideInsertMenu, openTimingExportDialog, openTimingTextSettingsMenu, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateTimelineLaneHeaderPoint } from './App.test-support'
 
 beforeEach(() => {
@@ -616,11 +617,10 @@ it('moves a registered timeline event after a long press', async () => {
       if (!eventHandle) throw new Error('timeline event handle not found')
       fireEvent.pointerDown(eventHandle, { pointerId: 33, pointerType: 'touch', button: 0, buttons: 1, clientX: source.x, clientY: source.y })
       await act(async () => {
-        vi.advanceTimersByTime(340)
+        vi.advanceTimersByTime(SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS)
       })
-      expect(eventHandle.classList.contains('timelineEventDragReady')).toBe(true)
-      fireEvent.pointerMove(eventHandle, { pointerId: 33, pointerType: 'touch', buttons: 1, clientX: target.x, clientY: target.y })
-      fireEvent.pointerUp(eventHandle, { pointerId: 33, pointerType: 'touch', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
+      fireEvent.pointerMove(sheet, { pointerId: 33, pointerType: 'touch', buttons: 1, clientX: target.x, clientY: target.y })
+      fireEvent.pointerUp(sheet, { pointerId: 33, pointerType: 'touch', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
 
       expectSelectedHit('cell', 'A', 4)
       const targetHit = timingHitForFrame(standardA3SheetTemplate, 'cell', 'A', 4, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
@@ -1314,9 +1314,14 @@ it('creates, edits, moves, resizes, copies, and undoes SOUND interval cues', asy
 
     cue = document.querySelector<SVGGElement>('.soundCue')!
     const body = cue.querySelector<SVGRectElement>('.soundCueBody')!
+    vi.useFakeTimers()
     fireEvent.pointerDown(body, { pointerId: 81, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
-    fireEvent.pointerMove(window, { pointerId: 81, pointerType: 'touch', buttons: 1, clientX: x, clientY: frameY(11) })
-    fireEvent.pointerUp(window, { pointerId: 81, pointerType: 'touch', button: 0, buttons: 0, clientX: x, clientY: frameY(11) })
+    await act(async () => {
+      vi.advanceTimersByTime(SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS)
+    })
+    vi.useRealTimers()
+    fireEvent.pointerMove(sheet, { pointerId: 81, pointerType: 'touch', buttons: 1, clientX: x, clientY: frameY(11) })
+    fireEvent.pointerUp(sheet, { pointerId: 81, pointerType: 'touch', button: 0, buttons: 0, clientX: x, clientY: frameY(11) })
     await waitFor(() => expect(document.querySelector<SVGGElement>('.soundCue')?.dataset).toMatchObject({ frameStart: '10', frameEnd: '15' }))
     expect(document.querySelector('.soundCueText.outside')).toBeTruthy()
     fireEvent.pointerMove(window, { pointerId: 81, pointerType: 'mouse', buttons: 1, clientX: x, clientY: frameY(30) })
@@ -1414,10 +1419,15 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
 
     cue = document.querySelector<SVGGElement>('.cameraCue')!
     shapeHit = cue.querySelector<SVGPolylineElement>('.cameraCueShapeHit')!
+    vi.useFakeTimers()
     fireEvent.pointerDown(shapeHit, { pointerId: 105, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: frameY(2) })
-    fireEvent.pointerMove(window, { pointerId: 105, pointerType: 'touch', buttons: 1, clientX: x, clientY: frameY(12) })
-    fireEvent.pointerMove(window, { pointerId: 105, pointerType: 'touch', buttons: 1, clientX: x, clientY: frameY(20) })
-    fireEvent.pointerUp(window, { pointerId: 105, pointerType: 'touch', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
+    await act(async () => {
+      vi.advanceTimersByTime(SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS)
+    })
+    vi.useRealTimers()
+    fireEvent.pointerMove(sheet, { pointerId: 105, pointerType: 'touch', buttons: 1, clientX: x, clientY: frameY(12) })
+    fireEvent.pointerMove(sheet, { pointerId: 105, pointerType: 'touch', buttons: 1, clientX: x, clientY: frameY(20) })
+    fireEvent.pointerUp(sheet, { pointerId: 105, pointerType: 'touch', button: 0, buttons: 0, clientX: x, clientY: frameY(20) })
     await waitFor(() => expect(document.querySelector<SVGGElement>('.cameraCue')?.dataset).toMatchObject({ frameStart: '19', frameEnd: '30' }))
     expect(document.querySelector('.cameraCue.transforming')).toBeNull()
     expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)

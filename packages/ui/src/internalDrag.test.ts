@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { dispatchInternalDrag, setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag, type InternalDragDetail } from './internalDrag'
+import {
+  dispatchInternalDrag,
+  INTERNAL_TOUCH_DRAG_LONG_PRESS_MS,
+  setInternalDragDropValidity,
+  startInternalPointerDrag,
+  subscribeInternalDrag,
+  type InternalDragDetail,
+} from './internalDrag'
 
 afterEach(() => {
+  vi.useRealTimers()
   document.body.innerHTML = ''
   document.body.className = ''
   delete document.body.dataset.internalDragKind
@@ -107,6 +115,93 @@ describe('internal drag', () => {
     expect(phases).toEqual(['start', 'move', 'cancel'])
     expect(finished).toHaveBeenCalledWith({ kind: 'registered-cell', keyId: 'key-a' })
     expect(document.querySelector('.pointerDragGhost')).toBeNull()
+    expect(document.body.classList.contains('internalPointerDragActive')).toBe(false)
+  })
+
+  it('leaves an ordinary touch swipe to native scrolling instead of starting a drag', () => {
+    vi.useFakeTimers()
+    const source = document.createElement('article')
+    const scroller = document.createElement('section')
+    scroller.append(source)
+    document.body.append(scroller)
+    scroller.scrollLeft = 25
+    scroller.scrollTop = 40
+    const phases: string[] = []
+    const unsubscribe = subscribeInternalDrag(detail => phases.push(detail.phase))
+    const begin = vi.fn(() => ({ kind: 'asset' as const, assetIds: ['asset-a'] }))
+
+    startInternalPointerDrag({
+      button: 0,
+      pointerId: 9,
+      pointerType: 'touch',
+      clientX: 20,
+      clientY: 20,
+      target: source,
+      currentTarget: source,
+    } as never, {
+      begin,
+      createPreview: () => ({ primaryText: 'A1.png' }),
+      sourceScrollElement: scroller,
+    })
+    const move = new PointerEvent('pointermove', {
+      pointerId: 9,
+      pointerType: 'touch',
+      buttons: 1,
+      clientX: 40,
+      clientY: 20,
+      cancelable: true,
+    })
+    window.dispatchEvent(move)
+    scroller.scrollLeft = 45
+    vi.advanceTimersByTime(INTERNAL_TOUCH_DRAG_LONG_PRESS_MS)
+    unsubscribe()
+
+    expect(move.defaultPrevented).toBe(false)
+    expect(begin).not.toHaveBeenCalled()
+    expect(phases).toEqual([])
+    expect(scroller.scrollLeft).toBe(45)
+    expect(document.body.classList.contains('internalPointerDragActive')).toBe(false)
+  })
+
+  it('starts a touch drag only after long press and then emits move and drop', () => {
+    vi.useFakeTimers()
+    const source = document.createElement('article')
+    document.body.append(source)
+    const phases: string[] = []
+    const unsubscribe = subscribeInternalDrag(detail => phases.push(detail.phase))
+
+    startInternalPointerDrag({
+      button: 0,
+      pointerId: 10,
+      pointerType: 'touch',
+      clientX: 20,
+      clientY: 20,
+      target: source,
+      currentTarget: source,
+    } as never, {
+      begin: () => ({ kind: 'asset', assetIds: ['asset-a'] }),
+      createPreview: () => ({ primaryText: 'A1.png' }),
+    })
+    vi.advanceTimersByTime(INTERNAL_TOUCH_DRAG_LONG_PRESS_MS)
+    expect(phases).toEqual(['start'])
+
+    window.dispatchEvent(new PointerEvent('pointermove', {
+      pointerId: 10,
+      pointerType: 'touch',
+      buttons: 1,
+      clientX: 30,
+      clientY: 30,
+    }))
+    window.dispatchEvent(new PointerEvent('pointerup', {
+      pointerId: 10,
+      pointerType: 'touch',
+      button: 0,
+      clientX: 30,
+      clientY: 30,
+    }))
+    unsubscribe()
+
+    expect(phases).toEqual(['start', 'move', 'drop'])
     expect(document.body.classList.contains('internalPointerDragActive')).toBe(false)
   })
 })

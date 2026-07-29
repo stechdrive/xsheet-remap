@@ -43,6 +43,10 @@
   overflow: hidden;
 }
 
+.sheetViewport[data-touch-range-selection="true"] [data-sheet-touch-interaction="direct"] {
+  pointer-events: none !important;
+}
+
 .sheetTouchControls {
   position: absolute;
   right: max(12px, env(safe-area-inset-right));

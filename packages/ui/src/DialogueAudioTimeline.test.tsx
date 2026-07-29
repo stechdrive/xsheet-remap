@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { DialogueAudioTimeline } from './DialogueAudioTimeline'
 import { createDefaultDialogueAudioCutState, type DialogueAudioCutState } from './dialogueAudioProject'
@@ -604,6 +604,70 @@ describe('DialogueAudioTimeline', () => {
 
     expect(screen.getByRole('menu', { name: '選択範囲 11–31Fの操作' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'コピー　Ctrl+C' })).toBeTruthy()
+  })
+
+  it('leaves a select-tool touch swipe to native timeline scrolling and reveals touch-only actions', () => {
+    const onAudioSelectionChange = vi.fn()
+    const onPlayheadChange = vi.fn()
+    render(<DialogueAudioTimeline
+      cutState={createDefaultDialogueAudioCutState(1)}
+      audioSelection={{ entities: [], timeRange: null }}
+      fps={24}
+      frameOrigin={1}
+      durationFrames={72}
+      activeRevisionId="revision-1"
+      soundCues={[]}
+      selectedSoundCueId={null}
+      onCutStateChange={vi.fn()}
+      onAudioSelectionChange={onAudioSelectionChange}
+      onPlayheadChange={onPlayheadChange}
+      onSoundCueSelect={vi.fn()}
+      onSoundCueEdit={vi.fn()}
+      onSoundCueTransform={vi.fn()}
+      onSoundCandidateEdit={vi.fn()}
+      onAutoCreateDialogueRegions={current => current}
+    />)
+    openAudioTimeline()
+
+    const timeline = screen.getByRole('group', { name: '音声トラック編集領域' })
+    const lane = document.querySelector('.dialogueAudioWaveformLane') as HTMLDivElement
+    vi.spyOn(timeline, 'getBoundingClientRect').mockReturnValue(rectangle(0, 720))
+    onPlayheadChange.mockClear()
+
+    const down = createEvent.pointerDown(lane, {
+      button: 0,
+      buttons: 1,
+      pointerId: 41,
+      pointerType: 'touch',
+      clientX: 300,
+      clientY: 50,
+      cancelable: true,
+    })
+    fireEvent(lane, down)
+    const move = createEvent.pointerMove(lane, {
+      buttons: 1,
+      pointerId: 41,
+      pointerType: 'touch',
+      clientX: 260,
+      clientY: 50,
+      cancelable: true,
+    })
+    fireEvent(lane, move)
+    fireEvent.pointerUp(lane, {
+      button: 0,
+      pointerId: 41,
+      pointerType: 'touch',
+      clientX: 260,
+      clientY: 50,
+    })
+
+    expect(down.defaultPrevented).toBe(false)
+    expect(move.defaultPrevented).toBe(false)
+    expect(onPlayheadChange).not.toHaveBeenCalled()
+    expect(onAudioSelectionChange).not.toHaveBeenCalled()
+    expect(document.querySelector('.dialogueAudioSelection')).toBeNull()
+    expect(screen.getByRole('button', { name: '項目を追加選択' })).toBeTruthy()
+    expect((screen.getByRole('button', { name: '選択中の音声操作メニュー' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('moves only the playhead when an empty track position is clicked', () => {

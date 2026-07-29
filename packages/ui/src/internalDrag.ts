@@ -36,6 +36,8 @@ export type InternalDragHandler = (detail: InternalDragDetail) => void
 
 const INTERNAL_DRAG_EVENT = 'xsheet-remap:internal-drag'
 const INTERNAL_DRAG_THRESHOLD_PX = 4
+export const INTERNAL_TOUCH_DRAG_THRESHOLD_PX = 8
+export const INTERNAL_TOUCH_DRAG_LONG_PRESS_MS = 420
 let nextInternalDragSession = 1
 let activeDocumentDragSessionId: string | null = null
 let activeDocumentDragSource: { element: HTMLElement; previousInlineCursor: string } | null = null
@@ -77,6 +79,7 @@ export function startInternalPointerDrag(
 
   const source = event.currentTarget
   const pointerId = event.pointerId
+  const touchPointer = event.pointerType === 'touch'
   const startX = event.clientX
   const startY = event.clientY
   const scrollLock = input.sourceScrollElement
@@ -88,9 +91,10 @@ export function startInternalPointerDrag(
   let lastX = startX
   let lastY = startY
   let cleaned = false
+  let touchLongPressTimerId: number | null = null
 
   function restoreSourceScroll() {
-    if (!scrollLock) return
+    if (!scrollLock || !payload) return
     scrollLock.element.scrollLeft = scrollLock.left
     scrollLock.element.scrollTop = scrollLock.top
   }
@@ -114,6 +118,10 @@ export function startInternalPointerDrag(
     window.removeEventListener('pointercancel', handleCancel)
     window.removeEventListener('blur', handleWindowBlur)
     window.removeEventListener('keydown', handleKeyDown, true)
+    if (touchLongPressTimerId !== null) {
+      window.clearTimeout(touchLongPressTimerId)
+      touchLongPressTimerId = null
+    }
     try {
       if (source.hasPointerCapture?.(pointerId)) source.releasePointerCapture?.(pointerId)
     } catch {
@@ -140,11 +148,8 @@ export function startInternalPointerDrag(
     if (finishedPayload) input.onFinished?.(finishedPayload)
   }
 
-  function ensureStarted(pointerEvent: globalThis.PointerEvent): boolean {
+  function beginPayload(clientX: number, clientY: number): boolean {
     if (payload) return true
-    const moved = Math.abs(pointerEvent.clientX - startX) >= INTERNAL_DRAG_THRESHOLD_PX
-      || Math.abs(pointerEvent.clientY - startY) >= INTERNAL_DRAG_THRESHOLD_PX
-    if (!moved) return false
     payload = normalizeInternalDragPayload(input.begin())
     if (!payload) {
       cleanup()
@@ -156,7 +161,7 @@ export function startInternalPointerDrag(
       // Synthetic events and some embedded browser builds do not expose capture.
     }
     restoreSourceScroll()
-    dragGhost = createPointerDragGhost(createInternalDragPreview(input.createPreview(payload), payload.kind), pointerEvent.clientX, pointerEvent.clientY)
+    dragGhost = createPointerDragGhost(createInternalDragPreview(input.createPreview(payload), payload.kind), clientX, clientY)
     source.classList.add('internalPointerDragSource')
     source.dataset.internalDragSource = 'true'
     activeDocumentDragSessionId = sessionId
@@ -166,14 +171,26 @@ export function startInternalPointerDrag(
     delete document.body.dataset.internalDragValidity
     applyInternalDragSourceCursor(null)
     input.onStarted?.(payload)
-    emit('start', pointerEvent.clientX, pointerEvent.clientY)
+    emit('start', clientX, clientY)
     return true
+  }
+
+  function ensureStarted(pointerEvent: globalThis.PointerEvent): boolean {
+    if (payload) return true
+    const moved = Math.abs(pointerEvent.clientX - startX) >= INTERNAL_DRAG_THRESHOLD_PX
+      || Math.abs(pointerEvent.clientY - startY) >= INTERNAL_DRAG_THRESHOLD_PX
+    return moved ? beginPayload(pointerEvent.clientX, pointerEvent.clientY) : false
   }
 
   function handleMove(pointerEvent: globalThis.PointerEvent) {
     if (pointerEvent.pointerId !== pointerId) return
     lastX = pointerEvent.clientX
     lastY = pointerEvent.clientY
+    if (touchPointer && !payload) {
+      const moved = Math.hypot(lastX - startX, lastY - startY) >= INTERNAL_TOUCH_DRAG_THRESHOLD_PX
+      if (moved) cleanup()
+      return
+    }
     if (!ensureStarted(pointerEvent)) return
     pointerEvent.preventDefault()
     restoreSourceScroll()
@@ -212,6 +229,12 @@ export function startInternalPointerDrag(
   window.addEventListener('pointercancel', handleCancel)
   window.addEventListener('blur', handleWindowBlur)
   window.addEventListener('keydown', handleKeyDown, true)
+  if (touchPointer) {
+    touchLongPressTimerId = window.setTimeout(() => {
+      touchLongPressTimerId = null
+      if (!cleaned) beginPayload(lastX, lastY)
+    }, INTERNAL_TOUCH_DRAG_LONG_PRESS_MS)
+  }
   return true
 }
 

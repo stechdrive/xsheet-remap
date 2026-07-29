@@ -49,9 +49,9 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
     () => buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, timelineLanes, layoutOverrides }),
     [cues, layoutOverrides, page, pageSize, paperTracks, template, timelineLanes],
   )
-  const edgeHeight = 8 / Math.max(1, surface.heightPx)
-  const pivotRadiusX = 5 / Math.max(1, surface.widthPx)
-  const pivotRadiusY = 5 / Math.max(1, surface.heightPx)
+  const edgeHeight = (touchInteractive ? 24 : 8) / Math.max(1, surface.heightPx)
+  const pivotRadiusX = (touchInteractive ? 12 : 5) / Math.max(1, surface.widthPx)
+  const pivotRadiusY = (touchInteractive ? 12 : 5) / Math.max(1, surface.heightPx)
 
   return (
     <g className="cameraCueLayer">
@@ -76,7 +76,6 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             data-camera-lane-id={cue.laneId}
             data-frame-start={cue.frameStart}
             data-frame-end={cue.frameEnd}
-            data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined}
             aria-label={`${cue.label || 'CAMERA'} ${cue.frameStart}-${cue.frameEnd}`}
             onPointerEnter={event => onPointerEnter(event, cue.cueId)}
             onPointerLeave={onPointerLeave}
@@ -107,7 +106,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
                 {paths.map((points, index) => <polyline key={`hit-${index}`} className="cameraCueShapeHit" points={points.map(point => `${point.x},${point.y}`).join(' ')} onPointerDown={event => onPointerDown(event, cue, 'move')} />)}
                 {pivotMark && <line className="cameraCuePivotMarkHalo" x1={pivotMark.x1} y1={pivotMark.y} x2={pivotMark.x2} y2={pivotMark.y} />}
                 {pivotMark && <line className="cameraCuePivotMark" x1={pivotMark.x1} y1={pivotMark.y} x2={pivotMark.x2} y2={pivotMark.y} />}
-                {selected && pivotMark && <ellipse className="cameraCuePivotHandle" cx={(pivotMark.x1 + pivotMark.x2) / 2} cy={pivotMark.y} rx={pivotRadiusX} ry={pivotRadiusY} onPointerDown={event => onPointerDown(event, cue, 'pivot', { segmentEndPointId: span.endPointId })} />}
+                {selected && pivotMark && <ellipse className="cameraCuePivotHandle" data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined} cx={(pivotMark.x1 + pivotMark.x2) / 2} cy={pivotMark.y} rx={pivotRadiusX} ry={pivotRadiusY} onPointerDown={event => onPointerDown(event, cue, 'pivot', { segmentEndPointId: span.endPointId })} />}
               </g>
             })}
             {(startKind === 'straight' || startKind === 'wave') && segment.startsCue && (
@@ -116,8 +115,8 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             {(endKind === 'straight' || endKind === 'wave') && segment.endsCue && (
               <polygon className="cameraCueMarker end" points={pointList(marker.end)} />
             )}
-            {selected && segment.startsCue && <rect className="cameraCueEdgeHandle start" x={segment.rect.x} y={segment.rect.y - edgeHeight / 2} width={segment.rect.w} height={edgeHeight} onPointerDown={event => onPointerDown(event, cue, 'resize-start')} />}
-            {selected && segment.endsCue && <rect className="cameraCueEdgeHandle end" x={segment.rect.x} y={segment.rect.y + segment.rect.h - edgeHeight / 2} width={segment.rect.w} height={edgeHeight} onPointerDown={event => onPointerDown(event, cue, 'resize-end')} />}
+            {selected && segment.startsCue && <rect className="cameraCueEdgeHandle start" data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined} x={segment.rect.x} y={segment.rect.y - edgeHeight / 2} width={segment.rect.w} height={edgeHeight} onPointerDown={event => onPointerDown(event, cue, 'resize-start')} />}
+            {selected && segment.endsCue && <rect className="cameraCueEdgeHandle end" data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined} x={segment.rect.x} y={segment.rect.y + segment.rect.h - edgeHeight / 2} width={segment.rect.w} height={edgeHeight} onPointerDown={event => onPointerDown(event, cue, 'resize-end')} />}
           </g>
         )
       }))}
@@ -132,7 +131,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             data-camera-cue-id={cue.cueId}
             data-camera-point-id={layout.point.pointId}
             data-camera-point-frame={layout.frame}
-            data-sheet-touch-interaction={touchInteractive && movable ? 'direct' : undefined}
+            data-sheet-touch-interaction={touchInteractive && selected && movable ? 'direct' : undefined}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
@@ -180,7 +179,6 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             data-camera-cue-id={cueId}
             data-cue-column-index={columnIndex}
             data-camera-label-overflow={layout.overflow ? 'true' : 'false'}
-            data-sheet-touch-interaction={touchInteractive ? 'direct' : undefined}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}

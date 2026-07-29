@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { assetRelativePath, assetSourceDisplayPath, type AssetRoot, type CutAsset } from '@xsheet-remap/core'
 import { collectAssetPathDrop, isTauriHost, openAssetRootDirectory, type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
@@ -71,6 +71,8 @@ function AssetBrowser({
   const [previewRect, setPreviewRect] = useState<AssetPreviewRect>(() => initialAssetPreviewRect())
   const [isNativeDropActive, setIsNativeDropActive] = useState(false)
   const [contextMenu, setContextMenu] = useState<AssetContextMenuState | null>(null)
+  const [inputModality, setInputModality] = useState<'mouse' | 'pen' | 'touch'>('mouse')
+  const [touchAdditiveSelection, setTouchAdditiveSelection] = useState(false)
   const lastDropDiagnosticOverRef = useRef(0)
   const knownAssetIdsRef = useRef(new Set(assets.map(asset => asset.assetId)))
   const previousRootPathRef = useRef(assetRoot?.path)
@@ -203,6 +205,10 @@ function AssetBrowser({
     if (!canOpenSheetSourceContextMenu) return
     event.preventDefault()
     event.stopPropagation()
+    openAssetContextMenuAt(assetId, event.clientX, event.clientY)
+  }
+
+  function openAssetContextMenuAt(assetId: string, clientX: number, clientY: number) {
     const selectionKey = assetSelectionKey(assetId)
     const assetIds = selectedItemKeySet.has(selectionKey) ? activeSelectedAssetIds : [assetId]
     if (!selectedItemKeySet.has(selectionKey)) {
@@ -210,7 +216,13 @@ function AssetBrowser({
       setSelectionAnchorKey(selectionKey)
     }
     setPreviewAssetId(assetId)
-    setContextMenu({ x: event.clientX, y: event.clientY, assetIds })
+    setContextMenu({ x: clientX, y: clientY, assetIds })
+  }
+
+  function handleInputPointerDownCapture(event: ReactPointerEvent<HTMLElement>) {
+    if (event.pointerType !== 'mouse' && event.pointerType !== 'pen' && event.pointerType !== 'touch') return
+    setInputModality(event.pointerType)
+    if (event.pointerType !== 'touch') setTouchAdditiveSelection(false)
   }
 
   function applyContextMenuSheetSources() {
@@ -311,6 +323,8 @@ function AssetBrowser({
   return (
     <section
       className={rootClassName}
+      data-input-modality={inputModality}
+      onPointerDownCapture={handleInputPointerDownCapture}
       onKeyDown={handleAssetBrowserKeyDown}
       onDragOver={event => {
         event.preventDefault()
@@ -356,6 +370,29 @@ function AssetBrowser({
       {activeSelectedItemKeys.length > 0 && (
         <div className="assetSelectionControls">
           <span>{uiText.assets.selectedCount(activeSelectedItemKeys.length)}</span>
+          {inputModality === 'touch' && (
+            <button
+              type="button"
+              aria-label="素材を追加選択"
+              aria-pressed={touchAdditiveSelection}
+              className={touchAdditiveSelection ? 'active' : ''}
+              onClick={() => setTouchAdditiveSelection(current => !current)}
+            >
+              追加
+            </button>
+          )}
+          {inputModality === 'touch' && canOpenSheetSourceContextMenu && activeSelectedAssetIds[0] && (
+            <button
+              type="button"
+              aria-label="選択中の素材操作メニュー"
+              onClick={event => {
+                const rect = event.currentTarget.getBoundingClientRect()
+                openAssetContextMenuAt(activeSelectedAssetIds[0]!, rect.left, rect.bottom)
+              }}
+            >
+              …
+            </button>
+          )}
           <Tooltip label={uiText.assets.clearSelectionTitle}>
             <button type="button" onClick={clearAssetSelection}>{uiText.assets.clearSelection}</button>
           </Tooltip>
@@ -374,7 +411,7 @@ function AssetBrowser({
             viewMode={viewMode}
             isSelected={selectedItemKeySet.has(assetSelectionKey(asset.assetId))}
             isDragging={draggingAssetIdSet.has(asset.assetId)}
-            onSelect={event => selectAsset(asset.assetId, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey })}
+            onSelect={event => selectAsset(asset.assetId, { ctrlKey: event.ctrlKey || touchAdditiveSelection, metaKey: event.metaKey, shiftKey: event.shiftKey })}
             onKeyboardSelect={event => selectAsset(asset.assetId, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey })}
             onDragStateChange={setDragState}
             onDragStart={() => {

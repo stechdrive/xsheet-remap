@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react'
 import type { SheetRevisionDocument } from '@xsheet-remap/core'
 import { Tooltip } from './Tooltip'
+import { useTouchLongPress } from './useTouchLongPress'
 
 type SheetHistoryRailProps = {
   topActions?: ReactNode
@@ -24,6 +25,7 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
   const [mode, setMode] = useState<'duplicate' | 'blank'>('duplicate')
   const [showSourceReference, setShowSourceReference] = useState(true)
   const [context, setContext] = useState<ContextState>(null)
+  const touchLongPress = useTouchLongPress()
   const contextRef = useRef<HTMLDivElement | null>(null)
   const contextRevision = context
     ? props.revisions.find(revision => revision.revisionId === context.revisionId)
@@ -101,6 +103,16 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
               aria-label={accessibleLabel}
               className={active ? 'sheetHistoryTab active' : 'sheetHistoryTab'}
               onClick={() => props.onSwitch(revision.revisionId)}
+              onPointerDown={event => {
+                touchLongPress.begin(event, activation => {
+                  props.onSwitch(revision.revisionId)
+                  setContext({
+                    revisionId: revision.revisionId,
+                    x: activation.clientX,
+                    y: activation.clientY,
+                  })
+                })
+              }}
               onDoubleClick={() => rename(revision)}
               onContextMenu={event => openContext(event, revision.revisionId)}
             >

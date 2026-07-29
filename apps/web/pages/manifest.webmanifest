@@ -1,6 +1,6 @@
 {
   "id": "./",
-  "name": "xsheet-editor PWA",
+  "name": "xsheet-editor",
   "short_name": "xsheet-editor",
   "description": "ブラウザで動作するデジタルタイムシート",
   "lang": "ja",

@@ -19,7 +19,7 @@ const applicationTitle = isAssetPreviewWindow
         : 'xsheet-editor'
 
 const isPagesBuild = import.meta.env.MODE === 'pages'
-document.title = isPagesBuild ? `${applicationTitle} PWA` : applicationTitle
+document.title = applicationTitle
 if (isPagesBuild) registerPagesServiceWorker()
 
 async function resolveApplication() {

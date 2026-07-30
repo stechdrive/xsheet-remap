@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   LowLatencyInkCanvas,
   lowLatencyCanvasPixelRatio,
-  shouldUseDelegatedInk,
   useLowLatencyInkCanvas,
 } from './LowLatencyInkCanvas'
 
@@ -42,20 +41,6 @@ describe('LowLatencyInkCanvas', () => {
   it('caps backing-store resolution for high-DPI full-page canvases', () => {
     expect(lowLatencyCanvasPixelRatio(1000, 1000, 3)).toBe(2)
     expect(lowLatencyCanvasPixelRatio(4000, 4000, 3)).toBe(0.5)
-  })
-
-  it('disables delegated ink on Android and other mobile browsers', () => {
-    expect(shouldUseDelegatedInk({
-      userAgent: 'Mozilla/5.0 (Linux; Android 15; SM-X620)',
-    })).toBe(false)
-    expect(shouldUseDelegatedInk({
-      userAgent: 'Mozilla/5.0',
-      userAgentData: { mobile: true },
-    })).toBe(false)
-    expect(shouldUseDelegatedInk({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      userAgentData: { mobile: false },
-    })).toBe(true)
   })
 
   it('keeps the transparent overlay hidden until drawing is initialized', () => {
@@ -146,9 +131,9 @@ describe('LowLatencyInkCanvas', () => {
     expect(requestPresenter).toHaveBeenCalledTimes(1)
   })
 
-  it('does not request delegated ink when drawing starts on a mobile browser', () => {
+  it('requests delegated ink when the capability is exposed on a mobile browser', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
-    const requestPresenter = vi.fn()
+    const requestPresenter = vi.fn().mockReturnValue(new Promise(() => undefined))
     Object.defineProperty(navigator, 'ink', {
       configurable: true,
       value: { requestPresenter },
@@ -159,7 +144,8 @@ describe('LowLatencyInkCanvas', () => {
     })
 
     let controller: InkCanvasController | null = null
-    render(<InkCanvasHarness onReady={value => { controller = value }} />)
+    const { container } = render(<InkCanvasHarness onReady={value => { controller = value }} />)
+    const canvas = container.querySelector<HTMLCanvasElement>('canvas')!
 
     act(() => {
       controller!.begin({
@@ -172,6 +158,29 @@ describe('LowLatencyInkCanvas', () => {
       })
     })
 
-    expect(requestPresenter).not.toHaveBeenCalled()
+    expect(requestPresenter).toHaveBeenCalledWith({ presentationArea: canvas })
+  })
+
+  it('keeps the Canvas fallback when delegated ink is unavailable', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    Reflect.deleteProperty(navigator, 'ink')
+
+    let controller: InkCanvasController | null = null
+    const { container } = render(<InkCanvasHarness onReady={value => { controller = value }} />)
+    const canvas = container.querySelector<HTMLCanvasElement>('canvas')!
+
+    act(() => {
+      controller!.begin({
+        width: 1000,
+        height: 1600,
+        color: '#123456',
+        lineWidth: 2,
+        point: { x: 10, y: 12 },
+        pointerEvent: { pointerType: 'pen' } as globalThis.PointerEvent,
+      })
+    })
+
+    expect(canvas.dataset.inkActive).toBe('true')
+    expect(canvas.hidden).toBe(false)
   })
 })

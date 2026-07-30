@@ -32,9 +32,6 @@ type DelegatedInkTrailPresenter = {
 }
 
 type InkEnhancedNavigator = Navigator & {
-  userAgentData?: {
-    mobile?: boolean
-  }
   ink?: {
     requestPresenter: (options: {
       presentationArea: HTMLCanvasElement
@@ -55,14 +52,6 @@ type ActiveInkCanvas = {
 
 const MAX_CANVAS_PIXEL_RATIO = 2
 const MAX_CANVAS_BACKING_PIXELS = 4_000_000
-
-export function shouldUseDelegatedInk(environment: {
-  userAgent?: string
-  userAgentData?: { mobile?: boolean }
-}) {
-  if (environment.userAgentData?.mobile) return false
-  return !/Android/i.test(environment.userAgent ?? '')
-}
 
 function updateInkCanvasDataset(
   canvas: HTMLCanvasElement,
@@ -123,7 +112,7 @@ export function useLowLatencyInkCanvas() {
     const ink = typeof navigator === 'undefined'
       ? undefined
       : (navigator as InkEnhancedNavigator).ink
-    if (!ink?.requestPresenter || !shouldUseDelegatedInk(navigator as InkEnhancedNavigator)) return
+    if (!ink?.requestPresenter) return
     if (presenterRef.current || presenterRequestRef.current) return
     try {
       const request = ink.requestPresenter({ presentationArea: canvas })

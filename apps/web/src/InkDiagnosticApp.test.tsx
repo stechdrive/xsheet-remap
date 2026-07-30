@@ -8,6 +8,7 @@ import {
   createEmptyInkDiagnosticSession,
   createInkDiagnosticReport,
   emptyInkDiagnosticMetrics,
+  inkDiagnosticPointerSamples,
   loadInkDiagnosticSession,
   saveInkDiagnosticSession,
 } from './ink-diagnostic'
@@ -48,6 +49,28 @@ describe('ink diagnostic model', () => {
     expect(loadInkDiagnosticSession(window.localStorage)).toEqual(
       createEmptyInkDiagnosticSession(),
     )
+  })
+
+  it('retains the dispatched pointer event when coalesced samples are empty', () => {
+    const event = {
+      clientX: 24,
+      clientY: 36,
+      getCoalescedEvents: () => [],
+    }
+    expect(inkDiagnosticPointerSamples(event)).toEqual([event])
+  })
+
+  it('does not duplicate the dispatched point already present at the coalesced tail', () => {
+    const coalesced = [
+      { clientX: 20, clientY: 30 },
+      { clientX: 24, clientY: 36 },
+    ]
+    const event = {
+      clientX: 24,
+      clientY: 36,
+      getCoalescedEvents: () => coalesced,
+    }
+    expect(inkDiagnosticPointerSamples(event)).toEqual(coalesced)
   })
 
   it('creates a copyable report with requested and actual context values', () => {

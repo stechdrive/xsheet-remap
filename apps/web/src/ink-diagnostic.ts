@@ -236,6 +236,27 @@ export function readInkDiagnosticCapabilities(
   }
 }
 
+type InkDiagnosticPointerSample = {
+  clientX: number
+  clientY: number
+}
+
+export function inkDiagnosticPointerSamples(
+  event: InkDiagnosticPointerSample & {
+    getCoalescedEvents?: () => InkDiagnosticPointerSample[]
+  },
+): InkDiagnosticPointerSample[] {
+  const coalesced = typeof event.getCoalescedEvents === 'function'
+    ? event.getCoalescedEvents()
+    : []
+  const samples = [...coalesced]
+  const tail = samples[samples.length - 1]
+  if (!tail || tail.clientX !== event.clientX || tail.clientY !== event.clientY) {
+    samples.push(event)
+  }
+  return samples
+}
+
 const OUTCOME_LABELS: Record<InkDiagnosticOutcome, string> = {
   normal: '正常',
   black: '画面が黒くなった',

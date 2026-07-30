@@ -13,6 +13,7 @@ import {
   createEmptyInkDiagnosticSession,
   createInkDiagnosticReport,
   emptyInkDiagnosticMetrics,
+  inkDiagnosticPointerSamples,
   loadInkDiagnosticSession,
   readInkDiagnosticCapabilities,
   saveInkDiagnosticSession,
@@ -408,9 +409,7 @@ function InkDiagnosticSurface({
     if (!drawingRef.current) return
     const started = performance.now()
     const nativeEvent = event.nativeEvent
-    const samples = typeof nativeEvent.getCoalescedEvents === 'function'
-      ? nativeEvent.getCoalescedEvents()
-      : [nativeEvent]
+    const samples = inkDiagnosticPointerSamples(nativeEvent)
     const context = contextRef.current
     if (context) {
       context.beginPath()

@@ -59,16 +59,22 @@ function pointerEvent(
 function InkHarness({
   onCommit,
   onPredicted,
+  onActiveChange,
+  onRender,
 }: {
   onCommit: (points: InkPointerPoint[]) => void
   onPredicted: (points: readonly InkPointerPoint[]) => void
+  onActiveChange?: (active: boolean) => void
+  onRender?: () => void
 }) {
+  onRender?.()
   const stroke = useInkStrokeSession<TestSession>({
     onActualPoints: (session, points) => ({
       ...session,
       points: [...session.points, ...points],
     }),
     onPredictedPoints: (_session, points) => onPredicted(points),
+    onActiveChange,
     onFinish: (session, finish) => {
       if (!finish.cancelled) onCommit(session.points)
     },
@@ -158,6 +164,54 @@ describe('ink pointer sampling', () => {
 })
 
 describe('useInkStrokeSession', () => {
+  it('keeps pointer lifecycle state outside React rendering while reporting active transitions', () => {
+    const onCommit = vi.fn()
+    const onActiveChange = vi.fn()
+    const onRender = vi.fn()
+    render(
+      <InkHarness
+        onCommit={onCommit}
+        onPredicted={vi.fn()}
+        onActiveChange={onActiveChange}
+        onRender={onRender}
+      />,
+    )
+    const target = screen.getByRole('button', { name: '描画対象' })
+
+    fireEvent(target, pointerEvent('pointerdown', {
+      pointerId: 6,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+      clientX: 10,
+      clientY: 10,
+      pressure: 0.5,
+      timeStamp: 90,
+    }))
+    fireEvent(window, pointerEvent('pointermove', {
+      pointerId: 6,
+      pointerType: 'mouse',
+      buttons: 1,
+      clientX: 20,
+      clientY: 20,
+      pressure: 0.5,
+      timeStamp: 91,
+    }))
+    fireEvent(window, pointerEvent('pointerup', {
+      pointerId: 6,
+      pointerType: 'mouse',
+      buttons: 0,
+      clientX: 30,
+      clientY: 30,
+      pressure: 0,
+      timeStamp: 92,
+    }))
+
+    expect(onRender).toHaveBeenCalledTimes(1)
+    expect(onActiveChange.mock.calls).toEqual([[true], [false]])
+    expect(onCommit).toHaveBeenCalledTimes(1)
+  })
+
   it('commits actual samples only and replaces predicted samples on every move', () => {
     const onCommit = vi.fn()
     const onPredicted = vi.fn()

@@ -113,9 +113,10 @@ describe('LowLatencyInkCanvas', () => {
 
     expect(canvas.dataset.inkActive).toBe('false')
     expect(canvas.hidden).toBe(true)
-    expect(canvas.width).toBe(1)
-    expect(canvas.height).toBe(1)
+    expect(canvas.width).toBeGreaterThan(1)
+    expect(canvas.height).toBeGreaterThan(1)
     expect(predictionLayer.hasAttribute('hidden')).toBe(true)
+    const retainedSize = { width: canvas.width, height: canvas.height }
 
     act(() => {
       controller!.begin({
@@ -128,7 +129,44 @@ describe('LowLatencyInkCanvas', () => {
       })
     })
 
+    expect({ width: canvas.width, height: canvas.height }).toEqual(retainedSize)
     expect(requestPresenter).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains only the most recently used idle backing store across canvases', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const controllers: InkCanvasController[] = []
+    const { container } = render(<>
+      <InkCanvasHarness onReady={value => { controllers[0] = value }} />
+      <InkCanvasHarness onReady={value => { controllers[1] = value }} />
+    </>)
+    const canvases = [...container.querySelectorAll<HTMLCanvasElement>('canvas')]
+
+    act(() => {
+      controllers[0]!.begin({
+        width: 800,
+        height: 600,
+        color: '#123456',
+        lineWidth: 2,
+        point: { x: 10, y: 12 },
+      })
+      controllers[0]!.clear()
+    })
+    expect(canvases[0]!.width).toBeGreaterThan(1)
+
+    act(() => {
+      controllers[1]!.begin({
+        width: 640,
+        height: 480,
+        color: '#654321',
+        lineWidth: 2,
+        point: { x: 8, y: 9 },
+      })
+    })
+
+    expect(canvases[0]!.width).toBe(1)
+    expect(canvases[0]!.height).toBe(1)
+    expect(canvases[1]!.width).toBeGreaterThan(1)
   })
 
   it('requests delegated ink when the capability is exposed on a mobile browser', () => {
@@ -159,6 +197,44 @@ describe('LowLatencyInkCanvas', () => {
     })
 
     expect(requestPresenter).toHaveBeenCalledWith({ presentationArea: canvas })
+  })
+
+  it('does not duplicate predicted SVG ink after delegated ink becomes ready', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const presenter = { updateInkTrailStartPoint: vi.fn() }
+    const requestPresenter = vi.fn().mockResolvedValue(presenter)
+    Object.defineProperty(navigator, 'ink', {
+      configurable: true,
+      value: { requestPresenter },
+    })
+
+    let controller: InkCanvasController | null = null
+    const { container } = render(<InkCanvasHarness onReady={value => { controller = value }} />)
+    const predictionLayer = container.querySelector<SVGSVGElement>('.lowLatencyInkPredictionLayer')!
+    const predictionPath = predictionLayer.querySelector<SVGPathElement>('path')!
+
+    await act(async () => {
+      controller!.begin({
+        width: 1000,
+        height: 1600,
+        color: '#123456',
+        lineWidth: 2,
+        point: { x: 10, y: 12 },
+        pointerEvent: {
+          pointerType: 'pen',
+          isTrusted: true,
+        } as globalThis.PointerEvent,
+      })
+      await Promise.resolve()
+    })
+    act(() => controller!.replacePredicted([
+      { x: 13, y: 15 },
+      { x: 17, y: 20 },
+    ]))
+
+    expect(predictionLayer.hasAttribute('hidden')).toBe(true)
+    expect(predictionLayer.dataset.inkPredictedSampleCount).toBe('0')
+    expect(predictionPath.getAttribute('d')).toBeNull()
   })
 
   it('keeps the Canvas fallback when delegated ink is unavailable', () => {

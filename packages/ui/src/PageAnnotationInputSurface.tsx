@@ -1,4 +1,4 @@
-import { useEffect, type PointerEvent } from 'react'
+import type { PointerEvent } from 'react'
 import type { AnnotationStroke, SheetPage, SheetPageMemoTarget } from '@xsheet-remap/core'
 import type { EditMode } from './appTypes'
 import { SHEET_INTERACTION_ACTIVE_CLASS } from './app-foundation'
@@ -60,6 +60,10 @@ export function PageAnnotationInputSurface({
         y: point.clientY - current.svgRect.top,
       })))
     },
+    onActiveChange: active => {
+      document.body.classList.toggle(SHEET_INTERACTION_ACTIVE_CLASS, active)
+      if (active) document.getSelection()?.removeAllRanges()
+    },
     onFinish: (current, finish) => {
       inkCanvas.clear()
       if (finish.cancelled) return
@@ -74,16 +78,6 @@ export function PageAnnotationInputSurface({
       }
     },
   })
-  const isDrawing = strokeDrag.active !== null
-
-  useEffect(() => {
-    if (!isDrawing) return
-    document.body.classList.add(SHEET_INTERACTION_ACTIVE_CLASS)
-    document.getSelection()?.removeAllRanges()
-    return () => {
-      document.body.classList.remove(SHEET_INTERACTION_ACTIVE_CLASS)
-    }
-  }, [isDrawing])
 
   return (
     <div

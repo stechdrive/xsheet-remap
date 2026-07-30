@@ -42,16 +42,20 @@ type InkEnhancedNavigator = Navigator & {
 type ActiveInkCanvas = {
   canvas: HTMLCanvasElement
   context: CanvasRenderingContext2D | null
+  contextStateSaved: boolean
   predictionLayer: SVGSVGElement | null
   predictionPath: SVGPathElement | null
   lastPoint: LowLatencyInkPoint
   sampleCount: number
+  publishedSampleCount: number
   delegatedInkEnabled: boolean
   delegatedStyle: DelegatedInkTrailStyle
 }
 
 const MAX_CANVAS_PIXEL_RATIO = 2
 const MAX_CANVAS_BACKING_PIXELS = 4_000_000
+const SAMPLE_COUNT_PUBLISH_INTERVAL = 32
+let retainedIdleInkCanvas: HTMLCanvasElement | null = null
 
 function updateInkCanvasDataset(
   canvas: HTMLCanvasElement,
@@ -82,8 +86,34 @@ function clearPredictionLayer(
 }
 
 function resizeInkCanvasBackingStore(canvas: HTMLCanvasElement, width: number, height: number) {
+  if (canvas.width === width && canvas.height === height) return
   canvas.width = width
   canvas.height = height
+}
+
+function activateInkCanvasBackingStore(canvas: HTMLCanvasElement) {
+  if (retainedIdleInkCanvas && retainedIdleInkCanvas !== canvas) {
+    updateInkCanvasVisibility(retainedIdleInkCanvas, true)
+    updateInkCanvasDataset(retainedIdleInkCanvas, false, 0)
+    resizeInkCanvasBackingStore(retainedIdleInkCanvas, 1, 1)
+  }
+  retainedIdleInkCanvas = null
+}
+
+function retainInkCanvasBackingStore(canvas: HTMLCanvasElement) {
+  if (canvas.width <= 1 || canvas.height <= 1) return
+  if (retainedIdleInkCanvas && retainedIdleInkCanvas !== canvas) {
+    updateInkCanvasVisibility(retainedIdleInkCanvas, true)
+    updateInkCanvasDataset(retainedIdleInkCanvas, false, 0)
+    resizeInkCanvasBackingStore(retainedIdleInkCanvas, 1, 1)
+  }
+  retainedIdleInkCanvas = canvas
+}
+
+function releaseInkCanvasBackingStore(canvas: HTMLCanvasElement) {
+  if (retainedIdleInkCanvas !== canvas) return
+  retainedIdleInkCanvas = null
+  resizeInkCanvasBackingStore(canvas, 1, 1)
 }
 
 export function lowLatencyCanvasPixelRatio(
@@ -129,6 +159,10 @@ export function useLowLatencyInkCanvas() {
   }, [])
 
   const setCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
+    const previousCanvas = canvasRef.current
+    if (previousCanvas && previousCanvas !== canvas) {
+      releaseInkCanvasBackingStore(previousCanvas)
+    }
     if (canvasRef.current !== canvas) {
       presenterRef.current = null
       presenterRequestRef.current = null
@@ -157,14 +191,19 @@ export function useLowLatencyInkCanvas() {
       updateInkCanvasDataset(canvas, false, 0)
     }
     if (canvas && context) {
+      if (active?.contextStateSaved) {
+        try {
+          context.restore()
+        } catch {
+          // A replaced backing store resets the state stack.
+        }
+      }
       context.save()
       context.setTransform(1, 0, 0, 1, 0, 0)
       context.clearRect(0, 0, canvas.width, canvas.height)
       context.restore()
     }
-    if (canvas) {
-      resizeInkCanvasBackingStore(canvas, 1, 1)
-    }
+    if (canvas) retainInkCanvasBackingStore(canvas)
     clearPredictionLayer(
       active?.predictionLayer ?? predictionLayerRef.current,
       active?.predictionPath ?? predictionLayerRef.current?.querySelector('path') ?? null,
@@ -202,6 +241,7 @@ export function useLowLatencyInkCanvas() {
     updateInkCanvasVisibility(canvas, true)
     updateInkCanvasDataset(canvas, false, 0)
     canvas.dataset.inkInputMode = start.inputMode ?? 'pointermove'
+    activateInkCanvasBackingStore(canvas)
     resizeInkCanvasBackingStore(
       canvas,
       Math.max(1, Math.round(width * pixelRatio)),
@@ -232,6 +272,7 @@ export function useLowLatencyInkCanvas() {
       context.lineCap = 'round'
       context.lineJoin = 'round'
       context.setLineDash(start.lineDash ? [...start.lineDash] : [])
+      context.save()
       context.beginPath()
       context.moveTo(start.point.x, start.point.y)
       context.lineTo(start.point.x + 0.01, start.point.y)
@@ -268,10 +309,12 @@ export function useLowLatencyInkCanvas() {
     activeRef.current = {
       canvas,
       context,
+      contextStateSaved: context !== null,
       predictionLayer,
       predictionPath,
       lastPoint: start.point,
       sampleCount: 1,
+      publishedSampleCount: 1,
       delegatedInkEnabled: start.pointerEvent?.pointerType === 'pen',
       delegatedStyle: {
         color: start.color,
@@ -298,12 +341,22 @@ export function useLowLatencyInkCanvas() {
     }
     active.lastPoint = points[points.length - 1]!
     active.sampleCount += points.length
-    updateInkCanvasDataset(active.canvas, true, active.sampleCount)
+    if (
+      active.publishedSampleCount === 1
+      || active.sampleCount - active.publishedSampleCount >= SAMPLE_COUNT_PUBLISH_INTERVAL
+    ) {
+      active.publishedSampleCount = active.sampleCount
+      updateInkCanvasDataset(active.canvas, true, active.sampleCount)
+    }
   }, [])
 
   const replacePredicted = useCallback((points: readonly LowLatencyInkPoint[]) => {
     const active = activeRef.current
     if (!active?.predictionLayer || !active.predictionPath) return
+    if (active.delegatedInkEnabled && presenterRef.current) {
+      clearPredictionLayer(active.predictionLayer, active.predictionPath)
+      return
+    }
     if (points.length === 0) {
       clearPredictionLayer(active.predictionLayer, active.predictionPath)
       return

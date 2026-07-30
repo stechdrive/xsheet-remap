@@ -2,7 +2,6 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
-  useState,
 } from 'react'
 
 export interface InkStrokeSession {
@@ -92,14 +91,15 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
   onActualPoints,
   onPredictedPoints,
   onPointerEvent,
+  onActiveChange,
   onFinish,
 }: {
   onActualPoints: (session: TSession, points: readonly InkPointerPoint[]) => TSession
   onPredictedPoints?: (session: TSession, points: readonly InkPointerPoint[]) => void
   onPointerEvent?: (event: globalThis.PointerEvent) => void
+  onActiveChange?: (active: boolean) => void
   onFinish: (session: TSession, finish: InkStrokeFinish) => void
 }) {
-  const [active, setActiveState] = useState<TSession | null>(null)
   const activeRef = useRef<TSession | null>(null)
   const captureRef = useRef<ActiveCapture | null>(null)
   const inputModeRef = useRef<InkPointerInputMode>('pointermove')
@@ -113,6 +113,7 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
     onActualPoints,
     onPredictedPoints,
     onPointerEvent,
+    onActiveChange,
     onFinish,
   })
   const updateEventRef = useRef<(event: globalThis.PointerEvent, final?: boolean) => void>(() => undefined)
@@ -162,6 +163,7 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
       onActualPoints,
       onPredictedPoints,
       onPointerEvent,
+      onActiveChange,
       onFinish,
     }
     updateEventRef.current = (event, final = false) => {
@@ -196,7 +198,7 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
       lastActualPointRef.current = null
       detachMoveListener()
       releaseCapture(pointerId)
-      setActiveState(null)
+      optionsRef.current.onActiveChange?.(false)
       optionsRef.current.onPredictedPoints?.(current, [])
       optionsRef.current.onFinish(current, {
         pointerId,
@@ -263,6 +265,7 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
       if (!current) return
       activeRef.current = null
       releaseCapture(current.pointerId)
+      optionsRef.current.onActiveChange?.(false)
     }
   }, [])
 
@@ -278,7 +281,6 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
     lastActualPointRef.current = pointerPoint(event, event)
     activeRef.current = session
     activePointerTypeRef.current = event.pointerType
-    setActiveState(session)
     attachMoveListener(inputMode)
     if (captureElement) {
       captureRef.current = { pointerId: session.pointerId, element: captureElement }
@@ -288,6 +290,7 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
         // Global lifecycle listeners keep the session valid without pointer capture.
       }
     }
+    optionsRef.current.onActiveChange?.(true)
     return inputMode
   }
 
@@ -297,7 +300,6 @@ export function useInkStrokeSession<TSession extends InkStrokeSession>({
   }
 
   return {
-    active,
     activeRef,
     inputModeRef,
     begin,

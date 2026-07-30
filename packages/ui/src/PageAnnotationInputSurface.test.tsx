@@ -9,7 +9,7 @@ afterEach(() => {
 })
 
 describe('PageAnnotationInputSurface', () => {
-  it('keeps every dense pointer sample while drawing only incremental canvas segments', () => {
+  it('keeps every dense pointer sample while throttling diagnostics outside the incremental draw path', () => {
     const context = {
       beginPath: vi.fn(),
       clearRect: vi.fn(),
@@ -71,7 +71,8 @@ describe('PageAnnotationInputSurface', () => {
 
     expect(requestFrame).not.toHaveBeenCalled()
     expect(canvas.dataset.inkActive).toBe('true')
-    expect(canvas.dataset.inkSampleCount).toBe('1001')
+    expect(Number(canvas.dataset.inkSampleCount)).toBeGreaterThanOrEqual(2)
+    expect(Number(canvas.dataset.inkSampleCount)).toBeLessThan(1001)
     expect(context.lineTo).toHaveBeenCalledTimes(1001)
     expect(container.querySelector('.annotationDraftStroke')).toBeNull()
     fireEvent.pointerUp(window, { pointerId: 12, buttons: 0, clientX: 1200, clientY: 1250, pressure: 0.25 })

@@ -128,8 +128,8 @@ export function updateActiveCutProjectInDocument(
   activeProjectInput: CutProject,
   options: { sheetTemplate?: SheetTemplate } = {},
 ): CutGroupProjectDocument {
-  const document = parseProjectDocument(documentInput)
-  const activeProject = migrateProject(activeProjectInput)
+  const document = documentInput
+  const activeProject = activeProjectInput
   const activeCutId = document.cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : document.cuts[0]?.cutId ?? 'cut_1'
   const currentCut = document.cuts.find(cut => cut.cutId === activeCutId)
   const activeCut = currentCut

@@ -28,6 +28,7 @@ import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { useAnimationFramePointerUpdate } from './useAnimationFramePointerUpdate';
 import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches';
+import { useSheetRenderModelProject } from './useSheetRenderModelProject';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
 import { useSheetTouchNavigation } from './useSheetTouchNavigation';
 import { runSheetTouchTap } from './sheetTouchTap';
@@ -230,15 +231,16 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const displayFrameStart = logicalSheetDisplayFrameStart(props.project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(props.project.logicalSheet)
   const displayFrameEnd = logicalSheetDisplayFrameEnd(props.project.logicalSheet)
+  const sheetRenderModelProject = useSheetRenderModelProject(props.project)
   const templateTrackNames = useMemo(
-    () => templatePaperTracks(props.project, props.template).map(track => track.paperTrack),
-    [props.project, props.template],
+    () => templatePaperTracks(sheetRenderModelProject, props.template).map(track => track.paperTrack),
+    [props.template, sheetRenderModelProject],
   )
   const sheetRenderModelContext = useMemo(
-    () => createSheetRenderModelContext(props.project, props.template, {
+    () => createSheetRenderModelContext(sheetRenderModelProject, props.template, {
       cutGroup: { activeCutId: props.activeCutId, cuts: props.projectCuts },
     }),
-    [props.activeCutId, props.project, props.projectCuts, props.template],
+    [props.activeCutId, props.projectCuts, props.template, sheetRenderModelProject],
   )
   const timelineLanes = sheetRenderModelContext.timelineLanes
   const timelineLaneEditorActions = createTimelineLaneEditorActions({

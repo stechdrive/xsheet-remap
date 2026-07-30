@@ -233,7 +233,7 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(onEraseStroke.mock.calls[0]?.[2]).toBeGreaterThan(0)
   })
 
-  it('preserves dense memo pen samples while drawing incremental canvas segments', () => {
+  it('preserves dense memo pen samples while throttling diagnostics outside incremental drawing', () => {
     const context = {
       beginPath: vi.fn(),
       clearRect: vi.fn(),
@@ -299,7 +299,8 @@ describe('TimelineMemoLayer anchor cues', () => {
 
     expect(requestFrame).not.toHaveBeenCalled()
     expect(canvas.dataset.inkActive).toBe('true')
-    expect(canvas.dataset.inkSampleCount).toBe('501')
+    expect(Number(canvas.dataset.inkSampleCount)).toBeGreaterThanOrEqual(2)
+    expect(Number(canvas.dataset.inkSampleCount)).toBeLessThan(501)
     expect(context.lineTo).toHaveBeenCalledTimes(501)
     expect(container.querySelector('.timelineMemoStroke.draft')).toBeNull()
     fireEvent.pointerUp(window, { pointerId: 18, buttons: 0, clientX: 700, clientY: 700 })

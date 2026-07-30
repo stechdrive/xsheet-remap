@@ -51,7 +51,7 @@ export function createProjectHistory(project: CutProject): ProjectHistory {
 }
 
 export function commitHistory(history: ProjectHistory, project: CutProject): ProjectHistory {
-  return { past: [...history.past, history.present], present: migrateProject(project), future: [] }
+  return { past: [...history.past, history.present], present: project, future: [] }
 }
 
 export function undoHistory(history: ProjectHistory): ProjectHistory {

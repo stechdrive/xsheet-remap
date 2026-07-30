@@ -1,4 +1,5 @@
 export { App, EditorApp, RemapApp, type MainAppKind } from './App'
+export { APP_VERSION } from './appVersion'
 export { AssetPreviewWindow } from './assetPreview'
 export { SheetCorrectorApp } from './sheetCorrectorApp'
 export { TemplateEditorApp } from './TemplateEditorApp'

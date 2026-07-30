@@ -4479,7 +4479,7 @@ dependencies = [
 
 [[package]]
 name = "xsheet-template"
-version = "0.1.711"
+version = "0.1.712"
 dependencies = [
  "tauri",
  "tauri-build",

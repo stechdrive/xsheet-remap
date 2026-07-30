@@ -7,8 +7,11 @@ const root = document.getElementById('root')
 if (!root) throw new Error('root element not found')
 const params = new URLSearchParams(window.location.search)
 const isAssetPreviewWindow = params.get('window') === 'asset-preview'
+const isInkDiagnostic = params.get('diagnostic') === 'ink'
 const appKind = params.get('app')
-const applicationTitle = isAssetPreviewWindow
+const applicationTitle = isInkDiagnostic
+  ? '手描き診断'
+  : isAssetPreviewWindow
   ? '素材プレビュー'
   : appKind === 'remap'
     ? 'xsheet-remap'
@@ -23,6 +26,10 @@ document.title = applicationTitle
 if (isPagesBuild) registerPagesServiceWorker()
 
 async function resolveApplication() {
+  if (isInkDiagnostic) {
+    const { InkDiagnosticApp } = await import('./InkDiagnosticApp')
+    return <InkDiagnosticApp />
+  }
   if (isAssetPreviewWindow) {
     const { AssetPreviewWindow } = await import('@xsheet-remap/ui')
     return <AssetPreviewWindow />

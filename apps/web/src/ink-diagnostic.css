@@ -1,0 +1,287 @@
+.inkDiagnosticApp {
+  min-height: 100%;
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at top right, rgb(47 123 125 / 0.18), transparent 42%),
+    #f3f0e7;
+  color: #17302d;
+  touch-action: pan-y;
+}
+
+.inkDiagnosticHeader,
+.inkDiagnosticPanel,
+.inkDiagnosticFooter {
+  width: min(760px, 100%);
+  margin-inline: auto;
+}
+
+.inkDiagnosticHeader {
+  padding: 12px 4px 18px;
+}
+
+.inkDiagnosticHeader h1,
+.inkDiagnosticPanel h1,
+.inkDiagnosticPanel h2 {
+  margin: 0;
+}
+
+.inkDiagnosticHeader h1 {
+  font-size: clamp(26px, 7vw, 38px);
+  line-height: 1.15;
+}
+
+.inkDiagnosticHeader > p:last-child {
+  max-width: 62ch;
+  margin: 12px 0 0;
+  color: #405653;
+  line-height: 1.7;
+}
+
+.inkDiagnosticEyebrow {
+  margin: 0 0 7px;
+  color: #236d68;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.inkDiagnosticPanel {
+  margin-bottom: 14px;
+  padding: 18px;
+  border: 1px solid rgb(25 67 62 / 0.18);
+  border-radius: 14px;
+  background: rgb(255 255 252 / 0.94);
+  box-shadow: 0 12px 34px rgb(42 56 50 / 0.08);
+}
+
+.inkDiagnosticPanel h2 {
+  font-size: 17px;
+}
+
+.inkDiagnosticCapabilities {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.inkDiagnosticCapabilities div {
+  padding: 10px;
+  border-radius: 8px;
+  background: #eef3ef;
+}
+
+.inkDiagnosticCapabilities dt {
+  color: #61716e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.inkDiagnosticCapabilities dd {
+  margin: 3px 0 0;
+  font-weight: 800;
+}
+
+.inkDiagnosticSectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inkDiagnosticSectionHeading > span {
+  color: #56706c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.inkDiagnosticScenarioList {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inkDiagnosticScenarioList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #d9e1dc;
+  border-radius: 10px;
+  background: #fbfcf9;
+}
+
+.inkDiagnosticScenarioList strong {
+  font-size: 14px;
+}
+
+.inkDiagnosticScenarioList p {
+  margin: 4px 0 0;
+  color: #53635f;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.inkDiagnosticApp button,
+.inkDiagnosticField select {
+  min-height: 44px;
+  border-radius: 9px;
+}
+
+.inkDiagnosticPrimary {
+  border-color: #176b65;
+  background: #176b65;
+  color: #fff;
+  font-weight: 800;
+}
+
+.inkDiagnosticPrimary:hover {
+  background: #115b56;
+}
+
+.inkDiagnosticEvaluation {
+  display: grid;
+  place-items: center;
+}
+
+.inkDiagnosticEvaluation .inkDiagnosticPanel {
+  margin-bottom: 0;
+}
+
+.inkDiagnosticWarning,
+.inkDiagnosticSuccess {
+  padding: 10px 12px;
+  border-radius: 8px;
+  line-height: 1.55;
+}
+
+.inkDiagnosticWarning {
+  background: #fff1d9;
+  color: #6d4706;
+}
+
+.inkDiagnosticSuccess {
+  background: #e2f4e8;
+  color: #155f35;
+}
+
+.inkDiagnosticField {
+  display: grid;
+  gap: 7px;
+  margin: 18px 0;
+  font-weight: 800;
+}
+
+.inkDiagnosticField select {
+  width: 100%;
+  padding: 7px 10px;
+}
+
+.inkDiagnosticQuestion {
+  margin: 18px 0 10px;
+  font-weight: 800;
+}
+
+.inkDiagnosticOutcomeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inkDiagnosticReport {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.inkDiagnosticFooter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.inkDiagnosticTestScreen {
+  position: fixed;
+  z-index: 100000;
+  inset: 0;
+  overflow: hidden;
+  background: #f5f1e8;
+  touch-action: none;
+}
+
+.inkDiagnosticTestBackdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  background:
+    linear-gradient(45deg, rgb(34 105 99 / 0.07) 25%, transparent 25% 75%, rgb(34 105 99 / 0.07) 75%),
+    linear-gradient(45deg, rgb(34 105 99 / 0.07) 25%, #f7f3e9 25% 75%, rgb(34 105 99 / 0.07) 75%);
+  background-position: 0 0, 18px 18px;
+  background-size: 36px 36px;
+  color: #214944;
+  text-align: center;
+}
+
+.inkDiagnosticTestBackdrop strong {
+  font-size: clamp(22px, 6vw, 34px);
+}
+
+.inkDiagnosticTestBackdrop span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.82);
+  font-weight: 700;
+}
+
+.inkDiagnosticTestCanvas {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.inkDiagnosticAboveCanvas {
+  position: absolute;
+  z-index: 2;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  padding: 8px 12px;
+  border: 1px solid rgb(17 54 50 / 0.28);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  color: #173f3b;
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 520px) {
+  .inkDiagnosticCapabilities,
+  .inkDiagnosticOutcomeGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .inkDiagnosticScenarioList li {
+    grid-template-columns: 1fr;
+  }
+
+  .inkDiagnosticScenarioList button {
+    width: 100%;
+  }
+}

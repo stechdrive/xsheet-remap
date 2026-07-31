@@ -198,6 +198,10 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(container.querySelector('.timelineMemoMoveFrame')).toBeTruthy()
     expect(container.querySelector('.timelineMemoMoveHandle')).toBeNull()
     expect(container.querySelector('.sheetTransformHandleMoveVisual')).toBeNull()
+    expect(container.querySelector('.timelineMemoBounds')?.getAttribute('stroke-width')).toBe('2px')
+    expect(container.querySelector('.timelineMemoBounds')?.getAttribute('vector-effect')).toBe('non-scaling-stroke')
+    expect(container.querySelector('.sheetSelectionOutlineHalo')?.getAttribute('stroke-width')).toBe('4px')
+    expect(container.querySelector('.timelineMemoBoundsEdge')).toBeNull()
     expect(container.querySelector('.timelineMemoResizeHandle.sheetTransformHandle.resize')).toBeTruthy()
     expect(container.querySelector('.sheetTransformHandleResizeVisual')).toBeTruthy()
 

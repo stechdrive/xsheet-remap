@@ -30,6 +30,25 @@ describe('parseSheetTemplate', () => {
     expect(() => parseSheetTemplate(invalid)).toThrow('用紙テーマが不正')
   })
 
+  it('validates timeline memo creation defaults from custom templates', () => {
+    const custom = structuredClone(standardA3SheetTemplate)
+    custom.annotationDefaults = {
+      timelineMemo: { defaultWidthMm: 42, defaultWidthPx: 240, singleFrameHeightFrames: 16 },
+    }
+    expect(parseSheetTemplate(custom).annotationDefaults?.timelineMemo).toEqual(custom.annotationDefaults.timelineMemo)
+
+    for (const timelineMemo of [
+      { defaultWidthMm: 0 },
+      { defaultWidthPx: Number.NaN },
+      { singleFrameHeightFrames: -1 },
+      { defaultWidthMm: '35' },
+    ]) {
+      const invalid = structuredClone(standardA3SheetTemplate) as unknown as Record<string, unknown>
+      invalid.annotationDefaults = { timelineMemo }
+      expect(() => parseSheetTemplate(invalid)).toThrow('メモ既定値が不正')
+    }
+  })
+
   it('rejects duplicate region identifiers', () => {
     const template = structuredClone(standardA3SheetTemplate)
     template.regions[1]!.regionId = template.regions[0]!.regionId

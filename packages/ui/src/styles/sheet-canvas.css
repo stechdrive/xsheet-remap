@@ -2260,14 +2260,7 @@
 }
 
 .timelineMemoBounds {
-  fill: none;
-  pointer-events: none;
-}
-
-.timelineMemoBoundsEdge {
-  fill: currentColor;
-  opacity: 0.76;
-  pointer-events: none;
+  opacity: 1;
 }
 
 .timelineMemoMoveFrame {
@@ -2281,11 +2274,6 @@
 
 .timelineMemoMoveFrame[data-dragging="true"] {
   cursor: grabbing;
-}
-
-.timelineMemoSegment:has(.timelineMemoMoveFrame:hover) .timelineMemoBoundsEdge,
-.timelineMemoSegment:has(.timelineMemoMoveFrame[data-dragging="true"]) .timelineMemoBoundsEdge {
-  opacity: 1;
 }
 
 .timelineMemoDrawSurface {

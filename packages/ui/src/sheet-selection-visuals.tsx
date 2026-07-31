@@ -9,6 +9,8 @@ export type SheetSelectionSurface = {
 const SELECTED_CORNER_SIZE_PX = 8
 const RANGE_BOUNDARY_INSET_PX = 1
 const RANGE_MERGE_EPSILON = 0.00001
+const SELECTION_OUTLINE_HALO_WIDTH_PX = 4
+const SELECTION_OUTLINE_WIDTH_PX = 2
 
 function safeSurfaceSize(value: number): number {
   return Math.max(1, value)
@@ -107,6 +109,42 @@ export function SheetRangeFillCue({
       width={rect.w}
       height={rect.h}
     />
+  )
+}
+
+export function SheetSelectionOutline({
+  rect,
+  className,
+}: {
+  rect: NormalizedRect
+  className?: string
+}) {
+  return (
+    <g className="sheetSelectionOutlineGroup" pointerEvents="none">
+      <rect
+        className="sheetSelectionOutlineHalo"
+        x={rect.x}
+        y={rect.y}
+        width={rect.w}
+        height={rect.h}
+        fill="none"
+        stroke="#fffdf8"
+        strokeOpacity={0.92}
+        strokeWidth={`${SELECTION_OUTLINE_HALO_WIDTH_PX}px`}
+        vectorEffect="non-scaling-stroke"
+      />
+      <rect
+        className={['sheetSelectionOutline', className].filter(Boolean).join(' ')}
+        x={rect.x}
+        y={rect.y}
+        width={rect.w}
+        height={rect.h}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={`${SELECTION_OUTLINE_WIDTH_PX}px`}
+        vectorEffect="non-scaling-stroke"
+      />
+    </g>
   )
 }
 

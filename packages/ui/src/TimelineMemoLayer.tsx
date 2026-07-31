@@ -14,6 +14,7 @@ import {
   type TimelineMemoSegment,
 } from './timelineMemoGeometry'
 import { sheetCellCornerTrianglePoints } from './sheetCellCornerMarker'
+import { SheetSelectionOutline } from './sheet-selection-visuals'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
@@ -177,8 +178,6 @@ export function TimelineMemoLayer({
     .map(memo => placementInteraction?.memo.memoId === memo.memoId
       ? { ...memo, placement: placementInteraction.previewPlacement }
       : memo), [memos, placementInteraction])
-  const edgeW = 1.25 / Math.max(1, pageSize.widthPx)
-  const edgeH = 1.25 / Math.max(1, pageSize.heightPx)
   const renderedMemoSegments = useMemo(() => renderedMemos.map(memo => ({
     memo,
     segments: timelineMemoSegmentsForPage(template, page, memo, { paperTracks, layoutOverrides }).map(segment => ({
@@ -459,13 +458,7 @@ export function TimelineMemoLayer({
                 /></text>
               })}
             </g>
-            {selected && <g className="timelineMemoBoundsEdges">
-              <rect className="timelineMemoBounds" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />
-              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={edgeH} />
-              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y + segment.rect.h - edgeH} width={segment.rect.w} height={edgeH} />
-              <rect className="timelineMemoBoundsEdge" x={segment.rect.x} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
-              <rect className="timelineMemoBoundsEdge" x={segment.rect.x + segment.rect.w - edgeW} y={segment.rect.y} width={edgeW} height={segment.rect.h} />
-            </g>}
+            {selected && <SheetSelectionOutline rect={segment.rect} className="timelineMemoBounds" />}
             {textDraft?.memoId === memo.memoId && textDraft.segment.regionId === segment.regionId && (() => {
               const editorRect = timelineMemoTextEditorRect(segment, textDraft.value)
               const host = editorHost === undefined && typeof document !== 'undefined' ? document.body : editorHost

@@ -30,6 +30,7 @@ export function parseSheetTemplate(input: unknown): SheetTemplate {
   if (new Set(input.defaults.paperTracks).size !== input.defaults.paperTracks.length) {
     throw new Error('テンプレートのセル列名が重複しています。')
   }
+  if (input.annotationDefaults !== undefined) validateAnnotationDefaults(input.annotationDefaults)
   if (input.fields !== undefined) validateFields(input.fields)
   if (!Array.isArray(input.regions) || input.regions.length === 0) {
     throw new Error('テンプレートに表示領域がありません。')
@@ -45,6 +46,17 @@ export function parseSheetTemplate(input: unknown): SheetTemplate {
   return {
     ...(input as unknown as SheetTemplate),
     schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
+  }
+}
+
+function validateAnnotationDefaults(input: unknown): void {
+  if (!isRecord(input)) throw new Error('テンプレートのメモ既定値が不正です。')
+  if (input.timelineMemo === undefined) return
+  if (!isRecord(input.timelineMemo)
+    || input.timelineMemo.defaultWidthMm !== undefined && !positiveNumber(input.timelineMemo.defaultWidthMm)
+    || input.timelineMemo.defaultWidthPx !== undefined && !positiveNumber(input.timelineMemo.defaultWidthPx)
+    || input.timelineMemo.singleFrameHeightFrames !== undefined && !positiveNumber(input.timelineMemo.singleFrameHeightFrames)) {
+    throw new Error('テンプレートのメモ既定値が不正です。')
   }
 }
 

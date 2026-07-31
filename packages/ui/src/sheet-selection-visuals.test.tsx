@@ -5,6 +5,7 @@ import {
   SheetDropTargetCue,
   SheetRangeBoundaryCue,
   SheetRangeFillCue,
+  SheetSelectionOutline,
   assetAssignedMarkerSize,
   mergeAdjacentRangeRects,
   rangeBoundaryRect,
@@ -25,6 +26,26 @@ describe('sheet selection visuals', () => {
     expect(assetMarker.height * surface.heightPx).toBeCloseTo(9)
     expect(selectedCorner.width * surface.widthPx).toBeCloseTo(8)
     expect(selectedCorner.height * surface.heightPx).toBeCloseTo(8)
+  })
+
+  it('renders a reusable selection outline with a fixed screen-space stroke', () => {
+    const { container } = render(
+      <svg viewBox="0 0 1 1">
+        <SheetSelectionOutline rect={rect} className="customSelection" />
+      </svg>,
+    )
+
+    const outline = container.querySelector('.sheetSelectionOutline')
+    const halo = container.querySelector('.sheetSelectionOutlineHalo')
+    expect(outline?.classList.contains('customSelection')).toBe(true)
+    expect(outline?.getAttribute('x')).toBe(String(rect.x))
+    expect(outline?.getAttribute('width')).toBe(String(rect.w))
+    expect(outline?.getAttribute('stroke')).toBe('currentColor')
+    expect(outline?.getAttribute('stroke-width')).toBe('2px')
+    expect(outline?.getAttribute('vector-effect')).toBe('non-scaling-stroke')
+    expect(halo?.getAttribute('stroke')).toBe('#fffdf8')
+    expect(halo?.getAttribute('stroke-width')).toBe('4px')
+    expect(halo?.getAttribute('vector-effect')).toBe('non-scaling-stroke')
   })
 
   it('clamps cues inside very small frame cells', () => {

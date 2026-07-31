@@ -110,6 +110,8 @@ export interface TemplateRegionAnnotationTarget {
   templateId: string
   regionId: string
   targetId?: string
+  logicalTargetId: string
+  rect: { x: number; y: number; w: number; h: number }
   label: string
 }
 

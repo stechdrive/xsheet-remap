@@ -364,7 +364,7 @@ export function buildTemplateFormRenderModels(
         textStyle: cell.textStyle ?? {},
         editPresentation: cell.editPresentation ?? 'popover',
         editable: !isProjectedTotal && definition.builtinBinding?.field !== 'page',
-        memoTarget: resolveTemplateFormCellMemoTarget(region, cell, definition.label),
+        memoTarget: resolveTemplateFormCellMemoTarget(region, cell, definition.label, definition),
         sourceFieldIds: isProjectedTotal && totalSuffix
           ? paperTracks.map(paperTrack => `${form.projection!.fieldPrefix}.${paperTrack}.${totalSuffix}`)
           : undefined,

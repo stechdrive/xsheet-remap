@@ -37,6 +37,7 @@ import { createCameraCuePointerDrag, createSoundCuePointerDrag, type CameraCuePo
 import { beginSheetViewportPan } from './sheetViewportPan';
 import { advancePrimaryPointerActivation, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
 import type { PageAnnotationStrokeStart } from './PageAnnotationInputSurface';
+import { pageMemoInputPosition } from './pageMemoInputCoordinates';
 
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftRange, setDraftRangeState] = useState<DraftRangeInteraction | null>(null)
@@ -1161,6 +1162,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       surfaceSize: sheetPageSize,
       regionId: regionTarget?.regionId,
       targetId: regionTarget?.targetId,
+      logicalTargetId: regionTarget?.logicalTargetId,
     }
   }
 
@@ -1503,9 +1505,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setStackGuideHeaderMenu(null)
     props.setActivePageIndex(page.pageIndex)
     const point = pointFromEvent(event)
-    if (props.editMode === 'calibrate') {
-      return null
-    }
+    const { point: annotationPoint, coordinateSpace: annotationCoordinateSpace } =
+      pageMemoInputPosition(point, props.pageAnnotationTarget)
+    if (props.editMode === 'calibrate') return null
     if (props.editMode === 'text') {
       if (props.editingTextAnnotationId) {
         props.onCommitFocusedTextAnnotationDraft()
@@ -1516,11 +1518,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         pageId: page.pageId,
         kind: 'text',
         text: '',
-        x: clampNumber(point.x, 0, 1),
-        y: clampNumber(point.y, 0, 1),
+        x: annotationPoint.x,
+        y: annotationPoint.y,
         color: props.penColor,
         fontSizePx: props.textFontSizePx,
-        coordinateSpace: 'view-surface',
+        coordinateSpace: annotationCoordinateSpace,
         anchor: pageAnnotationAnchor(page),
       })
       return null
@@ -1538,9 +1540,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
           tool,
           color: tool === 'pen' ? props.penColor : '#2f7f6a',
           width: tool === 'pen' ? props.penWidth : props.eraserWidth,
-          coordinateSpace: 'view-surface',
+          coordinateSpace: annotationCoordinateSpace,
           anchor: pageAnnotationAnchor(page),
-          points: [{ ...point, pressure: event.pressure || 1 }],
+          points: [{ ...annotationPoint, pressure: event.pressure || 1 }],
         },
       }
     }

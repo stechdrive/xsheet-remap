@@ -123,7 +123,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   if (!blockedMemoHotspot.disabled || !blockedMemoHotspot.selected || !['transparent', 'rgba(0, 0, 0, 0)'].includes(blockedMemoHotspot.backgroundColor)) {
     throw new Error(`blocked MEMO hotspot obscures annotation ink: ${JSON.stringify(blockedMemoHotspot)}`)
   }
-  const memoStrokeCountBefore = await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke[data-annotation-region-id="top_memo_area"]').length`)
+  const memoStrokeCountBefore = await evaluatePage<number>(`Number(document.querySelector('.committedAnnotationCanvas')?.getAttribute('data-annotation-stroke-count') ?? 0)`)
   await drawPageStrokeWithLivePreview(
     { x: memoPoint.x - 80, y: memoPoint.y - 20 },
     { x: memoPoint.x + 80, y: memoPoint.y + 20 },
@@ -132,7 +132,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await waitForPageCondition(() => document.querySelector('.annotationTargetLabel')?.textContent?.includes('対象: MEMO') === true
     && document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-target-kind') === 'template-region', 'MEMO target remains locked after drawing')
   await waitForCondition(
-    async () => (await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke[data-annotation-region-id="top_memo_area"]').length`)) > memoStrokeCountBefore,
+    async () => (await evaluatePage<number>(`Number(document.querySelector('.committedAnnotationCanvas')?.getAttribute('data-annotation-stroke-count') ?? 0)`)) > memoStrokeCountBefore,
     5000,
     'MEMO-region stroke committed',
   )
@@ -140,8 +140,8 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     evaluate: evaluatePage,
     captureScreenshot,
   }, {
-    selector: '.sheetSvg .annotationStroke[data-annotation-region-id="top_memo_area"]',
-    expectedCount: memoStrokeCountBefore + 1,
+    selector: '.committedAnnotationCanvas[data-annotation-region-ids~="top_memo_area"]',
+    expectedCount: 1,
     label: 'committed MEMO annotation while the pen session remains active',
     minimumChangedPixels: 12,
   })
@@ -190,7 +190,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       && palette.getAttribute('data-annotation-tool') === 'pen'
       && palette.classList.contains('open')
   }, 'annotation session remains visibly open')
-  const strokeCountBeforeText = await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)
+  const strokeCountBeforeText = await evaluatePage<number>(`Number(document.querySelector('.committedAnnotationCanvas')?.getAttribute('data-annotation-stroke-count') ?? 0)`)
   const textBeforePen = await pageTextGeometry('ページコメント')
   await drawPageStrokeWithLivePreview(
     { x: textBeforePen.centerX, y: textBeforePen.centerY },
@@ -198,7 +198,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     'page-live-annotation-preview',
   )
   await waitForCondition(
-    async () => (await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeText,
+    async () => (await evaluatePage<number>(`Number(document.querySelector('.committedAnnotationCanvas')?.getAttribute('data-annotation-stroke-count') ?? 0)`)) > strokeCountBeforeText,
     5000,
     'page stroke starting on page text',
   )
@@ -217,10 +217,10 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await selectAnnotationPaletteTool('sheet', 'ペン')
   await waitForPageCondition(() => Boolean(document.querySelector('.pageAnnotationInputSurface[data-annotation-tool="pen"]')), 'pen restored without ending annotation session')
 
-  const strokeCountBeforeMemoForm = await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)
+  const strokeCountBeforeMemoForm = await evaluatePage<number>(`Number(document.querySelector('.committedAnnotationCanvas')?.getAttribute('data-annotation-stroke-count') ?? 0)`)
   await mouseDrag(memoPoint, { x: memoPoint.x + 64, y: memoPoint.y + 6 })
   await waitForCondition(
-    async () => (await evaluatePage<number>(`document.querySelectorAll('.sheetSvg .annotationStroke:not(.annotationEraserPreview)').length`)) > strokeCountBeforeMemoForm,
+    async () => (await evaluatePage<number>(`Number(document.querySelector('.committedAnnotationCanvas')?.getAttribute('data-annotation-stroke-count') ?? 0)`)) > strokeCountBeforeMemoForm,
     5000,
     'page stroke starting on MEMO form',
   )

@@ -252,7 +252,7 @@ export interface AnnotationPoint {
   pressure?: number
 }
 
-export type AnnotationCoordinateSpace = 'view-surface' | 'logical-anchor'
+export type AnnotationCoordinateSpace = 'view-surface' | 'logical-anchor' | 'memo-target'
 
 export interface AnnotationSurfaceSize {
   widthPx: number
@@ -267,6 +267,8 @@ export interface AnnotationViewSurfaceAnchor {
   regionId?: Id
   /** Optional form-cell/group identity within regionId. */
   targetId?: Id
+  /** Template-independent identity used to project a memo onto the active template. */
+  logicalTargetId?: Id
 }
 
 export interface AnnotationTimelineAnchor {
@@ -288,6 +290,7 @@ export interface AnnotationRegionAnchor {
   templateId?: string
   regionId: Id
   targetId?: Id
+  logicalTargetId?: Id
 }
 
 export type AnnotationAnchor =
@@ -331,6 +334,10 @@ export interface SheetPageMemoTarget {
   templateId?: string
   regionId?: Id
   targetId?: Id
+  /** Template-independent identity used to project a memo onto the active template. */
+  logicalTargetId?: Id
+  /** Resolved target geometry when the target is used for a new input session. */
+  targetRect?: { x: number; y: number; w: number; h: number }
   surfaceSize?: AnnotationSurfaceSize
 }
 
@@ -352,9 +359,10 @@ export interface MemoAppearance {
 }
 
 /**
- * Page and form-region memos share one container.  Stroke/text coordinates
- * remain normalized to the page surface so template and zoom changes do not
- * alter their placement.
+ * Page and form-region memos share one container. Page-target coordinates are
+ * normalized to the page surface. Template-region coordinates may instead be
+ * stored relative to the resolved memo target so the ink follows template
+ * changes without constraining the editable canvas to the target rectangle.
  */
 export interface SheetPageMemo {
   kind: 'page'

@@ -10,13 +10,18 @@ import {
   type SheetPage,
   type SheetTemplate,
   type SheetTemplateFieldDefinition,
+  type NormalizedRect,
 } from '@xsheet-remap/core'
 import { DurationFrameControl } from './DurationFrameControl'
 import { TooltipTarget } from './Tooltip'
 import { buildTemplateChromeRenderModel } from './templateEditorGeometry'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import type { TemplateRegionAnnotationTarget } from './appTypes'
-import { sameTemplateMemoTarget, type TemplateMemoTargetRef } from './templateMemoTargets'
+import {
+  resolveTemplateRegionMemoTarget,
+  sameTemplateMemoTarget,
+  type TemplateMemoTargetRef,
+} from './templateMemoTargets'
 
 type EditableMetadataRegion = SheetTemplate['regions'][number] & {
   binding: Extract<NonNullable<SheetTemplate['regions'][number]['binding']>, { target: 'cut-metadata' }>
@@ -98,6 +103,20 @@ export function SheetMetadataEditor({
           overflow: false,
         }
     : null
+  const memoTargetRect = (target: TemplateMemoTargetRef): NormalizedRect => {
+    const rects = [
+      ...regionLayouts
+        .filter(item => sameTemplateMemoTarget(resolveTemplateRegionMemoTarget(item.region), target))
+        .map(item => item.rect),
+      ...formFields
+        .filter(field => sameTemplateMemoTarget(field.memoTarget, target))
+        .map(field => field.rect),
+      ...chrome.formAnnotationTargets
+        .filter(item => sameTemplateMemoTarget(item.memoTarget, target))
+        .map(item => item.rect),
+    ]
+    return rects.reduce(unionRect, rects[0] ?? { x: 0, y: 0, w: 1, h: 1 })
+  }
   const pageScale = pageHeight / Math.max(1, chrome.pageSize.heightPx)
 
   useEffect(() => {
@@ -216,7 +235,8 @@ export function SheetMetadataEditor({
               }}
               onClick={event => {
                 event.stopPropagation()
-                onAnnotationRegionSelect(annotationRegionTarget(page, template, { regionId: region.regionId, label: region.label }))
+                const target = resolveTemplateRegionMemoTarget(region)
+                onAnnotationRegionSelect(annotationRegionTarget(page, template, target, memoTargetRect(target)))
               }}
               onDoubleClick={event => {
                 event.stopPropagation()
@@ -269,7 +289,9 @@ export function SheetMetadataEditor({
               }}
               onClick={event => {
                 event.stopPropagation()
-                if (field.memoTarget) onAnnotationRegionSelect(annotationRegionTarget(page, template, field.memoTarget))
+                if (field.memoTarget) {
+                  onAnnotationRegionSelect(annotationRegionTarget(page, template, field.memoTarget, memoTargetRect(field.memoTarget)))
+                }
               }}
               onDoubleClick={event => {
                 event.stopPropagation()
@@ -306,7 +328,7 @@ export function SheetMetadataEditor({
               }}
               onClick={event => {
                 event.stopPropagation()
-                onAnnotationRegionSelect(annotationRegionTarget(page, template, target.memoTarget))
+                onAnnotationRegionSelect(annotationRegionTarget(page, template, target.memoTarget, memoTargetRect(target.memoTarget)))
               }}
             />
           )}
@@ -430,6 +452,7 @@ function annotationRegionTarget(
   page: SheetPage,
   template: SheetTemplate,
   target: TemplateMemoTargetRef,
+  rect: NormalizedRect,
 ): TemplateRegionAnnotationTarget {
   return {
     kind: 'template-region',
@@ -437,8 +460,18 @@ function annotationRegionTarget(
     templateId: template.templateId,
     regionId: target.regionId,
     targetId: target.targetId,
+    logicalTargetId: target.logicalTargetId,
+    rect,
     label: target.label,
   }
+}
+
+function unionRect(left: NormalizedRect, right: NormalizedRect): NormalizedRect {
+  const x = Math.min(left.x, right.x)
+  const y = Math.min(left.y, right.y)
+  const rightEdge = Math.max(left.x + left.w, right.x + right.w)
+  const bottomEdge = Math.max(left.y + left.h, right.y + right.h)
+  return { x, y, w: rightEdge - x, h: bottomEdge - y }
 }
 
 function SheetFormFieldControl({

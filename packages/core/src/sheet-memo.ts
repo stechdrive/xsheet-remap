@@ -153,6 +153,7 @@ export function pageMemoTargetForAnnotation(annotation: Annotation): SheetPageMe
       templateId: anchor.templateId,
       regionId: anchor.regionId,
       targetId: anchor.targetId,
+      logicalTargetId: anchor.logicalTargetId,
       surfaceSize: anchor.surfaceSize,
     }
   }
@@ -163,13 +164,17 @@ export function pageMemoTargetForAnnotation(annotation: Annotation): SheetPageMe
       templateId: anchor.templateId,
       regionId: anchor.regionId,
       targetId: anchor.targetId,
+      logicalTargetId: anchor.logicalTargetId,
     }
   }
   return { kind: 'page', pageId: annotation.pageId }
 }
 
 export function pageMemoTargetKey(target: SheetPageMemoTarget): string {
-  return [target.kind, target.pageId, target.templateId ?? '', target.regionId ?? '', target.targetId ?? ''].join(':')
+  const targetIdentity = target.logicalTargetId
+    ? `logical:${target.logicalTargetId}`
+    : `template:${target.templateId ?? ''}:${target.regionId ?? ''}:${target.targetId ?? ''}`
+  return [target.kind, target.pageId, targetIdentity].join(':')
 }
 
 function pageMemoId(target: SheetPageMemoTarget, serial: number): string {

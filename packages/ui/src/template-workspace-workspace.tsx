@@ -970,8 +970,17 @@ export function TemplateWorkspace({
                     const current = selectedFormFieldCell.memoTarget
                     updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
                       memoTarget: scope === 'group'
-                        ? { scope, targetId: current?.targetId?.trim() || 'group_1', ...(current?.label ? { label: current.label } : {}) }
-                        : { scope, ...(current?.label ? { label: current.label } : {}) },
+                        ? {
+                            scope,
+                            targetId: current?.targetId?.trim() || 'group_1',
+                            ...(current?.logicalTargetId ? { logicalTargetId: current.logicalTargetId } : {}),
+                            ...(current?.label ? { label: current.label } : {}),
+                          }
+                        : {
+                            scope,
+                            ...(current?.logicalTargetId ? { logicalTargetId: current.logicalTargetId } : {}),
+                            ...(current?.label ? { label: current.label } : {}),
+                          },
                     })
                   }}
                 >
@@ -999,21 +1008,39 @@ export function TemplateWorkspace({
               </label>
             )}
             {selectedFormFieldCell.memoTarget?.scope !== 'none' && (
-              <label className="compactControl">
-                <span>メモ対象名（任意）</span>
-                <input
-                  aria-label="メモ対象名"
-                  placeholder={selectedFormFieldDefinition?.label ?? selectedFormFieldCell.fieldId ?? selectedFormFieldCell.cellId}
-                  value={selectedFormFieldCell.memoTarget?.label ?? ''}
-                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
-                    memoTarget: {
-                      scope: selectedFormFieldCell.memoTarget?.scope ?? 'cell',
-                      ...(selectedFormFieldCell.memoTarget?.targetId ? { targetId: selectedFormFieldCell.memoTarget.targetId } : {}),
-                      ...(event.currentTarget.value ? { label: event.currentTarget.value } : {}),
-                    },
-                  })}
-                />
-              </label>
+              <>
+                <label className="compactControl">
+                  <span>テンプレート間追従ID（任意）</span>
+                  <input
+                    aria-label="メモ対象のテンプレート間追従ID"
+                    value={selectedFormFieldCell.memoTarget?.logicalTargetId ?? ''}
+                    onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                      memoTarget: {
+                        scope: selectedFormFieldCell.memoTarget?.scope ?? 'cell',
+                        ...(selectedFormFieldCell.memoTarget?.targetId ? { targetId: selectedFormFieldCell.memoTarget.targetId } : {}),
+                        ...(event.currentTarget.value ? { logicalTargetId: event.currentTarget.value } : {}),
+                        ...(selectedFormFieldCell.memoTarget?.label ? { label: selectedFormFieldCell.memoTarget.label } : {}),
+                      },
+                    })}
+                  />
+                </label>
+                <label className="compactControl">
+                  <span>メモ対象名（任意）</span>
+                  <input
+                    aria-label="メモ対象名"
+                    placeholder={selectedFormFieldDefinition?.label ?? selectedFormFieldCell.fieldId ?? selectedFormFieldCell.cellId}
+                    value={selectedFormFieldCell.memoTarget?.label ?? ''}
+                    onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                      memoTarget: {
+                        scope: selectedFormFieldCell.memoTarget?.scope ?? 'cell',
+                        ...(selectedFormFieldCell.memoTarget?.targetId ? { targetId: selectedFormFieldCell.memoTarget.targetId } : {}),
+                        ...(selectedFormFieldCell.memoTarget?.logicalTargetId ? { logicalTargetId: selectedFormFieldCell.memoTarget.logicalTargetId } : {}),
+                        ...(event.currentTarget.value ? { label: event.currentTarget.value } : {}),
+                      },
+                    })}
+                  />
+                </label>
+              </>
             )}
             <TemplateTextMetricControls
               template={template}

@@ -30,8 +30,12 @@ export function updateTextAnnotation(
         ...annotation,
         ...updates,
         ...(updates.fontSizePx === undefined ? {} : { fontSizePx: clampTextFontSizePx(updates.fontSizePx) }),
-        ...(updates.x === undefined ? {} : { x: clampNumber(updates.x, 0, 1) }),
-        ...(updates.y === undefined ? {} : { y: clampNumber(updates.y, 0, 1) }),
+        ...(updates.x === undefined ? {} : {
+          x: clampNumber(updates.x, annotation.coordinateSpace === 'memo-target' ? -1 : 0, annotation.coordinateSpace === 'memo-target' ? 2 : 1),
+        }),
+        ...(updates.y === undefined ? {} : {
+          y: clampNumber(updates.y, annotation.coordinateSpace === 'memo-target' ? -1 : 0, annotation.coordinateSpace === 'memo-target' ? 2 : 1),
+        }),
       }
       if (
         nextAnnotation.text === annotation.text
@@ -59,6 +63,7 @@ function annotationAnchorSignature(anchor: AnnotationText['anchor']): string {
       anchor.pageId,
       anchor.regionId ?? '',
       anchor.targetId ?? '',
+      anchor.logicalTargetId ?? '',
       anchor.surfaceSize?.widthPx ?? '',
       anchor.surfaceSize?.heightPx ?? '',
     ].join(':')
@@ -87,26 +92,32 @@ export function cloneTextAnnotationForPaste(
     surfaceSize: { widthPx: number; heightPx: number }
   },
 ): AnnotationText {
+  const targetRelative = annotation.coordinateSpace === 'memo-target'
+    && annotation.anchor?.kind === 'view-surface'
+    && Boolean(annotation.anchor.logicalTargetId)
   return {
     ...annotation,
     annotationId: input.annotationId,
     pageId: input.pageId,
     fontSizePx: resolveAnnotationTextFontSizePx(annotation, input.surfaceSize),
-    x: clampNumber(annotation.x + 0.012, 0, 0.98),
-    y: clampNumber(annotation.y + 0.012, 0, 0.98),
-    coordinateSpace: 'view-surface',
+    x: clampNumber(annotation.x + 0.012, targetRelative ? -1 : 0, targetRelative ? 2 : 0.98),
+    y: clampNumber(annotation.y + 0.012, targetRelative ? -1 : 0, targetRelative ? 2 : 0.98),
+    coordinateSpace: targetRelative ? 'memo-target' : 'view-surface',
     anchor: {
       kind: 'view-surface',
       templateId: input.templateId,
       pageId: input.pageId,
       surfaceSize: input.surfaceSize,
       regionId: annotation.anchor?.kind === 'view-surface'
-        && (!annotation.anchor.templateId || annotation.anchor.templateId === input.templateId)
+        && (targetRelative || !annotation.anchor.templateId || annotation.anchor.templateId === input.templateId)
         ? annotation.anchor.regionId
         : undefined,
       targetId: annotation.anchor?.kind === 'view-surface'
-        && (!annotation.anchor.templateId || annotation.anchor.templateId === input.templateId)
+        && (targetRelative || !annotation.anchor.templateId || annotation.anchor.templateId === input.templateId)
         ? annotation.anchor.targetId
+        : undefined,
+      logicalTargetId: targetRelative && annotation.anchor?.kind === 'view-surface'
+        ? annotation.anchor.logicalTargetId
         : undefined,
     },
   }

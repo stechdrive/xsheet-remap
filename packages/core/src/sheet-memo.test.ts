@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addAnnotation } from './annotations'
+import { addAnnotation, eraseAnnotations } from './annotations'
 import { createDefaultProject } from './project-model'
 import { createProjectDocumentFromCutProject, migrateProject, parseProjectDocument } from './project-documents'
 import {
@@ -28,6 +28,77 @@ describe('sheet memo model', () => {
     })
     const project = addAnnotation(addAnnotation(createDefaultProject(), annotation('director', 'cell:director')), annotation('supervisor', 'cell:supervisor'))
     expect(sheetPageMemos(project).map(memo => memo.target.targetId)).toEqual(['cell:director', 'cell:supervisor'])
+  })
+
+  it('uses a logical target as the stable memo identity across templates', () => {
+    expect(pageMemoTargetKey({
+      kind: 'template-region',
+      pageId: 'page_1',
+      templateId: 'paper',
+      regionId: 'paper_title',
+      logicalTargetId: 'metadata:title',
+    })).toBe(pageMemoTargetKey({
+      kind: 'template-region',
+      pageId: 'page_1',
+      templateId: 'digital',
+      regionId: 'digital_form',
+      targetId: 'cell:digital_title',
+      logicalTargetId: 'metadata:title',
+    }))
+  })
+
+  it('keeps add and erase operations scoped to a logical target after a template switch', () => {
+    const source = addAnnotation(createDefaultProject(), {
+      annotationId: 'paper_title_ink',
+      pageId: 'page_1',
+      tool: 'pen',
+      color: '#111111',
+      width: 0.004,
+      coordinateSpace: 'memo-target',
+      anchor: {
+        kind: 'view-surface',
+        pageId: 'page_1',
+        templateId: 'paper',
+        regionId: 'paper_title',
+        logicalTargetId: 'metadata:title',
+      },
+      points: [{ x: 0, y: 0 }, { x: 0.1, y: 0.1 }],
+    })
+    const withDigitalInk = addAnnotation(source, {
+      annotationId: 'digital_title_ink',
+      pageId: 'page_1',
+      tool: 'pen',
+      color: '#111111',
+      width: 0.004,
+      coordinateSpace: 'memo-target',
+      anchor: {
+        kind: 'view-surface',
+        pageId: 'page_1',
+        templateId: 'digital',
+        regionId: 'digital_form',
+        targetId: 'cell:digital_title',
+        logicalTargetId: 'metadata:title',
+      },
+      points: [{ x: 0.2, y: 0.2 }, { x: 0.3, y: 0.3 }],
+    })
+
+    expect(sheetPageMemos(withDigitalInk)).toHaveLength(1)
+    expect(sheetPageMemos(withDigitalInk)[0]?.strokes).toHaveLength(2)
+
+    const erased = eraseAnnotations(withDigitalInk, {
+      pageId: 'page_1',
+      target: {
+        kind: 'template-region',
+        pageId: 'page_1',
+        templateId: 'digital',
+        regionId: 'digital_form',
+        targetId: 'cell:digital_title',
+        logicalTargetId: 'metadata:title',
+      },
+      points: [{ x: 0, y: 0 }, { x: 0.1, y: 0.1 }],
+      width: 0.05,
+    })
+    expect(sheetPageMemos(erased)[0]?.strokes.map(stroke => stroke.annotationId)).not.toContain('paper_title_ink')
   })
 
   it('keeps page ink and text in one page-target memo', () => {

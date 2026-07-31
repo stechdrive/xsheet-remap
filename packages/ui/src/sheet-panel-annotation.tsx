@@ -12,6 +12,7 @@ import { TextAnnotationUpdate } from './app-foundation'
 import { CheckSmallIcon, CloseSmallIcon } from './app-navigation'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
 import { usePointerDragSession } from './usePointerDragSession'
+import type { PageMemoTextRenderItem } from './pageMemoProjection'
 
 export function AnnotationTextLayer({
   annotations,
@@ -26,7 +27,7 @@ export function AnnotationTextLayer({
   onCommit,
   onCancel,
 }: {
-  annotations: AnnotationText[]
+  annotations: PageMemoTextRenderItem[]
   selectedAnnotationId: string | null
   editingAnnotationId: string | null
   inputBlocked?: boolean
@@ -40,12 +41,16 @@ export function AnnotationTextLayer({
 }) {
   return (
     <div className={inputBlocked ? 'annotationTextLayer inputBlocked' : 'annotationTextLayer'}>
-      {annotations.map(annotation => (
+      {annotations.map(item => (
         <AnnotationTextItem
-          key={annotation.annotationId}
-          annotation={annotation}
-          selected={annotation.annotationId === selectedAnnotationId}
-          editing={annotation.annotationId === editingAnnotationId}
+          key={item.annotation.annotationId}
+          annotation={item.annotation}
+          renderX={item.x}
+          renderY={item.y}
+          regionId={item.target?.regionId}
+          targetId={item.target?.targetId}
+          selected={item.annotation.annotationId === selectedAnnotationId}
+          editing={item.annotation.annotationId === editingAnnotationId}
           pageSize={pageSize}
           zoom={zoom}
           onSelect={onSelect}
@@ -61,6 +66,10 @@ export function AnnotationTextLayer({
 
 function AnnotationTextItem({
   annotation,
+  renderX,
+  renderY,
+  regionId,
+  targetId,
   selected,
   editing,
   pageSize,
@@ -72,6 +81,10 @@ function AnnotationTextItem({
   onCancel,
 }: {
   annotation: AnnotationText
+  renderX: number
+  renderY: number
+  regionId?: string
+  targetId?: string
   selected: boolean
   editing: boolean
   pageSize: AnnotationTextPageSize
@@ -103,8 +116,16 @@ function AnnotationTextItem({
       const surfaceHeight = Math.max(1, pageSize.heightPx * Math.max(zoom, 0.001))
       return {
         ...current,
-        x: clampNumber(current.startX + deltaX / surfaceWidth, 0, 1),
-        y: clampNumber(current.startY + deltaY / surfaceHeight, 0, 1),
+        x: clampNumber(
+          current.startX + deltaX / surfaceWidth,
+          annotation.coordinateSpace === 'memo-target' ? -1 : 0,
+          annotation.coordinateSpace === 'memo-target' ? 2 : 1,
+        ),
+        y: clampNumber(
+          current.startY + deltaY / surfaceHeight,
+          annotation.coordinateSpace === 'memo-target' ? -1 : 0,
+          annotation.coordinateSpace === 'memo-target' ? 2 : 1,
+        ),
         moved: true,
       }
     },
@@ -114,8 +135,8 @@ function AnnotationTextItem({
       onSelect(annotation.annotationId)
     },
   })
-  const renderedX = drag.active?.x ?? annotation.x
-  const renderedY = drag.active?.y ?? annotation.y
+  const renderedX = renderX + ((drag.active?.x ?? annotation.x) - annotation.x)
+  const renderedY = renderY + ((drag.active?.y ?? annotation.y) - annotation.y)
   const layout = annotationTextCssLayout(annotation, pageSize, zoom, { x: renderedX, y: renderedY })
   const commonStyle = {
     left: `${layout.leftPx}px`,
@@ -236,8 +257,8 @@ function AnnotationTextItem({
       ].filter(Boolean).join(' ')}
       style={commonStyle}
       aria-label={uiText.sheet.textTool}
-      data-annotation-region-id={annotation.anchor?.kind === 'view-surface' ? annotation.anchor.regionId : undefined}
-      data-annotation-target-id={annotation.anchor?.kind === 'view-surface' ? annotation.anchor.targetId : undefined}
+      data-annotation-region-id={regionId ?? (annotation.anchor?.kind === 'view-surface' ? annotation.anchor.regionId : undefined)}
+      data-annotation-target-id={targetId ?? (annotation.anchor?.kind === 'view-surface' ? annotation.anchor.targetId : undefined)}
       data-sheet-touch-interaction={selected ? 'direct' : undefined}
       data-dragging={drag.active ? 'true' : undefined}
       onPointerDown={handleDisplayPointerDown}
@@ -255,9 +276,11 @@ function AnnotationTextItem({
 export function AnnotationSvgText({
   annotation,
   pageSize,
+  position = annotation,
 }: {
   annotation: AnnotationText
   pageSize: { widthPx: number; heightPx: number }
+  position?: { x: number; y: number }
 }) {
   const lines = annotationTextLines(annotation.text)
   if (lines.length === 0) return null
@@ -265,8 +288,8 @@ export function AnnotationSvgText({
   return (
     <SheetSvgText
       className="annotationTextSvg"
-      x={annotation.x}
-      y={annotation.y}
+      x={position.x}
+      y={position.y}
       fill={annotation.color}
       fontSizePx={fontSizePx}
       pageSize={pageSize}
@@ -274,8 +297,8 @@ export function AnnotationSvgText({
     >
       <SvgMultilineTspans
         lines={lines}
-        xPx={sheetSvgTextX(annotation.x, pageSize)}
-        yPx={sheetSvgTextY(annotation.y, pageSize)}
+        xPx={sheetSvgTextX(position.x, pageSize)}
+        yPx={sheetSvgTextY(position.y, pageSize)}
         lineHeightPx={fontSizePx * 1.25}
         keyPrefix={annotation.annotationId}
       />

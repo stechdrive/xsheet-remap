@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { sheetAnnotationStrokes, sheetAnnotationTexts, timelineMemos, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
-import { MetadataTextLayer, strokePath } from './app-sheet-layers'
+import { logicalSheetDisplayDurationFrames, timelineMemos, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
+import { MetadataTextLayer } from './app-sheet-layers'
 import type { SheetEventRectRenderItem } from './sheet-layers-hit-geometry'
 import type { SheetContinuationRenderItem, SheetRenderModelContext } from './sheetRenderModel'
 import { SheetSvgText } from './SheetSvgText'
@@ -11,6 +11,7 @@ import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { AnnotationSvgText } from './sheet-panel-annotation'
 import { TimingEventSymbol } from './TimingEventSymbol'
 import { sheetContinuationPathData } from './sheetRenderModel'
+import { pageMemoRenderItemsForPage, templateMemoTargetGeometries } from './pageMemoProjection'
 
 const noop = () => undefined
 
@@ -37,12 +38,18 @@ export function SheetRevisionReferenceLayer({
   events: SheetEventRectRenderItem[]
   continuationItems: SheetContinuationRenderItem[]
 }) {
-  const strokeRenderItems = useMemo(() => sheetAnnotationStrokes(project)
-    .filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')
-    .map(stroke => ({ stroke, path: strokePath(stroke) })), [page.pageId, project])
-  const textAnnotations = useMemo(
-    () => sheetAnnotationTexts(project).filter(annotation => annotation.pageId === page.pageId),
-    [page.pageId, project],
+  const memoTargetGeometries = useMemo(
+    () => templateMemoTargetGeometries(template, {
+      paperTracks,
+      timelineLanes: context.timelineLanes,
+      durationFrames: logicalSheetDisplayDurationFrames(project.logicalSheet),
+      layoutOverrides: project.sheetView.layoutOverrides,
+    }),
+    [context.timelineLanes, paperTracks, project.logicalSheet, project.sheetView.layoutOverrides, template],
+  )
+  const annotationRenderItems = useMemo(
+    () => pageMemoRenderItemsForPage(project, page, memoTargetGeometries),
+    [memoTargetGeometries, page, project],
   )
   return (
     <g className="sheetRevisionReferenceLayer" opacity={opacity} aria-label="元のシート">
@@ -129,10 +136,15 @@ export function SheetRevisionReferenceLayer({
         onUpsertText={noop}
         onUpdatePlacement={noop}
       />
-      {strokeRenderItems.map(({ stroke, path }) => (
+      {annotationRenderItems.strokes.map(({ stroke, path }) => (
         <path key={stroke.annotationId} className="sheetRevisionReferenceStroke" d={path} strokeWidth={stroke.width} />
       ))}
-      {textAnnotations.map(annotation => <AnnotationSvgText key={annotation.annotationId} annotation={{ ...annotation, color: '#b83f4d' }} pageSize={pageSize} />)}
+      {annotationRenderItems.texts.map(item => <AnnotationSvgText
+        key={item.annotation.annotationId}
+        annotation={{ ...item.annotation, color: '#b83f4d' }}
+        pageSize={pageSize}
+        position={item}
+      />)}
     </g>
   )
 }

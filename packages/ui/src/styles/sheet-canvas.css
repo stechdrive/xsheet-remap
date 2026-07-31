@@ -869,6 +869,15 @@
   -webkit-user-select: none;
 }
 
+.committedAnnotationCanvas {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  touch-action: none;
+}
+
 .pageAnnotationInteractionLayer {
   position: absolute;
   z-index: 10;

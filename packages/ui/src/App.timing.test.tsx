@@ -95,9 +95,9 @@ it('uses the floating memo palette as the single ink/text entry and locks a sele
 
     fireEvent.pointerUp(window, { pointerId: 31, pointerType: 'mouse', button: 0, buttons: 0, clientX: 440, clientY: 370 })
     await waitFor(() => expect(preview?.dataset.inkActive).toBe('false'))
-    const committedStroke = document.querySelector('.sheetSvg .annotationStroke:not(.annotationEraserPreview)')
-    expect(committedStroke).toBeTruthy()
-    expect(committedStroke?.getAttribute('data-annotation-region-id')).toBe('top_memo_area')
+    const committedInk = document.querySelector<HTMLCanvasElement>('.committedAnnotationCanvas')
+    expect(committedInk?.dataset.annotationStrokeCount).toBe('1')
+    expect(committedInk?.dataset.annotationRegionIds?.split(/\s+/)).toContain('top_memo_area')
     expect(document.querySelector('.annotationTargetLabel')?.textContent).toContain('対象: MEMO')
 
     fireEvent.pointerDown(document.body)

@@ -93,9 +93,21 @@ describe('parseSheetTemplate', () => {
     const template = structuredClone(standardA3SheetTemplate)
     const process = template.regions.find(region => region.regionId === 'top_process_check_area')!
     const field = process.form!.cells!.find(cell => cell.cellId === 'process_field_original')!
-    field.memoTarget = { scope: 'group', targetId: 'rough-check', label: '前半チェック' }
+    field.memoTarget = {
+      scope: 'group',
+      targetId: 'rough-check',
+      logicalTargetId: 'process:rough-check',
+      label: '前半チェック',
+    }
     expect(parseSheetTemplate(template).regions.find(region => region.regionId === process.regionId)?.form?.cells)
-      .toEqual(expect.arrayContaining([expect.objectContaining({ memoTarget: { scope: 'group', targetId: 'rough-check', label: '前半チェック' } })]))
+      .toEqual(expect.arrayContaining([expect.objectContaining({
+        memoTarget: {
+          scope: 'group',
+          targetId: 'rough-check',
+          logicalTargetId: 'process:rough-check',
+          label: '前半チェック',
+        },
+      })]))
 
     const invalid = structuredClone(template) as unknown as Record<string, unknown>
     const regions = invalid.regions as Array<Record<string, unknown>>

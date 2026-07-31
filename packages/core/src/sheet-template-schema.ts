@@ -170,6 +170,8 @@ export interface SheetTemplateMemoTarget {
   scope: SheetTemplateMemoTargetScope
   /** Stable, template-owned group identity. Required when scope is `group`. */
   targetId?: string
+  /** Optional identity shared by corresponding targets in other templates. */
+  logicalTargetId?: string
   /** Optional user-facing target name. Field/region labels are used by default. */
   label?: string
 }

@@ -8,7 +8,7 @@ import {
 import type { SheetRangeSelection } from './appTypes'
 import { nextAnnotationId } from './app-sheet-layers'
 import type { SheetCanvasProps } from './app-sheet-canvas-types'
-import { clampNumber } from './sheetInteraction'
+import { pageMemoInputPosition } from './pageMemoInputCoordinates'
 import { resolveTimelineMemoContextTargets } from './timelineMemoEditing'
 import type { SheetTouchTap } from './sheetTouchNavigation'
 
@@ -81,16 +81,17 @@ export function runSheetTouchTap(
       props.onCommitFocusedTextAnnotationDraft()
       return
     }
+    const placement = pageMemoInputPosition(point, props.pageAnnotationTarget)
     props.onTextAnnotation({
       annotationId: nextAnnotationId(sheetAnnotations(props.project)),
       pageId: page.pageId,
       kind: 'text',
       text: '',
-      x: clampNumber(point.x, 0, 1),
-      y: clampNumber(point.y, 0, 1),
+      x: placement.point.x,
+      y: placement.point.y,
       color: props.penColor,
       fontSizePx: props.textFontSizePx,
-      coordinateSpace: 'view-surface',
+      coordinateSpace: placement.coordinateSpace,
       anchor: pageAnnotationAnchor(page),
     })
     return

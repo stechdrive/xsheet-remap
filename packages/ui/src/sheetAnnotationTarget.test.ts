@@ -14,7 +14,15 @@ describe('sheet annotation target resolution', () => {
       selectedCue: created.cue,
       selectedHit: null,
       rangeSelection: null,
-      selectedRegion: { kind: 'template-region', pageId: page.pageId, templateId: standardA3SheetTemplate.templateId, regionId: 'top_memo_area', label: 'MEMO' },
+      selectedRegion: {
+        kind: 'template-region',
+        pageId: page.pageId,
+        templateId: standardA3SheetTemplate.templateId,
+        regionId: 'top_memo_area',
+        logicalTargetId: 'memo:main',
+        rect: { x: 0.1, y: 0.1, w: 0.5, h: 0.2 },
+        label: 'MEMO',
+      },
       activePage: page,
       cues: created.project.timedRangeCues,
     })
@@ -27,7 +35,15 @@ describe('sheet annotation target resolution', () => {
       selectedCue: null,
       selectedHit: null,
       rangeSelection: null,
-      selectedRegion: { kind: 'template-region', pageId: page.pageId, templateId: standardA3SheetTemplate.templateId, regionId: 'top_memo_area', label: 'MEMO' },
+      selectedRegion: {
+        kind: 'template-region',
+        pageId: page.pageId,
+        templateId: standardA3SheetTemplate.templateId,
+        regionId: 'top_memo_area',
+        logicalTargetId: 'memo:main',
+        rect: { x: 0.1, y: 0.1, w: 0.5, h: 0.2 },
+        label: 'MEMO',
+      },
       activePage: page,
       cues: [],
     })

@@ -4,6 +4,7 @@ import type { EditMode } from './appTypes'
 import { SHEET_INTERACTION_ACTIVE_CLASS } from './app-foundation'
 import { LowLatencyInkCanvas, useLowLatencyInkCanvas } from './LowLatencyInkCanvas'
 import { useInkStrokeSession } from './useInkStrokeSession'
+import { pageMemoTargetOffset } from './pageMemoInputCoordinates'
 
 export type PageAnnotationStrokeStart = {
   pointerId: number
@@ -43,9 +44,10 @@ export function PageAnnotationInputSurface({
   const strokeDrag = useInkStrokeSession<PageAnnotationStrokeSession>({
     onPointerEvent: inkCanvas.updateDelegatedInk,
     onActualPoints: (current, points) => {
+      const offset = pageMemoTargetOffset(current.target)
       current.stroke.points.push(...points.map(point => ({
-        x: (point.clientX - current.svgRect.left) / Math.max(1, current.svgRect.width),
-        y: (point.clientY - current.svgRect.top) / Math.max(1, current.svgRect.height),
+        x: (point.clientX - current.svgRect.left) / Math.max(1, current.svgRect.width) - offset.x,
+        y: (point.clientY - current.svgRect.top) / Math.max(1, current.svgRect.height) - offset.y,
         pressure: point.pressure || 1,
       })))
       inkCanvas.append(points.map(point => ({

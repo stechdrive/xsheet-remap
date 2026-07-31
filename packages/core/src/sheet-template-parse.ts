@@ -148,6 +148,7 @@ function validateMemoTarget(input: unknown): boolean {
   if (!isRecord(input)) return false
   if (input.scope !== 'cell' && input.scope !== 'region' && input.scope !== 'group' && input.scope !== 'none') return false
   if (input.targetId !== undefined && !nonEmptyString(input.targetId)) return false
+  if (input.logicalTargetId !== undefined && !nonEmptyString(input.logicalTargetId)) return false
   if (input.label !== undefined && !nonEmptyString(input.label)) return false
   return input.scope !== 'group' || nonEmptyString(input.targetId)
 }

@@ -274,7 +274,7 @@ describe('App: touch sheet interactions', () => {
 
     expect(viewport.scrollLeft).toBe(70)
     expect(viewport.scrollTop).toBe(110)
-    expect(document.querySelector('.annotationStroke:not(.annotationEraserPreview)')).toBeNull()
+    expect(document.querySelector('.committedAnnotationCanvas')).toBeNull()
     const preview = surface.closest('.pageAnnotationInteractionLayer')?.querySelector<HTMLCanvasElement>('.pageAnnotationInkCanvas')
     expect(preview?.dataset.inkActive).not.toBe('true')
   })
@@ -340,7 +340,7 @@ describe('App: touch sheet interactions', () => {
     })
 
     await waitFor(() => {
-      expect(document.querySelector('.annotationStroke:not(.annotationEraserPreview)')).not.toBeNull()
+      expect(document.querySelector<HTMLCanvasElement>('.committedAnnotationCanvas')?.dataset.annotationStrokeCount).toBe('1')
     })
   })
 })

@@ -1,9 +1,8 @@
 import {
   getSheetViewLayout,
   isRenderableSheetTemplateGridRegion,
+  logicalSheetDisplayDurationFrames,
   normalizeMemoAppearance,
-  sheetAnnotationStrokes,
-  sheetAnnotationTexts,
   timelineMemos,
   type CutProject,
   type NormalizedRect,
@@ -62,6 +61,7 @@ import {
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { positionMultilineTextLines } from './multilineTextLayout'
 import { colorWithOpacity, timedRangeCueColumnPaint } from './timedRangeCueAppearance'
+import { pageMemoRenderItemsForPage, templateMemoTargetGeometries } from './pageMemoProjection'
 
 export type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
 
@@ -1212,16 +1212,22 @@ function renderSheetAnnotationInkLayer(context: SheetExportLayerContext): ImageD
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
+  const targetGeometries = templateMemoTargetGeometries(context.template, {
+    paperTracks: context.paperTracks,
+    timelineLanes: context.timelineLanes,
+    durationFrames: logicalSheetDisplayDurationFrames(context.project.logicalSheet),
+    layoutOverrides: context.project.sheetView.layoutOverrides,
+  })
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const stroke of sheetAnnotationStrokes(context.project).filter(annotation => annotation.pageId === page.pageId && annotation.tool === 'pen')) {
-      const [first, ...rest] = stroke.points
+    for (const item of pageMemoRenderItemsForPage(context.project, page, targetGeometries).strokes) {
+      const [first, ...rest] = item.points
       if (!first) continue
       ctx.beginPath()
       ctx.moveTo(first.x * context.pageSize.widthPx, offsetY + first.y * context.pageSize.heightPx)
       for (const point of rest) ctx.lineTo(point.x * context.pageSize.widthPx, offsetY + point.y * context.pageSize.heightPx)
-      ctx.strokeStyle = stroke.color
-      ctx.lineWidth = Math.max(1, stroke.width * context.pageSize.widthPx)
+      ctx.strokeStyle = item.stroke.color
+      ctx.lineWidth = Math.max(1, item.stroke.width * Math.min(context.pageSize.widthPx, context.pageSize.heightPx))
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
       ctx.stroke()
@@ -1328,14 +1334,21 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
+  const targetGeometries = templateMemoTargetGeometries(context.template, {
+    paperTracks: context.paperTracks,
+    timelineLanes: context.timelineLanes,
+    durationFrames: logicalSheetDisplayDurationFrames(context.project.logicalSheet),
+    layoutOverrides: context.project.sheetView.layoutOverrides,
+  })
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const annotation of sheetAnnotationTexts(context.project).filter(item => item.pageId === page.pageId)) {
+    for (const item of pageMemoRenderItemsForPage(context.project, page, targetGeometries).texts) {
+      const annotation = item.annotation
       const lines = annotationTextLines(annotation.text)
       if (lines.length === 0) continue
       const fontSize = resolveAnnotationTextFontSizePx(annotation, context.pageSize)
-      const x = annotation.x * context.pageSize.widthPx
-      const y = offsetY + annotation.y * context.pageSize.heightPx
+      const x = item.x * context.pageSize.widthPx
+      const y = offsetY + item.y * context.pageSize.heightPx
       ctx.fillStyle = annotation.color
       ctx.font = fontDeclaration(fontSize, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.textBaseline = 'top'

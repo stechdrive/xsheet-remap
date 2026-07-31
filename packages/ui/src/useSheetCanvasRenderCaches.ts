@@ -1,9 +1,7 @@
 import { useMemo } from 'react'
 import {
-  sheetAnnotations,
+  logicalSheetDisplayDurationFrames,
   timelineMemos,
-  type AnnotationStroke,
-  type AnnotationText,
   type CutProject,
   type SheetPage,
   type SheetTemplate,
@@ -14,7 +12,10 @@ import { calibrationGuideMetrics } from './sheet-layers-calibration-render'
 import { eventRectsForPages } from './sheet-layers-hit-geometry'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import { continuationRenderItemsForPages, type SheetRenderModelContext } from './sheetRenderModel'
-import { strokePath } from './sheet-layers-annotation'
+import {
+  pageMemoRenderItemsForPage,
+  templateMemoTargetGeometries,
+} from './pageMemoProjection'
 
 export function useSheetCanvasRenderCaches({
   project,
@@ -71,30 +72,30 @@ export function useSheetCanvasRenderCaches({
       : new Map(visiblePages.map(page => [page.pageId, []])),
     [referenceRenderContext, visiblePages],
   )
-  const annotations = useMemo(
-    () => sheetAnnotations({ memos: project.memos }),
-    [project.memos],
+  const memoTargetGeometries = useMemo(
+    () => templateMemoTargetGeometries(template, {
+      paperTracks,
+      timelineLanes: renderContext.timelineLanes,
+      durationFrames: logicalSheetDisplayDurationFrames(renderContext.project.logicalSheet),
+      layoutOverrides: project.sheetView.layoutOverrides,
+    }),
+    [paperTracks, project.sheetView.layoutOverrides, renderContext.project.logicalSheet, renderContext.timelineLanes, template],
   )
-  const annotationStrokeRenderItemsByPage = useMemo(() => {
-    const grouped = new Map<string, Array<{ stroke: AnnotationStroke; path: string }>>()
-    for (const annotation of annotations) {
-      if (annotation.kind === 'text' || annotation.tool !== 'pen') continue
-      const items = grouped.get(annotation.pageId) ?? []
-      items.push({ stroke: annotation, path: strokePath(annotation) })
-      grouped.set(annotation.pageId, items)
-    }
-    return grouped
-  }, [annotations])
-  const annotationTextsByPage = useMemo(() => {
-    const grouped = new Map<string, AnnotationText[]>()
-    for (const annotation of annotations) {
-      if (annotation.kind !== 'text') continue
-      const items = grouped.get(annotation.pageId) ?? []
-      items.push(annotation)
-      grouped.set(annotation.pageId, items)
-    }
-    return grouped
-  }, [annotations])
+  const annotationRenderItemsByPage = useMemo(
+    () => new Map(visiblePages.map(page => [
+      page.pageId,
+      pageMemoRenderItemsForPage({ memos: project.memos }, page, memoTargetGeometries),
+    ])),
+    [memoTargetGeometries, project.memos, visiblePages],
+  )
+  const annotationStrokeRenderItemsByPage = useMemo(
+    () => new Map([...annotationRenderItemsByPage].map(([pageId, items]) => [pageId, items.strokes])),
+    [annotationRenderItemsByPage],
+  )
+  const annotationTextRenderItemsByPage = useMemo(
+    () => new Map([...annotationRenderItemsByPage].map(([pageId, items]) => [pageId, items.texts])),
+    [annotationRenderItemsByPage],
+  )
   const timelineMemoItems = useMemo(() => timelineMemos({ memos: project.memos }), [project.memos])
   const soundCues = useMemo(
     () => cuesWithPreview(project.timedRangeCues, 'sound', soundCuePreview),
@@ -135,7 +136,7 @@ export function useSheetCanvasRenderCaches({
     referenceEventRectsByPage,
     referenceContinuationItemsByPage,
     annotationStrokeRenderItemsByPage,
-    annotationTextsByPage,
+    annotationTextRenderItemsByPage,
     timelineMemoItems,
     soundCues,
     soundCueLayoutsByPage,

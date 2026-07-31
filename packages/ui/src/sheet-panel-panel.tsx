@@ -21,6 +21,10 @@ import { SheetCanvas, type SheetCanvasHandle } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
 import { templateMemoTargetLabel } from './templateMemoTargets'
+import {
+  resolveTemplateMemoTargetGeometry,
+  templateMemoTargetGeometries,
+} from './pageMemoProjection'
 import { SheetHistoryRail } from './SheetHistoryRail'
 import { suppressSheetTooltips } from './sheetInteractionOwnership'
 import { resolveSheetAnnotationTarget } from './sheetAnnotationTarget'
@@ -280,16 +284,39 @@ export function SheetPanel(props: {
   const selectedTextTargetId = selectedTextAnnotation?.anchor?.kind === 'view-surface'
     ? selectedTextAnnotation.anchor.targetId
     : undefined
-  const selectedTextRegion = selectedTextRegionId
+  const selectedTextLogicalTargetId = selectedTextAnnotation?.anchor?.kind === 'view-surface'
+    ? selectedTextAnnotation.anchor.logicalTargetId
+    : undefined
+  const currentTemplateMemoTargetGeometries = useMemo(
+    () => templateMemoTargetGeometries(props.template, {
+      paperTracks: props.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+      timelineLanes: timelineLanesForLayout(props.project),
+      durationFrames: logicalSheetDisplayDurationFrames(props.project.logicalSheet),
+      layoutOverrides: props.project.sheetView.layoutOverrides,
+    }),
+    [props.project, props.template],
+  )
+  const selectedTextTargetGeometry = selectedTextRegionId || selectedTextLogicalTargetId
+    ? resolveTemplateMemoTargetGeometry({
+        kind: 'template-region',
+        templateId: selectedTextAnnotation?.anchor?.kind === 'view-surface'
+          ? selectedTextAnnotation.anchor.templateId
+          : undefined,
+        regionId: selectedTextRegionId,
+        targetId: selectedTextTargetId,
+        logicalTargetId: selectedTextLogicalTargetId,
+      }, currentTemplateMemoTargetGeometries)
+    : null
+  const selectedTextRegion = selectedTextTargetGeometry
     ? {
         kind: 'template-region' as const,
         pageId: selectedTextAnnotation!.pageId,
-        templateId: selectedTextAnnotation!.anchor?.kind === 'view-surface'
-          ? selectedTextAnnotation!.anchor.templateId ?? props.template.templateId
-          : props.template.templateId,
-        regionId: selectedTextRegionId,
-        targetId: selectedTextTargetId,
-        label: templateMemoTargetLabel(props.template, { regionId: selectedTextRegionId, targetId: selectedTextTargetId }),
+        templateId: props.template.templateId,
+        regionId: selectedTextTargetGeometry.regionId,
+        targetId: selectedTextTargetGeometry.targetId,
+        logicalTargetId: selectedTextTargetGeometry.logicalTargetId,
+        rect: selectedTextTargetGeometry.rect,
+        label: templateMemoTargetLabel(props.template, selectedTextTargetGeometry),
       }
     : null
   const activeSelectedAnnotationRegion = props.selectedTextAnnotationId
@@ -315,6 +342,8 @@ export function SheetPanel(props: {
         templateId: annotationTarget.region.templateId,
         regionId: annotationTarget.region.regionId,
         targetId: annotationTarget.region.targetId,
+        logicalTargetId: annotationTarget.region.logicalTargetId,
+        targetRect: annotationTarget.region.rect,
       }
     : { kind: 'page', pageId: activePage?.pageId ?? 'page_1', templateId: props.template.templateId }
   const beginTimelineMemoEdit = useCallback((memoId: string, mode: Extract<EditMode, 'pen' | 'text'> = 'pen') => {

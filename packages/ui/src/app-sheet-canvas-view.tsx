@@ -23,6 +23,7 @@ import { sheetContinuationPathData } from './sheetRenderModel'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
 import { TimelineLaneEditorPopover } from './TimelineLaneEditorPopover'
 import { PageAnnotationInputSurface } from './PageAnnotationInputSurface'
+import { CommittedAnnotationCanvas } from './CommittedAnnotationCanvas'
 
 function SheetPageSurface({
   pageId,
@@ -61,7 +62,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, eventRectsByPage, continuationItemsByPage,
     referenceEventRectsByPage, referenceContinuationItemsByPage,
-    annotationStrokeRenderItemsByPage, annotationTextsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
+    annotationStrokeRenderItemsByPage, annotationTextRenderItemsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
@@ -119,7 +120,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const isCalibrating = isCalibratingSheet
           const pageImage = getSheetPageImage(props.sheetView, props.runtimeSourceImageUrls, page.pageId, props.template)
           const strokeRenderItems = !isCalibrating && props.showAnnotations ? annotationStrokeRenderItemsByPage.get(page.pageId) ?? [] : []
-          const textAnnotations = !isCalibrating && props.showAnnotations ? annotationTextsByPage.get(page.pageId) ?? [] : []
+          const textAnnotations = !isCalibrating && props.showAnnotations ? annotationTextRenderItemsByPage.get(page.pageId) ?? [] : []
           const activeOverlayTrack = !isCalibrating && activeOverlayPaperTrack
             ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === activeOverlayPaperTrack && track.source === 'overlay')
             : undefined
@@ -450,17 +451,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onUpdatePlacement={props.onUpdateTimelineMemoPlacement}
                     />
                   )}
-                  {strokeRenderItems.map(({ stroke, path }) => (
-                    <path
-                      key={stroke.annotationId}
-                      className={stroke.tool === 'eraser' ? 'annotationStroke annotationEraserPreview' : 'annotationStroke'}
-                      d={path}
-                      stroke={stroke.color}
-                      strokeWidth={stroke.width}
-                      data-annotation-region-id={stroke.anchor?.kind === 'view-surface' ? stroke.anchor.regionId : undefined}
-                      data-annotation-target-id={stroke.anchor?.kind === 'view-surface' ? stroke.anchor.targetId : undefined}
-                    />
-                  ))}
                   {selectedRect && props.timingDraftActive && (
                     <g className="timingDraftOverlay" aria-label={`入力中: ${props.timingDraftValue}`}>
                       <rect className="timingDraftRect" x={selectedRect.x} y={selectedRect.y} width={selectedRect.w} height={selectedRect.h} />
@@ -486,6 +476,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                   {audioPlayheadY !== null && <line className="audioSheetPlayhead" x1="0" x2="1" y1={audioPlayheadY} y2={audioPlayheadY} />}
                 </svg>
+                {strokeRenderItems.length > 0 && (
+                  <CommittedAnnotationCanvas
+                    width={sheetPageWidth}
+                    height={sheetPageHeight}
+                    strokes={strokeRenderItems}
+                  />
+                )}
                 {!isCalibrating && textAnnotations.length > 0 && (
                   <AnnotationTextLayer
                     annotations={textAnnotations}

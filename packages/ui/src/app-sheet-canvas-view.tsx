@@ -701,7 +701,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       {paperTrackHeaderMenu && (
         <div
           className="sheetContextMenu"
-          style={sheetContextMenuStyle(paperTrackHeaderMenu.x, paperTrackHeaderMenu.y, 2)}
+          style={sheetContextMenuStyle(paperTrackHeaderMenu.x, paperTrackHeaderMenu.y, 4)}
           role="menu"
           onPointerDown={event => event.stopPropagation()}
           onContextMenu={event => event.preventDefault()}
@@ -722,6 +722,20 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             }))}
           >
             {uiText.actions.renamePaperTrack}
+          </button>
+          <button
+            role="menuitem"
+            disabled={!paperTrackHeaderMenu.hit.paperTrack}
+            onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}
+          >
+            {uiText.actions.copyAeKeyframeData}
+          </button>
+          <button
+            role="menuitem"
+            disabled={!paperTrackHeaderMenu.hit.paperTrack}
+            onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}
+          >
+            {uiText.actions.copyAeKeyframeDataEnglish}
           </button>
         </div>
       )}

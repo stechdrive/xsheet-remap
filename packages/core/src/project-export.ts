@@ -4,7 +4,7 @@ import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { withoutUndefined } from './core-utils'
 import { validateProject } from './validation'
 import { CSP_IMPORT_STACK_END_SEPARATOR_NAME, CSP_IMPORT_STACK_START_SEPARATOR_NAME, DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_EXPORT_TIMING_ROLE } from './project-constants'
-import { compareStackGuideExportTracksForProject, compareStackGuideLabelsForProject, correctionLayerIdForSlot, correctionLayerOrderById, correctionLayerFileNameSuffix, defaultCorrectionLayerId, eventsForSlot, exportEventsForSlot, groupLabelForCorrectionLayer, groupLabelForSlot, isSpecialTimingEvent, resolveCspCellName, sanitizeFileBaseName, sequenceCspCellName, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideGapIndex, stackGuideRegistrationForLayer, stackGuideRegistrations, stackGuideStackBand, stackGuideStackBandOrder, stageOrderForCorrectionLayer } from './project-shared'
+import { compareStackGuideExportTracksForProject, compareStackGuideLabelsForProject, correctionLayerIdForSlot, correctionLayerOrderById, correctionLayerFileNameSuffix, defaultCorrectionLayerId, exportEventsForSlot, groupLabelForCorrectionLayer, groupLabelForSlot, isSpecialTimingEvent, resolveCspCellName, sanitizeFileBaseName, sequenceCspCellName, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideCspCellName, stackGuideGapIndex, stackGuideRegistrationForLayer, stackGuideRegistrations, stackGuideStackBand, stackGuideStackBandOrder, stageOrderForCorrectionLayer } from './project-shared'
 import { assetAbsolutePath } from './assets'
 import { resolveCutExportIdentity } from './project-export-identity'
 
@@ -701,26 +701,6 @@ function paperTrackNameCompare(a: string, b: string): number {
 
 function compareNaturalText(a: string, b: string): number {
   return a.localeCompare(b, 'ja', { numeric: true, sensitivity: 'base' })
-}
-
-export function buildAeRemapText(
-  project: CutProject,
-  slotId: string,
-  sheetRole: SheetTimingRole = DEFAULT_EXPORT_TIMING_ROLE,
-  cspCellNamePolicy: CspCellNamePolicy = DEFAULT_CSP_CELL_NAME_POLICY,
-): string {
-  const slot = project.cspTrackSlots.find(item => item.slotId === slotId)
-  if (!slot) throw new Error(`slot not found: ${slotId}`)
-  const lines = ['frame\tcellName\tkeyId']
-  for (const event of eventsForSlot(project, slot, sheetRole)) {
-    const binding = project.bindings.find(item => item.slotId === slot.slotId && item.keyId === event.keyId)
-    const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
-    const cspCellName = key || binding || isSpecialTimingEvent(event)
-      ? resolveCspCellName({ slot, key, binding, event, policy: cspCellNamePolicy })
-      : ''
-    lines.push(`${event.frame}\t${cspCellName}\t${key?.keyId ?? event.keyId}`)
-  }
-  return `${lines.join('\n')}\n`
 }
 
 function buildCspInstructions(mode: ExportMode) {

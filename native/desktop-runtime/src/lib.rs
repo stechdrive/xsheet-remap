@@ -1,4 +1,6 @@
 use std::sync::Mutex;
+#[cfg(feature = "after-effects")]
+mod after_effects;
 mod e2e;
 mod file_utils;
 mod persistence;
@@ -176,7 +178,9 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             e2e::rename_material_files,
             e2e::desktop_e2e_config,
             e2e::list_desktop_e2e_asset_files,
-            e2e::write_desktop_e2e_artifact
+            e2e::write_desktop_e2e_artifact,
+            #[cfg(feature = "after-effects")]
+            after_effects::send_after_effects_remap
         ])
         .run(context)
         .expect("error while running xsheet-remap")

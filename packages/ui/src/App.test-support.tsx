@@ -2,6 +2,7 @@ import { afterEach, expect, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate, type SheetTemplateGridRole, type SheetTimingRole } from '@xsheet-remap/core';
 import { uiText } from './i18n';
+import type { TimingExportKind } from './appTypes';
 
 const tauriMockState = vi.hoisted(() => ({
   missingPathKeys: new Set<string>(),
@@ -515,11 +516,16 @@ export function selectAppPanel(label: string) {
   fireEvent.click(within(menu).getByRole('button', { name: label }))
 }
 
-export function openTimingExportDialog(kind: 'xdts' | 'csp-import' = 'xdts'): HTMLElement {
+export function openTimingExportDialog(kind: TimingExportKind = 'xdts'): HTMLElement {
   const menu = openAppNavigationMenu()
-  const command = kind === 'csp-import' ? uiText.actions.cspImportPackage : uiText.actions.xdts
-  fireEvent.click(within(menu).getByRole('button', { name: command }))
-  return screen.getByRole('dialog', { name: kind === 'csp-import' ? uiText.actions.cspImportPackage : uiText.actions.xdts })
+  const command: Record<TimingExportKind, string> = {
+    xdts: uiText.actions.xdts,
+    'csp-import': uiText.actions.cspImportPackage,
+    'ae-jsx': uiText.actions.aeJsx,
+    'ae-send': uiText.actions.aeSend,
+  }
+  fireEvent.click(within(menu).getByRole('button', { name: command[kind] }))
+  return screen.getByRole('dialog', { name: command[kind] })
 }
 
 export function getZoomSlider(): HTMLInputElement {

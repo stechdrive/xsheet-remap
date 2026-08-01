@@ -545,7 +545,7 @@ function EditorHelpContent() {
       <ol>
         <li><strong>見やすい表示と注釈を使う</strong><span>全体表示、連続/見開き表示、罫線・下絵の表示切替、ペン・テキスト注釈を使って確認しやすい状態にします。</span></li>
         <li><strong>シートテンプレートを編集する</strong><span>「シートテンプレ」ワークスペースで既存テンプレートを複製し、情報欄、入力欄、罫線、文字、ページ寸法を調整して適用します。</span></li>
-        <li><strong>用途に合わせて書き出す</strong><span>確認用にはJPG/PNG/PSD、他ソフトとの連携にはXDTSを使います。CSP自動登録データは、デスクトップ版ではカットフォルダ内のxsheet-csp-importへ、PWA版では素材を含むZIPとして書き出します。</span></li>
+        <li><strong>用途に合わせて書き出す</strong><span>確認用にはJPG/PNG/PSD、他ソフトとの連携にはXDTSを使います。CSP自動登録データは、デスクトップ版ではカットフォルダ内のxsheet-csp-importへ、PWA版では素材を含むZIPとして書き出します。After Effectsへは、セル列見出しの右クリックでKeyframe Dataをコピーするか、書き出しメニューからJSXを保存します。Windowsデスクトップ版の直接送信は、AEを1プロセスだけ起動し、アクティブコンポジションと対象レイヤーを選んでから使います。</span></li>
       </ol>
     </article>
   </>
@@ -589,6 +589,7 @@ function SheetProjectionQuickHelp() {
         <li><strong>デジタルは列数に合わせて横へ広がる</strong><span>追加セル列とSOUND／CAMERA列を通常の列としてすべて表示し、必要な横幅を自動で増やします。デジタルテンプレートに予備列はありません。</span></li>
         <li><strong>紙は用紙に収まる列だけ表示する</strong><span>紙テンプレートの物理的な欄数を超えたセル列は欄外ラベルとして残り、SOUND／CAMERAは「欄外＋件数」で知らせます。デジタルへ切り替えると全列を再び表示します。</span></li>
         <li><strong>SOUND／CAMERA列を管理する</strong><span>列見出しを右クリックし、列の追加・名前変更・削除を選びます。変更は論理データへ保存され、紙とデジタルのどちらへ切り替えても維持されます。</span></li>
+        <li><strong>After Effectsへタイミングを渡す</strong><span>セル列見出しの右クリックでKeyframe Dataをコピーするか、書き出しメニューからJSXを保存します。Windowsデスクトップ版では起動中のAfter Effectsへ直接送信できます。</span></li>
       </ol>
     </article>
   )
@@ -702,6 +703,8 @@ export function AppNavigationMenu({
   onResetApp,
   onOpenSheetImageExport,
   onSaveXdts,
+  onSaveAeJsx,
+  onSendAfterEffects,
   onSaveCspImportPackage,
 }: {
   appName: string
@@ -718,6 +721,8 @@ export function AppNavigationMenu({
   onResetApp: () => void
   onOpenSheetImageExport: (format: SheetImageExportFormat) => void
   onSaveXdts: () => void
+  onSaveAeJsx: () => void
+  onSendAfterEffects?: () => void
   onSaveCspImportPackage: () => void
 }) {
   const [activeSubmenu, setActiveSubmenu] = useState<AppNavigationSubmenu | null>(null)
@@ -806,8 +811,16 @@ export function AppNavigationMenu({
             </div>
           </div>
           <Tooltip label={uiText.actions.xdtsTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onSaveXdts}>XDTSを書き出す…</button>
+            <button type="button" className="appNavMenuItem" onClick={onSaveXdts}>{uiText.actions.xdts}</button>
           </Tooltip>
+          <Tooltip label={uiText.actions.aeJsxTitle}>
+            <button type="button" className="appNavMenuItem" onClick={onSaveAeJsx}>{uiText.actions.aeJsx}</button>
+          </Tooltip>
+          {onSendAfterEffects && (
+            <Tooltip label={uiText.actions.aeSendTitle}>
+              <button type="button" className="appNavMenuItem" onClick={onSendAfterEffects}>{uiText.actions.aeSend}</button>
+            </Tooltip>
+          )}
           <Tooltip label={uiText.actions.cspImportPackageTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveCspImportPackage}>CSP自動登録データを書き出す…</button>
           </Tooltip>

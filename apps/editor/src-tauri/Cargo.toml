@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-editor"
-version = "0.1.720"
+version = "0.1.721"
 description = "Full digital exposure sheet editor"
 authors = ["xsheet-remap contributors"]
 license = "MIT"
@@ -17,7 +17,7 @@ tauri-build = { version = "2.6.3", features = [] }
 tauri = { version = "2.11.5", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-fs = "2.5.1"
-xsheet-desktop-runtime = { path = "../../../native/desktop-runtime" }
+xsheet-desktop-runtime = { path = "../../../native/desktop-runtime", features = ["after-effects"] }
 
 [profile.release]
 debug = false

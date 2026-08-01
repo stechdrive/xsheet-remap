@@ -37,6 +37,7 @@ import { applyFrameOperationToProject, frameOperationDialogStateForHit, pointRol
 import { buildSelectionPresentation, inputHitForRange } from './app-selection-presentation'
 import { createTimelineMemoForCue, createTimelineMemoForHit } from './timelineMemoEditing'
 import { createAppXdtsActions } from './app-xdts-actions'
+import { useAppAfterEffectsActions } from './app-after-effects-actions'
 import { confirmSheetTemplateImport, loadSheetTemplate } from './app-template-import'
 import { useAppSheetHistoryController } from './app-sheet-history-actions'
 import { createAppSharedCutActions } from './app-shared-cut-actions'
@@ -107,7 +108,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setActiveCorrectionLayerId: setActiveCorrectionLayerIdState,
     setRuntimeSourceImageUrls, clearSelection: clearSelectionState, alertError: error => window.alert(errorMessage(error)),
   })
-  const timingExportPlan = useMemo(() => timingExportDialog ? buildExportPlan(project, { profileId: exportProfileId, timingSourceRole: timingExportDialog.timingSourceRole, sheetTemplate: template }) : null, [exportProfileId, project, template, timingExportDialog])
+  const timingExportPlan = useMemo(() => timingExportDialog && timingExportDialog.kind !== 'ae-jsx' && timingExportDialog.kind !== 'ae-send' ? buildExportPlan(project, { profileId: exportProfileId, timingSourceRole: timingExportDialog.timingSourceRole, sheetTemplate: template }) : null, [exportProfileId, project, template, timingExportDialog])
   const timingExportIssues = useMemo(() => timingExportPlan?.validation ?? [], [timingExportPlan])
   const cspImportExport = useCspImportExportPlan({
     enabled: timingExportDialog?.kind === 'csp-import',
@@ -115,6 +116,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     exportProfileId,
     timingSourceRole: timingExportDialog?.timingSourceRole ?? DEFAULT_EXPORT_TIMING_ROLE,
     appVersion: APP_VERSION,
+  })
+  const { canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData, handleSaveAeJsx, handleSendAfterEffects } = useAppAfterEffectsActions({
+    project, resolveProject: () => commitTimingDraft(false), setExportOperationNotice,
+    onSendAccepted: () => setTimingExportDialog(null),
   })
   const {
     openTimingExportDialog, updateTimingExportRole, updateTimingExportOptions, confirmTimingExport,
@@ -131,6 +136,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitProject,
     clearSelection: clearSelectionState,
     saveCspImportPackage: handleSaveCspImportPackage,
+    saveAfterEffectsJsx: handleSaveAeJsx,
+    sendAfterEffectsRemap: handleSendAfterEffects,
   })
   const sheetDisplayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const sheetDisplayFrameEnd = logicalSheetDisplayFrameEnd(project.logicalSheet)
@@ -2276,6 +2283,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
+    canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,

@@ -941,11 +941,12 @@ describe('core project commands', () => {
     ])
   })
 
-  it('exports a simple AE remap TSV from a target slot', () => {
+  it('exports canonical AE keyframe data from a target slot', () => {
     const created = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const text = buildAeRemapText(created.project, 'slot_A')
-    expect(text).toContain('frame\tcellName\tkeyId')
-    expect(text).toContain('1\tA1\t')
+    expect(text).toContain('Adobe After Effects 9.0 Keyframe Data')
+    expect(text).toContain('Time Remap\r\n\tFrame\tseconds\t')
+    expect(text).toContain('\r\n\t0\t0\t\r\n')
   })
 
   it('plans CSP and material filename normalization with process suffixes and densest-column ownership', () => {

@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.720",
+  "version": "0.1.721",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.18.0",
@@ -10,6 +10,9 @@
     "tools/*"
   ],
   "scripts": {
+    "sync:ae-template": "node tools/after-effects/sync-template.mjs",
+    "check:ae-template": "node tools/after-effects/sync-template.mjs --check",
+    "check:after-effects-native": "cargo test --manifest-path native/desktop-runtime/Cargo.toml --features after-effects",
     "sync:version": "node tools/version/sync-version.mjs",
     "sync:version:next": "node tools/version/sync-version.mjs --next-commit",
     "codex:prepare-commit-build": "npm run sync:version:next",
@@ -26,7 +29,7 @@
     "prepackage:local": "npm run sync:version",
     "prebuild:release:all": "npm run sync:version",
     "dev": "npm run dev -w @xsheet-remap/web",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run check:architecture && npm run check:build-contract && npm run check:pages-contract && npm run check:repo-hygiene",
+    "check": "npm run check:ae-template && npm run check:after-effects-native && npm run lint && npm run typecheck && npm run test && npm run check:architecture && npm run check:build-contract && npm run check:pages-contract && npm run check:repo-hygiene",
     "check:ci-preflight": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/checks/ci-preflight.ps1",
     "check:architecture": "node tools/checks/architecture.mjs",
     "check:build-contract": "node tools/checks/build-contract.mjs",

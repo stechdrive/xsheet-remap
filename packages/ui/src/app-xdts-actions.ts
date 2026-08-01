@@ -35,6 +35,8 @@ interface AppXdtsActionsOptions {
   commitProject: (project: CutProject) => void
   clearSelection: () => void
   saveCspImportPackage: (role: SheetTimingRole) => void | Promise<void>
+  saveAfterEffectsJsx: (role: SheetTimingRole) => void | Promise<void>
+  sendAfterEffectsRemap: (role: SheetTimingRole) => void | Promise<void>
 }
 
 export function createAppXdtsActions(options: AppXdtsActionsOptions) {
@@ -63,7 +65,15 @@ export function createAppXdtsActions(options: AppXdtsActionsOptions) {
       void options.saveCspImportPackage(current.timingSourceRole)
       return
     }
+    if (current.kind === 'ae-send') {
+      void options.sendAfterEffectsRemap(current.timingSourceRole)
+      return
+    }
     options.setTimingExportDialog(null)
+    if (current.kind === 'ae-jsx') {
+      void options.saveAfterEffectsJsx(current.timingSourceRole)
+      return
+    }
     void handleSaveXdts(current.timingSourceRole, {
       includeSound: current.includeSound,
       includeCamera: current.includeCamera,

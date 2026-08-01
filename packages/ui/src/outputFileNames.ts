@@ -16,8 +16,8 @@ export function sheetXdtsFileName(project: CutProject): string {
   return `${projectOutputPrefix(project)}_sheet.xdts`
 }
 
-export function aeRemapFileName(project: CutProject): string {
-  return `${projectOutputPrefix(project)}_ae-remap.tsv`
+export function aeRemapJsxFileName(project: CutProject): string {
+  return `${projectOutputPrefix(project)}_ae-remap.jsx`
 }
 
 export function sheetImageFileName(project: CutProject, format: SheetImageExportFormat, pageIndex: number, totalPages: number): string {

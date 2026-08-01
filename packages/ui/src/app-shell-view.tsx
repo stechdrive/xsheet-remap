@@ -61,6 +61,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, openTimingExportDialog, confirmTimingExport, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
+    canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
@@ -230,6 +231,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onResetApp={handleResetApp}
             onOpenSheetImageExport={handleOpenSheetImageExport}
             onSaveXdts={() => openTimingExportDialog('xdts')}
+            onSaveAeJsx={() => openTimingExportDialog('ae-jsx')}
+            onSendAfterEffects={canSendToAfterEffects ? () => openTimingExportDialog('ae-send') : undefined}
             onSaveCspImportPackage={() => openTimingExportDialog('csp-import')}
           />
           <span className="topBrand">
@@ -446,6 +449,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onAddOverlayPaperTrack={handleAddOverlayPaperTrack}
             onUpdatePaperTrack={handleUpdatePaperTrack}
             onDeleteOverlayPaperTrack={handleDeleteOverlayPaperTrack}
+            onCopyAeKeyframeData={handleCopyAeKeyframeData}
             onAddTimelineLane={handleAddTimelineLane}
             onUpdateTimelineLane={handleUpdateTimelineLane}
             onDeleteTimelineLane={handleDeleteTimelineLane}
@@ -516,12 +520,13 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <AppHelpDialog appName={appProfile.appName} appKind={appKind} onClose={() => setAppHelpDialogOpen(false)} />
       )}
 
-      {timingExportDialog && timingExportPlan && (
+      {timingExportDialog && (timingExportPlan || timingExportDialog.kind === 'ae-jsx' || timingExportDialog.kind === 'ae-send') && (
         <TimingExportDialog
           state={timingExportDialog}
           timelineSections={project.logicalSheet.timelineSections}
           issues={timingExportIssues}
           cspImportState={cspImportExportState}
+          afterEffectsSending={afterEffectsSending}
           onChangeRole={updateTimingExportRole}
           onChangeOptions={updateTimingExportOptions}
           onReconnectAssetRoot={handleChooseAssetRoot}

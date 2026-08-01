@@ -1,3 +1,4 @@
+import type { AeRemapJsxConfig } from '@xsheet-remap/core'
 import { isTauriHost } from './environment'
 
 export interface NativeDropPosition {
@@ -37,10 +38,24 @@ export interface NativeWindowLayout {
   maximized?: boolean
 }
 
+export interface AfterEffectsSendResult {
+  accepted: true
+}
+
 export async function invokeDesktopCommand<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauriHost()) throw new Error(`Desktop command is unavailable outside Tauri: ${command}`)
   const { invoke } = await import('@tauri-apps/api/core')
   return invoke<T>(command, args)
+}
+
+export async function writeClipboardText(text: string): Promise<void> {
+  const clipboard = globalThis.navigator?.clipboard
+  if (!clipboard?.writeText) throw new Error('この環境ではクリップボードへ書き込めません。')
+  await clipboard.writeText(text)
+}
+
+export async function sendAfterEffectsRemap(config: AeRemapJsxConfig): Promise<AfterEffectsSendResult> {
+  return invokeDesktopCommand<AfterEffectsSendResult>('send_after_effects_remap', { config })
 }
 
 export async function nativeFileSource(path: string): Promise<string> {

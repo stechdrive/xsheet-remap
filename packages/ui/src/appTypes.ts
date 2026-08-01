@@ -3,7 +3,7 @@ import type { MaterialState, NormalizedRect, SheetHit, SheetImageAlignment, Shee
 import type { XdtsData, XdtsImportConflictMode } from '@xsheet-remap/xdts'
 
 export type Panel = 'sheet' | 'template'
-export type TimingExportKind = 'xdts' | 'csp-import'
+export type TimingExportKind = 'xdts' | 'csp-import' | 'ae-jsx' | 'ae-send'
 export interface TimingExportDialogState {
   kind: TimingExportKind
   timingSourceRole: 'action' | 'cell'

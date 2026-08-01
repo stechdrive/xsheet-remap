@@ -11,7 +11,11 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
 })
 
+const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+
 afterEach(() => {
+  if (originalClipboardDescriptor) Object.defineProperty(navigator, 'clipboard', originalClipboardDescriptor)
+  else Reflect.deleteProperty(navigator, 'clipboard')
   vi.restoreAllMocks()
 })
 
@@ -1765,3 +1769,25 @@ it('registers new timing at the active process without moving it when the destin
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
   })
 })
+
+it('copies AE Keyframe Data from the third grid column header action', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    const headerPoint = templateColumnHeaderPoint('cell', 'A')
+    fireEvent.contextMenu(sheet, { clientX: headerPoint.x, clientY: headerPoint.y })
+    const menu = screen.getByRole('menu')
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      uiText.actions.selectPaperTrackColumn,
+      uiText.actions.renamePaperTrack,
+      uiText.actions.copyAeKeyframeData,
+      uiText.actions.copyAeKeyframeDataEnglish,
+    ])
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: uiText.actions.copyAeKeyframeData }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/^Adobe After Effects .* Keyframe Data/)))
+    expect(await screen.findByText(new RegExp(uiText.afterEffects.copySucceeded('A')))).toBeTruthy()
+  })

@@ -4475,11 +4475,12 @@ dependencies = [
  "tauri",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "xsheet-editor"
-version = "0.1.720"
+version = "0.1.721"
 dependencies = [
  "tauri",
  "tauri-build",

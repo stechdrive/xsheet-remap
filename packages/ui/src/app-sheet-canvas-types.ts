@@ -130,6 +130,7 @@ export type SheetCanvasProps = {
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
+  onCopyAeKeyframeData: (paperTrack: string, sheetRole: SheetTimingRole, locale?: 'ja' | 'en') => void
   onAddTimelineLane: (input: { role: TimedRangeRole; label: string; insertAfterLaneId?: string }) => void
   onUpdateTimelineLane: (role: TimedRangeRole, laneId: string, label: string) => void
   onDeleteTimelineLane: (role: TimedRangeRole, laneId: string) => void

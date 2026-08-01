@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, createTimedRangeCue, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, resolveSheetTemplatePageSize, timelineLanesForLayout, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
 import { encodeProjectArchive, XSR_PROJECT_FILE_ACCEPT, XSR_PROJECT_MIME_TYPE } from '@xsheet-remap/adapters';
@@ -10,6 +10,13 @@ import { ASSET_DRAG_MIME } from './sheetConstants';
 import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openDisplaySettingsMenu, openPaperSheetMenu, openSharedCutMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, selectCspCorrectionLayer, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 import { createDefaultDialogueAudioCutState, updateDialogueAudioCutStateInProject } from './dialogueAudioProject'
+
+const originalUserAgentDataDescriptor = Object.getOwnPropertyDescriptor(navigator, 'userAgentData')
+
+afterEach(() => {
+  if (originalUserAgentDataDescriptor) Object.defineProperty(navigator, 'userAgentData', originalUserAgentDataDescriptor)
+  else Reflect.deleteProperty(navigator, 'userAgentData')
+})
 
 async function createXsrTestFile(document: Parameters<typeof encodeProjectArchive>[0], fileName = 'project.xsr'): Promise<File> {
   const archive = await encodeProjectArchive(document, { createdWith: 'test' })
@@ -53,6 +60,8 @@ it('renders the main workspace shell', () => {
     expect(within(appNavigationMenu).getByText(`xsheet-editor v${APP_VERSION}`)).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.actions.xdts })).toBeTruthy()
+    expect(within(appNavigationMenu).getByRole('button', { name: uiText.actions.aeJsx })).toBeTruthy()
+    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.actions.aeSend })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: '認識' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.sources })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.assets })).toBeNull()
@@ -73,6 +82,14 @@ it('renders the main workspace shell', () => {
     expect(document.querySelector('.sheetDockLeft .cspLayerTreeHeader strong')?.textContent).toBe('CSPレイヤー構成')
     expect(document.querySelector('.sheetDockRight h2')?.textContent).toBe(uiText.assets.title)
     expect(screen.queryByRole('tablist', { name: uiText.sheet.sideDock })).toBeNull()
+  })
+
+  it('shows direct After Effects send only in a Windows Tauri host', () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+    Object.defineProperty(navigator, 'userAgentData', { configurable: true, value: { platform: 'Windows' } })
+    render(<App />)
+
+    expect(within(openAppNavigationMenu()).getByRole('button', { name: uiText.actions.aeSend })).toBeTruthy()
   })
 
   it('keeps hamburger flyouts mutually exclusive across click, hover, and focus', () => {
@@ -515,6 +532,17 @@ it('opens remap XDTS export options from the export menu without adding a worksp
     expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
     expect((within(dialog).getByLabelText('SOUNDを含める') as HTMLInputElement).checked).toBe(false)
     expect((within(dialog).getByLabelText('CAMERAを含める') as HTMLInputElement).checked).toBe(false)
+    expect(screen.queryByText('読込開始')).toBeNull()
+    expect(screen.queryByText('読込終了')).toBeNull()
+  })
+
+it('opens remap After Effects JSX options without XDTS-only toggles', () => {
+    render(<RemapApp />)
+    const dialog = openTimingExportDialog('ae-jsx')
+    expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
+    expect(within(dialog).getByRole('button', { name: 'CELL' })).toBeTruthy()
+    expect(within(dialog).queryByLabelText('SOUNDを含める')).toBeNull()
+    expect(within(dialog).queryByLabelText('CAMERAを含める')).toBeNull()
     expect(screen.queryByText('読込開始')).toBeNull()
     expect(screen.queryByText('読込終了')).toBeNull()
   })

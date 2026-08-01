@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { clearAnnotations, clearAnnotationsForPage, sheetTemplatePresets, timelineLanesForLayout, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
@@ -9,7 +9,7 @@ import { sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
 import { Tooltip, TooltipTarget } from './Tooltip';
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe';
 import { ActionMenu, IconButton, ScrubbableNumberInput } from './AppControls';
-import { TemplateWorkspace } from './TemplateWorkspace';
+import { TemplateWorkspace, type TemplateWorkspaceDraftState } from './TemplateWorkspace';
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
 import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, PaperSheetIcon, RecognitionActionMenu, RedoIcon, UndoIcon } from './app-navigation';
@@ -26,7 +26,7 @@ import { dialogueAudioCutStateFromProject } from './dialogueAudioProject'
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
     appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
-    template, templatePanelKey, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
+    template, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
     setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
@@ -58,7 +58,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
-    handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
+    handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, openTimingExportDialog, confirmTimingExport, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
@@ -71,6 +71,22 @@ export function AppShellView({ controller }: { controller: AppController }) {
     project.logicalSheet.frameOrigin,
     project.logicalSheet.durationFrames,
   ), [project])
+  const templateDraftState = useRef<TemplateWorkspaceDraftState | null>(null)
+  const [templateDraftForMount, setTemplateDraftForMount] = useState<TemplateWorkspaceDraftState | null>(null)
+
+  useEffect(() => {
+    if (panel !== 'template') setTemplateDraftForMount(templateDraftState.current)
+  }, [panel])
+
+  useEffect(() => {
+    if (panel === 'template' || !templateDraftForMount?.dirty) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [panel, templateDraftForMount?.dirty])
 
   const sheetRailExternalActions = panel === 'sheet' ? (
     <>
@@ -472,14 +488,15 @@ export function AppShellView({ controller }: { controller: AppController }) {
         )}
         {panel === 'template' && (
           <TemplateWorkspace
-            key={templatePanelKey}
             project={project}
             template={template}
+            initialDraftTemplate={templateDraftForMount?.dirty ? templateDraftForMount.template : undefined}
+            initialDraftDirty={templateDraftForMount?.dirty ?? false}
+            onDraftStateChange={state => { templateDraftState.current = state }}
             onLoadTemplate={handleLoadTemplate}
-            onSaveTemplate={draftTemplate => void handleSaveTemplateJson(draftTemplate)}
+            onSaveTemplate={handleSaveTemplateJson}
             onApplyTemplate={handleApplyTemplateDraft}
             onCreateTemplateDraft={handleCreateTemplateDraft}
-            onCreatePaperTemplateFromImage={handleCreatePaperTemplateFromImage}
             onUpdateCorrectionLayers={handleUpdateCorrectionLayers}
           />
         )}

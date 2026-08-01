@@ -16,6 +16,14 @@ async function createXsrTestFile(document: Parameters<typeof encodeProjectArchiv
   return new File([new Uint8Array(archive)], fileName, { type: XSR_PROJECT_MIME_TYPE })
 }
 
+async function createDigitalTemplateDraft() {
+  fireEvent.click(screen.getByRole('button', { name: '新しいテンプレート' }))
+  const dialog = screen.getByRole('dialog', { name: '新しいテンプレート' })
+  fireEvent.click(within(dialog).getByRole('tab', { name: 'デジタルタイムシート' }))
+  fireEvent.click(within(dialog).getByRole('button', { name: '作成' }))
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: '新しいテンプレート' })).toBeNull())
+}
+
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
     render(<App />)
@@ -800,7 +808,7 @@ it('uses the template header label for the OCR target name', () => {
     selectAppPanel(uiText.nav.template)
     fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.display }))
     fireEvent.change(screen.getByLabelText(uiText.template.gridHeaderLabelInput('ACTION')), { target: { value: '演技指示' } })
-    fireEvent.click(screen.getByRole('button', { name: uiText.template.applyDraft }))
+    fireEvent.click(screen.getByRole('button', { name: 'プロジェクトへ反映' }))
 
     selectAppPanel(uiText.nav.sheet)
     fireEvent.click(screen.getByLabelText(uiText.recognition.menu))
@@ -1044,15 +1052,14 @@ it('requires a unique arbitrary name before adding a shared cut', () => {
     expect(within(menu).queryByLabelText(uiText.sheet.addSharedCutName)).toBeNull()
   })
 
-it('keeps template creation as a draft until apply or cancel', () => {
+it('keeps template creation as a draft until apply or cancel', async () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
 
     expect(screen.getByText(uiText.template.builtInProtected)).toBeTruthy()
-    expect((screen.getByRole('button', { name: uiText.template.applyDraft }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'プロジェクトへ反映' }) as HTMLButtonElement).disabled).toBe(true)
 
-    fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
-    fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))
+    await createDigitalTemplateDraft()
 
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
@@ -1065,31 +1072,47 @@ it('keeps template creation as a draft until apply or cancel', () => {
     fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.json }))
     const json = document.querySelector('.jsonPreview') as HTMLTextAreaElement | null
     expect(json?.value).toContain('"templateKind": "digital-native"')
-    expect(json?.value).toContain(uiText.template.draftNames.digital)
+    expect(json?.value).toContain('"name": "新しいデジタルタイムシート"')
     expect(json?.value).toMatch(/"templateId": "digital-template-[a-z0-9]+"/)
 
-    fireEvent.click(screen.getByRole('button', { name: uiText.template.cancelDraft }))
+    fireEvent.click(screen.getByRole('button', { name: '変更を取り消す' }))
     expect(screen.getByText(uiText.template.builtInProtected)).toBeTruthy()
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridOverlay-sound .gridLineCustom')).toHaveLength(4)
 
-    fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
-    fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))
-    fireEvent.click(screen.getByRole('button', { name: uiText.template.applyDraft }))
+    await createDigitalTemplateDraft()
+    fireEvent.click(screen.getByRole('button', { name: 'プロジェクトへ反映' }))
     expect(screen.getByText(uiText.template.draftApplied)).toBeTruthy()
-    expect((screen.getByRole('button', { name: uiText.template.applyDraft }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'プロジェクトへ反映' }) as HTMLButtonElement).disabled).toBe(true)
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
   })
 
-it('undoes and redoes an applied template with the synchronized project history', () => {
+it('preserves an unapplied template draft while visiting another workspace panel', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
 
-    fireEvent.click(screen.getByLabelText(uiText.actions.newTemplate))
-    fireEvent.click(screen.getByRole('button', { name: uiText.actions.createDigitalTemplate }))
-    fireEvent.click(screen.getByRole('button', { name: uiText.template.applyDraft }))
+    fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: 'パネル移動中の下書き' } })
+    expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
+
+    selectAppPanel(uiText.nav.sheet)
+    expect(screen.queryByLabelText(uiText.template.name)).toBeNull()
+    const beforeUnload = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(beforeUnload)
+    expect(beforeUnload.defaultPrevented).toBe(true)
+    selectAppPanel(uiText.nav.template)
+
+    expect((screen.getByLabelText(uiText.template.name) as HTMLInputElement).value).toBe('パネル移動中の下書き')
+    expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
+  })
+
+it('undoes and redoes an applied template with the synchronized project history', async () => {
+    render(<App />)
+    selectAppPanel(uiText.nav.template)
+
+    await createDigitalTemplateDraft()
+    fireEvent.click(screen.getByRole('button', { name: 'プロジェクトへ反映' }))
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
 
     const undo = screen.getByRole('button', { name: uiText.actions.undo }) as HTMLButtonElement
@@ -1108,6 +1131,7 @@ it('undoes and redoes an applied template with the synchronized project history'
 it('edits selected template rectangles in source-image pixels', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
+    fireEvent.click(screen.getByRole('tab', { name: '選択領域' }))
 
     const xInput = screen.getByLabelText(`${uiText.template.selectedRegion} x px`) as HTMLInputElement
     const yInput = screen.getByLabelText(`${uiText.template.selectedRegion} y px`) as HTMLInputElement
@@ -1124,6 +1148,7 @@ it('edits selected template rectangles in source-image pixels', () => {
 it('previews template edge drags locally and commits once on pointer up', async () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
+    fireEvent.click(screen.getByRole('tab', { name: '選択領域' }))
 
     const editor = document.querySelector<SVGSVGElement>('.templateEditorSvg')
     if (!editor) throw new Error('template editor not found')

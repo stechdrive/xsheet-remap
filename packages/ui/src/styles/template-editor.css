@@ -93,7 +93,7 @@
 }
 
 .templateToolbar {
-  align-items: flex-start;
+  align-items: center;
   overflow: visible;
   padding-bottom: 0;
 }
@@ -116,6 +116,20 @@
 
 .templateDraftStatus.dirty {
   color: #8b4c12;
+}
+
+.templateSaveNotice {
+  max-width: 320px;
+  overflow: hidden;
+  color: #315f49;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templateReviewBlocked {
+  border-color: #c67b72;
+  color: #8f261b;
 }
 
 .templateProcessToolbarGroup {
@@ -149,9 +163,159 @@
 
 .templateWorkspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 10px var(--template-dock-width, 380px);
+  grid-template-columns: 220px minmax(0, 1fr) 10px var(--template-dock-width, 380px);
+  grid-template-areas: "navigator editor resize dock";
   gap: 0;
   min-height: 0;
+}
+
+.templateWorkspace > .templateRegionNavigator {
+  grid-area: navigator;
+}
+
+.templateWorkspace > .templateEditor {
+  grid-area: editor;
+}
+
+.templateWorkspace > .panelResizeHandle {
+  grid-area: resize;
+}
+
+.templateWorkspace > .templateDock {
+  grid-area: dock;
+}
+
+.templateRegionNavigator {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #c6c8c3;
+  border-right: 0;
+  background: #f7f8f5;
+}
+
+.templateRegionNavigator > header {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-bottom: 1px solid #d5dad4;
+}
+
+.templateRegionNavigator > header > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.templateRegionNavigator > header p,
+.templateRegionNavigator > header span {
+  margin: 0;
+  color: #66706a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.templateRegionNavigatorList {
+  display: grid;
+  align-content: start;
+  max-height: calc(100% - 70px);
+  overflow: auto;
+  padding: 6px;
+}
+
+.templateRegionNavigatorItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.templateRegionNavigatorItem.selected {
+  border-color: #7fa48f;
+  background: #e4eee8;
+}
+
+.templateRegionNavigatorItem.hidden .templateRegionNavigatorSelect {
+  opacity: 0.52;
+}
+
+.templateRegionNavigatorSelect {
+  display: grid;
+  min-width: 0;
+  padding: 6px 7px;
+  text-align: left;
+}
+
+.templateRegionNavigatorSelect strong,
+.templateRegionNavigatorSelect span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templateRegionNavigatorSelect span {
+  color: #66706a;
+  font-size: 10px;
+}
+
+.templateRegionNavigatorActions {
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+}
+
+.templateRegionNavigatorActions button {
+  flex: 0 0 auto;
+  padding: 3px 5px;
+  font-size: 10px;
+}
+
+.templateRegionNavigatorActions .danger {
+  color: #8f261b;
+}
+
+.templateAuthoringReview {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.templateAuthoringReview > header {
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid #92b39f;
+  border-radius: 6px;
+  background: #edf6f0;
+}
+
+.templateAuthoringReview > header.blocked {
+  border-color: #d4a59d;
+  background: #fff1ee;
+}
+
+.templateAuthoringReview ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.templateAuthoringReview li {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  border-left: 3px solid #c29336;
+  background: #fff9e9;
+}
+
+.templateAuthoringReview li.error {
+  border-left-color: #a43a2f;
+  background: #fff1ee;
 }
 
 .templateEditor {
@@ -349,6 +513,14 @@
 .templateCreateFields {
   display: grid;
   gap: 6px;
+}
+
+.templateCreateDialog fieldset {
+  display: contents;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .templateCreateFields {

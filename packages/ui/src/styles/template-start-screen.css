@@ -1,0 +1,315 @@
+.templateStartScreen {
+  min-width: 0;
+  min-height: 100%;
+  overflow: auto;
+  padding: clamp(24px, 5vw, 64px) 24px;
+  background:
+    radial-gradient(circle at 18% 5%, rgb(66 112 88 / 0.12), transparent 30%),
+    #eef0ec;
+  color: #24342c;
+}
+
+.templateStartScreenContent {
+  display: grid;
+  gap: 30px;
+  width: min(1040px, 100%);
+  margin: 0 auto;
+}
+
+.templateStartRecovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #d69d51;
+  border-radius: 8px;
+  background: #fff8e8;
+}
+
+.templateStartRecovery > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.templateStartRecovery span {
+  color: #69593d;
+  font-size: 12px;
+}
+
+.templateStartScreenHeader {
+  display: grid;
+  gap: 8px;
+  max-width: 720px;
+}
+
+.templateStartScreenEyebrow {
+  margin: 0;
+  color: #49705d;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.templateStartScreenHeader h1 {
+  margin: 0;
+  color: #193a2a;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.2;
+}
+
+.templateStartScreenHeader > p:last-child {
+  margin: 0;
+  color: #526158;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.templateStartScreenSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.templateStartScreenSteps li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid #d2d9d3;
+  border-radius: 7px;
+  background: rgb(255 255 252 / 0.72);
+  color: #69746d;
+}
+
+.templateStartScreenSteps li.active {
+  border-color: #7a9a88;
+  background: #f9fcf9;
+  color: #244c38;
+}
+
+.templateStartScreenStepNumber {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #dfe5e0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.templateStartScreenSteps li.active .templateStartScreenStepNumber {
+  background: #315f49;
+  color: #fff;
+}
+
+.templateStartScreenSteps li > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.templateStartScreenSteps strong,
+.templateStartScreenSteps small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templateStartScreenSteps strong {
+  font-size: 12px;
+}
+
+.templateStartScreenSteps small {
+  font-size: 10px;
+}
+
+.templateStartScreenChoiceSection,
+.templateStartScreenOpenSection {
+  display: grid;
+  gap: 13px;
+}
+
+.templateStartScreenSectionHeading {
+  display: grid;
+  gap: 3px;
+}
+
+.templateStartScreenSectionHeading h2,
+.templateStartScreenSectionHeading p {
+  margin: 0;
+}
+
+.templateStartScreenSectionHeading h2 {
+  color: #294537;
+  font-size: 16px;
+}
+
+.templateStartScreenSectionHeading p {
+  color: #66736b;
+  font-size: 12px;
+}
+
+.templateStartScreenOptionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.templateStartScreenFileOption {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.templateStartScreenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.templateStartScreenOption {
+  display: grid;
+  grid-template-rows: auto minmax(3.4em, 1fr) auto;
+  gap: 11px;
+  min-width: 0;
+  min-height: 176px;
+  padding: 18px;
+  border: 1px solid #cbd3cc;
+  border-radius: 10px;
+  background: #fbfcf9;
+  color: #263a30;
+  box-shadow: 0 2px 8px rgb(22 45 34 / 0.06);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+button.templateStartScreenOption {
+  width: 100%;
+  font: inherit;
+}
+
+.templateStartScreenOption:hover {
+  border-color: #74917f;
+  box-shadow: 0 5px 16px rgb(22 45 34 / 0.1);
+  transform: translateY(-1px);
+}
+
+.templateStartScreenOption:focus-visible,
+.templateStartScreenFileInput:focus-visible + .templateStartScreenOption {
+  outline: 3px solid rgb(36 102 70 / 0.28);
+  outline-offset: 2px;
+  border-color: #286c4b;
+}
+
+.templateStartScreenOption.recommended {
+  border-color: #5f8b73;
+  box-shadow: inset 0 3px #315f49, 0 2px 8px rgb(22 45 34 / 0.08);
+}
+
+.templateStartScreenOptionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.templateStartScreenOptionHeading strong {
+  color: #1f432f;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.templateStartScreenBadge {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #dcebe2;
+  color: #27543c;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.templateStartScreenOptionDescription {
+  color: #5d6b63;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.templateStartScreenOptionAction {
+  color: #24583e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.templateStartScreenOpenSection {
+  grid-template-columns: minmax(210px, 0.65fr) minmax(0, 1.35fr);
+  align-items: stretch;
+  padding-top: 22px;
+  border-top: 1px solid #ccd4cd;
+}
+
+.templateStartScreenOpenSection .templateStartScreenSectionHeading {
+  align-content: center;
+}
+
+.templateStartScreenFileOption.compact .templateStartScreenOption {
+  grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1.3fr) auto;
+  grid-template-rows: auto;
+  align-items: center;
+  min-height: 88px;
+}
+
+.templateStartScreenFileOption.compact .templateStartScreenOptionAction {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .templateStartScreen {
+    padding: 24px 16px;
+  }
+
+  .templateStartScreenSteps,
+  .templateStartScreenOptionGrid,
+  .templateStartScreenOpenSection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .templateStartRecovery,
+  .templateStartRecovery > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .templateStartScreenSteps li:not(.active) small {
+    display: none;
+  }
+
+  .templateStartScreenFileOption.compact .templateStartScreenOption {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .templateStartScreenFileOption.compact .templateStartScreenOptionAction {
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .templateStartScreenOption {
+    transition: none;
+  }
+}

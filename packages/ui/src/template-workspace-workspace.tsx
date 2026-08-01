@@ -11,7 +11,8 @@ import {
   type SheetTemplateLinePattern,
   type SheetTemplateTextStyle,
 } from '@xsheet-remap/core'
-import { useMemo, useState } from 'react'
+import { confirmUserAction, type SaveFileResult } from '@xsheet-remap/adapters'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './appTypes'
 import { uiText } from './i18n'
@@ -20,7 +21,7 @@ import { sortedCorrectionLayers } from './sheetAssets'
 import { SHEET_ZOOM_MIN, TEMPLATE_ZOOM_MAX } from './sheetConstants'
 import { calibrationGridBoundsForTemplate, calibrationTargetRectForTemplate, defaultSheetImageSettings, resolveImageRefUrl } from './sheetImages'
 import { clampNumber, fitZoomForViewport } from './sheetInteraction'
-import { cloneSheetTemplate, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, synchronizeDigitalTemplatePaperTracks, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
+import { cloneSheetTemplate, createTemplateDraft, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, synchronizeDigitalTemplatePaperTracks, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
 import { readTemplateImageMetadata } from './templateImageMetadata'
 import { gridHeaderLabelForRole, gridHeaderRolesForTemplate, templateEditorNormalizedRectValue, templateEditorRectPixelValue, type TemplateEditorRectKey } from './templateEditorGeometry'
 import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, resizePaperTrackLabels, resizeTemplateTimelineLanes, setTemplateCalibrationTargetRect, setTemplateGridColumnLabelsVisible, setTemplateTimelineLaneLabel, templateGridColumnLabelsVisible, templateTimelineLaneDefinitions, trackProjectionForRole, type TemplateGridRole, type TemplateTimelineLaneRole } from './templateEditing'
@@ -30,6 +31,16 @@ import { TemplateRegionEditor } from './template-workspace-region-editor'
 import { TemplateCreateDialog, type DigitalTemplateCreateOptions, type PaperTemplateCreateOptions } from './TemplateCreateDialog'
 import { templatePaperPixelSize } from './templatePaper'
 import { SheetThemeEditor } from './SheetThemeEditor'
+import { TemplateRegionNavigator } from './TemplateRegionNavigator'
+import { duplicateTemplateRegion, moveTemplateRegion, placeNewTemplateRegion, uniqueTemplateRegionId } from './templateRegionAuthoring'
+import { validateTemplateAuthoring } from './templateAuthoringValidation'
+
+export type TemplateWorkspaceMode = 'project' | 'standalone'
+
+export interface TemplateWorkspaceDraftState {
+  template: SheetTemplate
+  dirty: boolean
+}
 
 export function TemplateWorkspace({
   project,
@@ -38,36 +49,48 @@ export function TemplateWorkspace({
   onSaveTemplate,
   onApplyTemplate,
   onCreateTemplateDraft,
-  onCreatePaperTemplateFromImage,
   onUpdateCorrectionLayers,
+  mode = 'project',
+  initialDraftTemplate,
+  initialDraftDirty = false,
+  onDraftStateChange,
+  onReturnToStart,
 }: {
   project: CutProject
   template: SheetTemplate
   onLoadTemplate: (files: FileList | null) => Promise<SheetTemplate | null>
-  onSaveTemplate: (template: SheetTemplate) => void
+  onSaveTemplate: (template: SheetTemplate) => Promise<SaveFileResult> | SaveFileResult
   onApplyTemplate: (template: SheetTemplate) => void
   onCreateTemplateDraft: (kind: TemplateDraftKind) => SheetTemplate
-  onCreatePaperTemplateFromImage: (files: FileList | null) => Promise<SheetTemplate | null>
   onUpdateCorrectionLayers: (layers: CorrectionLayer[]) => boolean
+  mode?: TemplateWorkspaceMode
+  initialDraftTemplate?: SheetTemplate
+  initialDraftDirty?: boolean
+  onDraftStateChange?: (state: TemplateWorkspaceDraftState) => void
+  onReturnToStart?: () => void
 }) {
-  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate)))
+  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(initialDraftTemplate ?? appliedTemplate)))
+  const [hasTemplateDraftChanges, setHasTemplateDraftChanges] = useState(initialDraftDirty)
+  const [saveNotice, setSaveNotice] = useState<string | null>(null)
   const template = draftTemplate
-  const appliedTemplateJson = useMemo(() => JSON.stringify(appliedTemplate), [appliedTemplate])
-  const draftTemplateJson = useMemo(() => JSON.stringify(draftTemplate), [draftTemplate])
-  const hasTemplateDraftChanges = draftTemplateJson !== appliedTemplateJson
   const templateDraftStatus = hasTemplateDraftChanges
-    ? uiText.template.draftChanged
+    ? mode === 'standalone' ? '未保存の変更' : uiText.template.draftChanged
     : isBuiltInSheetTemplate(template)
       ? uiText.template.builtInProtected
-      : uiText.template.draftApplied
+      : mode === 'standalone' ? '保存済み' : uiText.template.draftApplied
   const editableRegions = template.regions
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => editableRegions[0]?.regionId ?? null)
   const [selectedFormCellId, setSelectedFormCellId] = useState<string | null>(null)
-  const [detailTab, setDetailTab] = useState<TemplateDetailTab>('region')
+  const [detailTab, setDetailTab] = useState<TemplateDetailTab>('template')
   const [templateZoom, setTemplateZoom] = useState(1)
   const [dockWidth, setDockWidth] = useState(380)
   const [processSettingsOpen, setProcessSettingsOpen] = useState(false)
   const [templateCreateOpen, setTemplateCreateOpen] = useState(false)
+  const [hiddenRegionIds, setHiddenRegionIds] = useState<Set<string>>(() => new Set())
+  const [positionLockedRegionIds, setPositionLockedRegionIds] = useState<Set<string>>(() => new Set())
+  const referenceImageLoadSequence = useRef(0)
+  const draftRevision = useRef(0)
+  const observedAppliedTemplate = useRef(appliedTemplate)
   const isDigitalTemplate = template.templateKind === 'digital-native'
   const calibrationTargetRect = calibrationTargetRectForTemplate(template)
   const calibrationGridBounds = calibrationGridBoundsForTemplate(template)
@@ -80,6 +103,7 @@ export function TemplateWorkspace({
     : selectedRegionId
       ? editableRegions.find(region => region.regionId === selectedRegionId) ?? editableRegions[0] ?? null
       : editableRegions[0] ?? null
+  const selectedRegionPositionLocked = Boolean(selectedRegion && positionLockedRegionIds.has(selectedRegion.regionId))
   const selectedDecorativeGrid = isDecorativeGridRegion(selectedRegion) ? selectedRegion : null
   const selectedFormFieldCells = selectedRegion?.form?.cells?.filter(cell => cell.kind === 'field' && cell.fieldId) ?? []
   const selectedFormFieldCell = selectedFormFieldCells.find(cell => cell.cellId === selectedFormCellId)
@@ -97,9 +121,9 @@ export function TemplateWorkspace({
   const templateReferenceImageUrl = template.defaultUnderlay?.imageRef
     ? resolveImageRefUrl({ ...template.defaultUnderlay.imageRef, assetPath: template.defaultUnderlay.assetPath })
     : null
-  const templateReferenceImageSettings: SheetImageSettings = template.defaultUnderlay?.alignment
+  const templateReferenceImageSettings: SheetImageSettings = useMemo(() => template.defaultUnderlay?.alignment
     ? { ...defaultSheetImageSettings(), ...template.defaultUnderlay.alignment }
-    : defaultSheetImageSettings()
+    : defaultSheetImageSettings(), [template.defaultUnderlay])
   const referenceImageMetadata = template.defaultUnderlay?.imageRef.pixelWidth && template.defaultUnderlay.imageRef.pixelHeight
     ? {
         width: template.defaultUnderlay.imageRef.pixelWidth,
@@ -111,40 +135,126 @@ export function TemplateWorkspace({
   const referenceDensityMatches = referenceImageMetadata
     ? templateImageDensityMatches(template.page.dpi, referenceImageMetadata)
     : null
+  const authoringValidation = useMemo(() => validateTemplateAuthoring(template), [template])
+
+  useEffect(() => {
+    onDraftStateChange?.({ template, dirty: hasTemplateDraftChanges })
+  }, [hasTemplateDraftChanges, onDraftStateChange, template])
+
+  useEffect(() => {
+    if (mode !== 'project' || hasTemplateDraftChanges || observedAppliedTemplate.current === appliedTemplate) return
+    observedAppliedTemplate.current = appliedTemplate
+    referenceImageLoadSequence.current += 1
+    draftRevision.current += 1
+    const nextTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate))
+    setDraftTemplate(nextTemplate)
+    setSelectedRegionId(nextTemplate.regions[0]?.regionId ?? null)
+    setHiddenRegionIds(new Set())
+    setPositionLockedRegionIds(new Set())
+    setSaveNotice(null)
+  }, [appliedTemplate, hasTemplateDraftChanges, mode])
+
+  useEffect(() => {
+    if (!hasTemplateDraftChanges) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasTemplateDraftChanges])
 
   function setClampedTemplateZoom(value: number) {
     setTemplateZoom(clampNumber(value, SHEET_ZOOM_MIN, TEMPLATE_ZOOM_MAX))
   }
 
-  function updateTemplateDraft(updater: (currentTemplate: SheetTemplate) => SheetTemplate) {
-    setDraftTemplate(currentTemplate => {
-      const nextTemplate = updater(ensureEditableTemplateDraft(currentTemplate))
-      return isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate
-    })
+  function markTemplateDraftChanged() {
+    draftRevision.current += 1
+    setHasTemplateDraftChanges(true)
+    setSaveNotice(null)
   }
 
-  function replaceTemplateDraft(nextTemplate: SheetTemplate | null, nextTab: TemplateDetailTab) {
+  function updateTemplateDraft(updater: (currentTemplate: SheetTemplate) => SheetTemplate) {
+    setDraftTemplate(currentTemplate => updater(ensureEditableTemplateDraft(currentTemplate)))
+    markTemplateDraftChanged()
+  }
+
+  function replaceTemplateDraft(nextTemplate: SheetTemplate | null, nextTab: TemplateDetailTab, dirty = true) {
     if (!nextTemplate) return
+    referenceImageLoadSequence.current += 1
+    draftRevision.current += 1
     const sourceTemplate = isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate
     const clonedTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(quantizeTemplateGeometry(sourceTemplate)))
     setDraftTemplate(clonedTemplate)
+    setHasTemplateDraftChanges(dirty)
+    setSaveNotice(null)
     setSelectedRegionId(clonedTemplate.regions[0]?.regionId ?? null)
+    setHiddenRegionIds(new Set())
+    setPositionLockedRegionIds(new Set())
     setDetailTab(nextTab)
     setClampedTemplateZoom(1)
   }
 
   function applyTemplateDraftChanges() {
     if (!hasTemplateDraftChanges) return
+    draftRevision.current += 1
     const nextTemplate = finalizeTemplateDraftForApply(template)
     onApplyTemplate(nextTemplate)
     setDraftTemplate(cloneSheetTemplate(nextTemplate))
+    setHasTemplateDraftChanges(false)
+    setSaveNotice('プロジェクトへ反映しました')
   }
 
   function cancelTemplateDraftChanges() {
     if (!hasTemplateDraftChanges) return
+    referenceImageLoadSequence.current += 1
+    draftRevision.current += 1
     const nextTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate))
     setDraftTemplate(nextTemplate)
+    setHasTemplateDraftChanges(false)
+    setSaveNotice(null)
     setSelectedRegionId(nextTemplate.regions[0]?.regionId ?? null)
+  }
+
+  async function confirmDiscardTemplateDraft(action: string): Promise<boolean> {
+    if (!hasTemplateDraftChanges) return true
+    return confirmUserAction(
+      `未保存の変更があります。変更を破棄して${action}しますか？`,
+      { title: '未保存の変更', okLabel: '破棄して続ける', cancelLabel: '編集に戻る' },
+    )
+  }
+
+  async function saveTemplateDraft() {
+    const finalizedTemplate = finalizeTemplateDraftForApply(template)
+    const validation = validateTemplateAuthoring(finalizedTemplate)
+    if (!validation.canComplete) {
+      setDetailTab('review')
+      setSaveNotice(`保存前に${validation.errors.length}件のエラーを修正してください`)
+      return
+    }
+    const savedRevision = draftRevision.current
+    const result = await onSaveTemplate(finalizedTemplate)
+    if (!result.saved) {
+      setSaveNotice('保存をキャンセルしました')
+      return
+    }
+    const changedWhileSaving = draftRevision.current !== savedRevision
+    if (mode === 'standalone' && !changedWhileSaving) {
+      onApplyTemplate(finalizedTemplate)
+      setDraftTemplate(cloneSheetTemplate(finalizedTemplate))
+      setHasTemplateDraftChanges(false)
+    }
+    const time = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit' }).format(new Date())
+    setSaveNotice(changedWhileSaving
+      ? `${time} 保存後に変更があります。もう一度保存してください`
+      : result.path ? `${time} 保存済み: ${result.path}` : `${time} 保存済み`)
+  }
+
+  async function returnToStart() {
+    if (!onReturnToStart) return
+    if (!await confirmDiscardTemplateDraft('開始画面へ戻り')) return
+    referenceImageLoadSequence.current += 1
+    onReturnToStart()
   }
 
   function fitTemplateToViewport() {
@@ -273,6 +383,28 @@ export function TemplateWorkspace({
     updateTemplateDraft(currentTemplate => removeTemplateRegion(currentTemplate, regionId))
     setSelectedRegionId(current => current === regionId ? nextSelectedRegionId : current)
     setSelectedFormCellId(null)
+    setHiddenRegionIds(current => withoutSetValue(current, regionId))
+    setPositionLockedRegionIds(current => withoutSetValue(current, regionId))
+  }
+
+  function duplicateRegion(regionId: string) {
+    const result = duplicateTemplateRegion(template, regionId)
+    if (!result) return
+    updateTemplateDraft(() => result.template)
+    setSelectedRegionId(result.regionId)
+    setSelectedFormCellId(null)
+  }
+
+  function moveRegion(regionId: string, direction: -1 | 1) {
+    updateTemplateDraft(currentTemplate => moveTemplateRegion(currentTemplate, regionId, direction))
+  }
+
+  function toggleRegionHidden(regionId: string) {
+    setHiddenRegionIds(current => toggledSetValue(current, regionId))
+  }
+
+  function toggleRegionPositionLocked(regionId: string) {
+    setPositionLockedRegionIds(current => toggledSetValue(current, regionId))
   }
 
   function updateRegionFormCell(
@@ -303,6 +435,7 @@ export function TemplateWorkspace({
   }
 
   function updateRegionRectPixel(regionId: string, key: TemplateEditorRectKey, pixelValue: number) {
+    if (positionLockedRegionIds.has(regionId)) return
     updateRegionRect(regionId, key, templateEditorNormalizedRectValue(pixelValue, key, template.page))
   }
 
@@ -445,15 +578,17 @@ export function TemplateWorkspace({
 
   function addGridRegion(role: NonNullable<SheetTemplate['regions'][number]['grid']>['role']) {
     const editableTemplate = ensureEditableTemplateDraft(template)
-    const regionNumber = editableTemplate.regions.filter(region => region.grid?.role === role).length + 1
+    const existingLabels = new Set(editableTemplate.regions.map(region => region.label))
+    let regionNumber = 1
+    while (existingLabels.has(defaultRegionLabel(role, regionNumber))) regionNumber += 1
     const columnCount = defaultColumnCountForRole(editableTemplate, role)
     const label = defaultRegionLabel(role, regionNumber)
-    const regionId = `custom_${role}_${editableTemplate.regions.length + 1}`
+    const regionId = uniqueTemplateRegionId(editableTemplate, `custom_${role}_${editableTemplate.regions.length + 1}`)
     const region: SheetTemplate['regions'][number] = {
       regionId,
       type: 'exposure-grid',
       label,
-      rect: { x: 0.1, y: 0.2, w: 0.3, h: 0.6 },
+      rect: placeNewTemplateRegion(editableTemplate, { x: 0.1, y: 0.2, w: 0.3, h: 0.6 }),
       usage: role === 'cell' || role === 'sound' ? 'input' : 'reference',
       inputKind: role === 'cell' || role === 'action' ? 'timing-event' : role === 'camera' ? 'camera' : role === 'sound' ? 'dialogue' : 'text',
       grid: {
@@ -472,18 +607,22 @@ export function TemplateWorkspace({
       regions: [...editableTemplate.regions, region],
     }
     setDraftTemplate(synchronizeDigitalTemplatePaperTracks(nextTemplate))
+    markTemplateDraftChanged()
     setSelectedRegionId(regionId)
   }
 
   function addDecorativeGridRegion() {
     const editableTemplate = ensureEditableTemplateDraft(template)
-    const index = editableTemplate.regions.filter(region => region.type === 'decorative' && region.grid).length + 1
-    const regionId = `custom_decorative_grid_${editableTemplate.regions.length + 1}`
+    const existingLabels = new Set(editableTemplate.regions.map(region => region.label))
+    const existingColumnIds = new Set(editableTemplate.regions.flatMap(region => region.grid?.columns.map(column => column.columnId) ?? []))
+    let index = 1
+    while (existingLabels.has(`補助罫線 ${index}`) || existingColumnIds.has(`decorative_${index}_1`)) index += 1
+    const regionId = uniqueTemplateRegionId(editableTemplate, `custom_decorative_grid_${editableTemplate.regions.length + 1}`)
     const region: SheetTemplate['regions'][number] = {
       regionId,
       type: 'decorative',
       label: `補助罫線 ${index}`,
-      rect: { x: 0.05, y: 0.2, w: 0.08, h: 0.6 },
+      rect: placeNewTemplateRegion(editableTemplate, { x: 0.05, y: 0.2, w: 0.08, h: 0.6 }),
       usage: 'render-only',
       grid: {
         role: 'other',
@@ -498,6 +637,7 @@ export function TemplateWorkspace({
       },
     }
     setDraftTemplate({ ...editableTemplate, regions: [...editableTemplate.regions, region] })
+    markTemplateDraftChanged()
     setSelectedRegionId(regionId)
   }
 
@@ -509,12 +649,12 @@ export function TemplateWorkspace({
     }))
     const optionId = METADATA_BINDING_OPTION_IDS.find(candidate => !usedBindings.has(candidate)) ?? 'cut:title'
     const binding = metadataBindingFromOptionId(optionId)
-    const regionId = `metadata_${optionId.replace(/[:]/g, '_')}_${editableTemplate.regions.length + 1}`
+    const regionId = uniqueTemplateRegionId(editableTemplate, `metadata_${optionId.replace(/[:]/g, '_')}_${editableTemplate.regions.length + 1}`)
     const region: SheetTemplate['regions'][number] = {
       regionId,
       type: 'metadata-field',
       label: metadataBindingOptionLabel(optionId),
-      rect: { x: 0.1, y: 0.08, w: 0.2, h: 0.04 },
+      rect: placeNewTemplateRegion(editableTemplate, { x: 0.1, y: 0.08, w: 0.2, h: 0.04 }),
       usage: binding.target === 'cut-group' ? 'render-only' : 'input',
       inputKind: 'text',
       binding,
@@ -530,19 +670,22 @@ export function TemplateWorkspace({
       },
     }
     setDraftTemplate({ ...editableTemplate, regions: [...editableTemplate.regions, region] })
+    markTemplateDraftChanged()
     setSelectedRegionId(regionId)
   }
 
   function addFormRegion() {
     const editableTemplate = ensureEditableTemplateDraft(template)
-    const index = editableTemplate.regions.filter(region => region.form).length + 1
-    const regionId = `custom_form_${editableTemplate.regions.length + 1}`
+    const existingFieldIds = new Set(editableTemplate.fields?.map(field => field.fieldId) ?? [])
+    let index = 1
+    while (existingFieldIds.has(`custom.form.${index}.left`) || existingFieldIds.has(`custom.form.${index}.right`)) index += 1
+    const regionId = uniqueTemplateRegionId(editableTemplate, `custom_form_${editableTemplate.regions.length + 1}`)
     const fieldIds = [`custom.form.${index}.left`, `custom.form.${index}.right`]
     const region: SheetTemplate['regions'][number] = {
       regionId,
       type: 'form-table',
       label: `入力表 ${index}`,
-      rect: { x: 0.1, y: 0.08, w: 0.4, h: 0.08 },
+      rect: placeNewTemplateRegion(editableTemplate, { x: 0.1, y: 0.08, w: 0.4, h: 0.08 }),
       usage: 'input',
       inputKind: 'text',
       form: {
@@ -567,6 +710,7 @@ export function TemplateWorkspace({
       ],
       regions: [...editableTemplate.regions, region],
     })
+    markTemplateDraftChanged()
     setSelectedRegionId(regionId)
   }
 
@@ -574,25 +718,31 @@ export function TemplateWorkspace({
     const file = files?.[0]
     if (!file) return
     try {
+      const loadSequence = referenceImageLoadSequence.current + 1
+      referenceImageLoadSequence.current = loadSequence
       const dataUrl = await readFileAsDataUrl(file)
-      const editableTemplate = ensureEditableTemplateDraft(template)
-      const sourceId = editableTemplate.defaultUnderlay?.sourceId ?? `template_reference_${Date.now()}`
-      setDraftTemplate({
-        ...editableTemplate,
-        defaultUnderlay: {
-          sourceId,
-          label: file.name,
-          assetPath: dataUrl,
-          imageRef: {
-            name: file.name,
-            size: file.size,
-            lastModified: file.lastModified,
+      if (referenceImageLoadSequence.current !== loadSequence) return
+      const sourceId = `template_reference_${file.lastModified}_${file.size}_${loadSequence}`
+      setDraftTemplate(currentTemplate => {
+        const editableTemplate = ensureEditableTemplateDraft(currentTemplate)
+        return {
+          ...editableTemplate,
+          defaultUnderlay: {
+            sourceId,
+            label: file.name,
             assetPath: dataUrl,
+            imageRef: {
+              name: file.name,
+              size: file.size,
+              lastModified: file.lastModified,
+              assetPath: dataUrl,
+            },
           },
-        },
+        }
       })
+      markTemplateDraftChanged()
       void readTemplateImageMetadata(file, dataUrl).then(metadata => {
-        if (!metadata) return
+        if (!metadata || referenceImageLoadSequence.current !== loadSequence) return
         setDraftTemplate(currentTemplate => {
           if (currentTemplate.defaultUnderlay?.sourceId !== sourceId) return currentTemplate
           return {
@@ -614,6 +764,7 @@ export function TemplateWorkspace({
             },
           }
         })
+        markTemplateDraftChanged()
       })
     } catch (error) {
       window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))
@@ -621,28 +772,22 @@ export function TemplateWorkspace({
   }
 
   function clearReferenceImage() {
+    referenceImageLoadSequence.current += 1
     updateTemplateDraft(currentTemplate => ({ ...currentTemplate, defaultUnderlay: undefined }))
   }
 
   async function handleLoadTemplateDraft(files: FileList | null) {
     try {
+      if (!await confirmDiscardTemplateDraft('別のテンプレートを開き')) return
       const loaded = await onLoadTemplate(files)
-      replaceTemplateDraft(loaded, 'region')
+      replaceTemplateDraft(loaded, 'template', mode === 'project')
     } catch (error) {
       window.alert(uiText.template.loadFailed(errorMessage(error)))
     }
   }
 
-  function handleCreateTemplateDraft(kind: TemplateDraftKind, nextTab: TemplateDetailTab = 'region') {
-    replaceTemplateDraft(onCreateTemplateDraft(kind), nextTab)
-  }
-
-  async function handleCreatePaperTemplateDraft(files: FileList | null) {
-    const created = await onCreatePaperTemplateFromImage(files)
-    replaceTemplateDraft(created, 'reference')
-  }
-
   async function createPaperTemplateFromOptions(options: PaperTemplateCreateOptions) {
+    if (!await confirmDiscardTemplateDraft('新しい紙テンプレートを作成')) return
     const page = templatePaperPixelSize(options.format, options.orientation, options.ppi)
     let created = onCreateTemplateDraft('paper-standard')
     created = quantizeTemplateGeometry({
@@ -684,11 +829,12 @@ export function TemplateWorkspace({
         }
       }
     }
-    replaceTemplateDraft(created, options.file ? 'reference' : 'region')
+    replaceTemplateDraft(created, options.file ? 'reference' : 'template')
     setTemplateCreateOpen(false)
   }
 
-  function createDigitalTemplateFromOptions(options: DigitalTemplateCreateOptions) {
+  async function createDigitalTemplateFromOptions(options: DigitalTemplateCreateOptions) {
+    if (!await confirmDiscardTemplateDraft('新しいデジタルテンプレートを作成')) return
     const base = onCreateTemplateDraft('digital-standard')
     const paperTracks = resizePaperTrackLabels(base.defaults.paperTracks, options.trackCount)
     const withDefaults: SheetTemplate = {
@@ -716,22 +862,29 @@ export function TemplateWorkspace({
           }
         : region),
     }, paperTracks)
-    replaceTemplateDraft(created, 'region')
+    replaceTemplateDraft(created, 'template')
+    setTemplateCreateOpen(false)
+  }
+
+  function duplicateCurrentTemplate() {
+    replaceTemplateDraft(createTemplateDraft('duplicate-current', template), 'template')
     setTemplateCreateOpen(false)
   }
 
   const detailTabs: Array<[TemplateDetailTab, string]> = [
-    ['region', uiText.template.detailTabs.region],
+    ['template', 'テンプレート'],
+    ['region', '選択領域'],
     ['display', uiText.template.detailTabs.display],
     ...(!isDigitalTemplate ? [['reference', uiText.template.detailTabs.reference] as [TemplateDetailTab, string]] : []),
-    ['table', uiText.template.detailTabs.table],
+    ['table', '全領域'],
+    ['review', '確認'],
     ['json', uiText.template.detailTabs.json],
   ]
   const gridHeaderRoles = gridHeaderRolesForTemplate(template)
   const timelineLaneRoles = gridHeaderRoles.filter((role): role is TemplateTimelineLaneRole => role === 'sound' || role === 'camera')
 
   const templateViewLayout = getSheetViewLayout(template)
-  const templateMeta = (
+  const templateSettings = (
     <dl className="templateMeta">
       <dt>{uiText.template.id}</dt>
       <dd>
@@ -854,6 +1007,11 @@ export function TemplateWorkspace({
       )}
       <dt>{uiText.template.regions}</dt>
       <dd>{template.regions.length}</dd>
+    </dl>
+  )
+
+  const selectedRegionControls = (
+    <dl className="templateMeta">
       <dt>{uiText.template.selectedRegion}</dt>
       <dd>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</dd>
       {selectedRegion && (
@@ -881,6 +1039,8 @@ export function TemplateWorkspace({
                   className="numberInput"
                   type="number"
                   step="1"
+                  disabled={selectedRegionPositionLocked}
+                  title={selectedRegionPositionLocked ? '位置固定を解除すると編集できます' : undefined}
                   value={templateEditorRectPixelValue(selectedRegion.rect, key, template.page)}
                   onChange={event => updateRegionRectPixel(selectedRegion.regionId, key, Number(event.currentTarget.value))}
                 />
@@ -1334,6 +1494,8 @@ export function TemplateWorkspace({
                     className="numberInput"
                     type="number"
                     step="1"
+                    disabled={positionLockedRegionIds.has(region.regionId)}
+                    title={positionLockedRegionIds.has(region.regionId) ? '位置固定を解除すると編集できます' : undefined}
                     value={templateEditorRectPixelValue(region.rect, key, template.page)}
                     onChange={event => updateRegionRectPixel(region.regionId, key, Number(event.currentTarget.value))}
                   />
@@ -1346,7 +1508,14 @@ export function TemplateWorkspace({
               </td>
               <td>
                 {region.grid && (
-                  <input className="numberInput" type="number" value={region.grid.rowCount} onChange={event => updateRegionGrid(region.regionId, { rowCount: Number(event.currentTarget.value) })} />
+                  <input
+                    className="numberInput"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={region.grid.rowCount}
+                    onChange={event => updateRegionGrid(region.regionId, { rowCount: Math.max(1, Math.round(Number(event.currentTarget.value))) })}
+                  />
                 )}
               </td>
               <td>
@@ -1391,63 +1560,57 @@ export function TemplateWorkspace({
     </div>
   )
 
+  const reviewControls = (
+    <section className="templateAuthoringReview" aria-live="polite">
+      <header className={authoringValidation.canComplete ? 'ready' : 'blocked'}>
+        <strong>{authoringValidation.canComplete ? '保存できます' : '修正が必要です'}</strong>
+        <span>
+          エラー {authoringValidation.errors.length}件 / 注意 {authoringValidation.warnings.length}件
+        </span>
+      </header>
+      {authoringValidation.issues.length === 0 ? (
+        <p>テンプレートID、入力領域、ページ内配置、補正基準を確認しました。</p>
+      ) : (
+        <ol>
+          {authoringValidation.issues.map((issue, index) => (
+            <li key={`${issue.code}-${issue.regionId ?? 'template'}-${index}`} className={issue.severity}>
+              <strong>{issue.severity === 'error' ? '修正' : '確認'}</strong>
+              <span>{issue.message}</span>
+              {issue.regionId && (
+                <button type="button" onClick={() => { setSelectedRegionId(issue.regionId!); setDetailTab('region') }}>
+                  対象領域を開く
+                </button>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+      <button type="button" className="primary" disabled={!authoringValidation.canComplete} onClick={() => void saveTemplateDraft()}>
+        確認して保存
+      </button>
+    </section>
+  )
+
+  const navigationItems = template.regions.map(region => ({
+    regionId: region.regionId,
+    label: region.label || region.regionId,
+    kind: templateRegionKindLabel(region),
+  }))
+
   return (
     <section className="panel templatePanel">
       <div className="toolRow templateToolbar">
         <ToolbarGroup className="templateDraftToolbarGroup">
           <span className={`templateDraftStatus ${hasTemplateDraftChanges ? 'dirty' : ''}`.trim()}>{templateDraftStatus}</span>
-          <Tooltip label={uiText.template.applyDraftTitle}>
-            <button type="button" disabled={!hasTemplateDraftChanges} onClick={applyTemplateDraftChanges}>{uiText.template.applyDraft}</button>
-          </Tooltip>
-          <Tooltip label={uiText.template.cancelDraftTitle}>
-            <button type="button" disabled={!hasTemplateDraftChanges} onClick={cancelTemplateDraftChanges}>{uiText.template.cancelDraft}</button>
-          </Tooltip>
+          {saveNotice && <span className="templateSaveNotice" role="status">{saveNotice}</span>}
         </ToolbarGroup>
+        {mode === 'standalone' && onReturnToStart && (
+          <ToolbarGroup>
+            <button type="button" onClick={() => void returnToStart()}>作り方へ戻る</button>
+          </ToolbarGroup>
+        )}
         <ToolbarGroup>
-          <button type="button" className="primary" onClick={() => setTemplateCreateOpen(true)}>新しいテンプレート</button>
-          <ActionMenu
-            label={uiText.actions.newTemplate}
-            ariaLabel={uiText.actions.newTemplate}
-            tooltipLabel={uiText.actions.newTemplateTitle}
-            className="templateCreateMenu"
-            closeOnMenuItemClick
-          >
-            <div className="templateCreateMenuGroup">
-              <div className="actionMenuSectionLabel">{uiText.template.createSections.paper}</div>
-              <TooltipTarget label={uiText.actions.createPaperTemplateFromImageTitle}>
-                {tooltipProps => (
-                  <label className="fileButton" {...tooltipProps}>
-                    {uiText.actions.createPaperTemplateFromImage}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={event => {
-                        void handleCreatePaperTemplateDraft(event.currentTarget.files)
-                        event.currentTarget.value = ''
-                      }}
-                    />
-                  </label>
-                )}
-              </TooltipTarget>
-              <button type="button" onClick={() => handleCreateTemplateDraft('paper-standard')}>
-                {uiText.actions.createPaperTemplateFromStandard}
-              </button>
-            </div>
-            <div className="templateCreateMenuGroup">
-              <div className="actionMenuSectionLabel">{uiText.template.createSections.digital}</div>
-              <button type="button" onClick={() => handleCreateTemplateDraft('digital-standard')}>
-                {uiText.actions.createDigitalTemplate}
-              </button>
-            </div>
-            <div className="templateCreateMenuGroup">
-              <div className="actionMenuSectionLabel">{uiText.template.createSections.copy}</div>
-              <button type="button" onClick={() => handleCreateTemplateDraft('duplicate-current')}>
-                {uiText.actions.duplicateCurrentTemplate}
-              </button>
-            </div>
-          </ActionMenu>
-        </ToolbarGroup>
-        <ToolbarGroup>
+          <button type="button" onClick={() => setTemplateCreateOpen(true)}>新しいテンプレート</button>
           <TooltipTarget label={uiText.actions.loadTemplateJsonTitle}>
             {tooltipProps => (
               <label className="fileButton" {...tooltipProps}>
@@ -1463,32 +1626,29 @@ export function TemplateWorkspace({
               </label>
             )}
           </TooltipTarget>
-          <Tooltip label={uiText.actions.downloadTemplateJsonTitle}>
-            <button type="button" onClick={() => onSaveTemplate(finalizeTemplateDraftForApply(template))}>{uiText.actions.downloadTemplateJson}</button>
-          </Tooltip>
+          <button type="button" className={mode === 'standalone' ? 'primary' : ''} onClick={() => void saveTemplateDraft()}>
+            {mode === 'standalone' ? '確認して保存' : 'テンプレートJSONを保存'}
+          </button>
+          <button type="button" className={authoringValidation.canComplete ? '' : 'templateReviewBlocked'} onClick={() => setDetailTab('review')}>
+            確認 {authoringValidation.errors.length > 0 ? `(${authoringValidation.errors.length})` : '✓'}
+          </button>
         </ToolbarGroup>
+        {mode === 'project' && (
+          <ToolbarGroup>
+            <button type="button" className="primary" disabled={!hasTemplateDraftChanges || !authoringValidation.canComplete} onClick={applyTemplateDraftChanges}>プロジェクトへ反映</button>
+            <button type="button" disabled={!hasTemplateDraftChanges} onClick={cancelTemplateDraftChanges}>変更を取り消す</button>
+          </ToolbarGroup>
+        )}
         <ToolbarGroup>
-          <Tooltip label={uiText.actions.addMetadataRegionTitle}>
-            <button onClick={addMetadataRegion}>{uiText.actions.addMetadataRegion}</button>
-          </Tooltip>
-          <Tooltip label="罫線と入力欄を持つ構造化された表を追加します">
-            <button onClick={addFormRegion}>入力表を追加</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addActionRegionTitle}>
-            <button onClick={() => addGridRegion('action')}>{uiText.actions.addActionRegion}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addSoundRegionTitle}>
-            <button onClick={() => addGridRegion('sound')}>{uiText.actions.addSoundRegion}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addCellRegionTitle}>
-            <button onClick={() => addGridRegion('cell')}>{uiText.actions.addCellRegion}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addCameraRegionTitle}>
-            <button onClick={() => addGridRegion('camera')}>{uiText.actions.addCameraRegion}</button>
-          </Tooltip>
-          <Tooltip label={uiText.actions.addDecorativeGridRegionTitle}>
-            <button onClick={addDecorativeGridRegion}>{uiText.actions.addDecorativeGridRegion}</button>
-          </Tooltip>
+          <ActionMenu label="＋ 領域" ariaLabel="領域を追加" tooltipLabel="テンプレートへ領域を追加" closeOnMenuItemClick>
+            <button type="button" onClick={addMetadataRegion}>{uiText.actions.addMetadataRegion}</button>
+            <button type="button" onClick={addFormRegion}>入力表を追加</button>
+            <button type="button" onClick={() => addGridRegion('action')}>{uiText.actions.addActionRegion}</button>
+            <button type="button" onClick={() => addGridRegion('sound')}>{uiText.actions.addSoundRegion}</button>
+            <button type="button" onClick={() => addGridRegion('cell')}>{uiText.actions.addCellRegion}</button>
+            <button type="button" onClick={() => addGridRegion('camera')}>{uiText.actions.addCameraRegion}</button>
+            <button type="button" onClick={addDecorativeGridRegion}>{uiText.actions.addDecorativeGridRegion}</button>
+          </ActionMenu>
         </ToolbarGroup>
         <ToolbarGroup className="templateProcessToolbarGroup">
           <span className="toolbarGroupLabel">{uiText.template.processSection}</span>
@@ -1536,11 +1696,24 @@ export function TemplateWorkspace({
       {templateCreateOpen && (
         <TemplateCreateDialog
           onClose={() => setTemplateCreateOpen(false)}
-          onCreatePaper={options => { void createPaperTemplateFromOptions(options) }}
+          onCreatePaper={createPaperTemplateFromOptions}
           onCreateDigital={createDigitalTemplateFromOptions}
+          onDuplicateCurrent={duplicateCurrentTemplate}
         />
       )}
       <div className="templateWorkspace" style={{ '--template-dock-width': `${dockWidth}px` } as WorkspaceStyle}>
+        <TemplateRegionNavigator
+          items={navigationItems}
+          selectedRegionId={selectedRegion?.regionId ?? null}
+          hiddenRegionIds={hiddenRegionIds}
+          positionLockedRegionIds={positionLockedRegionIds}
+          onSelect={regionId => { setSelectedRegionId(regionId); setDetailTab('region') }}
+          onToggleHidden={toggleRegionHidden}
+          onTogglePositionLocked={toggleRegionPositionLocked}
+          onDuplicate={duplicateRegion}
+          onDelete={deleteRegion}
+          onMove={moveRegion}
+        />
         <TemplateRegionEditor
           template={template}
           setTemplate={updateTemplateDraft}
@@ -1549,7 +1722,9 @@ export function TemplateWorkspace({
           zoom={templateZoom}
           setZoom={setClampedTemplateZoom}
           selectedRegionId={effectiveSelectedRegionId}
-          onSelectRegion={setSelectedRegionId}
+          hiddenRegionIds={hiddenRegionIds}
+          positionLockedRegionIds={positionLockedRegionIds}
+          onSelectRegion={regionId => { setSelectedRegionId(regionId); if (regionId !== TEMPLATE_CALIBRATION_TARGET_ID) setDetailTab('region') }}
         />
         <PanelResizeHandle
           label={uiText.layout.resizeTemplateDock}
@@ -1567,16 +1742,40 @@ export function TemplateWorkspace({
             ))}
           </div>
           <div className="templateDockBody">
-            {detailTab === 'region' && templateMeta}
+            {detailTab === 'template' && templateSettings}
+            {detailTab === 'region' && selectedRegionControls}
             {detailTab === 'display' && displayControls}
             {detailTab === 'reference' && referenceImageControls}
             {detailTab === 'table' && regionTable}
+            {detailTab === 'review' && reviewControls}
             {detailTab === 'json' && <textarea className="jsonPreview" value={JSON.stringify(template, null, 2)} readOnly />}
           </div>
         </aside>
       </div>
     </section>
   )
+}
+
+function toggledSetValue(current: Set<string>, value: string): Set<string> {
+  const next = new Set(current)
+  if (next.has(value)) next.delete(value)
+  else next.add(value)
+  return next
+}
+
+function withoutSetValue(current: Set<string>, value: string): Set<string> {
+  if (!current.has(value)) return current
+  const next = new Set(current)
+  next.delete(value)
+  return next
+}
+
+function templateRegionKindLabel(region: SheetTemplate['regions'][number]): string {
+  if (region.form) return '入力表'
+  if (region.type === 'metadata-field') return '情報欄'
+  if (region.type === 'decorative') return '補助罫線'
+  if (region.grid) return gridRoleLabel(region.grid.role)
+  return region.type
 }
 
 type TemplateTextMetricKey = 'fontSize' | 'minFontSize' | 'lineHeight' | 'padding'

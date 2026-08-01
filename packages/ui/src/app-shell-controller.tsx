@@ -22,8 +22,7 @@ import { normalizeRecognitionLabel, recognizeSheetPagesIfAvailable } from './run
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
-import { createPaperTemplateDraftFromImage, createTemplateDraft, readFileAsDataUrl, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
-import { readTemplateImageMetadata } from './templateImageMetadata';
+import { createTemplateDraft, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
 import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, isImageFileRef, preferredSaveDirectory, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, stampAuxiliaryPlacementTemplate, templatePaperTracks } from './app-sheet-geometry';
@@ -80,7 +79,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const valueDraft = timingEditSession?.value ?? ''
   const valueDraftActive = timingEditSession !== null
   const exportProfileId = 'import-stack'
-  const templatePanelKey = useMemo(() => JSON.stringify(template), [template])
   const recognitionRoles = (['action', 'cell'] as const).filter(role => template.regions.some(region =>
     region.type === 'exposure-grid' && region.grid?.role === role,
   ))
@@ -1715,26 +1713,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     return createTemplateDraft(kind, template)
   }
 
-  async function handleCreatePaperTemplateFromImage(files: FileList | null): Promise<SheetTemplate | null> {
-    const file = files?.[0]
-    if (!file) return null
-    try {
-      const dataUrl = await readFileAsDataUrl(file)
-      const imageSize = await readTemplateImageMetadata(file, dataUrl)
-      return createPaperTemplateDraftFromImage(file, dataUrl, imageSize)
-    } catch (error) {
-      window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))
-      return null
-    }
-  }
-
   async function handleSaveTemplateJson(templateToSave = template) {
     try {
-      await saveJsonFile(templateToSave, templateJsonFileName(templateToSave), {
+      return await saveJsonFile(templateToSave, templateJsonFileName(templateToSave), {
         initialDirectory: preferredSaveDirectory(project),
       })
     } catch (error) {
       window.alert(uiText.template.saveFailed(errorMessage(error)))
+      return { saved: false }
     }
   }
 
@@ -2255,7 +2241,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
     return {
     appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
-    template, templatePanelKey, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
+    template, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
     setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
@@ -2287,7 +2273,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
-    handleCreatePaperTemplateFromImage, handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
+    handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,

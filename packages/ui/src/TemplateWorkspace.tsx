@@ -1,1 +1,1 @@
-export { TemplateWorkspace } from './template-workspace-workspace'
+export { TemplateWorkspace, type TemplateWorkspaceDraftState } from './template-workspace-workspace'

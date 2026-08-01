@@ -1,6 +1,9 @@
 import {
   getSheetViewLayout,
   getSheetTemplateHiddenPaperTracks,
+  isInteractiveSheetTemplateGridRegion,
+  isRenderableSheetTemplateGridRegion,
+  isTimelineProjectingSheetTemplateGridRegion,
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   resolveSheetTemplateGridLayout,
@@ -113,7 +116,7 @@ export function overlayBandSegments(template: SheetTemplate, project: CutProject
     ? logicalSheetDisplayFrameStart(project.logicalSheet)
     : template.defaults.frameOrigin
   return template.regions.flatMap(region => {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== role) return []
+    if (!isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== role) return []
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: templateTrackNames,
       timelineLanes,
@@ -126,7 +129,7 @@ export function overlayBandSegments(template: SheetTemplate, project: CutProject
     const auxiliaryBand = template.auxiliaryBands?.find(band => band.anchorRegionIds.includes(region.regionId))
     const explicitSlots = auxiliaryBand?.slotRegionIds.flatMap(regionId => {
       const slotRegion = template.regions.find(candidate => candidate.regionId === regionId)
-      if (!slotRegion?.grid) return []
+      if (!slotRegion || !isRenderableSheetTemplateGridRegion(slotRegion)) return []
       const slotLayout = resolveSheetTemplateGridLayout(template, slotRegion, {
         paperTracks: templateTrackNames,
         timelineLanes,
@@ -185,8 +188,8 @@ export function overlayBandSegments(template: SheetTemplate, project: CutProject
 
 function matchingGridRegion(template: SheetTemplate, role: 'action' | 'cell' | 'camera', frameStart: number): SheetTemplate['regions'][number] | undefined {
   return template.regions.find(region =>
-    region.type === 'exposure-grid'
-    && region.grid?.role === role
+    isTimelineProjectingSheetTemplateGridRegion(region)
+    && region.grid.role === role
     && (region.grid.frameStart ?? template.defaults.frameOrigin) === frameStart,
   )
 }

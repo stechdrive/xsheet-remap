@@ -1,4 +1,5 @@
 import {
+  isTimelineProjectingSheetTemplateGridRegion,
   resolveSheetTemplateGridLayout,
   sheetGridCellRect,
   type NormalizedRect,
@@ -36,7 +37,7 @@ export function timedRangeCueSegmentsForPage(
   const localCueEnd = cue.frameEnd - page.frameStart + template.defaults.frameOrigin
   const segments: TimedRangeCueSegment[] = []
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== role) continue
+    if (!isTimelineProjectingSheetTemplateGridRegion(region) || region.grid.role !== role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: options.paperTracks,
       timelineLanes: options.timelineLanes,

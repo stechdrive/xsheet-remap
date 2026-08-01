@@ -1,7 +1,7 @@
 import { standardA3SheetTemplate, type CutMetadataFieldId, type NormalizedRect, type SheetTemplate, type SheetTemplateRegionBinding } from '@xsheet-remap/core'
 
 export const TEMPLATE_CALIBRATION_TARGET_ID = '__template_calibration_target__'
-export const CUT_METADATA_FIELD_IDS: CutMetadataFieldId[] = ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page']
+export const CUT_METADATA_FIELD_IDS: CutMetadataFieldId[] = ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page', 'custom']
 export type MetadataBindingOptionId = `cut:${CutMetadataFieldId}` | 'group:shared-cut-numbers'
 export const METADATA_BINDING_OPTION_IDS: MetadataBindingOptionId[] = [
   ...CUT_METADATA_FIELD_IDS.map(field => `cut:${field}` as const),
@@ -31,7 +31,10 @@ export function metadataBindingFromOptionId(optionId: MetadataBindingOptionId): 
   if (optionId === 'group:shared-cut-numbers') {
     return { target: 'cut-group', field: 'shared-cut-numbers', opening: '[', closing: ']', separator: '・' }
   }
-  return { target: 'cut-metadata', field: optionId.slice(4) as CutMetadataFieldId }
+  const field = optionId.slice(4) as CutMetadataFieldId
+  return field === 'custom'
+    ? { target: 'cut-metadata', field, customKey: 'custom' }
+    : { target: 'cut-metadata', field }
 }
 
 export function metadataBindingOptionLabel(optionId: MetadataBindingOptionId): string {

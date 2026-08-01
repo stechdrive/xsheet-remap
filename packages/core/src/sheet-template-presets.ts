@@ -1,6 +1,6 @@
 import type { CutMetadataFieldId } from './types'
 import { createAlphabeticTrackLabels, createPaperTrackColumns } from './sheet-template-layout'
-import { NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFieldDefinition, SheetTemplateFormCell, SheetTemplateFrameProjection, SheetTemplateGridLineStyleRule, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplateLength, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
+import { isRenderableSheetTemplateGridRegion, NormalizedRect, SHEET_TEMPLATE_SCHEMA_VERSION, SheetTemplate, SheetTemplateFieldDefinition, SheetTemplateFormCell, SheetTemplateFrameProjection, SheetTemplateGridLineStyleRule, SheetTemplateGridRowLineRule, SheetTemplateGridTypography, SheetTemplateLength, SheetTemplatePreset, SheetTemplatePresetCapability, SheetTemplateRegion, SheetTemplateTextStyle, SheetTemplateTrackProjection, SheetTemplateUnderlay } from './sheet-template-schema'
 import { createDefaultSheetTemplateTheme } from './sheet-template-theme'
 
 export const standardA3DefaultPaperTracks = createAlphabeticTrackLabels(9)
@@ -830,7 +830,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       label: '基本情報',
       rect: digitalRect(32, 24, DIGITAL_STANDARD_CONTENT_WIDTH_PX, 90),
       horizontalSpan: { source: 'resolved-page-content' },
-      usage: 'render-only',
+      usage: 'input',
       form: {
         columns: [600, 12, 160, 12, 160, 12, 160, 12, 190, 12, 300, 12, 214],
         columnFlex: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
@@ -968,6 +968,6 @@ export function isSheetTemplateImageCorrectionCapable(
     template.defaultUnderlay
       && template.page.widthPx > 0
       && template.page.heightPx > 0
-      && (template.calibration?.targetRect || template.regions.some(region => region.type === 'exposure-grid' && region.grid)),
+      && (template.calibration?.targetRect || template.regions.some(isRenderableSheetTemplateGridRegion)),
   )
 }

@@ -303,6 +303,25 @@ describe('sheet render model', () => {
     expect(firstMemo?.rect).toEqual(secondMemo?.rect)
   })
 
+  it('renders a page field default only where that page has no stored value', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const definition = template.fields?.find(field => field.fieldId === 'memo.body')
+    if (!definition) throw new Error('memo field definition not found')
+    definition.defaultValue = 'ページメモ未記入'
+
+    const memo = { fieldId: 'memo.body', scope: 'page' as const, valueType: 'multiline' as const }
+    const extended = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 432 })
+    const withFirstPage = updateSheetFormField(extended, memo, '1ページの保存値', 'page_1')
+    const project = updateSheetFormField(withFirstPage, memo, '', 'page_2')
+    const context = createSheetRenderModelContext(project, template)
+    const memoForPage = (pageIndex: number) => metadataTextRenderItemsForPage(context, context.pages[pageIndex])
+      .find(item => item.field === 'memo.body')
+
+    expect(memoForPage(0)?.text).toBe('1ページの保存値')
+    expect(memoForPage(1)).toBeUndefined()
+    expect(memoForPage(2)?.text).toBe('ページメモ未記入')
+  })
+
   it('shrinks multiline form text vertically and reports unavoidable overflow', () => {
     const memo = { fieldId: 'memo.body', scope: 'page' as const, valueType: 'multiline' as const }
     const fittingProject = updateSheetFormField(createDefaultProject(), memo, 'メ'.repeat(1800), 'page_1')

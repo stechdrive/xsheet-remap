@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, sheetTimingRoleForEvent } from '@xsheet-remap/core'
+import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, isInteractiveSheetTemplateGridRegion, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost, XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel } from './appTypes'
@@ -54,7 +54,7 @@ export function RecognitionActionMenu({
 }) {
   const readyCount = candidates.filter(candidate => !recognitionCandidateHasConflict(project, candidate)).length
   const availableRoles = (['action', 'cell'] as const).filter(role => template.regions.some(region =>
-    region.type === 'exposure-grid' && region.grid?.role === role,
+    isInteractiveSheetTemplateGridRegion(region) && region.grid.role === role,
   ))
   return (
     <ActionMenu

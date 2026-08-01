@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  resolveSheetFormFieldValue,
+  resolveSheetTemplateRegionCapabilities,
   resolveSheetTemplateRegionRect,
   resolveSheetTemplateTextStyle,
-  sheetFormFieldsForScope,
   sheetFormFieldValueText,
   timelineLanesForLayout,
   type CutMetadataFieldId,
@@ -63,8 +64,7 @@ export function SheetMetadataEditor({
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const timelineLanes = useMemo(() => timelineLanesForLayout(project), [project])
   const regions = template.regions.filter((region): region is EditableMetadataRegion =>
-    region.type === 'metadata-field'
-    && region.usage === 'input'
+    resolveSheetTemplateRegionCapabilities(region).acceptsMetadataInput
     && region.binding?.target === 'cut-metadata'
     && region.binding.field !== 'page',
   )
@@ -125,7 +125,7 @@ export function SheetMetadataEditor({
     function commitAndCloseEditor() {
       if (activeFormIsInline && activeForm) {
         const currentValue = sheetFormFieldValueText(
-          sheetFormFieldsForScope(project.sheetFormData, activeForm.definition.scope, page.pageId)[activeForm.fieldId],
+          resolveSheetFormFieldValue(project.sheetFormData, activeForm.definition, page.pageId),
         )
         if (inlineDraftRef.current !== currentValue) {
           onFormFieldChange(activeForm.definition, inlineDraftRef.current, page.pageId)
@@ -181,7 +181,7 @@ export function SheetMetadataEditor({
     const trigger = activeTriggerRef.current
     if (commitMultiline && activeFormIsInline && activeForm) {
       const currentValue = sheetFormFieldValueText(
-        sheetFormFieldsForScope(project.sheetFormData, activeForm.definition.scope, page.pageId)[activeForm.fieldId],
+        resolveSheetFormFieldValue(project.sheetFormData, activeForm.definition, page.pageId),
       )
       if (inlineDraftRef.current !== currentValue) {
         onFormFieldChange(activeForm.definition, inlineDraftRef.current, page.pageId)
@@ -197,7 +197,7 @@ export function SheetMetadataEditor({
     if (form?.editPresentation === 'inline'
       && (form.definition.valueType === 'text' || form.definition.valueType === 'multiline')) {
       const value = sheetFormFieldValueText(
-        sheetFormFieldsForScope(project.sheetFormData, form.definition.scope, page.pageId)[form.fieldId],
+        resolveSheetFormFieldValue(project.sheetFormData, form.definition, page.pageId),
       )
       inlineDraftRef.current = value
       setInlineDraft(value)
@@ -491,7 +491,7 @@ function SheetFormFieldControl({
   onInlineDraftChange?: (value: string) => void
   onChange: (definition: SheetTemplateFieldDefinition, value: string | number | boolean, pageId: string) => void
 }) {
-  const value = sheetFormFieldsForScope(project.sheetFormData, field.definition.scope, pageId)[field.fieldId]
+  const value = resolveSheetFormFieldValue(project.sheetFormData, field.definition, pageId)
   const text = valueOverride ?? sheetFormFieldValueText(value)
   if (field.definition.valueType === 'boolean') {
     return (
@@ -578,7 +578,7 @@ function formFieldEditorText(
     return metadataValue(project, builtin.field, builtin.customKey)
   }
   return sheetFormFieldValueText(
-    sheetFormFieldsForScope(project.sheetFormData, field.definition.scope, pageId)[field.fieldId],
+    resolveSheetFormFieldValue(project.sheetFormData, field.definition, pageId),
   )
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject } from './project-model'
-import { normalizeSheetFormData, sheetFormFieldValueText, updateSheetFormField } from './sheet-form-data'
+import { normalizeSheetFormData, resolveSheetFormFieldValue, sheetFormFieldValueText, updateSheetFormField } from './sheet-form-data'
 
 describe('sheet form data', () => {
   it('keeps typed values in their declared scope', () => {
@@ -47,5 +47,47 @@ describe('sheet form data', () => {
       revision: { checked: { kind: 'boolean', value: true } },
       pages: { page_1: { memo: { kind: 'text', value: '備考' } } },
     })
+  })
+
+  it('uses a field default only when its declared scope has no stored value', () => {
+    const source = createDefaultProject().sheetFormData
+    const definition = {
+      fieldId: 'workflow.status',
+      scope: 'cut' as const,
+      valueType: 'choice' as const,
+      defaultValue: '未着手',
+    }
+    const wrongScope = {
+      ...source,
+      production: { 'workflow.status': { kind: 'choice' as const, value: '作品共通' } },
+    }
+    const stored = {
+      ...wrongScope,
+      cut: { 'workflow.status': { kind: 'choice' as const, value: '作業中' } },
+    }
+
+    expect(resolveSheetFormFieldValue(source, definition)).toEqual({ kind: 'choice', value: '未着手' })
+    expect(resolveSheetFormFieldValue(wrongScope, definition)).toEqual({ kind: 'choice', value: '未着手' })
+    expect(resolveSheetFormFieldValue(stored, definition)).toEqual({ kind: 'choice', value: '作業中' })
+  })
+
+  it('resolves page defaults independently and treats an explicitly empty value as stored', () => {
+    const definition = {
+      fieldId: 'memo.body',
+      scope: 'page' as const,
+      valueType: 'multiline' as const,
+      defaultValue: '未記入メモ',
+    }
+    const data = {
+      ...createDefaultProject().sheetFormData,
+      pages: {
+        page_1: { 'memo.body': { kind: 'text' as const, value: '' } },
+        page_2: { 'memo.body': { kind: 'text' as const, value: '2ページ目' } },
+      },
+    }
+
+    expect(resolveSheetFormFieldValue(data, definition, 'page_1')).toEqual({ kind: 'text', value: '' })
+    expect(resolveSheetFormFieldValue(data, definition, 'page_2')).toEqual({ kind: 'text', value: '2ページ目' })
+    expect(resolveSheetFormFieldValue(data, definition, 'page_3')).toEqual({ kind: 'text', value: '未記入メモ' })
   })
 })

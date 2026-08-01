@@ -7,7 +7,7 @@ import {
   type SheetTemplate,
 } from '@xsheet-remap/core'
 import { saveJsonFile, type SaveFileResult } from '@xsheet-remap/adapters'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconButton } from './AppControls'
 import { APP_VERSION } from './appVersion'
 import { loadSheetTemplate } from './app-template-import'
@@ -32,7 +32,14 @@ export function TemplateEditorApp() {
   const [view, setView] = useState<'start' | 'workspace'>('start')
   const [initialDraftTemplate, setInitialDraftTemplate] = useState<SheetTemplate>(() => structuredClone(standardA3SheetTemplate))
   const [initialDraftDirty, setInitialDraftDirty] = useState(false)
-  const [draftState, setDraftState] = useState<TemplateWorkspaceDraftState>(() => ({ template: structuredClone(standardA3SheetTemplate), dirty: false }))
+  const draftStateRef = useRef<TemplateWorkspaceDraftState>({ template: structuredClone(standardA3SheetTemplate), dirty: false })
+  const recoverySaveTimerRef = useRef<number | null>(null)
+  const [draftSummary, setDraftSummary] = useState(() => ({
+    dirty: false,
+    name: standardA3SheetTemplate.name,
+    widthPx: standardA3SheetTemplate.page.widthPx,
+    heightPx: standardA3SheetTemplate.page.heightPx,
+  }))
   const [recovery, setRecovery] = useState<TemplateDraftRecovery | null>(null)
   const [workspaceKey, setWorkspaceKey] = useState(0)
   const [helpDialogOpen, setHelpDialogOpen] = useState(false)
@@ -45,20 +52,36 @@ export function TemplateEditorApp() {
     return () => { active = false }
   }, [])
 
-  useEffect(() => {
-    if (view !== 'workspace') return
-    if (!draftState.dirty) {
+  const handleDraftStateChange = useCallback((state: TemplateWorkspaceDraftState) => {
+    draftStateRef.current = state
+    setDraftSummary(current => {
+      const next = {
+        dirty: state.dirty,
+        name: state.template.name,
+        widthPx: state.template.page.widthPx,
+        heightPx: state.template.page.heightPx,
+      }
+      return current.dirty === next.dirty
+        && current.name === next.name
+        && current.widthPx === next.widthPx
+        && current.heightPx === next.heightPx
+        ? current
+        : next
+    })
+    if (recoverySaveTimerRef.current !== null) window.clearTimeout(recoverySaveTimerRef.current)
+    if (!state.dirty) {
+      recoverySaveTimerRef.current = null
       void clearTemplateDraftRecovery()
       return
     }
-    const timer = window.setTimeout(() => {
-      void saveTemplateDraftRecovery(draftState.template)
+    recoverySaveTimerRef.current = window.setTimeout(() => {
+      recoverySaveTimerRef.current = null
+      void saveTemplateDraftRecovery(state.template)
     }, 500)
-    return () => window.clearTimeout(timer)
-  }, [draftState, view])
+  }, [])
 
-  const handleDraftStateChange = useCallback((state: TemplateWorkspaceDraftState) => {
-    setDraftState(state)
+  useEffect(() => () => {
+    if (recoverySaveTimerRef.current !== null) window.clearTimeout(recoverySaveTimerRef.current)
   }, [])
 
   async function loadTemplate(files: FileList | null): Promise<SheetTemplate | null> {
@@ -75,7 +98,7 @@ export function TemplateEditorApp() {
   }
 
   function newTemplateDraft(kind: TemplateDraftKind): SheetTemplate {
-    return createTemplateDraft(kind, draftState.template)
+    return createTemplateDraft(kind, draftStateRef.current.template)
   }
 
   async function createPaperTemplate(file: File): Promise<SheetTemplate | null> {
@@ -109,11 +132,13 @@ export function TemplateEditorApp() {
   }
 
   function beginWorkspace(nextTemplate: SheetTemplate, dirty: boolean) {
+    cancelPendingRecoverySave()
     const cloned = structuredClone(nextTemplate)
     setTemplate(cloned)
     setInitialDraftTemplate(cloned)
     setInitialDraftDirty(dirty)
-    setDraftState({ template: cloned, dirty })
+    draftStateRef.current = { template: cloned, dirty }
+    setDraftSummary({ dirty, name: cloned.name, widthPx: cloned.page.widthPx, heightPx: cloned.page.heightPx })
     setProject(createDefaultProject())
     setWorkspaceKey(current => current + 1)
     setView('workspace')
@@ -130,14 +155,22 @@ export function TemplateEditorApp() {
   }
 
   function returnToStart() {
+    cancelPendingRecoverySave()
     setView('start')
     setRecovery(null)
     void clearTemplateDraftRecovery()
   }
 
   async function discardRecovery() {
+    cancelPendingRecoverySave()
     await clearTemplateDraftRecovery()
     setRecovery(null)
+  }
+
+  function cancelPendingRecoverySave() {
+    if (recoverySaveTimerRef.current === null) return
+    window.clearTimeout(recoverySaveTimerRef.current)
+    recoverySaveTimerRef.current = null
   }
 
   return (
@@ -184,8 +217,8 @@ export function TemplateEditorApp() {
         )}
       </main>
       <footer className="statusBar">
-        <span>{view === 'start' ? 'テンプレートの作り方を選択' : draftState.template.name}</span>
-        {view === 'workspace' && <span className="statusIssueSummary">{draftState.template.page.widthPx} x {draftState.template.page.heightPx}px</span>}
+        <span>{view === 'start' ? 'テンプレートの作り方を選択' : draftSummary.name}</span>
+        {view === 'workspace' && <span className="statusIssueSummary">{draftSummary.widthPx} x {draftSummary.heightPx}px</span>}
       </footer>
       {helpDialogOpen && <TemplateEditorHelpDialog onClose={() => setHelpDialogOpen(false)} />}
     </div>

@@ -1,5 +1,5 @@
 import type { CorrectionLayer, CutMetadata, CutProject, ExportProfile, LogicalSheet, LogicalTimelineLane, LogicalTimelineSection, LogicalTimelineSectionRole, PaperTrack, PaperTrackName, ProductionStage, SheetTimingRole } from './types'
-import { getSheetTemplatePaperTracks, withSheetTemplatePaperTracks, standardA3SheetTemplate, standardA3SheetTemplatePreset, type SheetTemplate } from './sheet-template'
+import { getSheetTemplatePaperTracks, isInteractiveSheetTemplateGridRegion, withSheetTemplatePaperTracks, standardA3SheetTemplate, standardA3SheetTemplatePreset, type SheetTemplate } from './sheet-template'
 import { defaultLogicalSheetWorkRange } from './logical-sheet'
 import { createDefaultSheetViewState } from './sheet-view'
 import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, isSpecialTimingEvent, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
@@ -159,7 +159,9 @@ function timelineSectionLabelForTemplate(
   role: Extract<LogicalTimelineSectionRole, 'action' | 'sound' | 'cell' | 'camera'>,
   fallback: string,
 ): string {
-  const region = template.regions.find(candidate => candidate.grid?.role === role)
+  const region = template.regions.find(candidate =>
+    isInteractiveSheetTemplateGridRegion(candidate) && candidate.grid.role === role,
+  )
   if (!region) return fallback
   const label = region.label
     .replace(/\s*\d+\s*[-–—〜~]\s*\d+\s*$/u, '')
@@ -174,7 +176,7 @@ function timelineLanesForTemplate(
 ): LogicalTimelineLane[] {
   const lanes = new Map<string, LogicalTimelineLane>()
   for (const region of template.regions) {
-    if (region.grid?.role !== role) continue
+    if (!isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== role) continue
     region.grid.columns.forEach((column, index) => {
       const laneId = column.timelineLaneId ?? `${role}_lane_${index + 1}`
       const existing = lanes.get(laneId)

@@ -1,5 +1,5 @@
 import type { PaperTrackName, SheetTimingRole, SheetViewLayoutOverrides } from './types'
-import { NormalizedRect, SheetFrameAxisLayout, SheetHit, SheetPage, SheetTemplate, SheetTemplateColumn, SheetTemplateGrid, SheetTemplateGridColumnSize, SheetTemplateGridRole, SheetTemplateLayoutResolveOptions, SheetTemplatePageSize, SheetTemplateRegion, SheetTrackAxisLayout, SheetViewLayout, SheetViewSurfaceLayout } from './sheet-template-schema'
+import { isInteractiveSheetTemplateGridRegion, isRenderableSheetTemplateGridRegion, isTimelineProjectingSheetTemplateGridRegion, NormalizedRect, resolveSheetTemplateRegionCapabilities, SheetFrameAxisLayout, SheetHit, SheetPage, SheetTemplate, SheetTemplateColumn, SheetTemplateGrid, SheetTemplateGridColumnSize, SheetTemplateGridRole, SheetTemplateLayoutResolveOptions, SheetTemplatePageSize, SheetTemplateRegion, SheetTrackAxisLayout, SheetViewLayout, SheetViewSurfaceLayout } from './sheet-template-schema'
 
 interface ResolvedHorizontalFlow {
   widthPx: number
@@ -17,7 +17,8 @@ function resolveSheetTemplateHorizontalFlow(
   let cursorPx = Math.max(0, flow.leftPx)
   for (const regionId of flow.regionIds) {
     const region = template.regions.find(candidate => candidate.regionId === regionId)
-    if (!region) continue
+    if (!region || !resolveSheetTemplateRegionCapabilities(region).rendered) continue
+    if (region.grid && !isTimelineProjectingSheetTemplateGridRegion(region)) continue
     const baseWidthPx = region.rect.w * template.page.widthPx
     const columns = region.grid
       ? resolveSheetTemplateGridColumns(template, region.grid, options.paperTracks, options.timelineLanes)
@@ -49,7 +50,7 @@ export function resolveSheetTemplatePageSize(
   const horizontalFlow = resolveSheetTemplateHorizontalFlow(template, options)
   if (horizontalFlow) widthPx = Math.max(widthPx, horizontalFlow.widthPx)
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || !region.grid) continue
+    if (!isTimelineProjectingSheetTemplateGridRegion(region)) continue
     const baseY = region.rect.y * template.page.heightPx
     const baseHeight = region.rect.h * template.page.heightPx
     const baseBottomMargin = Math.max(0, template.page.heightPx - (baseY + baseHeight))
@@ -218,7 +219,7 @@ export function resolveSheetTemplateGridLayout(
   region: SheetTemplateRegion,
   options: SheetGridLayoutOptions = {},
 ): SheetGridLayout | null {
-  if (!region.grid) return null
+  if (!isRenderableSheetTemplateGridRegion(region)) return null
   const durationFrames = options.durationFrames ?? template.defaults.durationFrames
   const frameOrigin = options.frameOrigin ?? template.defaults.frameOrigin
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, options)
@@ -292,7 +293,7 @@ export function getSheetTemplateVisiblePaperTracks(
   const visible: PaperTrackName[] = []
   const seen = new Set<string>()
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== sheetRole) continue
+    if (!isTimelineProjectingSheetTemplateGridRegion(region) || region.grid.role !== sheetRole) continue
     for (const column of resolveSheetTemplateGridColumns(template, region.grid, paperTracks)) {
       if (!column.paperTrack || seen.has(column.paperTrack)) continue
       visible.push(column.paperTrack)
@@ -317,7 +318,7 @@ export function hitTestSheetTemplate(
   options: SheetGridLayoutOptions & { onlyXdtsEligible?: boolean; role?: SheetTemplateGrid['role'] } = {},
 ): SheetHit | null {
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || !region.grid) continue
+    if (!isInteractiveSheetTemplateGridRegion(region)) continue
     if (options.role && region.grid.role !== options.role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, options)
     if (!layout || !contains(layout.rect, point)) continue
@@ -351,7 +352,7 @@ export function cellRectForHit(
   options: SheetTemplateLayoutResolveOptions = {},
 ): NormalizedRect | null {
   const region = template.regions.find(item => item.regionId === hit.regionId)
-  if (!region?.grid) return null
+  if (!region || !isInteractiveSheetTemplateGridRegion(region)) return null
   const layout = resolveSheetTemplateGridLayout(template, region, { ...options, durationFrames, frameOrigin })
   return layout ? sheetGridCellRect(layout, hit.columnIndex, hit.rowIndex) : null
 }
@@ -413,7 +414,7 @@ export function getTemplateFramesPerPage(template: SheetTemplate): number {
   const regionMax = Math.max(
     0,
     ...template.regions.flatMap(region => {
-      if (region.type !== 'exposure-grid' || region.grid?.role !== 'cell') return []
+      if (!isTimelineProjectingSheetTemplateGridRegion(region) || region.grid.role !== 'cell') return []
       const start = region.grid.frameStart ?? template.defaults.frameOrigin
       return [region.grid.frameEnd ?? start + region.grid.rowCount - 1]
     }),
@@ -491,7 +492,7 @@ export function timingHitForFrame(
   if (!localized) return null
 
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== sheetRole) continue
+    if (!isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== sheetRole) continue
     const frames = resolveSheetTemplateGridFrames(template, region.grid, durationFrames, frameOrigin)
     if (localized.localFrame < frames.frameStart || localized.localFrame > frames.frameEnd) continue
     const columns = resolveSheetTemplateGridColumns(template, region.grid, paperTracks)
@@ -544,7 +545,7 @@ export function getSheetTemplatePaperTracks(template: Pick<SheetTemplate, 'defau
   const tracks: PaperTrackName[] = []
   const seen = new Set<string>()
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== 'cell') continue
+    if (!isTimelineProjectingSheetTemplateGridRegion(region) || region.grid.role !== 'cell') continue
     if (region.grid.trackProjection?.source === 'logical-paper-tracks') {
       for (const paperTrack of normalizePaperTrackNames(template.defaults.paperTracks)) {
         if (seen.has(paperTrack)) continue

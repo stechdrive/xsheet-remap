@@ -1,5 +1,5 @@
 import { type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
-import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from 'react'
+import { memo, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from 'react'
 import type { SheetImageSettings } from './appTypes'
 import { uiText } from './i18n'
 import { SHEET_ZOOM_MIN, SHEET_ZOOM_WHEEL_FACTOR, TEMPLATE_ZOOM_MAX } from './sheetConstants'
@@ -38,6 +38,7 @@ export function TemplateRegionEditor({
   positionLockedRegionIds?: ReadonlySet<string>
 }) {
   const [dragPreview, setDragPreview] = useState<TemplateEditorDragPreview | null>(null)
+  const deferredTemplate = useDeferredValue(template)
   const isPixelQuantizedTemplate = template.templateKind !== 'digital-native'
   const previewDurationFrames = template.templateKind === 'digital-native'
     ? Math.min(template.defaults.durationFrames, 480)
@@ -58,7 +59,10 @@ export function TemplateRegionEditor({
         : region),
     }
   }, [dragPreview, template])
-  const unfilteredBaseRenderModel = useMemo(() => buildTemplateEditorRenderModel(template, previewDurationFrames), [previewDurationFrames, template])
+  const unfilteredBaseRenderModel = useMemo(
+    () => buildTemplateEditorRenderModel(deferredTemplate, previewDurationFrames),
+    [deferredTemplate, previewDurationFrames],
+  )
   const baseRenderModel = useMemo(
     () => withoutTemplateRegions(unfilteredBaseRenderModel, hiddenRegionIds),
     [hiddenRegionIds, unfilteredBaseRenderModel],
@@ -311,7 +315,7 @@ export function TemplateRegionEditor({
           } as CSSProperties}
         >
           <TemplateStaticPreview
-            template={template}
+            template={deferredTemplate}
             renderModel={baseRenderModel}
             imageUrl={imageUrl}
             imageSettings={imageSettings}

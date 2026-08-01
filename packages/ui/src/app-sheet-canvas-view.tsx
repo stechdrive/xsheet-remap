@@ -1,4 +1,4 @@
-import { isRenderableSheetTemplateGridRegion, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, sheetGridRowY, type SheetHit } from '@xsheet-remap/core';
+import { isRenderableSheetTemplateGridRegion, isTimelineProjectingSheetTemplateGridRegion, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, sheetGridRowY, type SheetHit } from '@xsheet-remap/core';
 import { useState, type ReactNode } from 'react'
 import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
@@ -173,7 +173,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const rangeRects = [...normalRangeRects, ...overlayRangeRects]
           const rangeBoundaryRects = mergeAdjacentRangeRects(rangeRects)
           const selectionSurface = { widthPx: sheetPageWidth, heightPx: sheetPageHeight }
-          const playheadRegion = props.template.regions.find(region => isRenderableSheetTemplateGridRegion(region) && (region.grid?.role === 'action' || region.grid?.role === 'cell'))
+          const playheadRegion = props.template.regions.find(region => isTimelineProjectingSheetTemplateGridRegion(region) && (region.grid.role === 'action' || region.grid.role === 'cell'))
           const playheadLayout = playheadRegion ? resolveSheetTemplateGridLayout(props.template, playheadRegion, {
             paperTracks: templateTrackNames,
             timelineLanes,

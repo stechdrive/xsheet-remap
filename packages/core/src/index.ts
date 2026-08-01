@@ -158,6 +158,7 @@ export {
   sheetFormFieldValueForInput,
   sheetFormFieldValueText,
   sheetFormFieldsForScope,
+  resolveSheetFormFieldValue,
   updateSheetFormField,
 } from './sheet-form-data'
 export {
@@ -219,6 +220,7 @@ export type {
   SheetTemplateLengthUnit,
   SheetTemplatePreset,
   SheetTemplateRegion,
+  SheetTemplateRegionCapabilities,
   SheetTemplateRegionBinding,
   SheetTemplateSecondCounterStyle,
   SheetTemplateStyle,
@@ -430,6 +432,10 @@ export {
   logicalSheetWorkRange,
   normalizeLogicalSheetWorkRange,
 } from './logical-sheet'
+export type {
+  SheetTemplateJsonSchemaKeywordDefinition,
+  SheetTemplateJsonSchemaKeywordRegistry,
+} from './sheet-template'
 export {
   alphabeticTrackLabel,
   cellHitForFrame,
@@ -457,8 +463,14 @@ export {
   resolveSheetTemplateGridFrames,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
+  resolveSheetTemplateRegionCapabilities,
   resolveSheetTemplateRegionRect,
+  isTimelineProjectingSheetTemplateGridRegion,
+  registerSheetTemplateJsonSchemaKeywords,
   SHEET_TEMPLATE_SCHEMA_VERSION,
+  SHEET_TEMPLATE_CHOICE_DEFAULT_JSON_SCHEMA_KEYWORD,
+  sheetTemplateJsonSchemaKeywordDefinitions,
+  validateSheetTemplateChoiceDefaultInChoices,
   createDefaultSheetTemplateTheme,
   sheetTemplateThemePresets,
   sheetTemplateThemePreset,

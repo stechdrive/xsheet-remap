@@ -1,4 +1,4 @@
-import { parseSheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
+import { isRenderableSheetTemplateGridRegion, parseSheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 
 export type TemplateAuthoringIssueSeverity = 'error' | 'warning'
 
@@ -8,7 +8,12 @@ export type TemplateAuthoringIssueCode =
   | 'template-schema-invalid'
   | 'region-id-missing'
   | 'region-label-missing'
+  | 'region-authoring-name-invalid'
   | 'region-id-duplicate'
+  | 'region-fixed-label-missing'
+  | 'field-label-missing'
+  | 'field-choice-missing'
+  | 'region-binding-id-missing'
   | 'region-grid-row-count-invalid'
   | 'region-rect-non-positive'
   | 'region-rect-outside-page'
@@ -56,7 +61,10 @@ const CALIBRATION_GRID_ROLES = new Set(['action', 'sound', 'cell', 'camera'])
  * This intentionally avoids schema parsing, cloning, and serialization so it
  * can run after ordinary authoring edits without adding noticeable UI work.
  */
-export function validateTemplateAuthoring(template: SheetTemplate): TemplateAuthoringValidationResult {
+export function validateTemplateAuthoring(
+  template: SheetTemplate,
+  options: { deep?: boolean } = {},
+): TemplateAuthoringValidationResult {
   const issues: TemplateAuthoringIssue[] = []
   const errors: TemplateAuthoringIssue[] = []
   const warnings: TemplateAuthoringIssue[] = []
@@ -85,6 +93,8 @@ export function validateTemplateAuthoring(template: SheetTemplate): TemplateAuth
 
   const seenRegionIds = new Set<string>()
   const duplicateRegionIds = new Set<string>()
+  const reportedFieldIds = new Set<string>()
+  const reportedChoiceFieldIds = new Set<string>()
   let hasInputRegion = false
   let calibrationGridCount = 0
   let calibrationLeft = Number.POSITIVE_INFINITY
@@ -94,7 +104,17 @@ export function validateTemplateAuthoring(template: SheetTemplate): TemplateAuth
 
   for (const [regionIndex, region] of template.regions.entries()) {
     const regionId = region.regionId.trim()
-    const regionName = region.label.trim() || regionId || `領域 ${regionIndex + 1}`
+    const regionName = region.authoringName?.trim() || region.label.trim() || regionId || `領域 ${regionIndex + 1}`
+    if (region.authoringName !== undefined && !region.authoringName.trim()) {
+      addIssue({
+        code: 'region-authoring-name-invalid',
+        severity: 'error',
+        field: 'regions',
+        regionId: region.regionId,
+        regionIndex,
+        message: `領域「${regionName}」の編集画面での名前が空白だけになっています。名前を入力するか、空欄へ戻してください。`,
+      })
+    }
     if (!regionId) {
       addIssue({
         code: 'region-id-missing',
@@ -124,7 +144,60 @@ export function validateTemplateAuthoring(template: SheetTemplate): TemplateAuth
         field: 'regions',
         regionId: region.regionId,
         regionIndex,
-        message: `領域「${regionId || regionIndex + 1}」の名前が空です。領域一覧で判別できる名前を入力してください。`,
+        message: `領域「${regionName}」の機能上の領域ラベルが空です。詳細設定で入力してください。`,
+      })
+    }
+
+    for (const cell of region.form?.cells ?? []) {
+      if (cell.kind === 'label' && !cell.label?.trim()) {
+        addIssue({
+          code: 'region-fixed-label-missing',
+          severity: 'error',
+          field: 'regions',
+          regionId: region.regionId,
+          regionIndex,
+          message: `領域「${regionName}」のシート上の表示文字が空です。不要な欄でなければ表示文字を入力してください。`,
+        })
+      }
+      if (cell.kind === 'field' && cell.fieldId && !reportedFieldIds.has(cell.fieldId)) {
+        const definition = template.fields?.find(field => field.fieldId === cell.fieldId)
+        if (definition && !definition.label.trim()) {
+          reportedFieldIds.add(cell.fieldId)
+          addIssue({
+            code: 'field-label-missing',
+            severity: 'error',
+            field: 'regions',
+            regionId: region.regionId,
+            regionIndex,
+            message: `領域「${regionName}」の入力画面での項目名が空です。項目名を入力してください。`,
+          })
+        }
+        if (definition?.valueType === 'choice'
+          && (!definition.choices?.length || new Set(definition.choices).size !== definition.choices.length)
+          && !reportedChoiceFieldIds.has(cell.fieldId)) {
+          reportedChoiceFieldIds.add(cell.fieldId)
+          addIssue({
+            code: 'field-choice-missing',
+            severity: 'error',
+            field: 'regions',
+            regionId: region.regionId,
+            regionIndex,
+            message: `領域「${regionName}」の選択項目には、重複しない選択肢を1つ以上入力してください。`,
+          })
+        }
+      }
+    }
+
+    const bindingIdMissing = region.binding?.target === 'annotation-layer' && !region.binding.layerId.trim()
+      || region.binding?.target === 'cut-metadata' && region.binding.field === 'custom' && !region.binding.customKey?.trim()
+    if (bindingIdMissing) {
+      addIssue({
+        code: 'region-binding-id-missing',
+        severity: 'error',
+        field: 'regions',
+        regionId: region.regionId,
+        regionIndex,
+        message: `領域「${regionName}」のデータ割当に必要なIDが空です。領域の詳細で保存先またはカスタム項目IDを入力してください。`,
       })
     }
 
@@ -165,8 +238,7 @@ export function validateTemplateAuthoring(template: SheetTemplate): TemplateAuth
     if (region.usage === 'input') hasInputRegion = true
 
     if (hasPositiveSize
-      && region.type === 'exposure-grid'
-      && region.grid
+      && isRenderableSheetTemplateGridRegion(region)
       && CALIBRATION_GRID_ROLES.has(region.grid.role)) {
       calibrationGridCount += 1
       calibrationLeft = Math.min(calibrationLeft, region.rect.x)
@@ -228,7 +300,7 @@ export function validateTemplateAuthoring(template: SheetTemplate): TemplateAuth
     })
   }
 
-  if (errors.length === 0) {
+  if (errors.length === 0 && options.deep !== false) {
     try {
       parseSheetTemplate(template)
     } catch (error) {

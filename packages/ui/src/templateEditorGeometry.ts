@@ -1,5 +1,6 @@
 import {
   isRenderableSheetTemplateGridRegion,
+  resolveSheetTemplateRegionCapabilities,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
@@ -230,9 +231,10 @@ export function buildTemplateEditorRegionRenderModel(
 ): TemplateEditorRegionRenderModel | null {
   const region = template.regions.find(item => item.regionId === regionId)
   if (!region) return null
+  const capabilities = resolveSheetTemplateRegionCapabilities(region)
   const paperTracks = template.defaults.paperTracks
   const resolveOptions = { paperTracks }
-  const header = region.type === 'exposure-grid' && region.grid
+  const header = capabilities.rendersGrid && region.type === 'exposure-grid' && region.grid
     ? buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames)
     : null
   const form = buildTemplateFormRenderModels(template, region, paperTracks, durationFrames, resolveOptions)
@@ -241,7 +243,7 @@ export function buildTemplateEditorRegionRenderModel(
       pageSize: resolveSheetTemplatePageSize(template, durationFrames, resolveOptions),
       theme: template.theme,
       showOuterFrame: false,
-      referenceRegions: !region.form && !region.grid && region.type !== 'metadata-field' && region.usage !== 'ignored'
+      referenceRegions: capabilities.rendersReferenceOutline
         ? [{
             regionId: region.regionId,
             type: region.type,
@@ -274,14 +276,14 @@ export function buildTemplateChromeRenderModel(
     theme: template.theme,
     showOuterFrame: template.templateKind !== 'digital-native' && template.style?.outerFrame?.visible !== false,
     referenceRegions: template.regions
-      .filter(region => !region.form && !region.grid && region.type !== 'metadata-field' && region.usage !== 'ignored')
+      .filter(region => resolveSheetTemplateRegionCapabilities(region).rendersReferenceOutline)
       .map(region => ({
         regionId: region.regionId,
         type: region.type,
         rect: resolveSheetTemplateRegionRect(template, region, durationFrames, resolveOptions),
       })),
     headers: template.regions
-      .filter(region => region.type === 'exposure-grid' && region.grid)
+      .filter(region => region.type === 'exposure-grid' && isRenderableSheetTemplateGridRegion(region))
       .map(region => buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames, options))
       .filter((model): model is TemplateGridHeaderRenderModel => model !== null),
     formBoxes: forms.flatMap(form => form.boxes),
@@ -304,7 +306,8 @@ export function buildTemplateFormRenderModels(
   annotationTargets: TemplateFormAnnotationTargetRenderModel[]
 } {
   const form = region.form
-  if (!form || region.usage === 'ignored') return { boxes: [], labels: [], fields: [], annotationTargets: [] }
+  const capabilities = resolveSheetTemplateRegionCapabilities(region)
+  if (!form || !capabilities.rendersForm) return { boxes: [], labels: [], fields: [], annotationTargets: [] }
   const regionRect = resolveSheetTemplateRegionRect(template, region, durationFrames, { ...options, paperTracks })
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, { ...options, paperTracks })
   const borderStyle = normalizeTemplateLineStyle(form.borderStyle, template.theme)
@@ -363,14 +366,16 @@ export function buildTemplateFormRenderModels(
         definition,
         textStyle: cell.textStyle ?? {},
         editPresentation: cell.editPresentation ?? 'popover',
-        editable: !isProjectedTotal && definition.builtinBinding?.field !== 'page',
-        memoTarget: resolveTemplateFormCellMemoTarget(region, cell, definition.label, definition),
+        editable: capabilities.acceptsFormInput && !isProjectedTotal && definition.builtinBinding?.field !== 'page',
+        memoTarget: capabilities.providesMemoTargets
+          ? resolveTemplateFormCellMemoTarget(region, cell, definition.label, definition)
+          : null,
         sourceFieldIds: isProjectedTotal && totalSuffix
           ? paperTracks.map(paperTrack => `${form.projection!.fieldPrefix}.${paperTrack}.${totalSuffix}`)
           : undefined,
       })
     }
-    if (cell.kind === 'annotation') {
+    if (cell.kind === 'annotation' && capabilities.providesMemoTargets) {
       const memoTarget = resolveTemplateFormCellMemoTarget(region, cell, cell.label ?? region.label)
       if (memoTarget) annotationTargets.push({
         key: `${region.regionId}:${cell.cellId}`,
@@ -599,7 +604,7 @@ function gridLineRuleSpans(
 export function gridHeaderRolesForTemplate(template: SheetTemplate): SheetTemplateGridRole[] {
   const roles = new Set<SheetTemplateGridRole>()
   for (const region of template.regions) {
-    if (region.type === 'exposure-grid' && region.grid) roles.add(region.grid.role)
+    if (isRenderableSheetTemplateGridRegion(region)) roles.add(region.grid.role)
   }
   return TEMPLATE_GRID_HEADER_ROLE_ORDER.filter(role => roles.has(role))
 }
@@ -608,10 +613,19 @@ export function gridHeaderLabelForRole(template: SheetTemplate, role: SheetTempl
   const labelOverrides = template.style?.gridHeader?.labelOverrides
   if (labelOverrides && role in labelOverrides) return labelOverrides[role] ?? ''
   const regionLabel = template.regions.find(region =>
-    region.type === 'exposure-grid' && region.grid?.role === role,
+    isRenderableSheetTemplateGridRegion(region) && region.grid.role === role,
   )?.label
   if (regionLabel?.trim()) return regionLabel.replace(/\s+\d+\s*-\s*\d+\s*$/, '').trim()
   return gridRoleLabel(role)
+}
+
+export function gridHeaderLabelForRegion(
+  template: SheetTemplate,
+  region: SheetTemplate['regions'][number],
+): string {
+  if (!region.grid) return ''
+  if (region.grid.header?.label !== undefined) return region.grid.header.label
+  return gridHeaderLabelForRole(template, region.grid.role)
 }
 
 export function templateGridHeaderFontSizePx(template: SheetTemplate): number {
@@ -930,13 +944,13 @@ function buildTemplateGridHeaderRenderModel(
   const columnHeight = columnHeightPx / pageSize.heightPx
   const y = rect.y - headerTopOffset
   const columnBaselineOffset = (0.0025 * template.page.heightPx) / pageSize.heightPx
-  const baseLabel = gridHeaderLabelForRole(template, region.grid.role)
+  const baseLabel = gridHeaderLabelForRegion(template, region)
   const projectedLaneIds = new Set(layout.columns.flatMap(column => column.timelineLaneId ? [column.timelineLaneId] : []))
   const hiddenLaneCount = region.grid.role === 'sound' || region.grid.role === 'camera'
     ? (options.timelineLanes?.[region.grid.role] ?? []).filter(lane => !projectedLaneIds.has(lane.laneId)).length
     : 0
   const isFirstRegionForRole = template.regions.find(candidate =>
-    candidate.type === 'exposure-grid' && candidate.grid?.role === region.grid?.role,
+    isRenderableSheetTemplateGridRegion(candidate) && candidate.grid.role === region.grid?.role,
   )?.regionId === region.regionId
   const overflowLabel = hiddenLaneCount > 0 && isFirstRegionForRole
     ? `${baseLabel || gridRoleLabel(region.grid.role)}（欄外 +${hiddenLaneCount}）`

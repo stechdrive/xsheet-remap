@@ -1,4 +1,4 @@
-import type { SheetTemplate } from '@xsheet-remap/core'
+import { parseSheetTemplate, SHEET_TEMPLATE_SCHEMA_VERSION, type SheetTemplate } from '@xsheet-remap/core'
 
 export const TEMPLATE_DRAFT_RECOVERY_VERSION = 1 as const
 
@@ -170,48 +170,144 @@ function parseRecoveryRecord(value: unknown): TemplateDraftRecovery | null {
     || typeof value.savedAt !== 'number'
     || !Number.isFinite(value.savedAt)
     || value.savedAt < 0
-    || !isRecoverableTemplate(value.template)) return null
-  return value as unknown as TemplateDraftRecovery
+    || !isRecord(value.template)
+    || value.template.schemaVersion !== SHEET_TEMPLATE_SCHEMA_VERSION) return null
+  try {
+    return {
+      version: TEMPLATE_DRAFT_RECOVERY_VERSION,
+      savedAt: value.savedAt,
+      template: parseRecoverableTemplateDraft(value.template),
+    }
+  } catch {
+    return null
+  }
 }
 
-function isRecoverableTemplate(value: unknown): value is SheetTemplate {
-  if (!isRecord(value)
-    || !Number.isInteger(value.schemaVersion)
-    || typeof value.templateId !== 'string'
-    || typeof value.name !== 'string'
-    || !isRecord(value.theme)
-    || !isRecord(value.page)
-    || typeof value.page.widthPx !== 'number'
-    || !Number.isFinite(value.page.widthPx)
-    || typeof value.page.heightPx !== 'number'
-    || !Number.isFinite(value.page.heightPx)
-    || value.page.coordinateSpace !== 'normalized'
-    || !isRecord(value.defaults)
-    || typeof value.defaults.fps !== 'number'
-    || !Number.isFinite(value.defaults.fps)
-    || typeof value.defaults.durationFrames !== 'number'
-    || !Number.isFinite(value.defaults.durationFrames)
-    || typeof value.defaults.frameOrigin !== 'number'
-    || !Number.isFinite(value.defaults.frameOrigin)
-    || !Array.isArray(value.defaults.paperTracks)
-    || !value.defaults.paperTracks.every(track => typeof track === 'string')
-    || !Array.isArray(value.regions)) return false
+/**
+ * Recovery has a different completion boundary from import/save. An editor may
+ * persist a correctly shaped draft while a text or numeric control is between
+ * valid values. Validate the complete object graph with the canonical parser,
+ * but relax only those authoring constraints on a separate validation clone so
+ * the unfinished values themselves survive recovery and remain visible in the
+ * review panel.
+ */
+function parseRecoverableTemplateDraft(input: unknown): SheetTemplate {
+  const draft = structuredClone(input)
+  const validationCandidate = structuredClone(draft)
+  relaxIncompleteAuthoringValues(validationCandidate)
+  parseSheetTemplate(validationCandidate)
+  return draft as SheetTemplate
+}
 
-  return value.regions.every(region => isRecord(region)
-    && typeof region.regionId === 'string'
-    && typeof region.label === 'string'
-    && isRecord(region.rect)
-    && finiteNumber(region.rect.x)
-    && finiteNumber(region.rect.y)
-    && finiteNumber(region.rect.w)
-    && finiteNumber(region.rect.h)
-    && typeof region.usage === 'string')
+function relaxIncompleteAuthoringValues(input: unknown): void {
+  if (!isRecord(input)) return
+  replaceBlankString(input, 'templateId', 'draft-template')
+  replaceBlankString(input, 'name', '未完成のテンプレート')
+
+  if (isRecord(input.defaults)) {
+    replaceNonPositiveFiniteNumber(input.defaults, 'fps', 1)
+    replaceNonPositiveFiniteInteger(input.defaults, 'durationFrames', 1)
+    if (Array.isArray(input.defaults.paperTracks)
+      && input.defaults.paperTracks.every(track => typeof track === 'string')) {
+      input.defaults.paperTracks = uniqueDraftStrings(input.defaults.paperTracks, 'セル')
+    }
+  }
+
+  if (isRecord(input.calibration) && isRecord(input.calibration.targetRect)) {
+    relaxNormalizedRect(input.calibration.targetRect)
+  }
+
+  if (Array.isArray(input.fields)) {
+    for (const [index, field] of input.fields.entries()) {
+      if (!isRecord(field)) continue
+      replaceBlankString(field, 'label', `未完成の項目 ${index + 1}`)
+      if (isRecord(field.builtinBinding)) replaceBlankString(field.builtinBinding, 'customKey', 'draft-key')
+      const choices = field.choices
+      if (field.valueType === 'choice'
+        && Array.isArray(choices)
+        && choices.every((choice): choice is string => typeof choice === 'string')) {
+        const validationChoices = uniqueDraftStrings(choices, '選択肢')
+        const normalizedChoices = validationChoices.length > 0 ? validationChoices : ['未完成の選択肢']
+        field.choices = normalizedChoices
+        if (typeof field.defaultValue === 'string' && !normalizedChoices.includes(field.defaultValue)) {
+          field.defaultValue = normalizedChoices[0]
+        }
+      }
+    }
+  }
+
+  if (!Array.isArray(input.regions)) return
+  for (const [index, region] of input.regions.entries()) {
+    if (!isRecord(region)) continue
+    replaceBlankString(region, 'label', `未完成の領域 ${index + 1}`)
+    replaceBlankString(region, 'authoringName', `未完成の領域 ${index + 1}`)
+    if (isRecord(region.rect)) relaxNormalizedRect(region.rect)
+    if (isRecord(region.binding)) {
+      replaceBlankString(region.binding, 'customKey', 'draft-key')
+      replaceBlankString(region.binding, 'layerId', 'draft-layer')
+    }
+    if (isRecord(region.grid)) {
+      replaceNonPositiveFiniteInteger(region.grid, 'rowCount', 1)
+      const frameStart = typeof region.grid.frameStart === 'number'
+        ? region.grid.frameStart
+        : isRecord(input.defaults) && typeof input.defaults.frameOrigin === 'number'
+          ? input.defaults.frameOrigin
+          : 1
+      if (region.grid.frameProjection === undefined
+        && typeof region.grid.frameEnd === 'number'
+        && typeof region.grid.rowCount === 'number') {
+        region.grid.frameEnd = frameStart + region.grid.rowCount - 1
+      }
+    }
+    if (isRecord(region.form) && Array.isArray(region.form.cells)) {
+      for (const [cellIndex, cell] of region.form.cells.entries()) {
+        if (isRecord(cell) && cell.kind === 'label') {
+          replaceBlankString(cell, 'label', `未完成の表示文字 ${cellIndex + 1}`)
+        }
+      }
+    }
+  }
+}
+
+function replaceBlankString(record: Record<string, unknown>, key: string, fallback: string): void {
+  if (typeof record[key] === 'string' && !record[key].trim()) record[key] = fallback
+}
+
+function replaceNonPositiveFiniteNumber(record: Record<string, unknown>, key: string, fallback: number): void {
+  const value = record[key]
+  if (typeof value === 'number' && Number.isFinite(value) && value <= 0) record[key] = fallback
+}
+
+function replaceNonPositiveFiniteInteger(record: Record<string, unknown>, key: string, fallback: number): void {
+  const value = record[key]
+  if (typeof value === 'number' && Number.isFinite(value) && (!Number.isInteger(value) || value <= 0)) record[key] = fallback
+}
+
+function uniqueDraftStrings(values: string[], label: string): string[] {
+  const used = new Set<string>()
+  return values.map((value, index) => {
+    const base = value.trim() || `${label} ${index + 1}`
+    let candidate = base
+    let suffix = 2
+    while (used.has(candidate)) {
+      candidate = `${base} ${suffix}`
+      suffix += 1
+    }
+    used.add(candidate)
+    return candidate
+  })
+}
+
+function relaxNormalizedRect(rect: Record<string, unknown>): void {
+  if (![rect.x, rect.y, rect.w, rect.h].every(value => typeof value === 'number' && Number.isFinite(value))) return
+  const x = Math.min(0.999999, Math.max(0, rect.x as number))
+  const y = Math.min(0.999999, Math.max(0, rect.y as number))
+  rect.x = x
+  rect.y = y
+  rect.w = Math.min(1 - x, Math.max(0.000001, rect.w as number))
+  rect.h = Math.min(1 - y, Math.max(0.000001, rect.h as number))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function finiteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

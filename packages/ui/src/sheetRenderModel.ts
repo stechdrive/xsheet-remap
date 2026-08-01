@@ -8,11 +8,14 @@ import {
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   logicalSheetOfficialFrameEnd,
+  isTimelineProjectingSheetTemplateGridRegion,
   isSpecialTimingEvent,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
+  resolveSheetTemplateRegionCapabilities,
   resolveSheetTemplateTextStyle,
+  resolveSheetFormFieldValue,
   sheetGridCellRect,
   sheetTemplateLengthForReferencePx,
   sheetFormFieldsForScope,
@@ -200,7 +203,7 @@ export function workRangeShadeRenderItemsForPage(
   const officialFrameStart = context.project.logicalSheet.frameOrigin
 
   return context.template.regions.flatMap(region => {
-    if (region.type !== 'exposure-grid' || !region.grid) return []
+    if (!isTimelineProjectingSheetTemplateGridRegion(region)) return []
     const layout = resolveSheetTemplateGridLayout(context.template, region, {
       paperTracks: context.paperTracks,
       timelineLanes: context.timelineLanes,
@@ -362,7 +365,7 @@ export function metadataTextRenderItemsForPage(
   const sharedCutNumbersVisible = sharedLabels.length > 0
   const explicitSharedCutRegion = context.template.regions.some(region =>
     region.type === 'metadata-field'
-    && region.usage !== 'ignored'
+    && resolveSheetTemplateRegionCapabilities(region).rendered
     && region.binding?.target === 'cut-group'
     && region.binding.field === 'shared-cut-numbers',
   )
@@ -382,7 +385,7 @@ export function metadataTextRenderItemsForPage(
 
   const cutRegion = context.template.regions.find(region =>
     region.type === 'metadata-field'
-    && region.usage !== 'ignored'
+    && resolveSheetTemplateRegionCapabilities(region).rendered
     && region.binding?.target === 'cut-metadata'
     && region.binding.field === 'cut',
   )
@@ -519,15 +522,19 @@ function formFieldTextRenderItems(
 function formFieldText(context: SheetRenderModelContext, field: TemplateFormFieldRenderModel, page: SheetPage): string {
   const builtin = field.definition.builtinBinding
   if (builtin) return metadataFieldText(context, page, builtin.field, builtin.customKey)
-  const values = sheetFormFieldsForScope(context.project.sheetFormData, field.definition.scope, page.pageId)
   if (field.sourceFieldIds?.length) {
+    const values = sheetFormFieldsForScope(context.project.sheetFormData, field.definition.scope, page.pageId)
     const sum = field.sourceFieldIds.reduce((total, fieldId) => {
       const value = values[fieldId]
       return total + (value?.kind === 'number' && value.value !== null ? value.value : 0)
     }, 0)
     return sum === 0 ? '' : String(sum)
   }
-  return sheetFormFieldValueText(values[field.fieldId])
+  return sheetFormFieldValueText(resolveSheetFormFieldValue(
+    context.project.sheetFormData,
+    field.definition,
+    page.pageId,
+  ))
 }
 
 function metadataTextRenderItemsForRegion(
@@ -539,7 +546,7 @@ function metadataTextRenderItemsForRegion(
   resolvedRect?: NormalizedRect,
   measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
 ): SheetMetadataTextRenderItem[] {
-    if (region.type !== 'metadata-field' || !region.binding || region.usage === 'ignored') return []
+    if (region.type !== 'metadata-field' || !region.binding || !resolveSheetTemplateRegionCapabilities(region).rendered) return []
     const sharedCutBinding = region.binding.target === 'cut-group' && region.binding.field === 'shared-cut-numbers'
       ? region.binding
       : null
@@ -1040,7 +1047,7 @@ function createContinuationRectResolver(
   const layoutsByRole = new Map((['action', 'cell'] as const).map(role => [
     role,
     context.template.regions.flatMap(region => {
-      if (region.type !== 'exposure-grid' || region.grid?.role !== role) return []
+      if (!isTimelineProjectingSheetTemplateGridRegion(region) || region.grid.role !== role) return []
       const layout = resolveSheetTemplateGridLayout(context.template, region, layoutOptions)
       if (!layout) return []
       return [{

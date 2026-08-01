@@ -1,5 +1,5 @@
 import { type DragEvent } from 'react'
-import { type CutProject, type SheetHit, type SheetTemplate, getSheetViewLayout, resolveSheetTemplateGridFrames, resolveSheetTemplateRegionRect } from '@xsheet-remap/core'
+import { type CutProject, type SheetHit, type SheetTemplate, getSheetViewLayout, isTimelineProjectingSheetTemplateGridRegion, resolveSheetTemplateGridFrames, resolveSheetTemplateRegionRect } from '@xsheet-remap/core'
 import { clampNumber, clampSheetZoom, fitZoomForViewport } from './sheetInteraction'
 import { CONTINUOUS_CANVAS_MIN_FRAME_ROW_PX, SHEET_AUTO_FIT_MIN_ZOOM } from './app-foundation'
 import { rectForHit } from './app-sheet-layers'
@@ -69,7 +69,7 @@ function minLogicalFrameRowHeightPx(
   durationFrames: number,
 ): number | null {
   const rowHeights = template.regions.flatMap(region => {
-    if (region.type !== 'exposure-grid' || region.grid?.frameProjection?.source !== 'logical-frames') return []
+    if (!isTimelineProjectingSheetTemplateGridRegion(region) || region.grid.frameProjection?.source !== 'logical-frames') return []
     const rect = resolveSheetTemplateRegionRect(template, region, durationFrames)
     const frames = resolveSheetTemplateGridFrames(template, region.grid, durationFrames, template.defaults.frameOrigin)
     return [(rect.h * pageSize.heightPx) / frames.rowCount]

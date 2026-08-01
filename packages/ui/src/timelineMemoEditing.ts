@@ -1,10 +1,12 @@
 import {
   createSheetPages,
   getSheetViewLayout,
+  isTimelineProjectingSheetTemplateGridRegion,
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   nextTimelineMemoId,
   resolveSheetTemplateGridLayout,
+  resolveSheetTemplateRegionCapabilities,
   type CutProject,
   type SheetHit,
   type SheetTemplate,
@@ -205,7 +207,9 @@ function sheetHitForTimedRangeCue(project: CutProject, template: SheetTemplate, 
     ? page.frameStart
     : template.defaults.frameOrigin
   for (const region of template.regions) {
-    if (region.grid?.role !== cue.role) continue
+    if (!isTimelineProjectingSheetTemplateGridRegion(region)
+      || !resolveSheetTemplateRegionCapabilities(region).providesMemoTargets
+      || region.grid.role !== cue.role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
       durationFrames: page.frameEnd - page.frameStart + 1,
@@ -241,7 +245,12 @@ function initialTimelineMemoDimensions(template: SheetTemplate, project: CutProj
   const frameOrigin = page && (viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite')
     ? page.frameStart
     : template.defaults.frameOrigin
-  const region = template.regions.find(item => item.regionId === hit.regionId && item.grid?.role === hit.role)
+  const region = template.regions.find(item =>
+    item.regionId === hit.regionId
+    && isTimelineProjectingSheetTemplateGridRegion(item)
+    && resolveSheetTemplateRegionCapabilities(item).providesMemoTargets
+    && item.grid.role === hit.role,
+  )
   const layout = region ? resolveSheetTemplateGridLayout(template, region, {
     paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
     durationFrames: page ? page.frameEnd - page.frameStart + 1 : displayDuration,

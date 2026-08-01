@@ -1,5 +1,7 @@
 import {
   getSheetViewLayout,
+  isTimelineProjectingSheetTemplateGridRegion,
+  resolveSheetTemplateRegionCapabilities,
   resolveSheetTemplateGridLayout,
   sheetGridCellRect,
   type NormalizedPoint,
@@ -46,7 +48,9 @@ export function timelineMemoAnchorCellForPage(
   if (memo.anchor.frame < page.frameStart || memo.anchor.frame > page.frameEnd) return null
   const frameOrigin = timelineMemoFrameOriginForPage(template, page)
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== memo.anchor.role) continue
+    if (!isTimelineProjectingSheetTemplateGridRegion(region)
+      || !resolveSheetTemplateRegionCapabilities(region).providesMemoTargets
+      || region.grid.role !== memo.anchor.role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: options.paperTracks,
       durationFrames: page.frameEnd - page.frameStart + 1,
@@ -126,7 +130,9 @@ export function timelineMemoSegmentsForPage(
   const frameOrigin = timelineMemoFrameOriginForPage(template, page)
   const segments: TimelineMemoSegment[] = []
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== memo.anchor.role) continue
+    if (!isTimelineProjectingSheetTemplateGridRegion(region)
+      || !resolveSheetTemplateRegionCapabilities(region).providesMemoTargets
+      || region.grid.role !== memo.anchor.role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: options.paperTracks,
       durationFrames: page.frameEnd - page.frameStart + 1,

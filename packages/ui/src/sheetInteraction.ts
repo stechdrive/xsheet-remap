@@ -2,6 +2,7 @@ import type { WheelEvent } from 'react'
 import {
   createSheetPages,
   globalizeSheetHit,
+  isInteractiveSheetTemplateGridRegion,
   resolveSheetTemplateGridColumns,
   resolveSheetTemplateGridFrames,
   resolveSheetTemplateGridLayout,
@@ -99,7 +100,7 @@ export function enumerateTemplateCellHits(template: SheetTemplate, durationFrame
 
 export function enumerateTemplateTimingHits(template: SheetTemplate, sheetRole: SheetTimingRole, durationFrames = template.defaults.durationFrames, frameOrigin = template.defaults.frameOrigin, paperTracks = template.defaults.paperTracks): SheetHit[] {
   return template.regions.flatMap(region => {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== sheetRole) return []
+    if (!isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== sheetRole) return []
     const columns = resolveSheetTemplateGridColumns(template, region.grid, paperTracks)
     const frames = resolveSheetTemplateGridFrames(template, region.grid, durationFrames, frameOrigin)
     const hits: SheetHit[] = []
@@ -307,7 +308,7 @@ export function rangeRectsForPage(template: SheetTemplate, range: SheetRangeSele
   const selectedPaperTracks = new Set(range.paperTracks.length > 0 ? range.paperTracks : range.paperTrack ? [range.paperTrack] : [])
 
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== range.role) continue
+    if (!isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== range.role) continue
     if ((region.flowGroupId ?? region.regionId) !== range.flowGroupId) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks,

@@ -1,5 +1,5 @@
 import { createDefaultProject, digitalStandardSheetTemplate, standardA3SheetTemplate, type SheetTemplate } from '@xsheet-remap/core'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TemplateWorkspace } from './TemplateWorkspace'
 import { createTemplateDraft } from './templateDrafts'
@@ -52,7 +52,154 @@ describe('TemplateWorkspace project integration', () => {
     fireEvent.click(screen.getByRole('button', { name: '変更を取り消す' }))
     expect((screen.getByLabelText('名前') as HTMLInputElement).value).toBe(digitalStandardSheetTemplate.name)
   })
+
+  it('returns to basic settings when a clean paper template is replaced by a digital template', async () => {
+    const commonProps = {
+      project: createDefaultProject(),
+      onLoadTemplate: async () => null,
+      onSaveTemplate: async () => ({ saved: true }),
+      onApplyTemplate: vi.fn(),
+      onCreateTemplateDraft: (kind: Parameters<typeof createTemplateDraft>[0]): SheetTemplate => createTemplateDraft(kind, standardA3SheetTemplate),
+      onUpdateCorrectionLayers: () => true,
+    }
+    const view = render(<TemplateWorkspace {...commonProps} template={standardA3SheetTemplate} />)
+    const sectionNavigation = screen.getByRole('navigation', { name: '編集する内容' })
+    const referenceButton = within(sectionNavigation).getByRole('button', { name: '参照画像' })
+
+    fireEvent.click(referenceButton)
+    expect(referenceButton.getAttribute('aria-current')).toBe('page')
+    view.rerender(<TemplateWorkspace {...commonProps} template={digitalStandardSheetTemplate} />)
+
+    await waitFor(() => expect(within(sectionNavigation).getByRole('button', { name: '基本設定' }).getAttribute('aria-current')).toBe('page'))
+    expect((screen.getByLabelText('名前') as HTMLInputElement).value).toBe(digitalStandardSheetTemplate.name)
+    expect(screen.getByLabelText('FPS')).toBeTruthy()
+    expect(screen.getByText(/現在開いているプロジェクトの尺やトラックは変更しません/)).toBeTruthy()
+    expect(screen.getByText('新規プロジェクトの初期FPS')).toBeTruthy()
+    expect(within(sectionNavigation).queryByRole('button', { name: '参照画像' })).toBeNull()
+    expect(document.querySelector('input[type="file"][accept="image/*"]')).toBeNull()
+  })
+
+  it('stores custom field defaults using the selected value type and can return to unset', async () => {
+    const { currentTemplate, onSaveTemplate } = renderDefaultValueWorkspace()
+
+    expect(screen.getByText('未入力欄の初期値')).toBeTruthy()
+    expect(screen.getByText(/既存の入力値は変更しません/)).toBeTruthy()
+    const enabled = screen.getByLabelText('初期値テストの初期値を設定') as HTMLInputElement
+    expect(enabled.checked).toBe(false)
+
+    fireEvent.click(enabled)
+    expect(enabled.checked).toBe(true)
+    await waitFor(() => expect(defaultValueField(currentTemplate()).defaultValue).toBe(''))
+    fireEvent.change(screen.getByLabelText('初期値テストの未入力欄の初期値'), { target: { value: '絵コンテ' } })
+    await waitFor(() => expect(defaultValueField(currentTemplate()).defaultValue).toBe('絵コンテ'))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
+    await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledTimes(1))
+    expect(defaultValueField(onSaveTemplate.mock.calls[0]![0])).toMatchObject({ valueType: 'text', defaultValue: '絵コンテ' })
+
+    const valueType = screen.getByLabelText('初期値テストの値の種類')
+    fireEvent.change(valueType, { target: { value: 'number' } })
+    expect(enabled.checked).toBe(false)
+    await waitFor(() => expect(Object.hasOwn(defaultValueField(currentTemplate()), 'defaultValue')).toBe(false))
+    fireEvent.click(enabled)
+    fireEvent.change(screen.getByLabelText('初期値テストの未入力欄の初期値'), { target: { value: '12.5' } })
+    await waitFor(() => expect(defaultValueField(currentTemplate()).defaultValue).toBe(12.5))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
+    await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledTimes(2))
+    expect(defaultValueField(onSaveTemplate.mock.calls[1]![0])).toMatchObject({ valueType: 'number', defaultValue: 12.5 })
+
+    fireEvent.change(valueType, { target: { value: 'duration' } })
+    fireEvent.click(enabled)
+    fireEvent.change(screen.getByLabelText('初期値テストの未入力欄の初期値'), { target: { value: '48.6' } })
+    await waitFor(() => expect(defaultValueField(currentTemplate()).defaultValue).toBe(49))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
+    await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledTimes(3))
+    expect(defaultValueField(onSaveTemplate.mock.calls[2]![0])).toMatchObject({ valueType: 'duration', defaultValue: 49 })
+
+    fireEvent.change(valueType, { target: { value: 'boolean' } })
+    fireEvent.click(enabled)
+    const booleanDefault = screen.getByLabelText('初期値テストの未入力欄の初期値') as HTMLInputElement
+    expect(booleanDefault.checked).toBe(false)
+    fireEvent.click(booleanDefault)
+    await waitFor(() => expect(defaultValueField(currentTemplate()).defaultValue).toBe(true))
+
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
+    await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledTimes(4))
+    expect(defaultValueField(onSaveTemplate.mock.calls[3]![0])).toMatchObject({ valueType: 'boolean', defaultValue: true })
+
+    fireEvent.click(enabled)
+    await waitFor(() => expect(Object.hasOwn(defaultValueField(currentTemplate()), 'defaultValue')).toBe(false))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
+    await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledTimes(5))
+    expect(Object.hasOwn(defaultValueField(onSaveTemplate.mock.calls[4]![0]), 'defaultValue')).toBe(false)
+  })
+
+  it('stores a choice default and clears it when the option is removed', async () => {
+    const { currentTemplate, onSaveTemplate } = renderDefaultValueWorkspace()
+    const valueType = screen.getByLabelText('初期値テストの値の種類')
+    fireEvent.change(valueType, { target: { value: 'choice' } })
+
+    const enabled = screen.getByLabelText('初期値テストの初期値を設定') as HTMLInputElement
+    expect(enabled.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('初期値テストの選択肢'), { target: { value: '原画\n動画' } })
+    expect(enabled.disabled).toBe(false)
+    fireEvent.click(enabled)
+    await waitFor(() => expect(defaultValueField(currentTemplate()).defaultValue).toBe('原画'))
+    fireEvent.change(screen.getByLabelText('初期値テストの未入力欄の初期値'), { target: { value: '動画' } })
+    await waitFor(() => expect(defaultValueField(currentTemplate()).defaultValue).toBe('動画'))
+
+    fireEvent.change(screen.getByLabelText('初期値テストの選択肢'), { target: { value: '原画' } })
+    await waitFor(() => expect(Object.hasOwn(defaultValueField(currentTemplate()), 'defaultValue')).toBe(false))
+    expect(enabled.checked).toBe(false)
+
+    fireEvent.change(screen.getByLabelText('初期値テストの選択肢'), { target: { value: '原画\n動画' } })
+    fireEvent.click(enabled)
+    fireEvent.change(screen.getByLabelText('初期値テストの未入力欄の初期値'), { target: { value: '動画' } })
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
+    await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledTimes(1))
+    expect(defaultValueField(onSaveTemplate.mock.calls[0]![0])).toMatchObject({
+      valueType: 'choice',
+      choices: ['原画', '動画'],
+      defaultValue: '動画',
+    })
+  })
 })
+
+function renderDefaultValueWorkspace() {
+  const template = createTemplateDraft('paper-standard', standardA3SheetTemplate)
+  const field = defaultValueField(template)
+  field.label = '初期値テスト'
+  field.valueType = 'text'
+  delete field.choices
+  delete field.defaultValue
+  let latestTemplate = template
+  const onSaveTemplate = vi.fn(async (savedTemplate: SheetTemplate) => {
+    void savedTemplate
+    return { saved: true }
+  })
+
+  render(
+    <TemplateWorkspace
+      project={createDefaultProject()}
+      template={template}
+      onLoadTemplate={async () => null}
+      onSaveTemplate={onSaveTemplate}
+      onApplyTemplate={vi.fn()}
+      onCreateTemplateDraft={(kind): SheetTemplate => createTemplateDraft(kind, standardA3SheetTemplate)}
+      onUpdateCorrectionLayers={() => true}
+      onDraftStateChange={state => { latestTemplate = state.template }}
+    />,
+  )
+  const navigator = screen.getByRole('complementary', { name: '領域一覧' })
+  fireEvent.click(within(navigator).getByRole('button', { name: 'MEMO' }))
+
+  return { currentTemplate: () => latestTemplate, onSaveTemplate }
+}
+
+function defaultValueField(template: SheetTemplate) {
+  const field = template.fields?.find(candidate => candidate.fieldId === 'memo.body')
+  if (!field) throw new Error('memo.body field not found')
+  return field
+}
 
 function asFileList(file: File): FileList {
   return {

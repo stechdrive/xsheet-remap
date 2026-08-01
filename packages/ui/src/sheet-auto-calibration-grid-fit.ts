@@ -1,4 +1,4 @@
-import { type SheetTemplate } from '@xsheet-remap/core'
+import { isRenderableSheetTemplateGridRegion, type SheetTemplate } from '@xsheet-remap/core'
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import { clampNumber } from './sheetInteraction'
 import { darkRatioInHorizontalBand, darkRatioInHorizontalBandIntegral, darkRatioInVerticalBand, darkRatioInVerticalBandIntegral, localSupportGroups, projectedLinePositionForExpected, type DarkPixelIntegralImage } from './sheet-auto-calibration-projection'
@@ -198,7 +198,7 @@ function templateGridFitGuides(template: SheetTemplate, targetRect: { x: number;
     { ratio: 1, weight: 1.8 },
   ]
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || !region.grid) continue
+    if (!isRenderableSheetTemplateGridRegion(region)) continue
     if (!['action', 'sound', 'cell', 'camera'].includes(region.grid.role)) continue
     addGuide(vertical, (region.rect.x - targetRect.x) / targetRect.w, 1.2)
     addGuide(vertical, (region.rect.x + region.rect.w - targetRect.x) / targetRect.w, 1.2)

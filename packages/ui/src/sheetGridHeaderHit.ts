@@ -1,4 +1,5 @@
 import {
+  isInteractiveSheetTemplateGridRegion,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   type NormalizedPoint,
@@ -33,7 +34,7 @@ export function gridColumnHeaderHitFromPoint(options: {
     : 0
 
   for (const region of options.template.regions) {
-    if (region.type !== 'exposure-grid' || !region.grid || !options.roles.includes(region.grid.role)) continue
+    if (!isInteractiveSheetTemplateGridRegion(region) || !options.roles.includes(region.grid.role)) continue
     const layout = resolveSheetTemplateGridLayout(options.template, region, options)
     if (!layout) continue
     const rect = layout.rect

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   defaultSheetImageAlignment,
+  isRenderableSheetTemplateGridRegion,
   type FileRef,
   type NormalizedPoint,
   type NormalizedRect,
@@ -64,7 +65,7 @@ export function calibrationTargetRectForTemplate(template?: Pick<SheetTemplate, 
 
 export function calibrationGridBoundsForTemplate(template?: Pick<SheetTemplate, 'regions'>): NormalizedRect | null {
   const rects = template?.regions
-    .filter(region => region.type === 'exposure-grid' && region.grid && calibrationGridRoles.has(region.grid.role))
+    .filter(region => isRenderableSheetTemplateGridRegion(region) && calibrationGridRoles.has(region.grid.role))
     .map(region => region.rect) ?? []
   if (rects.length === 0) return null
   const left = Math.min(...rects.map(rect => rect.x))

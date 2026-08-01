@@ -24,6 +24,27 @@ async function createDigitalTemplateDraft() {
   await waitFor(() => expect(screen.queryByRole('dialog', { name: '新しいテンプレート' })).toBeNull())
 }
 
+function selectTemplateInspector(sectionId: string) {
+  if (sectionId === 'region') {
+    const selectedRegion = document.querySelector<HTMLButtonElement>('.templateRegionNavigatorSelect[aria-pressed="true"]')
+    if (!selectedRegion) throw new Error('selected template region not found')
+    fireEvent.click(selectedRegion)
+    return
+  }
+  const labels: Record<string, string> = {
+    template: '基本設定',
+    table: '領域',
+    display: '見た目',
+    reference: '参照画像',
+    review: '確認・保存',
+    json: 'JSON',
+  }
+  const label = labels[sectionId]
+  if (!label) throw new Error(`unknown template inspector section: ${sectionId}`)
+  const navigation = screen.getByRole('navigation', { name: '編集する内容' })
+  fireEvent.click(within(navigation).getByRole('button', { name: label }))
+}
+
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
     render(<App />)
@@ -755,7 +776,7 @@ it('edits sheet template metadata and embeds a template reference image', async 
     fireEvent.change(nameInput, { target: { value: 'スタジオA3' } })
     expect(nameInput.value).toBe('スタジオA3')
 
-    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.reference }))
+    selectTemplateInspector('reference')
     const referenceLabel = screen.getByText(uiText.actions.loadTemplateReferenceImage).closest('label')
     const referenceInput = referenceLabel?.querySelector('input[type="file"]') as HTMLInputElement | null
     if (!referenceInput) throw new Error('template reference image input not found')
@@ -766,7 +787,7 @@ it('edits sheet template metadata and embeds a template reference image', async 
     await waitFor(() => expect(screen.getByText('studio_sheet.png')).toBeTruthy())
     expect(screen.getByText(uiText.template.referenceImageEmbedded)).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.json }))
+    selectTemplateInspector('json')
     const json = document.querySelector('.jsonPreview') as HTMLTextAreaElement | null
     expect(json?.value).toContain('スタジオA3')
     expect(json?.value).toContain('studio_sheet.png')
@@ -776,7 +797,7 @@ it('edits sheet template metadata and embeds a template reference image', async 
 it('edits template grid header labels from the display tab', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
-    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.display }))
+    selectTemplateInspector('display')
 
     const secondCounter = screen.getByLabelText(uiText.template.secondCounter) as HTMLInputElement
     expect(secondCounter.checked).toBe(true)
@@ -806,7 +827,7 @@ it('edits template grid header labels from the display tab', () => {
 it('uses the template header label for the OCR target name', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
-    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.display }))
+    selectTemplateInspector('display')
     fireEvent.change(screen.getByLabelText(uiText.template.gridHeaderLabelInput('ACTION')), { target: { value: '演技指示' } })
     fireEvent.click(screen.getByRole('button', { name: 'プロジェクトへ反映' }))
 
@@ -1062,14 +1083,16 @@ it('keeps template creation as a draft until apply or cancel', async () => {
     await createDigitalTemplateDraft()
 
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
-    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
-    expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(0)
-    expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
+    await waitFor(() => {
+      expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
+      expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
+      expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(0)
+      expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
+    })
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
 
-    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.json }))
+    selectTemplateInspector('json')
     const json = document.querySelector('.jsonPreview') as HTMLTextAreaElement | null
     expect(json?.value).toContain('"templateKind": "digital-native"')
     expect(json?.value).toContain('"name": "新しいデジタルタイムシート"')
@@ -1131,7 +1154,7 @@ it('undoes and redoes an applied template with the synchronized project history'
 it('edits selected template rectangles in source-image pixels', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
-    fireEvent.click(screen.getByRole('tab', { name: '選択領域' }))
+    selectTemplateInspector('region')
 
     const xInput = screen.getByLabelText(`${uiText.template.selectedRegion} x px`) as HTMLInputElement
     const yInput = screen.getByLabelText(`${uiText.template.selectedRegion} y px`) as HTMLInputElement
@@ -1148,7 +1171,7 @@ it('edits selected template rectangles in source-image pixels', () => {
 it('previews template edge drags locally and commits once on pointer up', async () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
-    fireEvent.click(screen.getByRole('tab', { name: '選択領域' }))
+    selectTemplateInspector('region')
 
     const editor = document.querySelector<SVGSVGElement>('.templateEditorSvg')
     if (!editor) throw new Error('template editor not found')
@@ -1195,7 +1218,7 @@ it('turns built-in standard template edits into a custom draft', () => {
     fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: 'A3標準 改' } })
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('tab', { name: uiText.template.detailTabs.json }))
+    selectTemplateInspector('json')
     const json = document.querySelector('.jsonPreview') as HTMLTextAreaElement | null
     expect(json?.value).toContain('"name": "A3標準 改"')
     expect(json?.value).not.toContain('"templateId": "standard-a3-timesheet-v2"')

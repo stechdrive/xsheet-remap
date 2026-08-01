@@ -98,6 +98,17 @@ export function sheetFormFieldsForScope(data: SheetFormData, scope: SheetTemplat
   return data[scope]
 }
 
+export function resolveSheetFormFieldValue(
+  data: SheetFormData,
+  definition: Pick<SheetTemplateFieldDefinition, 'fieldId' | 'scope' | 'valueType' | 'defaultValue'>,
+  pageId?: string,
+): SheetFormFieldValue | undefined {
+  const values = sheetFormFieldsForScope(data, definition.scope, pageId)
+  if (Object.hasOwn(values, definition.fieldId)) return values[definition.fieldId]
+  if (definition.defaultValue === undefined) return undefined
+  return sheetFormFieldValueForInput(definition, definition.defaultValue)
+}
+
 function normalizeSheetFormFieldValue(input: unknown): SheetFormFieldValue | null {
   if (!isRecord(input) || typeof input.kind !== 'string') return null
   if (input.kind === 'text' && typeof input.value === 'string') return { kind: 'text', value: input.value }

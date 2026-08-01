@@ -81,6 +81,8 @@ export interface SheetTemplateGridLineSpan {
 }
 
 export interface SheetTemplateGridHeader {
+  /** Optional printed heading override for this grid region. */
+  label?: string
   topOffsetPx?: number
   heightPx?: number
   columnHeightPx?: number
@@ -285,6 +287,8 @@ export interface SheetTemplateRegion {
     | 'form-table'
     | 'annotation-area'
     | 'decorative'
+  /** Authoring-only management name saved with the template; it does not affect the printed sheet. */
+  authoringName?: string
   label: string
   rect: NormalizedRect
   /** Keeps the base left/right page margins while the digital canvas widens. */
@@ -305,6 +309,68 @@ export interface SheetTemplateRegion {
 }
 
 /**
+ * Runtime capabilities derived from a region's persisted compatibility shape.
+ *
+ * Sheet-template JSON intentionally keeps the v6 region shape so existing
+ * templates remain readable. Consumers must use this resolver instead of
+ * interpreting the optional `grid`, `form`, `binding`, and `usage` fields on
+ * their own. That gives authoring, rendering, and interaction one contract
+ * while a future schema version can migrate to a discriminated region union.
+ */
+export interface SheetTemplateRegionCapabilities {
+  rendered: boolean
+  rendersGrid: boolean
+  rendersForm: boolean
+  rendersReferenceOutline: boolean
+  /** Projects timeline values into a rendered exposure grid, even when editing is disabled. */
+  projectsTimelineData: boolean
+  acceptsTimelineInput: boolean
+  acceptsMetadataInput: boolean
+  acceptsFormInput: boolean
+  providesMemoTargets: boolean
+}
+
+export function resolveSheetTemplateRegionCapabilities(
+  region: SheetTemplateRegion,
+): SheetTemplateRegionCapabilities {
+  const rendered = region.usage !== 'ignored'
+  const acceptsInput = region.usage === 'input'
+  const declaresTimelineInput = acceptsInput
+    || region.inputMode === 'point-event'
+    || region.inputMode === 'timed-range'
+    || region.inputKind === 'timing-event'
+    || region.inputKind === 'camera'
+    || region.inputKind === 'dialogue'
+  const providesMemoTargets = rendered
+    && (region.usage === 'input' || region.usage === 'reference')
+  const projectsTimelineData = rendered
+    && region.type === 'exposure-grid'
+    && Boolean(region.grid)
+
+  return {
+    rendered,
+    rendersGrid: rendered && Boolean(region.grid),
+    rendersForm: rendered && Boolean(region.form),
+    rendersReferenceOutline: rendered
+      && !region.grid
+      && !region.form
+      && region.type !== 'metadata-field',
+    projectsTimelineData,
+    acceptsTimelineInput: rendered
+      && region.usage !== 'render-only'
+      && declaresTimelineInput
+      && region.type === 'exposure-grid'
+      && Boolean(region.grid),
+    acceptsMetadataInput: acceptsInput
+      && region.type === 'metadata-field'
+      && region.binding?.target === 'cut-metadata'
+      && region.binding.field !== 'page',
+    acceptsFormInput: acceptsInput && Boolean(region.form),
+    providesMemoTargets,
+  }
+}
+
+/**
  * A grid can be part of the printed template without being an editable
  * timeline surface. Keeping this predicate separate from exposure-grid hit
  * testing prevents decorative ruling from acquiring input behaviour merely
@@ -313,13 +379,20 @@ export interface SheetTemplateRegion {
 export function isRenderableSheetTemplateGridRegion(
   region: SheetTemplateRegion,
 ): region is SheetTemplateRegion & { grid: SheetTemplateGrid } {
-  return Boolean(region.grid) && region.usage !== 'ignored'
+  return resolveSheetTemplateRegionCapabilities(region).rendersGrid
 }
 
 export function isInteractiveSheetTemplateGridRegion(
   region: SheetTemplateRegion,
 ): region is SheetTemplateRegion & { type: 'exposure-grid'; grid: SheetTemplateGrid } {
-  return region.type === 'exposure-grid' && Boolean(region.grid) && region.usage !== 'ignored'
+  return resolveSheetTemplateRegionCapabilities(region).acceptsTimelineInput
+}
+
+/** A visible exposure grid that projects timeline data, whether or not it accepts editing. */
+export function isTimelineProjectingSheetTemplateGridRegion(
+  region: SheetTemplateRegion,
+): region is SheetTemplateRegion & { type: 'exposure-grid'; grid: SheetTemplateGrid } {
+  return resolveSheetTemplateRegionCapabilities(region).projectsTimelineData
 }
 
 export type SheetTemplateLengthUnit = 'px' | 'pt' | 'mm'

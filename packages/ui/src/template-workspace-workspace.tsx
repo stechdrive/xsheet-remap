@@ -7,12 +7,13 @@ import {
   type CorrectionLayer,
   type CutProject,
   type SheetTemplate,
+  type SheetTemplateFieldDefinition,
   type SheetTemplateLength,
   type SheetTemplateLinePattern,
   type SheetTemplateTextStyle,
 } from '@xsheet-remap/core'
 import { confirmUserAction, type SaveFileResult } from '@xsheet-remap/adapters'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './appTypes'
 import { uiText } from './i18n'
@@ -26,14 +27,35 @@ import { readTemplateImageMetadata } from './templateImageMetadata'
 import { gridHeaderLabelForRole, gridHeaderRolesForTemplate, templateEditorNormalizedRectValue, templateEditorRectPixelValue, type TemplateEditorRectKey } from './templateEditorGeometry'
 import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, resizePaperTrackLabels, resizeTemplateTimelineLanes, setTemplateCalibrationTargetRect, setTemplateGridColumnLabelsVisible, setTemplateTimelineLaneLabel, templateGridColumnLabelsVisible, templateTimelineLaneDefinitions, trackProjectionForRole, type TemplateGridRole, type TemplateTimelineLaneRole } from './templateEditing'
 import { Tooltip, TooltipTarget } from './Tooltip'
-import { METADATA_BINDING_OPTION_IDS, TEMPLATE_CALIBRATION_TARGET_ID, errorMessage, metadataBindingFromOptionId, metadataBindingOptionId, metadataBindingOptionLabel, sameNormalizedRect, standardCalibrationTargetRectForTemplate, type MetadataBindingOptionId } from './template-workspace-model'
+import { METADATA_BINDING_OPTION_IDS, TEMPLATE_CALIBRATION_TARGET_ID, errorMessage, metadataBindingFromOptionId, metadataBindingOptionId, metadataBindingOptionLabel, sameNormalizedRect, standardCalibrationTargetRectForTemplate } from './template-workspace-model'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
 import { TemplateCreateDialog, type DigitalTemplateCreateOptions, type PaperTemplateCreateOptions } from './TemplateCreateDialog'
+import { TemplateInspectorNavigation, type TemplateInspectorSection } from './TemplateInspectorNavigation'
 import { templatePaperPixelSize } from './templatePaper'
+import { TemplateRegionCollectionEditor } from './TemplateRegionCollectionEditor'
+import { TemplateRegionBindingEditor } from './TemplateRegionBindingEditor'
 import { SheetThemeEditor } from './SheetThemeEditor'
 import { TemplateRegionNavigator } from './TemplateRegionNavigator'
-import { duplicateTemplateRegion, moveTemplateRegion, placeNewTemplateRegion, uniqueTemplateRegionId } from './templateRegionAuthoring'
+import {
+  duplicateTemplateRegion,
+  editableTemplateRegionLabelCells,
+  moveTemplateRegion,
+  placeNewTemplateRegion,
+  templateRegionAuthoringName,
+  templateRegionKindLabel,
+  templateRegionManagementNameHint,
+  templateRegionPlacementDescription,
+  templateRegionPlacementMode,
+  templateRegionPurposeText,
+  templateRegionUsageText,
+  uniqueTemplateRegionId,
+  updateTemplateFieldDefinition as updateTemplateFieldDefinitionInTemplate,
+  updateTemplateRegionFormCell as updateTemplateRegionFormCellValue,
+  updateTemplateRegionGridFrameRange,
+} from './templateRegionAuthoring'
 import { validateTemplateAuthoring } from './templateAuthoringValidation'
+import { templateFieldChoicesFromText, templateFieldReferenceCount, templateFieldSemanticsLockReason } from './templateFieldAuthoring'
+import { templatePreviewForProject } from './templateProjectPreview'
 
 export type TemplateWorkspaceMode = 'project' | 'standalone'
 
@@ -83,7 +105,11 @@ export function TemplateWorkspace({
   const [selectedFormCellId, setSelectedFormCellId] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<TemplateDetailTab>('template')
   const [templateZoom, setTemplateZoom] = useState(1)
-  const [dockWidth, setDockWidth] = useState(380)
+  const templateZoomPercent = Math.round(templateZoom * 100)
+  const templateZoomPreset = [100, 400, 800, 1600, 3200].includes(templateZoomPercent)
+    ? String(templateZoomPercent)
+    : ''
+  const [dockWidth, setDockWidth] = useState(420)
   const [processSettingsOpen, setProcessSettingsOpen] = useState(false)
   const [templateCreateOpen, setTemplateCreateOpen] = useState(false)
   const [hiddenRegionIds, setHiddenRegionIds] = useState<Set<string>>(() => new Set())
@@ -92,6 +118,7 @@ export function TemplateWorkspace({
   const draftRevision = useRef(0)
   const observedAppliedTemplate = useRef(appliedTemplate)
   const isDigitalTemplate = template.templateKind === 'digital-native'
+  const activeDetailTab = isDigitalTemplate && detailTab === 'reference' ? 'template' : detailTab
   const calibrationTargetRect = calibrationTargetRectForTemplate(template)
   const calibrationGridBounds = calibrationGridBoundsForTemplate(template)
   const hasExplicitCalibrationTarget = Boolean(template.calibration?.targetRect)
@@ -105,16 +132,22 @@ export function TemplateWorkspace({
       : editableRegions[0] ?? null
   const selectedRegionPositionLocked = Boolean(selectedRegion && positionLockedRegionIds.has(selectedRegion.regionId))
   const selectedDecorativeGrid = isDecorativeGridRegion(selectedRegion) ? selectedRegion : null
-  const selectedFormFieldCells = selectedRegion?.form?.cells?.filter(cell => cell.kind === 'field' && cell.fieldId) ?? []
-  const selectedFormFieldCell = selectedFormFieldCells.find(cell => cell.cellId === selectedFormCellId)
-    ?? selectedFormFieldCells[0]
+  const selectedFormLabelCells = selectedRegion ? editableTemplateRegionLabelCells(selectedRegion) : []
+  const selectedFormInputCells = selectedRegion?.form?.cells?.filter(cell => cell.kind === 'field' || cell.kind === 'annotation') ?? []
+  const selectedFormInputCell = selectedFormInputCells.find(cell => cell.cellId === selectedFormCellId)
+    ?? selectedFormInputCells[0]
     ?? null
-  const selectedFormFieldDefinition = selectedFormFieldCell?.fieldId
-    ? template.fields?.find(field => field.fieldId === selectedFormFieldCell.fieldId) ?? null
+  const selectedFormFieldDefinition = selectedFormInputCell?.fieldId
+    ? template.fields?.find(field => field.fieldId === selectedFormInputCell.fieldId) ?? null
     : null
+  const selectedFormFieldSemanticsLockReason = selectedFormFieldDefinition
+    ? templateFieldSemanticsLockReason(selectedFormFieldDefinition, mode === 'project' ? project.sheetFormData : null)
+    : null
+  const selectedFormFieldReferenceCount = selectedFormFieldDefinition
+    ? templateFieldReferenceCount(template, selectedFormFieldDefinition.fieldId)
+    : 0
   const selectedRegionHasTextStyle = Boolean(selectedRegion
     && (selectedRegion.binding?.target === 'cut-metadata' || selectedRegion.binding?.target === 'cut-group'))
-  const textFontUnit = template.page.isPhysical ? 'pt' : 'px'
   const effectiveSelectedRegionId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegion?.regionId ?? null
   const correctionLayers = sortedCorrectionLayers(project)
   const defaultCorrectionLayer = correctionLayers[0] ?? null
@@ -124,6 +157,10 @@ export function TemplateWorkspace({
   const templateReferenceImageSettings: SheetImageSettings = useMemo(() => template.defaultUnderlay?.alignment
     ? { ...defaultSheetImageSettings(), ...template.defaultUnderlay.alignment }
     : defaultSheetImageSettings(), [template.defaultUnderlay])
+  const editorPreviewTemplate = useMemo(
+    () => templatePreviewForProject(template, project, mode === 'project'),
+    [mode, project, template],
+  )
   const referenceImageMetadata = template.defaultUnderlay?.imageRef.pixelWidth && template.defaultUnderlay.imageRef.pixelHeight
     ? {
         width: template.defaultUnderlay.imageRef.pixelWidth,
@@ -135,7 +172,12 @@ export function TemplateWorkspace({
   const referenceDensityMatches = referenceImageMetadata
     ? templateImageDensityMatches(template.page.dpi, referenceImageMetadata)
     : null
-  const authoringValidation = useMemo(() => validateTemplateAuthoring(template), [template])
+  const deferredValidationTemplate = useDeferredValue(template)
+  const validationTemplate = activeDetailTab === 'review' ? template : deferredValidationTemplate
+  const authoringValidation = useMemo(
+    () => validateTemplateAuthoring(validationTemplate, { deep: activeDetailTab === 'review' }),
+    [activeDetailTab, validationTemplate],
+  )
 
   useEffect(() => {
     onDraftStateChange?.({ template, dirty: hasTemplateDraftChanges })
@@ -197,8 +239,14 @@ export function TemplateWorkspace({
 
   function applyTemplateDraftChanges() {
     if (!hasTemplateDraftChanges) return
-    draftRevision.current += 1
     const nextTemplate = finalizeTemplateDraftForApply(template)
+    const validation = validateTemplateAuthoring(nextTemplate)
+    if (!validation.canComplete) {
+      setDetailTab('review')
+      setSaveNotice(`反映前に${validation.errors.length}件のエラーを修正してください`)
+      return
+    }
+    draftRevision.current += 1
     onApplyTemplate(nextTemplate)
     setDraftTemplate(cloneSheetTemplate(nextTemplate))
     setHasTemplateDraftChanges(false)
@@ -414,17 +462,73 @@ export function TemplateWorkspace({
   ) {
     updateTemplateDraft(currentTemplate => ({
       ...currentTemplate,
+      regions: currentTemplate.regions.map(region => region.regionId === regionId
+        ? updateTemplateRegionFormCellValue(region, cellId, updates)
+        : region),
+    }))
+  }
+
+  function updateFieldDefinition(
+    fieldId: string,
+    updates: Parameters<typeof updateTemplateFieldDefinitionInTemplate>[2],
+  ) {
+    updateTemplateDraft(currentTemplate => {
+      const nextTemplate = updateTemplateFieldDefinitionInTemplate(currentTemplate, fieldId, updates)
+      if (!Object.hasOwn(updates, 'defaultValue') || updates.defaultValue !== undefined) return nextTemplate
+      return {
+        ...nextTemplate,
+        fields: nextTemplate.fields?.map(field => {
+          if (field.fieldId !== fieldId) return field
+          const nextField = { ...field }
+          delete nextField.defaultValue
+          return nextField
+        }),
+      }
+    })
+  }
+
+  function updateRegionFrameRange(
+    regionId: string,
+    updates: Parameters<typeof updateTemplateRegionGridFrameRange>[1],
+  ) {
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
+      regions: currentTemplate.regions.map(region => region.regionId === regionId
+        ? updateTemplateRegionGridFrameRange(region, updates, currentTemplate.defaults.frameOrigin)
+        : region),
+    }))
+  }
+
+  function updateRegionGridHeaderLabel(regionId: string, label: string | undefined) {
+    updateTemplateDraft(currentTemplate => ({
+      ...currentTemplate,
       regions: currentTemplate.regions.map(region => {
-        if (region.regionId !== regionId || !region.form?.cells) return region
+        if (region.regionId !== regionId || !region.grid) return region
+        const header = { ...(region.grid.header ?? {}) }
+        if (label === undefined) delete header.label
+        else header.label = label
         return {
           ...region,
-          form: {
-            ...region.form,
-            cells: region.form.cells.map(cell => cell.cellId === cellId ? { ...cell, ...updates } : cell),
-          },
+          grid: { ...region.grid, header: Object.keys(header).length > 0 ? header : undefined },
         }
       }),
     }))
+  }
+
+  function updateRegionBinding(regionId: string, binding: SheetTemplate['regions'][number]['binding']) {
+    if (!binding) return
+    const optionId = metadataBindingOptionId(binding)
+    const currentRegion = template.regions.find(region => region.regionId === regionId)
+    updateRegion(regionId, {
+      binding,
+      ...(optionId
+        ? {
+            authoringName: currentRegion?.authoringName ?? (currentRegion ? templateRegionAuthoringName(currentRegion) : undefined),
+            label: metadataBindingOptionLabel(optionId),
+            usage: binding.target === 'cut-group' ? 'render-only' : 'input',
+          }
+        : {}),
+    })
   }
 
   function updateRegionRect(regionId: string, key: 'x' | 'y' | 'w' | 'h', value: number) {
@@ -591,6 +695,7 @@ export function TemplateWorkspace({
       rect: placeNewTemplateRegion(editableTemplate, { x: 0.1, y: 0.2, w: 0.3, h: 0.6 }),
       usage: role === 'cell' || role === 'sound' ? 'input' : 'reference',
       inputKind: role === 'cell' || role === 'action' ? 'timing-event' : role === 'camera' ? 'camera' : role === 'sound' ? 'dialogue' : 'text',
+      inputMode: role === 'cell' || role === 'action' ? 'point-event' : role === 'camera' || role === 'sound' ? 'timed-range' : 'reference',
       grid: {
         role,
         frameStart: 1,
@@ -848,20 +953,7 @@ export function TemplateWorkspace({
         paperTracks,
       },
     }
-    const created = withSheetTemplatePaperTracks({
-      ...withDefaults,
-      regions: withDefaults.regions.map(region => region.grid
-        ? {
-            ...region,
-            grid: {
-              ...region.grid,
-              rowCount: options.durationFrames,
-              frameEnd: (region.grid.frameStart ?? withDefaults.defaults.frameOrigin) + options.durationFrames - 1,
-              columns: region.grid.columns,
-            },
-          }
-        : region),
-    }, paperTracks)
+    const created = withSheetTemplatePaperTracks(withDefaults, paperTracks)
     replaceTemplateDraft(created, 'template')
     setTemplateCreateOpen(false)
   }
@@ -871,14 +963,52 @@ export function TemplateWorkspace({
     setTemplateCreateOpen(false)
   }
 
-  const detailTabs: Array<[TemplateDetailTab, string]> = [
-    ['template', 'テンプレート'],
-    ['region', '選択領域'],
-    ['display', uiText.template.detailTabs.display],
-    ...(!isDigitalTemplate ? [['reference', uiText.template.detailTabs.reference] as [TemplateDetailTab, string]] : []),
-    ['table', '全領域'],
-    ['review', '確認'],
-    ['json', uiText.template.detailTabs.json],
+  const detailSections: TemplateInspectorSection[] = [
+    {
+      id: 'template',
+      label: '基本設定',
+      description: '名前、用紙、初期フレームなどテンプレート全体を設定します。',
+      group: 'edit',
+    },
+    {
+      id: 'table',
+      label: '領域',
+      description: '領域ごとの役割、表示文字、データ割当、配置を確認して編集します。',
+      group: 'edit',
+    },
+    {
+      id: 'region',
+      label: selectedRegion ? selectedRegion.authoringName ?? selectedRegion.label : '選択領域',
+      description: selectedRegion
+        ? `「${(selectedRegion.authoringName ?? selectedRegion.label) || selectedRegion.regionId}」の内容、割当、位置、見た目を設定します。`
+        : 'キャンバスまたは左の一覧で領域を選んで設定します。',
+      group: 'edit',
+      parentId: 'table',
+    },
+    {
+      id: 'display',
+      label: '見た目',
+      description: '色、罫線、見出し、初期列名など表示を整えます。',
+      group: 'edit',
+    },
+    ...(!isDigitalTemplate ? [{
+      id: 'reference' as const,
+      label: '参照画像',
+      description: '元の紙シート画像を読み込み、位置と補正基準を確認します。',
+      group: 'edit' as const,
+    }] : []),
+    {
+      id: 'review',
+      label: '確認・保存',
+      description: '不足や配置ミスを確認してからテンプレートを保存します。',
+      group: 'manage',
+    },
+    {
+      id: 'json',
+      label: uiText.template.detailTabs.json,
+      description: '完成データを確認します。通常の作成では編集する必要はありません。',
+      group: 'manage',
+    },
   ]
   const gridHeaderRoles = gridHeaderRolesForTemplate(template)
   const timelineLaneRoles = gridHeaderRoles.filter((role): role is TemplateTimelineLaneRole => role === 'sound' || role === 'camera')
@@ -896,7 +1026,7 @@ export function TemplateWorkspace({
       </dd>
       <dt>{uiText.template.cutNumberPrefix}</dt>
       <dd>
-        <input value={template.naming?.cutNumberPrefix ?? ''} onChange={event => updateTemplateNaming({ cutNumberPrefix: event.currentTarget.value })} />
+        <input aria-label={uiText.template.cutNumberPrefix} value={template.naming?.cutNumberPrefix ?? ''} onChange={event => updateTemplateNaming({ cutNumberPrefix: event.currentTarget.value })} />
       </dd>
       <dt>{uiText.template.cutNumberPrefixMode}</dt>
       <dd>
@@ -916,19 +1046,24 @@ export function TemplateWorkspace({
       <dd>{templateViewLayout.type} / {templateViewLayout.defaultViewMode ?? 'continuous'}{templateViewLayout.framesPerPage ? ` / ${templateViewLayout.framesPerPage}F` : ''}</dd>
       {isDigitalTemplate ? (
         <>
-          <dt>FPS</dt>
-          <dd><input className="numberInput" type="number" min="1" value={template.defaults.fps} onChange={event => updateTemplateDraft(current => ({ ...current, defaults: { ...current.defaults, fps: Math.max(1, Number(event.currentTarget.value)) } }))} /></dd>
-          <dt>初期フレーム数</dt>
-          <dd><input className="numberInput" type="number" min="1" value={template.defaults.durationFrames} onChange={event => {
+          {mode === 'project' && (
+            <>
+              <dt>初期値の適用先</dt>
+              <dd className="templateRegionDerivedNotice">以下のFPS・フレーム数・セル列数は、このテンプレートから作る新しいプロジェクトの初期値です。現在開いているプロジェクトの尺やトラックは変更しません。</dd>
+            </>
+          )}
+          <dt>{mode === 'project' ? '新規プロジェクトの初期FPS' : 'FPS'}</dt>
+          <dd><input aria-label="FPS" className="numberInput" type="number" min="1" value={template.defaults.fps} onChange={event => updateTemplateDraft(current => ({ ...current, defaults: { ...current.defaults, fps: Math.max(1, Number(event.currentTarget.value)) } }))} /></dd>
+          <dt>{mode === 'project' ? '新規プロジェクトの初期フレーム数' : '初期フレーム数'}</dt>
+          <dd><input aria-label="初期フレーム数" className="numberInput" type="number" min="1" value={template.defaults.durationFrames} onChange={event => {
             const durationFrames = Math.max(1, Number(event.currentTarget.value))
             updateTemplateDraft(current => ({
               ...current,
               defaults: { ...current.defaults, durationFrames },
-              regions: current.regions.map(region => region.grid ? { ...region, grid: { ...region.grid, rowCount: durationFrames, frameEnd: (region.grid.frameStart ?? current.defaults.frameOrigin) + durationFrames - 1 } } : region),
             }))
           }} /></dd>
-          <dt>セル列数（ACTION/CELL共通）</dt>
-          <dd><input className="numberInput" type="number" min="1" value={template.defaults.paperTracks.length} onChange={event => {
+          <dt>{mode === 'project' ? '新規プロジェクトの初期セル列数（ACTION/CELL共通）' : 'セル列数（ACTION/CELL共通）'}</dt>
+          <dd><input aria-label="セル列数（ACTION/CELL共通）" className="numberInput" type="number" min="1" value={template.defaults.paperTracks.length} onChange={event => {
             const count = Math.max(1, Number(event.currentTarget.value))
             updateTemplateDraft(current => {
               const paperTracks = resizePaperTrackLabels(current.defaults.paperTracks, count)
@@ -942,24 +1077,24 @@ export function TemplateWorkspace({
         <>
       <dt>{uiText.template.pageFormat}</dt>
       <dd>
-        <input value={template.page.format ?? ''} onChange={event => updateTemplatePage({ format: event.currentTarget.value || undefined })} />
+        <input aria-label={uiText.template.pageFormat} value={template.page.format ?? ''} onChange={event => updateTemplatePage({ format: event.currentTarget.value || undefined })} />
       </dd>
       <dt>{uiText.template.widthPx}</dt>
       <dd>
-        <input className="numberInput" type="number" min="1" value={template.page.widthPx} onChange={event => updateTemplatePage({ widthPx: Math.max(1, Number(event.currentTarget.value)) })} />
+        <input aria-label={uiText.template.widthPx} className="numberInput" type="number" min="1" value={template.page.widthPx} onChange={event => updateTemplatePage({ widthPx: Math.max(1, Number(event.currentTarget.value)) })} />
       </dd>
       <dt>{uiText.template.heightPx}</dt>
       <dd>
-        <input className="numberInput" type="number" min="1" value={template.page.heightPx} onChange={event => updateTemplatePage({ heightPx: Math.max(1, Number(event.currentTarget.value)) })} />
+        <input aria-label={uiText.template.heightPx} className="numberInput" type="number" min="1" value={template.page.heightPx} onChange={event => updateTemplatePage({ heightPx: Math.max(1, Number(event.currentTarget.value)) })} />
       </dd>
       <dt>{uiText.template.dpi}</dt>
       <dd>
-        <input className="numberInput" type="number" min="1" value={template.page.dpi ?? ''} onChange={event => updateTemplatePage({ dpi: event.currentTarget.value ? Math.max(1, Number(event.currentTarget.value)) : undefined })} />
+        <input aria-label={uiText.template.dpi} className="numberInput" type="number" min="1" value={template.page.dpi ?? ''} onChange={event => updateTemplatePage({ dpi: event.currentTarget.value ? Math.max(1, Number(event.currentTarget.value)) : undefined })} />
       </dd>
       <dt>{uiText.template.physicalPage}</dt>
       <dd>
         <label className="compactControl">
-          <input type="checkbox" checked={template.page.isPhysical ?? false} onChange={event => updateTemplatePage({ isPhysical: event.currentTarget.checked })} />
+          <input aria-label={uiText.template.physicalPage} type="checkbox" checked={template.page.isPhysical ?? false} onChange={event => updateTemplatePage({ isPhysical: event.currentTarget.checked })} />
           {template.page.isPhysical ? uiText.app.loaded : uiText.app.none}
         </label>
       </dd>
@@ -1010,125 +1145,189 @@ export function TemplateWorkspace({
     </dl>
   )
 
-  const selectedRegionControls = (
-    <dl className="templateMeta">
-      <dt>{uiText.template.selectedRegion}</dt>
-      <dd>{isCalibrationTargetSelected ? uiText.template.calibrationTarget : selectedRegion?.label ?? '-'}</dd>
-      {selectedRegion && (
-        <>
-          <dt>{uiText.template.regionActions}</dt>
-          <dd className="templateRegionDeleteActions">
-            <button
-              type="button"
-              className="templateRegionDeleteButton"
-              disabled={template.regions.length <= 1}
-              title={template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionTitle(selectedRegion.label)}
-              onClick={() => deleteRegion(selectedRegion.regionId)}
-            >
-              {uiText.template.deleteSelectedRegion}
-            </button>
-            <span className="muted">{template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionHint}</span>
-          </dd>
-          <dt>{uiText.template.selectedRegionRect}</dt>
-          <dd className="templateCalibrationTargetFields templateSelectedRegionFields">
-            {(['x', 'y', 'w', 'h'] as const).map(key => (
-              <label key={key}>
-                <span>{key} px</span>
-                <input
-                  aria-label={`${uiText.template.selectedRegion} ${key} px`}
-                  className="numberInput"
-                  type="number"
-                  step="1"
-                  disabled={selectedRegionPositionLocked}
-                  title={selectedRegionPositionLocked ? '位置固定を解除すると編集できます' : undefined}
-                  value={templateEditorRectPixelValue(selectedRegion.rect, key, template.page)}
-                  onChange={event => updateRegionRectPixel(selectedRegion.regionId, key, Number(event.currentTarget.value))}
-                />
-              </label>
-            ))}
-          </dd>
-        </>
-      )}
-      {selectedRegion && selectedRegionHasTextStyle && (
-        <>
-          <dt>文字レイアウト</dt>
-          <dd>
-            <TemplateTextMetricControls
-              template={template}
-              style={selectedRegion.textStyle}
-              defaults={{ fontSizePx: 22, minFontSizePx: 10, lineHeightPx: 22 * 1.15, paddingPx: 8 }}
-              onChange={(_key, textStyle) => updateRegion(selectedRegion.regionId, { textStyle })}
-            />
-            {selectedRegion.type === 'metadata-field' && (
-              <div className="templateCalibrationTargetFields templateTextOverflowFields">
-                <label>
-                  <span>横方向の欄外表示</span>
-                  <select
-                    value={selectedRegion.textStyle?.overflowX ?? 'clip'}
-                    onChange={event => updateRegion(selectedRegion.regionId, {
-                      textStyle: { ...(selectedRegion.textStyle ?? {}), overflowX: event.currentTarget.value as 'clip' | 'visible' },
-                    })}
-                  >
-                    <option value="clip">欄内で切る</option>
-                    <option value="visible">ページ内へ許可</option>
-                  </select>
-                </label>
-                <label>
-                  <span>縦方向の欄外表示</span>
-                  <select
-                    value={selectedRegion.textStyle?.overflowY ?? 'clip'}
-                    onChange={event => updateRegion(selectedRegion.regionId, {
-                      textStyle: { ...(selectedRegion.textStyle ?? {}), overflowY: event.currentTarget.value as 'clip' | 'visible' },
-                    })}
-                  >
-                    <option value="clip">欄内で切る</option>
-                    <option value="visible">ページ内へ許可</option>
-                  </select>
-                </label>
+  const selectedRegionControls = isCalibrationTargetSelected ? (
+    <section className="templateRegionDetailEmpty">
+      <button type="button" className="templateRegionBackButton" onClick={() => setDetailTab('table')}>← 領域一覧へ</button>
+      <h3>{uiText.template.calibrationTarget}</h3>
+      <p>補正基準枠は「基本設定」で編集します。</p>
+      <button type="button" onClick={() => setDetailTab('template')}>基本設定を開く</button>
+    </section>
+  ) : selectedRegion ? (
+    <div className="templateRegionDetail">
+      <button type="button" className="templateRegionBackButton" onClick={() => setDetailTab('table')}>← 領域一覧へ</button>
+      <header className="templateRegionDetailHeader">
+        <div>
+          <span>{templateRegionKindLabel(selectedRegion)}</span>
+          <h3>{templateRegionAuthoringName(selectedRegion)}</h3>
+        </div>
+        <p>{templateRegionPurposeText(selectedRegion)}</p>
+      </header>
+
+      <section className="templateRegionDetailSection" aria-labelledby="template-region-identity-heading">
+        <h3 id="template-region-identity-heading">役割と名前</h3>
+        <label className="templateInspectorField templateInspectorFieldWide">
+          <span>編集画面での名前</span>
+          <input
+            aria-label={`${templateRegionAuthoringName(selectedRegion)}の編集画面での名前`}
+            placeholder={selectedRegion.label || selectedRegion.regionId}
+            value={selectedRegion.authoringName ?? ''}
+            onChange={event => updateRegion(selectedRegion.regionId, { authoringName: event.currentTarget.value || undefined })}
+          />
+          <small>{templateRegionManagementNameHint(selectedRegion)}</small>
+        </label>
+        <dl className="templateRegionMeaningSummary">
+          <dt>種類</dt>
+          <dd>{templateRegionKindLabel(selectedRegion)}</dd>
+          <dt>使われ方</dt>
+          <dd>{templateRegionUsageText(selectedRegion)}</dd>
+        </dl>
+      </section>
+
+      {(selectedFormLabelCells.length > 0 || selectedRegion.grid || selectedRegion.form?.projection) && (
+        <section className="templateRegionDetailSection" aria-labelledby="template-region-visible-content-heading">
+          <h3 id="template-region-visible-content-heading">シート上の表示</h3>
+          {selectedFormLabelCells.length > 0 && (
+            <fieldset className="templateRegionFieldGroup">
+              <legend>表示文字</legend>
+              <p>ここで入力した文字が、そのままシート上へ表示されます。</p>
+              <div className="templateRegionVisibleLabelList">
+                {selectedFormLabelCells.map(cell => (
+                  <label key={cell.cellId} className="templateInspectorField">
+                    <span>{cell.row + 1}行目・{cell.column + 1}列目</span>
+                    <input
+                      aria-label={`${cell.label ?? cell.cellId}の表示文字`}
+                      value={cell.label ?? ''}
+                      onChange={event => updateRegionFormCell(selectedRegion.regionId, cell.cellId, { label: event.currentTarget.value })}
+                    />
+                  </label>
+                ))}
               </div>
-            )}
-          </dd>
-        </>
+            </fieldset>
+          )}
+          {selectedRegion.grid && selectedRegion.type !== 'decorative' && (
+            <fieldset className="templateRegionFieldGroup">
+              <legend>タイムラインの見出し</legend>
+              <label className="templateInspectorField templateInspectorFieldWide">
+                <span>この領域の見出し文字</span>
+                <input
+                  aria-label={`${templateRegionAuthoringName(selectedRegion)}の見出し文字`}
+                  placeholder={gridHeaderLabelForRole(template, selectedRegion.grid.role)}
+                  value={selectedRegion.grid.header?.label ?? ''}
+                  onChange={event => updateRegionGridHeaderLabel(selectedRegion.regionId, event.currentTarget.value || undefined)}
+                />
+                <small>空欄では「見た目」にある共通見出しを使います。同じ種類でも、この領域だけ別の文字にできます。</small>
+              </label>
+              <label className="compactControl">
+                <input
+                  type="checkbox"
+                  checked={selectedRegion.grid.header?.showLabel !== false}
+                  onChange={event => updateRegionGrid(selectedRegion.regionId, {
+                    header: { ...(selectedRegion.grid?.header ?? {}), showLabel: event.currentTarget.checked },
+                  })}
+                />
+                見出し文字を表示
+              </label>
+            </fieldset>
+          )}
+          {selectedRegion.form?.projection && (
+            <fieldset className="templateRegionFieldGroup">
+              <legend>集計表の見出し</legend>
+              <div className="templateRegionVisibleLabelList">
+                <label className="templateInspectorField">
+                  <span>名前列</span>
+                  <input
+                    aria-label="集計表の名前列見出し"
+                    value={selectedRegion.form.projection.nameLabel ?? ''}
+                    onChange={event => updateRegion(selectedRegion.regionId, {
+                      form: { ...selectedRegion.form!, projection: { ...selectedRegion.form!.projection!, nameLabel: event.currentTarget.value } },
+                    })}
+                  />
+                </label>
+                <label className="templateInspectorField">
+                  <span>合計列</span>
+                  <input
+                    aria-label="集計表の合計列見出し"
+                    value={selectedRegion.form.projection.totalLabel ?? ''}
+                    onChange={event => updateRegion(selectedRegion.regionId, {
+                      form: { ...selectedRegion.form!, projection: { ...selectedRegion.form!.projection!, totalLabel: event.currentTarget.value } },
+                    })}
+                  />
+                </label>
+                {selectedRegion.form.projection.columns.map(column => (
+                  <label key={column.columnId} className="templateInspectorField">
+                    <span>{column.columnId}</span>
+                    <input
+                      aria-label={`${column.label}の集計見出し`}
+                      value={column.label}
+                      onChange={event => updateRegion(selectedRegion.regionId, {
+                        form: {
+                          ...selectedRegion.form!,
+                          projection: {
+                            ...selectedRegion.form!.projection!,
+                            columns: selectedRegion.form!.projection!.columns.map(candidate => candidate.columnId === column.columnId
+                              ? { ...candidate, label: event.currentTarget.value }
+                              : candidate),
+                          },
+                        },
+                      })}
+                    />
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+        </section>
       )}
-      {selectedRegion && selectedFormFieldCell && (
-        <>
-          <dt>入力欄</dt>
-          <dd className="detailStack templateFormFieldControls">
+
+      {selectedRegion.binding && (
+        <TemplateRegionBindingEditor
+          region={selectedRegion}
+          onChange={binding => updateRegionBinding(selectedRegion.regionId, binding)}
+        />
+      )}
+
+      {selectedFormInputCell && (
+        <section className="templateRegionDetailSection" aria-labelledby="template-region-input-heading">
+          <h3 id="template-region-input-heading">入力・注釈欄</h3>
+          <div className="detailStack templateFormFieldControls">
             <div className="templateCalibrationTargetFields">
               <label>
-                <span>欄</span>
+                <span>編集する欄</span>
                 <select
-                  value={selectedFormFieldCell.cellId}
+                  aria-label="編集する入力・注釈欄"
+                  value={selectedFormInputCell.cellId}
                   onChange={event => setSelectedFormCellId(event.currentTarget.value)}
                 >
-                  {selectedFormFieldCells.map(cell => (
+                  {selectedFormInputCells.map(cell => (
                     <option key={cell.cellId} value={cell.cellId}>
-                      {template.fields?.find(field => field.fieldId === cell.fieldId)?.label ?? cell.fieldId ?? cell.cellId}
+                      {template.fields?.find(field => field.fieldId === cell.fieldId)?.label ?? cell.label ?? (cell.kind === 'annotation' ? '注釈欄' : cell.fieldId) ?? cell.cellId}
                     </option>
                   ))}
                 </select>
               </label>
-              <label>
-                <span>編集方法</span>
-                <select
-                  value={selectedFormFieldCell.editPresentation ?? 'popover'}
-                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
-                    editPresentation: event.currentTarget.value as 'inline' | 'popover',
-                  })}
-                >
-                  <option value="inline">その場で入力</option>
-                  <option value="popover">ポップアップ</option>
-                </select>
-              </label>
+              {selectedFormInputCell.kind === 'field' && (
+                <label>
+                  <span>編集方法</span>
+                  <select
+                    value={selectedFormInputCell.editPresentation ?? 'popover'}
+                    onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormInputCell.cellId, {
+                      editPresentation: event.currentTarget.value as 'inline' | 'popover',
+                    })}
+                  >
+                    <option value="inline">その場で入力</option>
+                    <option value="popover">ポップアップ</option>
+                  </select>
+                </label>
+              )}
               <label>
                 <span>メモ対象</span>
                 <select
                   aria-label="メモ対象の単位"
-                  value={selectedFormFieldCell.memoTarget?.scope ?? 'cell'}
+                  value={selectedFormInputCell.memoTarget?.scope ?? 'cell'}
                   onChange={event => {
                     const scope = event.currentTarget.value as 'cell' | 'region' | 'group' | 'none'
-                    const current = selectedFormFieldCell.memoTarget
-                    updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                    const current = selectedFormInputCell.memoTarget
+                    updateRegionFormCell(selectedRegion.regionId, selectedFormInputCell.cellId, {
                       memoTarget: scope === 'group'
                         ? {
                             scope,
@@ -1145,161 +1344,329 @@ export function TemplateWorkspace({
                   }}
                 >
                   <option value="cell">この欄</option>
-                  <option value="region">表全体</option>
+                  <option value="region">領域全体</option>
                   <option value="group">同じグループ</option>
                   <option value="none">メモ対象外</option>
                 </select>
               </label>
             </div>
-            {selectedFormFieldCell.memoTarget?.scope === 'group' && (
+            {selectedFormInputCell.kind === 'annotation' && (
+              <p className="templateRegionDerivedNotice">この欄は手書き注釈の対象範囲です。文字入力方法と文字サイズは使用しません。</p>
+            )}
+            {selectedFormFieldDefinition && (
+              <fieldset className="templateRegionFieldGroup">
+                <legend>入力項目</legend>
+                <div className="templateRegionInputDefinitionFields">
+                  <label className="templateInspectorField templateInspectorFieldWide">
+                    <span>入力画面での項目名</span>
+                    <input
+                      aria-label={`${selectedFormFieldDefinition.label}の入力項目名`}
+                      value={selectedFormFieldDefinition.label}
+                      onChange={event => updateFieldDefinition(selectedFormFieldDefinition.fieldId, { label: event.currentTarget.value })}
+                    />
+                    <small>入力画面やポップアップで使う名前です。シート上の固定見出しとは別に設定できます。</small>
+                  </label>
+                  <label className="templateInspectorField">
+                    <span>値の種類</span>
+                    <select
+                      aria-label={`${selectedFormFieldDefinition.label}の値の種類`}
+                      disabled={selectedFormFieldSemanticsLockReason !== null}
+                      title={selectedFormFieldSemanticsLockReason ?? undefined}
+                      value={selectedFormFieldDefinition.valueType}
+                      onChange={event => updateFieldDefinition(selectedFormFieldDefinition.fieldId, {
+                        valueType: event.currentTarget.value as typeof selectedFormFieldDefinition.valueType,
+                        defaultValue: undefined,
+                      })}
+                    >
+                      <option value="text">1行テキスト</option>
+                      <option value="multiline">複数行テキスト</option>
+                      <option value="number">数値</option>
+                      <option value="boolean">オン・オフ</option>
+                      <option value="choice">選択肢</option>
+                      <option value="date">日付</option>
+                      <option value="duration">尺</option>
+                    </select>
+                  </label>
+                  <label className="templateInspectorField">
+                    <span>値を共有する範囲</span>
+                    <select
+                      aria-label={`${selectedFormFieldDefinition.label}の共有範囲`}
+                      disabled={selectedFormFieldSemanticsLockReason !== null}
+                      title={selectedFormFieldSemanticsLockReason ?? undefined}
+                      value={selectedFormFieldDefinition.scope}
+                      onChange={event => updateFieldDefinition(selectedFormFieldDefinition.fieldId, {
+                        scope: event.currentTarget.value as typeof selectedFormFieldDefinition.scope,
+                      })}
+                    >
+                      <option value="production">作品全体</option>
+                      <option value="cut">カット全体</option>
+                      <option value="revision">このシート版</option>
+                      <option value="page">ページごと</option>
+                    </select>
+                  </label>
+                </div>
+                {selectedFormFieldSemanticsLockReason && (
+                  <p className="templateRegionDerivedNotice">{selectedFormFieldSemanticsLockReason}</p>
+                )}
+                {selectedFormFieldReferenceCount > 1 && (
+                  <p className="templateRegionDerivedNotice">この入力項目は{selectedFormFieldReferenceCount}個の欄で共有されています。項目名・種類・共有範囲の変更は、同じ項目を使うすべての欄へ反映されます。</p>
+                )}
+                {selectedFormFieldDefinition.valueType === 'choice' && (
+                  <label className="templateInspectorField templateInspectorFieldWide">
+                    <span>選択肢（1行に1つ）</span>
+                    <textarea
+                      aria-label={`${selectedFormFieldDefinition.label}の選択肢`}
+                      rows={Math.max(3, selectedFormFieldDefinition.choices?.length ?? 0)}
+                      value={(selectedFormFieldDefinition.choices ?? []).join('\n')}
+                      onChange={event => {
+                        const choices = templateFieldChoicesFromText(event.currentTarget.value)
+                        updateFieldDefinition(selectedFormFieldDefinition.fieldId, {
+                          choices,
+                          ...(
+                            typeof selectedFormFieldDefinition.defaultValue === 'string'
+                              && choices.includes(selectedFormFieldDefinition.defaultValue)
+                              ? {}
+                              : { defaultValue: undefined }
+                          ),
+                        })
+                      }}
+                    />
+                  </label>
+                )}
+                {!selectedFormFieldDefinition.builtinBinding && (
+                  <TemplateFieldDefaultValueControl
+                    definition={selectedFormFieldDefinition}
+                    onChange={defaultValue => updateFieldDefinition(selectedFormFieldDefinition.fieldId, { defaultValue })}
+                  />
+                )}
+                {selectedFormFieldDefinition.builtinBinding && (
+                  <p className="muted">連動先: 標準のカット情報「{selectedFormFieldDefinition.builtinBinding.field}」</p>
+                )}
+              </fieldset>
+            )}
+            {selectedFormInputCell.memoTarget?.scope === 'group' && (
               <label className="compactControl">
                 <span>メモ対象グループID</span>
                 <input
                   aria-label="メモ対象グループID"
-                  value={selectedFormFieldCell.memoTarget.targetId ?? ''}
-                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
-                    memoTarget: {
-                      ...selectedFormFieldCell.memoTarget!,
-                      scope: 'group',
-                      targetId: event.currentTarget.value,
-                    },
+                  value={selectedFormInputCell.memoTarget.targetId ?? ''}
+                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormInputCell.cellId, {
+                    memoTarget: { ...selectedFormInputCell.memoTarget!, scope: 'group', targetId: event.currentTarget.value },
                   })}
                 />
               </label>
             )}
-            {selectedFormFieldCell.memoTarget?.scope !== 'none' && (
-              <>
-                <label className="compactControl">
+            {selectedFormInputCell.memoTarget?.scope !== 'none' && (
+              <div className="templateRegionInputDefinitionFields">
+                <label className="templateInspectorField">
                   <span>テンプレート間追従ID（任意）</span>
                   <input
                     aria-label="メモ対象のテンプレート間追従ID"
-                    value={selectedFormFieldCell.memoTarget?.logicalTargetId ?? ''}
-                    onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                    value={selectedFormInputCell.memoTarget?.logicalTargetId ?? ''}
+                    onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormInputCell.cellId, {
                       memoTarget: {
-                        scope: selectedFormFieldCell.memoTarget?.scope ?? 'cell',
-                        ...(selectedFormFieldCell.memoTarget?.targetId ? { targetId: selectedFormFieldCell.memoTarget.targetId } : {}),
+                        scope: selectedFormInputCell.memoTarget?.scope ?? 'cell',
+                        ...(selectedFormInputCell.memoTarget?.targetId ? { targetId: selectedFormInputCell.memoTarget.targetId } : {}),
                         ...(event.currentTarget.value ? { logicalTargetId: event.currentTarget.value } : {}),
-                        ...(selectedFormFieldCell.memoTarget?.label ? { label: selectedFormFieldCell.memoTarget.label } : {}),
+                        ...(selectedFormInputCell.memoTarget?.label ? { label: selectedFormInputCell.memoTarget.label } : {}),
                       },
                     })}
                   />
                 </label>
-                <label className="compactControl">
+                <label className="templateInspectorField">
                   <span>メモ対象名（任意）</span>
                   <input
                     aria-label="メモ対象名"
-                    placeholder={selectedFormFieldDefinition?.label ?? selectedFormFieldCell.fieldId ?? selectedFormFieldCell.cellId}
-                    value={selectedFormFieldCell.memoTarget?.label ?? ''}
-                    onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
+                    placeholder={selectedFormFieldDefinition?.label ?? selectedFormInputCell.fieldId ?? selectedFormInputCell.cellId}
+                    value={selectedFormInputCell.memoTarget?.label ?? ''}
+                    onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormInputCell.cellId, {
                       memoTarget: {
-                        scope: selectedFormFieldCell.memoTarget?.scope ?? 'cell',
-                        ...(selectedFormFieldCell.memoTarget?.targetId ? { targetId: selectedFormFieldCell.memoTarget.targetId } : {}),
-                        ...(selectedFormFieldCell.memoTarget?.logicalTargetId ? { logicalTargetId: selectedFormFieldCell.memoTarget.logicalTargetId } : {}),
+                        scope: selectedFormInputCell.memoTarget?.scope ?? 'cell',
+                        ...(selectedFormInputCell.memoTarget?.targetId ? { targetId: selectedFormInputCell.memoTarget.targetId } : {}),
+                        ...(selectedFormInputCell.memoTarget?.logicalTargetId ? { logicalTargetId: selectedFormInputCell.memoTarget.logicalTargetId } : {}),
                         ...(event.currentTarget.value ? { label: event.currentTarget.value } : {}),
                       },
                     })}
                   />
                 </label>
-              </>
+              </div>
             )}
-            <TemplateTextMetricControls
-              template={template}
-              style={selectedFormFieldCell.textStyle}
-              defaults={{ fontSizePx: 13, minFontSizePx: 7, lineHeightPx: 13 * 1.15, paddingPx: 2 }}
-              onChange={(_key, textStyle) => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, { textStyle })}
-            />
+            {selectedFormInputCell.kind === 'field' && (
+              <TemplateTextMetricControls
+                template={template}
+                style={selectedFormInputCell.textStyle}
+                defaults={{ fontSizePx: 13, minFontSizePx: 7, lineHeightPx: 13 * 1.15, paddingPx: 2 }}
+                onChange={(_key, textStyle) => updateRegionFormCell(selectedRegion.regionId, selectedFormInputCell.cellId, { textStyle })}
+              />
+            )}
             {selectedFormFieldDefinition?.valueType === 'multiline' && (
               <label className="compactControl">
                 <input
                   type="checkbox"
-                  checked={selectedFormFieldCell.textStyle?.shrinkToFit !== false}
-                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormFieldCell.cellId, {
-                    textStyle: { ...(selectedFormFieldCell.textStyle ?? {}), shrinkToFit: event.currentTarget.checked },
+                  checked={selectedFormInputCell.textStyle?.shrinkToFit !== false}
+                  onChange={event => updateRegionFormCell(selectedRegion.regionId, selectedFormInputCell.cellId, {
+                    textStyle: { ...(selectedFormInputCell.textStyle ?? {}), shrinkToFit: event.currentTarget.checked },
                   })}
                 />
                 欄内に収まる範囲で文字を自動縮小
               </label>
             )}
-          </dd>
-        </>
+          </div>
+        </section>
       )}
-      {selectedDecorativeGrid && (
-        <>
-          <dt>補助罫線</dt>
-          <dd className="detailStack templateDecorativeGridControls">
-            <div className="templateCalibrationTargetFields">
-              <label>
-                <span>行数</span>
+
+      {selectedRegion.grid && selectedRegion.type !== 'decorative' && (
+        <section className="templateRegionDetailSection" aria-labelledby="template-region-grid-heading">
+          <h3 id="template-region-grid-heading">フレームと列</h3>
+          {selectedRegion.grid.frameProjection?.source === 'logical-frames' ? (
+            <p className="templateRegionDerivedNotice">開始フレームと行数は、テンプレート全体の初期フレーム数から自動で決まります。</p>
+          ) : (
+            <div className="templateRegionGridFields">
+              <label className="templateInspectorField">
+                <span>{uiText.template.headers.frameStart}</span>
                 <input
+                  aria-label={`${templateRegionAuthoringName(selectedRegion)}の${uiText.template.headers.frameStart}`}
+                  className="numberInput"
+                  type="number"
+                  value={selectedRegion.grid.frameStart ?? template.defaults.frameOrigin}
+                  onChange={event => updateRegionFrameRange(selectedRegion.regionId, { frameStart: Number(event.currentTarget.value) })}
+                />
+              </label>
+              <label className="templateInspectorField">
+                <span>{uiText.template.headers.rows}</span>
+                <input
+                  aria-label={`${templateRegionAuthoringName(selectedRegion)}の${uiText.template.headers.rows}`}
                   className="numberInput"
                   type="number"
                   min="1"
-                  value={selectedDecorativeGrid.grid.rowCount}
-                  onChange={event => updateRegionGrid(selectedDecorativeGrid.regionId, { rowCount: Math.max(1, Math.round(Number(event.currentTarget.value))) })}
+                  step="1"
+                  value={selectedRegion.grid.rowCount}
+                  onChange={event => updateRegionFrameRange(selectedRegion.regionId, { rowCount: Number(event.currentTarget.value) })}
                 />
               </label>
-              <label>
-                <span>列数</span>
-                <input
-                  className="numberInput"
-                  type="number"
-                  min="1"
-                  max="64"
-                  value={selectedDecorativeGrid.grid.columns.length}
-                  onChange={event => updateRegionColumnCount(selectedDecorativeGrid.regionId, Number(event.currentTarget.value))}
-                />
-              </label>
-              <label>
-                <span>横罫線</span>
-                <select
-                  value={decorativeGridAxisPattern(selectedDecorativeGrid, 'row')}
-                  onChange={event => updateDecorativeGridAxisPattern(selectedDecorativeGrid.regionId, 'row', event.currentTarget.value as SheetTemplateLinePattern | 'none')}
-                >
-                  {decorativeGridPatternOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>縦罫線</span>
-                <select
-                  value={decorativeGridAxisPattern(selectedDecorativeGrid, 'column')}
-                  onChange={event => updateDecorativeGridAxisPattern(selectedDecorativeGrid.regionId, 'column', event.currentTarget.value as SheetTemplateLinePattern | 'none')}
-                >
-                  {decorativeGridPatternOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>線幅 px</span>
-                <input
-                  className="numberInput"
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={decorativeGridSharedLineStyle(selectedDecorativeGrid).widthPx ?? 1}
-                  onChange={event => updateDecorativeGridLineStyle(selectedDecorativeGrid.regionId, { widthPx: Math.max(0.1, Number(event.currentTarget.value)) })}
-                />
-              </label>
-              <label>
-                <span>線色</span>
-                <input
-                  type="color"
-                  value={decorativeGridSharedLineStyle(selectedDecorativeGrid).color ?? '#2f3430'}
-                  onChange={event => updateDecorativeGridLineStyle(selectedDecorativeGrid.regionId, { color: event.currentTarget.value })}
-                />
-              </label>
+              <span className="templateRegionFrameRangeReadout">
+                終了F: {(selectedRegion.grid.frameStart ?? template.defaults.frameOrigin) + selectedRegion.grid.rowCount - 1}
+              </span>
             </div>
-            <label className="compactControl">
-              <input
-                type="checkbox"
-                checked={decorativeGridHasOuterBorder(selectedDecorativeGrid)}
-                onChange={event => updateDecorativeGridOuterBorder(selectedDecorativeGrid.regionId, event.currentTarget.checked)}
-              />
-              外枠を描画
-            </label>
-            <p className="muted">印刷・画像出力にだけ使われ、シート入力や素材ドロップは受け付けません。</p>
-          </dd>
-        </>
+          )}
+          <label className="templateInspectorField">
+            <span>{isDigitalTemplate && (selectedRegion.grid.role === 'action' || selectedRegion.grid.role === 'cell') ? '共有セル列数' : uiText.template.headers.columns}</span>
+            <input
+              aria-label={isDigitalTemplate && (selectedRegion.grid.role === 'action' || selectedRegion.grid.role === 'cell')
+                ? `${gridRoleLabel(selectedRegion.grid.role)}の共有セル列数`
+                : `${templateRegionAuthoringName(selectedRegion)}の列数`}
+              className="numberInput"
+              type="number"
+              min="1"
+              value={isDigitalTemplate && (selectedRegion.grid.role === 'action' || selectedRegion.grid.role === 'cell')
+                ? template.defaults.paperTracks.length
+                : selectedRegion.grid.columns.length}
+              onChange={event => updateRegionColumnCount(selectedRegion.regionId, Number(event.currentTarget.value))}
+            />
+          </label>
+          {(selectedRegion.grid.role === 'sound' || selectedRegion.grid.role === 'camera') && (
+            <fieldset className="templateRegionFieldGroup">
+              <legend>新しいプロジェクトの初期列名</legend>
+              <div className="templateRegionVisibleLabelList">
+                {templateTimelineLaneDefinitions(template, selectedRegion.grid.role).map((lane, index) => (
+                  <label key={lane.laneId} className="templateInspectorField">
+                    <span>{index + 1}列目</span>
+                    <input
+                      aria-label={`${gridRoleLabel(selectedRegion.grid!.role)} ${index + 1}列目の初期名`}
+                      value={lane.label}
+                      onChange={event => updateTimelineLaneLabel(selectedRegion.grid!.role as TemplateTimelineLaneRole, lane.laneId, event.currentTarget.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+        </section>
       )}
-    </dl>
+
+      {selectedDecorativeGrid && (
+        <section className="templateRegionDetailSection" aria-labelledby="template-region-decoration-heading">
+          <h3 id="template-region-decoration-heading">補助罫線</h3>
+          <div className="templateCalibrationTargetFields">
+            <label><span>行数</span><input className="numberInput" type="number" min="1" value={selectedDecorativeGrid.grid.rowCount} onChange={event => updateRegionGrid(selectedDecorativeGrid.regionId, { rowCount: Math.max(1, Math.round(Number(event.currentTarget.value))) })} /></label>
+            <label><span>列数</span><input className="numberInput" type="number" min="1" max="64" value={selectedDecorativeGrid.grid.columns.length} onChange={event => updateRegionColumnCount(selectedDecorativeGrid.regionId, Number(event.currentTarget.value))} /></label>
+            <label><span>横罫線</span><select value={decorativeGridAxisPattern(selectedDecorativeGrid, 'row')} onChange={event => updateDecorativeGridAxisPattern(selectedDecorativeGrid.regionId, 'row', event.currentTarget.value as SheetTemplateLinePattern | 'none')}>{decorativeGridPatternOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label><span>縦罫線</span><select value={decorativeGridAxisPattern(selectedDecorativeGrid, 'column')} onChange={event => updateDecorativeGridAxisPattern(selectedDecorativeGrid.regionId, 'column', event.currentTarget.value as SheetTemplateLinePattern | 'none')}>{decorativeGridPatternOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label><span>線幅 px</span><input className="numberInput" type="number" min="0.1" step="0.1" value={decorativeGridSharedLineStyle(selectedDecorativeGrid).widthPx ?? 1} onChange={event => updateDecorativeGridLineStyle(selectedDecorativeGrid.regionId, { widthPx: Math.max(0.1, Number(event.currentTarget.value)) })} /></label>
+            <label><span>線色</span><input type="color" value={decorativeGridSharedLineStyle(selectedDecorativeGrid).color ?? '#2f3430'} onChange={event => updateDecorativeGridLineStyle(selectedDecorativeGrid.regionId, { color: event.currentTarget.value })} /></label>
+          </div>
+          <label className="compactControl"><input type="checkbox" checked={decorativeGridHasOuterBorder(selectedDecorativeGrid)} onChange={event => updateDecorativeGridOuterBorder(selectedDecorativeGrid.regionId, event.currentTarget.checked)} />外枠を描画</label>
+          <p className="muted">印刷・画像出力にだけ使われ、シート入力や素材ドロップは受け付けません。</p>
+        </section>
+      )}
+
+      <section className="templateRegionDetailSection" aria-labelledby="template-region-placement-heading">
+        <h3 id="template-region-placement-heading">配置と大きさ</h3>
+        <p>{templateRegionPlacementDescription(template, selectedRegion)}</p>
+        {selectedRegionPositionLocked && <p className="templateRegionDerivedNotice">左の領域一覧で位置を一時固定しています。固定を解除すると編集できます。</p>}
+        <div className="templateCalibrationTargetFields templateSelectedRegionFields">
+          {(['x', 'y', 'w', 'h'] as const).map(key => {
+            const placementMode = templateRegionPlacementMode(template, selectedRegion)
+            const derived = placementMode === 'horizontal-flow' && (key === 'x' || key === 'w')
+              || placementMode === 'horizontal-span' && key === 'w'
+            return (
+              <label key={key}>
+                <span>{key.toUpperCase()} px{derived ? '（自動）' : ''}</span>
+                <input
+                  aria-label={`${uiText.template.selectedRegion} ${key} px`}
+                  className="numberInput"
+                  type="number"
+                  step="1"
+                  disabled={selectedRegionPositionLocked || derived}
+                  title={derived ? templateRegionPlacementDescription(template, selectedRegion) : selectedRegionPositionLocked ? '位置の一時固定を解除すると編集できます' : undefined}
+                  value={templateEditorRectPixelValue(selectedRegion.rect, key, template.page)}
+                  onChange={event => updateRegionRectPixel(selectedRegion.regionId, key, Number(event.currentTarget.value))}
+                />
+              </label>
+            )
+          })}
+        </div>
+      </section>
+
+      {selectedRegionHasTextStyle && (
+        <section className="templateRegionDetailSection" aria-labelledby="template-region-text-heading">
+          <h3 id="template-region-text-heading">文字の見た目</h3>
+          <TemplateTextMetricControls
+            template={template}
+            style={selectedRegion.textStyle}
+            defaults={{ fontSizePx: 22, minFontSizePx: 10, lineHeightPx: 22 * 1.15, paddingPx: 8 }}
+            onChange={(_key, textStyle) => updateRegion(selectedRegion.regionId, { textStyle })}
+          />
+          {selectedRegion.type === 'metadata-field' && (
+            <div className="templateCalibrationTargetFields templateTextOverflowFields">
+              <label><span>横方向の欄外表示</span><select value={selectedRegion.textStyle?.overflowX ?? 'clip'} onChange={event => updateRegion(selectedRegion.regionId, { textStyle: { ...(selectedRegion.textStyle ?? {}), overflowX: event.currentTarget.value as 'clip' | 'visible' } })}><option value="clip">欄内で切る</option><option value="visible">ページ内へ許可</option></select></label>
+              <label><span>縦方向の欄外表示</span><select value={selectedRegion.textStyle?.overflowY ?? 'clip'} onChange={event => updateRegion(selectedRegion.regionId, { textStyle: { ...(selectedRegion.textStyle ?? {}), overflowY: event.currentTarget.value as 'clip' | 'visible' } })}><option value="clip">欄内で切る</option><option value="visible">ページ内へ許可</option></select></label>
+            </div>
+          )}
+        </section>
+      )}
+
+      <details className="templateRegionAdvancedSettings">
+        <summary>詳細設定</summary>
+        <dl className="templateMeta">
+          <dt>領域ID</dt><dd><code>{selectedRegion.regionId}</code></dd>
+          <dt>機能上の領域ラベル</dt>
+          <dd>
+            <input aria-label="機能上の領域ラベル" value={selectedRegion.label} onChange={event => updateRegion(selectedRegion.regionId, { label: event.currentTarget.value })} />
+            <p className="muted">入力画面、メモ対象、従来テンプレートの見出し既定値に使われます。通常は変更不要です。</p>
+          </dd>
+        </dl>
+        <div className="templateRegionDeleteActions">
+          <button type="button" className="templateRegionDeleteButton" disabled={template.regions.length <= 1} title={template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionTitle(templateRegionAuthoringName(selectedRegion))} onClick={() => deleteRegion(selectedRegion.regionId)}>{uiText.template.deleteSelectedRegion}</button>
+          <span className="muted">{template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionHint}</span>
+        </div>
+      </details>
+    </div>
+  ) : (
+    <section className="templateRegionDetailEmpty">
+      <button type="button" className="templateRegionBackButton" onClick={() => setDetailTab('table')}>← 領域一覧へ</button>
+      <p>左の一覧またはキャンバスで、編集する領域を選んでください。</p>
+    </section>
   )
 
   const referenceImageControls = (
@@ -1429,135 +1796,12 @@ export function TemplateWorkspace({
     </div>
   )
 
-  const regionTable = (
-    <div className="bindingTableWrap templateTableWrap">
-      <table className="bindingTable">
-        <thead>
-          <tr>
-            <th>{uiText.template.headers.region}</th>
-            <th>{uiText.template.headers.role}</th>
-            <th>{uiText.template.headers.metadataField}</th>
-            <th>{uiText.template.headers.fontSize} {textFontUnit}</th>
-            <th>x px</th>
-            <th>y px</th>
-            <th>w px</th>
-            <th>h px</th>
-            <th>{uiText.template.headers.frameStart}</th>
-            <th>{uiText.template.headers.rows}</th>
-            <th>{uiText.template.headers.columns}</th>
-            <th>{uiText.template.headers.usage}</th>
-            <th>{uiText.template.headers.actions}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {template.regions.map(region => (
-            <tr key={region.regionId} className={region.regionId === effectiveSelectedRegionId ? 'selectedTableRow' : ''} onClick={() => setSelectedRegionId(region.regionId)}>
-              <th>
-                <input value={region.label} onChange={event => updateRegion(region.regionId, { label: event.currentTarget.value })} />
-              </th>
-              <td>{region.grid?.role ?? region.type}</td>
-              <td>
-                {(region.binding?.target === 'cut-metadata' || region.binding?.target === 'cut-group') && (
-                  <select
-                    value={metadataBindingOptionId(region.binding) ?? 'cut:title'}
-                    onChange={event => {
-                      const optionId = event.currentTarget.value as MetadataBindingOptionId
-                      const binding = metadataBindingFromOptionId(optionId)
-                      updateRegion(region.regionId, {
-                        binding,
-                        label: metadataBindingOptionLabel(optionId),
-                        usage: binding.target === 'cut-group' ? 'render-only' : 'input',
-                      })
-                    }}
-                  >
-                    {METADATA_BINDING_OPTION_IDS.map(optionId => <option key={optionId} value={optionId}>{metadataBindingOptionLabel(optionId)}</option>)}
-                  </select>
-                )}
-              </td>
-              <td>
-                {(region.binding?.target === 'cut-metadata' || region.binding?.target === 'cut-group') && (
-                  <input
-                    className="numberInput"
-                    type="number"
-                    min="1"
-                    step="0.1"
-                    value={templateTextMetricValue(template, region.textStyle, 'fontSize', 22, 'font')}
-                    onChange={event => updateRegion(region.regionId, {
-                      textStyle: withTemplateTextMetric(template, region.textStyle, 'fontSize', Number(event.currentTarget.value), 'font'),
-                    })}
-                  />
-                )}
-              </td>
-              {(['x', 'y', 'w', 'h'] as const).map(key => (
-                <td key={key}>
-                  <input
-                    className="numberInput"
-                    type="number"
-                    step="1"
-                    disabled={positionLockedRegionIds.has(region.regionId)}
-                    title={positionLockedRegionIds.has(region.regionId) ? '位置固定を解除すると編集できます' : undefined}
-                    value={templateEditorRectPixelValue(region.rect, key, template.page)}
-                    onChange={event => updateRegionRectPixel(region.regionId, key, Number(event.currentTarget.value))}
-                  />
-                </td>
-              ))}
-              <td>
-                {region.grid && (
-                  <input className="numberInput" type="number" value={region.grid.frameStart ?? 1} onChange={event => updateRegionGrid(region.regionId, { frameStart: Number(event.currentTarget.value) })} />
-                )}
-              </td>
-              <td>
-                {region.grid && (
-                  <input
-                    className="numberInput"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={region.grid.rowCount}
-                    onChange={event => updateRegionGrid(region.regionId, { rowCount: Math.max(1, Math.round(Number(event.currentTarget.value))) })}
-                  />
-                )}
-              </td>
-              <td>
-                {region.grid && (
-                  <input
-                    className="numberInput"
-                    type="number"
-                    min="1"
-                    aria-label={isDigitalTemplate && (region.grid.role === 'action' || region.grid.role === 'cell')
-                      ? `${gridRoleLabel(region.grid.role)}の共有セル列数`
-                      : `${region.label}の列数`}
-                    title={isDigitalTemplate && (region.grid.role === 'action' || region.grid.role === 'cell')
-                      ? 'ACTIONとCELLで共有するセル列数'
-                      : undefined}
-                    value={isDigitalTemplate && (region.grid.role === 'action' || region.grid.role === 'cell')
-                      ? template.defaults.paperTracks.length
-                      : region.grid.columns.length}
-                    onChange={event => updateRegionColumnCount(region.regionId, Number(event.currentTarget.value))}
-                  />
-                )}
-              </td>
-              <td>{region.usage}</td>
-              <td>
-                <button
-                  type="button"
-                  className="templateRegionTableDeleteButton"
-                  disabled={template.regions.length <= 1}
-                  title={template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionTitle(region.label)}
-                  aria-label={uiText.template.deleteRegionTitle(region.label)}
-                  onClick={event => {
-                    event.stopPropagation()
-                    deleteRegion(region.regionId)
-                  }}
-                >
-                  {uiText.template.deleteRegion}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+  const regionCollectionEditor = (
+    <TemplateRegionCollectionEditor
+      template={template}
+      selectedRegionId={selectedRegion?.regionId ?? null}
+      onOpenDetails={regionId => { setSelectedRegionId(regionId); setDetailTab('region') }}
+    />
   )
 
   const reviewControls = (
@@ -1593,7 +1837,7 @@ export function TemplateWorkspace({
 
   const navigationItems = template.regions.map(region => ({
     regionId: region.regionId,
-    label: region.label || region.regionId,
+    label: templateRegionAuthoringName(region),
     kind: templateRegionKindLabel(region),
   }))
 
@@ -1650,15 +1894,17 @@ export function TemplateWorkspace({
             <button type="button" onClick={addDecorativeGridRegion}>{uiText.actions.addDecorativeGridRegion}</button>
           </ActionMenu>
         </ToolbarGroup>
-        <ToolbarGroup className="templateProcessToolbarGroup">
-          <span className="toolbarGroupLabel">{uiText.template.processSection}</span>
-          <span className="muted">{uiText.template.processSummary(correctionLayers.length, defaultCorrectionLayer?.label ?? '-')}</span>
-          <Tooltip label={uiText.sheet.processSettingsTitle}>
-            <button type="button" className="processSettingsOpenButton" onClick={() => setProcessSettingsOpen(true)}>
-              {uiText.processSettings.openShort}
-            </button>
-          </Tooltip>
-        </ToolbarGroup>
+        {mode === 'project' && (
+          <ToolbarGroup className="templateProcessToolbarGroup">
+            <span className="toolbarGroupLabel">プロジェクトの工程</span>
+            <span className="muted">テンプレートJSONには含まれません / {uiText.template.processSummary(correctionLayers.length, defaultCorrectionLayer?.label ?? '-')}</span>
+            <Tooltip label={uiText.sheet.processSettingsTitle}>
+              <button type="button" className="processSettingsOpenButton" onClick={() => setProcessSettingsOpen(true)}>
+                {uiText.processSettings.openShort}
+              </button>
+            </Tooltip>
+          </ToolbarGroup>
+        )}
         <ToolbarGroup>
           <label className="compactControl">
             {uiText.sheet.zoom}
@@ -1666,25 +1912,33 @@ export function TemplateWorkspace({
               type="range"
               min={SHEET_ZOOM_MIN * 100}
               max={TEMPLATE_ZOOM_MAX * 100}
-              value={Math.round(templateZoom * 100)}
+              value={templateZoomPercent}
               onInput={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
               onChange={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
             />
-            <span className="zoomValue">{Math.round(templateZoom * 100)}%</span>
+            <span className="zoomValue">{templateZoomPercent}%</span>
           </label>
-          <Tooltip label={uiText.actions.zoomResetTitle}>
-            <button onClick={() => setClampedTemplateZoom(1)}>{uiText.actions.zoomReset}</button>
-          </Tooltip>
-          <button type="button" onClick={() => setClampedTemplateZoom(4)}>400%</button>
-          <button type="button" onClick={() => setClampedTemplateZoom(8)}>800%</button>
-          <button type="button" onClick={() => setClampedTemplateZoom(16)}>1600%</button>
-          <button type="button" onClick={() => setClampedTemplateZoom(32)}>3200%</button>
+          <label className="compactControl templateZoomPresetControl">
+            倍率
+            <select
+              aria-label="ズーム倍率"
+              value={templateZoomPreset}
+              onChange={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
+            >
+              <option value="" disabled>選択</option>
+              <option value="100">100%</option>
+              <option value="400">400%</option>
+              <option value="800">800%</option>
+              <option value="1600">1600%</option>
+              <option value="3200">3200%</option>
+            </select>
+          </label>
           <Tooltip label={uiText.actions.zoomFitTitle}>
             <button onClick={fitTemplateToViewport}>{uiText.actions.zoomFit}</button>
           </Tooltip>
         </ToolbarGroup>
       </div>
-      {processSettingsOpen && (
+      {mode === 'project' && processSettingsOpen && (
         <ProcessSettingsDialog
           project={project}
           onClose={() => setProcessSettingsOpen(false)}
@@ -1715,7 +1969,7 @@ export function TemplateWorkspace({
           onMove={moveRegion}
         />
         <TemplateRegionEditor
-          template={template}
+          template={editorPreviewTemplate}
           setTemplate={updateTemplateDraft}
           imageUrl={templateReferenceImageUrl}
           imageSettings={templateReferenceImageSettings}
@@ -1728,27 +1982,21 @@ export function TemplateWorkspace({
         />
         <PanelResizeHandle
           label={uiText.layout.resizeTemplateDock}
-          min={300}
+          min={360}
           max={760}
           value={dockWidth}
           onChange={setDockWidth}
         />
-        <aside className="templateDock">
-          <div className="dockTabs templateDockTabs" role="tablist" aria-label={uiText.template.editorLabel}>
-            {detailTabs.map(([tab, label]) => (
-              <button key={tab} className={detailTab === tab ? 'active' : ''} onClick={() => setDetailTab(tab)} role="tab" aria-selected={detailTab === tab}>
-                {label}
-              </button>
-            ))}
-          </div>
+        <aside className="templateDock" aria-label="テンプレート設定">
+          <TemplateInspectorNavigation sections={detailSections} activeSectionId={activeDetailTab} onSelect={setDetailTab} />
           <div className="templateDockBody">
-            {detailTab === 'template' && templateSettings}
-            {detailTab === 'region' && selectedRegionControls}
-            {detailTab === 'display' && displayControls}
-            {detailTab === 'reference' && referenceImageControls}
-            {detailTab === 'table' && regionTable}
-            {detailTab === 'review' && reviewControls}
-            {detailTab === 'json' && <textarea className="jsonPreview" value={JSON.stringify(template, null, 2)} readOnly />}
+            {activeDetailTab === 'template' && templateSettings}
+            {activeDetailTab === 'region' && selectedRegionControls}
+            {activeDetailTab === 'display' && displayControls}
+            {activeDetailTab === 'reference' && referenceImageControls}
+            {activeDetailTab === 'table' && regionCollectionEditor}
+            {activeDetailTab === 'review' && reviewControls}
+            {activeDetailTab === 'json' && <textarea className="jsonPreview" value={JSON.stringify(template, null, 2)} readOnly />}
           </div>
         </aside>
       </div>
@@ -1770,12 +2018,107 @@ function withoutSetValue(current: Set<string>, value: string): Set<string> {
   return next
 }
 
-function templateRegionKindLabel(region: SheetTemplate['regions'][number]): string {
-  if (region.form) return '入力表'
-  if (region.type === 'metadata-field') return '情報欄'
-  if (region.type === 'decorative') return '補助罫線'
-  if (region.grid) return gridRoleLabel(region.grid.role)
-  return region.type
+function TemplateFieldDefaultValueControl({
+  definition,
+  onChange,
+}: {
+  definition: SheetTemplateFieldDefinition
+  onChange: (value: SheetTemplateFieldDefinition['defaultValue']) => void
+}) {
+  const configured = definition.defaultValue !== undefined
+  const hasChoiceOptions = definition.valueType !== 'choice' || Boolean(definition.choices?.length)
+  const inputLabel = `${definition.label}の未入力欄の初期値`
+  const enableLabel = `${definition.label}の初期値を設定`
+
+  return (
+    <div className="templateInspectorField templateInspectorFieldWide">
+      <span>未入力欄の初期値</span>
+      <label className="compactControl">
+        <input
+          type="checkbox"
+          aria-label={enableLabel}
+          checked={configured}
+          disabled={!hasChoiceOptions}
+          onChange={event => onChange(event.currentTarget.checked
+            ? initialTemplateFieldDefaultValue(definition)
+            : undefined)}
+        />
+        初期値を使う
+      </label>
+      {configured && definition.valueType === 'text' && (
+        <input
+          aria-label={inputLabel}
+          type="text"
+          value={typeof definition.defaultValue === 'string' ? definition.defaultValue : ''}
+          onChange={event => onChange(event.currentTarget.value)}
+        />
+      )}
+      {configured && definition.valueType === 'multiline' && (
+        <textarea
+          aria-label={inputLabel}
+          rows={3}
+          value={typeof definition.defaultValue === 'string' ? definition.defaultValue : ''}
+          onChange={event => onChange(event.currentTarget.value)}
+        />
+      )}
+      {configured && definition.valueType === 'date' && (
+        <input
+          aria-label={inputLabel}
+          type="date"
+          value={typeof definition.defaultValue === 'string' ? definition.defaultValue : ''}
+          onChange={event => onChange(event.currentTarget.value)}
+        />
+      )}
+      {configured && definition.valueType === 'choice' && (
+        <select
+          aria-label={inputLabel}
+          value={typeof definition.defaultValue === 'string' ? definition.defaultValue : definition.choices?.[0] ?? ''}
+          onChange={event => onChange(event.currentTarget.value)}
+        >
+          {(definition.choices ?? []).map(choice => <option key={choice} value={choice}>{choice}</option>)}
+        </select>
+      )}
+      {configured && (definition.valueType === 'number' || definition.valueType === 'duration') && (
+        <input
+          aria-label={inputLabel}
+          className="numberInput"
+          type="number"
+          min={definition.valueType === 'duration' ? 0 : undefined}
+          step={definition.valueType === 'duration' ? 1 : 'any'}
+          value={typeof definition.defaultValue === 'number' && Number.isFinite(definition.defaultValue)
+            ? definition.defaultValue
+            : 0}
+          onChange={event => {
+            const value = Number(event.currentTarget.value)
+            if (!Number.isFinite(value)) return
+            onChange(definition.valueType === 'duration' ? Math.max(0, Math.round(value)) : value)
+          }}
+        />
+      )}
+      {configured && definition.valueType === 'boolean' && (
+        <label className="compactControl">
+          <input
+            aria-label={inputLabel}
+            type="checkbox"
+            checked={definition.defaultValue === true}
+            onChange={event => onChange(event.currentTarget.checked)}
+          />
+          オンで開始
+        </label>
+      )}
+      {!hasChoiceOptions && <small>先に選択肢を1つ以上追加すると、初期値を設定できます。</small>}
+      <small>このテンプレートを使うプロジェクトで、まだ入力されていない欄に表示されます。既存の入力値は変更しません。</small>
+    </div>
+  )
+}
+
+function initialTemplateFieldDefaultValue(
+  definition: SheetTemplateFieldDefinition,
+): SheetTemplateFieldDefinition['defaultValue'] {
+  if (definition.valueType === 'number' || definition.valueType === 'duration') return 0
+  if (definition.valueType === 'boolean') return false
+  if (definition.valueType === 'choice') return definition.choices?.[0]
+  return ''
 }
 
 type TemplateTextMetricKey = 'fontSize' | 'minFontSize' | 'lineHeight' | 'padding'

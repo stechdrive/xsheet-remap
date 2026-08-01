@@ -1,4 +1,5 @@
 import {
+  isInteractiveSheetTemplateGridRegion,
   resolveSheetTemplateGridLayout,
   sheetGridCellRect,
   type RecognitionCandidate,
@@ -157,7 +158,7 @@ function publicAssetUrl(path: string): string {
 
 function timingLayouts(options: RecognizeSheetPagesOptions): SheetGridLayout[] {
   return options.template.regions.flatMap(region => {
-    if (region.type !== 'exposure-grid' || region.grid?.role !== options.sheetRole) return []
+    if (!isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== options.sheetRole) return []
     const layout = resolveSheetTemplateGridLayout(options.template, region, {
       durationFrames: options.durationFrames,
       frameOrigin: options.frameOrigin,

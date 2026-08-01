@@ -1,4 +1,4 @@
-import { resolveSheetTemplateTextStyle, type SheetTemplate, type SheetTemplateGridTypography, type SheetTimingRole } from '@xsheet-remap/core'
+import { isTimelineProjectingSheetTemplateGridRegion, resolveSheetTemplateTextStyle, type SheetTemplate, type SheetTemplateGridTypography, type SheetTimingRole } from '@xsheet-remap/core'
 
 export const TEXT_FONT_SIZE_MIN_PX = 6
 export const TEXT_FONT_SIZE_MAX_PX = 256
@@ -52,17 +52,17 @@ export function resolveTimingTextFontSizePx(
 function timingTextGridForRole(template: SheetTemplate, role: SheetTimingRole | null | undefined) {
   const targetRole = role ?? 'cell'
   return template.regions.find(region =>
-    region.type === 'exposure-grid'
-    && region.grid?.role === targetRole
+    isTimelineProjectingSheetTemplateGridRegion(region)
+    && region.grid.role === targetRole
     && (region.grid.typography?.cellFontSize !== undefined || typeof region.grid.typography?.cellFontSizePx === 'number'),
   )?.grid
     ?? template.regions.find(region =>
-      region.type === 'exposure-grid'
-      && region.grid?.role === targetRole,
+      isTimelineProjectingSheetTemplateGridRegion(region)
+      && region.grid.role === targetRole,
     )?.grid
     ?? template.regions.find(region =>
-      region.type === 'exposure-grid'
-      && (region.grid?.role === 'cell' || region.grid?.role === 'action')
+      isTimelineProjectingSheetTemplateGridRegion(region)
+      && (region.grid.role === 'cell' || region.grid.role === 'action')
       && (region.grid.typography?.cellFontSize !== undefined || typeof region.grid.typography?.cellFontSizePx === 'number'),
     )?.grid
 }

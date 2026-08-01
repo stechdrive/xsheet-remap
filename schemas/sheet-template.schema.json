@@ -2,12 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://xsheet-remap.local/schemas/sheet-template.schema.json",
   "title": "SheetTemplate",
+  "description": "Portable sheet-template contract for schemaVersion 6. Cross-reference and geometry invariants are additionally enforced by parseSheetTemplate. JSON Schema 2020-12 cannot express that a dynamic defaultValue occurs in the sibling choices array, so validators must register the x-choiceDefaultInChoices extension exported by @xsheet-remap/core.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schemaVersion",
     "templateId",
     "name",
+    "theme",
     "page",
     "defaults",
     "regions"
@@ -15,18 +17,16 @@
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "const": 1
+      "const": 6
     },
     "templateId": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/nonEmptyString"
     },
     "name": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/nonEmptyString"
     },
-    "description": {
-      "type": "string"
+    "theme": {
+      "$ref": "#/$defs/theme"
     },
     "templateKind": {
       "type": "string",
@@ -46,150 +46,53 @@
         "infinite-digital"
       ]
     },
-    "logicalSheet": {
-      "$ref": "#/$defs/logicalSheet"
+    "naming": {
+      "$ref": "#/$defs/naming"
     },
     "defaultUnderlay": {
       "$ref": "#/$defs/underlay"
     },
-    "exportDefaults": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "importStackStartSeparatorName": {
-          "type": "string"
-        },
-        "importStackEndSeparatorName": {
-          "type": "string"
-        }
-      }
+    "defaultUnderlayUsage": {
+      "type": "string",
+      "enum": [
+        "canvas",
+        "reference-only"
+      ]
     },
-    "sourceImage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "fileName",
-        "trackedInGit"
-      ],
-      "properties": {
-        "fileName": {
-          "type": "string"
-        },
-        "localPath": {
-          "type": "string"
-        },
-        "trackedInGit": {
-          "type": "boolean"
-        },
-        "transparentTemplate": {
-          "type": "boolean"
-        },
-        "widthPx": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "heightPx": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "sha256": {
-          "type": "string"
-        },
-        "note": {
-          "type": "string"
-        }
-      }
+    "style": {
+      "$ref": "#/$defs/templateStyle"
+    },
+    "calibration": {
+      "$ref": "#/$defs/templateCalibration"
+    },
+    "viewLayout": {
+      "$ref": "#/$defs/viewLayout"
+    },
+    "pageModel": {
+      "$ref": "#/$defs/pageModel"
     },
     "page": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "widthPx",
-        "heightPx",
-        "coordinateSpace"
-      ],
-      "properties": {
-        "isPhysical": {
-          "type": "boolean"
-        },
-        "format": {
-          "type": "string"
-        },
-        "widthMm": {
-          "type": "number",
-          "minimum": 1
-        },
-        "heightMm": {
-          "type": "number",
-          "minimum": 1
-        },
-        "aspectRatio": {
-          "type": "number",
-          "minimum": 0
-        },
-        "widthPx": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "heightPx": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "dpi": {
-          "type": "number",
-          "minimum": 1
-        },
-        "aspect": {
-          "type": "string"
-        },
-        "orientation": {
-          "type": "string",
-          "enum": [
-            "portrait",
-            "landscape"
-          ]
-        },
-        "coordinateSpace": {
-          "type": "string",
-          "const": "normalized"
-        }
-      }
+      "$ref": "#/$defs/page"
+    },
+    "annotationDefaults": {
+      "$ref": "#/$defs/annotationDefaults"
     },
     "defaults": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "fps",
-        "durationFrames",
-        "frameOrigin",
-        "paperTracks"
-      ],
-      "properties": {
-        "fps": {
-          "type": "number",
-          "minimum": 1
-        },
-        "durationFrames": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "frameOrigin": {
-          "type": "integer"
-        },
-        "paperTracks": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
+      "$ref": "#/$defs/defaults"
     },
-    "anchors": {
+    "auxiliaryBands": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/anchor"
+        "$ref": "#/$defs/auxiliaryBand"
+      }
+    },
+    "horizontalFlow": {
+      "$ref": "#/$defs/horizontalFlow"
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fieldDefinition"
       }
     },
     "regions": {
@@ -198,16 +101,15 @@
       "items": {
         "$ref": "#/$defs/region"
       }
-    },
-    "notes": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
     }
   },
   "$defs": {
-    "rect": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "normalizedRect": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -239,150 +141,950 @@
         }
       }
     },
-    "sourcePx": {
+    "normalizedPoint": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "x",
-        "y",
-        "w",
-        "h"
+        "y"
       ],
       "properties": {
         "x": {
-          "type": "integer",
-          "minimum": 0
+          "type": "number"
         },
         "y": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "w": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "h": {
-          "type": "integer",
-          "minimum": 1
+          "type": "number"
         }
       }
     },
-    "anchor": {
+    "templateLength": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "anchorId",
-        "kind",
-        "point"
+        "value",
+        "unit"
       ],
       "properties": {
-        "anchorId": {
-          "type": "string",
-          "minLength": 1
+        "value": {
+          "type": "number",
+          "exclusiveMinimum": 0
         },
-        "kind": {
+        "unit": {
           "type": "string",
           "enum": [
-            "page-corner",
-            "registration-mark",
-            "grid-intersection",
-            "manual"
+            "px",
+            "pt",
+            "mm"
+          ]
+        }
+      }
+    },
+    "templatePaddingLength": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "unit"
+      ],
+      "properties": {
+        "value": {
+          "type": "number",
+          "minimum": 0
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "px",
+            "pt",
+            "mm"
+          ]
+        }
+      }
+    },
+    "lineStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "weight": {
+          "$ref": "#/$defs/lineWeight"
+        },
+        "pattern": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "dotted",
+            "dashed"
           ]
         },
-        "point": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "x",
-            "y"
-          ],
-          "properties": {
-            "x": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            },
-            "y": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            }
-          }
+        "color": {
+          "$ref": "#/$defs/nonEmptyString"
         },
-        "sourcePx": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "x",
-            "y"
-          ],
-          "properties": {
-            "x": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "y": {
-              "type": "integer",
-              "minimum": 0
-            }
+        "widthPx": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "dashPx": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
           }
         }
       }
     },
-    "underlay": {
+    "lineWeight": {
+      "type": "string",
+      "enum": [
+        "thin",
+        "regular",
+        "medium",
+        "strong"
+      ]
+    },
+    "textStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fontSize": {
+          "$ref": "#/$defs/templateLength"
+        },
+        "minFontSize": {
+          "$ref": "#/$defs/templateLength"
+        },
+        "lineHeight": {
+          "$ref": "#/$defs/templateLength"
+        },
+        "padding": {
+          "$ref": "#/$defs/templatePaddingLength"
+        },
+        "fontSizePx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "deprecated": true
+        },
+        "minFontSizePx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "deprecated": true
+        },
+        "lineHeightPx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "deprecated": true
+        },
+        "fontWeight": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 900
+        },
+        "horizontalAlign": {
+          "type": "string",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        "verticalAlign": {
+          "type": "string",
+          "enum": [
+            "top",
+            "middle",
+            "bottom"
+          ]
+        },
+        "paddingPx": {
+          "type": "number",
+          "minimum": 0,
+          "deprecated": true
+        },
+        "shrinkToFit": {
+          "type": "boolean"
+        },
+        "overflowX": {
+          "type": "string",
+          "enum": [
+            "clip",
+            "visible"
+          ]
+        },
+        "overflowY": {
+          "type": "string",
+          "enum": [
+            "clip",
+            "visible"
+          ]
+        }
+      }
+    },
+    "gridTypography": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cellFontSize": {
+          "$ref": "#/$defs/templateLength"
+        },
+        "cellMinFontSize": {
+          "$ref": "#/$defs/templateLength"
+        },
+        "cellFontSizePx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "deprecated": true
+        },
+        "cellMinFontSizePx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "deprecated": true
+        },
+        "cellFontWeight": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 900
+        },
+        "shrinkToFit": {
+          "type": "boolean"
+        }
+      }
+    },
+    "gridLineSpan": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "sourceId",
-        "label",
-        "assetPath",
-        "imageRef"
+        "startBoundary",
+        "endBoundary"
       ],
       "properties": {
-        "sourceId": {
+        "startBoundary": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "endBoundary": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "gridLineRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "axis",
+        "target"
+      ],
+      "properties": {
+        "axis": {
           "type": "string",
-          "minLength": 1
+          "enum": [
+            "row",
+            "column"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "enum": [
+            "all",
+            "inner",
+            "outer",
+            "indexes"
+          ]
+        },
+        "indexes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "every": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "spans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gridLineSpan"
+          }
+        },
+        "style": {
+          "$ref": "#/$defs/lineStyle"
+        }
+      }
+    },
+    "gridHeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "topOffsetPx": {
+          "type": "number"
+        },
+        "heightPx": {
+          "type": "number"
+        },
+        "columnHeightPx": {
+          "type": "number"
+        },
+        "showLabel": {
+          "type": "boolean"
+        },
+        "showColumnLabels": {
+          "type": "boolean"
+        }
+      }
+    },
+    "trackProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "logical-paper-tracks",
+            "logical-timeline-lanes"
+          ]
+        },
+        "startIndex": {
+          "type": "number"
+        },
+        "overflow": {
+          "type": "string",
+          "enum": [
+            "hidden",
+            "scroll",
+            "paginate"
+          ]
+        }
+      }
+    },
+    "frameProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "const": "logical-frames"
+        },
+        "startFrame": {
+          "type": "number"
+        },
+        "overflow": {
+          "type": "string",
+          "enum": [
+            "hidden",
+            "scroll",
+            "paginate"
+          ]
+        }
+      }
+    },
+    "gridColumnSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "widthPx": {
+          "type": "number"
+        },
+        "minWidthPx": {
+          "type": "number"
+        },
+        "maxWidthPx": {
+          "type": "number"
+        },
+        "weight": {
+          "type": "number"
+        }
+      }
+    },
+    "gridColumnSizing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fit-region",
+            "fixed-content"
+          ]
+        },
+        "defaultWidthPx": {
+          "type": "number"
+        },
+        "minWidthPx": {
+          "type": "number"
+        },
+        "maxWidthPx": {
+          "type": "number"
+        },
+        "columns": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/gridColumnSize"
+          }
+        }
+      }
+    },
+    "gridRowSizing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fit-region",
+            "fixed-height"
+          ]
+        },
+        "rowHeightPx": {
+          "type": "number"
+        },
+        "minRowHeightPx": {
+          "type": "number"
+        },
+        "maxRowHeightPx": {
+          "type": "number"
+        }
+      }
+    },
+    "gridColumn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "columnId",
+        "label"
+      ],
+      "properties": {
+        "columnId": {
+          "$ref": "#/$defs/nonEmptyString"
         },
         "label": {
           "type": "string"
         },
-        "assetPath": {
-          "type": "string",
-          "minLength": 1
+        "paperTrack": {
+          "type": "string"
         },
-        "imageRef": {
+        "timelineLaneId": {
+          "type": "string"
+        },
+        "xdtsEligible": {
+          "type": "boolean"
+        }
+      }
+    },
+    "gridRowLineRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "every",
+        "weight"
+      ],
+      "properties": {
+        "every": {
+          "type": "number"
+        },
+        "weight": {
+          "$ref": "#/$defs/lineWeight"
+        },
+        "offset": {
+          "type": "number"
+        }
+      }
+    },
+    "gridRowLabelRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "every",
+        "format"
+      ],
+      "properties": {
+        "every": {
+          "type": "number"
+        },
+        "format": {
+          "const": "elapsed-seconds"
+        },
+        "offset": {
+          "type": "number"
+        },
+        "skipRowZero": {
+          "type": "boolean"
+        },
+        "xAnchor": {
+          "type": "string",
+          "enum": [
+            "start",
+            "end"
+          ]
+        },
+        "xOffsetPx": {
+          "type": "number"
+        },
+        "yOffsetPx": {
+          "type": "number"
+        },
+        "fontSizePx": {
+          "type": "number"
+        }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "rowCount",
+        "columns"
+      ],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/gridRole"
+        },
+        "frameStart": {
+          "type": "number"
+        },
+        "frameEnd": {
+          "type": "number"
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "majorLineEvery": {
+          "type": "number"
+        },
+        "pageBreakEvery": {
+          "type": "number"
+        },
+        "rowLineRules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gridRowLineRule"
+          }
+        },
+        "rowLabelRules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gridRowLabelRule"
+          }
+        },
+        "lineRules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gridLineRule"
+          }
+        },
+        "header": {
+          "$ref": "#/$defs/gridHeader"
+        },
+        "trackProjection": {
+          "$ref": "#/$defs/trackProjection"
+        },
+        "frameProjection": {
+          "$ref": "#/$defs/frameProjection"
+        },
+        "columnSizing": {
+          "$ref": "#/$defs/gridColumnSizing"
+        },
+        "rowSizing": {
+          "$ref": "#/$defs/gridRowSizing"
+        },
+        "typography": {
+          "$ref": "#/$defs/gridTypography"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gridColumn"
+          }
+        }
+      }
+    },
+    "gridRole": {
+      "type": "string",
+      "enum": [
+        "action",
+        "sound",
+        "cell",
+        "camera",
+        "frame-guide",
+        "count-table",
+        "other"
+      ]
+    },
+    "memoTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": [
+            "cell",
+            "region",
+            "group",
+            "none"
+          ]
+        },
+        "targetId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "logicalTargetId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "label": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "group"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "required": [
+              "targetId"
+            ],
+            "properties": {
+              "targetId": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "formCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cellId",
+        "row",
+        "column",
+        "kind"
+      ],
+      "properties": {
+        "cellId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rowSpan": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "columnSpan": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "label",
+            "field",
+            "annotation",
+            "spacer"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "fieldId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "border": {
+          "type": "boolean"
+        },
+        "borderStyle": {
+          "$ref": "#/$defs/lineStyle"
+        },
+        "textStyle": {
+          "$ref": "#/$defs/textStyle"
+        },
+        "editPresentation": {
+          "type": "string",
+          "enum": [
+            "inline",
+            "popover"
+          ]
+        },
+        "memoTarget": {
+          "$ref": "#/$defs/memoTarget"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "label"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "label"
+            ],
+            "properties": {
+              "label": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "field"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "fieldId"
+            ],
+            "properties": {
+              "fieldId": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "trackCountColumn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "columnId",
+        "label",
+        "fieldSuffix"
+      ],
+      "properties": {
+        "columnId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "label": {
+          "type": "string"
+        },
+        "fieldSuffix": {
+          "type": "string"
+        }
+      }
+    },
+    "trackCountProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "fieldPrefix",
+        "scope",
+        "columns"
+      ],
+      "properties": {
+        "source": {
+          "const": "logical-paper-tracks"
+        },
+        "nameLabel": {
+          "type": "string"
+        },
+        "totalLabel": {
+          "type": "string"
+        },
+        "fieldPrefix": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/fieldScope"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trackCountColumn"
+          }
+        }
+      }
+    },
+    "form": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "columns",
+        "rows"
+      ],
+      "properties": {
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "columnFlex": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "fillEmptyCells": {
+          "type": "boolean"
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/formCell"
+          }
+        },
+        "borderStyle": {
+          "$ref": "#/$defs/lineStyle"
+        },
+        "projection": {
+          "$ref": "#/$defs/trackCountProjection"
+        }
+      }
+    },
+    "cutMetadataBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "field"
+      ],
+      "properties": {
+        "target": {
+          "const": "cut-metadata"
+        },
+        "field": {
+          "$ref": "#/$defs/cutMetadataField"
+        },
+        "customKey": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "regionBinding": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cutMetadataBinding"
+        },
+        {
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "name"
+            "target",
+            "field"
           ],
           "properties": {
-            "name": {
-              "type": "string",
-              "minLength": 1
+            "target": {
+              "const": "cut-group"
             },
-            "size": {
-              "type": "integer",
-              "minimum": 1
+            "field": {
+              "const": "shared-cut-numbers"
             },
-            "lastModified": {
-              "type": "number"
-            },
-            "path": {
+            "opening": {
               "type": "string"
             },
-            "assetPath": {
+            "closing": {
               "type": "string"
             },
-            "contentHash": {
+            "separator": {
               "type": "string"
             }
           }
         },
-        "alignment": {
-          "type": "object"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "target",
+            "role"
+          ],
+          "properties": {
+            "target": {
+              "const": "timeline-section"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "action",
+                "sound",
+                "cell",
+                "camera"
+              ]
+            },
+            "sectionId": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "target",
+            "layerId"
+          ],
+          "properties": {
+            "target": {
+              "const": "annotation-layer"
+            },
+            "layerId": {
+              "type": "string"
+            },
+            "intent": {
+              "type": "string",
+              "enum": [
+                "memo",
+                "camera-note",
+                "process-note",
+                "free"
+              ]
+            }
+          }
         }
-      }
+      ]
     },
     "region": {
       "type": "object",
@@ -396,8 +1098,7 @@
       ],
       "properties": {
         "regionId": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/nonEmptyString"
         },
         "type": {
           "type": "string",
@@ -408,18 +1109,32 @@
             "frame-guide",
             "count-table",
             "process-check-area",
+            "form-table",
             "annotation-area",
             "decorative"
           ]
         },
+        "authoringName": {
+          "description": "Editor-only management name; it does not affect the printed sheet.",
+          "$ref": "#/$defs/nonEmptyString"
+        },
         "label": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "rect": {
-          "$ref": "#/$defs/rect"
+          "$ref": "#/$defs/normalizedRect"
         },
-        "sourcePx": {
-          "$ref": "#/$defs/sourcePx"
+        "horizontalSpan": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source"
+          ],
+          "properties": {
+            "source": {
+              "const": "resolved-page-content"
+            }
+          }
         },
         "usage": {
           "type": "string",
@@ -451,231 +1166,1054 @@
           ]
         },
         "flowGroupId": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
+        },
+        "binding": {
+          "$ref": "#/$defs/regionBinding"
         },
         "grid": {
           "$ref": "#/$defs/grid"
         },
-        "notes": {
-          "type": "array",
-          "items": {
-            "type": "string"
+        "textStyle": {
+          "$ref": "#/$defs/textStyle"
+        },
+        "textStyleVariants": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sharedCutNumbersVisible": {
+              "$ref": "#/$defs/textStyle"
+            }
+          }
+        },
+        "form": {
+          "$ref": "#/$defs/form"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "decorative"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "usage": {
+                "const": "render-only"
+              }
+            }
           }
         }
-      }
+      ]
     },
-    "grid": {
+    "fieldScope": {
+      "type": "string",
+      "enum": [
+        "production",
+        "cut",
+        "revision",
+        "page"
+      ]
+    },
+    "cutMetadataField": {
+      "type": "string",
+      "enum": [
+        "title",
+        "episode",
+        "scene",
+        "cut",
+        "duration",
+        "worker",
+        "page",
+        "custom"
+      ]
+    },
+    "fieldDefinition": {
       "type": "object",
       "additionalProperties": false,
+      "$comment": "x-choiceDefaultInChoices is a required @xsheet-remap/core extension because JSON Schema 2020-12 has no standard sibling-instance value reference.",
+      "x-choiceDefaultInChoices": true,
       "required": [
-        "role",
-        "rowCount",
-        "columns"
+        "fieldId",
+        "label",
+        "scope",
+        "valueType"
       ],
       "properties": {
-        "role": {
+        "fieldId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "label": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "scope": {
+          "$ref": "#/$defs/fieldScope"
+        },
+        "valueType": {
           "type": "string",
           "enum": [
-            "action",
-            "sound",
-            "cell",
-            "camera",
-            "frame-guide",
-            "count-table",
-            "other"
+            "text",
+            "multiline",
+            "number",
+            "boolean",
+            "choice",
+            "date",
+            "duration"
           ]
         },
-        "frameStart": {
-          "type": "integer"
-        },
-        "frameEnd": {
-          "type": "integer"
-        },
-        "rowCount": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "majorLineEvery": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "pageBreakEvery": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "columnModel": {
-          "$ref": "#/$defs/columnModel"
-        },
-        "columns": {
+        "choices": {
           "type": "array",
-          "minItems": 1,
           "items": {
-            "type": "object",
-            "additionalProperties": false,
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "defaultValue": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        },
+        "builtinBinding": {
+          "$ref": "#/$defs/cutMetadataBinding"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "valueType": {
+                "const": "choice"
+              }
+            },
             "required": [
-              "columnId",
-              "label"
+              "valueType"
+            ]
+          },
+          "then": {
+            "required": [
+              "choices"
             ],
             "properties": {
-              "columnId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "label": {
+              "choices": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "valueType": {
+                "enum": [
+                  "text",
+                  "multiline",
+                  "choice",
+                  "date"
+                ]
+              }
+            },
+            "required": [
+              "valueType"
+            ]
+          },
+          "then": {
+            "properties": {
+              "defaultValue": {
                 "type": "string"
-              },
-              "paperTrack": {
-                "type": "string"
-              },
-              "xdtsEligible": {
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "valueType": {
+                "enum": [
+                  "number",
+                  "duration"
+                ]
+              }
+            },
+            "required": [
+              "valueType"
+            ]
+          },
+          "then": {
+            "properties": {
+              "defaultValue": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "valueType": {
+                "const": "boolean"
+              }
+            },
+            "required": [
+              "valueType"
+            ]
+          },
+          "then": {
+            "properties": {
+              "defaultValue": {
                 "type": "boolean"
               }
             }
           }
         }
-      }
+      ]
     },
-    "logicalSheet": {
+    "hexColor": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "secondBandTheme": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "duration",
-        "trackGroups"
+        "enabled",
+        "color",
+        "opacity"
       ],
       "properties": {
-        "duration": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "color": {
+          "$ref": "#/$defs/hexColor"
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "lineColorTheme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "thin",
+        "regular",
+        "medium",
+        "strong",
+        "outer"
+      ],
+      "properties": {
+        "thin": {
+          "$ref": "#/$defs/hexColor"
+        },
+        "regular": {
+          "$ref": "#/$defs/hexColor"
+        },
+        "medium": {
+          "$ref": "#/$defs/hexColor"
+        },
+        "strong": {
+          "$ref": "#/$defs/hexColor"
+        },
+        "outer": {
+          "$ref": "#/$defs/hexColor"
+        }
+      }
+    },
+    "timedRangeCueTheme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "columnColors",
+        "fillOpacity",
+        "hoverOpacity",
+        "strokeColor",
+        "textColor"
+      ],
+      "properties": {
+        "columnColors": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/hexColor"
+          }
+        },
+        "fillOpacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "hoverOpacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "strokeColor": {
+          "$ref": "#/$defs/hexColor"
+        },
+        "textColor": {
+          "$ref": "#/$defs/hexColor"
+        }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paper",
+        "ink",
+        "timedRangeCues"
+      ],
+      "properties": {
+        "presetId": {
+          "type": "string"
+        },
+        "paper": {
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "mode",
-            "fps",
-            "frameOrigin"
+            "color",
+            "secondBands"
           ],
           "properties": {
-            "mode": {
-              "type": "string",
-              "enum": [
-                "fixed",
-                "extendable"
-              ]
+            "color": {
+              "$ref": "#/$defs/hexColor"
             },
-            "fps": {
-              "type": "number",
-              "minimum": 1
-            },
-            "defaultFrames": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "frameOrigin": {
-              "type": "integer"
-            },
-            "allowNegativeFrames": {
-              "type": "boolean"
+            "secondBands": {
+              "$ref": "#/$defs/secondBandTheme"
             }
           }
         },
-        "trackGroups": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/logicalTrackGroup"
+        "ink": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text",
+            "reference",
+            "lines"
+          ],
+          "properties": {
+            "text": {
+              "$ref": "#/$defs/hexColor"
+            },
+            "reference": {
+              "$ref": "#/$defs/hexColor"
+            },
+            "lines": {
+              "$ref": "#/$defs/lineColorTheme"
+            }
+          }
+        },
+        "timedRangeCues": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sound",
+            "camera"
+          ],
+          "properties": {
+            "sound": {
+              "$ref": "#/$defs/timedRangeCueTheme"
+            },
+            "camera": {
+              "$ref": "#/$defs/timedRangeCueTheme"
+            }
           }
         }
       }
     },
-    "logicalTrackGroup": {
+    "bgBookLabelStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "designDpi": {
+          "type": "number"
+        },
+        "baseOffsetMm": {
+          "type": "number"
+        },
+        "lanePitchMm": {
+          "type": "number"
+        },
+        "laneGapMm": {
+          "type": "number"
+        },
+        "labelHeightMm": {
+          "type": "number"
+        },
+        "fontSizePt": {
+          "type": "number"
+        },
+        "minFontSizePt": {
+          "type": "number"
+        },
+        "fontFamily": {
+          "type": "string"
+        },
+        "fontWeight": {
+          "type": "number"
+        },
+        "shrinkToFit": {
+          "type": "boolean"
+        },
+        "minWidthMm": {
+          "type": "number"
+        },
+        "maxWidthMm": {
+          "type": "number"
+        },
+        "pageMarginMm": {
+          "type": "number"
+        },
+        "poleGapMm": {
+          "type": "number"
+        },
+        "textPaddingMm": {
+          "type": "number"
+        },
+        "connectorStrokeMm": {
+          "type": "number"
+        },
+        "estimatedCharWidthMm": {
+          "type": "number"
+        },
+        "radiusMm": {
+          "type": "number"
+        }
+      }
+    },
+    "visibleStyle": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "trackGroupId",
-        "role",
-        "label",
-        "columns"
+        "visible"
       ],
       "properties": {
-        "trackGroupId": {
-          "type": "string",
-          "minLength": 1
+        "visible": {
+          "type": "boolean"
+        }
+      }
+    },
+    "gridHeaderStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labelOverrides": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "type": "string"
+            },
+            "sound": {
+              "type": "string"
+            },
+            "cell": {
+              "type": "string"
+            },
+            "camera": {
+              "type": "string"
+            },
+            "frame-guide": {
+              "type": "string"
+            },
+            "count-table": {
+              "type": "string"
+            },
+            "other": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "templateStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "outerFrame": {
+          "$ref": "#/$defs/visibleStyle"
         },
-        "role": {
-          "type": "string",
-          "enum": [
-            "action",
-            "sound",
-            "cell",
-            "camera",
-            "memo",
-            "metadata",
-            "custom"
-          ]
+        "bgBookLabel": {
+          "$ref": "#/$defs/bgBookLabelStyle"
+        },
+        "bottomTrackLabels": {
+          "$ref": "#/$defs/visibleStyle"
+        },
+        "gridHeader": {
+          "$ref": "#/$defs/gridHeaderStyle"
+        },
+        "secondCounter": {
+          "$ref": "#/$defs/visibleStyle"
+        }
+      }
+    },
+    "sheetImageRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "size": {
+          "type": "number"
+        },
+        "lastModified": {
+          "type": "number"
+        },
+        "path": {
+          "type": "string"
+        },
+        "assetPath": {
+          "type": "string"
+        },
+        "contentHash": {
+          "type": "string"
+        },
+        "pixelWidth": {
+          "type": "number"
+        },
+        "pixelHeight": {
+          "type": "number"
+        },
+        "ppiX": {
+          "type": "number"
+        },
+        "ppiY": {
+          "type": "number"
+        }
+      }
+    },
+    "calibrationPointPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pointId",
+        "label",
+        "source",
+        "target"
+      ],
+      "properties": {
+        "pointId": {
+          "type": "string"
         },
         "label": {
           "type": "string"
         },
-        "xdtsEligible": {
-          "type": "boolean"
+        "source": {
+          "$ref": "#/$defs/normalizedPoint"
         },
-        "columns": {
-          "$ref": "#/$defs/columnModel"
+        "target": {
+          "$ref": "#/$defs/normalizedPoint"
         }
       }
     },
-    "columnModel": {
+    "sheetImageCalibration": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "mode"
+        "enabled",
+        "points"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/calibrationPointPair"
+          }
+        }
+      }
+    },
+    "levelCorrection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "inputBlack",
+        "inputWhite",
+        "gamma"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "inputBlack": {
+          "type": "number"
+        },
+        "inputWhite": {
+          "type": "number"
+        },
+        "gamma": {
+          "type": "number"
+        }
+      }
+    },
+    "alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "opacity": {
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "corners": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tl",
+            "tr",
+            "br",
+            "bl"
+          ],
+          "properties": {
+            "tl": {
+              "$ref": "#/$defs/normalizedPoint"
+            },
+            "tr": {
+              "$ref": "#/$defs/normalizedPoint"
+            },
+            "br": {
+              "$ref": "#/$defs/normalizedPoint"
+            },
+            "bl": {
+              "$ref": "#/$defs/normalizedPoint"
+            }
+          }
+        },
+        "calibration": {
+          "$ref": "#/$defs/sheetImageCalibration"
+        },
+        "levelCorrection": {
+          "$ref": "#/$defs/levelCorrection"
+        }
+      }
+    },
+    "underlayPlacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "sourceWidthPx",
+        "sourceHeightPx",
+        "offsetXPx",
+        "offsetYPx",
+        "renderedWidthPx",
+        "renderedHeightPx"
       ],
       "properties": {
         "mode": {
           "type": "string",
           "enum": [
-            "explicit",
-            "generated"
+            "pixel-exact",
+            "fit"
           ]
         },
-        "allowUserColumns": {
-          "type": "boolean"
+        "sourceWidthPx": {
+          "type": "number"
         },
-        "labels": {
-          "type": "array",
-          "items": {
-            "type": "string"
+        "sourceHeightPx": {
+          "type": "number"
+        },
+        "offsetXPx": {
+          "type": "number"
+        },
+        "offsetYPx": {
+          "type": "number"
+        },
+        "renderedWidthPx": {
+          "type": "number"
+        },
+        "renderedHeightPx": {
+          "type": "number"
+        },
+        "ppiX": {
+          "type": "number"
+        },
+        "ppiY": {
+          "type": "number"
+        }
+      }
+    },
+    "underlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "label",
+        "assetPath",
+        "imageRef"
+      ],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "label": {
+          "type": "string"
+        },
+        "assetPath": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "imageRef": {
+          "$ref": "#/$defs/sheetImageRef"
+        },
+        "alignment": {
+          "$ref": "#/$defs/alignment"
+        },
+        "placement": {
+          "$ref": "#/$defs/underlayPlacement"
+        }
+      }
+    },
+    "naming": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cutNumberPrefix": {
+          "type": "string"
+        },
+        "cutNumberPrefixMode": {
+          "type": "string",
+          "enum": [
+            "numeric-only",
+            "always"
+          ]
+        }
+      }
+    },
+    "templateCalibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetRect": {
+          "$ref": "#/$defs/normalizedRect"
+        }
+      }
+    },
+    "viewLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "paged",
+            "continuous",
+            "infinite"
+          ]
+        },
+        "framesPerPage": {
+          "type": "number"
+        },
+        "defaultViewMode": {
+          "$ref": "#/$defs/viewMode"
+        },
+        "frameAxis": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "paged",
+                "continuous",
+                "infinite"
+              ]
+            },
+            "framesPerPage": {
+              "type": "number"
+            },
+            "overflow": {
+              "type": "string",
+              "enum": [
+                "paginate",
+                "scroll"
+              ]
+            }
           }
         },
-        "generated": {
+        "trackAxis": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "fixed-slots",
+                "logical-width"
+              ]
+            },
+            "overflow": {
+              "type": "string",
+              "enum": [
+                "hidden",
+                "scroll",
+                "paginate"
+              ]
+            }
+          }
+        },
+        "surface": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "fixed-page",
+                "continuous-canvas"
+              ]
+            }
+          }
+        },
+        "workRange": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "labelStyle": {
-              "type": "string",
-              "enum": [
-                "alphabetic",
-                "numeric",
-                "custom-prefix"
-              ]
+            "supportsPreRoll": {
+              "type": "boolean"
             },
-            "prefix": {
-              "type": "string"
+            "supportsPostRoll": {
+              "type": "boolean"
             },
-            "startIndex": {
-              "type": "integer",
-              "minimum": 0
+            "preRollFrames": {
+              "type": "number"
             },
-            "defaultCount": {
-              "type": "integer",
-              "minimum": 1
+            "postRollFrames": {
+              "type": "number"
             },
-            "maxCount": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1
+            "showPreRoll": {
+              "type": "boolean"
+            },
+            "showPostRoll": {
+              "type": "boolean"
             }
           }
+        }
+      }
+    },
+    "viewMode": {
+      "type": "string",
+      "enum": [
+        "single-page",
+        "continuous",
+        "spread"
+      ]
+    },
+    "pageModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "paged-repeat",
+            "continuous",
+            "spread",
+            "infinite"
+          ]
+        },
+        "framesPerPage": {
+          "type": "number"
+        },
+        "defaultViewMode": {
+          "$ref": "#/$defs/viewMode"
+        }
+      }
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "widthPx",
+        "heightPx",
+        "coordinateSpace"
+      ],
+      "properties": {
+        "widthPx": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "heightPx": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "dpi": {
+          "type": "number"
+        },
+        "isPhysical": {
+          "type": "boolean"
+        },
+        "format": {
+          "type": "string"
+        },
+        "orientation": {
+          "type": "string",
+          "enum": [
+            "portrait",
+            "landscape"
+          ]
+        },
+        "coordinateSpace": {
+          "const": "normalized"
+        }
+      }
+    },
+    "annotationDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timelineMemo": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "defaultWidthMm": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "defaultWidthPx": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "singleFrameHeightFrames": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fps",
+        "durationFrames",
+        "frameOrigin",
+        "paperTracks"
+      ],
+      "properties": {
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "durationFrames": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frameOrigin": {
+          "type": "integer"
+        },
+        "paperTracks": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        }
+      }
+    },
+    "auxiliaryBand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bandId",
+        "anchorRegionIds",
+        "slotRegionIds"
+      ],
+      "properties": {
+        "bandId": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "anchorRegionIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "slotRegionIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        }
+      }
+    },
+    "horizontalFlow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "regionIds",
+        "leftPx",
+        "rightPx"
+      ],
+      "properties": {
+        "regionIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "leftPx": {
+          "type": "number",
+          "minimum": 0
+        },
+        "rightPx": {
+          "type": "number",
+          "minimum": 0
+        },
+        "gapPx": {
+          "type": "number",
+          "minimum": 0
         }
       }
     }

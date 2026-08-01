@@ -257,7 +257,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
         </div>
       </header>
 
-      <main className="mainPane">
+      <main className={`mainPane ${panel === 'template' ? 'templateMainPane' : ''}`.trim()}>
         {panel === 'sheet' && (
           <div className={appKind === 'editor' ? 'editorAudioWorkspace' : 'sheetPanelWorkspace'}>
             <SheetPanel

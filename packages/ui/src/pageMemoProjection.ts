@@ -1,4 +1,5 @@
 import {
+  resolveSheetTemplateRegionCapabilities,
   resolveSheetTemplateRegionRect,
   sheetPageMemos,
   type AnnotationPoint,
@@ -66,7 +67,7 @@ export function templateMemoTargetGeometries(
   for (const region of template.regions) {
     if (
       region.type !== 'metadata-field'
-      || region.usage !== 'input'
+      || !resolveSheetTemplateRegionCapabilities(region).providesMemoTargets
       || region.binding?.target !== 'cut-metadata'
       || region.binding.field === 'page'
     ) continue

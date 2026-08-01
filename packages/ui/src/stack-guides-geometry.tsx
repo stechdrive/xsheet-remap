@@ -1,4 +1,4 @@
-import { type CutProject, type NormalizedRect, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridFrames, stackGuideGapIndex } from '@xsheet-remap/core'
+import { type CutProject, type NormalizedRect, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, isInteractiveSheetTemplateGridRegion, resolveSheetTemplateGridFrames, stackGuideGapIndex } from '@xsheet-remap/core'
 import { STANDARD_A3_GRID_HEADER_HEIGHT, STANDARD_A3_GRID_HEADER_TOP_OFFSET } from './sheetConstants'
 import { clampNumber } from './sheetInteraction'
 import { compareStackGuideLabelsForUi } from './app-foundation'
@@ -275,7 +275,7 @@ function stackGuideSnapX(rect: NormalizedRect, columns: Array<{ x?: number; w?: 
 export function stackGuideAnchorRegions(template: SheetTemplate, page: SheetPage, frameOrigin: number) {
   if (frameOrigin < page.frameStart || frameOrigin > page.frameEnd) return []
   return template.regions.filter(region => {
-    if (region.type !== 'exposure-grid' || !region.grid) return false
+    if (!isInteractiveSheetTemplateGridRegion(region)) return false
     if (region.grid.role !== 'action' && region.grid.role !== 'cell') return false
     if (region.grid.columns.length === 0) return false
     const frames = resolveSheetTemplateGridFrames(template, region.grid, page.frameEnd - page.frameStart + 1, frameOrigin)

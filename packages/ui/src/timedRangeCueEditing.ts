@@ -1,6 +1,7 @@
 import {
   createTimedRangeCue,
   logicalSheetDisplayFrameEnd,
+  isInteractiveSheetTemplateGridRegion,
   replaceTimedRangeCues,
   timedRangeCuesIntersecting,
   type CutProject,
@@ -21,9 +22,10 @@ export function timedRangeLaneIdForHit(
   role: EditableTimedRangeRole,
   hit: Pick<SheetHit, 'regionId' | 'columnId' | 'columnIndex'>,
 ): string | null {
-  const region = template.regions.find(item => item.regionId === hit.regionId && item.grid?.role === role)
-  const column = region?.grid?.columns.find(item => item.columnId === hit.columnId)
-    ?? region?.grid?.columns[hit.columnIndex]
+  const region = template.regions.find(item => item.regionId === hit.regionId)
+  if (!region || !isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== role) return null
+  const column = region.grid.columns.find(item => item.columnId === hit.columnId)
+    ?? region.grid.columns[hit.columnIndex]
   return column?.timelineLaneId ?? null
 }
 

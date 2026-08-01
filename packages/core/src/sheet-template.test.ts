@@ -139,6 +139,18 @@ describe('sheet template layout', () => {
     }
   })
 
+  it('does not hit an exposure grid whose usage is render-only', () => {
+    const template = structuredClone(digitalStandardSheetTemplate)
+    const region = template.regions.find(item => item.regionId === 'digital_cell_grid')
+    if (!region?.grid) throw new Error('digital_cell_grid not found')
+    region.usage = 'render-only'
+
+    expect(hitTestSheetTemplate(template, {
+      x: region.rect.x + region.rect.w / 2,
+      y: region.rect.y + region.rect.h / 2,
+    }, { role: 'cell' })).toBeNull()
+  })
+
   it('keeps physical reserve columns while digital auxiliary bands flow without them', () => {
     expect(standardA3SheetTemplate.auxiliaryBands).toEqual([
       expect.objectContaining({

@@ -78,6 +78,39 @@ describe('template authoring validation', () => {
     expect(result.errors.find(issue => issue.code === 'template-schema-invalid')?.message).toContain('ページ寸法')
   })
 
+  it('can defer the deep import contract during ordinary typing', () => {
+    const template = cloneStandardTemplate()
+    template.page.widthPx = 0
+
+    expect(issueCodes(validateTemplateAuthoring(template, { deep: false }).errors)).not.toContain('template-schema-invalid')
+    expect(issueCodes(validateTemplateAuthoring(template).errors)).toContain('template-schema-invalid')
+  })
+
+  it('reports authoring-name, printed-label, input-label, and binding-id problems on their regions', () => {
+    const template = cloneStandardTemplate()
+    const heading = template.regions.find(regionValue => regionValue.regionId === 'top_metadata_form')!
+    heading.authoringName = '  '
+    heading.form!.cells!.find(cell => cell.kind === 'label')!.label = ''
+    template.fields!.find(field => field.fieldId === 'memo.body')!.label = ''
+    const choiceField = template.fields!.find(field => field.fieldId === 'memo.body')!
+    choiceField.valueType = 'choice'
+    choiceField.choices = []
+    const annotation = template.regions.find(regionValue => regionValue.binding?.target === 'annotation-layer')!
+    annotation.binding = { target: 'annotation-layer', layerId: '', intent: 'memo' }
+
+    const result = validateTemplateAuthoring(template)
+
+    expect(issueCodes(result.errors)).toEqual(expect.arrayContaining([
+      'region-authoring-name-invalid',
+      'region-fixed-label-missing',
+      'field-label-missing',
+      'field-choice-missing',
+      'region-binding-id-missing',
+    ]))
+    expect(result.errors.filter(issue => issue.code === 'region-fixed-label-missing')[0]?.regionId).toBe('top_metadata_form')
+    expect(result.errors.filter(issue => issue.code === 'region-binding-id-missing')[0]?.regionId).toBe(annotation.regionId)
+  })
+
   it('blocks completion when every region is display-only', () => {
     const template = cloneStandardTemplate()
     template.regions = template.regions.map(regionValue => ({

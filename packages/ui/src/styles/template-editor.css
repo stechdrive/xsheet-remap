@@ -163,7 +163,7 @@
 
 .templateWorkspace {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 10px var(--template-dock-width, 380px);
+  grid-template-columns: 236px minmax(0, 1fr) 10px var(--template-dock-width, 420px);
   grid-template-areas: "navigator editor resize dock";
   gap: 0;
   min-height: 0;
@@ -183,6 +183,9 @@
 
 .templateWorkspace > .templateDock {
   grid-area: dock;
+  min-width: 0;
+  container-name: template-inspector;
+  container-type: inline-size;
 }
 
 .templateRegionNavigator {
@@ -244,33 +247,67 @@
 
 .templateRegionNavigatorSelect {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
   min-width: 0;
   padding: 6px 7px;
   text-align: left;
 }
 
-.templateRegionNavigatorSelect strong,
-.templateRegionNavigatorSelect span {
+.templateRegionNavigatorText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.templateRegionNavigatorText strong {
+  display: -webkit-box;
   overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.templateRegionNavigatorText > span {
+  overflow: hidden;
+  color: #66706a;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.templateRegionNavigatorSelect span {
-  color: #66706a;
+.templateRegionNavigatorState {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.templateRegionNavigatorState > span {
+  padding: 2px 4px;
+  border-radius: 999px;
+  color: #536159;
+  background: #e8ece8;
   font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .templateRegionNavigatorActions {
-  display: flex;
-  gap: 3px;
-  overflow-x: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
 }
 
 .templateRegionNavigatorActions button {
-  flex: 0 0 auto;
-  padding: 3px 5px;
-  font-size: 10px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 7px;
+  font-size: 11px;
+  white-space: normal;
 }
 
 .templateRegionNavigatorActions .danger {
@@ -553,12 +590,111 @@
   font-weight: 700;
 }
 
-.templateDockTabs {
-  overflow-x: auto;
+.templateInspectorNavigation {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #c6c8c3;
+  border-bottom: 0;
+  background: #f7f8f5;
 }
 
-.templateDockTabs button {
-  flex: 0 0 auto;
+.templateInspectorSectionNavigation {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.templateInspectorSectionGroup {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.templateInspectorSectionGroup > span {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.templateInspectorSectionGroup > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+
+.templateInspectorSectionGroup button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
+  color: #415148;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+}
+
+.templateInspectorSectionGroup button.active {
+  border-color: #315f50;
+  color: #173a2b;
+  background: #e2eee7;
+  box-shadow: inset 3px 0 #315f50;
+}
+
+.templateInspectorSectionIntro {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.templateInspectorSectionIntro > span {
+  color: #6b756f;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.templateInspectorSectionIntro h2,
+.templateInspectorSectionIntro p {
+  margin: 0;
+}
+
+.templateInspectorSectionIntro h2 {
+  color: #203d2f;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.templateInspectorSectionIntro p {
+  color: #56635c;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.templateDockBody {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.templateDockBody input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+.templateDockBody select,
+.templateDockBody textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.templateDockBody .compactControl {
+  min-width: 0;
+  flex-wrap: wrap;
+  white-space: normal;
 }
 
 .detailStack {
@@ -576,22 +712,14 @@
   gap: 6px;
 }
 
-.templateRegionDeleteButton,
-.templateRegionTableDeleteButton {
+.templateRegionDeleteButton {
   border-color: #c67b72;
   color: #8f261b;
 }
 
-.templateRegionDeleteButton:hover:not(:disabled),
-.templateRegionTableDeleteButton:hover:not(:disabled) {
+.templateRegionDeleteButton:hover:not(:disabled) {
   border-color: #a43a2f;
   background: #fff1ee;
-}
-
-.templateRegionTableDeleteButton {
-  min-width: 54px;
-  padding: 4px 8px;
-  white-space: nowrap;
 }
 
 .templateRegionHit {
@@ -713,11 +841,6 @@
 
 .templateEditHandles.calibrationTarget .templateHandleKnob:hover {
   fill: #deeffb;
-}
-
-.selectedTableRow th,
-.selectedTableRow td {
-  background: #e5efe7;
 }
 
 .sheetRecognitionMenu.actionMenuContent {
@@ -865,11 +988,12 @@
 
 .templateMeta {
   display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 6px 10px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
   margin: 0;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid #c6c8c3;
+  border-radius: 6px;
   background: #fbfbf8;
 }
 
@@ -894,7 +1018,7 @@
 
 .sheetThemeGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px 10px;
 }
 
@@ -925,11 +1049,23 @@
 
 .templateMeta dt {
   color: #66706a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.templateMeta dt:not(:first-child) {
+  margin-top: 7px;
 }
 
 .templateMeta dd {
+  min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.templateMeta dd > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+.templateMeta dd > select {
+  width: 100%;
 }
 
 .templateCalibrationTargetMeta {
@@ -951,7 +1087,7 @@
 
 .templateCalibrationTargetFields {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -967,7 +1103,7 @@
 }
 
 .templateTextOverflowFields {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   margin-top: 8px;
 }
 
@@ -976,7 +1112,7 @@
 }
 
 .templateHeaderLabelMeta {
-  grid-template-columns: 110px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .templateHeaderLabelList {
@@ -986,9 +1122,13 @@
 
 .templateHeaderLabelField {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid #e0e3de;
+  border-radius: 5px;
+  background: #fff;
 }
 
 .templateHeaderLabelField span {
@@ -1002,7 +1142,7 @@
 
 .templateHeaderLabelField .templateHeaderColumnLabelToggle {
   display: inline-flex;
-  grid-column: 2;
+  grid-column: 1;
   justify-self: start;
   align-items: center;
   gap: 5px;
@@ -1017,7 +1157,7 @@
 }
 
 .templateTimelineLaneMeta {
-  grid-template-columns: 110px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .templateTimelineLaneGroups,
@@ -1115,13 +1255,375 @@
   gap: 5px;
 }
 
-.templateTableWrap {
-  max-height: 100%;
-}
-
 .templateDockBody .jsonPreview {
   height: 100%;
   min-height: 360px;
+  width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.templateRegionCollection {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.templateRegionCollectionHeader {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #cad2cc;
+  border-radius: 6px;
+  background: #f1f6f2;
+}
+
+.templateRegionCollectionHeader > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.templateRegionCollectionHeader span,
+.templateRegionCollectionHeader p {
+  margin: 0;
+  color: #5d6a63;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.templateRegionCollectionList {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.templateRegionCollectionCard {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #cbd1cc;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.templateRegionCollectionCard.selected {
+  border-color: #6f9a83;
+  box-shadow: 0 0 0 1px rgb(49 95 73 / 0.12);
+}
+
+.templateRegionCollectionSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 5px 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+}
+
+.templateRegionCollectionIdentity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.templateRegionCollectionIdentity strong {
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.templateRegionCollectionIdentity > span {
+  overflow: hidden;
+  color: #68736c;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templateRegionCollectionPurpose,
+.templateRegionCollectionContent {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+  color: #536159;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.templateRegionCollectionContent {
+  padding-top: 5px;
+  border-top: 1px solid #e2e6e2;
+  color: #315f49;
+  font-weight: 700;
+}
+
+.templateRegionCollectionSelection {
+  color: #315f49;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.templateRegionCollectionFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  min-width: 0;
+  padding: 12px;
+  border-top: 1px solid #d7ddd8;
+  background: #fbfcfa;
+}
+
+.templateInspectorField {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  color: #59665f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.templateInspectorFieldWide {
+  grid-column: 1 / -1;
+}
+
+.templateInspectorField input,
+.templateInspectorField select,
+.templateInspectorField textarea {
+  width: 100%;
+}
+
+.templateInspectorField textarea {
+  resize: vertical;
+}
+
+.templateInspectorField small {
+  color: #66736c;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.templateInspectorField .numberInput {
+  max-width: none;
+}
+
+.templateRegionFieldGroup {
+  min-width: 0;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid #d6dcd7;
+  border-radius: 6px;
+}
+
+.templateRegionFieldGroup legend {
+  padding: 0 5px;
+  color: #45534b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.templateRegionFieldGroup p {
+  margin: 7px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.templateCoordinateGrid,
+.templateRegionGridFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.templateRegionDetail {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.templateRegionBackButton {
+  justify-self: start;
+  min-height: 32px;
+  border-color: transparent;
+  color: #315f49;
+  background: transparent;
+  font-weight: 700;
+}
+
+.templateRegionDetailHeader,
+.templateRegionDetailSection,
+.templateRegionAdvancedSettings,
+.templateRegionDetailEmpty {
+  min-width: 0;
+  border: 1px solid #d1d8d2;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.templateRegionDetailHeader {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  background: #edf5f0;
+}
+
+.templateRegionDetailHeader > div {
+  display: grid;
+  gap: 2px;
+}
+
+.templateRegionDetailHeader span {
+  color: #557064;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.templateRegionDetailHeader h3,
+.templateRegionDetailHeader p,
+.templateRegionDetailSection h3,
+.templateRegionDetailSection > p,
+.templateRegionDetailEmpty h3,
+.templateRegionDetailEmpty p {
+  margin: 0;
+}
+
+.templateRegionDetailHeader h3 {
+  color: #173a2b;
+  font-size: 18px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.templateRegionDetailHeader p,
+.templateRegionDetailSection > p,
+.templateRegionDetailEmpty p {
+  color: #536159;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.templateRegionDetailSection,
+.templateRegionDetailEmpty {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.templateRegionDetailSection > h3,
+.templateRegionDetailEmpty h3 {
+  color: #284b3b;
+  font-size: 14px;
+}
+
+.templateRegionMeaningSummary {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  gap: 5px 10px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.templateRegionMeaningSummary dt {
+  color: #69756e;
+  font-weight: 700;
+}
+
+.templateRegionMeaningSummary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.templateRegionVisibleLabelList,
+.templateRegionInputDefinitionFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.templateRegionDerivedNotice {
+  padding: 8px;
+  border-left: 3px solid #638d77;
+  background: #eef5f0;
+  color: #3f584c;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.templateRegionFrameRangeReadout {
+  align-self: end;
+  padding: 7px 8px;
+  color: #315f49;
+  background: #edf4ef;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.templateRegionAdvancedSettings {
+  padding: 10px 12px;
+}
+
+.templateRegionAdvancedSettings > summary {
+  color: #45534b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.templateRegionAdvancedSettings[open] > summary {
+  margin-bottom: 10px;
+}
+
+.templateRegionAdvancedSettings code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.templateRegionCollectionActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+}
+
+.templateRegionCollectionActions button {
+  min-height: 34px;
+  white-space: normal;
+}
+
+@container template-inspector (min-width: 400px) {
+  .templateInspectorNavigation {
+    grid-template-columns: minmax(150px, 0.42fr) minmax(0, 1fr);
+    align-items: end;
+  }
+}
+
+@container template-inspector (max-width: 340px) {
+  .templateCalibrationTargetFields,
+  .templateCoordinateGrid,
+  .templateRegionGridFields,
+  .templateRegionCollectionFields,
+  .templateRegionVisibleLabelList,
+  .templateRegionInputDefinitionFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .templateInspectorFieldWide {
+    grid-column: 1;
+  }
+
+  .templateRegionCollectionActions {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .trackPlan {

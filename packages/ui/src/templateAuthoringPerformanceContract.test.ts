@@ -14,13 +14,24 @@ describe('template authoring performance contract', () => {
     expect(controller).not.toMatch(/JSON\.stringify\(template\)/)
     expect(view).not.toContain('key={templatePanelKey}')
     expect(view).toContain('onDraftStateChange')
+    expect(workspace).toContain('useDeferredValue(template)')
+    expect(workspace).toContain("deep: activeDetailTab === 'review'")
   })
 
   it('keeps the static render model memoized and filters hidden regions after model creation', () => {
     const editor = readSource('template-workspace-region-editor.tsx')
 
-    expect(editor).toContain('useMemo(() => buildTemplateEditorRenderModel')
+    expect(editor).toContain('() => buildTemplateEditorRenderModel')
+    expect(editor).toContain('useDeferredValue(template)')
     expect(editor).toContain('withoutTemplateRegions(unfilteredBaseRenderModel, hiddenRegionIds)')
+  })
+
+  it('keeps full draft snapshots out of the standalone app render state', () => {
+    const standalone = readSource('TemplateEditorApp.tsx')
+
+    expect(standalone).toContain('draftStateRef')
+    expect(standalone).not.toContain('useState<TemplateWorkspaceDraftState>')
+    expect(standalone).toContain('recoverySaveTimerRef')
   })
 })
 

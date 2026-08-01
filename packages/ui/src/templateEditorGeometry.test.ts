@@ -72,6 +72,40 @@ describe('template editor geometry', () => {
     expect(columns.every(column => column.dominantBaseline === 'alphabetic')).toBe(true)
   })
 
+  it('uses a region-specific grid header without changing another grid with the same role', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const leftAction = template.regions.find(region => region.regionId === 'left_action_grid')!
+    leftAction.grid!.header = { ...leftAction.grid!.header, label: '第一原画' }
+
+    const headers = buildTemplateChromeRenderModel(template).headers
+    expect(headers.find(header => header.regionId === 'left_action_grid')?.label).toBe('第一原画')
+    expect(headers.find(header => header.regionId === 'right_action_grid')?.label).toBe('ACTION')
+  })
+
+  it('keeps region usage semantics consistent across form rendering, editing, and memo targets', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const formRegion = template.regions.find(region => region.form?.cells?.some(cell => cell.kind === 'field'))
+    if (!formRegion) throw new Error('form region not found')
+
+    formRegion.usage = 'render-only'
+    const renderedOnly = buildTemplateChromeRenderModel(template)
+    const renderedFields = renderedOnly.formFields.filter(field => field.regionId === formRegion.regionId)
+    expect(renderedFields.length).toBeGreaterThan(0)
+    expect(renderedFields.every(field => !field.editable && field.memoTarget === null)).toBe(true)
+    expect(renderedOnly.formAnnotationTargets.some(target => target.memoTarget.regionId === formRegion.regionId)).toBe(false)
+
+    formRegion.usage = 'reference'
+    const reference = buildTemplateChromeRenderModel(template)
+    const referenceFields = reference.formFields.filter(field => field.regionId === formRegion.regionId)
+    expect(referenceFields.every(field => !field.editable)).toBe(true)
+    expect(referenceFields.some(field => field.memoTarget !== null)).toBe(true)
+
+    formRegion.usage = 'ignored'
+    const ignored = buildTemplateChromeRenderModel(template)
+    expect(ignored.formFields.some(field => field.regionId === formRegion.regionId)).toBe(false)
+    expect(ignored.formBoxes.some(box => box.key.startsWith(`${formRegion.regionId}:`))).toBe(false)
+  })
+
   it('places even absolute frame numbers at the lower-right edge of paper ACTION rows', () => {
     const leftRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_action_grid')
     const rightRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'right_action_grid')

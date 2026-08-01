@@ -221,6 +221,59 @@ describe('SheetMetadataEditor page fields', () => {
     expect(screen.queryByRole('dialog', { name: 'MEMOを編集' })).toBeNull()
   })
 
+  it('opens an unset form field with its authored default value', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const memoDefinition = template.fields?.find(field => field.fieldId === 'memo.body')
+    if (!memoDefinition) throw new Error('memo.body field not found')
+    memoDefinition.defaultValue = '確認事項を入力'
+    const project = createDefaultProject()
+    const [page] = createSheetPages(template, project.logicalSheet.durationFrames)
+
+    render(
+      <SheetMetadataEditor
+        project={project}
+        template={template}
+        page={page!}
+        pageWidth={877}
+        pageHeight={1241}
+        displayDurationFrames={project.logicalSheet.durationFrames}
+        paperTracks={template.defaults.paperTracks}
+        onMetadataChange={vi.fn()}
+        onDurationChange={vi.fn()}
+        onFormFieldChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'MEMOを編集' }))
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'MEMO' }).value).toBe('確認事項を入力')
+  })
+
+  it('does not create editing hotspots for a render-only form region', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const memo = template.regions.find(region => region.regionId === 'top_memo_area')
+    if (!memo) throw new Error('top_memo_area region not found')
+    memo.usage = 'render-only'
+    const project = createDefaultProject()
+    const [page] = createSheetPages(template, project.logicalSheet.durationFrames)
+
+    render(
+      <SheetMetadataEditor
+        project={project}
+        template={template}
+        page={page!}
+        pageWidth={877}
+        pageHeight={1241}
+        displayDurationFrames={project.logicalSheet.durationFrames}
+        paperTracks={template.defaults.paperTracks}
+        onMetadataChange={vi.fn()}
+        onDurationChange={vi.fn()}
+        onFormFieldChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'MEMOを編集' })).toBeNull()
+  })
+
   it('marks text that cannot fit at the template minimum size', () => {
     const definition = { fieldId: 'memo.body', scope: 'page' as const, valueType: 'multiline' as const }
     const project = updateSheetFormField(createDefaultProject(), definition, 'メ'.repeat(4000), 'page_1')

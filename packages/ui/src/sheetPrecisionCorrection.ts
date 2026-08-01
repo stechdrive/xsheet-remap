@@ -1,4 +1,5 @@
 import {
+  isRenderableSheetTemplateGridRegion,
   resolveSheetTemplateGridLayout,
   type NormalizedRect,
   type SheetCalibrationPointPair,
@@ -79,7 +80,7 @@ export function precisionGridPitch(
   const columnPitches: number[] = []
   const rowPitches: number[] = []
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || !region.grid) continue
+    if (!isRenderableSheetTemplateGridRegion(region)) continue
     if (!['action', 'sound', 'cell', 'camera'].includes(region.grid.role)) continue
     const layout = resolveSheetTemplateGridLayout(template, region, { paperTracks: template.defaults.paperTracks })
     if (!layout || layout.columns.length === 0 || layout.frames.rowHeight <= 0) continue
@@ -100,7 +101,7 @@ export function precisionGuideAnchors(
 ): PrecisionGuideAnchor[] {
   const anchors = new Map<string, PrecisionGuideAnchor>()
   for (const region of template.regions) {
-    if (region.type !== 'exposure-grid' || !region.grid) continue
+    if (!isRenderableSheetTemplateGridRegion(region)) continue
     if (!['action', 'sound', 'cell', 'camera'].includes(region.grid.role)) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: template.defaults.paperTracks,

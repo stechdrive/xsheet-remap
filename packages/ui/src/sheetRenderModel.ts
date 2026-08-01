@@ -42,8 +42,7 @@ import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLab
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
 
-export type SheetRenderModelContext = {
-  project: CutProject
+export type SheetRenderModelGeometry = {
   template: SheetTemplate
   pages: SheetPage[]
   pageSize: { widthPx: number; heightPx: number; dpi?: number }
@@ -55,12 +54,17 @@ export type SheetRenderModelContext = {
   paperTracks: string[]
   timelineLanes: ReturnType<typeof timelineLanesForLayout>
   overlayTracks: PaperTrack[]
+}
+
+export type SheetRenderModelContext = SheetRenderModelGeometry & {
+  project: CutProject
+  geometry: SheetRenderModelGeometry
   cutGroup?: SheetRenderCutGroupContext
 }
 
 export type SheetRenderCutGroupContext = {
   activeCutId: string
-  cuts: Array<Pick<CutSheetDocument, 'cutId' | 'order' | 'metadata'>>
+  cuts: ReadonlyArray<Pick<CutSheetDocument, 'cutId' | 'order' | 'metadata'>>
 }
 
 export type SheetInputTextRenderItem = {
@@ -153,8 +157,21 @@ type LabelLaneOccupancy = {
 export function createSheetRenderModelContext(
   project: CutProject,
   template: SheetTemplate,
-  options: { cutGroup?: SheetRenderCutGroupContext } = {},
+  options: { geometry?: SheetRenderModelGeometry; cutGroup?: SheetRenderCutGroupContext } = {},
 ): SheetRenderModelContext {
+  const geometry = options.geometry ?? createSheetRenderModelGeometry(project, template)
+  return {
+    ...geometry,
+    project,
+    geometry,
+    cutGroup: options.cutGroup,
+  }
+}
+
+export function createSheetRenderModelGeometry(
+  project: CutProject,
+  template: SheetTemplate,
+): SheetRenderModelGeometry {
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const officialFrameEnd = logicalSheetOfficialFrameEnd(project.logicalSheet)
@@ -167,7 +184,6 @@ export function createSheetRenderModelContext(
     layoutOverrides: project.sheetView.layoutOverrides,
   })
   return {
-    project,
     template,
     pages,
     pageSize,
@@ -179,7 +195,6 @@ export function createSheetRenderModelContext(
     paperTracks,
     timelineLanes,
     overlayTracks: overlayPaperTracks(project, template),
-    cutGroup: options.cutGroup,
   }
 }
 

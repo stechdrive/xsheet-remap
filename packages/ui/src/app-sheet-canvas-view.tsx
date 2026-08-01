@@ -61,7 +61,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas,
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, eventRectsByPage, continuationItemsByPage,
-    referenceEventRectsByPage, referenceContinuationItemsByPage,
+    referenceEventRectsByPage, referenceContinuationItemsByPage, referenceAnnotationRenderItemsByPage,
     annotationStrokeRenderItemsByPage, annotationTextRenderItemsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,
     selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
@@ -261,6 +261,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       opacity={props.referenceOpacity}
                       events={referenceEventRectsByPage.get(page.pageId) ?? []}
                       continuationItems={referenceContinuationItemsByPage.get(page.pageId) ?? []}
+                      annotationRenderItems={referenceAnnotationRenderItemsByPage.get(page.pageId) ?? { strokes: [], texts: [] }}
                     />
                   )}
                   {showInputContent && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}

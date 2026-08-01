@@ -34,7 +34,7 @@ export function createAppProjectPersistenceActions(options: {
   projectFilePath: string | null
   setProjectFilePath: (path: string | null) => void
   setProjectDocument: Dispatch<SetStateAction<CutGroupProjectDocument>>
-  setSavedProjectDocumentSignature: (signature: string) => void
+  setSavedProjectDocumentSnapshot: (document: CutGroupProjectDocument) => void
   runtimeSourceImageUrls: Record<string, string>
   setSheetImageExportDraft: Dispatch<SetStateAction<SheetImageExportOptions | null>>
 }) {
@@ -49,7 +49,7 @@ export function createAppProjectPersistenceActions(options: {
       if (!input.saveAs && options.projectFilePath && isXsrProjectFileName(options.projectFilePath)) {
         await writeProjectFile(options.projectFilePath, nextDocument, { createdWith: APP_VERSION })
         options.setProjectDocument(nextDocument)
-        options.setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
+        options.setSavedProjectDocumentSnapshot(nextDocument)
         return
       }
       const sourceProject = options.resolveProject()
@@ -60,7 +60,7 @@ export function createAppProjectPersistenceActions(options: {
       if (!result.saved) return
       if (result.path) options.setProjectFilePath(result.path)
       options.setProjectDocument(nextDocument)
-      options.setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
+      options.setSavedProjectDocumentSnapshot(nextDocument)
     } catch (error) {
       window.alert(uiText.project.saveFailed(errorMessage(error)))
     }

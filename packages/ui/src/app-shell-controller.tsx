@@ -3,6 +3,7 @@ import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, de
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
+import { projectDocumentsEqual } from './projectDocumentEquality';
 import { updateCutMetadata } from './cutMetadata';
 import { uiText } from './i18n';
 import { type Panel, type SheetRangeSelection, type TimingClipboard } from './appTypes';
@@ -52,11 +53,12 @@ import { useTimingEditOperationBoundaries } from './useTimingEditOperationBounda
 import { handleWorkspaceKeyboardBoundary, nextSoundCueNavigationRequest } from './workspaceInteractionPolicy'
 import { eventKeyIdAtSheetHit, timingKeyAtSheetHit, timingKeyDisplayLabel } from './workspaceSelectionModel'
 import { EMPTY_DIALOGUE_AUDIO_SELECTION } from './dialogueAudioSelectionModel'
+import { useSheetRenderModelGeometryProject } from './useSheetRenderModelProject'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
-    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, savedProjectDocumentSignature, setSavedProjectDocumentSignature, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole: storedRecognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -90,9 +92,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const projectDocumentSnapshot = useMemo(() => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }), [projectDocument, project, template])
   const { resolvedProjectDocument, handleSaveProjectFile, handleOpenSheetImageExport, handleSaveSheetImageExport } = createAppProjectPersistenceActions({
     projectDocument, template, resolveProject: () => commitTimingDraft(false), projectFilePath,
-    setProjectFilePath, setProjectDocument, setSavedProjectDocumentSignature, runtimeSourceImageUrls, setSheetImageExportDraft,
+    setProjectFilePath, setProjectDocument, setSavedProjectDocumentSnapshot, runtimeSourceImageUrls, setSheetImageExportDraft,
   })
-  const hasUnsavedProjectChanges = useMemo(() => timingEditSession !== null || JSON.stringify(projectDocumentSnapshot) !== savedProjectDocumentSignature, [projectDocumentSnapshot, savedProjectDocumentSignature, timingEditSession])
+  const hasUnsavedProjectChanges = useMemo(
+    () => timingEditSession !== null || !projectDocumentsEqual(projectDocumentSnapshot, savedProjectDocumentSnapshot),
+    [projectDocumentSnapshot, savedProjectDocumentSnapshot, timingEditSession],
+  )
   const projectCuts = projectDocumentSnapshot.cuts
   const {
     activeSheetRevision, sheetRevisions, referenceProject,
@@ -143,6 +148,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const sheetDisplayFrameEnd = logicalSheetDisplayFrameEnd(project.logicalSheet)
   const sheetDisplayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const sheetPages = useMemo(() => createSheetPages(template, sheetDisplayDurationFrames, sheetDisplayFrameStart), [template, sheetDisplayDurationFrames, sheetDisplayFrameStart])
+  const activeSheetGeometryProject = useSheetRenderModelGeometryProject(project)
   const rangeSelection = sheetSelection.kind === 'range' ? sheetSelection.range : null
   const selectedTimedRangeCueId = sheetSelection.kind === 'cue' ? sheetSelection.cueId : null
   const dialogueAudioActions = createAppDialogueAudioActions({
@@ -194,11 +200,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }, [project.assetRoot, project.assets, project.sheetView.sources])
   const activeSheetPageSize = useMemo(
     () => resolveSheetTemplatePageSize(template, sheetDisplayDurationFrames, {
-      paperTracks: templatePaperTracks(project, template).map(track => track.paperTrack),
-      timelineLanes: timelineLanesForLayout(project),
-      layoutOverrides: project.sheetView.layoutOverrides,
+      paperTracks: templatePaperTracks(activeSheetGeometryProject, template).map(track => track.paperTrack),
+      timelineLanes: timelineLanesForLayout(activeSheetGeometryProject),
+      layoutOverrides: activeSheetGeometryProject.sheetView.layoutOverrides,
     }),
-    [project, sheetDisplayDurationFrames, template],
+    [activeSheetGeometryProject, sheetDisplayDurationFrames, template],
   )
   const activePageIndexFromState = Math.max(0, sheetPages.findIndex(page => page.pageId === project.sheetView.activePageId))
   const clampedActivePageIndex = Math.min(activePageIndexFromState, Math.max(0, sheetPages.length - 1))
@@ -1690,7 +1696,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       rememberSheetTemplatePreset(appKind, loaded.studioPresetId)
       setTemplate(loadedDocument.sheetTemplate)
       setProjectDocument(loadedDocument)
-      setSavedProjectDocumentSignature(JSON.stringify(loadedDocument))
+      setSavedProjectDocumentSnapshot(loadedDocument)
       setProjectFilePath(loadedFile.projectFilePath)
       setHistory(createProjectHistory(loaded))
       setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
@@ -1813,7 +1819,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const nextDocument = createProjectDocumentFromCutProject(nextProject, { sheetTemplate: preset.sheetTemplate })
     setTemplate(preset.sheetTemplate)
     setProjectDocument(nextDocument)
-    setSavedProjectDocumentSignature(JSON.stringify(nextDocument))
+    setSavedProjectDocumentSnapshot(nextDocument)
     setProjectFilePath(null)
     setHistory(createProjectHistory(nextProject))
     setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')

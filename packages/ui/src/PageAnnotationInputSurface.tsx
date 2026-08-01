@@ -45,16 +45,22 @@ export function PageAnnotationInputSurface({
     onPointerEvent: inkCanvas.updateDelegatedInk,
     onActualPoints: (current, points) => {
       const offset = pageMemoTargetOffset(current.target)
-      current.stroke.points.push(...points.map(point => ({
-        x: (point.clientX - current.svgRect.left) / Math.max(1, current.svgRect.width) - offset.x,
-        y: (point.clientY - current.svgRect.top) / Math.max(1, current.svgRect.height) - offset.y,
-        pressure: point.pressure || 1,
-      })))
-      inkCanvas.append(points.map(point => ({
-        x: point.clientX - current.svgRect.left,
-        y: point.clientY - current.svgRect.top,
-      })))
-      return { ...current }
+      const surfaceWidth = Math.max(1, current.svgRect.width)
+      const surfaceHeight = Math.max(1, current.svgRect.height)
+      const canvasPoints = new Array<{ x: number; y: number }>(points.length)
+      for (let index = 0; index < points.length; index += 1) {
+        const point = points[index]!
+        const x = point.clientX - current.svgRect.left
+        const y = point.clientY - current.svgRect.top
+        current.stroke.points.push({
+          x: x / surfaceWidth - offset.x,
+          y: y / surfaceHeight - offset.y,
+          pressure: point.pressure || 1,
+        })
+        canvasPoints[index] = { x, y }
+      }
+      inkCanvas.append(canvasPoints)
+      return current
     },
     onPredictedPoints: (current, points) => {
       inkCanvas.replacePredicted(points.map(point => ({

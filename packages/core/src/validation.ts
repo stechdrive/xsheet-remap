@@ -1,6 +1,8 @@
 import { isSpecialTimingKeyId } from './project-shared'
-import type { CutProject, ExportProfile, ValidationIssue } from './types'
+import type { CutProject, ExportProfile, TimelineMemoStroke, ValidationIssue } from './types'
 import { timelineMemos } from './sheet-memo'
+
+const timelineMemoStrokeInvalidCache = new WeakMap<TimelineMemoStroke, boolean>()
 
 export function validateProject(project: CutProject, profile?: ExportProfile): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -169,8 +171,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
       || placement.widthUnits <= 0 || placement.heightFrames <= 0) {
       issues.push(issue('error', 'memo.placement.invalid', `memo ${memo.memoId} has invalid placement`, 'memo', memo.memoId))
     }
-    if (memo.strokes.some(stroke => !Number.isFinite(stroke.widthUnits) || stroke.widthUnits <= 0
-      || stroke.points.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y)))) {
+    if (memo.strokes.some(timelineMemoStrokeIsInvalid)) {
       issues.push(issue('error', 'memo.stroke.invalid', `memo ${memo.memoId} has invalid ink geometry`, 'memo', memo.memoId))
     }
   }
@@ -221,6 +222,17 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
   }
 
   return issues
+}
+
+function timelineMemoStrokeIsInvalid(stroke: TimelineMemoStroke): boolean {
+  const cached = timelineMemoStrokeInvalidCache.get(stroke)
+  if (cached !== undefined) return cached
+  const invalid = !Number.isFinite(stroke.widthUnits) || stroke.widthUnits <= 0
+    || stroke.points.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y))
+  // Project commands update strokes immutably, so unchanged long point arrays
+  // can retain their validation result across ordinary memo commits.
+  timelineMemoStrokeInvalidCache.set(stroke, invalid)
+  return invalid
 }
 
 export function hasBlockingIssues(issues: ValidationIssue[]): boolean {

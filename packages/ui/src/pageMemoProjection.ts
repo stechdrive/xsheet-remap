@@ -8,6 +8,7 @@ import {
   type CutProject,
   type NormalizedRect,
   type SheetPage,
+  type SheetPageMemo,
   type SheetPageMemoTarget,
   type SheetTemplate,
   type SheetTemplateLayoutResolveOptions,
@@ -30,6 +31,19 @@ export interface PageMemoStrokeRenderItem {
   target: TemplateMemoTargetGeometry | null
 }
 
+/**
+ * Lightweight projection used by the committed Canvas layer. The immutable
+ * source point array is kept intact and the current template projection is
+ * applied while drawing instead of allocating projected points and SVG paths.
+ */
+export interface PageMemoCanvasStrokeRenderItem {
+  memoId: string
+  stroke: AnnotationStroke
+  points: readonly AnnotationPoint[]
+  projectionOffset: Pick<NormalizedRect, 'x' | 'y'>
+  target: TemplateMemoTargetGeometry | null
+}
+
 export interface PageMemoTextRenderItem {
   memoId: string
   annotation: AnnotationText
@@ -42,6 +56,13 @@ export interface PageMemoRenderItems {
   strokes: PageMemoStrokeRenderItem[]
   texts: PageMemoTextRenderItem[]
 }
+
+export interface PageMemoCanvasRenderItems {
+  strokes: PageMemoCanvasStrokeRenderItem[]
+  texts: PageMemoTextRenderItem[]
+}
+
+export type SheetPageMemoIndex = ReadonlyMap<string, readonly SheetPageMemo[]>
 
 export type TemplateMemoGeometryOptions =
   Omit<SheetTemplateLayoutResolveOptions, 'paperTracks'>
@@ -115,10 +136,76 @@ export function pageMemoRenderItemsForPage(
   page: SheetPage,
   geometries: readonly TemplateMemoTargetGeometry[],
 ): PageMemoRenderItems {
+  return pageMemoRenderItemsForMemos(sheetPageMemos(project), geometries, page.pageId)
+}
+
+export function indexSheetPageMemosByPage(
+  project: Pick<CutProject, 'memos'>,
+): SheetPageMemoIndex {
+  const index = new Map<string, SheetPageMemo[]>()
+  for (const memo of sheetPageMemos(project)) {
+    const pageMemos = index.get(memo.target.pageId)
+    if (pageMemos) pageMemos.push(memo)
+    else index.set(memo.target.pageId, [memo])
+  }
+  return index
+}
+
+export function pageMemoCanvasRenderItemsForIndexedPage(
+  index: SheetPageMemoIndex,
+  page: SheetPage,
+  geometries: readonly TemplateMemoTargetGeometry[],
+): PageMemoCanvasRenderItems {
+  const strokes: PageMemoCanvasStrokeRenderItem[] = []
+  const texts: PageMemoTextRenderItem[] = []
+  for (const memo of index.get(page.pageId) ?? []) {
+    const target = resolveTemplateMemoTargetGeometry(memo.target, geometries)
+    if (memo.target.kind === 'template-region' && !target) continue
+    const targetOffset = target?.rect ?? ZERO_PROJECTION_OFFSET
+    for (const stroke of memo.strokes) {
+      if (stroke.tool !== 'pen') continue
+      strokes.push({
+        memoId: memo.memoId,
+        stroke,
+        points: stroke.points,
+        projectionOffset: stroke.coordinateSpace === 'memo-target'
+          ? targetOffset
+          : ZERO_PROJECTION_OFFSET,
+        target,
+      })
+    }
+    for (const annotation of memo.texts) {
+      texts.push({
+        memoId: memo.memoId,
+        annotation,
+        x: annotation.coordinateSpace === 'memo-target' ? annotation.x + targetOffset.x : annotation.x,
+        y: annotation.coordinateSpace === 'memo-target' ? annotation.y + targetOffset.y : annotation.y,
+        target,
+      })
+    }
+  }
+  return { strokes, texts }
+}
+
+export function pageMemoRenderItemsForIndexedPage(
+  index: SheetPageMemoIndex,
+  page: SheetPage,
+  geometries: readonly TemplateMemoTargetGeometry[],
+): PageMemoRenderItems {
+  return pageMemoRenderItemsForMemos(index.get(page.pageId) ?? [], geometries, page.pageId)
+}
+
+const ZERO_PROJECTION_OFFSET = Object.freeze({ x: 0, y: 0 })
+
+function pageMemoRenderItemsForMemos(
+  memos: readonly SheetPageMemo[],
+  geometries: readonly TemplateMemoTargetGeometry[],
+  pageId: string,
+): PageMemoRenderItems {
   const strokes: PageMemoStrokeRenderItem[] = []
   const texts: PageMemoTextRenderItem[] = []
-  for (const memo of sheetPageMemos(project)) {
-    if (memo.target.pageId !== page.pageId) continue
+  for (const memo of memos) {
+    if (memo.target.pageId !== pageId) continue
     const target = resolveTemplateMemoTargetGeometry(memo.target, geometries)
     if (memo.target.kind === 'template-region' && !target) continue
     const offset = target?.rect ?? { x: 0, y: 0 }

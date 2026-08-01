@@ -1,16 +1,13 @@
 import { useMemo, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { memoAnchorPresentation, normalizeMemoAppearance, type SheetMemoAnchorPresentation, type SheetPage, type SheetTemplate, type SheetViewLayoutOverrides, type TimelineInkMemo, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core'
+import { normalizeMemoAppearance, type SheetMemoAnchorPresentation, type SheetPage, type SheetTemplate, type SheetViewLayoutOverrides, type TimelineInkMemo, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core'
 import type { EditMode } from './appTypes'
 import {
-  timelineMemoAnchorCellForPage,
   timelineMemoAnchorConnectorPoints,
   timelineMemoAnchorHitRect,
   timelineMemoAnchorMarkerRect,
   timelineMemoPointFromPagePoint,
   timelineMemoPointToPagePoint,
-  timelineMemoSegmentsForPage,
-  timelineMemoStrokePath,
   type TimelineMemoSegment,
 } from './timelineMemoGeometry'
 import { sheetCellCornerTrianglePoints } from './sheetCellCornerMarker'
@@ -21,6 +18,7 @@ import { SvgMultilineTspans } from './SvgMultilineTspans'
 import { LowLatencyInkCanvas, useLowLatencyInkCanvas } from './LowLatencyInkCanvas'
 import { useInkStrokeSession } from './useInkStrokeSession'
 import { usePointerDragSession } from './usePointerDragSession'
+import { createTimelineMemoRenderCache, type TimelineMemoPageRenderItem } from './timelineMemoRenderModel'
 
 type MemoInkInteraction = {
   pointerId: number
@@ -107,19 +105,24 @@ export function TimelineMemoLayer({
 }) {
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
   const [automaticTextSessionKey, setAutomaticTextSessionKey] = useState<string | null>(null)
+  const [memoRenderCache] = useState(createTimelineMemoRenderCache)
   const inkCanvas = useLowLatencyInkCanvas()
   const memoInkDrag = useInkStrokeSession<MemoInkInteraction>({
     onPointerEvent: inkCanvas.updateDelegatedInk,
     onActualPoints: (current, points) => {
-      current.points.push(...points.map(point => timelineMemoPointFromPagePoint(
-        current.segment,
-        pagePointFromClient(current.svgRect, point.clientX, point.clientY),
-      )))
-      inkCanvas.append(points.map(point => ({
-        x: point.clientX - current.svgRect.left,
-        y: point.clientY - current.svgRect.top,
-      })))
-      return { ...current }
+      const canvasPoints: Array<{ x: number; y: number }> = []
+      for (const point of points) {
+        current.points.push(timelineMemoPointFromPagePoint(
+          current.segment,
+          pagePointFromClient(current.svgRect, point.clientX, point.clientY),
+        ))
+        canvasPoints.push({
+          x: point.clientX - current.svgRect.left,
+          y: point.clientY - current.svgRect.top,
+        })
+      }
+      inkCanvas.append(canvasPoints)
+      return current
     },
     onPredictedPoints: (current, points) => {
       inkCanvas.replacePredicted(points.map(point => ({
@@ -178,19 +181,15 @@ export function TimelineMemoLayer({
     .map(memo => placementInteraction?.memo.memoId === memo.memoId
       ? { ...memo, placement: placementInteraction.previewPlacement }
       : memo), [memos, placementInteraction])
-  const renderedMemoSegments = useMemo(() => renderedMemos.map(memo => ({
-    memo,
-    segments: timelineMemoSegmentsForPage(template, page, memo, { paperTracks, layoutOverrides }).map(segment => ({
-      ...segment,
-      strokeRenderItems: memo.strokes.map(stroke => ({
-        stroke,
-        path: timelineMemoStrokePath(segment, stroke.points),
-      })),
-    })),
-  })), [layoutOverrides, page, paperTracks, renderedMemos, template])
+  const renderedMemoSegments = useMemo(() => memoRenderCache.render(renderedMemos, {
+    template,
+    page,
+    paperTracks,
+    layoutOverrides,
+  }), [layoutOverrides, memoRenderCache, page, paperTracks, renderedMemos, template])
   const anchorGroups = useMemo(() => {
     const groups = new Map<string, {
-      anchorCell: NonNullable<ReturnType<typeof timelineMemoAnchorCellForPage>>
+      anchorCell: NonNullable<TimelineMemoPageRenderItem['anchorCell']>
       anchorFrame: number
       anchorRole: TimelineInkMemo['anchor']['role']
       anchorPaperTrack?: string
@@ -198,8 +197,8 @@ export function TimelineMemoLayer({
       presentation: SheetMemoAnchorPresentation
       memoIds: string[]
     }>()
-    for (const memo of renderedMemos) {
-      const anchorCell = timelineMemoAnchorCellForPage(template, page, memo, { paperTracks, layoutOverrides })
+    for (const renderedMemo of renderedMemoSegments) {
+      const { memo, anchorCell, anchorPresentation } = renderedMemo
       if (!anchorCell) continue
       const key = [anchorCell.regionId, memo.anchor.role, memo.anchor.frame, memo.anchor.paperTrack ?? '', memo.anchor.laneId ?? ''].join(':')
       const existing = groups.get(key)
@@ -213,12 +212,12 @@ export function TimelineMemoLayer({
         anchorRole: memo.anchor.role,
         anchorPaperTrack: memo.anchor.paperTrack,
         anchorCueIds: memo.anchor.cueId ? [memo.anchor.cueId] : [],
-        presentation: memoAnchorPresentation(memo),
+        presentation: anchorPresentation,
         memoIds: [memo.memoId],
       })
     }
     return groups
-  }, [layoutOverrides, page, paperTracks, renderedMemos, template])
+  }, [renderedMemoSegments])
   const selectedRender = renderedMemoSegments.find(item => item.memo.memoId === selectedMemoId)
   const selectedAnchorGroup = [...anchorGroups.values()].find(group => selectedMemoId && group.memoIds.includes(selectedMemoId))
   const selectedStartSegment = selectedRender?.segments.find(segment => segment.startsMemo)
@@ -376,9 +375,8 @@ export function TimelineMemoLayer({
           </clipPath>
         }))}
       </defs>
-      {renderedMemoSegments.flatMap(({ memo, segments }) => segments.map(segment => {
+      {renderedMemoSegments.flatMap(({ memo, segments, appearance }) => segments.map(segment => {
         const selected = memo.memoId === selectedMemoId
-        const appearance = normalizeMemoAppearance(memo.appearance)
         const drawingToolActive = editMode === 'pen' || editMode === 'eraser'
         const clipId = timelineMemoSegmentClipId(memo.memoId, segment.regionId)
         return (
@@ -401,12 +399,14 @@ export function TimelineMemoLayer({
             />}
             {selected && <rect className="timelineMemoHitArea" x={segment.rect.x} y={segment.rect.y} width={segment.rect.w} height={segment.rect.h} />}
             <g className="timelineMemoInkLayer" data-memo-ink-opacity={appearance.inkOpacity} opacity={appearance.inkOpacity} clipPath={`url(#${clipId})`}>
-              {segment.strokeRenderItems.map(({ stroke, path }) => {
-                return path ? <g key={stroke.strokeId}>
-                  {!selected && <path className="timelineMemoStrokeHit" d={path} />}
-                  <path className="timelineMemoStroke" d={path} stroke={stroke.color} strokeWidth={stroke.widthUnits * segment.rowHeightY} />
-                </g> : null
-              })}
+              {!selected && segment.hitPath && <path className="timelineMemoStrokeHit" d={segment.hitPath} />}
+              {segment.visibleStrokeGroups.map(group => <path
+                key={group.key}
+                className="timelineMemoStroke"
+                d={group.path}
+                stroke={group.color}
+                strokeWidth={group.width}
+              />)}
             </g>
             {selected && editMode === 'text' && <rect
               className="timelineMemoTextSurface"

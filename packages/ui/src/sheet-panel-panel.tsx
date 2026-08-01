@@ -31,6 +31,100 @@ import { resolveSheetAnnotationTarget } from './sheetAnnotationTarget'
 import { SheetTouchControls } from './SheetTouchControls'
 import { timingKeyDisplayLabel } from './workspaceSelectionModel'
 
+export type TemplateRegionAnnotationTargetIdentity = Pick<
+  TemplateRegionAnnotationTarget,
+  'kind' | 'pageId' | 'templateId' | 'regionId' | 'targetId' | 'logicalTargetId'
+>
+
+export function templateRegionAnnotationTargetIdentity(
+  target: TemplateRegionAnnotationTarget,
+): TemplateRegionAnnotationTargetIdentity {
+  return {
+    kind: 'template-region',
+    pageId: target.pageId,
+    templateId: target.templateId,
+    regionId: target.regionId,
+    targetId: target.targetId,
+    logicalTargetId: target.logicalTargetId,
+  }
+}
+
+export function resolveSelectedTemplateRegionAnnotationTarget(
+  selected: TemplateRegionAnnotationTargetIdentity | null,
+  activePageId: string | undefined,
+  template: SheetTemplate,
+  geometries: ReturnType<typeof templateMemoTargetGeometries>,
+): { target: TemplateRegionAnnotationTarget | null; unavailable: boolean } {
+  const selectedOnCurrentSurface = Boolean(
+    selected
+      && selected.pageId === activePageId
+      && selected.templateId === template.templateId,
+  )
+  if (!selected || !selectedOnCurrentSurface) return { target: null, unavailable: false }
+  const geometry = resolveTemplateMemoTargetGeometry(selected, geometries)
+  if (!geometry) return { target: null, unavailable: true }
+  return {
+    target: {
+      kind: 'template-region',
+      pageId: selected.pageId,
+      templateId: template.templateId,
+      regionId: geometry.regionId,
+      targetId: geometry.targetId,
+      logicalTargetId: geometry.logicalTargetId,
+      rect: geometry.rect,
+      label: templateMemoTargetLabel(template, geometry),
+    },
+    unavailable: false,
+  }
+}
+
+export function isSelectedTextMemoTargetUnavailable(
+  selectedTextAnnotationId: string | null,
+  annotation: Pick<AnnotationText, 'coordinateSpace'> | null,
+  resolvedTarget: unknown | null,
+): boolean {
+  return Boolean(
+    selectedTextAnnotationId
+      && (!annotation || (annotation.coordinateSpace === 'memo-target' && !resolvedTarget)),
+  )
+}
+
+export function useCurrentTemplateMemoTargetGeometries(
+  template: SheetTemplate,
+  project: Pick<CutProject, 'logicalSheet' | 'sheetView'>,
+) {
+  const logicalSheet = project.logicalSheet
+  const paperTracks = logicalSheet.paperTracks
+  const timelineSections = logicalSheet.timelineSections
+  const durationFrames = logicalSheetDisplayDurationFrames(logicalSheet)
+  const layoutOverrides = project.sheetView.layoutOverrides
+  return useMemo(
+    () => templateMemoTargetGeometries(template, {
+      paperTracks: paperTracks.map(track => track.paperTrack),
+      timelineLanes: timelineLanesForMemoTargetGeometry(timelineSections),
+      durationFrames,
+      layoutOverrides,
+    }),
+    [
+      durationFrames,
+      layoutOverrides,
+      paperTracks,
+      template,
+      timelineSections,
+    ],
+  )
+}
+
+function timelineLanesForMemoTargetGeometry(
+  timelineSections: CutProject['logicalSheet']['timelineSections'],
+): ReturnType<typeof timelineLanesForLayout> {
+  return Object.fromEntries(
+    timelineSections
+      .filter(section => section.role === 'sound' || section.role === 'camera')
+      .map(section => [section.role, [...(section.lanes ?? [])].sort((left, right) => left.order - right.order)]),
+  )
+}
+
 export function SheetPanel(props: {
   appKind: MainAppKind
   collapseEditorPanes: boolean
@@ -235,7 +329,7 @@ export function SheetPanel(props: {
   const [sharedCutDraft, setSharedCutDraft] = useState<string | null>(null)
   const [sharedCutDraftError, setSharedCutDraftError] = useState<string | null>(null)
   const [selectedTimelineMemoId, setSelectedTimelineMemoId] = useState<string | null>(null)
-  const [selectedAnnotationRegion, setSelectedAnnotationRegion] = useState<TemplateRegionAnnotationTarget | null>(null)
+  const [selectedAnnotationRegion, setSelectedAnnotationRegion] = useState<TemplateRegionAnnotationTargetIdentity | null>(null)
   const [touchControlsVisible, setTouchControlsVisible] = useState(false)
   const [touchRangeSelectionMode, setTouchRangeSelectionMode] = useState(false)
   const sharedCutInputRef = useRef<HTMLInputElement>(null)
@@ -288,14 +382,9 @@ export function SheetPanel(props: {
   const selectedTextLogicalTargetId = selectedTextAnnotation?.anchor?.kind === 'view-surface'
     ? selectedTextAnnotation.anchor.logicalTargetId
     : undefined
-  const currentTemplateMemoTargetGeometries = useMemo(
-    () => templateMemoTargetGeometries(props.template, {
-      paperTracks: props.project.logicalSheet.paperTracks.map(track => track.paperTrack),
-      timelineLanes: timelineLanesForLayout(props.project),
-      durationFrames: logicalSheetDisplayDurationFrames(props.project.logicalSheet),
-      layoutOverrides: props.project.sheetView.layoutOverrides,
-    }),
-    [props.project, props.template],
+  const currentTemplateMemoTargetGeometries = useCurrentTemplateMemoTargetGeometries(
+    props.template,
+    props.project,
   )
   const selectedTextTargetGeometry = selectedTextRegionId || selectedTextLogicalTargetId
     ? resolveTemplateMemoTargetGeometry({
@@ -320,13 +409,22 @@ export function SheetPanel(props: {
         label: templateMemoTargetLabel(props.template, selectedTextTargetGeometry),
       }
     : null
+  const selectedAnnotationRegionResolution = resolveSelectedTemplateRegionAnnotationTarget(
+    selectedAnnotationRegion,
+    activePage?.pageId,
+    props.template,
+    currentTemplateMemoTargetGeometries,
+  )
   const activeSelectedAnnotationRegion = props.selectedTextAnnotationId
     ? selectedTextRegion
-    : selectedAnnotationRegion
-    && selectedAnnotationRegion.pageId === activePage?.pageId
-    && selectedAnnotationRegion.templateId === props.template.templateId
-    ? selectedAnnotationRegion
-    : null
+    : selectedAnnotationRegionResolution.target
+  const selectedAnnotationRegionUnavailable = props.selectedTextAnnotationId
+    ? isSelectedTextMemoTargetUnavailable(
+        props.selectedTextAnnotationId,
+        selectedTextAnnotation,
+        selectedTextRegion,
+      )
+    : selectedAnnotationRegionResolution.unavailable
   const annotationTarget = resolveSheetAnnotationTarget({
     activeMemo: activeTimelineMemo,
     selectedCue,
@@ -347,6 +445,11 @@ export function SheetPanel(props: {
         targetRect: annotationTarget.region.rect,
       }
     : { kind: 'page', pageId: activePage?.pageId ?? 'page_1', templateId: props.template.templateId }
+  const sheetCanvasEditMode: EditMode = selectedAnnotationRegionUnavailable
+    && annotationTarget.kind === 'page'
+    && annotationSessionActive
+    ? 'new'
+    : editMode
   const beginTimelineMemoEdit = useCallback((memoId: string, mode: Extract<EditMode, 'pen' | 'text'> = 'pen') => {
     setSelectedTimelineMemoId(memoId)
     setEditMode(mode)
@@ -1252,6 +1355,7 @@ export function SheetPanel(props: {
           <SheetCanvas
             ref={sheetCanvasRef}
             {...props}
+            editMode={sheetCanvasEditMode}
             touchInputActive={touchControlsVisible}
             touchRangeSelectionMode={touchRangeSelectionMode}
             onInputModalityChange={handleSheetInputModalityChange}
@@ -1287,7 +1391,7 @@ export function SheetPanel(props: {
               props.onClearSelection()
             }}
             onSelectTemplateRegionAnnotationTarget={target => {
-              setSelectedAnnotationRegion(target)
+              setSelectedAnnotationRegion(templateRegionAnnotationTargetIdentity(target))
               setSelectedTimelineMemoId(null)
               props.onClearSelection()
             }}

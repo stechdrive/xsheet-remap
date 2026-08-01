@@ -1,5 +1,4 @@
-import { useMemo } from 'react'
-import { logicalSheetDisplayDurationFrames, timelineMemos, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
+import { timelineMemos, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
 import { MetadataTextLayer } from './app-sheet-layers'
 import type { SheetEventRectRenderItem } from './sheet-layers-hit-geometry'
 import type { SheetContinuationRenderItem, SheetRenderModelContext } from './sheetRenderModel'
@@ -11,7 +10,7 @@ import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { AnnotationSvgText } from './sheet-panel-annotation'
 import { TimingEventSymbol } from './TimingEventSymbol'
 import { sheetContinuationPathData } from './sheetRenderModel'
-import { pageMemoRenderItemsForPage, templateMemoTargetGeometries } from './pageMemoProjection'
+import type { PageMemoRenderItems } from './pageMemoProjection'
 
 const noop = () => undefined
 
@@ -26,6 +25,7 @@ export function SheetRevisionReferenceLayer({
   opacity,
   events,
   continuationItems,
+  annotationRenderItems,
 }: {
   project: CutProject
   template: SheetTemplate
@@ -37,20 +37,8 @@ export function SheetRevisionReferenceLayer({
   opacity: number
   events: SheetEventRectRenderItem[]
   continuationItems: SheetContinuationRenderItem[]
+  annotationRenderItems: PageMemoRenderItems
 }) {
-  const memoTargetGeometries = useMemo(
-    () => templateMemoTargetGeometries(template, {
-      paperTracks,
-      timelineLanes: context.timelineLanes,
-      durationFrames: logicalSheetDisplayDurationFrames(project.logicalSheet),
-      layoutOverrides: project.sheetView.layoutOverrides,
-    }),
-    [context.timelineLanes, paperTracks, project.logicalSheet, project.sheetView.layoutOverrides, template],
-  )
-  const annotationRenderItems = useMemo(
-    () => pageMemoRenderItemsForPage(project, page, memoTargetGeometries),
-    [memoTargetGeometries, page, project],
-  )
   return (
     <g className="sheetRevisionReferenceLayer" opacity={opacity} aria-label="元のシート">
       <MetadataTextLayer context={context} page={page} />

@@ -84,4 +84,89 @@ describe('PageAnnotationInputSurface', () => {
     expect(committed.points).toHaveLength(1002)
     expect(committed.points.at(-1)).toEqual({ x: 1.2, y: 1.25, pressure: 0.25 })
   })
+
+  it('keeps the target geometry captured at pointer down for the full stroke', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
+    const firstTarget = {
+      kind: 'template-region' as const,
+      pageId: page.pageId,
+      templateId: standardA3SheetTemplate.templateId,
+      regionId: 'first_memo_area',
+      logicalTargetId: 'memo:main',
+      targetRect: { x: 0.1, y: 0.2, w: 0.4, h: 0.3 },
+    }
+    const movedTarget = {
+      ...firstTarget,
+      regionId: 'moved_memo_area',
+      targetRect: { x: 0.35, y: 0.45, w: 0.4, h: 0.3 },
+    }
+    const onEraseAnnotation = vi.fn()
+    const view = (target: typeof firstTarget) => (
+      <PageAnnotationInputSurface
+        page={page}
+        editMode="eraser"
+        width={1000}
+        height={1000}
+        onPointerDown={event => ({
+          pointerId: event.pointerId,
+          svgRect: { left: 0, top: 0, width: 1000, height: 1000 },
+          target,
+          stroke: {
+            annotationId: 'annotation_1',
+            pageId: page.pageId,
+            tool: 'eraser',
+            color: '#2f7f6a',
+            width: 0.01,
+            coordinateSpace: 'memo-target',
+            points: [{ x: 0.2, y: 0.2, pressure: 1 }],
+          },
+        })}
+        onPointerMove={() => undefined}
+        onPointerUp={() => undefined}
+        onCancelOtherInteractions={() => undefined}
+        onPointerLeave={() => undefined}
+        onAnnotation={vi.fn()}
+        onEraseAnnotation={onEraseAnnotation}
+      />
+    )
+    const { container, rerender } = render(view(firstTarget))
+    const surface = container.querySelector<SVGSVGElement>('.pageAnnotationInputSurface')!
+    Object.defineProperty(surface, 'setPointerCapture', { value: vi.fn() })
+
+    fireEvent.pointerDown(surface, {
+      pointerId: 27,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 400,
+    })
+    rerender(view(movedTarget))
+    fireEvent.pointerMove(window, {
+      pointerId: 27,
+      pointerType: 'mouse',
+      buttons: 1,
+      clientX: 500,
+      clientY: 600,
+    })
+    fireEvent.pointerUp(window, {
+      pointerId: 27,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+      clientX: 600,
+      clientY: 700,
+    })
+
+    expect(onEraseAnnotation).toHaveBeenCalledTimes(1)
+    expect(onEraseAnnotation.mock.calls[0]?.[3]).toEqual(firstTarget)
+    const projectedPoints = onEraseAnnotation.mock.calls[0]?.[1].slice(-2)
+    expect(projectedPoints?.[0]).toMatchObject({ pressure: 1 })
+    expect(projectedPoints?.[0]?.x).toBeCloseTo(0.4)
+    expect(projectedPoints?.[0]?.y).toBeCloseTo(0.4)
+    expect(projectedPoints?.[1]).toMatchObject({ pressure: 1 })
+    expect(projectedPoints?.[1]?.x).toBeCloseTo(0.5)
+    expect(projectedPoints?.[1]?.y).toBeCloseTo(0.5)
+  })
 })

@@ -12,7 +12,7 @@ import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, rangeSe
 import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TimedRangeLaneHeaderMenuState, TimelineLaneEditorState, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
 import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitForFrame, overlayHitFromPoint, processMoveOptionsForSlot } from './app-sheet-layers';
-import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole, templatePaperTracks } from './app-sheet-geometry';
+import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole } from './app-sheet-geometry';
 import { autoScrollViewportForDrag, scrollSheetHitIntoView } from './sheet-panel-viewport';
 import { defaultExportAfterTrackForInsertAfter, exportPreviousPaperTrackName, isInteractiveKeyboardTarget, overlayExportPlacementAfterTrack, stackGuideInsertTargetFromPoint, stackGuidePlacementTargetFromPointer, stackGuidePlacementUpdateFromPointer } from './app-stack-guides';
 import { singleMovableBindingForHit } from './app-registered-cells';
@@ -28,7 +28,7 @@ import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { useAnimationFramePointerUpdate } from './useAnimationFramePointerUpdate';
 import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches';
-import { useSheetRenderModelProject } from './useSheetRenderModelProject';
+import { useSheetRenderCutGroupContext, useSheetRenderModelContext } from './useSheetRenderModelProject';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
 import { useSheetTouchNavigation } from './useSheetTouchNavigation';
 import { runSheetTouchTap } from './sheetTouchTap';
@@ -232,17 +232,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const displayFrameStart = logicalSheetDisplayFrameStart(props.project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(props.project.logicalSheet)
   const displayFrameEnd = logicalSheetDisplayFrameEnd(props.project.logicalSheet)
-  const sheetRenderModelProject = useSheetRenderModelProject(props.project)
-  const templateTrackNames = useMemo(
-    () => templatePaperTracks(sheetRenderModelProject, props.template).map(track => track.paperTrack),
-    [props.template, sheetRenderModelProject],
-  )
-  const sheetRenderModelContext = useMemo(
-    () => createSheetRenderModelContext(sheetRenderModelProject, props.template, {
-      cutGroup: { activeCutId: props.activeCutId, cuts: props.projectCuts },
-    }),
-    [props.activeCutId, props.projectCuts, props.template, sheetRenderModelProject],
-  )
+  const sheetRenderCutGroup = useSheetRenderCutGroupContext(props.activeCutId, props.projectCuts)
+  const sheetRenderModelContext = useSheetRenderModelContext(props.project, props.template, sheetRenderCutGroup)
+  const templateTrackNames = sheetRenderModelContext.paperTracks
   const timelineLanes = sheetRenderModelContext.timelineLanes
   const timelineLaneEditorActions = createTimelineLaneEditorActions({
     timelineLanes, editor: timelineLaneEditor, setEditor: setTimelineLaneEditor,
@@ -251,14 +243,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const sheetPageSize = sheetRenderModelContext.pageSize
   const sheetPageWidth = Math.round(sheetPageSize.widthPx * zoom)
   const sheetPageHeight = Math.round(sheetPageSize.heightPx * zoom)
-  const overlayTracks = overlayPaperTracks(props.project, props.template)
+  const overlayTracks = sheetRenderModelContext.overlayTracks
   const referenceRenderModelContext = useMemo(
     () => props.referenceProject
       ? createSheetRenderModelContext(props.referenceProject, props.template, {
-          cutGroup: { activeCutId: props.activeCutId, cuts: props.projectCuts },
+          cutGroup: sheetRenderCutGroup,
         })
       : null,
-    [props.activeCutId, props.projectCuts, props.referenceProject, props.template],
+    [props.referenceProject, props.template, sheetRenderCutGroup],
   )
   const rangeTrackOrder = (role: SheetTimingRole) => paperTrackOrderForRole(props.project, role)
   const rangeFromHits = (anchorHit: SheetHit, focusHit: SheetHit): SheetRangeSelection | null => {

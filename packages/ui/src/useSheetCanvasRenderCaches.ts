@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import {
-  logicalSheetDisplayDurationFrames,
   timelineMemos,
   type CutProject,
   type SheetPage,
@@ -13,7 +12,9 @@ import { eventRectsForPages } from './sheet-layers-hit-geometry'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import { continuationRenderItemsForPages, type SheetRenderModelContext } from './sheetRenderModel'
 import {
-  pageMemoRenderItemsForPage,
+  indexSheetPageMemosByPage,
+  pageMemoCanvasRenderItemsForIndexedPage,
+  pageMemoRenderItemsForIndexedPage,
   templateMemoTargetGeometries,
 } from './pageMemoProjection'
 
@@ -72,21 +73,62 @@ export function useSheetCanvasRenderCaches({
       : new Map(visiblePages.map(page => [page.pageId, []])),
     [referenceRenderContext, visiblePages],
   )
+  const hasReferenceMemoGeometry = Boolean(referenceProject && referenceRenderContext)
+  const referenceMemoPaperTracks = referenceRenderContext?.paperTracks
+  const referenceMemoTimelineLanes = referenceRenderContext?.timelineLanes
+  const referenceMemoDurationFrames = referenceRenderContext?.displayDurationFrames
+  const referenceMemoLayoutOverrides = referenceProject?.sheetView.layoutOverrides
+  const referenceMemoTargetGeometries = useMemo(
+    () => hasReferenceMemoGeometry
+      && referenceMemoPaperTracks
+      && referenceMemoTimelineLanes
+      && referenceMemoDurationFrames !== undefined
+      ? templateMemoTargetGeometries(template, {
+          paperTracks: referenceMemoPaperTracks,
+          timelineLanes: referenceMemoTimelineLanes,
+          durationFrames: referenceMemoDurationFrames,
+          layoutOverrides: referenceMemoLayoutOverrides,
+        })
+      : [],
+    [
+      hasReferenceMemoGeometry,
+      referenceMemoDurationFrames,
+      referenceMemoLayoutOverrides,
+      referenceMemoPaperTracks,
+      referenceMemoTimelineLanes,
+      template,
+    ],
+  )
+  const referencePageMemoIndex = useMemo(
+    () => indexSheetPageMemosByPage({ memos: referenceProject?.memos ?? [] }),
+    [referenceProject?.memos],
+  )
+  const referenceAnnotationRenderItemsByPage = useMemo(
+    () => new Map(visiblePages.map(page => [
+      page.pageId,
+      pageMemoRenderItemsForIndexedPage(referencePageMemoIndex, page, referenceMemoTargetGeometries),
+    ])),
+    [referenceMemoTargetGeometries, referencePageMemoIndex, visiblePages],
+  )
   const memoTargetGeometries = useMemo(
     () => templateMemoTargetGeometries(template, {
       paperTracks,
       timelineLanes: renderContext.timelineLanes,
-      durationFrames: logicalSheetDisplayDurationFrames(renderContext.project.logicalSheet),
+      durationFrames: renderContext.displayDurationFrames,
       layoutOverrides: project.sheetView.layoutOverrides,
     }),
-    [paperTracks, project.sheetView.layoutOverrides, renderContext.project.logicalSheet, renderContext.timelineLanes, template],
+    [paperTracks, project.sheetView.layoutOverrides, renderContext.displayDurationFrames, renderContext.timelineLanes, template],
+  )
+  const pageMemoIndex = useMemo(
+    () => indexSheetPageMemosByPage({ memos: project.memos }),
+    [project.memos],
   )
   const annotationRenderItemsByPage = useMemo(
     () => new Map(visiblePages.map(page => [
       page.pageId,
-      pageMemoRenderItemsForPage({ memos: project.memos }, page, memoTargetGeometries),
+      pageMemoCanvasRenderItemsForIndexedPage(pageMemoIndex, page, memoTargetGeometries),
     ])),
-    [memoTargetGeometries, project.memos, visiblePages],
+    [memoTargetGeometries, pageMemoIndex, visiblePages],
   )
   const annotationStrokeRenderItemsByPage = useMemo(
     () => new Map([...annotationRenderItemsByPage].map(([pageId, items]) => [pageId, items.strokes])),
@@ -135,6 +177,7 @@ export function useSheetCanvasRenderCaches({
     continuationItemsByPage,
     referenceEventRectsByPage,
     referenceContinuationItemsByPage,
+    referenceAnnotationRenderItemsByPage,
     annotationStrokeRenderItemsByPage,
     annotationTextRenderItemsByPage,
     timelineMemoItems,

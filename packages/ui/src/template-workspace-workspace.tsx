@@ -13,7 +13,7 @@ import {
   type SheetTemplateTextStyle,
 } from '@xsheet-remap/core'
 import { confirmUserAction, type SaveFileResult } from '@xsheet-remap/adapters'
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
 import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './appTypes'
 import { uiText } from './i18n'
@@ -91,6 +91,10 @@ export function TemplateWorkspace({
   onDraftStateChange?: (state: TemplateWorkspaceDraftState) => void
   onReturnToStart?: () => void
 }) {
+  const fieldSemanticsLockNoticeId = useId()
+  const regionPlacementDescriptionId = useId()
+  const regionPositionLockNoticeId = useId()
+  const regionDeleteHintId = useId()
   const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(initialDraftTemplate ?? appliedTemplate)))
   const [hasTemplateDraftChanges, setHasTemplateDraftChanges] = useState(initialDraftDirty)
   const [saveNotice, setSaveNotice] = useState<string | null>(null)
@@ -1366,47 +1370,55 @@ export function TemplateWorkspace({
                     />
                     <small>入力画面やポップアップで使う名前です。シート上の固定見出しとは別に設定できます。</small>
                   </label>
-                  <label className="templateInspectorField">
-                    <span>値の種類</span>
-                    <select
-                      aria-label={`${selectedFormFieldDefinition.label}の値の種類`}
-                      disabled={selectedFormFieldSemanticsLockReason !== null}
-                      title={selectedFormFieldSemanticsLockReason ?? undefined}
-                      value={selectedFormFieldDefinition.valueType}
-                      onChange={event => updateFieldDefinition(selectedFormFieldDefinition.fieldId, {
-                        valueType: event.currentTarget.value as typeof selectedFormFieldDefinition.valueType,
-                        defaultValue: undefined,
-                      })}
-                    >
-                      <option value="text">1行テキスト</option>
-                      <option value="multiline">複数行テキスト</option>
-                      <option value="number">数値</option>
-                      <option value="boolean">オン・オフ</option>
-                      <option value="choice">選択肢</option>
-                      <option value="date">日付</option>
-                      <option value="duration">尺</option>
-                    </select>
-                  </label>
-                  <label className="templateInspectorField">
-                    <span>値を共有する範囲</span>
-                    <select
-                      aria-label={`${selectedFormFieldDefinition.label}の共有範囲`}
-                      disabled={selectedFormFieldSemanticsLockReason !== null}
-                      title={selectedFormFieldSemanticsLockReason ?? undefined}
-                      value={selectedFormFieldDefinition.scope}
-                      onChange={event => updateFieldDefinition(selectedFormFieldDefinition.fieldId, {
-                        scope: event.currentTarget.value as typeof selectedFormFieldDefinition.scope,
-                      })}
-                    >
-                      <option value="production">作品全体</option>
-                      <option value="cut">カット全体</option>
-                      <option value="revision">このシート版</option>
-                      <option value="page">ページごと</option>
-                    </select>
-                  </label>
+                  <TooltipTarget label={selectedFormFieldSemanticsLockReason ?? ''} disabled={selectedFormFieldSemanticsLockReason === null}>
+                    {tooltipProps => (
+                      <label className="templateInspectorField" {...tooltipProps}>
+                        <span>値の種類</span>
+                        <select
+                          aria-label={`${selectedFormFieldDefinition.label}の値の種類`}
+                          aria-describedby={selectedFormFieldSemanticsLockReason ? fieldSemanticsLockNoticeId : undefined}
+                          disabled={selectedFormFieldSemanticsLockReason !== null}
+                          value={selectedFormFieldDefinition.valueType}
+                          onChange={event => updateFieldDefinition(selectedFormFieldDefinition.fieldId, {
+                            valueType: event.currentTarget.value as typeof selectedFormFieldDefinition.valueType,
+                            defaultValue: undefined,
+                          })}
+                        >
+                          <option value="text">1行テキスト</option>
+                          <option value="multiline">複数行テキスト</option>
+                          <option value="number">数値</option>
+                          <option value="boolean">オン・オフ</option>
+                          <option value="choice">選択肢</option>
+                          <option value="date">日付</option>
+                          <option value="duration">尺</option>
+                        </select>
+                      </label>
+                    )}
+                  </TooltipTarget>
+                  <TooltipTarget label={selectedFormFieldSemanticsLockReason ?? ''} disabled={selectedFormFieldSemanticsLockReason === null}>
+                    {tooltipProps => (
+                      <label className="templateInspectorField" {...tooltipProps}>
+                        <span>値を共有する範囲</span>
+                        <select
+                          aria-label={`${selectedFormFieldDefinition.label}の共有範囲`}
+                          aria-describedby={selectedFormFieldSemanticsLockReason ? fieldSemanticsLockNoticeId : undefined}
+                          disabled={selectedFormFieldSemanticsLockReason !== null}
+                          value={selectedFormFieldDefinition.scope}
+                          onChange={event => updateFieldDefinition(selectedFormFieldDefinition.fieldId, {
+                            scope: event.currentTarget.value as typeof selectedFormFieldDefinition.scope,
+                          })}
+                        >
+                          <option value="production">作品全体</option>
+                          <option value="cut">カット全体</option>
+                          <option value="revision">このシート版</option>
+                          <option value="page">ページごと</option>
+                        </select>
+                      </label>
+                    )}
+                  </TooltipTarget>
                 </div>
                 {selectedFormFieldSemanticsLockReason && (
-                  <p className="templateRegionDerivedNotice">{selectedFormFieldSemanticsLockReason}</p>
+                  <p id={fieldSemanticsLockNoticeId} className="templateRegionDerivedNotice">{selectedFormFieldSemanticsLockReason}</p>
                 )}
                 {selectedFormFieldReferenceCount > 1 && (
                   <p className="templateRegionDerivedNotice">この入力項目は{selectedFormFieldReferenceCount}個の欄で共有されています。項目名・種類・共有範囲の変更は、同じ項目を使うすべての欄へ反映されます。</p>
@@ -1602,27 +1614,36 @@ export function TemplateWorkspace({
 
       <section className="templateRegionDetailSection" aria-labelledby="template-region-placement-heading">
         <h3 id="template-region-placement-heading">配置と大きさ</h3>
-        <p>{templateRegionPlacementDescription(template, selectedRegion)}</p>
-        {selectedRegionPositionLocked && <p className="templateRegionDerivedNotice">左の領域一覧で位置を一時固定しています。固定を解除すると編集できます。</p>}
+        <p id={regionPlacementDescriptionId}>{templateRegionPlacementDescription(template, selectedRegion)}</p>
+        {selectedRegionPositionLocked && <p id={regionPositionLockNoticeId} className="templateRegionDerivedNotice">左の領域一覧で位置を一時固定しています。固定を解除すると編集できます。</p>}
         <div className="templateCalibrationTargetFields templateSelectedRegionFields">
           {(['x', 'y', 'w', 'h'] as const).map(key => {
             const placementMode = templateRegionPlacementMode(template, selectedRegion)
             const derived = placementMode === 'horizontal-flow' && (key === 'x' || key === 'w')
               || placementMode === 'horizontal-span' && key === 'w'
+            const placementTooltip = derived
+              ? templateRegionPlacementDescription(template, selectedRegion)
+              : selectedRegionPositionLocked
+                ? '位置の一時固定を解除すると編集できます'
+                : ''
             return (
-              <label key={key}>
-                <span>{key.toUpperCase()} px{derived ? '（自動）' : ''}</span>
-                <input
-                  aria-label={`${uiText.template.selectedRegion} ${key} px`}
-                  className="numberInput"
-                  type="number"
-                  step="1"
-                  disabled={selectedRegionPositionLocked || derived}
-                  title={derived ? templateRegionPlacementDescription(template, selectedRegion) : selectedRegionPositionLocked ? '位置の一時固定を解除すると編集できます' : undefined}
-                  value={templateEditorRectPixelValue(selectedRegion.rect, key, template.page)}
-                  onChange={event => updateRegionRectPixel(selectedRegion.regionId, key, Number(event.currentTarget.value))}
-                />
-              </label>
+              <TooltipTarget key={key} label={placementTooltip} disabled={!placementTooltip}>
+                {tooltipProps => (
+                  <label {...tooltipProps}>
+                    <span>{key.toUpperCase()} px{derived ? '（自動）' : ''}</span>
+                    <input
+                      aria-label={`${uiText.template.selectedRegion} ${key} px`}
+                      aria-describedby={derived ? regionPlacementDescriptionId : selectedRegionPositionLocked ? regionPositionLockNoticeId : undefined}
+                      className="numberInput"
+                      type="number"
+                      step="1"
+                      disabled={selectedRegionPositionLocked || derived}
+                      value={templateEditorRectPixelValue(selectedRegion.rect, key, template.page)}
+                      onChange={event => updateRegionRectPixel(selectedRegion.regionId, key, Number(event.currentTarget.value))}
+                    />
+                  </label>
+                )}
+              </TooltipTarget>
             )
           })}
         </div>
@@ -1657,8 +1678,10 @@ export function TemplateWorkspace({
           </dd>
         </dl>
         <div className="templateRegionDeleteActions">
-          <button type="button" className="templateRegionDeleteButton" disabled={template.regions.length <= 1} title={template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionTitle(templateRegionAuthoringName(selectedRegion))} onClick={() => deleteRegion(selectedRegion.regionId)}>{uiText.template.deleteSelectedRegion}</button>
-          <span className="muted">{template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionHint}</span>
+          <Tooltip label={template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionTitle(templateRegionAuthoringName(selectedRegion))}>
+            <button type="button" className="templateRegionDeleteButton" aria-describedby={regionDeleteHintId} disabled={template.regions.length <= 1} onClick={() => deleteRegion(selectedRegion.regionId)}>{uiText.template.deleteSelectedRegion}</button>
+          </Tooltip>
+          <span id={regionDeleteHintId} className="muted">{template.regions.length <= 1 ? uiText.template.cannotDeleteLastRegion : uiText.template.deleteRegionHint}</span>
         </div>
       </details>
     </div>

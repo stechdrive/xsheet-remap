@@ -16,6 +16,7 @@ import { uiText } from './i18n'
 import { TemplateStartScreen } from './TemplateStartScreen'
 import { TemplateWorkspace, type TemplateWorkspaceDraftState } from './template-workspace-workspace'
 import { TemplateEditorHelpDialog } from './TemplateEditorHelp'
+import { Tooltip } from './Tooltip'
 import {
   createPaperTemplateDraftFromImage,
   createTemplateDraft,
@@ -181,7 +182,9 @@ export function TemplateEditorApp() {
           <span className="appVersion">v{APP_VERSION}</span>
         </span>
         <div className="templateEditorAppActions">
-          <IconButton onClick={() => setHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></IconButton>
+          <Tooltip label="xsheet-templateの使い方を開く">
+            <IconButton onClick={() => setHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></IconButton>
+          </Tooltip>
         </div>
       </header>
       <main className="templateEditorAppMain">

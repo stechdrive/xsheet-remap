@@ -1,11 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TemplateRegionNavigator } from './TemplateRegionNavigator'
 
 afterEach(() => cleanup())
 
 describe('TemplateRegionNavigator', () => {
-  it('exposes selection and authoring actions with clear labels', () => {
+  it('exposes selection and authoring actions with shared application tooltips', async () => {
     const onSelect = vi.fn()
     const onToggleHidden = vi.fn()
     const onTogglePositionLocked = vi.fn()
@@ -38,9 +38,17 @@ describe('TemplateRegionNavigator', () => {
     const actionSelector = screen.getByRole('button', { name: 'ACTION' })
     expect(actionSelector.getAttribute('aria-describedby')).toBe('template-region-kind-0 template-region-state-0')
     expect(document.getElementById('template-region-state-0')?.textContent).toContain('一時固定')
-    expect(screen.getByRole('button', { name: 'ACTIONを編集画面で非表示' }).getAttribute('title')).toContain('保存内容は変えず')
-    expect(screen.getByRole('button', { name: 'ACTIONの位置を一時的に固定解除' }).getAttribute('title')).toContain('編集中だけ')
-    expect(screen.getByRole('button', { name: 'ACTIONを複製' }).getAttribute('title')).toContain('データ割当は元の領域と共有')
+    await expectSharedTooltip(screen.getByRole('button', { name: 'ACTIONを編集画面で非表示' }), '保存内容は変えず')
+    await expectSharedTooltip(screen.getByRole('button', { name: 'ACTIONの位置を一時的に固定解除' }), '編集中だけ')
+    await expectSharedTooltip(screen.getByRole('button', { name: 'ACTIONを複製' }), 'データ割当は元の領域と共有')
+    const backButton = screen.getByRole('button', { name: 'ACTIONを背面へ' })
+    expect(backButton.getAttribute('aria-disabled')).toBe('true')
+    await expectSharedTooltip(backButton, 'すでに最背面です')
+    fireEvent.focus(backButton)
+    expect((await screen.findByRole('tooltip')).textContent).toContain('すでに最背面です')
+    fireEvent.blur(backButton)
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
+    expect(actionGroup.querySelector('[title]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'ACTIONの位置を一時的に固定解除' }))
     fireEvent.click(screen.getByRole('button', { name: 'メモ' }))
     rerender(<TemplateRegionNavigator {...props} selectedRegionId="b" />)
@@ -58,3 +66,14 @@ describe('TemplateRegionNavigator', () => {
     expect(onDelete).toHaveBeenCalledWith('b')
   })
 })
+
+async function expectSharedTooltip(button: HTMLElement, expectedText: string) {
+  const trigger = button.closest<HTMLElement>('.appTooltipTrigger') ?? button
+  expect(button.hasAttribute('title')).toBe(false)
+  fireEvent.pointerEnter(trigger)
+  const tooltip = await screen.findByRole('tooltip')
+  expect(tooltip.textContent).toContain(expectedText)
+  expect(trigger.getAttribute('aria-describedby')).toBe(tooltip.id)
+  fireEvent.pointerLeave(trigger)
+  await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
+}

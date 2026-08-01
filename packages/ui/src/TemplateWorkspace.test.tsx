@@ -162,6 +162,42 @@ describe('TemplateWorkspace project integration', () => {
       defaultValue: '動画',
     })
   })
+
+  it('uses shared tooltips for disabled field semantics and placement controls', async () => {
+    const template = createTemplateDraft('paper-standard', standardA3SheetTemplate)
+    const field = defaultValueField(template)
+    field.label = '連動項目'
+    field.builtinBinding = { target: 'cut-metadata', field: 'title' }
+
+    render(
+      <TemplateWorkspace
+        project={createDefaultProject()}
+        template={template}
+        onLoadTemplate={async () => null}
+        onSaveTemplate={async () => ({ saved: true })}
+        onApplyTemplate={vi.fn()}
+        onCreateTemplateDraft={(kind): SheetTemplate => createTemplateDraft(kind, standardA3SheetTemplate)}
+        onUpdateCorrectionLayers={() => true}
+      />,
+    )
+
+    const navigator = screen.getByRole('complementary', { name: '領域一覧' })
+    fireEvent.click(within(navigator).getByRole('button', { name: 'MEMO' }))
+    const valueType = screen.getByLabelText('連動項目の値の種類') as HTMLSelectElement
+    expect(valueType.disabled).toBe(true)
+    expect(valueType.hasAttribute('title')).toBe(false)
+    expect(document.getElementById(valueType.getAttribute('aria-describedby')!)?.textContent).toContain('標準のカット情報と連動する項目')
+    await expectTooltipOn(valueType.closest('label'), '標準のカット情報と連動する項目')
+
+    fireEvent.click(within(navigator).getByRole('button', { name: 'ACTION 1-72' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ACTION 1-72の位置を一時的に固定' }))
+    const xInput = screen.getByLabelText(/x px$/) as HTMLInputElement
+    expect(xInput.disabled).toBe(true)
+    expect(xInput.hasAttribute('title')).toBe(false)
+    expect(document.getElementById(xInput.getAttribute('aria-describedby')!)?.textContent).toContain('固定を解除すると編集できます')
+    await expectTooltipOn(xInput.closest('label'), '位置の一時固定を解除すると編集できます')
+    expect(document.querySelector('[title]')).toBeNull()
+  })
 })
 
 function renderDefaultValueWorkspace() {
@@ -207,4 +243,14 @@ function asFileList(file: File): FileList {
     length: 1,
     item: (index: number) => index === 0 ? file : null,
   } as unknown as FileList
+}
+
+async function expectTooltipOn(target: Element | null, expectedText: string) {
+  expect(target).toBeTruthy()
+  fireEvent.pointerEnter(target!)
+  const tooltip = await screen.findByRole('tooltip')
+  expect(tooltip.textContent).toContain(expectedText)
+  expect(target!.getAttribute('aria-describedby')).toBe(tooltip.id)
+  fireEvent.pointerLeave(target!)
+  await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
 }

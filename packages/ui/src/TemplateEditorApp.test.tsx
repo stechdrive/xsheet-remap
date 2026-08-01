@@ -299,13 +299,25 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(screen.getByText('未保存の変更')).toBeTruthy()
   })
 
-  it('opens the chapter-based help from both start and authoring views', () => {
+  it('opens the chapter-based help from the shared application tooltip', async () => {
     render(<TemplateEditorApp />)
-    fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
+    const helpButton = screen.getByRole('button', { name: 'ヘルプ' })
+    const tooltipTrigger = helpButton.closest<HTMLElement>('.appTooltipTrigger')
+    expect(tooltipTrigger).toBeTruthy()
+    expect(helpButton.hasAttribute('title')).toBe(false)
+    fireEvent.pointerEnter(tooltipTrigger!)
+    expect((await screen.findByRole('tooltip')).textContent).toContain('xsheet-templateの使い方を開く')
+    fireEvent.pointerLeave(tooltipTrigger!)
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
+
+    fireEvent.click(helpButton)
     expect(screen.getByRole('dialog', { name: 'xsheet-templateの使い方' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: '完成までの手順' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
     expect(screen.queryByRole('dialog', { name: 'xsheet-templateの使い方' })).toBeNull()
+
+    startA3Authoring()
+    expect(document.querySelector('[title]')).toBeNull()
   })
 })
 

@@ -1,3 +1,5 @@
+import { TooltipTarget } from './Tooltip'
+
 export type TemplateRegionNavigationItem = {
   regionId: string
   label: string
@@ -41,6 +43,9 @@ export function TemplateRegionNavigator({
           const hidden = hiddenRegionIds.has(item.regionId)
           const locked = positionLockedRegionIds.has(item.regionId)
           const selected = selectedRegionId === item.regionId
+          const alreadyFront = index === items.length - 1
+          const alreadyBack = index === 0
+          const cannotDelete = items.length <= 1
           const kindDescriptionId = `template-region-kind-${index}`
           const stateDescriptionId = `template-region-state-${index}`
           return (
@@ -63,16 +68,32 @@ export function TemplateRegionNavigator({
                 </span>
               </button>
               {selected && <div className="templateRegionNavigatorActions" role="group" aria-label={`${item.label}の操作`}>
-                <button type="button" title="保存内容は変えず、編集中のキャンバス表示だけを切り替えます" aria-label={`${item.label}を編集画面で${hidden ? '表示' : '非表示'}`} aria-pressed={!hidden} onClick={() => onToggleHidden(item.regionId)}>
-                  {hidden ? '表示する' : '編集時非表示'}
-                </button>
-                <button type="button" title="保存内容は変えず、誤操作防止のため編集中だけ位置を固定します" aria-label={`${item.label}の位置を一時的に${locked ? '固定解除' : '固定'}`} aria-pressed={locked} onClick={() => onTogglePositionLocked(item.regionId)}>
-                  {locked ? '固定を解除' : '位置を一時固定'}
-                </button>
-                <button type="button" title="配置と表示設定を複製します。入力項目やデータ割当は元の領域と共有します" aria-label={`${item.label}を複製`} onClick={() => onDuplicate(item.regionId)}>複製</button>
-                <button type="button" aria-label={`${item.label}を前面へ`} disabled={index === items.length - 1} onClick={() => onMove(item.regionId, 1)}>前面</button>
-                <button type="button" aria-label={`${item.label}を背面へ`} disabled={index === 0} onClick={() => onMove(item.regionId, -1)}>背面</button>
-                <button type="button" className="danger" aria-label={`${item.label}を削除`} disabled={items.length <= 1} onClick={() => onDelete(item.regionId)}>削除</button>
+                <TooltipTarget label="保存内容は変えず、編集中のキャンバス表示だけを切り替えます">
+                  {tooltipProps => (
+                    <button type="button" aria-label={`${item.label}を編集画面で${hidden ? '表示' : '非表示'}`} aria-pressed={!hidden} onClick={() => onToggleHidden(item.regionId)} {...tooltipProps}>
+                      {hidden ? '表示する' : '編集時非表示'}
+                    </button>
+                  )}
+                </TooltipTarget>
+                <TooltipTarget label="保存内容は変えず、誤操作防止のため編集中だけ位置を固定します">
+                  {tooltipProps => (
+                    <button type="button" aria-label={`${item.label}の位置を一時的に${locked ? '固定解除' : '固定'}`} aria-pressed={locked} onClick={() => onTogglePositionLocked(item.regionId)} {...tooltipProps}>
+                      {locked ? '固定を解除' : '位置を一時固定'}
+                    </button>
+                  )}
+                </TooltipTarget>
+                <TooltipTarget label="配置と表示設定を複製します。入力項目やデータ割当は元の領域と共有します">
+                  {tooltipProps => <button type="button" aria-label={`${item.label}を複製`} onClick={() => onDuplicate(item.regionId)} {...tooltipProps}>複製</button>}
+                </TooltipTarget>
+                <TooltipTarget label={alreadyFront ? 'すでに最前面です' : '重なり順を1段前面へ移動します'}>
+                  {tooltipProps => <button type="button" aria-label={`${item.label}を前面へ`} aria-disabled={alreadyFront || undefined} onClick={alreadyFront ? undefined : () => onMove(item.regionId, 1)} {...tooltipProps}>前面</button>}
+                </TooltipTarget>
+                <TooltipTarget label={alreadyBack ? 'すでに最背面です' : '重なり順を1段背面へ移動します'}>
+                  {tooltipProps => <button type="button" aria-label={`${item.label}を背面へ`} aria-disabled={alreadyBack || undefined} onClick={alreadyBack ? undefined : () => onMove(item.regionId, -1)} {...tooltipProps}>背面</button>}
+                </TooltipTarget>
+                <TooltipTarget label={cannotDelete ? '最後の領域は削除できません' : 'この領域をテンプレートから削除します'}>
+                  {tooltipProps => <button type="button" className="danger" aria-label={`${item.label}を削除`} aria-disabled={cannotDelete || undefined} onClick={cannotDelete ? undefined : () => onDelete(item.regionId)} {...tooltipProps}>削除</button>}
+                </TooltipTarget>
               </div>}
             </section>
           )

@@ -310,6 +310,12 @@
   white-space: normal;
 }
 
+.templateRegionNavigatorActions button[aria-disabled="true"] {
+  color: #8a918c;
+  cursor: not-allowed;
+  background: #e8e9e4;
+}
+
 .templateRegionNavigatorActions .danger {
   color: #8f261b;
 }
@@ -710,6 +716,11 @@
 .templateRegionDeleteActions {
   display: grid;
   gap: 6px;
+}
+
+.templateRegionDeleteActions > .appTooltipTrigger,
+.templateRegionDeleteActions > .appTooltipTrigger > button {
+  width: 100%;
 }
 
 .templateRegionDeleteButton {

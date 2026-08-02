@@ -5,22 +5,28 @@ import { SheetCorrectorHelpDialog } from './sheet-corrector-components'
 afterEach(cleanup)
 
 describe('SheetCorrectorHelpDialog', () => {
-  it('leads with drag-and-drop usage and explains when to open the app', () => {
+  it('leads with the shortest workflow and exposes all operations by chapter', () => {
     const onClose = vi.fn()
     render(<SheetCorrectorHelpDialog onClose={onClose} />)
 
-    expect(screen.getByText('普段はアプリを開かず、タイムシート画像をドロップするだけで使えます。')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'まずは画像をドロップするだけ' })).toBeTruthy()
-    expect(screen.getByText('タイムシート画像を「xsheet-corrector.exe」、または自分で作成したショートカットへドロップすると、自動で画像を補正してPSDを作成します。')).toBeTruthy()
-    expect(screen.getByText(/JPG、PNG、TGAなど/)).toBeTruthy()
-    expect(screen.getByRole('heading', { name: '複数の画像もまとめて処理できます' })).toBeTruthy()
-    expect(screen.getByText('カットフォルダをそのままドロップして、フォルダ内の対象画像をまとめて処理することもできます。', { exact: false })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'アプリ画面は確認・調整したいときに' })).toBeTruthy()
-    expect(screen.getByText('自動処理で「要確認」になった画像を直したい')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: '画面で確認しながら処理する' })).toBeTruthy()
-    expect(screen.getByText(/「選択を補正」または「一括補正」/)).toBeTruthy()
-    expect(screen.getByText(/「選択を出力」または「全件を出力」/)).toBeTruthy()
-    expect(screen.getByText(/現在処理している1件が終わった安全な時点/)).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'シート画像補正の使い方' })).toBeTruthy()
+    const quickTab = screen.getByRole('tab', { name: 'クイックガイド' })
+    const detailedTab = screen.getByRole('tab', { name: '詳しい使い方' })
+    expect(quickTab.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('heading', { name: '画像をドロップしてPSDを作る' })).toBeTruthy()
+    expect(screen.getByText(/通常は編集画面を開く必要はありません/)).toBeTruthy()
+    expect(screen.getByText(/元画像と同じフォルダに補正済みPSD/)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '編集画面を使うのはこんなとき' })).toBeTruthy()
+
+    fireEvent.click(detailedTab)
+    expect(detailedTab.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('heading', { name: '画像からすぐPSDを作る' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /四隅を合わせて補正する/ }))
+    expect(screen.getByRole('heading', { name: '四隅を手動で直す' })).toBeTruthy()
+    expect(screen.getByText(/必ず「変形適用」を押します/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /PSDを出力して編集する/ }))
+    expect(screen.getByRole('heading', { name: 'PSDのレイヤー' })).toBeTruthy()
+    expect(screen.getByText(/既存ファイルを上書きしません/)).toBeTruthy()
     expect(screen.queryByText('高精度補正', { exact: false })).toBeNull()
     expect(screen.queryByText('バッチ', { exact: false })).toBeNull()
 

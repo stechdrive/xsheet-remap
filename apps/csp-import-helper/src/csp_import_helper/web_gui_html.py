@@ -102,14 +102,31 @@ HTML_TEMPLATE = r"""<!doctype html>
     .modal-backdrop.show { display: flex; }
     .modal { width: min(720px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #fff; border-radius: 8px; border: 1px solid #d4dbe7; box-shadow: 0 12px 36px rgba(0,0,0,.22); padding: 16px; }
     .modal h2 { margin: 0 0 12px; font-size: 17px; }
-    .help-modal { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(860px, 100%); padding: 0; overflow: hidden; }
+    .help-modal { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; width: min(860px, 100%); padding: 0; overflow: hidden; }
     .help-modal header, .help-modal footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e1e6ef; }
     .help-modal footer { display: block; border-top: 1px solid #e1e6ef; border-bottom: 0; }
     .help-modal header div { min-width: 0; }
     .help-modal header .icon-button { flex: 0 0 auto; align-self: flex-start; }
     .help-modal h2 { margin: 0 0 3px; }
     .help-modal header p, .help-modal footer p { margin: 0; color: #607086; font-size: 12px; line-height: 1.5; }
-    .help-content { min-height: 0; overflow: auto; display: grid; gap: 10px; padding: 14px 16px; }
+    .help-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid #e1e6ef; background: #f8fafc; }
+    .help-tab { height: 36px; border: 0; border-bottom: 3px solid transparent; border-radius: 6px 6px 0 0; background: transparent; color: #5a687c; }
+    .help-tab[aria-selected="true"] { border-bottom-color: var(--blue); background: #fff; color: #174f9f; }
+    .help-panel { min-height: 0; overflow: auto; }
+    .help-panel[hidden] { display: none; }
+    .help-panel-detailed { overflow: hidden; }
+    .help-content { display: grid; gap: 10px; padding: 14px 16px; }
+    .help-lead { padding: 12px; border-radius: 8px; background: #eef5ff; color: #26364d; font-size: 12px; line-height: 1.6; }
+    .help-manual { display: grid; grid-template-columns: 230px minmax(0, 1fr); height: 100%; min-height: 0; }
+    .help-toc { min-height: 0; overflow: auto; padding: 12px; border-right: 1px solid #e1e6ef; background: #f8fafc; }
+    .help-toc > div { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 9px; color: #536176; font-size: 11px; }
+    .help-toc > div strong { color: #1f2a3a; font-size: 12px; }
+    .help-toc nav { display: grid; gap: 4px; }
+    .help-chapter-button { height: auto; min-height: 34px; padding: 7px 9px; border-color: transparent; background: transparent; color: #445268; text-align: left; line-height: 1.35; }
+    .help-chapter-button[aria-current="page"] { border-color: #b8c9e4; background: #eef5ff; color: #174f9f; }
+    .help-chapter-button span { display: inline-block; width: 26px; color: #6b788a; font-size: 10px; }
+    .help-chapters { min-height: 0; overflow: auto; align-content: start; }
+    .help-chapter[hidden] { display: none; }
     .help-section { padding: 12px; border: 1px solid #dce3ed; border-radius: 8px; background: #fbfcfe; }
     .help-section.warning { border-color: #e5c572; background: #fffaf0; }
     .help-section h3 { margin: 0 0 6px; color: #1f2a3a; font-size: 14px; }
@@ -133,6 +150,11 @@ HTML_TEMPLATE = r"""<!doctype html>
       .workspace { grid-template-columns: 1fr; }
       .save-row { grid-template-columns: 1fr; }
       .option-grid, .actions { grid-template-columns: 1fr; }
+      .help-manual { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+      .help-toc { overflow: hidden; border-right: 0; border-bottom: 1px solid #e1e6ef; }
+      .help-toc > div { margin-bottom: 6px; }
+      .help-toc nav { display: flex; overflow-x: auto; }
+      .help-chapter-button { flex: 0 0 auto; white-space: nowrap; }
     }
   </style>
 </head>
@@ -249,65 +271,128 @@ HTML_TEMPLATE = r"""<!doctype html>
           </svg>
         </button>
       </header>
-      <div class="help-content">
-        <section class="help-section">
-          <h3>紙で作画された素材を扱うときのTips</h3>
-          <p>紙で作画された素材は、スキャン後にタップ穴を基準に位置を揃えておくと、クリスタへ登録した際の位置が安定します。</p>
-          <ol>
-            <li><strong>Kodakのドキュメントスキャナで登録画像をスキャンします。</strong> 紙シート、動画用紙、セル画像は同じ前提のスキャン画像として扱います。</li>
-            <li><strong><a class="help-inline-link external-link" href="__OLM_PEG_HOLE_STABILIZER_URL__" data-external-url="__OLM_PEG_HOLE_STABILIZER_URL__" target="_blank" rel="noopener noreferrer">OLMペグホールスタビライザー</a>でタップ穴基準に位置合わせします。</strong> オートフィードで生じたタップ穴のずれを、登録前にまとめて補正できます。</li>
-          </ol>
-        </section>
-        <section class="help-section">
-          <h3>クリスタへ組み込む手順</h3>
-          <ol>
-            <li><strong>xsheet-remapで「CSP自動登録データを書き出す」を実行します。</strong> デスクトップ版ではカットフォルダ内のxsheet-csp-importに登録ファイル（csp-import.xci）とXDTSを作成し、画像素材はカットフォルダ内の元ファイルを参照します。PWA版ではZIP内にcsp-import.xci、XDTS、取得できた実際の画像素材がまとめられます。</li>
-            <li><strong>この画面でxsheet-importer用ファイル(.xci)を選びます。</strong> .xciをこのウィンドウへドロップしても読み込めます。</li>
-            <li><strong>操作対象のクリスタファイル(.clip)を選びます。</strong> ヘルパーはこの.clipをクリスタで開いて処理します。</li>
-            <li><strong>保存先を確認します。</strong> ファイル名込みの.clipパスにしてください。フォルダだけでは保存できません。処理後に作業中のCLIPファイルも閉じる場合だけ「保存後にCLIPを閉じる」をオンにします。</li>
-            <li><strong>「開始」を押します。</strong> クリスタにXDTSを読み込み、必要な画像セルを登録し、最後に指定先へ別名保存します。</li>
-          </ol>
-        </section>
-        <section class="help-section">
-          <h3>初回のみ：クリスタ側の準備</h3>
-          <p>xsheet-remap用ワークスペースをAssetsからダウンロードします。クリスタの［ウィンドウ］＞［素材］から素材パレットを表示し、ダウンロードしたワークスペースをキャンバスへドラッグ＆ドロップして読み込みます。</p>
-          <div class="help-links">
-            <a class="help-link external-link" href="__WORKSPACE_ASSET_URL__" data-external-url="__WORKSPACE_ASSET_URL__" target="_blank" rel="noopener noreferrer">ワークスペースをAssetsで開く</a>
-          </div>
-          <ul>
-            <li>同梱のassets/xsheet-remap.lafを使う場合は、オートアクションパレットのメニューから「オートアクションセットを読み込み」を選び、xsheet-remap.lafを読み込むこと。</li>
-            <li>乗算オートアクションを読み込んだ後、ファイル &gt; ショートカットキー設定から、設定領域 &gt; オートアクションを選び、読み込んだxsheet-remapオートアクションの「乗算」にCtrl+Alt+Lを割り当てていること。ワークスペース読み込みだけではオートアクションのショートカットは自動設定されません。</li>
-            <li>このオートアクションはレイヤー合成モードを乗算にするだけです。同じ内容のオートアクションを自分で作っている場合も、xsheet-importerの「設定」にある「乗算オートアクション」と同じショートカットが割り当たっていれば使えます。</li>
-          </ul>
-        </section>
-        <section class="help-section">
-          <h3>自動登録先のCLIPファイルを確認</h3>
-          <ul>
-            <li class="critical"><strong>最重要：素材の自動登録先となるCLIPファイル内で、既存のアニメーションフォルダーがすべて非表示になるようにしてください。</strong> アニメーションフォルダーを1つずつ非表示にする必要はありません。それらを含む親フォルダーを非表示にしても構いません。表示されたままのアニメーションフォルダーがあると、自動登録時のフォルダーの積み込みが崩れます。</li>
-            <li><strong>同じCLIPファイルで、タイムライン編集が有効になっていることを確認してください。</strong> xsheet-importerはタイムライン編集が有効な状態を前提に処理を開始します。</li>
-          </ul>
-        </section>
-        <section class="help-section">
-          <h3>クリスタの起動状態を確認</h3>
-          <p>クリスタは起動していなくても構いません。すでに起動している場合は、作業対象以外のドキュメントを閉じ、確認・保存などのダイアログが表示されていない状態で開始してください。</p>
-          <p>クリスタのインストール先は問いません。.clipファイルをダブルクリックしてクリスタで開ける状態にしてください。</p>
-        </section>
-        <section class="help-section">
-          <h3>実行前の最終チェック</h3>
-          <ul>
-            <li>xsheet-remap用ワークスペースが選択され、ワークスペースとショートカットがヘルパーの「設定」と合っていること。</li>
-            <li>通常は「最速」を使い、タイミング起因のエラーが出る環境ではCLIPを初期状態へ戻して「高速」または「標準」で再実行すること。</li>
-          </ul>
-        </section>
-        <section class="help-section">
-          <h3>実行中の注意</h3>
-          <ul>
-            <li><strong>自動登録中はマウス・キーボードを触らないでください。</strong> xsheet-importerがクリスタを前面にして操作します。</li>
-            <li>止めたい場合はCtrl+Alt+F12、またはCtrl+Alt+Pauseを押します。次の安全なチェック地点で停止します。</li>
-            <li>不明なクリスタのモーダルが出た場合、xsheet-importerは無理に進めず停止します。ログと画面状態を確認してください。</li>
-            <li>完了後は保存された.clipを開き、セル名、工程、BG/BOOK、撮影指示、メモの積み順を確認します。</li>
-          </ul>
-        </section>
+      <div class="help-tabs" role="tablist" aria-label="ヘルプの表示">
+        <button class="help-tab" id="helpQuickTab" type="button" role="tab" aria-selected="true" aria-controls="helpQuickPanel">クイックガイド</button>
+        <button class="help-tab" id="helpDetailedTab" type="button" role="tab" aria-selected="false" aria-controls="helpDetailedPanel">詳しい使い方</button>
+      </div>
+      <div class="help-panel" id="helpQuickPanel" role="tabpanel" aria-labelledby="helpQuickTab">
+        <div class="help-content">
+          <div class="help-lead">目的は、xsheet-remap / Editorで決めたタイミングと画像素材を、指定したCLIPへまとめて登録することです。初回準備が済んでいれば、毎回の操作は次の5手順です。</div>
+          <section class="help-section">
+            <h3>すぐ登録する5手順</h3>
+            <ol>
+              <li><strong>初回だけ、クリスタのワークスペース、オートアクション、ショートカットを合わせます。</strong> すでに設定済みなら次へ進みます。</li>
+              <li><strong>xsheet-remapまたはEditorで「CSP自動登録データを書き出す」を実行します。</strong> PWA版のZIPは展開し、中にあるcsp-import.xciを使います。</li>
+              <li><strong>csp-import.xciと登録先の.clipを選びます。</strong> 2ファイルを同時にこのウィンドウへドロップしても構いません。</li>
+              <li><strong>保存先、カット・素材・セル列の件数を確認します。</strong> 登録先CLIPのアニメーションフォルダーを非表示にし、タイムライン編集を有効にします。速度は通常「最速（推奨）」のままで開始できます。</li>
+              <li><strong>「開始」を押し、完了までマウスとキーボードに触れません。</strong> 終了後、保存されたCLIPを開いてタイムラインと素材を確認します。</li>
+            </ol>
+          </section>
+          <section class="help-section warning">
+            <h3>開始できない／途中で止まったら</h3>
+            <ul>
+              <li>「開始」が押せないときは、.xci、.clip、ファイル名を含む保存先の3点を確認します。</li>
+              <li>途中で止まったときは、処理前のCLIPへ戻してから再実行します。入力の速さが原因なら「高速」、それでも不安定なら「標準」を選びます。</li>
+              <li>画面の「停止」は操作できるときに使います。クリスタが前面で戻れないときはCtrl+Alt+F12またはCtrl+Alt+Pauseで停止を要求します。</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+      <div class="help-panel help-panel-detailed" id="helpDetailedPanel" role="tabpanel" aria-labelledby="helpDetailedTab" hidden>
+        <div class="help-manual">
+          <aside class="help-toc">
+            <div><strong>詳しい使い方</strong><span>全9章</span></div>
+            <nav aria-label="xsheet-importerの詳しい使い方の目次">
+              <button class="help-chapter-button" type="button" data-help-chapter-target="0" aria-current="page"><span>01</span>このアプリで得られるもの</button>
+              <button class="help-chapter-button" type="button" data-help-chapter-target="1"><span>02</span>初回だけのCSP準備</button>
+              <button class="help-chapter-button" type="button" data-help-chapter-target="2"><span>03</span>自動登録データの作成</button>
+              <button class="help-chapter-button" type="button" data-help-chapter-target="3"><span>04</span>入力ファイルと保存先</button>
+              <button class="help-chapter-button" type="button" data-help-chapter-target="4"><span>05</span>読み込み内容と複数カット</button>
+              <button class="help-chapter-button" type="button" data-help-chapter-target="5"><span>06</span>速度・終了・設定</button>
+              <button class="help-chapter-button" type="button" data-help-chapter-target="6"><span>07</span>実行前確認・進行・停止</button>
+              <button class="help-chapter-button" type="button" data-help-chapter-target="7"><span>08</span>完了確認と再実行</button>
+              <button class="help-chapter-button" type="button" data-help-chapter-target="8"><span>09</span>紙素材の準備</button>
+            </nav>
+          </aside>
+          <main class="help-content help-chapters">
+          <section class="help-section help-chapter" data-help-chapter="0">
+            <h3>01｜このアプリで得られるもの</h3>
+            <p>xsheet-importerはクリスタを自動操作し、各カットのXDTS、セル列ごとの画像素材、保存までを一続きで行います。csp-import.xciは登録内容を伝えるxsheet-importer用ファイルで、クリスタへ直接読み込むファイルではありません。</p>
+            <ul>
+              <li>「入力ファイル」で登録内容の.xciと登録先.clip、「保存先」で結果を残す別名保存先を決めます。</li>
+              <li>「読み込み内容」のカット・素材・セル列とタイムライン名で、始める前に対象を確認できます。</li>
+              <li>「工程」には現在の作業、完了数、停止理由が出ます。進まないときの判断材料にしてください。</li>
+            </ul>
+          </section>
+          <section class="help-section help-chapter" data-help-chapter="1" hidden>
+            <h3>02｜初回のみ：クリスタ側の準備</h3>
+            <p>xsheet-remap用ワークスペースをAssetsからダウンロードします。クリスタの［ウィンドウ］＞［素材］から素材パレットを表示し、ダウンロードしたワークスペースをキャンバスへドラッグ＆ドロップして読み込みます。</p>
+            <div class="help-links">
+              <a class="help-link external-link" href="__WORKSPACE_ASSET_URL__" data-external-url="__WORKSPACE_ASSET_URL__" target="_blank" rel="noopener noreferrer">ワークスペースをAssetsで開く</a>
+            </div>
+            <ul>
+              <li>同梱のassets/xsheet-remap.lafを使う場合は、オートアクションパレットのメニューから「オートアクションセットを読み込み」を選び、xsheet-remap.lafを読み込みます。</li>
+              <li>乗算オートアクションを読み込んだ後、ファイル &gt; ショートカットキー設定から、設定領域 &gt; オートアクションを選び、読み込んだxsheet-remapオートアクションの「乗算」にCtrl+Alt+Lを割り当てます。ワークスペース読み込みだけではオートアクションのショートカットは自動設定されません。</li>
+              <li>同じ内容のオートアクションを自分で作っている場合も、「設定」の「乗算オートアクション」と同じショートカットなら使えます。</li>
+            </ul>
+          </section>
+          <section class="help-section help-chapter" data-help-chapter="2" hidden>
+            <h3>03｜CSP自動登録データを作る</h3>
+            <p>xsheet-remapまたはEditorで「CSP自動登録データを書き出す」を実行します。</p>
+            <ul>
+              <li>デスクトップ版は、カットフォルダ内のxsheet-csp-importへcsp-import.xciとXDTSを作り、画像素材は元のカットフォルダを参照します。</li>
+              <li>PWA版ではZIP内にcsp-import.xci、XDTS、取得できた実際の画像素材がまとめられます。ZIPを展開してからcsp-import.xciを選びます。</li>
+            </ul>
+          </section>
+          <section class="help-section help-chapter" data-help-chapter="3" hidden>
+            <h3>04｜入力ファイルと保存先</h3>
+            <ol>
+              <li><strong>xsheet-importer用ファイル(.xci)と操作対象のクリスタファイル(.clip)を選びます。</strong> 個別に「選択」を押すほか、両方を同時にウィンドウへドロップできます。</li>
+              <li><strong>保存先を確認します。</strong> .xciを読み込むと候補が入ります。必要なら「変更」を押し、ファイル名込みの.clipパスにします。フォルダだけでは保存できません。</li>
+              <li><strong>処理後に作業中のCLIPファイルも閉じる場合だけ「保存後にCLIPを閉じる」をオンにします。</strong> 続けて結果を確認するならオフにします。</li>
+            </ol>
+          </section>
+          <section class="help-section help-chapter" data-help-chapter="4" hidden>
+            <h3>05｜読み込まれる内容と複数カット</h3>
+            <p>「読み込み内容」でカット数、画像素材数、セル列数を照合します。複数カットの.xciでは、カットごとにタイムラインを作成して名前を付け、それぞれのXDTSを読み込みます。その後、画像素材をセル列ごとに登録します。</p>
+            <p>想定と件数やタイムライン名が違うときは開始せず、xsheet-remap / Editor側の有効なカットと素材割り当てを直して書き出し直します。</p>
+          </section>
+          <section class="help-section help-chapter" data-help-chapter="5" hidden>
+            <h3>06｜速度・終了方法・ショートカット設定</h3>
+            <ul>
+              <li>通常は「最速」を使います。選んだ速度は次回にも引き継がれます。失敗したら処理前のCLIPへ戻し、「高速」または「標準」で最初から再実行します。</li>
+              <li>「設定」には自動操作で使う13種類のショートカットがあります。各欄を選び、クリスタ側で割り当てた実際のキーを押して入力し、「適用」で保存します。迷ったときは「ショートカットを既定に戻す」を使います。</li>
+              <li>「アニメーションフォルダを乗算にする」をオンにすると、登録した各フォルダーへ乗算オートアクションを実行します。必要なときだけオンにし、対応するクリスタ側ショートカットも合わせます。</li>
+            </ul>
+          </section>
+          <section class="help-section warning help-chapter" data-help-chapter="6" hidden>
+            <h3>07｜実行前確認・進行・停止</h3>
+            <ul>
+              <li class="critical"><strong>最重要：素材の自動登録先となるCLIPファイル内で、既存のアニメーションフォルダーがすべて非表示になるようにしてください。</strong> アニメーションフォルダーを1つずつ非表示にする必要はありません。それらを含む親フォルダーを非表示にしても構いません。表示されたままのアニメーションフォルダーがあると、自動登録時のフォルダーの積み込みが崩れます。</li>
+              <li><strong>同じCLIPファイルで、タイムライン編集が有効になっていることを確認してください。</strong> xsheet-importerはタイムライン編集が有効な状態を前提に処理を開始します。</li>
+              <li>クリスタは起動していなくても構いません。起動済みなら作業対象以外のドキュメントを閉じ、確認・保存などのダイアログがない状態にします。.clipファイルをダブルクリックしてクリスタで開ける状態なら、インストール先は問いません。</li>
+              <li><strong>自動登録中はマウス・キーボードを触らないでください。</strong> クリスタを前面にして自動操作するため、別の入力をすると操作先がずれます。</li>
+              <li>画面の「停止」は、次の安全なチェック地点で止める通常の方法です。クリスタが前面でボタンへ戻れないときは、Ctrl+Alt+F12またはCtrl+Alt+Pauseで同じ停止要求を送れます。</li>
+            </ul>
+          </section>
+          <section class="help-section help-chapter" data-help-chapter="7" hidden>
+            <h3>08｜完了確認と失敗時のやり直し</h3>
+            <ul>
+              <li>完了後は保存された.clipを開き、セル名、各カットのタイムライン、BG/BOOK、撮影指示、メモの積み順を確認します。</li>
+              <li>不明なクリスタのモーダルが出た場合、xsheet-importerは無理に進めず停止します。停止理由とクリスタ画面を確認し、原因を解消します。</li>
+              <li>失敗後の途中状態から続けず、処理前のCLIPを使って最初から再実行します。操作待ちが原因なら速度を一段ずつ下げます。</li>
+            </ul>
+          </section>
+          <section class="help-section help-chapter" data-help-chapter="8" hidden>
+            <h3>09｜紙で作画された素材を扱うときのTips</h3>
+            <p>紙で作画された素材は、スキャン後にタップ穴を基準に位置を揃えておくと、クリスタへ登録した際の位置が安定します。</p>
+            <ol>
+              <li><strong>Kodakのドキュメントスキャナで登録画像をスキャンします。</strong> 紙シート、動画用紙、セル画像は同じ前提のスキャン画像として扱います。</li>
+              <li><strong><a class="help-inline-link external-link" href="__OLM_PEG_HOLE_STABILIZER_URL__" data-external-url="__OLM_PEG_HOLE_STABILIZER_URL__" target="_blank" rel="noopener noreferrer">OLMペグホールスタビライザー</a>でタップ穴基準に位置合わせします。</strong> オートフィードで生じたタップ穴のずれを、登録前にまとめて補正できます。</li>
+            </ol>
+          </section>
+          </main>
+        </div>
       </div>
       <footer>
         <p>csp-import.xciはxsheet-importer用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。必ずxsheet-importerから実行してください。</p>
@@ -492,8 +577,31 @@ HTML_TEMPLATE = r"""<!doctype html>
       $("profileModal").classList.remove("show");
     }
 
+    function setHelpView(view) {
+      const showDetailed = view === "detailed";
+      $("helpQuickTab").setAttribute("aria-selected", String(!showDetailed));
+      $("helpDetailedTab").setAttribute("aria-selected", String(showDetailed));
+      $("helpQuickPanel").hidden = showDetailed;
+      $("helpDetailedPanel").hidden = !showDetailed;
+    }
+
+    function setHelpChapter(index) {
+      const chapterIndex = String(index);
+      document.querySelectorAll("[data-help-chapter-target]").forEach((button) => {
+        if (button.dataset.helpChapterTarget === chapterIndex) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      });
+      document.querySelectorAll("[data-help-chapter]").forEach((chapter) => {
+        chapter.hidden = chapter.dataset.helpChapter !== chapterIndex;
+      });
+      $("helpDetailedPanel").querySelector(".help-chapters").scrollTop = 0;
+    }
+
     function openHelpModal() {
+      setHelpView("quick");
+      setHelpChapter(0);
       $("helpModal").classList.add("show");
+      $("helpQuickTab").focus();
     }
 
     function closeHelpModal() {
@@ -542,6 +650,11 @@ HTML_TEMPLATE = r"""<!doctype html>
       $("closeButton").addEventListener("click", () => invoke("close_window"));
       $("helpButton").addEventListener("click", openHelpModal);
       $("helpClose").addEventListener("click", closeHelpModal);
+      $("helpQuickTab").addEventListener("click", () => setHelpView("quick"));
+      $("helpDetailedTab").addEventListener("click", () => setHelpView("detailed"));
+      document.querySelectorAll("[data-help-chapter-target]").forEach((button) => {
+        button.addEventListener("click", () => setHelpChapter(button.dataset.helpChapterTarget));
+      });
       document.querySelectorAll(".external-link").forEach((link) => {
         link.addEventListener("click", openExternalLink);
       });

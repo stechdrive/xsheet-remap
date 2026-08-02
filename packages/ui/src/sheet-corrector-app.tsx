@@ -1190,7 +1190,7 @@ export function SheetCorrectorApp() {
           <span>v{APP_VERSION}</span>
         </div>
         <div className="sheetCorrectorTopBarActions">
-          <Tooltip label="シートコレクターの使い方">
+          <Tooltip label="シート画像補正の使い方">
             <button type="button" className="sheetCorrectorHelpButton" onClick={() => setHelpDialogOpen(true)}>
               <SheetCorrectorQueueIcon name="help" />
               <span>ヘルプ</span>

@@ -1,52 +1,29 @@
 import { useState } from 'react'
+import { ChapteredHelp, type HelpChapter } from './ChapteredHelp'
 
-type TemplateHelpItem = {
-  term: string
-  description: string
-}
-
-type TemplateHelpSection = {
-  title: string
-  introduction?: string
-  items: TemplateHelpItem[]
-}
-
-type TemplateHelpStep = {
-  title: string
-  description: string
-}
-
-type TemplateHelpChapter = {
-  id: string
-  number: string
-  title: string
-  summary: string
-  steps?: TemplateHelpStep[]
-  sections: TemplateHelpSection[]
-}
-
-const templateHelpChapters: TemplateHelpChapter[] = [
+const templateHelpChapters: HelpChapter[] = [
   {
-    id: 'complete',
+    id: 'start',
     number: '01',
-    title: '完成までの手順',
-    summary: '初めて使うときは、この短い順路だけでテンプレートJSONまで完成できます。',
-    steps: [
-      { title: '作り方を選ぶ', description: '開始画面で「A3標準」「参照画像」「デジタル」「既存JSON」のどれかを選びます。紙なら画像とPPI、デジタルならFPS・フレーム数・セル列数を確認して作成します。' },
-      { title: '基本設定を確認する', description: '右の「テンプレートを編集」に並ぶ「基本設定」を押し、テンプレートIDと利用者向けの名前を整えます。紙の場合は用紙寸法と補正基準枠もここで確認します。' },
-      { title: '領域を選ぶ', description: '右の「領域」を押すと、編集できる領域がカードで並びます。目的とシート上の内容を見て、編集したいカードの「編集する」を押します。' },
-      { title: '領域の詳細を編集する', description: 'まず「編集画面での名前」を付け、その下でシート上の固定文字、表示する情報、入力項目、位置と大きさを必要な分だけ変更します。キャンバス上の領域を直接クリックしても同じ詳細を開けます。' },
-      { title: '一覧へ戻って次を選ぶ', description: '詳細の先頭にある「← 領域一覧へ」でカード一覧へ戻ります。領域ごとに「開く → 編集する → 一覧へ戻る」を繰り返します。' },
-      { title: '共通の見た目を整える', description: '右の「見た目」で用紙色、罫線、タイムライン見出しの共通値、列名の表示を確認します。紙の参照画像は「参照画像」で合わせます。' },
-      { title: '確認して保存する', description: '右の「確認・保存」で修正点を確認し、「確認して保存」でJSONを保存します。最後にEditorまたはRemapで読み込み、実際の値と入力操作を確認します。' },
-    ],
+    title: '作り方を選ぶ',
+    summary: '作りたいシートに最も近い入口を選ぶと、配置を作り直す手間を減らせます。',
     sections: [
       {
-        title: '完成判定のチェックリスト',
+        title: '開始画面の選び方',
         items: [
-          { term: '見た目', description: 'テンプレート画像、アプリ描画の罫線と文字が重ならず、全フレームをスクロールで確認できる。' },
-          { term: '操作', description: '見た目の枠と入力・メモのクリック可能範囲が一致し、必要な列と入力欄が表示される。' },
-          { term: '再利用', description: '保存したJSONを読み直しても同じ配置になり、Editor・Remapで想定した尺とトラック数で開く。' },
+          { term: 'A3標準を調整', description: '一般的な紙タイムシートに近いものを作る入口です。標準配置を土台に、見出しや欄の位置だけを変えたいときに向いています。' },
+          { term: '参照画像から作成', description: '手元の紙タイムシート画像を下敷きにして、罫線や入力範囲を合わせます。画像の密度情報を確認し、実際に使うスキャン画像と同じ大きさで作ると補正結果を合わせやすくなります。' },
+          { term: 'デジタル標準から作成', description: '印刷用紙の大きさに縛られず、必要な尺や列数に応じて横幅が広がるシートを作ります。最初にFPS、フレーム数、セル列数を決めます。' },
+          { term: '既存JSONを開く', description: '以前保存したテンプレートや受け取ったテンプレートを直すときに選びます。現在の配置と設定を保ったまま続きから編集できます。' },
+          { term: '下書きを復元', description: '前回、保存せずに終了した編集があると表示されます。続けるなら復元し、不要なら破棄して新しく始めます。' },
+        ],
+      },
+      {
+        title: '最初に決めること',
+        items: [
+          { term: '紙かデジタルか', description: '紙の画像や印刷寸法に合わせるなら紙、尺や列数に応じてシートを伸ばしたいならデジタルを選びます。' },
+          { term: '名前と識別用ID', description: '利用者に見せる名前を分かりやすくします。識別用IDは、別のテンプレートとして配布・併用したいときだけ既存のものと重ならない値にします。' },
+          { term: '紙の補正基準', description: 'スキャンをまっすぐに補正して使う場合は、実際の用紙で四隅を見つけやすい外枠を補正基準にします。' },
         ],
       },
     ],
@@ -69,10 +46,10 @@ const templateHelpChapters: TemplateHelpChapter[] = [
         ],
       },
       {
-        title: 'テンプレートEXEで扱う範囲',
+        title: 'このアプリで作れるもの',
         items: [
-          { term: '保存されるもの', description: '用紙、領域、固定文字、入力項目、データ割当、罫線など、シートのひな形をJSONへ保存します。' },
-          { term: '対象外のもの', description: '作画・演出・監督などのプロジェクト工程、素材、実際のカット内容はテンプレートEXEでは編集しません。工程はEditorまたはRemapでプロジェクトごとに設定します。' },
+          { term: '保存されるもの', description: '用紙、領域、固定文字、入力項目、表示するカット情報、罫線、配色など、繰り返し使えるシートのひな形をJSONへ保存します。' },
+          { term: 'プロジェクトごとに決めるもの', description: '実際のカット内容、素材、作画・演出・監督などの工程はここでは入力しません。保存したテンプレートをEditorまたはRemapで使い、プロジェクトごとに設定します。' },
         ],
       },
       {
@@ -94,7 +71,7 @@ const templateHelpChapters: TemplateHelpChapter[] = [
       {
         title: '「新しいテンプレート」',
         items: [
-          { term: '紙タイムシート', description: '用紙サイズと向きから、PPIに応じた実ピクセル数を作ります。参照画像は任意で、同一PPIなら拡大縮小せず中央配置して余剩部分だけをトリムします。' },
+          { term: '紙タイムシート', description: '用紙サイズと向きから、PPIに応じた実ピクセル数を作ります。参照画像は任意で、同一PPIなら拡大縮小せず中央配置し、用紙からはみ出す部分だけを切り取ります。' },
           { term: 'デジタルタイムシート', description: 'FPS、初期フレーム数、ACTIONとCELLで共有するセル列数から連続キャンバスを作ります。後からセル列やSOUND・CAMERAレーンを増やすと横幅も追従します。' },
           { term: '現在から複製', description: 'いま編集中の配置と設定をそのまま引き継ぎ、別ID・別名の下書きを作ります。未保存の編集内容も複製へ含まれます。' },
         ],
@@ -163,12 +140,21 @@ const templateHelpChapters: TemplateHelpChapter[] = [
         items: [
           { term: '初期構成', description: '「入力表を追加」は、2つの項目名とその入力欄を持つ2列の表を作ります。領域の外枠と欄は仕上がりに描画されます。' },
           { term: '編集方法', description: '選択した入力欄ごとに「その場で入力」または「ポップアップ」を選びます。長文ならその場で入力、狭い欄ならポップアップが向いています。' },
-          { term: '値の種類と共有範囲', description: 'テキスト、数値、日付などの形式と、作品・カット・シート版・ページのどこで値を共有するかを設定します。プロジェクト内に入力済みの値がある項目と、標準カット情報に連動する項目は、値を失わないよう変更できません。' },
+          { term: '値の種類と共有範囲', description: '1行テキスト、複数行、数値、オン／オフ、選択肢、日付、尺から入力方法を選び、作品全体・カット・シート版・ページのどこで値を共有するかを設定します。用途が同じ欄は同じ範囲を選ぶと、ページをまたいでも入力し直さずに済みます。' },
           { term: '選択肢', description: '値の種類を「選択肢」にすると、候補を1行に1つずつ入力できます。入力画面ではその候補から選びます。' },
           { term: '未入力欄の初期値', description: '任意項目では、まだ値が保存されていない欄へ表示する初期値を設定できます。既存の入力値は上書きせず、値の種類や選択肢を変えて不正になった初期値は自動的に解除されます。' },
           { term: 'メモ対象', description: '「この欄」「表全体」「同じグループ」「メモ対象外」から選びます。グループは共通ID、各対象は任意の表示名を持てます。' },
           { term: '文字と自動縮小', description: '入力欄ごとに文字、最小文字、行間、内余白を設定します。複数行フィールドは、欄内に収まる範囲での自動縮小を切り替えられます。' },
           { term: '手書き注釈欄', description: '注釈欄は文字入力欄ではなく、手書きメモの対象範囲です。注釈レイヤーIDと用途を設定し、文字入力方法や文字サイズは設定しません。' },
+        ],
+      },
+      {
+        title: '表示する情報を結び付ける',
+        items: [
+          { term: '作品・カット情報', description: '作品名、話数、シーン、カット番号、尺、作業者名、ページ数など、シートごとに変わる値を表示したい領域へ割り当てます。標準項目にない情報は、同じ識別名を使う入力欄と結び付けられます。' },
+          { term: '結合カットの表示', description: '複数カットを1枚で扱うときは、先頭・区切り・末尾のどの位置に表示する情報かを選びます。単独カット用なら通常の表示を選びます。' },
+          { term: 'タイミング欄の役割', description: 'ACTION、SOUND、CELL、CAMERAのどの記入欄として使うかを選びます。同じ役割を複数箇所へ置く場合は、必要に応じて区別用のセクションIDをそろえます。' },
+          { term: '標準情報との連動', description: '入力した値をタイトルやカット番号などの標準情報としても使いたい場合に選びます。用途を変えると既存データの見え方も変わるため、EditorまたはRemapで入力済みのテストデータを確認してください。' },
         ],
       },
     ],
@@ -182,9 +168,9 @@ const templateHelpChapters: TemplateHelpChapter[] = [
       {
         title: '4種類の役割',
         items: [
-          { term: 'ACTION', description: '原画工程でタイミング指示を記入する欄です。CELLと同じ論理セル列を使うため、列名・順序・列数は常に一致します。' },
-          { term: 'SOUND', description: '台詞やSEなどの音響指示を、開始から終了までの区間として記入する欄です。「見た目」で初期列名と列名を表示するかを決め、「領域一覧」で初期列数を変更します。' },
-          { term: 'CELL', description: '動画工程で動画番号とタイミングを記入する欄です。ACTIONと同じ論理セル列を、動画用の記入欄として表示します。' },
+          { term: 'ACTION', description: '原画工程でタイミング指示を記入する欄です。CELLと同じセル列を共有するため、列名・順序・列数は常に一致します。' },
+          { term: 'SOUND', description: '台詞やSEなどの音響指示を、開始から終了までの区間として記入する欄です。「見た目」で初期列名と列名表示を決め、開いた領域の「フレームと列」で初期列数を変更します。' },
+          { term: 'CELL', description: '動画工程で動画番号とタイミングを記入する欄です。ACTIONと同じセル列を、動画用の記入欄として表示します。' },
           { term: 'CAMERA', description: 'カメラワークや撮影指示を、指定フレームの区間に記入する欄です。テンプレートでは初期列数・初期列名・列名表示を決め、実際のプロジェクトでは列見出しの右クリックから管理します。デジタルではSOUNDと同様に実際のレーン数に合わせて横方向へ増やせます。' },
         ],
       },
@@ -193,7 +179,7 @@ const templateHelpChapters: TemplateHelpChapter[] = [
         items: [
           { term: '開始F', description: '領域が担当する最初のフレームです。紙の左右ページや分割領域で開始位置をずらすときに使います。' },
           { term: '行数', description: 'その領域に描画するフレーム行の数です。紙では印刷面に収まる数、デジタルでは初期フレーム数と整合させます。' },
-          { term: '列数', description: '紙は領域ごとに表示できる列数を設定し、入り切らない論理セル列はEditor・Remap側で欄外扱いになります。デジタルのACTIONとCELLは共有セル列数を一括変更し、片方だけ異なる列数にはできません。' },
+          { term: '列数', description: '紙は領域ごとに表示できる列数を設定し、入り切らないセル列はEditor・Remap側で欄外扱いになります。デジタルのACTIONとCELLは共有セル列数を一括変更し、片方だけ異なる列数にはできません。' },
           { term: 'デジタルの可変幅', description: 'デジタルは予備列を確保せず、共有セル列とSOUND・CAMERAレーンの実数に合わせてキャンバスの横幅を広げます。列数の変更後は全体表示で配置を再確認します。' },
         ],
       },
@@ -214,12 +200,21 @@ const templateHelpChapters: TemplateHelpChapter[] = [
         ],
       },
       {
-        title: '「見た目」',
+        title: '用紙全体の配色',
+        items: [
+          { term: 'テーマ', description: 'まず用途に近い配色を選びます。個別の色を変更するとカスタムとして扱われるため、完成形を見ながら必要な箇所だけ調整できます。' },
+          { term: '用紙色と背景帯', description: '用紙全体の色に加え、秒や一定区間を見分ける2種類目の背景帯の色と濃さを設定できます。記入内容より目立たない濃さにすると読みやすくなります。' },
+          { term: '文字・参照線・罫線', description: '通常文字、フレーム番号などの参照表示、基本の罫線をまとめて調整します。印刷する場合は、薄い線が消えないかを実際の出力で確認してください。' },
+          { term: 'SOUND・CAMERA', description: '列を見分けやすくするため、奇数列と偶数列の背景、線、文字を個別に設定できます。通常時とポインターを重ねたときの背景の濃さも調整できます。' },
+        ],
+      },
+      {
+        title: '見出しと列名',
         items: [
           { term: '下端セル列名', description: '紙テンプレートのグリッド下端に、セル列名を表示するか切り替えます。デジタルにはこの項目は表示されません。' },
           { term: 'ヘッダー見出し', description: 'ACTION・SOUND・CELL・CAMERAごとに上部見出しの文字を指定します。空欄にするとその見出しだけを非表示にできます。' },
-          { term: '列名を表示', description: '各欄の列名をシート上へ描くかを役割ごとに切り替えます。非表示にしても論理列名や右クリック操作、書き出しデータは保持されます。' },
-          { term: 'SOUND・CAMERA初期列名', description: '新しいプロジェクトをこのテンプレートから作るときの初期値です。A3の左右欄のように同じ論理レーンを複数箇所へ描く場合は、同じ初期列名が全箇所へ反映されます。既存プロジェクトの列名はテンプレート切替で上書きしません。' },
+          { term: '列名を表示', description: '各欄の列名をシート上へ描くかを役割ごとに切り替えます。非表示にしても列名と入力内容は保持されます。' },
+          { term: 'SOUND・CAMERA初期列名', description: 'このテンプレートから新しいプロジェクトを作るときの初期値です。A3の左右欄のように同じレーンを複数箇所へ描く場合は、同じ初期列名が全箇所へ反映されます。既存プロジェクトの列名はテンプレートを切り替えても上書きされません。' },
         ],
       },
     ],
@@ -270,7 +265,7 @@ const templateHelpChapters: TemplateHelpChapter[] = [
         title: '確認とデータ',
         items: [
           { term: '確認・保存', description: 'ID、名前、入力領域、ページ内配置、参照画像PPI、補正基準枠を検査します。問題から対象領域の詳細を直接開けます。' },
-          { term: 'JSON', description: '現在の下書きをスキーマ形式で確認する読み取り専用プレビューです。ここへ直接入力はできません。' },
+          { term: 'JSON', description: '現在の下書きに保存される内容を確認する読み取り専用表示です。ここへ直接入力はできないため、変更したい内容に対応する設定画面へ戻ります。' },
         ],
       },
     ],
@@ -312,7 +307,7 @@ const templateHelpChapters: TemplateHelpChapter[] = [
           { term: '不要な領域を削除したい', description: '左の領域一覧で該当領域の「削除」を押します。必要なら先に「複製」し、重なり順も同じ場所で調整できます。' },
           { term: '元画像と罫線が合わない', description: '用紙サイズ、向き、ピクセル数、PPI、参照画像の元サイズと配置オフセットを確認します。100%と800%以上の両方で罫線境界を比較します。' },
           { term: '文字が切れる', description: '文字サイズ、最小文字、行間、内余白、自動縮小、欄外表示を確認します。見た目だけでなくEditor・Remapで実文字を入力して確認します。' },
-          { term: 'デジタルの横幅が変わった', description: 'デジタルはトラック数とレーン数から横幅を再計算する設計です。不具合ではないため、全体表示へ戻して情報欄、メモ、タイミング欄の右端が揃っているかを確認します。' },
+          { term: 'デジタルの横幅が変わった', description: '必要なACTION・CELL列とSOUND・CAMERA列をすべて見せるため、列数に合わせてシートが横へ広がります。「全体表示」へ戻し、情報欄、メモ、タイミング欄の右端が揃っているかを確認します。' },
           { term: '未保存内容を戻したい', description: '次回起動時の開始画面に「下書きを復元」が表示されます。不要なら「破棄」を選びます。' },
         ],
       },
@@ -321,109 +316,84 @@ const templateHelpChapters: TemplateHelpChapter[] = [
 ]
 
 export function TemplateEditorHelpDialog({ onClose }: { onClose: () => void }) {
+  const [helpView, setHelpView] = useState<'quick' | 'detailed'>('quick')
+
   return (
     <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label="xsheet-templateの使い方">
-      <section className="appHelpDialog templateEditorHelpDialog">
+      <section className="appHelpDialog appHelpDialogTabbed templateEditorHelpDialog">
         <header>
           <div>
             <strong>xsheet-template ヘルプ</strong>
-            <span>テンプレートを最初から完成させる手順と、全機能を章別に説明します。</span>
+            <span>{helpView === 'quick' ? '使えるテンプレートJSONを最短で作る順番です。' : '目的から探せるように、すべての設定と操作を章別に説明します。'}</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
         </header>
-        <div className="appHelpBody appHelpBodyDetailed">
-          <TemplateEditorDetailedHelp />
+
+        <div className="appHelpTabs" role="tablist" aria-label="ヘルプの種類">
+          <button type="button" role="tab" aria-selected={helpView === 'quick'} className={helpView === 'quick' ? 'active' : ''} onClick={() => setHelpView('quick')}>
+            クイックガイド
+          </button>
+          <button type="button" role="tab" aria-selected={helpView === 'detailed'} className={helpView === 'detailed' ? 'active' : ''} onClick={() => setHelpView('detailed')}>
+            詳しい使い方
+          </button>
+        </div>
+
+        <div className={`appHelpBody ${helpView === 'detailed' ? 'appHelpBodyDetailed' : 'templateHelpQuickBody'}`}>
+          {helpView === 'quick' ? <TemplateEditorQuickGuide /> : <TemplateEditorDetailedHelp />}
         </div>
         <footer>
-          <p>右の「確認・保存」で問題を解消し、最後に「確認して保存」でJSONを保存してください。</p>
+          <p>{helpView === 'quick' ? '迷ったら、作りたいシートに最も近い標準形から始めてください。' : '保存後はEditorまたはRemapで、実際の入力と表示を一度確認してください。'}</p>
         </footer>
       </section>
     </div>
   )
 }
 
-export function TemplateEditorDetailedHelp() {
-  const [activeChapterId, setActiveChapterId] = useState(templateHelpChapters[0].id)
-  const activeChapterIndex = Math.max(0, templateHelpChapters.findIndex(chapter => chapter.id === activeChapterId))
-  const activeChapter = templateHelpChapters[activeChapterIndex]
-
-  function selectChapter(index: number) {
-    const chapter = templateHelpChapters[index]
-    if (chapter) setActiveChapterId(chapter.id)
-  }
+function TemplateEditorQuickGuide() {
+  const steps = [
+    { title: '近い作り方を選ぶ', description: '紙の標準形なら「A3標準を調整」、手元の用紙に合わせるなら「参照画像から作成」、可変幅なら「デジタル標準から作成」、続きの編集なら「既存JSONを開く」を選びます。' },
+    { title: 'キャンバスで違いを直す', description: '右の「領域」またはキャンバス上の欄を開き、見出し、入力欄、タイミング欄の位置と大きさを実物に合わせます。' },
+    { title: '入力とタイミング欄を決める', description: '各欄で、表示するカット情報、入力方法、ACTION・SOUND・CELL・CAMERAの役割、開始フレームと列数を設定します。' },
+    { title: '見た目と紙の基準を合わせる', description: '「見た目」で色・罫線・列名を整えます。紙の場合は「参照画像」と「基本設定」の補正基準枠を、実際の用紙に合わせます。' },
+    { title: '確認してJSONを保存する', description: '「確認・保存」で指摘を解消し、「確認して保存」を押します。保存したJSONをEditorまたはRemapで読み込み、入力範囲と最初・最後のフレームを確認すれば完成です。' },
+  ]
 
   return (
-    <div className="editorHelpManual templateHelpManual">
-      <aside className="editorHelpToc">
-        <div className="editorHelpTocIntro">
-          <strong>完成手順＋全機能</strong>
-          <span>全{templateHelpChapters.length}章</span>
-        </div>
-        <nav aria-label="テンプレートEXEヘルプの目次">
-          {templateHelpChapters.map(chapter => (
-            <button
-              key={chapter.id}
-              type="button"
-              className={chapter.id === activeChapter.id ? 'active' : ''}
-              aria-current={chapter.id === activeChapter.id ? 'page' : undefined}
-              onClick={() => setActiveChapterId(chapter.id)}
-            >
-              <span>{chapter.number}</span>
-              {chapter.title}
-            </button>
+    <div className="templateHelpQuickGuide">
+      <header>
+        <span>QUICK GUIDE</span>
+        <h2>最短でテンプレートを完成させる</h2>
+        <p>完成すると、同じレイアウトと入力方法をEditor・Remapで繰り返し使えるテンプレートJSONが得られます。</p>
+      </header>
+      <section className="templateHelpSteps" aria-label="テンプレート完成までの手順">
+        <ol>
+          {steps.map((step, index) => (
+            <li key={step.title}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <div>
+                <strong>{step.title}</strong>
+                <p>{step.description}</p>
+              </div>
+            </li>
           ))}
-        </nav>
+        </ol>
+      </section>
+      <aside>
+        <strong>完成の目安</strong>
+        <p>固定文字が二重にならず、クリックできる範囲が罫線と合い、保存したJSONを読み直しても同じ配置と列数になることを確認します。</p>
       </aside>
-
-      <article key={activeChapter.id} className="editorHelpChapter templateHelpChapter" aria-labelledby={`template-help-${activeChapter.id}`}>
-        <header>
-          <span>CHAPTER {activeChapter.number}</span>
-          <h2 id={`template-help-${activeChapter.id}`}>{activeChapter.title}</h2>
-          <p>{activeChapter.summary}</p>
-        </header>
-
-        {activeChapter.steps && (
-          <section className="templateHelpSteps">
-            <h3>上から順番に進める</h3>
-            <ol>
-              {activeChapter.steps.map((step, index) => (
-                <li key={step.title}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <div>
-                    <strong>{step.title}</strong>
-                    <p>{step.description}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
-
-        {activeChapter.sections.map(section => (
-          <section key={section.title}>
-            <h3>{section.title}</h3>
-            {section.introduction && <p>{section.introduction}</p>}
-            <dl>
-              {section.items.map(item => (
-                <div key={item.term}>
-                  <dt>{item.term}</dt>
-                  <dd>{item.description}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ))}
-
-        <footer className="editorHelpChapterNavigation" aria-label="章の移動">
-          <button type="button" disabled={activeChapterIndex === 0} onClick={() => selectChapter(activeChapterIndex - 1)}>
-            ← 前の章
-          </button>
-          <span>{activeChapterIndex + 1} / {templateHelpChapters.length}</span>
-          <button type="button" disabled={activeChapterIndex === templateHelpChapters.length - 1} onClick={() => selectChapter(activeChapterIndex + 1)}>
-            次の章 →
-          </button>
-        </footer>
-      </article>
     </div>
+  )
+}
+
+export function TemplateEditorDetailedHelp() {
+  return (
+    <ChapteredHelp
+      chapters={templateHelpChapters}
+      tocTitle="テンプレートの全機能"
+      navigationLabel="xsheet-templateの詳しい使い方の目次"
+      idPrefix="template-help"
+      className="templateHelpManual"
+    />
   )
 }

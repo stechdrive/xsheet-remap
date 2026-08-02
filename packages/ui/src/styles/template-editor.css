@@ -32,6 +32,62 @@
   height: min(820px, calc(100vh - 48px));
 }
 
+.templateHelpQuickBody {
+  display: block;
+  overflow: auto;
+}
+
+.templateHelpQuickGuide {
+  display: grid;
+  gap: 14px;
+  width: min(860px, 100%);
+  margin: 0 auto;
+  padding: 4px 0 12px;
+}
+
+.templateHelpQuickGuide > header {
+  display: grid;
+  gap: 5px;
+}
+
+.templateHelpQuickGuide > header > span {
+  color: #47705c;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.templateHelpQuickGuide > header h2,
+.templateHelpQuickGuide > header p,
+.templateHelpQuickGuide > aside p {
+  margin: 0;
+}
+
+.templateHelpQuickGuide > header h2 {
+  color: #203d2f;
+  font-size: 20px;
+}
+
+.templateHelpQuickGuide > header p,
+.templateHelpQuickGuide > aside p {
+  color: #45534b;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.templateHelpQuickGuide > aside {
+  display: grid;
+  gap: 4px;
+  padding: 11px 13px;
+  border-radius: 6px;
+  background: #edf5ef;
+}
+
+.templateHelpQuickGuide > aside strong {
+  color: #294638;
+  font-size: 13px;
+}
+
 .templateHelpSteps ol {
   display: grid;
   gap: 8px;

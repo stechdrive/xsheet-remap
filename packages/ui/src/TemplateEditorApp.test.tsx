@@ -299,7 +299,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(screen.getByText('未保存の変更')).toBeTruthy()
   })
 
-  it('opens the chapter-based help from the shared application tooltip', async () => {
+  it('opens the quick guide first and switches to the chapter-based help', async () => {
     render(<TemplateEditorApp />)
     const helpButton = screen.getByRole('button', { name: 'ヘルプ' })
     const tooltipTrigger = helpButton.closest<HTMLElement>('.appTooltipTrigger')
@@ -312,7 +312,20 @@ describe('TemplateEditorApp authoring workflow', () => {
 
     fireEvent.click(helpButton)
     expect(screen.getByRole('dialog', { name: 'xsheet-templateの使い方' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: '完成までの手順' })).toBeTruthy()
+    const quickTab = screen.getByRole('tab', { name: 'クイックガイド' })
+    const detailedTab = screen.getByRole('tab', { name: '詳しい使い方' })
+    expect(quickTab.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('heading', { name: '最短でテンプレートを完成させる' })).toBeTruthy()
+    expect(screen.getByText(/保存したJSONをEditorまたはRemapで読み込み/)).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '作り方を選ぶ' })).toBeNull()
+
+    fireEvent.click(detailedTab)
+    expect(detailedTab.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('heading', { name: '作り方を選ぶ' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /補助罫線と表示設定/ }))
+    expect(screen.getByRole('heading', { name: '用紙全体の配色' })).toBeTruthy()
+    expect(screen.getByText(/奇数列と偶数列の背景、線、文字/)).toBeTruthy()
+
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
     expect(screen.queryByRole('dialog', { name: 'xsheet-templateの使い方' })).toBeNull()
 

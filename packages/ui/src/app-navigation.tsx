@@ -11,6 +11,7 @@ import { CalibrationPointKind, RegisteredCellSortDirection, type MainAppKind } f
 import { gridHeaderLabelForRole } from './templateEditorGeometry'
 import { DurationFrameControl } from './DurationFrameControl'
 import { EditorDetailedHelp } from './EditorDetailedHelp'
+import { RemapDetailedHelp } from './RemapDetailedHelp'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 
 export function RecognitionActionMenu({
@@ -451,53 +452,51 @@ export function AppHelpDialog({
   onClose: () => void
 }) {
   const isEditor = appKind === 'editor'
-  const [editorHelpView, setEditorHelpView] = useState<'quick' | 'detailed'>('quick')
-  const isDetailedEditorHelp = isEditor && editorHelpView === 'detailed'
+  const [helpView, setHelpView] = useState<'quick' | 'detailed'>('quick')
+  const isDetailedHelp = helpView === 'detailed'
   return (
     <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label={`${appName}の使い方`}>
-      <section className={`appHelpDialog${isEditor ? ' appHelpDialogEditor' : ''}`}>
+      <section className="appHelpDialog appHelpDialogTabbed">
         <header>
           <div>
             <strong>{appName} ヘルプ</strong>
-            <span>{isEditor
-              ? isDetailedEditorHelp
-                ? 'すべての操作と機能を、目的別の章に分けて説明します。'
-                : 'まず作業を始めるための、短い流れを説明します。'
-              : 'CSPはCLIP STUDIO PAINT、つまりクリスタのことです。ここでは主な作業の流れを説明します。'}</span>
+            <span>{isDetailedHelp
+              ? 'やりたいことから、必要な機能と画面操作を章ごとに確認できます。'
+              : isEditor
+                ? 'タイムシートを作って保存・受け渡しするまでの最短手順です。'
+                : 'いまある資料から照合を始め、CSPへ登録するまでの最短手順です。'}</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
         </header>
-        {isEditor && (
-          <div className="appHelpTabs" role="tablist" aria-label="ヘルプの種類">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={editorHelpView === 'quick'}
-              className={editorHelpView === 'quick' ? 'active' : ''}
-              onClick={() => setEditorHelpView('quick')}
-            >
-              クイックガイド
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={editorHelpView === 'detailed'}
-              className={editorHelpView === 'detailed' ? 'active' : ''}
-              onClick={() => setEditorHelpView('detailed')}
-            >
-              詳しい使い方
-            </button>
-          </div>
-        )}
-        <div className={`appHelpBody${isDetailedEditorHelp ? ' appHelpBodyDetailed' : ''}`}>
-          {isEditor
-            ? isDetailedEditorHelp ? <EditorDetailedHelp /> : <EditorHelpContent />
-            : <RemapHelpContent appName={appName} />}
+        <div className="appHelpTabs" role="tablist" aria-label="ヘルプの種類">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={helpView === 'quick'}
+            className={helpView === 'quick' ? 'active' : ''}
+            onClick={() => setHelpView('quick')}
+          >
+            クイックガイド
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={helpView === 'detailed'}
+            className={helpView === 'detailed' ? 'active' : ''}
+            onClick={() => setHelpView('detailed')}
+          >
+            詳しい使い方
+          </button>
+        </div>
+        <div className={`appHelpBody${isDetailedHelp ? ' appHelpBodyDetailed' : ''}`}>
+          {isDetailedHelp
+            ? isEditor ? <EditorDetailedHelp /> : <RemapDetailedHelp />
+            : isEditor ? <EditorHelpContent /> : <RemapHelpContent />}
         </div>
         <footer>
           <p>{isEditor
-            ? 'PWA版ではプロジェクトや出力物をブラウザのダウンロードとして保存します。OCRとネイティブのファイルパスを必要とする処理はデスクトップ版専用です。'
-            : 'CSP自動登録は、同梱のxsheet-importerがクリスタを操作して行います。csp-import.xciはxsheet-importer用の登録ファイルであり、クリスタへ直接読み込むファイルではありません。'}</p>
+            ? 'まずクイックガイドで1本作り、細かな編集や判断に迷ったときは「詳しい使い方」の該当章を開いてください。'
+            : 'CSP自動登録は同梱のxsheet-importerから実行します。csp-import.xciをクリスタへ直接読み込まないでください。'}</p>
         </footer>
       </section>
     </div>
@@ -507,109 +506,54 @@ export function AppHelpDialog({
 function EditorHelpContent() {
   return <>
     <article className="appHelpWorkflow">
-      <h2>デジタルタイムシートを作成・保存する</h2>
-      <p>カット情報と尺を設定し、ACTION、CELL、CAMERA、SOUNDの各欄へタイミングを入力します。ACTIONとCELLは同じ論理セル列を共有します。</p>
+      <h2>タイムシートを作って保存する</h2>
+      <p>最初は次の順番だけで、入力を再開できる.xsrプロジェクトまで作れます。</p>
       <ol>
-        <li><strong>カット情報と尺を設定する</strong><span>上部のカット情報から作品名、話数、シーン、カット番号、尺を入力します。尺を変更すると、シートの作業範囲とページ数へ反映されます。</span></li>
-        <li><strong>フレームまたは範囲を選んで入力する</strong><span>セルをクリックして文字を入力するか、右クリックメニューからキー、カラセル、中割、逆シートを設定します。各セル列の最初のキーが1フレーム目より後ろに入力された場合は、先頭へカラセルを自動入力します。ドラッグした範囲にはコピー、切り取り、貼り付け、リピート貼り付けを使えます。</span></li>
-        <li><strong>タブレットでは指で表示と入力を操作する</strong><span>シートを1本指でドラッグすると縦横へ移動し、タップするとセルを選択して画面内のタイミング入力を使えます。「範囲」を押した次の指ドラッグは範囲選択になり、「…」またはシートの長押しで操作メニューを開けます。2本指ピンチは拡大縮小、ペン描画中はスタイラスを優先します。</span></li>
-        <li><strong>列とレーンを調整する</strong><span>セル列を追加・名前変更・削除すると、ACTIONとCELLの列名・順序・列数へ同時に反映されます。SOUND／CAMERAは列見出しを右クリックして、列の追加・名前変更・削除を行います。</span></li>
-        <li><strong>兼用カットとシート履歴を管理する</strong><span>中央左端のシート作業レール最上部でカットの切替、名前を指定した追加、現在のカットの削除、兼用カット名の表示をまとめて操作します。最後の1カットは安全のため削除できません。レール中央のシート履歴では修正シートを追加・切替できます。</span></li>
-        <li><strong>プロジェクトを保存する</strong><span>メニューの「保存」または「名前を付けて保存」で.xsrプロジェクトを保存します。デスクトップ版は選択した場所へ保存し、PWA版はブラウザからダウンロードします。</span></li>
+        <li><strong>カット情報と尺を決める</strong><span>上部の「カット情報」を開き、作品名、話数、カット番号、尺を入力します。ページ数と入力できる最終フレームがここで決まります。</span></li>
+        <li><strong>ACTIONまたはCELLへタイミングを入れる</strong><span>入力したいマスを選び、番号を入力してEnterで確定します。連続範囲はドラッグし、右クリックまたは「…」からコピー・貼り付け・リピートを選びます。</span></li>
+        <li><strong>必要な指示を加える</strong><span>台詞やSEはSOUND、撮影処理はCAMERAを区間選択して入力します。自由な申し送りはメモ、紙面への書き込みはペン・テキスト注釈を使います。</span></li>
+        <li><strong>全体を見直す</strong><span>「全体表示」や連続表示で先頭から末尾まで確認します。紙シートを使う場合は、先に画像を読み込んで四隅を合わせると転記しやすくなります。</span></li>
+        <li><strong>.xsrで保存する</strong><span>画面切替メニューの「プロジェクト」→「保存」を選びます。.xsrにはタイミング、指示、注釈、素材対応、テンプレート、音声編集がまとめて保持されます。</span></li>
       </ol>
     </article>
     <article className="appHelpWorkflow">
-      <h2>セリフ音声を録音・編集してSOUNDへ割り付ける（任意）</h2>
-      <p>下部の「音声」を開くと、3トラックで録音・読み込み・非破壊編集・通し再生ができます。</p>
+      <h2>やりたいことに合わせて仕上げる</h2>
+      <p>基本入力の後は、渡し先と素材の有無で使う機能を選びます。</p>
       <ol>
-        <li><strong>録音・読込先を選ぶ</strong><span>左端の色付きボタンでトラックを選び、必要ならトラック見出しの右クリックから録音後のVAD処理を設定します。スピーカーボタンはトラックごとのミュートです。</span></li>
-        <li><strong>再生ヘッドから音声を追加する</strong><span>上のルーラーで開始フレームを指定し、●で録音するか音声読込ボタンでファイルを配置します。録音中はほかのミュートされていないトラックを再生します。</span></li>
-        <li><strong>位置と間を整える</strong><span>選択ツール（V）でクリップや区間を動かし、時間範囲選択ツール（R）で範囲を作ります。Deleteは無音化、Shift+Deleteはリップル削除です。右クリックから無音挿入、コピー、上書き・挿入貼り付けも使えます。</span></li>
-        <li><strong>カットを通して確認する</strong><span>⏮はカット頭、▶は現在の再生ヘッドから3トラックを再生します。セリフ間の無音と掛け合いのリズムを確認します。</span></li>
-        <li><strong>発話候補をSOUNDへ割り付ける</strong><span>発話候補またはセリフ区間を選び「音響指示へ割付…」を押します。CtrlまたはShiftで複数候補を選ぶと、途中の間を含む1つのSOUNDにできます。詳しい選択・同期・再検出操作は「詳しい使い方」の第05章にあります。</span></li>
-      </ol>
-    </article>
-    <SheetProjectionQuickHelp />
-    <CspLayerPaneQuickHelp />
-    <article className="appHelpWorkflow appHelpWorkflowPrep">
-      <h2>紙タイムシートを下絵に使う（任意）</h2>
-      <p>紙シートがなくても入力できます。読み込む場合は、テンプレートに合うdpiでスキャンした画像を使います。</p>
-      <ol>
-        <li><strong>紙シート画像を読み込む</strong><span>シート作業レールの「紙シート」から「読込」を選びます。複数ページもまとめて追加できます。</span></li>
-        <li><strong>四隅と濃さを補正する</strong><span>「補正」または「四隅拡大」で罫線を合わせ、「レベル補正」と画像不透明度で入力内容を見やすくします。この下絵補正はOCRを使わず、PWA版でも利用できます。</span></li>
-        <li><strong>必要なら認識結果を採用する</strong><span>OCRによる文字認識はデスクトップ版だけの補助機能です。PWA版では無効ですが、紙シートの表示・補正と手入力はそのまま使えます。</span></li>
-      </ol>
-    </article>
-    <article className="appHelpWorkflow">
-      <h2>表示・テンプレート・書き出し</h2>
-      <ol>
-        <li><strong>見やすい表示と注釈を使う</strong><span>全体表示、連続/見開き表示、罫線・下絵の表示切替、ペン・テキスト注釈を使って確認しやすい状態にします。</span></li>
-        <li><strong>シートテンプレートを編集する</strong><span>「シートテンプレ」ワークスペースで既存テンプレートを複製し、情報欄、入力欄、罫線、文字、ページ寸法を調整して適用します。</span></li>
-        <li><strong>用途に合わせて書き出す</strong><span>確認用にはJPG/PNG/PSD、他ソフトとの連携にはXDTSを使います。CSP自動登録データは、デスクトップ版ではカットフォルダ内のxsheet-csp-importへ、PWA版では素材を含むZIPとして書き出します。After Effectsへは、セル列見出しの右クリックでKeyframe Dataをコピーするか、書き出しメニューからJSXを保存します。Windowsデスクトップ版の直接送信は、AEを1プロセスだけ起動し、アクティブコンポジションと対象レイヤーを選んでから使います。</span></li>
+        <li><strong>セリフ音声からSOUNDを作る</strong><span>下部の「音声」を開き、録音または音声ファイルを追加します。発話候補を選んで「音響指示へ割付…」を押すと、波形の位置に合うSOUNDを作れます。</span></li>
+        <li><strong>紙タイムシートを転記する</strong><span>シート作業レールの「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。文字認識は候補を確認してから採用し、読みにくい箇所は手入力します。</span></li>
+        <li><strong>CSPへ素材を組み込む</strong><span>左右ペインを開き、右の画像素材をキーへ割り付け、左で工程・セル名・重ね順を確認します。「CSP自動登録データを書き出す」で作成したcsp-import.xciを同梱のxsheet-importerで選び、対象の.clipと保存先を指定して実行します。</span></li>
+        <li><strong>他ソフトへタイミングを渡す</strong><span>確認画像はJPG／PNG／PSD、交換用はXDTSを選びます。After Effectsは1列なら列見出しの「AE用データをコピー」、複数列ならJSXまたはWindows版の直接送信を使います。</span></li>
       </ol>
     </article>
   </>
 }
 
-function RemapHelpContent({ appName }: { appName: string }) {
+function RemapHelpContent() {
   return <>
     <article className="appHelpWorkflow appHelpWorkflowPrep">
-      <h2>必ず先に準備すること</h2>
-      <p>CSPはCLIP STUDIO PAINT、つまりクリスタのことです。クリスタへ組み込む前に、紙シート画像と作画素材を用意します。</p>
+      <h2>照合結果をCSPへ登録する</h2>
+      <p>紙タイムシートや画像素材がなくても始められます。手元にある資料から、次の順番で進めてください。</p>
       <ol>
-        <li><strong>タイムシート画像を指定dpiでスキャンする</strong><span>紙タイムシートを読み込む場合は、使用する表示テンプレートに合わせたdpiでスキャンしてください。紙シート画像を下敷きにして、シート上のキーや登録内容を確認できるようになります。</span></li>
-        <li><strong>作画素材をOLMペグホールスタビライザーで揃える</strong><span>スキャンした作画素材は、読み込み前にタップ穴基準の位置合わせを済ませてください。位置合わせ後の画像をこのアプリへ読み込みます。</span></li>
-        <li><strong>作画素材を読み込める場所にまとめる</strong><span>作画素材はカットフォルダなどにまとめます。素材ブラウザのクイックビューで中身を確認し、該当するシート上のキーへ置くことで素材とタイムシートを紐づけます。</span></li>
+        <li><strong>始め方を選ぶ</strong><span>続きの作業は「プロジェクト」→「プロジェクトを開く」で.xsrを開きます。既存タイミングは「読み込み」→「XDTSを読み込む」、何もない場合は「新規プロジェクト」から始めます。</span></li>
+        <li><strong>カットと入力先を確認する</strong><span>上部の「カット情報」で作品名、カット番号、尺を確認します。原画側のタイミングはACTION、動画・セル番号はCELLを使い、読み込みや書き出しでも同じ側を選びます。</span></li>
+        <li><strong>カットフォルダと登録先工程を決める</strong><span>CSP自動登録を使う場合は、右の画像素材へ実際のカットフォルダを登録します。次に左のCSPレイヤー構成で工程名またはその配下を選び、下部の「登録先」が意図した工程か確認します。</span></li>
+        <li><strong>必要な資料だけ追加する</strong><span>紙を転記するときは「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。作画画像がある場合は右のサムネイルで確認し、該当するACTION／CELLのキーまたは左の登録先へ置きます。</span></li>
+        <li><strong>CSPへ渡す内容を見直す</strong><span>左でCSPセル名、工程、BG／BOOK、撮影指示、メモ、重ね順を確認します。素材がないキーは「キーのみ」のままで登録できます。実ファイルも改名する一括リネームは、変更予定を確認してから実行します。</span></li>
+        <li><strong>.xsrを保存する</strong><span>「プロジェクト」→「保存」で、紙シート、タイミング、素材対応、CSP構成を作業ファイルへ保存します。外部ソフトへ渡す前に保存しておくと、同じ状態から修正を再開できます。</span></li>
+        <li><strong>書き出してImporterで開始する</strong><span>「書き出し」→「CSP自動登録データを書き出す」でACTION／CELL、出力先、画像付き／キーのみ件数を確認します。生成されたcsp-import.xciをxsheet-importerで開き、対象.clipと保存先を選んで開始します。</span></li>
       </ol>
     </article>
     <article className="appHelpWorkflow">
-      <h2>CSP組み込み用シートを作る</h2>
-      <p>{appName}でタイムシートと素材対応を作り、ヘルパーでCLIP STUDIO PAINT（クリスタ）へ登録します。</p>
+      <h2>目的が違うときの選び方</h2>
       <ol>
-        <li><strong>紙シート画像を読み込む</strong><span>シート作業レールの「紙シート」から「読込」を押します。必要なら「補正」で四隅を合わせ、「レベル補正」で薄いスキャンを見やすくします。</span></li>
-        <li><strong>画像素材を素材ブラウザへ入れる</strong><span>カットフォルダまたは画像ファイルを右側の素材ブラウザへドロップします。素材カードからプレビューを確認できます。</span></li>
-        <li><strong>素材をセル欄へドラッグしてキーを作る</strong><span>素材カードをシート上のACTIONまたはCELL欄へ置きます。CAMERA欄は撮影指示の区間を入力する欄なので、画像素材の配置先にはなりません。範囲選択してから素材を置くと、開始位置へ割り当てできます。</span></li>
-        <li><strong>CSPレイヤー構成を確認する</strong><span>左のCSPレイヤー構成で、工程、CSPセル名、BG／BOOK、撮影指示、メモと、CSPへ渡す重ね順を確認します。具体的な追加・並び替え・削除は次の手順で行います。</span></li>
-        <li><strong>クリスタ用の名前を整える</strong><span>「一括リネーム」でクリスタ用セル名と、必要なら素材ファイル名をまとめて整えます。スキャン時の連番名から内容が分かる名前へ揃えられます。</span></li>
-        <li><strong>CSP自動登録データを書き出す</strong><span>書き出し前に出力先と登録件数を確認します。デスクトップ版ではカットフォルダ内のxsheet-csp-importへ毎回安全に更新し、完了後は画面下部からフォルダを開けます。画像なしのセルは警告ではなく、XDTSのキーとCSPセル名だけを登録します。</span></li>
+        <li><strong>紙の文字を転記したい</strong><span>デスクトップ版の「文字認識」でACTIONまたはCELLを選び、候補を修正してから個別または一括で採用します。迷う候補は採用せず、シートへ直接入力します。</span></li>
+        <li><strong>紙に列が収まらない</strong><span>入力は消えていません。欄外ラベルで位置を確認するか、表示テンプレートをデジタルへ切り替えるとすべての列を確認できます。</span></li>
+        <li><strong>確認用のシートを渡したい</strong><span>JPG／PNGはすぐ見られる画像、PSDは表示内容をあとから調整できるレイヤー付き画像です。タイミングを対応ソフトへ渡す場合はXDTSを使います。</span></li>
+        <li><strong>After Effectsへ渡したい</strong><span>1列だけなら列見出しの「AE用データをコピー」、複数列ならAfter Effects JSX、Windowsで起動中のAEへ渡すなら直接送信を選びます。</span></li>
       </ol>
     </article>
-    <SheetProjectionQuickHelp />
-    <CspLayerPaneQuickHelp />
   </>
-}
-
-function SheetProjectionQuickHelp() {
-  return (
-    <article className="appHelpWorkflow">
-      <h2>セル列とSOUND／CAMERA列を調整する</h2>
-      <p>プロジェクトが持つ論理的な列と、テンプレートに表示できる列を分けて扱います。テンプレートを切り替えても論理データは失われません。</p>
-      <ol>
-        <li><strong>ACTIONとCELLは同じセル列を使う</strong><span>セル列の名前・順序・列数は両欄で共通です。セル列を追加、名前変更、削除するとACTIONとCELLへ同時に反映されます。</span></li>
-        <li><strong>デジタルは列数に合わせて横へ広がる</strong><span>追加セル列とSOUND／CAMERA列を通常の列としてすべて表示し、必要な横幅を自動で増やします。デジタルテンプレートに予備列はありません。</span></li>
-        <li><strong>紙は用紙に収まる列だけ表示する</strong><span>紙テンプレートの物理的な欄数を超えたセル列は欄外ラベルとして残り、SOUND／CAMERAは「欄外＋件数」で知らせます。デジタルへ切り替えると全列を再び表示します。</span></li>
-        <li><strong>SOUND／CAMERA列を管理する</strong><span>列見出しを右クリックし、列の追加・名前変更・削除を選びます。変更は論理データへ保存され、紙とデジタルのどちらへ切り替えても維持されます。</span></li>
-        <li><strong>After Effectsへタイミングを渡す</strong><span>セル列見出しの右クリックでKeyframe Dataをコピーするか、書き出しメニューからJSXを保存します。Windowsデスクトップ版では起動中のAfter Effectsへ直接送信できます。</span></li>
-      </ol>
-    </article>
-  )
-}
-
-function CspLayerPaneQuickHelp() {
-  return (
-    <article className="appHelpWorkflow">
-      <h2>CSPレイヤー構成を操作する</h2>
-      <p>左ペインでは行やカードを選択し、スクロールしても消えない最下部の「一括リネーム」「項目を追加」「削除」を使います。</p>
-      <ol>
-        <li><strong>閉じている左右ペインを開く</strong><span>中央シートの左右端にある細い開閉ボタンで、CSPレイヤー構成と画像素材を開閉します。開閉状態と幅はアプリごとに記憶されます。</span></li>
-        <li><strong>ペインの＋でひとまず追加する</strong><span>追加セル列は既存セル列より上、BG／BOOKは既存セル列より下かつ既存BG／BOOKより上へ自動配置されます。追加セル列はACTIONとCELLで共有されます。名前を入力してEnterまたは✓で確定し、Escまたは×で取り消します。</span></li>
-        <li><strong>挿入位置を先に決める</strong><span>シート上から右クリックして追加すると、選んだセル列の後ろへ挿入できます。紙テンプレートでは欄外ラベルと支柱の位置、デジタルテンプレートではACTION／CELL共通列の順序へ反映されます。</span></li>
-        <li><strong>ドラッグでCSPの重ね順を変える</strong><span>制作段階、工程、セル列、BG／BOOK、撮影指示、メモの行をドラッグし、同じ階層に表示される挿入ラインへドロップします。名前は対象名をダブルクリックして編集します。</span></li>
-        <li><strong>選択項目を削除・操作を元に戻す</strong><span>削除は対象を選択して最下部のごみ箱を押します。テンプレート由来など削除できない項目では無効になります。追加・並び替え・名前変更・削除は上部の元に戻す、またはCtrl+Zで戻せます。</span></li>
-        <li><strong>紙の欄外ラベルを確認する</strong><span>BG／BOOKなどの補助項目と、紙テンプレートの欄内に収まらない追加セル列は、名前を省略しないラベルと支柱で位置を示します。重なりは上下へ自動で逃がされ、ラベルをドラッグすると位置を変更できます。デジタルでは追加セル列を通常のACTION／CELL列として表示します。</span></li>
-      </ol>
-    </article>
-  )
 }
 
 type AppNavigationSubmenu = 'project' | 'import' | 'export'

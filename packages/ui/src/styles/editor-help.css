@@ -1,4 +1,5 @@
-.appHelpDialogEditor {
+.appHelpDialogEditor,
+.appHelpDialogTabbed {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 

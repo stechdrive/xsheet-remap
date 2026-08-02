@@ -1958,6 +1958,55 @@
   box-shadow: 0 10px 28px rgb(20 27 31 / 0.22);
 }
 
+.sheetContextMenu.paperTrackHeaderContextMenu {
+  min-width: 190px;
+  overflow: visible;
+}
+
+.sheetContextSubmenu {
+  position: relative;
+  min-width: 0;
+}
+
+.sheetContextSubmenu > .sheetContextSubmenuTrigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sheetContextSubmenuArrow {
+  flex: none;
+  overflow: visible !important;
+  color: #52605a;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.sheetContextSubmenuMenu {
+  position: absolute;
+  z-index: 1001;
+  top: -4px;
+  left: calc(100% + 4px);
+  display: grid;
+  min-width: 132px;
+  padding: 4px;
+  border: 1px solid #8f9792;
+  border-radius: 6px;
+  background: #fffffb;
+  box-shadow: 0 10px 28px rgb(20 27 31 / 0.22);
+}
+
+.sheetContextSubmenu.openLeft > .sheetContextSubmenuMenu {
+  right: calc(100% + 4px);
+  left: auto;
+}
+
+.sheetContextSubmenuMenu button {
+  width: 100%;
+}
+
 .sheetContextMenu button {
   min-width: 0;
   padding: 6px 8px;

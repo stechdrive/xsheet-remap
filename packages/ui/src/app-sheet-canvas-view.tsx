@@ -50,6 +50,68 @@ function SheetPageSurface({
   </div>
 }
 
+function AeKeyframeDataCopySubmenu({
+  disabled,
+  openToLeft,
+  onCopyJapanese,
+  onCopyEnglish,
+}: {
+  disabled: boolean
+  openToLeft: boolean
+  onCopyJapanese: () => void
+  onCopyEnglish: () => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div
+      className={`sheetContextSubmenu${openToLeft ? ' openLeft' : ''}`}
+      onPointerEnter={() => {
+        if (!disabled) setOpen(true)
+      }}
+      onPointerLeave={() => setOpen(false)}
+      onBlur={event => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+          setOpen(false)
+        }
+      }}
+    >
+      <button
+        type="button"
+        className="sheetContextSubmenuTrigger"
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+        onFocus={() => setOpen(true)}
+        onKeyDown={event => {
+          if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+            event.preventDefault()
+            setOpen(true)
+          } else if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+            event.preventDefault()
+            setOpen(false)
+          }
+        }}
+      >
+        <span>{uiText.actions.copyAeKeyframeDataMenu}</span>
+        <span className="sheetContextSubmenuArrow" aria-hidden="true">›</span>
+      </button>
+      {open && (
+        <div className="sheetContextSubmenuMenu" role="menu" aria-label={uiText.actions.copyAeKeyframeDataMenu}>
+          <button type="button" role="menuitem" disabled={disabled} onClick={onCopyJapanese}>
+            {uiText.actions.copyAeKeyframeDataJapanese}
+          </button>
+          <button type="button" role="menuitem" disabled={disabled} onClick={onCopyEnglish}>
+            {uiText.actions.copyAeKeyframeDataEnglish}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
     props, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
@@ -701,8 +763,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       )}
       {paperTrackHeaderMenu && (
         <div
-          className="sheetContextMenu"
-          style={sheetContextMenuStyle(paperTrackHeaderMenu.x, paperTrackHeaderMenu.y, 4)}
+          className="sheetContextMenu paperTrackHeaderContextMenu"
+          style={sheetContextMenuStyle(paperTrackHeaderMenu.x, paperTrackHeaderMenu.y, 3)}
           role="menu"
           onPointerDown={event => event.stopPropagation()}
           onContextMenu={event => event.preventDefault()}
@@ -724,20 +786,12 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           >
             {uiText.actions.renamePaperTrack}
           </button>
-          <button
-            role="menuitem"
+          <AeKeyframeDataCopySubmenu
             disabled={!paperTrackHeaderMenu.hit.paperTrack}
-            onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}
-          >
-            {uiText.actions.copyAeKeyframeData}
-          </button>
-          <button
-            role="menuitem"
-            disabled={!paperTrackHeaderMenu.hit.paperTrack}
-            onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}
-          >
-            {uiText.actions.copyAeKeyframeDataEnglish}
-          </button>
+            openToLeft={typeof window !== 'undefined' && paperTrackHeaderMenu.x > window.innerWidth - 320}
+            onCopyJapanese={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}
+            onCopyEnglish={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}
+          />
         </div>
       )}
       {overlayPaperTrackMenu && overlayPaperTrackMenuTrack && (

@@ -100,8 +100,9 @@ export const uiText = {
     overlayPaperTrackEdit: 'ドラッグで位置移動 / 右クリックで名前・XDTS挿入位置を編集',
     selectPaperTrackColumn: 'セル列全体を選択',
     renamePaperTrack: 'セル列名を変更',
-    copyAeKeyframeData: 'AE Keyframe Dataをコピー',
-    copyAeKeyframeDataEnglish: 'AE Keyframe Dataをコピー（英語AE）',
+    copyAeKeyframeDataMenu: 'AE用データをコピー',
+    copyAeKeyframeDataJapanese: '日本語版AE',
+    copyAeKeyframeDataEnglish: '英語版AE',
     deleteOverlayPaperTrack: '追加セル列を削除',
     deleteOverlayPaperTrackConfirm: (label: string, keyCount: number, eventCount: number, bindingCount: number) =>
       `${label} の追加セル列を削除します。\n\nこの列の登録セル ${keyCount} 件、シート上のキー ${eventCount} 件、素材割り当て ${bindingCount} 件も削除されます。`,

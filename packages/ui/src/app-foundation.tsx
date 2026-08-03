@@ -406,6 +406,8 @@ type BinaryFileOutput = {
   mimeType: string
 }
 
+type BinaryFileOutputFactory = () => Promise<BinaryFileOutput>
+
 export function exportCutProjectsFromDocument(document: CutGroupProjectDocument): CutProject[] {
   if (document.cuts.length === 0) return [activeCutProjectFromDocument(document)]
   return document.cuts.map(cut => activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId }))
@@ -449,6 +451,26 @@ export async function saveBinaryOutputs(outputs: BinaryFileOutput[], options: Sa
   }
   for (const output of rest) {
     await writeBinaryFile(joinOutputPath(outputDirectory, output.fileName), output.bytes)
+  }
+  return true
+}
+
+export async function saveGeneratedBinaryOutputs(factories: BinaryFileOutputFactory[], options: SaveTextFileOptions): Promise<boolean> {
+  const [first, ...rest] = factories
+  if (!first) return false
+  const firstResult = await (async () => {
+    const output = await first()
+    return saveBinaryFile(output.bytes, output.fileName, output.mimeType, options)
+  })()
+  if (!firstResult.saved) return false
+  const outputDirectory = outputDirectoryFromPath(firstResult.path)
+  for (const createOutput of rest) {
+    const output = await createOutput()
+    if (outputDirectory) {
+      await writeBinaryFile(joinOutputPath(outputDirectory, output.fileName), output.bytes)
+    } else {
+      await saveBinaryFile(output.bytes, output.fileName, output.mimeType, options)
+    }
   }
   return true
 }

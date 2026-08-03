@@ -25,6 +25,11 @@ export function sheetImageFileName(project: CutProject, format: SheetImageExport
   return `${projectOutputPrefix(project)}_sheet${String(pageIndex + 1).padStart(digits, '0')}.${format}`
 }
 
+export function correctedSheetImageFileName(project: CutProject, format: SheetImageExportFormat, pageIndex: number, totalPages: number): string {
+  const digits = Math.max(2, String(Math.max(1, totalPages)).length)
+  return `${projectOutputPrefix(project)}_paper-sheet${String(pageIndex + 1).padStart(digits, '0')}_corrected.${format}`
+}
+
 export function projectOutputPrefix(project: Pick<CutProject, 'cut'>): string {
   const title = safeFileNameSegment(project.cut.title)
   const episode = safeFileNameSegment(project.cut.episode)

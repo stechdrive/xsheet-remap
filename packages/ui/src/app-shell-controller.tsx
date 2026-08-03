@@ -90,7 +90,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     : recognitionRoles[0] ?? 'action'
   const issues = useMemo(() => validateProject(project, project.exportProfiles.find(profile => profile.profileId === exportProfileId)), [project, exportProfileId])
   const projectDocumentSnapshot = useMemo(() => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }), [projectDocument, project, template])
-  const { resolvedProjectDocument, handleSaveProjectFile, handleOpenSheetImageExport, handleSaveSheetImageExport } = createAppProjectPersistenceActions({
+  const { resolvedProjectDocument, handleSaveProjectFile, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages } = createAppProjectPersistenceActions({
     projectDocument, template, resolveProject: () => commitTimingDraft(false), projectFilePath,
     setProjectFilePath, setProjectDocument, setSavedProjectDocumentSnapshot, runtimeSourceImageUrls, setSheetImageExportDraft,
   })
@@ -2288,7 +2288,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
-    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handlePresetSelect,
+    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handlePresetSelect,
     canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,

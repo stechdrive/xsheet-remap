@@ -1,13 +1,10 @@
-import { type SheetCalibrationPointPair, type SheetTemplate } from '@xsheet-remap/core'
 import { configureCurrentNativeWindow, currentNativeWindowBounds, invokeDesktopCommand } from '@xsheet-remap/adapters'
 import { compareFileNameLikeText } from './naturalSort'
-import type { SheetPrecisionWarp } from './appTypes'
-import { defaultSheetImageSettings, applyLevelCorrectionToDataUrl, loadImage, resolveImageRefUrl, warpSheetImageAsync, warpSheetImageDataAsync } from './sheetImages'
-import { alphaComposite, writeRgbPsd } from './psdWriter'
-import { applyLevelCorrectionToImageData, type LevelCorrectionSettings } from './levelCorrection'
 import { LEGACY_SHEET_CORRECTOR_PATTERN_STORAGE_KEY, SHEET_CORRECTOR_IMPORT_RULES_STORAGE_KEY, defaultSheetCorrectorImportRules, parseStoredSheetCorrectorImportRules, type SheetCorrectorImportRule } from './sheetCorrectorImportRules'
 import { type SheetCorrectorTemplateFile } from './sheetCorrectorTemplates'
 import { type QueueState, SHEET_CORRECTOR_BATCH_WINDOW, SHEET_CORRECTOR_MAIN_WINDOW, SHEET_CORRECTOR_PREVIEW_MAX_ZOOM, SHEET_CORRECTOR_PREVIEW_MIN_ZOOM, SHEET_CORRECTOR_WINDOW_STATE_STORAGE_KEY, type SheetCorrectionDraft, type SheetCorrectorInput, type SheetCorrectorProgressDialogState, type SheetCorrectorSavedWindowState, supportedImageExtensions } from './sheet-corrector-types'
+
+export { correctedOutputName, correctedPngDataUrl, correctedPsdBase64, templateOverlayImageUrl } from './correctedSheetImageExport'
 
 export function clampPreviewZoom(value: number): number {
   return Math.min(SHEET_CORRECTOR_PREVIEW_MAX_ZOOM, Math.max(SHEET_CORRECTOR_PREVIEW_MIN_ZOOM, value))
@@ -85,137 +82,6 @@ export async function readNativeSheetCorrectorTemplatePath(path: string): Promis
   return await invokeDesktopCommand<SheetCorrectorTemplateFile>('read_sheet_corrector_template', { path })
 }
 
-export async function correctedPngDataUrl(
-  imageUrl: string,
-  points: SheetCalibrationPointPair[],
-  levelCorrection: LevelCorrectionSettings,
-  template: SheetTemplate,
-  precisionWarp?: SheetPrecisionWarp,
-): Promise<string | null> {
-  const image = await loadImage(imageUrl)
-  const pngDataUrl = await warpSheetImageAsync(
-    image,
-    {
-      ...defaultSheetImageSettings(),
-      calibration: {
-        enabled: true,
-        points,
-      },
-      precisionWarp,
-    },
-    template,
-    template.page.widthPx,
-  )
-  if (!pngDataUrl || !levelCorrection.enabled) return pngDataUrl
-  return applyLevelCorrectionToDataUrl(pngDataUrl, levelCorrection)
-}
-
-export async function correctedPsdBase64(
-  sourceName: string,
-  imageUrl: string,
-  templateImageUrl: string | null,
-  points: SheetCalibrationPointPair[],
-  levelCorrection: LevelCorrectionSettings,
-  template: SheetTemplate,
-  precisionWarp?: SheetPrecisionWarp,
-): Promise<string | null> {
-  const correctedImageData = await correctedSheetImageData(imageUrl, points, levelCorrection, template, precisionWarp)
-  if (!correctedImageData) return null
-  const whiteLayer = solidWhiteImageData(correctedImageData.width, correctedImageData.height)
-  const templateLayer = templateImageUrl
-    ? await templateLineLayerImageData(templateImageUrl, correctedImageData.width, correctedImageData.height)
-    : blankTransparentImageData(correctedImageData.width, correctedImageData.height)
-  const scanLayer = new ImageData(new Uint8ClampedArray(correctedImageData.data), correctedImageData.width, correctedImageData.height)
-  const composite = alphaComposite(alphaComposite(whiteLayer, templateLayer), scanLayer)
-  const psd = writeRgbPsd({
-    width: correctedImageData.width,
-    height: correctedImageData.height,
-    dpi: template.page.dpi ?? 72,
-    layers: [
-      { name: '白地', imageData: whiteLayer },
-      { name: 'テンプレ', imageData: templateLayer },
-      { name: sourceName, imageData: scanLayer },
-    ],
-    composite,
-  })
-  return bytesToBase64(psd)
-}
-
-async function correctedSheetImageData(
-  imageUrl: string,
-  points: SheetCalibrationPointPair[],
-  levelCorrection: LevelCorrectionSettings,
-  template: SheetTemplate,
-  precisionWarp?: SheetPrecisionWarp,
-): Promise<ImageData | null> {
-  const image = await loadImage(imageUrl)
-  const imageData = await warpSheetImageDataAsync(
-    image,
-    {
-      ...defaultSheetImageSettings(),
-      calibration: {
-        enabled: true,
-        points,
-      },
-      precisionWarp,
-    },
-    template,
-    template.page.widthPx,
-  )
-  if (!imageData) return null
-  return levelCorrection.enabled ? applyLevelCorrectionToImageData(imageData, levelCorrection) : imageData
-}
-
-async function templateLineLayerImageData(templateImageUrl: string, width: number, height: number): Promise<ImageData> {
-  const image = await loadImage(templateImageUrl)
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) return blankTransparentImageData(width, height)
-  context.drawImage(image, 0, 0, width, height)
-  const imageData = context.getImageData(0, 0, width, height)
-  const output = context.createImageData(width, height)
-  for (let index = 0; index < imageData.data.length; index += 4) {
-    const sourceAlpha = imageData.data[index + 3] / 255
-    if (sourceAlpha <= 0.03) continue
-    const luminance = imageData.data[index] * 0.299 + imageData.data[index + 1] * 0.587 + imageData.data[index + 2] * 0.114
-    const darkness = Math.max(0, 246 - luminance)
-    const alpha = Math.max(0, Math.min(255, Math.round(darkness * 2.2 * sourceAlpha)))
-    output.data[index] = 0
-    output.data[index + 1] = 0
-    output.data[index + 2] = 0
-    output.data[index + 3] = alpha
-  }
-  return output
-}
-
-function blankTransparentImageData(width: number, height: number): ImageData {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext('2d')
-  if (!context) return new ImageData(width, height)
-  return context.createImageData(width, height)
-}
-
-function solidWhiteImageData(width: number, height: number): ImageData {
-  const output = new ImageData(width, height)
-  for (let index = 0; index < output.data.length; index += 4) {
-    output.data[index] = 255
-    output.data[index + 1] = 255
-    output.data[index + 2] = 255
-    output.data[index + 3] = 255
-  }
-  return output
-}
-
-export function correctedOutputName(name: string, extension: 'png' | 'psd'): string {
-  const extensionMatch = /\.[^.]+$/.exec(name)
-  const stem = extensionMatch ? name.slice(0, -extensionMatch[0].length) : name
-  return extension === 'psd' ? `${stem}.psd` : `${stem}_corrected.png`
-}
-
 export function downloadDataUrl(dataUrl: string, fileName: string) {
   const link = document.createElement('a')
   link.href = dataUrl
@@ -238,27 +104,11 @@ export function downloadBytes(bytes: Uint8Array, fileName: string, mimeType: str
   URL.revokeObjectURL(url)
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  const chunkSize = 0x8000
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    const chunk = bytes.subarray(offset, offset + chunkSize)
-    binary += String.fromCharCode(...chunk)
-  }
-  return btoa(binary)
-}
-
 export function base64ToBytes(value: string): Uint8Array {
   const binary = atob(value)
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
   return bytes
-}
-
-export function templateOverlayImageUrl(template: SheetTemplate): string | null {
-  const underlay = template.defaultUnderlay
-  if (!underlay) return null
-  return resolveImageRefUrl({ ...underlay.imageRef, assetPath: underlay.assetPath })
 }
 
 export function sheetCorrectorErrorMessage(error: unknown): string {

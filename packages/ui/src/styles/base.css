@@ -643,6 +643,17 @@ button.iconButton {
   border-bottom: 1px solid #e1e4de;
 }
 
+.appNavCorrectedSheetExportGroup {
+  padding: 2px 0 6px;
+}
+
+.appNavCorrectedSheetExportHint {
+  max-width: 230px;
+  color: #66716a;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .appNavExportFlyoutMenu .imageExportFormatButtons {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

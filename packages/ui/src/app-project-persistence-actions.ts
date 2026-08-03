@@ -18,14 +18,21 @@ import {
   type SheetImageExportOptions,
 } from './cleanSheetExport'
 import {
+  correctedSheetImageExportPlan,
+  renderCorrectedSheetImageExport,
+  type CorrectedSheetImageExportFormat,
+} from './correctedSheetImageExport'
+import {
   errorMessage,
   exportCutProjectsFromDocument,
   preferredSaveDirectory,
   saveBinaryOutputs,
+  saveGeneratedBinaryOutputs,
 } from './app-foundation'
 import { imageExportFilterName } from './app-navigation'
 import { uiText } from './i18n'
-import { projectFileName } from './outputFileNames'
+import { correctedSheetImageFileName, projectFileName } from './outputFileNames'
+import { getSheetPageImage, loadImage } from './sheetImages'
 
 export function createAppProjectPersistenceActions(options: {
   projectDocument: CutGroupProjectDocument
@@ -102,10 +109,65 @@ export function createAppProjectPersistenceActions(options: {
     }
   }
 
+  async function handleSaveCorrectedSheetImages(format: CorrectedSheetImageExportFormat) {
+    try {
+      const sourceProject = options.resolveProject()
+      const { pages, totalPages } = correctedSheetImageExportPlan(sourceProject, options.template)
+      if (pages.length === 0) return
+      const resolvedPages = pages.map(page => ({
+        ...page,
+        image: getSheetPageImage(sourceProject.sheetView, options.runtimeSourceImageUrls, page.pageId, options.template),
+      }))
+      const unreadablePages: number[] = []
+      for (const page of resolvedPages) {
+        if (!page.image.imageUrl) {
+          unreadablePages.push(page.pageIndex + 1)
+          continue
+        }
+        try {
+          await loadImage(page.image.imageUrl)
+        } catch {
+          unreadablePages.push(page.pageIndex + 1)
+        }
+      }
+      if (unreadablePages.length > 0) {
+        throw new Error(uiText.export.correctedSheetImagesUnreadable(unreadablePages.join('、')))
+      }
+      const factories = resolvedPages.map(page => async () => {
+        const output = await renderCorrectedSheetImageExport({
+          sourceName: page.source.imageRef.name,
+          imageUrl: page.image.imageUrl!,
+          imageSettings: page.image.settings,
+          template: options.template,
+          format,
+        })
+        return {
+          ...output,
+          fileName: correctedSheetImageFileName(sourceProject, format, page.pageIndex, totalPages),
+        }
+      })
+      await saveGeneratedBinaryOutputs(factories, {
+        filterName: uiText.actions.correctedSheetImageExportFilter(format.toUpperCase()),
+        extensions: [format],
+        defaultExtension: format,
+        initialDirectory: parentDirectory(pages[0].source.imageRef.path) ?? preferredSaveDirectory(sourceProject),
+      })
+    } catch (error) {
+      window.alert(uiText.export.saveFailed(errorMessage(error)))
+    }
+  }
+
   return {
     resolvedProjectDocument,
     handleSaveProjectFile,
     handleOpenSheetImageExport,
     handleSaveSheetImageExport,
+    handleSaveCorrectedSheetImages,
   }
+}
+
+function parentDirectory(path: string | undefined): string | undefined {
+  if (!path) return undefined
+  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return index > 0 ? path.slice(0, index) : undefined
 }

@@ -77,6 +77,11 @@ export const uiText = {
     imageExportTemplateDrawing: 'アプリ描画',
     imageExportTemplateDrawingTitle: '罫線、欄名、セル列名、メタデータをアプリの表示設定どおりに描画する',
     imageExportSave: '保存',
+    correctedSheetImageExport: '補正済み紙シート',
+    correctedSheetImageExportLabel: (pageCount: number) => `補正済み紙シート（全${pageCount}ページ）`,
+    correctedSheetImageExportTitle: '現在のカットに登録された紙シート下絵を、表示用の不透明度を適用せずに全ページ保存',
+    correctedSheetImageExportFormatTitle: (format: string, pageCount: number) => `現在のカットの補正済み紙シート全${pageCount}ページを${format}形式で書き出す`,
+    correctedSheetImageExportFilter: (format: string) => `補正済み紙シート画像 (${format})`,
     xdts: 'XDTSを書き出す…',
     xdtsTitle: 'タイムシートをXDTS互換形式で書き出す',
     aeJsx: 'After Effects JSXを書き出す…',
@@ -755,6 +760,7 @@ export const uiText = {
   },
   export: {
     saveFailed: (message: string) => `書き出しに失敗しました。\n${message}`,
+    correctedSheetImagesUnreadable: (pages: string) => `登録された紙シート画像を読み込めませんでした（${pages}ページ）。`,
   },
   issue: {
     errorsWarnings: (errors: number, warnings: number) => `エラー${errors}件 / 警告${warnings}件`,

@@ -13,6 +13,7 @@ import { DurationFrameControl } from './DurationFrameControl'
 import { EditorDetailedHelp } from './EditorDetailedHelp'
 import { RemapDetailedHelp } from './RemapDetailedHelp'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
+import { type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
 
 export function RecognitionActionMenu({
   label = <span>OCR</span>,
@@ -646,6 +647,9 @@ export function AppNavigationMenu({
   onSaveTemplate,
   onResetApp,
   onOpenSheetImageExport,
+  correctedSheetImagePageCount,
+  correctedSheetImageExportSaving,
+  onSaveCorrectedSheetImages,
   onSaveXdts,
   onSaveAeJsx,
   onSendAfterEffects,
@@ -664,6 +668,9 @@ export function AppNavigationMenu({
   onSaveTemplate: () => void
   onResetApp: () => void
   onOpenSheetImageExport: (format: SheetImageExportFormat) => void
+  correctedSheetImagePageCount: number
+  correctedSheetImageExportSaving: CorrectedSheetImageExportFormat | null
+  onSaveCorrectedSheetImages?: (format: CorrectedSheetImageExportFormat) => void
   onSaveXdts: () => void
   onSaveAeJsx: () => void
   onSendAfterEffects?: () => void
@@ -739,14 +746,14 @@ export function AppNavigationMenu({
         onActivate={setActiveSubmenu}
         menuClassName="appNavExportFlyoutMenu"
       >
-          <div className="imageExportMenuGroup appNavImageExportGroup" aria-label={uiText.actions.imageExportMenuTitle}>
+          <div className="imageExportMenuGroup appNavImageExportGroup" role="group" aria-label={uiText.actions.imageExportMenuTitle}>
             <div className="imageExportMenuLabel">タイムシート画像</div>
             <div className="imageExportFormatButtons">
               {(['jpg', 'png', 'psd'] as SheetImageExportFormat[]).map(format => {
                 const label = format.toUpperCase()
                 return (
                   <Tooltip key={format} label={uiText.actions.imageExportFormatTitle(label)}>
-                    <button type="button" onClick={() => onOpenSheetImageExport(format)}>
+                    <button type="button" aria-label={`タイムシート画像を${label}形式で書き出す`} onClick={() => onOpenSheetImageExport(format)}>
                       {label}
                     </button>
                   </Tooltip>
@@ -754,6 +761,35 @@ export function AppNavigationMenu({
               })}
             </div>
           </div>
+          {onSaveCorrectedSheetImages && correctedSheetImagePageCount > 0 && (
+            <div
+              className="imageExportMenuGroup appNavCorrectedSheetExportGroup"
+              role="group"
+              aria-label={uiText.actions.correctedSheetImageExportLabel(correctedSheetImagePageCount)}
+            >
+              <div className="imageExportMenuLabel">{uiText.actions.correctedSheetImageExportLabel(correctedSheetImagePageCount)}</div>
+              <div className="imageExportFormatButtons">
+                {(['jpg', 'png', 'psd'] as CorrectedSheetImageExportFormat[]).map(format => {
+                  const label = format.toUpperCase()
+                  const accessibleLabel = uiText.actions.correctedSheetImageExportFormatTitle(label, correctedSheetImagePageCount)
+                  return (
+                    <Tooltip key={format} label={accessibleLabel}>
+                      <button
+                        type="button"
+                        aria-label={accessibleLabel}
+                        data-export-format={format}
+                        disabled={correctedSheetImageExportSaving !== null}
+                        onClick={() => onSaveCorrectedSheetImages(format)}
+                      >
+                        {correctedSheetImageExportSaving === format ? '保存中…' : label}
+                      </button>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+              <span className="appNavCorrectedSheetExportHint">{uiText.actions.correctedSheetImageExportTitle}</span>
+            </div>
+          )}
           <Tooltip label={uiText.actions.xdtsTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveXdts}>{uiText.actions.xdts}</button>
           </Tooltip>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createProjectDocumentFromCutProject } from '@xsheet-remap/core'
-import { aeRemapJsxFileName, projectFileName, projectOutputPrefix, sheetImageFileName, sheetXdtsFileName } from './outputFileNames'
+import { aeRemapJsxFileName, correctedSheetImageFileName, projectFileName, projectOutputPrefix, sheetImageFileName, sheetXdtsFileName } from './outputFileNames'
 
 describe('output file names', () => {
   it('uses title, episode, and cut number as the main app output prefix', () => {
@@ -15,6 +15,8 @@ describe('output file names', () => {
     expect(aeRemapJsxFileName(project)).toBe('SAMPLE_05_237_ae-remap.jsx')
     expect(sheetImageFileName(project, 'jpg', 0, 12)).toBe('SAMPLE_05_237_sheet01.jpg')
     expect(sheetImageFileName(project, 'psd', 11, 12)).toBe('SAMPLE_05_237_sheet12.psd')
+    expect(correctedSheetImageFileName(project, 'png', 0, 12)).toBe('SAMPLE_05_237_paper-sheet01_corrected.png')
+    expect(correctedSheetImageFileName(project, 'psd', 11, 12)).toBe('SAMPLE_05_237_paper-sheet12_corrected.psd')
   })
 
   it('sanitizes file-system reserved characters and falls back to cut', () => {

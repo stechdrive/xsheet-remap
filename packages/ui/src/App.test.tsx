@@ -69,12 +69,15 @@ it('renders the main workspace shell', () => {
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル対応' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル重ね順' })).toBeNull()
     expect(screen.queryByText('詳細スロット一覧')).toBeNull()
+    fireEvent.click(within(appNavigationMenu).getByRole('button', { name: uiText.actions.exportMenu }))
+    expect(within(appNavigationMenu).queryByText(/補正済み紙シート（全\d+ページ）/)).toBeNull()
     expect(screen.getByLabelText('紙シート')).toBeTruthy()
     expect(screen.getByLabelText(uiText.recognition.menu)).toBeTruthy()
     expect(screen.getByLabelText(uiText.sheet.displaySettingsMenu)).toBeTruthy()
     const paperMenu = openPaperSheetMenu()
     expect(within(paperMenu).getByRole('button', { name: uiText.sheet.imageCorrection })).toBeTruthy()
     expect(within(paperMenu).getByLabelText(uiText.actions.loadSheetSourceFiles)).toBeTruthy()
+    expect(within(paperMenu).queryByLabelText(uiText.actions.correctedSheetImageExport)).toBeNull()
     expect(document.querySelector('.topBar .paperSheetTopGroup')).toBeNull()
     expect(document.querySelector('.sheetToolbar')).toBeNull()
     expect(screen.getByRole('toolbar', { name: 'シート表示と編集' })).toBeTruthy()
@@ -769,7 +772,7 @@ it('closes the app navigation menu when a file picker item is selected', async (
     expect(document.querySelector('.actionMenuPortalContent.appNavMenu')).toBeNull()
   })
 
-it('restores paper sheet images from saved project file paths', async () => {
+it('restores a paper sheet image from a saved project file path', async () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
     const sourcePath = 'D:\\cuts\\C001\\sheet_001.png'
     const registered = registerSheetSource(createDefaultProject(), {
@@ -792,6 +795,78 @@ it('restores paper sheet images from saved project file paths', async () => {
     fireEvent.change(loadProjectInput, { target: { files: [file] } })
 
     await waitFor(() => expect(sheetImageHrefs()).toContain('asset://D:/cuts/C001/sheet_001.png'))
+  })
+
+it('shows one corrected paper export group for every assigned page in the active cut', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+    const firstSourcePath = 'D:\\cuts\\C001\\sheet_001.png'
+    const secondSourcePath = 'D:\\cuts\\C001\\sheet_002.png'
+    const first = registerSheetSource(createDefaultProject(), {
+      name: 'sheet_001.png',
+      path: firstSourcePath,
+      size: 1024,
+      lastModified: 1,
+    })
+    const second = registerSheetSource(first.project, {
+      name: 'sheet_002.png',
+      path: secondSourcePath,
+      size: 1024,
+      lastModified: 2,
+    })
+    const twoPageProject = updateLogicalSheetSettings(second.project, { durationFrames: 288 })
+    const firstAssigned = assignSheetSourceToPage(twoPageProject, 'page_1', first.source.sourceId)
+    const assignedProject = assignSheetSourceToPage(firstAssigned, 'page_2', second.source.sourceId)
+    const projectWithSheet = { ...assignedProject, cut: { ...assignedProject.cut, cut: 'BATCH' } }
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(projectWithSheet))
+
+    render(<App />)
+    const menu = openAppNavigationMenu()
+    const loadProjectInput = within(menu)
+      .getByText(uiText.actions.loadProject)
+      .closest('label')
+      ?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!loadProjectInput) throw new Error('load project file input not found')
+
+    fireEvent.change(loadProjectInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(screen.getByLabelText(uiText.sheet.cutMetadata).textContent).toContain('BATCH'))
+    expect(within(openPaperSheetMenu()).queryByText(uiText.actions.correctedSheetImageExport)).toBeNull()
+    const exportMenu = openAppNavigationMenu()
+    fireEvent.click(within(exportMenu).getByRole('button', { name: uiText.actions.exportMenu }))
+    const correctedExport = within(exportMenu).getByRole('group', { name: uiText.actions.correctedSheetImageExportLabel(2) })
+    for (const format of ['JPG', 'PNG', 'PSD']) {
+      const accessibleLabel = uiText.actions.correctedSheetImageExportFormatTitle(format, 2)
+      expect((within(correctedExport).getByRole('button', { name: accessibleLabel }) as HTMLButtonElement).disabled).toBe(false)
+    }
+  })
+
+it('keeps corrected paper image export out of Remap even when a paper source is loaded', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+    const sourcePath = 'D:\\cuts\\C001\\sheet_001.png'
+    const registered = registerSheetSource(createDefaultProject(), {
+      name: 'sheet_001.png',
+      path: sourcePath,
+      size: 1024,
+      lastModified: 1,
+    })
+    const projectWithSheet = assignSheetSourceToPage(registered.project, 'page_1', registered.source.sourceId)
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(projectWithSheet))
+
+    render(<RemapApp />)
+    const menu = openAppNavigationMenu()
+    const loadProjectInput = within(menu)
+      .getByText(uiText.actions.loadProject)
+      .closest('label')
+      ?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!loadProjectInput) throw new Error('load project file input not found')
+
+    fireEvent.change(loadProjectInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(sheetImageHrefs()).toContain('asset://D:/cuts/C001/sheet_001.png'))
+    expect(within(openPaperSheetMenu()).queryByLabelText(uiText.actions.correctedSheetImageExport)).toBeNull()
+    const exportMenu = openAppNavigationMenu()
+    fireEvent.click(within(exportMenu).getByRole('button', { name: uiText.actions.exportMenu }))
+    expect(within(exportMenu).queryByText(uiText.actions.correctedSheetImageExportLabel(1))).toBeNull()
   })
 
 it('warns on project load when registered material files are missing on disk', async () => {

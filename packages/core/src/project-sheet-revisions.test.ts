@@ -3,11 +3,13 @@ import {
   activeCutProjectFromDocument,
   activeSheetRevisionFromDocument,
   addSheetRevisionToProjectDocument,
+  assignSheetSourceToPage,
   createDefaultProject,
   createOrSetEvent,
   createProjectDocumentFromCutProject,
   deleteSheetRevisionInProjectDocument,
   parseProjectDocument,
+  registerSheetSource,
   setSheetRevisionReferenceInProjectDocument,
   sheetAnnotations,
   switchActiveSheetRevisionInProjectDocument,
@@ -15,6 +17,7 @@ import {
   updateActiveCutProjectInDocument,
   updateLogicalSheetSettings,
   updateSheetFormField,
+  type SheetSource,
 } from './index'
 
 describe('project sheet history', () => {
@@ -87,7 +90,29 @@ describe('project sheet history', () => {
         })), timedRangeCues: revision.timedRangeCues }],
     }
     const migrated = parseProjectDocument(legacy)
-    expect(migrated).toMatchObject({ schemaVersion: 10, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined, pageFields: {} }] }] })
+    expect(migrated).toMatchObject({ schemaVersion: 11, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined, pageFields: {} }] }] })
     expect(activeCutProjectFromDocument(migrated).logicalSheet.events).toEqual(source.logicalSheet.events)
+  })
+
+  it('migrates paper source alignment and duplicate assignments in inactive revisions', () => {
+    const registered = registerSheetSource(createDefaultProject(), { name: 'legacy-paper.png' })
+    const assigned = assignSheetSourceToPage(registered.project, 'page_1', registered.source.sourceId)
+    let document = createProjectDocumentFromCutProject(assigned)
+    document = addSheetRevisionToProjectDocument(document, assigned, { name: 'active copy', mode: 'duplicate' })
+    const inactiveView = document.cuts[0]!.revisions[0]!.sheetView
+    delete (inactiveView.sources[0] as Partial<SheetSource>).alignment
+    inactiveView.sources[0]!.assignedPageId = 'page_3'
+    inactiveView.pages.push({ ...inactiveView.pages[0]!, pageId: 'page_3' })
+
+    const migrated = parseProjectDocument(document)
+    const migratedInactive = migrated.cuts[0]!.revisions[0]!.sheetView
+    const migratedPage3 = migratedInactive.pages.find(page => page.pageId === 'page_3')
+
+    expect(migratedInactive.sources[0]?.alignment).toEqual(migratedPage3?.alignment)
+    expect(migratedInactive.sources[0]?.assignedPageId).toBe('page_3')
+    expect(migratedInactive.pages.find(page => page.pageId === 'page_1')?.sourceId).toBeTruthy()
+    expect(migratedInactive.pages.find(page => page.pageId === 'page_1')?.sourceId).not.toBe(registered.source.sourceId)
+    expect(migratedPage3?.sourceId).toBe(registered.source.sourceId)
+    expect(migratedInactive.sources).toHaveLength(2)
   })
 })

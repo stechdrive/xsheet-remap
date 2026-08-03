@@ -413,6 +413,7 @@ export {
   assignSheetSourceToPage,
   createDefaultSheetViewState,
   defaultSheetImageAlignment,
+  removeSheetSource,
   updateSheetPageViewState,
   updateSheetViewState,
 } from './sheet-view'

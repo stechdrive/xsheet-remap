@@ -103,7 +103,7 @@ export function getSheetPageImage(sheetView: SheetViewState, runtimeImageUrls: R
     sourceId: source?.sourceId,
     imageRef: source?.imageRef ?? page?.imageRef ?? defaultUnderlayImageRef,
     settings: source
-      ? page?.alignment ?? defaultSheetImageSettings()
+      ? source.alignment ?? page?.alignment ?? defaultSheetImageSettings()
       : defaultUnderlayImageRef ? templateUnderlaySettings : page?.imageRef ? page.alignment : emptyPageSettings,
   }
 }

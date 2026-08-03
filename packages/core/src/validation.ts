@@ -38,6 +38,11 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     }
     pageAssignments.set(page.sourceId, page.pageId)
   }
+  for (const source of project.sheetView.sources) {
+    if (source.assignedPageId !== pageAssignments.get(source.sourceId)) {
+      issues.push(issue('warning', 'sheet.source.assignmentMismatch', `sheet source ${source.sourceId} assignment does not match its page reference`, 'sheet', source.sourceId))
+    }
+  }
 
   for (const event of project.logicalSheet.events) {
     if (!isSpecialTimingKeyId(event.keyId) && !keyIds.has(event.keyId)) {

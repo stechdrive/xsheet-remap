@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { clearAnnotations, clearAnnotationsForPage, sheetTemplatePresets, timelineLanesForLayout, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
+import { clearAnnotations, clearAnnotationsForPage, getSheetViewLayout, sheetTemplatePresets, timelineLanesForLayout, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { uiText } from './i18n';
@@ -23,6 +23,7 @@ import { SHEET_OCR_AVAILABLE } from './runtimeFeatures'
 import { DialogueAudioTimeline } from './DialogueAudioTimeline'
 import { dialogueAudioCutStateFromProject } from './dialogueAudioProject'
 import { correctedSheetImageExportPlan, type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
+import { PaperSheetAssignmentEditor } from './PaperSheetAssignmentEditor'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -52,7 +53,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
     copySelectedCameraCueRange, pasteSelectedCameraCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
-    handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
+    handleAssetSheetSources, handleAssignSheetSource, handleRemoveSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleChooseAssetRoot, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
@@ -141,6 +142,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
               </>
             )}
           </TooltipTarget>
+          <p className="paperSheetImportHint">{['continuous', 'infinite'].includes(getSheetViewLayout(template).frameAxis?.type ?? '') ? uiText.sources.addHintContinuous : uiText.sources.addHint}</p>
           <Tooltip label={uiText.sheet.imageCorrectionTitle}>
             <button
               type="button"
@@ -194,6 +196,15 @@ export function AppShellView({ controller }: { controller: AppController }) {
             }}
           </TooltipTarget>
           {autoCalibrationMessage && <p className="muted calibrationStatus" role="status">{autoCalibrationMessage}</p>}
+          <PaperSheetAssignmentEditor
+            pages={sheetPages}
+            pageStates={project.sheetView.pages}
+            sources={project.sheetView.sources}
+            activePageId={activePage?.pageId}
+            onPageSelect={setActivePageIndex}
+            onAssign={handleAssignSheetSource}
+            onRemove={handleRemoveSheetSource}
+          />
         </div>
       </ActionMenu>
       {SHEET_OCR_AVAILABLE && (
@@ -417,8 +428,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onEraseTimelineMemoStroke={handleEraseTimelineMemoStroke}
             onClearTimelineMemoStrokes={handleClearTimelineMemoStrokes}
             onClearSelection={handleClearSelection}
-            onTemplateImage={files => void handleSheetSourceFiles(files, activePage?.pageId)}
-            onAssignSheetSource={handleAssignSheetSource}
             onAssetSheetSources={assetIds => handleAssetSheetSources(assetIds, activePage?.pageId)}
             onAssetDrop={(files, hit, position) => void handleAssetFiles(files, hit, position)}
             onAssetFiles={files => void handleAssetFiles(files)}

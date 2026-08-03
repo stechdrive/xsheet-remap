@@ -580,6 +580,7 @@ export interface SheetSource {
   imageRef: SheetPageImageRef
   assetId?: Id
   assignedPageId?: Id
+  alignment: SheetImageAlignment
 }
 
 export interface SheetPageViewState {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultProject, createProjectDocumentFromCutProject, migrateProject, parseProjectDocument } from './index'
+import { createDefaultProject, createProjectDocumentFromCutProject, migrateProject, parseProjectDocument, type SheetSource } from './index'
 
 describe('project native-path migration', () => {
   it('normalizes asset and sheet-image paths without changing web asset references', () => {
@@ -31,7 +31,7 @@ describe('project native-path migration', () => {
           sourceId: 'sheet_source_1',
           kind: 'sheet-scan',
           imageRef: { name: 'sheet.png', path: '\\\\?\\C:\\cuts\\C001\\sheet.png', assetPath: 'templates/sheet.png' },
-        }],
+        } as unknown as SheetSource],
         pages: base.sheetView.pages.map((page, index) => index === 0 ? {
           ...page,
           sourceId: 'sheet_source_1',

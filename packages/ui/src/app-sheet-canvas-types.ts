@@ -115,7 +115,6 @@ export type SheetCanvasProps = {
   onAppendTimelineMemoStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
   onEraseTimelineMemoStroke: (memoId: string, points: TimelineMemoPoint[], widthUnits: number) => void
   onUpsertTimelineMemoText: (memoId: string, text: TimelineMemoText, appearance: MemoAppearance) => void
-  onTemplateImage: (files: FileList | File[] | null) => void
   onAssetSheetSources: (assetIds: string[]) => void
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void
   onAssetAssign: (assetId: string, hit: SheetHit | null, position?: { x: number; y: number }) => void

@@ -81,7 +81,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
   }
   const registeredCells = sharedRegisteredCellCatalogFromInput(document.registeredCells)
   const cuts = document.cuts
-    .map((cut, index) => normalizeCutSheetDocument(cut, index))
+    .map((cut, index) => normalizeCutSheetDocument(cut, index, sheetTemplate.templateId))
     .sort((a, b) => a.order - b.order || a.cutId.localeCompare(b.cutId, 'ja'))
     .map((cut, order) => ({ ...cut, order }))
   const activeCutId = cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : cuts[0]!.cutId
@@ -626,7 +626,7 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
   })
 }
 
-function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSheetDocument {
+function normalizeCutSheetDocument(input: unknown, fallbackOrder: number, templateId: string): CutSheetDocument {
   if (!isRecord(input) || typeof input.cutId !== 'string' || !isRecord(input.metadata)) {
     throw new Error(`タイムシート${fallbackOrder + 1}のデータが不正です。`)
   }
@@ -637,8 +637,8 @@ function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSh
     sheetFields: normalizeSheetFormFieldValues(input.metadata.sheetFields),
   }
   const revisions = Array.isArray(input.revisions)
-    ? input.revisions.map((revision, index) => normalizeSheetRevisionDocument(revision, index))
-    : [normalizeLegacySheetRevisionDocument(input)]
+    ? input.revisions.map((revision, index) => normalizeSheetRevisionDocument(revision, index, templateId))
+    : [normalizeLegacySheetRevisionDocument(input, templateId)]
   if (revisions.length === 0) throw new Error(`タイムシート${fallbackOrder + 1}には1件以上のシートが必要です。`)
   const orderedRevisions = revisions
     .sort((a, b) => a.order - b.order || a.revisionId.localeCompare(b.revisionId, 'ja'))
@@ -657,7 +657,7 @@ function normalizeCutSheetDocument(input: unknown, fallbackOrder: number): CutSh
   }
 }
 
-function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): SheetRevisionDocument {
+function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number, templateId: string): SheetRevisionDocument {
   if (!isRecord(input) || typeof input.revisionId !== 'string'
     || !isRecord(input.metadata) || !isRecord(input.sheetView) || !isRecord(input.logicalSheet)
     || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
@@ -677,7 +677,7 @@ function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): 
     },
     sheetFields: normalizeSheetFormFieldValues(input.sheetFields),
     pageFields: normalizeSheetFormPageFieldValues(input.pageFields),
-    sheetView: input.sheetView as unknown as SheetViewState,
+    sheetView: migrateSheetView(input.sheetView as Partial<SheetViewState>, templateId),
     logicalSheet: input.logicalSheet as unknown as SheetRevisionDocument['logicalSheet'],
     cspTrackSlots: input.cspTrackSlots as CspTrackSlot[],
     stackGuideLabelPlacements: input.stackGuideLabelPlacements as StackGuideLabelPlacementState[],
@@ -690,7 +690,7 @@ function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number): 
   }
 }
 
-function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>): SheetRevisionDocument {
+function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>, templateId: string): SheetRevisionDocument {
   if (!isRecord(input.sheetView) || !isRecord(input.logicalSheet)
     || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
     || (!Array.isArray(input.memos) && !Array.isArray(input.annotations)) || !Array.isArray(input.timedRangeCues)) {
@@ -714,7 +714,7 @@ function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>): S
     annotations: Array.isArray(input.annotations) ? input.annotations : [],
     timelineMemos: Array.isArray(input.timelineMemos) ? input.timelineMemos : [],
     timedRangeCues: input.timedRangeCues,
-  }, 0)
+  }, 0, templateId)
 }
 
 function cutMetadataWithProduction(cut: CutSheetMetadata, revision: SheetRevisionDocument['metadata'], production: ProductionMetadata): CutMetadata {

@@ -117,11 +117,11 @@ export async function decodeProjectFileBytes(bytes: Uint8Array): Promise<Decoded
   }
 
   const archivedDocument = parseJsonEntry(projectBytes, 'プロジェクト')
-  const hydratedDocument = hydrateBlobReferences(archivedDocument, blobs, 0)
-  const document = parseProjectDocument(hydratedDocument)
-  if (document.schemaVersion !== manifest.documentSchemaVersion) {
+  if (!isRecord(archivedDocument) || archivedDocument.schemaVersion !== manifest.documentSchemaVersion) {
     throw corruptionError('マニフェストとプロジェクトのスキーマバージョンが一致しません。')
   }
+  const hydratedDocument = hydrateBlobReferences(archivedDocument, blobs, 0)
+  const document = parseProjectDocument(hydratedDocument)
   return { document, manifest }
 }
 

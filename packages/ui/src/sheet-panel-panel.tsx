@@ -16,7 +16,7 @@ import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrack
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
 import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
-import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextSizeIcon, TextToolIcon, TrashIcon, sheetSourceLabel } from './app-navigation'
+import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextSizeIcon, TextToolIcon, TrashIcon } from './app-navigation'
 import { SheetCanvas, type SheetCanvasHandle } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
@@ -260,8 +260,6 @@ export function SheetPanel(props: {
   onUpdateTimelineMemoAppearance: (memoId: string, appearance: MemoAppearance) => void
   onClearTimelineMemoStrokes: (memoId: string) => void
   onClearSelection: () => void
-  onTemplateImage: (files: FileList | File[] | null) => void
-  onAssignSheetSource: (pageId: string, sourceId: string | null) => void
   onAssetSheetSources: (assetIds: string[]) => void
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void
   onAssetFiles: (files: FileList | File[] | null) => void
@@ -1314,29 +1312,6 @@ export function SheetPanel(props: {
                           </Tooltip>
                         ))}
                       </div>
-                      {(() => {
-                        const pageState = props.project.sheetView.pages.find(item => item.pageId === activePage.pageId)
-                        const sourceId = pageState?.sourceId ?? ''
-                        return (
-                          <div className="pageJumpEditor">
-                            <strong>{uiText.sources.pageAssignmentLabel(activePage.pageIndex + 1)}</strong>
-                            <TooltipTarget label={uiText.sources.pageAssignmentTitle(activePage.pageIndex + 1)}>
-                              {tooltipProps => (
-                                <label className="pageJumpSourceSelect" {...tooltipProps}>
-                                  <select value={sourceId} aria-label={uiText.sources.pageAssignmentLabel(activePage.pageIndex + 1)} onChange={event => props.onAssignSheetSource(activePage.pageId, event.currentTarget.value || null)}>
-                                    <option value="">{uiText.app.unassigned}</option>
-                                    {sheetScanSources.map(source => <option key={source.sourceId} value={source.sourceId}>{sheetSourceLabel(source)}</option>)}
-                                  </select>
-                                </label>
-                              )}
-                            </TooltipTarget>
-                            <Tooltip label={uiText.sources.clearAssignmentTitle}>
-                              <button type="button" className="pageJumpClearButton" disabled={!sourceId} onClick={() => props.onAssignSheetSource(activePage.pageId, null)}>{uiText.sources.clearAssignment}</button>
-                            </Tooltip>
-                          </div>
-                        )
-                      })()}
-                      {sheetScanSources.length === 0 && <p className="pageJumpEmpty">{uiText.sources.empty}</p>}
                     </div>
                   </ActionMenu>
                 )}

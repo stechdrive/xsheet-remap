@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { projectDocumentsEqual } from './projectDocumentEquality';
@@ -11,12 +11,11 @@ import { loadProjectDocumentFile, projectRuntimeSourceImageUrls } from './projec
 import { type DropDiagnosticReport } from './AssetBrowser';
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection';
 import { compareAssetNames, compareFileNames, isImageAssetFile, sheetImageRefFromAsset } from './assetFiles';
-import { compareFileNameLikeText } from './naturalSort';
 import { bindAssetToHit, isCellMaterialAsset } from './sheetAssets';
 import { runDesktopE2EIfRequested } from './desktopE2E';
 import { clampTextFontSizePx, defaultTimingTextFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout';
 import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
-import { calibrationPointsForSettings, getSheetPageImage, serializableImageRef } from './sheetImages';
+import { calibrationPointsForSettings, getSheetPageImage } from './sheetImages';
 import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, nextTimingHit, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
 import { buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, moveTimingEventsInRange, pasteResultRange, pasteTimingClipboardToProject, rangeContainsHit, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget, timingRangeSelectionForMoveResult } from './timingEditing';
 import { normalizeRecognitionLabel, recognizeSheetPagesIfAvailable } from './runtimeFeatures';
@@ -24,7 +23,7 @@ import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
 import { createTemplateDraft, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
-import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, IMPORTED_SHEET_SECONDS_PER_PAGE, ImportedSheetSourceCalibrationResult, ImportedSheetSourceCalibrationTarget, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, isImageFileRef, preferredSaveDirectory, timelineEventAtHit } from './app-foundation';
+import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, isImageFileRef, preferredSaveDirectory, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
 import { paperTrackOrderForRole, stampAuxiliaryPlacementTemplate, templatePaperTracks } from './app-sheet-geometry';
 import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen, updateNativeStackGuidePreviewIfOpen } from './app-registered-cells';
@@ -54,7 +53,10 @@ import { handleWorkspaceKeyboardBoundary, nextSoundCueNavigationRequest } from '
 import { eventKeyIdAtSheetHit, timingKeyAtSheetHit, timingKeyDisplayLabel } from './workspaceSelectionModel'
 import { EMPTY_DIALOGUE_AUDIO_SELECTION } from './dialogueAudioSelectionModel'
 import { useSheetRenderModelGeometryProject } from './useSheetRenderModelProject'
+import { IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, importPaperSheetSourceRefs, paperSheetImportPlan, type ImportedSheetSourceCalibrationResult, type ImportedSheetSourceCalibrationTarget } from './paperSheetImport'
+import { applyDetectedPaperSheetCalibration, paperSheetCalibrationSourceIdentity } from './paperSheetAutoCalibration'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
+type PaperSheetEditContext = { document: object; cutId: string; revisionId: string; template: SheetTemplate }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
@@ -108,6 +110,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setActiveCorrectionLayerId: setActiveCorrectionLayerIdState,
     setRuntimeSourceImageUrls, clearSelection: clearSelectionState, alertError: error => window.alert(errorMessage(error)),
   })
+  const paperSheetEditContextRef = useRef<PaperSheetEditContext>({ document: projectDocument, cutId: projectDocumentSnapshot.activeCutId, revisionId: activeSheetRevision.revisionId, template })
+  paperSheetEditContextRef.current = { document: projectDocument, cutId: projectDocumentSnapshot.activeCutId, revisionId: activeSheetRevision.revisionId, template }
   const { handleSwitchProjectCut, handleAddSharedCut, handleDeleteSharedCut } = createAppSharedCutActions({
     projectDocument: projectDocumentSnapshot, resolveProject: () => commitTimingDraft(false), template, setProjectDocument, setHistory, projectRef,
     setActiveCorrectionLayerId: setActiveCorrectionLayerIdState,
@@ -198,6 +202,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       return path ? [{ sourceId: source.sourceId, path }] : []
     })
   }, [project.assetRoot, project.assets, project.sheetView.sources])
+  const sheetSourceRuntimeAssetEntries = useMemo(() => {
+    const thumbnailByAssetId = new Map(project.assets.map(asset => [asset.assetId, asset.thumbnailUrl]))
+    return project.sheetView.sources.map(source => ({
+      sourceId: source.sourceId,
+      imageUrl: source.assetId ? thumbnailByAssetId.get(source.assetId) : undefined,
+    }))
+  }, [project.assets, project.sheetView.sources])
   const activeSheetPageSize = useMemo(
     () => resolveSheetTemplatePageSize(template, sheetDisplayDurationFrames, {
       paperTracks: templatePaperTracks(activeSheetGeometryProject, template).map(track => track.paperTrack),
@@ -307,6 +318,19 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     })
   }, [setActiveCorrectionLayerIdState, setHistory, setPanelView, setProjectDocument, setProjectFilePath, setTemplate, setTextFontSizePx])
 
+  useEffect(() => {
+    setRuntimeSourceImageUrls(current => {
+      let changed = false
+      const next = { ...current }
+      for (const entry of sheetSourceRuntimeAssetEntries) {
+        if (entry.imageUrl ? next[entry.sourceId] === entry.imageUrl : !(entry.sourceId in next)) continue
+        if (entry.imageUrl) next[entry.sourceId] = entry.imageUrl
+        else delete next[entry.sourceId]
+        changed = true
+      }
+      return changed ? next : current
+    })
+  }, [setRuntimeSourceImageUrls, sheetSourceRuntimeAssetEntries])
   useEffect(() => {
     if (!isTauriHost() || sheetSourceRuntimePathEntries.length === 0) return undefined
     let cancelled = false
@@ -907,69 +931,36 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (startHit) setSelectionFromHit(startHit, sourceProject)
   }
 
-  function assignSheetSourceToPageWithInitialOpacity(sourceProject: CutProject, pageId: string, sourceId: string | null): CutProject {
-    const assigned = assignSheetSourceToPage(sourceProject, pageId, sourceId)
-    return sourceId
-      ? updateSheetPageViewState(assigned, pageId, { alignment: { opacity: IMPORTED_SHEET_IMAGE_INITIAL_OPACITY } })
-      : assigned
-  }
-
   async function handleSheetSourceFiles(files: FileList | File[] | null, startPageId = activePage?.pageId) {
+    const targetContext = paperSheetEditContextRef.current
     const imageFiles = Array.from(files ?? [])
       .filter(file => file.type.startsWith('image/'))
       .sort(compareFileNames)
     if (imageFiles.length === 0) return
     const refs = await Promise.all(imageFiles.map(fileToFileRef))
-    handleSheetSourceFileRefs(refs, startPageId)
+    const currentContext = paperSheetEditContextRef.current
+    if (samePaperSheetEditContext(currentContext, targetContext)) handleSheetSourceFileRefs(refs, startPageId, currentContext)
   }
 
-  function handleSheetSourceFileRefs(refs: FileRef[], startPageId = activePage?.pageId) {
-    const imageRefs = refs
-      .filter(ref => isImageFileRef(ref))
-      .sort((a, b) => compareFileNameLikeText(a.name, b.name))
-    if (imageRefs.length === 0) return
-    const startIndex = Math.max(0, sheetPages.findIndex(page => page.pageId === startPageId))
-    const importedSheetPageFrames = Math.max(1, Math.round(project.logicalSheet.fps * IMPORTED_SHEET_SECONDS_PER_PAGE))
-    const durationFrames = Math.max(1, (startIndex + imageRefs.length) * importedSheetPageFrames)
-    const targetPages = createSheetPages(template, durationFrames, project.logicalSheet.frameOrigin)
-    const runtimeUpdates: Record<string, string> = {}
-    const calibrationTargets: ImportedSheetSourceCalibrationTarget[] = []
-    let next = updateLogicalSheetSettings(project, { durationFrames })
-
-    for (const [index, ref] of imageRefs.entries()) {
-      const assetRegistered = registerAsset(next, ref, { role: 'timesheet-scan' })
-      const registered = registerSheetSource(assetRegistered.project, serializableImageRef(ref), { assetId: assetRegistered.asset.assetId })
-      next = registered.project
-      if (ref.objectUrl) runtimeUpdates[registered.source.sourceId] = ref.objectUrl
-      const targetPage = targetPages[startIndex + index]
-      if (targetPage) {
-        next = assignSheetSourceToPageWithInitialOpacity(next, targetPage.pageId, registered.source.sourceId)
-        if (ref.objectUrl) {
-          calibrationTargets.push({
-            pageId: targetPage.pageId,
-            sourceId: registered.source.sourceId,
-            imageUrl: ref.objectUrl,
-          })
-        }
-      }
-    }
-
-    setRuntimeSourceImageUrls(current => ({ ...current, ...runtimeUpdates }))
-    commitProject(next)
+  function handleSheetSourceFileRefs(refs: FileRef[], startPageId: string | undefined, context: PaperSheetEditContext) {
+    const imported = importPaperSheetSourceRefs({ project: projectRef.current, refs, startPageId, template: context.template })
+    if (!imported) return
+    if (!commitProject(imported.project)) return
+    setRuntimeSourceImageUrls(current => ({ ...current, ...imported.runtimeUpdates }))
     setRecognitionCandidates([])
     setAutoCalibrationOverlay(null)
-    void autoCalibrateImportedSheetSources(calibrationTargets)
+    void autoCalibrateImportedSheetSources(imported.calibrationTargets, context)
   }
 
   async function openPaperSheetFilePicker() {
+    const targetContext = paperSheetEditContextRef.current
     if (isTauriHost()) {
       try {
         const refs = await openImageFileRefs({
           initialDirectory: preferredSaveDirectory(project),
         })
-        if (refs && refs.length > 0) {
-          handleSheetSourceFileRefs(refs, activePage?.pageId)
-        }
+        const currentContext = paperSheetEditContextRef.current
+        if (refs && refs.length > 0 && samePaperSheetEditContext(currentContext, targetContext)) handleSheetSourceFileRefs(refs, activePage?.pageId, currentContext)
         return
       } catch (error) {
         window.alert(errorMessage(error))
@@ -979,8 +970,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     paperSheetInputRef.current?.click()
   }
 
-  async function autoCalibrateImportedSheetSources(targets: ImportedSheetSourceCalibrationTarget[]) {
-    if (!shouldAutoCalibrateImportedSheetSources(template) || targets.length === 0 || autoCalibrationRunning) return
+  async function autoCalibrateImportedSheetSources(targets: ImportedSheetSourceCalibrationTarget[], context: PaperSheetEditContext) {
+    if (!shouldAutoCalibrateImportedSheetSources(context.template) || targets.length === 0 || autoCalibrationRunning) return
     setAutoCalibrationRunning(true)
     setAutoCalibrationMessage(uiText.sheet.autoCalibrationImportRunning(targets.length))
     setAutoCalibrationOverlay(null)
@@ -988,7 +979,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     try {
       for (const target of targets) {
         try {
-          const result = await detectSheetCalibrationPoints(target.imageUrl, template)
+          const result = await detectSheetCalibrationPoints(target.imageUrl, context.template)
+          if (!samePaperSheetEditContext(paperSheetEditContextRef.current, context)) { setAutoCalibrationMessage(null); return }
           if (result) results.push({ target, points: result.points })
         } catch {
           // Import should succeed even when a scan cannot be auto-corrected.
@@ -996,20 +988,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       }
       if (results.length > 0) {
         setHistory(current => {
+          if (!samePaperSheetEditContext(paperSheetEditContextRef.current, context)) return current
           let next = current.present
           let appliedCount = 0
           for (const result of results) {
-            const page = next.sheetView.pages.find(item => item.pageId === result.target.pageId)
-            if (page?.sourceId !== result.target.sourceId) continue
-            next = updateSheetPageViewState(next, result.target.pageId, {
-              alignment: {
-                corners: calibrationCornersFromPoints(result.points, 'source') ?? page.alignment.corners,
-                calibration: {
-                  enabled: true,
-                  points: result.points,
-                },
-              },
-            })
+            const applied = applyDetectedPaperSheetCalibration({ project: next, ...result.target, points: result.points, enabled: true })
+            if (!applied) continue
+            next = applied.project
             appliedCount += 1
           }
           return appliedCount > 0 ? commitHistory(current, next) : current
@@ -1024,6 +1009,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleAssetSheetSources(assetIds: string[], startPageId = activePage?.pageId) {
+    const context = paperSheetEditContextRef.current
     const selectedAssets = assetIds
       .flatMap(assetId => {
         const asset = project.assets.find(item => item.assetId === assetId)
@@ -1033,43 +1019,43 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (selectedAssets.length === 0) return
     if (project.sheetView.sources.some(source => source.kind === 'sheet-scan')) return
 
-    const startIndex = Math.max(0, sheetPages.findIndex(page => page.pageId === startPageId))
-    const importedSheetPageFrames = Math.max(1, Math.round(project.logicalSheet.fps * IMPORTED_SHEET_SECONDS_PER_PAGE))
-    const durationFrames = Math.max(1, (startIndex + selectedAssets.length) * importedSheetPageFrames)
-    const targetPages = createSheetPages(template, durationFrames, project.logicalSheet.frameOrigin)
+    const plan = paperSheetImportPlan({ project, startPageId, imageCount: selectedAssets.length, template })
     const runtimeUpdates: Record<string, string> = {}
     const calibrationTargets: ImportedSheetSourceCalibrationTarget[] = []
-    let next = updateLogicalSheetSettings(project, { durationFrames })
+    let next = updateLogicalSheetSettings(project, { durationFrames: plan.durationFrames })
 
     for (const [index, asset] of selectedAssets.entries()) {
-      const registered = registerSheetSource(next, sheetImageRefFromAsset(asset), { assetId: asset.assetId })
+      const registered = registerSheetSource(next, sheetImageRefFromAsset(asset), { assetId: asset.assetId, initialAlignment: { opacity: IMPORTED_SHEET_IMAGE_INITIAL_OPACITY } })
       next = registered.project
       if (asset.thumbnailUrl) runtimeUpdates[registered.source.sourceId] = asset.thumbnailUrl
-      const targetPage = targetPages[startIndex + index]
+      const targetPage = plan.pages[plan.startPageIndex + index]
       if (targetPage) {
-        next = assignSheetSourceToPageWithInitialOpacity(next, targetPage.pageId, registered.source.sourceId)
+        next = assignSheetSourceToPage(next, targetPage.pageId, registered.source.sourceId)
         if (asset.thumbnailUrl) {
           calibrationTargets.push({
             pageId: targetPage.pageId,
             sourceId: registered.source.sourceId,
+            sourceIdentity: paperSheetCalibrationSourceIdentity(registered.source),
             imageUrl: asset.thumbnailUrl,
           })
         }
       }
     }
 
+    if (!commitProject(next)) return
     setRuntimeSourceImageUrls(current => ({ ...current, ...runtimeUpdates }))
-    commitProject(next)
     setRecognitionCandidates([])
     setAutoCalibrationOverlay(null)
-    void autoCalibrateImportedSheetSources(calibrationTargets)
+    void autoCalibrateImportedSheetSources(calibrationTargets, context)
   }
 
   function handleAssignSheetSource(pageId: string, sourceId: string | null) {
-    commitProject(assignSheetSourceToPageWithInitialOpacity(project, pageId, sourceId))
+    commitProject(assignSheetSourceToPage(project, pageId, sourceId))
     setRecognitionCandidates([])
     setAutoCalibrationOverlay(null)
   }
+
+  function handleRemoveSheetSource(sourceId: string) { commitProject(removeSheetSource(project, sourceId)); setRecognitionCandidates([]); setAutoCalibrationOverlay(null) }
 
   function updateActivePageAlignment(alignment: Partial<SheetImageAlignment>) {
     if (!activePage) return
@@ -1157,26 +1143,30 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   async function autoDetectSheetImageWarp() {
     if (!activePage || !activePageImage.imageUrl || autoCalibrationRunning) return
+    const context = paperSheetEditContextRef.current
+    const targetSource = activePageImage.sourceId
+      ? project.sheetView.sources.find(source => source.sourceId === activePageImage.sourceId)
+      : undefined
+    const target = {
+      pageId: activePage.pageId,
+      sourceId: activePageImage.sourceId,
+      sourceIdentity: targetSource ? paperSheetCalibrationSourceIdentity(targetSource) : undefined,
+    }
     setAutoCalibrationRunning(true)
     setAutoCalibrationMessage(uiText.sheet.autoCalibrationRunning)
     try {
-      const result = await detectSheetCalibrationPoints(activePageImage.imageUrl, template)
+      const result = await detectSheetCalibrationPoints(activePageImage.imageUrl, context.template)
+      if (!samePaperSheetEditContext(paperSheetEditContextRef.current, context)) { setAutoCalibrationMessage(null); setAutoCalibrationOverlay(null); return }
       if (!result) {
         setAutoCalibrationMessage(uiText.sheet.autoCalibrationFailed)
         setAutoCalibrationOverlay(null)
         return
       }
-      commitProject(updateSheetPageViewState(project, activePage.pageId, {
-        alignment: {
-          corners: calibrationCornersFromPoints(result.points, 'source') ?? activePageImage.settings.corners,
-          calibration: {
-            enabled: false,
-            points: result.points,
-          },
-        },
-      }))
+      const applied = applyDetectedPaperSheetCalibration({ project: projectRef.current, ...target, points: result.points })
+      if (!applied) { setAutoCalibrationMessage(null); setAutoCalibrationOverlay(null); return }
+      if (!commitProject(applied.project)) return
       setEditMode('calibrate')
-      setAutoCalibrationOverlay({ pageId: activePage.pageId, ...result.debugOverlay })
+      setAutoCalibrationOverlay({ pageId: applied.pageId, ...result.debugOverlay })
       setAutoCalibrationMessage(uiText.sheet.autoCalibrationSucceeded(Math.round(result.confidence * 100), result.detectedLineCount))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -2279,7 +2269,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
     copySelectedTimingRange, pasteTimingClipboard, copySelectedSoundCueRange, pasteSelectedSoundCueRange,
     copySelectedCameraCueRange, pasteSelectedCameraCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
-    handleAssetSheetSources, handleAssignSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
+    handleAssetSheetSources, handleAssignSheetSource, handleRemoveSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleChooseAssetRoot, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
@@ -2295,4 +2285,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
   }
 }
+
+function samePaperSheetEditContext(left: PaperSheetEditContext, right: PaperSheetEditContext): boolean {
+  return left.document === right.document
+    && left.cutId === right.cutId
+    && left.revisionId === right.revisionId
+    && left.template === right.template
+}
+
 export type AppController = ReturnType<typeof useAppController>

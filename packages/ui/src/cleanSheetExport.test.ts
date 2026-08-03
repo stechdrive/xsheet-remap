@@ -99,8 +99,15 @@ describe('clean sheet export options', () => {
   it('stores paper opacity as editable PSD layer metadata instead of baking it into pixels', () => {
     const registered = registerSheetSource(createDefaultProject(), { name: 'sheet.png', size: 100 })
     const assigned = assignSheetSourceToPage(registered.project, 'page_1', registered.source.sourceId)
-    const project = updateSheetPageViewState(assigned, 'page_1', { alignment: { opacity: 0.42 } })
-    const paperLayer = sheetExportLayerDescriptors(project, standardA3SheetTemplate, {
+    const corrected = updateSheetPageViewState(assigned, 'page_1', { alignment: { opacity: 0.42 } })
+    const projectWithStaleLegacyPageValue = {
+      ...corrected,
+      sheetView: {
+        ...corrected.sheetView,
+        pages: corrected.sheetView.pages.map(page => ({ ...page, alignment: { ...page.alignment, opacity: 0.9 } })),
+      },
+    }
+    const paperLayer = sheetExportLayerDescriptors(projectWithStaleLegacyPageValue, standardA3SheetTemplate, {
       format: 'psd',
       includePaperSheet: true,
       includeTemplateImage: false,

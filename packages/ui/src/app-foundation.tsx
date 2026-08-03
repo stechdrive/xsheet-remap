@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type LogicalTimelineSectionRole, type SheetHit, type SheetCalibrationPointPair, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
+import { activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type LogicalTimelineSectionRole, type SheetHit, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
 import { isTauriHost, saveBinaryFile, saveTextFile, statNativePaths, writeBinaryFile, writeTextFile, type SaveTextFileOptions } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel, type SheetRangeSelection } from './appTypes'
@@ -25,10 +25,6 @@ export type ActiveTextTarget =
   | { kind: 'annotationText'; annotationId: string; fontSizePx: number }
 
 export type TextAnnotationUpdate = Partial<Pick<AnnotationText, 'text' | 'fontSizePx' | 'x' | 'y' | 'color' | 'coordinateSpace' | 'anchor'>>
-
-export const IMPORTED_SHEET_SECONDS_PER_PAGE = 6
-
-export const IMPORTED_SHEET_IMAGE_INITIAL_OPACITY = 0.5
 
 export const SHEET_INTERACTION_ACTIVE_CLASS = 'sheetInteractionActive'
 
@@ -244,17 +240,6 @@ export type RegisteredCellFirstUse = {
   paperTrack: string
   frame: number
   role: SheetTimingRole
-}
-
-export type ImportedSheetSourceCalibrationTarget = {
-  pageId: string
-  sourceId: string
-  imageUrl: string
-}
-
-export type ImportedSheetSourceCalibrationResult = {
-  target: ImportedSheetSourceCalibrationTarget
-  points: SheetCalibrationPointPair[]
 }
 
 export type CalibrationGuideMetrics = {

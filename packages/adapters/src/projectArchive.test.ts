@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
 import { createDefaultProjectDocument } from '@xsheet-remap/core'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import {
@@ -81,6 +82,28 @@ describe('project archive codec', () => {
     const bytes = await encodeProjectArchive(source, { includeAssetPreviews: true })
     const restored = await decodeProjectFileBytes(bytes)
     expect(restored.document.assets[0]?.thumbnailUrl).toBe(embeddedImage)
+  })
+
+  it('validates an older manifest against its raw document before migrating it', async () => {
+    const entries = unzipSync(await encodeProjectArchive(createDefaultProjectDocument()))
+    const project = JSON.parse(strFromU8(entries['project.json']!)) as { schemaVersion: number }
+    project.schemaVersion = 10
+    const projectBytes = strToU8(`${JSON.stringify(project)}\n`)
+    entries['project.json'] = projectBytes
+    const manifest = JSON.parse(strFromU8(entries['manifest.json']!)) as {
+      documentSchemaVersion: number
+      projectByteLength: number
+      projectSha256: string
+    }
+    manifest.documentSchemaVersion = 10
+    manifest.projectByteLength = projectBytes.byteLength
+    manifest.projectSha256 = `sha256:${createHash('sha256').update(projectBytes).digest('hex')}`
+    entries['manifest.json'] = strToU8(`${JSON.stringify(manifest)}\n`)
+
+    const restored = await decodeProjectFileBytes(zipSync(entries))
+
+    expect(restored.manifest.documentSchemaVersion).toBe(10)
+    expect(restored.document.schemaVersion).toBe(11)
   })
 
   it('externalizes and restores optional dialogue audio stored in project extensions', async () => {

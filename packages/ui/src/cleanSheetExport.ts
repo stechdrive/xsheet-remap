@@ -347,8 +347,8 @@ function sheetScanPageImage(context: SheetExportLayerContext, pageId: string): S
     imageRef: source?.imageRef,
     settings: {
       ...defaultSheetImageSettings(),
-      ...(page?.alignment ?? {}),
-      levelCorrection: page?.alignment?.levelCorrection ?? defaultLevelCorrectionSettings(),
+      ...(source?.alignment ?? page?.alignment ?? {}),
+      levelCorrection: source?.alignment?.levelCorrection ?? page?.alignment?.levelCorrection ?? defaultLevelCorrectionSettings(),
     },
   }
 }

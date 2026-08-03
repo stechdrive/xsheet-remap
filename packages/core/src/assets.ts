@@ -11,6 +11,7 @@ import type {
 import { nextId } from './core-utils'
 import { ROOT_ASSET_BIN_ID } from './project-constants'
 import { nativeFileSystemPathKey, normalizeNativeFileSystemPath } from './native-paths'
+import { defaultSheetImageAlignment, mergeSheetImageAlignment } from './sheet-image-alignment'
 
 export function registerAsset(
   project: CutProject,
@@ -142,12 +143,19 @@ export function assetSourceDisplayPath(asset: CutAsset): string {
   return assetRelativePath(asset) ?? assetAbsolutePath(asset) ?? asset.originalFileName
 }
 
-export function registerSheetSource(project: CutProject, imageRef: SheetPageImageRef, options: { assetId?: string } = {}): { project: CutProject; source: SheetSource } {
+export function registerSheetSource(project: CutProject, imageRef: SheetPageImageRef, options: { assetId?: string; initialAlignment?: Partial<SheetSource['alignment']> } = {}): { project: CutProject; source: SheetSource } {
   imageRef = imageRef.path ? { ...imageRef, path: normalizeNativeFileSystemPath(imageRef.path) } : imageRef
-  const duplicate = project.sheetView.sources.find(source => source.kind === 'sheet-scan' && sameSheetImageRef(source.imageRef, imageRef))
+  const sameAssetSource = options.assetId
+    ? project.sheetView.sources.find(source => source.kind === 'sheet-scan' && source.assetId === options.assetId)
+    : undefined
+  const legacySource = options.assetId && !sameAssetSource
+    ? project.sheetView.sources.find(source => source.kind === 'sheet-scan' && !source.assetId && sameSheetSourceRegistrationRef(source.imageRef, imageRef))
+    : undefined
+  const duplicate = sameAssetSource ?? legacySource ?? (!options.assetId
+    ? project.sheetView.sources.find(source => source.kind === 'sheet-scan' && sameSheetImageRef(source.imageRef, imageRef))
+    : undefined)
   if (duplicate) {
-    if (!options.assetId || duplicate.assetId === options.assetId) return { project, source: duplicate }
-    const source = { ...duplicate, assetId: options.assetId }
+    const source = { ...duplicate, imageRef, assetId: options.assetId ?? duplicate.assetId }
     return {
       project: {
         ...project,
@@ -165,6 +173,7 @@ export function registerSheetSource(project: CutProject, imageRef: SheetPageImag
     kind: 'sheet-scan',
     imageRef,
     assetId: options.assetId,
+    alignment: mergeSheetImageAlignment(defaultSheetImageAlignment(), options.initialAlignment ?? {}),
   }
   return {
     project: {
@@ -191,6 +200,16 @@ export function normalizeAssetSourceNativePaths(source: AssetSource): AssetSourc
 export function sameSheetImageRef(a: SheetPageImageRef, b: SheetPageImageRef): boolean {
   if (a.contentHash && b.contentHash && a.contentHash === b.contentHash) return true
   return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified
+}
+
+function sameSheetSourceRegistrationRef(a: SheetPageImageRef, b: SheetPageImageRef): boolean {
+  const aPath = a.path ? nativeFileSystemPathKey(a.path) : undefined
+  const bPath = b.path ? nativeFileSystemPathKey(b.path) : undefined
+  if (aPath || bPath) return Boolean(aPath && bPath && aPath === bPath)
+  if (a.assetPath || b.assetPath) return Boolean(a.assetPath && b.assetPath && a.assetPath === b.assetPath)
+  return a.name === b.name
+    && a.size !== undefined && a.size === b.size
+    && a.lastModified !== undefined && a.lastModified === b.lastModified
 }
 
 function findMatchingAsset(

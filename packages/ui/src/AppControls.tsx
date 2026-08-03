@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type ButtonHTMLAttributes,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -86,27 +87,40 @@ export function ActionMenu({
     }
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
+      if (!open || event.key !== 'Escape') return
+      if (event.target instanceof Node && contentRef.current?.contains(event.target)) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      setOpen(false)
+      window.requestAnimationFrame(() => summaryRef.current?.focus())
     }
 
     window.addEventListener(ACTION_MENU_OPEN_EVENT, closeOtherMenus)
     window.addEventListener('pointerdown', closeFromOutside)
-    window.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('keydown', closeOnEscape, true)
     return () => {
       window.removeEventListener(ACTION_MENU_OPEN_EVENT, closeOtherMenus)
       window.removeEventListener('pointerdown', closeFromOutside)
-      window.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('keydown', closeOnEscape, true)
     }
-  }, [menuId])
+  }, [menuId, open])
 
   useLayoutEffect(() => {
     if (!open) return undefined
     updateMenuPosition()
-    const frame = window.requestAnimationFrame(updateMenuPosition)
+    const frame = window.requestAnimationFrame(() => {
+      updateMenuPosition()
+      if (document.activeElement === summaryRef.current) {
+        contentRef.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')?.focus()
+      }
+    })
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateMenuPosition)
+    if (contentRef.current) resizeObserver?.observe(contentRef.current)
     window.addEventListener('resize', updateMenuPosition)
     window.addEventListener('scroll', updateMenuPosition, true)
     return () => {
       window.cancelAnimationFrame(frame)
+      resizeObserver?.disconnect()
       window.removeEventListener('resize', updateMenuPosition)
       window.removeEventListener('scroll', updateMenuPosition, true)
     }
@@ -135,6 +149,14 @@ export function ActionMenu({
     if (!(target instanceof HTMLInputElement) || target.type !== 'file') return
     if (target.closest('[data-action-menu-keep-open]')) return
     if (target.closest('label.fileButton')) window.setTimeout(() => setOpen(false), 0)
+  }
+
+  function handleContentKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Escape') return
+    event.preventDefault()
+    event.stopPropagation()
+    setOpen(false)
+    window.requestAnimationFrame(() => summaryRef.current?.focus())
   }
 
   function renderSummary(tooltipProps?: TooltipTriggerProps) {
@@ -169,6 +191,7 @@ export function ActionMenu({
           style={menuStyle ?? { top: 0, left: 0, visibility: 'hidden' }}
           onClick={handleContentClick}
           onChange={handleContentChange}
+          onKeyDown={handleContentKeyDown}
         >
           {children}
         </div>,

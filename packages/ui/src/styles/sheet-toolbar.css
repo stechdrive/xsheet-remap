@@ -114,8 +114,10 @@
 }
 
 .paperSheetRailMenu.actionMenuContent {
-  width: min(270px, calc(100vw - 24px));
-  max-width: min(270px, calc(100vw - 24px));
+  width: min(420px, calc(100vw - 24px));
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: min(760px, calc(100vh - 16px));
+  overflow-y: auto;
 }
 
 .paperSheetRailMenuBody,
@@ -138,6 +140,112 @@
 .paperSheetRailMenuBody .sheetLevelCorrectionControl {
   justify-content: space-between;
   min-height: 32px;
+}
+
+.paperSheetImportHint,
+.paperSheetEmpty {
+  margin: 0;
+  color: #66716a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.paperSheetAssignmentEditor {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.paperSheetAssignmentEditor > section {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #d6dbd4;
+}
+
+.paperSheetAssignmentEditor h3 {
+  margin: 0;
+  color: #3e4942;
+  font-size: 12px;
+}
+
+.paperSheetAssignmentList,
+.paperSheetSourceList {
+  display: grid;
+  gap: 5px;
+  padding-right: 2px;
+  overflow-y: auto;
+}
+
+.paperSheetAssignmentList {
+  max-height: min(280px, 36vh);
+}
+
+.paperSheetSourceList {
+  max-height: min(220px, 28vh);
+}
+
+.paperSheetAssignmentRow {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 48px;
+  gap: 6px;
+  align-items: center;
+}
+
+.paperSheetPageButton,
+.paperSheetClearButton,
+.paperSheetDeleteButton {
+  min-height: 28px;
+  padding: 4px 7px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.paperSheetPageButton.active {
+  border-color: #416b5a;
+  background: #dce8df;
+  color: #173528;
+  font-weight: 800;
+}
+
+.paperSheetSourceSelect,
+.paperSheetSourceSelect select {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.paperSheetSourceRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 48px;
+  gap: 6px;
+  align-items: center;
+}
+
+.paperSheetSourceName {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paperSheetSourceUsage {
+  color: #66716a;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .sheetDisplaySettingsMenu.actionMenuContent {
@@ -596,8 +704,7 @@
   justify-content: start;
 }
 
-.pageJumpPageButton,
-.pageJumpClearButton {
+.pageJumpPageButton {
   min-height: 28px;
   padding: 4px 8px;
   white-space: nowrap;
@@ -617,52 +724,6 @@
   background: #dce8df;
   color: #173528;
   font-weight: 800;
-}
-
-.pageJumpEditor {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px;
-  align-items: end;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid #d6dbd4;
-}
-
-.pageJumpEditor > strong {
-  grid-column: 1 / -1;
-  color: #3e4942;
-  font-size: 12px;
-}
-
-.pageJumpSourceSelect {
-  display: grid;
-  min-width: 0;
-  color: #58635c;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.pageJumpSourceSelect select {
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-}
-
-.pageJumpClearButton {
-  width: 48px;
-  min-width: 48px;
-  justify-content: center;
-}
-
-.pageJumpEditor > .appTooltipTrigger {
-  width: 48px;
-  min-width: 48px;
-}
-
-.pageJumpEmpty {
-  margin: 2px 4px;
-  color: #66716a;
-  font-size: 12px;
 }
 
 @media (max-width: 520px), (max-height: 520px) {

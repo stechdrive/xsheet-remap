@@ -260,31 +260,42 @@ it('opens level correction with initial correction values and updates the sheet 
     })
   })
 
-it('sets imported sheet images to 50% opacity and allows manual adjustment from the sheet toolbar', async () => {
+it('sets new sheet images to 50% opacity and keeps correction when reassigned', async () => {
     URL.createObjectURL = file => `blob:${(file as File).name}`
     render(<App />)
 
     const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
     const page = new File(['page'], 'opacity_sheet.png', { type: 'image/png', lastModified: 1 })
-    fireEvent.change(sourceInput, { target: { files: [page] } })
+    const secondPage = new File(['page2'], 'opacity_sheet_2.png', { type: 'image/png', lastModified: 2 })
+    fireEvent.change(sourceInput, { target: { files: [page, secondPage] } })
 
     await waitFor(() => expect(sheetImageHrefs()).toContain('blob:opacity_sheet.png'))
     const opacity = getSheetOpacitySlider()
     expect(opacity.value).toBe('50')
     expect(opacity.disabled).toBe(false)
     expect(document.querySelector('.sheetSvg image')?.getAttribute('opacity')).toBe('0.5')
+    const correctedImage = () => Array.from(document.querySelectorAll<SVGImageElement>('.sheetSvg image'))
+      .find(image => image.getAttribute('href')?.includes('opacity_sheet_2.png'))
 
     fireEvent.pointerDown(opacity, { pointerId: 21, pointerType: 'mouse', button: 0, clientX: 100 })
     fireEvent.pointerMove(window, { pointerId: 21, pointerType: 'mouse', buttons: 1, clientX: 120 })
     fireEvent.pointerUp(window, { pointerId: 21, pointerType: 'mouse', button: 0, clientX: 120 })
-    expect(document.querySelector('.sheetSvg image')?.getAttribute('opacity')).toBe('0.6')
+    expect(correctedImage()?.getAttribute('opacity')).toBe('0.6')
 
     fireEvent.change(opacity, { target: { value: '40' } })
-    const image = document.querySelector('.sheetSvg image') as SVGImageElement | null
-    expect(image?.getAttribute('opacity')).toBe('0.4')
+    expect(correctedImage()?.getAttribute('opacity')).toBe('0.4')
+
+    const assignmentGroup = within(openPaperSheetMenu()).getByRole('region', { name: uiText.sources.assignmentSection })
+    const sourceSelects = within(assignmentGroup).getAllByRole('combobox') as HTMLSelectElement[]
+    const correctedSourceId = sourceSelects[1]?.value
+    if (!correctedSourceId) throw new Error('corrected source not assigned')
+    fireEvent.change(sourceSelects[0]!, { target: { value: correctedSourceId } })
+
+    expect((within(assignmentGroup).getAllByRole('combobox')[1] as HTMLSelectElement).value).toBe('')
+    expect(correctedImage()?.getAttribute('opacity')).toBe('0.4')
   })
 
-it('registers sheet scan images in filename order and sets duration from the scan count', async () => {
+it('registers sheet scans in filename order and supports gaps, reassignment, and deletion', async () => {
     URL.createObjectURL = file => `blob:${(file as File).name}`
     render(<App />)
 
@@ -297,31 +308,65 @@ it('registers sheet scan images in filename order and sets duration from the sca
     const suffixedPage = new File(['page133-2'], '_133_sheet_e_2.jpg', { type: 'image/jpeg', lastModified: 4 })
     fireEvent.change(sourceInput, { target: { files: [suffixedPage, page2, extensionlessPage, page1] } })
 
-    await waitFor(() => expect(screen.getByLabelText(uiText.sheet.activePage)).toBeTruthy())
-    const pageMenuTrigger = screen.getByLabelText(uiText.sheet.activePage)
-    fireEvent.click(pageMenuTrigger)
-    const pageJumpMenu = document.querySelector('.actionMenuPortalContent.pageJumpMenu') as HTMLElement | null
-    if (!pageJumpMenu) throw new Error('page jump menu not found')
-    await waitFor(() => expect(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(4) })).toBeTruthy())
-    expect(pageJumpMenu.querySelectorAll('.pageJumpSourceSelect select')).toHaveLength(1)
-    const assignedSourceLabels = Array.from({ length: 4 }, (_, index) => {
-      fireEvent.click(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(index + 1) }))
-      const select = pageJumpMenu.querySelector<HTMLSelectElement>('.pageJumpSourceSelect select')
-      if (!select) throw new Error('selected-page source select not found')
-      return select.selectedOptions[0]?.textContent ?? ''
-    })
+    const paperMenu = openPaperSheetMenu()
+    const assignmentGroup = await within(paperMenu).findByRole('region', { name: uiText.sources.assignmentSection })
+    const sourceSelects = within(assignmentGroup).getAllByRole('combobox') as HTMLSelectElement[]
+    expect(sourceSelects).toHaveLength(4)
+    const assignedSourceLabels = sourceSelects.map(select => select.selectedOptions[0]?.textContent ?? '')
     expect(assignedSourceLabels).toEqual([
       expect.stringContaining('_133_sheet_e.jpg'),
       expect.stringContaining('_133_sheet_e_2.jpg'),
       expect.stringContaining('sheet_01.png'),
       expect.stringContaining('sheet_02.png'),
     ])
-    fireEvent.click(within(pageJumpMenu).getByRole('button', { name: uiText.sheet.pageTab(1) }))
-    const sourceSelect = pageJumpMenu.querySelector<HTMLSelectElement>('.pageJumpSourceSelect select')
-    const replacement = Array.from(sourceSelect?.options ?? []).find(option => option.textContent?.includes('_133_sheet_e_2.jpg'))
-    if (!sourceSelect || !replacement) throw new Error('replacement source option not found')
-    fireEvent.change(sourceSelect, { target: { value: replacement.value } })
-    expect(sourceSelect.selectedOptions[0]?.textContent).toContain('_133_sheet_e_2.jpg')
+
+    fireEvent.click(within(assignmentGroup).getByRole('button', { name: uiText.sources.clearAssignmentForPage(3) }))
+    expect((within(assignmentGroup).getAllByRole('combobox')[2] as HTMLSelectElement).value).toBe('')
+    const unassignedSourceRow = within(paperMenu).getByText('sheet_01.png').closest('.paperSheetSourceRow')
+    expect(unassignedSourceRow?.textContent).toContain(uiText.sources.unassignedSource)
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    expect((within(assignmentGroup).getAllByRole('combobox')[2] as HTMLSelectElement).selectedOptions[0]?.textContent).toContain('sheet_01.png')
+    fireEvent.click(within(assignmentGroup).getByRole('button', { name: uiText.sources.clearAssignmentForPage(3) }))
+
+    const updatedSelects = within(assignmentGroup).getAllByRole('combobox') as HTMLSelectElement[]
+    const replacement = Array.from(updatedSelects[0]?.options ?? []).find(option => option.textContent?.includes('_133_sheet_e_2.jpg'))
+    if (!replacement) throw new Error('replacement source option not found')
+    fireEvent.change(updatedSelects[0]!, { target: { value: replacement.value } })
+
+    const reassignedSelects = within(assignmentGroup).getAllByRole('combobox') as HTMLSelectElement[]
+    expect(reassignedSelects[0]?.selectedOptions[0]?.textContent).toContain('_133_sheet_e_2.jpg')
+    expect(reassignedSelects[1]?.value).toBe('')
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const removeButton = within(paperMenu).getByRole('button', { name: uiText.sources.removeSourceLabel('_133_sheet_e_2.jpg') })
+    fireEvent.click(removeButton)
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/現在の割り付け: 1Pに割当[\s\S]*PC上の元ファイルは削除しません/))
+    expect(within(paperMenu).getByRole('button', { name: uiText.sources.removeSourceLabel('_133_sheet_e_2.jpg') })).toBeTruthy()
+    confirm.mockReturnValue(true)
+    fireEvent.click(removeButton)
+    expect((within(assignmentGroup).getAllByRole('combobox')[0] as HTMLSelectElement).value).toBe('')
+    expect(within(paperMenu).queryByRole('button', { name: uiText.sources.removeSourceLabel('_133_sheet_e_2.jpg') })).toBeNull()
+    confirm.mockRestore()
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    expect(within(paperMenu).getByRole('button', { name: uiText.sources.removeSourceLabel('_133_sheet_e_2.jpg') })).toBeTruthy()
+    expect((within(assignmentGroup).getAllByRole('combobox')[0] as HTMLSelectElement).selectedOptions[0]?.textContent).toContain('_133_sheet_e_2.jpg')
+  })
+
+it('disambiguates registered paper sheets that have the same file name', async () => {
+    URL.createObjectURL = file => `blob:${(file as File).name}:${(file as File).lastModified}`
+    render(<App />)
+    const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
+    fireEvent.change(sourceInput, { target: { files: [
+      new File(['first'], 'same_name.png', { type: 'image/png', lastModified: 1 }),
+      new File(['second'], 'same_name.png', { type: 'image/png', lastModified: 2 }),
+    ] } })
+
+    const paperMenu = openPaperSheetMenu()
+    await within(paperMenu).findByRole('region', { name: uiText.sources.registeredSection })
+    expect(within(paperMenu).getByText(uiText.sources.duplicateSourceName('same_name.png', 1, 2))).toBeTruthy()
+    expect(within(paperMenu).getByText(uiText.sources.duplicateSourceName('same_name.png', 2, 2))).toBeTruthy()
+    expect(within(paperMenu).getByRole('button', { name: uiText.sources.removeSourceLabel(uiText.sources.duplicateSourceName('same_name.png', 1, 2)) })).toBeTruthy()
+    expect(within(paperMenu).getByRole('button', { name: uiText.sources.removeSourceLabel(uiText.sources.duplicateSourceName('same_name.png', 2, 2)) })).toBeTruthy()
   })
 
 it('loads sheet scan images from the sheet input toolbar', async () => {
@@ -334,6 +379,51 @@ it('loads sheet scan images from the sheet input toolbar', async () => {
     fireEvent.change(sourceInput, { target: { files: [page] } })
 
     await waitFor(() => expect(sheetImageHrefs()).toContain('blob:toolbar_sheet.png'))
+  })
+
+it('preserves sheet edits made while imported paper images are being hashed', async () => {
+    URL.createObjectURL = file => `blob:${(file as File).name}`
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    const sourceInput = within(openPaperSheetMenu()).getByLabelText(uiText.actions.loadSheetSourceFiles)
+    fireEvent.change(sourceInput, {
+      target: { files: [new File(['paper'], 'async_paper.png', { type: 'image/png', lastModified: 1 })] },
+    })
+
+    clickSheet(sheet, 255, 290)
+    enterTimingValue('1')
+    expect(document.querySelector('.eventText')?.textContent).toBe('1')
+
+    await waitFor(() => expect(sheetImageHrefs()).toContain('blob:async_paper.png'))
+    expect(document.querySelector('.eventText')?.textContent).toBe('1')
+  })
+
+it('restores the matching paper image after source id reuse and Undo or Redo', async () => {
+    URL.createObjectURL = file => `blob:${(file as File).name}`
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<App />)
+    const paperMenu = openPaperSheetMenu()
+    const sourceInput = within(paperMenu).getByLabelText(uiText.actions.loadSheetSourceFiles)
+    fireEvent.change(sourceInput, { target: { files: [new File(['a'], 'paper_A.png', { type: 'image/png', lastModified: 1 })] } })
+    await waitFor(() => expect(sheetImageHrefs()).toContain('blob:paper_A.png'))
+
+    fireEvent.click(within(paperMenu).getByRole('button', { name: uiText.sources.removeSourceLabel('paper_A.png') }))
+    await waitFor(() => expect(document.activeElement).toBe(paperMenu.querySelector('.paperSheetLoadButton')))
+    expect(sheetImageHrefs()).not.toContain('blob:paper_A.png')
+    fireEvent.change(sourceInput, { target: { files: [new File(['b'], 'paper_B.png', { type: 'image/png', lastModified: 2 })] } })
+    await waitFor(() => expect(sheetImageHrefs()).toContain('blob:paper_B.png'))
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    expect(sheetImageHrefs()).not.toContain('blob:paper_B.png')
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    await waitFor(() => expect(sheetImageHrefs()).toContain('blob:paper_A.png'))
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.redo }))
+    expect(sheetImageHrefs()).not.toContain('blob:paper_A.png')
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.redo }))
+    await waitFor(() => expect(sheetImageHrefs()).toContain('blob:paper_B.png'))
+    confirm.mockRestore()
   })
 
 it('loads a material asset as the paper sheet from the asset browser context menu only before paper sheets are registered', async () => {

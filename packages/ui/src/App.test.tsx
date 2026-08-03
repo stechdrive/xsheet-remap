@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, createTimedRangeCue, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, resolveSheetTemplatePageSize, timelineLanesForLayout, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings } from '@xsheet-remap/core';
+import { assignSheetSourceToPage, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, createTimedRangeCue, digitalStandardSheetTemplate, registerAsset, registerAssetRoot, registerSheetSource, resolveSheetTemplatePageSize, timelineLanesForLayout, upsertBinding, standardA3SheetTemplate, updateLogicalSheetSettings, updateSheetViewState } from '@xsheet-remap/core';
 import { encodeProjectArchive, XSR_PROJECT_FILE_ACCEPT, XSR_PROJECT_MIME_TYPE } from '@xsheet-remap/adapters';
 import { App, EditorApp, RemapApp } from './App';
 import { APP_VERSION } from './appVersion';
@@ -717,7 +717,7 @@ it('edits cut metadata from a template-defined sheet region', () => {
     expect(document.activeElement).toBe(within(dialog).getByLabelText(uiText.sheet.durationSeconds))
   })
 
-it('uses one page grid and one selected-page source editor for multipage sheets', async () => {
+it('keeps the page badge menu focused on page navigation', async () => {
     const project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 300 })
     const file = await createXsrTestFile(createProjectDocumentFromCutProject(project), 'multipage.xsr')
     render(<App />)
@@ -731,7 +731,66 @@ it('uses one page grid and one selected-page source editor for multipage sheets'
     const pageMenu = document.querySelector('.actionMenuPortalContent.pageJumpMenu')
     if (!(pageMenu instanceof HTMLElement)) throw new Error('page menu not found')
     await waitFor(() => expect(pageMenu.querySelectorAll('.pageJumpPageButton')).toHaveLength(3))
-    expect(pageMenu.querySelectorAll('.pageJumpSourceSelect select')).toHaveLength(1)
+    expect(pageMenu.querySelectorAll('select')).toHaveLength(0)
+  })
+
+it('bulk-imports paper sheets from the active page without shortening the cut or filling surrounding gaps', async () => {
+    URL.createObjectURL = file => `blob:${(file as File).name}`
+    let project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 576 })
+    project = updateSheetViewState(project, { activePageId: 'page_2' })
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(project), 'four-pages.xsr')
+    render(<App />)
+
+    const appMenu = openAppNavigationMenu()
+    const projectInput = within(appMenu).getByText(uiText.actions.loadProject).closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!projectInput) throw new Error('project input not found')
+    fireEvent.change(projectInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(screen.getByLabelText(uiText.sheet.activePage).textContent).toContain('2P'))
+    const paperMenu = openPaperSheetMenu()
+    const sourceInput = within(paperMenu).getByLabelText(uiText.actions.loadSheetSourceFiles)
+    const later = new File(['later'], 'scan_10.png', { type: 'image/png', lastModified: 10 })
+    const earlier = new File(['earlier'], 'scan_2.png', { type: 'image/png', lastModified: 2 })
+    fireEvent.change(sourceInput, { target: { files: [later, earlier] } })
+
+    const assignmentGroup = await within(paperMenu).findByRole('region', { name: uiText.sources.assignmentSection })
+    await waitFor(() => expect(within(assignmentGroup).getAllByRole('combobox')).toHaveLength(4))
+    const selects = within(assignmentGroup).getAllByRole('combobox') as HTMLSelectElement[]
+    expect(selects[0]?.value).toBe('')
+    expect(selects[1]?.selectedOptions[0]?.textContent).toContain('scan_2.png')
+    expect(selects[2]?.selectedOptions[0]?.textContent).toContain('scan_10.png')
+    expect(selects[3]?.value).toBe('')
+
+    fireEvent.click(within(paperMenu).getByRole('button', { name: uiText.sheet.pageJumpTitle(4) }))
+    expect(within(paperMenu).getByRole('button', { name: uiText.sheet.pageJumpTitle(4) }).getAttribute('aria-current')).toBe('page')
+  })
+
+it('assigns a paper sheet to the active pre-roll display page and extends only the official duration', async () => {
+    URL.createObjectURL = file => `blob:${(file as File).name}`
+    let project = updateLogicalSheetSettings(createDefaultProject(), {
+      durationFrames: 144,
+      workRange: { preRollFrames: 24, postRollFrames: 0, showPreRoll: true, showPostRoll: true },
+    })
+    project = updateSheetViewState(project, { activePageId: 'page_2' })
+    const file = await createXsrTestFile(createProjectDocumentFromCutProject(project), 'pre-roll-pages.xsr')
+    render(<App />)
+
+    const appMenu = openAppNavigationMenu()
+    const projectInput = within(appMenu).getByText(uiText.actions.loadProject).closest('label')?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!projectInput) throw new Error('project input not found')
+    fireEvent.change(projectInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(screen.getByLabelText(uiText.sheet.activePage).textContent).toContain('2P'))
+    const paperMenu = openPaperSheetMenu()
+    const sourceInput = within(paperMenu).getByLabelText(uiText.actions.loadSheetSourceFiles)
+    fireEvent.change(sourceInput, { target: { files: [new File(['second page'], 'page_2.png', { type: 'image/png' })] } })
+
+    const assignmentGroup = await within(paperMenu).findByRole('region', { name: uiText.sources.assignmentSection })
+    await waitFor(() => expect(within(assignmentGroup).getAllByRole('combobox')).toHaveLength(2))
+    const selects = within(assignmentGroup).getAllByRole('combobox') as HTMLSelectElement[]
+    expect(selects[0]?.value).toBe('')
+    expect(selects[1]?.selectedOptions[0]?.textContent).toContain('page_2.png')
+    expect(screen.getByText('264F / 11s')).toBeTruthy()
   })
 
 it('loads the compressed project container through the normal project command', async () => {

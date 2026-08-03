@@ -10,12 +10,14 @@ import {
   setEvent,
   setTimingSpecialEvent,
   sheetTimingRoleForEvent,
+  standardA3SheetTemplate,
   type CutProject,
   type SheetHit,
   type SheetTimingRole,
 } from '@xsheet-remap/core'
 import { exportXdts } from '@xsheet-remap/xdts'
 import { setTimingValueAt } from './sheet-timing-input'
+import { continuationRenderItemsForPage, createSheetRenderModelContext } from './sheetRenderModel'
 
 describe('sheet timing keyboard input', () => {
   it.each<SheetTimingRole>(['action', 'cell'])(
@@ -75,6 +77,25 @@ describe('sheet timing keyboard input', () => {
       { frame: 0, value: NULL_CELL_CSP_CELL_NAME },
       { frame: 4, value: 'A7' },
     ])
+  })
+
+  it('renders an automatic leading blank with a wave on only its next three frames', () => {
+    const project = createDefaultProject()
+    const automatic = setTimingValueAt(project, timingHit('action', 'A', 10), '7', 12, correctionLayer(project)).project
+    const automaticBlank = timingEvents(automatic, 'action', 'A').find(event => event.keyId === NULL_CELL_KEY_ID)
+    const automaticContext = createSheetRenderModelContext(automatic, standardA3SheetTemplate)
+    const automaticWave = continuationRenderItemsForPage(automaticContext, automaticContext.pages[0])
+      .find(item => item.eventId === automaticBlank?.eventId)
+
+    const referenceBlank = setTimingSpecialEvent(createDefaultProject(), 'A', 1, 'blank', 'action')
+    const reference = setTimingValueAt(referenceBlank, timingHit('action', 'A', 5), '7', 12, correctionLayer(referenceBlank)).project
+    const referenceEvent = timingEvents(reference, 'action', 'A').find(event => event.keyId === NULL_CELL_KEY_ID)
+    const referenceContext = createSheetRenderModelContext(reference, standardA3SheetTemplate)
+    const referenceWave = continuationRenderItemsForPage(referenceContext, referenceContext.pages[0])
+      .find(item => item.eventId === referenceEvent?.eventId)
+
+    expect(automaticWave).toMatchObject({ kind: 'wave' })
+    expect(automaticWave?.path).toEqual(referenceWave?.path)
   })
 })
 

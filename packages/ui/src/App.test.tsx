@@ -643,6 +643,18 @@ it('separates template lines and labels in the display menu', () => {
     expect(document.querySelectorAll('.templateHeaderText')).toHaveLength(0)
   })
 
+it('enables ACTION continuation lines by default and keeps the display toggle available', () => {
+    render(<App />)
+    fireEvent.click(screen.getByLabelText(uiText.sheet.displaySettingsMenu))
+    const menu = document.querySelector('.actionMenuPortalContent.sheetLayerMenu')
+    if (!(menu instanceof HTMLElement)) throw new Error('sheet layer menu not found')
+    const actionContinuation = within(menu).getByLabelText(uiText.sheet.actionContinuation) as HTMLInputElement
+
+    expect(actionContinuation.checked).toBe(true)
+    fireEvent.click(actionContinuation)
+    expect(actionContinuation.checked).toBe(false)
+  })
+
 it('starts the pen tool at black and width 2', () => {
     render(<App />)
     expect((screen.getByLabelText(uiText.sheet.penColor) as HTMLInputElement).value).toBe('#000000')

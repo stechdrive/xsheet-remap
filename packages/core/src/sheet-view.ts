@@ -30,7 +30,7 @@ export function createDefaultSheetViewState(templateInput: string | Pick<SheetTe
       sharedCutNumbers: true,
     },
     continuationDisplay: {
-      action: false,
+      action: true,
       cell: true,
     },
     pages: [

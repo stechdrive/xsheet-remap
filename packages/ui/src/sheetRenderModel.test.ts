@@ -164,6 +164,59 @@ describe('sheet render model', () => {
     expect(hidden).toHaveLength(0)
   })
 
+  it('draws only the three frames after an ACTION key when its hold lasts at least four frames', () => {
+    const exactHoldStart = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const exactHoldEnd = createOrSetEvent(exactHoldStart.project, 'A', 5, 'action')
+    const exactContext = createSheetRenderModelContext(exactHoldEnd.project, standardA3SheetTemplate)
+    const exactItem = continuationItemForKey(exactContext, exactHoldStart.key.keyId)
+
+    const longHoldStart = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const longHoldEnd = createOrSetEvent(longHoldStart.project, 'A', 20, 'action')
+    const longContext = createSheetRenderModelContext(longHoldEnd.project, standardA3SheetTemplate)
+    const longItem = continuationItemForKey(longContext, longHoldStart.key.keyId)
+
+    const shortHoldStart = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const shortHoldEnd = createOrSetEvent(shortHoldStart.project, 'A', 4, 'action')
+    const shortContext = createSheetRenderModelContext(shortHoldEnd.project, standardA3SheetTemplate)
+    const shortItem = continuationItemForKey(shortContext, shortHoldStart.key.keyId)
+
+    expect(exactItem).toMatchObject({ kind: 'straight' })
+    expect(longItem?.path).toEqual(exactItem?.path)
+    expect(shortItem).toBeUndefined()
+  })
+
+  it('keeps CELL continuation lines across their full hold', () => {
+    const start = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell')
+    const end = createOrSetEvent(start.project, 'A', 20, 'cell')
+    const context = createSheetRenderModelContext(end.project, standardA3SheetTemplate)
+    const item = continuationItemForKey(context, start.key.keyId)
+
+    const exactStart = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell')
+    const exactEnd = createOrSetEvent(exactStart.project, 'A', 5, 'cell')
+    const exactContext = createSheetRenderModelContext(exactEnd.project, standardA3SheetTemplate)
+    const exactItem = continuationItemForKey(exactContext, exactStart.key.keyId)
+
+    expect(item).toMatchObject({ role: 'cell', kind: 'straight' })
+    expect(item?.path.at(-1)?.y).toBeGreaterThan(exactItem?.path.at(-1)?.y ?? Number.POSITIVE_INFINITY)
+  })
+
+  it('keeps each ACTION continuation frame visible across a grid fold', () => {
+    const straightStart = createOrSetEvent(createDefaultProject(), 'A', 70, 'action')
+    const straightEnd = createOrSetEvent(straightStart.project, 'A', 80, 'action')
+    const straightContext = createSheetRenderModelContext(straightEnd.project, standardA3SheetTemplate)
+    const straightItems = continuationItemsForKey(straightContext, straightStart.key.keyId)
+
+    const blankProject = setTimingSpecialEvent(createDefaultProject(), 'A', 70, 'blank', 'action')
+    const blankEnd = createOrSetEvent(blankProject, 'A', 80, 'action')
+    const blankContext = createSheetRenderModelContext(blankEnd.project, standardA3SheetTemplate)
+    const blankItems = continuationItemsForKey(blankContext, NULL_CELL_KEY_ID)
+
+    expect(straightItems).toHaveLength(2)
+    expect(straightItems.every(item => item.path.length >= 2 && item.path[0]?.y !== item.path.at(-1)?.y)).toBe(true)
+    expect(blankItems).toHaveLength(2)
+    expect(blankItems.every(item => item.path.some(command => command.kind === 'cubic'))).toBe(true)
+  })
+
   it('preserves exact continuation geometry when calculating all visible pages in one pass', () => {
     let project = updateLogicalSheetSettings(createDefaultProject(), {
       durationFrames: 360,
@@ -510,3 +563,18 @@ describe('sheet render model', () => {
     expect(cut?.dominantBaseline).toBe('hanging')
   })
 })
+
+function continuationItemForKey(
+  context: ReturnType<typeof createSheetRenderModelContext>,
+  keyId: string,
+) {
+  return continuationItemsForKey(context, keyId)[0]
+}
+
+function continuationItemsForKey(
+  context: ReturnType<typeof createSheetRenderModelContext>,
+  keyId: string,
+) {
+  const eventId = context.project.logicalSheet.events.find(event => event.keyId === keyId)?.eventId
+  return continuationRenderItemsForPage(context, context.pages[0]).filter(item => item.eventId === eventId)
+}

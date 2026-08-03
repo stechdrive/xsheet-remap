@@ -42,6 +42,9 @@ import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLab
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
 
+const MIN_CONTINUATION_SPAN_FRAMES = 4
+const ACTION_VISIBLE_CONTINUATION_FRAMES = 3
+
 export type SheetRenderModelGeometry = {
   template: SheetTemplate
   pages: SheetPage[]
@@ -288,10 +291,11 @@ export function continuationRenderItemsForPage(context: SheetRenderModelContext,
         const valueKind = timingEventValueKind(event)
         if (valueKind === 'inbetween' || valueKind === 'reverse') continue
         const nextFrame = events[index + 1]?.frame ?? context.officialFrameEnd + 1
-        const frameEnd = Math.min(context.officialFrameEnd, nextFrame - 1)
-        if (frameEnd - event.frame + 1 < 4) continue
+        const heldFrameEnd = Math.min(context.officialFrameEnd, nextFrame - 1)
+        const continuationFrameEnd = visibleContinuationFrameEnd(role, event.frame, heldFrameEnd)
+        if (continuationFrameEnd === null) continue
         const rects: Array<{ frame: number; rect: NormalizedRect }> = []
-        for (let frame = event.frame + 1; frame <= frameEnd; frame += 1) {
+        for (let frame = event.frame + 1; frame <= continuationFrameEnd; frame += 1) {
           const rect = eventRectForTrackFrame(context, role, paperTrack, frame, page)
           if (rect) rects.push({ frame, rect })
         }
@@ -336,11 +340,12 @@ export function continuationRenderItemsForPages(
         const valueKind = timingEventValueKind(event)
         if (valueKind === 'inbetween' || valueKind === 'reverse') continue
         const nextFrame = events[index + 1]?.frame ?? context.officialFrameEnd + 1
-        const frameEnd = Math.min(context.officialFrameEnd, nextFrame - 1)
-        if (frameEnd - event.frame + 1 < 4) continue
+        const heldFrameEnd = Math.min(context.officialFrameEnd, nextFrame - 1)
+        const continuationFrameEnd = visibleContinuationFrameEnd(role, event.frame, heldFrameEnd)
+        if (continuationFrameEnd === null) continue
 
         const rectsByPage = new Map<string, Array<{ frame: number; rect: NormalizedRect }>>()
-        for (let frame = event.frame + 1; frame <= frameEnd; frame += 1) {
+        for (let frame = event.frame + 1; frame <= continuationFrameEnd; frame += 1) {
           const resolved = resolveContinuationRect(role, paperTrack, frame)
           if (!resolved) continue
           const rects = rectsByPage.get(resolved.pageId) ?? []
@@ -1045,6 +1050,17 @@ function continuationGroupKey(role: 'action' | 'cell', paperTrack: string): stri
   return `${role}\u0000${paperTrack}`
 }
 
+function visibleContinuationFrameEnd(
+  role: 'action' | 'cell',
+  eventFrame: number,
+  heldFrameEnd: number,
+): number | null {
+  if (heldFrameEnd - eventFrame + 1 < MIN_CONTINUATION_SPAN_FRAMES) return null
+  return role === 'action'
+    ? Math.min(heldFrameEnd, eventFrame + ACTION_VISIBLE_CONTINUATION_FRAMES)
+    : heldFrameEnd
+}
+
 function createContinuationRectResolver(
   context: SheetRenderModelContext,
   pages: SheetPage[],
@@ -1129,8 +1145,9 @@ function continuationRenderItem(
   const last = segment.at(-1)?.rect
   if (!first || !last) return null
   const centerX = first.x + first.w / 2
-  const startY = first.y + first.h / 2
-  const endY = last.y + last.h / 2
+  const isolatedActionFrame = role === 'action' && segment.length === 1
+  const startY = first.y + first.h * (isolatedActionFrame ? 0.25 : 0.5)
+  const endY = last.y + last.h * (isolatedActionFrame ? 0.75 : 0.5)
   const cellSize = Math.min(first.w, first.h)
   const strokeWidth = Math.max(0.00045, Math.min(0.0015, cellSize * 0.075))
   const path = valueKind === 'blank'

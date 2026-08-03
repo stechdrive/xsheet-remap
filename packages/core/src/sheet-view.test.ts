@@ -11,6 +11,26 @@ import {
   validateProject,
 } from './index'
 
+describe('sheet view defaults', () => {
+  it('shows ACTION continuation lines by default while preserving an explicit saved choice', () => {
+    const project = createDefaultProject()
+    expect(project.sheetView.continuationDisplay).toEqual({ action: true, cell: true })
+
+    const missingActionPreference = JSON.parse(JSON.stringify(project))
+    delete missingActionPreference.sheetView.continuationDisplay.action
+    expect(migrateProject(missingActionPreference).sheetView.continuationDisplay.action).toBe(true)
+
+    const disabled = migrateProject({
+      ...project,
+      sheetView: {
+        ...project.sheetView,
+        continuationDisplay: { action: false, cell: true },
+      },
+    })
+    expect(disabled.sheetView.continuationDisplay.action).toBe(false)
+  })
+})
+
 describe('sheet source page assignments', () => {
   it('keeps distinct registered files as separate sources even when their content hashes match', () => {
     const firstAsset = registerAsset(createDefaultProject(), {

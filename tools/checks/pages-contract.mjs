@@ -18,6 +18,7 @@ const workflow = fs.readFileSync(workflowPath, 'utf8')
 const requiredSnippets = [
   'name: CI and Pages',
   'persist-credentials: false',
+  'npm run check:dependency-audit',
   'npm run check',
   'npm run build:pages',
   'npm run check:pages-artifact',
@@ -34,6 +35,10 @@ const repositoryCheckCount = [...workflow.matchAll(/^\s*-\s+run:\s+npm run check
 if (repositoryCheckCount !== 1) {
   throw new Error(`Pages workflow must run the repository check exactly once, found ${repositoryCheckCount}`)
 }
+const dependencyAuditCount = [...workflow.matchAll(/^\s*-\s+run:\s+npm run check:dependency-audit\s*$/gm)].length
+if (dependencyAuditCount !== 1) {
+  throw new Error(`Pages workflow must run the dependency audit exactly once, found ${dependencyAuditCount}`)
+}
 if (/\bsecrets\s*\./.test(workflow)) throw new Error('Pages workflow must not receive repository secrets')
 if (/\bpull_request(?:_target)?\s*:/.test(workflow)) throw new Error('Pages deployments must not run from pull requests')
 
@@ -48,6 +53,17 @@ for (const reference of actionReferences) {
   const separator = reference.lastIndexOf('@')
   const revision = separator >= 0 ? reference.slice(separator + 1) : ''
   if (!/^[0-9a-f]{40}$/.test(revision)) throw new Error(`Pages action is not pinned to a full commit SHA: ${reference}`)
+}
+
+const expectedPagesActions = [
+  'actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d',
+  'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9',
+  'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128',
+]
+for (const reference of expectedPagesActions) {
+  if (!actionReferences.includes(reference)) {
+    throw new Error(`Pages workflow must use the reviewed Node 24 action: ${reference}`)
+  }
 }
 
 const checkoutCount = actionReferences.filter(reference => reference.startsWith('actions/checkout@')).length

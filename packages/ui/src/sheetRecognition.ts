@@ -12,6 +12,7 @@ import {
 import type { SheetImageSettings } from './appTypes'
 import { renderCorrectedSheetCanvas } from './sheetImages'
 import { deduplicateRecognitionCandidates, normalizeRecognitionLabel } from './sheetRecognitionLabels'
+import { createBundledPaddleOcrRuntimeConfig } from './sheetRecognitionPaddleConfig'
 
 export { deduplicateRecognitionCandidates, normalizeRecognitionLabel } from './sheetRecognitionLabels'
 
@@ -120,23 +121,9 @@ async function defaultSheetOcrEngine(): Promise<SheetOcrEngine> {
 
 async function createPaddleOcrEngine(): Promise<SheetOcrEngine> {
   const { PaddleOCR } = await import('@paddleocr/paddleocr-js')
-  const runtime = await PaddleOCR.create({
-    worker: true,
-    lang: 'ch',
-    ocrVersion: 'PP-OCRv5',
-    textDetectionModelName: 'PP-OCRv5_mobile_det',
-    textRecognitionModelName: 'PP-OCRv5_mobile_rec',
-    textDetectionModelAsset: { url: publicAssetUrl('ocr/models/PP-OCRv5_mobile_det_onnx_infer.tar') },
-    textRecognitionModelAsset: { url: publicAssetUrl('ocr/models/PP-OCRv5_mobile_rec_onnx_infer.tar') },
-    textDetLimitSideLen: 1280,
-    textDetLimitType: 'max',
-    textRecScoreThresh: 0.2,
-    ortOptions: {
-      backend: 'wasm',
-      numThreads: 1,
-      wasmPaths: publicAssetUrl('ocr/ort/'),
-    },
-  }) as PaddleOcrRuntime
+  const runtime = await PaddleOCR.create(
+    createBundledPaddleOcrRuntimeConfig(publicAssetUrl),
+  ) as PaddleOcrRuntime
   return {
     id: 'paddle-ocr-v5',
     async recognize(image) {

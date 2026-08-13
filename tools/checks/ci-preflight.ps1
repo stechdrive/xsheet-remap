@@ -157,6 +157,7 @@ try {
     Add-WorkingTreeChangesToClone
   }
   Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("ci") -WorkingDirectory $cloneRoot
+  Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "check:dependency-audit") -WorkingDirectory $cloneRoot
   Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "check") -WorkingDirectory $cloneRoot
   Write-Host "[ci-preflight] clean install and repository checks passed"
 } finally {

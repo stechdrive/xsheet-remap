@@ -11,9 +11,19 @@ const expectedScripts = {
   'build:dev': 'node tools/desktop/run-build.mjs --mode development',
   'build:release:desktop': 'node tools/desktop/run-build.mjs --mode release --target all',
   'build:release:all': 'npm run build:release:desktop && npm run build:csp-helper && npm run package:local',
+  'check:dependency-audit': 'npm audit --audit-level=high',
+  'check:embedded-dependencies': 'node tools/checks/embedded-dependency-policy.mjs',
 }
 for (const [name, command] of Object.entries(expectedScripts)) {
   if (scripts[name] !== command) throw new Error(`build contract mismatch for ${name}: expected "${command}"`)
+}
+
+const expectedInstallScriptPolicy = {
+  'esbuild@0.28.1': true,
+  protobufjs: false,
+}
+if (JSON.stringify(packageJson.allowScripts) !== JSON.stringify(expectedInstallScriptPolicy)) {
+  throw new Error('install-script allowlist must approve only the pinned esbuild binary check and deny protobufjs')
 }
 
 const retiredScripts = [
@@ -54,6 +64,13 @@ const desktopScript = path.join(repoRoot, 'tools', 'desktop', 'win-desktop-build
 const retiredDesktopScript = path.join(repoRoot, 'tools', 'desktop', 'win-desktop-release.ps1')
 if (!fs.existsSync(desktopScript)) throw new Error('managed desktop build implementation is missing')
 if (fs.existsSync(retiredDesktopScript)) throw new Error('retired win-desktop-release.ps1 still exists')
+const desktopScriptSource = fs.readFileSync(desktopScript, 'utf8')
+if (
+  !desktopScriptSource.includes('tools/checks/embedded-dependency-policy.mjs')
+  || !desktopScriptSource.includes('--artifact-root "apps/web/dist"')
+) {
+  throw new Error('desktop builds must inspect the emitted PaddleOCR worker dependency')
+}
 
 const inventoryScript = path.join(repoRoot, 'tools', 'release', 'release-inventory.ps1')
 if (!fs.existsSync(inventoryScript)) throw new Error('release inventory implementation is missing')
@@ -70,6 +87,11 @@ for (const requiredCall of ['Assert-ReleaseZipChecksum', 'Assert-ReleaseZipInven
   if (!githubReleaseScript.includes(requiredCall)) {
     throw new Error(`GitHub release update must enforce ${requiredCall}`)
   }
+}
+
+const ciPreflightScript = fs.readFileSync(path.join(repoRoot, 'tools', 'checks', 'ci-preflight.ps1'), 'utf8')
+if (!ciPreflightScript.includes('"run", "check:dependency-audit"')) {
+  throw new Error('clean CI preflight must reject high-severity dependency audit findings')
 }
 
 console.log('[build-contract] passed')

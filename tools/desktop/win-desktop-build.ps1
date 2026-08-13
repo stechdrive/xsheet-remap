@@ -291,6 +291,12 @@ try {
     }
   }
 
+  node (Join-Path $repoRoot "tools/checks/embedded-dependency-policy.mjs") `
+    --artifact-root "apps/web/dist"
+  if ($LASTEXITCODE -ne 0) {
+    throw "embedded dependency artifact check failed with exit code $LASTEXITCODE"
+  }
+
   & (Join-Path $repoRoot "tools/maintenance/prune-cargo-build-history.ps1") `
     -TargetRoot $cargoTargetRoot `
     -PackageNames @($selectedApps | ForEach-Object { $_.Name })

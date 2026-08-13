@@ -1740,3 +1740,342 @@
 .muted {
   color: #66706a;
 }
+
+.templateRegionNavigatorItem.paperTimeline {
+  border-color: #5f8f78;
+  background: #edf6f0;
+}
+
+.templateRegionNavigatorItem.paperTimeline .templateRegionNavigatorSelect {
+  min-height: 58px;
+}
+
+.paperTimelinePanel,
+.paperTimelinePanel > header,
+.paperTimelineFieldset,
+.paperTimelineRoleList,
+.paperTimelineColumnCountGrid,
+.paperReferenceWorkflow {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.paperTimelinePanel {
+  align-content: start;
+  padding-bottom: 12px;
+}
+
+.paperTimelinePanel > header,
+.paperReferenceWorkflow > header {
+  padding: 12px;
+  border: 1px solid #bfd0c4;
+  border-radius: 7px;
+  background: #edf6f0;
+}
+
+.paperTimelinePanel > header > span,
+.paperReferenceWorkflow > header > span {
+  color: #557064;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.paperTimelinePanel h2,
+.paperTimelinePanel p,
+.paperReferenceWorkflow h2 {
+  margin: 0;
+}
+
+.paperTimelinePanel h2,
+.paperReferenceWorkflow h2 {
+  color: #173a2b;
+  font-size: 18px;
+}
+
+.paperTimelinePanel p {
+  color: #536159;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.paperTimelineFixedContract {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #c8d7cc;
+  border-radius: 7px;
+  background: #fbfcfa;
+}
+
+.paperTimelineFixedContract > div {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid #d5dfd8;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.paperTimelineFixedContract > div span {
+  color: #58665f;
+  font-size: 12px;
+}
+
+.paperTimelineFixedContract > p {
+  grid-column: 1 / -1;
+}
+
+.paperTimelineIssue {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-left: 4px solid #b85d35;
+  background: #fff2e9;
+  color: #6e3925;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.paperTimelineIssue button {
+  justify-self: start;
+}
+
+.paperTimelineFieldset {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #d1d8d2;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.paperTimelineFieldset legend {
+  padding: 0 5px;
+  color: #284b3b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.paperTimelineCoordinateGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.paperTimelineCoordinateGrid > label,
+.paperTimelineRoleList > label {
+  display: grid;
+  align-items: center;
+  gap: 4px;
+  color: #59665f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.paperTimelineNumberInput {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 4px;
+}
+
+.paperTimelineNumberInput input {
+  width: 100%;
+}
+
+.paperTimelineNumberInput small {
+  color: #738079;
+  font-size: 10px;
+}
+
+.paperTimelineRoleList > label {
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.6fr);
+  padding: 7px 0;
+  border-bottom: 1px solid #e1e6e2;
+}
+
+.paperTimelineRoleList > label:last-child {
+  border-bottom: 0;
+}
+
+.paperTimelineRoleList > label > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.paperTimelineRoleList > label > span:first-child small {
+  color: #68756e;
+  font-weight: 400;
+}
+
+.paperTimelineRoleList > label.warning {
+  color: #8c4b27;
+}
+
+.paperTimelineColumnCountGrid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.paperTimelineColumnCount {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.paperTimelineColumnCount > span {
+  color: #45534b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.paperTimelineColumnCount > div {
+  display: grid;
+  grid-template-columns: 34px 64px 34px;
+  gap: 4px;
+}
+
+.paperTimelineColumnCount input {
+  min-width: 0;
+  width: 100%;
+  text-align: center;
+}
+
+.paperTimelinePanelActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.paperTimelineCard {
+  border-color: #6f9a83;
+  background: #f2f8f4;
+}
+
+.paperTimelineMoveHandle {
+  position: absolute;
+  z-index: 8;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-color: #1e6f53;
+  color: #174d3f;
+  background: #f4fff9;
+  cursor: move;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+}
+
+.templateEditHandles.paperTimeline .templateSelectedRegion {
+  fill: rgb(41 132 92 / 0.08);
+  stroke: #1e6f53;
+  stroke-width: 2px;
+}
+
+.templateEditHandles.paperTimeline .templateHandleKnob {
+  stroke: #1e6f53;
+}
+
+.templateEdgeGuides.paperTimeline .templateDomEdgeGuide::after {
+  background: #1e6f53;
+}
+
+.templateRegionAlignment {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #d6ddd8;
+  border-radius: 6px;
+  background: #f8faf8;
+}
+
+.templateRegionAlignment > div {
+  display: grid;
+  grid-template-columns: 54px repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  align-items: center;
+}
+
+.templateRegionAlignment > div > span {
+  color: #65716a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.templateRegionAlignment button {
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px;
+  font-size: 10px;
+}
+
+.templateRegionAlignment p {
+  margin: 0;
+  color: #66736c;
+  font-size: 11px;
+}
+
+.paperReferenceWorkflow {
+  padding: 10px;
+  border: 1px solid #cbd7ce;
+  border-radius: 7px;
+  background: #fbfcfa;
+}
+
+.paperReferenceWorkflow > header {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.paperReferenceWorkflow ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.paperReferenceWorkflow li {
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  border-left: 3px solid #c9d1cb;
+  background: #f3f5f2;
+  color: #59665f;
+  font-size: 11px;
+}
+
+.paperReferenceWorkflow li.active {
+  border-left-color: #b16b2c;
+  background: #fff5e7;
+}
+
+.paperReferenceWorkflow li.complete {
+  border-left-color: #3f8162;
+  background: #edf6f0;
+}
+
+@container template-inspector (max-width: 430px) {
+  .paperTimelineCoordinateGrid,
+  .paperTimelineFixedContract {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .paperTimelineFixedContract > p {
+    grid-column: 1;
+  }
+
+  .paperTimelineRoleList > label {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .templateRegionAlignment > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .templateRegionAlignment > div > span {
+    grid-column: 1 / -1;
+  }
+}

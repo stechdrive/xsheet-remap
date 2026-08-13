@@ -11,22 +11,41 @@ export function TemplateRegionCollectionEditor({
   template,
   selectedRegionId,
   onOpenDetails,
+  paperTimeline,
 }: {
   template: SheetTemplate
   selectedRegionId: string | null
   onOpenDetails: (regionId: string) => void
+  paperTimeline?: {
+    targetId: string
+    managedRegionIds: ReadonlySet<string>
+    onOpen: () => void
+  }
 }) {
+  const individualRegions = paperTimeline
+    ? template.regions.filter(region => !paperTimeline.managedRegionIds.has(region.regionId))
+    : template.regions
   return (
     <section className="templateRegionCollection" aria-label="すべての領域">
       <header className="templateRegionCollectionHeader">
         <div>
           <strong>編集する領域を選ぶ</strong>
-          <span>{template.regions.length}件</span>
+          <span>{individualRegions.length + (paperTimeline ? 1 : 0)}件</span>
         </div>
-        <p>役割とシート上の内容を確認してから、1件ずつ編集します。</p>
+        <p>{paperTimeline ? '6秒表はひとつの構造として、その他のシート情報や補助要素は1件ずつ編集します。' : '役割とシート上の内容を確認してから、1件ずつ編集します。'}</p>
       </header>
       <div className="templateRegionCollectionList">
-        {template.regions.map(region => {
+        {paperTimeline && (
+          <article className={`templateRegionCollectionCard paperTimelineCard ${selectedRegionId === paperTimeline.targetId ? 'selected' : ''}`.trim()}>
+            <button type="button" className="templateRegionCollectionSummary" aria-label="6秒タイムライン表を編集" onClick={paperTimeline.onOpen}>
+              <span className="templateRegionCollectionIdentity"><strong>6秒タイムライン表</strong><span>左右3秒・72行共有</span></span>
+              <span className="templateRegionCollectionPurpose">ACTION・SOUND・CELL・CAMERAを一体の表として編集します。</span>
+              <span className="templateRegionCollectionContent">左1–72F / 右73–144F</span>
+              <span className="templateRegionCollectionSelection" aria-hidden="true">用紙レイアウトを開く</span>
+            </button>
+          </article>
+        )}
+        {individualRegions.map(region => {
           const selected = region.regionId === selectedRegionId
           const name = templateRegionAuthoringName(region)
           return (

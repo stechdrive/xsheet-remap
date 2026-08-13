@@ -25,7 +25,7 @@ export interface XdtsImportDialogState {
   applyCutIdentity: boolean
   expandDuration: boolean
 }
-export type TemplateDetailTab = 'template' | 'region' | 'display' | 'reference' | 'table' | 'review' | 'json'
+export type TemplateDetailTab = 'layout' | 'template' | 'region' | 'display' | 'reference' | 'table' | 'review' | 'json'
 export type EditMode = 'new' | 'pen' | 'eraser' | 'text' | 'calibrate'
 export type CalibrationPointKind = 'source' | 'target'
 export type CalibrationStage = CalibrationPointKind

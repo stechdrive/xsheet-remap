@@ -64,7 +64,7 @@ export function TemplateStartScreen({
           </li>
           <li>
             <span className="templateStartScreenStepNumber">2</span>
-            <span><strong>レイアウト編集</strong><small>領域を配置</small></span>
+            <span><strong>用紙レイアウト</strong><small>6秒表と要素を調整</small></span>
           </li>
           <li>
             <span className="templateStartScreenStepNumber">3</span>
@@ -80,9 +80,9 @@ export function TemplateStartScreen({
           <div className="templateStartScreenOptionGrid">
             <StartButton
               className="recommended"
-              title="A3標準を調整"
+              title="標準用紙を調整"
               badge="おすすめ"
-              description="標準の紙タイムシートを土台に、必要な欄だけ変更します。"
+              description="3秒×2の6秒タイムライン表を保ったまま、列幅やシート情報を変更します。"
               actionLabel="A3標準から始める"
               onClick={onCreateA3Standard}
             />
@@ -90,14 +90,14 @@ export function TemplateStartScreen({
             <StartFileOption
               inputId={paperImageInputId}
               accept="image/*"
-              title="参照画像から紙テンプレート"
-              description="手元のタイムシート画像を表示し、その罫線に領域を合わせます。"
+              title="用紙画像から作成"
+              description="画像上で6秒表の外周と列境界を合わせ、シート情報を追加します。"
               actionLabel="画像を選択"
               onChange={event => handleFileSelection(event, onCreatePaperFromImage)}
             />
 
             <StartButton
-              title="デジタルテンプレート"
+              title="デジタルシートを作成"
               description="FPS、初期フレーム数、セル列数を決めて連続キャンバスを作ります。"
               actionLabel="デジタル用を作る"
               onClick={onCreateDigital}

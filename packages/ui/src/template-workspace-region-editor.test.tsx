@@ -3,6 +3,7 @@ import { createAlphabeticTrackLabels, digitalStandardSheetTemplate, resolveSheet
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defaultSheetImageSettings } from './sheetImages'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
+import { PAPER_TIMELINE_TARGET_ID } from './paperTimelineAuthoring'
 
 const REGION_ID = 'visibility-test-region'
 const template: SheetTemplate = {
@@ -25,6 +26,27 @@ afterEach(() => {
 })
 
 describe('TemplateRegionEditor region visibility and position locks', () => {
+  it('presents the physical 6-second table as one movable four-edge selection', () => {
+    const { container } = render(
+      <TemplateRegionEditor
+        template={standardA3SheetTemplate}
+        setTemplate={vi.fn()}
+        imageUrl={null}
+        imageSettings={defaultSheetImageSettings()}
+        zoom={1}
+        setZoom={vi.fn()}
+        selectedRegionId={PAPER_TIMELINE_TARGET_ID}
+        onSelectRegion={vi.fn()}
+      />,
+    )
+
+    expect(container.querySelector('.templateEditHandles.paperTimeline .templateSelectedRegion')).toBeTruthy()
+    expect(container.querySelectorAll('.templateHandleKnob')).toHaveLength(4)
+    expect(container.querySelectorAll('.templateEdgeGuides.paperTimeline .templateDomEdgeGuide')).toHaveLength(4)
+    expect(container.querySelector<HTMLButtonElement>('.paperTimelineMoveHandle')?.textContent).toBe('6秒表を移動')
+    expect(container.querySelector('.templateEditorCaption')?.textContent).toContain('6秒タイムライン表')
+  })
+
   it('hit-tests a horizontally flowed region at its displayed position', () => {
     vi.spyOn(SVGSVGElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100))
     const action = digitalStandardSheetTemplate.regions.find(region => region.regionId === 'digital_action_grid')!

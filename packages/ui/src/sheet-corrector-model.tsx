@@ -18,6 +18,10 @@ export function filterDraftsForTemplate(drafts: Record<string, SheetCorrectionDr
   return Object.fromEntries(Object.entries(drafts).filter(([, draft]) => draft.templateId === templateId))
 }
 
+export function discardDraftsForTemplate(drafts: Record<string, SheetCorrectionDraft>, templateId: string): Record<string, SheetCorrectionDraft> {
+  return Object.fromEntries(Object.entries(drafts).filter(([, draft]) => draft.templateId !== templateId))
+}
+
 export function correctionStateLabel(draft: SheetCorrectionDraft | undefined): string {
   if (draft?.applied && draft.precisionWarp) return 'テンプレート適応補正済み'
   if (draft?.applied) return '補正済み'

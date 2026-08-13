@@ -15,7 +15,7 @@ import { LevelCorrectionDialog } from './LevelCorrectionDialog'
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection'
 import { defaultSheetCorrectorImportRules, matchSheetCorrectorImportCandidates, sheetCorrectorImportRule, sheetCorrectorImportRuleSummary } from './sheetCorrectorImportRules'
 import { SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE, SHEET_CORRECTOR_LOAD_TEMPLATE_VALUE, loadSheetCorrectorTemplateFile, loadStoredSheetCorrectorTemplatePath, saveStoredSheetCorrectorTemplatePath, sheetCorrectorExternalTemplateLabel, type SheetCorrectorExternalTemplate, type SheetCorrectorTemplateFile } from './sheetCorrectorTemplates'
-import { base64ToBytes, browserFilePath, compareSheetCorrectorInputs, configureSheetCorrectorBatchWindow, correctedOutputName, correctedPngDataUrl, correctedPsdBase64, correctionStateLabel, createNativeSheetImageDataUrl, dedupeFiles, dedupeSheetCorrectorInputs, dedupeStrings, downloadBytes, downloadDataUrl, draftForTemplate, emptySheetCorrectorProgressState, fileToBrowserInput, filterDraftsForTemplate, imageUrlForItem, isSupportedSheetImageFile, loadStoredSheetImportRules, objectUrlsForFiles, omitRecordKeys, openNativeSheetCorrectorTemplateFile, queueItemStateLabel, readNativeSheetCorrectorTemplatePath, replaceBrowserFileUrls, restoreSheetCorrectorMainWindow, revokeBrowserFileUrls, saveCurrentSheetCorrectorWindowState, saveStoredSheetImportRules, sheetCorrectorErrorMessage, templateOverlayImageUrl } from './sheet-corrector-model'
+import { base64ToBytes, browserFilePath, compareSheetCorrectorInputs, configureSheetCorrectorBatchWindow, correctedOutputName, correctedPngDataUrl, correctedPsdBase64, correctionStateLabel, createNativeSheetImageDataUrl, dedupeFiles, dedupeSheetCorrectorInputs, dedupeStrings, discardDraftsForTemplate, downloadBytes, downloadDataUrl, draftForTemplate, emptySheetCorrectorProgressState, fileToBrowserInput, filterDraftsForTemplate, imageUrlForItem, isSupportedSheetImageFile, loadStoredSheetImportRules, objectUrlsForFiles, omitRecordKeys, openNativeSheetCorrectorTemplateFile, queueItemStateLabel, readNativeSheetCorrectorTemplatePath, replaceBrowserFileUrls, restoreSheetCorrectorMainWindow, revokeBrowserFileUrls, saveCurrentSheetCorrectorWindowState, saveStoredSheetImportRules, sheetCorrectorErrorMessage, templateOverlayImageUrl } from './sheet-corrector-model'
 import { SheetCorrectorBatchProgress, SheetCorrectorHelpDialog, SheetCorrectorImportRulesControl, SheetCorrectorItemList, SheetCorrectorProgressDialog, SheetCorrectorQueueIcon, SheetCorrectorSourcePreview } from './sheet-corrector-components'
 import type { SheetPrecisionWarp } from './appTypes'
 import type { QueueState, SheetCorrectionDraft, SheetCorrectorInput, SheetCorrectorProgressDialogState } from './sheet-corrector-types'
@@ -168,6 +168,7 @@ export function SheetCorrectorApp() {
   const applyExternalTemplateFile = useCallback((file: SheetCorrectorTemplateFile, restored = false): boolean => {
     try {
       const loaded = loadSheetCorrectorTemplateFile(file)
+      setCorrectionDrafts(current => discardDraftsForTemplate(current, loaded.template.templateId))
       setExternalTemplate(loaded)
       setSelectedTemplateId(SHEET_CORRECTOR_EXTERNAL_TEMPLATE_VALUE)
       saveStoredSheetCorrectorTemplatePath(loaded.path)

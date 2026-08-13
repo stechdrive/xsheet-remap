@@ -22,7 +22,7 @@ describe('template authoring responsive layout contract', () => {
     expect(workspace).not.toContain('templateDockTabs')
     expect(workspace).not.toContain('bindingTableWrap templateTableWrap')
     expect(workspace).toContain('<TemplateInspectorNavigation')
-    expect(workspace).toContain('<TemplateRegionCollectionEditor')
+    expect(workspace).toContain('<TemplateRegionCollectionControls')
     expect(workspace).toContain('aria-label="ズーム倍率"')
     expect(appShell).toContain("panel === 'template' ? 'templateMainPane' : ''")
   })

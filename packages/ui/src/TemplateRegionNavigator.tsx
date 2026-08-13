@@ -8,6 +8,7 @@ export type TemplateRegionNavigationItem = {
 
 export function TemplateRegionNavigator({
   items,
+  groupItem,
   selectedRegionId,
   hiddenRegionIds,
   positionLockedRegionIds,
@@ -19,6 +20,7 @@ export function TemplateRegionNavigator({
   onMove,
 }: {
   items: TemplateRegionNavigationItem[]
+  groupItem?: TemplateRegionNavigationItem
   selectedRegionId: string | null
   hiddenRegionIds: ReadonlySet<string>
   positionLockedRegionIds: ReadonlySet<string>
@@ -33,12 +35,29 @@ export function TemplateRegionNavigator({
     <aside className="templateRegionNavigator" aria-label="領域一覧">
       <header>
         <div>
-          <strong>領域</strong>
-          <span>{items.length}件</span>
+          <strong>{groupItem ? '用紙構成' : '領域'}</strong>
+          <span>{items.length + (groupItem ? 1 : 0)}件</span>
         </div>
-        <p>選択、重なり順、編集時だけの表示・位置固定を管理します。</p>
+        <p>{groupItem ? '6秒表と、個別に配置するシート情報・補助要素を選びます。' : '選択、重なり順、編集時だけの表示・位置固定を管理します。'}</p>
       </header>
       <div className="templateRegionNavigatorList">
+        {groupItem && (
+          <section className={`templateRegionNavigatorItem paperTimeline ${selectedRegionId === groupItem.regionId ? 'selected' : ''}`.trim()}>
+            <button
+              type="button"
+              className="templateRegionNavigatorSelect"
+              aria-label={groupItem.label}
+              aria-pressed={selectedRegionId === groupItem.regionId}
+              onClick={() => onSelect(groupItem.regionId)}
+            >
+              <span className="templateRegionNavigatorText">
+                <strong>{groupItem.label}</strong>
+                <span>{groupItem.kind}</span>
+              </span>
+              <span className="templateRegionNavigatorState"><span>行を共有</span><span>必須構造</span></span>
+            </button>
+          </section>
+        )}
         {items.map((item, index) => {
           const hidden = hiddenRegionIds.has(item.regionId)
           const locked = positionLockedRegionIds.has(item.regionId)

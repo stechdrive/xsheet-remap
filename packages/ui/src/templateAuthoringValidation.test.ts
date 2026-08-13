@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { standardA3SheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import { validateTemplateAuthoring } from './templateAuthoringValidation'
+import { detectPaperTimelineStructure, resizePaperTimelineColumns } from './paperTimelineAuthoring'
 
 describe('template authoring validation', () => {
   it('accepts the complete built-in A3 template', () => {
@@ -9,6 +10,28 @@ describe('template authoring validation', () => {
     expect(result.canComplete).toBe(true)
     expect(result.issues).toEqual([])
     expect(result.calibrationTargetSource).toBe('explicit')
+  })
+
+  it('blocks paper templates whose paired 3-second blocks are missing or vertically misaligned', () => {
+    const missing = cloneStandardTemplate()
+    missing.regions = missing.regions.filter(regionValue => regionValue.regionId !== 'right_camera_grid')
+    expect(issueCodes(validateTemplateAuthoring(missing).errors)).toContain('paper-timeline-required')
+
+    const misaligned = cloneStandardTemplate()
+    const camera = misaligned.regions.find(regionValue => regionValue.regionId === 'right_camera_grid')!
+    camera.rect.y += 1 / misaligned.page.heightPx
+    expect(issueCodes(validateTemplateAuthoring(misaligned).errors)).toContain('paper-timeline-row-alignment-invalid')
+  })
+
+  it('enforces the fixed 24fps / 144-frame paper contract and warns about unusably narrow columns', () => {
+    const wrongTimebase = cloneStandardTemplate()
+    wrongTimebase.defaults.fps = 23.976
+    expect(issueCodes(validateTemplateAuthoring(wrongTimebase).errors)).toContain('paper-timeline-time-contract-invalid')
+
+    const narrow = cloneStandardTemplate()
+    const structure = detectPaperTimelineStructure(narrow)!
+    const crowded = resizePaperTimelineColumns(narrow, structure, 'cell', 64)
+    expect(issueCodes(validateTemplateAuthoring(crowded).warnings)).toContain('paper-timeline-column-narrow')
   })
 
   it('requires a non-blank template id and name', () => {

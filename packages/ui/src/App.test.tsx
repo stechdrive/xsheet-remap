@@ -35,12 +35,16 @@ function selectTemplateInspector(sectionId: string) {
   if (sectionId === 'region') {
     const selectedRegion = document.querySelector<HTMLButtonElement>('.templateRegionNavigatorSelect[aria-pressed="true"]')
     if (!selectedRegion) throw new Error('selected template region not found')
-    fireEvent.click(selectedRegion)
+    const target = selectedRegion.closest('.paperTimeline')
+      ? document.querySelector<HTMLButtonElement>('.templateRegionNavigatorItem:not(.paperTimeline) .templateRegionNavigatorSelect')
+      : selectedRegion
+    if (!target) throw new Error('editable template region not found')
+    fireEvent.click(target)
     return
   }
   const labels: Record<string, string> = {
     template: '基本設定',
-    table: '領域',
+    table: '個別要素',
     display: '見た目',
     reference: '参照画像',
     review: '確認・保存',
@@ -49,7 +53,10 @@ function selectTemplateInspector(sectionId: string) {
   const label = labels[sectionId]
   if (!label) throw new Error(`unknown template inspector section: ${sectionId}`)
   const navigation = screen.getByRole('navigation', { name: '編集する内容' })
-  fireEvent.click(within(navigation).getByRole('button', { name: label }))
+  const button = within(navigation).queryByRole('button', { name: label })
+    ?? (sectionId === 'table' ? within(navigation).getByRole('button', { name: '領域' }) : null)
+  if (!button) throw new Error(`template inspector section not found: ${label}`)
+  fireEvent.click(button)
 }
 
 describe('App: workspace and template', () => {
@@ -289,6 +296,7 @@ it('validates and applies a sheet template loaded from the import menu', async (
 
     await waitFor(() => expect(confirm).toHaveBeenCalled())
     selectAppPanel(uiText.nav.template)
+    selectTemplateInspector('template')
     await waitFor(() => expect((screen.getByLabelText(uiText.template.name) as HTMLInputElement).value).toBe('読込テストテンプレート'))
     confirm.mockRestore()
   })
@@ -1012,6 +1020,7 @@ it('warns on project load when registered material files are missing on disk', a
 it('edits sheet template metadata and embeds a template reference image', async () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
+    selectTemplateInspector('template')
 
     const nameInput = screen.getByDisplayValue('A3標準') as HTMLInputElement
     fireEvent.change(nameInput, { target: { value: 'スタジオA3' } })
@@ -1356,6 +1365,7 @@ it('keeps template creation as a draft until apply or cancel', async () => {
 it('preserves an unapplied template draft while visiting another workspace panel', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
+    selectTemplateInspector('template')
 
     fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: 'パネル移動中の下書き' } })
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
@@ -1366,6 +1376,7 @@ it('preserves an unapplied template draft while visiting another workspace panel
     window.dispatchEvent(beforeUnload)
     expect(beforeUnload.defaultPrevented).toBe(true)
     selectAppPanel(uiText.nav.template)
+    selectTemplateInspector('template')
 
     expect((screen.getByLabelText(uiText.template.name) as HTMLInputElement).value).toBe('パネル移動中の下書き')
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
@@ -1455,6 +1466,7 @@ it('previews template edge drags locally and commits once on pointer up', async 
 it('turns built-in standard template edits into a custom draft', () => {
     render(<App />)
     selectAppPanel(uiText.nav.template)
+    selectTemplateInspector('template')
 
     fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: 'A3標準 改' } })
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()

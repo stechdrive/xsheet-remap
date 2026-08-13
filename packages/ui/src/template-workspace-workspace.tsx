@@ -31,12 +31,12 @@ import { Tooltip, TooltipTarget } from './Tooltip'
 import { METADATA_BINDING_OPTION_IDS, TEMPLATE_CALIBRATION_TARGET_ID, errorMessage, metadataBindingFromOptionId, metadataBindingOptionId, metadataBindingOptionLabel, sameNormalizedRect, standardCalibrationTargetRectForTemplate } from './template-workspace-model'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
 import { TemplateCreateDialog, type DigitalTemplateCreateOptions, type PaperTemplateCreateOptions } from './TemplateCreateDialog'
-import { TemplateInspectorNavigation, type TemplateInspectorSection } from './TemplateInspectorNavigation'
+import { TemplateInspectorNavigation } from './TemplateInspectorNavigation'
 import { templatePaperPixelSize } from './templatePaper'
-import { TemplateRegionCollectionEditor } from './TemplateRegionCollectionEditor'
 import { TemplateRegionBindingEditor } from './TemplateRegionBindingEditor'
 import { SheetThemeEditor } from './SheetThemeEditor'
 import { TemplateRegionNavigator } from './TemplateRegionNavigator'
+import { PAPER_TIMELINE_TARGET_ID, alignTemplateRegionToRect, detectPaperTimelineStructure, editablePaperTimelineStructure, type PaperTimelineAlignment } from './paperTimelineAuthoring'
 import {
   duplicateTemplateRegion,
   editableTemplateRegionLabelCells,
@@ -56,6 +56,9 @@ import {
 } from './templateRegionAuthoring'
 import { validateTemplateAuthoring } from './templateAuthoringValidation'
 import { templateFieldChoicesFromText, templateFieldReferenceCount, templateFieldSemanticsLockReason } from './templateFieldAuthoring'
+import { templateWorkspaceInspectorSections, templateWorkspaceNavigationItems } from './template-workspace-inspector-sections'
+import { PaperReferenceWorkflow, PaperRegionAlignmentControls, PaperTimelineControls, TemplateRegionCollectionControls } from './template-workspace-paper-controls'
+import { TemplateAuthoringReview } from './TemplateAuthoringReview'
 
 export type TemplateWorkspaceMode = 'project' | 'standalone'
 
@@ -105,9 +108,13 @@ export function TemplateWorkspace({
       ? uiText.template.builtInProtected
       : mode === 'standalone' ? '保存済み' : uiText.template.draftApplied
   const editableRegions = template.regions
-  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => editableRegions[0]?.regionId ?? null)
+  const paperTimelineStructure = useMemo(() => detectPaperTimelineStructure(template), [template])
+  const managedPaperTimelineStructure = paperTimelineStructure?.status === 'incomplete' ? null : paperTimelineStructure
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => editablePaperTimelineStructure(initialDraftTemplate ?? appliedTemplate)
+    ? PAPER_TIMELINE_TARGET_ID
+    : editableRegions[0]?.regionId ?? null)
   const [selectedFormCellId, setSelectedFormCellId] = useState<string | null>(null)
-  const [detailTab, setDetailTab] = useState<TemplateDetailTab>('template')
+  const [detailTab, setDetailTab] = useState<TemplateDetailTab>(() => detectPaperTimelineStructure(initialDraftTemplate ?? appliedTemplate) ? 'layout' : 'template')
   const [templateZoom, setTemplateZoom] = useState(1)
   const templateZoomPercent = Math.round(templateZoom * 100)
   const templateZoomPreset = [100, 400, 800, 1600, 3200].includes(templateZoomPercent)
@@ -122,14 +129,18 @@ export function TemplateWorkspace({
   const draftRevision = useRef(0)
   const observedAppliedTemplate = useRef(appliedTemplate)
   const isDigitalTemplate = template.templateKind === 'digital-native'
-  const activeDetailTab = isDigitalTemplate && detailTab === 'reference' ? 'template' : detailTab
+  const activeDetailTab = (isDigitalTemplate && (detailTab === 'reference' || detailTab === 'layout'))
+    || (!paperTimelineStructure && detailTab === 'layout')
+    ? 'template'
+    : detailTab
   const calibrationTargetRect = calibrationTargetRectForTemplate(template)
   const calibrationGridBounds = calibrationGridBoundsForTemplate(template)
   const hasExplicitCalibrationTarget = Boolean(template.calibration?.targetRect)
   const standardCalibrationTargetRect = standardCalibrationTargetRectForTemplate(template)
   const usesStandardCalibrationTarget = Boolean(hasExplicitCalibrationTarget && calibrationTargetRect && standardCalibrationTargetRect && sameNormalizedRect(calibrationTargetRect, standardCalibrationTargetRect))
   const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
-  const selectedRegion = isCalibrationTargetSelected
+  const isPaperTimelineSelected = selectedRegionId === PAPER_TIMELINE_TARGET_ID
+  const selectedRegion = isCalibrationTargetSelected || isPaperTimelineSelected
     ? null
     : selectedRegionId
       ? editableRegions.find(region => region.regionId === selectedRegionId) ?? editableRegions[0] ?? null
@@ -152,7 +163,11 @@ export function TemplateWorkspace({
     : 0
   const selectedRegionHasTextStyle = Boolean(selectedRegion
     && (selectedRegion.binding?.target === 'cut-metadata' || selectedRegion.binding?.target === 'cut-group'))
-  const effectiveSelectedRegionId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : selectedRegion?.regionId ?? null
+  const effectiveSelectedRegionId = isCalibrationTargetSelected
+    ? TEMPLATE_CALIBRATION_TARGET_ID
+    : isPaperTimelineSelected
+      ? PAPER_TIMELINE_TARGET_ID
+      : selectedRegion?.regionId ?? null
   const correctionLayers = sortedCorrectionLayers(project)
   const defaultCorrectionLayer = correctionLayers[0] ?? null
   const templateReferenceImageUrl = template.defaultUnderlay?.imageRef
@@ -194,7 +209,8 @@ export function TemplateWorkspace({
     draftRevision.current += 1
     const nextTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate))
     setDraftTemplate(nextTemplate)
-    setSelectedRegionId(nextTemplate.regions[0]?.regionId ?? null)
+    const nextManagedPaperTimeline = editablePaperTimelineStructure(nextTemplate)
+    setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : nextTemplate.regions[0]?.regionId ?? null)
     setHiddenRegionIds(new Set())
     setPositionLockedRegionIds(new Set())
     setSaveNotice(null)
@@ -234,10 +250,12 @@ export function TemplateWorkspace({
     setDraftTemplate(clonedTemplate)
     setHasTemplateDraftChanges(dirty)
     setSaveNotice(null)
-    setSelectedRegionId(clonedTemplate.regions[0]?.regionId ?? null)
+    const nextPaperTimeline = detectPaperTimelineStructure(clonedTemplate)
+    const nextManagedPaperTimeline = editablePaperTimelineStructure(clonedTemplate)
+    setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : clonedTemplate.regions[0]?.regionId ?? null)
     setHiddenRegionIds(new Set())
     setPositionLockedRegionIds(new Set())
-    setDetailTab(nextTab)
+    setDetailTab(nextPaperTimeline && nextTab !== 'reference' ? 'layout' : nextTab)
     setClampedTemplateZoom(1)
   }
 
@@ -265,7 +283,10 @@ export function TemplateWorkspace({
     setDraftTemplate(nextTemplate)
     setHasTemplateDraftChanges(false)
     setSaveNotice(null)
-    setSelectedRegionId(nextTemplate.regions[0]?.regionId ?? null)
+    const nextPaperTimeline = detectPaperTimelineStructure(nextTemplate)
+    const nextManagedPaperTimeline = editablePaperTimelineStructure(nextTemplate)
+    setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : nextTemplate.regions[0]?.regionId ?? null)
+    setDetailTab(nextPaperTimeline ? 'layout' : 'template')
   }
 
   async function confirmDiscardTemplateDraft(action: string): Promise<boolean> {
@@ -420,6 +441,8 @@ export function TemplateWorkspace({
   }
 
   function updateRegion(regionId: string, updates: Partial<SheetTemplate['regions'][number]>) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)
+      && (Object.hasOwn(updates, 'rect') || Object.hasOwn(updates, 'grid') || Object.hasOwn(updates, 'usage'))) return
     updateTemplateDraft(currentTemplate => ({
       ...currentTemplate,
       regions: currentTemplate.regions.map(region => region.regionId === regionId ? { ...region, ...updates } : region),
@@ -427,6 +450,7 @@ export function TemplateWorkspace({
   }
 
   function deleteRegion(regionId: string) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)) return
     const regionIndex = template.regions.findIndex(region => region.regionId === regionId)
     if (regionIndex < 0 || template.regions.length <= 1) return
     const remainingRegions = template.regions.filter(region => region.regionId !== regionId)
@@ -440,6 +464,7 @@ export function TemplateWorkspace({
   }
 
   function duplicateRegion(regionId: string) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)) return
     const result = duplicateTemplateRegion(template, regionId)
     if (!result) return
     updateTemplateDraft(() => result.template)
@@ -448,14 +473,17 @@ export function TemplateWorkspace({
   }
 
   function moveRegion(regionId: string, direction: -1 | 1) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)) return
     updateTemplateDraft(currentTemplate => moveTemplateRegion(currentTemplate, regionId, direction))
   }
 
   function toggleRegionHidden(regionId: string) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)) return
     setHiddenRegionIds(current => toggledSetValue(current, regionId))
   }
 
   function toggleRegionPositionLocked(regionId: string) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)) return
     setPositionLockedRegionIds(current => toggledSetValue(current, regionId))
   }
 
@@ -495,6 +523,7 @@ export function TemplateWorkspace({
     regionId: string,
     updates: Parameters<typeof updateTemplateRegionGridFrameRange>[1],
   ) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)) return
     updateTemplateDraft(currentTemplate => ({
       ...currentTemplate,
       regions: currentTemplate.regions.map(region => region.regionId === regionId
@@ -536,6 +565,7 @@ export function TemplateWorkspace({
   }
 
   function updateRegionRect(regionId: string, key: 'x' | 'y' | 'w' | 'h', value: number) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)) return
     updateTemplateDraft(currentTemplate => ({
       ...currentTemplate,
       regions: currentTemplate.regions.map(region => region.regionId === regionId ? { ...region, rect: { ...region.rect, [key]: value } } : region),
@@ -545,6 +575,13 @@ export function TemplateWorkspace({
   function updateRegionRectPixel(regionId: string, key: TemplateEditorRectKey, pixelValue: number) {
     if (positionLockedRegionIds.has(regionId)) return
     updateRegionRect(regionId, key, templateEditorNormalizedRectValue(pixelValue, key, template.page))
+  }
+
+  function alignSelectedRegion(alignment: PaperTimelineAlignment, target: 'page' | 'timeline') {
+    if (!selectedRegion || managedPaperTimelineStructure?.managedRegionIds.has(selectedRegion.regionId)) return
+    const targetRect = target === 'timeline' ? managedPaperTimelineStructure?.rect : { x: 0, y: 0, w: 1, h: 1 }
+    if (!targetRect) return
+    updateTemplateDraft(currentTemplate => alignTemplateRegionToRect(currentTemplate, selectedRegion.regionId, targetRect, alignment))
   }
 
   function selectCalibrationTarget() {
@@ -580,7 +617,7 @@ export function TemplateWorkspace({
     if (calibrationGridBounds) {
       setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
     } else {
-      setSelectedRegionId(editableRegions[0]?.regionId ?? null)
+      setSelectedRegionId(managedPaperTimelineStructure ? PAPER_TIMELINE_TARGET_ID : editableRegions[0]?.regionId ?? null)
     }
   }
 
@@ -591,6 +628,7 @@ export function TemplateWorkspace({
   }
 
   function updateRegionColumnCount(regionId: string, value: number) {
+    if (managedPaperTimelineStructure?.managedRegionIds.has(regionId)) return
     const columnCount = clampNumber(Math.round(value), 1, 64)
     updateTemplateDraft(currentTemplate => {
       const targetRole = currentTemplate.regions.find(region => region.regionId === regionId)?.grid?.role
@@ -967,53 +1005,7 @@ export function TemplateWorkspace({
     setTemplateCreateOpen(false)
   }
 
-  const detailSections: TemplateInspectorSection[] = [
-    {
-      id: 'template',
-      label: '基本設定',
-      description: '名前、用紙、初期フレームなどテンプレート全体を設定します。',
-      group: 'edit',
-    },
-    {
-      id: 'table',
-      label: '領域',
-      description: '領域ごとの役割、表示文字、データ割当、配置を確認して編集します。',
-      group: 'edit',
-    },
-    {
-      id: 'region',
-      label: selectedRegion ? selectedRegion.authoringName ?? selectedRegion.label : '選択領域',
-      description: selectedRegion
-        ? `「${(selectedRegion.authoringName ?? selectedRegion.label) || selectedRegion.regionId}」の内容、割当、位置、見た目を設定します。`
-        : 'キャンバスまたは左の一覧で領域を選んで設定します。',
-      group: 'edit',
-      parentId: 'table',
-    },
-    {
-      id: 'display',
-      label: '見た目',
-      description: '色、罫線、見出し、初期列名など表示を整えます。',
-      group: 'edit',
-    },
-    ...(!isDigitalTemplate ? [{
-      id: 'reference' as const,
-      label: '参照画像',
-      description: '元の紙シート画像を読み込み、位置と補正基準を確認します。',
-      group: 'edit' as const,
-    }] : []),
-    {
-      id: 'review',
-      label: '確認・保存',
-      description: '不足や配置ミスを確認してからテンプレートを保存します。',
-      group: 'manage',
-    },
-    {
-      id: 'json',
-      label: uiText.template.detailTabs.json,
-      description: '完成データを確認します。通常の作成では編集する必要はありません。',
-      group: 'manage',
-    },
-  ]
+  const detailSections = templateWorkspaceInspectorSections({ hasPaperTimeline: Boolean(paperTimelineStructure), isDigitalTemplate, selectedRegion })
   const gridHeaderRoles = gridHeaderRolesForTemplate(template)
   const timelineLaneRoles = gridHeaderRoles.filter((role): role is TemplateTimelineLaneRole => role === 'sound' || role === 'camera')
 
@@ -1649,6 +1641,20 @@ export function TemplateWorkspace({
             )
           })}
         </div>
+        {managedPaperTimelineStructure && !managedPaperTimelineStructure.managedRegionIds.has(selectedRegion.regionId) && (
+          <div className="templateRegionAlignment" aria-label="選択要素の整列">
+            <strong>整列</strong>
+            <div>
+              <span>用紙</span>
+              <PaperRegionAlignmentControls onAlign={alignment => alignSelectedRegion(alignment, 'page')} />
+            </div>
+            <div>
+              <span>6秒表</span>
+              <PaperRegionAlignmentControls onAlign={alignment => alignSelectedRegion(alignment, 'timeline')} />
+            </div>
+            <p>数値入力を使わず、用紙または6秒タイムライン表の端・中央へ揃えます。</p>
+          </div>
+        )}
       </section>
 
       {selectedRegionHasTextStyle && (
@@ -1696,6 +1702,15 @@ export function TemplateWorkspace({
 
   const referenceImageControls = (
     <div className="detailStack">
+      {paperTimelineStructure && (
+        <PaperReferenceWorkflow
+          hasReference={Boolean(template.defaultUnderlay)}
+          onOpenLayout={() => {
+            setSelectedRegionId(PAPER_TIMELINE_TARGET_ID)
+            setDetailTab('layout')
+          }}
+        />
+      )}
       <div className="toolRow dockToolRow">
         <TooltipTarget label={uiText.actions.loadTemplateReferenceImageTitle}>
           {tooltipProps => (
@@ -1822,49 +1837,24 @@ export function TemplateWorkspace({
   )
 
   const regionCollectionEditor = (
-    <TemplateRegionCollectionEditor
+    <TemplateRegionCollectionControls
       template={template}
-      selectedRegionId={selectedRegion?.regionId ?? null}
+      selectedRegionId={effectiveSelectedRegionId}
       onOpenDetails={regionId => { setSelectedRegionId(regionId); setDetailTab('region') }}
+      structure={managedPaperTimelineStructure}
+      onOpenTimeline={() => { setSelectedRegionId(PAPER_TIMELINE_TARGET_ID); setDetailTab('layout') }}
     />
   )
 
   const reviewControls = (
-    <section className="templateAuthoringReview" aria-live="polite">
-      <header className={authoringValidation.canComplete ? 'ready' : 'blocked'}>
-        <strong>{authoringValidation.canComplete ? '保存できます' : '修正が必要です'}</strong>
-        <span>
-          エラー {authoringValidation.errors.length}件 / 注意 {authoringValidation.warnings.length}件
-        </span>
-      </header>
-      {authoringValidation.issues.length === 0 ? (
-        <p>テンプレートID、入力領域、ページ内配置、補正基準を確認しました。</p>
-      ) : (
-        <ol>
-          {authoringValidation.issues.map((issue, index) => (
-            <li key={`${issue.code}-${issue.regionId ?? 'template'}-${index}`} className={issue.severity}>
-              <strong>{issue.severity === 'error' ? '修正' : '確認'}</strong>
-              <span>{issue.message}</span>
-              {issue.regionId && (
-                <button type="button" onClick={() => { setSelectedRegionId(issue.regionId!); setDetailTab('region') }}>
-                  対象領域を開く
-                </button>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-      <button type="button" className="primary" disabled={!authoringValidation.canComplete} onClick={() => void saveTemplateDraft()}>
-        確認して保存
-      </button>
-    </section>
+    <TemplateAuthoringReview
+      validation={authoringValidation}
+      onOpenRegion={regionId => { setSelectedRegionId(regionId); setDetailTab('region') }}
+      onSave={() => void saveTemplateDraft()}
+    />
   )
 
-  const navigationItems = template.regions.map(region => ({
-    regionId: region.regionId,
-    label: templateRegionAuthoringName(region),
-    kind: templateRegionKindLabel(region),
-  }))
+  const navigationItems = templateWorkspaceNavigationItems(template, managedPaperTimelineStructure?.managedRegionIds)
 
   return (
     <section className="panel templatePanel">
@@ -1912,10 +1902,14 @@ export function TemplateWorkspace({
           <ActionMenu label="＋ 領域" ariaLabel="領域を追加" tooltipLabel="テンプレートへ領域を追加" closeOnMenuItemClick>
             <button type="button" onClick={addMetadataRegion}>{uiText.actions.addMetadataRegion}</button>
             <button type="button" onClick={addFormRegion}>入力表を追加</button>
-            <button type="button" onClick={() => addGridRegion('action')}>{uiText.actions.addActionRegion}</button>
-            <button type="button" onClick={() => addGridRegion('sound')}>{uiText.actions.addSoundRegion}</button>
-            <button type="button" onClick={() => addGridRegion('cell')}>{uiText.actions.addCellRegion}</button>
-            <button type="button" onClick={() => addGridRegion('camera')}>{uiText.actions.addCameraRegion}</button>
+            {!managedPaperTimelineStructure && (
+              <>
+                <button type="button" onClick={() => addGridRegion('action')}>{uiText.actions.addActionRegion}</button>
+                <button type="button" onClick={() => addGridRegion('sound')}>{uiText.actions.addSoundRegion}</button>
+                <button type="button" onClick={() => addGridRegion('cell')}>{uiText.actions.addCellRegion}</button>
+                <button type="button" onClick={() => addGridRegion('camera')}>{uiText.actions.addCameraRegion}</button>
+              </>
+            )}
             <button type="button" onClick={addDecorativeGridRegion}>{uiText.actions.addDecorativeGridRegion}</button>
           </ActionMenu>
         </ToolbarGroup>
@@ -1983,10 +1977,14 @@ export function TemplateWorkspace({
       <div className="templateWorkspace" style={{ '--template-dock-width': `${dockWidth}px` } as WorkspaceStyle}>
         <TemplateRegionNavigator
           items={navigationItems}
-          selectedRegionId={selectedRegion?.regionId ?? null}
+          groupItem={managedPaperTimelineStructure ? { regionId: PAPER_TIMELINE_TARGET_ID, label: '6秒タイムライン表', kind: '左3秒・右3秒 / 72行共有' } : undefined}
+          selectedRegionId={effectiveSelectedRegionId}
           hiddenRegionIds={hiddenRegionIds}
           positionLockedRegionIds={positionLockedRegionIds}
-          onSelect={regionId => { setSelectedRegionId(regionId); setDetailTab('region') }}
+          onSelect={regionId => {
+            setSelectedRegionId(regionId)
+            setDetailTab(regionId === PAPER_TIMELINE_TARGET_ID ? 'layout' : 'region')
+          }}
           onToggleHidden={toggleRegionHidden}
           onTogglePositionLocked={toggleRegionPositionLocked}
           onDuplicate={duplicateRegion}
@@ -2003,7 +2001,12 @@ export function TemplateWorkspace({
           selectedRegionId={effectiveSelectedRegionId}
           hiddenRegionIds={hiddenRegionIds}
           positionLockedRegionIds={positionLockedRegionIds}
-          onSelectRegion={regionId => { setSelectedRegionId(regionId); if (regionId !== TEMPLATE_CALIBRATION_TARGET_ID) setDetailTab('region') }}
+          onSelectRegion={regionId => {
+            const selectsPaperTimeline = regionId === PAPER_TIMELINE_TARGET_ID || managedPaperTimelineStructure?.managedRegionIds.has(regionId)
+            setSelectedRegionId(selectsPaperTimeline ? PAPER_TIMELINE_TARGET_ID : regionId)
+            if (selectsPaperTimeline) setDetailTab('layout')
+            else if (regionId !== TEMPLATE_CALIBRATION_TARGET_ID) setDetailTab('region')
+          }}
         />
         <PanelResizeHandle
           label={uiText.layout.resizeTemplateDock}
@@ -2015,6 +2018,14 @@ export function TemplateWorkspace({
         <aside className="templateDock" aria-label="テンプレート設定">
           <TemplateInspectorNavigation sections={detailSections} activeSectionId={activeDetailTab} onSelect={setDetailTab} />
           <div className="templateDockBody">
+            {activeDetailTab === 'layout' && paperTimelineStructure && (
+              <PaperTimelineControls
+                template={template}
+                structure={paperTimelineStructure}
+                onChange={updateTemplateDraft}
+                onOpenReference={() => { setSelectedRegionId(PAPER_TIMELINE_TARGET_ID); setDetailTab('reference') }}
+              />
+            )}
             {activeDetailTab === 'template' && templateSettings}
             {activeDetailTab === 'region' && selectedRegionControls}
             {activeDetailTab === 'display' && displayControls}

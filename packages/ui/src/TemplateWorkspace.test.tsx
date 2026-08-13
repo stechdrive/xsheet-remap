@@ -44,6 +44,7 @@ describe('TemplateWorkspace project integration', () => {
     }
     const view = render(<TemplateWorkspace {...commonProps} template={standardA3SheetTemplate} />)
 
+    fireEvent.click(within(screen.getByRole('navigation', { name: '編集する内容' })).getByRole('button', { name: '基本設定' }))
     fireEvent.change(screen.getByLabelText('名前'), { target: { value: '保持する未適用下書き' } })
     expect(screen.getByText('未適用の変更')).toBeTruthy()
     view.rerender(<TemplateWorkspace {...commonProps} template={digitalStandardSheetTemplate} />)
@@ -217,8 +218,7 @@ describe('TemplateWorkspace project integration', () => {
     expect(document.getElementById(valueType.getAttribute('aria-describedby')!)?.textContent).toContain('標準のカット情報と連動する項目')
     await expectTooltipOn(valueType.closest('label'), '標準のカット情報と連動する項目')
 
-    fireEvent.click(within(navigator).getByRole('button', { name: 'ACTION 1-72' }))
-    fireEvent.click(screen.getByRole('button', { name: 'ACTION 1-72の位置を一時的に固定' }))
+    fireEvent.click(screen.getByRole('button', { name: 'MEMOの位置を一時的に固定' }))
     const xInput = screen.getByLabelText(/x px$/) as HTMLInputElement
     expect(xInput.disabled).toBe(true)
     expect(xInput.hasAttribute('title')).toBe(false)

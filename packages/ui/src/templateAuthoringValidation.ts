@@ -1,4 +1,5 @@
 import { isRenderableSheetTemplateGridRegion, parseSheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
+import { detectPaperTimelineStructure, paperTimelineColumnWidthMm, paperTimelineRoleRegion } from './paperTimelineAuthoring'
 
 export type TemplateAuthoringIssueSeverity = 'error' | 'warning'
 
@@ -22,6 +23,10 @@ export type TemplateAuthoringIssueCode =
   | 'calibration-target-invalid'
   | 'calibration-target-fallback'
   | 'calibration-target-missing'
+  | 'paper-timeline-required'
+  | 'paper-timeline-row-alignment-invalid'
+  | 'paper-timeline-time-contract-invalid'
+  | 'paper-timeline-column-narrow'
 
 export type TemplateAuthoringIssueField =
   | 'templateId'
@@ -255,6 +260,46 @@ export function validateTemplateAuthoring(
       field: 'regions',
       message: '入力可能な領域がありません。情報欄、入力表、ACTION・SOUND・CELL・CAMERAなどを1つ以上追加してください。',
     })
+  }
+
+  const paperTimeline = detectPaperTimelineStructure(template)
+  if (paperTimeline) {
+    if (paperTimeline.status === 'incomplete') {
+      addIssue({
+        code: 'paper-timeline-required',
+        severity: 'error',
+        field: 'regions',
+        message: `紙テンプレートに必須の6秒表が不足しています。${paperTimeline.missingLabels.join(' / ')}をそろえてください。`,
+      })
+    } else {
+      if (paperTimeline.status === 'misaligned') {
+        addIssue({
+          code: 'paper-timeline-row-alignment-invalid',
+          severity: 'error',
+          field: 'regions',
+          message: '紙タイムシートの横罫線が領域間でずれています。「用紙レイアウト」で全領域を共通の72行へ揃えてください。',
+        })
+      }
+      if (template.defaults.fps !== 24 || template.defaults.durationFrames !== 144 || template.defaults.frameOrigin !== 1) {
+        addIssue({
+          code: 'paper-timeline-time-contract-invalid',
+          severity: 'error',
+          field: 'regions',
+          message: '紙タイムシートは24fps、左3秒72行、右3秒72行、合計144フレームで使用します。',
+        })
+      }
+      for (const role of ['action', 'sound', 'cell', 'camera'] as const) {
+        const region = paperTimelineRoleRegion(template, paperTimeline, role)
+        if (!region || paperTimelineColumnWidthMm(region, template) >= 2.5) continue
+        addIssue({
+          code: 'paper-timeline-column-narrow',
+          severity: 'warning',
+          field: 'rect',
+          regionId: region.regionId,
+          message: `${role.toUpperCase()}の1列幅が2.5mm未満です。印刷後に読み書きしづらくなる可能性があります。`,
+        })
+      }
+    }
   }
 
   if (template.page.isPhysical) {

@@ -216,7 +216,8 @@ async function runSheetOpsScenario(scenario: SheetOpsScenarioId): Promise<void> 
     case 'multiline-memo':
       await verifyMultilineMemoScenario({
         checks, evaluatePage, waitForSelector, waitForPageCondition, inputPointForSelector,
-        mouseDoubleClick, setReactFieldValue, keyboardShortcut, keyPress, captureScreenshotArtifact: captureScenarioScreenshot,
+        mouseDoubleClick, setReactFieldValue, keyboardShortcut, keyPress, clickFrame, waitForEventAt,
+        captureScreenshotArtifact: captureScenarioScreenshot,
       })
       return
     case 'annotation-interactions':

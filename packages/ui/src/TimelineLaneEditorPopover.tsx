@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { floatingEditorStyle, type TimelineLaneEditorState } from './app-foundation'
 import { Tooltip } from './Tooltip'
+import { useFloatingEditorBoundary } from './useFloatingEditorBoundary'
 
 export function TimelineLaneEditorPopover({
   state,
@@ -12,18 +13,22 @@ export function TimelineLaneEditorPopover({
   onCancel: () => void
 }) {
   const [label, setLabel] = useState(state.initialName)
+  const { rootRef, handleKeyDown, completeWithSheetFocus } = useFloatingEditorBoundary<HTMLFormElement>(onCancel)
   const roleLabel = state.role === 'sound' ? 'SOUND' : 'CAMERA'
   return (
     <form
+      ref={rootRef}
       className="paperTrackEditorPopover timelineLaneEditorPopover"
+      data-workspace-keyboard-scope="editor"
       style={floatingEditorStyle(state.x, state.y)}
       aria-label={`${roleLabel}列${state.mode === 'add' ? '追加' : '名前変更'}`}
       onSubmit={event => {
         event.preventDefault()
         const normalized = label.trim()
-        if (normalized) onSubmit(normalized)
+        if (normalized) completeWithSheetFocus(() => onSubmit(normalized))
       }}
       onPointerDown={event => event.stopPropagation()}
+      onKeyDown={handleKeyDown}
     >
       <label>
         <span>{roleLabel}列名</span>
@@ -34,7 +39,7 @@ export function TimelineLaneEditorPopover({
           <button type="submit" aria-label="確定">✓</button>
         </Tooltip>
         <Tooltip label="キャンセル">
-          <button type="button" aria-label="キャンセル" onClick={onCancel}>×</button>
+          <button type="button" aria-label="キャンセル" onClick={() => completeWithSheetFocus(onCancel)}>×</button>
         </Tooltip>
       </div>
     </form>

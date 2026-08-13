@@ -23,6 +23,7 @@ import {
 } from './cameraCueEditing'
 import { CompactDurationFrameControl, DurationFrameControl } from './DurationFrameControl'
 import { HistoryInput } from './HistoryInput'
+import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
 
 export interface CameraCueDialogSubmit {
   cueId?: string
@@ -87,6 +88,7 @@ export function CameraCueDialog({
   const [durationFrames, setDurationFrames] = useState(initialDuration)
   const [labelPlacement, setLabelPlacement] = useState(initialCamera?.labelPlacement)
   const instructionInputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useModalDialogKeyboardBoundary<HTMLDivElement>(onCancel)
   const maxDuration = Math.max(1, frameMax - frameStart + 1)
   const minimumDuration = Math.max(1, ...intermediatePoints.map(point => point.frameOffset + 2))
   const frameEnd = frameStart + durationFrames - 1
@@ -101,16 +103,6 @@ export function CameraCueDialog({
     instructionInputRef.current?.focus()
     instructionInputRef.current?.select()
   }, [])
-
-  useEffect(() => {
-    function closeOnEscape(event: globalThis.KeyboardEvent) {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      onCancel()
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onCancel])
 
   function updateInstruction(value: string) {
     setLabel(value)
@@ -240,7 +232,7 @@ export function CameraCueDialog({
   }
 
   return (
-    <div className="assetQuickPreviewBackdrop soundCueDialogBackdrop" role="dialog" aria-modal="true" aria-label="撮影指示" onPointerDown={onCancel}>
+    <div ref={dialogRef} className="assetQuickPreviewBackdrop soundCueDialogBackdrop" role="dialog" aria-modal="true" aria-label="撮影指示" tabIndex={-1} data-workspace-keyboard-scope="dialog" onPointerDown={onCancel}>
       <form className="soundCueDialog cameraCueDialog" onSubmit={submit} onPointerDown={event => event.stopPropagation()}>
         <header className="soundCueDialogHeader">
           <strong>撮影指示</strong>

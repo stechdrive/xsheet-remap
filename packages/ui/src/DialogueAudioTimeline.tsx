@@ -1802,7 +1802,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       data-vad-engine={vadEngine.status}
       data-active-track-id={cutState.activeTrackId}
       data-input-modality={inputModality}
+      data-workspace-keyboard-scope="audio"
       onPointerDownCapture={handleInputPointerDownCapture}
+      onFocusCapture={() => onWorkspaceFocus?.()}
     >
       <div
         className="dialogueAudioPanelResizeHandle"

@@ -4,9 +4,10 @@ import { CameraCueDialog } from './CameraCueDialog'
 
 afterEach(cleanup)
 
-function renderDialog(onSubmit = vi.fn(), { frameEnd = 24, frameMax = 144 } = {}) {
+function renderDialog(onSubmit = vi.fn(), { frameEnd = 24, frameMax = 144, onCancel = vi.fn() } = {}) {
   return {
     onSubmit,
+    onCancel,
     ...render(
       <CameraCueDialog
         state={{ mode: 'create', laneId: 'camera_lane_1', frameStart: 1, frameEnd }}
@@ -17,13 +18,26 @@ function renderDialog(onSubmit = vi.fn(), { frameEnd = 24, frameMax = 144 } = {}
         instructionHistory={[]}
         pointLabelHistory={[]}
         onSubmit={onSubmit}
-        onCancel={vi.fn()}
+        onCancel={onCancel}
       />,
     ),
   }
 }
 
 describe('CameraCueDialog', () => {
+  it('owns Escape at the modal boundary even when a dialog button is focused', () => {
+    const { onCancel } = renderDialog()
+    const escapedToWorkspace = vi.fn()
+    window.addEventListener('keydown', escapedToWorkspace)
+    const addPoint = screen.getByRole('button', { name: '＋ 中間ラベル' })
+    addPoint.focus()
+    fireEvent.keyDown(addPoint, { key: 'Escape' })
+    window.removeEventListener('keydown', escapedToWorkspace)
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(escapedToWorkspace).not.toHaveBeenCalled()
+  })
+
   it('shows all five outgoing-segment choices inline instead of hiding them in a picker', () => {
     const { onSubmit, container } = renderDialog()
     expect(container.querySelector('.cameraShapePicker')).toBeNull()

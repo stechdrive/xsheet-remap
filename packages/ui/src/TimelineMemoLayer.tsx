@@ -12,6 +12,7 @@ import {
 } from './timelineMemoGeometry'
 import { sheetCellCornerTrianglePoints } from './sheetCellCornerMarker'
 import { SheetSelectionOutline } from './sheet-selection-visuals'
+import { useInlineEditorSession } from './useInlineEditorSession'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
@@ -104,6 +105,17 @@ export function TimelineMemoLayer({
   onUpdatePlacement: (memoId: string, placement: TimelineMemoPlacement) => void
 }) {
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
+  const { editorRef: textEditorRef, commit: commitTextEditor, cancel: cancelTextEditor } = useInlineEditorSession<HTMLTextAreaElement>({
+    active: Boolean(textDraft),
+    sessionKey: textDraft ? `${textDraft.memoId}:${textDraft.value.textId}` : null,
+    selectOnFocus: !textDraft?.value.text,
+    onCommit: () => {
+      const draft = textDraft
+      setTextDraft(null)
+      if (draft) onUpsertText(draft.memoId, draft.value, draft.appearance)
+    },
+    onCancel: () => setTextDraft(null),
+  })
   const [automaticTextSessionKey, setAutomaticTextSessionKey] = useState<string | null>(null)
   const [memoRenderCache] = useState(createTimelineMemoRenderCache)
   const inkCanvas = useLowLatencyInkCanvas()
@@ -338,19 +350,14 @@ export function TimelineMemoLayer({
     setTextDraft({ memoId: memo.memoId, segment, value: text, appearance: normalizeMemoAppearance(memo.appearance) })
   }
 
-  function finishTextDraft(cancelled: boolean) {
-    const draft = textDraft
-    setTextDraft(null)
-    if (!cancelled && draft) onUpsertText(draft.memoId, draft.value, draft.appearance)
-  }
-
   function handleTextDraftKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    event.stopPropagation()
     if (event.key === 'Escape') {
       event.preventDefault()
-      finishTextDraft(true)
+      cancelTextEditor()
     } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault()
-      finishTextDraft(false)
+      commitTextEditor()
     }
   }
 
@@ -464,8 +471,10 @@ export function TimelineMemoLayer({
               const host = editorHost === undefined && typeof document !== 'undefined' ? document.body : editorHost
               return host ? createPortal(
                 <textarea
+                  ref={textEditorRef}
                   autoFocus
                   className="timelineMemoTextEditor"
+                  data-workspace-keyboard-scope="editor"
                   value={textDraft.value.text}
                   style={{
                     left: `${editorRect.x * 100}%`,
@@ -483,7 +492,7 @@ export function TimelineMemoLayer({
                     setTextDraft(current => current ? { ...current, value: { ...current.value, text } } : null)
                   }}
                   onKeyDown={handleTextDraftKeyDown}
-                  onBlur={() => finishTextDraft(false)}
+                  onBlur={() => commitTextEditor()}
                   onPointerDown={event => event.stopPropagation()}
                   aria-label="メモ文字"
                 />,

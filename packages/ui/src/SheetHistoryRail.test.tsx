@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDefaultProjectDocument } from '@xsheet-remap/core'
 import { SheetHistoryRail } from './SheetHistoryRail'
@@ -33,7 +33,7 @@ describe('SheetHistoryRail', () => {
     expect(onSwitch).toHaveBeenCalledWith('sheet_revision_2')
   })
 
-  it('requires a name and submits the selected creation mode and underlay option', () => {
+  it('requires a name, submits the selected options, and restores modal focus ownership', async () => {
     const revision = createDefaultProjectDocument().cuts[0]!.revisions[0]!
     const onAdd = vi.fn()
     render(
@@ -49,12 +49,21 @@ describe('SheetHistoryRail', () => {
         onDelete={vi.fn()}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: '修正用シートを追加' }))
+    const trigger = screen.getByRole('button', { name: '修正用シートを追加' })
+    trigger.focus()
+    fireEvent.click(trigger)
     const addButton = screen.getByRole('button', { name: '追加' })
     expect((addButton as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(screen.getByRole('combobox', { name: '名前' }), { target: { value: '監督修正' } })
     fireEvent.click(screen.getByRole('button', { name: '空のシートを追加' }))
     fireEvent.click(addButton)
     expect(onAdd).toHaveBeenCalledWith({ name: '監督修正', mode: 'blank', showSourceReference: true })
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
+
+    fireEvent.click(trigger)
+    const name = screen.getByRole('combobox', { name: '名前' })
+    fireEvent.keyDown(name, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'シートを追加' })).toBeNull()
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
   })
 })

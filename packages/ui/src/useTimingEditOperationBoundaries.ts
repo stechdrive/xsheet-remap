@@ -1,5 +1,6 @@
 import { useEffect, type MutableRefObject } from 'react'
 import type { TimingEditSession } from './appTypes'
+import { isTimingEditInteractionBoundary } from './workspaceInteractionPolicy'
 
 export function useTimingEditOperationBoundaries(options: {
   sessionRef: MutableRefObject<TimingEditSession | null>
@@ -8,7 +9,7 @@ export function useTimingEditOperationBoundaries(options: {
 }) {
   useEffect(() => {
     const commitOnInteractionBoundary = (event: Event) => {
-      if (event.target instanceof Element && event.target.closest('[data-timing-edit-boundary="manual"]')) return
+      if (!isTimingEditInteractionBoundary(event.target, event.type as 'pointerdown' | 'focusin')) return
       if (options.sessionRef.current) options.commitActiveEdit()
     }
     window.addEventListener('pointerdown', commitOnInteractionBoundary)

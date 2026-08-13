@@ -544,7 +544,7 @@ export function CspLayerTree({
           <span className="cspTreeTrackInsertLabel">ここに新しいセル列を作成（{activeAssetDragCount}件）</span>
         )}
         {editing && newTrackDraft && (
-          <form className="cspTreeNewTrackForm" onSubmit={submitNewTrack}>
+          <form className="cspTreeNewTrackForm" data-workspace-keyboard-scope="editor" onSubmit={submitNewTrack}>
             <input
               autoFocus
               aria-label={`${layerLabel}に追加するセル列名`}
@@ -557,6 +557,7 @@ export function CspLayerTree({
               onKeyDown={event => {
                 if (event.key !== 'Escape') return
                 event.preventDefault()
+                event.stopPropagation()
                 setNewTrackDraft(null)
               }}
             />
@@ -716,6 +717,7 @@ export function CspLayerTree({
     return (
       <form
         className="cspTreeAuxiliaryForm cspTreePaneAdditionForm"
+        data-workspace-keyboard-scope="editor"
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault()
           const label = paneAdditionDraft.label.trim()
@@ -741,6 +743,7 @@ export function CspLayerTree({
           onKeyDown={event => {
             if (event.key !== 'Escape') return
             event.preventDefault()
+            event.stopPropagation()
             setPaneAdditionDraft(null)
           }}
         />
@@ -889,6 +892,7 @@ export function CspLayerTree({
                   {auxiliaryDraft && auxiliaryDraft.correctionLayerId === layer.layerId && (
                     <form
                       className="cspTreeAuxiliaryForm"
+                      data-workspace-keyboard-scope="editor"
                       onSubmit={(event: FormEvent<HTMLFormElement>) => {
                         event.preventDefault()
                         const label = auxiliaryDraft.label.trim()
@@ -910,6 +914,12 @@ export function CspLayerTree({
                         onChange={event => {
                           const label = event.currentTarget.value
                           setAuxiliaryDraft(current => current ? { ...current, label } : current)
+                        }}
+                        onKeyDown={event => {
+                          if (event.key !== 'Escape') return
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setAuxiliaryDraft(null)
                         }}
                       />
                       <TooltipTarget label="追加を確定">
@@ -976,7 +986,7 @@ export function CspLayerTree({
                     </div>
                     <div className="cspTreeCels">
                       {newCelDraft && newCelDraft.slotId === track.slotId && (
-                        <form className="cspTreeNewCelForm" onSubmit={submitNewCel}>
+                        <form className="cspTreeNewCelForm" data-workspace-keyboard-scope="editor" onSubmit={submitNewCel}>
                           <input
                             autoFocus
                             aria-label={`${track.label}（${layer.label}）に追加するCSPセル名`}
@@ -989,6 +999,7 @@ export function CspLayerTree({
                             onKeyDown={event => {
                               if (event.key !== 'Escape') return
                               event.preventDefault()
+                              event.stopPropagation()
                               setNewCelDraft(null)
                             }}
                           />
@@ -1305,7 +1316,7 @@ function SummaryRenameEditor({
   }, [])
 
   return (
-    <div ref={editorRef} className="cspTreeSummaryEditor" onClick={event => event.stopPropagation()}>
+    <div ref={editorRef} className="cspTreeSummaryEditor" data-workspace-keyboard-scope="editor" onClick={event => event.stopPropagation()}>
       <input
         ref={inputRef}
         autoFocus
@@ -1350,14 +1361,20 @@ function InlineTreeLabel({
 }) {
   const [draft, setDraft] = useState(label)
   const [editing, setEditing] = useState(false)
+  const cancelledRef = useRef(false)
 
   function beginEditing() {
+    cancelledRef.current = false
     onBeginEditing?.()
     setDraft(label)
     setEditing(true)
   }
 
   function commit() {
+    if (cancelledRef.current) {
+      cancelledRef.current = false
+      return
+    }
     const name = draft.trim()
     if (name && name !== label) onCommit(name)
     setDraft(label)
@@ -1370,6 +1387,8 @@ function InlineTreeLabel({
       event.currentTarget.blur()
     } else if (event.key === 'Escape') {
       event.preventDefault()
+      event.stopPropagation()
+      cancelledRef.current = true
       setDraft(label)
       setEditing(false)
     }
@@ -1378,6 +1397,7 @@ function InlineTreeLabel({
   return editing ? (
     <input
       autoFocus
+      data-workspace-keyboard-scope="editor"
       className={inputClassName}
       aria-label={inputAriaLabel}
       value={draft}

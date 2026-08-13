@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type FocusEvent, type PointerEvent } from 'react'
+import { type CSSProperties, type FocusEvent, type PointerEvent } from 'react'
 import { type AnnotationText } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { TEXT_FONT_SIZE_MAX_PX, TEXT_FONT_SIZE_MIN_PX, TEXT_FONT_SIZE_PRESETS, clampTextFontSizePx } from './sheetTextLayout'
@@ -10,6 +10,7 @@ import { sheetSvgTextX, sheetSvgTextY } from './sheetSvgTextGeometry'
 import { ActionMenu, ScrubbableNumberInput } from './AppControls'
 import { TextAnnotationUpdate } from './app-foundation'
 import { CheckSmallIcon, CloseSmallIcon } from './app-navigation'
+import { useInlineEditorSession } from './useInlineEditorSession'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
 import { usePointerDragSession } from './usePointerDragSession'
 import type { PageMemoTextRenderItem } from './pageMemoProjection'
@@ -95,8 +96,13 @@ function AnnotationTextItem({
   onCommit: (annotationId: string, text: string) => void
   onCancel: (annotationId: string) => void
 }) {
-  const editorRef = useRef<HTMLTextAreaElement | null>(null)
-  const closeHandledRef = useRef(false)
+  const { editorRef, commit, cancel, markCompleted } = useInlineEditorSession<HTMLTextAreaElement>({
+    active: editing,
+    sessionKey: annotation.annotationId,
+    selectOnFocus: !annotation.text,
+    onCommit: editor => onCommit(annotation.annotationId, editor?.value ?? annotation.text),
+    onCancel: () => onCancel(annotation.annotationId),
+  })
   const drag = usePointerDragSession<{
     pointerId: number
     startClientX: number
@@ -146,29 +152,20 @@ function AnnotationTextItem({
     fontSize: `${layout.fontSizePx}px`,
   } satisfies CSSProperties
 
-  useEffect(() => {
-    if (!editing) return
-    const frame = window.requestAnimationFrame(() => {
-      const editor = editorRef.current
-      editor?.focus()
-      if (editor && !editor.value) editor.select()
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [annotation.annotationId, editing])
-
   function commitDraftText() {
-    closeHandledRef.current = true
-    onCommit(annotation.annotationId, editorRef.current?.value ?? annotation.text)
+    commit()
   }
 
   function cancelDraftText() {
-    closeHandledRef.current = true
-    onCancel(annotation.annotationId)
+    cancel()
   }
 
   function handleEditorBlur(event: FocusEvent<HTMLTextAreaElement>) {
-    if (closeHandledRef.current || event.currentTarget.dataset.commitHandled === 'true') return
-    onCommit(annotation.annotationId, event.currentTarget.value)
+    if (event.currentTarget.dataset.commitHandled === 'true') {
+      markCompleted()
+      return
+    }
+    commit()
   }
 
   function handleDisplayPointerDown(event: PointerEvent<HTMLButtonElement>) {
@@ -213,6 +210,7 @@ function AnnotationTextItem({
           key={`${annotation.annotationId}:${annotation.text}`}
           ref={editorRef}
           className="annotationTextEditor"
+          data-workspace-keyboard-scope="editor"
           data-annotation-id={annotation.annotationId}
           defaultValue={annotation.text}
           placeholder={uiText.sheet.textPlaceholder}

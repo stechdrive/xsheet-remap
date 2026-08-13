@@ -153,6 +153,13 @@ describe('CspLayerTree', () => {
     fireEvent.change(trackName, { target: { value: 'LO' } })
     fireEvent.keyDown(trackName, { key: 'Enter' })
     expect(onRenamePaperTrack).toHaveBeenCalledWith('A', 'LO')
+
+    fireEvent.doubleClick(document.querySelector<HTMLElement>('.cspTreeTrackName')!)
+    const cancelledTrackName = screen.getByLabelText('Aのセル列名')
+    fireEvent.change(cancelledTrackName, { target: { value: 'CANCELLED' } })
+    fireEvent.keyDown(cancelledTrackName, { key: 'Escape' })
+    fireEvent.blur(cancelledTrackName)
+    expect(onRenamePaperTrack).toHaveBeenCalledTimes(1)
   })
 
   it('renames stage, process, and CSP cell labels only after an explicit edit gesture', () => {

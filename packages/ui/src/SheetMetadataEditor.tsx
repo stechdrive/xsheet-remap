@@ -61,6 +61,7 @@ export function SheetMetadataEditor({
   const [inlineDraft, setInlineDraft] = useState('')
   const inlineDraftRef = useRef('')
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const activeOpenReasonRef = useRef<'pointer' | 'keyboard'>('pointer')
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const timelineLanes = useMemo(() => timelineLanesForLayout(project), [project])
   const regions = template.regions.filter((region): region is EditableMetadataRegion =>
@@ -177,6 +178,16 @@ export function SheetMetadataEditor({
     return () => window.clearTimeout(timeout)
   }, [activeFormIsInline, editingRegionId])
 
+  useEffect(() => {
+    if (!editingRegionId) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const popover = popoverRef.current
+      if (!popover || popover.contains(document.activeElement)) return
+      popover.querySelector<HTMLElement>('textarea, input, select, [tabindex]:not([tabindex="-1"])')?.focus()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [editingRegionId])
+
   function closeEditor(restoreTriggerFocus: boolean, commitMultiline: boolean) {
     const trigger = activeTriggerRef.current
     if (commitMultiline && activeFormIsInline && activeForm) {
@@ -188,12 +199,21 @@ export function SheetMetadataEditor({
       }
     }
     setEditingRegionId(null)
-    if (restoreTriggerFocus) trigger?.focus()
+    if (restoreTriggerFocus) {
+      if (activeOpenReasonRef.current === 'keyboard') trigger?.focus()
+      else trigger?.closest<HTMLElement>('.sheetViewport')?.focus({ preventScroll: true })
+    }
   }
 
-  function openEditor(regionId: string, trigger: HTMLButtonElement) {
+  function openEditor(regionId: string, trigger: HTMLButtonElement, reason: 'pointer' | 'keyboard') {
     activeTriggerRef.current = trigger
+    activeOpenReasonRef.current = reason
+    const metadata = regionLayouts.find(item => item.region.regionId === regionId)
     const form = formFields.find(field => field.key === regionId)
+    const memoTarget = metadata ? resolveTemplateRegionMemoTarget(metadata.region) : form?.memoTarget
+    if (memoTarget) {
+      onAnnotationRegionSelect(annotationRegionTarget(page, template, memoTarget, memoTargetRect(memoTarget)))
+    }
     if (form?.editPresentation === 'inline'
       && (form.definition.valueType === 'text' || form.definition.valueType === 'multiline')) {
       const value = sheetFormFieldValueText(
@@ -240,13 +260,13 @@ export function SheetMetadataEditor({
               }}
               onDoubleClick={event => {
                 event.stopPropagation()
-                openEditor(region.regionId, event.currentTarget)
+                openEditor(region.regionId, event.currentTarget, 'pointer')
               }}
               onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === 'F2' || event.key === ' ') {
                   event.preventDefault()
                   event.stopPropagation()
-                  openEditor(region.regionId, event.currentTarget)
+                  openEditor(region.regionId, event.currentTarget, 'keyboard')
                 }
               }}
             />
@@ -295,13 +315,13 @@ export function SheetMetadataEditor({
               }}
               onDoubleClick={event => {
                 event.stopPropagation()
-                openEditor(field.key, event.currentTarget)
+                openEditor(field.key, event.currentTarget, 'pointer')
               }}
               onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === 'F2' || event.key === ' ') {
                   event.preventDefault()
                   event.stopPropagation()
-                  openEditor(field.key, event.currentTarget)
+                  openEditor(field.key, event.currentTarget, 'keyboard')
                 }
               }}
             />
@@ -340,6 +360,7 @@ export function SheetMetadataEditor({
           className={`sheetInlineMultilineEditor${activeInlineLayout.overflow ? ' overflow' : ''}`}
           data-text-overflow={activeInlineLayout.overflow ? 'true' : 'false'}
           role="dialog"
+          data-workspace-keyboard-scope="editor"
           aria-label={`${activeLabel}を編集`}
           style={rectStyle(activeRect, pageWidth, pageHeight)}
           onPointerDown={event => event.stopPropagation()}
@@ -381,6 +402,7 @@ export function SheetMetadataEditor({
           ref={popoverRef}
           className="sheetMetadataEditorPopover"
           role="dialog"
+          data-workspace-keyboard-scope="editor"
           aria-label={`${activeLabel}を編集`}
           style={popoverStyle(activeRect, pageWidth, pageHeight)}
           onPointerDown={event => event.stopPropagation()}

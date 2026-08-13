@@ -49,7 +49,7 @@ import { createAppDialogueAudioActions } from './app-dialogue-audio-actions'
 import { applyTimingEditSession } from './timingEditSession'
 import { createAppProjectPersistenceActions } from './app-project-persistence-actions'
 import { useTimingEditOperationBoundaries } from './useTimingEditOperationBoundaries'
-import { handleWorkspaceKeyboardBoundary, nextSoundCueNavigationRequest } from './workspaceInteractionPolicy'
+import { handleWorkspaceKeyboardBoundary, nextSoundCueNavigationRequest, resolveWorkspaceKeyboardOwner } from './workspaceInteractionPolicy'
 import { eventKeyIdAtSheetHit, timingKeyAtSheetHit, timingKeyDisplayLabel } from './workspaceSelectionModel'
 import { EMPTY_DIALOGUE_AUDIO_SELECTION } from './dialogueAudioSelectionModel'
 import { useSheetRenderModelGeometryProject } from './useSheetRenderModelProject'
@@ -1836,17 +1836,19 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleCreateTimelineMemo(hit: SheetHit): string | null {
-    const memo = createTimelineMemoForHit(project, template, hit, rangeSelection)
+    const sourceProject = commitTimingDraft(false)
+    const memo = createTimelineMemoForHit(sourceProject, template, hit, rangeSelection)
     if (!memo) return null
-    commitProject(addTimelineMemo(project, memo))
+    commitProject(addTimelineMemo(sourceProject, memo))
     return memo.memoId
   }
   function handleCreateTimelineMemoForCue(cueId: string): string | null {
-    const cue = project.timedRangeCues.find(item => item.cueId === cueId)
+    const sourceProject = commitTimingDraft(false)
+    const cue = sourceProject.timedRangeCues.find(item => item.cueId === cueId)
     if (!cue) return null
-    const memo = createTimelineMemoForCue(project, template, cue)
+    const memo = createTimelineMemoForCue(sourceProject, template, cue)
     if (!memo) return null
-    commitProject(addTimelineMemo(project, memo))
+    commitProject(addTimelineMemo(sourceProject, memo))
     return memo.memoId
   }
   function handleDeleteTimelineMemo(memoId: string) {
@@ -2108,8 +2110,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.isComposing) return
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return
-      if (handleWorkspaceKeyboardBoundary(event, workspaceFocusOwner, { undo: handleUndo, redo: handleRedo })) return
+      const keyboardOwner = resolveWorkspaceKeyboardOwner(event.target, workspaceFocusOwner)
+      if (keyboardOwner === 'ignore') return
+      if (handleWorkspaceKeyboardBoundary(event, keyboardOwner, { undo: handleUndo, redo: handleRedo })) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && selectedTextAnnotation) {
         event.preventDefault()
         handleCopyTextAnnotation()

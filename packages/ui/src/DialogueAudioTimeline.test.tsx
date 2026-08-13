@@ -105,6 +105,8 @@ describe('DialogueAudioTimeline', () => {
     fireEvent.pointerDown(screen.getByRole('region', { name: 'セリフ音声タイムライン' }))
     expect(onWorkspaceFocus).toHaveBeenCalledTimes(1)
     openAudioTimeline()
+    screen.getByRole('group', { name: '音声トラック編集領域' }).focus()
+    expect(onWorkspaceFocus).toHaveBeenCalledTimes(2)
     expect(screen.getByText('セリフ区間1個 / 10–12F')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('セリフ区間候補 10–12F'))
     expect(onAudioSelectionChange).toHaveBeenCalledWith({

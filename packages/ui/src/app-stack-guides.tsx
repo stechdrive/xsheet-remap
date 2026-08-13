@@ -1,4 +1,4 @@
-export { PaperTrackEditorPopover, exportPreviousPaperTrackName, defaultExportAfterTrackForInsertAfter, overlayExportPlacementAfterTrack, deleteRegisteredCellKey, isInteractiveKeyboardTarget } from './stack-guides-paper-track'
+export { PaperTrackEditorPopover, exportPreviousPaperTrackName, defaultExportAfterTrackForInsertAfter, overlayExportPlacementAfterTrack, deleteRegisteredCellKey } from './stack-guides-paper-track'
 export { HoverCellOverlay, StackGuideOverlay } from './stack-guides-overlay'
 export { StackGuideSvgLayer } from './stack-guides-svg'
 export type { StackGuideLabelMetrics } from './stack-guides-geometry'

@@ -14,7 +14,7 @@ import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState
 import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitForFrame, overlayHitFromPoint, processMoveOptionsForSlot } from './app-sheet-layers';
 import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole } from './app-sheet-geometry';
 import { autoScrollViewportForDrag, scrollSheetHitIntoView } from './sheet-panel-viewport';
-import { defaultExportAfterTrackForInsertAfter, exportPreviousPaperTrackName, isInteractiveKeyboardTarget, overlayExportPlacementAfterTrack, stackGuideInsertTargetFromPoint, stackGuidePlacementTargetFromPointer, stackGuidePlacementUpdateFromPointer } from './app-stack-guides';
+import { defaultExportAfterTrackForInsertAfter, exportPreviousPaperTrackName, overlayExportPlacementAfterTrack, stackGuideInsertTargetFromPoint, stackGuidePlacementTargetFromPointer, stackGuidePlacementUpdateFromPointer } from './app-stack-guides';
 import { singleMovableBindingForHit } from './app-registered-cells';
 import type { SoundCueDragMode } from './SoundCueLayer';
 import type { CameraCueDragGeometry, CameraCueDragMode } from './CameraCueLayer';
@@ -35,7 +35,7 @@ import { runSheetTouchTap } from './sheetTouchTap';
 import type { SheetTouchLongPressAction, SheetTouchTap } from './sheetTouchNavigation';
 import { createCameraCuePointerDrag, createSoundCuePointerDrag, type CameraCuePointerDrag, type SoundCuePointerDrag } from './timedCuePointerDrag';
 import { beginSheetViewportPan } from './sheetViewportPan';
-import { advancePrimaryPointerActivation, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
+import { advancePrimaryPointerActivation, isInteractiveKeyboardTarget, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
 import type { PageAnnotationStrokeStart } from './PageAnnotationInputSurface';
 import { pageMemoInputPosition } from './pageMemoInputCoordinates';
 
@@ -2193,6 +2193,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (intent === 'begin-pan') {
       beginViewportPan(event, event.currentTarget)
       return
+    }
+    if (!isInteractiveKeyboardTarget(event.target)) {
+      event.currentTarget.focus({ preventScroll: true })
     }
     if (intent === 'clear-primary-selection') {
       setContextMenu(null)

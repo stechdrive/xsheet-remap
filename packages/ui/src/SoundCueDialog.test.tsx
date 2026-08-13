@@ -5,6 +5,32 @@ import { SoundCueDialog } from './SoundCueDialog'
 afterEach(() => cleanup())
 
 describe('SoundCueDialog', () => {
+  it('owns Escape at the modal boundary and does not leak it to the workspace', () => {
+    const onCancel = vi.fn()
+    render(
+      <SoundCueDialog
+        state={{ mode: 'create', laneId: 'sound_lane_1', frameStart: 1, frameEnd: 12 }}
+        cue={null}
+        sectionLabel="SOUND"
+        fps={24}
+        frameMin={1}
+        frameMax={144}
+        labelHistory={[]}
+        onSubmit={vi.fn()}
+        onCancel={onCancel}
+      />,
+    )
+    const escapedToWorkspace = vi.fn()
+    window.addEventListener('keydown', escapedToWorkspace)
+    const cancel = screen.getByRole('button', { name: 'キャンセル' })
+    cancel.focus()
+    fireEvent.keyDown(cancel, { key: 'Escape' })
+    window.removeEventListener('keydown', escapedToWorkspace)
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(escapedToWorkspace).not.toHaveBeenCalled()
+  })
+
   it('assigns an audio region to any existing cue and exposes an explicit alignment choice', () => {
     const onSubmit = vi.fn()
     render(

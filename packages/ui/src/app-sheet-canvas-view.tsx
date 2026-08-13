@@ -165,6 +165,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     <div
       ref={viewportRef}
       className={viewportClassName}
+      tabIndex={-1}
+      data-workspace-keyboard-scope="sheet"
       data-input-modality={props.touchInputActive ? 'touch' : undefined}
       data-touch-range-selection={props.touchRangeSelectionMode ? 'true' : undefined}
       onPointerDownCapture={handlePointerDownCapture}

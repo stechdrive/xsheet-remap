@@ -87,7 +87,16 @@ await checkFileRequirements('packages/ui/src/app-shell-controller.tsx', [
     pattern: /from\s+['"]\.\/workspaceSelectionModel['"]/,
     message: 'sheet selection lookup must use the shared workspace selection model',
   },
+  {
+    pattern: /\bresolveWorkspaceKeyboardOwner\b/,
+    message: 'workspace key commands must resolve ownership from the focused DOM surface',
+  },
 ])
+
+await checkFilePatterns('packages/ui/src/app-shell-controller.tsx', [{
+  pattern: /event\.target\s+instanceof\s+HTML(?:Input|TextArea|Select)Element/,
+  message: 'workspace key commands must use the shared interactive-target policy instead of private element checks',
+}])
 
 await checkFileRequirements('packages/ui/src/app-sheet-canvas-controller.tsx', [{
   pattern: /\bresolveSheetViewportPointerIntent\b/,
@@ -107,6 +116,41 @@ for (const relativePath of [
   await checkFileRequirements(relativePath, [{
     pattern: /\busePointerDragSession\b/,
     message: 'pointer-driven edits must use the shared pointer drag session contract',
+  }])
+}
+
+for (const relativePath of [
+  'packages/ui/src/sheet-panel-annotation.tsx',
+  'packages/ui/src/TimelineMemoLayer.tsx',
+]) {
+  await checkFileRequirements(relativePath, [{
+    pattern: /\buseInlineEditorSession\b/,
+    message: 'inline text editors must use the shared exactly-once editor session contract',
+  }])
+}
+
+for (const relativePath of [
+  'packages/ui/src/SoundCueDialog.tsx',
+  'packages/ui/src/CameraCueDialog.tsx',
+  'packages/ui/src/SheetHistoryRail.tsx',
+]) {
+  await checkFileRequirements(relativePath, [{
+    pattern: /\buseModalDialogKeyboardBoundary\b/,
+    message: 'workspace dialogs must own Escape and keyboard focus through the shared modal boundary',
+  }])
+  await checkFilePatterns(relativePath, [{
+    pattern: /(?:window|document)\.addEventListener\(\s*['"]keydown['"]/,
+    message: 'workspace dialogs must not install private keydown listeners',
+  }])
+}
+
+for (const relativePath of [
+  'packages/ui/src/stack-guides-paper-track.tsx',
+  'packages/ui/src/TimelineLaneEditorPopover.tsx',
+]) {
+  await checkFileRequirements(relativePath, [{
+    pattern: /\buseFloatingEditorBoundary\b/,
+    message: 'floating editors must use the shared outside-click and Escape boundary',
   }])
 }
 

@@ -74,6 +74,8 @@ export function StackGuideOverlay({
     value: string
     correctionLayerId?: string
   } | null>(null)
+  const editorActive = Boolean(editor)
+  const editorCompletedRef = useRef(false)
   type LabelDragState = {
     pointerId: number
     labelId: string
@@ -105,6 +107,38 @@ export function StackGuideOverlay({
   const setCurrentLabelDrag = useCallback((next: LabelDragState | null) => {
     labelDragRef.current = next
     setLabelDrag(next)
+  }, [])
+
+  const commitEditor = useCallback((focusInvalid: boolean) => {
+    if (!editor || editorCompletedRef.current) return
+    const label = (editorInputRef.current?.value ?? editor.value).trim()
+    if (!label) {
+      if (focusInvalid) editorInputRef.current?.focus()
+      else {
+        editorCompletedRef.current = true
+        setEditor(null)
+      }
+      return
+    }
+    editorCompletedRef.current = true
+    onCreate({
+      label,
+      gapIndex: editor.gapIndex,
+      insertAfterPaperTrack: editor.insertAfterPaperTrack,
+      displayRole: editor.displayRole,
+      viewSnapIndex: editor.snapIndex,
+      correctionLayerId: editor.correctionLayerId,
+    })
+    setEditor(null)
+  }, [editor, onCreate])
+
+  useEffect(() => {
+    if (editorActive) editorCompletedRef.current = false
+  }, [editorActive])
+
+  const cancelEditor = useCallback(() => {
+    editorCompletedRef.current = true
+    setEditor(null)
   }, [])
 
   const updateLabelDragFromPoint = useCallback((pointerId: number, clientX: number, clientY: number) => {
@@ -176,11 +210,11 @@ export function StackGuideOverlay({
     if (!editor && !insertMenu) return undefined
     const cancelFloatingUi = () => {
       setInsertMenu(null)
-      setEditor(current => current && current.value.trim() === '' ? null : current)
+      if (editor) commitEditor(false)
     }
     window.addEventListener('pointerdown', cancelFloatingUi)
     return () => window.removeEventListener('pointerdown', cancelFloatingUi)
-  }, [editor, insertMenu])
+  }, [commitEditor, editor, insertMenu])
 
   useLayoutEffect(() => {
     if (!activeInsertTool) return undefined
@@ -268,22 +302,7 @@ export function StackGuideOverlay({
 
   function submitEditor(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!editor) return
-    const formInput = event.currentTarget.elements.namedItem('stackGuideLabel') as HTMLInputElement | null
-    const label = (formInput?.value ?? editorInputRef.current?.value ?? editor.value).trim()
-    if (!label) {
-      formInput?.focus()
-      return
-    }
-    onCreate({
-      label,
-      gapIndex: editor.gapIndex,
-      insertAfterPaperTrack: editor.insertAfterPaperTrack,
-      displayRole: editor.displayRole,
-      viewSnapIndex: editor.snapIndex,
-      correctionLayerId: editor.correctionLayerId,
-    })
-    setEditor(null)
+    commitEditor(true)
   }
 
   return (
@@ -479,9 +498,14 @@ export function StackGuideOverlay({
                   {activeEditor && (
                     <form
                       className="stackGuideEditor"
+                      data-workspace-keyboard-scope="editor"
                       onSubmit={submitEditor}
                       onPointerDown={event => event.stopPropagation()}
                       onClick={event => event.stopPropagation()}
+                      onBlur={event => {
+                        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+                        commitEditor(false)
+                      }}
                     >
                       <input
                         ref={editorInputRef}
@@ -501,7 +525,8 @@ export function StackGuideOverlay({
                         onKeyDown={event => {
                           if (event.key === 'Escape') {
                             event.preventDefault()
-                            setEditor(null)
+                            event.stopPropagation()
+                            cancelEditor()
                           }
                         }}
                       />
@@ -509,7 +534,7 @@ export function StackGuideOverlay({
                         <button type="submit" className="stackGuideEditorIconButton" aria-label={uiText.stackGuides.confirm}>✓</button>
                       </Tooltip>
                       <Tooltip label={uiText.stackGuides.cancel}>
-                        <button type="button" className="stackGuideEditorIconButton" aria-label={uiText.stackGuides.cancel} onClick={() => setEditor(null)}>×</button>
+                        <button type="button" className="stackGuideEditorIconButton" aria-label={uiText.stackGuides.cancel} onClick={cancelEditor}>×</button>
                       </Tooltip>
                     </form>
                   )}

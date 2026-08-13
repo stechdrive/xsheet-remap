@@ -442,6 +442,9 @@ describe('TimelineMemoLayer anchor cues', () => {
       expect.objectContaining({ text: '黒いメモ' }),
       expect.objectContaining({ text: expect.objectContaining({ color: '#000000' }) }),
     )
+    expect(onUpsertText).toHaveBeenCalledTimes(1)
+    fireEvent.blur(editor)
+    expect(onUpsertText).toHaveBeenCalledTimes(1)
   })
 
   it('renders and edits text inside the selected anchored memo', () => {
@@ -505,6 +508,16 @@ describe('TimelineMemoLayer anchor cues', () => {
       expect.objectContaining({ textId: 'text_1', text: '更新' }),
       expect.objectContaining({ text: { color: '#123456', fontSizeUnits: 1 } }),
     )
+    expect(onUpsertText).toHaveBeenCalledTimes(1)
+
+    const restoredText = container.querySelector<SVGTextElement>('.timelineMemoText')!
+    fireEvent.doubleClick(restoredText)
+    const cancelledEditor = getByLabelText('メモ文字') as HTMLTextAreaElement
+    fireEvent.change(cancelledEditor, { target: { value: '保存しない' } })
+    fireEvent.keyDown(cancelledEditor, { key: 'Escape' })
+    fireEvent.blur(cancelledEditor)
+    expect(onUpsertText).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('.timelineMemoTextEditor')).toBeNull()
   })
 
   it('keeps the inline editor and committed text at the same logical font size across zoom', () => {

@@ -4,6 +4,7 @@ import { uiText } from './i18n'
 import { compareNaturalFileNameText } from './naturalSort'
 import { Tooltip } from './Tooltip'
 import { PaperTrackEditorState, floatingEditorStyle } from './app-foundation'
+import { useFloatingEditorBoundary } from './useFloatingEditorBoundary'
 
 export function PaperTrackEditorPopover({
   state,
@@ -18,16 +19,20 @@ export function PaperTrackEditorPopover({
 }) {
   const [name, setName] = useState(state.initialName)
   const [exportAfterPaperTrack, setExportAfterPaperTrack] = useState(state.exportAfterPaperTrack ?? '')
+  const { rootRef, handleKeyDown, completeWithSheetFocus } = useFloatingEditorBoundary<HTMLFormElement>(onCancel)
   const exportAfterOptions = exportAfterOptionsForPaperTrack(paperTracks, state.paperTrack)
   return (
     <form
+      ref={rootRef}
       className="paperTrackEditorPopover"
+      data-workspace-keyboard-scope="editor"
       style={floatingEditorStyle(state.x, state.y)}
       onSubmit={event => {
         event.preventDefault()
-        onSubmit(name, exportAfterPaperTrack || undefined)
+        completeWithSheetFocus(() => onSubmit(name, exportAfterPaperTrack || undefined))
       }}
       onPointerDown={event => event.stopPropagation()}
+      onKeyDown={handleKeyDown}
     >
       <label>
         <span>{state.mode === 'add' ? uiText.sheet.addOverlayTrackName : uiText.sheet.renameTrackName}</span>
@@ -49,7 +54,7 @@ export function PaperTrackEditorPopover({
           <button type="submit" aria-label={uiText.stackGuides.confirm}>✓</button>
         </Tooltip>
         <Tooltip label={uiText.stackGuides.cancel}>
-          <button type="button" aria-label={uiText.stackGuides.cancel} onClick={onCancel}>×</button>
+          <button type="button" aria-label={uiText.stackGuides.cancel} onClick={() => completeWithSheetFocus(onCancel)}>×</button>
         </Tooltip>
       </div>
     </form>
@@ -115,9 +120,4 @@ export function deleteRegisteredCellKey(project: CutProject, keyId: string): Cut
     },
     bindings: project.bindings.filter(binding => binding.keyId !== keyId),
   }
-}
-
-export function isInteractiveKeyboardTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
-  return Boolean(target.closest('input, textarea, select, button, [contenteditable="true"]'))
 }

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent, ty
 import type { SheetRevisionDocument } from '@xsheet-remap/core'
 import { Tooltip } from './Tooltip'
 import { useTouchLongPress } from './useTouchLongPress'
+import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
 
 type SheetHistoryRailProps = {
   topActions?: ReactNode
@@ -27,6 +28,7 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
   const [context, setContext] = useState<ContextState>(null)
   const touchLongPress = useTouchLongPress()
   const contextRef = useRef<HTMLDivElement | null>(null)
+  const addDialogRef = useModalDialogKeyboardBoundary<HTMLFormElement>(closeAdd, addOpen)
   const contextRevision = context
     ? props.revisions.find(revision => revision.revisionId === context.revisionId)
     : undefined
@@ -57,12 +59,16 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
     setAddOpen(true)
   }
 
+  function closeAdd() {
+    setAddOpen(false)
+  }
+
   function submitAdd(event: FormEvent) {
     event.preventDefault()
     const normalized = name.trim()
     if (!normalized) return
     props.onAdd({ name: normalized, mode, showSourceReference })
-    setAddOpen(false)
+    closeAdd()
   }
 
   function openContext(event: MouseEvent, revisionId: string) {
@@ -181,12 +187,12 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
       )}
 
       {addOpen && (
-        <div className="sheetHistoryDialogBackdrop" role="presentation" onPointerDown={() => setAddOpen(false)}>
-          <form className="sheetHistoryDialog" role="dialog" aria-modal="true" aria-labelledby="sheet-history-dialog-title" onSubmit={submitAdd} onPointerDown={event => event.stopPropagation()}>
+        <div className="sheetHistoryDialogBackdrop" role="presentation" onPointerDown={closeAdd}>
+          <form ref={addDialogRef} className="sheetHistoryDialog" role="dialog" aria-modal="true" aria-labelledby="sheet-history-dialog-title" data-workspace-keyboard-scope="dialog" onSubmit={submitAdd} onPointerDown={event => event.stopPropagation()}>
             <h2 id="sheet-history-dialog-title">シートを追加</h2>
             <label>
               <span>名前</span>
-              <input autoFocus value={name} list={suggestionId} onChange={event => setName(event.currentTarget.value)} />
+              <input value={name} list={suggestionId} onChange={event => setName(event.currentTarget.value)} />
               <datalist id={suggestionId}>{props.processSuggestions.map(value => <option key={value} value={value} />)}</datalist>
             </label>
             <fieldset className="sheetHistoryCreateMode">
@@ -198,7 +204,7 @@ export function SheetHistoryRail(props: SheetHistoryRailProps) {
               元のシートを薄く表示
             </label>
             <div className="sheetHistoryDialogActions">
-              <button type="button" onClick={() => setAddOpen(false)}>キャンセル</button>
+              <button type="button" onClick={closeAdd}>キャンセル</button>
               <button type="submit" className="primary" disabled={!name.trim()}>追加</button>
             </div>
           </form>

@@ -3,8 +3,60 @@ export interface SoundCueNavigationRequest {
   cueId: string
 }
 
-export type WorkspaceFocusOwner = 'sheet' | 'audio' | 'none'
+export type WorkspaceFocusOwner = 'sheet' | 'audio' | 'editor' | 'dialog' | 'none'
 export type WorkspaceKeyboardScope = 'sheet' | 'global-history' | 'ignore'
+export type WorkspaceDomKeyboardScope = 'sheet' | 'audio' | 'ignore' | 'inherit'
+
+const WORKSPACE_INTERACTIVE_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  'button',
+  'a[href]',
+  'summary',
+  '[contenteditable="true"]',
+  '[role="button"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[data-workspace-keyboard-scope="editor"]',
+  '[data-workspace-keyboard-scope="dialog"]',
+  '[role="dialog"]',
+].join(', ')
+
+export function resolveWorkspaceDomKeyboardScope(target: EventTarget | null): WorkspaceDomKeyboardScope {
+  if (!(target instanceof Element)) return 'inherit'
+  if (target.closest(WORKSPACE_INTERACTIVE_SELECTOR)) return 'ignore'
+  if (target.closest('[data-workspace-keyboard-scope="audio"]')) return 'audio'
+  if (target.closest('[data-workspace-keyboard-scope="sheet"]')) return 'sheet'
+  return 'inherit'
+}
+
+export function resolveWorkspaceKeyboardOwner(
+  target: EventTarget | null,
+  owner: WorkspaceFocusOwner,
+): WorkspaceFocusOwner | 'ignore' {
+  const domScope = resolveWorkspaceDomKeyboardScope(target)
+  if (domScope === 'ignore') return 'ignore'
+  if (domScope === 'audio' || domScope === 'sheet') return domScope
+  return owner
+}
+
+export function isInteractiveKeyboardTarget(target: EventTarget | null): boolean {
+  return resolveWorkspaceDomKeyboardScope(target) === 'ignore'
+}
+
+export function isTimingEditInteractionBoundary(
+  target: EventTarget | null,
+  eventType: 'pointerdown' | 'focusin',
+): boolean {
+  if (!(target instanceof Element)) return true
+  if (target.closest('[data-timing-edit-boundary="manual"]')) return false
+  if (eventType === 'pointerdown') return true
+  if (target.closest('[data-workspace-keyboard-scope="editor"], [data-workspace-keyboard-scope="dialog"], [role="dialog"]')) return false
+  return !target.closest('[data-workspace-keyboard-scope="sheet"]')
+}
 
 export function resolveWorkspaceKeyboardScope(input: {
   owner: WorkspaceFocusOwner
@@ -13,6 +65,7 @@ export function resolveWorkspaceKeyboardScope(input: {
   key: string
 }): WorkspaceKeyboardScope {
   if (input.defaultPrevented) return 'ignore'
+  if (input.owner === 'editor' || input.owner === 'dialog') return 'ignore'
   if (input.owner !== 'audio') return 'sheet'
   return input.modifier && (input.key.toLowerCase() === 'z' || input.key.toLowerCase() === 'y')
     ? 'global-history'

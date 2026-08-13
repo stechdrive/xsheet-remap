@@ -3,6 +3,7 @@ import { formatLogicalSheetFrameTimecode, type LogicalTimelineLane, type TimedRa
 import type { SoundCueDialogState } from './appTypes'
 import { DurationFrameControl } from './DurationFrameControl'
 import { HistoryInput } from './HistoryInput'
+import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
 
 export interface SoundCueDialogSubmit {
   cueId?: string
@@ -52,6 +53,7 @@ export function SoundCueDialog({
   const [assignmentTarget, setAssignmentTarget] = useState(state.audioCandidate?.cueId ?? 'new')
   const [alignment, setAlignment] = useState<SoundCueAudioAlignment>('keep-offset')
   const labelInputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useModalDialogKeyboardBoundary<HTMLDivElement>(onCancel)
   const frameStart = Math.max(frameMin, Math.min(frameMax, initialFrameStart))
   const maxDuration = Math.max(1, frameMax - frameStart + 1)
   const frameEnd = frameStart + durationFrames - 1
@@ -69,16 +71,6 @@ export function SoundCueDialog({
       labelInputRef.current?.select()
     }
   }, [selectedExistingCue])
-
-  useEffect(() => {
-    function closeOnEscape(event: globalThis.KeyboardEvent) {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      onCancel()
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onCancel])
 
   function updateDuration(nextDuration: number) {
     setDurationFrames(Math.max(1, Math.min(maxDuration, Math.round(nextDuration))))
@@ -105,7 +97,7 @@ export function SoundCueDialog({
   }
 
   return (
-    <div className="assetQuickPreviewBackdrop soundCueDialogBackdrop" role="dialog" aria-modal="true" aria-label={dialogTitle} onPointerDown={onCancel}>
+    <div ref={dialogRef} className="assetQuickPreviewBackdrop soundCueDialogBackdrop" role="dialog" aria-modal="true" aria-label={dialogTitle} tabIndex={-1} data-workspace-keyboard-scope="dialog" onPointerDown={onCancel}>
       <form className="soundCueDialog" onSubmit={submit} onPointerDown={event => event.stopPropagation()}>
         <header className="soundCueDialogHeader">
           <strong>{dialogTitle}</strong>

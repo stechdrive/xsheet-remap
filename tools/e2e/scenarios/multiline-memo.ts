@@ -1,3 +1,5 @@
+import type { SheetTimingRole } from '@xsheet-remap/core'
+
 interface ClientPoint {
   x: number
   y: number
@@ -13,6 +15,8 @@ export interface MultilineMemoDriver {
   setReactFieldValue: (selector: string, value: string) => Promise<void>
   keyboardShortcut: (key: string) => Promise<void>
   keyPress: (key: string) => Promise<void>
+  clickFrame: (role: SheetTimingRole, paperTrack: string, frame: number) => Promise<void>
+  waitForEventAt: (role: SheetTimingRole, paperTrack: string, frame: number, value: string) => Promise<void>
   captureScreenshotArtifact: (label: string) => Promise<string>
 }
 
@@ -27,6 +31,8 @@ export async function verifyMultilineMemoScenario(driver: MultilineMemoDriver): 
     setReactFieldValue,
     keyboardShortcut,
     keyPress,
+    clickFrame,
+    waitForEventAt,
     captureScreenshotArtifact,
   } = driver
   const editSelector = 'button[aria-label="MEMOを編集"]'
@@ -39,6 +45,22 @@ export async function verifyMultilineMemoScenario(driver: MultilineMemoDriver): 
   await setReactFieldValue(editorSelector, expectedValue)
   await keyboardShortcut('Enter')
   await waitForPageCondition(() => !document.querySelector('textarea[aria-label="MEMO"]'), 'multiline MEMO committed')
+  await waitForPageCondition(
+    () => document.activeElement?.matches('.sheetViewport[data-workspace-keyboard-scope="sheet"]') === true,
+    'sheet keyboard focus restored after MEMO commit',
+  )
+
+  await clickFrame('cell', 'A', 1)
+  await waitForPageCondition(
+    () => document.activeElement?.matches('.sheetViewport[data-workspace-keyboard-scope="sheet"]') === true,
+    'sheet keyboard focus retained after frame selection',
+  )
+  await keyPress('2')
+  await waitForPageCondition(() => document.querySelector('.timingDraftText')?.textContent === '2', 'timing draft after MEMO commit')
+  await keyPress('Enter')
+  await waitForEventAt('cell', 'A', 1, '2')
+  await waitForPageCondition(() => !document.querySelector(editorSelector), 'MEMO editor stayed closed during timing commit')
+  checks.push('kept Ctrl+Enter MEMO completion and the next numeric timing entry in the sheet keyboard scope')
 
   const layout = await evaluatePage<{
     texts: string[]

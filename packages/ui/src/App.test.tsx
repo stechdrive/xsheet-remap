@@ -686,7 +686,31 @@ it('edits cut metadata from a template-defined sheet region', () => {
 
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(screen.queryByRole('dialog', { name: 'カットを編集' })).toBeNull()
-    expect(document.activeElement).toBe(editButton)
+    expect(document.activeElement).toBe(document.querySelector('.sheetViewport'))
+  })
+
+  it('keeps Ctrl+Enter metadata completion and the next timing entry in the sheet keyboard scope', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'MEMOを編集' }))
+    const memoEditor = screen.getByRole('textbox', { name: 'MEMO' })
+    fireEvent.change(memoEditor, { target: { value: '確定済みメモ' } })
+    fireEvent.keyDown(memoEditor, { key: 'Enter', ctrlKey: true })
+
+    const viewport = document.querySelector<HTMLElement>('.sheetViewport')!
+    expect(document.activeElement).toBe(viewport)
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    expect(document.activeElement).toBe(viewport)
+
+    fireEvent.keyDown(viewport, { key: '2' })
+    expect(document.querySelector('.timingDraftText')?.textContent).toBe('2')
+    fireEvent.keyDown(viewport, { key: 'Enter' })
+
+    expect(screen.queryByRole('textbox', { name: 'MEMO' })).toBeNull()
+    expect(document.querySelector('.timingDraftText')).toBeNull()
+    expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toContain('2')
   })
 
   it('light-dismisses template-defined metadata editing', () => {
@@ -1630,6 +1654,27 @@ it('commits an active text annotation on outside click without creating another 
     clickSheet(sheet, 520, 520)
     expect(document.querySelectorAll('.annotationTextEditor')).toHaveLength(1)
     expect(document.querySelectorAll('.annotationTextDisplay')).toHaveLength(1)
+  })
+
+it('resets the page text editor completion guard for every edit session', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+
+    fireEvent.click(screen.getByRole('button', { name: uiText.sheet.textTool }))
+    clickSheet(sheet, 320, 320)
+    const firstEditor = document.querySelector<HTMLTextAreaElement>('.annotationTextEditor')!
+    fireEvent.change(firstEditor, { target: { value: 'first' } })
+    fireEvent.keyDown(firstEditor, { key: 'Enter', ctrlKey: true })
+
+    const display = document.querySelector<HTMLButtonElement>('.annotationTextDisplay')!
+    fireEvent.doubleClick(display)
+    const secondEditor = document.querySelector<HTMLTextAreaElement>('.annotationTextEditor')!
+    fireEvent.change(secondEditor, { target: { value: 'second' } })
+    fireEvent.blur(secondEditor, { relatedTarget: document.querySelector('.sheetViewport') })
+
+    expect(document.querySelector('.annotationTextEditor')).toBeNull()
+    expect(document.querySelector('.annotationTextDisplay')?.textContent).toBe('second')
   })
 
 it('reuses a registered cell when typing the same value in the same CELL column', () => {

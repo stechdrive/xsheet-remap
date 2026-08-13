@@ -2,10 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   advancePrimaryPointerActivation,
   handleWorkspaceKeyboardBoundary,
+  isInteractiveKeyboardTarget,
+  isTimingEditInteractionBoundary,
   isRepeatedPrimaryPointerActivation,
   nextSoundCueNavigationRequest,
   resolveSheetViewportPointerIntent,
   resolveWorkspaceKeyboardScope,
+  resolveWorkspaceKeyboardOwner,
   sheetViewportPointerTarget,
 } from './workspaceInteractionPolicy'
 
@@ -59,6 +62,58 @@ describe('workspace interaction policy', () => {
     expect(undo).toHaveBeenCalledTimes(1)
     expect(redo).not.toHaveBeenCalled()
     expect(preventDefault).toHaveBeenCalledTimes(1)
+  })
+
+  it('derives keyboard ownership from the actual focused DOM surface', () => {
+    const sheet = document.createElement('div')
+    sheet.dataset.workspaceKeyboardScope = 'sheet'
+    const sheetCanvas = document.createElement('div')
+    const button = document.createElement('button')
+    sheet.append(sheetCanvas, button)
+
+    const audio = document.createElement('section')
+    audio.dataset.workspaceKeyboardScope = 'audio'
+    const audioCanvas = document.createElement('div')
+    audio.append(audioCanvas)
+
+    expect(resolveWorkspaceKeyboardOwner(sheetCanvas, 'audio')).toBe('sheet')
+    expect(resolveWorkspaceKeyboardOwner(audioCanvas, 'sheet')).toBe('audio')
+    expect(resolveWorkspaceKeyboardOwner(button, 'sheet')).toBe('ignore')
+    expect(isInteractiveKeyboardTarget(button)).toBe(true)
+  })
+
+  it('keeps editor, dialog, and contenteditable keys out of sheet commands', () => {
+    const editor = document.createElement('div')
+    editor.dataset.workspaceKeyboardScope = 'editor'
+    const editable = document.createElement('div')
+    editable.contentEditable = 'true'
+    editor.append(editable)
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+
+    expect(resolveWorkspaceKeyboardOwner(editor, 'sheet')).toBe('ignore')
+    expect(resolveWorkspaceKeyboardOwner(editable, 'sheet')).toBe('ignore')
+    expect(resolveWorkspaceKeyboardOwner(dialog, 'sheet')).toBe('ignore')
+    expect(resolveWorkspaceKeyboardScope({ owner: 'editor', defaultPrevented: false, modifier: false, key: '2' })).toBe('ignore')
+    expect(resolveWorkspaceKeyboardScope({ owner: 'dialog', defaultPrevented: false, modifier: false, key: 'Delete' })).toBe('ignore')
+  })
+
+  it('commits timing drafts before pointer actions without treating focus restoration as a second command', () => {
+    const sheet = document.createElement('div')
+    sheet.dataset.workspaceKeyboardScope = 'sheet'
+    const canvas = document.createElement('div')
+    const editor = document.createElement('div')
+    editor.dataset.workspaceKeyboardScope = 'editor'
+    const manual = document.createElement('button')
+    manual.dataset.timingEditBoundary = 'manual'
+    sheet.append(canvas, editor)
+
+    expect(isTimingEditInteractionBoundary(canvas, 'pointerdown')).toBe(true)
+    expect(isTimingEditInteractionBoundary(editor, 'pointerdown')).toBe(true)
+    expect(isTimingEditInteractionBoundary(canvas, 'focusin')).toBe(false)
+    expect(isTimingEditInteractionBoundary(editor, 'focusin')).toBe(false)
+    expect(isTimingEditInteractionBoundary(document.body, 'focusin')).toBe(true)
+    expect(isTimingEditInteractionBoundary(manual, 'pointerdown')).toBe(false)
   })
 
   it.each([

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import { standardA3SheetTemplate, type SheetTemplate } from '@xsheet-remap/core'
+import { createAlphabeticTrackLabels, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, standardA3SheetTemplate, withSheetTemplatePaperTracks, type SheetTemplate } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defaultSheetImageSettings } from './sheetImages'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
@@ -25,6 +25,82 @@ afterEach(() => {
 })
 
 describe('TemplateRegionEditor region visibility and position locks', () => {
+  it('hit-tests a horizontally flowed region at its displayed position', () => {
+    vi.spyOn(SVGSVGElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100))
+    const action = digitalStandardSheetTemplate.regions.find(region => region.regionId === 'digital_action_grid')!
+    const flowedTemplate: SheetTemplate = {
+      ...digitalStandardSheetTemplate,
+      horizontalFlow: {
+        ...digitalStandardSheetTemplate.horizontalFlow!,
+        regionIds: [action.regionId],
+      },
+      regions: [{ ...action, rect: { ...action.rect, x: 0.8 } }],
+    }
+    const onSelectRegion = vi.fn()
+    const { container } = render(
+      <TemplateRegionEditor
+        template={flowedTemplate}
+        setTemplate={vi.fn()}
+        imageUrl={null}
+        imageSettings={defaultSheetImageSettings()}
+        zoom={1}
+        setZoom={vi.fn()}
+        selectedRegionId={null}
+        onSelectRegion={onSelectRegion}
+      />,
+    )
+
+    fireEvent.pointerDown(container.querySelector('.templateEditorHitSurface')!, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 10,
+      clientY: 50,
+    })
+
+    expect(onSelectRegion).toHaveBeenCalledWith(action.regionId)
+  })
+
+  it('uses the resolved digital canvas and aligns selection controls with flowed regions', () => {
+    const tracks = createAlphabeticTrackLabels(22)
+    const expanded = withSheetTemplatePaperTracks({
+      ...digitalStandardSheetTemplate,
+      defaults: {
+        ...digitalStandardSheetTemplate.defaults,
+        durationFrames: 481,
+        paperTracks: tracks,
+      },
+    }, tracks)
+    const selected = expanded.regions.find(region => region.regionId === 'digital_cell_grid')!
+    const pageSize = resolveSheetTemplatePageSize(expanded, 481, { paperTracks: tracks })
+    const resolvedRect = resolveSheetTemplateRegionRect(expanded, selected, 481, { paperTracks: tracks })
+
+    const { container } = render(
+      <TemplateRegionEditor
+        template={expanded}
+        setTemplate={vi.fn()}
+        imageUrl={null}
+        imageSettings={defaultSheetImageSettings()}
+        zoom={1}
+        setZoom={vi.fn()}
+        selectedRegionId={selected.regionId}
+        onSelectRegion={vi.fn()}
+      />,
+    )
+
+    expect(container.querySelector<HTMLElement>('.templateEditorCanvas')?.style.width).toBe(`${pageSize.widthPx}px`)
+    expect(container.querySelector<HTMLElement>('.templateEditorCanvas')?.style.height).toBe(`${pageSize.heightPx}px`)
+    expect(container.querySelector<HTMLElement>('.templateEditorZoomSurface')?.style.width).toBe(`${pageSize.widthPx}px`)
+    expect(Array.from(container.querySelectorAll('.templateColumnText')).some(element => element.textContent === 'V')).toBe(true)
+    const handle = container.querySelector<HTMLElement>('.templateHandleSvg')!
+    expect(Number.parseFloat(handle.style.left)).toBeCloseTo(resolvedRect.x * pageSize.widthPx)
+    expect(Number.parseFloat(handle.style.width)).toBeCloseTo(resolvedRect.w * pageSize.widthPx)
+    expect(container.querySelectorAll('.templateHandleKnob')).toHaveLength(2)
+    expect(container.querySelectorAll('.templateDomEdgeGuide.vertical')).toHaveLength(0)
+    expect(container.querySelectorAll('.templateDomEdgeGuide.horizontal')).toHaveLength(2)
+    expect(container.querySelector('.templateEditorCaption')?.textContent).toContain('CELL / 22列 / 481行')
+  })
+
   it('removes hidden regions from both the static preview and hit testing', () => {
     vi.spyOn(SVGSVGElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100))
     const onSelectRegion = vi.fn()

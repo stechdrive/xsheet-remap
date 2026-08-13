@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { digitalStandardSheetTemplate, standardA3SheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
+import { createAlphabeticTrackLabels, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, standardA3SheetTemplate, withSheetTemplatePaperTracks, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import {
   buildTemplateChromeRenderModel,
   buildTemplateEditorRegionRenderModel,
   buildTemplateEditorRenderModel,
+  buildTemplateEditorSurfaceModel,
   buildTemplateGridOverlayRenderModel,
   gridRowLineClassName,
   hitTestTemplateEditorTarget,
@@ -15,9 +16,55 @@ import {
   templateEditorPointFromClientRect,
   templateEditorNormalizedRectValue,
   templateEditorRectPixelValue,
+  updateTemplateEditorRectEdgeFromSurface,
 } from './templateEditorGeometry'
 
 describe('template editor geometry', () => {
+  it('provides one resolved surface contract for dynamic canvas size, regions, and pointer coordinates', () => {
+    const tracks = createAlphabeticTrackLabels(22)
+    const template = withSheetTemplatePaperTracks(digitalStandardSheetTemplate, tracks)
+    const surface = buildTemplateEditorSurfaceModel(template)
+    const expectedPage = resolveSheetTemplatePageSize(template, template.defaults.durationFrames, { paperTracks: tracks })
+    const cell = template.regions.find(region => region.regionId === 'digital_cell_grid')!
+
+    expect(surface.pageSize).toEqual(expectedPage)
+    expect(surface.regionRects.get(cell.regionId)).toEqual(resolveSheetTemplateRegionRect(
+      template,
+      cell,
+      template.defaults.durationFrames,
+      { paperTracks: tracks },
+    ))
+  })
+
+  it('inverts a stretched logical-frame region when an editor edge is dragged', () => {
+    const template = {
+      ...digitalStandardSheetTemplate,
+      defaults: { ...digitalStandardSheetTemplate.defaults, durationFrames: 481 },
+    }
+    const region = template.regions.find(candidate => candidate.regionId === 'digital_cell_grid')!
+    const surface = buildTemplateEditorSurfaceModel(template)
+    const surfaceRect = surface.regionRects.get(region.regionId)!
+    const startBottomPx = (surfaceRect.y + surfaceRect.h) * surface.pageSize.heightPx
+    const targetBottomPx = startBottomPx - 240
+    const nextRect = updateTemplateEditorRectEdgeFromSurface(
+      region.rect,
+      surfaceRect,
+      'bottom',
+      { x: 0, y: targetBottomPx / surface.pageSize.heightPx },
+      template.page,
+      surface.pageSize,
+    )
+    const nextTemplate = {
+      ...template,
+      regions: template.regions.map(candidate => candidate.regionId === region.regionId ? { ...candidate, rect: nextRect } : candidate),
+    }
+    const nextPage = resolveSheetTemplatePageSize(nextTemplate, 481, { paperTracks: template.defaults.paperTracks })
+    const nextSurfaceRect = resolveSheetTemplateRegionRect(nextTemplate, nextTemplate.regions.find(candidate => candidate.regionId === region.regionId)!, 481, { paperTracks: template.defaults.paperTracks })
+
+    expect(nextSurfaceRect.y * nextPage.heightPx).toBeCloseTo(surfaceRect.y * surface.pageSize.heightPx)
+    expect((nextSurfaceRect.y + nextSurfaceRect.h) * nextPage.heightPx).toBeCloseTo(targetBottomPx)
+  })
+
   it.each([standardA3SheetTemplate, digitalStandardSheetTemplate])(
     'builds the active-region preview without changing full-model output for $templateId',
     template => {

@@ -2,6 +2,7 @@ import {
   convertSheetTemplateLength,
   formatSheetTemplateCutNumber,
   getSheetViewLayout,
+  resolveSheetTemplatePageSize,
   sheetTemplateLengthForReferencePx,
   withSheetTemplatePaperTracks,
   type CorrectionLayer,
@@ -19,7 +20,7 @@ import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './ap
 import { uiText } from './i18n'
 import { ProcessSettingsDialog } from './ProcessSettingsDialog'
 import { sortedCorrectionLayers } from './sheetAssets'
-import { SHEET_ZOOM_MIN, TEMPLATE_ZOOM_MAX } from './sheetConstants'
+import { TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
 import { calibrationGridBoundsForTemplate, calibrationTargetRectForTemplate, defaultSheetImageSettings, resolveImageRefUrl } from './sheetImages'
 import { clampNumber, fitZoomForViewport } from './sheetInteraction'
 import { cloneSheetTemplate, createTemplateDraft, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, synchronizeDigitalTemplatePaperTracks, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
@@ -55,7 +56,6 @@ import {
 } from './templateRegionAuthoring'
 import { validateTemplateAuthoring } from './templateAuthoringValidation'
 import { templateFieldChoicesFromText, templateFieldReferenceCount, templateFieldSemanticsLockReason } from './templateFieldAuthoring'
-import { templatePreviewForProject } from './templateProjectPreview'
 
 export type TemplateWorkspaceMode = 'project' | 'standalone'
 
@@ -161,9 +161,9 @@ export function TemplateWorkspace({
   const templateReferenceImageSettings: SheetImageSettings = useMemo(() => template.defaultUnderlay?.alignment
     ? { ...defaultSheetImageSettings(), ...template.defaultUnderlay.alignment }
     : defaultSheetImageSettings(), [template.defaultUnderlay])
-  const editorPreviewTemplate = useMemo(
-    () => templatePreviewForProject(template, project, mode === 'project'),
-    [mode, project, template],
+  const editorPageSize = useMemo(
+    () => resolveSheetTemplatePageSize(template, template.defaults.durationFrames, { paperTracks: template.defaults.paperTracks }),
+    [template],
   )
   const referenceImageMetadata = template.defaultUnderlay?.imageRef.pixelWidth && template.defaultUnderlay.imageRef.pixelHeight
     ? {
@@ -211,7 +211,7 @@ export function TemplateWorkspace({
   }, [hasTemplateDraftChanges])
 
   function setClampedTemplateZoom(value: number) {
-    setTemplateZoom(clampNumber(value, SHEET_ZOOM_MIN, TEMPLATE_ZOOM_MAX))
+    setTemplateZoom(clampNumber(value, TEMPLATE_ZOOM_MIN, TEMPLATE_ZOOM_MAX))
   }
 
   function markTemplateDraftChanged() {
@@ -312,7 +312,7 @@ export function TemplateWorkspace({
   function fitTemplateToViewport() {
     const viewport = document.querySelector<HTMLElement>('.templateEditorViewport')
     if (!viewport) return
-    const zoom = fitZoomForViewport(viewport, template.page, { horizontal: 24, vertical: 24 })
+    const zoom = fitZoomForViewport(viewport, editorPageSize, { horizontal: 24, vertical: 24 })
     if (zoom !== null) setClampedTemplateZoom(zoom)
   }
 
@@ -1053,7 +1053,7 @@ export function TemplateWorkspace({
           {mode === 'project' && (
             <>
               <dt>初期値の適用先</dt>
-              <dd className="templateRegionDerivedNotice">以下のFPS・フレーム数・セル列数は、このテンプレートから作る新しいプロジェクトの初期値です。現在開いているプロジェクトの尺やトラックは変更しません。</dd>
+              <dd className="templateRegionDerivedNotice">編集画面には、このテンプレートのFPS・フレーム数・セル列数をそのまま表示します。プロジェクトへ反映しても、現在開いているシートの尺やトラックは変更しません。</dd>
             </>
           )}
           <dt>{mode === 'project' ? '新規プロジェクトの初期FPS' : 'FPS'}</dt>
@@ -1074,8 +1074,10 @@ export function TemplateWorkspace({
               return withSheetTemplatePaperTracks(current, paperTracks)
             })
           }} /></dd>
+          <dt>現在の表示キャンバス</dt>
+          <dd><strong>{editorPageSize.widthPx} × {editorPageSize.heightPx}px</strong> / 連続キャンバス</dd>
           <dt>基準キャンバス</dt>
-          <dd>{template.page.widthPx} × {template.page.heightPx}px / 連続キャンバス</dd>
+          <dd>{template.page.widthPx} × {template.page.heightPx}px</dd>
         </>
       ) : (
         <>
@@ -1933,7 +1935,7 @@ export function TemplateWorkspace({
             {uiText.sheet.zoom}
             <input
               type="range"
-              min={SHEET_ZOOM_MIN * 100}
+              min={TEMPLATE_ZOOM_MIN * 100}
               max={TEMPLATE_ZOOM_MAX * 100}
               value={templateZoomPercent}
               onInput={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
@@ -1992,7 +1994,7 @@ export function TemplateWorkspace({
           onMove={moveRegion}
         />
         <TemplateRegionEditor
-          template={editorPreviewTemplate}
+          template={template}
           setTemplate={updateTemplateDraft}
           imageUrl={templateReferenceImageUrl}
           imageSettings={templateReferenceImageSettings}

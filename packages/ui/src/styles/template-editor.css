@@ -429,9 +429,7 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  display: grid;
-  justify-items: center;
-  align-items: start;
+  display: block;
   padding: 10px;
   background: #d6d5ce;
   border: 1px solid #bfc3bd;
@@ -442,6 +440,7 @@
 .templateEditorZoomSurface {
   position: relative;
   flex: none;
+  margin-inline: auto;
 }
 
 .templateEditorCanvas {

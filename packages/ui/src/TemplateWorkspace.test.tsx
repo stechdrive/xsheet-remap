@@ -1,4 +1,4 @@
-import { createDefaultProject, digitalStandardSheetTemplate, standardA3SheetTemplate, type SheetTemplate } from '@xsheet-remap/core'
+import { createAlphabeticTrackLabels, createDefaultProject, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, standardA3SheetTemplate, type SheetTemplate } from '@xsheet-remap/core'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TemplateWorkspace } from './TemplateWorkspace'
@@ -73,10 +73,38 @@ describe('TemplateWorkspace project integration', () => {
     await waitFor(() => expect(within(sectionNavigation).getByRole('button', { name: '基本設定' }).getAttribute('aria-current')).toBe('page'))
     expect((screen.getByLabelText('名前') as HTMLInputElement).value).toBe(digitalStandardSheetTemplate.name)
     expect(screen.getByLabelText('FPS')).toBeTruthy()
-    expect(screen.getByText(/現在開いているプロジェクトの尺やトラックは変更しません/)).toBeTruthy()
+    expect(screen.getByText(/現在開いているシートの尺やトラックは変更しません/)).toBeTruthy()
     expect(screen.getByText('新規プロジェクトの初期FPS')).toBeTruthy()
     expect(within(sectionNavigation).queryByRole('button', { name: '参照画像' })).toBeNull()
     expect(document.querySelector('input[type="file"][accept="image/*"]')).toBeNull()
+  })
+
+  it('previews authored digital defaults instead of replacing them with the current project tracks', () => {
+    const project = createDefaultProject()
+    project.logicalSheet.paperTracks = project.logicalSheet.paperTracks.slice(0, 2)
+    render(
+      <TemplateWorkspace
+        project={project}
+        template={digitalStandardSheetTemplate}
+        onLoadTemplate={async () => null}
+        onSaveTemplate={async () => ({ saved: true })}
+        onApplyTemplate={vi.fn()}
+        onCreateTemplateDraft={(kind): SheetTemplate => createTemplateDraft(kind, digitalStandardSheetTemplate)}
+        onUpdateCorrectionLayers={() => true}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('セル列数（ACTION/CELL共通）'), { target: { value: '22' } })
+
+    const tracks = createAlphabeticTrackLabels(22)
+    const authored = {
+      ...digitalStandardSheetTemplate,
+      defaults: { ...digitalStandardSheetTemplate.defaults, paperTracks: tracks },
+    }
+    const expectedPage = resolveSheetTemplatePageSize(authored, authored.defaults.durationFrames, { paperTracks: tracks })
+    expect(document.querySelector<HTMLElement>('.templateEditorCanvas')?.style.width).toBe(`${expectedPage.widthPx}px`)
+    expect(Array.from(document.querySelectorAll('.templateColumnText')).some(element => element.textContent === 'V')).toBe(true)
+    expect(project.logicalSheet.paperTracks).toHaveLength(2)
   })
 
   it('stores custom field defaults using the selected value type and can return to unset', async () => {

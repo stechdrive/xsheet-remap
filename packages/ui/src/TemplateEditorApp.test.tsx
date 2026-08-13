@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { createAlphabeticTrackLabels, digitalStandardSheetTemplate, resolveSheetTemplatePageSize } from '@xsheet-remap/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TemplateEditorApp } from './TemplateEditorApp'
 import { uiText } from './i18n'
@@ -31,7 +32,10 @@ beforeEach(() => {
   imageMetadataMocks.readTemplateImageMetadata.mockReset().mockResolvedValue(null)
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 describe('TemplateEditorApp authoring workflow', () => {
   it('starts with four clear creation routes and no heavy editor canvas', () => {
@@ -92,11 +96,12 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(document.querySelector('.templateEditorCanvas')?.classList.contains('showPixelGrid')).toBe(true)
   })
 
-  it('creates a digital template with shared ACTION and CELL columns and no paper controls', () => {
+  it('creates a digital template with shared ACTION and CELL columns and no paper controls', async () => {
     render(<TemplateEditorApp />)
     fireEvent.click(screen.getByRole('button', { name: 'デジタルテンプレート' }))
 
-    expect(screen.getByText('1920 × 3600px / 連続キャンバス')).toBeTruthy()
+    expect(screen.getByText('現在の表示キャンバス')).toBeTruthy()
+    expect(screen.getAllByText('1920 × 3600px')).toHaveLength(2)
     expect(screen.getByText('セル列数（ACTION/CELL共通）')).toBeTruthy()
     expect(screen.getByLabelText('FPS')).toBeTruthy()
     expect(screen.getByLabelText('初期フレーム数')).toBeTruthy()
@@ -108,11 +113,27 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(document.querySelector('.bindingTable')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'ACTIONを編集' }))
     const actionColumnCount = screen.getByLabelText('ACTIONの共有セル列数') as HTMLInputElement
-    fireEvent.change(actionColumnCount, { target: { value: '4' } })
-    expect(actionColumnCount.value).toBe('4')
+    fireEvent.change(actionColumnCount, { target: { value: '22' } })
+    expect(actionColumnCount.value).toBe('22')
     fireEvent.click(screen.getByRole('button', { name: 'CELL' }))
     const cellColumnCount = screen.getByLabelText('CELLの共有セル列数') as HTMLInputElement
-    expect(cellColumnCount.value).toBe('4')
+    expect(cellColumnCount.value).toBe('22')
+
+    const tracks = createAlphabeticTrackLabels(22)
+    const expectedPage = resolveSheetTemplatePageSize(
+      { ...digitalStandardSheetTemplate, defaults: { ...digitalStandardSheetTemplate.defaults, paperTracks: tracks } },
+      digitalStandardSheetTemplate.defaults.durationFrames,
+      { paperTracks: tracks },
+    )
+    expect(document.querySelector<HTMLElement>('.templateEditorCanvas')?.style.width).toBe(`${expectedPage.widthPx}px`)
+    expect(Array.from(document.querySelectorAll('.templateColumnText')).some(element => element.textContent === 'V')).toBe(true)
+    await waitFor(() => expect(document.querySelector('.statusIssueSummary')?.textContent).toBe(`${expectedPage.widthPx} x ${expectedPage.heightPx}px`))
+
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(600)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(420)
+    fireEvent.click(screen.getByRole('button', { name: '全体表示' }))
+    const fittedZoom = Number.parseFloat(document.querySelector<HTMLElement>('.templateEditorCanvas')!.style.transform.match(/scale\(([^)]+)\)/)![1]!)
+    expect(fittedZoom).toBeCloseTo(Math.min((600 - 24) / expectedPage.widthPx, (420 - 24) / expectedPage.heightPx))
   })
 
   it('opens a region from the collection, keeps management and printed names independent, and returns to the collection', () => {

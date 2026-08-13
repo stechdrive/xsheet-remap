@@ -1,5 +1,6 @@
 import {
   createDefaultProject,
+  resolveSheetTemplatePageSize,
   standardA3SheetTemplate,
   updateCorrectionLayers,
   type CorrectionLayer,
@@ -35,12 +36,7 @@ export function TemplateEditorApp() {
   const [initialDraftDirty, setInitialDraftDirty] = useState(false)
   const draftStateRef = useRef<TemplateWorkspaceDraftState>({ template: structuredClone(standardA3SheetTemplate), dirty: false })
   const recoverySaveTimerRef = useRef<number | null>(null)
-  const [draftSummary, setDraftSummary] = useState(() => ({
-    dirty: false,
-    name: standardA3SheetTemplate.name,
-    widthPx: standardA3SheetTemplate.page.widthPx,
-    heightPx: standardA3SheetTemplate.page.heightPx,
-  }))
+  const [draftSummary, setDraftSummary] = useState(() => templateDraftSummary(standardA3SheetTemplate, false))
   const [recovery, setRecovery] = useState<TemplateDraftRecovery | null>(null)
   const [workspaceKey, setWorkspaceKey] = useState(0)
   const [helpDialogOpen, setHelpDialogOpen] = useState(false)
@@ -56,12 +52,7 @@ export function TemplateEditorApp() {
   const handleDraftStateChange = useCallback((state: TemplateWorkspaceDraftState) => {
     draftStateRef.current = state
     setDraftSummary(current => {
-      const next = {
-        dirty: state.dirty,
-        name: state.template.name,
-        widthPx: state.template.page.widthPx,
-        heightPx: state.template.page.heightPx,
-      }
+      const next = templateDraftSummary(state.template, state.dirty)
       return current.dirty === next.dirty
         && current.name === next.name
         && current.widthPx === next.widthPx
@@ -139,7 +130,7 @@ export function TemplateEditorApp() {
     setInitialDraftTemplate(cloned)
     setInitialDraftDirty(dirty)
     draftStateRef.current = { template: cloned, dirty }
-    setDraftSummary({ dirty, name: cloned.name, widthPx: cloned.page.widthPx, heightPx: cloned.page.heightPx })
+    setDraftSummary(templateDraftSummary(cloned, dirty))
     setProject(createDefaultProject())
     setWorkspaceKey(current => current + 1)
     setView('workspace')
@@ -226,6 +217,11 @@ export function TemplateEditorApp() {
       {helpDialogOpen && <TemplateEditorHelpDialog onClose={() => setHelpDialogOpen(false)} />}
     </div>
   )
+}
+
+function templateDraftSummary(template: SheetTemplate, dirty: boolean) {
+  const pageSize = resolveSheetTemplatePageSize(template, template.defaults.durationFrames, { paperTracks: template.defaults.paperTracks })
+  return { dirty, name: template.name, ...pageSize }
 }
 
 function errorMessage(error: unknown): string {

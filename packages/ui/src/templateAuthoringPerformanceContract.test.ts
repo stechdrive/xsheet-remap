@@ -18,11 +18,14 @@ describe('template authoring performance contract', () => {
     expect(workspace).toContain("deep: activeDetailTab === 'review'")
   })
 
-  it('keeps the static render model memoized and filters hidden regions after model creation', () => {
+  it('keeps committed controls synchronous while isolating rAF drag previews from the static model', () => {
     const editor = readSource('template-workspace-region-editor.tsx')
 
     expect(editor).toContain('() => buildTemplateEditorRenderModel')
-    expect(editor).toContain('useDeferredValue(template)')
+    expect(editor).not.toContain('useDeferredValue(template)')
+    expect(editor).toContain('const [dragPreview, setDragPreview]')
+    expect(editor).toContain('window.requestAnimationFrame(updatePreview)')
+    expect(editor).toContain('buildTemplateEditorSurfaceModel')
     expect(editor).toContain('withoutTemplateRegions(unfilteredBaseRenderModel, hiddenRegionIds)')
   })
 

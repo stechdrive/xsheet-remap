@@ -184,6 +184,12 @@ export type TemplateEditorRenderModel = {
   calibrationTargetRect: NormalizedRect | null
 }
 
+export type TemplateEditorSurfaceModel = {
+  pageSize: SheetSvgPageSize
+  regionRects: ReadonlyMap<string, NormalizedRect>
+  calibrationTargetRect: NormalizedRect | null
+}
+
 export type TemplateEditorRegionRenderModel = {
   chrome: TemplateChromeRenderModel
   gridOverlay: TemplateGridOverlayRenderModel | null
@@ -222,6 +228,90 @@ export function buildTemplateEditorRenderModel(template: SheetTemplate, duration
       .filter((model): model is TemplateGridOverlayRenderModel => model !== null),
     calibrationTargetRect: calibrationTargetRectForTemplate(template),
   }
+}
+
+/**
+ * Resolves the geometry that the authoring canvas actually displays.
+ *
+ * Template rectangles are stored against the base page, while continuous
+ * digital templates can grow and flow regions at render time. All editor
+ * hit-testing and overlays must use this resolved surface instead of the
+ * stored base-page rectangles.
+ */
+export function buildTemplateEditorSurfaceModel(
+  template: SheetTemplate,
+  durationFrames = template.defaults.durationFrames,
+): TemplateEditorSurfaceModel {
+  const options = { paperTracks: template.defaults.paperTracks }
+  const pageSize = resolveSheetTemplatePageSize(template, durationFrames, options)
+  const regionRects = new Map(template.regions.map(region => [
+    region.regionId,
+    resolveSheetTemplateRegionRect(template, region, durationFrames, options),
+  ]))
+  const calibrationTargetRect = calibrationTargetRectForTemplate(template)
+  return {
+    pageSize,
+    regionRects,
+    calibrationTargetRect: calibrationTargetRect
+      ? projectTemplateEditorRectToSurface(calibrationTargetRect, template.page, pageSize)
+      : null,
+  }
+}
+
+export function projectTemplateEditorRectToSurface(
+  rect: NormalizedRect,
+  sourcePage: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+  surfacePage: SheetSvgPageSize,
+): NormalizedRect {
+  return {
+    x: rect.x * sourcePage.widthPx / Math.max(1, surfacePage.widthPx),
+    y: rect.y * sourcePage.heightPx / Math.max(1, surfacePage.heightPx),
+    w: rect.w * sourcePage.widthPx / Math.max(1, surfacePage.widthPx),
+    h: rect.h * sourcePage.heightPx / Math.max(1, surfacePage.heightPx),
+  }
+}
+
+export function updateTemplateEditorRectEdgeFromSurface(
+  sourceRect: NormalizedRect,
+  surfaceRect: NormalizedRect,
+  edge: 'left' | 'right' | 'top' | 'bottom',
+  surfacePoint: NormalizedPoint,
+  sourcePage: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>,
+  surfacePage: SheetSvgPageSize,
+): NormalizedRect {
+  const sourceWidth = Math.max(1, sourcePage.widthPx)
+  const sourceHeight = Math.max(1, sourcePage.heightPx)
+  const surfaceWidth = Math.max(1, surfacePage.widthPx)
+  const surfaceHeight = Math.max(1, surfacePage.heightPx)
+  const minWidth = 1 / sourceWidth
+  const minHeight = 1 / sourceHeight
+  const sourceRight = sourceRect.x + sourceRect.w
+
+  if (edge === 'left') {
+    const x = clampNumber(surfacePoint.x * surfaceWidth / sourceWidth, 0, sourceRight - minWidth)
+    return { ...sourceRect, x, w: sourceRight - x }
+  }
+  if (edge === 'right') {
+    const right = clampNumber(surfacePoint.x * surfaceWidth / sourceWidth, sourceRect.x + minWidth, 1)
+    return { ...sourceRect, w: right - sourceRect.x }
+  }
+
+  const sourceHeightPx = Math.max(1, sourceRect.h * sourceHeight)
+  const surfaceHeightPx = Math.max(1, surfaceRect.h * surfaceHeight)
+  const heightScale = surfaceHeightPx / sourceHeightPx
+  if (edge === 'top') {
+    const surfaceBottomPx = (surfaceRect.y + surfaceRect.h) * surfaceHeight
+    const topPx = clampNumber(surfacePoint.y * surfaceHeight, 0, surfaceBottomPx - heightScale)
+    const y = topPx / sourceHeight
+    const h = clampNumber((surfaceBottomPx - topPx) / (sourceHeight * heightScale), minHeight, 1 - y)
+    return { ...sourceRect, y, h }
+  }
+
+  const surfaceTopPx = surfaceRect.y * surfaceHeight
+  const maximumBottomPx = Math.min(surfaceHeight, surfaceTopPx + (1 - sourceRect.y) * sourceHeight * heightScale)
+  const bottomPx = clampNumber(surfacePoint.y * surfaceHeight, surfaceTopPx + heightScale, maximumBottomPx)
+  const h = clampNumber((bottomPx - surfaceTopPx) / (sourceHeight * heightScale), minHeight, 1 - sourceRect.y)
+  return { ...sourceRect, h }
 }
 
 export function buildTemplateEditorRegionRenderModel(

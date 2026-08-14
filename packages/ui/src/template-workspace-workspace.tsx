@@ -21,6 +21,7 @@ import { uiText } from './i18n'
 import { ProcessSettingsDialog } from './ProcessSettingsDialog'
 import { sortedCorrectionLayers } from './sheetAssets'
 import { TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
+import { TEMPLATE_ZOOM_SLIDER_MAX, TEMPLATE_ZOOM_SLIDER_MIN, templateZoomFromSliderValue, templateZoomToSliderValue } from './templateZoom'
 import { calibrationGridBoundsForTemplate, calibrationTargetRectForTemplate, defaultSheetImageSettings, resolveImageRefUrl } from './sheetImages'
 import { clampNumber, fitZoomForViewport } from './sheetInteraction'
 import { cloneSheetTemplate, createTemplateDraft, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, synchronizeDigitalTemplatePaperTracks, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
@@ -59,7 +60,6 @@ import { templateFieldChoicesFromText, templateFieldReferenceCount, templateFiel
 import { templateWorkspaceInspectorSections, templateWorkspaceNavigationItems } from './template-workspace-inspector-sections'
 import { PaperReferenceWorkflow, PaperRegionAlignmentControls, PaperTimelineControls, TemplateRegionCollectionControls } from './template-workspace-paper-controls'
 import { TemplateAuthoringReview } from './TemplateAuthoringReview'
-
 export type TemplateWorkspaceMode = 'project' | 'standalone'
 
 export interface TemplateWorkspaceDraftState {
@@ -1929,11 +1929,13 @@ export function TemplateWorkspace({
             {uiText.sheet.zoom}
             <input
               type="range"
-              min={TEMPLATE_ZOOM_MIN * 100}
-              max={TEMPLATE_ZOOM_MAX * 100}
-              value={templateZoomPercent}
-              onInput={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
-              onChange={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
+              min={TEMPLATE_ZOOM_SLIDER_MIN}
+              max={TEMPLATE_ZOOM_SLIDER_MAX}
+              step="1"
+              value={templateZoomToSliderValue(templateZoom)}
+              aria-valuetext={`${templateZoomPercent}%`}
+              onInput={event => setClampedTemplateZoom(templateZoomFromSliderValue(Number(event.currentTarget.value)))}
+              onChange={event => setClampedTemplateZoom(templateZoomFromSliderValue(Number(event.currentTarget.value)))}
             />
             <span className="zoomValue">{templateZoomPercent}%</span>
           </label>

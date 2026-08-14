@@ -1,9 +1,9 @@
 import { resolveSheetTemplateGridColumns, resolveSheetTemplateGridFrames, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
-import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 import type { SheetImageSettings } from './appTypes'
 import { uiText } from './i18n'
 import { SHEET_ZOOM_WHEEL_FACTOR, TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
-import { clampNumber, handleHorizontalWheelScroll, verticalWheelDelta } from './sheetInteraction'
+import { clampNumber, handleNativeHorizontalWheelScroll, nativeVerticalWheelDelta } from './sheetInteraction'
 import { GridOverlayLayer, SheetImageLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { buildTemplateEditorRegionRenderModel, buildTemplateEditorRenderModel, buildTemplateEditorSurfaceModel, hitTestTemplateEditorTarget, normalizedRectToPixelEdges, quantizeNormalizedRectToPagePixels, snapTemplateEditorPointToPagePixels, templateEditorHitRadius, templateEditorPointFromClientRect, updateTemplateEditorRectEdgeFromSurface, type TemplateEditorRegionRenderModel, type TemplateEditorRenderModel, type TemplateEditorTarget } from './templateEditorGeometry'
 import { gridRoleLabel, setTemplateCalibrationTargetRect, type TemplateRegionEdge } from './templateEditing'
@@ -44,6 +44,7 @@ export function TemplateRegionEditor({
   const previewDurationFrames = template.defaults.durationFrames
   const editorSvgRef = useRef<SVGSVGElement | null>(null)
   const editorClientRectRef = useRef<DOMRect | null>(null)
+  const viewportRef = useRef<HTMLDivElement | null>(null)
   const hoveredOverlayRef = useRef<HTMLDivElement | null>(null)
   const hoveredTargetIdRef = useRef<string | null>(null)
   const basePaperTimeline = useMemo(() => editablePaperTimelineStructure(template), [template])
@@ -366,29 +367,40 @@ export function TemplateRegionEditor({
     window.addEventListener('pointercancel', handlePointerCancel)
   }
 
-  function handleWheelZoom(event: WheelEvent<HTMLDivElement>) {
-    if (!event.ctrlKey && !event.metaKey) {
-      handleHorizontalWheelScroll(event)
-      return
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+
+    function handleWheel(event: globalThis.WheelEvent) {
+      const modifierZoom = event.ctrlKey || event.metaKey
+      const horizontalInput = !modifierZoom
+        && (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY))
+      if (horizontalInput) {
+        handleNativeHorizontalWheelScroll(event, viewport!)
+        return
+      }
+
+      const rawVerticalDelta = nativeVerticalWheelDelta(event)
+      if (rawVerticalDelta === 0) return
+      event.preventDefault()
+      const rect = viewport!.getBoundingClientRect()
+      const localX = event.clientX - rect.left
+      const localY = event.clientY - rect.top
+      const contentX = viewport!.scrollLeft + localX
+      const contentY = viewport!.scrollTop + localY
+      const factor = rawVerticalDelta < 0 ? SHEET_ZOOM_WHEEL_FACTOR : 1 / SHEET_ZOOM_WHEEL_FACTOR
+      const nextZoom = clampNumber(zoom * factor, TEMPLATE_ZOOM_MIN, TEMPLATE_ZOOM_MAX)
+      const ratio = nextZoom / zoom
+      setZoom(nextZoom)
+      window.requestAnimationFrame(() => {
+        viewport!.scrollLeft = contentX * ratio - localX
+        viewport!.scrollTop = contentY * ratio - localY
+      })
     }
-    const rawVerticalDelta = verticalWheelDelta(event)
-    if (rawVerticalDelta === 0) return
-    event.preventDefault()
-    const viewport = event.currentTarget
-    const rect = viewport.getBoundingClientRect()
-    const localX = event.clientX - rect.left
-    const localY = event.clientY - rect.top
-    const contentX = viewport.scrollLeft + localX
-    const contentY = viewport.scrollTop + localY
-    const factor = rawVerticalDelta < 0 ? SHEET_ZOOM_WHEEL_FACTOR : 1 / SHEET_ZOOM_WHEEL_FACTOR
-    const nextZoom = clampNumber(zoom * factor, TEMPLATE_ZOOM_MIN, TEMPLATE_ZOOM_MAX)
-    const ratio = nextZoom / zoom
-    setZoom(nextZoom)
-    window.requestAnimationFrame(() => {
-      viewport.scrollLeft = contentX * ratio - localX
-      viewport.scrollTop = contentY * ratio - localY
-    })
-  }
+
+    viewport.addEventListener('wheel', handleWheel, { passive: false })
+    return () => viewport.removeEventListener('wheel', handleWheel)
+  }, [setZoom, zoom])
 
   const activeEditorRect = isCalibrationTargetSelected ? calibrationTargetRect : isPaperTimelineSelected ? paperTimelineSurfaceRect : selectedSurfaceRect
   const activeEditorRectResizable = isCalibrationTargetSelected || isPaperTimelineSelected || editableEdges.size > 0
@@ -401,7 +413,7 @@ export function TemplateRegionEditor({
 
   return (
     <div className="templateEditor">
-      <div className="templateEditorViewport" onWheel={handleWheelZoom}>
+      <div ref={viewportRef} className="templateEditorViewport">
         <div
           className="templateEditorZoomSurface"
           style={{

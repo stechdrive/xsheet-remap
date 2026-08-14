@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { cleanup, createEvent, fireEvent, render } from '@testing-library/react'
 import { createAlphabeticTrackLabels, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, standardA3SheetTemplate, withSheetTemplatePaperTracks, type SheetTemplate } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defaultSheetImageSettings } from './sheetImages'
@@ -26,6 +26,54 @@ afterEach(() => {
 })
 
 describe('TemplateRegionEditor region visibility and position locks', () => {
+  it('zooms at the pointer with an unmodified wheel', () => {
+    const setZoom = vi.fn()
+    const { container } = render(
+      <TemplateRegionEditor
+        template={standardA3SheetTemplate}
+        setTemplate={vi.fn()}
+        imageUrl={null}
+        imageSettings={defaultSheetImageSettings()}
+        zoom={1}
+        setZoom={setZoom}
+        selectedRegionId={PAPER_TIMELINE_TARGET_ID}
+        onSelectRegion={vi.fn()}
+      />,
+    )
+    const viewport = container.querySelector<HTMLElement>('.templateEditorViewport')!
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 500, 500))
+    const wheel = createEvent.wheel(viewport, { deltaY: -120, clientX: 200, clientY: 180 })
+
+    fireEvent(viewport, wheel)
+
+    expect(wheel.defaultPrevented).toBe(true)
+    expect(setZoom).toHaveBeenCalledWith(1.12)
+  })
+
+  it('uses Shift+wheel for horizontal scrolling without changing zoom', () => {
+    const setZoom = vi.fn()
+    const { container } = render(
+      <TemplateRegionEditor
+        template={standardA3SheetTemplate}
+        setTemplate={vi.fn()}
+        imageUrl={null}
+        imageSettings={defaultSheetImageSettings()}
+        zoom={1}
+        setZoom={setZoom}
+        selectedRegionId={PAPER_TIMELINE_TARGET_ID}
+        onSelectRegion={vi.fn()}
+      />,
+    )
+    const viewport = container.querySelector<HTMLElement>('.templateEditorViewport')!
+    const wheel = createEvent.wheel(viewport, { deltaY: 120, shiftKey: true, clientX: 200, clientY: 180 })
+
+    fireEvent(viewport, wheel)
+
+    expect(wheel.defaultPrevented).toBe(true)
+    expect(viewport.scrollLeft).toBe(120)
+    expect(setZoom).not.toHaveBeenCalled()
+  })
+
   it('presents the physical 6-second table as one movable four-edge selection', () => {
     const { container } = render(
       <TemplateRegionEditor

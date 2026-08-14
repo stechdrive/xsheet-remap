@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest'
 import {
   PAPER_TIMELINE_ROWS_PER_BLOCK,
   alignTemplateRegionToRect,
+  canNudgePaperTimelineRoleWidthPx,
   detectPaperTimelineStructure,
+  nudgePaperTimelineRoleWidthPx,
   normalizePaperTimelineRows,
+  paperTimelineRegionMinimumWidthMm,
   paperTimelineGapPx,
   resizePaperTimelineColumns,
   setPaperTimelineGapPx,
@@ -92,6 +95,40 @@ describe('paper timeline authoring', () => {
     expect((nextLeftSound.rect.w - leftSound.rect.w) * template.page.widthPx).toBeCloseTo(-12)
     expect((nextLeftAction.rect.w - nextRightAction.rect.w) * template.page.widthPx).toBeCloseTo(beforeDifferencePx)
     expect(detectPaperTimelineStructure(next)?.status).toBe('compatible')
+  })
+
+  it('nudges role boundaries by one physical pixel without stalling on rounded millimeters', () => {
+    let template = structuredClone(standardA3SheetTemplate)
+    template = resizePaperTimelineColumns(template, detectPaperTimelineStructure(template)!, 'cell', 5)
+
+    for (let index = 0; index < 20; index += 1) {
+      const structure = detectPaperTimelineStructure(template)!
+      const beforeWidthPx = region(template, 'left_cell_grid').rect.w * template.page.widthPx
+      expect(canNudgePaperTimelineRoleWidthPx(template, structure, 'cell', -1)).toBe(true)
+
+      const next = nudgePaperTimelineRoleWidthPx(template, structure, 'cell', -1)
+
+      expect(region(next, 'left_cell_grid').rect.w * next.page.widthPx).toBeCloseTo(Math.round(beforeWidthPx) - 1)
+      template = next
+    }
+  })
+
+  it('exposes and enforces the per-column physical minimum width', () => {
+    let template = structuredClone(standardA3SheetTemplate)
+    template = resizePaperTimelineColumns(template, detectPaperTimelineStructure(template)!, 'cell', 5)
+    expect(paperTimelineRegionMinimumWidthMm(region(template, 'left_cell_grid'), template)).toBeCloseTo(12.5)
+
+    for (let index = 0; index < 400; index += 1) {
+      const structure = detectPaperTimelineStructure(template)!
+      const next = nudgePaperTimelineRoleWidthPx(template, structure, 'cell', -1)
+      if (next === template) break
+      template = next
+    }
+
+    const structure = detectPaperTimelineStructure(template)!
+    expect(canNudgePaperTimelineRoleWidthPx(template, structure, 'cell', -1)).toBe(false)
+    expect(nudgePaperTimelineRoleWidthPx(template, structure, 'cell', -1)).toBe(template)
+    expect(region(template, 'left_cell_grid').rect.w * template.page.widthPx).toBeGreaterThanOrEqual(5 * 2.5 * 150 / 25.4)
   })
 
   it('changes the shared paper tracks and paired timeline lanes without renumbering surviving ids', () => {

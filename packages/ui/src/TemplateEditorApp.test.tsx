@@ -81,7 +81,30 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(document.querySelector('.sheetWorkspace')).toBeNull()
   })
 
-  it('creates a paper template from physical page settings with 3200% authoring zoom', async () => {
+  it('nudges paper role widths without rounded millimeter stalls and shows their limits', () => {
+    render(<TemplateEditorApp />)
+    startA3Authoring()
+
+    const sharedColumns = screen.getByLabelText('ACTION / CELL共有の列数')
+    fireEvent.change(sharedColumns, { target: { value: '5' } })
+    expect(screen.getAllByText(/最小 12\.5mm/)).toHaveLength(2)
+
+    const cellWidth = screen.getByLabelText('CELL幅 mm') as HTMLInputElement
+    const decrease = screen.getByRole('button', { name: 'CELL幅を狭くする' })
+    expect(cellWidth.value).toBe('43.4')
+    fireEvent.click(decrease)
+    expect(cellWidth.value).toBe('43.2')
+    fireEvent.click(decrease)
+    expect(cellWidth.value).toBe('43')
+    fireEvent.click(decrease)
+    expect(cellWidth.value).toBe('42.8')
+    fireEvent.keyDown(cellWidth, { key: 'ArrowDown' })
+    expect(cellWidth.value).toBe('42.7')
+
+    expect(screen.getByLabelText('CAMERA幅 mm').tagName).toBe('OUTPUT')
+  })
+
+  it('keeps 3200% pixel authoring available without compressing it into the slider scale', async () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
@@ -92,7 +115,9 @@ describe('TemplateEditorApp authoring workflow', () => {
 
     expect(document.querySelector<HTMLElement>('.templateEditorCanvas')?.style.aspectRatio).toBe('1754 / 2480')
     const zoom = document.querySelector<HTMLInputElement>('.templateToolbar input[type="range"]')
-    expect(zoom?.max).toBe('3200')
+    expect(zoom?.min).toBe('0')
+    expect(zoom?.max).toBe('1000')
+    expect(zoom?.getAttribute('aria-valuetext')).toBe('100%')
     fireEvent.change(screen.getByRole('combobox', { name: 'ズーム倍率' }), { target: { value: '3200' } })
     expect(document.querySelector<HTMLElement>('.templateEditorCanvas')?.style.transform).toBe('scale(32)')
     expect(document.querySelector<HTMLElement>('.templateEditorZoomSurface')?.style.width).toBe(`${1754 * 32}px`)

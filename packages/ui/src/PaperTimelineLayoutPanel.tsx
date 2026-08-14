@@ -1,10 +1,13 @@
 import type { NormalizedRect, SheetTemplate } from '@xsheet-remap/core'
 import {
+  canNudgePaperTimelineRoleWidthPx,
   detectPaperTimelineStructure,
   mmToPx,
+  nudgePaperTimelineRoleWidthPx,
   normalizePaperTimelineRows,
   paperTimelineColumnWidthMm,
   paperTimelineGapPx,
+  paperTimelineRegionMinimumWidthMm,
   paperTimelineRoleRegion,
   pxToMm,
   resizePaperTimelineColumns,
@@ -73,6 +76,15 @@ export function PaperTimelineLayoutPanel({
       const currentStructure = detectPaperTimelineStructure(current)
       return currentStructure
         ? setPaperTimelineRoleWidthPx(current, currentStructure, role, mmToPx(mm, current))
+        : current
+    })
+  }
+
+  function nudgeRoleWidth(role: Exclude<PaperTimelineRole, 'camera'>, direction: -1 | 1) {
+    onChange(current => {
+      const currentStructure = detectPaperTimelineStructure(current)
+      return currentStructure
+        ? nudgePaperTimelineRoleWidthPx(current, currentStructure, role, direction)
         : current
     })
   }
@@ -158,24 +170,59 @@ export function PaperTimelineLayoutPanel({
           {roleRegions.map(({ role, region }, index) => {
             const widthMm = pxToMm(region.rect.w * template.page.widthPx, template)
             const columnMm = paperTimelineColumnWidthMm(region, template)
+            const minimumWidthMm = paperTimelineRegionMinimumWidthMm(region, template)
             const editable = index < roleRegions.length - 1
+            const editableRole = role as Exclude<PaperTimelineRole, 'camera'>
+            const canDecrease = editable && canNudgePaperTimelineRoleWidthPx(template, structure, editableRole, -1)
+            const canIncrease = editable && canNudgePaperTimelineRoleWidthPx(template, structure, editableRole, 1)
             return (
               <label key={role} className={columnMm < 2.5 ? 'warning' : ''}>
-                <span><strong>{role.toUpperCase()}</strong><small>{region.grid?.columns.length ?? 1}列 / 1列 {formatNumber(columnMm)}mm</small></span>
-                <span className="paperTimelineNumberInput"><input
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  disabled={!editable}
-                  aria-label={`${role.toUpperCase()}幅 mm`}
-                  value={formatNumber(widthMm)}
-                  onChange={event => editable && changeRoleWidthMm(role as Exclude<PaperTimelineRole, 'camera'>, Number(event.currentTarget.value))}
-                /><small>mm</small></span>
+                <span>
+                  <strong>{role.toUpperCase()}</strong>
+                  <small>{region.grid?.columns.length ?? 1}列 / 1列 {formatNumber(columnMm)}mm / 最小 {formatNumber(minimumWidthMm)}mm</small>
+                </span>
+                {editable ? (
+                  <span className="paperTimelineNumberInput">
+                    <span className="paperTimelineWidthStepper">
+                      <button
+                        type="button"
+                        aria-label={`${role.toUpperCase()}幅を狭くする`}
+                        disabled={!canDecrease}
+                        onClick={() => nudgeRoleWidth(editableRole, -1)}
+                      >−</button>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={formatNumber(minimumWidthMm)}
+                        aria-label={`${role.toUpperCase()}幅 mm`}
+                        value={formatNumber(widthMm)}
+                        onKeyDown={event => {
+                          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+                          event.preventDefault()
+                          nudgeRoleWidth(editableRole, event.key === 'ArrowDown' ? -1 : 1)
+                        }}
+                        onChange={event => changeRoleWidthMm(editableRole, Number(event.currentTarget.value))}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`${role.toUpperCase()}幅を広くする`}
+                        disabled={!canIncrease}
+                        onClick={() => nudgeRoleWidth(editableRole, 1)}
+                      >＋</button>
+                    </span>
+                    <small>mm</small>
+                  </span>
+                ) : (
+                  <span className="paperTimelineNumberInput paperTimelineDerivedWidth">
+                    <output aria-label={`${role.toUpperCase()}幅 mm`}>{formatNumber(widthMm)}</output>
+                    <small>mm</small>
+                  </span>
+                )}
               </label>
             )
           })}
         </div>
-        <p>変更した境界だけを動かし、対応する左右ブロックへ同じ差分を適用します。CAMERA幅は残り幅から決まります。</p>
+        <p>−／＋は用紙の1pxずつ境界を動かします。CAMERA幅は表の残り幅から決まります。</p>
       </fieldset>
 
       <fieldset className="paperTimelineFieldset">

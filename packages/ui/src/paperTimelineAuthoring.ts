@@ -218,24 +218,15 @@ export function setPaperTimelineRoleWidthPx(
   requestedWidthPx: number,
 ): SheetTemplate {
   if (structure.status === 'incomplete') return template
-  const roleIndex = PAPER_TIMELINE_ROLES.indexOf(role)
-  const nextRole = PAPER_TIMELINE_ROLES[roleIndex + 1]
-  if (!nextRole) return template
   const leftRole = regionFor(template, structure.roles[role].leftRegionId)
   if (!leftRole) return template
   const pageWidth = Math.max(1, template.page.widthPx)
   const requestedDeltaPx = Math.round(requestedWidthPx - leftRole.rect.w * pageWidth)
-  let minimumDeltaPx = Number.NEGATIVE_INFINITY
-  let maximumDeltaPx = Number.POSITIVE_INFINITY
-  for (const side of ['left', 'right'] as const) {
-    const current = regionFor(template, regionIdForSide(structure.roles[role], side))
-    const adjacent = regionFor(template, regionIdForSide(structure.roles[nextRole], side))
-    if (!current || !adjacent) return template
-    minimumDeltaPx = Math.max(minimumDeltaPx, minimumWidthPx(current, template) - current.rect.w * pageWidth)
-    maximumDeltaPx = Math.min(maximumDeltaPx, adjacent.rect.w * pageWidth - minimumWidthPx(adjacent, template))
-  }
-  const deltaPx = clamp(requestedDeltaPx, Math.ceil(minimumDeltaPx), Math.floor(maximumDeltaPx))
+  const range = paperTimelineRoleWidthDeltaRangePx(template, structure, role)
+  if (!range) return template
+  const deltaPx = clamp(requestedDeltaPx, range.minimum, range.maximum)
   if (deltaPx === 0) return template
+  const nextRole = PAPER_TIMELINE_ROLES[PAPER_TIMELINE_ROLES.indexOf(role) + 1]!
   const delta = deltaPx / pageWidth
   const currentIds = new Set([
     structure.roles[role].leftRegionId,
@@ -253,6 +244,32 @@ export function setPaperTimelineRoleWidthPx(
       return region
     }),
   }
+}
+
+export function nudgePaperTimelineRoleWidthPx(
+  template: SheetTemplate,
+  structure: PaperTimelineStructure,
+  role: Exclude<PaperTimelineRole, 'camera'>,
+  direction: -1 | 1,
+): SheetTemplate {
+  const current = regionFor(template, structure.roles[role].leftRegionId)
+  if (!current) return template
+  return setPaperTimelineRoleWidthPx(
+    template,
+    structure,
+    role,
+    current.rect.w * Math.max(1, template.page.widthPx) + direction,
+  )
+}
+
+export function canNudgePaperTimelineRoleWidthPx(
+  template: SheetTemplate,
+  structure: PaperTimelineStructure,
+  role: Exclude<PaperTimelineRole, 'camera'>,
+  direction: -1 | 1,
+): boolean {
+  const range = paperTimelineRoleWidthDeltaRangePx(template, structure, role)
+  return Boolean(range && (direction < 0 ? range.minimum <= -1 : range.maximum >= 1))
 }
 
 export function resizePaperTimelineColumns(
@@ -350,6 +367,10 @@ export function paperTimelineColumnWidthMm(region: SheetTemplateRegion, template
   return pxToMm(region.rect.w * template.page.widthPx / columns, template)
 }
 
+export function paperTimelineRegionMinimumWidthMm(region: SheetTemplateRegion, template: SheetTemplate): number {
+  return pxToMm(minimumWidthPx(region, template), template)
+}
+
 export function pxToMm(px: number, template: SheetTemplate): number {
   return px * 25.4 / Math.max(1, template.page.dpi ?? 150)
 }
@@ -416,6 +437,27 @@ function minimumWidthPx(region: SheetTemplateRegion, template: SheetTemplate): n
   const columnCount = Math.max(1, region.grid?.columns.length ?? 1)
   const minimumColumnWidthPx = mmToPx(2.5, template)
   return Math.max(MIN_REGION_WIDTH_PX, columnCount * minimumColumnWidthPx)
+}
+
+function paperTimelineRoleWidthDeltaRangePx(
+  template: SheetTemplate,
+  structure: PaperTimelineStructure,
+  role: Exclude<PaperTimelineRole, 'camera'>,
+): { minimum: number; maximum: number } | null {
+  if (structure.status === 'incomplete') return null
+  const nextRole = PAPER_TIMELINE_ROLES[PAPER_TIMELINE_ROLES.indexOf(role) + 1]
+  if (!nextRole) return null
+  const pageWidth = Math.max(1, template.page.widthPx)
+  let minimumDeltaPx = Number.NEGATIVE_INFINITY
+  let maximumDeltaPx = Number.POSITIVE_INFINITY
+  for (const side of ['left', 'right'] as const) {
+    const current = regionFor(template, regionIdForSide(structure.roles[role], side))
+    const adjacent = regionFor(template, regionIdForSide(structure.roles[nextRole], side))
+    if (!current || !adjacent) return null
+    minimumDeltaPx = Math.max(minimumDeltaPx, minimumWidthPx(current, template) - current.rect.w * pageWidth)
+    maximumDeltaPx = Math.min(maximumDeltaPx, adjacent.rect.w * pageWidth - minimumWidthPx(adjacent, template))
+  }
+  return { minimum: Math.ceil(minimumDeltaPx), maximum: Math.floor(maximumDeltaPx) }
 }
 
 function clampRectToPage(rect: NormalizedRect, template: SheetTemplate): NormalizedRect {

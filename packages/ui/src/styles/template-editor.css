@@ -1885,6 +1885,39 @@
   width: 100%;
 }
 
+.paperTimelineWidthStepper {
+  display: grid;
+  grid-template-columns: 28px minmax(60px, 1fr) 28px;
+  gap: 3px;
+}
+
+.paperTimelineWidthStepper button {
+  min-width: 0;
+  padding-inline: 0;
+}
+
+.paperTimelineWidthStepper input {
+  min-width: 0;
+  text-align: center;
+  appearance: textfield;
+}
+
+.paperTimelineWidthStepper input::-webkit-inner-spin-button,
+.paperTimelineWidthStepper input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.paperTimelineDerivedWidth output {
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid #d6dcd7;
+  border-radius: 5px;
+  background: #f1f3f1;
+  color: #59665f;
+  text-align: right;
+}
+
 .paperTimelineNumberInput small {
   color: #738079;
   font-size: 10px;

@@ -78,6 +78,16 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(staticPreview).not.toBe(interactionOverlay)
     expect(staticPreview?.querySelector('.templateStaticLayer')).toBeTruthy()
     expect(interactionOverlay?.querySelector('.templateStaticLayer')).toBeNull()
+    const referenceOpacity = screen.getByRole('slider', { name: '下絵の不透明度' }) as HTMLInputElement
+    expect(referenceOpacity.value).toBe('80')
+    const referenceLayer = staticPreview?.querySelector<SVGGElement>('.templateReferenceImageLayer')
+    expect(referenceLayer?.getAttribute('data-tint-color')).toBe('#ff1f12')
+    expect(referenceLayer?.getAttribute('filter')).toMatch(/^url\(#templateReferenceTint-/)
+    const tintFilter = staticPreview?.querySelector('filter[id^="templateReferenceTint-"]')
+    expect(tintFilter?.querySelector('feFuncR')?.getAttribute('tableValues')).toBe('0 1 1')
+    expect(tintFilter?.querySelector('feFuncG')?.getAttribute('tableValues')).toBe('0 0.122 1')
+    fireEvent.change(referenceOpacity, { target: { value: '35' } })
+    expect(referenceLayer?.getAttribute('opacity')).toBe('0.35')
     expect(document.querySelector('.sheetWorkspace')).toBeNull()
   })
 
@@ -122,7 +132,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '新しいテンプレート' })).toBeNull())
 
     expect(document.querySelector<HTMLElement>('.templateEditorCanvas')?.style.aspectRatio).toBe('1754 / 2480')
-    const zoom = document.querySelector<HTMLInputElement>('.templateToolbar input[type="range"]')
+    const zoom = screen.getByRole('slider', { name: uiText.sheet.zoom }) as HTMLInputElement
     expect(zoom?.min).toBe('0')
     expect(zoom?.max).toBe('1000')
     expect(zoom?.getAttribute('aria-valuetext')).toBe('100%')
@@ -143,6 +153,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(screen.getByLabelText('初期フレーム数')).toBeTruthy()
     expect(screen.getByLabelText('セル列数（ACTION/CELL共通）')).toBeTruthy()
     expect(within(screen.getByRole('navigation', { name: '編集する内容' })).queryByRole('button', { name: uiText.template.detailTabs.reference })).toBeNull()
+    expect(screen.queryByRole('slider', { name: '下絵の不透明度' })).toBeNull()
 
     selectInspectorSection('table')
     expect(screen.getByRole('region', { name: 'すべての領域' })).toBeTruthy()

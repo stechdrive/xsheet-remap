@@ -20,8 +20,6 @@ import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './ap
 import { uiText } from './i18n'
 import { ProcessSettingsDialog } from './ProcessSettingsDialog'
 import { sortedCorrectionLayers } from './sheetAssets'
-import { TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
-import { TEMPLATE_ZOOM_SLIDER_MAX, TEMPLATE_ZOOM_SLIDER_MIN, templateZoomFromSliderValue, templateZoomToSliderValue } from './templateZoom'
 import { calibrationGridBoundsForTemplate, calibrationTargetRectForTemplate, defaultSheetImageSettings, resolveImageRefUrl } from './sheetImages'
 import { clampNumber, fitZoomForViewport } from './sheetInteraction'
 import { cloneSheetTemplate, createTemplateDraft, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, synchronizeDigitalTemplatePaperTracks, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
@@ -60,6 +58,8 @@ import { templateFieldChoicesFromText, templateFieldReferenceCount, templateFiel
 import { templateWorkspaceInspectorSections, templateWorkspaceNavigationItems } from './template-workspace-inspector-sections'
 import { PaperReferenceWorkflow, PaperRegionAlignmentControls, PaperTimelineControls, TemplateRegionCollectionControls } from './template-workspace-paper-controls'
 import { TemplateAuthoringReview } from './TemplateAuthoringReview'
+import { TemplateEditorViewControls } from './TemplateEditorViewControls'
+import { createTemplateEditorViewStore } from './templateEditorViewStore'
 export type TemplateWorkspaceMode = 'project' | 'standalone'
 
 export interface TemplateWorkspaceDraftState {
@@ -115,11 +115,7 @@ export function TemplateWorkspace({
     : editableRegions[0]?.regionId ?? null)
   const [selectedFormCellId, setSelectedFormCellId] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState<TemplateDetailTab>(() => detectPaperTimelineStructure(initialDraftTemplate ?? appliedTemplate) ? 'layout' : 'template')
-  const [templateZoom, setTemplateZoom] = useState(1)
-  const templateZoomPercent = Math.round(templateZoom * 100)
-  const templateZoomPreset = [100, 400, 800, 1600, 3200].includes(templateZoomPercent)
-    ? String(templateZoomPercent)
-    : ''
+  const templateViewStore = useMemo(() => createTemplateEditorViewStore(), [])
   const [dockWidth, setDockWidth] = useState(420)
   const [processSettingsOpen, setProcessSettingsOpen] = useState(false)
   const [templateCreateOpen, setTemplateCreateOpen] = useState(false)
@@ -226,10 +222,6 @@ export function TemplateWorkspace({
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasTemplateDraftChanges])
 
-  function setClampedTemplateZoom(value: number) {
-    setTemplateZoom(clampNumber(value, TEMPLATE_ZOOM_MIN, TEMPLATE_ZOOM_MAX))
-  }
-
   function markTemplateDraftChanged() {
     draftRevision.current += 1
     setHasTemplateDraftChanges(true)
@@ -256,7 +248,7 @@ export function TemplateWorkspace({
     setHiddenRegionIds(new Set())
     setPositionLockedRegionIds(new Set())
     setDetailTab(nextPaperTimeline && nextTab !== 'reference' ? 'layout' : nextTab)
-    setClampedTemplateZoom(1)
+    templateViewStore.setZoom(1)
   }
 
   function applyTemplateDraftChanges() {
@@ -334,7 +326,7 @@ export function TemplateWorkspace({
     const viewport = document.querySelector<HTMLElement>('.templateEditorViewport')
     if (!viewport) return
     const zoom = fitZoomForViewport(viewport, editorPageSize, { horizontal: 24, vertical: 24 })
-    if (zoom !== null) setClampedTemplateZoom(zoom)
+    if (zoom !== null) templateViewStore.setZoom(zoom)
   }
 
   function updateTemplateMetadata(updates: Partial<Pick<SheetTemplate, 'templateId' | 'name'>>) {
@@ -1924,40 +1916,11 @@ export function TemplateWorkspace({
             </Tooltip>
           </ToolbarGroup>
         )}
-        <ToolbarGroup>
-          <label className="compactControl">
-            {uiText.sheet.zoom}
-            <input
-              type="range"
-              min={TEMPLATE_ZOOM_SLIDER_MIN}
-              max={TEMPLATE_ZOOM_SLIDER_MAX}
-              step="1"
-              value={templateZoomToSliderValue(templateZoom)}
-              aria-valuetext={`${templateZoomPercent}%`}
-              onInput={event => setClampedTemplateZoom(templateZoomFromSliderValue(Number(event.currentTarget.value)))}
-              onChange={event => setClampedTemplateZoom(templateZoomFromSliderValue(Number(event.currentTarget.value)))}
-            />
-            <span className="zoomValue">{templateZoomPercent}%</span>
-          </label>
-          <label className="compactControl templateZoomPresetControl">
-            倍率
-            <select
-              aria-label="ズーム倍率"
-              value={templateZoomPreset}
-              onChange={event => setClampedTemplateZoom(Number(event.currentTarget.value) / 100)}
-            >
-              <option value="" disabled>選択</option>
-              <option value="100">100%</option>
-              <option value="400">400%</option>
-              <option value="800">800%</option>
-              <option value="1600">1600%</option>
-              <option value="3200">3200%</option>
-            </select>
-          </label>
-          <Tooltip label={uiText.actions.zoomFitTitle}>
-            <button onClick={fitTemplateToViewport}>{uiText.actions.zoomFit}</button>
-          </Tooltip>
-        </ToolbarGroup>
+        <TemplateEditorViewControls
+          store={templateViewStore}
+          hasReferenceImage={Boolean(templateReferenceImageUrl)}
+          onFit={fitTemplateToViewport}
+        />
       </div>
       {mode === 'project' && processSettingsOpen && (
         <ProcessSettingsDialog
@@ -1998,8 +1961,7 @@ export function TemplateWorkspace({
           setTemplate={updateTemplateDraft}
           imageUrl={templateReferenceImageUrl}
           imageSettings={templateReferenceImageSettings}
-          zoom={templateZoom}
-          setZoom={setClampedTemplateZoom}
+          viewStore={templateViewStore}
           selectedRegionId={effectiveSelectedRegionId}
           hiddenRegionIds={hiddenRegionIds}
           positionLockedRegionIds={positionLockedRegionIds}

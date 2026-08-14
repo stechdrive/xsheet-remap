@@ -1,19 +1,47 @@
 import { resolveSheetTemplateGridColumns, resolveSheetTemplateGridFrames, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent } from 'react'
 import type { SheetImageSettings } from './appTypes'
 import { uiText } from './i18n'
 import { SHEET_ZOOM_WHEEL_FACTOR, TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
 import { clampNumber, handleNativeHorizontalWheelScroll, nativeVerticalWheelDelta } from './sheetInteraction'
-import { GridOverlayLayer, SheetImageLayer, TemplateChromeLayer } from './SheetTemplateLayers'
+import { GridOverlayLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { buildTemplateEditorRegionRenderModel, buildTemplateEditorRenderModel, buildTemplateEditorSurfaceModel, hitTestTemplateEditorTarget, normalizedRectToPixelEdges, quantizeNormalizedRectToPagePixels, snapTemplateEditorPointToPagePixels, templateEditorHitRadius, templateEditorPointFromClientRect, updateTemplateEditorRectEdgeFromSurface, type TemplateEditorRegionRenderModel, type TemplateEditorRenderModel, type TemplateEditorTarget } from './templateEditorGeometry'
 import { gridRoleLabel, setTemplateCalibrationTargetRect, type TemplateRegionEdge } from './templateEditing'
 import { templateRegionPlacementMode } from './templateRegionAuthoring'
 import { TEMPLATE_CALIBRATION_TARGET_ID, sameNormalizedRect } from './template-workspace-model'
 import { PAPER_TIMELINE_TARGET_ID, detectPaperTimelineStructure, transformPaperTimelineRect } from './paperTimelineAuthoring'
+import { TemplateReferenceImageLayer } from './TemplateReferenceImageLayer'
+import type { TemplateEditorViewStore } from './templateEditorViewStore'
 
 type TemplateEditorDragPreview = {
   targetId: string
   rect: NormalizedRect
+}
+
+type PendingTemplateWheelZoom = {
+  baseZoom: number
+  targetZoom: number
+  contentX: number
+  contentY: number
+  localX: number
+  localY: number
+}
+
+function applyTemplateEditorZoomStyles(
+  surface: HTMLElement,
+  canvas: HTMLElement,
+  page: { widthPx: number; heightPx: number },
+  zoom: number,
+  pixelQuantized: boolean,
+) {
+  surface.style.width = `${page.widthPx * zoom}px`
+  surface.style.height = `${page.heightPx * zoom}px`
+  canvas.style.transform = `scale(${zoom})`
+  canvas.style.setProperty('--template-grid-line', `${1 / zoom}px`)
+  canvas.classList.toggle('smoothZoom', zoom < 1)
+  canvas.classList.toggle('pixelZoom', zoom >= 1)
+  canvas.classList.toggle('preciseZoom', pixelQuantized && zoom >= 4)
+  canvas.classList.toggle('showPixelGrid', pixelQuantized && zoom >= 8)
 }
 
 export function TemplateRegionEditor({
@@ -21,8 +49,7 @@ export function TemplateRegionEditor({
   setTemplate,
   imageUrl,
   imageSettings,
-  zoom,
-  setZoom,
+  viewStore,
   selectedRegionId,
   onSelectRegion,
   hiddenRegionIds,
@@ -32,19 +59,22 @@ export function TemplateRegionEditor({
   setTemplate: (updater: (currentTemplate: SheetTemplate) => SheetTemplate) => void
   imageUrl: string | null
   imageSettings: SheetImageSettings
-  zoom: number
-  setZoom: (zoom: number) => void
+  viewStore: TemplateEditorViewStore
   selectedRegionId: string | null
   onSelectRegion: (regionId: string) => void
   hiddenRegionIds?: ReadonlySet<string>
   positionLockedRegionIds?: ReadonlySet<string>
 }) {
+  const view = useSyncExternalStore(viewStore.subscribe, viewStore.getSnapshot, viewStore.getSnapshot)
+  const { zoom, referenceOpacity } = view
   const [dragPreview, setDragPreview] = useState<TemplateEditorDragPreview | null>(null)
   const isPixelQuantizedTemplate = template.templateKind !== 'digital-native'
   const previewDurationFrames = template.defaults.durationFrames
   const editorSvgRef = useRef<SVGSVGElement | null>(null)
   const editorClientRectRef = useRef<DOMRect | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const pendingWheelZoomRef = useRef<PendingTemplateWheelZoom | null>(null)
+  const wheelZoomFrameRef = useRef<number | null>(null)
   const hoveredOverlayRef = useRef<HTMLDivElement | null>(null)
   const hoveredTargetIdRef = useRef<string | null>(null)
   const basePaperTimeline = useMemo(() => editablePaperTimelineStructure(template), [template])
@@ -149,9 +179,10 @@ export function TemplateRegionEditor({
       viewport?.removeEventListener('scroll', updateClientRect)
       window.removeEventListener('resize', updateClientRect)
     }
-  }, [editorSurface.pageSize.heightPx, editorSurface.pageSize.widthPx, zoom])
+  }, [editorSurface.pageSize.heightPx, editorSurface.pageSize.widthPx])
 
   useLayoutEffect(() => {
+    editorClientRectRef.current = null
     hoveredTargetIdRef.current = null
     if (hoveredOverlayRef.current) hoveredOverlayRef.current.style.opacity = '0'
   }, [editorSurface.pageSize.heightPx, editorSurface.pageSize.widthPx, selectedRegionId, zoom])
@@ -371,6 +402,22 @@ export function TemplateRegionEditor({
     const viewport = viewportRef.current
     if (!viewport) return
 
+    function flushWheelZoom() {
+      wheelZoomFrameRef.current = null
+      const pending = pendingWheelZoomRef.current
+      pendingWheelZoomRef.current = null
+      if (!pending) return
+      const surface = viewport!.querySelector<HTMLElement>('.templateEditorZoomSurface')
+      const canvas = viewport!.querySelector<HTMLElement>('.templateEditorCanvas')
+      if (!surface || !canvas) return
+      applyTemplateEditorZoomStyles(surface, canvas, editorSurface.pageSize, pending.targetZoom, isPixelQuantizedTemplate)
+      const ratio = pending.targetZoom / pending.baseZoom
+      viewport!.scrollLeft = pending.contentX * ratio - pending.localX
+      viewport!.scrollTop = pending.contentY * ratio - pending.localY
+      editorClientRectRef.current = null
+      viewStore.setZoom(pending.targetZoom)
+    }
+
     function handleWheel(event: globalThis.WheelEvent) {
       const modifierZoom = event.ctrlKey || event.metaKey
       const horizontalInput = !modifierZoom
@@ -389,18 +436,31 @@ export function TemplateRegionEditor({
       const contentX = viewport!.scrollLeft + localX
       const contentY = viewport!.scrollTop + localY
       const factor = rawVerticalDelta < 0 ? SHEET_ZOOM_WHEEL_FACTOR : 1 / SHEET_ZOOM_WHEEL_FACTOR
-      const nextZoom = clampNumber(zoom * factor, TEMPLATE_ZOOM_MIN, TEMPLATE_ZOOM_MAX)
-      const ratio = nextZoom / zoom
-      setZoom(nextZoom)
-      window.requestAnimationFrame(() => {
-        viewport!.scrollLeft = contentX * ratio - localX
-        viewport!.scrollTop = contentY * ratio - localY
-      })
+      const committedZoom = viewStore.getSnapshot().zoom
+      const pendingZoom = pendingWheelZoomRef.current
+      const baseForStep = pendingZoom?.baseZoom === committedZoom ? pendingZoom.targetZoom : committedZoom
+      const nextZoom = clampNumber(baseForStep * factor, TEMPLATE_ZOOM_MIN, TEMPLATE_ZOOM_MAX)
+      pendingWheelZoomRef.current = {
+        baseZoom: committedZoom,
+        targetZoom: nextZoom,
+        contentX,
+        contentY,
+        localX,
+        localY,
+      }
+      if (wheelZoomFrameRef.current === null) {
+        wheelZoomFrameRef.current = window.requestAnimationFrame(flushWheelZoom)
+      }
     }
 
     viewport.addEventListener('wheel', handleWheel, { passive: false })
-    return () => viewport.removeEventListener('wheel', handleWheel)
-  }, [setZoom, zoom])
+    return () => {
+      viewport.removeEventListener('wheel', handleWheel)
+      if (wheelZoomFrameRef.current !== null) window.cancelAnimationFrame(wheelZoomFrameRef.current)
+      wheelZoomFrameRef.current = null
+      pendingWheelZoomRef.current = null
+    }
+  }, [editorSurface.pageSize, isPixelQuantizedTemplate, viewStore])
 
   const activeEditorRect = isCalibrationTargetSelected ? calibrationTargetRect : isPaperTimelineSelected ? paperTimelineSurfaceRect : selectedSurfaceRect
   const activeEditorRectResizable = isCalibrationTargetSelected || isPaperTimelineSelected || editableEdges.size > 0
@@ -437,6 +497,7 @@ export function TemplateRegionEditor({
             renderModel={baseRenderModel}
             imageUrl={imageUrl}
             imageSettings={imageSettings}
+            referenceOpacity={referenceOpacity}
             hiddenRegionId={dragPreview?.targetId === TEMPLATE_CALIBRATION_TARGET_ID || dragPreview?.targetId === PAPER_TIMELINE_TARGET_ID ? null : dragPreview?.targetId ?? null}
           />
           {activeRegionRenderModel && (
@@ -540,12 +601,14 @@ const TemplateStaticPreview = memo(function TemplateStaticPreview({
   renderModel,
   imageUrl,
   imageSettings,
+  referenceOpacity,
   hiddenRegionId,
 }: {
   template: SheetTemplate
   renderModel: ReturnType<typeof buildTemplateEditorRenderModel>
   imageUrl: string | null
   imageSettings: SheetImageSettings
+  referenceOpacity: number
   hiddenRegionId: string | null
 }) {
   const visibleRenderModel = useMemo(
@@ -556,7 +619,15 @@ const TemplateStaticPreview = memo(function TemplateStaticPreview({
     <svg viewBox="0 0 1 1" preserveAspectRatio="none" className="templatePreviewSvg templateStaticPreviewSvg" aria-hidden="true">
       <g className="templateStaticLayer">
         <rect className="sheetPaperBackground" x="0" y="0" width="1" height="1" fill={template.theme.paper.color} />
-        {imageUrl && <SheetImageLayer imageUrl={imageUrl} imageSettings={imageSettings} template={template} placement={template.defaultUnderlay?.placement} forceRaw preview />}
+        {imageUrl && (
+          <TemplateReferenceImageLayer
+            imageUrl={imageUrl}
+            imageSettings={imageSettings}
+            template={template}
+            placement={template.defaultUnderlay?.placement}
+            opacity={referenceOpacity}
+          />
+        )}
         <TemplateChromeLayer model={visibleRenderModel.chrome} />
         {visibleRenderModel.gridOverlays.map(model => <GridOverlayLayer key={model.regionId} model={model} />)}
       </g>

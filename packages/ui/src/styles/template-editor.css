@@ -162,6 +162,15 @@
   align-items: center;
 }
 
+.templateViewToolbarGroup {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.templateReferenceOpacityControl input[type="range"] {
+  width: 110px;
+}
+
 .templateDraftStatus {
   min-width: 112px;
   color: #4c554e;

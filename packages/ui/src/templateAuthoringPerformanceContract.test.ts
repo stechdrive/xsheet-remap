@@ -29,6 +29,19 @@ describe('template authoring performance contract', () => {
     expect(editor).toContain('withoutTemplateRegions(unfilteredBaseRenderModel, hiddenRegionIds)')
   })
 
+  it('isolates view settings from template authoring and coalesces wheel zoom work by frame', () => {
+    const workspace = readSource('template-workspace-workspace.tsx')
+    const editor = readSource('template-workspace-region-editor.tsx')
+
+    expect(workspace).toContain('createTemplateEditorViewStore()')
+    expect(workspace).not.toContain('const [templateZoom')
+    expect(editor).toContain('useSyncExternalStore(viewStore.subscribe')
+    expect(editor).toContain('pendingWheelZoomRef')
+    expect(editor).toContain('requestAnimationFrame(flushWheelZoom)')
+    expect(editor).toContain('viewStore.getSnapshot().zoom')
+    expect(editor).not.toContain('}, [setZoom, zoom])')
+  })
+
   it('keeps full draft snapshots out of the standalone app render state', () => {
     const standalone = readSource('TemplateEditorApp.tsx')
 

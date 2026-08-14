@@ -8,6 +8,7 @@ describe('template authoring responsive layout contract', () => {
   it('keeps all controls except the zoomable canvas on one-direction scrolling layouts', () => {
     const css = readSource('styles/template-editor.css')
     const workspace = readSource('template-workspace-workspace.tsx')
+    const viewControls = readSource('TemplateEditorViewControls.tsx')
     const appShell = readSource('app-shell-view.tsx')
 
     expect(ruleBody(css, '.templateRegionNavigatorActions')).toContain('display: grid')
@@ -23,7 +24,9 @@ describe('template authoring responsive layout contract', () => {
     expect(workspace).not.toContain('bindingTableWrap templateTableWrap')
     expect(workspace).toContain('<TemplateInspectorNavigation')
     expect(workspace).toContain('<TemplateRegionCollectionControls')
-    expect(workspace).toContain('aria-label="ズーム倍率"')
+    expect(workspace).toContain('<TemplateEditorViewControls')
+    expect(viewControls).toContain('aria-label="ズーム倍率"')
+    expect(viewControls).toContain('aria-label="下絵の不透明度"')
     expect(appShell).toContain("panel === 'template' ? 'templateMainPane' : ''")
   })
 

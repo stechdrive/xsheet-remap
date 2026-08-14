@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defaultSheetImageSettings } from './sheetImages'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
 import { PAPER_TIMELINE_TARGET_ID } from './paperTimelineAuthoring'
+import { createTemplateEditorViewStore } from './templateEditorViewStore'
 
 const REGION_ID = 'visibility-test-region'
 const template: SheetTemplate = {
@@ -27,15 +28,20 @@ afterEach(() => {
 
 describe('TemplateRegionEditor region visibility and position locks', () => {
   it('zooms at the pointer with an unmodified wheel', () => {
-    const setZoom = vi.fn()
+    const viewStore = createTemplateEditorViewStore()
+    const setZoom = vi.spyOn(viewStore, 'setZoom')
+    const zoomFrames: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      zoomFrames.push(callback)
+      return 1
+    })
     const { container } = render(
       <TemplateRegionEditor
         template={standardA3SheetTemplate}
         setTemplate={vi.fn()}
         imageUrl={null}
         imageSettings={defaultSheetImageSettings()}
-        zoom={1}
-        setZoom={setZoom}
+        viewStore={viewStore}
         selectedRegionId={PAPER_TIMELINE_TARGET_ID}
         onSelectRegion={vi.fn()}
       />,
@@ -47,19 +53,54 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     fireEvent(viewport, wheel)
 
     expect(wheel.defaultPrevented).toBe(true)
+    expect(setZoom).not.toHaveBeenCalled()
+    zoomFrames[0]!(0)
     expect(setZoom).toHaveBeenCalledWith(1.12)
   })
 
-  it('uses Shift+wheel for horizontal scrolling without changing zoom', () => {
-    const setZoom = vi.fn()
+  it('coalesces continuous wheel input into one zoom update per animation frame', () => {
+    const viewStore = createTemplateEditorViewStore()
+    const setZoom = vi.spyOn(viewStore, 'setZoom')
+    const zoomFrames: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      zoomFrames.push(callback)
+      return zoomFrames.length
+    })
     const { container } = render(
       <TemplateRegionEditor
         template={standardA3SheetTemplate}
         setTemplate={vi.fn()}
         imageUrl={null}
         imageSettings={defaultSheetImageSettings()}
-        zoom={1}
-        setZoom={setZoom}
+        viewStore={viewStore}
+        selectedRegionId={PAPER_TIMELINE_TARGET_ID}
+        onSelectRegion={vi.fn()}
+      />,
+    )
+    const viewport = container.querySelector<HTMLElement>('.templateEditorViewport')!
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 500, 500))
+
+    fireEvent.wheel(viewport, { deltaY: -120, clientX: 200, clientY: 180 })
+    fireEvent.wheel(viewport, { deltaY: -120, clientX: 200, clientY: 180 })
+    fireEvent.wheel(viewport, { deltaY: -120, clientX: 200, clientY: 180 })
+
+    expect(zoomFrames).toHaveLength(1)
+    expect(setZoom).not.toHaveBeenCalled()
+    zoomFrames[0]!(0)
+    expect(setZoom).toHaveBeenCalledTimes(1)
+    expect(setZoom).toHaveBeenCalledWith(1.12 ** 3)
+  })
+
+  it('uses Shift+wheel for horizontal scrolling without changing zoom', () => {
+    const viewStore = createTemplateEditorViewStore()
+    const setZoom = vi.spyOn(viewStore, 'setZoom')
+    const { container } = render(
+      <TemplateRegionEditor
+        template={standardA3SheetTemplate}
+        setTemplate={vi.fn()}
+        imageUrl={null}
+        imageSettings={defaultSheetImageSettings()}
+        viewStore={viewStore}
         selectedRegionId={PAPER_TIMELINE_TARGET_ID}
         onSelectRegion={vi.fn()}
       />,
@@ -81,8 +122,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
         setTemplate={vi.fn()}
         imageUrl={null}
         imageSettings={defaultSheetImageSettings()}
-        zoom={1}
-        setZoom={vi.fn()}
+        viewStore={createTemplateEditorViewStore()}
         selectedRegionId={PAPER_TIMELINE_TARGET_ID}
         onSelectRegion={vi.fn()}
       />,
@@ -113,8 +153,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
         setTemplate={vi.fn()}
         imageUrl={null}
         imageSettings={defaultSheetImageSettings()}
-        zoom={1}
-        setZoom={vi.fn()}
+        viewStore={createTemplateEditorViewStore()}
         selectedRegionId={null}
         onSelectRegion={onSelectRegion}
       />,
@@ -151,8 +190,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
         setTemplate={vi.fn()}
         imageUrl={null}
         imageSettings={defaultSheetImageSettings()}
-        zoom={1}
-        setZoom={vi.fn()}
+        viewStore={createTemplateEditorViewStore()}
         selectedRegionId={selected.regionId}
         onSelectRegion={vi.fn()}
       />,
@@ -179,8 +217,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
       setTemplate: vi.fn(),
       imageUrl: null,
       imageSettings: defaultSheetImageSettings(),
-      zoom: 1,
-      setZoom: vi.fn(),
+      viewStore: createTemplateEditorViewStore(),
       selectedRegionId: null,
       onSelectRegion,
     }
@@ -216,8 +253,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
       setTemplate: vi.fn(),
       imageUrl: null,
       imageSettings: defaultSheetImageSettings(),
-      zoom: 1,
-      setZoom: vi.fn(),
+      viewStore: createTemplateEditorViewStore(),
       selectedRegionId: REGION_ID,
       onSelectRegion: vi.fn(),
     }

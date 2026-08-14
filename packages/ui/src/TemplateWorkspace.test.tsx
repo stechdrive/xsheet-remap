@@ -7,6 +7,31 @@ import { createTemplateDraft } from './templateDrafts'
 afterEach(() => cleanup())
 
 describe('TemplateWorkspace project integration', () => {
+  it('keeps reference opacity as an editor-only display setting', () => {
+    const onApplyTemplate = vi.fn()
+    const before = JSON.stringify(standardA3SheetTemplate)
+    const { container } = render(
+      <TemplateWorkspace
+        project={createDefaultProject()}
+        template={standardA3SheetTemplate}
+        onLoadTemplate={async () => null}
+        onSaveTemplate={async () => ({ saved: true })}
+        onApplyTemplate={onApplyTemplate}
+        onCreateTemplateDraft={(kind): SheetTemplate => createTemplateDraft(kind, standardA3SheetTemplate)}
+        onUpdateCorrectionLayers={() => true}
+      />,
+    )
+    const statusBefore = container.querySelector('.templateDraftStatus')?.textContent
+
+    fireEvent.change(screen.getByRole('slider', { name: '下絵の不透明度' }), { target: { value: '24' } })
+
+    expect(container.querySelector('.templateReferenceImageLayer')?.getAttribute('opacity')).toBe('0.24')
+    expect(container.querySelector('.templateDraftStatus')?.textContent).toBe(statusBefore)
+    expect(screen.queryByText('未適用の変更')).toBeNull()
+    expect(onApplyTemplate).not.toHaveBeenCalled()
+    expect(JSON.stringify(standardA3SheetTemplate)).toBe(before)
+  })
+
   it('keeps an imported JSON as a draft until the user applies it to the project', async () => {
     const imported = createTemplateDraft('paper-standard', standardA3SheetTemplate)
     const onApplyTemplate = vi.fn()

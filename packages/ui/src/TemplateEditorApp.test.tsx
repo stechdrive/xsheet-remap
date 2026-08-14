@@ -101,7 +101,15 @@ describe('TemplateEditorApp authoring workflow', () => {
     fireEvent.keyDown(cellWidth, { key: 'ArrowDown' })
     expect(cellWidth.value).toBe('42.7')
 
-    expect(screen.getByLabelText('CAMERA幅 mm').tagName).toBe('OUTPUT')
+    const cameraWidth = screen.getByLabelText('CAMERA幅 mm') as HTMLInputElement
+    const cameraBefore = Number(cameraWidth.value)
+    const cellBeforeCameraChange = Number(cellWidth.value)
+    expect(cameraWidth.tagName).toBe('INPUT')
+    fireEvent.click(screen.getByRole('button', { name: 'CAMERA幅を広くする' }))
+    expect(Number(cameraWidth.value)).toBeGreaterThan(cameraBefore)
+    expect(Number(cellWidth.value)).toBeLessThan(cellBeforeCameraChange)
+    fireEvent.click(screen.getByRole('button', { name: 'CAMERA幅を狭くする' }))
+    expect(Number(cameraWidth.value)).toBeLessThanOrEqual(cameraBefore)
   })
 
   it('keeps 3200% pixel authoring available without compressing it into the slider scale', async () => {

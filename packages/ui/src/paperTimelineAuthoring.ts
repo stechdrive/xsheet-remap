@@ -214,7 +214,7 @@ export function setPaperTimelineGapPx(
 export function setPaperTimelineRoleWidthPx(
   template: SheetTemplate,
   structure: PaperTimelineStructure,
-  role: Exclude<PaperTimelineRole, 'camera'>,
+  role: PaperTimelineRole,
   requestedWidthPx: number,
 ): SheetTemplate {
   if (structure.status === 'incomplete') return template
@@ -226,6 +226,12 @@ export function setPaperTimelineRoleWidthPx(
   if (!range) return template
   const deltaPx = clamp(requestedDeltaPx, range.minimum, range.maximum)
   if (deltaPx === 0) return template
+  if (role === 'camera') {
+    const cell = regionFor(template, structure.roles.cell.leftRegionId)
+    return cell
+      ? setPaperTimelineRoleWidthPx(template, structure, 'cell', cell.rect.w * pageWidth - deltaPx)
+      : template
+  }
   const nextRole = PAPER_TIMELINE_ROLES[PAPER_TIMELINE_ROLES.indexOf(role) + 1]!
   const delta = deltaPx / pageWidth
   const currentIds = new Set([
@@ -249,7 +255,7 @@ export function setPaperTimelineRoleWidthPx(
 export function nudgePaperTimelineRoleWidthPx(
   template: SheetTemplate,
   structure: PaperTimelineStructure,
-  role: Exclude<PaperTimelineRole, 'camera'>,
+  role: PaperTimelineRole,
   direction: -1 | 1,
 ): SheetTemplate {
   const current = regionFor(template, structure.roles[role].leftRegionId)
@@ -265,7 +271,7 @@ export function nudgePaperTimelineRoleWidthPx(
 export function canNudgePaperTimelineRoleWidthPx(
   template: SheetTemplate,
   structure: PaperTimelineStructure,
-  role: Exclude<PaperTimelineRole, 'camera'>,
+  role: PaperTimelineRole,
   direction: -1 | 1,
 ): boolean {
   const range = paperTimelineRoleWidthDeltaRangePx(template, structure, role)
@@ -442,9 +448,13 @@ function minimumWidthPx(region: SheetTemplateRegion, template: SheetTemplate): n
 function paperTimelineRoleWidthDeltaRangePx(
   template: SheetTemplate,
   structure: PaperTimelineStructure,
-  role: Exclude<PaperTimelineRole, 'camera'>,
+  role: PaperTimelineRole,
 ): { minimum: number; maximum: number } | null {
   if (structure.status === 'incomplete') return null
+  if (role === 'camera') {
+    const cellRange = paperTimelineRoleWidthDeltaRangePx(template, structure, 'cell')
+    return cellRange ? { minimum: -cellRange.maximum, maximum: -cellRange.minimum } : null
+  }
   const nextRole = PAPER_TIMELINE_ROLES[PAPER_TIMELINE_ROLES.indexOf(role) + 1]
   if (!nextRole) return null
   const pageWidth = Math.max(1, template.page.widthPx)

@@ -113,6 +113,20 @@ describe('paper timeline authoring', () => {
     }
   })
 
+  it('treats CAMERA as the inverse control for the shared CELL boundary', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const structure = detectPaperTimelineStructure(template)!
+    const beforeCellWidthPx = region(template, 'left_cell_grid').rect.w * template.page.widthPx
+    const beforeCameraWidthPx = region(template, 'left_camera_grid').rect.w * template.page.widthPx
+
+    expect(canNudgePaperTimelineRoleWidthPx(template, structure, 'camera', 1)).toBe(true)
+    const widerCamera = nudgePaperTimelineRoleWidthPx(template, structure, 'camera', 1)
+
+    expect(region(widerCamera, 'left_cell_grid').rect.w * template.page.widthPx).toBeCloseTo(Math.round(beforeCellWidthPx) - 1)
+    expect(region(widerCamera, 'left_camera_grid').rect.w * template.page.widthPx).toBeCloseTo(Math.round(beforeCameraWidthPx) + 1)
+    expect(detectPaperTimelineStructure(widerCamera)?.status).toBe('compatible')
+  })
+
   it('exposes and enforces the per-column physical minimum width', () => {
     let template = structuredClone(standardA3SheetTemplate)
     template = resizePaperTimelineColumns(template, detectPaperTimelineStructure(template)!, 'cell', 5)

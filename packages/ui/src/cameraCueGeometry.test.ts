@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultProject, createSheetPages, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
+import { createDefaultProject, createSheetPages, digitalStandardSheetTemplate, projectSheetLayoutOptions, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
 import {
   CAMERA_HORIZONTAL_MARK_GRID_RATIO,
   CAMERA_OVERLAP_PIVOT_MARK_GRID_RATIO,
@@ -44,6 +44,32 @@ describe('CAMERA cue geometry', () => {
     expect(layouts).toHaveLength(1)
     expect(layouts[0]?.segments).toHaveLength(2)
     expect(layouts[0]?.label?.glyphs.map(glyph => glyph.value).join('')).toBe('PAN')
+  })
+
+  it('lays out a digital cue on a project CAMERA lane beyond the template defaults', () => {
+    const project = createDefaultProject()
+    const options = projectSheetLayoutOptions(project, digitalStandardSheetTemplate)
+    const digitalPage = createSheetPages(
+      digitalStandardSheetTemplate,
+      options.durationFrames ?? digitalStandardSheetTemplate.defaults.durationFrames,
+      options.frameOrigin ?? digitalStandardSheetTemplate.defaults.frameOrigin,
+    )[0]!
+    const cue: TimedRangeCue = {
+      cueId: 'cue_camera_6', role: 'camera', laneId: 'camera_lane_6', frameStart: 10, frameEnd: 18,
+      label: 'PAN', text: '', source: 'manual', camera: { shape: 'range', startLabel: 'A', endLabel: 'B' },
+    }
+    const pageSize = resolveSheetTemplatePageSize(digitalStandardSheetTemplate, options.durationFrames, options)
+    const layout = buildCameraCuePageLayouts(
+      digitalStandardSheetTemplate,
+      digitalPage,
+      [cue],
+      pageSize,
+      options,
+    )[0]
+
+    expect(layout?.segments).toHaveLength(1)
+    expect(layout?.segments[0]).toMatchObject({ columnIndex: 5, frameStart: 10, frameEnd: 18 })
+    expect(layout?.label?.glyphs.map(glyph => glyph.value).join('')).toBe('PAN')
   })
 
   it('uses vertical auto placement for a long range and logical region coordinates for a manual box', () => {

@@ -828,6 +828,7 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
     const offsetY = page.pageIndex * pageHeight
     const layouts = buildCameraCuePageLayouts(context.template, page, cues, context.pageSize, {
       paperTracks: context.paperTracks,
+      timelineLanes: context.timelineLanes,
       layoutOverrides: context.project.sheetView.layoutOverrides,
     })
     for (const { cue, segments } of layouts) {
@@ -1246,11 +1247,13 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
     for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
       const appearance = normalizeMemoAppearance(memo.appearance)
       const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
-        paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+        paperTracks: context.paperTracks,
+        timelineLanes: context.timelineLanes,
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
       const anchorCell = timelineMemoAnchorCellForPage(context.template, page, memo, {
-        paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+        paperTracks: context.paperTracks,
+        timelineLanes: context.timelineLanes,
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
       if (anchorCell) {
@@ -1310,7 +1313,8 @@ function renderTimelineMemoBackgroundLayer(context: SheetExportLayerContext): Im
       const appearance = normalizeMemoAppearance(memo.appearance)
       if (!appearance.background.enabled || appearance.background.opacity <= 0) continue
       const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
-        paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+        paperTracks: context.paperTracks,
+        timelineLanes: context.timelineLanes,
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
       ctx.save()
@@ -1360,7 +1364,8 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
     for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
       const appearance = normalizeMemoAppearance(memo.appearance)
       const segments = timelineMemoSegmentsForPage(context.template, page, memo, {
-        paperTracks: context.project.logicalSheet.paperTracks.map(track => track.paperTrack),
+        paperTracks: context.paperTracks,
+        timelineLanes: context.timelineLanes,
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
       for (const segment of segments) {

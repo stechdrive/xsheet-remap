@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent, type PointerEvent } from 'react'
-import { type CutProject, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, stackGuideStackBand, timelineLanesForLayout, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
+import { type CutProject, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, projectSheetLayoutOptions, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, stackGuideStackBand } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { clampNumber } from './sheetInteraction'
 import { Tooltip, TooltipTarget } from './Tooltip'
@@ -86,12 +86,10 @@ export function StackGuideOverlay({
   const [labelDrag, setLabelDrag] = useState<LabelDragState | null>(null)
   const labelDragRef = useRef<LabelDragState | null>(null)
   const labelDragCaptureRef = useRef<HTMLButtonElement | null>(null)
-  const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
-  const timelineLanes = timelineLanesForLayout(project)
+  const layoutOptions = projectSheetLayoutOptions(project, template)
+  const displayDurationFrames = layoutOptions.durationFrames ?? template.defaults.durationFrames
   const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
-    paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
-    timelineLanes,
-    layoutOverrides: project.sheetView.layoutOverrides,
+    ...layoutOptions,
   })
   const previewLabels = stackGuideLabelsForPreview(project, dropPreview)
   const displayProject = previewLabels === project.stackGuideLabels
@@ -319,13 +317,11 @@ export function StackGuideOverlay({
     >
       {anchorRegions.map(region => {
         const layout = resolveSheetTemplateGridLayout(template, region, {
-          paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
-          durationFrames: displayDurationFrames,
-          layoutOverrides: project.sheetView.layoutOverrides,
+          ...layoutOptions,
         })
         const columns = layout?.columns ?? []
         const displayRole = region.grid?.role as SheetTimingRole
-        const rect = layout?.rect ?? resolveSheetTemplateRegionRect(template, region, displayDurationFrames)
+        const rect = layout?.rect ?? resolveSheetTemplateRegionRect(template, region, displayDurationFrames, layoutOptions)
         const slots = overlayBandSegmentForRegion(template, displayProject, displayRole, region.regionId)?.slots ?? []
         const anchorY = rect.y
         const headerReachPx = stackGuideHeaderReachPx(template, rect, pageHeight)

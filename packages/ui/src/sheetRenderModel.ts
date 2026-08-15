@@ -8,6 +8,7 @@ import {
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   logicalSheetOfficialFrameEnd,
+  projectSheetLayoutOptions,
   isTimelineProjectingSheetTemplateGridRegion,
   isSpecialTimingEvent,
   resolveSheetTemplateGridLayout,
@@ -24,13 +25,13 @@ import {
   timingEventValueKind,
   stackGuideStackBand,
   timingHitForFrame,
-  timelineLanesForLayout,
   type CutProject,
   type CutSheetDocument,
   type NormalizedRect,
   type PaperTrack,
   type SheetPage,
   type SheetTemplate,
+  type SheetTemplateLayoutResolveOptions,
   type SheetTimingRole,
   type TimelineEventValueKind,
 } from '@xsheet-remap/core'
@@ -55,7 +56,7 @@ export type SheetRenderModelGeometry = {
   displayDurationFrames: number
   officialFrameEnd: number
   paperTracks: string[]
-  timelineLanes: ReturnType<typeof timelineLanesForLayout>
+  timelineLanes: NonNullable<SheetTemplateLayoutResolveOptions['timelineLanes']>
   overlayTracks: PaperTrack[]
 }
 
@@ -176,16 +177,13 @@ export function createSheetRenderModelGeometry(
   template: SheetTemplate,
 ): SheetRenderModelGeometry {
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
-  const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
+  const layoutOptions = projectSheetLayoutOptions(project, template)
+  const displayDurationFrames = layoutOptions.durationFrames ?? logicalSheetDisplayDurationFrames(project.logicalSheet)
   const officialFrameEnd = logicalSheetOfficialFrameEnd(project.logicalSheet)
   const pages = createSheetPages(template, displayDurationFrames, displayFrameStart)
-  const paperTracks = templatePaperTracks(project, template).map(track => track.paperTrack)
-  const timelineLanes = timelineLanesForLayout(project)
-  const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
-    paperTracks,
-    timelineLanes,
-    layoutOverrides: project.sheetView.layoutOverrides,
-  })
+  const paperTracks = layoutOptions.paperTracks ?? []
+  const timelineLanes = layoutOptions.timelineLanes ?? {}
+  const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, layoutOptions)
   return {
     template,
     pages,
@@ -911,13 +909,6 @@ export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContex
       })),
     )
   })
-}
-
-function templatePaperTracks(project: CutProject, template: SheetTemplate): PaperTrack[] {
-  const showAllLogicalTracks = getSheetViewLayout(template).trackAxis?.type === 'logical-width'
-  return project.logicalSheet.paperTracks
-    .filter(track => showAllLogicalTracks || track.source !== 'overlay')
-    .sort((a, b) => a.order - b.order)
 }
 
 function overlayPaperTracks(project: CutProject, template: SheetTemplate): PaperTrack[] {

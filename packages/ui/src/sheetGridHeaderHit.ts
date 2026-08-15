@@ -55,6 +55,7 @@ export function gridColumnHeaderHitFromPoint(options: {
         columnId: column.columnId,
         label: column.label,
         paperTrack: column.paperTrack,
+        timelineLaneId: column.timelineLaneId,
       },
       timelineLaneId: column.timelineLaneId,
     }

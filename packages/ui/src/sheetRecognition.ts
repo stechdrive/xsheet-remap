@@ -6,6 +6,7 @@ import {
   type SheetGridLayout,
   type SheetPage,
   type SheetTemplate,
+  type SheetTemplateLayoutResolveOptions,
   type SheetTimingRole,
   type SheetViewLayoutOverrides,
 } from '@xsheet-remap/core'
@@ -47,6 +48,7 @@ export interface RecognizeSheetPagesOptions {
   durationFrames: number
   frameOrigin: number
   paperTracks?: string[]
+  timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']
   layoutOverrides?: SheetViewLayoutOverrides
   engine?: SheetOcrEngine
   onProgress?: (completed: number, total: number) => void
@@ -150,6 +152,7 @@ function timingLayouts(options: RecognizeSheetPagesOptions): SheetGridLayout[] {
       durationFrames: options.durationFrames,
       frameOrigin: options.frameOrigin,
       paperTracks: options.paperTracks,
+      timelineLanes: options.timelineLanes,
       layoutOverrides: options.layoutOverrides,
     })
     return layout ? [layout] : []

@@ -20,8 +20,9 @@ export function timedRangeCueForId(project: CutProject, cueId: string | null | u
 export function timedRangeLaneIdForHit(
   template: SheetTemplate,
   role: EditableTimedRangeRole,
-  hit: Pick<SheetHit, 'regionId' | 'columnId' | 'columnIndex'>,
+  hit: Pick<SheetHit, 'regionId' | 'columnId' | 'columnIndex' | 'timelineLaneId'>,
 ): string | null {
+  if (hit.timelineLaneId) return hit.timelineLaneId
   const region = template.regions.find(item => item.regionId === hit.regionId)
   if (!region || !isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== role) return null
   const column = region.grid.columns.find(item => item.columnId === hit.columnId)

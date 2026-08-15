@@ -1,4 +1,4 @@
-import { type CutProject, type NormalizedRect, type NormalizedPoint, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, timelineLanesForLayout, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
+import { type CutProject, type NormalizedRect, type NormalizedPoint, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, projectSheetLayoutOptions, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand } from '@xsheet-remap/core'
 import { clampNumber } from './sheetInteraction'
 import { StackGuideInsertTarget, StackGuideLabelUpdates } from './app-foundation'
 import { stackGuideAnchorRegions, stackGuideColumnHeaderHitPx, stackGuideInsertionTargets, stackGuideNativeHeaderReachPx } from './stack-guides-geometry'
@@ -13,13 +13,10 @@ export function stackGuideInsertTargetFromPoint(
   hitMode: StackGuideInsertHitMode = 'header',
 ): StackGuideInsertTarget | null {
   const anchorRegions = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
-  const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
-  const paperTracks = project.logicalSheet.paperTracks.map(track => track.paperTrack)
-  const timelineLanes = timelineLanesForLayout(project)
+  const layoutOptions = projectSheetLayoutOptions(project, template)
+  const displayDurationFrames = layoutOptions.durationFrames ?? template.defaults.durationFrames
   const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
-    paperTracks,
-    timelineLanes,
-    layoutOverrides: project.sheetView.layoutOverrides,
+    ...layoutOptions,
   })
   const candidates: Array<StackGuideInsertTarget & { score: number }> = []
 
@@ -27,10 +24,7 @@ export function stackGuideInsertTargetFromPoint(
     if (!region.grid) continue
     const displayRole = region.grid.role as SheetTimingRole
     const layout = resolveSheetTemplateGridLayout(template, region, {
-      paperTracks,
-      timelineLanes,
-      durationFrames: displayDurationFrames,
-      layoutOverrides: project.sheetView.layoutOverrides,
+      ...layoutOptions,
     })
     if (!layout || layout.columns.length === 0) continue
     const columns = layout.columns
@@ -85,16 +79,13 @@ export function defaultStackGuideInsertTarget(
   page: SheetPage,
   preferredSnapIndex = 1,
 ): StackGuideInsertTarget | null {
-  const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
-  const paperTracks = project.logicalSheet.paperTracks.map(track => track.paperTrack)
+  const layoutOptions = projectSheetLayoutOptions(project, template)
   const anchorRegions = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
   const region = anchorRegions.find(item => item.grid?.role === 'action') ?? anchorRegions.find(item => item.grid)
   if (!region?.grid) return null
   const displayRole = region.grid.role as SheetTimingRole
   const layout = resolveSheetTemplateGridLayout(template, region, {
-    paperTracks,
-    durationFrames: displayDurationFrames,
-    layoutOverrides: project.sheetView.layoutOverrides,
+    ...layoutOptions,
   })
   if (!layout || layout.columns.length === 0) return null
   const columns = layout.columns
@@ -150,8 +141,7 @@ export function stackGuidePlacementTargetFromPointer(
     x: clampNumber((clientX - box.left) / box.width, 0, 1),
     y: clampNumber((clientY - box.top) / box.height, 0, 1),
   }
-  const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
-  const trackNames = project.logicalSheet.paperTracks.map(track => track.paperTrack)
+  const layoutOptions = projectSheetLayoutOptions(project, template)
   type StackGuideDropCandidate = {
     role: SheetTimingRole
     regionId: string
@@ -164,9 +154,7 @@ export function stackGuidePlacementTargetFromPointer(
       if (!region.grid) return []
       const role = region.grid.role as SheetTimingRole
       const layout = resolveSheetTemplateGridLayout(template, region, {
-        paperTracks: trackNames,
-        durationFrames: displayDurationFrames,
-        layoutOverrides: project.sheetView.layoutOverrides,
+        ...layoutOptions,
       })
       if (!layout || layout.columns.length === 0) return []
       const columns = layout.columns

@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-importer-launcher"
-version = "0.1.737"
+version = "0.1.738"
 description = "Native launcher for xsheet-importer"
 authors = ["xsheet-remap contributors"]
 license = "MIT"

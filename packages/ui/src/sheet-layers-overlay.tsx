@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { type CutProject, type NormalizedRect, type PaperTrack, type SheetPage, type SheetTemplate, type SheetTimingRole, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, updatePaperTrack, logicalSheetDisplayDurationFrames } from '@xsheet-remap/core'
+import { type CutProject, type NormalizedRect, type PaperTrack, type SheetPage, type SheetTemplate, type SheetTimingRole, projectSheetLayoutOptions, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, updatePaperTrack } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { gridRowLineClassName } from './templateEditorGeometry'
 import { TooltipTarget } from './Tooltip'
@@ -7,7 +7,7 @@ import { SheetSvgText } from './SheetSvgText'
 import { StatusHintSource } from './app-foundation'
 import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuidePlacements, stackGuideSvgGeometry } from './app-stack-guides'
 import { overlayBandSegmentForRegion } from './stack-guides-geometry'
-import { overlaySnapIndexFromPoint, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
+import { overlaySnapIndexFromPoint, type OverlayBandSegment } from './app-sheet-geometry'
 import { overlayColumnRectForPage } from './sheet-layers-hit-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 
@@ -275,12 +275,9 @@ function overlayPaperTrackRenderItems(
   tracks: PaperTrack[],
   drag: OverlayPaperTrackDrag | null,
 ): OverlayPaperTrackRenderItem[] {
-  const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
-  const templateTracks = templatePaperTracks(project).map(track => track.paperTrack)
-  const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, {
-    paperTracks: templateTracks,
-    layoutOverrides: project.sheetView.layoutOverrides,
-  })
+  const layoutOptions = projectSheetLayoutOptions(project, template)
+  const displayDurationFrames = layoutOptions.durationFrames ?? template.defaults.durationFrames
+  const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, layoutOptions)
   const occupiedByRegion = new Map<string, LabelLaneOccupancy[]>()
 
   function occupiedLanesForRegion(region: SheetTemplate['regions'][number]) {
@@ -291,9 +288,7 @@ function overlayPaperTrackRenderItems(
       .filter(anchorRegion => overlayAuxiliaryLabelBandKey(template, anchorRegion) === bandKey)
       .flatMap(anchorRegion => {
         const layout = resolveSheetTemplateGridLayout(template, anchorRegion, {
-          paperTracks: templateTracks,
-          durationFrames: displayDurationFrames,
-          layoutOverrides: project.sheetView.layoutOverrides,
+          ...layoutOptions,
         })
         if (!layout || layout.columns.length === 0) return []
         const rect = layout.rect
@@ -322,9 +317,7 @@ function overlayPaperTrackRenderItems(
     const region = template.regions.find(item => item.regionId === column.regionId)
     if (!region?.grid) return []
     const layout = resolveSheetTemplateGridLayout(template, region, {
-      paperTracks: templateTracks,
-      durationFrames: displayDurationFrames,
-      layoutOverrides: project.sheetView.layoutOverrides,
+      ...layoutOptions,
     })
     if (!layout || layout.columns.length === 0) return []
     const rect = layout.rect

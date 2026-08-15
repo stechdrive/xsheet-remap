@@ -385,6 +385,7 @@ export {
   updateProjectPaperTracks,
   updateProjectTimelineSectionsFromTemplate,
   reprojectProjectToTemplate,
+  projectSheetLayoutOptions,
   updateStackGuideLabel,
   updateStackGuideRegistration,
   updateTimedRangeCue,

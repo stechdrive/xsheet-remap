@@ -19,6 +19,22 @@ export type TimelineMemoTextLayout = {
   lines: string[]
 }
 
+export function timelineMemoFontSizePx(
+  segment: Pick<TimelineMemoSegment, 'rowHeightY'>,
+  fontSizeUnits: number,
+  pageSize: Pick<{ widthPx: number; heightPx: number }, 'heightPx'>,
+): number {
+  return Math.max(1, fontSizeUnits * segment.rowHeightY * Math.max(1, pageSize.heightPx))
+}
+
+export function timelineMemoFontSizeUnitsForPx(
+  segment: Pick<TimelineMemoSegment, 'rowHeightY'>,
+  fontSizePx: number,
+  pageSize: Pick<{ widthPx: number; heightPx: number }, 'heightPx'>,
+): number {
+  return fontSizePx / Math.max(1, segment.rowHeightY * Math.max(1, pageSize.heightPx))
+}
+
 export function buildTimelineMemoTextLayout(
   segment: TimelineMemoSegment,
   text: TimelineMemoText,
@@ -29,7 +45,7 @@ export function buildTimelineMemoTextLayout(
   const widthPx = Math.max(1, pageSize.widthPx)
   const heightPx = Math.max(1, pageSize.heightPx)
   const point = timelineMemoPointToPagePoint(segment, text)
-  const fontSizePx = Math.max(1, fontSizeUnits * segment.rowHeightY * heightPx)
+  const fontSizePx = timelineMemoFontSizePx(segment, fontSizeUnits, { heightPx })
   const maxWidthPx = Math.max(1, (segment.rect.x + segment.rect.w - point.x) * widthPx)
   const lines = wrapMultilineTextByWidth(text.text, maxWidthPx + 1e-6, {
     family: SHEET_TEXT_FONT_FAMILY,

@@ -8,7 +8,7 @@ import {
   type NormalizedRect,
   type SheetPage,
   type SheetTemplate,
-  type SheetViewLayoutOverrides,
+  type SheetTemplateLayoutResolveOptions,
   type TimelineInkMemo,
   type TimelineMemoPoint,
 } from '@xsheet-remap/core'
@@ -43,7 +43,7 @@ export function timelineMemoAnchorCellForPage(
   template: SheetTemplate,
   page: SheetPage,
   memo: TimelineInkMemo,
-  options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
+  options: SheetTemplateLayoutResolveOptions = {},
 ): TimelineMemoAnchorCell | null {
   if (memo.anchor.frame < page.frameStart || memo.anchor.frame > page.frameEnd) return null
   const frameOrigin = timelineMemoFrameOriginForPage(template, page)
@@ -53,6 +53,7 @@ export function timelineMemoAnchorCellForPage(
       || region.grid.role !== memo.anchor.role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: options.paperTracks,
+      timelineLanes: options.timelineLanes,
       durationFrames: page.frameEnd - page.frameStart + 1,
       frameOrigin,
       layoutOverrides: options.layoutOverrides,
@@ -123,7 +124,7 @@ export function timelineMemoSegmentsForPage(
   template: SheetTemplate,
   page: SheetPage,
   memo: TimelineInkMemo,
-  options: { paperTracks?: string[]; layoutOverrides?: SheetViewLayoutOverrides } = {},
+  options: SheetTemplateLayoutResolveOptions = {},
 ): TimelineMemoSegment[] {
   const memoTop = memo.anchor.frame + memo.placement.frameOffset
   const memoBottom = memoTop + memo.placement.heightFrames
@@ -135,6 +136,7 @@ export function timelineMemoSegmentsForPage(
       || region.grid.role !== memo.anchor.role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
       paperTracks: options.paperTracks,
+      timelineLanes: options.timelineLanes,
       durationFrames: page.frameEnd - page.frameStart + 1,
       frameOrigin,
       layoutOverrides: options.layoutOverrides,

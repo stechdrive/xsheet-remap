@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TimelineMemoText } from '@xsheet-remap/core'
 import type { TimelineMemoSegment } from './timelineMemoGeometry'
-import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
+import { buildTimelineMemoTextLayout, timelineMemoFontSizePx, timelineMemoFontSizeUnitsForPx } from './timelineMemoTextLayout'
 
 const segment: TimelineMemoSegment = {
   memoId: 'memo_1',
@@ -42,5 +42,13 @@ describe('timeline memo text layout', () => {
     expect(layout.maxWidthPx).toBeCloseTo(5)
     expect(layout.lines).toEqual(['縦', '書', '補', '足'])
     expect(layout.lineHeightPx).toBe(12.5)
+  })
+
+  it('uses the resolved continuous page height for displayed font size and round-trips edits', () => {
+    const pageSize = { heightPx: 6480 }
+    const fontSizePx = timelineMemoFontSizePx(segment, 2, pageSize)
+
+    expect(fontSizePx).toBeCloseTo(129.6)
+    expect(timelineMemoFontSizeUnitsForPx(segment, fontSizePx, pageSize)).toBeCloseTo(2)
   })
 })

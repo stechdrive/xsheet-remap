@@ -3,6 +3,7 @@ import {
   normalizeMemoAppearance,
   type SheetPage,
   type SheetTemplate,
+  type SheetTemplateLayoutResolveOptions,
   type SheetViewLayoutOverrides,
   type TimelineInkMemo,
   type TimelineMemoStroke,
@@ -38,6 +39,7 @@ type TimelineMemoRenderInput = {
   template: SheetTemplate
   page: SheetPage
   paperTracks: readonly string[]
+  timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']
   layoutOverrides?: SheetViewLayoutOverrides
 }
 
@@ -61,6 +63,7 @@ export function createTimelineMemoRenderCache() {
           && cached.memo === memo
           && cached.template === input.template
           && cached.page === input.page
+          && cached.timelineLanes === input.timelineLanes
           && cached.layoutOverrides === input.layoutOverrides
           && sameStrings(cached.paperTracks, input.paperTracks)) {
           return cached.value
@@ -71,11 +74,13 @@ export function createTimelineMemoRenderCache() {
           appearance: normalizeMemoAppearance(memo.appearance),
           anchorCell: timelineMemoAnchorCellForPage(input.template, input.page, memo, {
             paperTracks: [...input.paperTracks],
+            timelineLanes: input.timelineLanes,
             layoutOverrides: input.layoutOverrides,
           }),
           anchorPresentation: memoAnchorPresentation(memo),
           segments: timelineMemoSegmentsForPage(input.template, input.page, memo, {
             paperTracks: [...input.paperTracks],
+            timelineLanes: input.timelineLanes,
             layoutOverrides: input.layoutOverrides,
           }).map(segment => buildSegmentRenderItem(segment, memo.strokes)),
         }

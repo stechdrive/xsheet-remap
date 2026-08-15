@@ -5,6 +5,7 @@ import {
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   nextTimelineMemoId,
+  projectSheetLayoutOptions,
   resolveSheetTemplateGridLayout,
   resolveSheetTemplateRegionCapabilities,
   type CutProject,
@@ -142,10 +143,7 @@ export function withInitialTimelineMemoPlacement(
   const page = pages.find(item => item.pageId === pageId)
     ?? pages.find(item => memo.anchor.frame >= item.frameStart && memo.anchor.frame <= item.frameEnd)
   if (!page) return memo
-  const geometryOptions = {
-    paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
-    layoutOverrides: project.sheetView.layoutOverrides,
-  }
+  const geometryOptions = projectSheetLayoutOptions(project, template)
   const anchorCell = timelineMemoAnchorCellForPage(template, page, memo, geometryOptions)
   if (!anchorCell) return memo
   const rowHeightX = anchorCell.rect.h * template.page.heightPx / template.page.widthPx
@@ -211,26 +209,30 @@ function sheetHitForTimedRangeCue(project: CutProject, template: SheetTemplate, 
       || !resolveSheetTemplateRegionCapabilities(region).providesMemoTargets
       || region.grid.role !== cue.role) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
-      paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
+      ...projectSheetLayoutOptions(project, template),
       durationFrames: page.frameEnd - page.frameStart + 1,
       frameOrigin,
-      layoutOverrides: project.sheetView.layoutOverrides,
     })
-    if (!layout || cue.frameStart < layout.frames.frameStart || cue.frameStart > layout.frames.frameEnd) continue
+    if (!layout) continue
+    const regionStart = page.frameStart + layout.frames.frameStart - frameOrigin
+    const regionEnd = regionStart + layout.frames.rowCount - 1
+    if (cue.frameStart < regionStart || cue.frameStart > regionEnd) continue
     const columnIndex = layout.columns.findIndex(column => column.timelineLaneId === cue.laneId)
     const column = layout.columns[columnIndex]
     if (!column) continue
+    const rowIndex = cue.frameStart - regionStart
     return {
       regionId: region.regionId,
       role: cue.role,
       frame: cue.frameStart,
-      rowIndex: cue.frameStart - layout.frames.frameStart,
+      rowIndex,
       columnIndex,
       columnId: column.columnId,
       label: column.label,
+      timelineLaneId: column.timelineLaneId,
       pageId: page.pageId,
       pageIndex: page.pageIndex,
-      localFrame: cue.frameStart - page.frameStart,
+      localFrame: layout.frames.frameStart + rowIndex,
     }
   }
   return null
@@ -252,10 +254,9 @@ function initialTimelineMemoDimensions(template: SheetTemplate, project: CutProj
     && item.grid.role === hit.role,
   )
   const layout = region ? resolveSheetTemplateGridLayout(template, region, {
-    paperTracks: project.logicalSheet.paperTracks.map(track => track.paperTrack),
+    ...projectSheetLayoutOptions(project, template),
     durationFrames: page ? page.frameEnd - page.frameStart + 1 : displayDuration,
     frameOrigin,
-    layoutOverrides: project.sheetView.layoutOverrides,
   }) : null
   const rowHeightPx = Math.max(1, layout?.frames.rowHeightPx ?? template.page.heightPx / Math.max(1, template.defaults.durationFrames))
   const defaults = template.annotationDefaults?.timelineMemo

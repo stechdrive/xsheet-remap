@@ -1,6 +1,6 @@
 import { useMemo, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { normalizeMemoAppearance, type SheetMemoAnchorPresentation, type SheetPage, type SheetTemplate, type SheetViewLayoutOverrides, type TimelineInkMemo, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core'
+import { normalizeMemoAppearance, type SheetMemoAnchorPresentation, type SheetPage, type SheetTemplate, type SheetTemplateLayoutResolveOptions, type SheetViewLayoutOverrides, type TimelineInkMemo, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core'
 import type { EditMode } from './appTypes'
 import {
   timelineMemoAnchorConnectorPoints,
@@ -68,6 +68,7 @@ export function TimelineMemoLayer({
   template,
   page,
   paperTracks,
+  timelineLanes,
   layoutOverrides,
   pageSize,
   surface,
@@ -88,6 +89,7 @@ export function TimelineMemoLayer({
   template: SheetTemplate
   page: SheetPage
   paperTracks: string[]
+  timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']
   layoutOverrides?: SheetViewLayoutOverrides
   pageSize: { widthPx: number; heightPx: number }
   surface: { widthPx: number; heightPx: number }
@@ -197,8 +199,9 @@ export function TimelineMemoLayer({
     template,
     page,
     paperTracks,
+    timelineLanes,
     layoutOverrides,
-  }), [layoutOverrides, memoRenderCache, page, paperTracks, renderedMemos, template])
+  }), [layoutOverrides, memoRenderCache, page, paperTracks, renderedMemos, template, timelineLanes])
   const anchorGroups = useMemo(() => {
     const groups = new Map<string, {
       anchorCell: NonNullable<TimelineMemoPageRenderItem['anchorCell']>

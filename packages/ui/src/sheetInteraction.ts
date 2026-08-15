@@ -9,6 +9,7 @@ import {
   sheetGridCellRect,
   type NormalizedRect,
   type SheetHit,
+  type SheetGridLayoutOptions,
   type SheetPage,
   type SheetTemplate,
   type SheetTemplateInputMode,
@@ -92,6 +93,11 @@ export function handleNativeHorizontalWheelScroll(event: globalThis.WheelEvent, 
   event.preventDefault()
   target.scrollLeft += nativeWheelDeltaToPixels(event, target, rawDelta)
   return true
+}
+
+/** Keeps document navigation and application zoom routing identical across sheet surfaces. */
+export function nativeWheelUsesApplicationZoom(event: Pick<globalThis.WheelEvent, 'ctrlKey' | 'metaKey'>, zoomMode = false) {
+  return zoomMode || event.ctrlKey || event.metaKey
 }
 
 export function enumerateTemplateCellHits(template: SheetTemplate, durationFrames = template.defaults.durationFrames, frameOrigin = template.defaults.frameOrigin): SheetHit[] {
@@ -258,8 +264,14 @@ export function fitZoomForViewport(
   )
 }
 
-export function candidateToHit(template: SheetTemplate, durationFrames: number, frameOrigin: number, candidate: { paperTrack: string; frame: number; sheetRole: SheetTimingRole }): SheetHit | null {
-  return enumerateTimingHits(template, durationFrames, frameOrigin, candidate.sheetRole)
+export function candidateToHit(
+  template: SheetTemplate,
+  durationFrames: number,
+  frameOrigin: number,
+  candidate: { paperTrack: string; frame: number; sheetRole: SheetTimingRole },
+  paperTracks: string[] = template.defaults.paperTracks,
+): SheetHit | null {
+  return enumerateTimingHits(template, durationFrames, frameOrigin, candidate.sheetRole, paperTracks)
     .find(hit => hit.paperTrack === candidate.paperTrack && hit.frame === candidate.frame) ?? null
 }
 
@@ -301,19 +313,28 @@ export function rangeSelectionFromHits(template: SheetTemplate, anchorHit: Sheet
   }
 }
 
-export function rangeRectsForPage(template: SheetTemplate, range: SheetRangeSelection, page: SheetPage, paperTracks = template.defaults.paperTracks): NormalizedRect[] {
+export function rangeRectsForPage(
+  template: SheetTemplate,
+  range: SheetRangeSelection,
+  page: SheetPage,
+  options: SheetGridLayoutOptions = {},
+): NormalizedRect[] {
   const rects: NormalizedRect[] = []
-  const localStart = range.frameStart - page.frameStart + template.defaults.frameOrigin
-  const localEnd = range.frameEnd - page.frameStart + template.defaults.frameOrigin
+  const paperTracks = options.paperTracks ?? template.defaults.paperTracks
+  const durationFrames = options.durationFrames ?? page.frameEnd - page.frameStart + 1
+  const frameOrigin = options.frameOrigin ?? template.defaults.frameOrigin
+  const localStart = range.frameStart - page.frameStart + frameOrigin
+  const localEnd = range.frameEnd - page.frameStart + frameOrigin
   const selectedPaperTracks = new Set(range.paperTracks.length > 0 ? range.paperTracks : range.paperTrack ? [range.paperTrack] : [])
 
   for (const region of template.regions) {
     if (!isInteractiveSheetTemplateGridRegion(region) || region.grid.role !== range.role) continue
     if ((region.flowGroupId ?? region.regionId) !== range.flowGroupId) continue
     const layout = resolveSheetTemplateGridLayout(template, region, {
+      ...options,
       paperTracks,
-      durationFrames: page.frameEnd - page.frameStart + 1,
-      frameOrigin: template.defaults.frameOrigin,
+      durationFrames,
+      frameOrigin,
     })
     if (!layout) continue
     const columns = layout.columns

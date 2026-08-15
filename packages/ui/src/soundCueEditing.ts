@@ -54,7 +54,7 @@ export function resolveAvailableSoundCueLane(
   return laneId ? { laneId, reassigned: laneId !== preferredLaneId } : null
 }
 
-export function soundLaneIdForHit(template: SheetTemplate, hit: Pick<SheetHit, 'regionId' | 'columnId' | 'columnIndex'>): string | null {
+export function soundLaneIdForHit(template: SheetTemplate, hit: Pick<SheetHit, 'regionId' | 'columnId' | 'columnIndex' | 'timelineLaneId'>): string | null {
   return timedRangeLaneIdForHit(template, 'sound', hit)
 }
 

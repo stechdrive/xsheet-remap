@@ -1,11 +1,11 @@
 import type { CorrectionLayer, CutMetadata, CutProject, ExportProfile, LogicalSheet, LogicalTimelineLane, LogicalTimelineSection, LogicalTimelineSectionRole, PaperTrack, PaperTrackName, ProductionStage, SheetTimingRole } from './types'
-import { getSheetTemplatePaperTracks, isInteractiveSheetTemplateGridRegion, withSheetTemplatePaperTracks, standardA3SheetTemplate, standardA3SheetTemplatePreset, type SheetTemplate } from './sheet-template'
-import { defaultLogicalSheetWorkRange } from './logical-sheet'
+import { getSheetTemplatePaperTracks, getSheetViewLayout, isInteractiveSheetTemplateGridRegion, withSheetTemplatePaperTracks, standardA3SheetTemplate, standardA3SheetTemplatePreset, type SheetGridLayoutOptions, type SheetTemplate } from './sheet-template'
+import { defaultLogicalSheetWorkRange, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart } from './logical-sheet'
 import { createDefaultSheetViewState } from './sheet-view'
 import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, isSpecialTimingEvent, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
 import { DEFAULT_CSP_CELL_NAME_POLICY, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createEmptySheetFormData } from './sheet-form-data'
-import { replaceTimedRangeCues } from './timed-range'
+import { replaceTimedRangeCues, timelineLanesForLayout } from './timed-range'
 
 export interface CreateProjectOptions {
   projectId?: string
@@ -17,6 +17,34 @@ export interface CreateProjectOptions {
 export interface ReprojectProjectToTemplateOptions {
   studioPresetId?: string
   resetSheetView?: boolean
+}
+
+/**
+ * Resolves the complete geometry context shared by every project sheet surface.
+ * Templates define presentation; the project remains authoritative for logical
+ * paper tracks, SOUND/CAMERA lanes, display duration, and per-project overrides.
+ */
+export function projectSheetLayoutOptions(
+  project: Pick<CutProject, 'logicalSheet' | 'sheetView'>,
+  template: SheetTemplate,
+): SheetGridLayoutOptions {
+  const viewLayout = getSheetViewLayout(template)
+  const showAllLogicalTracks = viewLayout.trackAxis?.type === 'logical-width'
+  const paperTracks = project.logicalSheet.paperTracks
+    .filter(track => showAllLogicalTracks || track.source !== 'overlay')
+    .slice()
+    .sort((left, right) => left.order - right.order)
+    .map(track => track.paperTrack)
+  const continuousFrameAxis = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
+  return {
+    paperTracks,
+    timelineLanes: timelineLanesForLayout(project),
+    durationFrames: logicalSheetDisplayDurationFrames(project.logicalSheet),
+    frameOrigin: continuousFrameAxis
+      ? logicalSheetDisplayFrameStart(project.logicalSheet)
+      : template.defaults.frameOrigin,
+    layoutOverrides: project.sheetView.layoutOverrides,
+  }
 }
 
 export function createDefaultProject(): CutProject {

@@ -44,7 +44,7 @@ export function recordCameraPointLabelHistory(history: readonly string[], values
     : current, [...history])
 }
 
-export function cameraLaneIdForHit(template: SheetTemplate, hit: Pick<SheetHit, 'regionId' | 'columnId' | 'columnIndex'>): string | null {
+export function cameraLaneIdForHit(template: SheetTemplate, hit: Pick<SheetHit, 'regionId' | 'columnId' | 'columnIndex' | 'timelineLaneId'>): string | null {
   return timedRangeLaneIdForHit(template, 'camera', hit)
 }
 

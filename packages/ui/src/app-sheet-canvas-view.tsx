@@ -223,7 +223,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const selectedTrack = props.selectedHit?.paperTrack ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === props.selectedHit?.paperTrack) : undefined
           const selectedRect = rawSelectedRect && !shouldSuppressRectUnderActiveOverlay(selectedTrack, rawSelectedRect, activeOverlayColumn) ? rawSelectedRect : null
           const normalRangeRects = !isCalibrating && activeRange
-            ? rangeRectsForPage(props.template, activeRange, page, templateTrackNames)
+            ? rangeRectsForPage(props.template, activeRange, page, {
+                paperTracks: templateTrackNames,
+                timelineLanes,
+                durationFrames: page.frameEnd - page.frameStart + 1,
+                frameOrigin: isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin,
+                layoutOverrides: props.project.sheetView.layoutOverrides,
+              })
                 .filter(rect => !shouldSuppressRectUnderActiveOverlay(undefined, rect, activeOverlayColumn))
             : []
           const overlayRangeRects = !isCalibrating && activeRange
@@ -499,6 +505,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       template={props.template}
                       page={page}
                       paperTracks={templateTrackNames}
+                      timelineLanes={timelineLanes}
                       layoutOverrides={props.project.sheetView.layoutOverrides}
                       pageSize={sheetPageSize}
                       surface={selectionSurface}

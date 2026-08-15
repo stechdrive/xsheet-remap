@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { resolveSheetTemplateGridLayout, standardA3SheetTemplate, type RecognitionCandidate } from '@xsheet-remap/core'
+import { createDefaultProject, createSheetPages, digitalStandardSheetTemplate, projectSheetLayoutOptions, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, standardA3SheetTemplate, type RecognitionCandidate } from '@xsheet-remap/core'
 import { defaultSheetImageSettings } from './sheetImages'
 import { deduplicateRecognitionCandidates, normalizeRecognitionLabel, recognizeSheetPages, type SheetOcrEngine } from './sheetRecognition'
 
@@ -100,5 +100,45 @@ describe('sheet recognition labels', () => {
       ['page_2', 'A', 145, '○1'],
     ])
     expect(progress.at(-1)).toEqual([24, 24])
+  })
+
+  it('crops OCR tiles from the project-resolved digital layout', async () => {
+    const project = createDefaultProject()
+    const options = projectSheetLayoutOptions(project, digitalStandardSheetTemplate)
+    const pageSize = resolveSheetTemplatePageSize(digitalStandardSheetTemplate, options.durationFrames, options)
+    const sourceCanvas = document.createElement('canvas')
+    sourceCanvas.width = pageSize.widthPx
+    sourceCanvas.height = pageSize.heightPx
+    const drawImage = vi.fn()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      fillStyle: '#fff',
+      fillRect: vi.fn(),
+      drawImage,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
+    } as unknown as CanvasRenderingContext2D)
+    const region = digitalStandardSheetTemplate.regions.find(item => item.regionId === 'digital_cell_grid')!
+    const layout = resolveSheetTemplateGridLayout(digitalStandardSheetTemplate, region, options)!
+    const columnMargin = Math.min(...layout.columns.map(column => column.w)) * 0.15
+    const page = createSheetPages(
+      digitalStandardSheetTemplate,
+      options.durationFrames ?? digitalStandardSheetTemplate.defaults.durationFrames,
+      options.frameOrigin ?? digitalStandardSheetTemplate.defaults.frameOrigin,
+    )[0]!
+    const engine: SheetOcrEngine = { id: 'mock-ocr', recognize: async () => [] }
+
+    await recognizeSheetPages({
+      template: digitalStandardSheetTemplate,
+      pages: [{ page, imageUrl: 'unused', imageSettings: defaultSheetImageSettings(), correctedCanvas: sourceCanvas }],
+      sheetRole: 'cell',
+      durationFrames: options.durationFrames ?? digitalStandardSheetTemplate.defaults.durationFrames,
+      frameOrigin: options.frameOrigin ?? digitalStandardSheetTemplate.defaults.frameOrigin,
+      paperTracks: options.paperTracks,
+      timelineLanes: options.timelineLanes,
+      layoutOverrides: options.layoutOverrides,
+      engine,
+    })
+
+    expect(drawImage.mock.calls[0]?.[1]).toBeCloseTo((layout.rect.x - columnMargin) * sourceCanvas.width)
   })
 })

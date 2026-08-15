@@ -1,5 +1,5 @@
 import { type DragEvent } from 'react'
-import { type CutProject, type SheetHit, type SheetTemplate, getSheetViewLayout, isTimelineProjectingSheetTemplateGridRegion, resolveSheetTemplateGridFrames, resolveSheetTemplateRegionRect } from '@xsheet-remap/core'
+import { type CutProject, type SheetGridLayoutOptions, type SheetHit, type SheetTemplate, getSheetViewLayout, isTimelineProjectingSheetTemplateGridRegion, resolveSheetTemplateGridFrames, resolveSheetTemplateRegionRect } from '@xsheet-remap/core'
 import { clampNumber, clampSheetZoom, fitZoomForViewport } from './sheetInteraction'
 import { CONTINUOUS_CANVAS_MIN_FRAME_ROW_PX, SHEET_AUTO_FIT_MIN_ZOOM } from './app-foundation'
 import { rectForHit } from './app-sheet-layers'
@@ -14,6 +14,7 @@ export function fitSheetZoomForViewport(
   pageSize: { widthPx: number; heightPx: number },
   durationFrames: number,
   inset: { horizontal: number; vertical: number },
+  layoutOptions: SheetGridLayoutOptions = {},
 ): number | null {
   if (getSheetViewLayout(template).surface?.type !== 'continuous-canvas') {
     return fitZoomForViewport(viewport, pageSize, inset)
@@ -21,7 +22,7 @@ export function fitSheetZoomForViewport(
   if (viewport.clientWidth <= 0 || viewport.clientHeight <= 0) return null
   const availableWidth = Math.max(1, viewport.clientWidth - inset.horizontal)
   const widthZoom = availableWidth / pageSize.widthPx
-  const rowHeight = minLogicalFrameRowHeightPx(template, pageSize, durationFrames)
+  const rowHeight = minLogicalFrameRowHeightPx(template, pageSize, durationFrames, layoutOptions)
   const rowZoom = rowHeight ? CONTINUOUS_CANVAS_MIN_FRAME_ROW_PX / rowHeight : 0
   return Math.max(widthZoom, rowZoom)
 }
@@ -67,11 +68,17 @@ function minLogicalFrameRowHeightPx(
   template: SheetTemplate,
   pageSize: { widthPx: number; heightPx: number },
   durationFrames: number,
+  layoutOptions: SheetGridLayoutOptions,
 ): number | null {
   const rowHeights = template.regions.flatMap(region => {
     if (!isTimelineProjectingSheetTemplateGridRegion(region) || region.grid.frameProjection?.source !== 'logical-frames') return []
-    const rect = resolveSheetTemplateRegionRect(template, region, durationFrames)
-    const frames = resolveSheetTemplateGridFrames(template, region.grid, durationFrames, template.defaults.frameOrigin)
+    const rect = resolveSheetTemplateRegionRect(template, region, durationFrames, layoutOptions)
+    const frames = resolveSheetTemplateGridFrames(
+      template,
+      region.grid,
+      durationFrames,
+      layoutOptions.frameOrigin ?? template.defaults.frameOrigin,
+    )
     return [(rect.h * pageSize.heightPx) / frames.rowCount]
   })
   return rowHeights.length > 0 ? Math.min(...rowHeights) : null

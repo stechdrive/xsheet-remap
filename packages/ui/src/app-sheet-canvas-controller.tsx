@@ -8,7 +8,7 @@ import { cellAssetPreviewItemsForHit, cellAssetPreviewPosition } from './sheetAs
 import { ASSET_MULTI_DRAG_MIME, ASSET_DRAG_MIME, REGISTERED_CELL_DRAG_MIME, STACK_GUIDE_DRAG_MIME, SHEET_ZOOM_WHEEL_FACTOR } from './sheetConstants';
 import { createSheetRenderModelContext } from './sheetRenderModel';
 import { calibrationPointsForSettings } from './sheetImages';
-import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel, nativeVerticalWheelDelta } from './sheetInteraction';
+import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, nativeWheelUsesApplicationZoom, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel, nativeVerticalWheelDelta } from './sheetInteraction';
 import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TimedRangeLaneHeaderMenuState, TimelineLaneEditorState, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
 import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitForFrame, overlayHitFromPoint, processMoveOptionsForSlot } from './app-sheet-layers';
@@ -355,7 +355,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const wheelViewport = viewport
 
     function handleViewportWheel(event: globalThis.WheelEvent) {
-      if (!props.zoomMode && !event.ctrlKey && !event.metaKey) {
+      if (!nativeWheelUsesApplicationZoom(event, props.zoomMode)) {
         handleNativeHorizontalWheelScroll(event, wheelViewport)
         return
       }
@@ -677,6 +677,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         columnId: column.columnId,
         label: column.label,
         paperTrack: column.paperTrack,
+        timelineLaneId: column.timelineLaneId,
       }, page)
       if (hit.frame <= page.frameEnd && rangeFromHits(anchorHit, hit)) return hit
     }
@@ -1117,6 +1118,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       const point = { x: (clientX - box.left) / box.width, y: (clientY - box.top) / box.height }
       const localHit = hitTestSheetTemplate(props.template, point, {
         paperTracks: templateTrackNames,
+        timelineLanes,
         durationFrames: page.frameEnd - page.frameStart + 1,
         frameOrigin: frameOriginForPageHit(props.template, page),
         layoutOverrides: props.project.sheetView.layoutOverrides,

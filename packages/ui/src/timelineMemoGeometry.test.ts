@@ -1,4 +1,4 @@
-import { createDefaultProject, createSheetPages, createTimedRangeCue, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
+import { createDefaultProject, createSheetPages, createTimedRangeCue, digitalStandardSheetTemplate, projectSheetLayoutOptions, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
 import { describe, expect, it } from 'vitest'
 import { assetAssignedMarkerPoints, assetAssignedMarkerSize } from './sheet-selection-visuals'
 import { createTimelineMemoForCue, createTimelineMemoForHit } from './timelineMemoEditing'
@@ -124,6 +124,46 @@ describe('timeline memo geometry', () => {
     const segment = timelineMemoSegmentsForPage(standardA3SheetTemplate, page, memo!, { paperTracks: ['A'] })[0]!.rect
     const overlapsHorizontally = Math.min(anchor.x + anchor.w, segment.x + segment.w) > Math.max(anchor.x, segment.x)
     expect(overlapsHorizontally).toBe(false)
+  })
+
+  it('creates a cue-linked memo on a repeated paper page', () => {
+    const project = createDefaultProject()
+    project.logicalSheet.durationFrames = 288
+    const created = createTimedRangeCue(project, {
+      role: 'sound', laneId: 'sound_lane_1', frameStart: 146, frameEnd: 152, label: '話者',
+    })
+    const createdMemo = createTimelineMemoForCue(created.project, standardA3SheetTemplate, created.cue)
+
+    expect(createdMemo?.anchor.frame).toBe(146)
+    expect(createdMemo?.anchor.laneId).toBe('sound_lane_1')
+  })
+
+  it('creates and positions a memo on a project CAMERA lane beyond the template defaults', () => {
+    const created = createTimedRangeCue(createDefaultProject(), {
+      role: 'camera', laneId: 'camera_lane_6', frameStart: 10, frameEnd: 18, label: 'PAN',
+      camera: { shape: 'range', startLabel: 'A', endLabel: 'B' },
+    })
+    const options = projectSheetLayoutOptions(created.project, digitalStandardSheetTemplate)
+    const page = createSheetPages(
+      digitalStandardSheetTemplate,
+      options.durationFrames ?? digitalStandardSheetTemplate.defaults.durationFrames,
+      options.frameOrigin ?? digitalStandardSheetTemplate.defaults.frameOrigin,
+    )[0]!
+    const createdMemo = createTimelineMemoForCue(created.project, digitalStandardSheetTemplate, created.cue)
+
+    expect(createdMemo?.anchor).toMatchObject({ role: 'camera', laneId: 'camera_lane_6', frame: 10 })
+    expect(timelineMemoAnchorCellForPage(
+      digitalStandardSheetTemplate,
+      page,
+      createdMemo!,
+      options,
+    )).not.toBeNull()
+    expect(timelineMemoSegmentsForPage(
+      digitalStandardSheetTemplate,
+      page,
+      createdMemo!,
+      options,
+    )).toHaveLength(1)
   })
 
   it('preserves the stored memo aspect when switching between paper and digital templates', () => {

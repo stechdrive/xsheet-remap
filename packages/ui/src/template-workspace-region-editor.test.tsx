@@ -27,7 +27,7 @@ afterEach(() => {
 })
 
 describe('TemplateRegionEditor region visibility and position locks', () => {
-  it('zooms at the pointer with an unmodified wheel', () => {
+  it('zooms at the pointer with Ctrl+wheel and prevents browser zoom', () => {
     const viewStore = createTemplateEditorViewStore()
     const setZoom = vi.spyOn(viewStore, 'setZoom')
     const zoomFrames: FrameRequestCallback[] = []
@@ -48,7 +48,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     )
     const viewport = container.querySelector<HTMLElement>('.templateEditorViewport')!
     vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 500, 500))
-    const wheel = createEvent.wheel(viewport, { deltaY: -120, clientX: 200, clientY: 180 })
+    const wheel = createEvent.wheel(viewport, { deltaY: -120, ctrlKey: true, clientX: 200, clientY: 180 })
 
     fireEvent(viewport, wheel)
 
@@ -80,9 +80,9 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     const viewport = container.querySelector<HTMLElement>('.templateEditorViewport')!
     vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 500, 500))
 
-    fireEvent.wheel(viewport, { deltaY: -120, clientX: 200, clientY: 180 })
-    fireEvent.wheel(viewport, { deltaY: -120, clientX: 200, clientY: 180 })
-    fireEvent.wheel(viewport, { deltaY: -120, clientX: 200, clientY: 180 })
+    fireEvent.wheel(viewport, { deltaY: -120, ctrlKey: true, clientX: 200, clientY: 180 })
+    fireEvent.wheel(viewport, { deltaY: -120, ctrlKey: true, clientX: 200, clientY: 180 })
+    fireEvent.wheel(viewport, { deltaY: -120, ctrlKey: true, clientX: 200, clientY: 180 })
 
     expect(zoomFrames).toHaveLength(1)
     expect(setZoom).not.toHaveBeenCalled()
@@ -113,6 +113,31 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     expect(wheel.defaultPrevented).toBe(true)
     expect(viewport.scrollLeft).toBe(120)
     expect(setZoom).not.toHaveBeenCalled()
+  })
+
+  it('leaves an unmodified wheel to native vertical scrolling', () => {
+    const viewStore = createTemplateEditorViewStore()
+    const setZoom = vi.spyOn(viewStore, 'setZoom')
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame')
+    const { container } = render(
+      <TemplateRegionEditor
+        template={standardA3SheetTemplate}
+        setTemplate={vi.fn()}
+        imageUrl={null}
+        imageSettings={defaultSheetImageSettings()}
+        viewStore={viewStore}
+        selectedRegionId={PAPER_TIMELINE_TARGET_ID}
+        onSelectRegion={vi.fn()}
+      />,
+    )
+    const viewport = container.querySelector<HTMLElement>('.templateEditorViewport')!
+    const wheel = createEvent.wheel(viewport, { deltaY: 120, clientX: 200, clientY: 180 })
+
+    fireEvent(viewport, wheel)
+
+    expect(wheel.defaultPrevented).toBe(false)
+    expect(setZoom).not.toHaveBeenCalled()
+    expect(requestFrame).not.toHaveBeenCalled()
   })
 
   it('presents the physical 6-second table as one movable four-edge selection', () => {

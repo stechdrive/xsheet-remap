@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type ReactNode } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
+import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
+import { timelineMemoFontSizePx, timelineMemoFontSizeUnitsForPx } from './timelineMemoTextLayout'
 import { normalizeMemoAppearance, type MemoAppearance } from '@xsheet-remap/core'
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText, viewModeLabels } from './i18n'
@@ -14,7 +15,6 @@ import { Tooltip, TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
 import { ActionMenu, PanelResizeHandle } from './AppControls'
 import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
-import { templatePaperTracks } from './app-sheet-geometry'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
 import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextSizeIcon, TextToolIcon, TrashIcon } from './app-navigation'
 import { SheetCanvas, type SheetCanvasHandle } from './app-sheet-canvas'
@@ -338,6 +338,18 @@ export function SheetPanel(props: {
   const onTimingInputCommit = props.onTimingInputCommit
   const annotationSessionActive = editMode === 'pen' || editMode === 'eraser' || editMode === 'text'
   const annotationPaletteExpanded = annotationPaletteOpen || annotationSessionActive
+  const sheetLayoutOptions = useMemo(
+    () => projectSheetLayoutOptions(props.project, props.template),
+    [props.project, props.template],
+  )
+  const sheetPageSize = useMemo(
+    () => resolveSheetTemplatePageSize(
+      props.template,
+      sheetLayoutOptions.durationFrames,
+      sheetLayoutOptions,
+    ),
+    [props.template, sheetLayoutOptions],
+  )
   const activeTimelineMemoId = selectedTimelineMemoId && timelineMemos(props.project).some(memo => memo.memoId === selectedTimelineMemoId)
     ? selectedTimelineMemoId
     : null
@@ -359,12 +371,11 @@ export function SheetPanel(props: {
   const activeTimelineMemoAppearance = normalizeMemoAppearance(activeTimelineMemo?.appearance)
   const activeTimelineMemoTextSegment = activeTimelineMemo && activePage
     ? timelineMemoSegmentsForPage(props.template, activePage, activeTimelineMemo, {
-        paperTracks: props.project.logicalSheet.paperTracks.map(track => track.paperTrack),
-        layoutOverrides: props.project.sheetView.layoutOverrides,
+        ...sheetLayoutOptions,
       })[0] ?? null
     : null
   const activeTimelineMemoTextFontSizePx = activeTimelineMemo && activeTimelineMemoTextSegment
-    ? activeTimelineMemoAppearance.text.fontSizeUnits * activeTimelineMemoTextSegment.rowHeightY * resolveSheetTemplatePageSize(props.template).heightPx
+    ? timelineMemoFontSizePx(activeTimelineMemoTextSegment, activeTimelineMemoAppearance.text.fontSizeUnits, sheetPageSize)
     : null
   const selectedCueId = props.selectedSoundCueId ?? props.selectedCameraCueId
   const selectedCue = selectedCueId ? props.project.timedRangeCues.find(cue => cue.cueId === selectedCueId) ?? null : null
@@ -536,24 +547,13 @@ export function SheetPanel(props: {
     sharedCutInputRef.current?.focus()
     sharedCutInputRef.current?.select()
   }, [addingSharedCut])
-  const templatePaperTrackNames = useMemo(
-    () => templatePaperTracks(props.project, props.template).map(track => track.paperTrack),
-    [props.project, props.template],
-  )
+  const templatePaperTrackNames = sheetLayoutOptions.paperTracks ?? []
   const hiddenPaperTracks = getSheetTemplateHiddenPaperTracks(props.template, 'cell', templatePaperTrackNames)
   const sheetViewLayout = getSheetViewLayout(props.template)
   const isContinuousCanvas = sheetViewLayout.surface?.type === 'continuous-canvas'
   const workRange = logicalSheetWorkRange(props.project.logicalSheet)
-  const displayDurationFrames = logicalSheetDisplayDurationFrames(props.project.logicalSheet)
+  const displayDurationFrames = sheetLayoutOptions.durationFrames ?? logicalSheetDisplayDurationFrames(props.project.logicalSheet)
   const sheetScanSources = props.project.sheetView.sources.filter(source => source.kind === 'sheet-scan')
-  const sheetPageSize = useMemo(
-    () => resolveSheetTemplatePageSize(props.template, displayDurationFrames, {
-      paperTracks: templatePaperTrackNames,
-      timelineLanes: timelineLanesForLayout(props.project),
-      layoutOverrides: props.project.sheetView.layoutOverrides,
-    }),
-    [props.template, displayDurationFrames, props.project, templatePaperTrackNames],
-  )
   const assetRegistrationSummaryMap = useMemo(() => assetRegistrationSummaries(props.project), [props.project])
 
   useEffect(() => {
@@ -616,7 +616,7 @@ export function SheetPanel(props: {
   function fitSheetToViewport() {
     const viewport = document.querySelector<HTMLElement>('.sheetViewport')
     if (!viewport) return
-    const zoom = fitSheetZoomForViewport(viewport, props.template, sheetPageSize, displayDurationFrames, SHEET_VIEWPORT_FIT_INSET)
+    const zoom = fitSheetZoomForViewport(viewport, props.template, sheetPageSize, displayDurationFrames, SHEET_VIEWPORT_FIT_INSET, sheetLayoutOptions)
     if (zoom !== null) applyAutoFitZoom(zoom)
   }
 
@@ -686,7 +686,7 @@ export function SheetPanel(props: {
     const applyInitialFit = () => {
       if (didFitInitialSheetZoom.current) return
       const viewport = document.querySelector<HTMLElement>('.sheetViewport')
-      const zoom = viewport ? fitSheetZoomForViewport(viewport, props.template, sheetPageSize, displayDurationFrames, SHEET_VIEWPORT_FIT_INSET) : null
+      const zoom = viewport ? fitSheetZoomForViewport(viewport, props.template, sheetPageSize, displayDurationFrames, SHEET_VIEWPORT_FIT_INSET, sheetLayoutOptions) : null
       if (zoom === null) return
       didFitInitialSheetZoom.current = true
       applyAutoFitZoom(zoom)
@@ -694,7 +694,7 @@ export function SheetPanel(props: {
     applyInitialFit()
     const frameId = window.requestAnimationFrame(applyInitialFit)
     return () => window.cancelAnimationFrame(frameId)
-  }, [applyAutoFitZoom, displayDurationFrames, props.template, sheetPageSize])
+  }, [applyAutoFitZoom, displayDurationFrames, props.template, sheetLayoutOptions, sheetPageSize])
 
   useLayoutEffect(() => {
     if (!autoFitZoomEnabled) return undefined
@@ -705,7 +705,7 @@ export function SheetPanel(props: {
       if (frameId !== 0) return
       frameId = window.requestAnimationFrame(() => {
         frameId = 0
-        const fitZoom = fitSheetZoomForViewport(viewport, props.template, sheetPageSize, displayDurationFrames, SHEET_VIEWPORT_FIT_INSET)
+        const fitZoom = fitSheetZoomForViewport(viewport, props.template, sheetPageSize, displayDurationFrames, SHEET_VIEWPORT_FIT_INSET, sheetLayoutOptions)
         if (fitZoom === null) return
         const nextZoom = clampAutoFitSheetZoom(fitZoom)
         if (Math.abs(nextZoom - sheetZoomRef.current) <= SHEET_AUTO_FIT_ZOOM_EPSILON) return
@@ -721,7 +721,7 @@ export function SheetPanel(props: {
       resizeObserver?.disconnect()
       window.removeEventListener('resize', syncAutoFitZoomToViewport)
     }
-  }, [autoFitZoomEnabled, displayDurationFrames, props.template, sheetPageSize, updateSheetZoom])
+  }, [autoFitZoomEnabled, displayDurationFrames, props.template, sheetLayoutOptions, sheetPageSize, updateSheetZoom])
 
   return (
     <TooltipSuppressionProvider suppressed={suppressSheetTooltips(editMode)}>
@@ -903,12 +903,12 @@ export function SheetPanel(props: {
             active={Boolean(props.selectedTextAnnotationId || activeTimelineMemo)}
             onChange={value => {
               if (activeTimelineMemoId && activeTimelineMemoTextSegment) {
-                const pageHeight = resolveSheetTemplatePageSize(props.template).heightPx
+                const pageHeight = sheetPageSize.heightPx
                 props.onUpdateTimelineMemoAppearance(activeTimelineMemoId, {
                   ...activeTimelineMemoAppearance,
                   text: {
                     ...activeTimelineMemoAppearance.text,
-                    fontSizeUnits: value / Math.max(1, activeTimelineMemoTextSegment.rowHeightY * pageHeight),
+                    fontSizeUnits: timelineMemoFontSizeUnitsForPx(activeTimelineMemoTextSegment, value, { heightPx: pageHeight }),
                   },
                 })
                 return

@@ -16,6 +16,12 @@ describe('CAMERA cue editing helpers', () => {
     expect(cameraLaneIdForHit(standardA3SheetTemplate, { regionId: 'right_camera_grid', columnId: 'camera_1', columnIndex: 0 })).toBe('camera_lane_1')
   })
 
+  it('prefers the resolved project lane carried by a custom-template hit', () => {
+    expect(cameraLaneIdForHit(standardA3SheetTemplate, {
+      regionId: 'left_camera_grid', columnId: 'camera_1', columnIndex: 0, timelineLaneId: 'project_camera_lane',
+    })).toBe('project_camera_lane')
+  })
+
   it('copies semantic geometry and moves the overlap pivot with the pasted interval', () => {
     const created = createTimedRangeCue(createDefaultProject(), {
       role: 'camera',

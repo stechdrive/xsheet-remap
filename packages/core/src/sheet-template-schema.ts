@@ -668,6 +668,8 @@ export interface SheetHit {
   columnId: string
   label: string
   paperTrack?: PaperTrackName
+  /** Resolved logical lane identity for SOUND/CAMERA columns. */
+  timelineLaneId?: Id
   pageId?: string
   pageIndex?: number
   localFrame?: number

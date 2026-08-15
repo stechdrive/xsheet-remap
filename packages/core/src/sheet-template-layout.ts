@@ -339,6 +339,7 @@ export function hitTestSheetTemplate(
       columnId: column.columnId,
       label: column.label,
       paperTrack: column.paperTrack,
+      timelineLaneId: column.timelineLaneId,
     }
   }
   return null
@@ -509,6 +510,7 @@ export function timingHitForFrame(
       columnId: column.columnId,
       label: column.label,
       paperTrack,
+      timelineLaneId: column.timelineLaneId,
       pageId: localized.page.pageId,
       pageIndex: localized.page.pageIndex,
     }

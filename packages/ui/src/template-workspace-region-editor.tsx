@@ -3,7 +3,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExt
 import type { SheetImageSettings } from './appTypes'
 import { uiText } from './i18n'
 import { SHEET_ZOOM_WHEEL_FACTOR, TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
-import { clampNumber, handleNativeHorizontalWheelScroll, nativeVerticalWheelDelta } from './sheetInteraction'
+import { clampNumber, handleNativeHorizontalWheelScroll, nativeVerticalWheelDelta, nativeWheelUsesApplicationZoom } from './sheetInteraction'
 import { GridOverlayLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { buildTemplateEditorRegionRenderModel, buildTemplateEditorRenderModel, buildTemplateEditorSurfaceModel, hitTestTemplateEditorTarget, normalizedRectToPixelEdges, quantizeNormalizedRectToPagePixels, snapTemplateEditorPointToPagePixels, templateEditorHitRadius, templateEditorPointFromClientRect, updateTemplateEditorRectEdgeFromSurface, type TemplateEditorRegionRenderModel, type TemplateEditorRenderModel, type TemplateEditorTarget } from './templateEditorGeometry'
 import { gridRoleLabel, setTemplateCalibrationTargetRect, type TemplateRegionEdge } from './templateEditing'
@@ -421,10 +421,7 @@ export function TemplateRegionEditor({
     }
 
     function handleWheel(event: globalThis.WheelEvent) {
-      const modifierZoom = event.ctrlKey || event.metaKey
-      const horizontalInput = !modifierZoom
-        && (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY))
-      if (horizontalInput) {
+      if (!nativeWheelUsesApplicationZoom(event)) {
         handleNativeHorizontalWheelScroll(event, viewport!)
         return
       }

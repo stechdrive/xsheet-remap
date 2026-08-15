@@ -83,7 +83,6 @@ export const uiText = {
     correctedSheetImageExportFormatTitle: (format: string, pageCount: number) => `現在のカットの補正済み紙シート全${pageCount}ページを${format}形式で書き出す`,
     correctedSheetImageExportFilter: (format: string) => `補正済み紙シート画像 (${format})`,
     dialogueAudioExport: '音声トラック',
-    dialogueAudioExportTitle: 'クリップがある音声トラックを個別ファイルで、現在のカット尺に揃えて保存',
     dialogueAudioExportFormatTitle: (format: string) => `現在のカットの音声トラックを個別の${format}ファイルで書き出す`,
     dialogueAudioExportEmpty: '現在のカット範囲には、書き出せる音声クリップがありません。',
     dialogueAudioExportSucceeded: (format: string, trackCount: number) => `音声トラック ${trackCount}本を${format}で書き出しました`,

@@ -12,6 +12,13 @@ describe('App: dialogue audio export menu', () => {
     const group = within(menu).getByRole('group', { name: uiText.actions.dialogueAudioExport })
 
     expect(within(group).getAllByRole('button').map(button => button.textContent)).toEqual(['WAV', 'MP3'])
+    expect(group.querySelector('.appNavCorrectedSheetExportHint')).toBeNull()
+    expect(within(group).getByRole('button', {
+      name: uiText.actions.dialogueAudioExportFormatTitle('WAV'),
+    })).toBeTruthy()
+    expect(within(group).getByRole('button', {
+      name: uiText.actions.dialogueAudioExportFormatTitle('MP3'),
+    })).toBeTruthy()
   })
 
   it('keeps audio-track export out of Remap', () => {

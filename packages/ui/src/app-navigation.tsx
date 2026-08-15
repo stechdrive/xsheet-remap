@@ -817,7 +817,6 @@ export function AppNavigationMenu({
                   )
                 })}
               </div>
-              <span className="appNavCorrectedSheetExportHint">{uiText.actions.dialogueAudioExportTitle}</span>
             </div>
           )}
           <Tooltip label={uiText.actions.xdtsTitle}>

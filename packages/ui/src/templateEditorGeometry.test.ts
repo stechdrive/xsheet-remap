@@ -229,7 +229,7 @@ describe('template editor geometry', () => {
     expect(buildTemplateGridOverlayRenderModel(template, region)?.backgroundBands).toEqual([])
   })
 
-  it('places digital seconds beside CELL and keeps SOUND column-only', () => {
+  it('places digital seconds beside CELL and renders SOUND from its dotted template rules', () => {
     const cellRegion = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'cell')
     const actionRegion = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'action')
     const region = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'sound')
@@ -239,8 +239,9 @@ describe('template editor geometry', () => {
     const cell = buildTemplateGridOverlayRenderModel(digitalStandardSheetTemplate, cellRegion!)
     const action = buildTemplateGridOverlayRenderModel(digitalStandardSheetTemplate, actionRegion!)
 
-    expect(sound?.rowPaths).toHaveLength(0)
-    expect(sound?.columnPath).not.toBeNull()
+    expect(sound?.rowPaths).toHaveLength(2)
+    expect(sound?.columnPath).toBeNull()
+    expect(sound?.rowPaths.every(path => path.style?.pattern === 'dotted')).toBe(true)
     expect(sound?.labels).toHaveLength(0)
     expect(cell?.secondCounters.map(item => item.text)).toEqual(['1', '2', '3', '4', '5', '6'])
     expect(cell!.secondCounters[0].fontSizePx).toBe(17)
@@ -377,12 +378,12 @@ describe('template editor geometry', () => {
     const reserve = model.gridOverlays.find(item => item.regionId === 'digital_action_reserve_grid')
 
     expect(reserve).toBeUndefined()
-    expect(model.chrome.formBoxes).toHaveLength(16)
+    expect(model.chrome.formBoxes).toHaveLength(14)
     expect(model.chrome.formLabels.map(label => label.text)).toEqual([
-      'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'ページ数', 'MEMO',
+      'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'MEMO',
     ])
     expect(model.chrome.formFields).toHaveLength(7)
-    expect(model.chrome.formAnnotationTargets).toHaveLength(1)
+    expect(model.chrome.formAnnotationTargets).toHaveLength(0)
     expect(model.chrome.formBoxes.some(box => box.key === 'digital_memo_area:digital_memo_box')).toBe(true)
   })
 
@@ -419,7 +420,7 @@ describe('template editor geometry', () => {
 
     const title = chrome.formFields.find(field => field.fieldId === 'digital.title')!
     const episode = chrome.formFields.find(field => field.fieldId === 'digital.episode')!
-    const memo = chrome.formAnnotationTargets.find(target => target.key === 'digital_memo_area:digital_memo_box')!
+    const memo = chrome.formFields.find(field => field.key === 'digital_memo_area:digital_memo_box')!
     expect(title.rect.w * chrome.pageSize.widthPx).toBeGreaterThan(600)
     expect(episode.rect.w * chrome.pageSize.widthPx).toBeCloseTo(160)
     expect(memo.rect.w * chrome.pageSize.widthPx).toBeCloseTo(chrome.pageSize.widthPx - 64)

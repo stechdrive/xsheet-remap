@@ -1725,7 +1725,7 @@ describe('sheet template hit testing', () => {
     })
     expect(digitalStandardSheetTemplate.fields?.flatMap(field =>
       field.builtinBinding?.target === 'cut-metadata' ? [field.builtinBinding.field] : [],
-    )).toEqual(['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page'])
+    )).toEqual(['title', 'episode', 'scene', 'cut', 'duration', 'worker'])
   })
 
   it('lets the digital standard view follow logical tracks and duration', () => {

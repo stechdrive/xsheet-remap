@@ -9,6 +9,24 @@ afterEach(() => {
 })
 
 describe('ActionMenu', () => {
+  it('closes another menu without scheduling an update from inside a state updater', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    render(
+      <>
+        <ActionMenu label="1" ariaLabel="1番目のメニュー"><button type="button">1番目の項目</button></ActionMenu>
+        <ActionMenu label="2" ariaLabel="2番目のメニュー"><button type="button">2番目の項目</button></ActionMenu>
+      </>,
+    )
+
+    fireEvent.click(screen.getByLabelText('1番目のメニュー'))
+    expect(await screen.findByRole('button', { name: '1番目の項目' })).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('2番目のメニュー'))
+
+    expect(await screen.findByRole('button', { name: '2番目の項目' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '1番目の項目' })).toBeNull()
+    expect(consoleError).not.toHaveBeenCalled()
+  })
+
   it('right-aligns a bottom menu when its preferred position would leave the viewport', async () => {
     vi.stubGlobal('innerWidth', 1000)
     vi.stubGlobal('innerHeight', 700)

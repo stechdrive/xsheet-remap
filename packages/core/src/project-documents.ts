@@ -1,4 +1,4 @@
-import type { Annotation, AssetRoot, CellBinding, CspTrackSlot, CutAsset, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetRevisionDocument, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimelineInkMemo, TimingKey } from './types'
+import type { Annotation, AnnotationStroke, AnnotationText, AssetRoot, CellBinding, CspTrackSlot, CutAsset, CutGroupProjectDocument, CutMetadata, CutProject, CutSheetDocument, CutSheetMetadata, ProductionMetadata, SharedRegisteredCellCatalog, SheetMemo, SheetRevisionDocument, SheetViewState, StackGuideLabel, StackGuideLabelPlacementState, TimedRangeCue, TimelineInkMemo, TimingKey } from './types'
 import { parseSheetTemplate, sheetTemplatePresets, standardA3SheetTemplate, type SheetTemplate } from './sheet-template'
 import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { migrateAnnotation } from './annotations'
@@ -57,9 +57,9 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
   if (!isRecord(input.production) || !isRecord(input.sheetTemplate)) {
     throw new Error('プロジェクトの制作情報またはシートテンプレートが不正です。')
   }
-  let sheetTemplate: SheetTemplate
+  let embeddedSheetTemplate: SheetTemplate
   try {
-    sheetTemplate = parseSheetTemplate(input.sheetTemplate)
+    embeddedSheetTemplate = parseSheetTemplate(input.sheetTemplate)
   } catch {
     throw new Error('プロジェクトの制作情報またはシートテンプレートが不正です。')
   }
@@ -73,6 +73,13 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
   }
 
   const document = input as unknown as CutGroupProjectDocument
+  const sheetTemplate = resolveCurrentBuiltInProjectTemplate(document.studioPresetId, embeddedSheetTemplate)
+  const templateMigration: ProjectTemplateMigration = {
+    removedDigitalPageTarget: document.studioPresetId === 'digital-standard'
+      && embeddedSheetTemplate.templateId === sheetTemplate.templateId
+      && templateHasPageBinding(embeddedSheetTemplate)
+      && !templateHasPageBinding(sheetTemplate),
+  }
   const production: ProductionMetadata = {
     title: stringValue(document.production.title),
     episode: stringValue(document.production.episode),
@@ -81,7 +88,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
   }
   const registeredCells = sharedRegisteredCellCatalogFromInput(document.registeredCells)
   const cuts = document.cuts
-    .map((cut, index) => normalizeCutSheetDocument(cut, index, sheetTemplate.templateId))
+    .map((cut, index) => normalizeCutSheetDocument(cut, index, sheetTemplate.templateId, templateMigration))
     .sort((a, b) => a.order - b.order || a.cutId.localeCompare(b.cutId, 'ja'))
     .map((cut, order) => ({ ...cut, order }))
   const activeCutId = cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : cuts[0]!.cutId
@@ -103,6 +110,86 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     exportProfiles: document.exportProfiles,
     cuts,
     extensions,
+  }
+}
+
+function resolveCurrentBuiltInProjectTemplate(
+  studioPresetId: string | undefined,
+  embeddedTemplate: SheetTemplate,
+): SheetTemplate {
+  if (studioPresetId !== 'digital-standard' || !templateHasPageBinding(embeddedTemplate)) return embeddedTemplate
+  const preset = sheetTemplatePresets.find(candidate => candidate.presetId === studioPresetId && candidate.source === 'built-in')
+  if (!preset || preset.sheetTemplate.templateId !== embeddedTemplate.templateId) return embeddedTemplate
+  return structuredClone(preset.sheetTemplate)
+}
+
+function templateHasPageBinding(template: SheetTemplate): boolean {
+  const pageFieldIds = new Set(template.fields
+    ?.filter(field => field.builtinBinding?.target === 'cut-metadata' && field.builtinBinding.field === 'page')
+    .map(field => field.fieldId) ?? [])
+  return template.regions.some(region =>
+    region.binding?.target === 'cut-metadata' && region.binding.field === 'page'
+    || region.form?.cells?.some(cell => Boolean(cell.fieldId && pageFieldIds.has(cell.fieldId))),
+  )
+}
+
+function migrateRemovedDigitalPageTargetMemos(memos: SheetMemo[], templateId: string): SheetMemo[] {
+  return memos.map(memo => {
+    if (memo.kind !== 'page' || memo.target.logicalTargetId !== 'metadata:page') return memo
+    const offset = memo.target.targetRect ?? { x: 0, y: 0 }
+    return {
+      ...memo,
+      target: {
+        kind: 'page',
+        pageId: memo.target.pageId,
+        templateId,
+        surfaceSize: memo.target.surfaceSize,
+      },
+      strokes: memo.strokes.map(stroke => migrateRemovedTargetStroke(stroke, templateId, offset)),
+      texts: memo.texts.map(text => migrateRemovedTargetText(text, templateId, offset)),
+    }
+  })
+}
+
+function migrateRemovedTargetStroke(
+  stroke: AnnotationStroke,
+  templateId: string,
+  offset: Pick<NonNullable<Extract<SheetMemo, { kind: 'page' }>['target']['targetRect']>, 'x' | 'y'>,
+): AnnotationStroke {
+  const targetRelative = stroke.coordinateSpace === 'memo-target'
+  return {
+    ...stroke,
+    coordinateSpace: targetRelative ? 'view-surface' : stroke.coordinateSpace,
+    anchor: pageAnchorAfterRemovedTarget(stroke, templateId),
+    points: targetRelative
+      ? stroke.points.map(point => ({ ...point, x: point.x + offset.x, y: point.y + offset.y }))
+      : stroke.points,
+  }
+}
+
+function migrateRemovedTargetText(
+  text: AnnotationText,
+  templateId: string,
+  offset: Pick<NonNullable<Extract<SheetMemo, { kind: 'page' }>['target']['targetRect']>, 'x' | 'y'>,
+): AnnotationText {
+  const targetRelative = text.coordinateSpace === 'memo-target'
+  return {
+    ...text,
+    coordinateSpace: targetRelative ? 'view-surface' : text.coordinateSpace,
+    anchor: pageAnchorAfterRemovedTarget(text, templateId),
+    x: targetRelative ? text.x + offset.x : text.x,
+    y: targetRelative ? text.y + offset.y : text.y,
+  }
+}
+
+function pageAnchorAfterRemovedTarget(annotation: Annotation, templateId: string): Annotation['anchor'] {
+  const anchor = annotation.anchor
+  if (anchor?.kind !== 'view-surface' && anchor?.kind !== 'template-region') return anchor
+  return {
+    kind: 'view-surface',
+    templateId,
+    pageId: annotation.pageId,
+    surfaceSize: anchor.kind === 'view-surface' ? anchor.surfaceSize : undefined,
   }
 }
 
@@ -626,7 +713,16 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
   })
 }
 
-function normalizeCutSheetDocument(input: unknown, fallbackOrder: number, templateId: string): CutSheetDocument {
+type ProjectTemplateMigration = {
+  removedDigitalPageTarget: boolean
+}
+
+function normalizeCutSheetDocument(
+  input: unknown,
+  fallbackOrder: number,
+  templateId: string,
+  templateMigration: ProjectTemplateMigration = { removedDigitalPageTarget: false },
+): CutSheetDocument {
   if (!isRecord(input) || typeof input.cutId !== 'string' || !isRecord(input.metadata)) {
     throw new Error(`タイムシート${fallbackOrder + 1}のデータが不正です。`)
   }
@@ -637,8 +733,8 @@ function normalizeCutSheetDocument(input: unknown, fallbackOrder: number, templa
     sheetFields: normalizeSheetFormFieldValues(input.metadata.sheetFields),
   }
   const revisions = Array.isArray(input.revisions)
-    ? input.revisions.map((revision, index) => normalizeSheetRevisionDocument(revision, index, templateId))
-    : [normalizeLegacySheetRevisionDocument(input, templateId)]
+    ? input.revisions.map((revision, index) => normalizeSheetRevisionDocument(revision, index, templateId, templateMigration))
+    : [normalizeLegacySheetRevisionDocument(input, templateId, templateMigration)]
   if (revisions.length === 0) throw new Error(`タイムシート${fallbackOrder + 1}には1件以上のシートが必要です。`)
   const orderedRevisions = revisions
     .sort((a, b) => a.order - b.order || a.revisionId.localeCompare(b.revisionId, 'ja'))
@@ -657,13 +753,23 @@ function normalizeCutSheetDocument(input: unknown, fallbackOrder: number, templa
   }
 }
 
-function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number, templateId: string): SheetRevisionDocument {
+function normalizeSheetRevisionDocument(
+  input: unknown,
+  fallbackOrder: number,
+  templateId: string,
+  templateMigration: ProjectTemplateMigration = { removedDigitalPageTarget: false },
+): SheetRevisionDocument {
   if (!isRecord(input) || typeof input.revisionId !== 'string'
     || !isRecord(input.metadata) || !isRecord(input.sheetView) || !isRecord(input.logicalSheet)
     || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
     || (!Array.isArray(input.memos) && !Array.isArray(input.annotations)) || !Array.isArray(input.timedRangeCues)) {
     throw new Error(`シート${fallbackOrder + 1}のデータが不正です。`)
   }
+  const memos = migrateLegacyMemos(
+    input.memos,
+    Array.isArray(input.annotations) ? input.annotations as Annotation[] : [],
+    Array.isArray(input.timelineMemos) ? input.timelineMemos as Omit<TimelineInkMemo, 'kind'>[] : [],
+  )
   return {
     revisionId: input.revisionId,
     order: typeof input.order === 'number' && Number.isFinite(input.order) ? Math.max(0, Math.round(input.order)) : fallbackOrder,
@@ -681,16 +787,16 @@ function normalizeSheetRevisionDocument(input: unknown, fallbackOrder: number, t
     logicalSheet: input.logicalSheet as unknown as SheetRevisionDocument['logicalSheet'],
     cspTrackSlots: input.cspTrackSlots as CspTrackSlot[],
     stackGuideLabelPlacements: input.stackGuideLabelPlacements as StackGuideLabelPlacementState[],
-    memos: migrateLegacyMemos(
-      input.memos,
-      Array.isArray(input.annotations) ? input.annotations as Annotation[] : [],
-      Array.isArray(input.timelineMemos) ? input.timelineMemos as Omit<TimelineInkMemo, 'kind'>[] : [],
-    ),
+    memos: templateMigration.removedDigitalPageTarget ? migrateRemovedDigitalPageTargetMemos(memos, templateId) : memos,
     timedRangeCues: input.timedRangeCues as TimedRangeCue[],
   }
 }
 
-function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>, templateId: string): SheetRevisionDocument {
+function normalizeLegacySheetRevisionDocument(
+  input: Record<string, unknown>,
+  templateId: string,
+  templateMigration: ProjectTemplateMigration = { removedDigitalPageTarget: false },
+): SheetRevisionDocument {
   if (!isRecord(input.sheetView) || !isRecord(input.logicalSheet)
     || !Array.isArray(input.cspTrackSlots) || !Array.isArray(input.stackGuideLabelPlacements)
     || (!Array.isArray(input.memos) && !Array.isArray(input.annotations)) || !Array.isArray(input.timedRangeCues)) {
@@ -714,7 +820,7 @@ function normalizeLegacySheetRevisionDocument(input: Record<string, unknown>, te
     annotations: Array.isArray(input.annotations) ? input.annotations : [],
     timelineMemos: Array.isArray(input.timelineMemos) ? input.timelineMemos : [],
     timedRangeCues: input.timedRangeCues,
-  }, 0, templateId)
+  }, 0, templateId, templateMigration)
 }
 
 function cutMetadataWithProduction(cut: CutSheetMetadata, revision: SheetRevisionDocument['metadata'], production: ProductionMetadata): CutMetadata {

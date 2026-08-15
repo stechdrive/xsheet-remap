@@ -89,6 +89,8 @@ function templateFormCellLogicalTargetId(
   cell: SheetTemplateFormCell,
   definition?: SheetTemplateFieldDefinition,
 ): string {
+  // Preserve v6 custom templates while new templates declare this identity in
+  // memoTarget.logicalTargetId. The shared field id is also the persisted body key.
   if (region.type === 'memo-area' || cell.fieldId === 'memo.body') return 'memo:main'
   const binding = definition?.builtinBinding
   if (binding?.target === 'cut-metadata') {

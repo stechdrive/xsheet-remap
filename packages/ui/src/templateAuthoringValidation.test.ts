@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { standardA3SheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
+import { digitalStandardSheetTemplate, standardA3SheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import { validateTemplateAuthoring } from './templateAuthoringValidation'
 import { detectPaperTimelineStructure, resizePaperTimelineColumns } from './paperTimelineAuthoring'
 
@@ -32,6 +32,27 @@ describe('template authoring validation', () => {
     const structure = detectPaperTimelineStructure(narrow)!
     const crowded = resizePaperTimelineColumns(narrow, structure, 'cell', 64)
     expect(issueCodes(validateTemplateAuthoring(crowded).warnings)).toContain('paper-timeline-column-narrow')
+  })
+
+  it('rejects page-number bindings only on infinite-scroll templates', () => {
+    const infinite = structuredClone(digitalStandardSheetTemplate)
+    infinite.fields!.push({
+      fieldId: 'custom.page',
+      label: 'ページ',
+      scope: 'page',
+      valueType: 'text',
+      builtinBinding: { target: 'cut-metadata', field: 'page' },
+    })
+    infinite.regions.find(region => region.regionId === 'digital_metadata_form')!.form!.cells!.push({
+      cellId: 'custom_page_box',
+      row: 1,
+      column: 0,
+      kind: 'field',
+      fieldId: 'custom.page',
+    })
+
+    expect(issueCodes(validateTemplateAuthoring(infinite).errors)).toContain('infinite-page-binding-invalid')
+    expect(issueCodes(validateTemplateAuthoring(cloneStandardTemplate()).errors)).not.toContain('infinite-page-binding-invalid')
   })
 
   it('requires a non-blank template id and name', () => {

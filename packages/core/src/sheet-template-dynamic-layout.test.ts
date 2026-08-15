@@ -42,7 +42,10 @@ describe('dynamic sheet template layout', () => {
       { every: 12, weight: 'medium' },
       { every: 6, weight: 'regular' },
     ])
-    expect(soundGrid?.rowLineRules).toBeUndefined()
+    expect(soundGrid?.lineRules).toEqual(expect.arrayContaining([
+      expect.objectContaining({ axis: 'column', target: 'all', style: expect.objectContaining({ pattern: 'dotted' }) }),
+      expect.objectContaining({ axis: 'row', target: 'all', style: expect.objectContaining({ pattern: 'dotted' }) }),
+    ]))
     expect(soundGrid?.rowLabelRules).toBeUndefined()
     expect(digitalStandardSheetTemplate.style?.secondCounter).toEqual({ visible: true })
     expect(digitalStandardSheetTemplate.style?.bottomTrackLabels).toBeUndefined()

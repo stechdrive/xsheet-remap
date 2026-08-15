@@ -128,11 +128,9 @@ export function ActionMenu({
 
   function toggleOpen(event: MouseEvent<HTMLElement>) {
     event.preventDefault()
-    setOpen(current => {
-      const nextOpen = !current
-      if (nextOpen) window.dispatchEvent(new CustomEvent(ACTION_MENU_OPEN_EVENT, { detail: menuId }))
-      return nextOpen
-    })
+    const nextOpen = !open
+    if (nextOpen) window.dispatchEvent(new CustomEvent(ACTION_MENU_OPEN_EVENT, { detail: menuId }))
+    setOpen(nextOpen)
   }
 
   function handleContentClick(event: MouseEvent<HTMLDivElement>) {

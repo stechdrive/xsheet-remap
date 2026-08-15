@@ -38,7 +38,7 @@ describe('SheetMetadataEditor page fields', () => {
 
     const title = screen.getByRole('button', { name: 'タイトルを編集' })
     const episode = screen.getByRole('button', { name: '話数を編集' })
-    const memo = screen.getByRole('button', { name: 'MEMOをメモ対象に選択' })
+    const memo = screen.getByRole('button', { name: 'MEMOを編集' })
     expect(Number.parseFloat(title.style.width)).toBeGreaterThan(600)
     expect(Number.parseFloat(episode.style.width)).toBeCloseTo(160)
     expect(Number.parseFloat(memo.style.width)).toBeCloseTo(pageSize.widthPx - 64)

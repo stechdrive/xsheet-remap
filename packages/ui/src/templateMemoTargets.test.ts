@@ -30,6 +30,7 @@ describe('template memo logical targets', () => {
     const paperDefinition = standardA3SheetTemplate.fields!.find(field => field.fieldId === paperCell.fieldId)!
     const digitalRegion = digitalStandardSheetTemplate.regions.find(region => region.regionId === 'digital_memo_area')!
     const digitalCell = digitalRegion.form!.cells!.find(cell => cell.cellId === 'digital_memo_box')!
+    const digitalDefinition = digitalStandardSheetTemplate.fields!.find(field => field.fieldId === digitalCell.fieldId)!
 
     expect(resolveTemplateFormCellMemoTarget(
       paperRegion,
@@ -40,7 +41,16 @@ describe('template memo logical targets', () => {
     expect(resolveTemplateFormCellMemoTarget(
       digitalRegion,
       digitalCell,
-      'MEMO',
+      digitalDefinition.label,
+      digitalDefinition,
     )?.logicalTargetId).toBe('memo:main')
+  })
+
+  it('keeps A3 shooting notes distinct from the digital CAMERA timeline', () => {
+    const shootingNotes = standardA3SheetTemplate.regions.find(region => region.regionId === 'top_shooting_notes_area')!
+    const digitalCamera = digitalStandardSheetTemplate.regions.find(region => region.regionId === 'digital_camera_grid')!
+
+    expect(resolveTemplateRegionMemoTarget(shootingNotes).logicalTargetId).toBe('annotation:camera-note')
+    expect(resolveTemplateRegionMemoTarget(digitalCamera).logicalTargetId).toBe('region:digital_camera_grid')
   })
 })

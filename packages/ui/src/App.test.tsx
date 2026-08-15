@@ -1343,7 +1343,7 @@ it('keeps template creation as a draft until apply or cancel', async () => {
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
     await waitFor(() => {
       expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-      expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
+      expect(document.querySelectorAll('.templateFormBox')).toHaveLength(14)
       expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(0)
       expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
     })
@@ -1408,7 +1408,7 @@ it('undoes and redoes an applied template with the synchronized project history'
     expect(redo.disabled).toBe(false)
     fireEvent.click(redo)
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
+    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(14)
   })
 
 it('edits selected template rectangles in source-image pixels', () => {
@@ -1517,16 +1517,16 @@ it('omits the fixed paper outer frame for the digital standard template', () => 
     fireEvent.click(screen.getByRole('button', { name: 'デジタル標準' }))
 
     expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(16)
+    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(14)
     expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(0)
     expect(Array.from(document.querySelectorAll('.templateFormLabel')).map(element => element.textContent)).toEqual([
-      'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'ページ数', 'MEMO',
+      'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'MEMO',
     ])
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
     expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
-    expect(document.querySelectorAll('.gridOverlay-sound .gridLineRow')).toHaveLength(0)
-    expect(document.querySelectorAll('.gridOverlay-sound .gridLineColumn').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineRow')).toHaveLength(1)
+    expect(document.querySelectorAll('.gridOverlay-sound .gridLineColumn')).toHaveLength(1)
     expect(document.querySelectorAll('.gridLineStrong').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridLineMedium').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridLineRegular').length).toBeGreaterThan(0)

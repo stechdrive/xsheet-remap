@@ -12,6 +12,32 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+it('keeps the fixed MEMO body visible and editable across A3 and digital templates', async () => {
+  render(<App />)
+  fireEvent.doubleClick(screen.getByRole('button', { name: 'MEMOを編集' }))
+  const paperEditor = screen.getByRole('textbox', { name: 'MEMO' })
+  fireEvent.change(paperEditor, { target: { value: 'テンプレート共通メモ' } })
+  fireEvent.keyDown(paperEditor, { key: 'Enter', ctrlKey: true })
+
+  fireEvent.click(within(openDisplaySettingsMenu()).getByRole('button', { name: 'デジタル標準' }))
+  await waitFor(() => {
+    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent))
+      .toContain('テンプレート共通メモ')
+  })
+
+  fireEvent.doubleClick(screen.getByRole('button', { name: 'MEMOを編集' }))
+  const digitalEditor = screen.getByRole<HTMLInputElement>('textbox', { name: 'MEMO' })
+  expect(digitalEditor.value).toBe('テンプレート共通メモ')
+  fireEvent.change(digitalEditor, { target: { value: 'デジタルでも編集済み' } })
+  fireEvent.keyDown(digitalEditor, { key: 'Enter', ctrlKey: true })
+
+  fireEvent.click(within(openDisplaySettingsMenu()).getByRole('button', { name: 'A3標準' }))
+  await waitFor(() => {
+    expect(Array.from(document.querySelectorAll('.metadataFieldText')).map(element => element.textContent))
+      .toContain('デジタルでも編集済み')
+  })
+})
+
 it('reprojects a committed MEMO-region stroke when the display template changes', async () => {
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'MEMOを編集' }))

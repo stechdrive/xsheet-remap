@@ -750,8 +750,7 @@ export function buildTemplateGridOverlayRenderModel(
   const rowPaths = new Map<string, TemplateGridLineSegment[]>()
   const explicitPaths: TemplateGridPathRenderModel[] = []
   const hasExplicitLineRules = region.grid.lineRules !== undefined
-  const renderHorizontalLines = !hasExplicitLineRules && !(template.templateKind === 'digital-native' && region.grid.role === 'sound')
-  if (renderHorizontalLines) {
+  if (!hasExplicitLineRules) {
     for (let row = 0; row <= frames.rowCount; row += 1) {
       const y = sheetGridRowY(layout, row)
       const className = `${gridRowLineClassName(region.grid, row)} gridLineRow`

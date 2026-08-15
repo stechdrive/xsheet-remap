@@ -66,10 +66,10 @@ const STANDARD_A3_TIMED_RANGE_GRID_HEADER = { ...STANDARD_A3_GRID_HEADER, showCo
 
 const STANDARD_A3_FORM_BORDER = { weight: 'thin' as const, pattern: 'solid' as const, widthPx: 1 }
 
-const STANDARD_A3_SOUND_LINE_STYLE = { weight: 'thin' as const, pattern: 'dotted' as const, widthPx: 1 }
+const STANDARD_SOUND_LINE_STYLE = { weight: 'thin' as const, pattern: 'dotted' as const, widthPx: 1 }
 
-const STANDARD_A3_SOUND_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
-  { axis: 'column', target: 'all', style: STANDARD_A3_SOUND_LINE_STYLE },
+const STANDARD_SOUND_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
+  { axis: 'column', target: 'all', style: STANDARD_SOUND_LINE_STYLE },
   {
     axis: 'row',
     target: 'all',
@@ -77,7 +77,7 @@ const STANDARD_A3_SOUND_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
       { startBoundary: 0, endBoundary: 1 },
       { startBoundary: 3, endBoundary: 4 },
     ],
-    style: STANDARD_A3_SOUND_LINE_STYLE,
+    style: STANDARD_SOUND_LINE_STYLE,
   },
 ]
 
@@ -98,6 +98,10 @@ const STANDARD_A3_RESERVE_LINE_RULES: SheetTemplateGridLineStyleRule[] = [
     style: STANDARD_A3_FORM_BORDER,
   },
 ]
+
+function memoBodyFieldDefinition(): SheetTemplateFieldDefinition {
+  return { fieldId: 'memo.body', label: 'MEMO', scope: 'page', valueType: 'multiline' }
+}
 
 const STANDARD_A3_PROCESS_FIELDS: SheetTemplateFieldDefinition[] = [
   ['process.original', '原図', 'revision', 'text'],
@@ -329,7 +333,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
   ],
   fields: [
     ...STANDARD_A3_PROCESS_FIELDS,
-    { fieldId: 'memo.body', label: 'MEMO', scope: 'page', valueType: 'multiline' },
+    memoBodyFieldDefinition(),
   ],
   regions: [
     {
@@ -448,7 +452,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
           column: 0,
           kind: 'field',
           fieldId: 'memo.body',
-          memoTarget: { scope: 'region' },
+          memoTarget: { scope: 'region', logicalTargetId: 'memo:main' },
           border: false,
           editPresentation: 'inline',
           textStyle: {
@@ -560,7 +564,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_TIMED_RANGE_GRID_HEADER, lineRules: STANDARD_A3_SOUND_LINE_RULES, trackProjection: fixedLogicalTimelineLaneProjection, columns: soundColumns },
+      grid: { role: 'sound', frameStart: 1, frameEnd: 72, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_TIMED_RANGE_GRID_HEADER, lineRules: STANDARD_SOUND_LINE_RULES, trackProjection: fixedLogicalTimelineLaneProjection, columns: soundColumns },
     },
     {
       regionId: 'left_cell_grid',
@@ -619,7 +623,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'main_sound',
-      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_TIMED_RANGE_GRID_HEADER, lineRules: STANDARD_A3_SOUND_LINE_RULES, trackProjection: fixedLogicalTimelineLaneProjection, columns: soundColumns },
+      grid: { role: 'sound', frameStart: 73, frameEnd: 144, rowCount: 72, majorLineEvery: 6, pageBreakEvery: 24, rowLineRules: STANDARD_24_FPS_ROW_LINE_RULES, header: STANDARD_A3_TIMED_RANGE_GRID_HEADER, lineRules: STANDARD_SOUND_LINE_RULES, trackProjection: fixedLogicalTimelineLaneProjection, columns: soundColumns },
     },
     {
       regionId: 'right_cell_grid',
@@ -728,15 +732,65 @@ const DIGITAL_STANDARD_METADATA_TEXT_STYLE: SheetTemplateTextStyle = {
   shrinkToFit: true,
 }
 
-const DIGITAL_STANDARD_FIELDS: SheetTemplateFieldDefinition[] = [
-  { fieldId: 'digital.title', label: 'タイトル', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'title' } },
-  { fieldId: 'digital.episode', label: '話数', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'episode' } },
-  { fieldId: 'digital.scene', label: 'シーン', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'scene' } },
-  { fieldId: 'digital.cut', label: 'カット', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'cut' } },
-  { fieldId: 'digital.duration', label: '尺', scope: 'cut', valueType: 'duration', builtinBinding: { target: 'cut-metadata', field: 'duration' } },
-  { fieldId: 'digital.worker', label: '作業者名', scope: 'cut', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'worker' } },
-  { fieldId: 'digital.page', label: 'ページ数', scope: 'page', valueType: 'text', builtinBinding: { target: 'cut-metadata', field: 'page' } },
+const DIGITAL_STANDARD_MEMO_TEXT_STYLE: SheetTemplateTextStyle = {
+  fontSize: templatePx(24),
+  minFontSize: templatePx(12),
+  lineHeight: templatePx(30),
+  fontWeight: 400,
+  horizontalAlign: 'left',
+  verticalAlign: 'top',
+  padding: templatePx(16),
+  shrinkToFit: true,
+}
+
+type DigitalMetadataItem = {
+  fieldId: string
+  label: string
+  field: CutMetadataFieldId
+  valueType: SheetTemplateFieldDefinition['valueType']
+  widthPx: number
+  flex: number
+}
+
+const DIGITAL_STANDARD_METADATA_ITEMS: DigitalMetadataItem[] = [
+  { fieldId: 'digital.title', label: 'タイトル', field: 'title', valueType: 'text', widthPx: 600, flex: 2 },
+  { fieldId: 'digital.episode', label: '話数', field: 'episode', valueType: 'text', widthPx: 160, flex: 0 },
+  { fieldId: 'digital.scene', label: 'シーン', field: 'scene', valueType: 'text', widthPx: 160, flex: 0 },
+  { fieldId: 'digital.cut', label: 'カット', field: 'cut', valueType: 'text', widthPx: 160, flex: 0 },
+  { fieldId: 'digital.duration', label: '尺', field: 'duration', valueType: 'duration', widthPx: 190, flex: 0 },
+  { fieldId: 'digital.worker', label: '作業者名', field: 'worker', valueType: 'text', widthPx: 300, flex: 1 },
 ]
+
+const DIGITAL_STANDARD_FIELDS: SheetTemplateFieldDefinition[] = [
+  ...DIGITAL_STANDARD_METADATA_ITEMS.map(item => ({
+    fieldId: item.fieldId,
+    label: item.label,
+    scope: 'cut' as const,
+    valueType: item.valueType,
+    builtinBinding: { target: 'cut-metadata' as const, field: item.field },
+  })),
+  memoBodyFieldDefinition(),
+]
+
+function digitalMetadataFormDefinition(): Pick<NonNullable<SheetTemplateRegion['form']>, 'columns' | 'columnFlex' | 'cells'> {
+  const columns: number[] = []
+  const columnFlex: number[] = []
+  const cells: SheetTemplateFormCell[] = []
+  DIGITAL_STANDARD_METADATA_ITEMS.forEach((item, itemIndex) => {
+    if (itemIndex > 0) {
+      columns.push(12)
+      columnFlex.push(0)
+    }
+    const column = columns.length
+    columns.push(item.widthPx)
+    columnFlex.push(item.flex)
+    cells.push(
+      { cellId: `${item.fieldId.replace('.', '_')}_label`, row: 0, column, kind: 'label', label: item.label },
+      digitalMetadataFieldCell(`${item.fieldId.replace('.', '_')}_box`, column, item.fieldId),
+    )
+  })
+  return { columns, columnFlex, cells }
+}
 
 function digitalMetadataFieldCell(cellId: string, column: number, fieldId: string): SheetTemplateFormCell {
   return {
@@ -832,26 +886,9 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       horizontalSpan: { source: 'resolved-page-content' },
       usage: 'input',
       form: {
-        columns: [600, 12, 160, 12, 160, 12, 160, 12, 190, 12, 300, 12, 214],
-        columnFlex: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+        ...digitalMetadataFormDefinition(),
         rows: [30, 60],
         borderStyle: STANDARD_A3_FORM_BORDER,
-        cells: [
-          { cellId: 'digital_title_label', row: 0, column: 0, kind: 'label', label: 'タイトル' },
-          digitalMetadataFieldCell('digital_title_box', 0, 'digital.title'),
-          { cellId: 'digital_episode_label', row: 0, column: 2, kind: 'label', label: '話数' },
-          digitalMetadataFieldCell('digital_episode_box', 2, 'digital.episode'),
-          { cellId: 'digital_scene_label', row: 0, column: 4, kind: 'label', label: 'シーン' },
-          digitalMetadataFieldCell('digital_scene_box', 4, 'digital.scene'),
-          { cellId: 'digital_cut_label', row: 0, column: 6, kind: 'label', label: 'カット' },
-          digitalMetadataFieldCell('digital_cut_box', 6, 'digital.cut'),
-          { cellId: 'digital_duration_label', row: 0, column: 8, kind: 'label', label: '尺' },
-          digitalMetadataFieldCell('digital_duration_box', 8, 'digital.duration'),
-          { cellId: 'digital_worker_label', row: 0, column: 10, kind: 'label', label: '作業者名' },
-          digitalMetadataFieldCell('digital_worker_box', 10, 'digital.worker'),
-          { cellId: 'digital_page_label', row: 0, column: 12, kind: 'label', label: 'ページ数' },
-          digitalMetadataFieldCell('digital_page_box', 12, 'digital.page'),
-        ],
       },
     },
     {
@@ -874,7 +911,16 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
         borderStyle: STANDARD_A3_FORM_BORDER,
         cells: [
           { cellId: 'digital_memo_label', row: 0, column: 0, kind: 'label', label: 'MEMO' },
-          { cellId: 'digital_memo_box', row: 1, column: 0, kind: 'annotation', label: 'MEMO', memoTarget: { scope: 'cell' } },
+          {
+            cellId: 'digital_memo_box',
+            row: 1,
+            column: 0,
+            kind: 'field',
+            fieldId: 'memo.body',
+            memoTarget: { scope: 'cell', logicalTargetId: 'memo:main' },
+            editPresentation: 'inline',
+            textStyle: DIGITAL_STANDARD_MEMO_TEXT_STYLE,
+          },
         ],
       },
     },
@@ -898,7 +944,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       inputKind: 'dialogue',
       inputMode: 'timed-range',
       flowGroupId: 'digital_sound',
-      grid: { role: 'sound', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, header: { showColumnLabels: false }, trackProjection: digitalLogicalTimelineLaneProjection, frameProjection: digitalLogicalFrameProjection, columnSizing: { mode: 'fixed-content', defaultWidthPx: 220 / digitalSoundColumns.length }, columns: digitalSoundColumns },
+      grid: { role: 'sound', frameStart: 1, rowCount: 144, majorLineEvery: 6, pageBreakEvery: 24, header: { showColumnLabels: false }, lineRules: STANDARD_SOUND_LINE_RULES, trackProjection: digitalLogicalTimelineLaneProjection, frameProjection: digitalLogicalFrameProjection, columnSizing: { mode: 'fixed-content', defaultWidthPx: 220 / digitalSoundColumns.length }, columns: digitalSoundColumns },
     },
     {
       regionId: 'digital_cell_grid',

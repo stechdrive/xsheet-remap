@@ -334,7 +334,6 @@ describe('sheet render model', () => {
       cut: '101',
       duration: '06+06',
       worker: '作業者A',
-      page: '1/1',
     })
     expect(items.every(item => item.regionId.startsWith('digital_metadata_form:'))).toBe(true)
   })

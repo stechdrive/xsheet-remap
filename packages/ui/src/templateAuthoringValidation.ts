@@ -27,6 +27,7 @@ export type TemplateAuthoringIssueCode =
   | 'paper-timeline-row-alignment-invalid'
   | 'paper-timeline-time-contract-invalid'
   | 'paper-timeline-column-narrow'
+  | 'infinite-page-binding-invalid'
 
 export type TemplateAuthoringIssueField =
   | 'templateId'
@@ -100,6 +101,11 @@ export function validateTemplateAuthoring(
   const duplicateRegionIds = new Set<string>()
   const reportedFieldIds = new Set<string>()
   const reportedChoiceFieldIds = new Set<string>()
+  const reportedInfinitePageBindings = new Set<string>()
+  const infiniteTemplate = template.layoutMode === 'infinite-digital' || template.viewLayout?.type === 'infinite'
+  const pageFieldIds = new Set(template.fields
+    ?.filter(field => field.builtinBinding?.target === 'cut-metadata' && field.builtinBinding.field === 'page')
+    .map(field => field.fieldId) ?? [])
   let hasInputRegion = false
   let calibrationGridCount = 0
   let calibrationLeft = Number.POSITIVE_INFINITY
@@ -191,6 +197,31 @@ export function validateTemplateAuthoring(
           })
         }
       }
+      if (infiniteTemplate && cell.kind === 'field' && cell.fieldId && pageFieldIds.has(cell.fieldId)) {
+        const issueKey = `${region.regionId}:${cell.fieldId}`
+        if (!reportedInfinitePageBindings.has(issueKey)) {
+          reportedInfinitePageBindings.add(issueKey)
+          addIssue({
+            code: 'infinite-page-binding-invalid',
+            severity: 'error',
+            field: 'regions',
+            regionId: region.regionId,
+            regionIndex,
+            message: `無限スクロール型の領域「${regionName}」にはページ番号項目を配置できません。ページ番号欄を削除してください。`,
+          })
+        }
+      }
+    }
+
+    if (infiniteTemplate && region.binding?.target === 'cut-metadata' && region.binding.field === 'page') {
+      addIssue({
+        code: 'infinite-page-binding-invalid',
+        severity: 'error',
+        field: 'regions',
+        regionId: region.regionId,
+        regionIndex,
+        message: `無限スクロール型の領域「${regionName}」にはページ番号を割り当てられません。ページ番号領域を削除してください。`,
+      })
     }
 
     const bindingIdMissing = region.binding?.target === 'annotation-layer' && !region.binding.layerId.trim()

@@ -24,6 +24,7 @@ import { DialogueAudioTimeline } from './DialogueAudioTimeline'
 import { dialogueAudioCutStateFromProject } from './dialogueAudioProject'
 import { correctedSheetImageExportPlan, type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
 import { PaperSheetAssignmentEditor } from './PaperSheetAssignmentEditor'
+import type { DialogueAudioTrackExportFormat } from './dialogueAudioExport'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
@@ -62,7 +63,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
-    handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, openTimingExportDialog, confirmTimingExport, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handlePresetSelect,
+    handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, openTimingExportDialog, confirmTimingExport, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handleSaveDialogueAudioTracks, handlePresetSelect,
     canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
@@ -78,6 +79,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
   const [templateDraftForMount, setTemplateDraftForMount] = useState<TemplateWorkspaceDraftState | null>(null)
   const correctedSheetImageExportInFlight = useRef(false)
   const [correctedSheetImageExportSaving, setCorrectedSheetImageExportSaving] = useState<CorrectedSheetImageExportFormat | null>(null)
+  const dialogueAudioExportInFlight = useRef(false)
+  const [dialogueAudioExportSaving, setDialogueAudioExportSaving] = useState<DialogueAudioTrackExportFormat | null>(null)
   const correctedSheetImagePageCount = useMemo(() => correctedSheetImageExportPlan(project, template).pages.length, [project, template])
 
   async function saveCorrectedSheetImages(format: CorrectedSheetImageExportFormat) {
@@ -89,6 +92,18 @@ export function AppShellView({ controller }: { controller: AppController }) {
     } finally {
       correctedSheetImageExportInFlight.current = false
       setCorrectedSheetImageExportSaving(null)
+    }
+  }
+
+  async function saveDialogueAudioTracks(format: DialogueAudioTrackExportFormat) {
+    if (dialogueAudioExportInFlight.current) return
+    dialogueAudioExportInFlight.current = true
+    setDialogueAudioExportSaving(format)
+    try {
+      await handleSaveDialogueAudioTracks(format)
+    } finally {
+      dialogueAudioExportInFlight.current = false
+      setDialogueAudioExportSaving(null)
     }
   }
 
@@ -260,6 +275,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             correctedSheetImagePageCount={appKind === 'editor' ? correctedSheetImagePageCount : 0}
             correctedSheetImageExportSaving={correctedSheetImageExportSaving}
             onSaveCorrectedSheetImages={appKind === 'editor' ? saveCorrectedSheetImages : undefined}
+            dialogueAudioExportSaving={dialogueAudioExportSaving}
+            onSaveDialogueAudioTracks={appKind === 'editor' ? saveDialogueAudioTracks : undefined}
             onSaveXdts={() => openTimingExportDialog('xdts')}
             onSaveAeJsx={() => openTimingExportDialog('ae-jsx')}
             onSendAfterEffects={canSendToAfterEffects ? () => openTimingExportDialog('ae-send') : undefined}

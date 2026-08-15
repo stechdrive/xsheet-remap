@@ -410,6 +410,13 @@ if (-not (Test-Path -LiteralPath $releaseGuideSource)) {
   throw "missing release guide: $releaseGuideSource"
 }
 Copy-Item -LiteralPath $releaseGuideSource -Destination $releaseGuidePath -Force
+$thirdPartyNoticeName = "THIRD_PARTY_NOTICES.md"
+$thirdPartyNoticeSource = Join-Path $repoRoot $thirdPartyNoticeName
+$thirdPartyNoticePath = Join-Path $releaseRoot $thirdPartyNoticeName
+if (-not (Test-Path -LiteralPath $thirdPartyNoticeSource)) {
+  throw "missing third-party notices: $thirdPartyNoticeSource"
+}
+Copy-Item -LiteralPath $thirdPartyNoticeSource -Destination $thirdPartyNoticePath -Force
 
 $desktopComponents = @(
   [pscustomobject]@{
@@ -640,6 +647,7 @@ $checksumTargets = @(
   "xsheet-template.exe",
   "xsheet-importer.exe",
   "README.txt",
+  "THIRD_PARTY_NOTICES.md",
   "assets/xsheet-remap.laf",
   "csp-import-helper-cli/xsheet-csp-import-helper-cli.exe",
   "RELEASE.json"
@@ -654,7 +662,7 @@ foreach ($relativePath in $checksumTargets) {
 $checksumLines | Set-Content -LiteralPath (Join-Path $releaseRoot "CHECKSUMS.sha256") -Encoding UTF8
 
 $expectedReleaseRootNames = New-Object System.Collections.Generic.List[string]
-@("README.txt", "RELEASE.json", "CHECKSUMS.sha256") |
+@("README.txt", "THIRD_PARTY_NOTICES.md", "RELEASE.json", "CHECKSUMS.sha256") |
   ForEach-Object { $expectedReleaseRootNames.Add($_) }
 foreach ($desktopComponent in $desktopComponents) {
   if (Test-Path -LiteralPath (Join-Path $releaseRoot $desktopComponent.Destination) -PathType Leaf) {

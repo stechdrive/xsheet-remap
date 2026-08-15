@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createProjectDocumentFromCutProject } from '@xsheet-remap/core'
-import { aeRemapJsxFileName, correctedSheetImageFileName, projectFileName, projectOutputPrefix, sheetImageFileName, sheetXdtsFileName } from './outputFileNames'
+import { aeRemapJsxFileName, correctedSheetImageFileName, dialogueAudioTrackFileName, projectFileName, projectOutputPrefix, sheetImageFileName, sheetXdtsFileName } from './outputFileNames'
 
 describe('output file names', () => {
   it('uses title, episode, and cut number as the main app output prefix', () => {
@@ -17,6 +17,8 @@ describe('output file names', () => {
     expect(sheetImageFileName(project, 'psd', 11, 12)).toBe('SAMPLE_05_237_sheet12.psd')
     expect(correctedSheetImageFileName(project, 'png', 0, 12)).toBe('SAMPLE_05_237_paper-sheet01_corrected.png')
     expect(correctedSheetImageFileName(project, 'psd', 11, 12)).toBe('SAMPLE_05_237_paper-sheet12_corrected.psd')
+    expect(dialogueAudioTrackFileName(project, 0, 'wav')).toBe('SAMPLE_05_237_audio01.wav')
+    expect(dialogueAudioTrackFileName(project, 2, 'mp3')).toBe('SAMPLE_05_237_audio03.mp3')
   })
 
   it('sanitizes file-system reserved characters and falls back to cut', () => {
@@ -30,6 +32,7 @@ describe('output file names', () => {
     }
 
     expect(projectOutputPrefix(project)).toBe('SAMPLE_05_ep_01_C_001')
+    expect(dialogueAudioTrackFileName(project, 0, 'wav')).toBe('SAMPLE_05_ep_01_C_001_audio01.wav')
     expect(projectOutputPrefix(blank)).toBe('_000')
   })
 

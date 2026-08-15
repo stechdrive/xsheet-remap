@@ -2,6 +2,7 @@ import type { CutGroupProjectDocument, CutProject } from '@xsheet-remap/core'
 import { XSR_PROJECT_FILE_EXTENSION } from '@xsheet-remap/adapters'
 
 type SheetImageExportFormat = 'jpg' | 'png' | 'psd'
+export type DialogueAudioTrackExportFormat = 'wav' | 'mp3'
 
 export function projectFileName(document: CutGroupProjectDocument): string {
   const productionPrefix = [safeFileNameSegment(document.production.title), safeFileNameSegment(document.production.episode)].filter(Boolean).join('_')
@@ -28,6 +29,19 @@ export function sheetImageFileName(project: CutProject, format: SheetImageExport
 export function correctedSheetImageFileName(project: CutProject, format: SheetImageExportFormat, pageIndex: number, totalPages: number): string {
   const digits = Math.max(2, String(Math.max(1, totalPages)).length)
   return `${projectOutputPrefix(project)}_paper-sheet${String(pageIndex + 1).padStart(digits, '0')}_corrected.${format}`
+}
+
+export function dialogueAudioTrackFileName(
+  project: Pick<CutProject, 'cut'>,
+  trackIndex: number,
+  format: DialogueAudioTrackExportFormat,
+): string {
+  const title = safeFileNameSegment(project.cut.title)
+  const episode = safeFileNameSegment(project.cut.episode)
+  const cut = safeFileNameSegment(project.cut.cut) || '000'
+  const productionPrefix = [title, episode].filter(Boolean).join('_')
+  const prefix = productionPrefix ? `${productionPrefix}_${cut}` : `_${cut}`
+  return `${prefix}_audio${String(Math.max(0, Math.floor(trackIndex)) + 1).padStart(2, '0')}.${format}`
 }
 
 export function projectOutputPrefix(project: Pick<CutProject, 'cut'>): string {

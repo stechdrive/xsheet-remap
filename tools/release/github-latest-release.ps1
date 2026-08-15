@@ -25,6 +25,7 @@ $expectedPackageRootNames = @(
   "csp-import-helper",
   "README.txt",
   "RELEASE.json",
+  "THIRD_PARTY_NOTICES.md",
   "xsheet-corrector.exe",
   "xsheet-editor.exe",
   "xsheet-importer.exe",

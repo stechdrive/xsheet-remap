@@ -14,6 +14,7 @@ import { EditorDetailedHelp } from './EditorDetailedHelp'
 import { RemapDetailedHelp } from './RemapDetailedHelp'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 import { type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
+import { type DialogueAudioTrackExportFormat } from './dialogueAudioExport'
 
 export function RecognitionActionMenu({
   label = <span>OCR</span>,
@@ -650,6 +651,8 @@ export function AppNavigationMenu({
   correctedSheetImagePageCount,
   correctedSheetImageExportSaving,
   onSaveCorrectedSheetImages,
+  dialogueAudioExportSaving,
+  onSaveDialogueAudioTracks,
   onSaveXdts,
   onSaveAeJsx,
   onSendAfterEffects,
@@ -671,6 +674,8 @@ export function AppNavigationMenu({
   correctedSheetImagePageCount: number
   correctedSheetImageExportSaving: CorrectedSheetImageExportFormat | null
   onSaveCorrectedSheetImages?: (format: CorrectedSheetImageExportFormat) => void
+  dialogueAudioExportSaving: DialogueAudioTrackExportFormat | null
+  onSaveDialogueAudioTracks?: (format: DialogueAudioTrackExportFormat) => void
   onSaveXdts: () => void
   onSaveAeJsx: () => void
   onSendAfterEffects?: () => void
@@ -788,6 +793,31 @@ export function AppNavigationMenu({
                 })}
               </div>
               <span className="appNavCorrectedSheetExportHint">{uiText.actions.correctedSheetImageExportTitle}</span>
+            </div>
+          )}
+          {onSaveDialogueAudioTracks && (
+            <div className="imageExportMenuGroup appNavDialogueAudioExportGroup" role="group" aria-label={uiText.actions.dialogueAudioExport}>
+              <div className="imageExportMenuLabel">{uiText.actions.dialogueAudioExport}</div>
+              <div className="imageExportFormatButtons">
+                {(['wav', 'mp3'] as DialogueAudioTrackExportFormat[]).map(format => {
+                  const label = format.toUpperCase()
+                  const accessibleLabel = uiText.actions.dialogueAudioExportFormatTitle(label)
+                  return (
+                    <Tooltip key={format} label={accessibleLabel}>
+                      <button
+                        type="button"
+                        aria-label={accessibleLabel}
+                        data-export-format={format}
+                        disabled={dialogueAudioExportSaving !== null}
+                        onClick={() => onSaveDialogueAudioTracks(format)}
+                      >
+                        {dialogueAudioExportSaving === format ? '保存中…' : label}
+                      </button>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+              <span className="appNavCorrectedSheetExportHint">{uiText.actions.dialogueAudioExportTitle}</span>
             </div>
           )}
           <Tooltip label={uiText.actions.xdtsTitle}>

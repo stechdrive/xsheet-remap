@@ -14,6 +14,8 @@ packages and assets under their own licenses.
 | PP-OCRv5 mobile detection and recognition models | Apache-2.0 | Bundled ONNX OCR models |
 | ONNX Runtime Web | MIT | Bundled WebAssembly inference runtime |
 | Silero VAD 16k OP15 model | MIT | Bundled dialogue voice-activity detection model from Silero VAD 6.2.0 |
+| Mediabunny / `@mediabunny/mp3-encoder` | MPL-2.0 | Browser media writer and MP3 encoder integration |
+| LAME 3.100 | LGPL | WebAssembly MP3 encoder bundled by `@mediabunny/mp3-encoder` |
 | fflate | MIT | Project container ZIP compression and extraction |
 | LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files |
 | pywinauto / pyperclip / Pillow / pywebview | permissive OSS licenses | CSP helper runtime dependencies |
@@ -34,6 +36,17 @@ Relevant lockfiles and manifests:
 - `apps/desktop/src-tauri/Cargo.lock`
 - `apps/sheet-corrector/src-tauri/Cargo.lock`
 - `apps/csp-import-helper/requirements/*.txt`
+
+## MP3 encoder
+
+MP3 export uses Mediabunny and its MP3 encoder extension. Their source code and
+MPL-2.0 license are available at https://github.com/Vanilagy/mediabunny.
+The extension includes a WebAssembly build of LAME 3.100, which is distributed
+under the LGPL. LAME source and license information are available at
+https://lame.sourceforge.io/ and https://lame.sourceforge.io/license.txt.
+
+The source code for this application, including its audio export integration,
+is available at https://github.com/stechdrive/xsheet-remap.
 
 ## Silero VAD model
 

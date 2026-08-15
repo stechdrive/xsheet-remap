@@ -55,6 +55,7 @@ import { EMPTY_DIALOGUE_AUDIO_SELECTION } from './dialogueAudioSelectionModel'
 import { useSheetRenderModelGeometryProject } from './useSheetRenderModelProject'
 import { IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, importPaperSheetSourceRefs, paperSheetImportPlan, type ImportedSheetSourceCalibrationResult, type ImportedSheetSourceCalibrationTarget } from './paperSheetImport'
 import { applyDetectedPaperSheetCalibration, paperSheetCalibrationSourceIdentity } from './paperSheetAutoCalibration'
+import { createAppDialogueAudioExportAction } from './app-dialogue-audio-export-actions'
 export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
 type PaperSheetEditContext = { document: object; cutId: string; revisionId: string; template: SheetTemplate }
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
@@ -96,6 +97,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     projectDocument, template, resolveProject: () => commitTimingDraft(false), projectFilePath,
     setProjectFilePath, setProjectDocument, setSavedProjectDocumentSnapshot, runtimeSourceImageUrls, setSheetImageExportDraft,
   })
+  const handleSaveDialogueAudioTracks = createAppDialogueAudioExportAction(project, setExportOperationNotice)
   const hasUnsavedProjectChanges = useMemo(
     () => timingEditSession !== null || !projectDocumentsEqual(projectDocumentSnapshot, savedProjectDocumentSnapshot),
     [projectDocumentSnapshot, savedProjectDocumentSnapshot, timingEditSession],
@@ -2279,7 +2281,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
-    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handlePresetSelect,
+    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handleSaveDialogueAudioTracks, handlePresetSelect,
     canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,

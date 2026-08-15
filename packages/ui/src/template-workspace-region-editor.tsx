@@ -1,5 +1,5 @@
 import { resolveSheetTemplateGridColumns, resolveSheetTemplateGridFrames, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import type { SheetImageSettings } from './appTypes'
 import { uiText } from './i18n'
 import { SHEET_ZOOM_WHEEL_FACTOR, TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
@@ -54,6 +54,7 @@ export function TemplateRegionEditor({
   onSelectRegion,
   hiddenRegionIds,
   positionLockedRegionIds,
+  toolbar,
 }: {
   template: SheetTemplate
   setTemplate: (updater: (currentTemplate: SheetTemplate) => SheetTemplate) => void
@@ -64,6 +65,7 @@ export function TemplateRegionEditor({
   onSelectRegion: (regionId: string) => void
   hiddenRegionIds?: ReadonlySet<string>
   positionLockedRegionIds?: ReadonlySet<string>
+  toolbar?: ReactNode
 }) {
   const view = useSyncExternalStore(viewStore.subscribe, viewStore.getSnapshot, viewStore.getSnapshot)
   const { zoom, referenceOpacity } = view
@@ -473,6 +475,7 @@ export function TemplateRegionEditor({
 
   return (
     <div className="templateEditor">
+      {toolbar && <div className="templateCanvasToolbar">{toolbar}</div>}
       <div ref={viewportRef} className="templateEditorViewport">
         <div
           className="templateEditorZoomSurface"

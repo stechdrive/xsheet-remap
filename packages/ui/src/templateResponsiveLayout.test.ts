@@ -8,6 +8,7 @@ describe('template authoring responsive layout contract', () => {
   it('keeps all controls except the zoomable canvas on one-direction scrolling layouts', () => {
     const css = readSource('styles/template-editor.css')
     const workspace = readSource('template-workspace-workspace.tsx')
+    const chrome = readSource('TemplateWorkspaceChrome.tsx')
     const viewControls = readSource('TemplateEditorViewControls.tsx')
     const appShell = readSource('app-shell-view.tsx')
 
@@ -22,9 +23,13 @@ describe('template authoring responsive layout contract', () => {
 
     expect(workspace).not.toContain('templateDockTabs')
     expect(workspace).not.toContain('bindingTableWrap templateTableWrap')
-    expect(workspace).toContain('<TemplateInspectorNavigation')
-    expect(workspace).toContain('<TemplateRegionCollectionControls')
-    expect(workspace).toContain('<TemplateEditorViewControls')
+    expect(workspace).not.toContain('<TemplateInspectorNavigation')
+    expect(workspace).not.toContain('<TemplateRegionCollectionControls')
+    expect(workspace).toContain('className="templateSelectionInspectorHeader"')
+    expect(workspace).toContain('rootItems={rootNavigationItems}')
+    expect(workspace).toContain('addControl={addRegionControl}')
+    expect(workspace).toContain('toolbar={canvasToolbar}')
+    expect(chrome).toContain('<TemplateEditorViewControls')
     expect(viewControls).toContain('aria-label="ズーム倍率"')
     expect(viewControls).toContain('aria-label="下絵の不透明度"')
     expect(appShell).toContain("panel === 'template' ? 'templateMainPane' : ''")
@@ -39,7 +44,8 @@ describe('template authoring responsive layout contract', () => {
     expect(responsiveCss).toContain('@media (max-width: 800px)')
     expect(ruleBody(responsiveCss, '.templateEditorAppMain')).toContain('overflow-y: auto')
     expect(ruleBody(responsiveCss, '.templateMainPane')).toContain('overflow-y: auto')
-    expect(responsiveCss).toContain('min-height: 860px')
+    expect(responsiveCss).toContain('min-height: 1010px')
+    expect(responsiveCss).toContain('.templatePanel.hasRebuildGuide')
   })
 })
 

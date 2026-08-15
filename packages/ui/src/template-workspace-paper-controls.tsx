@@ -1,7 +1,6 @@
 import type { SheetTemplate } from '@xsheet-remap/core'
 import { PaperTimelineLayoutPanel } from './PaperTimelineLayoutPanel'
-import { PAPER_TIMELINE_TARGET_ID, type PaperTimelineAlignment, type PaperTimelineStructure } from './paperTimelineAuthoring'
-import { TemplateRegionCollectionEditor } from './TemplateRegionCollectionEditor'
+import { type PaperTimelineAlignment, type PaperTimelineStructure } from './paperTimelineAuthoring'
 
 export function PaperTimelineControls({
   template,
@@ -15,31 +14,6 @@ export function PaperTimelineControls({
   onOpenReference: () => void
 }) {
   return <PaperTimelineLayoutPanel template={template} structure={structure} onChange={onChange} onOpenReference={onOpenReference} />
-}
-
-export function TemplateRegionCollectionControls({
-  template,
-  selectedRegionId,
-  structure,
-  onOpenDetails,
-  onOpenTimeline,
-}: {
-  template: SheetTemplate
-  selectedRegionId: string | null
-  structure: PaperTimelineStructure | null
-  onOpenDetails: (regionId: string) => void
-  onOpenTimeline: () => void
-}) {
-  return <TemplateRegionCollectionEditor
-    template={template}
-    selectedRegionId={selectedRegionId}
-    onOpenDetails={onOpenDetails}
-    paperTimeline={structure ? {
-      targetId: PAPER_TIMELINE_TARGET_ID,
-      managedRegionIds: structure.managedRegionIds,
-      onOpen: onOpenTimeline,
-    } : undefined}
-  />
 }
 
 export function PaperRegionAlignmentControls({ onAlign }: { onAlign: (alignment: PaperTimelineAlignment) => void }) {
@@ -56,17 +30,48 @@ export function PaperRegionAlignmentControls({ onAlign }: { onAlign: (alignment:
   ))
 }
 
-export function PaperReferenceWorkflow({ hasReference, onOpenLayout }: { hasReference: boolean; onOpenLayout: () => void }) {
+export type PaperRebuildStep = 'reference' | 'outline' | 'columns' | 'information' | 'review'
+
+export function PaperRebuildGuide({
+  activeStep,
+  hasReference,
+  onSelectStep,
+  onClose,
+}: {
+  activeStep: PaperRebuildStep
+  hasReference: boolean
+  onSelectStep: (step: PaperRebuildStep) => void
+  onClose: () => void
+}) {
+  const steps: Array<{ id: PaperRebuildStep; label: string; description: string }> = [
+    { id: 'reference', label: '1. 下絵', description: hasReference ? '読込済み' : '画像を読み込む' },
+    { id: 'outline', label: '2. 6秒表', description: '外周を合わせる' },
+    { id: 'columns', label: '3. 列境界', description: '4欄の幅を合わせる' },
+    { id: 'information', label: '4. シート情報', description: '文字と欄を合わせる' },
+    { id: 'review', label: '5. 確認', description: '不足を確認する' },
+  ]
   return (
-    <section className="paperReferenceWorkflow" aria-label="用紙画像から作成する手順">
-      <header><span>用紙画像から作成</span><h2>画像に表を合わせる</h2></header>
+    <section className="templateRebuildGuide" aria-label="下絵から再構築">
+      <header>
+        <strong>下絵から再構築</strong>
+        <span>画像に沿って必要な箇所だけ順番に合わせます。</span>
+      </header>
       <ol>
-        <li className={hasReference ? 'complete' : 'active'}><strong>1. 用紙画像</strong><span>{hasReference ? '読込済み' : '画像を読み込みます'}</span></li>
-        <li><strong>2. 6秒表の外周</strong><span>表全体の位置と大きさを合わせます</span></li>
-        <li><strong>3. 列境界</strong><span>ACTION・SOUND・CELL・CAMERAを合わせます</span></li>
-        <li><strong>4. シート情報</strong><span>必要な情報欄を個別要素で調整します</span></li>
+        {steps.map(step => (
+          <li key={step.id}>
+            <button
+              type="button"
+              className={activeStep === step.id ? 'active' : undefined}
+              aria-current={activeStep === step.id ? 'step' : undefined}
+              onClick={() => onSelectStep(step.id)}
+            >
+              <strong>{step.label}</strong>
+              <span>{step.description}</span>
+            </button>
+          </li>
+        ))}
       </ol>
-      <button type="button" onClick={onOpenLayout}>6秒タイムライン表を調整</button>
+      <button type="button" className="templateRebuildGuideClose" onClick={onClose}>ガイドを閉じる</button>
     </section>
   )
 }

@@ -1,6 +1,8 @@
 import { standardA3SheetTemplate, type CutMetadataFieldId, type NormalizedRect, type SheetTemplate, type SheetTemplateRegionBinding } from '@xsheet-remap/core'
 
 export const TEMPLATE_CALIBRATION_TARGET_ID = '__template_calibration_target__'
+export const TEMPLATE_PAGE_TARGET_ID = '__template_page__'
+export const TEMPLATE_REFERENCE_TARGET_ID = '__template_reference__'
 export const CUT_METADATA_FIELD_IDS: CutMetadataFieldId[] = ['title', 'episode', 'scene', 'cut', 'duration', 'worker', 'page', 'custom']
 export type MetadataBindingOptionId = `cut:${CutMetadataFieldId}` | 'group:shared-cut-numbers'
 export const METADATA_BINDING_OPTION_IDS: MetadataBindingOptionId[] = [

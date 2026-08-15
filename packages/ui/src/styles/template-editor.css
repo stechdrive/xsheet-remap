@@ -158,6 +158,46 @@
   flex: 0 1 auto;
 }
 
+.templateDocumentToolbar {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.templateDocumentIdentity {
+  flex: 1 1 auto;
+  min-width: 160px;
+}
+
+.templateDocumentTitle {
+  max-width: 260px;
+  overflow: hidden;
+  color: #203d2f;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templateDocumentActions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.actionMenuFileButton {
+  display: block;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.actionMenuFileButton:hover {
+  background: #edf2ed;
+}
+
 .templateDraftToolbarGroup {
   align-items: center;
 }
@@ -254,6 +294,8 @@
 }
 
 .templateRegionNavigator {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -287,9 +329,25 @@
 .templateRegionNavigatorList {
   display: grid;
   align-content: start;
-  max-height: calc(100% - 70px);
+  gap: 8px;
+  max-height: none;
   overflow: auto;
   padding: 6px;
+}
+
+.templateRegionNavigatorGroup {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.templateRegionNavigatorGroup > h3 {
+  margin: 5px 5px 1px;
+  color: #65716a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
 }
 
 .templateRegionNavigatorItem {
@@ -304,6 +362,10 @@
 .templateRegionNavigatorItem.selected {
   border-color: #7fa48f;
   background: #e4eee8;
+}
+
+.templateRegionNavigatorItem.root .templateRegionNavigatorSelect {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .templateRegionNavigatorItem.hidden .templateRegionNavigatorSelect {
@@ -362,7 +424,7 @@
 
 .templateRegionNavigatorActions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   min-width: 0;
 }
@@ -383,6 +445,16 @@
 
 .templateRegionNavigatorActions .danger {
   color: #8f261b;
+}
+
+.templateRegionNavigatorFooter {
+  padding: 8px;
+  border-top: 1px solid #d5dad4;
+  background: #f3f5f1;
+}
+
+.templateRegionNavigatorFooter > * {
+  width: 100%;
 }
 
 .templateAuthoringReview {
@@ -428,10 +500,52 @@
 
 .templateEditor {
   display: grid;
+  position: relative;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 10px;
   min-width: 0;
   min-height: 0;
+}
+
+.templateCanvasToolbar {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: calc(100% - 40px);
+  padding: 5px;
+  border: 1px solid rgb(129 143 133 / 0.72);
+  border-radius: 7px;
+  background: rgb(251 251 248 / 0.94);
+  box-shadow: 0 2px 9px rgb(0 0 0 / 0.14);
+  backdrop-filter: blur(5px);
+}
+
+.templateCanvasToolbar .templateViewToolbarGroup {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.templateAlignmentMenuGroup {
+  display: grid;
+  gap: 5px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid #d6dbd4;
+}
+
+.templateAlignmentMenuGroup:last-child {
+  padding-bottom: 2px;
+  border-bottom: 0;
+}
+
+.templateAlignmentMenuGroup > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(70px, 1fr));
+  gap: 4px;
 }
 
 .templateEditorViewport {
@@ -658,6 +772,124 @@
 .templateImageWarning {
   color: #a12d20;
   font-weight: 700;
+}
+
+.templateSelectionInspectorHeader {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #c6c8c3;
+  border-bottom: 0;
+  background: #f7f8f5;
+}
+
+.templateSelectionInspectorHeader > span {
+  color: #65716a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.templateSelectionInspectorHeader h2,
+.templateSelectionInspectorHeader p {
+  margin: 0;
+}
+
+.templateSelectionInspectorHeader h2 {
+  color: #203d2f;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.templateSelectionInspectorHeader p {
+  color: #56635c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.templateSelectionInspectorHeader button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.templateInspectorCard {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid #d5dad4;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.templateInspectorCard > h3 {
+  margin: 0;
+  color: #315f49;
+  font-size: 13px;
+}
+
+.templateRebuildGuide {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 4fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #bdcec2;
+  border-radius: 7px;
+  background: #f2f8f4;
+}
+
+.templateRebuildGuide > header {
+  display: grid;
+  gap: 2px;
+}
+
+.templateRebuildGuide > header span {
+  color: #5b6861;
+  font-size: 11px;
+}
+
+.templateRebuildGuide ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.templateRebuildGuide li,
+.templateRebuildGuide li button {
+  min-width: 0;
+}
+
+.templateRebuildGuide li button {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: 6px 7px;
+  text-align: left;
+}
+
+.templateRebuildGuide li button.active {
+  border-color: #315f50;
+  color: #173a2b;
+  background: #dcebe1;
+  box-shadow: inset 3px 0 #315f50;
+}
+
+.templateRebuildGuide li button span {
+  overflow: hidden;
+  color: #617068;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templateRebuildGuideClose {
+  white-space: nowrap;
 }
 
 .templateInspectorNavigation {

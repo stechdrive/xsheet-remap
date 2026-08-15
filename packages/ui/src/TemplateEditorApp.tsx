@@ -15,7 +15,7 @@ import { loadSheetTemplate } from './app-template-import'
 import { HelpIcon } from './app-navigation'
 import { uiText } from './i18n'
 import { TemplateStartScreen } from './TemplateStartScreen'
-import { TemplateWorkspace, type TemplateWorkspaceDraftState } from './template-workspace-workspace'
+import { TemplateWorkspace, type TemplateWorkspaceDraftState, type TemplateWorkspaceEntryMode } from './template-workspace-workspace'
 import { TemplateEditorHelpDialog } from './TemplateEditorHelp'
 import { Tooltip } from './Tooltip'
 import {
@@ -34,6 +34,7 @@ export function TemplateEditorApp() {
   const [view, setView] = useState<'start' | 'workspace'>('start')
   const [initialDraftTemplate, setInitialDraftTemplate] = useState<SheetTemplate>(() => structuredClone(standardA3SheetTemplate))
   const [initialDraftDirty, setInitialDraftDirty] = useState(false)
+  const [initialWorkflow, setInitialWorkflow] = useState<TemplateWorkspaceEntryMode>('standard')
   const draftStateRef = useRef<TemplateWorkspaceDraftState>({ template: structuredClone(standardA3SheetTemplate), dirty: false })
   const recoverySaveTimerRef = useRef<number | null>(null)
   const [draftSummary, setDraftSummary] = useState(() => templateDraftSummary(standardA3SheetTemplate, false))
@@ -123,12 +124,13 @@ export function TemplateEditorApp() {
     }
   }
 
-  function beginWorkspace(nextTemplate: SheetTemplate, dirty: boolean) {
+  function beginWorkspace(nextTemplate: SheetTemplate, dirty: boolean, workflow: TemplateWorkspaceEntryMode) {
     cancelPendingRecoverySave()
     const cloned = structuredClone(nextTemplate)
     setTemplate(cloned)
     setInitialDraftTemplate(cloned)
     setInitialDraftDirty(dirty)
+    setInitialWorkflow(workflow)
     draftStateRef.current = { template: cloned, dirty }
     setDraftSummary(templateDraftSummary(cloned, dirty))
     setProject(createDefaultProject())
@@ -138,12 +140,12 @@ export function TemplateEditorApp() {
 
   async function beginPaperTemplateFromImage(file: File) {
     const created = await createPaperTemplate(file)
-    if (created) beginWorkspace(created, true)
+    if (created) beginWorkspace(created, true, 'image')
   }
 
   async function beginExistingTemplate(file: File) {
     const loaded = await loadTemplate(asFileList(file))
-    if (loaded) beginWorkspace(loaded, false)
+    if (loaded) beginWorkspace(loaded, false, 'existing')
   }
 
   function returnToStart() {
@@ -181,14 +183,14 @@ export function TemplateEditorApp() {
       <main className="templateEditorAppMain">
         {view === 'start' ? (
           <TemplateStartScreen
-            onCreateA3Standard={() => beginWorkspace(createTemplateDraft('paper-standard', template), true)}
+            onCreateA3Standard={() => beginWorkspace(createTemplateDraft('paper-standard', template), true, 'standard')}
             onCreatePaperFromImage={beginPaperTemplateFromImage}
-            onCreateDigital={() => beginWorkspace(createTemplateDraft('digital-standard', template), true)}
+            onCreateDigital={() => beginWorkspace(createTemplateDraft('digital-standard', template), true, 'digital')}
             onOpenTemplateJson={beginExistingTemplate}
             recovery={recovery ? {
               templateName: recovery.template.name || recovery.template.templateId || '名称未設定',
               savedAtLabel: new Intl.DateTimeFormat('ja-JP', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(recovery.savedAt)),
-              onRestore: () => { beginWorkspace(recovery.template, true); setRecovery(null) },
+              onRestore: () => { beginWorkspace(recovery.template, true, 'existing'); setRecovery(null) },
               onDiscard: discardRecovery,
             } : null}
           />
@@ -200,6 +202,7 @@ export function TemplateEditorApp() {
             template={template}
             initialDraftTemplate={initialDraftTemplate}
             initialDraftDirty={initialDraftDirty}
+            initialWorkflow={initialWorkflow}
             onLoadTemplate={loadTemplate}
             onSaveTemplate={saveTemplate}
             onApplyTemplate={applyTemplate}

@@ -32,10 +32,47 @@ describe('TemplateWorkspace project integration', () => {
     expect(JSON.stringify(standardA3SheetTemplate)).toBe(before)
   })
 
+  it('guides image-based reconstruction without changing the template model', () => {
+    const before = JSON.stringify(standardA3SheetTemplate)
+    const onDraftStateChange = vi.fn()
+    render(
+      <TemplateWorkspace
+        project={createDefaultProject()}
+        template={standardA3SheetTemplate}
+        initialWorkflow="image"
+        onLoadTemplate={async () => null}
+        onSaveTemplate={async () => ({ saved: true })}
+        onApplyTemplate={vi.fn()}
+        onCreateTemplateDraft={(kind): SheetTemplate => createTemplateDraft(kind, standardA3SheetTemplate)}
+        onUpdateCorrectionLayers={() => true}
+        onDraftStateChange={onDraftStateChange}
+      />,
+    )
+
+    const guide = screen.getByRole('region', { name: '下絵から再構築' })
+    expect(within(guide).getByRole('button', { name: /1\. 下絵/ }).getAttribute('aria-current')).toBe('step')
+    expect(within(screen.getByRole('complementary', { name: 'テンプレート構成' })).getByRole('button', { name: '下絵', pressed: true })).toBeTruthy()
+
+    fireEvent.click(within(guide).getByRole('button', { name: /2\. 6秒表/ }))
+    expect(screen.getByRole('button', { name: '6秒タイムライン表', pressed: true })).toBeTruthy()
+    expect(within(guide).getByRole('button', { name: /2\. 6秒表/ }).getAttribute('aria-current')).toBe('step')
+
+    fireEvent.click(within(guide).getByRole('button', { name: /3\. 列境界/ }))
+    expect(within(guide).getByRole('button', { name: /3\. 列境界/ }).getAttribute('aria-current')).toBe('step')
+    fireEvent.click(within(guide).getByRole('button', { name: /4\. シート情報/ }))
+    expect(document.querySelector('.templateRegionNavigatorItem.selected')?.classList.contains('root')).toBe(false)
+    fireEvent.click(within(guide).getByRole('button', { name: /5\. 確認/ }))
+    expect(within(screen.getByRole('complementary', { name: 'テンプレート設定' })).getByRole('heading', { name: '確認・保存' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '選択項目へ戻る' }))
+    expect(screen.queryByText('未適用の変更')).toBeNull()
+    expect(onDraftStateChange.mock.calls.at(-1)?.[0].dirty).toBe(false)
+    expect(JSON.stringify(standardA3SheetTemplate)).toBe(before)
+  })
+
   it('keeps an imported JSON as a draft until the user applies it to the project', async () => {
     const imported = createTemplateDraft('paper-standard', standardA3SheetTemplate)
     const onApplyTemplate = vi.fn()
-    const { container } = render(
+    render(
       <TemplateWorkspace
         project={createDefaultProject()}
         template={standardA3SheetTemplate}
@@ -47,7 +84,8 @@ describe('TemplateWorkspace project integration', () => {
       />,
     )
 
-    const input = container.querySelector<HTMLInputElement>('label.fileButton input[accept=".json,application/json"]')
+    fireEvent.click(screen.getByLabelText('テンプレートのその他の操作'))
+    const input = document.querySelector<HTMLInputElement>('label.fileButton input[accept=".json,application/json"]')
     expect(input).toBeTruthy()
     fireEvent.change(input!, { target: { files: asFileList(new File(['{}'], 'import.template.json')) } })
 
@@ -69,7 +107,7 @@ describe('TemplateWorkspace project integration', () => {
     }
     const view = render(<TemplateWorkspace {...commonProps} template={standardA3SheetTemplate} />)
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: '編集する内容' })).getByRole('button', { name: '基本設定' }))
+    fireEvent.click(within(screen.getByRole('complementary', { name: 'テンプレート構成' })).getByRole('button', { name: '用紙と見た目' }))
     fireEvent.change(screen.getByLabelText('名前'), { target: { value: '保持する未適用下書き' } })
     expect(screen.getByText('未適用の変更')).toBeTruthy()
     view.rerender(<TemplateWorkspace {...commonProps} template={digitalStandardSheetTemplate} />)
@@ -89,19 +127,19 @@ describe('TemplateWorkspace project integration', () => {
       onUpdateCorrectionLayers: () => true,
     }
     const view = render(<TemplateWorkspace {...commonProps} template={standardA3SheetTemplate} />)
-    const sectionNavigation = screen.getByRole('navigation', { name: '編集する内容' })
-    const referenceButton = within(sectionNavigation).getByRole('button', { name: '参照画像' })
+    const structure = screen.getByRole('complementary', { name: 'テンプレート構成' })
+    const referenceButton = within(structure).getByRole('button', { name: '下絵' })
 
     fireEvent.click(referenceButton)
-    expect(referenceButton.getAttribute('aria-current')).toBe('page')
+    expect(referenceButton.getAttribute('aria-pressed')).toBe('true')
     view.rerender(<TemplateWorkspace {...commonProps} template={digitalStandardSheetTemplate} />)
 
-    await waitFor(() => expect(within(sectionNavigation).getByRole('button', { name: '基本設定' }).getAttribute('aria-current')).toBe('page'))
+    await waitFor(() => expect(within(screen.getByRole('complementary', { name: 'テンプレート構成' })).getByRole('button', { name: 'テンプレートと見た目' }).getAttribute('aria-pressed')).toBe('true'))
     expect((screen.getByLabelText('名前') as HTMLInputElement).value).toBe(digitalStandardSheetTemplate.name)
     expect(screen.getByLabelText('FPS')).toBeTruthy()
     expect(screen.getByText(/現在開いているシートの尺やトラックは変更しません/)).toBeTruthy()
     expect(screen.getByText('新規プロジェクトの初期FPS')).toBeTruthy()
-    expect(within(sectionNavigation).queryByRole('button', { name: '参照画像' })).toBeNull()
+    expect(within(screen.getByRole('complementary', { name: 'テンプレート構成' })).queryByRole('button', { name: '下絵' })).toBeNull()
     expect(document.querySelector('input[type="file"][accept="image/*"]')).toBeNull()
   })
 
@@ -235,7 +273,7 @@ describe('TemplateWorkspace project integration', () => {
       />,
     )
 
-    const navigator = screen.getByRole('complementary', { name: '領域一覧' })
+    const navigator = screen.getByRole('complementary', { name: 'テンプレート構成' })
     fireEvent.click(within(navigator).getByRole('button', { name: 'MEMO' }))
     const valueType = screen.getByLabelText('連動項目の値の種類') as HTMLSelectElement
     expect(valueType.disabled).toBe(true)
@@ -278,7 +316,7 @@ function renderDefaultValueWorkspace() {
       onDraftStateChange={state => { latestTemplate = state.template }}
     />,
   )
-  const navigator = screen.getByRole('complementary', { name: '領域一覧' })
+  const navigator = screen.getByRole('complementary', { name: 'テンプレート構成' })
   fireEvent.click(within(navigator).getByRole('button', { name: 'MEMO' }))
 
   return { currentTemplate: () => latestTemplate, onSaveTemplate }

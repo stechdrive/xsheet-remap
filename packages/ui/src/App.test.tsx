@@ -12,7 +12,6 @@ import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 import { createDefaultDialogueAudioCutState, updateDialogueAudioCutStateInProject } from './dialogueAudioProject'
 
 const originalUserAgentDataDescriptor = Object.getOwnPropertyDescriptor(navigator, 'userAgentData')
-
 afterEach(() => {
   if (originalUserAgentDataDescriptor) Object.defineProperty(navigator, 'userAgentData', originalUserAgentDataDescriptor)
   else Reflect.deleteProperty(navigator, 'userAgentData')
@@ -24,6 +23,7 @@ async function createXsrTestFile(document: Parameters<typeof encodeProjectArchiv
 }
 
 async function createDigitalTemplateDraft() {
+  fireEvent.click(screen.getByLabelText('テンプレートのその他の操作'))
   fireEvent.click(screen.getByRole('button', { name: '新しいテンプレート' }))
   const dialog = screen.getByRole('dialog', { name: '新しいテンプレート' })
   fireEvent.click(within(dialog).getByRole('tab', { name: 'デジタルタイムシート' }))
@@ -35,26 +35,34 @@ function selectTemplateInspector(sectionId: string) {
   if (sectionId === 'region') {
     const selectedRegion = document.querySelector<HTMLButtonElement>('.templateRegionNavigatorSelect[aria-pressed="true"]')
     if (!selectedRegion) throw new Error('selected template region not found')
-    const target = selectedRegion.closest('.paperTimeline')
-      ? document.querySelector<HTMLButtonElement>('.templateRegionNavigatorItem:not(.paperTimeline) .templateRegionNavigatorSelect')
+    const target = selectedRegion.closest('.paperTimeline') || selectedRegion.closest('.root')
+      ? document.querySelector<HTMLButtonElement>('.templateRegionNavigatorItem:not(.paperTimeline):not(.root) .templateRegionNavigatorSelect')
       : selectedRegion
     if (!target) throw new Error('editable template region not found')
     fireEvent.click(target)
     return
   }
   const labels: Record<string, string> = {
-    template: '基本設定',
-    table: '個別要素',
-    display: '見た目',
-    reference: '参照画像',
-    review: '確認・保存',
-    json: 'JSON',
+    template: '用紙と見た目',
+    display: '用紙と見た目',
+    reference: '下絵',
+  }
+  if (sectionId === 'review') {
+    fireEvent.click(screen.getByRole('button', { name: /^確認 / }))
+    return
+  }
+  if (sectionId === 'json') {
+    fireEvent.click(screen.getByLabelText('テンプレートのその他の操作'))
+    fireEvent.click(screen.getByRole('button', { name: 'JSONを表示' }))
+    return
   }
   const label = labels[sectionId]
   if (!label) throw new Error(`unknown template inspector section: ${sectionId}`)
-  const navigation = screen.getByRole('navigation', { name: '編集する内容' })
-  const button = within(navigation).queryByRole('button', { name: label })
-    ?? (sectionId === 'table' ? within(navigation).getByRole('button', { name: '領域' }) : null)
+  const structure = screen.getByRole('complementary', { name: 'テンプレート構成' })
+  const button = within(structure).queryByRole('button', { name: label })
+    ?? (sectionId === 'template' || sectionId === 'display'
+      ? within(structure).queryByRole('button', { name: 'テンプレートと見た目' })
+      : null)
   if (!button) throw new Error(`template inspector section not found: ${label}`)
   fireEvent.click(button)
 }
@@ -1034,7 +1042,7 @@ it('edits sheet template metadata and embeds a template reference image', async 
     const referenceImage = new File(['reference'], 'studio_sheet.png', { type: 'image/png', lastModified: 1 })
     fireEvent.change(referenceInput, { target: { files: [referenceImage] } })
 
-    await waitFor(() => expect(screen.getByText('studio_sheet.png')).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText('studio_sheet.png')).toHaveLength(2))
     expect(screen.getByText(uiText.template.referenceImageEmbedded)).toBeTruthy()
 
     selectTemplateInspector('json')

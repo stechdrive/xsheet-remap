@@ -55,13 +55,12 @@ describe('TemplateEditorApp authoring workflow', () => {
     startA3Authoring()
 
     expect(screen.getByText('未保存の変更')).toBeTruthy()
-    expect(screen.getByRole('complementary', { name: '領域一覧' })).toBeTruthy()
-    const sectionNavigation = screen.getByRole('navigation', { name: '編集する内容' })
-    expect(within(sectionNavigation).getByRole('button', { name: '用紙レイアウト' }).getAttribute('aria-current')).toBe('page')
-    expect(within(sectionNavigation).getByRole('button', { name: '個別要素' })).toBeTruthy()
-    expect(within(sectionNavigation).getByRole('button', { name: '見た目' })).toBeTruthy()
-    expect(within(sectionNavigation).getByRole('button', { name: '確認・保存' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: '6秒タイムライン表' })).toBeTruthy()
+    const structure = screen.getByRole('complementary', { name: 'テンプレート構成' })
+    expect(within(structure).getByRole('button', { name: '6秒タイムライン表', pressed: true })).toBeTruthy()
+    expect(within(structure).getByRole('button', { name: '用紙と見た目' })).toBeTruthy()
+    expect(within(structure).getByRole('button', { name: '下絵' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '確認 ✓' })).toBeTruthy()
+    expect(screen.getAllByRole('heading', { name: '6秒タイムライン表' })).toHaveLength(2)
     expect(screen.getByLabelText('固定された時間構成').textContent).toContain('72行 × 2ブロック')
     selectInspectorSection('template')
     expect(screen.getByLabelText(uiText.template.cutNumberPrefix)).toBeTruthy()
@@ -127,6 +126,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
+    openDocumentMenu()
     fireEvent.click(screen.getByRole('button', { name: '新しいテンプレート' }))
     expect(screen.getByText('1754 × 2480px')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '作成' }))
@@ -153,13 +153,11 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(screen.getByLabelText('FPS')).toBeTruthy()
     expect(screen.getByLabelText('初期フレーム数')).toBeTruthy()
     expect(screen.getByLabelText('セル列数（ACTION/CELL共通）')).toBeTruthy()
-    expect(within(screen.getByRole('navigation', { name: '編集する内容' })).queryByRole('button', { name: uiText.template.detailTabs.reference })).toBeNull()
+    expect(within(screen.getByRole('complementary', { name: 'テンプレート構成' })).queryByRole('button', { name: '下絵' })).toBeNull()
     expect(screen.queryByRole('slider', { name: '下絵の不透明度' })).toBeNull()
 
-    selectInspectorSection('table')
-    expect(screen.getByRole('region', { name: 'すべての領域' })).toBeTruthy()
     expect(document.querySelector('.bindingTable')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'ACTIONを編集' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ACTION' }))
     const actionColumnCount = screen.getByLabelText('ACTIONの共有セル列数') as HTMLInputElement
     fireEvent.change(actionColumnCount, { target: { value: '22' } })
     expect(actionColumnCount.value).toBe('22')
@@ -184,11 +182,10 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(fittedZoom).toBeCloseTo(Math.min((600 - 24) / expectedPage.widthPx, (420 - 24) / expectedPage.heightPx))
   })
 
-  it('opens a region from the collection, keeps management and printed names independent, and returns to the collection', () => {
+  it('opens regions from the structure list and keeps management and printed names independent', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
-    selectInspectorSection('table')
-    fireEvent.click(within(screen.getByRole('region', { name: 'すべての領域' })).getByRole('button', { name: 'カット情報見出しを編集' }))
+    fireEvent.click(screen.getByRole('button', { name: 'カット情報見出し' }))
 
     expect(screen.getAllByRole('heading', { name: 'カット情報見出し' })).toHaveLength(2)
     const managementName = screen.getByLabelText('カット情報見出しの編集画面での名前') as HTMLInputElement
@@ -200,12 +197,8 @@ describe('TemplateEditorApp authoring workflow', () => {
 
     fireEvent.click(screen.getByText('詳細設定'))
     expect((screen.getByLabelText('機能上の領域ラベル') as HTMLInputElement).value).toBe('カット情報見出し')
-    fireEvent.click(screen.getByRole('button', { name: '← 領域一覧へ' }))
-
-    const collection = screen.getByRole('region', { name: 'すべての領域' })
-    expect(within(collection).getByRole('button', { name: '上部のカット欄を編集' }).textContent).toContain('シート上の表示文字: 作品名 / NO. / CUT')
-
-    fireEvent.click(within(collection).getByRole('button', { name: 'タイトルを編集' }))
+    expect(screen.getByRole('button', { name: '上部のカット欄' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'タイトル' }))
     const titleX = screen.getByLabelText(`${uiText.template.selectedRegion} x px`) as HTMLInputElement
     const titleFont = screen.getByLabelText('文字 pt') as HTMLInputElement
     fireEvent.change(titleX, { target: { value: '120' } })
@@ -249,7 +242,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     startA3Authoring()
 
     const initialRegionCount = document.querySelectorAll('.templateRegionNavigatorItem').length
-    fireEvent.click(screen.getByLabelText('領域を追加'))
+    fireEvent.click(screen.getByLabelText('要素を追加'))
     fireEvent.click(screen.getByRole('button', { name: uiText.actions.addDecorativeGridRegion }))
     expect(document.querySelectorAll('.templateRegionNavigatorItem')).toHaveLength(initialRegionCount + 1)
 
@@ -268,9 +261,12 @@ describe('TemplateEditorApp authoring workflow', () => {
     selectInspectorSection('json')
     expect((document.querySelector('.jsonPreview') as HTMLTextAreaElement).value).toBe(jsonBeforeViewOnlyChanges)
     fireEvent.click(screen.getByRole('button', { name: addedName }))
-    fireEvent.click(screen.getByRole('button', { name: /補助罫線 \d+を複製/ }))
+    fireEvent.click(screen.getByLabelText(new RegExp(`${addedName}のその他の操作`)))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${addedName}を複製`) }))
     expect(document.querySelectorAll('.templateRegionNavigatorItem')).toHaveLength(initialRegionCount + 2)
-    fireEvent.click(screen.getByRole('button', { name: /補助罫線 \d+ コピーを削除/ }))
+    const copyName = screen.getByRole('button', { name: /補助罫線 \d+ コピー$/ }).getAttribute('aria-label')!
+    fireEvent.click(screen.getByLabelText(new RegExp(`${copyName}のその他の操作`)))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${copyName}を削除`) }))
     expect(document.querySelectorAll('.templateRegionNavigatorItem')).toHaveLength(initialRegionCount + 1)
   })
 
@@ -280,6 +276,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     selectInspectorSection('template')
 
     fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: '作業用テンプレート' } })
+    openDocumentMenu()
     fireEvent.click(screen.getByRole('button', { name: '新しいテンプレート' }))
     fireEvent.click(screen.getByRole('button', { name: '現在から複製' }))
 
@@ -329,7 +326,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(imageInput).toBeTruthy()
     fireEvent.change(imageInput!, { target: { files: [new File(['image'], 'late-reference.png', { type: 'image/png' })] } })
 
-    await waitFor(() => expect(screen.getByText('late-reference.png')).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText('late-reference.png')).toHaveLength(2))
     fireEvent.click(screen.getByRole('button', { name: '確認して保存' }))
     await waitFor(() => expect(adapterMocks.saveJsonFile).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.getByText('保存済み')).toBeTruthy())
@@ -351,9 +348,9 @@ describe('TemplateEditorApp authoring workflow', () => {
     const imageInput = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]')!
 
     fireEvent.change(imageInput, { target: { files: [new File(['first'], 'first.png', { type: 'image/png', lastModified: 1 })] } })
-    await waitFor(() => expect(screen.getByText('first.png')).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText('first.png')).toHaveLength(2))
     fireEvent.change(imageInput, { target: { files: [new File(['second'], 'second.png', { type: 'image/png', lastModified: 2 })] } })
-    await waitFor(() => expect(screen.getByText('second.png')).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText('second.png')).toHaveLength(2))
 
     resolveSecond?.({ width: 222, height: 333, ppiX: 150, ppiY: 150 })
     await waitFor(() => expect(screen.getByText('222 × 333px')).toBeTruthy())
@@ -426,18 +423,28 @@ function selectInspectorSection(sectionId: string) {
     return
   }
   const labels: Record<string, string> = {
-    template: '基本設定',
-    table: '個別要素',
-    display: '見た目',
-    reference: '参照画像',
-    review: '確認・保存',
-    json: 'JSON',
+    template: '用紙と見た目',
+    display: '用紙と見た目',
+    reference: '下絵',
+  }
+  if (sectionId === 'review') {
+    fireEvent.click(screen.getByRole('button', { name: /^確認 / }))
+    return
+  }
+  if (sectionId === 'json') {
+    openDocumentMenu()
+    fireEvent.click(screen.getByRole('button', { name: 'JSONを表示' }))
+    return
   }
   const label = labels[sectionId]
   if (!label) throw new Error(`unknown template inspector section: ${sectionId}`)
-  const navigation = screen.getByRole('navigation', { name: '編集する内容' })
-  const button = within(navigation).queryByRole('button', { name: label })
-    ?? (sectionId === 'table' ? within(navigation).getByRole('button', { name: '領域' }) : null)
+  const structure = screen.getByRole('complementary', { name: 'テンプレート構成' })
+  const button = within(structure).queryByRole('button', { name: label })
+    ?? (sectionId === 'template' ? within(structure).queryByRole('button', { name: 'テンプレートと見た目' }) : null)
   if (!button) throw new Error(`template inspector section not found: ${label}`)
   fireEvent.click(button)
+}
+
+function openDocumentMenu() {
+  fireEvent.click(screen.getByLabelText('テンプレートのその他の操作'))
 }

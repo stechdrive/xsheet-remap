@@ -15,11 +15,10 @@ import {
 } from '@xsheet-remap/core'
 import { confirmUserAction, type SaveFileResult } from '@xsheet-remap/adapters'
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ActionMenu, PanelResizeHandle, ToolbarGroup } from './AppControls'
+import { PanelResizeHandle } from './AppControls'
 import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './appTypes'
 import { uiText } from './i18n'
 import { ProcessSettingsDialog } from './ProcessSettingsDialog'
-import { sortedCorrectionLayers } from './sheetAssets'
 import { calibrationGridBoundsForTemplate, calibrationTargetRectForTemplate, defaultSheetImageSettings, resolveImageRefUrl } from './sheetImages'
 import { clampNumber, fitZoomForViewport } from './sheetInteraction'
 import { cloneSheetTemplate, createTemplateDraft, ensureEditableTemplateDraft, finalizeTemplateDraftForApply, isBuiltInSheetTemplate, isModifiedBuiltInSheetTemplate, quantizeTemplateGeometry, readFileAsDataUrl, removeTemplateRegion, resolvePixelExactUnderlayPlacement, synchronizeDigitalTemplatePaperTracks, templateImageDensityMatches, type TemplateDraftKind } from './templateDrafts'
@@ -27,10 +26,9 @@ import { readTemplateImageMetadata } from './templateImageMetadata'
 import { gridHeaderLabelForRole, gridHeaderRolesForTemplate, templateEditorNormalizedRectValue, templateEditorRectPixelValue, type TemplateEditorRectKey } from './templateEditorGeometry'
 import { buildTemplateColumns, clearTemplateCalibrationTargetRect, defaultColumnCountForRole, defaultRegionLabel, gridRoleLabel, resizePaperTrackLabels, resizeTemplateTimelineLanes, setTemplateCalibrationTargetRect, setTemplateGridColumnLabelsVisible, setTemplateTimelineLaneLabel, templateGridColumnLabelsVisible, templateTimelineLaneDefinitions, trackProjectionForRole, type TemplateGridRole, type TemplateTimelineLaneRole } from './templateEditing'
 import { Tooltip, TooltipTarget } from './Tooltip'
-import { METADATA_BINDING_OPTION_IDS, TEMPLATE_CALIBRATION_TARGET_ID, errorMessage, metadataBindingFromOptionId, metadataBindingOptionId, metadataBindingOptionLabel, sameNormalizedRect, standardCalibrationTargetRectForTemplate } from './template-workspace-model'
+import { METADATA_BINDING_OPTION_IDS, TEMPLATE_CALIBRATION_TARGET_ID, TEMPLATE_PAGE_TARGET_ID, TEMPLATE_REFERENCE_TARGET_ID, errorMessage, metadataBindingFromOptionId, metadataBindingOptionId, metadataBindingOptionLabel, sameNormalizedRect, standardCalibrationTargetRectForTemplate } from './template-workspace-model'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
 import { TemplateCreateDialog, type DigitalTemplateCreateOptions, type PaperTemplateCreateOptions } from './TemplateCreateDialog'
-import { TemplateInspectorNavigation } from './TemplateInspectorNavigation'
 import { templatePaperPixelSize } from './templatePaper'
 import { TemplateRegionBindingEditor } from './TemplateRegionBindingEditor'
 import { SheetThemeEditor } from './SheetThemeEditor'
@@ -55,13 +53,13 @@ import {
 } from './templateRegionAuthoring'
 import { validateTemplateAuthoring } from './templateAuthoringValidation'
 import { templateFieldChoicesFromText, templateFieldReferenceCount, templateFieldSemanticsLockReason } from './templateFieldAuthoring'
-import { templateWorkspaceInspectorSections, templateWorkspaceNavigationItems } from './template-workspace-inspector-sections'
-import { PaperReferenceWorkflow, PaperRegionAlignmentControls, PaperTimelineControls, TemplateRegionCollectionControls } from './template-workspace-paper-controls'
+import { templateWorkspaceNavigationItems } from './template-workspace-inspector-sections'
+import { PaperRebuildGuide, PaperTimelineControls, type PaperRebuildStep } from './template-workspace-paper-controls'
 import { TemplateAuthoringReview } from './TemplateAuthoringReview'
-import { TemplateEditorViewControls } from './TemplateEditorViewControls'
 import { createTemplateEditorViewStore } from './templateEditorViewStore'
+import { TemplateCanvasToolbar, TemplateDocumentToolbar, TemplateRegionAddMenu } from './TemplateWorkspaceChrome'
 export type TemplateWorkspaceMode = 'project' | 'standalone'
-
+export type TemplateWorkspaceEntryMode = 'standard' | 'image' | 'digital' | 'existing'
 export interface TemplateWorkspaceDraftState {
   template: SheetTemplate
   dirty: boolean
@@ -78,6 +76,7 @@ export function TemplateWorkspace({
   mode = 'project',
   initialDraftTemplate,
   initialDraftDirty = false,
+  initialWorkflow = 'existing',
   onDraftStateChange,
   onReturnToStart,
 }: {
@@ -91,6 +90,7 @@ export function TemplateWorkspace({
   mode?: TemplateWorkspaceMode
   initialDraftTemplate?: SheetTemplate
   initialDraftDirty?: boolean
+  initialWorkflow?: TemplateWorkspaceEntryMode
   onDraftStateChange?: (state: TemplateWorkspaceDraftState) => void
   onReturnToStart?: () => void
 }) {
@@ -98,7 +98,9 @@ export function TemplateWorkspace({
   const regionPlacementDescriptionId = useId()
   const regionPositionLockNoticeId = useId()
   const regionDeleteHintId = useId()
-  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(initialDraftTemplate ?? appliedTemplate)))
+  const initialTemplate = initialDraftTemplate ?? appliedTemplate
+  const initialPaperTimeline = editablePaperTimelineStructure(initialTemplate)
+  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(initialTemplate)))
   const [hasTemplateDraftChanges, setHasTemplateDraftChanges] = useState(initialDraftDirty)
   const [saveNotice, setSaveNotice] = useState<string | null>(null)
   const template = draftTemplate
@@ -110,11 +112,15 @@ export function TemplateWorkspace({
   const editableRegions = template.regions
   const paperTimelineStructure = useMemo(() => detectPaperTimelineStructure(template), [template])
   const managedPaperTimelineStructure = paperTimelineStructure?.status === 'incomplete' ? null : paperTimelineStructure
-  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => editablePaperTimelineStructure(initialDraftTemplate ?? appliedTemplate)
-    ? PAPER_TIMELINE_TARGET_ID
-    : editableRegions[0]?.regionId ?? null)
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(() => initialWorkflow === 'image'
+    ? TEMPLATE_REFERENCE_TARGET_ID
+    : initialPaperTimeline
+      ? PAPER_TIMELINE_TARGET_ID
+      : TEMPLATE_PAGE_TARGET_ID)
   const [selectedFormCellId, setSelectedFormCellId] = useState<string | null>(null)
-  const [detailTab, setDetailTab] = useState<TemplateDetailTab>(() => detectPaperTimelineStructure(initialDraftTemplate ?? appliedTemplate) ? 'layout' : 'template')
+  const [detailTab, setDetailTab] = useState<TemplateDetailTab>(() => initialWorkflow === 'image' ? 'reference' : initialPaperTimeline ? 'layout' : 'template')
+  const [rebuildGuideOpen, setRebuildGuideOpen] = useState(initialWorkflow === 'image')
+  const [rebuildStep, setRebuildStep] = useState<PaperRebuildStep>(initialWorkflow === 'image' ? 'reference' : 'outline')
   const templateViewStore = useMemo(() => createTemplateEditorViewStore(), [])
   const [dockWidth, setDockWidth] = useState(420)
   const [processSettingsOpen, setProcessSettingsOpen] = useState(false)
@@ -136,11 +142,13 @@ export function TemplateWorkspace({
   const usesStandardCalibrationTarget = Boolean(hasExplicitCalibrationTarget && calibrationTargetRect && standardCalibrationTargetRect && sameNormalizedRect(calibrationTargetRect, standardCalibrationTargetRect))
   const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
   const isPaperTimelineSelected = selectedRegionId === PAPER_TIMELINE_TARGET_ID
-  const selectedRegion = isCalibrationTargetSelected || isPaperTimelineSelected
+  const isTemplatePageSelected = selectedRegionId === TEMPLATE_PAGE_TARGET_ID
+  const isTemplateReferenceSelected = selectedRegionId === TEMPLATE_REFERENCE_TARGET_ID
+  const selectedRegion = isCalibrationTargetSelected || isPaperTimelineSelected || isTemplatePageSelected || isTemplateReferenceSelected
     ? null
     : selectedRegionId
-      ? editableRegions.find(region => region.regionId === selectedRegionId) ?? editableRegions[0] ?? null
-      : editableRegions[0] ?? null
+      ? editableRegions.find(region => region.regionId === selectedRegionId) ?? null
+      : null
   const selectedRegionPositionLocked = Boolean(selectedRegion && positionLockedRegionIds.has(selectedRegion.regionId))
   const selectedDecorativeGrid = isDecorativeGridRegion(selectedRegion) ? selectedRegion : null
   const selectedFormLabelCells = selectedRegion ? editableTemplateRegionLabelCells(selectedRegion) : []
@@ -159,13 +167,13 @@ export function TemplateWorkspace({
     : 0
   const selectedRegionHasTextStyle = Boolean(selectedRegion
     && (selectedRegion.binding?.target === 'cut-metadata' || selectedRegion.binding?.target === 'cut-group'))
-  const effectiveSelectedRegionId = isCalibrationTargetSelected
+  const effectiveSelectedRegionId = isTemplatePageSelected || isTemplateReferenceSelected
+    ? null
+    : isCalibrationTargetSelected
     ? TEMPLATE_CALIBRATION_TARGET_ID
     : isPaperTimelineSelected
       ? PAPER_TIMELINE_TARGET_ID
       : selectedRegion?.regionId ?? null
-  const correctionLayers = sortedCorrectionLayers(project)
-  const defaultCorrectionLayer = correctionLayers[0] ?? null
   const templateReferenceImageUrl = template.defaultUnderlay?.imageRef
     ? resolveImageRefUrl({ ...template.defaultUnderlay.imageRef, assetPath: template.defaultUnderlay.assetPath })
     : null
@@ -206,7 +214,8 @@ export function TemplateWorkspace({
     const nextTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate))
     setDraftTemplate(nextTemplate)
     const nextManagedPaperTimeline = editablePaperTimelineStructure(nextTemplate)
-    setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : nextTemplate.regions[0]?.regionId ?? null)
+    setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : TEMPLATE_PAGE_TARGET_ID)
+    setDetailTab(nextManagedPaperTimeline ? 'layout' : 'template')
     setHiddenRegionIds(new Set())
     setPositionLockedRegionIds(new Set())
     setSaveNotice(null)
@@ -242,12 +251,18 @@ export function TemplateWorkspace({
     setDraftTemplate(clonedTemplate)
     setHasTemplateDraftChanges(dirty)
     setSaveNotice(null)
-    const nextPaperTimeline = detectPaperTimelineStructure(clonedTemplate)
     const nextManagedPaperTimeline = editablePaperTimelineStructure(clonedTemplate)
-    setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : clonedTemplate.regions[0]?.regionId ?? null)
+    const nextTargetId = nextTab === 'reference' && clonedTemplate.templateKind !== 'digital-native'
+      ? TEMPLATE_REFERENCE_TARGET_ID
+      : nextTab === 'region'
+        ? clonedTemplate.regions[0]?.regionId ?? TEMPLATE_PAGE_TARGET_ID
+        : nextTab === 'layout' && nextManagedPaperTimeline
+          ? PAPER_TIMELINE_TARGET_ID
+          : TEMPLATE_PAGE_TARGET_ID
+    setSelectedRegionId(nextTargetId)
     setHiddenRegionIds(new Set())
     setPositionLockedRegionIds(new Set())
-    setDetailTab(nextPaperTimeline && nextTab !== 'reference' ? 'layout' : nextTab)
+    setDetailTab(nextTargetId === PAPER_TIMELINE_TARGET_ID ? 'layout' : nextTab)
     templateViewStore.setZoom(1)
   }
 
@@ -275,10 +290,9 @@ export function TemplateWorkspace({
     setDraftTemplate(nextTemplate)
     setHasTemplateDraftChanges(false)
     setSaveNotice(null)
-    const nextPaperTimeline = detectPaperTimelineStructure(nextTemplate)
     const nextManagedPaperTimeline = editablePaperTimelineStructure(nextTemplate)
-    setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : nextTemplate.regions[0]?.regionId ?? null)
-    setDetailTab(nextPaperTimeline ? 'layout' : 'template')
+    setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : TEMPLATE_PAGE_TARGET_ID)
+    setDetailTab(nextManagedPaperTimeline ? 'layout' : 'template')
   }
 
   async function confirmDiscardTemplateDraft(action: string): Promise<boolean> {
@@ -327,6 +341,47 @@ export function TemplateWorkspace({
     if (!viewport) return
     const zoom = fitZoomForViewport(viewport, editorPageSize, { horizontal: 24, vertical: 24 })
     if (zoom !== null) templateViewStore.setZoom(zoom)
+  }
+
+  function selectWorkspaceTarget(targetId: string) {
+    setSelectedRegionId(targetId)
+    setSelectedFormCellId(null)
+    if (targetId === TEMPLATE_PAGE_TARGET_ID || targetId === TEMPLATE_CALIBRATION_TARGET_ID) {
+      setDetailTab('template')
+      return
+    }
+    if (targetId === TEMPLATE_REFERENCE_TARGET_ID) {
+      setDetailTab('reference')
+      setRebuildStep('reference')
+      return
+    }
+    if (targetId === PAPER_TIMELINE_TARGET_ID) {
+      setDetailTab('layout')
+      setRebuildStep(current => current === 'columns' ? current : 'outline')
+      return
+    }
+    setDetailTab('region')
+    setRebuildStep('information')
+  }
+
+  function returnToSelectedTarget() {
+    if (selectedRegionId) selectWorkspaceTarget(selectedRegionId)
+    else selectWorkspaceTarget(TEMPLATE_PAGE_TARGET_ID)
+  }
+
+  function selectRebuildStep(step: PaperRebuildStep) {
+    setRebuildStep(step)
+    if (step === 'reference') selectWorkspaceTarget(TEMPLATE_REFERENCE_TARGET_ID)
+    else if (step === 'outline' || step === 'columns') {
+      setSelectedRegionId(PAPER_TIMELINE_TARGET_ID)
+      setDetailTab('layout')
+    } else if (step === 'information') {
+      const informationRegion = templateWorkspaceNavigationItems(template, managedPaperTimelineStructure?.managedRegionIds)
+        .find(item => item.group === 'information')
+      if (informationRegion) selectWorkspaceTarget(informationRegion.regionId)
+    } else {
+      setDetailTab('review')
+    }
   }
 
   function updateTemplateMetadata(updates: Partial<Pick<SheetTemplate, 'templateId' | 'name'>>) {
@@ -450,6 +505,7 @@ export function TemplateWorkspace({
 
     updateTemplateDraft(currentTemplate => removeTemplateRegion(currentTemplate, regionId))
     setSelectedRegionId(current => current === regionId ? nextSelectedRegionId : current)
+    setDetailTab('region')
     setSelectedFormCellId(null)
     setHiddenRegionIds(current => withoutSetValue(current, regionId))
     setPositionLockedRegionIds(current => withoutSetValue(current, regionId))
@@ -462,6 +518,7 @@ export function TemplateWorkspace({
     updateTemplateDraft(() => result.template)
     setSelectedRegionId(result.regionId)
     setSelectedFormCellId(null)
+    setDetailTab('region')
   }
 
   function moveRegion(regionId: string, direction: -1 | 1) {
@@ -577,7 +634,7 @@ export function TemplateWorkspace({
   }
 
   function selectCalibrationTarget() {
-    if (calibrationTargetRect) setSelectedRegionId(TEMPLATE_CALIBRATION_TARGET_ID)
+    if (calibrationTargetRect) selectWorkspaceTarget(TEMPLATE_CALIBRATION_TARGET_ID)
   }
 
   function updateCalibrationTargetRect(key: 'x' | 'y' | 'w' | 'h', value: number) {
@@ -748,6 +805,7 @@ export function TemplateWorkspace({
     setDraftTemplate(synchronizeDigitalTemplatePaperTracks(nextTemplate))
     markTemplateDraftChanged()
     setSelectedRegionId(regionId)
+    setDetailTab('region')
   }
 
   function addDecorativeGridRegion() {
@@ -778,6 +836,7 @@ export function TemplateWorkspace({
     setDraftTemplate({ ...editableTemplate, regions: [...editableTemplate.regions, region] })
     markTemplateDraftChanged()
     setSelectedRegionId(regionId)
+    setDetailTab('region')
   }
 
   function addMetadataRegion() {
@@ -811,6 +870,7 @@ export function TemplateWorkspace({
     setDraftTemplate({ ...editableTemplate, regions: [...editableTemplate.regions, region] })
     markTemplateDraftChanged()
     setSelectedRegionId(regionId)
+    setDetailTab('region')
   }
 
   function addFormRegion() {
@@ -851,6 +911,7 @@ export function TemplateWorkspace({
     })
     markTemplateDraftChanged()
     setSelectedRegionId(regionId)
+    setDetailTab('region')
   }
 
   async function handleLoadReferenceImage(files: FileList | null) {
@@ -969,6 +1030,8 @@ export function TemplateWorkspace({
       }
     }
     replaceTemplateDraft(created, options.file ? 'reference' : 'template')
+    setRebuildGuideOpen(Boolean(options.file))
+    setRebuildStep(options.file ? 'reference' : 'outline')
     setTemplateCreateOpen(false)
   }
 
@@ -989,15 +1052,16 @@ export function TemplateWorkspace({
     }
     const created = withSheetTemplatePaperTracks(withDefaults, paperTracks)
     replaceTemplateDraft(created, 'template')
+    setRebuildGuideOpen(false)
     setTemplateCreateOpen(false)
   }
 
   function duplicateCurrentTemplate() {
     replaceTemplateDraft(createTemplateDraft('duplicate-current', template), 'template')
+    setRebuildGuideOpen(false)
     setTemplateCreateOpen(false)
   }
 
-  const detailSections = templateWorkspaceInspectorSections({ hasPaperTimeline: Boolean(paperTimelineStructure), isDigitalTemplate, selectedRegion })
   const gridHeaderRoles = gridHeaderRolesForTemplate(template)
   const timelineLaneRoles = gridHeaderRoles.filter((role): role is TemplateTimelineLaneRole => role === 'sound' || role === 'camera')
 
@@ -1137,14 +1201,11 @@ export function TemplateWorkspace({
 
   const selectedRegionControls = isCalibrationTargetSelected ? (
     <section className="templateRegionDetailEmpty">
-      <button type="button" className="templateRegionBackButton" onClick={() => setDetailTab('table')}>← 領域一覧へ</button>
       <h3>{uiText.template.calibrationTarget}</h3>
-      <p>補正基準枠は「基本設定」で編集します。</p>
-      <button type="button" onClick={() => setDetailTab('template')}>基本設定を開く</button>
+      <p>補正基準枠の数値は、この右ペインの「用紙と見た目」で編集します。</p>
     </section>
   ) : selectedRegion ? (
     <div className="templateRegionDetail">
-      <button type="button" className="templateRegionBackButton" onClick={() => setDetailTab('table')}>← 領域一覧へ</button>
       <header className="templateRegionDetailHeader">
         <div>
           <span>{templateRegionKindLabel(selectedRegion)}</span>
@@ -1633,20 +1694,6 @@ export function TemplateWorkspace({
             )
           })}
         </div>
-        {managedPaperTimelineStructure && !managedPaperTimelineStructure.managedRegionIds.has(selectedRegion.regionId) && (
-          <div className="templateRegionAlignment" aria-label="選択要素の整列">
-            <strong>整列</strong>
-            <div>
-              <span>用紙</span>
-              <PaperRegionAlignmentControls onAlign={alignment => alignSelectedRegion(alignment, 'page')} />
-            </div>
-            <div>
-              <span>6秒表</span>
-              <PaperRegionAlignmentControls onAlign={alignment => alignSelectedRegion(alignment, 'timeline')} />
-            </div>
-            <p>数値入力を使わず、用紙または6秒タイムライン表の端・中央へ揃えます。</p>
-          </div>
-        )}
       </section>
 
       {selectedRegionHasTextStyle && (
@@ -1687,22 +1734,12 @@ export function TemplateWorkspace({
     </div>
   ) : (
     <section className="templateRegionDetailEmpty">
-      <button type="button" className="templateRegionBackButton" onClick={() => setDetailTab('table')}>← 領域一覧へ</button>
       <p>左の一覧またはキャンバスで、編集する領域を選んでください。</p>
     </section>
   )
 
   const referenceImageControls = (
     <div className="detailStack">
-      {paperTimelineStructure && (
-        <PaperReferenceWorkflow
-          hasReference={Boolean(template.defaultUnderlay)}
-          onOpenLayout={() => {
-            setSelectedRegionId(PAPER_TIMELINE_TARGET_ID)
-            setDetailTab('layout')
-          }}
-        />
-      )}
       <div className="toolRow dockToolRow">
         <TooltipTarget label={uiText.actions.loadTemplateReferenceImageTitle}>
           {tooltipProps => (
@@ -1828,100 +1865,84 @@ export function TemplateWorkspace({
     </div>
   )
 
-  const regionCollectionEditor = (
-    <TemplateRegionCollectionControls
-      template={template}
-      selectedRegionId={effectiveSelectedRegionId}
-      onOpenDetails={regionId => { setSelectedRegionId(regionId); setDetailTab('region') }}
-      structure={managedPaperTimelineStructure}
-      onOpenTimeline={() => { setSelectedRegionId(PAPER_TIMELINE_TARGET_ID); setDetailTab('layout') }}
-    />
-  )
-
   const reviewControls = (
     <TemplateAuthoringReview
       validation={authoringValidation}
-      onOpenRegion={regionId => { setSelectedRegionId(regionId); setDetailTab('region') }}
+      onOpenRegion={selectWorkspaceTarget}
       onSave={() => void saveTemplateDraft()}
     />
   )
 
   const navigationItems = templateWorkspaceNavigationItems(template, managedPaperTimelineStructure?.managedRegionIds)
+  const rootNavigationItems = [
+    {
+      targetId: TEMPLATE_PAGE_TARGET_ID,
+      label: isDigitalTemplate ? 'テンプレートと見た目' : '用紙と見た目',
+      description: isDigitalTemplate ? '名前・初期値・色と罫線' : '名前・用紙・色と罫線',
+    },
+    ...(!isDigitalTemplate ? [{
+      targetId: TEMPLATE_REFERENCE_TARGET_ID,
+      label: '下絵',
+      description: template.defaultUnderlay?.imageRef.name ?? '画像は未設定',
+    }] : []),
+  ]
+  const addRegionControl = (
+    <TemplateRegionAddMenu
+      managedTimeline={Boolean(managedPaperTimelineStructure)}
+      onAddMetadata={addMetadataRegion}
+      onAddForm={addFormRegion}
+      onAddGrid={addGridRegion}
+      onAddDecorative={addDecorativeGridRegion}
+    />
+  )
+  const selectedRegionCanAlign = Boolean(selectedRegion
+    && managedPaperTimelineStructure
+    && !managedPaperTimelineStructure.managedRegionIds.has(selectedRegion.regionId))
+  const canvasToolbar = (
+    <TemplateCanvasToolbar
+      store={templateViewStore}
+      hasReferenceImage={Boolean(templateReferenceImageUrl)}
+      canAlign={selectedRegionCanAlign}
+      onFit={fitTemplateToViewport}
+      onAlign={alignSelectedRegion}
+    />
+  )
+  const inspectorTitle = activeDetailTab === 'review'
+    ? '確認・保存'
+    : activeDetailTab === 'json'
+      ? 'テンプレートJSON'
+      : isCalibrationTargetSelected
+        ? uiText.template.calibrationTarget
+        : isPaperTimelineSelected
+          ? '6秒タイムライン表'
+          : isTemplateReferenceSelected
+            ? '下絵'
+            : selectedRegion
+              ? templateRegionAuthoringName(selectedRegion)
+              : isDigitalTemplate ? 'テンプレートと見た目' : '用紙と見た目'
+  const inspectorDescription = activeDetailTab === 'review'
+    ? '不足や配置ミスを確認してから保存します。'
+    : activeDetailTab === 'json'
+      ? '完成データの読み取り専用表示です。'
+      : isPaperTimelineSelected
+        ? '左右3秒・全72行を共有する表として調整します。'
+        : isTemplateReferenceSelected
+          ? '元の用紙画像を読み込み、表示濃度を調整します。'
+          : selectedRegion
+            ? templateRegionPurposeText(selectedRegion)
+            : 'テンプレート全体の設定と共通の見た目を編集します。'
 
   return (
-    <section className="panel templatePanel">
-      <div className="toolRow templateToolbar">
-        <ToolbarGroup className="templateDraftToolbarGroup">
-          <span className={`templateDraftStatus ${hasTemplateDraftChanges ? 'dirty' : ''}`.trim()}>{templateDraftStatus}</span>
-          {saveNotice && <span className="templateSaveNotice" role="status">{saveNotice}</span>}
-        </ToolbarGroup>
-        {mode === 'standalone' && onReturnToStart && (
-          <ToolbarGroup>
-            <button type="button" onClick={() => void returnToStart()}>作り方へ戻る</button>
-          </ToolbarGroup>
-        )}
-        <ToolbarGroup>
-          <button type="button" onClick={() => setTemplateCreateOpen(true)}>新しいテンプレート</button>
-          <TooltipTarget label={uiText.actions.loadTemplateJsonTitle}>
-            {tooltipProps => (
-              <label className="fileButton" {...tooltipProps}>
-                {uiText.actions.loadTemplateJson}
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={event => {
-                    void handleLoadTemplateDraft(event.currentTarget.files)
-                    event.currentTarget.value = ''
-                  }}
-                />
-              </label>
-            )}
-          </TooltipTarget>
-          <button type="button" className={mode === 'standalone' ? 'primary' : ''} onClick={() => void saveTemplateDraft()}>
-            {mode === 'standalone' ? '確認して保存' : 'テンプレートJSONを保存'}
-          </button>
-          <button type="button" className={authoringValidation.canComplete ? '' : 'templateReviewBlocked'} onClick={() => setDetailTab('review')}>
-            確認 {authoringValidation.errors.length > 0 ? `(${authoringValidation.errors.length})` : '✓'}
-          </button>
-        </ToolbarGroup>
-        {mode === 'project' && (
-          <ToolbarGroup>
-            <button type="button" className="primary" disabled={!hasTemplateDraftChanges || !authoringValidation.canComplete} onClick={applyTemplateDraftChanges}>プロジェクトへ反映</button>
-            <button type="button" disabled={!hasTemplateDraftChanges} onClick={cancelTemplateDraftChanges}>変更を取り消す</button>
-          </ToolbarGroup>
-        )}
-        <ToolbarGroup>
-          <ActionMenu label="＋ 領域" ariaLabel="領域を追加" tooltipLabel="テンプレートへ領域を追加" closeOnMenuItemClick>
-            <button type="button" onClick={addMetadataRegion}>{uiText.actions.addMetadataRegion}</button>
-            <button type="button" onClick={addFormRegion}>入力表を追加</button>
-            {!managedPaperTimelineStructure && (
-              <>
-                <button type="button" onClick={() => addGridRegion('action')}>{uiText.actions.addActionRegion}</button>
-                <button type="button" onClick={() => addGridRegion('sound')}>{uiText.actions.addSoundRegion}</button>
-                <button type="button" onClick={() => addGridRegion('cell')}>{uiText.actions.addCellRegion}</button>
-                <button type="button" onClick={() => addGridRegion('camera')}>{uiText.actions.addCameraRegion}</button>
-              </>
-            )}
-            <button type="button" onClick={addDecorativeGridRegion}>{uiText.actions.addDecorativeGridRegion}</button>
-          </ActionMenu>
-        </ToolbarGroup>
-        {mode === 'project' && (
-          <ToolbarGroup className="templateProcessToolbarGroup">
-            <span className="toolbarGroupLabel">プロジェクトの工程</span>
-            <span className="muted">テンプレートJSONには含まれません / {uiText.template.processSummary(correctionLayers.length, defaultCorrectionLayer?.label ?? '-')}</span>
-            <Tooltip label={uiText.sheet.processSettingsTitle}>
-              <button type="button" className="processSettingsOpenButton" onClick={() => setProcessSettingsOpen(true)}>
-                {uiText.processSettings.openShort}
-              </button>
-            </Tooltip>
-          </ToolbarGroup>
-        )}
-        <TemplateEditorViewControls
-          store={templateViewStore}
-          hasReferenceImage={Boolean(templateReferenceImageUrl)}
-          onFit={fitTemplateToViewport}
-        />
-      </div>
+    <section className={`panel templatePanel${rebuildGuideOpen && paperTimelineStructure ? ' hasRebuildGuide' : ''}`}>
+      <TemplateDocumentToolbar
+        mode={mode} templateName={template.name} draftStatus={templateDraftStatus} dirty={hasTemplateDraftChanges}
+        saveNotice={saveNotice} canComplete={authoringValidation.canComplete} errorCount={authoringValidation.errors.length}
+        onReturnToStart={onReturnToStart ? () => void returnToStart() : undefined}
+        onReview={() => setDetailTab('review')} onSave={() => void saveTemplateDraft()}
+        onApply={applyTemplateDraftChanges} onCancel={cancelTemplateDraftChanges}
+        onCreate={() => setTemplateCreateOpen(true)} onLoad={files => void handleLoadTemplateDraft(files)}
+        onShowJson={() => setDetailTab('json')} onOpenProcessSettings={() => setProcessSettingsOpen(true)}
+      />
       {mode === 'project' && processSettingsOpen && (
         <ProcessSettingsDialog
           project={project}
@@ -1939,17 +1960,24 @@ export function TemplateWorkspace({
           onDuplicateCurrent={duplicateCurrentTemplate}
         />
       )}
+      {rebuildGuideOpen && paperTimelineStructure && (
+        <PaperRebuildGuide
+          activeStep={rebuildStep}
+          hasReference={Boolean(template.defaultUnderlay)}
+          onSelectStep={selectRebuildStep}
+          onClose={() => setRebuildGuideOpen(false)}
+        />
+      )}
       <div className="templateWorkspace" style={{ '--template-dock-width': `${dockWidth}px` } as WorkspaceStyle}>
         <TemplateRegionNavigator
           items={navigationItems}
-          groupItem={managedPaperTimelineStructure ? { regionId: PAPER_TIMELINE_TARGET_ID, label: '6秒タイムライン表', kind: '左3秒・右3秒 / 72行共有' } : undefined}
-          selectedRegionId={effectiveSelectedRegionId}
+          rootItems={rootNavigationItems}
+          groupItem={managedPaperTimelineStructure ? { regionId: PAPER_TIMELINE_TARGET_ID, label: '6秒タイムライン表', kind: '左3秒・右3秒 / 72行共有', group: 'timeline' } : undefined}
+          selectedRegionId={selectedRegionId}
           hiddenRegionIds={hiddenRegionIds}
           positionLockedRegionIds={positionLockedRegionIds}
-          onSelect={regionId => {
-            setSelectedRegionId(regionId)
-            setDetailTab(regionId === PAPER_TIMELINE_TARGET_ID ? 'layout' : 'region')
-          }}
+          addControl={addRegionControl}
+          onSelect={selectWorkspaceTarget}
           onToggleHidden={toggleRegionHidden}
           onTogglePositionLocked={toggleRegionPositionLocked}
           onDuplicate={duplicateRegion}
@@ -1962,14 +1990,13 @@ export function TemplateWorkspace({
           imageUrl={templateReferenceImageUrl}
           imageSettings={templateReferenceImageSettings}
           viewStore={templateViewStore}
+          toolbar={canvasToolbar}
           selectedRegionId={effectiveSelectedRegionId}
           hiddenRegionIds={hiddenRegionIds}
           positionLockedRegionIds={positionLockedRegionIds}
           onSelectRegion={regionId => {
             const selectsPaperTimeline = regionId === PAPER_TIMELINE_TARGET_ID || managedPaperTimelineStructure?.managedRegionIds.has(regionId)
-            setSelectedRegionId(selectsPaperTimeline ? PAPER_TIMELINE_TARGET_ID : regionId)
-            if (selectsPaperTimeline) setDetailTab('layout')
-            else if (regionId !== TEMPLATE_CALIBRATION_TARGET_ID) setDetailTab('region')
+            selectWorkspaceTarget(selectsPaperTimeline ? PAPER_TIMELINE_TARGET_ID : regionId)
           }}
         />
         <PanelResizeHandle
@@ -1980,21 +2007,32 @@ export function TemplateWorkspace({
           onChange={setDockWidth}
         />
         <aside className="templateDock" aria-label="テンプレート設定">
-          <TemplateInspectorNavigation sections={detailSections} activeSectionId={activeDetailTab} onSelect={setDetailTab} />
+          <header className="templateSelectionInspectorHeader">
+            <span>選択項目</span>
+            <h2>{inspectorTitle}</h2>
+            <p>{inspectorDescription}</p>
+            {(activeDetailTab === 'review' || activeDetailTab === 'json') && (
+              <button type="button" onClick={returnToSelectedTarget}>選択項目へ戻る</button>
+            )}
+          </header>
           <div className="templateDockBody">
             {activeDetailTab === 'layout' && paperTimelineStructure && (
               <PaperTimelineControls
                 template={template}
                 structure={paperTimelineStructure}
                 onChange={updateTemplateDraft}
-                onOpenReference={() => { setSelectedRegionId(PAPER_TIMELINE_TARGET_ID); setDetailTab('reference') }}
+                onOpenReference={() => selectWorkspaceTarget(TEMPLATE_REFERENCE_TARGET_ID)}
               />
             )}
-            {activeDetailTab === 'template' && templateSettings}
+            {activeDetailTab === 'template' && (
+              <div className="detailStack">
+                {isCalibrationTargetSelected && selectedRegionControls}
+                <section className="templateInspectorCard"><h3>基本設定</h3>{templateSettings}</section>
+                <section className="templateInspectorCard"><h3>共通の見た目</h3>{displayControls}</section>
+              </div>
+            )}
             {activeDetailTab === 'region' && selectedRegionControls}
-            {activeDetailTab === 'display' && displayControls}
             {activeDetailTab === 'reference' && referenceImageControls}
-            {activeDetailTab === 'table' && regionCollectionEditor}
             {activeDetailTab === 'review' && reviewControls}
             {activeDetailTab === 'json' && <textarea className="jsonPreview" value={JSON.stringify(template, null, 2)} readOnly />}
           </div>

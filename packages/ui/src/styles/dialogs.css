@@ -1351,3 +1351,7 @@
   gap: 10px;
   overflow: hidden;
 }
+
+.templatePanel.hasRebuildGuide {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}

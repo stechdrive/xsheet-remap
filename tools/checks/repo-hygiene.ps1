@@ -53,11 +53,11 @@ function Get-BuildOutputBinaryFiles {
     ForEach-Object { Resolve-Path -Relative -LiteralPath $_ }
 }
 
-function Test-IsOcrVendorBundle {
+function Test-IsEncodedVendorBundle {
   param([string]$Path)
 
   $normalized = $Path.Replace("\", "/").TrimStart([char[]]"./")
-  return $normalized -match '^apps/web/dist/assets/(?:dist|worker-entry-[^/]+)\.js$'
+  return $normalized -match '^apps/web/dist/assets/(?:dist|worker-entry-[^/]+|mediabunny-mp3-encoder)\.js$'
 }
 
 $patterns = New-Object System.Collections.Generic.List[object]
@@ -258,7 +258,7 @@ foreach ($pattern in $publicReadmeDevelopmentPatterns) {
 foreach ($file in ($files | Sort-Object -Unique)) {
   $content = Get-Content -LiteralPath $file -Raw -ErrorAction Stop
   foreach ($pattern in $patterns) {
-    if ($pattern.Name -eq "Internal project code name" -and (Test-IsOcrVendorBundle $file)) {
+    if ($pattern.Name -eq "Internal project code name" -and (Test-IsEncodedVendorBundle $file)) {
       continue
     }
     foreach ($match in $pattern.Regex.Matches($content)) {

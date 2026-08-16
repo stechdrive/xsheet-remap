@@ -26,7 +26,16 @@ describe('template authoring performance contract', () => {
     expect(editor).toContain('const [dragPreview, setDragPreview]')
     expect(editor).toContain('window.requestAnimationFrame(updatePreview)')
     expect(editor).toContain('buildTemplateEditorSurfaceModel')
-    expect(editor).toContain('withoutTemplateRegions(unfilteredBaseRenderModel, hiddenRegionIds)')
+    expect(editor).toContain('withoutTemplateRegions(unfilteredBaseRenderModel, baseHiddenRegionIds)')
+  })
+
+  it('moves the physical timeline as one composited snapshot without rebuilding its grid paths', () => {
+    const editor = readSource('template-workspace-region-editor.tsx')
+
+    expect(editor).toContain("dragPreview.mode === 'translate'")
+    expect(editor).toContain('onlyTemplateRegions(unfilteredBaseRenderModel, paperTimelineMoveRegionIds)')
+    expect(editor).toContain('<PaperTimelineMoveSnapshot renderModel={renderModel} sourceRect={sourceRect} />')
+    expect(editor).toContain('transform: `translate3d(${deltaXPx}px, ${deltaYPx}px, 0)`')
   })
 
   it('isolates view settings from template authoring and coalesces wheel zoom work by frame', () => {

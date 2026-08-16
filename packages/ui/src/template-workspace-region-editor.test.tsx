@@ -1,9 +1,9 @@
-import { cleanup, createEvent, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render } from '@testing-library/react'
 import { createAlphabeticTrackLabels, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, standardA3SheetTemplate, withSheetTemplatePaperTracks, type SheetTemplate } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defaultSheetImageSettings } from './sheetImages'
 import { TemplateRegionEditor } from './template-workspace-region-editor'
-import { PAPER_TIMELINE_TARGET_ID } from './paperTimelineAuthoring'
+import { PAPER_TIMELINE_TARGET_ID, detectPaperTimelineStructure } from './paperTimelineAuthoring'
 import { createTemplateEditorViewStore } from './templateEditorViewStore'
 
 const REGION_ID = 'visibility-test-region'
@@ -158,6 +158,65 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     expect(container.querySelectorAll('.templateEdgeGuides.paperTimeline .templateDomEdgeGuide')).toHaveLength(4)
     expect(container.querySelector<HTMLButtonElement>('.paperTimelineMoveHandle')?.textContent).toBe('6秒表を移動')
     expect(container.querySelector('.templateEditorCaption')?.textContent).toContain('6秒タイムライン表')
+  })
+
+  it('coalesces paper timeline movement into a stable translated snapshot and commits once', () => {
+    vi.spyOn(SVGSVGElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1754, 2481))
+    const animationFrames: FrameRequestCallback[] = []
+    let nextFrameId = 1
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      animationFrames.push(callback)
+      return nextFrameId++
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    const setTemplate = vi.fn()
+    const { container } = render(
+      <TemplateRegionEditor
+        template={standardA3SheetTemplate}
+        setTemplate={setTemplate}
+        imageUrl={null}
+        imageSettings={defaultSheetImageSettings()}
+        viewStore={createTemplateEditorViewStore()}
+        selectedRegionId={PAPER_TIMELINE_TARGET_ID}
+        onSelectRegion={vi.fn()}
+      />,
+    )
+    const moveHandle = container.querySelector<HTMLButtonElement>('.paperTimelineMoveHandle')!
+    moveHandle.setPointerCapture = vi.fn()
+    moveHandle.releasePointerCapture = vi.fn()
+    moveHandle.hasPointerCapture = vi.fn(() => true)
+
+    fireEvent.pointerDown(moveHandle, { pointerId: 14, pointerType: 'mouse', button: 0, buttons: 1, clientX: 900, clientY: 700 })
+    fireEvent.pointerMove(window, { pointerId: 14, pointerType: 'mouse', buttons: 1, clientX: 906, clientY: 708 })
+    fireEvent.pointerMove(window, { pointerId: 14, pointerType: 'mouse', buttons: 1, clientX: 910, clientY: 712 })
+
+    expect(animationFrames).toHaveLength(1)
+    expect(setTemplate).not.toHaveBeenCalled()
+    act(() => animationFrames.shift()!(0))
+    const preview = container.querySelector<HTMLElement>('.paperTimelineMovePreview')!
+    const snapshot = container.querySelector<SVGSVGElement>('.paperTimelineMoveSnapshotSvg')!
+    const initialPathData = Array.from(snapshot.querySelectorAll('path'), path => path.getAttribute('d'))
+    expect(preview.style.transform).toBe('translate3d(10px, 12px, 0)')
+
+    fireEvent.pointerMove(window, { pointerId: 14, pointerType: 'mouse', buttons: 1, clientX: 918, clientY: 720 })
+    expect(animationFrames).toHaveLength(1)
+    act(() => animationFrames.shift()!(16))
+
+    expect(container.querySelector('.paperTimelineMoveSnapshotSvg')).toBe(snapshot)
+    expect(Array.from(snapshot.querySelectorAll('path'), path => path.getAttribute('d'))).toEqual(initialPathData)
+    expect(preview.style.transform).toBe('translate3d(18px, 20px, 0)')
+    expect(setTemplate).not.toHaveBeenCalled()
+
+    fireEvent.pointerUp(window, { pointerId: 14, pointerType: 'mouse', button: 0, clientX: 918, clientY: 720 })
+
+    expect(setTemplate).toHaveBeenCalledTimes(1)
+    const updateTemplate = setTemplate.mock.calls[0]![0] as (currentTemplate: SheetTemplate) => SheetTemplate
+    const moved = updateTemplate(standardA3SheetTemplate)
+    const sourceRect = detectPaperTimelineStructure(standardA3SheetTemplate)!.rect
+    const movedRect = detectPaperTimelineStructure(moved)!.rect
+    expect((movedRect.x - sourceRect.x) * standardA3SheetTemplate.page.widthPx).toBeCloseTo(18)
+    expect((movedRect.y - sourceRect.y) * standardA3SheetTemplate.page.heightPx).toBeCloseTo(20)
+    expect(container.querySelector('.paperTimelineMovePreview')).toBeNull()
   })
 
   it('hit-tests a horizontally flowed region at its displayed position', () => {

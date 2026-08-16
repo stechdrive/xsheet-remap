@@ -638,6 +638,22 @@
   will-change: transform;
 }
 
+.paperTimelineMovePreview {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.paperTimelineMoveSnapshotSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  overflow: visible;
+}
+
 .templateHandleSvg {
   position: absolute;
   z-index: 5;

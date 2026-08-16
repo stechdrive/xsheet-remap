@@ -4,10 +4,12 @@ export function TemplateAuthoringReview({
   validation,
   onOpenRegion,
   onSave,
+  saveLabel,
 }: {
   validation: TemplateAuthoringValidationResult
   onOpenRegion: (regionId: string) => void
   onSave: () => void
+  saveLabel: string
 }) {
   return (
     <section className="templateAuthoringReview" aria-live="polite">
@@ -28,7 +30,7 @@ export function TemplateAuthoringReview({
           ))}
         </ol>
       )}
-      <button type="button" className="primary" disabled={!validation.canComplete} onClick={onSave}>確認して保存</button>
+      <button type="button" className="primary" disabled={!validation.canComplete} onClick={onSave}>{saveLabel}</button>
     </section>
   )
 }

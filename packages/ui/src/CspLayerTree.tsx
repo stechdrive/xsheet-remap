@@ -4,8 +4,9 @@ import { ActionMenu } from './AppControls'
 import { setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag, type InternalDragDetail, type InternalDragPayload } from './internalDrag'
 import { autoScrollListForPointer, listReorderTargetFromContainer, type ListReorderTarget } from './listReorder'
 import { correctionLayerIdForCspPaneSelection, cspPaneNodeCapabilities, cspPaneSelectionCurrentLabel, cspPaneSelectionExists, stackGuideSelectionBand, type CspPaneSelection } from './cspPaneModel'
+import { DeleteIconButton } from './DeleteIconButton'
 import { nextOverlayTrackNameForUi } from './sheet-layers-hit-geometry'
-import { Tooltip, TooltipTarget } from './Tooltip'
+import { TooltipTarget } from './Tooltip'
 
 export interface CspTreeAssetRegistrationResult {
   addedCount: number
@@ -1089,17 +1090,12 @@ export function CspLayerTree({
           <strong>{activeCorrectionLayer?.label ?? '未設定'}</strong>
         </span>
         <span className="cspLayerTreeFooterSpacer" />
-        <Tooltip label={deleteTooltip}>
-          <button
-            type="button"
-            className="cspPaneDeleteButton"
-            aria-label={paneSelection ? `${paneSelection.label}を削除` : '選択項目を削除'}
-            disabled={!paneSelection || !selectedCapabilities?.deletable}
-            onClick={deleteSelectedPaneNode}
-          >
-            <DeleteIcon />
-          </button>
-        </Tooltip>
+        <DeleteIconButton
+          label={paneSelection ? `${paneSelection.label}を削除` : '選択項目を削除'}
+          tooltip={deleteTooltip}
+          disabled={!paneSelection || !selectedCapabilities?.deletable}
+          onClick={deleteSelectedPaneNode}
+        />
       </footer>
     </section>
   )
@@ -1110,17 +1106,6 @@ function PlusIcon() {
     <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
-    </svg>
-  )
-}
-
-function DeleteIcon() {
-  return (
-    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 7h16" />
-      <path d="M9 7V4h6v3" />
-      <path d="m7 7 1 13h8l1-13" />
-      <path d="M10 11v5M14 11v5" />
     </svg>
   )
 }

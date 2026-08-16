@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
 import { timelineMemoFontSizePx, timelineMemoFontSizeUnitsForPx } from './timelineMemoTextLayout'
@@ -16,7 +16,9 @@ import { ActionMenu, PanelResizeHandle } from './AppControls'
 import { CspLayerTree, type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree'
 import { AutoCalibrationOverlayState, FrameOperationKind, MainAppKind, SHEET_AUTO_FIT_ZOOM_EPSILON, SHEET_LEFT_PANE_DEFAULT_WIDTH, SHEET_LEFT_PANE_MAX_WIDTH, SHEET_LEFT_PANE_MIN_WIDTH, SHEET_RIGHT_PANE_DEFAULT_WIDTH, SHEET_RIGHT_PANE_MAX_WIDTH, SHEET_RIGHT_PANE_MIN_WIDTH, SHEET_VIEWPORT_FIT_INSET, SheetPaneLayout, SheetScrollRequest, StackGuideInsertContext, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, initialSheetPaneLayout } from './app-foundation'
 import { NameNormalizationDialog, assetRegistrationSummaries } from './app-registered-cells'
-import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextSizeIcon, TextToolIcon, TrashIcon } from './app-navigation'
+import { CheckSmallIcon, CloseSmallIcon, DisplaySettingsIcon, EraserToolIcon, PaneChevronIcon, PenToolIcon, PlusIcon, SharedCutIcon, TextSizeIcon, TextToolIcon } from './app-navigation'
+import { DeleteIconButton, TrashIcon } from './DeleteIconButton'
+import { FloatingHoverPalette } from './FloatingHoverPalette'
 import { SheetCanvas, type SheetCanvasHandle } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
 import { FontSizeControl } from './sheet-panel-annotation'
@@ -319,7 +321,6 @@ export function SheetPanel(props: {
 }) {
   const activePage = props.sheetPages[props.activePageIndex] ?? props.sheetPages[0]
   const [paneLayout, setPaneLayout] = useState<SheetPaneLayout>(() => initialSheetPaneLayout(props.appKind, props.collapseEditorPanes))
-  const [zoomPaletteOpen, setZoomPaletteOpen] = useState(false)
   const [annotationPaletteOpen, setAnnotationPaletteOpen] = useState(false)
   const [autoFitZoomEnabled, setAutoFitZoomEnabled] = useState(false)
   const [stackGuideInsertTool, setStackGuideInsertTool] = useState<StackGuideInsertContext | null>(null)
@@ -507,7 +508,6 @@ export function SheetPanel(props: {
     }
     setEditMode('new')
   }, [activeTimelineMemoId, closeAnnotationPalette, setEditMode])
-  const zoomPaletteRef = useRef<HTMLDivElement>(null)
   const didFitInitialSheetZoom = useRef(false)
   const sheetZoomRef = useRef(props.zoom)
   const updateSheetZoom = props.setZoom
@@ -631,35 +631,6 @@ export function SheetPanel(props: {
     })
   }
 
-  function closeZoomPalette() {
-    setZoomPaletteOpen(false)
-  }
-
-  function handleZoomPalettePointerLeave() {
-    if (zoomPaletteRef.current?.contains(document.activeElement)) return
-    closeZoomPalette()
-  }
-
-  function handleZoomPaletteBlur(event: FocusEvent<HTMLDivElement>) {
-    const nextTarget = event.relatedTarget
-    if (nextTarget instanceof Node && zoomPaletteRef.current?.contains(nextTarget)) return
-    closeZoomPalette()
-  }
-
-  useEffect(() => {
-    if (!zoomPaletteOpen) return undefined
-    function closeFromOutside(event: globalThis.PointerEvent) {
-      const target = event.target
-      if (target instanceof Node && zoomPaletteRef.current?.contains(target)) return
-      closeZoomPalette()
-      if (document.activeElement instanceof HTMLElement && zoomPaletteRef.current?.contains(document.activeElement)) {
-        document.activeElement.blur()
-      }
-    }
-    window.addEventListener('pointerdown', closeFromOutside)
-    return () => window.removeEventListener('pointerdown', closeFromOutside)
-  }, [zoomPaletteOpen])
-
   useEffect(() => {
     if (!annotationPaletteOpen || annotationSessionActive) return undefined
     const closeFromOutside = (event: globalThis.PointerEvent) => {
@@ -740,45 +711,32 @@ export function SheetPanel(props: {
           '--sheet-history-rail-width': '42px',
         } as WorkspaceStyle}
       >
-        <div
-          ref={zoomPaletteRef}
-          className={[
-            'sheetZoomFloatingPalette',
-            zoomPaletteOpen ? 'open' : '',
-            props.zoomMode ? 'zoomModeActive' : '',
-          ].filter(Boolean).join(' ')}
-          aria-label={uiText.sheet.zoom}
-          onPointerEnter={() => setZoomPaletteOpen(true)}
-          onPointerLeave={handleZoomPalettePointerLeave}
-          onFocus={() => setZoomPaletteOpen(true)}
-          onBlur={handleZoomPaletteBlur}
+        <FloatingHoverPalette
+          className="sheetZoomFloatingPalette"
+          label={uiText.sheet.zoomTitle}
+          valueLabel={`${Math.round(props.zoom * 100)}%`}
+          active={props.zoomMode}
         >
-          <Tooltip label={uiText.sheet.zoomTitle}>
-            <span className="zoomPaletteTrigger">{Math.round(props.zoom * 100)}%</span>
+          <TooltipTarget label={uiText.sheet.zoomTitle}>
+            {tooltipProps => (
+              <label className="compactControl zoomSliderControl" aria-label={uiText.sheet.zoom} {...tooltipProps}>
+                <input
+                  type="range"
+                  min={SHEET_ZOOM_MIN * 100}
+                  max={SHEET_ZOOM_MAX * 100}
+                  value={Math.round(props.zoom * 100)}
+                  onChange={event => setClampedZoom(Number(event.currentTarget.value) / 100)}
+                />
+              </label>
+            )}
+          </TooltipTarget>
+          <Tooltip label={uiText.actions.zoomResetTitle}>
+            <button className="zoomResetButton" onClick={() => setClampedZoom(1)}>{uiText.actions.zoomReset}</button>
           </Tooltip>
-          <div className="zoomPaletteControls">
-            <TooltipTarget label={uiText.sheet.zoomTitle}>
-              {tooltipProps => (
-                <label className="compactControl zoomSliderControl" aria-label={uiText.sheet.zoom} {...tooltipProps}>
-                  <input
-                    type="range"
-                    min={SHEET_ZOOM_MIN * 100}
-                    max={SHEET_ZOOM_MAX * 100}
-                    value={Math.round(props.zoom * 100)}
-                    onChange={event => setClampedZoom(Number(event.currentTarget.value) / 100)}
-                  />
-                </label>
-              )}
-            </TooltipTarget>
-            <span className="zoomValue">{Math.round(props.zoom * 100)}%</span>
-            <Tooltip label={uiText.actions.zoomResetTitle}>
-              <button className="zoomResetButton" onClick={() => setClampedZoom(1)}>{uiText.actions.zoomReset}</button>
-            </Tooltip>
-            <Tooltip label={uiText.actions.zoomFitTitle}>
-              <button className="zoomFitButton" aria-label={uiText.actions.zoomFit} onClick={fitSheetToViewport}>全体</button>
-            </Tooltip>
-          </div>
-        </div>
+          <Tooltip label={uiText.actions.zoomFitTitle}>
+            <button className="zoomFitButton" aria-label={uiText.actions.zoomFit} onClick={fitSheetToViewport}>全体</button>
+          </Tooltip>
+        </FloatingHoverPalette>
         <div
           ref={annotationPaletteRef}
           className={[
@@ -1174,25 +1132,14 @@ export function SheetPanel(props: {
                   )}
                 </TooltipTarget>
                 <div className="cutSwitchMenuActions">
-                  <TooltipTarget
-                    label={props.projectCuts.length <= 1
+                  <DeleteIconButton
+                    label={uiText.sheet.deleteSharedCutTitle}
+                    tooltip={props.projectCuts.length <= 1
                       ? uiText.sheet.deleteSharedCutUnavailableTitle
                       : uiText.sheet.deleteSharedCutCurrentTitle(activeCutLabel)}
-                  >
-                    {tooltipProps => (
-                      <button
-                        type="button"
-                        className="cutSwitchDeleteButton cutSwitchIconButton"
-                        aria-label={uiText.sheet.deleteSharedCutTitle}
-                        disabled={props.projectCuts.length <= 1}
-                        title={props.projectCuts.length <= 1 ? uiText.sheet.deleteSharedCutUnavailableTitle : undefined}
-                        onClick={props.onDeleteSharedCut}
-                        {...tooltipProps}
-                      >
-                        <TrashIcon />
-                      </button>
-                    )}
-                  </TooltipTarget>
+                    disabled={props.projectCuts.length <= 1}
+                    onClick={props.onDeleteSharedCut}
+                  />
                 </div>
               </ActionMenu>
             )}

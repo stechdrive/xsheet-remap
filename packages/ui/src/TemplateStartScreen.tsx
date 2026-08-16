@@ -68,7 +68,7 @@ export function TemplateStartScreen({
           </li>
           <li>
             <span className="templateStartScreenStepNumber">3</span>
-            <span><strong>確認・保存</strong><small>JSONを書き出す</small></span>
+            <span><strong>保存</strong><small>自動検証してJSONを書き出す</small></span>
           </li>
         </ol>
 

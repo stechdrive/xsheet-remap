@@ -1870,9 +1870,9 @@ export function TemplateWorkspace({
       validation={authoringValidation}
       onOpenRegion={selectWorkspaceTarget}
       onSave={() => void saveTemplateDraft()}
+      saveLabel={mode === 'standalone' ? 'テンプレートを保存' : 'テンプレートJSONを保存'}
     />
   )
-
   const navigationItems = templateWorkspaceNavigationItems(template, managedPaperTimelineStructure?.managedRegionIds)
   const rootNavigationItems = [
     {
@@ -1908,7 +1908,7 @@ export function TemplateWorkspace({
     />
   )
   const inspectorTitle = activeDetailTab === 'review'
-    ? '確認・保存'
+    ? '検証結果'
     : activeDetailTab === 'json'
       ? 'テンプレートJSON'
       : isCalibrationTargetSelected
@@ -1921,7 +1921,7 @@ export function TemplateWorkspace({
               ? templateRegionAuthoringName(selectedRegion)
               : isDigitalTemplate ? 'テンプレートと見た目' : '用紙と見た目'
   const inspectorDescription = activeDetailTab === 'review'
-    ? '不足や配置ミスを確認してから保存します。'
+    ? '保存を妨げる問題と、注意が必要な設定を表示します。'
     : activeDetailTab === 'json'
       ? '完成データの読み取り専用表示です。'
       : isPaperTimelineSelected
@@ -1936,9 +1936,9 @@ export function TemplateWorkspace({
     <section className={`panel templatePanel${rebuildGuideOpen && paperTimelineStructure ? ' hasRebuildGuide' : ''}`}>
       <TemplateDocumentToolbar
         mode={mode} templateName={template.name} draftStatus={templateDraftStatus} dirty={hasTemplateDraftChanges}
-        saveNotice={saveNotice} canComplete={authoringValidation.canComplete} errorCount={authoringValidation.errors.length}
+        saveNotice={saveNotice}
         onReturnToStart={onReturnToStart ? () => void returnToStart() : undefined}
-        onReview={() => setDetailTab('review')} onSave={() => void saveTemplateDraft()}
+        onShowReview={() => setDetailTab('review')} onSave={() => void saveTemplateDraft()}
         onApply={applyTemplateDraftChanges} onCancel={cancelTemplateDraftChanges}
         onCreate={() => setTemplateCreateOpen(true)} onLoad={files => void handleLoadTemplateDraft(files)}
         onShowJson={() => setDetailTab('json')} onOpenProcessSettings={() => setProcessSettingsOpen(true)}

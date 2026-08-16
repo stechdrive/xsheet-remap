@@ -3,6 +3,7 @@ import { useRef, useState, type FormEvent, type PointerEvent } from 'react'
 import { uiText } from './i18n'
 import { sortedCorrectionLayers } from './sheetAssets'
 import { clampNumber } from './sheetInteraction'
+import { DeleteIconButton } from './DeleteIconButton'
 import { Tooltip } from './Tooltip'
 
 type ProcessLayerDraft = CorrectionLayer & { draftId: string }
@@ -197,17 +198,11 @@ export function ProcessSettingsDialog({
               <span className={layer.draftId === defaultRegistrationDraftId ? 'processSettingsDefaultBadge active' : 'processSettingsDefaultBadge'}>
                 {layer.draftId === defaultRegistrationDraftId ? uiText.processSettings.defaultRegistrationLayer : '-'}
               </span>
-              <Tooltip label={uiText.processSettings.deleteLayer(layer.label)}>
-                <button
-                  type="button"
-                  className="registeredCellDeleteButton"
-                  disabled={draftLayers.length <= 1}
-                  aria-label={uiText.processSettings.deleteLayer(layer.label)}
-                  onClick={() => deleteDraft(layer.draftId)}
-                >
-                  <TrashIcon />
-                </button>
-              </Tooltip>
+              <DeleteIconButton
+                label={uiText.processSettings.deleteLayer(layer.label)}
+                disabled={draftLayers.length <= 1}
+                onClick={() => deleteDraft(layer.draftId)}
+              />
             </div>
           ))}
           <div className="processSettingsStackMarker bottom">{uiText.processSettings.cspBottom}</div>
@@ -221,14 +216,5 @@ export function ProcessSettingsDialog({
         </footer>
       </form>
     </div>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13" />
-      <path d="M10 10v7M14 10v7" />
-    </svg>
   )
 }

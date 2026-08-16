@@ -211,6 +211,16 @@
   width: 110px;
 }
 
+.templateReferenceOpacityControl {
+  min-height: 32px;
+  padding: 3px 7px;
+  border: 1px solid rgb(129 143 133 / 0.72);
+  border-radius: 7px;
+  background: rgb(251 251 248 / 0.94);
+  box-shadow: 0 2px 9px rgb(0 0 0 / 0.14);
+  backdrop-filter: blur(5px);
+}
+
 .templateDraftStatus {
   min-width: 112px;
   color: #4c554e;
@@ -230,11 +240,6 @@
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.templateReviewBlocked {
-  border-color: #c67b72;
-  color: #8f261b;
 }
 
 .templateProcessToolbarGroup {
@@ -517,12 +522,6 @@
   justify-content: flex-end;
   gap: 6px;
   max-width: calc(100% - 40px);
-  padding: 5px;
-  border: 1px solid rgb(129 143 133 / 0.72);
-  border-radius: 7px;
-  background: rgb(251 251 248 / 0.94);
-  box-shadow: 0 2px 9px rgb(0 0 0 / 0.14);
-  backdrop-filter: blur(5px);
 }
 
 .templateCanvasToolbar .templateViewToolbarGroup {

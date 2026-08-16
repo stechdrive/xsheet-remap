@@ -12,10 +12,8 @@ export function TemplateDocumentToolbar({
   draftStatus,
   dirty,
   saveNotice,
-  canComplete,
-  errorCount,
   onReturnToStart,
-  onReview,
+  onShowReview,
   onSave,
   onApply,
   onCancel,
@@ -29,10 +27,8 @@ export function TemplateDocumentToolbar({
   draftStatus: string
   dirty: boolean
   saveNotice: string | null
-  canComplete: boolean
-  errorCount: number
   onReturnToStart?: () => void
-  onReview: () => void
+  onShowReview: () => void
   onSave: () => void
   onApply: () => void
   onCancel: () => void
@@ -49,12 +45,12 @@ export function TemplateDocumentToolbar({
       {saveNotice && <span className="templateSaveNotice" role="status">{saveNotice}</span>}
     </ToolbarGroup>
     <ToolbarGroup className="templateDocumentActions">
-      <button type="button" className={canComplete ? '' : 'templateReviewBlocked'} onClick={onReview}>確認 {errorCount > 0 ? `(${errorCount})` : '✓'}</button>
-      <button type="button" className={mode === 'standalone' ? 'primary' : ''} onClick={onSave}>{mode === 'standalone' ? '確認して保存' : 'テンプレートJSONを保存'}</button>
-      {mode === 'project' && <><button type="button" className="primary" disabled={!dirty || !canComplete} onClick={onApply}>プロジェクトへ反映</button><button type="button" disabled={!dirty} onClick={onCancel}>変更を取り消す</button></>}
-      <ActionMenu label="その他" ariaLabel="テンプレートのその他の操作" tooltipLabel="新規作成、JSONを開く、JSON表示" closeOnMenuItemClick>
+      <button type="button" className={mode === 'standalone' ? 'primary' : ''} onClick={onSave}>{mode === 'standalone' ? 'テンプレートを保存' : 'テンプレートJSONを保存'}</button>
+      {mode === 'project' && <><button type="button" className="primary" disabled={!dirty} onClick={onApply}>プロジェクトへ反映</button><button type="button" disabled={!dirty} onClick={onCancel}>変更を取り消す</button></>}
+      <ActionMenu label="その他" ariaLabel="テンプレートのその他の操作" tooltipLabel="新規作成、JSONを開く、検証結果、JSON表示" closeOnMenuItemClick>
         <button type="button" onClick={onCreate}>新しいテンプレート</button>
         <TooltipTarget label={uiText.actions.loadTemplateJsonTitle}>{tooltipProps => <label className="fileButton actionMenuFileButton" {...tooltipProps}>{uiText.actions.loadTemplateJson}<input type="file" accept=".json,application/json" onChange={event => { onLoad(event.currentTarget.files); event.currentTarget.value = '' }} /></label>}</TooltipTarget>
+        <button type="button" onClick={onShowReview}>検証結果を表示</button>
         <button type="button" onClick={onShowJson}>JSONを表示</button>
       </ActionMenu>
     </ToolbarGroup>

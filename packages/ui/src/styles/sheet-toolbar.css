@@ -607,15 +607,6 @@
   border-top: 1px solid #d6dbd4;
 }
 
-.actionMenuContent .cutSwitchDeleteButton {
-  color: #8f2f2f;
-}
-
-.actionMenuContent .cutSwitchDeleteButton:not(:disabled):hover {
-  border-color: #a84747;
-  background: #f7e3e3;
-}
-
 .sharedCutNumbersControl {
   justify-content: flex-start;
   gap: 5px;
@@ -974,17 +965,6 @@
     + 24px
   );
   z-index: 18;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 32px;
-  padding: 3px 4px;
-  border: 1px solid rgb(65 107 90 / 0.36);
-  border-radius: 7px;
-  background: rgb(251 251 248 / 0.92);
-  box-shadow: 0 8px 18px rgb(0 0 0 / 0.12);
-  backdrop-filter: blur(2px);
 }
 
 .cspLayerTree {
@@ -1044,7 +1024,6 @@
   text-overflow: ellipsis;
 }
 
-.cspPaneDeleteButton,
 .cspPaneFooterAddMenu > summary {
   display: inline-grid;
   place-items: center;
@@ -1055,7 +1034,6 @@
   padding: 0;
 }
 
-.cspPaneDeleteButton svg,
 .cspPaneFooterAddMenu > summary svg {
   width: 15px;
   height: 15px;
@@ -1074,14 +1052,6 @@
 .cspPaneFooterAddMenu > summary::after {
   display: none;
   content: none;
-}
-
-.cspPaneDeleteButton {
-  color: #8d3029;
-}
-
-.cspPaneDeleteButton:disabled {
-  color: #8b918c;
 }
 
 .cspLayerTreeBody {
@@ -1829,63 +1799,21 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   border-bottom: 0;
 }
 
-.zoomPaletteTrigger {
-  color: #173528;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.zoomPaletteControls {
-  display: none;
-  align-items: center;
-  gap: 6px;
-}
-
-.sheetZoomFloatingPalette.open {
-  justify-content: flex-start;
-  width: auto;
-}
-
-.sheetZoomFloatingPalette.open .zoomPaletteTrigger {
-  display: none;
-}
-
-.sheetZoomFloatingPalette.open .zoomPaletteControls {
-  display: inline-flex;
-}
-
-.zoomPaletteControls .compactControl {
-  min-height: 28px;
-  white-space: nowrap;
-}
-
 .zoomSliderControl {
   padding: 0;
   border: 0;
   background: transparent;
 }
 
-.zoomPaletteControls input[type="range"] {
-  width: 104px;
-}
-
-.zoomPaletteControls button {
-  min-height: 28px;
-  padding: 4px 7px;
-  white-space: nowrap;
-}
-
-.zoomPaletteControls .zoomResetButton {
+.sheetZoomFloatingPalette .zoomResetButton {
   min-width: 50px;
 }
 
-.zoomPaletteControls .zoomFitButton {
+.sheetZoomFloatingPalette .zoomFitButton {
   min-width: 46px;
 }
 
-.sheetZoomFloatingPalette.zoomModeActive {
+.sheetZoomFloatingPalette.active {
   border-color: #235b93;
   background: rgb(235 245 255 / 0.94);
 }

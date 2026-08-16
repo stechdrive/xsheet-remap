@@ -61,8 +61,8 @@ describe('TemplateWorkspace project integration', () => {
     expect(within(guide).getByRole('button', { name: /3\. 列境界/ }).getAttribute('aria-current')).toBe('step')
     fireEvent.click(within(guide).getByRole('button', { name: /4\. シート情報/ }))
     expect(document.querySelector('.templateRegionNavigatorItem.selected')?.classList.contains('root')).toBe(false)
-    fireEvent.click(within(guide).getByRole('button', { name: /5\. 確認/ }))
-    expect(within(screen.getByRole('complementary', { name: 'テンプレート設定' })).getByRole('heading', { name: '確認・保存' })).toBeTruthy()
+    fireEvent.click(within(guide).getByRole('button', { name: /5\. 保存/ }))
+    expect(within(screen.getByRole('complementary', { name: 'テンプレート設定' })).getByRole('heading', { name: '検証結果' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '選択項目へ戻る' }))
     expect(screen.queryByText('未適用の変更')).toBeNull()
     expect(onDraftStateChange.mock.calls.at(-1)?.[0].dirty).toBe(false)
@@ -94,6 +94,31 @@ describe('TemplateWorkspace project integration', () => {
     expect(apply.disabled).toBe(false)
     fireEvent.click(apply)
     expect(onApplyTemplate).toHaveBeenCalledWith(expect.objectContaining({ templateId: imported.templateId }))
+  })
+
+  it('opens validation results when an invalid draft is applied', () => {
+    const onApplyTemplate = vi.fn()
+    render(
+      <TemplateWorkspace
+        project={createDefaultProject()}
+        template={standardA3SheetTemplate}
+        onLoadTemplate={async () => null}
+        onSaveTemplate={async () => ({ saved: true })}
+        onApplyTemplate={onApplyTemplate}
+        onCreateTemplateDraft={(kind): SheetTemplate => createTemplateDraft(kind, standardA3SheetTemplate)}
+        onUpdateCorrectionLayers={() => true}
+      />,
+    )
+
+    fireEvent.click(within(screen.getByRole('complementary', { name: 'テンプレート構成' })).getByRole('button', { name: '用紙と見た目' }))
+    fireEvent.change(screen.getByLabelText('名前'), { target: { value: '' } })
+    const apply = screen.getByRole('button', { name: 'プロジェクトへ反映' }) as HTMLButtonElement
+    expect(apply.disabled).toBe(false)
+    fireEvent.click(apply)
+
+    expect(within(screen.getByRole('complementary', { name: 'テンプレート設定' })).getByRole('heading', { name: '検証結果' })).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toMatch(/反映前に\d+件のエラー/)
+    expect(onApplyTemplate).not.toHaveBeenCalled()
   })
 
   it('preserves a dirty draft when the applied project template changes externally', () => {

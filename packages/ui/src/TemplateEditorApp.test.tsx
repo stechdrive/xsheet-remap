@@ -59,7 +59,10 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(within(structure).getByRole('button', { name: '6秒タイムライン表', pressed: true })).toBeTruthy()
     expect(within(structure).getByRole('button', { name: '用紙と見た目' })).toBeTruthy()
     expect(within(structure).getByRole('button', { name: '下絵' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '確認 ✓' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^確認 / })).toBeNull()
+    openDocumentMenu()
+    expect(screen.getByRole('button', { name: '検証結果を表示' })).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('テンプレートのその他の操作'))
     expect(screen.getAllByRole('heading', { name: '6秒タイムライン表' })).toHaveLength(2)
     expect(screen.getByLabelText('固定された時間構成').textContent).toContain('72行 × 2ブロック')
     selectInspectorSection('template')
@@ -290,7 +293,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
-    fireEvent.click(screen.getByRole('button', { name: '確認して保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
     await waitFor(() => expect(adapterMocks.saveJsonFile).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByText('保存済み')).toBeTruthy())
 
@@ -319,7 +322,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
-    fireEvent.click(screen.getByRole('button', { name: '確認して保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
     await waitFor(() => expect(screen.getByText('保存済み')).toBeTruthy())
     selectInspectorSection('reference')
     const imageInput = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]')
@@ -327,7 +330,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     fireEvent.change(imageInput!, { target: { files: [new File(['image'], 'late-reference.png', { type: 'image/png' })] } })
 
     await waitFor(() => expect(screen.getAllByText('late-reference.png')).toHaveLength(2))
-    fireEvent.click(screen.getByRole('button', { name: '確認して保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
     await waitFor(() => expect(adapterMocks.saveJsonFile).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.getByText('保存済み')).toBeTruthy())
 
@@ -365,7 +368,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
-    fireEvent.click(screen.getByRole('button', { name: '確認して保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
     await waitFor(() => expect(adapterMocks.saveJsonFile).toHaveBeenCalledTimes(1))
     selectInspectorSection('template')
     fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: '保存処理中の変更' } })
@@ -428,7 +431,8 @@ function selectInspectorSection(sectionId: string) {
     reference: '下絵',
   }
   if (sectionId === 'review') {
-    fireEvent.click(screen.getByRole('button', { name: /^確認 / }))
+    openDocumentMenu()
+    fireEvent.click(screen.getByRole('button', { name: '検証結果を表示' }))
     return
   }
   if (sectionId === 'json') {

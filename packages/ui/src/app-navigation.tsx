@@ -307,18 +307,6 @@ export function HelpIcon() {
   )
 }
 
-export function TrashIcon() {
-  return (
-    <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 6h16" />
-      <path d="M9 6V4h6v2" />
-      <path d="M7 6l1 14h8l1-14" />
-      <path d="M10 10v6" />
-      <path d="M14 10v6" />
-    </svg>
-  )
-}
-
 export function PlusIcon() {
   return (
     <svg className="topIconSvg" viewBox="0 0 24 24" aria-hidden="true">

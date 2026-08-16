@@ -24,7 +24,7 @@ describe('TemplateStartScreen', () => {
     const steps = screen.getByRole('list', { name: 'テンプレート作成の流れ' })
     expect(steps.textContent).toContain('作り方')
     expect(steps.textContent).toContain('用紙レイアウト')
-    expect(steps.textContent).toContain('確認・保存')
+    expect(steps.textContent).toContain('自動検証してJSONを書き出す')
     expect(steps.querySelector('[aria-current="step"]')?.textContent).toContain('いまここ')
 
     expect(screen.getByRole('button', { name: /標準用紙を調整/ })).toBeTruthy()

@@ -48,7 +48,7 @@ export function PaperRebuildGuide({
     { id: 'outline', label: '2. 6秒表', description: '外周を合わせる' },
     { id: 'columns', label: '3. 列境界', description: '4欄の幅を合わせる' },
     { id: 'information', label: '4. シート情報', description: '文字と欄を合わせる' },
-    { id: 'review', label: '5. 確認', description: '不足を確認する' },
+    { id: 'review', label: '5. 保存', description: '問題を直して保存する' },
   ]
   return (
     <section className="templateRebuildGuide" aria-label="下絵から再構築">

@@ -415,6 +415,106 @@ button.iconButton {
   stroke-linejoin: round;
 }
 
+.trashIcon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.deleteIconButton {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 1px solid #cdb8b4;
+  border-radius: 6px;
+  background: #fff;
+  color: #8d3029;
+  box-shadow: none;
+}
+
+.deleteIconButton:hover:not(:disabled),
+.deleteIconButton:focus-visible {
+  border-color: #b94439;
+  background: #fff0ee;
+  color: #a72d24;
+}
+
+.deleteIconButton:disabled {
+  border-color: #c6cbc7;
+  background: #f1f2ef;
+  color: #667069;
+}
+
+.floatingHoverPalette {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 32px;
+  padding: 3px 4px;
+  border: 1px solid rgb(65 107 90 / 0.36);
+  border-radius: 7px;
+  background: rgb(251 251 248 / 0.92);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.12);
+  backdrop-filter: blur(2px);
+}
+
+.floatingHoverPalette.open {
+  justify-content: flex-start;
+  width: auto;
+}
+
+.floatingHoverPaletteTrigger {
+  min-width: 36px;
+  min-height: 24px;
+  padding: 3px 5px;
+  border: 0;
+  background: transparent;
+  color: #173528;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.floatingHoverPalette.open .floatingHoverPaletteTrigger {
+  background: #e8f0ea;
+}
+
+.floatingHoverPaletteControls {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.floatingHoverPalette.open .floatingHoverPaletteControls {
+  display: inline-flex;
+}
+
+.floatingHoverPaletteControls .compactControl {
+  min-height: 28px;
+  white-space: nowrap;
+}
+
+.floatingHoverPaletteControls input[type="range"] {
+  width: 104px;
+}
+
+.floatingHoverPaletteControls button {
+  min-height: 28px;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+
 .actionMenu {
   position: relative;
 }

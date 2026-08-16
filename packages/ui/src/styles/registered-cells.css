@@ -214,8 +214,7 @@
   overflow: hidden;
 }
 
-.registeredCellCard.compact .registeredCellPreviewButton,
-.registeredCellCard.compact .registeredCellDeleteButton {
+.registeredCellCard.compact .registeredCellPreviewButton {
   width: 20px;
   height: 20px;
 }
@@ -370,31 +369,6 @@ button.registeredCellFirstUse:focus-visible {
   color: #5c6860;
   font-size: 11px;
   font-weight: 700;
-}
-
-.registeredCellDeleteButton {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  min-height: 0;
-  padding: 0;
-  border: 1px solid #dbc5c1;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #8d3029;
-  box-shadow: none;
-}
-
-.registeredCellDeleteButton .topIconSvg {
-  width: 14px;
-  height: 14px;
-}
-
-.registeredCellDeleteButton:hover,
-.registeredCellDeleteButton:focus-visible {
-  border-color: #b94439;
-  background: #fff0ee;
 }
 
 .registeredCellField {
@@ -668,4 +642,3 @@ button.registeredCellFirstUse:focus-visible {
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 10px;
 }
-

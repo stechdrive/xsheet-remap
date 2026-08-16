@@ -16,7 +16,6 @@ afterEach(() => {
   if (originalUserAgentDataDescriptor) Object.defineProperty(navigator, 'userAgentData', originalUserAgentDataDescriptor)
   else Reflect.deleteProperty(navigator, 'userAgentData')
 })
-
 async function createXsrTestFile(document: Parameters<typeof encodeProjectArchive>[0], fileName = 'project.xsr'): Promise<File> {
   const archive = await encodeProjectArchive(document, { createdWith: 'test' })
   return new File([new Uint8Array(archive)], fileName, { type: XSR_PROJECT_MIME_TYPE })
@@ -48,7 +47,8 @@ function selectTemplateInspector(sectionId: string) {
     reference: '下絵',
   }
   if (sectionId === 'review') {
-    fireEvent.click(screen.getByRole('button', { name: /^確認 / }))
+    fireEvent.click(screen.getByLabelText('テンプレートのその他の操作'))
+    fireEvent.click(screen.getByRole('button', { name: '検証結果を表示' }))
     return
   }
   if (sectionId === 'json') {
@@ -1278,7 +1278,7 @@ it('deletes the selected shared cut after confirmation but keeps the last cut', 
     const menu = openSharedCutMenu()
     const deleteButton = within(menu).getByRole('button', { name: uiText.sheet.deleteSharedCutTitle }) as HTMLButtonElement
     const addButton = within(menu).getByRole('button', { name: uiText.sheet.addSharedCutTitle }) as HTMLButtonElement
-    expect(deleteButton.classList.contains('cutSwitchIconButton')).toBe(true)
+    expect(deleteButton.classList.contains('deleteIconButton')).toBe(true)
     expect(addButton.classList.contains('cutSwitchIconButton')).toBe(true)
     expect(deleteButton.textContent?.trim()).toBe('')
     expect(addButton.textContent?.trim()).toBe('')

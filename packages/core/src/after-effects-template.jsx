@@ -10,8 +10,8 @@
   var UNDO_GROUP_NAME = XSHEET_AE_CONFIG.options.undoGroupName;
   var MANAGED_BLANK_EFFECT_NAME = XSHEET_AE_CONFIG.options.managedBlankEffectName;
   var VALIDATION_EPSILON_SECONDS = 0.000001;
-  // durationFrames is the sheet-covered interval. No terminal blank or layer
-  // in/out edit is added, so the final HOLD state can continue in a longer comp.
+  // durationFrames is the sheet-covered interval. Mapped footage layers are
+  // extended only when needed; no terminal key shortens a longer existing range.
   var SHEET_DURATION_SECONDS = XSHEET_AE_PLAN.durationFrames / XSHEET_AE_PLAN.compFps;
 
   function normalizeName(value) {
@@ -134,11 +134,24 @@
     removeKeysOutside(property, times);
   }
 
+  function extendLayerToSheet(layer) {
+    var layerInPoint = Number(layer.inPoint);
+    var layerOutPoint = Number(layer.outPoint);
+    if (!isFinite(layerInPoint) || !isFinite(layerOutPoint)) {
+      throw new Error("Layer range is not finite on " + layer.name + ".");
+    }
+    if (layerInPoint > VALIDATION_EPSILON_SECONDS) layer.inPoint = 0;
+    if (layerOutPoint + VALIDATION_EPSILON_SECONDS < SHEET_DURATION_SECONDS) {
+      layer.outPoint = SHEET_DURATION_SECONDS;
+    }
+  }
+
   function applyTimeRemap(layer, column) {
     if (!columnHasCells(column)) return;
-    if (layer.timeRemapEnabled) layer.timeRemapEnabled = false;
-    layer.timeRemapEnabled = true;
+    if (!layer.timeRemapEnabled) layer.timeRemapEnabled = true;
+    extendLayerToSheet(layer);
     var property = layer.property(ADBE_TIME_REMAPPING);
+    if (!property) throw new Error("Time Remap could not be enabled on " + layer.name + ".");
     var times = [];
     var values = [];
     var sourceFrameRate = sourceFrameRateForLayer(layer);
@@ -217,7 +230,7 @@
     "Sheet duration: " + XSHEET_AE_PLAN.durationFrames + " frames (0 to " + SHEET_DURATION_SECONDS + " seconds)."
   );
   dialog.add("statictext", undefined,
-    "In a longer composition, the final cel/blank HOLD continues while the layer remains visible; no in/out point or terminal blank is added."
+    "Mapped footage layers are enabled for Time Remap and extended to cover the sheet when needed; existing longer ranges are kept."
   );
   var dropdowns = [];
   for (i = 0; i < layers.length; i += 1) {
@@ -251,11 +264,9 @@
     if (layer.locked) blocking.push(layer.name + ": layer is locked");
     var layerInPoint = Number(layer.inPoint);
     var layerOutPoint = Number(layer.outPoint);
-    if (!isFinite(layerInPoint) || !isFinite(layerOutPoint)
-      || layerInPoint > VALIDATION_EPSILON_SECONDS
-      || layerOutPoint + VALIDATION_EPSILON_SECONDS < SHEET_DURATION_SECONDS) {
+    if (!isFinite(layerInPoint) || !isFinite(layerOutPoint)) {
       blocking.push(
-        layer.name + ": layer must already be visible from 0 through the sheet duration (inPoint "
+        layer.name + ": layer range is not finite (inPoint "
           + layerInPoint + ", outPoint " + layerOutPoint + ")"
       );
     }
@@ -317,8 +328,8 @@
   for (i = 1; i <= comp.numLayers; i += 1) originalSelection.push(comp.layer(i).selected);
   app.beginUndoGroup(UNDO_GROUP_NAME);
   try {
-    // Sparse HOLD keys intentionally have no durationFrames terminal key. If
-    // the comp/layer is longer, the last cel or blank state keeps holding.
+    // Sparse HOLD keys intentionally have no durationFrames terminal key. Short
+    // mapped footage layers are extended, while longer ranges keep holding.
     for (i = 0; i < assignments.length; i += 1) {
       applyTimeRemap(assignments[i].layer, assignments[i].column);
       applyBlankEffect(assignments[i].layer, assignments[i].column);

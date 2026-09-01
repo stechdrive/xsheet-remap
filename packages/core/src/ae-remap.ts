@@ -82,8 +82,8 @@ export interface AeRemapJsxConfig {
     /** Fallback when the mapped AE source does not expose a valid frame rate. */
     sourceFps: number
     /**
-     * Covered sheet frames. JSX emits no terminal blank or layer range edit;
-     * the final HOLD state can therefore continue in a longer composition.
+     * Covered sheet frames. JSX extends mapped footage layers to cover this
+     * interval but emits no terminal key that would shorten a longer range.
      */
     durationFrames: number
     columns: Array<{
@@ -247,8 +247,10 @@ export function buildAeRemapText(
 
 /**
  * Generates a self-contained ExtendScript with an interactive AE-layer to
- * logical-sheet-column mapper. It never pre-composes. Existing managed Time
- * Remap or blank-effect data is replaced only after a single confirmation.
+ * logical-sheet-column mapper. It never pre-composes. Mapped footage layers
+ * are time-remapped and extended to the covered sheet range when needed.
+ * Existing managed Time Remap or blank-effect data is replaced only after a
+ * single confirmation.
  */
 export function buildAeRemapJsxConfig(
   plan: AeRemapPlan,
@@ -283,8 +285,10 @@ export function buildAeRemapJsxConfig(
 
 /**
  * Generates a self-contained ExtendScript with an interactive AE-layer to
- * logical-sheet-column mapper. It never pre-composes. Existing managed Time
- * Remap or blank-effect data is replaced only after a single confirmation.
+ * logical-sheet-column mapper. It never pre-composes. Mapped footage layers
+ * are time-remapped and extended to the covered sheet range when needed.
+ * Existing managed Time Remap or blank-effect data is replaced only after a
+ * single confirmation.
  */
 export function buildAeRemapJsx(
   plan: AeRemapPlan,

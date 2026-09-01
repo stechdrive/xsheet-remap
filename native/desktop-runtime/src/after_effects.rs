@@ -459,6 +459,9 @@ mod tests {
         assert!(!script.contains(CONFIG_PLACEHOLDER));
         assert!(script.contains(r#""schema":"xsheet-remap-after-effects-remap-v1""#));
         assert!(script.contains(r#""name":"A\u5217""#));
+        assert!(script.contains("if (!layer.timeRemapEnabled) layer.timeRemapEnabled = true;"));
+        assert!(script.contains("layer.outPoint = SHEET_DURATION_SECONDS;"));
+        assert!(!script.contains("layer.timeRemapEnabled = false;"));
     }
 
     #[test]

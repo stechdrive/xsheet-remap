@@ -196,7 +196,7 @@ describe('After Effects remap export', () => {
     expect(insufficientAtTwelveFps.alerts.join('\n')).toContain(String(2 / 12))
   })
 
-  it('blocks short comp/layer ranges and leaves long-comp in/out points and terminal state untouched', () => {
+  it('blocks a short comp, extends short or late footage layers, and preserves longer ranges', () => {
     let project = shortProject(24, 24)
     project = addCell(project, 'A', 1, '1')
     const plan = buildAeRemapPlan(project, { paperTracks: ['A'] })
@@ -207,23 +207,63 @@ describe('After Effects remap export', () => {
     expect(shortComp.alerts.join('\n')).toContain('active composition is shorter')
 
     const lateLayer = executeAeJsx(jsx, { compDuration: 2, layerInPoint: 0.1, layerOutPoint: 2 })
-    expect(lateLayer.beginUndoGroups).toBe(0)
-    expect(lateLayer.alerts.join('\n')).toContain('must already be visible from 0')
+    expect(lateLayer.beginUndoGroups).toBe(1)
+    expect(lateLayer.layerInPoint).toBe(0)
+    expect(lateLayer.layerOutPoint).toBe(2)
 
     const shortLayer = executeAeJsx(jsx, { compDuration: 2, layerOutPoint: 0.5 })
-    expect(shortLayer.beginUndoGroups).toBe(0)
-    expect(shortLayer.alerts.join('\n')).toContain('must already be visible from 0')
+    expect(shortLayer.beginUndoGroups).toBe(1)
+    expect(shortLayer.layerInPoint).toBe(0)
+    expect(shortLayer.layerOutPoint).toBe(1)
 
-    const longComp = executeAeJsx(jsx, { compDuration: 2, layerInPoint: 0, layerOutPoint: 2 })
+    const longComp = executeAeJsx(jsx, { compDuration: 2, layerInPoint: -0.25, layerOutPoint: 2 })
     expect(longComp.beginUndoGroups).toBe(1)
     expect(longComp.endUndoGroups).toBe(1)
     expect(longComp.timeRemapTimes).toEqual([0])
-    expect(longComp.layerInPoint).toBe(0)
+    expect(longComp.layerInPoint).toBe(-0.25)
     expect(longComp.layerOutPoint).toBe(2)
-    expect(longComp.dialogTexts.join('\n')).toContain('final cel/blank HOLD continues')
+    expect(longComp.dialogTexts.join('\n')).toContain('extended to cover the sheet when needed')
     expect(buildAeRemapJsxConfig(plan).plan.columns[0].keys).toEqual([
       { frame: 0, empty: false, cellNumber: 1 },
     ])
+  })
+
+  it('enables Time Remap and extends a naturally short image sequence to the sheet duration', () => {
+    let project = shortProject(24, 144)
+    project = addCell(project, 'B', 1, '3')
+    const result = executeAeJsx(
+      buildAeRemapJsx(buildAeRemapPlan(project, { paperTracks: ['B'] })),
+      {
+        layerName: 'B',
+        compDuration: 6,
+        layerOutPoint: 1 / 30,
+        sourceFrameRate: 30,
+        sourceDuration: 3 / 30,
+      },
+    )
+
+    expect(result.alerts).toEqual([])
+    expect(result.beginUndoGroups).toBe(1)
+    expect(result.endUndoGroups).toBe(1)
+    expect(result.timeRemapValues).toHaveLength(1)
+    expect(result.timeRemapValues[0]).toBeCloseTo(2 / 30)
+    expect(result.layerInPoint).toBe(0)
+    expect(result.layerOutPoint).toBe(6)
+  })
+
+  it('keeps an existing Time Remap enabled while replacing its keys and extending the layer', () => {
+    let project = shortProject(24, 48)
+    project = addCell(project, 'A', 1, '1')
+    const result = executeAeJsx(buildAeRemapJsx(buildAeRemapPlan(project, { paperTracks: ['A'] })), {
+      compDuration: 2,
+      layerOutPoint: 0.5,
+      existingTimeRemap: {},
+    })
+
+    expect(result.beginUndoGroups).toBe(1)
+    expect(result.timeRemapDisableCount).toBe(0)
+    expect(result.timeRemapTimes).toEqual([0])
+    expect(result.layerOutPoint).toBe(2)
   })
 
   it('applies an all-blank column without requiring a time-remappable source', () => {
@@ -317,10 +357,11 @@ describe('After Effects remap export', () => {
     expect(jsx).toContain('sourceDuration <= maximumSeconds')
     expect(jsx).toContain('source duration (')
     expect(jsx).toContain('compDuration + VALIDATION_EPSILON_SECONDS < SHEET_DURATION_SECONDS')
-    expect(jsx).toContain('layerInPoint > VALIDATION_EPSILON_SECONDS')
+    expect(jsx).toContain('if (!layer.timeRemapEnabled) layer.timeRemapEnabled = true')
+    expect(jsx).toContain('layerInPoint > VALIDATION_EPSILON_SECONDS) layer.inPoint = 0')
     expect(jsx).toContain('layerOutPoint + VALIDATION_EPSILON_SECONDS < SHEET_DURATION_SECONDS')
-    expect(jsx).toContain('final cel/blank HOLD continues while the layer remains visible')
-    expect(jsx).toContain('no in/out point or terminal blank is added')
+    expect(jsx).toContain('layer.outPoint = SHEET_DURATION_SECONDS')
+    expect(jsx).toContain('existing longer ranges are kept')
     expect(jsx).toContain('return effects.property(MANAGED_BLANK_EFFECT_NAME);')
     expect(jsx).toContain('addProperty(ADBE_VENETIAN_BLINDS)')
     expect(jsx).toContain('Existing Time Remap or managed blank-effect data was found')
@@ -335,8 +376,7 @@ describe('After Effects remap export', () => {
     expect(jsx).toMatch(/finally\s*\{\s*try\s*\{/)
     expect(jsx).not.toMatch(/\.enabled\s*=(?!=)/)
     expect(jsx).not.toContain('.remove()')
-    expect(jsx).not.toContain('.inPoint =')
-    expect(jsx).not.toContain('.outPoint =')
+    expect(jsx).not.toContain('layer.timeRemapEnabled = false')
     expect(jsx).not.toContain('precompose')
     expect(() => new Function(jsx)).not.toThrow()
 
@@ -488,6 +528,7 @@ function executeAeJsx(script: string, options: ExecuteAeJsxOptions = {}) {
     locked = false
     canSetTimeRemapEnabled = options.canSetTimeRemapEnabled ?? true
     private timeRemapEnabledValue = false
+    timeRemapDisableCount = 0
     selected = true
     inPoint = options.layerInPoint ?? 0
     outPoint = options.layerOutPoint ?? 1
@@ -506,11 +547,13 @@ function executeAeJsx(script: string, options: ExecuteAeJsxOptions = {}) {
       this.timeRemapEnabledValue = value
       if (value) {
         const sourceFrameRate = this.source?.frameRate ?? 24
+        const finalVisibleFrameTime = Math.max(0, this.outPoint - 1 / sourceFrameRate)
         this.timeRemap.seed(
-          [0, Math.max(0, this.outPoint - 1 / sourceFrameRate)],
-          [0, Math.max(0, this.outPoint - 1 / sourceFrameRate)],
+          finalVisibleFrameTime > 0 ? [0, finalVisibleFrameTime] : [0],
+          finalVisibleFrameTime > 0 ? [0, finalVisibleFrameTime] : [0],
         )
       } else {
+        this.timeRemapDisableCount += 1
         this.timeRemap.seed([], [])
       }
     }
@@ -609,6 +652,7 @@ function executeAeJsx(script: string, options: ExecuteAeJsxOptions = {}) {
     endUndoGroups,
     timeRemapTimes: layer.timeRemap.times,
     timeRemapValues: layer.timeRemap.values,
+    timeRemapDisableCount: layer.timeRemapDisableCount,
     blankValues: layer.effects.effect?.completion.values ?? [],
     layerInPoint: layer.inPoint,
     layerOutPoint: layer.outPoint,

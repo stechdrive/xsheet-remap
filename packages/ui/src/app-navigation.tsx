@@ -513,7 +513,7 @@ function EditorHelpContent() {
         <li><strong>セリフ音声からSOUNDを作る</strong><span>下部の「音声」を開き、録音または音声ファイルを追加します。発話候補を選んで「音響指示へ割付…」を押すと、波形の位置に合うSOUNDを作れます。</span></li>
         <li><strong>紙タイムシートを転記する</strong><span>シート作業レールの「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。文字認識は候補を確認してから採用し、読みにくい箇所は手入力します。</span></li>
         <li><strong>CSPへ素材を組み込む</strong><span>左右ペインを開き、右の画像素材をキーへ割り付け、左で工程・セル名・重ね順を確認します。「CSP自動登録データを書き出す」で作成したcsp-import.xciを同梱のxsheet-importerで選び、対象の.clipと保存先を指定して実行します。</span></li>
-        <li><strong>他ソフトへタイミングを渡す</strong><span>確認画像はJPG／PNG／PSD、交換用はXDTSを選びます。After Effectsは1列なら列見出しの「AE用データをコピー」、複数列ならJSXまたはWindows版の直接送信を使います。</span></li>
+        <li><strong>他ソフトへタイミングを渡す</strong><span>確認画像はJPG／PNG／PSD、交換用はXDTSを選びます。After Effectsは1列なら列見出しの「AE用データをコピー」、複数列ならJSXまたはWindows版の直接送信を使います。1列コピーでは、AE側で先にタイムリマップを有効にしてレイヤーをカット終端まで伸ばします。</span></li>
       </ol>
     </article>
   </>
@@ -540,7 +540,7 @@ function RemapHelpContent() {
         <li><strong>紙の文字を転記したい</strong><span>デスクトップ版の「文字認識」でACTIONまたはCELLを選び、候補を修正してから個別または一括で採用します。迷う候補は採用せず、シートへ直接入力します。</span></li>
         <li><strong>紙に列が収まらない</strong><span>入力は消えていません。欄外ラベルで位置を確認するか、表示テンプレートをデジタルへ切り替えるとすべての列を確認できます。</span></li>
         <li><strong>確認用のシートを渡したい</strong><span>JPG／PNGはすぐ見られる画像、PSDは表示内容をあとから調整できるレイヤー付き画像です。タイミングを対応ソフトへ渡す場合はXDTSを使います。</span></li>
-        <li><strong>After Effectsへ渡したい</strong><span>1列だけなら列見出しの「AE用データをコピー」、複数列ならAfter Effects JSX、Windowsで起動中のAEへ渡すなら直接送信を選びます。</span></li>
+        <li><strong>After Effectsへ渡したい</strong><span>1列だけなら列見出しの「AE用データをコピー」、複数列ならAfter Effects JSX、Windowsで起動中のAEへ渡すなら直接送信を選びます。1列コピーはAE側でタイムリマップ有効化とレイヤー延長を行い、JSXと直接送信は自動で行います。</span></li>
       </ol>
     </article>
   </>

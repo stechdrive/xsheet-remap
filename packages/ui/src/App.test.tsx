@@ -268,9 +268,9 @@ it('guides Remap users from their available source through CSP registration', ()
     expect(within(dialog).getByText(/グループ内の全カットをまとめて対象/)).toBeTruthy()
     expect(within(dialog).getByText(/現在画面に表示しているカットと初稿／修正シートだけ/)).toBeTruthy()
     expect(within(dialog).getByText(/csp-import\.xciをxsheet-importerへ選択またはドロップ/)).toBeTruthy()
-    expect(within(dialog).getByText(/日本語版AE／英語版AE/)).toBeTruthy()
-    expect(within(dialog).getByText('複数列をJSXで渡す')).toBeTruthy()
-    expect(within(dialog).getByText('起動中のAEへ送る')).toBeTruthy()
+    expect(within(dialog).getByText(/AE用データをコピー/)).toBeTruthy()
+    expect(within(dialog).getByText('JSXで複数列を割り当てる')).toBeTruthy()
+    expect(within(dialog).getByText('起動中のAEへ直接送る')).toBeTruthy()
   })
 
 it('loads XDTS through the import menu with ACTION as the default destination', async () => {

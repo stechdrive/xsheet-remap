@@ -463,6 +463,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                         key={event.eventId}
                         className={timelineEventClassName}
                         data-timeline-event-track={eventHit?.paperTrack}
+                        data-timeline-event-role={eventHit?.role}
                         data-timeline-event-frame={eventHit?.frame}
                         onPointerDown={eventHit ? pointerEvent => handleTimelineEventPointerDown(pointerEvent, event, page) : undefined}
                         onPointerMove={handleTimelineEventPointerMove}
@@ -736,6 +737,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutRange)}>{uiText.actions.cutRange}</button>
               <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutRangeRipple)}>{uiText.actions.cutRangeRipple}</button>
               <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite'))}>{uiText.actions.pasteOverwrite}</button>
+              <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite', 'notation'))}>{uiText.actions.pasteNotation}</button>
+              <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite', 'with-bindings'))}>{uiText.actions.pasteWithBindings}</button>
               <button role="menuitem" disabled={!canPasteContextInsert} onClick={() => runContextMenuAction(() => props.onPasteTiming('insert'))}>{uiText.actions.pasteInsert}</button>
               <button role="menuitem" disabled={!canPasteContextRepeatRange} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-range'))}>{uiText.actions.repeatPaste}</button>
               <button role="menuitem" disabled={!canPasteContextRepeatToEnd} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-to-end'))}>{uiText.actions.repeatPasteToEnd}</button>

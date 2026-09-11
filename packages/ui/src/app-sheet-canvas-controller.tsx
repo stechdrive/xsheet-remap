@@ -252,7 +252,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       : null,
     [props.referenceProject, props.template, sheetRenderCutGroup],
   )
-  const rangeTrackOrder = (role: SheetTimingRole) => paperTrackOrderForRole(props.project, role)
+  const rangeTrackOrder = (role: SheetTimingRole) => paperTrackOrderForRole(props.project, role, props.template)
   const rangeFromHits = (anchorHit: SheetHit, focusHit: SheetHit): SheetRangeSelection | null => {
     const usesOverlayTrack = [anchorHit.paperTrack, focusHit.paperTrack].some(paperTrack =>
       overlayPaperTracks(props.project, props.template).some(track => track.paperTrack === paperTrack),
@@ -2250,7 +2250,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera' || timelineMemoContext || soundContext || cameraContext)
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
   const timelineMemoItemCount = (contextMenu?.timelineMemoIds?.length ?? 0) * 2
-  const sheetContextMenuItemCount = (timedRangeContext ? 10 : 15) + timelineMemoItemCount + contextProcessMoveItemCount
+  const sheetContextMenuItemCount = (timedRangeContext ? 10 : 17) + timelineMemoItemCount + contextProcessMoveItemCount
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null

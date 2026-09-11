@@ -158,6 +158,9 @@ export interface CameraCueDialogState {
   frameEnd: number
 }
 
+export type TimingPasteMode = 'overwrite' | 'insert' | 'repeat-range' | 'repeat-to-end'
+export type TimingPasteContent = 'auto' | 'notation' | 'with-bindings'
+
 export interface TimingClipboard {
   role: 'action' | 'cell'
   sourcePaperTracks: string[]

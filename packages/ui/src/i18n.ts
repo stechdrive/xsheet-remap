@@ -125,6 +125,8 @@ export const uiText = {
     cutRange: '切り取り',
     cutRangeRipple: 'リップル切り取り',
     pasteOverwrite: '貼り付け',
+    pasteNotation: '記入内容のみ貼り付け',
+    pasteWithBindings: '画像リンクを含めて貼り付け',
     pasteInsert: '挿入貼り付け',
     repeatPaste: '選択範囲内にリピート貼り付け',
     repeatPasteToEnd: '末尾までリピート貼り付け',

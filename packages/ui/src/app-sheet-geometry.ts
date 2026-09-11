@@ -66,7 +66,10 @@ export function stampAuxiliaryPlacementTemplate(project: CutProject, templateId:
   }
 }
 
-export function paperTrackOrderForRole(project: CutProject, role: SheetTimingRole): string[] {
+export function paperTrackOrderForRole(project: CutProject, role: SheetTimingRole, template: SheetTemplate): string[] {
+  if (getSheetViewLayout(template).trackAxis?.type === 'logical-width') {
+    return templatePaperTracks(project, template).map(track => track.paperTrack)
+  }
   const templateTracks = templatePaperTracks(project)
   const templateOrder = new Map(templateTracks.map((track, index) => [track.paperTrack, index]))
   return project.logicalSheet.paperTracks

@@ -176,8 +176,9 @@ export function navigatePointEventSelection(input: {
   trackDelta: number
   frameDelta: number
   extendRange: boolean
+  moveHit?: (hit: SheetHit | null) => SheetHit | null
 }): PointEventKeyboardNavigation | null {
-  const move = (hit: SheetHit) => nextTimingHit(
+  const move = input.moveHit ?? ((hit: SheetHit | null) => nextTimingHit(
     input.template,
     input.durationFrames,
     input.frameOrigin,
@@ -185,7 +186,7 @@ export function navigatePointEventSelection(input: {
     input.trackDelta,
     input.frameDelta,
     input.paperTracks,
-  )
+  ))
   const range = input.range
   if (range && (range.role === 'action' || range.role === 'cell') && range.paperTrack) {
     if (input.extendRange) {
@@ -203,15 +204,7 @@ export function navigatePointEventSelection(input: {
     const nextRange = rangeSelectionFromHits(input.template, anchorHit, focusHit, input.paperTracks)
     return nextRange ? { kind: 'range', range: nextRange, focusHit } : null
   }
-  const hit = nextTimingHit(
-    input.template,
-    input.durationFrames,
-    input.frameOrigin,
-    input.currentHit,
-    input.trackDelta,
-    input.frameDelta,
-    input.paperTracks,
-  )
+  const hit = move(input.currentHit)
   if (!hit) return null
   if (!input.extendRange || !input.currentHit) return { kind: 'cell', hit, focusHit: hit }
   if (sameHitCell(input.currentHit, hit)) return null

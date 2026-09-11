@@ -139,6 +139,20 @@ export function nextOverlayTrackNameForUi(project: CutProject): string {
   return '追加'
 }
 
+/** Resolve logical timing targets using the same columns as the paper renderer. */
+export function projectTimingHitForFrame(template: SheetTemplate, project: CutProject, role: SheetTimingRole, paperTrack: string, frame: number): SheetHit | null {
+  const duration = logicalSheetDisplayDurationFrames(project.logicalSheet)
+  const origin = logicalSheetDisplayFrameStart(project.logicalSheet)
+  const overlay = overlayPaperTracks(project, template).find(track =>
+    track.paperTrack === paperTrack && (track.viewPlacement?.sheetRole ?? 'cell') === role,
+  )
+  if (overlay) {
+    const localized = localizeFrameToSheetPage(template, frame, duration, origin)
+    return localized ? overlayHitForFrame(template, project, overlay, frame, localized.page, role) : null
+  }
+  return timingHitForFrame(template, role, paperTrack, frame, duration, origin, templatePaperTracks(project, template).map(track => track.paperTrack))
+}
+
 export function overlayHitFromPoint(template: SheetTemplate, project: CutProject, page: SheetPage, point: NormalizedPoint, activePaperTrack: string | null): SheetHit | null {
   if (!activePaperTrack) return null
   for (const track of overlayPaperTracks(project, template)) {

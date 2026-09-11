@@ -92,7 +92,7 @@ export function addOverlayPaperTrackAtCspTop(
   project: CutProject,
   input: CspTopOverlayPaperTrackInput = {},
 ): ReturnType<typeof addOverlayPaperTrack> {
-  const sheetRole = input.sheetRole ?? 'cell'
+  const sheetRole = input.sheetRole ?? 'action'
   const created = addOverlayPaperTrack(project, {
     ...input,
     sheetRole,

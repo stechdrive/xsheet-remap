@@ -24,9 +24,14 @@ describe('cell stack order', () => {
       .reverse()
 
     expect(cspPaperOrder[0]).toBe('paper:NEW_CELL')
-    expect(created.paperTrack.viewPlacement).toMatchObject({ sheetRole: 'cell', snapIndex: 15 })
+    expect(created.paperTrack.viewPlacement).toMatchObject({ sheetRole: 'action', snapIndex: 4 })
     expect(created.project.logicalSheet.paperTracks.find(track => track.paperTrack === 'EXISTING_CELL')?.viewPlacement?.snapIndex).toBe(14)
     expect(created.project.stackGuideLabels.find(label => label.labelId === background.label.labelId)?.viewSnapIndex).toBe(3)
+  })
+
+  it('preserves an explicit CELL placement when adding at CSP top', () => {
+    const created = addOverlayPaperTrackAtCspTop(createDefaultProject(), { sheetRole: 'cell' })
+    expect(created.paperTrack.viewPlacement?.sheetRole).toBe('cell')
   })
 
   it('adds a pane BG/BOOK below every cell column and above existing BG/BOOK labels', () => {

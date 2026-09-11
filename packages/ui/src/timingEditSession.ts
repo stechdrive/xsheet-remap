@@ -1,12 +1,9 @@
+import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
 import {
-  logicalSheetDisplayDurationFrames,
-  logicalSheetDisplayFrameStart,
-  timingHitForFrame,
   type CutProject,
   type SheetTemplate,
 } from '@xsheet-remap/core'
 import type { TimingEditSession } from './appTypes'
-import { paperTrackOrderForRole } from './app-sheet-geometry'
 import { setTimingValueAt } from './sheet-timing-input'
 import { isPointEventRangeForUi, rangePaperTracks } from './timingEditing'
 
@@ -28,20 +25,9 @@ export function applyTimingEditSession(
 
   const range = session.target.range
   if (!isPointEventRangeForUi(range)) return sourceProject
-  const trackOrder = paperTrackOrderForRole(sourceProject, range.role)
-  const durationFrames = logicalSheetDisplayDurationFrames(sourceProject.logicalSheet)
-  const frameStart = logicalSheetDisplayFrameStart(sourceProject.logicalSheet)
   let nextProject = sourceProject
   for (const paperTrack of rangePaperTracks(range)) {
-    const startHit = timingHitForFrame(
-      template,
-      range.role,
-      paperTrack,
-      range.frameStart,
-      durationFrames,
-      frameStart,
-      trackOrder,
-    )
+    const startHit = projectTimingHitForFrame(template, nextProject, range.role, paperTrack, range.frameStart)
     if (startHit) {
       nextProject = setTimingValueAt(
         nextProject,

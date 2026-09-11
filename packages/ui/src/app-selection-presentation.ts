@@ -1,5 +1,5 @@
+import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
 import {
-  timingHitForFrame,
   type CutProject,
   type SheetHit,
   type SheetTemplate,
@@ -12,7 +12,6 @@ import {
   formatPaddedDurationTimecode,
   formatPaddedFrameTimecode,
 } from './app-foundation'
-import { paperTrackOrderForRole } from './app-sheet-geometry'
 import { uiText } from './i18n'
 import { sheetRoleForHit, sheetRoleLabel } from './sheetInteraction'
 import { isPointEventRangeForUi, rangePaperTracks } from './timingEditing'
@@ -21,20 +20,10 @@ export function inputHitForRange(
   project: CutProject,
   template: SheetTemplate,
   range: SheetRangeSelection,
-  durationFrames: number,
-  frameOrigin: number,
 ): SheetHit {
   if (isPointEventRangeForUi(range)) {
     const paperTrack = rangePaperTracks(range)[0] ?? range.paperTrack
-    const hit = timingHitForFrame(
-      template,
-      range.role,
-      paperTrack,
-      range.frameStart,
-      durationFrames,
-      frameOrigin,
-      paperTrackOrderForRole(project, range.role),
-    )
+    const hit = projectTimingHitForFrame(template, project, range.role, paperTrack, range.frameStart)
     if (hit) return hit
   }
   if (range.anchorHit.frame === range.frameStart) return range.anchorHit

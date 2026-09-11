@@ -59,7 +59,7 @@ export const remapHelpChapters: HelpChapter[] = editorHelpChapters.map(chapter =
           if (item.term === '追加セル列') {
             return {
               ...item,
-              description: '左のCSPレイヤー構成にある＋で追加すると既存列の上へ、シート上の右クリックから追加すると選んだ列の後ろへ入ります。紙に収まらない列も削除されず欄外ラベルで確認でき、デジタル表示へ切り替えると通常の列として表示されます。',
+              description: '左のCSPレイヤー構成にある＋で追加するとACTION扱いで既存列の上へ、シート上の右クリックから追加すると選んだ列の後ろへ入ります。紙に収まらない列も削除されず欄外ラベルで確認でき、デジタル表示へ切り替えると通常の列として表示されます。',
             }
           }
           return item

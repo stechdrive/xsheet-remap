@@ -6,6 +6,7 @@ import { normalizeMemoAppearance, type MemoAppearance } from '@xsheet-remap/core
 import { type AssetRootCandidate } from '@xsheet-remap/adapters'
 import { uiText, viewModeLabels } from './i18n'
 import { type CameraCueClipboard, type EditMode, type SheetRangeSelection, type SheetPageImage, type SoundCueClipboard, type TemplateRegionAnnotationTarget, type TimingClipboard, type WorkspaceStyle } from './appTypes'
+import type { TimingPasteContent, TimingPasteMode } from './appTypes'
 import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
 import type { DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 import { AssetTray, type DropDiagnosticReport } from './AssetBrowser'
@@ -242,7 +243,7 @@ export function SheetPanel(props: {
   onCopyRange: () => void
   onCutRange: () => void
   onCutRangeRipple: () => void
-  onPasteTiming: (mode: 'overwrite' | 'insert' | 'repeat-range' | 'repeat-to-end') => void
+  onPasteTiming: (mode: TimingPasteMode, content?: TimingPasteContent) => void
   onCopySoundCues: () => void
   onCutSoundCues: () => void
   onDeleteSoundCues: () => void

@@ -1,12 +1,14 @@
+import { nextProjectTimingHit } from './sheetTimingNavigation'
+import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, timingHitForFrame, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
 import { projectDocumentsEqual } from './projectDocumentEquality';
 import { updateCutMetadata } from './cutMetadata';
 import { uiText } from './i18n';
-import { type Panel, type SheetRangeSelection, type TimingClipboard } from './appTypes';
+import { type Panel, type SheetRangeSelection, type TimingClipboard, type TimingPasteContent, type TimingPasteMode } from './appTypes';
 import { loadProjectDocumentFile, projectRuntimeSourceImageUrls } from './projectFileModel';
 import { type DropDiagnosticReport } from './AssetBrowser';
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection';
@@ -16,8 +18,8 @@ import { runDesktopE2EIfRequested } from './desktopE2E';
 import { clampTextFontSizePx, defaultTimingTextFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout';
 import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
 import { calibrationPointsForSettings, getSheetPageImage } from './sheetImages';
-import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, nextTimingHit, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
-import { buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, moveTimingEventsInRange, pasteResultRange, pasteTimingClipboardToProject, rangeContainsHit, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget, timingRangeSelectionForMoveResult } from './timingEditing';
+import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
+import { canPasteTimingClipboardMode, buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, moveTimingEventsInRange, pasteResultRange, pasteTimingClipboardToProject, rangeContainsHit, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget, timingRangeSelectionForMoveResult } from './timingEditing';
 import { normalizeRecognitionLabel, recognizeSheetPagesIfAvailable } from './runtimeFeatures';
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
@@ -192,7 +194,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const selectedHit = sheetSelection.kind === 'cell'
     ? sheetSelection.hit
     : sheetSelection.kind === 'range'
-      ? inputHitForRange(project, template, sheetSelection.range, sheetDisplayDurationFrames, sheetDisplayFrameStart)
+      ? inputHitForRange(project, template, sheetSelection.range)
       : null
   const selection = { hit: selectedHit, keyId: selectedKeyId }
   const audioPlayheadFrame = audioPlayhead.cutId === projectDocumentSnapshot.activeCutId ? audioPlayhead.frame : project.logicalSheet.frameOrigin
@@ -606,7 +608,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function setSelectionFromRange(range: SheetRangeSelection, sourceProject: CutProject = project) {
-    const inputHit = inputHitForRange(sourceProject, template, range, sheetDisplayDurationFrames, sheetDisplayFrameStart)
+    const inputHit = inputHitForRange(sourceProject, template, range)
     const keyId = eventKeyIdAtSheetHit(sourceProject, inputHit)
     setSelectedTextAnnotationId(null)
     setSheetSelection({ kind: 'range', range })
@@ -624,11 +626,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (!isPointEventRange(range)) return null
     const role = range.role
     const tracks = rangePaperTracks(range)
-    const trackOrder = paperTrackOrderForRole(project, role)
     const startTrack = tracks[0] ?? range.paperTrack
     const endTrack = tracks.at(-1) ?? startTrack
-    const startHit = timingHitForFrame(template, role, startTrack, frameStart, sheetDisplayDurationFrames, sheetDisplayFrameStart, trackOrder)
-    const endHit = timingHitForFrame(template, role, endTrack, frameEnd, sheetDisplayDurationFrames, sheetDisplayFrameStart, trackOrder)
+    const startHit = projectTimingHitForFrame(template, project, role, startTrack, frameStart)
+    const endHit = projectTimingHitForFrame(template, project, role, endTrack, frameEnd)
     if (!startHit || !endHit) return null
     const forward = range.focusFrame >= range.anchorFrame
     return rangeSelectionFromHits(template, forward ? startHit : endHit, forward ? endHit : startHit, tracks)
@@ -652,7 +653,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitProject(next.project)
     setTimingEditSession(null)
     const nextHit = advance
-      ? nextTimingHit(template, sheetDisplayDurationFrames, sheetDisplayFrameStart, hit, 0, 1)
+      ? nextProjectTimingHit(template, next.project, hit, 0, 1)
       : null
     if (nextHit) {
       if (typeof nextHit.pageIndex === 'number') setActivePageIndex(nextHit.pageIndex, next.project)
@@ -675,7 +676,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       setSelectionFromRange(nextRange ?? session.target.range, nextProject)
     } else {
       const nextHit = advance
-        ? nextTimingHit(template, sheetDisplayDurationFrames, sheetDisplayFrameStart, session.target.hit, 0, 1)
+        ? nextProjectTimingHit(template, nextProject, session.target.hit, 0, 1)
         : null
       if (nextHit && typeof nextHit.pageIndex === 'number') setActivePageIndex(nextHit.pageIndex, nextProject)
       setSelectionFromHit(nextHit ?? session.target.hit, nextProject)
@@ -777,15 +778,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       updateOpenNativePreviewForKey(sourceProject, keyId)
       return
     }
-    const hit = timingHitForFrame(
-      template,
-      firstUse.role,
-      firstUse.paperTrack,
-      firstUse.frame,
-      sheetDisplayDurationFrames,
-      sheetDisplayFrameStart,
-      templatePaperTracks(sourceProject, template).map(track => track.paperTrack),
-    )
+    const hit = projectTimingHitForFrame(template, sourceProject, firstUse.role, firstUse.paperTrack, firstUse.frame)
     if (!hit) {
       setTimingEditSession(null)
       updateOpenNativePreviewForKey(sourceProject, keyId)
@@ -872,13 +865,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSelectionFromRange(rangeSelection, next)
   }
 
-  function pasteTimingClipboard(mode: 'overwrite' | 'insert' | 'repeat-range' | 'repeat-to-end') {
+  function pasteTimingClipboard(mode: TimingPasteMode, content: TimingPasteContent = 'auto') {
     const sourceProject = commitTimingDraft(false)
     const baseTarget = timingPasteTarget(selection.hit, rangeSelection)
-    const target = baseTarget ? { ...baseTarget, paperTrackOrder: paperTrackOrderForRole(sourceProject, baseTarget.role) } : null
-    if (!timingClipboard || !target || timingClipboard.role !== target.role) return
+    const target = baseTarget ? { ...baseTarget, paperTrackOrder: paperTrackOrderForRole(sourceProject, baseTarget.role, template) } : null
+    if (!timingClipboard || !target || !canPasteTimingClipboardMode(timingClipboard, selection.hit, rangeSelection, mode, target.paperTrackOrder)) return
     if (mode === 'repeat-range' && !isPointEventRange(rangeSelection)) return
-    const next = pasteTimingClipboardToProject(sourceProject, timingClipboard, target, mode)
+    const next = pasteTimingClipboardToProject(sourceProject, timingClipboard, target, mode, content)
     commitProject(next)
     const nextRange = pasteResultRange(template, next, target, timingClipboard, mode)
     if (nextRange) {
@@ -914,12 +907,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const displayEnd = logicalSheetDisplayFrameEnd(sourceProject.logicalSheet)
     const nextFrameStart = clampNumber(frameStart, displayStart, displayEnd)
     const nextFrameEnd = clampNumber(frameStart + Math.max(1, spanFrames) - 1, displayStart, displayEnd)
-    const displayDuration = logicalSheetDisplayDurationFrames(sourceProject.logicalSheet)
-    const trackOrder = paperTrackOrderForRole(sourceProject, role)
     const startPaperTrack = paperTracks[0]
     const endPaperTrack = paperTracks.at(-1) ?? startPaperTrack
-    const startHit = startPaperTrack ? timingHitForFrame(template, role, startPaperTrack, nextFrameStart, displayDuration, displayStart, trackOrder) : null
-    const endHit = endPaperTrack ? timingHitForFrame(template, role, endPaperTrack, nextFrameEnd, displayDuration, displayStart, trackOrder) : null
+    const startHit = startPaperTrack ? projectTimingHitForFrame(template, sourceProject, role, startPaperTrack, nextFrameStart) : null
+    const endHit = endPaperTrack ? projectTimingHitForFrame(template, sourceProject, role, endPaperTrack, nextFrameEnd) : null
     if (startHit && endHit) {
       const nextRange = rangeSelectionFromHits(template, startHit, endHit, paperTracks)
       if (nextRange) {
@@ -1319,7 +1310,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const sourceProject = commitTimingDraft(false)
     const sourceRole = sheetRoleForHit(sourceHit)
     if (sourceRole !== sheetRoleForHit(targetHit)) return
-    const trackOrder = paperTrackOrderForRole(sourceProject, sourceRole)
+    const trackOrder = paperTrackOrderForRole(sourceProject, sourceRole, template)
     const selectedRange = sourceRange && isPointEventRange(sourceRange) && rangeContainsHit(sourceRange, sourceHit)
       ? sourceRange
       : rangeSelectionFromHits(template, sourceHit, sourceHit, trackOrder)
@@ -1596,7 +1587,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       const created = (cspPlacement === 'cell-top' ? addOverlayPaperTrackAtCspTop : addOverlayPaperTrack)(project, {
         ...createInput,
         templateId: template.templateId,
-        sheetRole: createInput.sheetRole ?? 'cell',
+        sheetRole: createInput.sheetRole ?? (cspPlacement === 'cell-top' ? 'action' : 'cell'),
       })
       commitProject(created.project)
     } catch (error) {
@@ -2091,8 +2082,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function moveSelection(trackDelta: number, frameDelta: number, extendRange: boolean) {
     const sourceProject = commitTimingDraft(false)
     const role = rangeSelection?.role === 'action' || rangeSelection?.role === 'cell' ? rangeSelection.role : selection.hit ? sheetRoleForHit(selection.hit) : 'cell'
-    const trackOrder = paperTrackOrderForRole(sourceProject, role)
-    const result = navigatePointEventSelection({ template, durationFrames: sheetDisplayDurationFrames, frameOrigin: sheetDisplayFrameStart, currentHit: selection.hit, range: rangeSelection, paperTracks: trackOrder, trackDelta, frameDelta, extendRange })
+    const trackOrder = paperTrackOrderForRole(sourceProject, role, template)
+    const result = navigatePointEventSelection({ template, durationFrames: sheetDisplayDurationFrames, frameOrigin: sheetDisplayFrameStart, currentHit: selection.hit, range: rangeSelection, paperTracks: trackOrder, trackDelta, frameDelta, extendRange, moveHit: hit => nextProjectTimingHit(template, sourceProject, hit, trackDelta, frameDelta) })
     if (!result) return
     if (typeof result.focusHit.pageIndex === 'number') setActivePageIndex(result.focusHit.pageIndex, sourceProject)
     if (result.kind === 'range') setSelectionFromRange(result.range, sourceProject); else setSelectionFromHit(result.hit, sourceProject)

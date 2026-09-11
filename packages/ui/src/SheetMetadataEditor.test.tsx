@@ -211,6 +211,15 @@ describe('SheetMetadataEditor page fields', () => {
     fireEvent.change(editor, { target: { value: '1行目\n\n3行目' } })
     expect(onFormFieldChange).not.toHaveBeenCalled()
 
+    const trigger = screen.getByRole('button', { name: 'MEMOを編集' })
+    fireEvent.doubleClick(trigger)
+    expect((editor as HTMLTextAreaElement).value).toBe('1行目\n\n3行目')
+    expect(document.activeElement).toBe(editor)
+    fireEvent.keyDown(trigger, { key: 'F2' })
+    expect((editor as HTMLTextAreaElement).value).toBe('1行目\n\n3行目')
+    expect(document.activeElement).toBe(editor)
+    expect(onFormFieldChange).not.toHaveBeenCalled()
+
     fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true })
     expect(onFormFieldChange).toHaveBeenCalledWith(
       expect.objectContaining({ fieldId: 'memo.body', scope: 'page', valueType: 'multiline' }),
@@ -219,6 +228,39 @@ describe('SheetMetadataEditor page fields', () => {
     )
 
     expect(screen.queryByRole('dialog', { name: 'MEMOを編集' })).toBeNull()
+  })
+
+  it('completes a MEMO edit once before returning focus to the sheet', () => {
+    const project = createDefaultProject()
+    const [page] = createSheetPages(standardA3SheetTemplate, project.logicalSheet.durationFrames)
+    const onFormFieldChange = vi.fn()
+    const { container } = render(
+      <div className="sheetViewport" tabIndex={-1}>
+        <SheetMetadataEditor
+          project={project} template={standardA3SheetTemplate} page={page!}
+          pageWidth={877} pageHeight={1241} displayDurationFrames={project.logicalSheet.durationFrames}
+          paperTracks={standardA3SheetTemplate.defaults.paperTracks}
+          onMetadataChange={vi.fn()} onDurationChange={vi.fn()} onFormFieldChange={onFormFieldChange}
+        />
+      </div>,
+    )
+    const trigger = screen.getByRole('button', { name: 'MEMOを編集' })
+    fireEvent.doubleClick(trigger)
+    const editor = screen.getByRole('textbox', { name: 'MEMO' })
+    fireEvent.change(editor, { target: { value: '取り消す下書き' } })
+    fireEvent.keyDown(editor, { key: 'Escape' })
+    expect(document.activeElement).toBe(container.querySelector('.sheetViewport'))
+    expect(onFormFieldChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('textbox', { name: 'MEMO' })).toBeNull()
+
+    fireEvent.doubleClick(trigger)
+    const nextEditor = screen.getByRole('textbox', { name: 'MEMO' })
+    expect((nextEditor as HTMLTextAreaElement).value).toBe('')
+    fireEvent.change(nextEditor, { target: { value: '保存する下書き' } })
+    fireEvent.keyDown(nextEditor, { key: 'Enter', ctrlKey: true })
+    expect(document.activeElement).toBe(container.querySelector('.sheetViewport'))
+    expect(onFormFieldChange).toHaveBeenCalledTimes(1)
+    expect(onFormFieldChange).toHaveBeenCalledWith(expect.objectContaining({ fieldId: 'memo.body' }), '保存する下書き', 'page_1')
   })
 
   it('opens an unset form field with its authored default value', () => {

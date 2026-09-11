@@ -60,6 +60,7 @@ export function SheetMetadataEditor({
   const [editingRegionId, setEditingRegionId] = useState<string | null>(null)
   const [inlineDraft, setInlineDraft] = useState('')
   const inlineDraftRef = useRef('')
+  const editorCompletedRef = useRef(false)
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null)
   const activeOpenReasonRef = useRef<'pointer' | 'keyboard'>('pointer')
   const popoverRef = useRef<HTMLDivElement | null>(null)
@@ -124,6 +125,8 @@ export function SheetMetadataEditor({
     if (!editingRegionId) return
 
     function commitAndCloseEditor() {
+      if (editorCompletedRef.current) return
+      editorCompletedRef.current = true
       if (activeFormIsInline && activeForm) {
         const currentValue = sheetFormFieldValueText(
           resolveSheetFormFieldValue(project.sheetFormData, activeForm.definition, page.pageId),
@@ -189,6 +192,8 @@ export function SheetMetadataEditor({
   }, [editingRegionId])
 
   function closeEditor(restoreTriggerFocus: boolean, commitMultiline: boolean) {
+    if (editorCompletedRef.current) return
+    editorCompletedRef.current = true
     const trigger = activeTriggerRef.current
     if (commitMultiline && activeFormIsInline && activeForm) {
       const currentValue = sheetFormFieldValueText(
@@ -206,6 +211,11 @@ export function SheetMetadataEditor({
   }
 
   function openEditor(regionId: string, trigger: HTMLButtonElement, reason: 'pointer' | 'keyboard') {
+    if (editingRegionId === regionId) {
+      popoverRef.current?.querySelector<HTMLElement>('textarea, input, select, [tabindex]:not([tabindex="-1"])')?.focus({ preventScroll: true })
+      return
+    }
+    editorCompletedRef.current = false
     activeTriggerRef.current = trigger
     activeOpenReasonRef.current = reason
     const metadata = regionLayouts.find(item => item.region.regionId === regionId)

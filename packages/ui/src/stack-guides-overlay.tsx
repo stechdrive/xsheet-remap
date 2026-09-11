@@ -9,15 +9,9 @@ import { defaultStackGuideInsertTarget, stackGuideInsertTargetFromPoint, stackGu
 
 export function HoverCellOverlay({ rect }: { rect: { x: number; y: number; w: number; h: number } }) {
   return (
-    <div
-      className="hoverCellRect"
-      style={{
-        left: `${rect.x * 100}%`,
-        top: `${rect.y * 100}%`,
-        width: `${rect.w * 100}%`,
-        height: `${rect.h * 100}%`,
-      }}
-    />
+    <svg className="hoverCellSvg" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+      <rect className="hoverCellRect" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
+    </svg>
   )
 }
 

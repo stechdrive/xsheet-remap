@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { App } from './App'
@@ -5,7 +6,7 @@ import { setSheetRect, templateColumnHeaderPoint } from './App.test-support'
 import { uiText } from './i18n'
 
 beforeEach(() => {
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+  vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
 })
 
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')

@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { standardA3SheetTemplate } from '@xsheet-remap/core'
@@ -6,7 +7,7 @@ import { openAppNavigationMenu, setSheetRect } from './App.test-support'
 import { uiText } from './i18n'
 
 beforeEach(() => {
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+  vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
 })
 
 afterEach(() => {
@@ -24,7 +25,7 @@ it('re-resolves a selected custom-template memo target and blocks input while th
     setTransform: vi.fn(),
     stroke: vi.fn(),
   } as unknown as CanvasRenderingContext2D
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+  vi.spyOn(canvasContextPrototype(), 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
     return this.classList.contains('committedAnnotationCanvas') ? committedContext : null
   })
   render(<App />)

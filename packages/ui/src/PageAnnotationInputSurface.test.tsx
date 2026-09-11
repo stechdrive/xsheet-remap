@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { createSheetPages, standardA3SheetTemplate } from '@xsheet-remap/core'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -23,7 +24,7 @@ describe('PageAnnotationInputSurface', () => {
       setTransform: vi.fn(),
       stroke: vi.fn(),
     } as unknown as CanvasRenderingContext2D
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const requestFrame = vi.spyOn(window, 'requestAnimationFrame')
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const onAnnotation = vi.fn()
@@ -86,7 +87,7 @@ describe('PageAnnotationInputSurface', () => {
   })
 
   it('keeps the target geometry captured at pointer down for the full stroke', () => {
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const firstTarget = {
       kind: 'template-region' as const,

@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommittedAnnotationCanvas } from './CommittedAnnotationCanvas'
@@ -12,7 +13,7 @@ afterEach(() => {
 describe('CommittedAnnotationCanvas', () => {
   it('draws committed strokes into one canvas and appends across equivalent projection wrappers', () => {
     const context = mockContext()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const first = strokeItem('first', 'top_memo_area', [{ x: 0.1, y: 0.2 }, { x: 0.2, y: 0.3 }])
     const second = strokeItem('second', undefined, [{ x: 0.4, y: 0.5 }, { x: 0.6, y: 0.7 }])
     const { container, rerender } = render(
@@ -40,7 +41,7 @@ describe('CommittedAnnotationCanvas', () => {
 
   it('replays the canvas when projected target geometry changes', () => {
     const context = mockContext()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const initial = strokeItem('first', 'top_memo_area', [{ x: 0.1, y: 0.2 }])
     const moved = {
       ...initial,
@@ -66,7 +67,7 @@ describe('CommittedAnnotationCanvas', () => {
 
   it('uses immutable stroke identity and redraws when a committed stroke is replaced', () => {
     const context = mockContext()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const initial = strokeItem('first', undefined, [{ x: 0.1, y: 0.2 }])
     const replacement = strokeItem('first', undefined, [{ x: 0.1, y: 0.2 }])
     const { rerender } = render(
@@ -81,7 +82,7 @@ describe('CommittedAnnotationCanvas', () => {
 
   it('invalidates the backing store when the device pixel ratio changes', () => {
     const context = mockContext()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const pixelRatio = vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(1)
     const item = strokeItem('first', undefined, [{ x: 0.1, y: 0.2 }])
     const { container } = render(
@@ -120,7 +121,7 @@ describe('CommittedAnnotationCanvas', () => {
     }
     vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
     const context = mockContext()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const first = strokeItem('first', undefined, [{ x: 0.1, y: 0.2 }])
     const second = strokeItem('second', undefined, [{ x: 0.3, y: 0.4 }])
     const { container, rerender, unmount } = render(
@@ -181,7 +182,7 @@ describe('CommittedAnnotationCanvas', () => {
       toJSON: () => ({}),
     } as DOMRect)
     const context = mockContext()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const item = strokeItem('first', undefined, [{ x: 0.1, y: 0.2 }])
     const { container } = render(
       <CommittedAnnotationCanvas width={1000} height={800} strokes={[item]} />,

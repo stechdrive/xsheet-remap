@@ -101,6 +101,7 @@ try {
   await client.send('Input.setIgnoreInputEvents', { ignore: false })
 
   await waitForSheet()
+  checks.push('CanvasKit paper renderer is active in the desktop WebView')
   await runSheetOpsScenario(scenarioId)
 
   if (args.screenshot) await capturePageScreenshot(args.screenshot)
@@ -164,8 +165,8 @@ async function waitForSheet(): Promise<void> {
     const sheet = document.querySelector<SVGSVGElement>('svg.sheetSvg')
     if (!sheet) return false
     const box = sheet.getBoundingClientRect()
-    return box.width > 1 && box.height > 1
-  }, 'sheet SVG')
+    return box.width > 1 && box.height > 1 && sheet.dataset.canvaskitState === 'active'
+  }, 'CanvasKit paper renderer')
 }
 
 async function waitForSheetPageCount(pageCount: number): Promise<void> {

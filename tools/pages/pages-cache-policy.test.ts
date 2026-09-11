@@ -19,6 +19,7 @@ describe('Pages cache policy', () => {
     expect(classifyPagesAsset('assets/index-a1.js')).toBe('app')
     expect(classifyPagesAsset('assets/line-seed-jp-1.woff2')).toBe('runtime')
     expect(classifyPagesAsset('assets/ort-wasm-a1.wasm')).toBe('runtime')
+    expect(classifyPagesAsset('assets/canvaskit-a1.wasm')).toBe('runtime')
     expect(classifyPagesAsset('assets/opencv-a1.js')).toBe('runtime')
     expect(classifyPagesAsset('vad/models/silero_vad.onnx')).toBe('runtime')
     expect(classifyPagesAsset('sw.js')).toBe('metadata')

@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { createDefaultProject, registerSheetSource, standardA3SheetTemplate } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { correctedOutputName, correctedSheetImageExportPlan, renderCorrectedSheetImageExport, resolveTemplateUnderlayDrawRect } from './correctedSheetImageExport'
@@ -112,7 +113,7 @@ describe('corrected paper sheet image export', () => {
     const getImageData = vi.fn(() => imageData)
     const putImageData = vi.fn()
     sheetImageMocks.loadImage.mockResolvedValue(image)
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+    vi.spyOn(canvasContextPrototype(), 'getContext')
       .mockReturnValueOnce({ drawImage, getImageData } as unknown as CanvasRenderingContext2D)
       .mockReturnValueOnce({ putImageData } as unknown as CanvasRenderingContext2D)
     vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AQ==')
@@ -142,7 +143,7 @@ describe('corrected paper sheet image export', () => {
     const imageData = testImageData(100, 200, [12, 34, 56, 255])
     const drawImage = vi.fn()
     sheetImageMocks.loadImage.mockResolvedValue(image)
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+    vi.spyOn(canvasContextPrototype(), 'getContext')
       .mockReturnValueOnce({ drawImage, getImageData: vi.fn(() => imageData) } as unknown as CanvasRenderingContext2D)
       .mockReturnValueOnce({ putImageData: vi.fn() } as unknown as CanvasRenderingContext2D)
     vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AQ==')
@@ -184,7 +185,7 @@ describe('corrected paper sheet image export', () => {
       drawImage: drawFlattenedImage,
     }
     sheetImageMocks.loadImage.mockResolvedValue({} as HTMLImageElement)
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+    vi.spyOn(canvasContextPrototype(), 'getContext')
       .mockReturnValueOnce({
         drawImage: vi.fn(),
         getImageData: vi.fn(() => imageData),

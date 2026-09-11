@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDefaultProject, createSheetPages, digitalStandardSheetTemplate, projectSheetLayoutOptions, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, standardA3SheetTemplate, type RecognitionCandidate } from '@xsheet-remap/core'
 import { defaultSheetImageSettings } from './sheetImages'
@@ -49,7 +50,7 @@ describe('sheet recognition labels', () => {
     const sourceCanvas = document.createElement('canvas')
     sourceCanvas.width = standardA3SheetTemplate.page.widthPx
     sourceCanvas.height = standardA3SheetTemplate.page.heightPx
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue({
       fillStyle: '#fff',
       fillRect: vi.fn(),
       drawImage: vi.fn(),
@@ -110,7 +111,7 @@ describe('sheet recognition labels', () => {
     sourceCanvas.width = pageSize.widthPx
     sourceCanvas.height = pageSize.heightPx
     const drawImage = vi.fn()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue({
       fillStyle: '#fff',
       fillRect: vi.fn(),
       drawImage,

@@ -157,12 +157,12 @@ export async function verifySharedCutMenuControlsScenario(driver: SharedUiContro
       const menu = document.querySelector('.cutSwitchMenu.actionMenuPortalContent');
       const select = menu?.querySelector('select[aria-label="兼用カット"]');
       const add = menu?.querySelector('.cutSwitchAddButton');
-      const remove = menu?.querySelector('.cutSwitchDeleteButton');
+      const remove = menu?.querySelector('button[aria-label="現在の兼用カットを削除"]');
       if (!(select instanceof HTMLSelectElement)
         || !(add instanceof HTMLButtonElement)
         || !(remove instanceof HTMLButtonElement)
         || !add.classList.contains('cutSwitchIconButton')
-        || !remove.classList.contains('cutSwitchIconButton')
+        || !remove.classList.contains('deleteIconButton')
         || add.textContent?.trim()
         || remove.textContent?.trim()
         || document.querySelector('.processPaletteGroup, .cutSwitchControl')) return null;
@@ -200,7 +200,7 @@ export async function verifySharedCutMenuControlsScenario(driver: SharedUiContro
       const menu = document.querySelector('.cutSwitchMenu.actionMenuPortalContent');
       const select = menu?.querySelector('select[aria-label="兼用カット"]');
       const add = menu?.querySelector('.cutSwitchAddButton');
-      const remove = menu?.querySelector('.cutSwitchDeleteButton');
+      const remove = menu?.querySelector('button[aria-label="現在の兼用カットを削除"]');
       const checkbox = menu?.querySelector('input[aria-label="兼用カット名"]');
       if (!(select instanceof HTMLSelectElement)
         || !(add instanceof HTMLButtonElement)

@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.747",
+  "version": "0.1.748",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.18.0",
@@ -59,6 +59,7 @@
     "release:github:build": "npm run check:ci-preflight && npm run build:release:all && npm run release:github:update",
     "check:repo-hygiene:release": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/checks/repo-hygiene.ps1 -IncludeBuildOutput -IncludeHelperBuildOutput -IncludeLocalRelease",
     "e2e:desktop:win": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1",
+    "e2e:canvaskit": "playwright test --config tools/e2e/canvaskit/playwright.config.ts",
     "e2e:desktop:win:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Build",
     "e2e:desktop:win:full": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario full-default-a3",
     "e2e:desktop:win:full:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario full-default-a3 -Build",
@@ -126,6 +127,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.63.0",
     "@tauri-apps/cli": "^2.11.4",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.13.2",

@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '@xsheet-remap/core';
@@ -8,7 +9,7 @@ import { SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS } from './sheetTouchNavigation'
 import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openDisplaySettingsMenu, openStackGuideInsertMenu, openTimingExportDialog, openTimingTextSettingsMenu, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateTimelineLaneHeaderPoint } from './App.test-support'
 
 beforeEach(() => {
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+  vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
 })
 
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')

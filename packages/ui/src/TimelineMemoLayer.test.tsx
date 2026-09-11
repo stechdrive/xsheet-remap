@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { createSheetPages, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimelineInkMemo } from '@xsheet-remap/core'
 import { fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -251,7 +252,7 @@ describe('TimelineMemoLayer anchor cues', () => {
       setTransform: vi.fn(),
       stroke: vi.fn(),
     } as unknown as CanvasRenderingContext2D
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const requestFrame = vi.spyOn(window, 'requestAnimationFrame')
     const editorHost = document.createElement('div')
     document.body.append(editorHost)

@@ -14,11 +14,12 @@ const repoRoot = process.cwd()
 const outputRoot = path.join(repoRoot, 'apps', 'web', 'dist-pages')
 const MAX_FILES = 1000
 // Silero VADはモデルとWASMを初回音声解析時にだけ取得する。OCRは引き続きPages対象外。
-const MAX_TOTAL_BYTES = 48 * 1024 * 1024
+// CanvasKit adds one 7 MiB runtime; keep it content-revisioned alongside VAD.
+const MAX_TOTAL_BYTES = 56 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
 const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024
-const MAX_RUNTIME_WASM_BYTES = 16 * 1024 * 1024
-const MAX_RUNTIME_WASM_FILES = 1
+const MAX_RUNTIME_WASM_BYTES = 24 * 1024 * 1024
+const MAX_RUNTIME_WASM_FILES = 2
 const allowedExtensions = new Set([
   '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.json', '.mjs', '.png',
   '.onnx', '.svg', '.ttf', '.wasm', '.webmanifest', '.webp', '.woff', '.woff2',
@@ -183,6 +184,11 @@ async function verifyInventory(allFiles, serviceWorker) {
   }
   const wasmFiles = runtimeFiles.filter(record => path.extname(record.path).toLowerCase() === '.wasm')
   const wasmBytes = wasmFiles.reduce((sum, record) => sum + record.bytes, 0)
+  for (const record of wasmFiles) {
+    const limit = /\/canvaskit-[^/]+\.wasm$/.test(record.path) ? 8 * 1024 * 1024
+      : /\/ort-wasm-simd-threaded-[^/]+\.wasm$/.test(record.path) ? 16 * 1024 * 1024 : 0
+    if (!limit || record.bytes > limit) findings.push(`unexpected or excessive WASM runtime: ${record.path}`)
+  }
   if (wasmFiles.length > MAX_RUNTIME_WASM_FILES) {
     findings.push(`runtime WASM count ${wasmFiles.length} exceeds ${MAX_RUNTIME_WASM_FILES}`)
   }

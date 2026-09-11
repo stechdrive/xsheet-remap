@@ -59,7 +59,7 @@ export async function verifyMultilineMemoScenario(driver: MultilineMemoDriver): 
   await waitForPageCondition(() => document.querySelector('.timingDraftText')?.textContent === '2', 'timing draft after MEMO commit')
   await keyPress('Enter')
   await waitForEventAt('cell', 'A', 1, '2')
-  await waitForPageCondition(() => !document.querySelector(editorSelector), 'MEMO editor stayed closed during timing commit')
+  await waitForPageCondition(() => !document.querySelector('textarea[aria-label="MEMO"]'), 'MEMO editor stayed closed during timing commit')
   checks.push('kept Ctrl+Enter MEMO completion and the next numeric timing entry in the sheet keyboard scope')
 
   const layout = await evaluatePage<{

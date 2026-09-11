@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -55,7 +56,7 @@ describe('LowLatencyInkCanvas', () => {
       setTransform: vi.fn(),
       stroke: vi.fn(),
     } as unknown as CanvasRenderingContext2D
-    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    const getContext = vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
     const requestPresenter = vi.fn().mockReturnValue(new Promise(() => undefined))
     Object.defineProperty(navigator, 'ink', {
       configurable: true,
@@ -134,7 +135,7 @@ describe('LowLatencyInkCanvas', () => {
   })
 
   it('retains only the most recently used idle backing store across canvases', () => {
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
     const controllers: InkCanvasController[] = []
     const { container } = render(<>
       <InkCanvasHarness onReady={value => { controllers[0] = value }} />
@@ -170,7 +171,7 @@ describe('LowLatencyInkCanvas', () => {
   })
 
   it('requests delegated ink when the capability is exposed on a mobile browser', () => {
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
     const requestPresenter = vi.fn().mockReturnValue(new Promise(() => undefined))
     Object.defineProperty(navigator, 'ink', {
       configurable: true,
@@ -200,7 +201,7 @@ describe('LowLatencyInkCanvas', () => {
   })
 
   it('does not duplicate predicted SVG ink after delegated ink becomes ready', async () => {
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
     const presenter = { updateInkTrailStartPoint: vi.fn() }
     const requestPresenter = vi.fn().mockResolvedValue(presenter)
     Object.defineProperty(navigator, 'ink', {
@@ -238,7 +239,7 @@ describe('LowLatencyInkCanvas', () => {
   })
 
   it('keeps the Canvas fallback when delegated ink is unavailable', () => {
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
     Reflect.deleteProperty(navigator, 'ink')
 
     let controller: InkCanvasController | null = null

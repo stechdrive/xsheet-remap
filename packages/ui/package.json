@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/ui",
-  "version": "0.1.747",
+  "version": "0.1.748",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -20,6 +20,7 @@
     "@xsheet-remap/adapters": "*",
     "@xsheet-remap/core": "*",
     "@xsheet-remap/xdts": "*",
+    "canvaskit-wasm": "0.42.0",
     "mediabunny": "1.52.1",
     "onnxruntime-web": "1.27.0"
   },

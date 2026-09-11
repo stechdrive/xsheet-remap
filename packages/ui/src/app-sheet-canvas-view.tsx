@@ -1,5 +1,6 @@
 import { isRenderableSheetTemplateGridRegion, isTimelineProjectingSheetTemplateGridRegion, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, sheetGridRowY, type SheetHit } from '@xsheet-remap/core';
-import { useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
+import { useCanvasKitPaper } from './useCanvasKitPaper'
 import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
 import { getSheetPageImage } from './sheetImages';
@@ -39,12 +40,15 @@ function SheetPageSurface({
   children: (host: HTMLDivElement | null) => ReactNode
 }) {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
+  const paperRef = useRef<HTMLDivElement | null>(null)
+  const setPaperHost = useCallback((element: HTMLDivElement | null) => { paperRef.current = element; setHost(element) }, [])
+  useCanvasKitPaper(paperRef)
   return <div
     className="sheetPageSurface"
     data-page-id={pageId}
     data-sheet-interaction-owner={interactionOwner}
     style={{ width: `${width}px`, height: `${height}px` }}
-    ref={setHost}
+    ref={setPaperHost}
   >
     {children(host)}
   </div>

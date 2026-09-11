@@ -231,7 +231,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
   await clickButtonByText('完了')
   await waitForPageCondition(() => !document.querySelector('.pageAnnotationInputSurface'), 'annotation capture released')
   await mouseDoubleClick(memoPoint)
-  await waitForSelector('[role="dialog"][aria-label="MEMOを編集"]')
+  await waitForSelector('textarea[aria-label="MEMO"]')
   checks.push('released annotation ownership and restored ordinary metadata editing')
 
   async function createAnchoredMemoWithInkAndText(
@@ -423,6 +423,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
       }, 'timeline memo appearance controls update the rendered memo')
       await captureScreenshotArtifact('sound-memo-appearance-controls')
       checks.push('kept text size stable through commit and applied memo-wide text styling plus independent opacity/background controls')
+      await mouseClick(await inputPointForSelector('.annotationFloatingPalette summary[aria-label="メモの見た目"]'))
     }
     await keyPress('Escape')
     await waitForPageCondition(() => !document.querySelector('.timelineMemoSegment.selected'), `${anchorRole} memo edit closed`)

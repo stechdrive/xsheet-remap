@@ -35,6 +35,10 @@ jobs:
       - run: npm ci
       - run: npm run check:dependency-audit
       - run: npm run check
+      - name: Install paper rendering test browsers
+        run: npx playwright install chromium webkit
+      - name: Verify CanvasKit rendering and editing
+        run: npm run e2e:canvaskit
 
   build:
     runs-on: ubuntu-latest

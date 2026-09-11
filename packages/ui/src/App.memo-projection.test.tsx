@@ -1,3 +1,4 @@
+import { canvasContextPrototype } from './canvas-context.test-support'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { App } from './App'
@@ -5,7 +6,7 @@ import { openDisplaySettingsMenu, setSheetRect } from './App.test-support'
 import { uiText } from './i18n'
 
 beforeEach(() => {
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+  vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
 })
 
 afterEach(() => {

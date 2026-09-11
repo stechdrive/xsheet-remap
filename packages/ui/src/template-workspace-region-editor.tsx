@@ -1,5 +1,6 @@
 import { resolveSheetTemplateGridColumns, resolveSheetTemplateGridFrames, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
+import { useCanvasKitPaper } from './useCanvasKitPaper'
 import type { SheetImageSettings } from './appTypes'
 import { uiText } from './i18n'
 import { SHEET_ZOOM_WHEEL_FACTOR, TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
@@ -76,6 +77,7 @@ export function TemplateRegionEditor({
   const editorSvgRef = useRef<SVGSVGElement | null>(null)
   const editorClientRectRef = useRef<DOMRect | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  useCanvasKitPaper(viewportRef)
   const pendingWheelZoomRef = useRef<PendingTemplateWheelZoom | null>(null)
   const wheelZoomFrameRef = useRef<number | null>(null)
   const hoveredOverlayRef = useRef<HTMLDivElement | null>(null)

@@ -1,8 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 import { standardA3SheetTemplate, timingHitForFrame, cellRectForHit } from '../../../packages/core/src/index'
+import { waitForPaperPaint } from '../paper-paint-contract'
 
 async function active(page: Page, selector: string) {
   await expect(page.locator(selector).first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
+  await waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
 }
 async function cell(page: Page, frame: number, track = 'A') {
   const hit = timingHitForFrame(standardA3SheetTemplate, 'cell', track, frame)!
@@ -102,6 +105,67 @@ test('sheet selection, timing, hover, undo and redraw survive GPU painting', asy
   }, screenshot.toString('base64'))
   expect(paperFraction, 'the paper remains painted after scrolling and idle composition').toBeGreaterThan(0.3)
   expect(errors).toEqual([])
+})
+
+test('cell navigation reuses static paint and stays identical to a complete rebuild', async ({ page }, info) => {
+  await page.goto('/')
+  await active(page, '.sheetSvg')
+  const p = await cell(page, 1)
+  await page.mouse.click(p.x, p.y)
+  await page.mouse.move(5, 5)
+  await active(page, '.sheetSvg')
+  const source = page.locator('.sheetSvg').first()
+  const samples = []
+  const metrics = () => source.evaluate(svg => ({
+    capturedNodes: Number(svg.dataset.canvaskitCapturedNodes), reusedPictures: Number(svg.dataset.canvaskitReusedPictures),
+    captureMs: Number(svg.dataset.canvaskitCaptureMs), recordMs: Number(svg.dataset.canvaskitRecordMs),
+  }))
+  for (let step = 0; step < 6; step++) {
+    await page.keyboard.press('ArrowDown')
+    await active(page, '.sheetSvg')
+    const incremental = await metrics()
+    const before = await page.screenshot()
+    await source.evaluate((svg, value) => svg.setAttribute('data-e2e-force-rebuild', String(value)), step)
+    await active(page, '.sheetSvg')
+    const complete = await metrics()
+    expect(incremental.capturedNodes).toBeLessThan(complete.capturedNodes / 4)
+    expect(incremental.reusedPictures).toBeGreaterThan(0)
+    expect((await page.screenshot()).equals(before), 'cached and complete paint produce identical pixels').toBe(true)
+    samples.push({ incremental, complete })
+  }
+  const path = info.outputPath('navigation-performance.json')
+  await writeFile(path, JSON.stringify(samples, null, 2))
+  await info.attach('navigation-performance.json', { path, contentType: 'application/json' })
+})
+
+test('cached groups follow inherited paint, transforms, text and shared clip edits', async ({ page }) => {
+  await page.goto('/')
+  await active(page, '.sheetSvg')
+  const source = page.locator('.sheetSvg').first()
+  await source.evaluate(svg => {
+    const fragment = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">
+      <defs><clipPath id="cache-test-clip"><rect x="0.2" y="0.1" width="0.4" height="0.2" /></clipPath></defs>
+      <g id="cache-test-layer" fill="#067630" clip-path="url(#cache-test-clip)">
+        <rect x="0.2" y="0.1" width="0.4" height="0.2" />
+        <text x="0.25" y="0.15" font-size="0.02">A1</text>
+      </g></svg>`, 'image/svg+xml').documentElement
+    svg.append(...Array.from(fragment.children))
+  })
+  await active(page, '.sheetSvg')
+  for (const change of ['paint', 'transform', 'clip', 'text']) {
+    await source.evaluate((svg, change) => {
+      const layer = svg.querySelector('#cache-test-layer')!
+      if (change === 'paint') { layer.setAttribute('fill', '#d72825'); layer.setAttribute('opacity', '0.55') }
+      if (change === 'transform') layer.setAttribute('transform', 'translate(0.03 0.02)')
+      if (change === 'clip') svg.querySelector('#cache-test-clip rect')!.setAttribute('width', '0.18')
+      if (change === 'text') layer.querySelector('text')!.textContent = '作画 B2'
+    }, change)
+    await active(page, '.sheetSvg')
+    const cached = await page.screenshot()
+    await source.evaluate((svg, value) => svg.setAttribute('data-e2e-force-rebuild', value), change)
+    await active(page, '.sheetSvg')
+    expect((await page.screenshot()).equals(cached), `${change} invalidates the affected cached paint`).toBe(true)
+  }
 })
 
 test('touch taps select and edit cells in a tablet viewport', async ({ page }, info) => {

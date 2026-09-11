@@ -22,6 +22,7 @@ type Face = { url: string; range: string; weight: number; alias: string }
 /** Share the existing, content-cached font subsets with Skia; never request a CDN. */
 export class CanvasKitFonts {
   readonly provider: TypefaceFontProvider
+  revision = 0
   private faces: Face[] | null = null
   private loaded = new Map<string, Face>()
   private pending = new Map<string, Promise<void>>()
@@ -80,6 +81,7 @@ export class CanvasKitFonts {
       probe.delete()
       this.provider.registerFont(bytes, face.alias)
       this.loaded.set(face.url, face)
+      this.revision++
       this.familyCache.clear(); this.coverage.clear()
     }).finally(() => this.pending.delete(face.url))
     this.pending.set(face.url, promise)

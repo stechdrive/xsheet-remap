@@ -1,3 +1,5 @@
+import { waitForPaperPaint } from './paper-paint-contract'
+
 export interface VisualPaintContractDriver {
   evaluate<T>(expression: string): Promise<T>
   captureScreenshot(): Promise<string>
@@ -44,6 +46,7 @@ export async function assertSelectorsContributePaint(
     throw new Error(`${label} contained an empty or off-screen paint region: ${JSON.stringify(regions)}`)
   }
 
+  await waitForPaperPaint(driver, false)
   const visibleScreenshot = await driver.captureScreenshot()
   let hiddenScreenshot: string
   try {
@@ -55,11 +58,11 @@ export async function assertSelectorsContributePaint(
         document.head.append(style);
       })()
     `)
-    await waitForAnimationFrames(driver)
+    await waitForPaperPaint(driver, false)
     hiddenScreenshot = await driver.captureScreenshot()
   } finally {
     await driver.evaluate<void>(`document.getElementById('e2e-visual-paint-mask')?.remove()`)
-    await waitForAnimationFrames(driver)
+    await waitForPaperPaint(driver, false)
   }
 
   const changedPixels = await compareScreenshotRegions(driver, visibleScreenshot, hiddenScreenshot, regions)
@@ -118,8 +121,4 @@ async function compareScreenshotRegions(
       });
     })()
   `)
-}
-
-async function waitForAnimationFrames(driver: VisualPaintContractDriver): Promise<void> {
-  await driver.evaluate<void>(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`)
 }

@@ -7,6 +7,7 @@ import { CanvasKitImages } from './canvasKitImages'
 import { recordCanvasKitScene, paintCanvasKitPicture } from './canvasKitPainter'
 import { applySceneFilters, fontRangeIncludes, intersectSceneRects, scenePixelRatio, type SceneNode, type CanvasKitScene } from './canvasKitScene'
 import type { CanvasKitFonts } from './canvasKitRuntime'
+import { CanvasKitPictureCache } from './canvasKitPictureCache'
 
 const require = createRequire(import.meta.url)
 let kit: CanvasKit
@@ -17,7 +18,7 @@ beforeAll(async () => {
   kit = await init(options)
   provider = kit.TypefaceFontProvider.Make()
   provider.registerFont(readFileSync('node_modules/@fontsource/line-seed-jp/files/line-seed-jp-latin-400-normal.woff2'), 'test')
-  fonts = { provider, families: () => ['test'], supports: () => true } as unknown as CanvasKitFonts
+  fonts = { provider, families: () => ['test'], supports: () => true, revision: 0 } as unknown as CanvasKitFonts
 })
 afterAll(() => provider.delete())
 
@@ -28,9 +29,9 @@ function node(patch: Partial<SceneNode> = {}): SceneNode {
     ...patch,
   }
 }
-function render(scene: CanvasKitScene): Uint8Array {
+function render(scene: CanvasKitScene, cache?: CanvasKitPictureCache): Uint8Array {
   const images = new CanvasKitImages(kit)
-  const picture = recordCanvasKitScene(kit, fonts, images, scene)
+  const picture = recordCanvasKitScene(kit, fonts, images, scene, cache)
   const surface = kit.MakeSurface(scene.width, scene.height)!
   try {
     paintCanvasKitPicture(kit, surface.getCanvas(), picture, 0, 0, 1, 1, 1)
@@ -43,6 +44,41 @@ function render(scene: CanvasKitScene): Uint8Array {
 }
 
 describe('real CanvasKit paper paint', () => {
+  it('reuses unchanged subpictures without changing parent opacity, clipping or edited pixels', () => {
+    const grid = node({ children: [node({ shape: { kind: 'path', d: 'M 0 30 L 100 30 M 30 0 L 30 100' } })] })
+    const selection = (x: number) => node({ shape: { kind: 'rect', rect: { x, y: 20, width: 15, height: 15 }, rx: 0, ry: 0 } })
+    const scene = (x: number): CanvasKitScene => ({ width: 100, height: 100, nodes: [node({
+      opacity: 0.5, clips: [{ shape: { kind: 'rect', rect: { x: 20, y: 10, width: 60, height: 60 }, rx: 0, ry: 0 }, matrix: [1, 0, 0, 1, 0, 0] }],
+      children: [grid, selection(x)],
+    })] })
+    const cache = new CanvasKitPictureCache()
+    try {
+      expect(render(scene(25), cache)).toEqual(render(scene(25)))
+      expect(cache.recordedPictures).toBe(1)
+      expect(render(scene(50), cache)).toEqual(render(scene(50)))
+      expect(cache.reusedPictures).toBe(1)
+      expect(cache.recordedPictures).toBe(0)
+      fonts.revision++
+      expect(render(scene(50), cache)).toEqual(render(scene(50)))
+      expect(cache.recordedPictures).toBe(1)
+      cache.clear()
+      expect(render(scene(50), cache)).toEqual(render(scene(50)))
+      expect(cache.reusedPictures).toBe(0)
+    } finally { cache.clear() }
+  })
+
+  it('keeps pictures above the cache budget renderable without retaining them', () => {
+    const cache = new CanvasKitPictureCache(1)
+    const scene: CanvasKitScene = { width: 100, height: 100, nodes: [node({ children: [node({ children: [node({
+      shape: { kind: 'path', d: 'M 0 30 L 100 30' },
+    })] })] })] }
+    try {
+      expect(render(scene, cache)).toEqual(render(scene))
+      expect(render(scene, cache)).toEqual(render(scene))
+      expect(cache.reusedPictures).toBe(0)
+    } finally { cache.clear() }
+  })
+
   it('paints tiny normalized continuation lines and cubic waves without browser SVG strokes', () => {
     const pixels = render({ width: 100, height: 100, nodes: [node({
       matrix: [1000, 0, 0, 1000, 0, 0],

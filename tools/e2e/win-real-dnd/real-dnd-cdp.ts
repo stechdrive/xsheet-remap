@@ -12,6 +12,10 @@ import {
   type SheetTimingRole,
 } from '@xsheet-remap/core'
 import { verifyNameNormalizationDialogLayout } from './real-dnd-name-normalization'
+import { waitForPaperPaint } from '../paper-paint-contract'
+import { assertSelectorsContributePaint } from '../visual-paint-contract'
+import { CdpClient } from '../cdp-client'
+import { verifyNativeFileDrop } from './native-file-drop-contract'
 
 interface ClientPoint {
   x: number
@@ -33,12 +37,6 @@ interface CdpListTarget {
   webSocketDebuggerUrl?: string
 }
 
-interface CdpResponse<T = unknown> {
-  id?: number
-  result?: T
-  error?: { message: string; data?: string }
-}
-
 interface ViewportMetrics {
   screenX: number
   screenY: number
@@ -54,48 +52,6 @@ interface WindowClientMetrics {
   command: string
   client: { x: number; y: number; width: number; height: number }
   window: { left: number; top: number; right: number; bottom: number }
-}
-
-class CdpClient {
-  private nextId = 1
-  private pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
-
-  private constructor(private readonly socket: WebSocket) {
-    socket.addEventListener('message', event => {
-      const message = JSON.parse(String(event.data)) as CdpResponse
-      if (typeof message.id !== 'number') return
-      const pending = this.pending.get(message.id)
-      if (!pending) return
-      this.pending.delete(message.id)
-      if (message.error) {
-        pending.reject(new Error(`${message.error.message}${message.error.data ? `: ${message.error.data}` : ''}`))
-      } else {
-        pending.resolve(message.result)
-      }
-    })
-  }
-
-  static connect(url: string): Promise<CdpClient> {
-    return new Promise((resolve, reject) => {
-      const socket = new WebSocket(url)
-      socket.addEventListener('open', () => resolve(new CdpClient(socket)), { once: true })
-      socket.addEventListener('error', () => reject(new Error(`failed to connect CDP websocket: ${url}`)), { once: true })
-    })
-  }
-
-  send<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const id = this.nextId
-    this.nextId += 1
-    const payload = JSON.stringify({ id, method, params })
-    return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: value => resolve(value as T), reject })
-      this.socket.send(payload)
-    })
-  }
-
-  close(): void {
-    this.socket.close()
-  }
 }
 
 const execFileAsync = promisify(execFile)
@@ -128,6 +84,8 @@ try {
   await client.send('Runtime.enable')
   await client.send('Page.enable')
   await waitForSheet()
+  diagnostics.initialPaperPaint = await waitForPaperPaint({ evaluate: evaluatePage })
+  checks.push('confirmed the visible CanvasKit paper has finished painting before native input')
   await evaluatePage<void>('window.__xsheetDropDiagnostics = []')
   diagnostics.interactiveDesktop = await runMouseOpJson([
     'desktop-preflight',
@@ -273,6 +231,14 @@ try {
 
   await normalizeSelectedRegisteredCellWithRealAssetFileName('A', 'A_02.png')
   checks.push('normalized a registered cell with real material filename renaming in the desktop EXE')
+  const multiDropTarget = await clientToScreen(await assetBrowserDropPoint())
+  await runExplorerMultiDrop([
+    join(args['multi-folder'] as string, 'Multi_A1.png'),
+    join(args['multi-folder'] as string, 'Multi_A2.png'),
+  ], multiDropTarget)
+  await waitForAssetBrowserFilesMaterialized(['Multi_A1.png', 'Multi_A2.png'])
+  await captureScreenshot('explorer-multiple-files-after')
+  checks.push('dragged multiple real Explorer files and verified native delivery and both registered images')
   }
 
   const scenario = args['scenario-id'] as string
@@ -1470,25 +1436,25 @@ async function runMouseOpJson<T = unknown>(mouseArgs: string[]): Promise<T> {
 }
 
 async function runExplorerDrop(path: string, target: ScreenPoint): Promise<void> {
-  await runMouseOp([
+  diagnostics[`native-drop:${checks.length}`] = await verifyNativeFileDrop({ evaluate: evaluatePage }, [path], () => runMouseOp([
     'drag-explorer-item',
     '--path', path,
     '--allowed-root', args['allowed-root'] as string,
     '--to-x', String(target.x),
     '--to-y', String(target.y),
     '--app-pid', args['app-pid'] as string,
-  ])
+  ]))
 }
 
 async function runExplorerMultiDrop(paths: string[], target: ScreenPoint): Promise<void> {
-  await runMouseOp([
+  diagnostics[`native-multi-drop:${checks.length}`] = await verifyNativeFileDrop({ evaluate: evaluatePage }, paths, () => runMouseOp([
     'drag-explorer-items',
     ...paths.flatMap(path => ['--path', path]),
     '--allowed-root', args['allowed-root'] as string,
     '--to-x', String(target.x),
     '--to-y', String(target.y),
     '--app-pid', args['app-pid'] as string,
-  ])
+  ]))
 }
 
 async function runExplorerDropAndWait(
@@ -1535,7 +1501,7 @@ async function setSheetZoomForRealMouse(percent: number): Promise<void> {
   await waitForPageCondition(
     () => evaluatePage<boolean>(`
       (() => {
-        const value = document.querySelector('.sheetZoomFloatingPalette .zoomPaletteTrigger')?.textContent?.trim() || '';
+        const value = document.querySelector('.sheetZoomFloatingPalette .floatingHoverPaletteTrigger')?.textContent?.trim() || '';
         return value === ${JSON.stringify(zoomText)};
       })()
     `),
@@ -1546,7 +1512,7 @@ async function setSheetZoomForRealMouse(percent: number): Promise<void> {
       const svg = document.querySelector('.sheetSvg[data-page-id="page_1"]') || document.querySelector('.sheetSvg');
       const box = svg?.getBoundingClientRect();
       return {
-        value: document.querySelector('.sheetZoomFloatingPalette .zoomPaletteTrigger')?.textContent?.trim() || '',
+        value: document.querySelector('.sheetZoomFloatingPalette .floatingHoverPaletteTrigger')?.textContent?.trim() || '',
         svg: box ? { left: box.left, top: box.top, width: box.width, height: box.height } : null,
       };
     })()
@@ -1554,6 +1520,7 @@ async function setSheetZoomForRealMouse(percent: number): Promise<void> {
 }
 
 async function assetBrowserDropPoint(): Promise<ClientPoint> {
+  await waitForPaperPaint({ evaluate: evaluatePage })
   return evaluatePage<ClientPoint>(`
     (() => {
       const browser = document.querySelector('.assetBrowser');
@@ -2035,6 +2002,15 @@ async function framePoint(
 
 async function waitForAssetEventAt(role: SheetTimingRole, paperTrack: string, frame: number): Promise<void> {
   await waitForPageCondition(async () => assetEventAt(role, paperTrack, frame), `${role} ${paperTrack} ${frame} asset event`)
+  const label = `${role}-${paperTrack}-${frame}-asset-paint`
+  diagnostics[label] = await assertSelectorsContributePaint({
+    evaluate: evaluatePage,
+    captureScreenshot: captureScreenshotData,
+  }, {
+    selector: `[data-timeline-event-track="${paperTrack}"][data-timeline-event-frame="${frame}"] .assetAssignedEventMarker`,
+    expectedCount: 1, label,
+  })
+  await captureScreenshot(label)
 }
 
 async function waitForTimelineEventAt(role: SheetTimingRole, paperTrack: string, frame: number): Promise<void> {
@@ -2246,16 +2222,22 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
-async function captureScreenshot(label: string): Promise<string> {
+async function captureScreenshotData(): Promise<string> {
   if (!client) throw new Error('CDP client is not connected')
-  const fileName = `${label.replace(/[^a-z0-9_-]+/gi, '-')}.png`
-  const path = join(args['screenshot-root'] as string, fileName)
   const response = await client.send<{ data: string }>('Page.captureScreenshot', {
     format: 'png',
     fromSurface: true,
     captureBeyondViewport: false,
   })
-  await writeFile(path, Buffer.from(response.data, 'base64'))
+  return response.data
+}
+
+async function captureScreenshot(label: string): Promise<string> {
+  if (label !== 'failure') await waitForPaperPaint({ evaluate: evaluatePage })
+  const fileName = `${label.replace(/[^a-z0-9_-]+/gi, '-')}.png`
+  const path = join(args['screenshot-root'] as string, fileName)
+  const data = await captureScreenshotData()
+  await writeFile(path, Buffer.from(data, 'base64'))
   if (!screenshots.includes(path)) screenshots.push(path)
   diagnostics.screenshots = [...screenshots]
   return path

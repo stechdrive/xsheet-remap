@@ -3,6 +3,8 @@ import { CanvasKitImages } from './canvasKitImages'
 import { paintCanvasKitPicture, recordCanvasKitScene } from './canvasKitPainter'
 import { loadCanvasKit, type CanvasKitRuntime } from './canvasKitRuntime'
 import { captureSvgScene } from './canvasKitSvgScene'
+import { CanvasKitSceneCache } from './canvasKitSceneCache'
+import { CanvasKitPictureCache } from './canvasKitPictureCache'
 import { intersectSceneRects, scenePixelRatio, sceneTextRequests, type SceneRect } from './canvasKitScene'
 
 /** One visible slice per semantic surface. No full-page Retina backing allocation. */
@@ -25,15 +27,24 @@ export class CanvasKitPaperSurface {
   private resize: ResizeObserver
   private intersection: IntersectionObserver
   private hoverTarget: EventTarget | null = null
+  private sceneCache: CanvasKitSceneCache
+  private pictureCache = new CanvasKitPictureCache()
 
   constructor(private source: SVGSVGElement) {
+    this.sceneCache = new CanvasKitSceneCache(source)
     this.canvas = document.createElement('canvas')
     this.canvas.className = 'canvasKitPaperCanvas'
     this.canvas.setAttribute('aria-hidden', 'true')
     this.canvas.width = this.canvas.height = 1
     source.after(this.canvas)
     this.observer = new MutationObserver(records => {
-      if (records.some(record => !record.attributeName?.startsWith('data-canvaskit'))) this.invalidate(true)
+      const content = records.filter(record => !record.attributeName?.startsWith('data-canvaskit'))
+      if (content.length) {
+        this.sceneCache.invalidate(content)
+        this.dirty = true
+        this.failed = false
+        this.invalidate()
+      }
     })
     this.observer.observe(source, { attributes: true, childList: true, characterData: true, subtree: true })
     this.resize = new ResizeObserver(() => this.invalidate(true))
@@ -49,8 +60,10 @@ export class CanvasKitPaperSurface {
 
   invalidate(content = false) {
     if (this.disposed) return
-    if (content) { this.dirty = true; this.failed = false }
-    if (this.busy || this.frame !== null || this.failed) return
+    if (content) { this.dirty = true; this.failed = false; this.sceneCache.clear() }
+    if (this.failed) return
+    this.source.dataset.canvaskitState = 'pending'
+    if (this.busy || this.frame !== null) return
     this.frame = requestAnimationFrame(() => { this.frame = null; void this.draw() })
   }
 
@@ -84,11 +97,18 @@ export class CanvasKitPaperSurface {
       const { kit, fonts } = this.runtime
       if (this.dirty || !this.picture) {
         this.dirty = false
-        const scene = captureSvgScene(this.source)
+        const started = performance.now()
+        const scene = captureSvgScene(this.source, this.sceneCache)
+        this.source.dataset.canvaskitCaptureMs = (performance.now() - started).toFixed(2)
         this.images ??= new CanvasKitImages(kit)
         await Promise.all([fonts.ensure(sceneTextRequests(scene)), this.images.ensure(scene)])
         if (this.disposed) return
-        const picture = recordCanvasKitScene(kit, fonts, this.images, scene)
+        const recordingStarted = performance.now()
+        const picture = recordCanvasKitScene(kit, fonts, this.images, scene, this.pictureCache)
+        this.source.dataset.canvaskitRecordMs = (performance.now() - recordingStarted).toFixed(2)
+        this.source.dataset.canvaskitCapturedNodes = String(this.sceneCache.capturedNodes)
+        this.source.dataset.canvaskitReusedPictures = String(this.pictureCache.reusedPictures)
+        this.source.dataset.canvaskitRecordedPictures = String(this.pictureCache.recordedPictures)
         this.picture?.delete(); this.picture = picture
         this.width = scene.width; this.height = scene.height
         this.source.dataset.canvaskitSceneBuilds = String(Number(this.source.dataset.canvaskitSceneBuilds ?? 0) + 1)
@@ -120,7 +140,7 @@ export class CanvasKitPaperSurface {
         bounds.width / this.width, bounds.height / this.height, ratio)
       this.surface.flush()
       this.source.dataset.canvaskitReady = 'true'
-      this.source.dataset.canvaskitState = 'active'
+      this.source.dataset.canvaskitState = this.dirty ? 'pending' : 'active'
       this.canvas.hidden = false
       this.canvas.dataset.canvasKitDraws = String(Number(this.canvas.dataset.canvasKitDraws ?? 0) + 1)
     } catch (error) {
@@ -144,6 +164,7 @@ export class CanvasKitPaperSurface {
     this.restoreSource('suspended')
     this.resetGraphics()
     this.picture?.delete(); this.picture = null
+    this.pictureCache.clear(); this.sceneCache.clear()
     if (!this.busy) { this.images?.dispose(); this.images = null }
     this.canvas.width = this.canvas.height = 1
     this.dirty = true

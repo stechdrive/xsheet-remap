@@ -174,7 +174,7 @@ def main() -> int:
         allowed_root = resolved_path(args.allowed_root)
         assert_inside(source_path, allowed_root)
         start, explorer_rect, _item = explorer_item_center(source_path, args.timeout, (args.to_x, args.to_y))
-        drag_screen(start[0], start[1], args.to_x, args.to_y, args.duration)
+        drag_screen(start[0], start[1], args.to_x, args.to_y, args.duration, args.app_pid)
         time.sleep(0.4)
         if args.app_pid:
             focus_process_window(args.app_pid)
@@ -194,7 +194,7 @@ def main() -> int:
         for source_path in source_paths:
             assert_inside(source_path, allowed_root)
         start, explorer_rect, selection = explorer_items_center(source_paths, args.timeout, (args.to_x, args.to_y))
-        drag_screen(start[0], start[1], args.to_x, args.to_y, args.duration)
+        drag_screen(start[0], start[1], args.to_x, args.to_y, args.duration, args.app_pid)
         time.sleep(0.4)
         if args.app_pid:
             focus_process_window(args.app_pid)
@@ -596,7 +596,7 @@ def find_descendant_by_title(window, title: str, control_type: str):
     return None
 
 
-def drag_screen(from_x: int, from_y: int, to_x: int, to_y: int, duration: float) -> None:
+def drag_screen(from_x: int, from_y: int, to_x: int, to_y: int, duration: float, target_app_pid: int | None = None) -> None:
     steps = max(8, int(duration * 24))
     mouse.move(coords=(from_x, from_y))
     time.sleep(0.15)
@@ -608,6 +608,14 @@ def drag_screen(from_x: int, from_y: int, to_x: int, to_y: int, duration: float)
             y = round(from_y + (to_y - from_y) * ratio)
             mouse.move(coords=(x, y))
             time.sleep(max(0.01, duration / steps))
+        # OLE enters the target asynchronously; pause like a user before releasing.
+        time.sleep(0.25)
+        if target_app_pid:
+            target = win32gui.GetAncestor(win32gui.WindowFromPoint((to_x, to_y)), 2)
+            _, target_pid = win32process.GetWindowThreadProcessId(target)
+            if target_pid != target_app_pid:
+                keyboard.send_keys("{ESC}")
+                raise RuntimeError(f"E2E_ENVIRONMENT_UNAVAILABLE: drop target is covered by another window (expected PID {target_app_pid}, actual {target_pid})")
     finally:
         mouse.release(button="left", coords=(to_x, to_y))
     time.sleep(0.25)

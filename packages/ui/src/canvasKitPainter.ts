@@ -3,6 +3,7 @@ import type { CanvasKitFonts } from './canvasKitRuntime'
 import type { CanvasKitImages } from './canvasKitImages'
 import { skiaMatrix, type CanvasKitScene, type SceneNode, type SceneShape } from './canvasKitScene'
 import { drawCanvasKitText } from './canvasKitParagraph'
+import type { CanvasKitPictureCache } from './canvasKitPictureCache'
 
 export function makeScenePath(kit: CanvasKit, shape: SceneShape): Path | null {
   if (shape.kind === 'path') return shape.d ? kit.Path.MakeFromSVGString(shape.d) : null
@@ -17,7 +18,8 @@ export function makeScenePath(kit: CanvasKit, shape: SceneShape): Path | null {
   return builder.detachAndDelete()
 }
 
-export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, images: CanvasKitImages, scene: CanvasKitScene): SkPicture {
+export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, images: CanvasKitImages, scene: CanvasKitScene, cache?: CanvasKitPictureCache): SkPicture {
+  cache?.begin(scene.width, scene.height, fonts.revision)
   const recorder = new kit.PictureRecorder()
   const canvas = recorder.beginRecording(kit.XYWHRect(-32, -32, scene.width + 64, scene.height + 64))
   const paint = new kit.Paint()
@@ -57,7 +59,11 @@ export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, imag
       }
     } finally { path.delete() }
   }
-  const drawNode = (node: SceneNode) => {
+  const drawNode = (node: SceneNode, depth = 0) => {
+    if (cache && depth === 1 && (node.children.length || node.text || node.image)) {
+      cache.draw(node, canvas, () => recordCanvasKitScene(kit, fonts, images, { ...scene, nodes: [node] }))
+      return
+    }
     const saveCount = canvas.getSaveCount()
     let layerPaint: Paint | null = null
     canvas.save()
@@ -89,15 +95,15 @@ export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, imag
       }
     }
     canvas.restore()
-    node.children.forEach(drawNode)
+    node.children.forEach(child => drawNode(child, depth + 1))
     if (layer) canvas.restore()
     canvas.restore()
     } finally { layerPaint?.delete(); canvas.restoreToCount(saveCount) }
   }
   try {
-    scene.nodes.forEach(drawNode)
+    scene.nodes.forEach(node => drawNode(node))
     return recorder.finishRecordingAsPicture()
-  } finally { paint.delete(); recorder.delete() }
+  } finally { paint.delete(); recorder.delete(); cache?.finish() }
 }
 
 export function paintCanvasKitPicture(kit: CanvasKit, canvas: Canvas, picture: SkPicture, x: number, y: number, scaleX: number, scaleY: number, ratio: number) {

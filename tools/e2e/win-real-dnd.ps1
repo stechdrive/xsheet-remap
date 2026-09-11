@@ -225,6 +225,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
   testCase = $TestCase
   appMode = $AppMode
   exePath = $resolvedExePath
+  exeSha256 = (Get-FileHash -LiteralPath $resolvedExePath -Algorithm SHA256).Hash.ToLowerInvariant()
   runRoot = $runRoot
   cutFolder = $cutFolder
   directFile = Join-Path $directFileFolder "Direct_A2.png"

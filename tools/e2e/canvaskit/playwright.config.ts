@@ -5,8 +5,9 @@ export default defineConfig({
   outputDir: '../../../reference-local/canvaskit-browser',
   reporter: [['list']],
   webServer: process.env.XSHEET_BROWSER_URL ? undefined : {
-    command: 'npm run dev -w @xsheet-remap/web -- --host 127.0.0.1 --port 5178 --strictPort',
-    cwd: '../../..', url: 'http://127.0.0.1:5178', reuseExistingServer: !process.env.CI, timeout: 60_000,
+    // A built application cannot reload mid-test when version sync updates source files.
+    command: 'npm run build:web && npm run preview -w @xsheet-remap/web -- --host 127.0.0.1 --port 5178 --strictPort',
+    cwd: '../../..', url: 'http://127.0.0.1:5178', reuseExistingServer: false, timeout: 120_000,
   },
   use: { baseURL: process.env.XSHEET_BROWSER_URL || 'http://127.0.0.1:5178', viewport: { width: 1440, height: 1000 }, screenshot: 'only-on-failure', trace: 'retain-on-failure' },
   projects: [

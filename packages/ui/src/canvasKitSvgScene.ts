@@ -2,6 +2,7 @@ import {
   type CanvasKitScene, type SceneFilter, type SceneMatrix, type SceneNode,
   type ScenePaint, type SceneShape, identitySceneMatrix,
 } from './canvasKitScene'
+import type { CanvasKitSceneCache } from './canvasKitSceneCache'
 
 const numbers = (value: string | null) => (value?.trim().split(/[\s,]+/).filter(Boolean).map(Number) ?? [])
 const attribute = (node: Element, name: string, fallback = 0) => {
@@ -26,7 +27,8 @@ export function svgSceneShape(element: Element): SceneShape | undefined {
   }
 }
 
-export function captureSvgScene(root: SVGSVGElement): CanvasKitScene {
+export function captureSvgScene(root: SVGSVGElement, cache?: CanvasKitSceneCache): CanvasKitScene {
+  if (cache) cache.capturedNodes = 0
   const bounds = root.getBoundingClientRect()
   const width = root.clientWidth || bounds.width, height = root.clientHeight || bounds.height
   const rootScaleX = bounds.width / Math.max(1, width), rootScaleY = bounds.height / Math.max(1, height)
@@ -52,6 +54,8 @@ export function captureSvgScene(root: SVGSVGElement): CanvasKitScene {
     }) : []
   }
   const capture = (element: SVGElement, inheritedFilters: SceneFilter[]): SceneNode | null => {
+    const cached = cache?.get(element)
+    if (cached !== undefined) return cached
     if (['defs', 'title', 'desc', 'clipPath', 'filter'].includes(element.localName)) return null
     if (!(element instanceof SVGGraphicsElement)) throw new Error(`Unsupported paper element: ${element.localName}`)
     const style = getComputedStyle(element)
@@ -102,6 +106,7 @@ export function captureSvgScene(root: SVGSVGElement): CanvasKitScene {
       throw new Error(`Unsupported paper primitive: ${element.localName}`)
     }
     node.children = Array.from(element.children).map(child => capture(child as SVGElement, filters)).filter((child): child is SceneNode => child !== null)
+    cache?.set(element, node)
     return node
   }
   const node = capture(root, [])

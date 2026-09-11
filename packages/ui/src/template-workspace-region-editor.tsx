@@ -154,9 +154,10 @@ export function TemplateRegionEditor({
     [dragPreview, editorTemplate, hiddenRegionIds, previewDurationFrames],
   )
   const hasDragPreview = dragPreview !== null
+  const stationarySurface = hasDragPreview ? null : editorSurface
   const baseSurface = useMemo(
-    () => hasDragPreview ? buildTemplateEditorSurfaceModel(template, previewDurationFrames) : editorSurface,
-    [editorSurface, hasDragPreview, template, previewDurationFrames],
+    () => stationarySurface ?? buildTemplateEditorSurfaceModel(template, previewDurationFrames),
+    [stationarySurface, template, previewDurationFrames],
   )
   const calibrationSourceRect = dragPreview?.targetId === TEMPLATE_CALIBRATION_TARGET_ID
     ? dragPreview.rect

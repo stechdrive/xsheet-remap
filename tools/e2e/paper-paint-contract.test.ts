@@ -35,3 +35,45 @@ it('fails with renderer diagnostics when pending paint never completes', async (
   await vi.advanceTimersByTimeAsync(250)
   await pending
 })
+
+it('observes completed paint when animation frame callbacks stop arriving', async () => {
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+  let settled = false
+  const pending = waitForPaperPaint(driver, true, 1_000).then(() => { settled = true })
+  await vi.advanceTimersByTimeAsync(150)
+  expect(settled).toBe(false)
+  paper.dataset.canvaskitState = 'active'
+  await vi.advanceTimersByTimeAsync(350)
+  expect(settled).toBe(true)
+  await pending
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('still rejects incomplete paint when animation frame callbacks stop arriving', async () => {
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+  paper.dataset.canvaskitState = 'active'
+  paper.dataset.canvaskitReady = 'false'
+  const pending = waitForPaperPaint(driver, true, 350).catch(error => error)
+  await vi.advanceTimersByTimeAsync(400)
+  expect(await pending).toMatchObject({ message: expect.stringContaining('"ready":"false"') })
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('restarts stability sampling if the submitted drawing changes', async () => {
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+  paper.dataset.canvaskitState = 'active'
+  let settled = false
+  const pending = waitForPaperPaint(driver, true, 1_000).then(() => { settled = true })
+  await vi.advanceTimersByTimeAsync(250)
+  expect(settled).toBe(false)
+  document.querySelector('canvas')!.dataset.canvasKitDraws = '2'
+  await vi.advanceTimersByTimeAsync(200)
+  expect(settled).toBe(false)
+  await vi.advanceTimersByTimeAsync(100)
+  expect(settled).toBe(true)
+  await pending
+  expect(vi.getTimerCount()).toBe(0)
+})

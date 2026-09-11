@@ -3,9 +3,15 @@ export interface PaperPaintDriver { evaluate<T>(expression: string): Promise<T> 
 /** Wait for submitted Skia frames, including async font/image loads, rather than DOM presence. */
 export function waitForPaperPaint(driver: PaperPaintDriver, requirePaper = true, timeoutMs = 30_000): Promise<unknown> {
   return driver.evaluate(`new Promise((resolve, reject) => {
-    let frame, previous = '', stable = 0, last = [];
-    const finish = (error) => { clearTimeout(timer); cancelAnimationFrame(frame); error ? reject(error) : resolve(last); };
-    const timer = setTimeout(() => finish(new Error('CanvasKit paint did not settle: ' + JSON.stringify(last))), ${timeoutMs});
+    let frame, poll, previous = '', stable = 0, samples = 0, last = [], finished = false;
+    const finish = (error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer); clearTimeout(poll); cancelAnimationFrame(frame);
+      error ? reject(error) : resolve(last);
+    };
+    const timer = setTimeout(() => finish(new Error('CanvasKit paint did not settle: ' + JSON.stringify(last)
+      + ' samples=' + samples + ' stable=' + stable + ' visibility=' + document.visibilityState)), ${timeoutMs});
     const visible = source => {
       let b = source.getBoundingClientRect();
       let left = Math.max(0, b.left), top = Math.max(0, b.top), right = Math.min(innerWidth, b.right), bottom = Math.min(innerHeight, b.bottom);
@@ -19,7 +25,15 @@ export function waitForPaperPaint(driver: PaperPaintDriver, requirePaper = true,
       }
       return right > left && bottom > top;
     };
+    const schedule = () => {
+      frame = requestAnimationFrame(check);
+      // Keep observing submitted paint when animation callbacks are throttled.
+      poll = setTimeout(check, 100);
+    };
     const check = () => {
+      if (finished) return;
+      clearTimeout(poll); cancelAnimationFrame(frame);
+      samples++;
       const sources = Array.from(document.querySelectorAll('.sheetSvg, .templatePreviewSvg, .paperTimelineMoveSnapshotSvg, .templateInteractionSvg, .templateHandleSvg, .hoverCellSvg')).filter(visible);
       last = sources.map(source => {
         const canvas = source.nextElementSibling;
@@ -35,8 +49,8 @@ export function waitForPaperPaint(driver: PaperPaintDriver, requirePaper = true,
       stable = ready && signature === previous ? stable + 1 : 0;
       previous = signature;
       if (stable >= 2) { finish(); return; }
-      frame = requestAnimationFrame(check);
+      schedule();
     };
-    frame = requestAnimationFrame(check);
+    schedule();
   })`)
 }

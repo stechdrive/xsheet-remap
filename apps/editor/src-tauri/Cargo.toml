@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-editor"
-version = "0.1.752"
+version = "0.1.753"
 description = "Full digital exposure sheet editor"
 authors = ["xsheet-remap contributors"]
 license = "MIT"

@@ -3,6 +3,7 @@ import {
   type ScenePaint, type SceneShape, identitySceneMatrix,
 } from './canvasKitScene'
 import type { CanvasKitSceneCache } from './canvasKitSceneCache'
+import { compileDirectPaperModel, directPaperModel, paperStyle } from './canvasKitDirectModel'
 
 const numbers = (value: string | null) => (value?.trim().split(/[\s,]+/).filter(Boolean).map(Number) ?? [])
 const attribute = (node: Element, name: string, fallback = 0) => {
@@ -105,7 +106,14 @@ export function captureSvgScene(root: SVGSVGElement, cache?: CanvasKitSceneCache
     } else if (!node.shape && !['g', 'svg', 'a'].includes(element.localName)) {
       throw new Error(`Unsupported paper primitive: ${element.localName}`)
     }
-    node.children = Array.from(element.children).map(child => capture(child as SVGElement, filters)).filter((child): child is SceneNode => child !== null)
+    const direct = directPaperModel(element)
+    const samples = direct ? new Map(Array.from(element.querySelectorAll('[data-paper-style]'))
+      .map(sample => [sample.getAttribute('data-paper-style'), sample])) : null
+    node.children = direct ? compileDirectPaperModel(direct, matrix, key => {
+      const sample = samples?.get(key)
+      if (!sample) throw new Error(`Missing paper style sample: ${key}`)
+      return paperStyle(sample)
+    }) : Array.from(element.children).map(child => capture(child as SVGElement, filters)).filter((child): child is SceneNode => child !== null)
     cache?.set(element, node)
     return node
   }

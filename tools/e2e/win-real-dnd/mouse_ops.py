@@ -10,11 +10,13 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from pywinauto import Desktop, keyboard, mouse
 from win32api import EnumDisplayMonitors, GetMonitorInfo, GetSystemMetrics, MonitorFromPoint
 import win32gui
 import win32process
+import win32com.client
 
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
@@ -379,18 +381,19 @@ def explorer_item_center(path: Path, timeout: float, avoid_point: tuple[int, int
     while time.monotonic() < deadline:
         for window in desktop.windows(control_type="Window", visible_only=True):
             try:
-                item = find_descendant_by_title(window, name, "ListItem")
-                if item is None and not likely_explorer_window(window, parent):
+                if not explorer_window_matches_parent(window, parent):
                     continue
                 explorer_rect = place_window_away_from_point(window, avoid_point)
-                if item is None:
-                    item = find_descendant_by_title(window, name, "ListItem")
+                window.set_focus()
+                item = find_descendant_by_title(window, name, "ListItem")
                 if item is None:
                     continue
                 item.set_focus()
-                item.click_input()
-                rect = item.rectangle()
-                return (int((rect.left + rect.right) / 2), int((rect.top + rect.bottom) / 2)), explorer_rect, item
+                point = explorer_item_drag_point(window, item, name)
+                mouse.click(coords=point)
+                if not item.is_selected():
+                    raise RuntimeError("Explorer did not select the requested file before dragging")
+                return point, explorer_rect, item
             except Exception as exc:
                 last_error = exc
         time.sleep(0.25)
@@ -431,14 +434,12 @@ def explorer_items_center(paths: list[Path], timeout: float, avoid_point: tuple[
                 time.sleep(0.15)
                 if not all(item.is_selected() for item in selected_items):
                     raise RuntimeError("Explorer did not retain every requested item in its multi-selection")
-                if not all(item.is_selected() for item in selected_items):
-                    raise RuntimeError("Explorer multi-selection changed before dragging")
-                rect = selected_items[-1].rectangle()
                 selection = {
                     "windowTitle": window.window_text(),
                     "items": [item.window_text() for item in selected_items],
                 }
-                return (int((rect.left + rect.right) / 2), int((rect.top + rect.bottom) / 2)), explorer_rect, selection
+                point = explorer_item_drag_point(window, selected_items[-1], paths[-1].name)
+                return point, explorer_rect, selection
             except Exception as exc:
                 last_error = exc
         time.sleep(0.25)
@@ -529,24 +530,45 @@ def distance_sq(a: tuple[float, float], b: tuple[int, int]) -> float:
     return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
 
 
-def likely_explorer_window(window, parent: Path) -> bool:
-    try:
-        title = window.window_text() or ""
-    except Exception:
-        title = ""
-    if parent.name and parent.name.lower() in title.lower():
-        return True
-    # Explorer title text can be localized or shortened, so fall back to windows
-    # that contain the selected item in their descendant tree.
-    return bool(re.search(r"explorer|エクスプローラー", title, re.IGNORECASE))
-
-
 def explorer_window_matches_parent(window, parent: Path) -> bool:
+    # A transfer dialog or an older test folder can contain an identically named
+    # ListItem. Only a real folder window at the requested path owns this input.
+    if window.class_name() not in ("CabinetWClass", "ExploreWClass"):
+        return False
     try:
-        title = window.window_text() or ""
+        shell = win32com.client.Dispatch("Shell.Application")
+        for folder in shell.Windows():
+            if int(folder.HWND) != window.handle:
+                continue
+            location = urlsplit(str(folder.LocationURL))
+            if location.scheme != "file":
+                continue
+            path = unquote(location.path).replace("/", "\\")
+            path = ("\\\\" + location.netloc + path) if location.netloc else path.lstrip("\\")
+            if Path(path).resolve() == parent.resolve():
+                return True
     except Exception:
         return False
-    return bool(parent.name and parent.name.lower() in title.lower())
+    return False
+
+
+def explorer_item_drag_point(window, item, name: str) -> tuple[int, int]:
+    rect = item.rectangle()
+    # Details-view rows span columns and can extend beyond the visible window.
+    # Start over the file name, not an empty area at the center of the full row.
+    for label in item.descendants(control_type="Text"):
+        if label.window_text() in (name, Path(name).stem):
+            rect = label.rectangle()
+            break
+    bounds = window.rectangle()
+    left, right = max(rect.left, bounds.left + 8), min(rect.right, bounds.right - 8)
+    top, bottom = max(rect.top, bounds.top + 8), min(rect.bottom, bounds.bottom - 8)
+    if right <= left or bottom <= top:
+        raise RuntimeError("Explorer file name is outside the visible window")
+    point = (int(left + min(48, (right - left) / 2)), int((top + bottom) / 2))
+    if win32gui.GetAncestor(win32gui.WindowFromPoint(point), 2) != window.handle:
+        raise RuntimeError("E2E_ENVIRONMENT_UNAVAILABLE: the Explorer drag source is covered by another window")
+    return point
 
 
 def explorer_debug_snapshot(desktop) -> list[dict[str, object]]:

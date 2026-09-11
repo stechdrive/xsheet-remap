@@ -1,4 +1,7 @@
 import type { SheetTemplate, SheetTemplateUnderlayPlacement } from '@xsheet-remap/core'
+import { useMemo } from 'react'
+import { CanvasKitModelLayer } from './CanvasKitModelLayer'
+import { gridOverlayPaperModel, templateChromePaperModel } from './canvasKitTemplateModel'
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings } from './levelCorrection'
 import { LevelCorrectionFilterDefinition } from './LevelCorrectionFilter'
 import { levelCorrectionFilterUrl, useLevelCorrectionFilterId } from './levelCorrectionFilterModel'
@@ -82,8 +85,9 @@ export function TemplateChromeLayer({
   showLines?: boolean
   showLabels?: boolean
 }) {
+  const directModel = useMemo(() => templateChromePaperModel(model, showLines, showLabels), [model, showLines, showLabels])
   return (
-    <g className="templateChrome" aria-hidden="true">
+    <CanvasKitModelLayer className="templateChrome" ariaHidden model={directModel} fallback={() => <>
       {showLines && model.showOuterFrame && <rect className="templateOuterFrame" style={{ stroke: model.theme.ink.lines.outer }} x="0.02" y="0.019" width="0.96" height="0.952" />}
       {showLines && <g>
         {model.referenceRegions.map(region => (
@@ -134,7 +138,7 @@ export function TemplateChromeLayer({
           ))}
         </g>
       ))}
-    </g>
+    </>} />
   )
 }
 
@@ -147,8 +151,9 @@ export function GridOverlayLayer({
   showLines?: boolean
   showLabels?: boolean
 }) {
+  const directModel = useMemo(() => gridOverlayPaperModel(model, showLines, showLabels), [model, showLines, showLabels])
   return (
-    <g className={`gridOverlay gridOverlay-${model.role}`}>
+    <CanvasKitModelLayer className={`gridOverlay gridOverlay-${model.role}`} model={directModel} fallback={() => <>
       {showLines && model.backgroundBands.map(band => (
         <rect
           key={band.key}
@@ -225,7 +230,7 @@ export function GridOverlayLayer({
           {item.text}
         </SheetSvgText>
       ))}
-    </g>
+    </>} />
   )
 }
 

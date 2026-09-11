@@ -1414,7 +1414,7 @@ function assertGhostDoesNotCoverPoint(
 async function runMouseOpJson<T = unknown>(mouseArgs: string[]): Promise<T> {
   const script = fileURLToPath(new URL('./mouse_ops.py', import.meta.url))
   try {
-    const { stdout, stderr } = await execFileAsync(args.python as string, [script, ...mouseArgs], { windowsHide: false, maxBuffer: 1024 * 1024 })
+    const { stdout, stderr } = await execFileAsync(args.python as string, [script, ...mouseArgs], { windowsHide: true, maxBuffer: 1024 * 1024 })
     if (stdout.trim()) diagnostics[`mouse:${checks.length}:${mouseArgs[0]}`] = stdout.trim()
     if (stderr.trim()) diagnostics[`mouse-stderr:${checks.length}:${mouseArgs[0]}`] = stderr.trim()
     return JSON.parse(stdout.trim().split(/\r?\n/).at(-1) || '{}') as T

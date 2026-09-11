@@ -13,13 +13,19 @@ export function useCanvasKitPaper(host: RefObject<HTMLElement | null>) {
     let mount: (() => void) | null = null
     const surfaces = new Map<SVGSVGElement, CanvasKitPaperSurface>()
     const invalidate = () => surfaces.forEach(surface => surface.invalidate())
+    const onScroll = (event: Event) => {
+      // Scrolling an asset pane or another page does not move this paper.
+      if (event.target === document || event.target === window
+        || (event.target instanceof Element && event.target.contains(element))) invalidate()
+    }
     const restyle = () => surfaces.forEach(surface => surface.invalidate(true))
     const styles = new MutationObserver(restyle)
     styles.observe(document.head, { childList: true, characterData: true, subtree: true })
     styles.observe(document.documentElement, { attributes: true })
     styles.observe(document.body, { attributes: true })
     const observer = new MutationObserver(records => {
-      if (records.some(record => record.type === 'childList')) mount?.()
+      if (records.some(record => record.type === 'childList' && [...record.addedNodes, ...record.removedNodes].some(node =>
+        node instanceof Element && (node.matches(PAPER_SOURCES) || (node.childElementCount > 0 && node.querySelector(PAPER_SOURCES)))))) mount?.()
       // Ancestor transforms (including zoom and drag previews) move the cached scene.
       if (records.some(record => record.target instanceof Element && !record.target.closest('svg, .canvasKitPaperCanvas') && record.type === 'attributes')) invalidate()
     })
@@ -36,12 +42,12 @@ export function useCanvasKitPaper(host: RefObject<HTMLElement | null>) {
       mount()
       observer.observe(element, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class'] })
     }).catch(error => console.warn('[paper-renderer] Could not load CanvasKit.', error))
-    window.addEventListener('scroll', invalidate, true)
+    window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', invalidate)
     document.addEventListener('visibilitychange', invalidate)
     return () => {
       stopped = true; observer.disconnect(); styles.disconnect()
-      window.removeEventListener('scroll', invalidate, true)
+      window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', invalidate)
       document.removeEventListener('visibilitychange', invalidate)
       surfaces.forEach(surface => surface.dispose()); surfaces.clear()

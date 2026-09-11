@@ -74,6 +74,7 @@ test('sheet selection, timing, hover, undo and redraw survive GPU painting', asy
   await expect(page.locator('.hoverCellRect')).toHaveCount(0)
   await page.keyboard.press('Control+z')
   await expect(page.locator('[data-timeline-event-track="A"][data-timeline-event-frame="10"]')).toHaveCount(0)
+  await active(page, '.sheetSvg')
   const before = await page.locator('.sheetSvg').first().getAttribute('data-canvaskit-scene-builds')
   await page.mouse.move(600, 600)
   if (info.project.name === 'ipad') await page.locator('.sheetViewport').evaluate(element => element.scrollBy(0, 200))

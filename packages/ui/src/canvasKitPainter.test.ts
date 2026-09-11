@@ -8,6 +8,7 @@ import { recordCanvasKitScene, paintCanvasKitPicture } from './canvasKitPainter'
 import { applySceneFilters, fontRangeIncludes, intersectSceneRects, scenePixelRatio, type SceneNode, type CanvasKitScene } from './canvasKitScene'
 import type { CanvasKitFonts } from './canvasKitRuntime'
 import { CanvasKitPictureCache } from './canvasKitPictureCache'
+import { compileDirectPaperModel, type DirectPaperModel, type PaperStyle } from './canvasKitDirectModel'
 
 const require = createRequire(import.meta.url)
 let kit: CanvasKit
@@ -44,6 +45,38 @@ function render(scene: CanvasKitScene, cache?: CanvasKitPictureCache): Uint8Arra
 }
 
 describe('real CanvasKit paper paint', () => {
+  it('paints direct paper geometry with nonuniform transforms, inherited styles, clipping and physical text size', () => {
+    const pen = { ...node().paint, stroke: '#23804b', strokeWidth: 3, nonScaling: true, dash: [5, 3] }
+    const textPaint = { ...node().paint, fill: '#281f90', stroke: 'none' }
+    const style: PaperStyle = { paint: pen, opacity: 0.5, visible: true, family: 'test', weight: 400, italic: false, spacing: 0 }
+    const model: DirectPaperModel = {
+      pageSize: { widthPx: 1000, heightPx: 500 }, styles: {}, primitives: [
+        { style: 'pen', shape: { kind: 'path', d: 'M .1 .2 H .9' } },
+        { style: 'pen', shape: { kind: 'path', d: 'M .1 .8 H .9' } },
+        { style: 'text', opacity: 0.8, text: { value: 'A1', x: 0.5, y: 0.5, size: 90, anchor: 'middle', baseline: 'central' } },
+        { style: 'hidden', shape: { kind: 'rect', rect: { x: 0, y: 0, width: 1, height: 1 }, rx: 0, ry: 0 } },
+      ],
+    }
+    const reads = new Map<string, number>()
+    const direct = compileDirectPaperModel(model, [200, 0, 0, 100, 0, 0], key => {
+      reads.set(key, (reads.get(key) ?? 0) + 1)
+      return { ...style, visible: key !== 'hidden', paint: key === 'text' ? textPaint : pen }
+    })
+    const wrap = (children: SceneNode[]): CanvasKitScene => ({ width: 200, height: 100, nodes: [node({ children, opacity: 0.75,
+      clips: [{ shape: { kind: 'rect', rect: { x: 40, y: 0, width: 140, height: 90 }, rx: 0, ry: 0 }, matrix: [1, 0, 0, 1, 0, 0] }],
+    })] })
+    const expected = [
+      node({ matrix: [200, 0, 0, 100, 0, 0], opacity: 0.5, paint: pen, shape: { kind: 'path', d: 'M .1 .2 H .9' } }),
+      node({ matrix: [200, 0, 0, 100, 0, 0], opacity: 0.5, paint: pen, shape: { kind: 'path', d: 'M .1 .8 H .9' } }),
+      node({ matrix: [0.2, 0, 0, 0.2, 0, 0], opacity: 0.4, paint: textPaint,
+        text: { value: 'A1', x: 500, y: 250, size: 90, family: 'test', weight: 400, italic: false, anchor: 'middle', baseline: 'central', letterSpacing: 0 } }),
+    ]
+    const pixels = render(wrap(direct))
+    expect(pixels.filter((_, i) => i % 4 === 3 && pixels[i] > 0).length).toBeGreaterThan(500)
+    expect(pixels).toEqual(render(wrap(expected)))
+    expect(reads.get('pen')).toBe(1)
+  })
+
   it('reuses unchanged subpictures without changing parent opacity, clipping or edited pixels', () => {
     const grid = node({ children: [node({ shape: { kind: 'path', d: 'M 0 30 L 100 30 M 30 0 L 30 100' } })] })
     const selection = (x: number) => node({ shape: { kind: 'rect', rect: { x, y: 20, width: 15, height: 15 }, rx: 0, ry: 0 } })

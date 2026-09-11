@@ -5,9 +5,11 @@ import { loadCanvasKit, type CanvasKitRuntime } from './canvasKitRuntime'
 import { captureSvgScene } from './canvasKitSvgScene'
 import { CanvasKitSceneCache } from './canvasKitSceneCache'
 import { CanvasKitPictureCache } from './canvasKitPictureCache'
-import { intersectSceneRects, scenePixelRatio, sceneTextRequests, type SceneRect } from './canvasKitScene'
+import { intersectSceneRects, sceneTextRequests, type SceneRect } from './canvasKitScene'
+import { planPaperViewport, type PaperViewportPlan } from './canvasKitViewport'
+import { notifyPaperModel } from './canvasKitDirectModel'
 
-/** One visible slice per semantic surface. No full-page Retina backing allocation. */
+/** One bounded retained slice per semantic surface. No full-page Retina backing allocation. */
 export class CanvasKitPaperSurface {
   private canvas: HTMLCanvasElement
   private surface: Surface | null = null
@@ -21,6 +23,7 @@ export class CanvasKitPaperSurface {
   private busy = false
   private disposed = false
   private failed = false
+  private contextLost = false
   private width = 0
   private height = 0
   private observer: MutationObserver
@@ -29,6 +32,7 @@ export class CanvasKitPaperSurface {
   private hoverTarget: EventTarget | null = null
   private sceneCache: CanvasKitSceneCache
   private pictureCache = new CanvasKitPictureCache()
+  private viewportPlan: PaperViewportPlan | null = null
 
   constructor(private source: SVGSVGElement) {
     this.sceneCache = new CanvasKitSceneCache(source)
@@ -40,6 +44,7 @@ export class CanvasKitPaperSurface {
     this.observer = new MutationObserver(records => {
       const content = records.filter(record => !record.attributeName?.startsWith('data-canvaskit'))
       if (content.length) {
+        if (content.some(record => record.attributeName === 'data-paper-model-mode')) notifyPaperModel(source)
         this.sceneCache.invalidate(content)
         this.dirty = true
         this.failed = false
@@ -61,7 +66,7 @@ export class CanvasKitPaperSurface {
   invalidate(content = false) {
     if (this.disposed) return
     if (content) { this.dirty = true; this.failed = false; this.sceneCache.clear() }
-    if (this.failed) return
+    if (this.failed || this.contextLost) return
     this.source.dataset.canvaskitState = 'pending'
     if (this.busy || this.frame !== null) return
     this.frame = requestAnimationFrame(() => { this.frame = null; void this.draw() })
@@ -77,6 +82,8 @@ export class CanvasKitPaperSurface {
   }
   private onContextLost = (event: Event) => {
     event.preventDefault()
+    this.contextLost = true
+    if (this.frame !== null) { cancelAnimationFrame(this.frame); this.frame = null }
     this.restoreSource('context-lost')
     this.surface?.delete(); this.surface = null
     this.gpu?.releaseResourcesAndAbandonContext()
@@ -84,7 +91,7 @@ export class CanvasKitPaperSurface {
     if (this.context !== null && this.runtime) this.runtime.kit.deleteContext(this.context)
     this.context = null
   }
-  private onContextRestored = () => this.invalidate(true)
+  private onContextRestored = () => { this.contextLost = false; this.invalidate(true) }
 
   private async draw() {
     if (this.disposed || this.busy) return
@@ -93,8 +100,9 @@ export class CanvasKitPaperSurface {
     this.busy = true
     try {
       this.runtime ??= await loadCanvasKit()
-      if (this.disposed) return
+      if (this.disposed || this.contextLost) return
       const { kit, fonts } = this.runtime
+      let pictureChanged = false
       if (this.dirty || !this.picture) {
         this.dirty = false
         const started = performance.now()
@@ -102,7 +110,7 @@ export class CanvasKitPaperSurface {
         this.source.dataset.canvaskitCaptureMs = (performance.now() - started).toFixed(2)
         this.images ??= new CanvasKitImages(kit)
         await Promise.all([fonts.ensure(sceneTextRequests(scene)), this.images.ensure(scene)])
-        if (this.disposed) return
+        if (this.disposed || this.contextLost) return
         const recordingStarted = performance.now()
         const picture = recordCanvasKitScene(kit, fonts, this.images, scene, this.pictureCache)
         this.source.dataset.canvaskitRecordMs = (performance.now() - recordingStarted).toFixed(2)
@@ -110,14 +118,28 @@ export class CanvasKitPaperSurface {
         this.source.dataset.canvaskitReusedPictures = String(this.pictureCache.reusedPictures)
         this.source.dataset.canvaskitRecordedPictures = String(this.pictureCache.recordedPictures)
         this.picture?.delete(); this.picture = picture
+        pictureChanged = true
         this.width = scene.width; this.height = scene.height
         this.source.dataset.canvaskitSceneBuilds = String(Number(this.source.dataset.canvaskitSceneBuilds ?? 0) + 1)
       }
       const currentVisible = visiblePaperRect(this.source)
       if (!currentVisible || !this.picture) { this.release(); return }
-      const ratio = scenePixelRatio(currentVisible.width, currentVisible.height, window.devicePixelRatio || 1)
-      const backingWidth = Math.max(1, Math.ceil(currentVisible.width * ratio))
-      const backingHeight = Math.max(1, Math.ceil(currentVisible.height * ratio))
+      const bounds = this.source.getBoundingClientRect()
+      const scaleX = bounds.width / this.width, scaleY = bounds.height / this.height
+      const plan = planPaperViewport({
+        x: (currentVisible.x - bounds.left) / scaleX, y: (currentVisible.y - bounds.top) / scaleY,
+        width: currentVisible.width / scaleX, height: currentVisible.height / scaleY,
+      }, this.width, this.height, scaleX, scaleY, window.devicePixelRatio || 1, this.viewportPlan,
+      !!this.source.closest('[data-touch-pinch-preview="true"]'))
+      const retainedVisible = { x: bounds.left + plan.rect.x * scaleX, y: bounds.top + plan.rect.y * scaleY,
+        width: plan.rect.width * scaleX, height: plan.rect.height * scaleY }
+      positionPaperCanvas(this.canvas, this.source, retainedVisible)
+      if (plan === this.viewportPlan && !pictureChanged && this.surface) {
+        this.source.dataset.canvaskitState = this.dirty ? 'pending' : 'active'
+        this.source.dataset.canvaskitRetainedFrames = String(Number(this.source.dataset.canvaskitRetainedFrames ?? 0) + 1)
+        return
+      }
+      const { ratio, backingWidth, backingHeight } = plan
       if (this.canvas.width !== backingWidth || this.canvas.height !== backingHeight) {
         // Recreate the presentation target after resizing; WebKit can otherwise retain an obsolete front buffer.
         this.resetGraphics()
@@ -133,17 +155,18 @@ export class CanvasKitPaperSurface {
         this.surface = this.gpu ? kit.MakeOnScreenGLSurface(this.gpu, backingWidth, backingHeight, kit.ColorSpace.SRGB) : null
         if (!this.surface) throw new Error('GPU paper surface is unavailable')
       }
-      const bounds = this.source.getBoundingClientRect()
-      positionPaperCanvas(this.canvas, this.source, currentVisible)
+      positionPaperCanvas(this.canvas, this.source, retainedVisible)
       paintCanvasKitPicture(kit, this.surface.getCanvas(), this.picture,
-        bounds.left - currentVisible.x, bounds.top - currentVisible.y,
-        bounds.width / this.width, bounds.height / this.height, ratio)
+        -plan.rect.x * plan.scaleX, -plan.rect.y * plan.scaleY, plan.scaleX, plan.scaleY, ratio)
       this.surface.flush()
+      this.viewportPlan = plan
       this.source.dataset.canvaskitReady = 'true'
+      notifyPaperModel(this.source)
       this.source.dataset.canvaskitState = this.dirty ? 'pending' : 'active'
       this.canvas.hidden = false
       this.canvas.dataset.canvasKitDraws = String(Number(this.canvas.dataset.canvasKitDraws ?? 0) + 1)
     } catch (error) {
+      if (this.contextLost) return
       this.failed = true
       this.release()
       this.restoreSource('fallback')
@@ -157,6 +180,7 @@ export class CanvasKitPaperSurface {
 
   private restoreSource(state: string) {
     delete this.source.dataset.canvaskitReady
+    notifyPaperModel(this.source)
     this.source.dataset.canvaskitState = state
     this.canvas.hidden = true
   }
@@ -165,6 +189,7 @@ export class CanvasKitPaperSurface {
     this.resetGraphics()
     this.picture?.delete(); this.picture = null
     this.pictureCache.clear(); this.sceneCache.clear()
+    this.viewportPlan = null
     if (!this.busy) { this.images?.dispose(); this.images = null }
     this.canvas.width = this.canvas.height = 1
     this.dirty = true
@@ -227,10 +252,14 @@ function positionPaperCanvas(canvas: HTMLCanvasElement, source: SVGSVGElement, v
   const bounds = parent.getBoundingClientRect()
   const scaleX = bounds.width / Math.max(1, parent.offsetWidth)
   const scaleY = bounds.height / Math.max(1, parent.offsetHeight)
-  Object.assign(canvas.style, {
+  const style = {
     left: `${(visible.x - bounds.left) / scaleX + parent.scrollLeft - parent.clientLeft}px`,
     top: `${(visible.y - bounds.top) / scaleY + parent.scrollTop - parent.clientTop}px`,
     width: `${visible.width / scaleX}px`, height: `${visible.height / scaleY}px`,
     zIndex: getComputedStyle(source).zIndex,
-  })
+  }
+  for (const [name, value] of Object.entries(style)) {
+    const property = name as 'left' | 'top' | 'width' | 'height' | 'zIndex'
+    if (canvas.style[property] !== value) canvas.style[property] = value
+  }
 }

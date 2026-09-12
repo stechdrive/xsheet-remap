@@ -3,6 +3,9 @@ param(
   [string]$ZipPath = "",
   [string]$ChecksumPath = "",
   [string]$PackageName = "xsheet-remap",
+  [string]$ExpectedVersion = "",
+  [string]$ExpectedCommit = "",
+  [string]$BuildStatePath = "",
   [Parameter(Mandatory = $true)]
   [string]$ExpectedRootsBase64
 )
@@ -32,6 +35,10 @@ if (-not [string]::IsNullOrWhiteSpace($ZipPath)) {
   Assert-ReleaseZipInventory `
     -ArchivePath $ZipPath `
     -ExpectedRootNames $expectedRootNames
+  if ($BuildStatePath) {
+    if (-not $ExpectedVersion -or -not $ExpectedCommit) { throw "ExpectedVersion and ExpectedCommit are required with BuildStatePath" }
+    Assert-ReleaseZipBuildIdentity -ArchivePath $ZipPath -ExpectedVersion $ExpectedVersion -ExpectedCommit $ExpectedCommit -BuildStatePath $BuildStatePath
+  }
 }
 if (-not [string]::IsNullOrWhiteSpace($ChecksumPath) -and [string]::IsNullOrWhiteSpace($ZipPath)) {
   throw "ZipPath is required when ChecksumPath is provided"

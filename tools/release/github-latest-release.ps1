@@ -138,6 +138,7 @@ try {
 
   Assert-CleanWorktree
   Assert-OnMainBranch
+  $head = (Get-ExternalCommandOutput -FilePath "git" -ArgumentList @("rev-parse", "HEAD")).Text
 
   if (-not $SkipBuildArtifactCheck) {
     Assert-AssetPath -Path $releaseZipPath -ExpectedName "xsheet-remap.zip"
@@ -149,9 +150,12 @@ try {
     Assert-ReleaseZipInventory `
       -ArchivePath $releaseZipPath `
       -ExpectedRootNames $expectedPackageRootNames
+    Assert-ReleaseZipBuildIdentity `
+      -ArchivePath $releaseZipPath `
+      -ExpectedVersion $version `
+      -ExpectedCommit $head `
+      -BuildStatePath (Join-Path $repoRoot "dev-local/build-state.json")
   }
-
-  $head = (Get-ExternalCommandOutput -FilePath "git" -ArgumentList @("rev-parse", "HEAD")).Text
 
   if ($DryRun) {
     Write-Host "[github-release] dry-run: fixed release tag: $TagName"

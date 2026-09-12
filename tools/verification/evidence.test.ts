@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { describe, expect, it } from 'vitest'
 import { hashSourceFiles, reusableEvidence, sha256, verifyExecutable } from './evidence.mjs'
-import { browserProjects, selectChecks, withoutGeneratedVersion } from './plan.mjs'
+import { browserProjects, ciBrowserTestFiles, selectChecks, withoutGeneratedVersion } from './plan.mjs'
 
 describe('verification evidence and change selection', () => {
   it('identifies the same candidate before and after staging deletions, but rejects changed contents', () => {
@@ -27,10 +27,10 @@ describe('verification evidence and change selection', () => {
     expect(reusableEvidence(evidence, identity, 'browser', 'different')).toBe(false)
   })
   it('keeps web edits off native compilation but includes native, dependency and release changes', () => {
-    expect(selectChecks(['packages/ui/src/TemplateEditorApp.tsx'])).toMatchObject({ native: false, importer: false, browser: browserProjects, desktop: true })
+    expect(selectChecks(['packages/ui/src/TemplateEditorApp.tsx'])).toMatchObject({ native: false, importer: false, browser: browserProjects, ciBrowser: ciBrowserTestFiles, desktop: true })
     expect(selectChecks(['native/desktop-runtime/src/lib.rs']).native).toBe(true)
     expect(selectChecks(['package-lock.json'])).toMatchObject({ native: true, importer: true })
-    expect(selectChecks([], { release: true })).toMatchObject({ native: true, importer: true })
+    expect(selectChecks([], { release: true })).toMatchObject({ native: true, importer: true, desktop: true })
   })
   it('ignores only generated workspace versions, retaining actual dependency changes', () => {
     const first = { version: '0.1.1', packages: { '': { version: '0.1.1' }, 'apps/web': { version: '0.1.1' }, 'node_modules/dep': { version: '2.0.0' } } }

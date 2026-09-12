@@ -158,3 +158,42 @@ function Assert-ReleaseZipInventory {
     $archive.Dispose()
   }
 }
+
+function Assert-ReleaseZipBuildIdentity {
+  param(
+    [string]$ArchivePath,
+    [string]$ExpectedVersion,
+    [string]$ExpectedCommit,
+    [string]$BuildStatePath
+  )
+
+  $buildState = Get-Content -LiteralPath $BuildStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+  if ($buildState.mode -ne "coherent") { throw "release requires a coherent desktop build" }
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $archive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+  try {
+    $manifestEntries = @($archive.Entries | Where-Object { $_.FullName -eq "RELEASE.json" })
+    if ($manifestEntries.Count -ne 1) { throw "release ZIP must contain exactly one RELEASE.json" }
+    $reader = [System.IO.StreamReader]::new($manifestEntries[0].Open())
+    try { $manifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+    if ($manifest.version -ne $ExpectedVersion -or $manifest.commit -ne $ExpectedCommit) {
+      throw "release ZIP does not match the current version and commit"
+    }
+    foreach ($app in @("editor", "remap", "template", "corrector")) {
+      $record = $buildState.applications.$app
+      $name = "xsheet-$app.exe"
+      if ($record.version -ne $ExpectedVersion -or $record.commit -ne $ExpectedCommit -or
+          $record.workingTreeDirty -ne $false -or $record.executable -ne $name) {
+        throw "release build record for $name does not match the current clean commit"
+      }
+      $entries = @($archive.Entries | Where-Object { $_.FullName -eq $name })
+      if ($entries.Count -ne 1) { throw "release ZIP must contain exactly one $name" }
+      $stream = $entries[0].Open()
+      $hasher = [System.Security.Cryptography.SHA256]::Create()
+      try {
+        $actual = ($hasher.ComputeHash($stream) | ForEach-Object { $_.ToString("x2") }) -join ""
+        if ($actual -ne $record.sha256) { throw "release ZIP $name differs from the verified desktop build" }
+      } finally { $stream.Dispose(); $hasher.Dispose() }
+    }
+  } finally { $archive.Dispose() }
+}

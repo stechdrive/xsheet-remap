@@ -15,10 +15,10 @@ function command(file, argv, env = process.env) {
   if (result.error) throw result.error
   if (result.status !== 0) throw new Error(`${path.basename(file)} ${argv.join(' ')} failed (${result.status})`)
 }
-function npm(script) {
+function npm(script, argv = []) {
   const cli = process.env.npm_execpath
   if (!cli) throw new Error('Run verification through npm run verify:...')
-  command(process.execPath, [cli, 'run', script])
+  command(process.execPath, [cli, 'run', script, ...argv])
 }
 function runtimeIdentity(phase) {
   const toolVersion = (tool, argv, env = process.env) => {
@@ -48,17 +48,22 @@ if (phase === 'plan') {
 } else {
   const phases = phase === 'local' ? ['check', 'native', 'importer', 'pages', 'browser'] : [phase]
   for (const selected of phases) {
-    if (!(selected in checks) && selected !== 'browser') throw new Error(`Unknown verification phase: ${selected}`)
+    const browserPhase = selected === 'browser' || selected === 'browser-ci'
+    if (!(selected in checks) && !browserPhase) throw new Error(`Unknown verification phase: ${selected}`)
+    if (selected === 'desktop' && process.platform !== 'win32') throw new Error('Desktop acceptance requires the interactive Windows host')
     const project = option('project')
     if (project && !browserProjects.includes(project)) throw new Error(`Unknown browser project: ${project}`)
+    if (project && selected === 'browser-ci') throw new Error('CI smoke uses its fixed Chromium project')
     const name = selected === 'browser' && project ? `browser-${project}` : selected
     const reportPath = path.join(output, `${name}.json`)
     const identity = { ...sourceIdentity(root), ...runtimeIdentity(selected) }
     const manifestPath = path.join(root, 'apps/web/dist-pages/pages-artifact.json')
-    const artifactSha256 = ['browser', 'pages'].includes(selected) && fs.existsSync(manifestPath) ? sha256(fs.readFileSync(manifestPath)) : null
+    const artifactSha256 = (browserPhase || selected === 'pages') && fs.existsSync(manifestPath) ? sha256(fs.readFileSync(manifestPath)) : null
     const previous = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, 'utf8')) : null
-    if (artifactSha256 && (selected === 'browser' || args.includes('--reuse') && reusableEvidence(previous, identity, name, artifactSha256))) npm('check:pages-artifact')
-    if (args.includes('--reuse') && reusableEvidence(previous, identity, name, artifactSha256)) {
+    if (artifactSha256 && (browserPhase || args.includes('--reuse') && reusableEvidence(previous, identity, name, artifactSha256))) npm('check:pages-artifact')
+    // Native input acceptance always reruns against the current EXEs. Source
+    // equality alone cannot certify executables produced by a later build.
+    if (selected !== 'desktop' && args.includes('--reuse') && reusableEvidence(previous, identity, name, artifactSha256)) {
       console.log(`[verification] ${name}: reusing matching passed evidence (${previous.finishedAt})`)
       continue
     }
@@ -66,13 +71,20 @@ if (phase === 'plan') {
     const start = performance.now()
     fs.writeFileSync(reportPath, JSON.stringify(record, null, 2))
     try {
-      if (selected === 'browser') {
+      if (browserPhase) {
         if (!artifactSha256) throw new Error('Build the Pages candidate with npm run verify:pages first')
         const runId = `${Date.now()}-${process.pid}`
         record.results = `reference-local/verification/browser-${runId}.json`
         record.diagnostics = `reference-local/canvaskit-browser/${runId}`
-        command(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', '--config', 'tools/e2e/canvaskit/playwright.config.ts', ...(project ? [`--project=${project}`] : [])], { ...process.env, XSHEET_BROWSER_RUN_ID: runId })
+        const config = selected === 'browser-ci' ? 'playwright.ci.config.ts' : 'playwright.config.ts'
+        command(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', '--config', `tools/e2e/canvaskit/${config}`, ...(project ? [`--project=${project}`] : [])], { ...process.env, XSHEET_BROWSER_RUN_ID: runId })
         npm('check:pages-artifact')
+      } else if (selected === 'desktop') {
+        record.diagnostics = `reference-local/desktop-acceptance/${Date.now()}-${process.pid}`
+        for (const script of checks.desktop) {
+          const scenario = script.split(':').at(-1)
+          npm(script, ['--', '-ArtifactRoot', `${record.diagnostics}/${scenario}`])
+        }
       } else for (const script of checks[selected]) npm(script)
       if (sourceIdentity(root).sourceSha256 !== identity.sourceSha256) throw new Error('Source changed during verification; evidence cannot be accepted')
       record.status = 'passed'

@@ -8,16 +8,24 @@ describe('Pages publication gates', () => {
   it('accepts the actual workflow regardless of comments or display names', () => {
     expect(inspectPagesWorkflow(candidate())).toEqual([])
   })
-  it('rejects publication without successful browser checks', () => {
-    const workflow = candidate(); workflow.jobs.deploy.needs = ['check', 'native', 'build']
-    expect(inspectPagesWorkflow(workflow)).toContain('Deployment deploy must wait for browser')
+  it('rejects publication without the tested candidate build', () => {
+    const workflow = candidate(); workflow.jobs.deploy.needs = ['check', 'native']
+    expect(inspectPagesWorkflow(workflow)).toContain('Deployment deploy must wait for build')
   })
-  it('rejects testing different bytes or rebuilding after download', () => {
+  it('rejects rebuilding after smoke acceptance', () => {
     const workflow = candidate()
-    workflow.jobs.browser.steps.find(step => step.uses?.startsWith('actions/download-artifact'))!.with!.name = 'another-candidate'
-    workflow.jobs.browser.steps.push({ run: 'npm run build:web' })
-    expect(inspectPagesWorkflow(workflow)).toContain('Browser tests must download the same candidate artifact')
-    expect(inspectPagesWorkflow(workflow)).toContain('Do not rebuild the artifact inside browser jobs')
+    const smoke = workflow.jobs.build.steps.findIndex(step => step.run === 'npm run verify:browser:ci')
+    workflow.jobs.build.steps.splice(smoke + 1, 0, { run: 'npm run build:web' })
+    expect(inspectPagesWorkflow(workflow)).toContain('Do not modify the candidate between smoke acceptance and upload')
+  })
+  it('requires smoke acceptance after the build and retains full gestures locally', () => {
+    const workflow = candidate()
+    const smoke = workflow.jobs.build.steps.findIndex(step => step.run === 'npm run verify:browser:ci')
+    const [step] = workflow.jobs.build.steps.splice(smoke, 1)
+    workflow.jobs.build.steps.unshift(step)
+    workflow.jobs.build.steps.push({ run: 'npm run verify:browser -- --project=webkit-touch' })
+    expect(inspectPagesWorkflow(workflow)).toContain('Build, smoke acceptance and Pages upload must run in that order')
+    expect(inspectPagesWorkflow(workflow)).toContain('Full interaction acceptance belongs in local preflight, not the Pages CI gate')
   })
   it('does not count commented-out commands as checks', () => {
     const workflow = candidate()
@@ -28,6 +36,7 @@ describe('Pages publication gates', () => {
     const workflow = candidate()
     workflow.jobs.check.steps = workflow.jobs.check.steps.filter(step => step.run !== 'npm run check:dependency-audit')
     workflow.jobs.check.steps.find(step => step.run === 'npm run check')!.if = 'false'
+    workflow.jobs.build.steps.find(step => step.run === 'npm run verify:browser:ci')!.if = 'false'
     expect(inspectPagesWorkflow(workflow)).toContain('Dependency audit must gate publication')
     expect(inspectPagesWorkflow(workflow)).toContain('Required candidate checks cannot be conditionally skipped')
   })

@@ -11,6 +11,9 @@ const expectedScripts = {
   'build:dev': 'node tools/desktop/run-build.mjs --mode development',
   'build:release:desktop': 'node tools/desktop/run-build.mjs --mode release --target all',
   'build:release:all': 'npm run build:release:desktop && npm run build:csp-helper && npm run package:local',
+  'release:github': 'npm run check:ci-preflight && npm run verify:desktop && npm run release:github:update',
+  'release:github:build': 'npm run check:ci-preflight && npm run build:release:all && npm run verify:desktop && npm run release:github:update',
+  'verify:desktop': 'node tools/verification/run.mjs desktop',
   'check:dependency-audit': 'npm audit --audit-level=high',
   'check:embedded-dependencies': 'node tools/checks/embedded-dependency-policy.mjs',
 }
@@ -83,15 +86,17 @@ for (const requiredCall of ['Assert-ReleaseRootInventory', 'Assert-ReleaseZipInv
 }
 
 const githubReleaseScript = fs.readFileSync(path.join(repoRoot, 'tools', 'release', 'github-latest-release.ps1'), 'utf8')
-for (const requiredCall of ['Assert-ReleaseZipChecksum', 'Assert-ReleaseZipInventory']) {
+for (const requiredCall of ['Assert-ReleaseZipChecksum', 'Assert-ReleaseZipInventory', 'Assert-ReleaseZipBuildIdentity']) {
   if (!githubReleaseScript.includes(requiredCall)) {
     throw new Error(`GitHub release update must enforce ${requiredCall}`)
   }
 }
 
 const ciPreflightScript = fs.readFileSync(path.join(repoRoot, 'tools', 'checks', 'ci-preflight.ps1'), 'utf8')
-if (!ciPreflightScript.includes('"run", "check:dependency-audit"')) {
-  throw new Error('clean CI preflight must reject high-severity dependency audit findings')
+for (const gate of ['check:dependency-audit', 'verify:local']) {
+  if (!ciPreflightScript.includes(`"run", "${gate}"`)) {
+    throw new Error(`clean release preflight must include ${gate}`)
+  }
 }
 
 console.log('[build-contract] passed')

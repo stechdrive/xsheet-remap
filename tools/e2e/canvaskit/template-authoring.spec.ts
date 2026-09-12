@@ -103,7 +103,15 @@ test('hover-only handles keep a live drag, one-step undo, redo and resize cancel
   await expect(page.locator('.templateEditorRectReadout')).toHaveText(moved)
   const current = (await page.locator('.templateHandleSvg').boundingBox())!
   await page.mouse.move(current.x + current.width / 2, current.y + current.height / 2)
-  const edge = (await page.locator('.templateHandleKnob.vertical').last().boundingBox())!
+  // Redo moved the pointer outside the paper. Hover state must reveal the
+  // handles before aiming at one; boundingBox also resolves hidden SVG nodes.
+  await expect(controls).toBeVisible()
+  const knob = page.locator('.templateHandleKnob.vertical').last()
+  const edge = (await knob.boundingBox())!
+  await expect.poll(() => knob.evaluate(element => {
+    const box = element.getBoundingClientRect()
+    return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === element
+  }), { message: 'Resize input must reach the visible knob, not the paper below it' }).toBe(true)
   await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2); await page.mouse.down()
   await page.mouse.move(edge.x - 5, edge.y + edge.height / 2)
   await paint(page)

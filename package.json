@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.757",
+  "version": "0.1.758",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.18.0",
@@ -54,9 +54,9 @@
     "package:local": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/local-package.ps1",
     "build:release:all": "npm run build:release:desktop && npm run build:csp-helper && npm run package:local",
     "publish:handoff": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/publish-handoff.ps1",
-    "release:github": "npm run check:ci-preflight && npm run release:github:update",
+    "release:github": "npm run check:ci-preflight && npm run verify:desktop && npm run release:github:update",
     "release:github:update": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/github-latest-release.ps1",
-    "release:github:build": "npm run check:ci-preflight && npm run build:release:all && npm run release:github:update",
+    "release:github:build": "npm run check:ci-preflight && npm run build:release:all && npm run verify:desktop && npm run release:github:update",
     "check:repo-hygiene:release": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/checks/repo-hygiene.ps1 -IncludeBuildOutput -IncludeHelperBuildOutput -IncludeLocalRelease",
     "e2e:desktop:win": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1",
     "e2e:canvaskit": "playwright test --config tools/e2e/canvaskit/playwright.config.ts",
@@ -125,6 +125,8 @@
     "verify:importer": "node tools/verification/run.mjs importer",
     "verify:pages": "node tools/verification/run.mjs pages",
     "verify:browser": "node tools/verification/run.mjs browser",
+    "verify:browser:ci": "node tools/verification/run.mjs browser-ci",
+    "verify:desktop": "node tools/verification/run.mjs desktop",
     "verify:plan": "node tools/verification/run.mjs plan",
     "test:csp-helper": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/csp-import-helper/test.ps1"
   },

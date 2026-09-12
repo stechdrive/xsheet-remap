@@ -624,7 +624,7 @@ if (-not $SkipHelper) {
 
 $commit = ""
 try {
-  $commit = (& git -C $repoRoot rev-parse --short HEAD 2>$null).Trim()
+  $commit = (& git -C $repoRoot rev-parse HEAD 2>$null).Trim()
 } catch {
   $commit = ""
 }

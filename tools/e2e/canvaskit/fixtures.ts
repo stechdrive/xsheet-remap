@@ -5,7 +5,9 @@ export type { Page } from '@playwright/test'
 export const test = base.extend({
   page: async ({ page }, runWithPage, info) => {
     const errors: string[] = []
+    const failedRequests: Array<{ url: string; resourceType: string; error: string | null }> = []
     page.on('pageerror', error => errors.push(error.message))
+    page.on('requestfailed', request => failedRequests.push({ url: request.url(), resourceType: request.resourceType(), error: request.failure()?.errorText ?? null }))
     await page.addInitScript(() => {
       const diagnostics = { requested: 0, completed: 0, lastFrame: 0, events: [] as unknown[] }
       Object.assign(window, { __xsheetBrowserDiagnostics: diagnostics })
@@ -36,7 +38,7 @@ export const test = base.extend({
             }) })).catch(error => ({ diagnosticError: String(error) })),
           new Promise(resolve => { timer = setTimeout(() => resolve({ diagnosticError: 'page did not answer within 2s' }), 2_000) }),
         ]).finally(() => clearTimeout(timer))
-        await info.attach('input-and-frame-state', { body: JSON.stringify({ state, errors }, null, 2), contentType: 'application/json' })
+        await info.attach('input-and-frame-state', { body: JSON.stringify({ state, errors, failedRequests }, null, 2), contentType: 'application/json' })
       }
       if (info.status === info.expectedStatus) expect(errors, 'unhandled application errors').toEqual([])
     }

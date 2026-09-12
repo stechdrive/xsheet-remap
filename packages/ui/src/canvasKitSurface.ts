@@ -5,6 +5,7 @@ import { loadCanvasKit, type CanvasKitRuntime } from './canvasKitRuntime'
 import { captureSvgScene } from './canvasKitSvgScene'
 import { CanvasKitSceneCache } from './canvasKitSceneCache'
 import { CanvasKitPictureCache } from './canvasKitPictureCache'
+import { registerPaperGpu, unregisterPaperGpu } from './canvasKitResourceBudget'
 import { intersectSceneRects, sceneTextRequests, type SceneRect } from './canvasKitScene'
 import { planPaperViewport, type PaperViewportPlan } from './canvasKitViewport'
 import { notifyPaperModel } from './canvasKitDirectModel'
@@ -86,8 +87,7 @@ export class CanvasKitPaperSurface {
     if (this.frame !== null) { cancelAnimationFrame(this.frame); this.frame = null }
     this.restoreSource('context-lost')
     this.surface?.delete(); this.surface = null
-    this.gpu?.releaseResourcesAndAbandonContext()
-    this.gpu?.delete(); this.gpu = null
+    if (this.gpu) { unregisterPaperGpu(this.gpu); this.gpu.releaseResourcesAndAbandonContext(); this.gpu.delete(); this.gpu = null }
     if (this.context !== null && this.runtime) this.runtime.kit.deleteContext(this.context)
     this.context = null
   }
@@ -119,6 +119,12 @@ export class CanvasKitPaperSurface {
         this.source.dataset.canvaskitCapturedNodes = String(this.sceneCache.capturedNodes)
         this.source.dataset.canvaskitReusedPictures = String(this.pictureCache.reusedPictures)
         this.source.dataset.canvaskitRecordedPictures = String(this.pictureCache.recordedPictures)
+        this.source.dataset.canvaskitPictureBytes = String(this.pictureCache.retainedBytes)
+        this.source.dataset.canvaskitParagraphs = String(this.pictureCache.paragraphs.size)
+        this.source.dataset.canvaskitShapedParagraphs = String(this.pictureCache.paragraphs.built)
+        this.source.dataset.canvaskitReusedParagraphs = String(this.pictureCache.paragraphs.reused)
+        this.source.dataset.canvaskitImageBytes = String(this.images.imageBytes)
+        this.source.dataset.canvaskitSourceBytes = String(this.images.sourceBytes)
         this.picture?.delete(); this.picture = picture
         pictureChanged = true
         this.width = scene.width; this.height = scene.height
@@ -160,7 +166,7 @@ export class CanvasKitPaperSurface {
             this.source.dataset.canvaskitContexts = String(Number(this.source.dataset.canvaskitContexts ?? 0) + 1)
           }
           this.gpu = this.context ? kit.MakeGrContext(this.context) : null
-          this.gpu?.setResourceCacheLimitBytes(24 * 1024 * 1024)
+          if (this.gpu) registerPaperGpu(this.gpu, this.source)
         }
         this.surface = this.gpu ? kit.MakeOnScreenGLSurface(this.gpu, backingWidth, backingHeight, kit.ColorSpace.SRGB) : null
         if (!this.surface) throw new Error('GPU paper surface is unavailable')
@@ -200,13 +206,14 @@ export class CanvasKitPaperSurface {
     this.picture?.delete(); this.picture = null
     this.pictureCache.clear(); this.sceneCache.clear()
     this.viewportPlan = null
-    if (!this.busy) { this.images?.dispose(); this.images = null }
+    this.images?.dispose(); this.images = null
+    for (const field of ['canvaskitPictureBytes', 'canvaskitParagraphs', 'canvaskitImageBytes', 'canvaskitSourceBytes']) this.source.dataset[field] = '0'
     this.canvas.width = this.canvas.height = 1
     this.dirty = true
   }
   private resetGraphics() {
     this.surface?.delete(); this.surface = null
-    this.gpu?.delete(); this.gpu = null
+    if (this.gpu) { unregisterPaperGpu(this.gpu); this.gpu.delete(); this.gpu = null }
     if (this.context !== null && this.runtime) {
       this.runtime.kit.deleteContext(this.context)
       // A suspended page must not consume a browser WebGL context slot.

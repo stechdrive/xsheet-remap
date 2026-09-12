@@ -1,10 +1,11 @@
-import type { Canvas, CanvasKit } from 'canvaskit-wasm'
+import type { Canvas, CanvasKit, Paragraph } from 'canvaskit-wasm'
 import type { CanvasKitFonts } from './canvasKitRuntime'
 import type { SceneNode, SceneText } from './canvasKitScene'
 import { drawFallbackText } from './canvasKitTextFallback'
+import type { CanvasKitParagraphCache } from './canvasKitParagraphCache'
 
 /** Shape text in the shared font and preserve the readable outline of cue/memo labels. */
-export function drawCanvasKitText(kit: CanvasKit, canvas: Canvas, fonts: CanvasKitFonts, node: SceneNode, text: SceneText) {
+export function drawCanvasKitText(kit: CanvasKit, canvas: Canvas, fonts: CanvasKitFonts, node: SceneNode, text: SceneText, cache?: CanvasKitParagraphCache) {
   if (!fonts.supports(text)) { drawFallbackText(kit, canvas, node, text); return }
   const style = new kit.TextStyle({
     fontFamilies: fonts.families(text.weight), fontSize: text.size,
@@ -24,13 +25,17 @@ export function drawCanvasKitText(kit: CanvasKit, canvas: Canvas, fonts: CanvasK
       foreground.setStyle(pass === 'fill' ? kit.PaintStyle.Fill : kit.PaintStyle.Stroke)
       foreground.setStrokeWidth(node.paint.strokeWidth)
       foreground.setStrokeJoin(node.paint.join === 'round' ? kit.StrokeJoin.Round : node.paint.join === 'bevel' ? kit.StrokeJoin.Bevel : kit.StrokeJoin.Miter)
-      const builder = kit.ParagraphBuilder.MakeFromFontProvider(new kit.ParagraphStyle({ textStyle: style }), fonts.provider)
-      try {
+      const build = () => {
+        const builder = kit.ParagraphBuilder.MakeFromFontProvider(new kit.ParagraphStyle({ textStyle: style }), fonts.provider)
+        try {
         builder.pushPaintStyle(style, foreground, background)
         builder.addText(text.value)
         const paragraph = builder.build()
-        try {
           paragraph.layout(1_000_000)
+          return paragraph
+        } finally { builder.delete() }
+      }
+      const draw = (paragraph: Paragraph) => {
           const width = paragraph.getLongestLine()
           const x = text.x - (text.anchor === 'middle' ? width / 2 : text.anchor === 'end' ? width : 0)
           const baseline = paragraph.getAlphabeticBaseline()
@@ -39,8 +44,10 @@ export function drawCanvasKitText(kit: CanvasKit, canvas: Canvas, fonts: CanvasK
               : text.baseline === 'hanging' || text.baseline === 'text-before-edge' ? 0
                 : text.baseline === 'text-after-edge' ? paragraph.getHeight() : baseline)
           canvas.drawParagraph(paragraph, x, y)
-        } finally { paragraph.delete() }
-      } finally { builder.delete() }
+      }
+      if (cache) cache.use(JSON.stringify([text.value, text.size, text.family, text.weight, text.italic, text.letterSpacing,
+        pass, color, [...rgba], node.paint.strokeWidth, node.paint.join]), build, draw)
+      else { const paragraph = build(); try { draw(paragraph) } finally { paragraph.delete() } }
     }
   } finally { foreground.delete(); background.delete() }
 }

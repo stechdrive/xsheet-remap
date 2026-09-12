@@ -4,6 +4,7 @@ import type { CanvasKitImages } from './canvasKitImages'
 import { skiaMatrix, type CanvasKitScene, type SceneNode, type SceneShape } from './canvasKitScene'
 import { drawCanvasKitText } from './canvasKitParagraph'
 import type { CanvasKitPictureCache } from './canvasKitPictureCache'
+import type { CanvasKitParagraphCache } from './canvasKitParagraphCache'
 
 export function makeScenePath(kit: CanvasKit, shape: SceneShape): Path | null {
   if (shape.kind === 'path') return shape.d ? kit.Path.MakeFromSVGString(shape.d) : null
@@ -18,8 +19,8 @@ export function makeScenePath(kit: CanvasKit, shape: SceneShape): Path | null {
   return builder.detachAndDelete()
 }
 
-export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, images: CanvasKitImages, scene: CanvasKitScene, cache?: CanvasKitPictureCache): SkPicture {
-  cache?.begin(scene.width, scene.height, fonts.revision)
+export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, images: CanvasKitImages, scene: CanvasKitScene, cache?: CanvasKitPictureCache, paragraphs: CanvasKitParagraphCache | undefined = cache?.paragraphs): SkPicture {
+  cache?.begin(scene.width, scene.height, fonts.revision, scene.nodes.flatMap(node => node.children))
   const recorder = new kit.PictureRecorder()
   const canvas = recorder.beginRecording(kit.XYWHRect(-32, -32, scene.width + 64, scene.height + 64))
   const paint = new kit.Paint()
@@ -61,7 +62,7 @@ export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, imag
   }
   const drawNode = (node: SceneNode, depth = 0) => {
     if (cache && depth === 1 && (node.children.length || node.text || node.image)) {
-      cache.draw(node, canvas, () => recordCanvasKitScene(kit, fonts, images, { ...scene, nodes: [node] }))
+      cache.draw(node, canvas, () => recordCanvasKitScene(kit, fonts, images, { ...scene, nodes: [node] }, undefined, paragraphs))
       return
     }
     const saveCount = canvas.getSaveCount()
@@ -84,7 +85,7 @@ export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, imag
     }
     canvas.save(); canvas.concat(skiaMatrix(node.matrix))
     drawShape(node)
-    if (node.text) drawCanvasKitText(kit, canvas, fonts, node, node.text)
+    if (node.text) drawCanvasKitText(kit, canvas, fonts, node, node.text, paragraphs)
     if (node.image) {
       const image = images.get(node.image)
       if (image) {

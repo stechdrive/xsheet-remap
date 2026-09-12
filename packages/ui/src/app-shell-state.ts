@@ -4,6 +4,7 @@ import {
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
+import { createAudioPlayheadStore } from './audioPlayheadStore'
 import type { CameraCueClipboard, CameraCueDialogState, EditMode, ExportOperationNotice, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingEditSession, TimingExportDialogState, XdtsImportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
@@ -114,10 +115,10 @@ export function useAppShellState(appKind: MainAppKind) {
   const [sheetSelection, setSheetSelection] = useState<SheetSelection>({ kind: 'none' })
   const [dialogueAudioSelection, setDialogueAudioSelection] = useState<DialogueAudioSelectionState>(EMPTY_DIALOGUE_AUDIO_SELECTION)
   const [workspaceFocusOwner, setWorkspaceFocusOwner] = useState<WorkspaceFocusOwner>('none')
-  const [audioPlayhead, setAudioPlayhead] = useState({
+  const [audioPlayheadStore] = useState(() => createAudioPlayheadStore({
     cutId: initialWorkspace.document.activeCutId,
     frame: initialWorkspace.project.logicalSheet.frameOrigin,
-  })
+  }))
   const [soundCueNavigationRequest, setSoundCueNavigationRequest] = useState<SoundCueNavigationRequest | null>(null)
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null)
   const [sheetScrollRequest, setSheetScrollRequest] = useState<SheetScrollRequest | null>(null)
@@ -167,7 +168,7 @@ export function useAppShellState(appKind: MainAppKind) {
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     dialogueAudioSelection, setDialogueAudioSelection, workspaceFocusOwner, setWorkspaceFocusOwner,
-    audioPlayhead, setAudioPlayhead, soundCueNavigationRequest, setSoundCueNavigationRequest,
+    audioPlayheadStore, soundCueNavigationRequest, setSoundCueNavigationRequest,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
     cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog,
@@ -193,15 +194,35 @@ function createInitialWorkspace(appKind: MainAppKind): {
   }
 }
 
+const projectedHistories = new WeakMap<WorkspaceHistory, ProjectHistory>()
 function projectHistoryFromWorkspaceHistory(history: WorkspaceHistory): ProjectHistory {
-  return {
+  const cached = projectedHistories.get(history)
+  if (cached) return cached
+  const result = {
     past: history.past.map(snapshot => snapshot.project),
     present: history.present.project,
     future: history.future.map(snapshot => snapshot.project),
   }
+  projectedHistories.set(history, result)
+  return result
 }
 
 function workspaceHistoryFromProjectHistory(projectHistory: ProjectHistory, current: WorkspaceHistory): WorkspaceHistory {
+  const prior = projectHistoryFromWorkspaceHistory(current)
+  let next: WorkspaceHistory | undefined
+  if (projectHistory.present !== prior.future[0] && projectHistory.past.length === prior.past.length + 1 && projectHistory.past.at(-1) === prior.present
+    && projectHistory.future.length === 0 && prior.past.every((project, i) => projectHistory.past[i] === project)) {
+    next = { past: [...current.past, current.present], present: { project: projectHistory.present, template: current.present.template }, future: [] }
+  } else if (projectHistory.present === prior.past.at(-1) && projectHistory.past.length === prior.past.length - 1
+    && projectHistory.future[0] === prior.present && projectHistory.future.length === prior.future.length + 1
+    && projectHistory.past.every((project, i) => project === prior.past[i]) && prior.future.every((project, i) => project === projectHistory.future[i + 1])) {
+    next = { past: current.past.slice(0, -1), present: current.past.at(-1)!, future: [current.present, ...current.future] }
+  } else if (projectHistory.present === prior.future[0] && projectHistory.future.length === prior.future.length - 1
+    && projectHistory.past.at(-1) === prior.present && projectHistory.past.length === prior.past.length + 1
+    && projectHistory.future.every((project, i) => project === prior.future[i + 1]) && prior.past.every((project, i) => project === projectHistory.past[i])) {
+    next = { past: [...current.past, current.present], present: current.future[0]!, future: current.future.slice(1) }
+  }
+  if (next) { projectedHistories.set(next, projectHistory); return next }
   const templateByProject = new Map<CutProject, SheetTemplate>([
     ...current.past.map(snapshot => [snapshot.project, snapshot.template] as const),
     [current.present.project, current.present.template] as const,
@@ -211,9 +232,11 @@ function workspaceHistoryFromProjectHistory(projectHistory: ProjectHistory, curr
     project,
     template: templateByProject.get(project) ?? current.present.template,
   })
-  return {
+  next = {
     past: projectHistory.past.map(snapshot),
     present: snapshot(projectHistory.present),
     future: projectHistory.future.map(snapshot),
   }
+  projectedHistories.set(next, projectHistory)
+  return next
 }

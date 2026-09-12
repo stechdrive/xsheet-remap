@@ -455,9 +455,12 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     if (x !== contextMenu.x || y !== contextMenu.y) setContextMenu(current => current ? { ...current, x, y } : current)
   }, [contextMenu])
 
+  const publishedPlayhead = useRef<{ frame: number; listener: typeof onPlayheadChange } | null>(null)
   const setPlayhead = useCallback((frame: number) => {
     const liveFrameEnd = frameOrigin + Math.max(cutDurationFrames, cutStateRef.current.timelineDurationFrames) - 1
     const next = Math.max(frameOrigin, Math.min(liveFrameEnd, Math.round(frame)))
+    if (publishedPlayhead.current?.frame === next && publishedPlayhead.current.listener === onPlayheadChange) return
+    publishedPlayhead.current = { frame: next, listener: onPlayheadChange }
     setPlayheadFrame(next)
     onPlayheadChange(next)
   }, [cutDurationFrames, frameOrigin, onPlayheadChange])

@@ -177,6 +177,14 @@ export type TemplateGridBackgroundBandRenderModel = {
 
 export interface TemplateGridOverlayOptions extends SheetGridLayoutOptions {
   pageFrameStart?: number
+  renderWindow?: { top: number; bottom: number } | null
+}
+
+function visibleGridRows(layout: SheetGridLayout, window?: TemplateGridOverlayOptions['renderWindow']) {
+  return window ? {
+    first: Math.max(0, Math.min(layout.frames.rowCount, Math.floor((window.top - layout.rect.y) / layout.frames.rowHeight) - 2)),
+    end: Math.max(0, Math.min(layout.frames.rowCount, Math.ceil((window.bottom - layout.rect.y) / layout.frames.rowHeight) + 2)),
+  } : { first: 0, end: layout.frames.rowCount }
 }
 
 export type TemplateEditorRenderModel = {
@@ -656,16 +664,20 @@ function lineWeightWidth(weight: SheetTemplateLineStyle['weight']): number | und
 function gridLineRuleIndexes(
   rule: NonNullable<SheetTemplateGrid['lineRules']>[number],
   boundaryCount: number,
+  range = { first: 0, end: boundaryCount },
 ): number[] {
   let indexes: number[]
   if (rule.target === 'indexes') indexes = rule.indexes ?? []
-  else if (rule.target === 'inner') indexes = Array.from({ length: Math.max(0, boundaryCount - 1) }, (_, index) => index + 1)
+  else if (rule.target === 'inner') {
+    const first = Math.max(1, range.first), end = Math.min(boundaryCount - 1, range.end)
+    indexes = Array.from({ length: Math.max(0, end - first + 1) }, (_, index) => index + first)
+  }
   else if (rule.target === 'outer') indexes = boundaryCount === 0 ? [0] : [0, boundaryCount]
-  else indexes = Array.from({ length: boundaryCount + 1 }, (_, index) => index)
+  else indexes = Array.from({ length: Math.max(0, range.end - range.first + 1) }, (_, index) => index + range.first)
   const every = Math.max(1, Math.round(rule.every ?? 1))
   const offset = Math.round(rule.offset ?? 0)
   return [...new Set(indexes)]
-    .filter(index => Number.isInteger(index) && index >= 0 && index <= boundaryCount && (index - offset) % every === 0)
+    .filter(index => Number.isInteger(index) && index >= range.first && index <= range.end && index >= 0 && index <= boundaryCount && (index - offset) % every === 0)
     .sort((a, b) => a - b)
 }
 
@@ -744,11 +756,12 @@ export function buildTemplateGridOverlayRenderModel(
   const rect = layout.rect
   const pageSize = layout.pageSize
   const frames = layout.frames
+  const rows = visibleGridRows(layout, options.renderWindow)
   const rowPaths = new Map<string, TemplateGridLineSegment[]>()
   const explicitPaths: TemplateGridPathRenderModel[] = []
   const hasExplicitLineRules = region.grid.lineRules !== undefined
   if (!hasExplicitLineRules) {
-    for (let row = 0; row <= frames.rowCount; row += 1) {
+    for (let row = rows.first; row <= rows.end; row += 1) {
       const y = sheetGridRowY(layout, row)
       const className = `${gridRowLineClassName(region.grid, row)} gridLineRow`
       const segments = rowPaths.get(className) ?? []
@@ -763,7 +776,7 @@ export function buildTemplateGridOverlayRenderModel(
   if (hasExplicitLineRules) {
     for (const [ruleIndex, rule] of region.grid.lineRules!.entries()) {
       const boundaryCount = rule.axis === 'row' ? frames.rowCount : Math.max(0, columnLines.length - 1)
-      const indexes = gridLineRuleIndexes(rule, boundaryCount)
+      const indexes = gridLineRuleIndexes(rule, boundaryCount, rule.axis === 'row' ? rows : undefined)
       const orthogonalBoundaryCount = rule.axis === 'row' ? Math.max(0, columnLines.length - 1) : frames.rowCount
       const spans = gridLineRuleSpans(rule, orthogonalBoundaryCount)
       const segments = indexes.flatMap(index => spans.map(span => rule.axis === 'row'
@@ -804,7 +817,8 @@ export function buildTemplateGridOverlayRenderModel(
     const minY = rect.y + normalizedFontSize
     const maxY = rect.y + rect.h - normalizedFontSize * 0.25
     const x = rule.xAnchor === 'end' ? rect.x + rect.w - xOffset : rect.x + xOffset
-    return Array.from({ length: frames.rowCount + 1 }, (_, row) => {
+    return Array.from({ length: Math.max(0, rows.end - rows.first + 1) }, (_, index) => {
+      const row = rows.first + index
       const text = gridRowLabelText(template, frames, row, rule)
       if (text === null) return null
       const y = clampNumber(sheetGridRowY(layout, row) + yOffset, minY, maxY)
@@ -819,7 +833,7 @@ export function buildTemplateGridOverlayRenderModel(
     })
   }).filter((label): label is TemplateGridRowLabelRenderModel => label !== null) ?? []
   const frameNumbers = region.grid.role === 'action'
-    ? buildActionFrameNumberRenderModels(template, region.grid, layout, options.pageFrameStart)
+    ? buildActionFrameNumberRenderModels(template, region.grid, layout, options)
     : []
   const secondCounters = region.grid.role === 'cell' && template.style?.secondCounter?.visible
     ? buildSecondCounterRenderModels(template, region.grid, layout, options)
@@ -869,11 +883,11 @@ function buildSecondBandRenderModels(
   const frameOffset = gridTimelineFrameOffset(template, grid, options.pageFrameStart)
   const bands: TemplateGridBackgroundBandRenderModel[] = []
   let bandStartRow: number | null = null
-
-  for (let row = 0; row <= layout.frames.rowCount; row += 1) {
+  const rows = visibleGridRows(layout, options.renderWindow)
+  for (let row = rows.first; row <= rows.end; row += 1) {
     const frame = layout.frames.frameStart + frameOffset + row
     const secondIndex = Math.floor((frame - template.defaults.frameOrigin) / framesPerSecond)
-    const shaded = row < layout.frames.rowCount && normalizedModulo(secondIndex, 2) === 1
+    const shaded = row < rows.end && normalizedModulo(secondIndex, 2) === 1
     if (shaded && bandStartRow === null) {
       bandStartRow = row
       continue
@@ -1094,7 +1108,7 @@ function buildActionFrameNumberRenderModels(
   template: SheetTemplate,
   grid: SheetTemplateGrid,
   layout: SheetGridLayout,
-  pageFrameStart?: number,
+  options: TemplateGridOverlayOptions,
 ): TemplateGridCounterRenderModel[] {
   const rightEdge = layout.columns.at(-1)
     ? layout.columns.at(-1)!.x + layout.columns.at(-1)!.w
@@ -1102,9 +1116,10 @@ function buildActionFrameNumberRenderModels(
   const x = rightEdge + 2 / layout.pageSize.widthPx
   const bottomInset = 3 / layout.pageSize.heightPx
   const fontSizePx = gridCounterFontSizePx(layout)
-  const frameOffset = gridTimelineFrameOffset(template, grid, pageFrameStart)
-
-  return Array.from({ length: layout.frames.rowCount }, (_, row) => {
+  const frameOffset = gridTimelineFrameOffset(template, grid, options.pageFrameStart)
+  const rows = visibleGridRows(layout, options.renderWindow)
+  return Array.from({ length: Math.max(0, rows.end - rows.first) }, (_, index) => {
+    const row = rows.first + index
     const frame = layout.frames.frameStart + frameOffset + row
     if (frame % 2 !== 0) return null
     return {
@@ -1130,8 +1145,9 @@ function buildSecondCounterRenderModels(
   const fontSizePx = gridSecondCounterFontSizePx(layout)
   const frameOffset = gridTimelineFrameOffset(template, grid, options.pageFrameStart)
   const framesPerSecond = Math.max(1, Math.round(template.defaults.fps))
-
-  return Array.from({ length: layout.frames.rowCount }, (_, row) => {
+  const rows = visibleGridRows(layout, options.renderWindow)
+  return Array.from({ length: Math.max(0, rows.end - rows.first) }, (_, index) => {
+    const row = rows.first + index
     const boundaryFrame = layout.frames.frameStart + frameOffset + row
     const cumulativeFrames = boundaryFrame - template.defaults.frameOrigin + 1
     if (cumulativeFrames <= 0 || cumulativeFrames % framesPerSecond !== 0) return null

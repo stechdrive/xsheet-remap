@@ -17,10 +17,18 @@ import { useInlineEditorSession } from './useInlineEditorSession'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
+import { CanvasKitTextRuns } from './CanvasKitTextRuns'
 import { LowLatencyInkCanvas, useLowLatencyInkCanvas } from './LowLatencyInkCanvas'
 import { useInkStrokeSession } from './useInkStrokeSession'
 import { usePointerDragSession } from './usePointerDragSession'
 import { createTimelineMemoRenderCache, type TimelineMemoPageRenderItem } from './timelineMemoRenderModel'
+import { useVisibleSheetItems } from './useVisibleSheetItems'
+
+const memoItemKey = (item: TimelineMemoPageRenderItem) => item.memo.memoId
+function memoItemBounds(item: TimelineMemoPageRenderItem) {
+  const boxes = [...item.segments.map(segment => segment.rect), ...(item.anchorCell ? [item.anchorCell.rect] : [])]
+  return { start: Math.min(...boxes.map(rect => rect.y)), end: Math.max(...boxes.map(rect => rect.y + rect.h)) }
+}
 
 type MemoInkInteraction = {
   pointerId: number
@@ -196,13 +204,14 @@ export function TimelineMemoLayer({
     .map(memo => placementInteraction?.memo.memoId === memo.memoId
       ? { ...memo, placement: placementInteraction.previewPlacement }
       : memo), [memos, placementInteraction])
-  const renderedMemoSegments = useMemo(() => memoRenderCache.render(renderedMemos, {
+  const allMemoSegments = useMemo(() => memoRenderCache.render(renderedMemos, {
     template,
     page,
     paperTracks,
     timelineLanes,
     layoutOverrides,
   }), [layoutOverrides, memoRenderCache, page, paperTracks, renderedMemos, template, timelineLanes])
+  const renderedMemoSegments = useVisibleSheetItems(allMemoSegments, memoItemBounds, memoItemKey, selectedMemoId)
   const anchorGroups = useMemo(() => {
     const groups = new Map<string, {
       anchorCell: NonNullable<TimelineMemoPageRenderItem['anchorCell']>
@@ -447,6 +456,13 @@ export function TimelineMemoLayer({
               onPointerDown={event => begin(event, memo, segment, 'move')}
             />}
             <g className="timelineMemoTextLayer" data-memo-text-opacity={appearance.textOpacity} opacity={appearance.textOpacity} clipPath={`url(#${clipId})`}>
+              <CanvasKitTextRuns className="timelineMemoTextProjection" pageSize={pageSize} preserveNative textSpans runs={
+                (memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd
+                  && !(textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId)).flatMap(text => {
+                  const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, pageSize)
+                  return layout.lines.map((value, index) => ({ value, xPx: layout.xPx, yPx: layout.yPx + index * layout.lineHeightPx,
+                    size: layout.fontSizePx, className: 'timelineMemoText', fill: appearance.text.color, baseline: 'hanging' }))
+                })}>
               {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
                 if (textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId) return null
                 const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, pageSize)
@@ -469,6 +485,7 @@ export function TimelineMemoLayer({
                   keyPrefix={text.textId}
                 /></text>
               })}
+              </CanvasKitTextRuns>
             </g>
             {selected && <SheetSelectionOutline rect={segment.rect} className="timelineMemoBounds" />}
             {textDraft?.memoId === memo.memoId && textDraft.segment.regionId === segment.regionId && (() => {

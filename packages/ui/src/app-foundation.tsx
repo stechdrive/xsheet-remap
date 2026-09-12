@@ -351,7 +351,7 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function compareStackGuideLabelsForUi(project: CutProject) {
+export function compareStackGuideLabelsForUi(project: Parameters<typeof stackGuideGapIndex>[0]) {
   return (a: StackGuideLabel, b: StackGuideLabel): number =>
     stackGuideBandSortValue(a) - stackGuideBandSortValue(b)
     || stackGuideGapIndex(project, a) - stackGuideGapIndex(project, b)

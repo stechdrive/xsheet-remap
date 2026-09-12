@@ -1,4 +1,5 @@
 import type { TimingPasteContent, TimingPasteMode } from './appTypes'
+import type { AudioPlayheadStore } from './audioPlayheadStore'
 import type {
   AnnotationPoint,
   AnnotationStroke,
@@ -46,6 +47,7 @@ export type SheetCanvasProps = {
   recognitionCandidates: RecognitionCandidate[]
   selectedHit: SheetHit | null
   audioPlayheadFrame: number | null
+  audioPlayheadStore?: AudioPlayheadStore
   selectedSoundCueId: string | null
   selectedCameraCueId: string | null
   selectedTimelineMemoId: string | null

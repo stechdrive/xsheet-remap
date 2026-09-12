@@ -3,6 +3,7 @@ import { STANDARD_A3_GRID_HEADER_HEIGHT, STANDARD_A3_GRID_HEADER_TOP_OFFSET } fr
 import { clampNumber } from './sheetInteraction'
 import { compareStackGuideLabelsForUi } from './app-foundation'
 import { overlayBandSegments } from './app-sheet-geometry'
+import type { SheetGeometryInput } from '@xsheet-remap/core'
 import { auxiliaryLabelBottomPx, auxiliaryLabelHeaderReachPx, auxiliaryLabelMaxWidthForPage, auxiliaryLabelMetrics, auxiliaryLabelRangesOverlap, auxiliaryLabelTextLayout, type AuxiliaryLabelMetrics } from './auxiliary-label-layout'
 
 type StackGuidePreviewPlacement = {
@@ -18,7 +19,7 @@ type StackGuideSlot = { x: number; w: number; regionId?: string; paperTrack?: st
 export type { AuxiliaryLabelMetrics as StackGuideLabelMetrics } from './auxiliary-label-layout'
 export { estimatedLabelTextWidthPx } from './auxiliary-label-layout'
 
-export function overlayBandSegmentForRegion(template: SheetTemplate, project: CutProject, role: SheetTimingRole, regionId: string) {
+export function overlayBandSegmentForRegion(template: SheetTemplate, project: SheetGeometryInput, role: SheetTimingRole, regionId: string) {
   return overlayBandSegments(template, project, role).find(segment => segment.regionId === regionId) ?? null
 }
 
@@ -105,7 +106,7 @@ type StackGuideColumn = { paperTrack?: string; x?: number; w?: number }
 
 export function stackGuidePlacementsByGap(
   template: SheetTemplate,
-  project: CutProject,
+  project: SheetGeometryInput,
   labels: StackGuideLabel[],
   rect: NormalizedRect,
   pageSize: { widthPx: number; heightPx: number },
@@ -128,7 +129,7 @@ export function stackGuidePlacementsByGap(
 
 export function stackGuidePlacements(
   template: SheetTemplate,
-  project: CutProject,
+  project: SheetGeometryInput,
   labels: StackGuideLabel[],
   rect: NormalizedRect,
   pageSize: { widthPx: number; heightPx: number },
@@ -157,12 +158,12 @@ export function stackGuidePlacements(
   return placed
 }
 
-export function stackGuideVisibleGapIndex(project: CutProject, label: StackGuideLabel, columns?: Array<{ paperTrack?: string }>, templateId?: string, slots: StackGuideSlot[] = [], anchorRegionId?: string): number | null {
+export function stackGuideVisibleGapIndex(project: Pick<SheetGeometryInput, 'logicalSheet'>, label: StackGuideLabel, columns?: Array<{ paperTrack?: string }>, templateId?: string, slots: StackGuideSlot[] = [], anchorRegionId?: string): number | null {
   if (!columns) return stackGuideGapIndex(project, label)
   return stackGuideVisibleSnapIndex(label, columns, templateId, slots, anchorRegionId)
 }
 
-function compareStackGuidePlacementPriority(project: CutProject) {
+function compareStackGuidePlacementPriority(project: Pick<SheetGeometryInput, 'logicalSheet'>) {
   const fallback = compareStackGuideLabelsForUi(project)
   return (a: StackGuideLabel, b: StackGuideLabel): number =>
     fallback(a, b)

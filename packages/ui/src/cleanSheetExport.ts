@@ -109,7 +109,7 @@ type SheetExportLayer = {
 
 export type SheetExportLayerDescriptor = Omit<SheetExportLayer, 'imageData'>
 
-type SheetExportLayerContext = SheetRenderModelContext & {
+type SheetExportLayerContext = SheetRenderModelContext<CutProject> & {
   runtimeSourceImageUrls: Record<string, string>
 }
 

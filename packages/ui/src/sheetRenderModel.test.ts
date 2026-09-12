@@ -29,6 +29,33 @@ import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import type { TextMeasurementProvider } from './textMetrics'
 
 describe('sheet render model', () => {
+  it('reprojects a changed hold while retaining unrelated column geometry across edits and undo', () => {
+    let project = createOrSetEvent(createDefaultProject(), 'A', 1).project
+    project = createOrSetEvent(project, 'B', 1).project
+    project = updateSheetViewState(project, { continuationDisplay: { action: true, cell: true } })
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate)
+    const before = continuationRenderItemsForPages(context, context.pages).get('page_1')!
+    const edited = createOrSetEvent(project, 'A', 24).project
+    const after = continuationRenderItemsForPages({ ...context, project: edited }, context.pages).get('page_1')!
+    expect(after.find(item => item.paperTrack === 'A')).not.toBe(before.find(item => item.paperTrack === 'A'))
+    const oldB = before.filter(item => item.paperTrack === 'B')
+    after.filter(item => item.paperTrack === 'B').forEach((item, index) => expect(item).toBe(oldB[index]))
+    expect(continuationRenderItemsForPages(context, context.pages).get('page_1')).toEqual(before)
+  })
+  it('clips long continuation waves without changing their phase or visible cubic geometry', () => {
+    let project = updateLogicalSheetSettings(createDefaultProject(), { durationFrames: 14_400 })
+    project = updateSheetViewState(project, { continuationDisplay: { action: true, cell: true } })
+    project = setTimingSpecialEvent(project, 'A', 1, 'blank')
+    const context = createSheetRenderModelContext(project, digitalStandardSheetTemplate)
+    const full = continuationRenderItemsForPages(context, context.pages).get('page_1')!
+    const clipped = continuationRenderItemsForPages(context, context.pages, { top: 0.4, bottom: 0.41 }).get('page_1')!
+    expect(clipped.length).toBe(1)
+    expect(clipped[0]!.path.length).toBeLessThan(full[0]!.path.length / 50)
+    const fullCurves = full[0]!.path.filter(command => command.kind === 'cubic')
+    const clippedCurves = clipped[0]!.path.filter(command => command.kind === 'cubic')
+    expect(clippedCurves.length).toBeGreaterThan(1)
+    expect(clippedCurves).toEqual(fullCurves.filter(command => clippedCurves.some(candidate => candidate.y === command.y)))
+  })
   it('builds overlay column and stack-guide label items independently from canvas rendering', () => {
     const overlay = addOverlayPaperTrack(createDefaultProject(), {
       paperTrack: 'J',

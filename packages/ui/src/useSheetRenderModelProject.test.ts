@@ -64,7 +64,7 @@ describe('useSheetRenderModelProject', () => {
     rerender({ currentProject: withTiming, currentCuts: sameLabelsFromNewCutDocuments })
     expect(result.current).not.toBe(initialContext)
     expect(result.current.geometry).toBe(initialGeometry)
-    expect(result.current.project).toBe(withTiming)
+    expect(result.current.project.logicalSheet.events).toBe(withTiming.logicalSheet.events)
 
     const withDuration = updateLogicalSheetSettings(withTiming, {
       durationFrames: withTiming.logicalSheet.durationFrames + 24,
@@ -93,7 +93,7 @@ describe('useSheetRenderModelProject', () => {
     rerender({ currentProject: withAssetBinding })
 
     expect(result.current.geometry).toBe(initialGeometry)
-    expect(result.current.project).toBe(withAssetBinding)
+    expect(result.current.project.bindings).toBe(withAssetBinding.bindings)
     expect(eventRectsForPages(result.current.project, standardA3SheetTemplate, [result.current.pages[0]!])
       .get(result.current.pages[0]!.pageId)?.[0]?.hasAssetBinding).toBe(true)
   })
@@ -167,7 +167,7 @@ describe('useSheetRenderModelProject', () => {
     rerender({ currentProject: withTiming })
 
     expect(result.current.geometryProject).toBe(initialGeometryProject)
-    expect(result.current.contentProject).toBe(withTiming)
+    expect(result.current.contentProject.logicalSheet.events).toBe(withTiming.logicalSheet.events)
   })
 })
 

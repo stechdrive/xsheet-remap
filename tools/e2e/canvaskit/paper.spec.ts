@@ -57,6 +57,14 @@ test('sheet selection, timing, hover, undo and redraw survive GPU painting', asy
   await page.keyboard.press('2'); await page.keyboard.press('Enter')
   await expect(page.locator('.timingContinuationStraight').first()).toBeAttached()
   await active(page, '.sheetSvg')
+  await page.mouse.move(5, 5)
+  await active(page, '.sheetSvg')
+  const directPixels = await page.screenshot()
+  await page.locator('.sheetSvg').first().evaluate(svg => { svg.dataset.paperModelMode = 'svg' })
+  await active(page, '.sheetSvg')
+  expect((await page.screenshot()).equals(directPixels), 'timing text and holds match the SVG compatibility capture').toBe(true)
+  await page.locator('.sheetSvg').first().evaluate(svg => { delete svg.dataset.paperModelMode })
+  await active(page, '.sheetSvg')
   await contributesPixels(page, '.timingContinuationStraight')
   const blank = await cell(page, 10, 'B')
   await page.mouse.click(blank.x, blank.y)
@@ -69,7 +77,8 @@ test('sheet selection, timing, hover, undo and redraw survive GPU painting', asy
     await page.mouse.move(point.x, point.y)
   }
   await expect(page.locator('.hoverCellRect')).toHaveCount(1)
-  await active(page, '.hoverCellSvg')
+  await expect(page.locator('.hoverCellSvg')).toBeVisible()
+  expect(await page.locator('.hoverCellSvg').getAttribute('data-canvaskit-state')).toBeNull()
   await page.mouse.move(5, 5)
   await expect(page.locator('.hoverCellRect')).toHaveCount(0)
   await page.keyboard.press('Control+z')
@@ -108,7 +117,43 @@ test('sheet selection, timing, hover, undo and redraw survive GPU painting', asy
   expect(errors).toEqual([])
 })
 
-test('cell navigation reuses static paint and stays identical to a complete rebuild', async ({ page }, info) => {
+test('large image corrections reuse decoded bytes and the worker, then release resources', async ({ page }) => {
+  await page.goto('./')
+  await active(page, '.sheetSvg')
+  const workers: string[] = []
+  page.on('worker', worker => workers.push(worker.url()))
+  const source = page.locator('.sheetSvg').first()
+  const original = '0.5 0 0 0 0 0 0.5 0 0 0 0 0 0.5 0 0 0 0 0 1 0'
+  await source.evaluate((svg, matrix) => {
+    const bitmap = document.createElement('canvas'); bitmap.width = 1024; bitmap.height = 512
+    const context = bitmap.getContext('2d')!; context.fillStyle = '#ff8040'; context.fillRect(0, 0, bitmap.width, bitmap.height)
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g'); group.id = 'filter-worker-probe'
+    group.innerHTML = `<defs><filter id="filter-worker-color"><feColorMatrix type="matrix" values="${matrix}" /></filter></defs><image x="0.15" y="0.2" width="0.2" height="0.1" filter="url(#filter-worker-color)" />`
+    group.querySelector('image')!.setAttribute('href', bitmap.toDataURL())
+    svg.append(group)
+  }, original)
+  await active(page, '.sheetSvg')
+  await expect.poll(() => workers.length).toBe(1)
+  expect(workers[0]).toContain('canvasKitImageFilter.worker-')
+  const sourceBytes = Number(await source.getAttribute('data-canvaskit-source-bytes'))
+  expect(sourceBytes).toBeGreaterThan(1024 * 512 * 4)
+  expect(Number(await source.getAttribute('data-canvaskit-image-bytes'))).toBe(1024 * 512 * 4)
+  const before = await page.screenshot()
+  await source.locator('#filter-worker-color feColorMatrix').evaluate(element => element.setAttribute('values', '1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'))
+  await active(page, '.sheetSvg')
+  expect((await page.screenshot()).equals(before)).toBe(false)
+  expect(Number(await source.getAttribute('data-canvaskit-source-bytes'))).toBe(sourceBytes)
+  await source.locator('#filter-worker-color feColorMatrix').evaluate((element, matrix) => element.setAttribute('values', matrix), original)
+  await active(page, '.sheetSvg')
+  expect((await page.screenshot()).equals(before)).toBe(true)
+  expect(workers).toHaveLength(1)
+  await source.locator('#filter-worker-probe').evaluate(element => element.remove())
+  await active(page, '.sheetSvg')
+  expect(Number(await source.getAttribute('data-canvaskit-source-bytes'))).toBe(0)
+  expect(Number(await source.getAttribute('data-canvaskit-image-bytes'))).toBe(0)
+})
+
+test('cell navigation updates its overlay without rebuilding paper and matches a complete redraw', async ({ page }, info) => {
   await page.goto('./')
   await active(page, '.sheetSvg')
   const p = await cell(page, 1)
@@ -117,11 +162,24 @@ test('cell navigation reuses static paint and stays identical to a complete rebu
   await active(page, '.sheetSvg')
   const source = page.locator('.sheetSvg').first()
   const samples = []
+  await source.evaluate(svg => {
+    const records: unknown[] = []
+    Reflect.set(window, '__paperInvalidationTrace', records)
+    const observer = new MutationObserver(changes => records.push(...changes.filter(change => !change.attributeName?.startsWith('data-canvaskit')).map(change => ({
+      type: change.type, target: (change.target as Element).tagName, class: (change.target as Element).getAttribute?.('class'), attribute: change.attributeName,
+      value: change.attributeName ? (change.target as Element).getAttribute(change.attributeName) : undefined,
+    }))))
+    observer.observe(svg, { attributes: true, subtree: true, childList: true, characterData: true })
+    observer.observe(document.head, { subtree: true, childList: true, characterData: true })
+    observer.observe(document.body, { attributes: true })
+  })
   const metrics = () => source.evaluate(svg => ({
+    sceneBuilds: Number(svg.dataset.canvaskitSceneBuilds),
     capturedNodes: Number(svg.dataset.canvaskitCapturedNodes), reusedPictures: Number(svg.dataset.canvaskitReusedPictures),
     captureMs: Number(svg.dataset.canvaskitCaptureMs), recordMs: Number(svg.dataset.canvaskitRecordMs),
   }))
   for (let step = 0; step < 6; step++) {
+    const previous = await metrics()
     await page.keyboard.press('ArrowDown')
     await active(page, '.sheetSvg')
     const incremental = await metrics()
@@ -129,8 +187,11 @@ test('cell navigation reuses static paint and stays identical to a complete rebu
     await source.evaluate((svg, value) => svg.setAttribute('data-e2e-force-rebuild', String(value)), step)
     await active(page, '.sheetSvg')
     const complete = await metrics()
-    expect(incremental.capturedNodes).toBeLessThan(complete.capturedNodes / 4)
-    expect(incremental.reusedPictures).toBeGreaterThan(0)
+    if (incremental.sceneBuilds !== previous.sceneBuilds) await info.attach('paper-invalidation-trace', {
+      body: JSON.stringify(await page.evaluate(() => Reflect.get(window, '__paperInvalidationTrace'))), contentType: 'application/json',
+    })
+    expect(incremental.sceneBuilds, 'selection moves without rebuilding the base paper').toBe(previous.sceneBuilds)
+    expect(complete.sceneBuilds).toBeGreaterThan(incremental.sceneBuilds)
     expect((await page.screenshot()).equals(before), 'cached and complete paint produce identical pixels').toBe(true)
     samples.push({ incremental, complete })
   }

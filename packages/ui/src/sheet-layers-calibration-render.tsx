@@ -1,4 +1,5 @@
-import { memo, useId, useMemo, type PointerEvent } from 'react'
+import { memo, useContext, useId, useMemo, type PointerEvent } from 'react'
+import { SheetRenderWindowContext } from './useSheetRenderWindow'
 import { type CutProject, type NormalizedPoint, type SheetCalibrationPointPair, type SheetPage, type SheetTemplate, type SheetTemplateLayoutResolveOptions } from '@xsheet-remap/core'
 import { type SheetImageSettings } from './appTypes'
 import { buildTemplateChromeRenderModel, buildTemplateGridOverlayRenderModel } from './templateEditorGeometry'
@@ -156,9 +157,10 @@ export const GridOverlay = memo(function GridOverlay({
   showLines?: boolean
   showLabels?: boolean
 }) {
+  const renderWindow = useContext(SheetRenderWindowContext)
   const model = useMemo(
-    () => buildTemplateGridOverlayRenderModel(template, region, { paperTracks, timelineLanes, durationFrames, frameOrigin, pageFrameStart, layoutOverrides }),
-    [durationFrames, frameOrigin, layoutOverrides, pageFrameStart, paperTracks, region, template, timelineLanes],
+    () => buildTemplateGridOverlayRenderModel(template, region, { paperTracks, timelineLanes, durationFrames, frameOrigin, pageFrameStart, layoutOverrides, renderWindow }),
+    [durationFrames, frameOrigin, layoutOverrides, pageFrameStart, paperTracks, region, template, timelineLanes, renderWindow],
   )
   return model ? <GridOverlayLayer model={model} showLines={showLines} showLabels={showLabels} /> : null
 })

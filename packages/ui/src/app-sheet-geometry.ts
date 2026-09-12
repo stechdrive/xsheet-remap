@@ -9,6 +9,7 @@ import {
   resolveSheetTemplateGridLayout,
   timelineLanesForLayout,
   type CutProject,
+  type SheetGeometryInput,
   type NormalizedPoint,
   type PaperTrack,
   type SheetTemplate,
@@ -17,14 +18,14 @@ import {
 import { compareNaturalFileNameText } from './naturalSort'
 import { clampNumber } from './sheetInteraction'
 
-export function templatePaperTracks(project: CutProject, template?: SheetTemplate): PaperTrack[] {
+export function templatePaperTracks(project: { logicalSheet: Pick<CutProject['logicalSheet'], 'paperTracks'> }, template?: SheetTemplate): PaperTrack[] {
   const showAllLogicalTracks = template && getSheetViewLayout(template).trackAxis?.type === 'logical-width'
   return project.logicalSheet.paperTracks
     .filter(track => showAllLogicalTracks || track.source !== 'overlay')
     .sort((a, b) => a.order - b.order)
 }
 
-export function overlayPaperTracks(project: CutProject, template?: SheetTemplate): PaperTrack[] {
+export function overlayPaperTracks(project: Pick<SheetGeometryInput, 'logicalSheet'>, template?: SheetTemplate): PaperTrack[] {
   if (template && getSheetViewLayout(template).trackAxis?.type === 'logical-width') return []
   const ordered = [...project.logicalSheet.paperTracks].sort((a, b) => a.order - b.order)
   const hidden = template
@@ -110,7 +111,7 @@ export interface OverlayBandSlot {
   w: number
 }
 
-export function overlayBandSegments(template: SheetTemplate, project: CutProject, role: SheetTimingRole): OverlayBandSegment[] {
+export function overlayBandSegments(template: SheetTemplate, project: SheetGeometryInput, role: SheetTimingRole): OverlayBandSegment[] {
   const templateTrackNames = templatePaperTracks(project, template).map(track => track.paperTrack)
   const timelineLanes = timelineLanesForLayout(project)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
@@ -223,7 +224,7 @@ export function overlaySnapIndexFromSegment(x: number, segment: OverlayBandSegme
   return clampNumber(nearestIndex, 0, segment.snapCount)
 }
 
-export function overlayVisibleSnapIndex(template: SheetTemplate, project: CutProject, track: PaperTrack, segment: OverlayBandSegment): number {
+export function overlayVisibleSnapIndex(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, segment: OverlayBandSegment): number {
   const placement = track.viewPlacement
   if (!placement?.templateId || placement.templateId === template.templateId) {
     return clampNumber(Math.round(placement?.snapIndex ?? 0), 0, segment.snapCount)

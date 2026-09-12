@@ -1,5 +1,7 @@
 import { cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timelineLanesForLayout, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
 import { resolveTimingTextFontSizePx } from './sheetTextLayout'
+import { timingEventsInRange, timingKeyIndex, type TimelineEvent, type TimingKey } from '@xsheet-remap/core'
+import type { SheetContentInput, SheetGeometryInput } from '@xsheet-remap/core'
 import { clampNumber } from './sheetInteraction'
 import { overlayBandSegments, overlayPaperTracks, overlayVisibleSnapIndex, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 
@@ -11,12 +13,13 @@ export type SheetEventRectRenderItem = {
   rect: NormalizedRect
   hasAssetBinding: boolean
 }
+export type SheetEventGeometryCache = WeakMap<TimelineEvent, { item: SheetEventRectRenderItem; key: TimingKey | undefined; pageId: string }>
 
 export function eventRectsForPages(
-  project: CutProject,
+  project: SheetContentInput,
   template: SheetTemplate,
   pages: SheetPage[],
-  options: { activeOverlayPaperTrack?: string | null } = {},
+  options: { activeOverlayPaperTrack?: string | null; frameRange?: { start: number; end: number }; cache?: SheetEventGeometryCache } = {},
 ): Map<string, SheetEventRectRenderItem[]> {
   const result = new Map(pages.map(page => [page.pageId, [] as SheetEventRectRenderItem[]]))
   if (pages.length === 0 || project.logicalSheet.events.length === 0) return result
@@ -27,7 +30,7 @@ export function eventRectsForPages(
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const pageById = new Map(pages.map(page => [page.pageId, page]))
-  const keyById = new Map(project.logicalSheet.keys.map(key => [key.keyId, key]))
+  const keyById = timingKeyIndex(project.logicalSheet.keys)
   const trackByName = new Map(project.logicalSheet.paperTracks.map(track => [track.paperTrack, track]))
   const assetBoundKeyIds = new Set(project.bindings.filter(binding => Boolean(binding.assetId)).map(binding => binding.keyId))
   const activeOverlayTrack = options.activeOverlayPaperTrack
@@ -38,9 +41,16 @@ export function eventRectsForPages(
     activeOverlayTrack?.source === 'overlay' ? overlayColumnRectForPage(template, project, activeOverlayTrack, page) : null,
   ]))
 
-  for (const event of project.logicalSheet.events) {
+  const candidates = pages.flatMap(page => timingEventsInRange(project.logicalSheet.events,
+    Math.max(page.frameStart, options.frameRange?.start ?? page.frameStart), Math.min(page.frameEnd, options.frameRange?.end ?? page.frameEnd)))
+  for (const event of candidates) {
     const key = keyById.get(event.keyId)
     if (!key && !isSpecialTimingEvent(event)) continue
+    const cached = options.cache?.get(event)
+    if (cached && cached.key === key && cached.item.hasAssetBinding === assetBoundKeyIds.has(event.keyId)) {
+      result.get(cached.pageId)?.push(cached.item)
+      continue
+    }
     const eventKind = timingEventValueKind(event)
     const displayLabel = eventKind === 'cell' ? key?.displayLabel ?? '' : ''
     const sheetRole = sheetTimingRoleForEvent(event)
@@ -66,14 +76,16 @@ export function eventRectsForPages(
     }
 
     if (!page || !rect || shouldSuppressRectUnderActiveOverlay(track, rect, activeOverlayColumnByPage.get(page.pageId) ?? null)) continue
-    result.get(page.pageId)?.push({
+    const item = {
       event,
       eventKind,
       displayLabel,
       fontSizePx,
       rect,
       hasAssetBinding: assetBoundKeyIds.has(event.keyId),
-    })
+    }
+    result.get(page.pageId)?.push(item)
+    options.cache?.set(event, { item, key, pageId: page.pageId })
   }
 
   return result
@@ -180,7 +192,7 @@ export function overlayHitFromPoint(template: SheetTemplate, project: CutProject
   return null
 }
 
-function overlayCellRectForFrame(template: SheetTemplate, project: CutProject, track: PaperTrack, frame: number, page: SheetPage): NormalizedRect | null {
+function overlayCellRectForFrame(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, frame: number, page: SheetPage): NormalizedRect | null {
   const localized = localizeFrameToSheetPage(template, frame, logicalSheetDisplayDurationFrames(project.logicalSheet), logicalSheetDisplayFrameStart(project.logicalSheet))
   if (!localized || localized.page.pageId !== page.pageId) return null
   const column = overlayColumnRectForPage(template, project, track, page)
@@ -233,7 +245,7 @@ export function overlayHitForFrame(template: SheetTemplate, project: CutProject,
   }
 }
 
-export function overlayColumnRectForPage(template: SheetTemplate, project: CutProject, track: PaperTrack, page: SheetPage): (OverlayBandSegment & { rect: NormalizedRect }) | null {
+export function overlayColumnRectForPage(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, page: SheetPage): (OverlayBandSegment & { rect: NormalizedRect }) | null {
   const role = track.viewPlacement?.sheetRole ?? 'cell'
   const segments = overlayBandSegments(template, project, role)
   const frameOrigin = frameOriginForPageHit(template, page)

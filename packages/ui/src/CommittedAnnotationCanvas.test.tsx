@@ -2,6 +2,7 @@ import { canvasContextPrototype } from './canvas-context.test-support'
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommittedAnnotationCanvas } from './CommittedAnnotationCanvas'
+import { SheetRenderWindowContext } from './useSheetRenderWindow'
 import type { PageMemoCanvasStrokeRenderItem } from './pageMemoProjection'
 
 afterEach(() => {
@@ -11,6 +12,26 @@ afterEach(() => {
 })
 
 describe('CommittedAnnotationCanvas', () => {
+  it('bounds the backing store on a long sheet and replays crossing strokes in page coordinates', () => {
+    const context = mockContext()
+    vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)
+    const strokes = [strokeItem('offscreen', undefined, [{ x: .1, y: .1 }, { x: .2, y: .2 }]),
+      strokeItem('crossing', undefined, [{ x: .1, y: .4 }, { x: .2, y: .6 }])]
+    const { container, rerender } = render(<SheetRenderWindowContext.Provider value={{ top: .49, bottom: .51 }}>
+      <CommittedAnnotationCanvas width={1000} height={100_000} strokes={strokes} />
+    </SheetRenderWindowContext.Provider>)
+    const canvas = container.querySelector('canvas')!
+    expect(canvas.height).toBe(2000)
+    expect(canvas.style.top).toBe('49000px')
+    expect(context.stroke).toHaveBeenCalledTimes(1)
+    expect(context.moveTo).toHaveBeenLastCalledWith(100, 40000)
+    expect(context.setTransform).toHaveBeenLastCalledWith(1, 0, 0, 1, 0, -49000)
+    rerender(<SheetRenderWindowContext.Provider value={{ top: .1, bottom: .12 }}>
+      <CommittedAnnotationCanvas width={1000} height={100_000} strokes={strokes} />
+    </SheetRenderWindowContext.Provider>)
+    expect(context.stroke).toHaveBeenCalledTimes(2)
+    expect(canvas.height).toBe(2000)
+  })
   it('draws committed strokes into one canvas and appends across equivalent projection wrappers', () => {
     const context = mockContext()
     vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(context)

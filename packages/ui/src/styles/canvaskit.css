@@ -14,7 +14,8 @@
 /* Opacity preserves native hit testing, focus, pointer capture, and accessible names. */
 svg[data-canvaskit-ready="true"] { opacity: 0 !important; }
 
-.hoverCellSvg {
+.hoverCellSvg,
+.sheetTransientOverlay {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -22,6 +23,7 @@ svg[data-canvaskit-ready="true"] { opacity: 0 !important; }
   z-index: 3;
   overflow: hidden;
   pointer-events: none;
+  font-family: var(--font-sheet-sans);
 }
 
 .hoverCellSvg rect {

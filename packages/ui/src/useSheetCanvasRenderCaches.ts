@@ -8,7 +8,9 @@ import {
   type TimedRangeCue,
 } from '@xsheet-remap/core'
 import { calibrationGuideMetrics } from './sheet-layers-calibration-render'
-import { eventRectsForPages } from './sheet-layers-hit-geometry'
+import { eventRectsForPages, type SheetEventGeometryCache } from './sheet-layers-hit-geometry'
+import type { SheetRenderWindow } from './useSheetRenderWindow'
+import { sheetFrameRangeForWindow } from './sheetRenderWindowGeometry'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import { continuationRenderItemsForPages, type SheetRenderModelContext } from './sheetRenderModel'
 import {
@@ -32,6 +34,7 @@ export function useSheetCanvasRenderCaches({
   cameraCuePreview,
   referenceProject,
   referenceRenderContext,
+  renderWindow = null,
 }: {
   project: CutProject
   template: SheetTemplate
@@ -46,6 +49,7 @@ export function useSheetCanvasRenderCaches({
   cameraCuePreview?: TimedRangeCue
   referenceProject?: CutProject | null
   referenceRenderContext?: SheetRenderModelContext | null
+  renderWindow?: SheetRenderWindow
 }) {
   const visiblePages = useMemo(
     () => viewMode === 'single-page'
@@ -53,25 +57,29 @@ export function useSheetCanvasRenderCaches({
       : sheetPages,
     [activePageIndex, sheetPages, viewMode],
   )
+  // Coordinates and overlay suppression invalidate every retained event rectangle.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const eventGeometryCache = useMemo<SheetEventGeometryCache>(() => new WeakMap(), [renderContext.geometry, activeOverlayPaperTrack])
+  const frameRange = useMemo(() => sheetFrameRangeForWindow(renderContext, renderWindow), [renderContext, renderWindow])
   const eventRectsByPage = useMemo(
-    () => eventRectsForPages(renderContext.project, template, visiblePages, { activeOverlayPaperTrack }),
-    [activeOverlayPaperTrack, renderContext, template, visiblePages],
+    () => eventRectsForPages(renderContext.project, template, visiblePages, { activeOverlayPaperTrack, cache: eventGeometryCache, frameRange }),
+    [activeOverlayPaperTrack, renderContext, template, visiblePages, eventGeometryCache, frameRange],
   )
   const continuationItemsByPage = useMemo(
-    () => continuationRenderItemsForPages(renderContext, visiblePages),
-    [renderContext, visiblePages],
+    () => continuationRenderItemsForPages(renderContext, visiblePages, renderWindow),
+    [renderContext, visiblePages, renderWindow],
   )
   const referenceEventRectsByPage = useMemo(
     () => referenceProject
-      ? eventRectsForPages(referenceProject, template, visiblePages)
+      ? eventRectsForPages(referenceProject, template, visiblePages, { frameRange })
       : new Map(visiblePages.map(page => [page.pageId, []])),
-    [referenceProject, template, visiblePages],
+    [referenceProject, template, visiblePages, frameRange],
   )
   const referenceContinuationItemsByPage = useMemo(
     () => referenceRenderContext
-      ? continuationRenderItemsForPages(referenceRenderContext, visiblePages)
+      ? continuationRenderItemsForPages(referenceRenderContext, visiblePages, renderWindow)
       : new Map(visiblePages.map(page => [page.pageId, []])),
-    [referenceRenderContext, visiblePages],
+    [referenceRenderContext, visiblePages, renderWindow],
   )
   const hasReferenceMemoGeometry = Boolean(referenceProject && referenceRenderContext)
   const referenceMemoPaperTracks = referenceRenderContext?.paperTracks

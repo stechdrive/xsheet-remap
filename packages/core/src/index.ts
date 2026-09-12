@@ -1,3 +1,6 @@
+export { timingEventIndex, timingKeyIndex, timingGroupKey, timingFrameLowerBound, timingEventsInRange } from './timing-index'
+export type { TimingChange } from './timing-index'
+export type { SheetGeometryInput, SheetContentInput } from './project-model'
 export type {
   AssetRole,
   AssetBin,

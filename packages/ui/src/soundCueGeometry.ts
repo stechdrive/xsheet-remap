@@ -14,6 +14,7 @@ import {
   type TextMeasurementProvider,
 } from './textMetrics'
 import { resolveGridTypographyFontSizes } from './sheetTextLayout'
+import { timedCueIndex } from './timedCueIndex'
 
 export type SoundCueSegment = TimedRangeCueSegment
 
@@ -87,7 +88,8 @@ export function buildSoundCuePageTextLayouts(
   pageSize: { widthPx: number; heightPx: number },
   options: SoundCuePageTextLayoutOptions = {},
 ): SoundCuePageTextLayout[] {
-  const entries = pages.flatMap(page => cues.flatMap(cue => soundCueSegmentsForPage(template, page, cue, options)
+  const cueIndex = timedCueIndex(cues)
+  const entries = pages.flatMap(page => cueIndex.query(page.frameStart, page.frameEnd).flatMap(cue => soundCueSegmentsForPage(template, page, cue, options)
     .map(segment => ({
       page,
       cue,
@@ -96,11 +98,15 @@ export function buildSoundCuePageTextLayouts(
     }))))
   const textLayouts = new Map<string, SoundCueTextLayout>()
   const typographyByKey = new Map<string, { fontSizePx: number; minFontSizePx: number }>()
+  const entriesByPage = new Map<string, typeof entries>(), entriesByCue = new Map<string, typeof entries>()
+  for (const entry of entries) {
+    const pageEntries = entriesByPage.get(entry.page.pageId) ?? [], cueEntries = entriesByCue.get(entry.cue.cueId) ?? []
+    pageEntries.push(entry); cueEntries.push(entry)
+    entriesByPage.set(entry.page.pageId, pageEntries); entriesByCue.set(entry.cue.cueId, cueEntries)
+  }
 
   for (const page of pages) {
-    const pageEntries = entries
-      .filter(entry => entry.page.pageId === page.pageId)
-      .sort(compareSoundCuePageEntries)
+    const pageEntries = (entriesByPage.get(page.pageId) ?? []).sort(compareSoundCuePageEntries)
     const occupiedLabelBoundsPx: SoundCueTextBounds[] = []
     for (const entry of pageEntries) {
       const typography = template.regions.find(region => region.regionId === entry.segment.regionId)?.grid?.typography
@@ -128,9 +134,7 @@ export function buildSoundCuePageTextLayouts(
   }
 
   for (const cue of cues) {
-    const cueEntries = entries
-      .filter(entry => entry.cue.cueId === cue.cueId)
-      .sort(compareSoundCuePageEntries)
+    const cueEntries = (entriesByCue.get(cue.cueId) ?? []).sort(compareSoundCuePageEntries)
     const flowed = flowSoundCueTextAcrossLayouts(cue.text, cueEntries.map(entry => ({
       layout: textLayouts.get(entry.key)!,
       ...typographyByKey.get(entry.key)!,

@@ -1,8 +1,12 @@
-import { useId, useMemo, type PointerEvent } from 'react'
+import { useCallback, useId, useMemo, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetTemplateLayoutResolveOptions, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
 import { buildSoundCuePageTextLayouts, type SoundCuePageTextLayout } from './soundCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { timedRangeCueColumnStyle } from './timedRangeCueAppearance'
+import { CanvasKitTextRuns } from './CanvasKitTextRuns'
+import { useVisibleSheetItems } from './useVisibleSheetItems'
+
+const soundLayoutKey = (item: SoundCuePageTextLayout) => item.cue.cueId
 
 export type SoundCueDragMode = 'move' | 'resize-start' | 'resize-end'
 
@@ -49,7 +53,7 @@ export function SoundCueLayer({
 }) {
   const clipIdPrefix = `sound-cue-clip-${useId().replace(/:/g, '')}`
   const edgeHeight = (touchInteractive ? 24 : 8) / Math.max(1, surface.heightPx)
-  const segments = useMemo(
+  const allSegments = useMemo(
     () => layouts ?? buildSoundCuePageTextLayouts(template, pages, cues, pageSize, {
         paperTracks,
         timelineLanes,
@@ -57,6 +61,13 @@ export function SoundCueLayer({
       }).filter(entry => entry.pageId === page.pageId),
     [cues, layoutOverrides, layouts, page.pageId, pageSize, pages, paperTracks, template, timelineLanes],
   )
+  const bounds = useCallback((item: SoundCuePageTextLayout) => {
+    const { segment, textLayout } = item
+    const boxes = [textLayout.textBoundsPx, textLayout.labelBoundsPx].filter(box => box !== undefined)
+    return { start: Math.min(segment.rect.y, ...boxes.map(box => box.yPx / pageSize.heightPx)),
+      end: Math.max(segment.rect.y + segment.rect.h, ...boxes.map(box => (box.yPx + box.heightPx) / pageSize.heightPx)) }
+  }, [pageSize.heightPx])
+  const segments = useVisibleSheetItems(allSegments, bounds, soundLayoutKey, selectedCueId)
   const textClipIds = new Map<string, string>()
   segments.forEach(({ key }) => {
     textClipIds.set(key, `${clipIdPrefix}-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`)
@@ -115,8 +126,13 @@ export function SoundCueLayer({
             <g className="soundCueTextClip" clipPath={`url(#${textClipIds.get(key)})`}>
               <g
                 transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}
-                className={`soundCueText ${textLayout.labelPlacement}${textLayout.overflowLabel ? ' overflow' : ''}`}
               >
+                <CanvasKitTextRuns className={`soundCueText ${textLayout.labelPlacement}${textLayout.overflowLabel ? ' overflow' : ''}`}
+                  viewportHeightPx={pageSize.heightPx}
+                  runs={[
+                    ...textLayout.labelGlyphs.map(glyph => ({ ...glyph, size: textLayout.labelFontSizePx, anchor: 'middle' as const, className: 'soundCueLabel' })),
+                    ...textLayout.textGlyphs.map(glyph => ({ ...glyph, size: textLayout.textFontSizePx, anchor: 'middle' as const, className: 'soundCueDialogue' })),
+                  ]}>
                 {textLayout.labelGlyphs.map((glyph, index) => (
                   <text
                     key={`label-${index}`}
@@ -137,6 +153,7 @@ export function SoundCueLayer({
                     textAnchor="middle"
                   >{glyph.value}</text>
                 ))}
+                </CanvasKitTextRuns>
               </g>
             </g>
             {selected && segment.startsCue && (

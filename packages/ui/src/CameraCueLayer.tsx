@@ -1,4 +1,4 @@
-import { useMemo, type PointerEvent } from 'react'
+import { useCallback, useMemo, type PointerEvent } from 'react'
 import type { SheetPage, SheetTemplate, SheetTemplateLayoutResolveOptions, SheetViewLayoutOverrides, TimedRangeCue } from '@xsheet-remap/core'
 import {
   buildCameraCuePageLayouts,
@@ -12,10 +12,15 @@ import {
   cameraRangePathData,
   cameraRangePathsForSegment,
   type CameraCueLabelLayout,
+  type CameraCuePageLayout,
 } from './cameraCueGeometry'
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { timedRangeCueColumnStyle } from './timedRangeCueAppearance'
+import { CanvasKitTextRuns } from './CanvasKitTextRuns'
+import { useVisibleSheetItems } from './useVisibleSheetItems'
+
+const cameraLayoutKey = (item: CameraCuePageLayout) => item.cue.cueId
 
 export type CameraCueDragMode = 'move' | 'resize-start' | 'resize-end' | 'pivot' | 'move-label' | 'resize-label' | 'point'
 
@@ -45,10 +50,16 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
   onPointerEnter: (event: PointerEvent<SVGGElement>, cueId: string) => void
   onPointerLeave: () => void
 }) {
-  const pageLayouts = useMemo(
+  const allPageLayouts = useMemo(
     () => buildCameraCuePageLayouts(template, page, cues, pageSize, { paperTracks, timelineLanes, layoutOverrides }),
     [cues, layoutOverrides, page, pageSize, paperTracks, template, timelineLanes],
   )
+  const bounds = useCallback(({ cue, segments, label }: CameraCuePageLayout) => {
+    const boxes = [...segments.map(segment => segment.rect), ...(label ? [label.rect] : []),
+      ...cameraCuePointLayoutsForPage(template, cue, segments, pageSize).map(point => point.rect)]
+    return { start: Math.min(...boxes.map(rect => rect.y)), end: Math.max(...boxes.map(rect => rect.y + rect.h)) }
+  }, [template, pageSize])
+  const pageLayouts = useVisibleSheetItems(allPageLayouts, bounds, cameraLayoutKey, selectedCueId)
   const edgeHeight = (touchInteractive ? 24 : 8) / Math.max(1, surface.heightPx)
   const pivotRadiusX = (touchInteractive ? 12 : 5) / Math.max(1, surface.widthPx)
   const pivotRadiusY = (touchInteractive ? 12 : 5) / Math.max(1, surface.heightPx)
@@ -159,7 +170,9 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             />
             {layout.point.label && <g clipPath={`url(#${clipId})`} className="cameraCueEndpointLabel">
               <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}>
+                <CanvasKitTextRuns className="cameraCueEndpointText" viewportHeightPx={pageSize.heightPx} runs={[{ value: layout.point.label, xPx: layout.textXpx, yPx: layout.textYpx, size: layout.fontSizePx, anchor: 'middle' }]}>
                 <text x={layout.textXpx} y={layout.textYpx} fontSize={layout.fontSizePx} textAnchor="middle">{layout.point.label}</text>
+                </CanvasKitTextRuns>
               </g>
             </g>}
           </g>
@@ -196,8 +209,10 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             <rect className="cameraCueLabelBody" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} />
             <rect className="cameraCueLabelHit" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} onPointerDown={event => onPointerDown(event, cue, 'move-label', { labelLayout: layout })} onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); onDoubleClick(cueId) }} />
             <g clipPath={`url(#${clipId})`}>
-              <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`} className="cameraCueLabelText">
+              <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}>
+                <CanvasKitTextRuns className="cameraCueLabelText" viewportHeightPx={pageSize.heightPx} runs={layout.glyphs.map(glyph => ({ ...glyph, size: layout.fontSizePx, anchor: 'middle' as const }))}>
                 {layout.glyphs.map((glyph, index) => <text key={index} x={glyph.xPx} y={glyph.yPx} fontSize={layout.fontSizePx} textAnchor="middle">{glyph.value}</text>)}
+                </CanvasKitTextRuns>
               </g>
             </g>
             {selected && <SheetTransformHandle

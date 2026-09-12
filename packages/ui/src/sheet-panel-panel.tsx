@@ -165,6 +165,7 @@ export function SheetPanel(props: {
   selectedKeyId: string | null
   selectedHit: SheetHit | null
   audioPlayheadFrame: number | null
+  audioPlayheadStore?: import('./audioPlayheadStore').AudioPlayheadStore
   selectedSoundCueId: string | null
   selectedCameraCueId: string | null
   timingDraftValue: string

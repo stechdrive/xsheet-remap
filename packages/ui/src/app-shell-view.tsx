@@ -38,7 +38,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
-    audioPlayheadFrame, soundCueNavigationRequest, dialogueAudioSelection,
+    audioPlayheadFrame, audioPlayheadStore, soundCueNavigationRequest, dialogueAudioSelection,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
@@ -351,6 +351,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             selectedKeyId={selection.keyId}
             selectedHit={selection.hit}
             audioPlayheadFrame={appKind === 'editor' ? audioPlayheadFrame : null}
+            audioPlayheadStore={audioPlayheadStore}
             selectedSoundCueId={selectedSoundCueId}
             selectedCameraCueId={selectedCameraCueId}
             timingDraftValue={valueDraft}

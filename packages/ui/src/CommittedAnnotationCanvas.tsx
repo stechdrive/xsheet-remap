@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useContext, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { SheetRenderWindowContext } from './useSheetRenderWindow'
 import { lowLatencyCanvasPixelRatio } from './LowLatencyInkCanvas'
 import type {
   PageMemoCanvasStrokeRenderItem,
@@ -10,6 +11,7 @@ type DrawState = {
   width: number
   height: number
   pixelRatio: number
+  offsetY: number
   items: PageMemoCanvasStrokeRenderItem[]
 }
 
@@ -42,9 +44,12 @@ export function CommittedAnnotationCanvas({
   )
   const safeWidth = Math.max(1, width)
   const safeHeight = Math.max(1, height)
+  const renderWindow = useContext(SheetRenderWindowContext)
+  const offsetY = Math.floor((renderWindow?.top ?? 0) * safeHeight)
+  const backingHeightPx = Math.max(1, Math.ceil((renderWindow?.bottom ?? 1) * safeHeight) - offsetY)
   const pixelRatio = lowLatencyCanvasPixelRatio(
     safeWidth,
-    safeHeight,
+    backingHeightPx,
     devicePixelRatio,
   )
 
@@ -83,7 +88,7 @@ export function CommittedAnnotationCanvas({
       return
     }
     const backingWidth = Math.max(1, Math.round(safeWidth * pixelRatio))
-    const backingHeight = Math.max(1, Math.round(safeHeight * pixelRatio))
+    const backingHeight = Math.max(1, Math.round(backingHeightPx * pixelRatio))
     const backingChanged = canvas.width !== backingWidth || canvas.height !== backingHeight
     const previous = drawStateRef.current
     const canAppend = Boolean(
@@ -93,6 +98,7 @@ export function CommittedAnnotationCanvas({
       && previous.width === safeWidth
       && previous.height === safeHeight
       && previous.pixelRatio === pixelRatio
+      && previous.offsetY === offsetY
       && previous.items.length <= strokes.length
       && previous.items.every((item, index) => sameStrokeProjection(item, strokes[index]!)),
     )
@@ -105,11 +111,15 @@ export function CommittedAnnotationCanvas({
       // jsdom and older WebViews may expose canvas without a 2D implementation.
     }
     if (context) {
-      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
-      if (!canAppend) context.clearRect(0, 0, safeWidth, safeHeight)
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, -offsetY * pixelRatio)
+      if (!canAppend) context.clearRect(0, offsetY, safeWidth, backingHeightPx)
       const start = canAppend ? previous?.items.length ?? 0 : 0
       for (let index = start; index < strokes.length; index += 1) {
-        drawStroke(context, strokes[index]!, safeWidth, safeHeight)
+        const item = strokes[index]!
+        const bounds = strokeVerticalBounds(item)
+        const margin = item.stroke.width * Math.min(safeWidth, safeHeight) / safeHeight
+        if (bounds.bottom + margin >= offsetY / safeHeight && bounds.top - margin <= (offsetY + backingHeightPx) / safeHeight)
+          drawStroke(context, item, safeWidth, safeHeight)
       }
     }
     drawStateRef.current = {
@@ -117,18 +127,30 @@ export function CommittedAnnotationCanvas({
       width: safeWidth,
       height: safeHeight,
       pixelRatio,
+      offsetY,
       items: [...strokes],
     }
-  }, [pixelRatio, reportedIsNearViewport, safeHeight, safeWidth, strokes])
+  }, [pixelRatio, reportedIsNearViewport, safeHeight, safeWidth, strokes, offsetY, backingHeightPx])
 
   return <canvas
     ref={canvasRef}
     className={['committedAnnotationCanvas', className].filter(Boolean).join(' ')}
     data-ink-render-mode="committed-canvas"
     data-annotation-backing-state={reportedIsNearViewport === true ? 'active' : 'released'}
-    style={{ width: `${width}px`, height: `${height}px` }}
+    style={{ width: `${width}px`, height: `${backingHeightPx}px`, top: `${offsetY}px`, bottom: 'auto' }}
     aria-hidden="true"
   />
+}
+
+const strokeBounds = new WeakMap<PageMemoCanvasStrokeRenderItem['points'], { top: number; bottom: number }>()
+function strokeVerticalBounds(item: PageMemoCanvasStrokeRenderItem) {
+  let bounds = strokeBounds.get(item.points)
+  if (!bounds) {
+    let top = Infinity, bottom = -Infinity
+    for (const point of item.points) { top = Math.min(top, point.y); bottom = Math.max(bottom, point.y) }
+    bounds = { top, bottom }; strokeBounds.set(item.points, bounds)
+  }
+  return { top: bounds.top + item.projectionOffset.y, bottom: bounds.bottom + item.projectionOffset.y }
 }
 
 function isElementNearViewport(element: Element): boolean {

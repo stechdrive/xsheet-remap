@@ -14,6 +14,12 @@ import {
   timelineMemoStrokePath,
   type TimelineMemoSegment,
 } from './timelineMemoGeometry'
+import { createSheetIntervalCache } from './sheetIntervalIndex'
+
+const memoIndex = createSheetIntervalCache<TimelineInkMemo>(memo => ({
+  start: Math.min(memo.anchor.frame, memo.anchor.frame + memo.placement.frameOffset),
+  end: Math.max(memo.anchor.frame, memo.anchor.frame + memo.placement.frameOffset + memo.placement.heightFrames),
+}))
 
 export type TimelineMemoVisibleStrokeGroup = {
   key: string
@@ -55,6 +61,7 @@ export function createTimelineMemoRenderCache() {
 
   return {
     render(memos: readonly TimelineInkMemo[], input: TimelineMemoRenderInput): TimelineMemoPageRenderItem[] {
+      memos = memoIndex(memos).query(input.page.frameStart, input.page.frameEnd + 1)
       const liveMemoIds = new Set<string>()
       const result = memos.map(memo => {
         liveMemoIds.add(memo.memoId)

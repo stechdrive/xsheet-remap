@@ -1,4 +1,5 @@
 import {
+  timingEventIndex, timingGroupKey, timingFrameLowerBound, timingEventsInRange, timingKeyIndex,
   cellRectForHit,
   createSheetPages,
   formatSheetTemplateCutNumber,
@@ -26,6 +27,8 @@ import {
   stackGuideStackBand,
   timingHitForFrame,
   type CutProject,
+  type SheetGeometryInput,
+  type SheetContentInput,
   type CutSheetDocument,
   type NormalizedRect,
   type PaperTrack,
@@ -34,6 +37,7 @@ import {
   type SheetTemplateLayoutResolveOptions,
   type SheetTimingRole,
   type TimelineEventValueKind,
+  type TimelineEvent,
 } from '@xsheet-remap/core'
 import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } from './templateEditorGeometry'
 import { overlayBandSegments as buildOverlayBandSegments, overlayVisibleSnapIndex, type OverlayBandSegment } from './app-sheet-geometry'
@@ -42,6 +46,7 @@ import { STACK_GUIDE_MAX_LANE, overlayBandSegmentForRegion, stackGuideAnchorRegi
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
+import { sheetFrameRangeForWindow } from './sheetRenderWindowGeometry'
 
 const MIN_CONTINUATION_SPAN_FRAMES = 4
 const ACTION_VISIBLE_CONTINUATION_FRAMES = 3
@@ -60,8 +65,8 @@ export type SheetRenderModelGeometry = {
   overlayTracks: PaperTrack[]
 }
 
-export type SheetRenderModelContext = SheetRenderModelGeometry & {
-  project: CutProject
+export type SheetRenderModelContext<Project extends SheetContentInput = SheetContentInput> = SheetRenderModelGeometry & {
+  project: Project
   geometry: SheetRenderModelGeometry
   cutGroup?: SheetRenderCutGroupContext
 }
@@ -158,11 +163,11 @@ type LabelLaneOccupancy = {
   lane: number
 }
 
-export function createSheetRenderModelContext(
-  project: CutProject,
+export function createSheetRenderModelContext<Project extends SheetContentInput>(
+  project: Project,
   template: SheetTemplate,
   options: { geometry?: SheetRenderModelGeometry; cutGroup?: SheetRenderCutGroupContext } = {},
-): SheetRenderModelContext {
+): SheetRenderModelContext<Project> {
   const geometry = options.geometry ?? createSheetRenderModelGeometry(project, template)
   return {
     ...geometry,
@@ -173,7 +178,7 @@ export function createSheetRenderModelContext(
 }
 
 export function createSheetRenderModelGeometry(
-  project: CutProject,
+  project: SheetGeometryInput,
   template: SheetTemplate,
 ): SheetRenderModelGeometry {
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
@@ -253,8 +258,9 @@ export function workRangeShadeRenderItemsForPage(
 }
 
 export function inputTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetInputTextRenderItem[] {
-  return context.project.logicalSheet.events.flatMap(event => {
-    const key = context.project.logicalSheet.keys.find(key => key.keyId === event.keyId)
+  const keys = timingKeyIndex(context.project.logicalSheet.keys)
+  return timingEventsInRange(context.project.logicalSheet.events, page.frameStart, page.frameEnd).flatMap(event => {
+    const key = keys.get(event.keyId)
     if (!key && !isSpecialTimingEvent(event)) return []
     const sheetRole = sheetTimingRoleForEvent(event)
     const kind = timingEventValueKind(event)
@@ -307,33 +313,38 @@ export function continuationRenderItemsForPage(context: SheetRenderModelContext,
   return items
 }
 
+// Geometry owns this projection cache. Immutable event identity and the next
+// boundary cover both an edited event and its predecessor's changed hold.
+const continuationProjections = new WeakMap<SheetRenderModelGeometry, WeakMap<TimelineEvent, Map<string, {
+  signature: string; items: SheetContinuationRenderItem[]
+}>>>()
+
 export function continuationRenderItemsForPages(
   context: SheetRenderModelContext,
   pages: SheetPage[],
+  renderWindow?: { top: number; bottom: number } | null,
 ): Map<string, SheetContinuationRenderItem[]> {
   const itemsByPage = new Map(pages.map(page => [page.pageId, [] as SheetContinuationRenderItem[]]))
   if (pages.length === 0 || context.project.logicalSheet.events.length === 0) return itemsByPage
 
   const pageById = new Map(pages.map(page => [page.pageId, page]))
   const resolveContinuationRect = createContinuationRectResolver(context, pages, pageById)
-  const eventsByRoleAndTrack = new Map<string, CutProject['logicalSheet']['events']>()
-  for (const event of context.project.logicalSheet.events) {
-    const role = sheetTimingRoleForEvent(event)
-    if (role !== 'action' && role !== 'cell') continue
-    const key = continuationGroupKey(role, event.paperTrack)
-    const events = eventsByRoleAndTrack.get(key) ?? []
-    events.push(event)
-    eventsByRoleAndTrack.set(key, events)
-  }
-  for (const events of eventsByRoleAndTrack.values()) {
-    events.sort((left, right) => left.frame - right.frame)
-  }
+  const eventsByRoleAndTrack = timingEventIndex(context.project.logicalSheet.events).groups
+  const frameRange = sheetFrameRangeForWindow(context, renderWindow ?? null)
+  let projections = continuationProjections.get(context.geometry)
+  if (!projections) { projections = new WeakMap(); continuationProjections.set(context.geometry, projections) }
 
   for (const role of ['action', 'cell'] as const) {
     if (!context.project.sheetView.continuationDisplay[role]) continue
     for (const paperTrack of context.project.logicalSheet.paperTracks.map(track => track.paperTrack)) {
-      const events = eventsByRoleAndTrack.get(continuationGroupKey(role, paperTrack)) ?? []
-      for (let index = 0; index < events.length; index += 1) {
+      const events = eventsByRoleAndTrack.get(timingGroupKey(role, paperTrack)) ?? []
+      const candidates = new Set<number>()
+      for (const page of pages) {
+        const first = Math.max(0, timingFrameLowerBound(events, Math.max(page.frameStart, frameRange?.start ?? page.frameStart)) - 1)
+        const after = timingFrameLowerBound(events, Math.min(page.frameEnd, frameRange?.end ?? page.frameEnd) + 1)
+        for (let index = first; index < after; index++) candidates.add(index)
+      }
+      for (const index of [...candidates].sort((a, b) => a - b)) {
         const event = events[index]!
         const valueKind = timingEventValueKind(event)
         if (valueKind === 'inbetween' || valueKind === 'reverse') continue
@@ -342,22 +353,40 @@ export function continuationRenderItemsForPages(
         const continuationFrameEnd = visibleContinuationFrameEnd(role, event.frame, heldFrameEnd)
         if (continuationFrameEnd === null) continue
 
-        const rectsByPage = new Map<string, Array<{ frame: number; rect: NormalizedRect }>>()
-        for (let frame = event.frame + 1; frame <= continuationFrameEnd; frame += 1) {
-          const resolved = resolveContinuationRect(role, paperTrack, frame)
-          if (!resolved) continue
-          const rects = rectsByPage.get(resolved.pageId) ?? []
-          rects.push({ frame, rect: resolved.rect })
-          rectsByPage.set(resolved.pageId, rects)
-        }
-
         for (const page of pages) {
-          const rects = rectsByPage.get(page.pageId)
-          if (!rects) continue
-          for (const segment of contiguousContinuationSegments(rects)) {
-            const item = continuationRenderItem(event.eventId, paperTrack, role, valueKind, segment)
-            if (item) itemsByPage.get(page.pageId)?.push(item)
+          const first = Math.max(event.frame + 1, page.frameStart)
+          const last = Math.min(continuationFrameEnd, page.frameEnd)
+          if (first > last) continue
+          const signature = `${first}:${last}:${renderWindow?.top ?? ''}:${renderWindow?.bottom ?? ''}`
+          let eventPages = projections.get(event)
+          if (!eventPages) { eventPages = new Map(); projections.set(event, eventPages) }
+          const cached = eventPages.get(page.pageId)
+          if (cached?.signature === signature) { itemsByPage.get(page.pageId)?.push(...cached.items); continue }
+          const projected: SheetContinuationRenderItem[] = []
+          // Grid folds and overlays are piecewise affine. Resolve the endpoints
+          // of each interval instead of allocating one rectangle per held frame.
+          const boundaries = [...new Set([first, last + 1, ...resolveContinuationRect.boundaries(role, paperTrack, page)
+            .filter(frame => frame > first && frame <= last)])].sort((a, b) => a - b)
+          const segments: Array<Array<{ frame: number; rect: NormalizedRect }>> = []
+          for (let boundary = 0; boundary < boundaries.length - 1; boundary++) {
+            const start = boundaries[boundary]!, end = boundaries[boundary + 1]! - 1
+            const startRect = resolveContinuationRect(role, paperTrack, start)
+            const endRect = start === end ? startRect : resolveContinuationRect(role, paperTrack, end)
+            if (!startRect || !endRect) continue
+            const previous = segments.at(-1)
+            const previousEnd = previous?.at(-1)
+            const joins = previousEnd && previousEnd.frame + 1 === start
+              && Math.abs(previousEnd.rect.x + previousEnd.rect.w / 2 - startRect.rect.x - startRect.rect.w / 2) < 0.00001
+            const startItem = { frame: start, rect: startRect.rect }, endItem = { frame: end, rect: endRect.rect }
+            if (joins && previous) previous.splice(1, previous.length - 1, endItem)
+            else segments.push(start === end ? [startItem] : [startItem, endItem])
           }
+          for (const segment of segments) {
+            const item = continuationRenderItem(event.eventId, paperTrack, role, valueKind, segment, renderWindow)
+            if (item) projected.push(item)
+          }
+          eventPages.set(page.pageId, { signature, items: projected })
+          itemsByPage.get(page.pageId)?.push(...projected)
         }
       }
     }
@@ -911,7 +940,7 @@ export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContex
   })
 }
 
-function overlayPaperTracks(project: CutProject, template: SheetTemplate): PaperTrack[] {
+function overlayPaperTracks(project: SheetGeometryInput, template: SheetTemplate): PaperTrack[] {
   if (getSheetViewLayout(template).trackAxis?.type === 'logical-width') return []
   const ordered = [...project.logicalSheet.paperTracks].sort((a, b) => a.order - b.order)
   const hidden = new Set(getSheetTemplateHiddenPaperTracks(template, 'cell', ordered.filter(track => track.source !== 'overlay').map(track => track.paperTrack)))
@@ -1037,10 +1066,6 @@ function contiguousContinuationSegments(items: Array<{ frame: number; rect: Norm
   return segments
 }
 
-function continuationGroupKey(role: 'action' | 'cell', paperTrack: string): string {
-  return `${role}\u0000${paperTrack}`
-}
-
 function visibleContinuationFrameEnd(
   role: 'action' | 'cell',
   eventFrame: number,
@@ -1087,7 +1112,7 @@ function createContinuationRectResolver(
     }
   }
 
-  return (role: 'action' | 'cell', paperTrack: string, frame: number): { pageId: string; rect: NormalizedRect } | null => {
+  const resolve = (role: 'action' | 'cell', paperTrack: string, frame: number): { pageId: string; rect: NormalizedRect } | null => {
     const localized = localizeFrameToSheetPage(
       context.template,
       frame,
@@ -1123,6 +1148,15 @@ function createContinuationRectResolver(
     }
     return null
   }
+  const continuous = ['continuous', 'infinite'].includes(getSheetViewLayout(context.template).frameAxis?.type ?? '')
+  return Object.assign(resolve, {
+    boundaries(role: 'action' | 'cell', paperTrack: string, page: SheetPage) {
+      const offset = continuous ? 0 : page.frameStart - context.template.defaults.frameOrigin
+      const overlay = overlayColumns.get(`${paperTrack}\u0000${page.pageId}`)
+      const frames = overlay ? [overlay.frames] : (layoutsByRole.get(role) ?? []).map(item => item.layout.frames)
+      return frames.flatMap(range => [range.frameStart + offset, range.frameEnd + 1 + offset])
+    },
+  })
 }
 
 function continuationRenderItem(
@@ -1131,6 +1165,7 @@ function continuationRenderItem(
   role: 'action' | 'cell',
   valueKind: ReturnType<typeof timingEventValueKind>,
   segment: Array<{ frame: number; rect: NormalizedRect }>,
+  renderWindow?: { top: number; bottom: number } | null,
 ): SheetContinuationRenderItem | null {
   const first = segment[0]?.rect
   const last = segment.at(-1)?.rect
@@ -1139,10 +1174,11 @@ function continuationRenderItem(
   const isolatedActionFrame = role === 'action' && segment.length === 1
   const startY = first.y + first.h * (isolatedActionFrame ? 0.25 : 0.5)
   const endY = last.y + last.h * (isolatedActionFrame ? 0.75 : 0.5)
+  if (renderWindow && (endY < renderWindow.top || startY > renderWindow.bottom)) return null
   const cellSize = Math.min(first.w, first.h)
   const strokeWidth = Math.max(0.00045, Math.min(0.0015, cellSize * 0.075))
   const path = valueKind === 'blank'
-    ? waveContinuationPath(centerX, startY, endY, first.w, first.h)
+    ? waveContinuationPath(centerX, startY, endY, first.w, first.h, renderWindow)
     : [
         { kind: 'move' as const, x: centerX, y: startY },
         { kind: 'line' as const, x: centerX, y: endY },
@@ -1157,7 +1193,7 @@ function continuationRenderItem(
   }
 }
 
-function waveContinuationPath(centerX: number, startY: number, endY: number, cellWidth: number, cellHeight: number): SheetContinuationPathCommand[] {
+function waveContinuationPath(centerX: number, startY: number, endY: number, cellWidth: number, cellHeight: number, renderWindow?: { top: number; bottom: number } | null): SheetContinuationPathCommand[] {
   const commands: SheetContinuationPathCommand[] = [{ kind: 'move', x: centerX, y: startY }]
   if (endY <= startY) return commands
   const amplitude = Math.min(cellWidth * 0.16, cellHeight * 0.28)
@@ -1165,10 +1201,13 @@ function waveContinuationPath(centerX: number, startY: number, endY: number, cel
   const cycleCount = Math.max(1, Math.round((endY - startY) / targetWavelength))
   const halfWaveCount = cycleCount * 2
   const halfWaveHeight = (endY - startY) / halfWaveCount
+  const first = renderWindow ? Math.max(0, Math.floor((renderWindow.top - startY) / halfWaveHeight) - 1) : 0
+  const after = renderWindow ? Math.min(halfWaveCount, Math.ceil((renderWindow.bottom - startY) / halfWaveHeight) + 1) : halfWaveCount
+  commands[0] = { kind: 'move', x: centerX, y: startY + halfWaveHeight * first }
   // A cubic with control X at 4/3 amplitude closely approximates a sine half-wave
   // while keeping Y linear. Alternating the sign also keeps the tangent continuous.
   const controlAmplitude = amplitude * (4 / 3)
-  for (let index = 0; index < halfWaveCount; index += 1) {
+  for (let index = first; index < after; index += 1) {
     const y = startY + halfWaveHeight * index
     const sign = index % 2 === 0 ? 1 : -1
     commands.push({

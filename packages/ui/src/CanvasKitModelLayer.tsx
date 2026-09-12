@@ -11,8 +11,8 @@ function installPrintListeners() {
 }
 
 /** Only interactive SVG targets remain large; dense paper graphics use a direct geometry model. */
-export function CanvasKitModelLayer({ model, className, ariaHidden, fallback }: {
-  model: DirectPaperModel; className: string; ariaHidden?: boolean; fallback: () => ReactNode
+export function CanvasKitModelLayer({ model, className, ariaHidden, fallback, preserveNative = false }: {
+  model: DirectPaperModel; className: string; ariaHidden?: boolean; fallback: () => ReactNode; preserveNative?: boolean
 }) {
   const [element, setElement] = useState<SVGGElement | null>(null)
   const source = element?.ownerSVGElement ?? null
@@ -26,13 +26,15 @@ export function CanvasKitModelLayer({ model, className, ariaHidden, fallback }: 
     return registerPaperModel(element, model)
   }, [element, model, supported])
   return <g ref={setElement} className={className} aria-hidden={ariaHidden}
+    data-paper-primitive-count={model.primitives.length}
     role={ready && accessibleText ? 'img' : undefined} aria-label={ready ? accessibleText || undefined : undefined}
     data-paper-direct-model={ready ? 'active' : undefined}>
     {supported && <g data-paper-style-samples="true" aria-hidden="true" pointerEvents="none">
-      {Object.entries(model.styles).map(([key, sample]) => createElement(sample.tag, {
-        key, 'data-paper-style': key, className: sample.className, style: sample.style,
-      }))}
+      {Object.entries(model.styles).map(([key, sample]) => createElement('g', { key, className: sample.contextClassName }, createElement(sample.tag, {
+        'data-paper-style': sample.textSpan ? undefined : key, className: sample.className, style: sample.style,
+        strokeWidth: sample.strokeWidth, dominantBaseline: sample.baseline,
+      }, sample.textSpan ? createElement('tspan', { 'data-paper-style': key }) : undefined)))}
     </g>}
-    {!ready && fallback()}
+    {(!ready || preserveNative) && fallback()}
   </g>
 }

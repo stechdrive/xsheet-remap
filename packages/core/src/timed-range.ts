@@ -176,7 +176,7 @@ export function timedRangeLaneIds(project: Pick<CutProject, 'logicalSheet'>, rol
     ?.lanes?.slice().sort((left, right) => left.order - right.order).map(lane => lane.laneId) ?? []
 }
 
-export function timelineLanesForLayout(project: Pick<CutProject, 'logicalSheet'>): Partial<Record<TimedRangeRole, LogicalTimelineLane[]>> {
+export function timelineLanesForLayout(project: { logicalSheet: Pick<CutProject['logicalSheet'], 'timelineSections'> }): Partial<Record<TimedRangeRole, LogicalTimelineLane[]>> {
   return Object.fromEntries(
     project.logicalSheet.timelineSections
       .filter(section => section.role === 'sound' || section.role === 'camera')

@@ -20,6 +20,19 @@ import {
 } from './templateEditorGeometry'
 
 describe('template editor geometry', () => {
+  it('bounds digital grid work while preserving the full model coordinates in the visible window', () => {
+    const template = digitalStandardSheetTemplate
+    const region = template.regions.find(region => region.grid?.role === 'action')!
+    const full = buildTemplateGridOverlayRenderModel(template, region, { durationFrames: 14_400 })!
+    const renderWindow = { top: 0.4, bottom: 0.41 }
+    const visible = buildTemplateGridOverlayRenderModel(template, region, { durationFrames: 14_400, renderWindow })!
+    expect(visible.frameNumbers.length).toBeLessThan(full.frameNumbers.length / 50)
+    expect(visible.rowPaths.reduce((count, path) => count + path.segments.length, 0)).toBeLessThan(180)
+    expect(visible.frameNumbers).toEqual(full.frameNumbers.filter(item => visible.frameNumbers.some(candidate => candidate.key === item.key)))
+    const allSegments = full.rowPaths.flatMap(path => path.segments)
+    expect(visible.rowPaths.flatMap(path => path.segments).every(segment => allSegments.some(candidate =>
+      candidate.x1 === segment.x1 && candidate.y1 === segment.y1 && candidate.x2 === segment.x2 && candidate.y2 === segment.y2))).toBe(true)
+  })
   it('provides one resolved surface contract for dynamic canvas size, regions, and pointer coordinates', () => {
     const tracks = createAlphabeticTrackLabels(22)
     const template = withSheetTemplatePaperTracks(digitalStandardSheetTemplate, tracks)

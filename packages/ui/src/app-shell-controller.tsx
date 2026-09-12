@@ -74,7 +74,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     dialogueAudioSelection, setDialogueAudioSelection, workspaceFocusOwner, setWorkspaceFocusOwner,
-    audioPlayhead, setAudioPlayhead, soundCueNavigationRequest, setSoundCueNavigationRequest,
+    audioPlayheadStore, soundCueNavigationRequest, setSoundCueNavigationRequest,
     selectedKeyId, setSelectedKeyId, sheetScrollRequest, setSheetScrollRequest, timingClipboard, setTimingClipboard,
     soundCueClipboard, setSoundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory, setSoundLabelHistory,
     cameraCueClipboard, setCameraCueClipboard, cameraCueDialog, setCameraCueDialog,
@@ -198,7 +198,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       ? inputHitForRange(project, template, sheetSelection.range)
       : null
   const selection = { hit: selectedHit, keyId: selectedKeyId }
-  const audioPlayheadFrame = audioPlayhead.cutId === projectDocumentSnapshot.activeCutId ? audioPlayhead.frame : project.logicalSheet.frameOrigin
+  const audioPlayheadFrame = project.logicalSheet.frameOrigin
   const sheetSourceRuntimePathEntries = useMemo(() => {
     const assetPathById = new Map(project.assets.map(asset => [asset.assetId, assetAbsolutePath(asset, project.assetRoot)]))
     return project.sheetView.sources.flatMap(source => {
@@ -727,7 +727,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handleDialogueAudioSelectionChange(nextSelection: typeof dialogueAudioSelection) { setDialogueAudioSelection(nextSelection); setWorkspaceFocusOwner('audio') }
   function handleDialogueAudioFocus() { setWorkspaceFocusOwner('audio') }
   function handleAudioPlayheadChange(frame: number) {
-    setAudioPlayhead({ cutId: projectDocumentSnapshot.activeCutId, frame })
+    audioPlayheadStore.publish({ cutId: projectDocumentSnapshot.activeCutId, frame })
     const pageIndex = sheetPages.findIndex(page => frame >= page.frameStart && frame <= page.frameEnd)
     if (pageIndex >= 0 && pageIndex !== clampedActivePageIndex) setActivePageIndex(pageIndex)
   }
@@ -2247,7 +2247,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
     setPenWidth, eraserWidth, setEraserWidth,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
-    audioPlayheadFrame, soundCueNavigationRequest, dialogueAudioSelection,
+    audioPlayheadFrame, audioPlayheadStore, soundCueNavigationRequest, dialogueAudioSelection,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,

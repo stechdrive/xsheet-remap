@@ -471,14 +471,12 @@ export function localizeFrameToSheetPage(
   if (frame < frameOrigin || frame > absoluteEnd) return null
   const viewLayout = getSheetViewLayout(template)
   if (viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite') {
-    const [page] = createSheetPages(template, durationFrames, frameOrigin)
-    return page ? { page, localFrame: frame } : null
+    return { page: { pageId: 'page_1', pageIndex: 0, frameStart: frameOrigin, frameEnd: absoluteEnd }, localFrame: frame }
   }
   const framesPerPage = getTemplateFramesPerPage(template)
   const pageIndex = Math.floor((frame - frameOrigin) / framesPerPage)
-  const pages = createSheetPages(template, durationFrames, frameOrigin)
-  const page = pages[pageIndex]
-  if (!page) return null
+  const frameStart = frameOrigin + pageIndex * framesPerPage
+  const page = { pageId: `page_${pageIndex + 1}`, pageIndex, frameStart, frameEnd: Math.min(frameStart + framesPerPage - 1, absoluteEnd) }
   return { page, localFrame: frame - page.frameStart + template.defaults.frameOrigin }
 }
 

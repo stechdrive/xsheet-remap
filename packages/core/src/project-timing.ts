@@ -1,7 +1,8 @@
 import type { CellBinding, CutProject, PaperTrackName, SheetTimingRole, TimelineEvent, TimingKey, TimingSpecialMarker } from './types'
 import { nextId, withoutUndefined } from './core-utils'
+import { registerTimingChange, replaceTimingEvent, timingKeyIndex } from './timing-index'
 import { DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
-import { assetFileBaseName, compareTimelineEvents, defaultCspCellName, ensurePaperTrack, isSpecialTimingKeyId, nextDisplayLabel, normalizeTimingKeyDisplayLabel, sameEventTarget, sequenceCspCellName, sheetTimingRoleForKey, timingEventValueKindForKeyId, timingSpecialMarkerKeyId, uniqueCspCellNameForSlot } from './project-shared'
+import { assetFileBaseName, defaultCspCellName, ensurePaperTrack, isSpecialTimingKeyId, nextDisplayLabel, normalizeTimingKeyDisplayLabel, sameEventTarget, sequenceCspCellName, sheetTimingRoleForKey, timingEventValueKindForKeyId, timingSpecialMarkerKeyId, uniqueCspCellNameForSlot } from './project-shared'
 
 export function createKey(
   project: CutProject,
@@ -61,7 +62,7 @@ export function setEvent(
 ): CutProject {
   ensurePaperTrack(project, paperTrack)
   if (!isSpecialTimingKeyId(keyId)) {
-    const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
+    const key = timingKeyIndex(project.logicalSheet.keys).get(keyId)
     if (!key) throw new Error(`key not found: ${keyId}`)
     if (key.paperTrack !== paperTrack) throw new Error(`key ${keyId} does not belong to paperTrack ${paperTrack}`)
     if (sheetTimingRoleForKey(key) !== sheetRole) throw new Error(`key ${keyId} does not belong to ${sheetRole}`)
@@ -76,10 +77,11 @@ export function setEvent(
     ...(typeof options.fontSizePx === 'number' && Number.isFinite(options.fontSizePx) ? { fontSizePx: options.fontSizePx } : {}),
     source: options.source ?? 'manual',
   }
-  const events = project.logicalSheet.events
-    .filter(item => !sameEventTarget(item, paperTrack, frame, sheetRole))
-    .concat(event)
-    .sort(compareTimelineEvents)
+  const events = replaceTimingEvent(project.logicalSheet.events, event)
+  registerTimingChange(project.logicalSheet.events, events, {
+    role: sheetRole, paperTrack, frameStart: frame, frameEnd: frame,
+    eventIds: [...project.logicalSheet.events.filter(item => sameEventTarget(item, paperTrack, frame, sheetRole)).map(item => item.eventId), event.eventId],
+  }, event)
   return { ...project, logicalSheet: { ...project.logicalSheet, events } }
 }
 
@@ -100,11 +102,17 @@ export function clearEvent(
   frame: number,
   sheetRole: SheetTimingRole = DEFAULT_SHEET_TIMING_ROLE,
 ): CutProject {
+  const events = project.logicalSheet.events.filter(item => !sameEventTarget(item, paperTrack, frame, sheetRole))
+  if (events.length === project.logicalSheet.events.length) return project
+  registerTimingChange(project.logicalSheet.events, events, {
+    role: sheetRole, paperTrack, frameStart: frame, frameEnd: frame,
+    eventIds: project.logicalSheet.events.filter(item => sameEventTarget(item, paperTrack, frame, sheetRole)).map(item => item.eventId),
+  })
   return {
     ...project,
     logicalSheet: {
       ...project.logicalSheet,
-      events: project.logicalSheet.events.filter(item => !sameEventTarget(item, paperTrack, frame, sheetRole)),
+      events,
     },
   }
 }

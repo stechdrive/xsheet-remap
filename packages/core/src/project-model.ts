@@ -19,13 +19,23 @@ export interface ReprojectProjectToTemplateOptions {
   resetSheetView?: boolean
 }
 
+export type SheetGeometryInput = {
+  logicalSheet: Pick<LogicalSheet, 'frameOrigin' | 'durationFrames' | 'workRange' | 'paperTracks' | 'timelineSections'>
+  sheetView: Pick<CutProject['sheetView'], 'layoutOverrides'>
+}
+
+export type SheetContentInput = SheetGeometryInput & Pick<CutProject, 'cut' | 'sheetFormData' | 'stackGuideLabels' | 'bindings'> & {
+  logicalSheet: Pick<LogicalSheet, 'fps' | 'keys' | 'events'>
+  sheetView: Pick<CutProject['sheetView'], 'metadataDisplay' | 'continuationDisplay'>
+}
+
 /**
  * Resolves the complete geometry context shared by every project sheet surface.
  * Templates define presentation; the project remains authoritative for logical
  * paper tracks, SOUND/CAMERA lanes, display duration, and per-project overrides.
  */
 export function projectSheetLayoutOptions(
-  project: Pick<CutProject, 'logicalSheet' | 'sheetView'>,
+  project: SheetGeometryInput,
   template: SheetTemplate,
 ): SheetGridLayoutOptions {
   const viewLayout = getSheetViewLayout(template)

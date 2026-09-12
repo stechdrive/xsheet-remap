@@ -1,5 +1,10 @@
 import { defineConfig } from '@playwright/test'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { browserProjects } from '../../verification/plan.mjs'
+
+const localBrowsers = path.resolve(import.meta.dirname, '../../../.cache/playwright')
+if (process.platform === 'win32' && !process.env.PLAYWRIGHT_BROWSERS_PATH && existsSync(localBrowsers)) process.env.PLAYWRIGHT_BROWSERS_PATH = localBrowsers
 
 // Propagate one id to all workers; later focused runs must not erase a failure trace.
 const runId = process.env.XSHEET_BROWSER_RUN_ID ??= `${Date.now()}-${process.pid}`
@@ -9,7 +14,7 @@ export default defineConfig({
   testDir: '.', testMatch: '*.spec.ts', timeout: 60_000, fullyParallel: false, workers: 1,
   retries: 0,
   outputDir: `../../../reference-local/canvaskit-browser/${runId}`,
-  reporter: [['list'], ['json', { outputFile: `reference-local/verification/browser-${runId}.json` }], ['junit', { outputFile: `reference-local/verification/browser-${runId}.xml` }]],
+  reporter: [['list'], ['json', { outputFile: path.resolve(import.meta.dirname, `../../../reference-local/verification/browser-${runId}.json`) }], ['junit', { outputFile: path.resolve(import.meta.dirname, `../../../reference-local/verification/browser-${runId}.xml`) }]],
   webServer: {
     // Serve the inspected Pages candidate; no second build or mid-test reload.
     command: 'node tools/e2e/canvaskit/pages-server.mjs',

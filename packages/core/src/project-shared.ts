@@ -25,7 +25,7 @@ export function normalizeTimingKeyDisplayLabel(value: string): string {
   return value.trim()
 }
 
-export function stackGuideGapIndex(project: Pick<CutProject, 'logicalSheet'>, label: Pick<StackGuideLabel, 'gapIndex' | 'insertAfterPaperTrack'>): number {
+export function stackGuideGapIndex(project: { logicalSheet: Pick<CutProject['logicalSheet'], 'paperTracks'> }, label: Pick<StackGuideLabel, 'gapIndex' | 'insertAfterPaperTrack'>): number {
   if (label.insertAfterPaperTrack) {
     const trackIndex = project.logicalSheet.paperTracks.findIndex(track => track.paperTrack === label.insertAfterPaperTrack)
     if (trackIndex >= 0) return trackIndex + 1

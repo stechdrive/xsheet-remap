@@ -1396,7 +1396,7 @@ it('creates and edits semantic CAMERA instructions while preserving selected ran
     expect(endpointLabels.every(item =>
       item.hasAttribute('clip-path')
       && !item.hasAttribute('transform')
-      && item.querySelector(':scope > g[transform] > text'),
+      && item.querySelector(':scope > g[transform] text'),
     )).toBe(true)
     expect(screen.queryByRole('dialog', { name: '撮影指示' })).toBeNull()
 

@@ -13,6 +13,7 @@ import type {
 import { CAMERA_INSTRUCTION_CUE_END_POINT_ID, clampCameraOverlapPivotAnchorFrame, defaultCameraOverlapPivotAnchorFrame, resolveCameraInstructionPoints, resolveCameraInstructionSegments } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
+import { timedCueIndex } from './timedCueIndex'
 import {
   SHEET_TEXT_FONT_FAMILY,
   sharedTextMeasurementProvider,
@@ -305,6 +306,7 @@ export function buildCameraCuePageLayouts(
   pageSize: { widthPx: number; heightPx: number },
   options: { paperTracks?: string[]; timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']; layoutOverrides?: SheetViewLayoutOverrides } = {},
 ): CameraCuePageLayout[] {
+  cues = timedCueIndex(cues).query(page.frameStart, page.frameEnd)
   const cueSegments = new Map(cues.map(cue => [cue.cueId, cameraCueSegmentsForPage(template, page, cue, options)]))
   const semanticLandmarks = cues.flatMap(cue => cameraCueSemanticLandmarksForPage(
     template,

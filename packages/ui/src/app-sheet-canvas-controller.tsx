@@ -28,6 +28,7 @@ import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { useAnimationFramePointerUpdate } from './useAnimationFramePointerUpdate';
 import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches';
+import { useSheetRenderWindow } from './useSheetRenderWindow'
 import { useSheetRenderCutGroupContext, useSheetRenderModelContext } from './useSheetRenderModelProject';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
 import { useSheetTouchNavigation } from './useSheetTouchNavigation';
@@ -267,12 +268,18 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
   const selectedSoundRangeContainingHit = (hit: SheetHit) => selectedTimedRangeContainingHit(hit, 'sound')
   const selectedCameraRangeContainingHit = (hit: SheetHit) => selectedTimedRangeContainingHit(hit, 'camera')
+  const renderWindowState = useSheetRenderWindow({
+    pages: props.sheetPages, mode: props.sheetView.viewMode, activePageIndex: props.activePageIndex,
+    requestedPageId: props.scrollRequest?.hit.pageId, continuous: isContinuousCanvas, viewportRef,
+    width: sheetPageWidth, height: sheetPageHeight,
+  })
   const renderCaches = useSheetCanvasRenderCaches({
-    project: props.project, template: props.template, sheetPages: props.sheetPages,
+    project: props.project, template: props.template, sheetPages: renderWindowState.mountedPages,
     activePageIndex: props.activePageIndex, viewMode: props.sheetView.viewMode, activeOverlayPaperTrack,
     renderContext: sheetRenderModelContext, pageSize: sheetPageSize, paperTracks: templateTrackNames,
     soundCuePreview: soundCueDrag?.preview, cameraCuePreview: cameraCueDrag?.preview,
     referenceProject: props.referenceProject, referenceRenderContext: referenceRenderModelContext,
+    renderWindow: renderWindowState.renderWindow,
   })
   const { visiblePages } = renderCaches
   const isCalibratingSheet = props.editMode === 'calibrate'
@@ -2275,7 +2282,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
-    draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas,
+    draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas, renderWindowState,
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
     overlayTracks, sheetRenderModelContext, referenceRenderModelContext, ...renderCaches,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,

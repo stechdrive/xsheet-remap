@@ -45,15 +45,33 @@ function render(scene: CanvasKitScene, cache?: CanvasKitPictureCache): Uint8Arra
 }
 
 describe('real CanvasKit paper paint', () => {
+  it('reuses shaped paragraphs when text moves and invalidates on font revision', () => {
+    const cache = new CanvasKitPictureCache()
+    const scene = (x: number): CanvasKitScene => ({ width: 100, height: 100, nodes: [node({ children: [node({
+      paint: { ...node().paint, fill: '#123456', stroke: '#ffffff', strokeWidth: 2, order: 'stroke fill' },
+      text: { value: 'A12', x, y: 50, size: 20, weight: 400, italic: false, anchor: 'middle', baseline: 'central', letterSpacing: 0 },
+    })] })] })
+    try {
+      expect(render(scene(30), cache)).toEqual(render(scene(30)))
+      expect(cache.paragraphs.built).toBe(2)
+      expect(render(scene(65), cache)).toEqual(render(scene(65)))
+      expect(cache.paragraphs.built).toBe(0)
+      expect(cache.paragraphs.reused).toBe(2)
+      fonts.revision++
+      expect(render(scene(65), cache)).toEqual(render(scene(65)))
+      expect(cache.paragraphs.built).toBe(2)
+    } finally { cache.clear() }
+    expect(cache.paragraphs.size).toBe(0)
+  })
   it('paints direct paper geometry with nonuniform transforms, inherited styles, clipping and physical text size', () => {
     const pen = { ...node().paint, stroke: '#23804b', strokeWidth: 3, nonScaling: true, dash: [5, 3] }
     const textPaint = { ...node().paint, fill: '#281f90', stroke: 'none' }
-    const style: PaperStyle = { paint: pen, opacity: 0.5, visible: true, family: 'test', weight: 400, italic: false, spacing: 0 }
+    const style: PaperStyle = { paint: pen, opacity: 0.5, visible: true, family: 'test', weight: 400, italic: false, spacing: 0, baseline: 'central' }
     const model: DirectPaperModel = {
       pageSize: { widthPx: 1000, heightPx: 500 }, styles: {}, primitives: [
         { style: 'pen', shape: { kind: 'path', d: 'M .1 .2 H .9' } },
         { style: 'pen', shape: { kind: 'path', d: 'M .1 .8 H .9' } },
-        { style: 'text', opacity: 0.8, text: { value: 'A1', x: 0.5, y: 0.5, size: 90, anchor: 'middle', baseline: 'central' } },
+        { style: 'text', opacity: 0.8, text: { value: 'A1', x: 0.5, y: 0.5, size: 90, anchor: 'middle' } },
         { style: 'hidden', shape: { kind: 'rect', rect: { x: 0, y: 0, width: 1, height: 1 }, rx: 0, ry: 0 } },
       ],
     }
@@ -109,6 +127,25 @@ describe('real CanvasKit paper paint', () => {
       expect(render(scene, cache)).toEqual(render(scene))
       expect(render(scene, cache)).toEqual(render(scene))
       expect(cache.reusedPictures).toBe(0)
+    } finally { cache.clear() }
+  })
+
+  it('retains reusable pictures during a scan larger than capacity and replaces removed groups', () => {
+    const groups = Array.from({ length: 300 }, (_, i) => node({ children: [node({
+      shape: { kind: 'path', d: `M ${i % 100} 0 V ${10 + Math.floor(i / 100)}` },
+    })] }))
+    const scene = (children: SceneNode[]): CanvasKitScene => ({ width: 100, height: 100, nodes: [node({ children })] })
+    const cache = new CanvasKitPictureCache()
+    try {
+      render(scene(groups), cache)
+      expect(render(scene(groups), cache)).toEqual(render(scene(groups)))
+      expect(cache.reusedPictures).toBe(256)
+      expect(cache.recordedPictures).toBe(44)
+      const changed = [node({ children: [node({ shape: { kind: 'path', d: 'M 0 50 H 100' } })] }), ...groups.slice(1)]
+      expect(render(scene(changed), cache)).toEqual(render(scene(changed)))
+      expect(cache.reusedPictures).toBe(255)
+      render(scene(changed), cache)
+      expect(cache.reusedPictures).toBe(256)
     } finally { cache.clear() }
   })
 

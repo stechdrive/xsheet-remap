@@ -1,11 +1,12 @@
 import type { CSSProperties } from 'react'
 import type { SceneMatrix, SceneNode, ScenePaint, SceneShape, SceneText } from './canvasKitScene'
 
-export type PaperStyleSample = { tag: 'rect' | 'path' | 'text'; className: string; style?: CSSProperties }
+export type PaperStyleSample = { tag: 'rect' | 'path' | 'text'; className: string; style?: CSSProperties; contextClassName?: string
+  strokeWidth?: number; baseline?: string; textSpan?: boolean }
 export type PaperPrimitive = {
   style: string
   shape?: SceneShape
-  text?: Pick<SceneText, 'value' | 'x' | 'y' | 'size' | 'anchor' | 'baseline'> & { weight?: number }
+  text?: Pick<SceneText, 'value' | 'x' | 'y' | 'size' | 'anchor'> & { weight?: number; baseline?: string }
   opacity?: number
   paint?: Partial<ScenePaint>
 }
@@ -15,12 +16,12 @@ export interface DirectPaperModel {
   primitives: PaperPrimitive[]
 }
 
-export type PaperStyle = { paint: ScenePaint; opacity: number; visible: boolean; family: string; weight: number; italic: boolean; spacing: number }
+export type PaperStyle = { paint: ScenePaint; opacity: number; visible: boolean; family: string; weight: number; italic: boolean; spacing: number; baseline: string }
 export function paperStyle(element: Element): PaperStyle {
   const style = getComputedStyle(element)
   return { visible: style.display !== 'none' && style.visibility !== 'hidden', opacity: Number(style.opacity || 1),
     family: style.fontFamily, weight: style.fontWeight === 'bold' ? 700 : Number(style.fontWeight) || 400,
-    italic: style.fontStyle === 'italic', spacing: parseFloat(style.letterSpacing) || 0,
+    italic: style.fontStyle === 'italic', spacing: parseFloat(style.letterSpacing) || 0, baseline: style.dominantBaseline,
     paint: { fill: style.fill || '#000', stroke: style.stroke || 'none', fillOpacity: Number(style.fillOpacity || 1),
       strokeOpacity: Number(style.strokeOpacity || 1), strokeWidth: parseFloat(style.strokeWidth || '1'),
       dash: style.strokeDasharray === 'none' ? [] : (style.strokeDasharray.match(/[\d.e+-]+/g)?.map(Number) ?? []),
@@ -43,7 +44,7 @@ export function compileDirectPaperModel(model: DirectPaperModel, matrix: SceneMa
       const { widthPx: w, heightPx: h } = model.pageSize
       const [a, b, c, d, e, f] = matrix
       node.matrix = [a / w, b / w, c / h, d / h, e, f]
-      node.text = { ...primitive.text, x: primitive.text.x * w, y: primitive.text.y * h,
+      node.text = { ...primitive.text, x: primitive.text.x * w, y: primitive.text.y * h, baseline: primitive.text.baseline ?? style.baseline,
         family: style.family, weight: primitive.text.weight ?? style.weight, italic: style.italic, letterSpacing: style.spacing }
     }
     nodes.push(node)

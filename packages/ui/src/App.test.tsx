@@ -1511,6 +1511,10 @@ it('omits the fixed paper outer frame for the digital standard template', () => 
     expect(document.querySelectorAll('.gridLineMedium').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridLineRegular').length).toBeGreaterThan(0)
     expect(document.querySelectorAll('.gridRowGuideLabel')).toHaveLength(0)
+    const visibleCounters = document.querySelectorAll('.gridSecondCounter').length
+    expect(visibleCounters).toBeGreaterThan(0)
+    expect(visibleCounters).toBeLessThan(6)
+    fireEvent(window, new Event('beforeprint'))
     expect(Array.from(document.querySelectorAll('.gridSecondCounter')).map(element => element.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
     expect(Array.from(document.querySelectorAll('.gridActionFrameNumber')).map(element => element.textContent)).toEqual(
       Array.from({ length: 72 }, (_, index) => String((index + 1) * 2)),
@@ -1520,6 +1524,8 @@ it('omits the fixed paper outer frame for the digital standard template', () => 
     expect(document.querySelector('.gridActionFrameNumber')?.getAttribute('transform')).toBe(digitalTextTransform)
     expect(document.querySelector('.gridSecondCounter')?.getAttribute('transform')).toBe(digitalTextTransform)
     expect(Array.from(document.querySelectorAll('.sheetSvg text')).every(element => element.getAttribute('transform') === digitalTextTransform)).toBe(true)
+    fireEvent(window, new Event('afterprint'))
+    expect(document.querySelectorAll('.gridSecondCounter')).toHaveLength(visibleCounters)
 
     fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
     expect(document.querySelectorAll('.gridOverlay-other')).toHaveLength(2)

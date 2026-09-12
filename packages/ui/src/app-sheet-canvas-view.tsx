@@ -1,4 +1,4 @@
-import { isRenderableSheetTemplateGridRegion, isTimelineProjectingSheetTemplateGridRegion, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, sheetGridRowY, type SheetHit } from '@xsheet-remap/core';
+import { isRenderableSheetTemplateGridRegion, isTimelineProjectingSheetTemplateGridRegion, resolveCameraInstructionPoints, resolveSheetTemplateGridLayout, type SheetHit } from '@xsheet-remap/core';
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { useCanvasKitPaper } from './useCanvasKitPaper'
 import { uiText } from './i18n';
@@ -20,11 +20,14 @@ import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { TimingEventSymbol } from './TimingEventSymbol'
-import { sheetContinuationPathData } from './sheetRenderModel'
+import { TimingContinuationLayer } from './TimingContinuationLayer'
+import { TimingEventModelLayer } from './TimingEventModelLayer'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
 import { TimelineLaneEditorPopover } from './TimelineLaneEditorPopover'
 import { PageAnnotationInputSurface } from './PageAnnotationInputSurface'
 import { CommittedAnnotationCanvas } from './CommittedAnnotationCanvas'
+import { SheetRenderWindowContext } from './useSheetRenderWindow'
+import { SheetPlayheadOverlay } from './SheetPlayheadOverlay'
 
 function SheetPageSurface({
   pageId,
@@ -124,9 +127,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
-    draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas,
+    draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas, renderWindowState,
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
-    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, visiblePages, eventRectsByPage, continuationItemsByPage,
+    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, eventRectsByPage, continuationItemsByPage,
     referenceEventRectsByPage, referenceContinuationItemsByPage, referenceAnnotationRenderItemsByPage,
     annotationStrokeRenderItemsByPage, annotationTextRenderItemsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,
@@ -184,7 +187,12 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       onDrop={event => void handleViewportDrop(event)}
     >
       <div ref={pageStackRef} className={`sheetPageStack ${props.sheetView.viewMode}`}>
-        {visiblePages.map(page => {
+        {renderWindowState.displayPages.map(page => {
+          if (!renderWindowState.mountedPageIds.has(page.pageId)) return <figure
+            key={page.pageId} className="sheetPage" data-sheet-page-slot={page.pageId}
+            ref={renderWindowState.pageRef(page.pageId)}
+            style={{ minWidth: sheetPageWidth, height: sheetPageHeight }} aria-hidden="true"
+          />
           const isCalibrating = isCalibratingSheet
           const pageImage = getSheetPageImage(props.sheetView, props.runtimeSourceImageUrls, page.pageId, props.template)
           const strokeRenderItems = !isCalibrating && props.showAnnotations ? annotationStrokeRenderItemsByPage.get(page.pageId) ?? [] : []
@@ -255,12 +263,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             frameOrigin: isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin,
             layoutOverrides: props.project.sheetView.layoutOverrides,
           }) : null
-          const playheadRow = props.audioPlayheadFrame !== null && playheadLayout
-            ? props.audioPlayheadFrame - playheadLayout.frames.frameStart
-            : -1
-          const audioPlayheadY = playheadLayout && playheadRow >= 0 && playheadRow < playheadLayout.frames.rowCount
-            ? sheetGridRowY(playheadLayout, playheadRow) + playheadLayout.frames.rowHeight / 2
-            : null
 
           const pageAccessibleLabel = isContinuousCanvas
             ? uiText.sheet.surfaceCaption(page.frameStart, page.frameEnd)
@@ -269,11 +271,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           return (
             <figure
               key={page.pageId}
+              data-sheet-page-slot={page.pageId}
+              ref={renderWindowState.pageRef(page.pageId)}
               className={page.pageIndex === props.activePageIndex ? 'sheetPage active' : 'sheetPage'}
               aria-label={pageAccessibleLabel}
             >
               <SheetPageSurface pageId={page.pageId} interactionOwner={interactionOwner} width={sheetPageWidth} height={sheetPageHeight}>
-                {editorHost => <>
+                {editorHost => <SheetRenderWindowContext.Provider value={renderWindowState.renderWindow}>
                 <svg
                   viewBox="0 0 1 1"
                   preserveAspectRatio="none"
@@ -339,14 +343,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     />
                   )}
                   {showInputContent && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
-                  {showInputContent && continuationItems.map(item => (
-                    <path
-                      key={`${item.eventId}:${item.paperTrack}:${item.path[0]?.x}:${item.path[0]?.y}`}
-                      className={`timingContinuationLine timingContinuation${item.kind === 'wave' ? 'Wave' : 'Straight'}`}
-                      d={sheetContinuationPathData(item.path)}
-                      strokeWidth={item.strokeWidth}
-                    />
-                  ))}
+                  {showInputContent && <TimingContinuationLayer items={continuationItems} pageSize={sheetPageSize} />}
                   {candidateRects.map(candidate => (
                     <rect
                       key={candidate.candidateId}
@@ -447,7 +444,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onHandlePointerDown={(event, index, kind) => handleCalibrationHandlePointerDown(event, page, pageImage.settings, index, kind)}
                     />
                   )}
-                  {showInputContent && eventRects.map(({ event, eventKind, displayLabel, rect, hasAssetBinding, fontSizePx }) => {
+                  {showInputContent && <TimingEventModelLayer items={eventRects} pageSize={sheetPageSize} surface={selectionSurface}
+                    dragging={timelineEventDrag?.sourceHit} pending={pendingTimelineEventDrag?.sourceHit} ready={pendingTimelineEventDrag?.ready}>
+                  {eventRects.map(({ event, eventKind, displayLabel, rect, hasAssetBinding, fontSizePx }) => {
                     const eventHit = timelineEventHitForPage(event, page)
                     const isDraggingEvent = Boolean(timelineEventDrag && sameSheetHitCell(timelineEventDrag.sourceHit, eventHit))
                     const pendingEventDrag = pendingTimelineEventDrag && sameSheetHitCell(pendingTimelineEventDrag.sourceHit, eventHit)
@@ -491,6 +490,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       </g>
                     )
                   })}
+                  </TimingEventModelLayer>}
                   {!isCalibrating && (
                     <StackGuideSvgLayer
                       project={props.project}
@@ -528,6 +528,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onUpdatePlacement={props.onUpdateTimelineMemoPlacement}
                     />
                   )}
+                </svg>
+                <svg className="sheetTransientOverlay" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
                   {selectedRect && props.timingDraftActive && (
                     <g className="timingDraftOverlay" aria-label={`入力中: ${props.timingDraftValue}`}>
                       <rect className="timingDraftRect" x={selectedRect.x} y={selectedRect.y} width={selectedRect.w} height={selectedRect.h} />
@@ -551,8 +553,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   {dropTargetRect && dropTargetPreview && (
                     <SheetDropTargetCue rect={dropTargetRect} surface={selectionSurface} validity={dropTargetPreview.validity} />
                   )}
-                  {audioPlayheadY !== null && <line className="audioSheetPlayhead" x1="0" x2="1" y1={audioPlayheadY} y2={audioPlayheadY} />}
                 </svg>
+                <SheetPlayheadOverlay store={props.audioPlayheadStore} frame={props.audioPlayheadFrame} cutId={props.activeCutId}
+                  layout={playheadLayout} page={page} continuous={isContinuousCanvas} />
                 {strokeRenderItems.length > 0 && (
                   <CommittedAnnotationCanvas
                     width={sheetPageWidth}
@@ -667,7 +670,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   />
                 )}
                 {hoverRect && <HoverCellOverlay rect={hoverRect} />}
-                </>}
+                </SheetRenderWindowContext.Provider>}
               </SheetPageSurface>
             </figure>
           )

@@ -50,4 +50,23 @@ describe('sheet page virtualization', () => {
     expect(sheetRenderWindow(4000, 4800, 100_000)).not.toEqual(sheetRenderWindow(1100, 1900, 100_000))
     expect(sheetRenderWindow(0, 800, 1000)).toBeNull()
   })
+
+  it('keeps an offscreen editing page mounted until the memo session ends', () => {
+    vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
+    const pages = Array.from({ length: 100 }, (_, pageIndex) => ({ pageId: `page_${pageIndex + 1}`, pageIndex, frameStart: 144 * pageIndex + 1, frameEnd: 144 * (pageIndex + 1) }))
+    function Harness({ editingPageId }: { editingPageId?: string }) {
+      const viewportRef = useRef<HTMLDivElement>(null)
+      const window = useSheetRenderWindow({ pages, mode: 'continuous', activePageIndex: 0, editingPageId, continuous: false, viewportRef, width: 1000, height: 1400 })
+      return <div ref={viewportRef}>{window.displayPages.map(page => <div key={page.pageId} data-sheet-page-slot={page.pageId} ref={window.pageRef(page.pageId)}>
+        {window.mountedPageIds.has(page.pageId) && <input aria-label={page.pageId} />}
+      </div>)}</div>
+    }
+    const { container, rerender } = render(<Harness editingPageId="page_100" />)
+    expect(container.querySelector('[aria-label="page_100"]')).not.toBeNull()
+    expect(container.querySelectorAll('input')).toHaveLength(3)
+    rerender(<Harness />)
+    expect(container.querySelector('[aria-label="page_100"]')).toBeNull()
+    expect(container.querySelectorAll('input')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-sheet-page-slot]')).toHaveLength(100)
+  })
 })

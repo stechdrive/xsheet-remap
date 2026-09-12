@@ -17,9 +17,10 @@ export function sheetRenderWindow(top: number, bottom: number, height: number): 
 }
 
 /** Empty page slots preserve layout; native focus and captured input pin their page. */
-export function useSheetRenderWindow({ pages, mode, activePageIndex, requestedPageId, continuous, viewportRef, width, height }: {
+export function useSheetRenderWindow({ pages, mode, activePageIndex, requestedPageId, editingPageId, continuous, viewportRef, width, height }: {
   pages: SheetPage[]; mode: SheetViewMode; activePageIndex: number; requestedPageId?: string
   continuous: boolean; viewportRef: RefObject<HTMLDivElement | null>; width: number; height: number
+  editingPageId?: string
 }) {
   const [near, setNear] = useState<ReadonlySet<string>>(() => new Set(pages.slice(0, 2).map(page => page.pageId)))
   const [pinned, setPinned] = useState<ReadonlySet<string>>(() => new Set())
@@ -114,7 +115,7 @@ export function useSheetRenderWindow({ pages, mode, activePageIndex, requestedPa
     return () => { cancelAnimationFrame(frame); viewport.removeEventListener('scroll', schedule); resize?.disconnect(); globalThis.removeEventListener('resize', schedule) }
   }, [continuous, displayPages, height, viewportRef, width])
   const mountedSignature = displayPages.map(page => printing || continuous || !globalThis.IntersectionObserver
-    || near.has(page.pageId) || pinned.has(page.pageId) || page.pageIndex === activePageIndex || page.pageId === requestedPageId ? '1' : '0').join('')
+    || near.has(page.pageId) || pinned.has(page.pageId) || page.pageIndex === activePageIndex || page.pageId === requestedPageId || page.pageId === editingPageId ? '1' : '0').join('')
   const mountedPages = useMemo(() => displayPages.filter((_, index) => mountedSignature[index] === '1'), [displayPages, mountedSignature])
   const mountedPageIds = useMemo(() => new Set(mountedPages.map(page => page.pageId)), [mountedPages])
   const initialWindow = useMemo(() => sheetRenderWindow(0, globalThis.innerHeight || 1000, height), [height])

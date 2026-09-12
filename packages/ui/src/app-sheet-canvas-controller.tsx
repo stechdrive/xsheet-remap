@@ -29,6 +29,7 @@ import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
 import { useAnimationFramePointerUpdate } from './useAnimationFramePointerUpdate';
 import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches';
 import { useSheetRenderWindow } from './useSheetRenderWindow'
+import { useTimelineMemoViewport } from './useTimelineMemoViewport'
 import { useSheetRenderCutGroupContext, useSheetRenderModelContext } from './useSheetRenderModelProject';
 import { useSheetCalibrationDrag } from './useSheetCalibrationDrag';
 import { useSheetTouchNavigation } from './useSheetTouchNavigation';
@@ -268,10 +269,17 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
   const selectedSoundRangeContainingHit = (hit: SheetHit) => selectedTimedRangeContainingHit(hit, 'sound')
   const selectedCameraRangeContainingHit = (hit: SheetHit) => selectedTimedRangeContainingHit(hit, 'camera')
+  const editingMemoPageId = useTimelineMemoViewport({
+    memoId: props.selectedTimelineMemoId, memos: props.project.memos, pages: props.sheetPages,
+    template: props.template, paperTracks: templateTrackNames, timelineLanes, layoutOverrides: props.project.sheetView.layoutOverrides,
+    viewportRef, svgRefs: sheetSvgRefs, singlePage: props.sheetView.viewMode === 'single-page',
+    activePageIndex: props.activePageIndex, setActivePageIndex: props.setActivePageIndex, zoom,
+  })
   const renderWindowState = useSheetRenderWindow({
     pages: props.sheetPages, mode: props.sheetView.viewMode, activePageIndex: props.activePageIndex,
     requestedPageId: props.scrollRequest?.hit.pageId, continuous: isContinuousCanvas, viewportRef,
     width: sheetPageWidth, height: sheetPageHeight,
+    editingPageId: editingMemoPageId,
   })
   const renderCaches = useSheetCanvasRenderCaches({
     project: props.project, template: props.template, sheetPages: renderWindowState.mountedPages,
@@ -2188,6 +2196,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props.onAssetDrop(await collectAssetFilesFromDrop(dataTransfer), hit, { x: event.clientX, y: event.clientY })
   }
 
+  function handleViewportPointerDownCapture(event: PointerEvent<HTMLDivElement>) {
+    if (beginViewportPan(event, event.currentTarget)) return
+    touchNavigation.handlePointerDownCapture(event)
+  }
+
   function handleViewportPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (event.target === event.currentTarget || (event.target instanceof HTMLElement && event.target.classList.contains('sheetPageStack'))) {
       lastSoundCueActivationRef.current = null
@@ -2210,7 +2223,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       setContextMenu(null)
       setPaperTrackHeaderMenu(null)
       setStackGuideHeaderMenu(null)
-      props.onClearSelection()
+      if (props.selectedTimelineMemoId) props.onSelectTimelineMemo(null)
+      else props.onClearSelection()
     }
   }
 
@@ -2294,6 +2308,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     ...timelineLaneEditorActions,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, ...touchNavigation, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
+    handlePointerDownCapture: handleViewportPointerDownCapture,
     canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   }

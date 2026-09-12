@@ -560,8 +560,12 @@ export function SheetPanel(props: {
 
   useEffect(() => {
     if (!activeTimelineMemoId) return
-    const closeOutside = (event: globalThis.PointerEvent) => {
+    const closeOutside = (event: globalThis.MouseEvent) => {
+      if (event.button !== 0) return
       const target = event.target instanceof Element ? event.target : null
+      // The viewport owns tap/pan/pinch recognition. A navigation pointerdown
+      // must never end the longer-lived memo editing session.
+      if (target?.closest('.sheetViewport')) return
       const memoElement = target?.closest('[data-timeline-memo-id]')
       const memoAnchorElement = target?.closest('[data-timeline-memo-ids]')
       const anchorMemoIds = (memoAnchorElement?.getAttribute('data-timeline-memo-ids') ?? '').split(/\s+/).filter(Boolean)
@@ -573,10 +577,10 @@ export function SheetPanel(props: {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') endTimelineMemoEdit()
     }
-    window.addEventListener('pointerdown', closeOutside, true)
+    window.addEventListener('click', closeOutside, true)
     window.addEventListener('keydown', closeOnEscape)
     return () => {
-      window.removeEventListener('pointerdown', closeOutside, true)
+      window.removeEventListener('click', closeOutside, true)
       window.removeEventListener('keydown', closeOnEscape)
     }
   }, [activeTimelineMemoId, endTimelineMemoEdit])

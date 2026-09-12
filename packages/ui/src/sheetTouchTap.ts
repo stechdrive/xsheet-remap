@@ -48,7 +48,8 @@ export function runSheetTouchTap(
   beforeTap()
   const pointed = pageHitUnderClientPoint(clientX, clientY)
   if (!pointed) {
-    props.onClearSelection()
+    if (props.selectedTimelineMemoId) props.onSelectTimelineMemo(null)
+    else props.onClearSelection()
     return
   }
 

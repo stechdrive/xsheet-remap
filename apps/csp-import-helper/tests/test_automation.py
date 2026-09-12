@@ -428,7 +428,7 @@ class AutomationTests(unittest.TestCase):
             manifest_path = _write_manifest(package, [_track()], output_clip_file_name="SAMPLE_05_C001.clip")
             manifest = load_manifest(manifest_path)
 
-            self.assertEqual(default_output_clip_path(manifest), root / "SAMPLE_05_C001.clip")
+            self.assertEqual(default_output_clip_path(manifest), root.resolve() / "SAMPLE_05_C001.clip")
 
     def test_default_output_clip_path_sanitizes_manifest_output_clip_file_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -439,7 +439,7 @@ class AutomationTests(unittest.TestCase):
             manifest_path = _write_manifest(package, [_track()], output_clip_file_name="bad:name")
             manifest = load_manifest(manifest_path)
 
-            self.assertEqual(default_output_clip_path(manifest), root / "bad_name.clip")
+            self.assertEqual(default_output_clip_path(manifest), root.resolve() / "bad_name.clip")
 
     def test_save_as_output_path_must_not_be_an_existing_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -450,7 +450,7 @@ class AutomationTests(unittest.TestCase):
             with self.assertRaisesRegex(AutomationError, "must include a .clip file name"):
                 _resolve_save_as_clip_path(output_dir)
 
-            self.assertEqual(_resolve_save_as_clip_path(root / "finished"), root / "finished.clip")
+            self.assertEqual(_resolve_save_as_clip_path(root / "finished"), root.resolve() / "finished.clip")
 
     def test_stages_asset_file_names_to_match_csp_cell_names_before_import(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

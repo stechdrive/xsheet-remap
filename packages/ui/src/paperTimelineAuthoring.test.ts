@@ -75,6 +75,22 @@ describe('paper timeline authoring', () => {
     expect(JSON.stringify(next)).toBe(before)
   })
 
+  it('preserves every authored width and height during translation, including fractional pixel widths', () => {
+    const template = structuredClone(standardA3SheetTemplate)
+    const structure = detectPaperTimelineStructure(template)!
+    const next = transformPaperTimelineRect(template, structure, { ...structure.rect,
+      x: structure.rect.x - 11 / template.page.widthPx, y: structure.rect.y + 14 / template.page.heightPx })
+    for (const original of template.regions) {
+      const moved = next.regions.find(region => region.regionId === original.regionId)!
+      expect(moved.rect.w).toBe(original.rect.w)
+      expect(moved.rect.h).toBe(original.rect.h)
+      if (structure.managedRegionIds.has(original.regionId)) {
+        expect((moved.rect.x - original.rect.x) * template.page.widthPx).toBeCloseTo(-11)
+        expect((moved.rect.y - original.rect.y) * template.page.heightPx).toBeCloseTo(14)
+      } else expect(moved).toBe(original)
+    }
+  })
+
   it('moves paired column boundaries by the same pixel delta without flattening existing left-right differences', () => {
     const template = structuredClone(standardA3SheetTemplate)
     const structure = detectPaperTimelineStructure(template)!

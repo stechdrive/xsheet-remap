@@ -10,6 +10,7 @@ import { Tooltip, TooltipTarget } from './Tooltip';
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe';
 import { ActionMenu, IconButton, ScrubbableNumberInput } from './AppControls';
 import { TemplateWorkspace, type TemplateWorkspaceDraftState } from './TemplateWorkspace';
+import type { TemplateHistoryControls } from './useTemplateDraftHistory'
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
 import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, PaperSheetIcon, RecognitionActionMenu, RedoIcon, UndoIcon } from './app-navigation';
@@ -77,6 +78,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
   ), [project])
   const templateDraftState = useRef<TemplateWorkspaceDraftState | null>(null)
   const [templateDraftForMount, setTemplateDraftForMount] = useState<TemplateWorkspaceDraftState | null>(null)
+  const [templateHistoryControls, setTemplateHistoryControls] = useState<TemplateHistoryControls | null>(null)
   const correctedSheetImageExportInFlight = useRef(false)
   const [correctedSheetImageExportSaving, setCorrectedSheetImageExportSaving] = useState<CorrectedSheetImageExportFormat | null>(null)
   const dialogueAudioExportInFlight = useRef(false)
@@ -295,10 +297,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
           />
           <div className="topUtilityActions">
             <Tooltip label={uiText.actions.undo}>
-              <IconButton data-timing-edit-boundary="manual" onClick={handleUndo} disabled={!valueDraftActive && history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></IconButton>
+              <IconButton data-timing-edit-boundary="manual" onClick={panel === 'template' ? templateHistoryControls?.undo : handleUndo} disabled={panel === 'template' ? !templateHistoryControls?.canUndo : !valueDraftActive && history.past.length === 0} aria-label={uiText.actions.undo}><UndoIcon /></IconButton>
             </Tooltip>
             <Tooltip label={uiText.actions.redo}>
-              <IconButton onClick={handleRedo} disabled={valueDraftActive || history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></IconButton>
+              <IconButton onClick={panel === 'template' ? templateHistoryControls?.redo : handleRedo} disabled={panel === 'template' ? !templateHistoryControls?.canRedo : valueDraftActive || history.future.length === 0} aria-label={uiText.actions.redo}><RedoIcon /></IconButton>
             </Tooltip>
             <Tooltip label={`${appProfile.appName}のクイックガイドと詳しい使い方を開く`}>
               <IconButton onClick={() => setAppHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></IconButton>
@@ -541,6 +543,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             template={template}
             initialDraftTemplate={templateDraftForMount?.dirty ? templateDraftForMount.template : undefined}
             initialDraftDirty={templateDraftForMount?.dirty ?? false}
+            initialHistory={templateDraftForMount?.history}
+            onHistoryControlsChange={setTemplateHistoryControls}
             onDraftStateChange={state => { templateDraftState.current = state }}
             onLoadTemplate={handleLoadTemplate}
             onSaveTemplate={handleSaveTemplateJson}

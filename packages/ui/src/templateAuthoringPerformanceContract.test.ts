@@ -24,7 +24,8 @@ describe('template authoring performance contract', () => {
     expect(editor).toContain('() => buildTemplateEditorRenderModel')
     expect(editor).not.toContain('useDeferredValue(template)')
     expect(editor).toContain('const [dragPreview, setDragPreview]')
-    expect(editor).toContain('window.requestAnimationFrame(updatePreview)')
+    expect(editor).toContain('startTemplatePointerDrag')
+    expect(readSource('templatePointerDrag.ts')).toContain('window.requestAnimationFrame(updatePreview)')
     expect(editor).toContain('buildTemplateEditorSurfaceModel')
     expect(editor).toContain('withoutTemplateRegions(unfilteredBaseRenderModel, baseHiddenRegionIds)')
   })
@@ -33,8 +34,8 @@ describe('template authoring performance contract', () => {
     const editor = readSource('template-workspace-region-editor.tsx')
 
     expect(editor).toContain("dragPreview.mode === 'translate'")
-    expect(editor).toContain('onlyTemplateRegions(unfilteredBaseRenderModel, paperTimelineMoveRegionIds)')
-    expect(editor).toContain('<PaperTimelineMoveSnapshot renderModel={renderModel} sourceRect={sourceRect} />')
+    expect(editor).toContain('onlyTemplateRegions(unfilteredBaseRenderModel, previewRegionIds)')
+    expect(editor).toContain('<TemplateRegionSnapshot renderModel={renderModel} sourceRect={sourceRect} />')
     expect(editor).toContain('transform: `translate3d(${deltaXPx}px, ${deltaYPx}px, 0)`')
   })
 

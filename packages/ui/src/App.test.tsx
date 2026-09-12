@@ -1390,26 +1390,6 @@ it('preserves an unapplied template draft while visiting another workspace panel
     expect(screen.getByText(uiText.template.draftChanged)).toBeTruthy()
   })
 
-it('undoes and redoes an applied template with the synchronized project history', async () => {
-    render(<App />)
-    selectAppPanel(uiText.nav.template)
-
-    await createDigitalTemplateDraft()
-    fireEvent.click(screen.getByRole('button', { name: 'プロジェクトへ反映' }))
-    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-
-    const undo = screen.getByRole('button', { name: uiText.actions.undo }) as HTMLButtonElement
-    const redo = screen.getByRole('button', { name: uiText.actions.redo }) as HTMLButtonElement
-    expect(undo.disabled).toBe(false)
-    fireEvent.click(undo)
-    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-    expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(0)
-
-    expect(redo.disabled).toBe(false)
-    fireEvent.click(redo)
-    expect(document.querySelectorAll('.templateOuterFrame')).toHaveLength(0)
-    expect(document.querySelectorAll('.templateFormBox')).toHaveLength(14)
-  })
 
 it('edits selected template rectangles in source-image pixels', () => {
     render(<App />)

@@ -1,6 +1,9 @@
-import { resolveSheetTemplateGridColumns, resolveSheetTemplateGridFrames, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
+import { getSheetViewLayout, resolveSheetTemplateGridColumns, resolveSheetTemplateGridFrames, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import { useCanvasKitPaper } from './useCanvasKitPaper'
+import { useTemplateZoomPreview } from './useTemplateZoomPreview'
+import { startTemplatePointerDrag } from './templatePointerDrag'
+import { buildTemplateRegionsPreview } from './templatePreviewModel'
 import type { SheetImageSettings } from './appTypes'
 import { uiText } from './i18n'
 import { SHEET_ZOOM_WHEEL_FACTOR, TEMPLATE_ZOOM_MAX, TEMPLATE_ZOOM_MIN } from './sheetConstants'
@@ -78,15 +81,32 @@ export function TemplateRegionEditor({
   const editorClientRectRef = useRef<DOMRect | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   useCanvasKitPaper(viewportRef)
+  useTemplateZoomPreview(viewportRef, zoom)
+  const cancelDragRef = useRef<(() => void) | null>(null)
+  const [hoverState, setHoverState] = useState<{ id: string | null; selection: string | null; zoom: number } | null>(null)
+  const hoveredTargetId = hoverState?.selection === selectedRegionId && hoverState.zoom === zoom ? hoverState.id : null
+  function setHoveredTargetId(id: string | null) {
+    setHoverState(current => current?.id === id && current.selection === selectedRegionId && current.zoom === zoom
+      ? current : { id, selection: selectedRegionId, zoom })
+  }
+  const [touchControls, setTouchControls] = useState(false)
+  useEffect(() => () => { cancelDragRef.current?.() }, [template, selectedRegionId])
   const pendingWheelZoomRef = useRef<PendingTemplateWheelZoom | null>(null)
   const wheelZoomFrameRef = useRef<number | null>(null)
   const hoveredOverlayRef = useRef<HTMLDivElement | null>(null)
   const hoveredTargetIdRef = useRef<string | null>(null)
   const basePaperTimeline = useMemo(() => editablePaperTimelineStructure(template), [template])
-  const isPaperTimelineMovePreview = dragPreview?.targetId === PAPER_TIMELINE_TARGET_ID && dragPreview.mode === 'translate'
+  const isTranslationPreview = !!dragPreview && dragPreview.mode === 'translate'
+  const previewTargetId = dragPreview?.targetId
+  const moveSourceRect = previewTargetId === PAPER_TIMELINE_TARGET_ID
+    ? basePaperTimeline?.rect
+    : template.regions.find(region => region.regionId === previewTargetId)?.rect
+  const hasDynamicLayout = !!template.horizontalFlow || getSheetViewLayout(template).surface?.type === 'continuous-canvas'
+  const fullLayoutPreview = !!dragPreview && hasDynamicLayout
+  const timelineGeometryPreview = previewTargetId === PAPER_TIMELINE_TARGET_ID && !isTranslationPreview
   const editorTemplate = useMemo(() => {
     if (!dragPreview) return template
-    if (isPaperTimelineMovePreview) return template
+    if (isTranslationPreview) return template
     if (dragPreview.targetId === TEMPLATE_CALIBRATION_TARGET_ID) {
       return setTemplateCalibrationTargetRect(template, dragPreview.rect)
     }
@@ -99,31 +119,32 @@ export function TemplateRegionEditor({
         ? { ...region, rect: dragPreview.rect }
         : region),
     }
-  }, [basePaperTimeline, dragPreview, isPaperTimelineMovePreview, template])
+  }, [basePaperTimeline, dragPreview, isTranslationPreview, template])
   const paperTimeline = useMemo(() => editablePaperTimelineStructure(editorTemplate), [editorTemplate])
-  const baseRenderTemplate = dragPreview?.targetId === PAPER_TIMELINE_TARGET_ID && !isPaperTimelineMovePreview ? editorTemplate : template
+  const baseRenderTemplate = fullLayoutPreview ? editorTemplate : template
   const unfilteredBaseRenderModel = useMemo(
     () => buildTemplateEditorRenderModel(baseRenderTemplate, previewDurationFrames),
     [baseRenderTemplate, previewDurationFrames],
   )
-  const paperTimelineMoveRegionIds = useMemo(() => {
-    if (!isPaperTimelineMovePreview || !basePaperTimeline) return null
-    const visibleIds = new Set(basePaperTimeline.managedRegionIds)
+  const previewRegionIds = useMemo(() => {
+    if ((!isTranslationPreview && !timelineGeometryPreview) || !previewTargetId) return null
+    const visibleIds = new Set(previewTargetId === PAPER_TIMELINE_TARGET_ID ? basePaperTimeline?.managedRegionIds : [previewTargetId])
     for (const regionId of hiddenRegionIds ?? []) visibleIds.delete(regionId)
     return visibleIds
-  }, [basePaperTimeline, hiddenRegionIds, isPaperTimelineMovePreview])
-  const paperTimelineMoveRenderModel = useMemo(
-    () => paperTimelineMoveRegionIds
-      ? onlyTemplateRegions(unfilteredBaseRenderModel, paperTimelineMoveRegionIds)
+  }, [basePaperTimeline, hiddenRegionIds, isTranslationPreview, timelineGeometryPreview, previewTargetId])
+  const translationRenderModel = useMemo(
+    () => previewRegionIds
+      ? onlyTemplateRegions(unfilteredBaseRenderModel, previewRegionIds)
       : null,
-    [paperTimelineMoveRegionIds, unfilteredBaseRenderModel],
+    [previewRegionIds, unfilteredBaseRenderModel],
   )
+  const timelineGeometryRenderModel = useMemo(() => timelineGeometryPreview && previewRegionIds
+    ? buildTemplateRegionsPreview(editorTemplate, previewRegionIds, unfilteredBaseRenderModel)
+    : null, [timelineGeometryPreview, previewRegionIds, editorTemplate, unfilteredBaseRenderModel])
   const baseHiddenRegionIds = useMemo(() => {
-    if (!isPaperTimelineMovePreview || !basePaperTimeline) return hiddenRegionIds
-    const hiddenIds = new Set(hiddenRegionIds)
-    for (const regionId of basePaperTimeline.managedRegionIds) hiddenIds.add(regionId)
-    return hiddenIds
-  }, [basePaperTimeline, hiddenRegionIds, isPaperTimelineMovePreview])
+    if (!previewRegionIds) return hiddenRegionIds
+    return new Set([...hiddenRegionIds ?? [], ...previewRegionIds])
+  }, [previewRegionIds, hiddenRegionIds])
   const baseRenderModel = useMemo(
     () => withoutTemplateRegions(unfilteredBaseRenderModel, baseHiddenRegionIds),
     [baseHiddenRegionIds, unfilteredBaseRenderModel],
@@ -145,25 +166,19 @@ export function TemplateRegionEditor({
     })),
   }), [editorSurface, interactiveTemplate])
   const activeRegionRenderModel = useMemo(
-    () => dragPreview
+    () => dragPreview && !isTranslationPreview && !fullLayoutPreview
       && dragPreview.targetId !== TEMPLATE_CALIBRATION_TARGET_ID
       && dragPreview.targetId !== PAPER_TIMELINE_TARGET_ID
       && !hiddenRegionIds?.has(dragPreview.targetId)
       ? buildTemplateEditorRegionRenderModel(editorTemplate, dragPreview.targetId, previewDurationFrames)
       : null,
-    [dragPreview, editorTemplate, hiddenRegionIds, previewDurationFrames],
-  )
-  const hasDragPreview = dragPreview !== null
-  const stationarySurface = hasDragPreview ? null : editorSurface
-  const baseSurface = useMemo(
-    () => stationarySurface ?? buildTemplateEditorSurfaceModel(template, previewDurationFrames),
-    [stationarySurface, template, previewDurationFrames],
+    [dragPreview, editorTemplate, hiddenRegionIds, previewDurationFrames, isTranslationPreview, fullLayoutPreview],
   )
   const calibrationSourceRect = dragPreview?.targetId === TEMPLATE_CALIBRATION_TARGET_ID
     ? dragPreview.rect
     : baseRenderModel.calibrationTargetRect
   const calibrationTargetRect = editorSurface.calibrationTargetRect
-  const paperTimelineMoveDelta = isPaperTimelineMovePreview && basePaperTimeline && dragPreview
+  const paperTimelineMoveDelta = isTranslationPreview && previewTargetId === PAPER_TIMELINE_TARGET_ID && basePaperTimeline && dragPreview
     ? { x: dragPreview.rect.x - basePaperTimeline.rect.x, y: dragPreview.rect.y - basePaperTimeline.rect.y }
     : null
   const movesCalibrationWithPaperTimeline = Boolean(
@@ -172,9 +187,7 @@ export function TemplateRegionEditor({
     && template.calibration?.targetRect
     && sameNormalizedRect(template.calibration.targetRect, basePaperTimeline.rect),
   )
-  const calibrationOutlineRect = dragPreview?.targetId === TEMPLATE_CALIBRATION_TARGET_ID
-    ? baseSurface.calibrationTargetRect
-    : movesCalibrationWithPaperTimeline && calibrationTargetRect && paperTimelineMoveDelta
+  const calibrationOutlineRect = movesCalibrationWithPaperTimeline && calibrationTargetRect && paperTimelineMoveDelta
       ? { ...calibrationTargetRect, x: calibrationTargetRect.x + paperTimelineMoveDelta.x, y: calibrationTargetRect.y + paperTimelineMoveDelta.y }
       : calibrationTargetRect
   const isCalibrationTargetSelected = selectedRegionId === TEMPLATE_CALIBRATION_TARGET_ID
@@ -183,16 +196,17 @@ export function TemplateRegionEditor({
     ? editorTemplate.regions.find(region => region.regionId === selectedRegionId) ?? null
     : null
   const selectedSurfaceRect = selectedRegion
-    ? editorSurface.regionRects.get(selectedRegion.regionId) ?? selectedRegion.rect
+    ? isTranslationPreview && previewTargetId === selectedRegion.regionId ? dragPreview!.rect
+      : editorSurface.regionRects.get(selectedRegion.regionId) ?? selectedRegion.rect
     : null
-  const paperTimelineSurfaceRect = isPaperTimelineMovePreview && dragPreview ? dragPreview.rect : paperTimeline?.rect ?? null
+  const paperTimelineSurfaceRect = isTranslationPreview && previewTargetId === PAPER_TIMELINE_TARGET_ID && dragPreview ? dragPreview.rect : paperTimeline?.rect ?? null
   const selectedRegionPositionLocked = Boolean(selectedRegion && positionLockedRegionIds?.has(selectedRegion.regionId))
-  const selectedGridSummary = selectedRegion?.grid
+  const selectedGridSummary = useMemo(() => selectedRegion?.grid
     ? {
         columns: resolveSheetTemplateGridColumns(editorTemplate, selectedRegion.grid, editorTemplate.defaults.paperTracks).length,
         rows: resolveSheetTemplateGridFrames(editorTemplate, selectedRegion.grid, previewDurationFrames).rowCount,
       }
-    : null
+    : null, [selectedRegion, editorTemplate, previewDurationFrames])
   const editableEdges = useMemo(
     () => templateEditorEditableEdges(editorTemplate, selectedRegion, selectedRegionPositionLocked),
     [editorTemplate, selectedRegion, selectedRegionPositionLocked],
@@ -204,9 +218,7 @@ export function TemplateRegionEditor({
     const svg = editorSvgRef.current
     if (!svg) return undefined
     const viewport = svg.closest<HTMLElement>('.templateEditorViewport')
-    const updateClientRect = () => {
-      editorClientRectRef.current = svg.getBoundingClientRect()
-    }
+    const updateClientRect = () => { editorClientRectRef.current = null }
     updateClientRect()
     const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateClientRect)
     resizeObserver?.observe(svg)
@@ -258,6 +270,7 @@ export function TemplateRegionEditor({
 
   function updateHoverOverlay(target: TemplateEditorTarget | null, hitSurface?: SVGElement) {
     const nextTargetId = targetId(target)
+    setHoveredTargetId(nextTargetId)
     if (hoveredTargetIdRef.current === nextTargetId) return
     hoveredTargetIdRef.current = nextTargetId
     if (hitSurface) hitSurface.style.cursor = nextTargetId ? 'pointer' : 'default'
@@ -282,21 +295,28 @@ export function TemplateRegionEditor({
   }
 
   function handleHitSurfacePointerMove(event: PointerEvent<SVGElement>) {
+    if (event.pointerType === 'mouse') setTouchControls(false)
     updateHoverOverlay(targetFromEvent(event), event.currentTarget)
   }
 
-  function handleHitSurfacePointerLeave() {
+  function handleHitSurfacePointerLeave(event: PointerEvent<SVGElement>) {
+    if (event.relatedTarget instanceof Element && event.relatedTarget.closest('.templateEditAffordances')) return
     updateHoverOverlay(null)
   }
 
   function handleHitSurfacePointerDown(event: PointerEvent<SVGElement>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
+    setTouchControls(event.pointerType !== 'mouse')
     const target = targetFromEvent(event, true)
-    if (!target) return
+    if (!target) { setTouchControls(false); return }
     event.preventDefault()
     event.stopPropagation()
-    updateHoverOverlay(null, event.currentTarget)
+    updateHoverOverlay(target, event.currentTarget)
     const nextTargetId = targetId(target)
+    if (nextTargetId === selectedRegionId && event.pointerType === 'mouse') {
+      handleMovePointerDown(event)
+      return
+    }
     if (nextTargetId) onSelectRegion(nextTargetId)
   }
 
@@ -316,125 +336,57 @@ export function TemplateRegionEditor({
     })
   }
 
+  function beginDrag(event: PointerEvent<Element>, targetId: string, startRect: NormalizedRect,
+    mode: TemplateEditorDragPreview['mode'], rectAt: (x: number, y: number) => NormalizedRect) {
+    event.preventDefault()
+    event.stopPropagation()
+    cancelDragRef.current?.()
+    setTouchControls(event.pointerType !== 'mouse')
+    cancelDragRef.current = startTemplatePointerDrag(event, rectAt,
+      rect => setDragPreview(current => !rect ? null : current?.targetId === targetId && sameNormalizedRect(current.rect, rect)
+        ? current : { targetId, rect, mode }),
+      rect => { if (!sameNormalizedRect(startRect, rect)) commitDragRect(targetId, rect) })
+  }
+
   function handleEdgePointerDown(edge: TemplateRegionEdge, event: PointerEvent<Element>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
-    const pointerId = event.pointerId
-    const target = event.currentTarget
     const targetId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : isPaperTimelineSelected ? PAPER_TIMELINE_TARGET_ID : selectedRegionId
     const startRect = isCalibrationTargetSelected ? calibrationSourceRect : isPaperTimelineSelected ? basePaperTimeline?.rect : selectedRegion?.rect
     const startSurfaceRect = isCalibrationTargetSelected ? calibrationTargetRect : isPaperTimelineSelected ? paperTimelineSurfaceRect : selectedSurfaceRect
     if (!targetId || !startRect || !startSurfaceRect || (!isCalibrationTargetSelected && !isPaperTimelineSelected && !editableEdges.has(edge))) return
-    if (targetId !== TEMPLATE_CALIBRATION_TARGET_ID && positionLockedRegionIds?.has(targetId)) return
-    event.preventDefault()
-    event.stopPropagation()
+    if (positionLockedRegionIds?.has(targetId)) return
     const svg = editorSvgRef.current
     if (!svg) return
     const dragClientRect = editorClientRect(svg, true)
     const dragSurfacePage = editorSurface.pageSize
-    const sourcePage = editorTemplate.page
-    const pointFromDragEvent = (clientX: number, clientY: number) => snapTemplateEditorPointToPagePixels(
-      templateEditorPointFromClientRect(dragClientRect, clientX, clientY),
-      dragSurfacePage,
-    )
-    let latestPoint = pointFromDragEvent(event.clientX, event.clientY)
-    let previewFrameId = 0
-    const updatePreview = () => {
-      previewFrameId = 0
-      const rect = updateTemplateEditorRectEdgeFromSurface(startRect, startSurfaceRect, edge, latestPoint, sourcePage, dragSurfacePage)
-      setDragPreview({ targetId, rect: quantizeNormalizedRectToPagePixels(rect, sourcePage), mode: 'geometry' })
-    }
-    const updateFromEvent = (nextEvent: globalThis.PointerEvent) => {
-      if (nextEvent.pointerId !== pointerId) return
-      latestPoint = pointFromDragEvent(nextEvent.clientX, nextEvent.clientY)
-      if (previewFrameId === 0) previewFrameId = window.requestAnimationFrame(updatePreview)
-    }
-    const finishDrag = (nextEvent: globalThis.PointerEvent, useEventPoint: boolean) => {
-      if (nextEvent.pointerId !== pointerId) return
-      if (useEventPoint) {
-        latestPoint = pointFromDragEvent(nextEvent.clientX, nextEvent.clientY)
-      }
-      if (previewFrameId !== 0) window.cancelAnimationFrame(previewFrameId)
-      window.removeEventListener('pointermove', updateFromEvent)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerCancel)
-      const finalRect = quantizeNormalizedRectToPagePixels(
-        updateTemplateEditorRectEdgeFromSurface(startRect, startSurfaceRect, edge, latestPoint, sourcePage, dragSurfacePage),
-        sourcePage,
-      )
-      if (!sameNormalizedRect(startRect, finalRect)) commitDragRect(targetId, finalRect)
-      setDragPreview(null)
-      if (
-        typeof target.releasePointerCapture === 'function'
-        && (typeof target.hasPointerCapture !== 'function' || target.hasPointerCapture(pointerId))
-      ) {
-        target.releasePointerCapture(pointerId)
-      }
-    }
-    const handlePointerUp = (nextEvent: globalThis.PointerEvent) => finishDrag(nextEvent, true)
-    const handlePointerCancel = (nextEvent: globalThis.PointerEvent) => finishDrag(nextEvent, false)
-    target.setPointerCapture(pointerId)
-    updatePreview()
-    window.addEventListener('pointermove', updateFromEvent)
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerCancel)
+    const sourcePage = template.page
+    beginDrag(event, targetId, startRect, 'geometry', (x, y) => quantizeNormalizedRectToPagePixels(
+      updateTemplateEditorRectEdgeFromSurface(startRect, startSurfaceRect, edge,
+        snapTemplateEditorPointToPagePixels(templateEditorPointFromClientRect(dragClientRect, x, y), dragSurfacePage),
+        sourcePage, dragSurfacePage), sourcePage))
   }
 
-  function handlePaperTimelineMovePointerDown(event: PointerEvent<HTMLButtonElement>) {
-    if (!isPaperTimelineSelected || !basePaperTimeline || !paperTimelineSurfaceRect) return
+  function handleMovePointerDown(event: PointerEvent<Element>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
-    const pointerId = event.pointerId
-    const target = event.currentTarget
+    const targetId = isCalibrationTargetSelected ? TEMPLATE_CALIBRATION_TARGET_ID : isPaperTimelineSelected ? PAPER_TIMELINE_TARGET_ID : selectedRegionId
+    const startRect = isCalibrationTargetSelected ? calibrationSourceRect : isPaperTimelineSelected ? basePaperTimeline?.rect : selectedRegion?.rect
     const svg = editorSvgRef.current
-    if (!svg) return
-    event.preventDefault()
-    event.stopPropagation()
-    const dragClientRect = editorClientRect(svg, true)
-    const dragSurfacePage = editorSurface.pageSize
-    const startPoint = snapTemplateEditorPointToPagePixels(
-      templateEditorPointFromClientRect(dragClientRect, event.clientX, event.clientY),
-      dragSurfacePage,
-    )
-    const startRect = basePaperTimeline.rect
-    let latestPoint = startPoint
-    let previewFrameId = 0
-    const nextRect = () => quantizeNormalizedRectToPagePixels({
-      ...startRect,
-      x: clampNumber(startRect.x + latestPoint.x - startPoint.x, 0, 1 - startRect.w),
-      y: clampNumber(startRect.y + latestPoint.y - startPoint.y, 0, 1 - startRect.h),
-    }, editorTemplate.page)
-    const updatePreview = () => {
-      previewFrameId = 0
-      setDragPreview({ targetId: PAPER_TIMELINE_TARGET_ID, rect: nextRect(), mode: 'translate' })
-    }
-    const updateFromEvent = (nextEvent: globalThis.PointerEvent) => {
-      if (nextEvent.pointerId !== pointerId) return
-      latestPoint = snapTemplateEditorPointToPagePixels(
-        templateEditorPointFromClientRect(dragClientRect, nextEvent.clientX, nextEvent.clientY),
-        dragSurfacePage,
-      )
-      if (previewFrameId === 0) previewFrameId = window.requestAnimationFrame(updatePreview)
-    }
-    const finish = (nextEvent: globalThis.PointerEvent, useEventPoint: boolean) => {
-      if (nextEvent.pointerId !== pointerId) return
-      if (useEventPoint) updateFromEvent(nextEvent)
-      if (previewFrameId !== 0) window.cancelAnimationFrame(previewFrameId)
-      window.removeEventListener('pointermove', updateFromEvent)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerCancel)
-      const finalRect = nextRect()
-      if (!sameNormalizedRect(startRect, finalRect)) commitDragRect(PAPER_TIMELINE_TARGET_ID, finalRect)
-      setDragPreview(null)
-      if (typeof target.releasePointerCapture === 'function'
-        && (typeof target.hasPointerCapture !== 'function' || target.hasPointerCapture(pointerId))) {
-        target.releasePointerCapture(pointerId)
-      }
-    }
-    const handlePointerUp = (nextEvent: globalThis.PointerEvent) => finish(nextEvent, true)
-    const handlePointerCancel = (nextEvent: globalThis.PointerEvent) => finish(nextEvent, false)
-    target.setPointerCapture(pointerId)
-    window.addEventListener('pointermove', updateFromEvent)
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerCancel)
+    if (!targetId || !startRect || !svg || positionLockedRegionIds?.has(targetId)) return
+    const bounds = editorClientRect(svg, true)
+    const sourcePage = template.page, surfacePage = editorSurface.pageSize
+    const startX = event.clientX, startY = event.clientY
+    const freeX = !selectedRegion || templateRegionPlacementMode(template, selectedRegion) === 'free'
+    const mode = !hasDynamicLayout && targetId !== TEMPLATE_CALIBRATION_TARGET_ID ? 'translate' : 'geometry'
+    beginDrag(event, targetId, startRect, mode, (x, y) => {
+      if (x === startX && y === startY) return startRect
+      const position = quantizeNormalizedRectToPagePixels({ ...startRect,
+        x: freeX ? clampNumber(startRect.x + (x - startX) / bounds.width * surfacePage.widthPx / sourcePage.widthPx, 0, 1 - startRect.w) : startRect.x,
+        y: clampNumber(startRect.y + (y - startY) / bounds.height * surfacePage.heightPx / sourcePage.heightPx, 0, 1 - startRect.h),
+      }, sourcePage)
+      // Moving must not round or resize authored widths, including imported fractional geometry.
+      return { ...startRect, x: freeX ? clampNumber(position.x, 0, 1 - startRect.w) : startRect.x,
+        y: clampNumber(position.y, 0, 1 - startRect.h) }
+    })
   }
 
   useEffect(() => {
@@ -499,7 +451,8 @@ export function TemplateRegionEditor({
   }, [editorSurface.pageSize, isPixelQuantizedTemplate, viewStore])
 
   const activeEditorRect = isCalibrationTargetSelected ? calibrationTargetRect : isPaperTimelineSelected ? paperTimelineSurfaceRect : selectedSurfaceRect
-  const activeEditorRectResizable = isCalibrationTargetSelected || isPaperTimelineSelected || editableEdges.size > 0
+  const activeEditorRectResizable = !positionLockedRegionIds?.has(selectedRegionId ?? '')
+    && (isCalibrationTargetSelected || isPaperTimelineSelected || editableEdges.size > 0)
   const activeEditorRectReadout = activeEditorRect
     ? (() => {
         const edges = normalizedRectToPixelEdges(activeEditorRect, editorSurface.pageSize)
@@ -510,7 +463,7 @@ export function TemplateRegionEditor({
   return (
     <div className="templateEditor">
       {toolbar && <div className="templateCanvasToolbar">{toolbar}</div>}
-      <div ref={viewportRef} className="templateEditorViewport">
+      <div ref={viewportRef} className="templateEditorViewport" onPointerLeave={() => updateHoverOverlay(null)}>
         <div
           className="templateEditorZoomSurface"
           style={{
@@ -519,6 +472,7 @@ export function TemplateRegionEditor({
           }}
         >
         <div
+          data-controls-visible={!!dragPreview || touchControls || (!!selectedRegionId && hoveredTargetId === selectedRegionId)}
           className={`templateEditorCanvas ${zoom < 1 ? 'smoothZoom' : 'pixelZoom'} ${isPixelQuantizedTemplate && zoom >= 4 ? 'preciseZoom' : ''} ${isPixelQuantizedTemplate && zoom >= 8 ? 'showPixelGrid' : ''}`}
           style={{
             width: `${editorSurface.pageSize.widthPx}px`,
@@ -535,15 +489,18 @@ export function TemplateRegionEditor({
             imageUrl={imageUrl}
             imageSettings={imageSettings}
             referenceOpacity={referenceOpacity}
-            hiddenRegionId={dragPreview?.targetId === TEMPLATE_CALIBRATION_TARGET_ID || dragPreview?.targetId === PAPER_TIMELINE_TARGET_ID ? null : dragPreview?.targetId ?? null}
+            hiddenRegionId={fullLayoutPreview || isTranslationPreview || dragPreview?.targetId === TEMPLATE_CALIBRATION_TARGET_ID || dragPreview?.targetId === PAPER_TIMELINE_TARGET_ID ? null : dragPreview?.targetId ?? null}
           />
-          {paperTimelineMoveRenderModel && basePaperTimeline && dragPreview && (
-            <PaperTimelineMovePreview
-              renderModel={paperTimelineMoveRenderModel}
-              sourceRect={basePaperTimeline.rect}
+          {isTranslationPreview && translationRenderModel && moveSourceRect && dragPreview && (
+            <TemplateRegionTransformPreview
+              renderModel={translationRenderModel}
+              sourceRect={moveSourceRect}
               targetRect={dragPreview.rect}
               page={editorSurface.pageSize}
             />
+          )}
+          {timelineGeometryRenderModel && dragPreview && (
+            <TemplateRegionTransformPreview renderModel={timelineGeometryRenderModel} sourceRect={dragPreview.rect} targetRect={dragPreview.rect} page={editorSurface.pageSize} />
           )}
           {activeRegionRenderModel && (
             <TemplateActiveRegionPreview renderModel={activeRegionRenderModel} rect={dragPreview!.rect} />
@@ -587,6 +544,7 @@ export function TemplateRegionEditor({
             />
             </g>
           </svg>
+          <div className="templateEditAffordances" onPointerEnter={() => setHoveredTargetId(selectedRegionId)}>
           {activeEditorRect && activeEditorRectResizable && (
             <TemplateEdgeGuides
               rect={activeEditorRect}
@@ -602,27 +560,29 @@ export function TemplateRegionEditor({
               rect={selectedSurfaceRect!}
               page={editorSurface.pageSize}
               positionLocked={selectedRegionPositionLocked}
+              zoom={zoom}
               editableEdges={editableEdges}
               onEdgePointerDown={handleEdgePointerDown}
             />
           )}
           {isCalibrationTargetSelected && calibrationTargetRect && (
-            <TemplateHandleOverlay rect={calibrationTargetRect} page={editorSurface.pageSize} variant="calibrationTarget" editableEdges={ALL_TEMPLATE_REGION_EDGES} onEdgePointerDown={handleEdgePointerDown} />
+            <TemplateHandleOverlay rect={calibrationTargetRect} page={editorSurface.pageSize} variant="calibrationTarget" zoom={zoom} editableEdges={ALL_TEMPLATE_REGION_EDGES} onEdgePointerDown={handleEdgePointerDown} />
           )}
           {isPaperTimelineSelected && paperTimelineSurfaceRect && (
-            <>
-              <TemplateHandleOverlay rect={paperTimelineSurfaceRect} page={editorSurface.pageSize} variant="paperTimeline" editableEdges={ALL_TEMPLATE_REGION_EDGES} onEdgePointerDown={handleEdgePointerDown} />
-              <button
-                type="button"
-                className="paperTimelineMoveHandle"
-                style={{
-                  left: `${(paperTimelineSurfaceRect.x + paperTimelineSurfaceRect.w / 2) * editorSurface.pageSize.widthPx}px`,
-                  top: `${paperTimelineSurfaceRect.y * editorSurface.pageSize.heightPx}px`,
-                }}
-                onPointerDown={handlePaperTimelineMovePointerDown}
-              >6秒表を移動</button>
-            </>
+            <TemplateHandleOverlay rect={paperTimelineSurfaceRect} page={editorSurface.pageSize} variant="paperTimeline" zoom={zoom}
+              positionLocked={!!positionLockedRegionIds?.has(PAPER_TIMELINE_TARGET_ID)}
+              editableEdges={ALL_TEMPLATE_REGION_EDGES} onEdgePointerDown={handleEdgePointerDown} />
           )}
+          {activeEditorRect && !positionLockedRegionIds?.has(selectedRegionId ?? '') && (
+            <button type="button" className="templateMoveHandle" aria-label="選択要素を移動"
+              style={{ left: `${(activeEditorRect.x + activeEditorRect.w / 2) * editorSurface.pageSize.widthPx}px`,
+                top: `${(activeEditorRect.y + activeEditorRect.h / 2) * editorSurface.pageSize.heightPx}px`,
+                transform: `translate(-50%, -50%) scale(${1 / zoom})` }}
+              onPointerDown={handleMovePointerDown}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4" /></svg>
+            </button>
+          )}
+          </div>
         </div>
         </div>
       </div>
@@ -713,7 +673,7 @@ function TemplateActiveRegionPreview({
   )
 }
 
-function PaperTimelineMovePreview({
+function TemplateRegionTransformPreview({
   renderModel,
   sourceRect,
   targetRect,
@@ -724,11 +684,11 @@ function PaperTimelineMovePreview({
   targetRect: NormalizedRect
   page: { widthPx: number; heightPx: number }
 }) {
-  const deltaXPx = Math.round((targetRect.x - sourceRect.x) * page.widthPx)
-  const deltaYPx = Math.round((targetRect.y - sourceRect.y) * page.heightPx)
+  const deltaXPx = Math.round((targetRect.x - sourceRect.x) * page.widthPx * 1e6) / 1e6
+  const deltaYPx = Math.round((targetRect.y - sourceRect.y) * page.heightPx * 1e6) / 1e6
   return (
     <div
-      className="paperTimelineMovePreview"
+      className="templateRegionTransformPreview"
       aria-hidden="true"
       style={{
         left: `${sourceRect.x * page.widthPx}px`,
@@ -738,12 +698,12 @@ function PaperTimelineMovePreview({
         transform: `translate3d(${deltaXPx}px, ${deltaYPx}px, 0)`,
       }}
     >
-      <PaperTimelineMoveSnapshot renderModel={renderModel} sourceRect={sourceRect} />
+      <TemplateRegionSnapshot renderModel={renderModel} sourceRect={sourceRect} />
     </div>
   )
 }
 
-const PaperTimelineMoveSnapshot = memo(function PaperTimelineMoveSnapshot({
+const TemplateRegionSnapshot = memo(function TemplateRegionSnapshot({
   renderModel,
   sourceRect,
 }: {
@@ -754,7 +714,7 @@ const PaperTimelineMoveSnapshot = memo(function PaperTimelineMoveSnapshot({
     <svg
       viewBox={`${sourceRect.x} ${sourceRect.y} ${sourceRect.w} ${sourceRect.h}`}
       preserveAspectRatio="none"
-      className="paperTimelineMoveSnapshotSvg"
+      className="templateRegionSnapshotSvg"
       aria-hidden="true"
     >
       <TemplateChromeLayer model={renderModel.chrome} />
@@ -798,6 +758,7 @@ function TemplateEdgeGuides({
 function TemplateHandleOverlay({
   rect,
   page,
+  zoom,
   variant,
   positionLocked = false,
   editableEdges,
@@ -805,6 +766,7 @@ function TemplateHandleOverlay({
 }: {
   rect: NormalizedRect
   page: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>
+  zoom: number
   variant?: 'calibrationTarget' | 'paperTimeline'
   positionLocked?: boolean
   editableEdges: ReadonlySet<TemplateRegionEdge>
@@ -823,7 +785,7 @@ function TemplateHandleOverlay({
         height: `${rect.h * page.heightPx}px`,
       }}
     >
-      <TemplateEditHandles rect={rect} page={page} variant={variant} positionLocked={positionLocked} editableEdges={editableEdges} onEdgePointerDown={onEdgePointerDown} />
+      <TemplateEditHandles rect={rect} page={page} zoom={zoom} variant={variant} positionLocked={positionLocked} editableEdges={editableEdges} onEdgePointerDown={onEdgePointerDown} />
     </svg>
   )
 }
@@ -831,6 +793,7 @@ function TemplateHandleOverlay({
 function TemplateEditHandles({
   rect,
   page,
+  zoom,
   variant,
   positionLocked = false,
   editableEdges,
@@ -838,6 +801,7 @@ function TemplateEditHandles({
 }: {
   rect: NormalizedRect
   page: Pick<SheetTemplate['page'], 'widthPx' | 'heightPx'>
+  zoom: number
   variant?: 'calibrationTarget' | 'paperTimeline'
   positionLocked?: boolean
   editableEdges: ReadonlySet<TemplateRegionEdge>
@@ -849,7 +813,8 @@ function TemplateEditHandles({
   const bottom = rect.y + rect.h
   const midX = rect.x + rect.w / 2
   const midY = rect.y + rect.h / 2
-  const knobRadius = 0.005
+  const knobRadiusX = 5 / (page.widthPx * zoom)
+  const knobRadiusY = 5 / (page.heightPx * zoom)
   const pixelWidth = 1 / Math.max(1, page.widthPx)
   const pixelHeight = 1 / Math.max(1, page.heightPx)
 
@@ -864,10 +829,10 @@ function TemplateEditHandles({
             <rect x={left} y={top} width={rect.w} height={pixelHeight} />
             <rect x={left} y={Math.max(top, bottom - pixelHeight)} width={rect.w} height={pixelHeight} />
           </g>
-          {editableEdges.has('left') && <circle className="templateHandleKnob vertical" cx={left} cy={midY} r={knobRadius} onPointerDown={event => onEdgePointerDown('left', event)} />}
-          {editableEdges.has('right') && <circle className="templateHandleKnob vertical" cx={right} cy={midY} r={knobRadius} onPointerDown={event => onEdgePointerDown('right', event)} />}
-          {editableEdges.has('top') && <circle className="templateHandleKnob horizontal" cx={midX} cy={top} r={knobRadius} onPointerDown={event => onEdgePointerDown('top', event)} />}
-          {editableEdges.has('bottom') && <circle className="templateHandleKnob horizontal" cx={midX} cy={bottom} r={knobRadius} onPointerDown={event => onEdgePointerDown('bottom', event)} />}
+          {editableEdges.has('left') && <ellipse className="templateHandleKnob vertical" cx={left} cy={midY} rx={knobRadiusX} ry={knobRadiusY} onPointerDown={event => onEdgePointerDown('left', event)} />}
+          {editableEdges.has('right') && <ellipse className="templateHandleKnob vertical" cx={right} cy={midY} rx={knobRadiusX} ry={knobRadiusY} onPointerDown={event => onEdgePointerDown('right', event)} />}
+          {editableEdges.has('top') && <ellipse className="templateHandleKnob horizontal" cx={midX} cy={top} rx={knobRadiusX} ry={knobRadiusY} onPointerDown={event => onEdgePointerDown('top', event)} />}
+          {editableEdges.has('bottom') && <ellipse className="templateHandleKnob horizontal" cx={midX} cy={bottom} rx={knobRadiusX} ry={knobRadiusY} onPointerDown={event => onEdgePointerDown('bottom', event)} />}
         </>
       )}
     </g>

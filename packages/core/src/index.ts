@@ -480,6 +480,7 @@ export {
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionCapabilities,
   resolveSheetTemplateRegionRect,
+  resolveSheetTemplateRegionRects,
   isTimelineProjectingSheetTemplateGridRegion,
   registerSheetTemplateJsonSchemaKeywords,
   SHEET_TEMPLATE_SCHEMA_VERSION,

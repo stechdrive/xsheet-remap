@@ -1,3 +1,5 @@
+import { CANVASKIT_PAPER_SOURCES } from '../../packages/ui/src/canvasKitPaperSources'
+
 export interface PaperPaintDriver { evaluate<T>(expression: string): Promise<T> }
 
 /** Wait for submitted Skia frames, including async font/image loads, rather than DOM presence. */
@@ -34,7 +36,7 @@ export function waitForPaperPaint(driver: PaperPaintDriver, requirePaper = true,
       if (finished) return;
       clearTimeout(poll); cancelAnimationFrame(frame);
       samples++;
-      const sources = Array.from(document.querySelectorAll('.sheetSvg, .templatePreviewSvg, .paperTimelineMoveSnapshotSvg, .templateInteractionSvg, .templateHandleSvg, .hoverCellSvg')).filter(visible);
+      const sources = Array.from(document.querySelectorAll(${JSON.stringify(CANVASKIT_PAPER_SOURCES)})).filter(visible);
       last = sources.map(source => {
         const canvas = source.nextElementSibling;
         return { source: source.classList.value, state: source.dataset.canvaskitState, builds: source.dataset.canvaskitSceneBuilds,

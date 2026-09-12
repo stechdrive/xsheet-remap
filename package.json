@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.754",
+  "version": "0.1.755",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.18.0",
@@ -69,6 +69,7 @@
     "e2e:desktop:win:stack-guides": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario stack-guides",
     "e2e:desktop:win:multipage-timing": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario multipage-timing",
     "e2e:desktop:win:timing-edit": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario timing-edit",
+    "e2e:desktop:win:template-authoring": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario template-authoring -RequireScreenshot",
     "e2e:desktop:win:asset-drop": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario asset-drop",
     "e2e:desktop:win:asset-preview": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario asset-preview",
     "e2e:desktop:win:camera-ops": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario camera-ops",

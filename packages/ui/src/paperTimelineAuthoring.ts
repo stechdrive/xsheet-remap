@@ -138,7 +138,10 @@ export function transformPaperTimelineRect(
   if (sameRectInPagePixels(source, target, template)) return template
   const scaleX = target.w / source.w
   const scaleY = target.h / source.h
-  const transformRect = (rect: NormalizedRect): NormalizedRect => quantizeRect({
+  const translationOnly = requestedRect.w === source.w && requestedRect.h === source.h
+  const transformRect = (rect: NormalizedRect): NormalizedRect => translationOnly ? {
+    ...rect, x: rect.x + target.x - source.x, y: rect.y + target.y - source.y,
+  } : quantizeRect({
     x: target.x + (rect.x - source.x) * scaleX,
     y: target.y + (rect.y - source.y) * scaleY,
     w: rect.w * scaleX,

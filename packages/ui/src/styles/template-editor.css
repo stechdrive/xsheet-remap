@@ -638,7 +638,7 @@
   will-change: transform;
 }
 
-.paperTimelineMovePreview {
+.templateRegionTransformPreview {
   position: absolute;
   z-index: 1;
   pointer-events: none;
@@ -646,7 +646,7 @@
   will-change: transform;
 }
 
-.paperTimelineMoveSnapshotSvg {
+.templateRegionSnapshotSvg {
   display: block;
   width: 100%;
   height: 100%;
@@ -662,6 +662,18 @@
   overflow: visible;
   transform: translateZ(0);
   will-change: transform;
+  pointer-events: none;
+}
+
+.templateEditAffordances {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.templateEditorCanvas[data-controls-visible="true"] > .templateEditAffordances {
+  visibility: visible;
 }
 
 .templateEdgeGuides {
@@ -2233,17 +2245,28 @@
   background: #f2f8f4;
 }
 
-.paperTimelineMoveHandle {
+.templateMoveHandle {
   position: absolute;
   z-index: 8;
-  min-height: 28px;
-  padding: 4px 9px;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 4px;
   border-color: #1e6f53;
   color: #174d3f;
   background: #f4fff9;
   cursor: move;
-  transform: translate(-50%, -50%);
+  pointer-events: auto;
   touch-action: none;
+}
+
+.templateMoveHandle svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
 }
 
 .templateEditHandles.paperTimeline .templateSelectedRegion {

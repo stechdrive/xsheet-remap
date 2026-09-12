@@ -1,7 +1,6 @@
 import { useEffect, type RefObject } from 'react'
 import type { CanvasKitPaperSurface } from './canvasKitSurface'
-
-const PAPER_SOURCES = '.sheetSvg, .templatePreviewSvg, .paperTimelineMoveSnapshotSvg, .templateInteractionSvg, .templateHandleSvg, .hoverCellSvg'
+import { CANVASKIT_PAPER_SOURCES as PAPER_SOURCES } from './canvasKitPaperSources'
 
 /** The SVG tree continues to own keyboard/pointer targets; only painting changes. */
 export function useCanvasKitPaper(host: RefObject<HTMLElement | null>) {
@@ -27,7 +26,11 @@ export function useCanvasKitPaper(host: RefObject<HTMLElement | null>) {
       if (records.some(record => record.type === 'childList' && [...record.addedNodes, ...record.removedNodes].some(node =>
         node instanceof Element && (node.matches(PAPER_SOURCES) || (node.childElementCount > 0 && node.querySelector(PAPER_SOURCES)))))) mount?.()
       // Ancestor transforms (including zoom and drag previews) move the cached scene.
-      if (records.some(record => record.target instanceof Element && !record.target.closest('svg, .canvasKitPaperCanvas') && record.type === 'attributes')) invalidate()
+      const ancestors = records.filter(record => record.type === 'attributes' && record.target instanceof Element
+        && !record.target.closest('svg, .canvasKitPaperCanvas')).map(record => record.target as Element)
+      for (const [source, surface] of surfaces) {
+        if (ancestors.some(ancestor => ancestor.contains(source))) surface.invalidate()
+      }
     })
     void import('./canvasKitSurface').then(({ CanvasKitPaperSurface: Surface }) => {
       if (stopped) return
@@ -40,7 +43,8 @@ export function useCanvasKitPaper(host: RefObject<HTMLElement | null>) {
         }
       }
       mount()
-      observer.observe(element, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class'] })
+      observer.observe(element, { subtree: true, childList: true, attributes: true,
+        attributeFilter: ['style', 'class', 'data-paper-transform-preview', 'data-touch-pinch-preview'] })
     }).catch(error => console.warn('[paper-renderer] Could not load CanvasKit.', error))
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', invalidate)

@@ -4,6 +4,7 @@ import {
   resolveSheetTemplateGridLayout,
   resolveSheetTemplatePageSize,
   resolveSheetTemplateRegionRect,
+  resolveSheetTemplateRegionRects,
   resolveSheetTemplateTextStyle,
   sheetTemplateLineColor,
   sheetTemplateLengthForReferencePx,
@@ -243,11 +244,7 @@ export function buildTemplateEditorSurfaceModel(
   durationFrames = template.defaults.durationFrames,
 ): TemplateEditorSurfaceModel {
   const options = { paperTracks: template.defaults.paperTracks }
-  const pageSize = resolveSheetTemplatePageSize(template, durationFrames, options)
-  const regionRects = new Map(template.regions.map(region => [
-    region.regionId,
-    resolveSheetTemplateRegionRect(template, region, durationFrames, options),
-  ]))
+  const { pageSize, regionRects } = resolveSheetTemplateRegionRects(template, durationFrames, options)
   const calibrationTargetRect = calibrationTargetRectForTemplate(template)
   return {
     pageSize,

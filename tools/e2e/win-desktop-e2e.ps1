@@ -45,14 +45,20 @@ $dialogueAudioScenarios = @(
   "dialogue-audio-playback",
   "dialogue-audio-linking"
 )
-$supportedScenarios = @("launch", "full-default-a3", "auto-calibration") + $sheetOpsScenarios + $dialogueAudioScenarios
+$supportedScenarios = @("launch", "full-default-a3", "auto-calibration", "template-authoring") + $sheetOpsScenarios + $dialogueAudioScenarios
 if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }
 
+$buildTarget = "editor"
+if ($Scenario -eq "template-authoring") {
+  $buildTarget = "template"
+  if (-not $PSBoundParameters.ContainsKey("ExePath")) { $ExePath = "dev-local/xsheet-template.exe" }
+  if (-not $PSBoundParameters.ContainsKey("ExpectedTitle")) { $ExpectedTitle = "xsheet-template" }
+}
 if ($Build) {
-  Write-Host "[desktop-e2e] building the editor development executable..."
-  npm run build:dev -- --target editor
+  Write-Host "[desktop-e2e] building the $buildTarget development executable..."
+  npm run build:dev -- --target $buildTarget
   if ($LASTEXITCODE -ne 0) {
     throw "editor development build failed with exit code $LASTEXITCODE"
   }
@@ -342,7 +348,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
 $summaryPath = Join-Path $runRoot "summary.json"
 $scenarioResultPath = Join-Path $runRoot "result.json"
 $screenshotPath = Join-Path $screenshotRoot "launch.png"
-$remoteDebugPort = if (($sheetOpsScenarios -contains $Scenario) -or ($dialogueAudioScenarios -contains $Scenario) -or $Scenario -eq "auto-calibration") { Get-FreeTcpPort } else { $null }
+$remoteDebugPort = if (($sheetOpsScenarios -contains $Scenario) -or ($dialogueAudioScenarios -contains $Scenario) -or $Scenario -in @("auto-calibration", "template-authoring")) { Get-FreeTcpPort } else { $null }
 $previousEnvironment = @{}
 $environmentOverrides = @{
   "XSHEET_REMAP_E2E" = "1"
@@ -429,6 +435,18 @@ try {
   Start-Sleep -Seconds $StableSeconds
   if ($process.HasExited) {
     throw "desktop process exited during the ${StableSeconds}s stability window. Exit code: $($process.ExitCode)"
+  }
+
+  if ($Scenario -eq "template-authoring") {
+    . (Join-Path $PSScriptRoot "win-real-dnd\runtime.ps1")
+    $templatePython = Ensure-RealDndVenv -BasePython (Resolve-Python -RequestedPython "python")
+    $tsxPath = Join-Path $repoRoot "node_modules\.bin\tsx.cmd"
+    & $tsxPath "tools/e2e/template-authoring-native.ts" --port "$remoteDebugPort" `
+      --result "$scenarioResultPath" --app-pid "$($process.Id)" --python "$templatePython" `
+      --screenshot-root "$screenshotRoot"
+    if ($LASTEXITCODE -ne 0 -and -not (Test-Path -LiteralPath $scenarioResultPath)) {
+      throw "template authoring scenario failed before writing result.json"
+    }
   }
 
   if ($sheetOpsScenarios -contains $Scenario) {

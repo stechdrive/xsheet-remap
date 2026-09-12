@@ -95,10 +95,12 @@ export class CanvasKitPaperSurface {
 
   private async draw() {
     if (this.disposed || this.busy) return
-    const visible = visiblePaperRect(this.source)
+    let bounds = this.source.getBoundingClientRect()
+    let visible = visiblePaperRect(this.source, bounds)
     if (!visible || document.hidden) { this.release(); return }
     this.busy = true
     try {
+      const loading = !this.runtime
       this.runtime ??= await loadCanvasKit()
       if (this.disposed || this.contextLost) return
       const { kit, fonts } = this.runtime
@@ -122,33 +124,41 @@ export class CanvasKitPaperSurface {
         this.width = scene.width; this.height = scene.height
         this.source.dataset.canvaskitSceneBuilds = String(Number(this.source.dataset.canvaskitSceneBuilds ?? 0) + 1)
       }
-      const currentVisible = visiblePaperRect(this.source)
-      if (!currentVisible || !this.picture) { this.release(); return }
-      const bounds = this.source.getBoundingClientRect()
+      // Re-measure only after asynchronous resource work, which may span several frames.
+      if (loading || pictureChanged) {
+        bounds = this.source.getBoundingClientRect()
+        visible = visiblePaperRect(this.source, bounds)
+      }
+      if (!visible || !this.picture) { this.release(); return }
       const scaleX = bounds.width / this.width, scaleY = bounds.height / this.height
       const plan = planPaperViewport({
-        x: (currentVisible.x - bounds.left) / scaleX, y: (currentVisible.y - bounds.top) / scaleY,
-        width: currentVisible.width / scaleX, height: currentVisible.height / scaleY,
+        x: (visible.x - bounds.left) / scaleX, y: (visible.y - bounds.top) / scaleY,
+        width: visible.width / scaleX, height: visible.height / scaleY,
       }, this.width, this.height, scaleX, scaleY, window.devicePixelRatio || 1, this.viewportPlan,
-      !!this.source.closest('[data-touch-pinch-preview="true"]'))
+      !!this.source.closest('[data-touch-pinch-preview="true"], [data-paper-transform-preview="true"]'))
       const retainedVisible = { x: bounds.left + plan.rect.x * scaleX, y: bounds.top + plan.rect.y * scaleY,
         width: plan.rect.width * scaleX, height: plan.rect.height * scaleY }
-      positionPaperCanvas(this.canvas, this.source, retainedVisible)
       if (plan === this.viewportPlan && !pictureChanged && this.surface) {
+        positionPaperCanvas(this.canvas, this.source, retainedVisible)
         this.source.dataset.canvaskitState = this.dirty ? 'pending' : 'active'
         this.source.dataset.canvaskitRetainedFrames = String(Number(this.source.dataset.canvaskitRetainedFrames ?? 0) + 1)
         return
       }
       const { ratio, backingWidth, backingHeight } = plan
       if (this.canvas.width !== backingWidth || this.canvas.height !== backingHeight) {
-        // Recreate the presentation target after resizing; WebKit can otherwise retain an obsolete front buffer.
+        // WebKit can retain an obsolete front buffer even with a new SkSurface/GrContext.
+        // Keep a fresh presentation target on real resizes; zoom previews retain the old raster.
         this.resetGraphics()
         this.canvas.width = backingWidth; this.canvas.height = backingHeight
+        this.source.dataset.canvaskitResizes = String(Number(this.source.dataset.canvaskitResizes ?? 0) + 1)
       }
       if (!this.surface) {
         if (!this.gpu) {
           // Paper redraws only on changes. WebKit must retain the last frame while idle.
-          this.context ??= kit.GetWebGLContext(this.canvas, { alpha: 1, antialias: 0, preserveDrawingBuffer: 1 }) || null
+          if (!this.context) {
+            this.context = kit.GetWebGLContext(this.canvas, { alpha: 1, antialias: 0, preserveDrawingBuffer: 1 }) || null
+            this.source.dataset.canvaskitContexts = String(Number(this.source.dataset.canvaskitContexts ?? 0) + 1)
+          }
           this.gpu = this.context ? kit.MakeGrContext(this.context) : null
           this.gpu?.setResourceCacheLimitBytes(24 * 1024 * 1024)
         }
@@ -225,8 +235,7 @@ export class CanvasKitPaperSurface {
   }
 }
 
-export function visiblePaperRect(source: SVGSVGElement): SceneRect | null {
-  const bounds = source.getBoundingClientRect()
+export function visiblePaperRect(source: SVGSVGElement, bounds = source.getBoundingClientRect()): SceneRect | null {
   if (bounds.width <= 0 || bounds.height <= 0) return null
   let rect: SceneRect | null = intersectSceneRects(
     { x: bounds.left - 4, y: bounds.top - 4, width: bounds.width + 8, height: bounds.height + 8 },

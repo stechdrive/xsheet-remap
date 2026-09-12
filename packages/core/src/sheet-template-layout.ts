@@ -80,6 +80,20 @@ export function resolveSheetTemplateRegionRect(
   options: SheetTemplateLayoutResolveOptions = {},
 ): NormalizedRect {
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, options)
+  return regionRectOnResolvedPage(template, region, durationFrames, options, pageSize, resolveSheetTemplateHorizontalFlow(template, options))
+}
+
+/** Resolve an authoring surface once, including its shared horizontal flow. No cross-edit cache. */
+export function resolveSheetTemplateRegionRects(template: SheetTemplate,
+  durationFrames = template.defaults.durationFrames, options: SheetTemplateLayoutResolveOptions = {}) {
+  const pageSize = resolveSheetTemplatePageSize(template, durationFrames, options)
+  const flow = resolveSheetTemplateHorizontalFlow(template, options)
+  return { pageSize, regionRects: new Map(template.regions.map(region => [region.regionId,
+    regionRectOnResolvedPage(template, region, durationFrames, options, pageSize, flow)])) }
+}
+
+function regionRectOnResolvedPage(template: SheetTemplate, region: SheetTemplateRegion, durationFrames: number,
+  options: SheetTemplateLayoutResolveOptions, pageSize: SheetTemplatePageSize, horizontalFlow: ResolvedHorizontalFlow | null): NormalizedRect {
   if (!template.horizontalFlow && pageSize.widthPx === template.page.widthPx && pageSize.heightPx === template.page.heightPx) return region.rect
 
   const baseX = region.rect.x * template.page.widthPx
@@ -99,7 +113,6 @@ export function resolveSheetTemplateRegionRect(
       ? baseHeight * logicalFrameScaleForGrid(region.grid, durationFrames)
       : baseHeight
 
-  const horizontalFlow = resolveSheetTemplateHorizontalFlow(template, options)
   const flowed = horizontalFlow?.regions.get(region.regionId)
   const resolvedWidth = region.horizontalSpan?.source === 'resolved-page-content'
     ? Math.max(0, pageSize.widthPx - baseX - baseRightMargin)

@@ -5,6 +5,9 @@ import { PaperRegionAlignmentControls } from './template-workspace-paper-control
 import { TemplateEditorViewControls } from './TemplateEditorViewControls'
 import type { TemplateEditorViewStore } from './templateEditorViewStore'
 import { Tooltip, TooltipTarget } from './Tooltip'
+import { IconButton } from './AppControls'
+import { UndoIcon, RedoIcon } from './app-navigation'
+import type { TemplateHistoryControls } from './useTemplateDraftHistory'
 
 export function TemplateDocumentToolbar({
   mode,
@@ -12,6 +15,7 @@ export function TemplateDocumentToolbar({
   draftStatus,
   dirty,
   saveNotice,
+  history,
   onReturnToStart,
   onShowReview,
   onSave,
@@ -27,6 +31,7 @@ export function TemplateDocumentToolbar({
   draftStatus: string
   dirty: boolean
   saveNotice: string | null
+  history: TemplateHistoryControls
   onReturnToStart?: () => void
   onShowReview: () => void
   onSave: () => void
@@ -45,6 +50,10 @@ export function TemplateDocumentToolbar({
       {saveNotice && <span className="templateSaveNotice" role="status">{saveNotice}</span>}
     </ToolbarGroup>
     <ToolbarGroup className="templateDocumentActions">
+      {mode === 'standalone' && <>
+        <IconButton aria-label={uiText.actions.undo} disabled={!history.canUndo} onClick={history.undo}><UndoIcon /></IconButton>
+        <IconButton aria-label={uiText.actions.redo} disabled={!history.canRedo} onClick={history.redo}><RedoIcon /></IconButton>
+      </>}
       <button type="button" className={mode === 'standalone' ? 'primary' : ''} onClick={onSave}>{mode === 'standalone' ? 'テンプレートを保存' : 'テンプレートJSONを保存'}</button>
       {mode === 'project' && <><button type="button" className="primary" disabled={!dirty} onClick={onApply}>プロジェクトへ反映</button><button type="button" disabled={!dirty} onClick={onCancel}>変更を取り消す</button></>}
       <ActionMenu label="その他" ariaLabel="テンプレートのその他の操作" tooltipLabel="新規作成、JSONを開く、検証結果、JSON表示" closeOnMenuItemClick>

@@ -156,7 +156,8 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     expect(container.querySelector('.templateEditHandles.paperTimeline .templateSelectedRegion')).toBeTruthy()
     expect(container.querySelectorAll('.templateHandleKnob')).toHaveLength(4)
     expect(container.querySelectorAll('.templateEdgeGuides.paperTimeline .templateDomEdgeGuide')).toHaveLength(4)
-    expect(container.querySelector<HTMLButtonElement>('.paperTimelineMoveHandle')?.textContent).toBe('6秒表を移動')
+    expect(container.querySelector<HTMLButtonElement>('.templateMoveHandle')?.getAttribute('aria-label')).toBe('選択要素を移動')
+    expect(container.querySelector('.templateMoveHandle')?.textContent).toBe('')
     expect(container.querySelector('.templateEditorCaption')?.textContent).toContain('6秒タイムライン表')
   })
 
@@ -181,7 +182,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
         onSelectRegion={vi.fn()}
       />,
     )
-    const moveHandle = container.querySelector<HTMLButtonElement>('.paperTimelineMoveHandle')!
+    const moveHandle = container.querySelector<HTMLButtonElement>('.templateMoveHandle')!
     moveHandle.setPointerCapture = vi.fn()
     moveHandle.releasePointerCapture = vi.fn()
     moveHandle.hasPointerCapture = vi.fn(() => true)
@@ -193,8 +194,8 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     expect(animationFrames).toHaveLength(1)
     expect(setTemplate).not.toHaveBeenCalled()
     act(() => animationFrames.shift()!(0))
-    const preview = container.querySelector<HTMLElement>('.paperTimelineMovePreview')!
-    const snapshot = container.querySelector<SVGSVGElement>('.paperTimelineMoveSnapshotSvg')!
+    const preview = container.querySelector<HTMLElement>('.templateRegionTransformPreview')!
+    const snapshot = container.querySelector<SVGSVGElement>('.templateRegionSnapshotSvg')!
     const initialPathData = Array.from(snapshot.querySelectorAll('path'), path => path.getAttribute('d'))
     expect(preview.style.transform).toBe('translate3d(10px, 12px, 0)')
 
@@ -202,7 +203,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     expect(animationFrames).toHaveLength(1)
     act(() => animationFrames.shift()!(16))
 
-    expect(container.querySelector('.paperTimelineMoveSnapshotSvg')).toBe(snapshot)
+    expect(container.querySelector('.templateRegionSnapshotSvg')).toBe(snapshot)
     expect(Array.from(snapshot.querySelectorAll('path'), path => path.getAttribute('d'))).toEqual(initialPathData)
     expect(preview.style.transform).toBe('translate3d(18px, 20px, 0)')
     expect(setTemplate).not.toHaveBeenCalled()
@@ -216,7 +217,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     const movedRect = detectPaperTimelineStructure(moved)!.rect
     expect((movedRect.x - sourceRect.x) * standardA3SheetTemplate.page.widthPx).toBeCloseTo(18)
     expect((movedRect.y - sourceRect.y) * standardA3SheetTemplate.page.heightPx).toBeCloseTo(20)
-    expect(container.querySelector('.paperTimelineMovePreview')).toBeNull()
+    expect(container.querySelector('.templateRegionTransformPreview')).toBeNull()
   })
 
   it('hit-tests a horizontally flowed region at its displayed position', () => {

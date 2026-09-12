@@ -15,6 +15,8 @@ import {
 } from '@xsheet-remap/core'
 import { confirmUserAction, type SaveFileResult } from '@xsheet-remap/adapters'
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTemplateDraftHistory, type TemplateHistoryControls } from './useTemplateDraftHistory'
+import type { TemplateDraftHistorySnapshot } from './templateDraftHistory'
 import { PanelResizeHandle } from './AppControls'
 import type { SheetImageSettings, TemplateDetailTab, WorkspaceStyle } from './appTypes'
 import { uiText } from './i18n'
@@ -63,6 +65,7 @@ export type TemplateWorkspaceEntryMode = 'standard' | 'image' | 'digital' | 'exi
 export interface TemplateWorkspaceDraftState {
   template: SheetTemplate
   dirty: boolean
+  history?: TemplateDraftHistorySnapshot
 }
 
 export function TemplateWorkspace({
@@ -78,6 +81,8 @@ export function TemplateWorkspace({
   initialDraftDirty = false,
   initialWorkflow = 'existing',
   onDraftStateChange,
+  initialHistory,
+  onHistoryControlsChange,
   onReturnToStart,
 }: {
   project: CutProject
@@ -92,6 +97,8 @@ export function TemplateWorkspace({
   initialDraftDirty?: boolean
   initialWorkflow?: TemplateWorkspaceEntryMode
   onDraftStateChange?: (state: TemplateWorkspaceDraftState) => void
+  initialHistory?: TemplateDraftHistorySnapshot
+  onHistoryControlsChange?: (controls: TemplateHistoryControls | null) => void
   onReturnToStart?: () => void
 }) {
   const fieldSemanticsLockNoticeId = useId()
@@ -100,9 +107,16 @@ export function TemplateWorkspace({
   const regionDeleteHintId = useId()
   const initialTemplate = initialDraftTemplate ?? appliedTemplate
   const initialPaperTimeline = editablePaperTimelineStructure(initialTemplate)
-  const [draftTemplate, setDraftTemplate] = useState<SheetTemplate>(() => cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(initialTemplate)))
-  const [hasTemplateDraftChanges, setHasTemplateDraftChanges] = useState(initialDraftDirty)
+  const referenceImageLoadSequence = useRef(0)
+  const draftRevision = useRef(0)
   const [saveNotice, setSaveNotice] = useState<string | null>(null)
+  const draftHistory = useTemplateDraftHistory(() => cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(initialTemplate)),
+    initialDraftDirty, initialHistory, () => {
+      draftRevision.current += 1
+      referenceImageLoadSequence.current += 1
+      setSaveNotice(null)
+    }, onHistoryControlsChange)
+  const { template: draftTemplate, dirty: hasTemplateDraftChanges, setTemplate: setDraftTemplate, store: historyStore } = draftHistory
   const template = draftTemplate
   const templateDraftStatus = hasTemplateDraftChanges
     ? mode === 'standalone' ? '未保存の変更' : uiText.template.draftChanged
@@ -127,8 +141,6 @@ export function TemplateWorkspace({
   const [templateCreateOpen, setTemplateCreateOpen] = useState(false)
   const [hiddenRegionIds, setHiddenRegionIds] = useState<Set<string>>(() => new Set())
   const [positionLockedRegionIds, setPositionLockedRegionIds] = useState<Set<string>>(() => new Set())
-  const referenceImageLoadSequence = useRef(0)
-  const draftRevision = useRef(0)
   const observedAppliedTemplate = useRef(appliedTemplate)
   const isDigitalTemplate = template.templateKind === 'digital-native'
   const activeDetailTab = (isDigitalTemplate && (detailTab === 'reference' || detailTab === 'layout'))
@@ -203,8 +215,8 @@ export function TemplateWorkspace({
   )
 
   useEffect(() => {
-    onDraftStateChange?.({ template, dirty: hasTemplateDraftChanges })
-  }, [hasTemplateDraftChanges, onDraftStateChange, template])
+    onDraftStateChange?.({ template, dirty: hasTemplateDraftChanges, history: historyStore.getSnapshot() })
+  }, [hasTemplateDraftChanges, historyStore, onDraftStateChange, template])
 
   useEffect(() => {
     if (mode !== 'project' || hasTemplateDraftChanges || observedAppliedTemplate.current === appliedTemplate) return
@@ -212,14 +224,17 @@ export function TemplateWorkspace({
     referenceImageLoadSequence.current += 1
     draftRevision.current += 1
     const nextTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate))
-    setDraftTemplate(nextTemplate)
+    if (historyStore.matchesSaved(nextTemplate)) return
+    historyStore.reset(nextTemplate)
     const nextManagedPaperTimeline = editablePaperTimelineStructure(nextTemplate)
+    // An externally replaced project document must reset its selection with the new history.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : TEMPLATE_PAGE_TARGET_ID)
     setDetailTab(nextManagedPaperTimeline ? 'layout' : 'template')
     setHiddenRegionIds(new Set())
     setPositionLockedRegionIds(new Set())
     setSaveNotice(null)
-  }, [appliedTemplate, hasTemplateDraftChanges, mode])
+  }, [appliedTemplate, hasTemplateDraftChanges, historyStore, mode])
 
   useEffect(() => {
     if (!hasTemplateDraftChanges) return
@@ -233,13 +248,16 @@ export function TemplateWorkspace({
 
   function markTemplateDraftChanged() {
     draftRevision.current += 1
-    setHasTemplateDraftChanges(true)
     setSaveNotice(null)
   }
 
-  function updateTemplateDraft(updater: (currentTemplate: SheetTemplate) => SheetTemplate) {
-    setDraftTemplate(currentTemplate => updater(ensureEditableTemplateDraft(currentTemplate)))
-    markTemplateDraftChanged()
+  function updateTemplateDraft(updater: (currentTemplate: SheetTemplate) => SheetTemplate, group?: object) {
+    if (setDraftTemplate(currentTemplate => updater(ensureEditableTemplateDraft(currentTemplate)), group)) markTemplateDraftChanged()
+  }
+
+  function commitCanvasTemplateDraft(updater: (currentTemplate: SheetTemplate) => SheetTemplate) {
+    // A completed gesture owns its undo step even if a number input retains focus.
+    updateTemplateDraft(updater, {})
   }
 
   function replaceTemplateDraft(nextTemplate: SheetTemplate | null, nextTab: TemplateDetailTab, dirty = true) {
@@ -248,8 +266,7 @@ export function TemplateWorkspace({
     draftRevision.current += 1
     const sourceTemplate = isModifiedBuiltInSheetTemplate(nextTemplate) ? ensureEditableTemplateDraft(nextTemplate) : nextTemplate
     const clonedTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(quantizeTemplateGeometry(sourceTemplate)))
-    setDraftTemplate(clonedTemplate)
-    setHasTemplateDraftChanges(dirty)
+    historyStore.reset(clonedTemplate, dirty)
     setSaveNotice(null)
     const nextManagedPaperTimeline = editablePaperTimelineStructure(clonedTemplate)
     const nextTargetId = nextTab === 'reference' && clonedTemplate.templateKind !== 'digital-native'
@@ -277,8 +294,7 @@ export function TemplateWorkspace({
     }
     draftRevision.current += 1
     onApplyTemplate(nextTemplate)
-    setDraftTemplate(cloneSheetTemplate(nextTemplate))
-    setHasTemplateDraftChanges(false)
+    historyStore.markSaved(cloneSheetTemplate(nextTemplate))
     setSaveNotice('プロジェクトへ反映しました')
   }
 
@@ -287,8 +303,7 @@ export function TemplateWorkspace({
     referenceImageLoadSequence.current += 1
     draftRevision.current += 1
     const nextTemplate = cloneSheetTemplate(synchronizeDigitalTemplatePaperTracks(appliedTemplate))
-    setDraftTemplate(nextTemplate)
-    setHasTemplateDraftChanges(false)
+    historyStore.reset(nextTemplate)
     setSaveNotice(null)
     const nextManagedPaperTimeline = editablePaperTimelineStructure(nextTemplate)
     setSelectedRegionId(nextManagedPaperTimeline ? PAPER_TIMELINE_TARGET_ID : TEMPLATE_PAGE_TARGET_ID)
@@ -320,8 +335,7 @@ export function TemplateWorkspace({
     const changedWhileSaving = draftRevision.current !== savedRevision
     if (mode === 'standalone' && !changedWhileSaving) {
       onApplyTemplate(finalizedTemplate)
-      setDraftTemplate(cloneSheetTemplate(finalizedTemplate))
-      setHasTemplateDraftChanges(false)
+      historyStore.markSaved(cloneSheetTemplate(finalizedTemplate))
     }
     const time = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit' }).format(new Date())
     setSaveNotice(changedWhileSaving
@@ -923,49 +937,28 @@ export function TemplateWorkspace({
       const dataUrl = await readFileAsDataUrl(file)
       if (referenceImageLoadSequence.current !== loadSequence) return
       const sourceId = `template_reference_${file.lastModified}_${file.size}_${loadSequence}`
-      setDraftTemplate(currentTemplate => {
-        const editableTemplate = ensureEditableTemplateDraft(currentTemplate)
-        return {
-          ...editableTemplate,
-          defaultUnderlay: {
-            sourceId,
-            label: file.name,
-            assetPath: dataUrl,
-            imageRef: {
-              name: file.name,
-              size: file.size,
-              lastModified: file.lastModified,
-              assetPath: dataUrl,
-            },
-          },
-        }
-      })
+      const imageHistoryGroup = {}
+      historyStore.setTemplate(currentTemplate => ({
+        ...ensureEditableTemplateDraft(currentTemplate),
+        defaultUnderlay: {
+          sourceId, label: file.name, assetPath: dataUrl,
+          imageRef: { name: file.name, size: file.size, lastModified: file.lastModified, assetPath: dataUrl },
+        },
+      }), imageHistoryGroup)
       markTemplateDraftChanged()
       void readTemplateImageMetadata(file, dataUrl).then(metadata => {
         if (!metadata || referenceImageLoadSequence.current !== loadSequence) return
-        setDraftTemplate(currentTemplate => {
+        const changed = historyStore.setTemplate(currentTemplate => {
           if (currentTemplate.defaultUnderlay?.sourceId !== sourceId) return currentTemplate
-          return {
-            ...currentTemplate,
-            defaultUnderlay: {
-              ...currentTemplate.defaultUnderlay,
-              imageRef: {
-                ...currentTemplate.defaultUnderlay.imageRef,
-                pixelWidth: metadata.width,
-                pixelHeight: metadata.height,
-                ppiX: metadata.ppiX,
-                ppiY: metadata.ppiY,
-              },
-              placement: resolvePixelExactUnderlayPlacement(
-                currentTemplate.page.widthPx,
-                currentTemplate.page.heightPx,
-                metadata,
-              ),
-            },
-          }
-        })
-        markTemplateDraftChanged()
-      })
+          return { ...currentTemplate, defaultUnderlay: {
+            ...currentTemplate.defaultUnderlay,
+            imageRef: { ...currentTemplate.defaultUnderlay.imageRef,
+              pixelWidth: metadata.width, pixelHeight: metadata.height, ppiX: metadata.ppiX, ppiY: metadata.ppiY },
+            placement: resolvePixelExactUnderlayPlacement(currentTemplate.page.widthPx, currentTemplate.page.heightPx, metadata),
+          } }
+        }, imageHistoryGroup)
+        if (changed) markTemplateDraftChanged()
+      }).catch(error => { console.warn('[template] Could not read reference image dimensions.', error) })
     } catch (error) {
       window.alert(uiText.template.referenceImageLoadFailed(errorMessage(error)))
     }
@@ -1933,10 +1926,12 @@ export function TemplateWorkspace({
             : 'テンプレート全体の設定と共通の見た目を編集します。'
 
   return (
-    <section className={`panel templatePanel${rebuildGuideOpen && paperTimelineStructure ? ' hasRebuildGuide' : ''}`}>
+    <section className={`panel templatePanel${rebuildGuideOpen && paperTimelineStructure ? ' hasRebuildGuide' : ''}`}
+      onFocusCapture={draftHistory.onFocusCapture} onBlurCapture={draftHistory.onBlurCapture}>
       <TemplateDocumentToolbar
         mode={mode} templateName={template.name} draftStatus={templateDraftStatus} dirty={hasTemplateDraftChanges}
         saveNotice={saveNotice}
+        history={draftHistory.controls}
         onReturnToStart={onReturnToStart ? () => void returnToStart() : undefined}
         onShowReview={() => setDetailTab('review')} onSave={() => void saveTemplateDraft()}
         onApply={applyTemplateDraftChanges} onCancel={cancelTemplateDraftChanges}
@@ -1986,7 +1981,7 @@ export function TemplateWorkspace({
         />
         <TemplateRegionEditor
           template={template}
-          setTemplate={updateTemplateDraft}
+          setTemplate={commitCanvasTemplateDraft}
           imageUrl={templateReferenceImageUrl}
           imageSettings={templateReferenceImageSettings}
           viewStore={templateViewStore}

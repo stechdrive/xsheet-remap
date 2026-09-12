@@ -402,10 +402,15 @@ Copy-HelperAssets
 
 $runtimeRequirementsPath = Join-Path $appRoot "requirements\runtime.txt"
 & $venvPython -m pip install --no-compile --upgrade --target $sitePackagesRoot -r $runtimeRequirementsPath
-if ($LASTEXITCODE -ne 0) {
-  throw "failed to install helper runtime requirements"
+if ($LASTEXITCODE -ne 0) { throw "helper runtime dependency install failed" }
+$previousTestDependencies = $env:XSHEET_TEST_DEPENDENCIES
+try {
+  $env:XSHEET_TEST_DEPENDENCIES = $sitePackagesRoot
+  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "test.ps1") -Python $venvPython
+  if ($LASTEXITCODE -ne 0) { throw "helper unit checks failed before packaging" }
+} finally {
+  $env:XSHEET_TEST_DEPENDENCIES = $previousTestDependencies
 }
-
 if ($IncludeOcrDiagnostics) {
   & $venvPython -m pip install --no-compile --upgrade --target $sitePackagesRoot -r (Join-Path $appRoot "requirements\diagnostic-ocr.txt")
   if ($LASTEXITCODE -ne 0) {

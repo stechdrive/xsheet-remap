@@ -173,6 +173,10 @@ foreach ($key in $environmentOverrides.Keys) {
 }
 
 $manifestPath = Join-Path $runRoot "manifest.json"
+$provenancePath = Join-Path $runRoot "executable-evidence.json"
+& node (Join-Path $repoRoot "tools\verification\executable.mjs") $resolvedExePath $provenancePath
+if ($LASTEXITCODE -ne 0) { throw "EXE provenance check failed; input has not started" }
+$provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
 [pscustomobject]@{
   runId = $runId
   scenario = $scenario
@@ -180,6 +184,13 @@ $manifestPath = Join-Path $runRoot "manifest.json"
   appMode = $AppMode
   exePath = $resolvedExePath
   exeSha256 = Get-ReleaseFileSha256Hex -Path $resolvedExePath
+  executableEvidence = $provenance
+  inputMode = switch ($TestCase) {
+    "registered-cell" { "native-mouse-registered-cell-drag" }
+    "explorer-import" { "native-mouse-explorer-file-drop" }
+    "csp-pane" { "native-mouse-csp-pane-drag" }
+    default { "native-mouse-drag-and-drop" }
+  }
   runRoot = $runRoot
   cutFolder = $cutFolder
   directFile = Join-Path $directFileFolder "Direct_A2.png"

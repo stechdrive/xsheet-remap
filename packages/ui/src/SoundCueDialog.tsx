@@ -1,3 +1,4 @@
+import { isCompositionKey } from './compositionKeyboard'
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { formatLogicalSheetFrameTimecode, type LogicalTimelineLane, type TimedRangeCue } from '@xsheet-remap/core'
 import type { SoundCueDialogState } from './appTypes'
@@ -90,6 +91,7 @@ export function SoundCueDialog({
   }
 
   function handleTextKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (isCompositionKey(event.nativeEvent)) return
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault()
       event.currentTarget.form?.requestSubmit()

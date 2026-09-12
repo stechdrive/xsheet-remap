@@ -90,16 +90,7 @@ function Add-WorkingTreeChangesToClone {
   if ($LASTEXITCODE -ne 0) {
     throw "temporary clone git status failed with exit code $LASTEXITCODE"
   }
-  if ($pending) {
-    Invoke-CheckedCommand `
-      -FilePath "git" `
-      -ArgumentList @(
-        "-c", "user.name=xsheet-remap CI preflight",
-        "-c", "user.email=ci-preflight@invalid.local",
-        "commit", "--quiet", "-m", "CI preflight working tree"
-      ) `
-      -WorkingDirectory $cloneRoot
-  }
+  # Keep HEAD identical: a synthetic commit would change the derived version.
 }
 
 function Assert-ToolVersions {
@@ -158,8 +149,34 @@ try {
   }
   Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("ci") -WorkingDirectory $cloneRoot
   Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "check:dependency-audit") -WorkingDirectory $cloneRoot
-  Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "check") -WorkingDirectory $cloneRoot
-  Write-Host "[ci-preflight] clean install and repository checks passed"
+  $previousReports = Join-Path $repoRoot "reference-local\verification"
+  $cloneReports = Join-Path $cloneRoot "reference-local\verification"
+  if (Test-Path -LiteralPath $previousReports) {
+    New-Item -ItemType Directory -Path $cloneReports -Force | Out-Null
+    Get-ChildItem -LiteralPath $previousReports -Filter "*.json" -File | Copy-Item -Destination $cloneReports
+  }
+  $previousBrowserPath = $env:PLAYWRIGHT_BROWSERS_PATH
+  $previousCargoTarget = $env:CARGO_TARGET_DIR
+  $previousTestDependencies = $env:XSHEET_TEST_DEPENDENCIES
+  try {
+    if (-not $env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $repoRoot ".cache\playwright" }
+    $env:CARGO_TARGET_DIR = Join-Path $repoRoot ".cache\cargo-target"
+    Invoke-CheckedCommand -FilePath "node" -ArgumentList @("node_modules/@playwright/test/cli.js", "install", "chromium", "webkit") -WorkingDirectory $cloneRoot
+    Invoke-CheckedCommand -FilePath "python" -ArgumentList @("-m", "pip", "install", "--target", (Join-Path $runRoot "python-tests"), "-r", "apps/csp-import-helper/requirements/test.txt") -WorkingDirectory $cloneRoot
+    $env:XSHEET_TEST_DEPENDENCIES = Join-Path $runRoot "python-tests"
+    Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "verify:local", "--", "--reuse") -WorkingDirectory $cloneRoot
+  } finally {
+    $env:PLAYWRIGHT_BROWSERS_PATH = $previousBrowserPath
+    $env:CARGO_TARGET_DIR = $previousCargoTarget
+    $env:XSHEET_TEST_DEPENDENCIES = $previousTestDependencies
+    $evidenceDestination = Join-Path $repoRoot "reference-local\preflight\$([System.IO.Path]::GetFileName($runRoot))"
+    New-Item -ItemType Directory -Path $evidenceDestination -Force | Out-Null
+    foreach ($directory in @("verification", "canvaskit-browser")) {
+      $source = Join-Path $cloneRoot "reference-local\$directory"
+      if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination $evidenceDestination -Recurse }
+    }
+  }
+  Write-Host "[ci-preflight] clean install, repository/native/importer checks and the Pages browser candidate passed"
 } finally {
   Remove-PreflightRun
 }

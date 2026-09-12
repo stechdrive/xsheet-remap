@@ -369,10 +369,22 @@ foreach ($key in $environmentOverrides.Keys) {
   [Environment]::SetEnvironmentVariable($key, $environmentOverrides[$key], "Process")
 }
 
+$provenancePath = Join-Path $runRoot "executable-evidence.json"
+& node (Join-Path $repoRoot "tools\verification\executable.mjs") $resolvedExePath $provenancePath
+if ($LASTEXITCODE -ne 0) { throw "EXE provenance check failed; input has not started" }
+$provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
 $manifest = [pscustomobject]@{
   runId = $runId
   scenario = $Scenario
   exePath = $resolvedExePath
+  exeSha256 = $provenance.artifact.sha256
+  executableEvidence = $provenance
+  inputMode = switch ($Scenario) {
+    "template-authoring" { "native-mouse-keyboard" }
+    "launch" { "window-launch-observation" }
+    "full-default-a3" { "application-test-hook" }
+    default { "browser-protocol-and-dom" }
+  }
   runRoot = $runRoot
   assetRoot = $assetRoot
   exportRoot = $exportRoot

@@ -11,6 +11,7 @@ import { ActionMenu, ScrubbableNumberInput } from './AppControls'
 import { TextAnnotationUpdate } from './app-foundation'
 import { CheckSmallIcon, CloseSmallIcon } from './app-navigation'
 import { useInlineEditorSession } from './useInlineEditorSession'
+import { isCompositionKey } from './compositionKeyboard'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
 import { usePointerDragSession } from './usePointerDragSession'
 import type { PageMemoTextRenderItem } from './pageMemoProjection'
@@ -222,6 +223,7 @@ function AnnotationTextItem({
           }}
           onKeyDown={event => {
             event.stopPropagation()
+            if (isCompositionKey(event.nativeEvent)) return
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
               event.preventDefault()
               commitDraftText()

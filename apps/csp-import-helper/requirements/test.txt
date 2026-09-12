@@ -1,0 +1,2 @@
+# Unit tests use mocked Windows/CSP APIs. No GUI or OCR runtime is needed.
+Pillow==12.1.1

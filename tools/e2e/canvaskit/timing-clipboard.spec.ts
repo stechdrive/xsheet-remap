@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './fixtures'
 import { addOverlayPaperTrackAtCspTop, cellRectForHit, createDefaultProject, createSheetPages, standardA3SheetTemplate, timingHitForFrame, type SheetTimingRole } from '../../../packages/core/src/index'
 import { overlayColumnRectForPage } from '../../../packages/ui/src/sheet-layers-hit-geometry'
 import { waitForPaperPaint } from '../paper-paint-contract'
@@ -35,7 +35,7 @@ async function copyRange(page: Page, role: SheetTimingRole, start: number, end: 
 }
 
 test('copies ACTION to CELL and back with independent numbering and undo', async ({ page }, info) => {
-  await page.goto('/')
+  await page.goto('./')
   await ready(page)
   await clickCell(page, 'action', 1)
   await page.keyboard.press('1'); await page.keyboard.press('Enter')
@@ -64,7 +64,7 @@ test('copies ACTION to CELL and back with independent numbering and undo', async
 })
 
 test('CSP plus adds an ACTION column with working keyboard entry', async ({ page }, info) => {
-  await page.goto('/?app=remap')
+  await page.goto('./?app=remap')
   await ready(page)
   await page.getByLabel('CSPレイヤー項目を追加', { exact: true }).click()
   await page.getByRole('button', { name: '追加セル列', exact: true }).click()

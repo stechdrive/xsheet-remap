@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './fixtures'
 import { writeFile } from 'node:fs/promises'
 import { standardA3SheetTemplate, timingHitForFrame, cellRectForHit } from '../../../packages/core/src/index'
 import { waitForPaperPaint } from '../paper-paint-contract'
@@ -46,7 +46,7 @@ test('sheet selection, timing, hover, undo and redraw survive GPU painting', asy
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.text().includes('[paper-renderer]')) errors.push(message.text()) })
-  await page.goto('/')
+  await page.goto('./')
   await active(page, '.sheetSvg')
   const p = await cell(page, 1)
   await page.mouse.click(p.x, p.y)
@@ -77,7 +77,7 @@ test('sheet selection, timing, hover, undo and redraw survive GPU painting', asy
   await active(page, '.sheetSvg')
   const before = await page.locator('.sheetSvg').first().getAttribute('data-canvaskit-scene-builds')
   await page.mouse.move(600, 600)
-  if (info.project.name === 'ipad') await page.locator('.sheetViewport').evaluate(element => element.scrollBy(0, 200))
+  if (info.project.name === 'webkit-touch') await page.locator('.sheetViewport').evaluate(element => element.scrollBy(0, 200))
   else await page.mouse.wheel(0, 200)
   await page.waitForTimeout(120)
   await active(page, '.sheetSvg')
@@ -109,7 +109,7 @@ test('sheet selection, timing, hover, undo and redraw survive GPU painting', asy
 })
 
 test('cell navigation reuses static paint and stays identical to a complete rebuild', async ({ page }, info) => {
-  await page.goto('/')
+  await page.goto('./')
   await active(page, '.sheetSvg')
   const p = await cell(page, 1)
   await page.mouse.click(p.x, p.y)
@@ -140,7 +140,7 @@ test('cell navigation reuses static paint and stays identical to a complete rebu
 })
 
 test('cached groups follow inherited paint, transforms, text and shared clip edits', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('./')
   await active(page, '.sheetSvg')
   const source = page.locator('.sheetSvg').first()
   await source.evaluate(svg => {
@@ -169,9 +169,8 @@ test('cached groups follow inherited paint, transforms, text and shared clip edi
   }
 })
 
-test('touch taps select and edit cells in a tablet viewport', async ({ page }, info) => {
-  test.skip(!info.project.use.hasTouch, 'touch projects only')
-  await page.goto('/')
+test('touch taps select and edit cells in an emulated touch viewport', { tag: '@touch' }, async ({ page }) => {
+  await page.goto('./')
   await active(page, '.sheetSvg')
   const p = await cell(page, 1)
   await page.touchscreen.tap(p.x, p.y)
@@ -183,7 +182,7 @@ test('touch taps select and edit cells in a tablet viewport', async ({ page }, i
 })
 
 test('GPU context restoration and suspended surfaces preserve the editable document', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('./')
   await active(page, '.sheetSvg')
   const source = page.locator('.sheetSvg').first()
   const canvas = page.locator('.sheetSvg + .canvasKitPaperCanvas').first()
@@ -213,8 +212,8 @@ test('GPU context restoration and suspended surfaces preserve the editable docum
 test('an unavailable WASM runtime retains rendering and keyboard editing', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
-  await page.route(/canvaskit\.wasm(?:\?|$)/, route => route.request().resourceType() === 'script' ? route.continue() : route.abort())
-  await page.goto('/')
+  await page.route(/canvaskit[^/]*\.wasm(?:\?|$)/, route => route.abort())
+  await page.goto('./')
   const source = page.locator('.sheetSvg').first()
   await expect(source).toHaveAttribute('data-canvaskit-state', 'fallback', { timeout: 40_000 })
   await expect(source).not.toHaveAttribute('data-canvaskit-ready', 'true')
@@ -229,17 +228,17 @@ test('template zoom and scroll reuse static drawing; edits update it', async ({ 
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.text().includes('[paper-renderer]')) errors.push(message.text()) })
-  await page.goto('/?app=template-editor')
+  await page.goto('./?app=template-editor')
   await page.getByRole('button', { name: '標準用紙を調整（おすすめ）' }).click()
   await active(page, '.templateStaticPreviewSvg')
   const builds = await page.locator('.templateStaticPreviewSvg').getAttribute('data-canvaskit-scene-builds')
   const viewport = await page.locator('.templateEditorViewport').boundingBox()
   await page.mouse.move(viewport!.x + 120, viewport!.y + 120)
-  if (info.project.name === 'ipad') await page.locator('.templateEditorViewport').evaluate(element => element.scrollBy(0, 450))
+  if (info.project.name === 'webkit-touch') await page.locator('.templateEditorViewport').evaluate(element => element.scrollBy(0, 450))
   else await page.mouse.wheel(0, 450)
   await page.waitForTimeout(150)
   expect(await page.locator('.templateStaticPreviewSvg').getAttribute('data-canvaskit-scene-builds')).toBe(builds)
-  if (info.project.name === 'ipad') await page.locator('.templateEditorViewport').dispatchEvent('wheel', { ctrlKey: true, deltaY: -150, clientX: viewport!.x + 120, clientY: viewport!.y + 120 })
+  if (info.project.name === 'webkit-touch') await page.locator('.templateEditorViewport').dispatchEvent('wheel', { ctrlKey: true, deltaY: -150, clientX: viewport!.x + 120, clientY: viewport!.y + 120 })
   else { await page.keyboard.down('Control'); await page.mouse.wheel(0, -150); await page.keyboard.up('Control') }
   await page.waitForTimeout(150)
   await active(page, '.templateStaticPreviewSvg')

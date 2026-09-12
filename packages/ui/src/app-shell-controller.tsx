@@ -1,3 +1,4 @@
+import { isCompositionKey } from './compositionKeyboard'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -2100,7 +2101,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.isComposing) return
+      if (isCompositionKey(event)) return
       const keyboardOwner = resolveWorkspaceKeyboardOwner(event.target, workspaceFocusOwner)
       if (keyboardOwner === 'ignore') return
       if (handleWorkspaceKeyboardBoundary(event, keyboardOwner, { undo: handleUndo, redo: handleRedo })) return

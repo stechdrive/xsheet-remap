@@ -1,4 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { isCompositionKey } from './compositionKeyboard'
 
 export function useFloatingEditorBoundary<T extends HTMLElement>(onCancel: () => void) {
   const rootRef = useRef<T | null>(null)
@@ -13,6 +14,7 @@ export function useFloatingEditorBoundary<T extends HTMLElement>(onCancel: () =>
   }, [onCancel])
 
   function handleKeyDown(event: KeyboardEvent<T>) {
+    if (isCompositionKey(event.nativeEvent)) return
     if (event.key !== 'Escape') return
     event.preventDefault()
     event.stopPropagation()

@@ -1,10 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { waitForPaperPaint } from '../paper-paint-contract'
 
 for (const renderer of ['canvaskit', 'svg'] as const) {
   test(`MEMO keeps its draft and caret through mouse editing (${renderer})`, async ({ page }, info) => {
-    if (renderer === 'svg') await page.route('**/canvaskit.wasm', route => route.abort())
-    await page.goto('/')
+    if (renderer === 'svg') await page.route('**/canvaskit*.wasm', route => route.abort())
+    await page.goto('./')
     if (renderer === 'canvaskit') {
       // Give initial GPU/font setup its own wait, as in the other paper tests.
       await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })

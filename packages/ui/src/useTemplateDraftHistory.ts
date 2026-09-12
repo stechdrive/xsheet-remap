@@ -1,3 +1,4 @@
+import { isCompositionKey } from './compositionKeyboard'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type FocusEvent } from 'react'
 import type { SheetTemplate } from '@xsheet-remap/core'
 import { createTemplateDraftHistory, type TemplateDraftHistorySnapshot } from './templateDraftHistory'
@@ -27,7 +28,7 @@ export function useTemplateDraftHistory(initial: () => SheetTemplate, dirty: boo
   useEffect(() => () => { onControlsChange?.(null) }, [onControlsChange])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.altKey || !(event.ctrlKey || event.metaKey)) return
+      if (event.defaultPrevented || isCompositionKey(event) || event.altKey || !(event.ctrlKey || event.metaKey)) return
       if (event.target instanceof Element && event.target.closest('dialog, [role="dialog"]')) return
       if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]')
         && !event.target.closest('.templatePanel') && !inputGroup.current) return

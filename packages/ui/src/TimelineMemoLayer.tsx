@@ -1,3 +1,4 @@
+import { isCompositionKey } from './compositionKeyboard'
 import { useMemo, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { normalizeMemoAppearance, type SheetMemoAnchorPresentation, type SheetPage, type SheetTemplate, type SheetTemplateLayoutResolveOptions, type SheetViewLayoutOverrides, type TimelineInkMemo, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core'
@@ -355,6 +356,7 @@ export function TimelineMemoLayer({
 
   function handleTextDraftKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     event.stopPropagation()
+    if (isCompositionKey(event.nativeEvent)) return
     if (event.key === 'Escape') {
       event.preventDefault()
       cancelTextEditor()

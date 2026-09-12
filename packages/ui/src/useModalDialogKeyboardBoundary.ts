@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { isCompositionKey } from './compositionKeyboard'
 
 const FOCUSABLE_SELECTOR = [
   'button:not(:disabled)',
@@ -28,6 +29,7 @@ export function useModalDialogKeyboardBoundary<T extends HTMLElement>(onCancel: 
       focusTarget.focus()
     }
     function handleKeyDown(event: KeyboardEvent) {
+      if (isCompositionKey(event)) return
       const dialog = dialogRef.current
       if (!dialog) return
       if (event.key === 'Escape') {

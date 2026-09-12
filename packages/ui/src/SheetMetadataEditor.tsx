@@ -14,6 +14,7 @@ import {
   type NormalizedRect,
 } from '@xsheet-remap/core'
 import { DurationFrameControl } from './DurationFrameControl'
+import { isCompositionKey } from './compositionKeyboard'
 import { TooltipTarget } from './Tooltip'
 import { buildTemplateChromeRenderModel } from './templateEditorGeometry'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
@@ -375,6 +376,7 @@ export function SheetMetadataEditor({
           style={rectStyle(activeRect, pageWidth, pageHeight)}
           onPointerDown={event => event.stopPropagation()}
           onKeyDown={event => {
+            if (isCompositionKey(event.nativeEvent)) return
             if (event.key === 'Escape') {
               event.preventDefault()
               event.stopPropagation()
@@ -417,6 +419,7 @@ export function SheetMetadataEditor({
           style={popoverStyle(activeRect, pageWidth, pageHeight)}
           onPointerDown={event => event.stopPropagation()}
           onKeyDown={event => {
+            if (isCompositionKey(event.nativeEvent)) return
             if (event.key === 'Escape') {
               event.preventDefault()
               event.stopPropagation()

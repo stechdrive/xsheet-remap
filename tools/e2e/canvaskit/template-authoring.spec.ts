@@ -1,14 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './fixtures'
+import { activateControl } from './input'
 import { waitForPaperPaint } from '../paper-paint-contract'
 
 const paint = (page: Page) => waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
-async function openTemplate(page: Page) {
-  await page.goto('/?app=template-editor')
-  await page.getByRole('button', { name: '標準用紙を調整（おすすめ）' }).click()
+async function openTemplate(page: Page, input: 'mouse' | 'touch' = 'mouse') {
+  await page.goto('./?app=template-editor')
+  await activateControl(page, page.getByRole('button', { name: '標準用紙を調整（おすすめ）' }), input)
   await paint(page)
-  await page.locator('.templateZoomFloatingPalette button').first().click()
-  await page.getByRole('button', { name: '全体表示', exact: true }).click()
-  await page.mouse.move(3, 3)
+  await activateControl(page, page.locator('.templateZoomFloatingPalette button').first(), input)
+  await activateControl(page, page.getByRole('button', { name: '全体表示', exact: true }), input)
+  if (input === 'mouse') await page.mouse.move(3, 3)
   await paint(page)
 }
 
@@ -95,10 +96,10 @@ test('hover-only handles keep a live drag, one-step undo, redo and resize cancel
   await paint(page)
   const moved = await page.locator('.templateEditorRectReadout').innerText()
   expect(moved).not.toBe(initial)
-  await page.getByRole('button', { name: '元に戻す', exact: true }).click()
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
   await expect(page.locator('.templateEditorRectReadout')).toHaveText(initial)
   await expect(page.getByRole('button', { name: '元に戻す', exact: true })).toBeDisabled()
-  await page.getByRole('button', { name: 'やり直し', exact: true }).click()
+  await activateControl(page, page.getByRole('button', { name: 'やり直し', exact: true }))
   await expect(page.locator('.templateEditorRectReadout')).toHaveText(moved)
   const current = (await page.locator('.templateHandleSvg').boundingBox())!
   await page.mouse.move(current.x + current.width / 2, current.y + current.height / 2)
@@ -137,19 +138,26 @@ test('a focus-preserving canvas drag has its own undo step after numeric entry',
   await expect(page.getByRole('button', { name: '元に戻す', exact: true })).toBeDisabled()
 })
 
-test('ordinary regions use the same movement handles and touch can reveal them without hovering', async ({ page }, info) => {
+test('ordinary regions use the same mouse movement and undo as the timeline', async ({ page }) => {
   await openTemplate(page)
   await page.getByRole('button', { name: 'MEMO', exact: true }).click()
   const rect = (await page.locator('.templateHandleSvg').boundingBox())!
   const point = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
-  if (info.project.use.hasTouch) await page.touchscreen.tap(point.x, point.y)
-  else await page.mouse.move(point.x, point.y)
+  await page.mouse.move(point.x, point.y)
   await expect(page.getByRole('button', { name: '選択要素を移動' })).toBeVisible()
   const initial = await page.locator('.templateEditorRectReadout').innerText()
   await page.mouse.move(point.x, point.y)
   await page.mouse.down(); await page.mouse.move(point.x + 4, point.y + 4); await page.mouse.up()
   await paint(page)
   expect(await page.locator('.templateEditorRectReadout').innerText()).not.toBe(initial)
-  await page.getByRole('button', { name: '元に戻す', exact: true }).click()
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
   await expect(page.locator('.templateEditorRectReadout')).toHaveText(initial)
+})
+
+test('touch selection reveals ordinary region controls without a mouse hover', { tag: '@touch' }, async ({ page }) => {
+  await openTemplate(page, 'touch')
+  await activateControl(page, page.getByRole('button', { name: 'MEMO', exact: true }), 'touch')
+  const rect = (await page.locator('.templateHandleSvg').boundingBox())!
+  await page.touchscreen.tap(rect.x + rect.width / 2, rect.y + rect.height / 2)
+  await expect(page.getByRole('button', { name: '選択要素を移動' })).toBeVisible()
 })

@@ -1,9 +1,9 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { writeFile } from 'node:fs/promises'
 import { waitForPaperPaint } from '../paper-paint-contract'
 
 test('scrolling retains painted content without reallocating the GPU target', async ({ page }, info) => {
-  await page.goto('/')
+  await page.goto('./')
   const paint = () => waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
   await paint()
   const before = await page.locator('.sheetSvg').first().getAttribute('data-canvaskit-scene-builds')
@@ -34,7 +34,7 @@ test('scrolling retains painted content without reallocating the GPU target', as
 })
 
 test('direct paper models match the SVG compatibility path and materialize for print', async ({ page }, info) => {
-  await page.goto('/')
+  await page.goto('./')
   const paint = () => waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
   await paint()
   const source = page.locator('.sheetSvg').first()
@@ -60,7 +60,7 @@ test('direct paper models match the SVG compatibility path and materialize for p
 })
 
 test('long scrolls, reverse scrolls and zoom previews keep complete, editable pixels', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('./')
   const paint = () => waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
   await paint()
   const source = page.locator('.sheetSvg').first()
@@ -120,7 +120,7 @@ test('long scrolls, reverse scrolls and zoom previews keep complete, editable pi
 })
 
 test('template model updates preserve layout, inherited styles and hidden labels', async ({ page }, info) => {
-  await page.goto('/?app=template-editor')
+  await page.goto('./?app=template-editor')
   await page.getByRole('button', { name: '標準用紙を調整（おすすめ）' }).click()
   const paint = () => waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
   await paint()

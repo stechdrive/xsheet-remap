@@ -1,8 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { waitForPaperPaint } from '../paper-paint-contract'
 
 test('submitted paper paint can settle without further animation callbacks', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('./')
   await waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
 
   // Keep real renderer state, but reproduce missing animation notifications while

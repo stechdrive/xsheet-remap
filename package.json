@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.756",
+  "version": "0.1.757",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.18.0",
@@ -29,7 +29,7 @@
     "prepackage:local": "npm run sync:version",
     "prebuild:release:all": "npm run sync:version",
     "dev": "npm run dev -w @xsheet-remap/web",
-    "check": "npm run check:ae-template && npm run check:after-effects-native && npm run lint && npm run typecheck && npm run test && npm run check:architecture && npm run check:build-contract && npm run check:pages-contract && npm run check:embedded-dependencies && npm run check:repo-hygiene",
+    "check": "node tools/verification/run.mjs check",
     "check:ci-preflight": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/checks/ci-preflight.ps1",
     "check:dependency-audit": "npm audit --audit-level=high",
     "check:architecture": "node tools/checks/architecture.mjs",
@@ -119,7 +119,14 @@
     "tauri:template-editor:dev": "npm run tauri:dev -w @xsheet-remap/template-editor",
     "xdts:inspect": "tsx tools/xdts-inspect/src/index.ts",
     "xdts:patch": "tsx tools/xdts-patch/src/index.ts",
-    "csv-xdts:compare": "tsx tools/csv-xdts-compare/src/index.ts"
+    "csv-xdts:compare": "tsx tools/csv-xdts-compare/src/index.ts",
+    "verify:local": "node tools/verification/run.mjs local",
+    "verify:native": "node tools/verification/run.mjs native",
+    "verify:importer": "node tools/verification/run.mjs importer",
+    "verify:pages": "node tools/verification/run.mjs pages",
+    "verify:browser": "node tools/verification/run.mjs browser",
+    "verify:plan": "node tools/verification/run.mjs plan",
+    "test:csp-helper": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/csp-import-helper/test.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
@@ -145,7 +152,8 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.65.0",
     "vite": "^8.1.5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "js-yaml": "4.3.2"
   },
   "license": "MIT",
   "allowScripts": {

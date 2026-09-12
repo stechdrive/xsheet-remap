@@ -3,6 +3,16 @@ import { standardA3SheetTemplate } from '@xsheet-remap/core'
 import { createTemplateDraftHistory } from './templateDraftHistory'
 
 describe('template authoring history', () => {
+  it('ends a logical field transaction even when its owner reuses the group token', () => {
+    const history = createTemplateDraftHistory(standardA3SheetTemplate), field = {}
+    history.setTemplate(t => ({ ...t, name: 'first session' }), field)
+    history.endGroup()
+    history.setTemplate(t => ({ ...t, name: 'second session' }), field)
+    history.undo()
+    expect(history.getSnapshot().template.name).toBe('first session')
+    history.undo()
+    expect(history.getSnapshot().template).toBe(standardA3SheetTemplate)
+  })
   it('coalesces a field edit, tracks the saved point, and discards the redo branch after a new edit', () => {
     const history = createTemplateDraftHistory(standardA3SheetTemplate)
     const field = {}

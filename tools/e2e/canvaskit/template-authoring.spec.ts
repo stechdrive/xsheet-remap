@@ -13,18 +13,31 @@ async function openTemplate(page: Page) {
 }
 
 test('continuous template zoom keeps its GPU context and finishes with sharp, painted content', async ({ page }) => {
+  // Keep input cadence independent of the runner's rendering speed. Real rAF
+  // intervals can exceed the idle threshold on software-rendered WebKit.
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') })
   await openTemplate(page)
+  await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'))
   const source = page.locator('.templateStaticPreviewSvg')
+  const zoomSurface = page.locator('.templateEditorZoomSurface')
+  const initialStyle = await zoomSurface.getAttribute('style')
   const before = await source.evaluate(svg => ({ contexts: svg.getAttribute('data-canvaskit-contexts'), builds: svg.getAttribute('data-canvaskit-scene-builds') }))
   const canvas = await source.evaluateHandle(svg => svg.nextElementSibling)
-  await page.locator('.templateEditorViewport').evaluate(async viewport => {
-    const b = viewport.getBoundingClientRect()
+  try {
     for (let step = 0; step < 24; step++) {
-      viewport.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true,
-        deltaY: step < 12 ? -100 : 100, clientX: b.left + 150, clientY: b.top + 100 }))
-      await new Promise(requestAnimationFrame)
+      await page.locator('.templateEditorViewport').evaluate((viewport, deltaY) => {
+        const b = viewport.getBoundingClientRect()
+        viewport.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true,
+          deltaY, clientX: b.left + 150, clientY: b.top + 100 }))
+      }, step < 12 ? -100 : 100)
+      await page.clock.runFor(32)
+      if (step === 0) expect(await zoomSurface.getAttribute('style')).not.toBe(initialStyle)
+      expect(await page.locator('.templateEditorViewport').getAttribute('data-paper-transform-preview')).toBe('true')
+      expect(await source.getAttribute('data-canvaskit-contexts')).toBe(before.contexts)
     }
-  })
+  } finally {
+    await page.clock.resume()
+  }
   await expect(page.locator('.templateEditorViewport')).not.toHaveAttribute('data-paper-transform-preview', 'true')
   await paint(page)
   expect(await source.getAttribute('data-canvaskit-contexts')).toBe(before.contexts)
@@ -32,6 +45,28 @@ test('continuous template zoom keeps its GPU context and finishes with sharp, pa
   expect(await source.evaluate((svg, previous) => svg.nextElementSibling === previous, canvas)).toBe(true)
   expect(await page.locator('.templateInteractionSvg + canvas, .templateHandleSvg + canvas').count()).toBe(0)
   await canvas.dispose()
+})
+
+test('separated template zoom inputs finish sharp painting between steps', async ({ page }) => {
+  await openTemplate(page)
+  const source = page.locator('.templateStaticPreviewSvg')
+  const surface = page.locator('.templateEditorZoomSurface')
+  const viewport = page.locator('.templateEditorViewport')
+  const before = await source.evaluate(svg => ({ contexts: Number(svg.getAttribute('data-canvaskit-contexts')), builds: svg.getAttribute('data-canvaskit-scene-builds') }))
+  for (const deltaY of [-100, -100, 100, 100]) {
+    const previousStyle = await surface.getAttribute('style')
+    await viewport.evaluate((element, delta) => {
+      const b = element.getBoundingClientRect()
+      element.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true,
+        deltaY: delta, clientX: b.left + 150, clientY: b.top + 100 }))
+    }, deltaY)
+    await expect.poll(() => surface.getAttribute('style')).not.toBe(previousStyle)
+    await expect(viewport).not.toHaveAttribute('data-paper-transform-preview', 'true')
+    await paint(page)
+    await expect(source).toHaveAttribute('data-canvaskit-state', 'active')
+  }
+  expect(Number(await source.getAttribute('data-canvaskit-contexts'))).toBeGreaterThan(before.contexts)
+  expect(await source.getAttribute('data-canvaskit-scene-builds')).toBe(before.builds)
 })
 
 test('hover-only handles keep a live drag, one-step undo, redo and resize cancellation', async ({ page }, info) => {

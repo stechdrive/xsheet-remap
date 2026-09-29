@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { DEFAULT_PRE_ROLL_FRAMES, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
+import { type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
 import { timelineMemoFontSizePx, timelineMemoFontSizeUnitsForPx } from './timelineMemoTextLayout'
 import { normalizeMemoAppearance, type MemoAppearance } from '@xsheet-remap/core'
@@ -32,6 +32,7 @@ import { SheetHistoryRail } from './SheetHistoryRail'
 import { suppressSheetTooltips } from './sheetInteractionOwnership'
 import { resolveSheetAnnotationTarget } from './sheetAnnotationTarget'
 import { SheetTouchControls } from './SheetTouchControls'
+import { SheetWorkRangeControls } from './SheetWorkRangeControls'
 import { timingKeyDisplayLabel } from './workspaceSelectionModel'
 
 export type TemplateRegionAnnotationTargetIdentity = Pick<
@@ -626,17 +627,6 @@ export function SheetPanel(props: {
     if (zoom !== null) applyAutoFitZoom(zoom)
   }
 
-  function setPreRollVisible(showPreRoll: boolean) {
-    props.onUpdateTiming({
-      workRange: {
-        ...workRange,
-        preRollFrames: DEFAULT_PRE_ROLL_FRAMES,
-        showPreRoll,
-        showPostRoll: true,
-      },
-    })
-  }
-
   useEffect(() => {
     if (!annotationPaletteOpen || annotationSessionActive) return undefined
     const closeFromOutside = (event: globalThis.PointerEvent) => {
@@ -1209,15 +1199,10 @@ export function SheetPanel(props: {
                     <label className="compactControl"><input type="checkbox" checked={props.project.sheetView.continuationDisplay.action} onChange={event => props.onContinuationDisplayChange('action', event.currentTarget.checked)} />{uiText.sheet.actionContinuation}</label>
                     <label className="compactControl"><input type="checkbox" checked={props.project.sheetView.continuationDisplay.cell} onChange={event => props.onContinuationDisplayChange('cell', event.currentTarget.checked)} />{uiText.sheet.cellContinuation}</label>
                     <label className="compactControl"><input type="checkbox" checked={props.showAnnotations} onChange={event => props.onShowAnnotationsChange(event.currentTarget.checked)} />{uiText.sheet.annotations}</label>
-                    <TooltipTarget label={`${uiText.sheet.preRollTitle}\n${uiText.sheet.preRollFixedTitle(DEFAULT_PRE_ROLL_FRAMES)}`}>
-                      {tooltipProps => (
-                        <label className="compactControl dummyKControl" {...tooltipProps}>
-                          <input type="checkbox" aria-label={uiText.sheet.preRoll} checked={workRange.showPreRoll} disabled={sheetViewLayout.workRange?.supportsPreRoll === false} onChange={event => setPreRollVisible(event.currentTarget.checked)} />
-                          {uiText.sheet.preRollFrames}
-                        </label>
-                      )}
-                    </TooltipTarget>
-                    {workRange.postRollFrames > 0 && <span className="muted workRangeMeta">{uiText.sheet.postRollFrames(workRange.postRollFrames)}</span>}
+                    <SheetWorkRangeControls workRange={workRange}
+                      supportsPreRoll={sheetViewLayout.workRange?.supportsPreRoll}
+                      supportsPostRoll={sheetViewLayout.workRange?.supportsPostRoll}
+                      onChange={workRange => props.onUpdateTiming({ workRange })} />
                     {hiddenPaperTracks.length > 0 && <span className="muted" title={hiddenPaperTracks.join(', ')}>{uiText.sheet.hiddenPaperTracks(hiddenPaperTracks.length)}</span>}
                   </div>
                 </ActionMenu>

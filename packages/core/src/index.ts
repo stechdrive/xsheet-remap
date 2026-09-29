@@ -439,6 +439,7 @@ export {
 } from './annotations'
 export {
   DEFAULT_PRE_ROLL_FRAMES,
+  DEFAULT_POST_ROLL_FRAMES,
   defaultLogicalSheetWorkRange,
   formatLogicalSheetFrameTimecode,
   logicalSheetDisplayDurationFrames,

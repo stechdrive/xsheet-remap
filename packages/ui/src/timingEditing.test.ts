@@ -6,6 +6,7 @@ import {
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
   upsertBinding,
+  updateLogicalSheetSettings,
   validateProject,
   type SheetHit,
 } from '@xsheet-remap/core'
@@ -13,6 +14,7 @@ import type { SheetRangeSelection } from './appTypes'
 import {
   buildTimingClipboard,
   deleteTimelineFrames,
+  ensurePostRollCoversFrame,
   insertTimelineFrames,
   moveTimingEventsInRange,
   pasteTimingClipboardToProject,
@@ -20,6 +22,33 @@ import {
   sameSheetHitCell,
 } from './timingEditing'
 import { bindAssetToHit } from './sheetAssets'
+
+describe('post-roll work area', () => {
+  it('repeats a cycle beyond the official end into the visible dummy frames', () => {
+    const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell')
+    const second = createOrSetEvent(first.project, 'A', 3, 'cell')
+    const project = updateLogicalSheetSettings(second.project, {
+      workRange: { ...second.project.logicalSheet.workRange, postRollFrames: 24, showPostRoll: true },
+    })
+    const clipboard = buildTimingClipboard(project, testRange('A', 1, 4, 'cell'), 'copy')
+    const repeated = pasteTimingClipboardToProject(project, clipboard, { role: 'cell', paperTrack: 'A', frameStart: 141, frameEnd: 141 }, 'repeat-to-end')
+    expect(repeated.logicalSheet.events.filter(event => event.frame >= 141).map(event => [event.frame, event.keyId])).toEqual(
+      Array.from({ length: 14 }, (_, index) => [141 + index * 2, index % 2 === 0 ? first.key.keyId : second.key.keyId]),
+    )
+    expect(repeated.logicalSheet.durationFrames).toBe(144)
+    expect(validateProject(repeated).some(issue => issue.code === 'event.frame.afterDuration')).toBe(false)
+  })
+
+  it('preserves a hidden tail when editing inside its stored range and reveals new overflow', () => {
+    const project = updateLogicalSheetSettings(createDefaultProject(), {
+      workRange: { preRollFrames: 24, postRollFrames: 48, showPreRoll: false, showPostRoll: false },
+    })
+    expect(ensurePostRollCoversFrame(project, 160)).toBe(project)
+    const extended = ensurePostRollCoversFrame(project, 200)
+    expect(extended.logicalSheet.workRange).toEqual({ preRollFrames: 24, postRollFrames: 56, showPreRoll: false, showPostRoll: true })
+    expect(extended.logicalSheet.durationFrames).toBe(144)
+  })
+})
 
 function testHit(paperTrack: string, frame: number, role: 'action' | 'cell' = 'action'): SheetHit {
   return {

@@ -284,6 +284,7 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
 
 export function continuationRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetContinuationRenderItem[] {
   const items: SheetContinuationRenderItem[] = []
+  const displayFrameEnd = context.displayFrameStart + context.displayDurationFrames - 1
   for (const role of ['action', 'cell'] as const) {
     if (!context.project.sheetView.continuationDisplay[role]) continue
     for (const paperTrack of context.project.logicalSheet.paperTracks.map(track => track.paperTrack)) {
@@ -294,8 +295,8 @@ export function continuationRenderItemsForPage(context: SheetRenderModelContext,
         const event = events[index]!
         const valueKind = timingEventValueKind(event)
         if (valueKind === 'inbetween' || valueKind === 'reverse') continue
-        const nextFrame = events[index + 1]?.frame ?? context.officialFrameEnd + 1
-        const heldFrameEnd = Math.min(context.officialFrameEnd, nextFrame - 1)
+        const nextFrame = events[index + 1]?.frame ?? displayFrameEnd + 1
+        const heldFrameEnd = Math.min(displayFrameEnd, nextFrame - 1)
         const continuationFrameEnd = visibleContinuationFrameEnd(role, event.frame, heldFrameEnd)
         if (continuationFrameEnd === null) continue
         const rects: Array<{ frame: number; rect: NormalizedRect }> = []
@@ -326,6 +327,7 @@ export function continuationRenderItemsForPages(
 ): Map<string, SheetContinuationRenderItem[]> {
   const itemsByPage = new Map(pages.map(page => [page.pageId, [] as SheetContinuationRenderItem[]]))
   if (pages.length === 0 || context.project.logicalSheet.events.length === 0) return itemsByPage
+  const displayFrameEnd = context.displayFrameStart + context.displayDurationFrames - 1
 
   const pageById = new Map(pages.map(page => [page.pageId, page]))
   const resolveContinuationRect = createContinuationRectResolver(context, pages, pageById)
@@ -348,8 +350,8 @@ export function continuationRenderItemsForPages(
         const event = events[index]!
         const valueKind = timingEventValueKind(event)
         if (valueKind === 'inbetween' || valueKind === 'reverse') continue
-        const nextFrame = events[index + 1]?.frame ?? context.officialFrameEnd + 1
-        const heldFrameEnd = Math.min(context.officialFrameEnd, nextFrame - 1)
+        const nextFrame = events[index + 1]?.frame ?? displayFrameEnd + 1
+        const heldFrameEnd = Math.min(displayFrameEnd, nextFrame - 1)
         const continuationFrameEnd = visibleContinuationFrameEnd(role, event.frame, heldFrameEnd)
         if (continuationFrameEnd === null) continue
 

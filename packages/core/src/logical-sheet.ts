@@ -2,6 +2,7 @@ import type { LogicalSheet, LogicalSheetWorkRange } from './types'
 import { getSheetViewLayout, standardA3SheetTemplate, type SheetTemplate } from './sheet-template'
 
 export const DEFAULT_PRE_ROLL_FRAMES = 24
+export const DEFAULT_POST_ROLL_FRAMES = 24
 
 export function defaultLogicalSheetWorkRange(template: Pick<SheetTemplate, 'viewLayout' | 'pageModel'> = standardA3SheetTemplate): LogicalSheetWorkRange {
   const defaults = getSheetViewLayout(template).workRange
@@ -18,7 +19,7 @@ export function normalizeLogicalSheetWorkRange(input: Partial<LogicalSheetWorkRa
     preRollFrames: Math.max(0, Math.round(input?.preRollFrames ?? DEFAULT_PRE_ROLL_FRAMES)),
     postRollFrames: Math.max(0, Math.round(input?.postRollFrames ?? 0)),
     showPreRoll: Boolean(input?.showPreRoll),
-    showPostRoll: true,
+    showPostRoll: input?.showPostRoll ?? true,
   }
 }
 

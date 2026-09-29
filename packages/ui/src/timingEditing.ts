@@ -410,7 +410,7 @@ export function ensurePostRollCoversFrame(project: CutProject, frame: number): C
   if (frame <= officialEnd) return project
   const workRange = logicalSheetWorkRange(project.logicalSheet)
   const postRollFrames = Math.max(workRange.postRollFrames, frame - officialEnd)
-  if (postRollFrames === workRange.postRollFrames && workRange.showPostRoll) return project
+  if (postRollFrames === workRange.postRollFrames) return project
   return updateLogicalSheetSettings(project, {
     workRange: {
       ...workRange,

@@ -11,8 +11,9 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
   const slotIds = new Set(project.cspTrackSlots.map(slot => slot.slotId))
   const paperTracks = new Set(project.logicalSheet.paperTracks.map(track => track.paperTrack))
   const sheetSourceIds = new Set(project.sheetView.sources.map(source => source.sourceId))
-  const displayStartFrame = logicalSheetDisplayFrameStart(project.logicalSheet)
-  const displayEndFrame = logicalSheetDisplayFrameEnd(project.logicalSheet)
+  // Hiding dummy frames does not invalidate their stored timing or cues.
+  const workStartFrame = logicalSheetWorkFrameStart(project.logicalSheet)
+  const workEndFrame = logicalSheetWorkFrameEnd(project.logicalSheet)
   const timedRangeLaneIdsByRole = new Map<string, Set<string>>(project.logicalSheet.timelineSections.map(section => [
     section.role,
     new Set(section.lanes?.map(lane => lane.laneId) ?? []),
@@ -48,10 +49,10 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     if (!isSpecialTimingKeyId(event.keyId) && !keyIds.has(event.keyId)) {
       issues.push(issue('error', 'event.key.missing', `event ${event.eventId} references missing key ${event.keyId}`, 'event', event.eventId))
     }
-    if (event.frame > displayEndFrame) {
+    if (event.frame > workEndFrame) {
       issues.push(issue('error', 'event.frame.afterDuration', `event ${event.eventId} is after the cut duration`, 'event', event.eventId))
     }
-    if (event.frame < displayStartFrame || (!project.logicalSheet.allowNegativeFrames && event.frame < project.logicalSheet.frameOrigin)) {
+    if (event.frame < workStartFrame || (!project.logicalSheet.allowNegativeFrames && event.frame < project.logicalSheet.frameOrigin)) {
       issues.push(issue('error', 'event.frame.beforeOrigin', `event ${event.eventId} is before the sheet origin`, 'event', event.eventId))
     }
   }
@@ -63,10 +64,10 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     if (cue.frameEnd < cue.frameStart) {
       issues.push(issue('error', 'cue.range.invalid', `cue ${cue.cueId} ends before it starts`, 'cue', cue.cueId))
     }
-    if (cue.frameStart > displayEndFrame || cue.frameEnd > displayEndFrame) {
+    if (cue.frameStart > workEndFrame || cue.frameEnd > workEndFrame) {
       issues.push(issue('error', 'cue.frame.afterDuration', `cue ${cue.cueId} is after the cut duration`, 'cue', cue.cueId))
     }
-    if (cue.frameStart < displayStartFrame || (!project.logicalSheet.allowNegativeFrames && cue.frameStart < project.logicalSheet.frameOrigin)) {
+    if (cue.frameStart < workStartFrame || (!project.logicalSheet.allowNegativeFrames && cue.frameStart < project.logicalSheet.frameOrigin)) {
       issues.push(issue('error', 'cue.frame.beforeOrigin', `cue ${cue.cueId} is before the sheet origin`, 'cue', cue.cueId))
     }
     if (cue.role === 'camera') {
@@ -168,7 +169,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     if ((anchor.role === 'sound' || anchor.role === 'camera') && (!anchor.laneId || !timedRangeLaneIdsByRole.get(anchor.role)?.has(anchor.laneId))) {
       issues.push(issue('error', 'memo.lane.missing', `memo ${memo.memoId} references missing lane ${anchor.laneId ?? ''}`, 'memo', memo.memoId))
     }
-    if (anchor.frame < displayStartFrame || anchor.frame > displayEndFrame) {
+    if (anchor.frame < workStartFrame || anchor.frame > workEndFrame) {
       issues.push(issue('error', 'memo.frame.outsideDuration', `memo ${memo.memoId} anchor is outside the cut duration`, 'memo', memo.memoId))
     }
     const placement = memo.placement
@@ -261,12 +262,12 @@ function issue(
   }
 }
 
-function logicalSheetDisplayFrameStart(sheet: CutProject['logicalSheet']): number {
+function logicalSheetWorkFrameStart(sheet: CutProject['logicalSheet']): number {
   const preRollFrames = Math.max(0, Math.round(sheet.workRange?.preRollFrames ?? 0))
-  return sheet.frameOrigin - (sheet.workRange?.showPreRoll ? preRollFrames : 0)
+  return sheet.frameOrigin - preRollFrames
 }
 
-function logicalSheetDisplayFrameEnd(sheet: CutProject['logicalSheet']): number {
+function logicalSheetWorkFrameEnd(sheet: CutProject['logicalSheet']): number {
   const postRollFrames = Math.max(0, Math.round(sheet.workRange?.postRollFrames ?? 0))
-  return sheet.frameOrigin + sheet.durationFrames - 1 + (sheet.workRange?.showPostRoll ? postRollFrames : 0)
+  return sheet.frameOrigin + sheet.durationFrames - 1 + postRollFrames
 }

@@ -594,7 +594,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function updateTiming(updates: Parameters<typeof updateLogicalSheetSettings>[1]) {
     runProjectCommand(sourceProject => updateLogicalSheetSettings(sourceProject, updates.workRange
-      ? { ...updates, workRange: { ...updates.workRange, preRollFrames: DEFAULT_PRE_ROLL_FRAMES, showPostRoll: true } }
+      ? { ...updates, workRange: { ...updates.workRange, preRollFrames: DEFAULT_PRE_ROLL_FRAMES } }
       : updates))
   }
 

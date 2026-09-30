@@ -129,13 +129,13 @@ function writeLayerRecord(writer: BinaryWriter, layer: PreparedLayer) {
   writer.i32(layer.right)
   writer.u16(4)
   writer.i16(-1)
-  writer.u32(2 + layer.width * layer.height)
+  writer.u32(layer.channels.alpha.length)
   writer.i16(0)
-  writer.u32(2 + layer.width * layer.height)
+  writer.u32(layer.channels.red.length)
   writer.i16(1)
-  writer.u32(2 + layer.width * layer.height)
+  writer.u32(layer.channels.green.length)
   writer.i16(2)
-  writer.u32(2 + layer.width * layer.height)
+  writer.u32(layer.channels.blue.length)
   writer.ascii('8BIM')
   writer.ascii('norm')
   writer.u8(layer.opacity)
@@ -165,31 +165,87 @@ function layerUnicodeNameInfo(name: string): Uint8Array {
 }
 
 function writeLayerPixels(writer: BinaryWriter, layer: PreparedLayer) {
-  writeRawChannel(writer, layer.channels.alpha)
-  writeRawChannel(writer, layer.channels.red)
-  writeRawChannel(writer, layer.channels.green)
-  writeRawChannel(writer, layer.channels.blue)
+  writer.bytes(layer.channels.alpha)
+  writer.bytes(layer.channels.red)
+  writer.bytes(layer.channels.green)
+  writer.bytes(layer.channels.blue)
 }
 
 function compositeImageData(imageData: ImageData, width: number, height: number): Uint8Array {
   const channels = splitChannels(imageData, width, height)
+  return encodedImageData([channels.red, channels.green, channels.blue], width, height)
+}
+
+function rawImageData(channels: Uint8Array[]): Uint8Array {
   const writer = new BinaryWriter()
   writer.u16(0)
-  writer.bytes(channels.red)
-  writer.bytes(channels.green)
-  writer.bytes(channels.blue)
+  for (const channel of channels) writer.bytes(channel)
   return writer.toUint8Array()
 }
 
-function writeRawChannel(writer: BinaryWriter, bytes: Uint8Array) {
-  writer.u16(0)
-  writer.bytes(bytes)
+function encodedImageData(channels: Uint8Array[], width: number, height: number): Uint8Array {
+  // PSD PackBits stores a separate byte count and packet stream for each row,
+  // in channel order. The merged preview shares one compression code/table.
+  const rawLength = width * height * channels.length
+  const rowLengths = new Uint8Array(height * channels.length * 2)
+  if (rowLengths.length >= rawLength) return rawImageData(channels)
+  const lengthsView = new DataView(rowLengths.buffer)
+  const packed = new BinaryWriter()
+  const rowBuffer = new Uint8Array(width + Math.ceil(width / 128))
+  let rowIndex = 0
+  for (const channel of channels) {
+    for (let y = 0; y < height; y++) {
+      const length = packBitsRow(channel, y * width, width, rowBuffer)
+      // PSD (unlike PSB) has 16-bit scanline lengths. Also keep noisy scans
+      // from growing when the packet and scanline-table overhead exceeds raw.
+      if (length > 0xffff || rowLengths.length + packed.length + length >= rawLength) {
+        return rawImageData(channels)
+      }
+      lengthsView.setUint16(rowIndex++ * 2, length)
+      packed.bytes(rowBuffer.slice(0, length))
+    }
+  }
+  const writer = new BinaryWriter()
+  writer.u16(1)
+  writer.bytes(rowLengths)
+  writer.bytes(packed.toUint8Array())
+  return writer.toUint8Array()
+}
+
+function packBitsRow(bytes: Uint8Array, start: number, width: number, output: Uint8Array): number {
+  const end = start + width
+  let inputOffset = start
+  let outputOffset = 0
+  while (inputOffset < end) {
+    let runLength = 1
+    while (runLength < 128 && inputOffset + runLength < end && bytes[inputOffset + runLength] === bytes[inputOffset]) runLength++
+    if (runLength >= 3) {
+      output[outputOffset++] = 257 - runLength
+      output[outputOffset++] = bytes[inputOffset]
+      inputOffset += runLength
+      continue
+    }
+    const literalStart = inputOffset
+    inputOffset += runLength
+    while (inputOffset < end && inputOffset - literalStart < 128) {
+      runLength = 1
+      while (runLength < 128 && inputOffset + runLength < end && bytes[inputOffset + runLength] === bytes[inputOffset]) runLength++
+      if (runLength >= 3) break
+      inputOffset += Math.min(runLength, 128 - (inputOffset - literalStart))
+    }
+    const literalLength = inputOffset - literalStart
+    output[outputOffset++] = literalLength - 1
+    output.set(bytes.subarray(literalStart, inputOffset), outputOffset)
+    outputOffset += literalLength
+  }
+  return outputOffset
 }
 
 function prepareLayer(layer: PsdLayer, width: number, height: number): PreparedLayer {
   if (layer.imageData.width !== width || layer.imageData.height !== height) {
     throw new Error(`PSD layer size mismatch: ${layer.name}`)
   }
+  const channels = splitChannels(layer.imageData, width, height)
   return {
     name: layer.name,
     top: 0,
@@ -199,7 +255,12 @@ function prepareLayer(layer: PsdLayer, width: number, height: number): PreparedL
     width,
     height,
     opacity: clampByte(layer.opacity ?? 255),
-    channels: splitChannels(layer.imageData, width, height),
+    channels: {
+      alpha: encodedImageData([channels.alpha], width, height),
+      red: encodedImageData([channels.red], width, height),
+      green: encodedImageData([channels.green], width, height),
+      blue: encodedImageData([channels.blue], width, height),
+    },
   }
 }
 

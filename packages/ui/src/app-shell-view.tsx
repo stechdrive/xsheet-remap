@@ -712,6 +712,11 @@ export function AppShellView({ controller }: { controller: AppController }) {
             {exportOperationNotice.directoryPath && <button type="button" onClick={() => void handleOpenExportDirectory()}>フォルダを開く</button>}
             <button type="button" className="dismiss" aria-label="書き出し通知を閉じる" onClick={() => setExportOperationNotice(null)}>×</button>
           </span>
+        ) : statusHintText === uiText.statusHints.timingSymbols ? (
+          <span className="statusHint statusTimingSymbols" title={statusHintText}>
+            <span className="statusTimingSymbolsFull">{statusHintText}</span>
+            <span className="statusTimingSymbolsCompact">{uiText.statusHints.timingSymbolsCompact}</span>
+          </span>
         ) : statusHintText && <span className={activeStatusHint ? 'statusHint active' : 'statusHint'}>{statusHintText}</span>}
         <span className="statusIssueSummary">{uiText.issue.errorCount(issueErrorCount)} / 警告 {issueWarningCount}件</span>
       </footer>

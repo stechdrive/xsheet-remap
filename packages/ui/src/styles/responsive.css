@@ -253,6 +253,14 @@
 }
 
 @media (max-width: 560px) {
+  .statusTimingSymbolsFull {
+    display: none;
+  }
+
+  .statusTimingSymbolsCompact {
+    display: inline;
+  }
+
   .toolbarGroup {
     flex: 1 1 100%;
     justify-content: flex-start;

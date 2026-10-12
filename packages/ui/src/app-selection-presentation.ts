@@ -84,7 +84,9 @@ export function buildSelectionPresentation({
             : rangeSelection
               ? uiText.statusHints.selectedRange(hasTimingClipboard)
               : selectedHit
-                ? uiText.statusHints.selectedCell(hasSelectedTimelineEvent)
+                ? selectedHit.paperTrack && (selectedHit.role === 'action' || selectedHit.role === 'cell')
+                  ? uiText.statusHints.timingSymbols
+                  : uiText.statusHints.selectedCell(hasSelectedTimelineEvent)
                 : uiText.statusHints.sheetIdle
     : ''
   return { selectedFrameSummary, statusSelectionText, statusFallbackHint }

@@ -17,6 +17,8 @@ export const uiText = {
   },
   statusHints: {
     sheetIdle: '1本指ドラッグ: 表示移動 / 指タップ: 選択 / 2本指ピンチ: ズーム / ホイール: 縦スクロール / Shift+ホイール: 横スクロール / Ctrl+ホイール: ズーム',
+    timingSymbols: '記号入力： [x] カラセル　[/] 中割　[.] 逆シート',
+    timingSymbolsCompact: 'x カラ　/ 中割　. 逆シート',
     selectedCell: (hasEvent: boolean) => hasEvent
       ? '選択セル: 入力でキー変更 / Deleteで削除 / Alt+ドラッグでキー移動 / 右クリックでセル操作'
       : '選択セル: 入力でキー登録 / 画像素材ドロップで登録 / 右クリックでセル操作',

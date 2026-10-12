@@ -206,6 +206,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       document.removeEventListener('visibilitychange', cancelDraftRangeWhenHidden)
     }
   }, [onStatusHint])
+  useEffect(() => {
+    const selected = hoveredHit && props.selectedHit && sameSheetHitCell(hoveredHit, props.selectedHit)
+    onStatusHint('sheet-hover', hoveredHit && !selected ? sheetHitStatusHint(props.project, hoveredHit) : null)
+  }, [hoveredHit, onStatusHint, props.project, props.selectedHit])
   useEffect(() => () => {
     onStatusHint('sheet-hover', null)
     onStatusHint('sheet-drop', null)
@@ -895,7 +899,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       const hasPreview = Boolean(hit && cellAssetPreviewItemsForHit(props.project, hit).length > 0)
       hoveredHitHasPreviewRef.current = hasPreview
       setHoveredHit(hit)
-      props.onStatusHint('sheet-hover', hit ? sheetHitStatusHint(props.project, hit) : null)
     }
     scheduleHoverPreviewAnchor(hoveredHitHasPreviewRef.current, anchor)
   }

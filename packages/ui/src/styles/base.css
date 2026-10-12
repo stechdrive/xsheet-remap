@@ -863,6 +863,14 @@ button.iconButton {
   font-weight: 700;
 }
 
+.statusTimingSymbols {
+  flex-shrink: 0;
+}
+
+.statusTimingSymbolsCompact {
+  display: none;
+}
+
 .exportOperationNotice {
   display: flex;
   flex: 1 1 auto;

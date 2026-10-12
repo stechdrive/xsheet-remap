@@ -1445,6 +1445,22 @@ it('shows context operation hints in the bottom status bar', () => {
 
     fireEvent.pointerLeave(sheet)
     expectStatusHint('ホイール', 'Ctrl+ホイール')
+
+    fireEvent.pointerMove(sheet, { clientX: point.x, clientY: point.y })
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    expectStatusHint(uiText.statusHints.timingSymbols)
+    expect(document.querySelector('.statusHint.active')).toBeNull()
+
+    const next = templateFramePoint('cell', 'A', 2)
+    fireEvent.pointerMove(sheet, { clientX: next.x, clientY: next.y })
+    expectStatusHint(formatTestFramePosition(2), '入力・ドロップ')
+    fireEvent.pointerLeave(sheet)
+    expectStatusHint(uiText.statusHints.timingSymbols)
+
+    fireEvent.pointerDown(sheet, { pointerId: 91, pointerType: 'mouse', button: 0, buttons: 1, clientX: point.x, clientY: point.y })
+    expectStatusHint(uiText.statusHints.rangeDragging)
+    fireEvent.pointerCancel(sheet, { pointerId: 91, pointerType: 'mouse' })
+    expectStatusHint(uiText.statusHints.timingSymbols)
   })
 
 it('omits the fixed paper outer frame for the digital standard template', () => {

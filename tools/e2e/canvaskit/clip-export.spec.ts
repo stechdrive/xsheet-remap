@@ -44,6 +44,11 @@ for (const mode of ['empty', 'crop', 'expand'] as const) test(`CLIP worker saves
     const template = await writeClip(SQL, new Uint8Array(readFileSync('packages/adapters/src/clip/blank.clip')), {
       canvas, fit: 'crop', images: {}, plan: { projectId: 'company', folders: [], timelines: [{ id: 'original', name: 'Original', fps: 24, duration: 24, tracks: [] }] },
     })
+    const savedTemplate = new ClipContainer(SQL, template.bytes)
+    try {
+      savedTemplate.db.run('CREATE TRIGGER ExternalDeleteOfTrackActionMixerOnTrack DELETE ON Track BEGIN INSERT INTO RemovedExternal(ExternalID) VALUES(OLD.TrackActionMixer); END')
+      template.bytes = savedTemplate.bytes()
+    } finally { savedTemplate.close() }
     await activateControl(page, dialog.getByRole('button', { name: 'テンプレートCLIPを使用' }))
     await dialog.locator('input[type=file]').setInputFiles({ name: 'template.clip', mimeType: 'application/octet-stream', buffer: Buffer.from(template.bytes) })
     await expect(dialog.getByText(/template.clip — 32 × 24px/)).toBeVisible()

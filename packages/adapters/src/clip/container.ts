@@ -1,6 +1,21 @@
 import type { Database, SqlJsStatic, SqlValue } from 'sql.js'
 import { check, concat, externalId, text, u64, uint64, utf8, view } from './binary'
 export type Row = Record<string, SqlValue>
+
+function checkTriggers(db: Database): void {
+  for (const [name, table, sql] of db.exec("SELECT name,tbl_name,sql FROM sqlite_master WHERE type='trigger'")[0]?.values ?? []) {
+    // CSP recreates these garbage-collection triggers when saving a document.
+    // Permit their exact operation, not arbitrary SQL with a familiar name.
+    const parts = /^External(Update|Delete)Of([A-Za-z_][A-Za-z_0-9]*)On([A-Za-z_][A-Za-z_0-9]*)$/.exec(String(name))
+    check(parts && parts[3] === table, '対応していないデータベーストリガーがあります。')
+    const [, operation, column, target] = parts
+    const event = operation === 'Update' ? `UPDATE OF ${column}` : 'DELETE'
+    const expected = `CREATE TRIGGER ${name} ${event} ON ${target} BEGIN INSERT INTO RemovedExternal(ExternalID) VALUES(OLD.${column}); END`
+    const normalize = (value: string) => value.replace(/\s+/g, '').replace(/;$/, '').toLowerCase()
+    check(normalize(String(sql)) === normalize(expected), '対応していないデータベーストリガーがあります。')
+  }
+}
+
 export class ClipContainer {
   readonly db: Database
   readonly chunks: { tag: string; bytes: Uint8Array }[] = []
@@ -33,7 +48,7 @@ export class ClipContainer {
     try {
     this.db.run('PRAGMA trusted_schema=OFF')
     check(this.db.exec('PRAGMA quick_check')[0]?.values[0]?.[0] === 'ok', 'SQLiteの整合性検査に失敗しました。')
-    check(!this.db.exec("SELECT name FROM sqlite_master WHERE type='trigger'").length, 'トリガーを含むファイルには対応していません。')
+    checkTriggers(this.db)
     for (const row of this.rows('ExternalChunk')) check(this.externalOffsets.get(String(row.ExternalID)) === row.Offset, '外部データの参照が不正です。')
     check(this.rows('Canvas').length === 1, '単一キャンバスのCLIPを選択してください。')
     } catch (error) { this.db.close(); throw error }

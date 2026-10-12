@@ -61,6 +61,39 @@ describe('direct CLIP writer', () => {
       expect(b.rows('TimeLine').length).toBe(2)
     } finally { a.close(); b.close() }
   })
+  it('accepts CSP saved templates and retains their external-data cleanup triggers', async () => {
+    const first = await writeClip(SQL, seed, { plan, canvas, fit: 'expand', images: {} })
+    const saved = new ClipContainer(SQL, first.bytes)
+    let template: Uint8Array
+    let oldMixers: unknown[]
+    try {
+      for (const [table, column] of [['Offscreen', 'BlockData'], ['Track', 'TrackActionMixer'], ['Track', 'TrackActionMixer2']]) {
+        for (const operation of ['Update', 'Delete']) {
+          const event = operation === 'Update' ? `UPDATE OF ${column}` : 'DELETE'
+          saved.db.run(`CREATE TRIGGER External${operation}Of${column}On${table} ${event} ON ${table} BEGIN INSERT INTO RemovedExternal(ExternalID) VALUES(OLD.${column}); END`)
+        }
+      }
+      oldMixers = saved.rows('Track').flatMap(row => [row.TrackActionMixer, row.TrackActionMixer2])
+      template = saved.bytes()
+    } finally { saved.close() }
+    const result = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: {}, template })
+    const clip = new ClipContainer(SQL, result.bytes)
+    try {
+      expect(clip.rows('TimeLine').map(row => row.TimeLineName)).toEqual(['C001', 'C002'])
+      expect(clip.rows('Layer').filter(row => row.LayerType === 1)).toHaveLength(2)
+      expect(clip.db.exec("SELECT name FROM sqlite_master WHERE type='trigger'")[0].values).toHaveLength(6)
+      expect(clip.rows('RemovedExternal').map(row => row.ExternalID)).toEqual(expect.arrayContaining(oldMixers))
+    } finally { clip.close() }
+  })
+  it.each(['unrecognized', 'ExternalDeleteOfTrackActionMixerOnTrack'])('rejects the nonstandard trigger %s before changing the template', name => {
+    const source = new ClipContainer(SQL, seed)
+    try {
+      source.db.run(`CREATE TRIGGER ${name} DELETE ON Track BEGIN DELETE FROM Canvas; END`)
+      const bytes = source.bytes()
+      expect(() => new ClipContainer(SQL, bytes)).toThrow('トリガー')
+      expect(source.rows('Canvas')).toHaveLength(1)
+    } finally { source.close() }
+  })
   it('rejects malformed containers and differently sized registered images', async () => {
     expect(() => new ClipContainer(SQL, seed.subarray(0, 100))).toThrow()
     await expect(writeClip(SQL, seed, { plan, canvas, fit: 'expand', images: {

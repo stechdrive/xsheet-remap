@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
-  commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId,
+  activeCutProjectFromDocument, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId,
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
@@ -31,6 +31,7 @@ export const DEFAULT_PEN_WIDTH = 0.002
 interface WorkspaceHistorySnapshot {
   project: CutProject
   template: SheetTemplate
+  document: CutGroupProjectDocument
 }
 
 interface WorkspaceHistory {
@@ -45,7 +46,7 @@ export function useAppShellState(appKind: MainAppKind) {
     const projectHistory = createProjectHistory(initialWorkspace.project)
     return {
       past: [],
-      present: { project: projectHistory.present, template: initialWorkspace.template },
+      present: { project: projectHistory.present, template: initialWorkspace.template, document: initialWorkspace.document },
       future: [],
     }
   })
@@ -73,12 +74,20 @@ export function useAppShellState(appKind: MainAppKind) {
       const nextProjectHistory = commitHistory(projectHistoryFromWorkspaceHistory(current), nextProject)
       return {
         past: [...current.past, current.present],
-        present: { project: nextProjectHistory.present, template: nextTemplate },
+        present: { ...current.present, project: nextProjectHistory.present, template: nextTemplate },
         future: [],
       }
     })
   }, [])
-  const [projectDocument, setProjectDocument] = useState(() => initialWorkspace.document)
+  const projectDocument = workspaceHistory.present.document
+  const setProjectDocument = useCallback<Dispatch<SetStateAction<CutGroupProjectDocument>>>(update => {
+    setWorkspaceHistory(current => ({ ...current, present: { ...current.present, document: typeof update === 'function' ? update(current.present.document) : update } }))
+  }, [])
+  const commitProjectDocument = useCallback((document: CutGroupProjectDocument) => {
+    const project = activeCutProjectFromDocument(document)
+    setWorkspaceHistory(current => ({ past: [...current.past, current.present], present: { project, template: document.sheetTemplate, document }, future: [] }))
+    return project
+  }, [])
   const [savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot] = useState(() => initialWorkspace.document)
   const [projectFilePath, setProjectFilePath] = useState<string | null>(null)
   const paperSheetInputRef = useRef<HTMLInputElement | null>(null)
@@ -146,6 +155,7 @@ export function useAppShellState(appKind: MainAppKind) {
   const [timingExportDialog, setTimingExportDialog] = useState<TimingExportDialogState | null>(null)
   const [exportOperationNotice, setExportOperationNotice] = useState<ExportOperationNotice | null>(null)
   const [xdtsImportDialog, setXdtsImportDialog] = useState<XdtsImportDialogState | null>(null)
+  const [clipImportFile, setClipImportFile] = useState<File | null>(null)
   const [frameOperationDialog, setFrameOperationDialog] = useState<FrameOperationDialogState | null>(null)
   const [assetDropMenu, setAssetDropMenu] = useState<AssetDropMenuState | null>(null)
   const [activeCorrectionLayerIdState, setActiveCorrectionLayerIdState] = useState(() => defaultCorrectionLayerId(initialWorkspace.project) ?? '')
@@ -158,7 +168,7 @@ export function useAppShellState(appKind: MainAppKind) {
   useEffect(() => saveCameraPointLabelHistory(cameraPointLabelHistory), [cameraPointLabelHistory])
 
   return {
-    history, setHistory, commitWorkspace, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, commitWorkspace, commitProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -176,7 +186,7 @@ export function useAppShellState(appKind: MainAppKind) {
     statusHints, setStatusHints,
     timingEditSession, timingEditSessionRef, setTimingEditSession, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
-    timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
+    timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
   }
 }
@@ -212,7 +222,7 @@ function workspaceHistoryFromProjectHistory(projectHistory: ProjectHistory, curr
   let next: WorkspaceHistory | undefined
   if (projectHistory.present !== prior.future[0] && projectHistory.past.length === prior.past.length + 1 && projectHistory.past.at(-1) === prior.present
     && projectHistory.future.length === 0 && prior.past.every((project, i) => projectHistory.past[i] === project)) {
-    next = { past: [...current.past, current.present], present: { project: projectHistory.present, template: current.present.template }, future: [] }
+    next = { past: [...current.past, current.present], present: { ...current.present, project: projectHistory.present }, future: [] }
   } else if (projectHistory.present === prior.past.at(-1) && projectHistory.past.length === prior.past.length - 1
     && projectHistory.future[0] === prior.present && projectHistory.future.length === prior.future.length + 1
     && projectHistory.past.every((project, i) => project === prior.past[i]) && prior.future.every((project, i) => project === projectHistory.future[i + 1])) {
@@ -223,14 +233,15 @@ function workspaceHistoryFromProjectHistory(projectHistory: ProjectHistory, curr
     next = { past: [...current.past, current.present], present: current.future[0]!, future: current.future.slice(1) }
   }
   if (next) { projectedHistories.set(next, projectHistory); return next }
-  const templateByProject = new Map<CutProject, SheetTemplate>([
-    ...current.past.map(snapshot => [snapshot.project, snapshot.template] as const),
-    [current.present.project, current.present.template] as const,
-    ...current.future.map(snapshot => [snapshot.project, snapshot.template] as const),
+  const snapshotByProject = new Map<CutProject, WorkspaceHistorySnapshot>([
+    ...current.past.map(snapshot => [snapshot.project, snapshot] as const),
+    [current.present.project, current.present] as const,
+    ...current.future.map(snapshot => [snapshot.project, snapshot] as const),
   ])
   const snapshot = (project: CutProject): WorkspaceHistorySnapshot => ({
     project,
-    template: templateByProject.get(project) ?? current.present.template,
+    template: snapshotByProject.get(project)?.template ?? current.present.template,
+    document: snapshotByProject.get(project)?.document ?? current.present.document,
   })
   next = {
     past: projectHistory.past.map(snapshot),

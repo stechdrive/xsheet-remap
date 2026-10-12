@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.767",
+  "version": "0.1.768",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.18.0",
@@ -123,7 +123,7 @@
     "verify:browser:ci": "node tools/verification/run.mjs browser-ci",
     "verify:desktop": "node tools/verification/run.mjs desktop",
     "verify:plan": "node tools/verification/run.mjs plan",
-    "test:clip": "vitest run packages/core/src/clip-export.test.ts packages/adapters/src/clip/writer.test.ts"
+    "test:clip": "vitest run packages/core/src/clip-export.test.ts packages/core/src/clip-import.test.ts packages/adapters/src/clip/writer.test.ts packages/adapters/src/clip/reader.test.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

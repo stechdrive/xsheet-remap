@@ -629,6 +629,7 @@ export function AppNavigationMenu({
   onSelect,
   onLoadProject,
   onLoadXdts,
+  onLoadClip,
   onLoadTemplate,
   onSaveProject,
   onSaveProjectAs,
@@ -652,6 +653,7 @@ export function AppNavigationMenu({
   onSelect: (panel: Panel) => void
   onLoadProject: (files: FileList | null) => void
   onLoadXdts: (files: FileList | null) => void
+  onLoadClip?: (files: FileList | null) => void
   onLoadTemplate: (files: FileList | null) => void
   onSaveProject: () => void
   onSaveProjectAs: () => void
@@ -713,6 +715,7 @@ export function AppNavigationMenu({
         activeSubmenu={activeSubmenu}
         onActivate={setActiveSubmenu}
       >
+          {onLoadClip && <label className="fileButton appNavMenuItem">CLIPを読み込む…<input type="file" accept=".clip" onChange={event => { onLoadClip(event.currentTarget.files); event.currentTarget.value = '' }} /></label>}
           <TooltipTarget label="XDTSのキーと任意のSOUND/CAMERA指示を読み込む">
             {tooltipProps => (
               <label className="fileButton appNavMenuItem" {...tooltipProps}>

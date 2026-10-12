@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, NULL_CELL_KEY_ID, setEvent, updateActiveCutProjectInDocument, upsertBinding } from './index'
-import { buildClipRegistrationPlan, clipImagePlacement, normalizeClipName } from './clip-export'
+import { buildClipRegistrationPlan, clipImagePlacement, normalizeClipName, validateClipCanvas } from './clip-export'
 
 describe('CLIP registration plan', () => {
+  it('bounds the shooting frame inside the paper for both positive and negative centered offsets', () => {
+    const canvas = { width: 100, height: 80, dpi: 150, basisWidth: 60, basisHeight: 40, offsetX: 20, offsetY: -20 }
+    expect(() => validateClipCanvas(canvas)).not.toThrow()
+    for (const patch of [{ offsetX: 21 }, { offsetX: -21 }, { offsetY: 21 }, { offsetY: -21 }, { basisWidth: 101 }, { basisHeight: 81 }]) expect(() => validateClipCanvas({ ...canvas, ...patch })).toThrow()
+    expect(() => validateClipCanvas({ ...canvas, width: 101, offsetX: 20 })).not.toThrow()
+    expect(() => validateClipCanvas({ ...canvas, width: 101, offsetX: 21 })).toThrow()
+  })
   it('keeps repeat events and shared cels across cuts without requiring material files', () => {
     const created = createOrSetEvent({ ...createDefaultProject(), cut: { cut: 'C001' } }, 'A', 1, 'action')
     const bound = upsertBinding(created.project, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: '1', materialState: 'unassigned' })

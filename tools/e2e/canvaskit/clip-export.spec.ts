@@ -38,8 +38,8 @@ for (const mode of ['empty', 'crop', 'expand'] as const) test(`CLIP worker saves
   const dialog = page.getByRole('dialog', { name: 'CLIPを作成', exact: true })
   await expect(dialog.getByRole('checkbox', { name: /^C00/ })).toHaveCount(2)
   if (mode === 'empty') {
-    await dialog.getByLabel('割り当て済みの画像を登録する').uncheck()
-    for (const [label, value] of [['作画サイズ 幅(px)',32], ['作画サイズ 高さ(px)',24], ['基準フレーム 幅(px)',24], ['基準フレーム 高さ(px)',16]] as const) await dialog.getByLabel(label, { exact: true }).fill(String(value))
+    await dialog.getByLabel('画像も登録する').uncheck()
+    for (const [label, value] of [['作画サイズ（用紙サイズ） 幅（px）',32], ['作画サイズ（用紙サイズ） 高さ（px）',24], ['基準サイズ（撮影フレーム） 幅（px）',24], ['基準サイズ（撮影フレーム） 高さ（px）',16]] as const) await dialog.getByLabel(label, { exact: true }).fill(String(value))
   } else {
     const template = await writeClip(SQL, new Uint8Array(readFileSync('packages/adapters/src/clip/blank.clip')), {
       canvas, fit: 'crop', images: {}, plan: { projectId: 'company', folders: [], timelines: [{ id: 'original', name: 'Original', fps: 24, duration: 24, tracks: [] }] },
@@ -52,8 +52,8 @@ for (const mode of ['empty', 'crop', 'expand'] as const) test(`CLIP worker saves
     await activateControl(page, dialog.getByRole('button', { name: 'テンプレートCLIPを使用' }))
     await dialog.locator('input[type=file]').setInputFiles({ name: 'template.clip', mimeType: 'application/octet-stream', buffer: Buffer.from(template.bytes) })
     await expect(dialog.getByText(/template.clip — 32 × 24px/)).toBeVisible()
-    await dialog.getByLabel('画像の収め方').selectOption(mode)
-    await expect(dialog.getByText(mode === 'crop' ? /出力 32 × 24px／切り取り 左1・右2・上1・下2px/ : /出力 35 × 27px／切り取り 左0・右0・上0・下0px/)).toBeVisible()
+    await dialog.getByLabel('キャンバスサイズを自動拡張').setChecked(mode === 'expand')
+    await expect(dialog.getByText(mode === 'crop' ? /切り捨て：左1・右2・上1・下2px/ : /出力サイズ：32 × 24 → 35 × 27px/)).toBeVisible()
   }
   const box = await dialog.locator('.clipExportDialog').boundingBox()
   expect(box!.x).toBeGreaterThanOrEqual(0)

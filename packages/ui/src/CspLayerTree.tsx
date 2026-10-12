@@ -935,6 +935,7 @@ export function CspLayerTree({
                   {layer.layerId && renderNewTrackDropZone(layer.layerId, layer.label, layer.tracks, 0)}
                   {layer.tracks.map((track, trackIndex) => {
                     const trackSelection = trackPaneSelection(track, layer.layerId)
+                    const clipSource = project.logicalSheet.paperTracks.find(item => item.paperTrack === track.paperTrack)?.clipSource
                     const acceptsStackGuideAsset = Boolean(track.stackGuideLabelId && layer.layerId)
                     const acceptsPaperTrackAsset = Boolean(track.paperTrack && track.slotId)
                     const acceptsAsset = acceptsStackGuideAsset || acceptsPaperTrackAsset
@@ -985,6 +986,7 @@ export function CspLayerTree({
                         />
                       ) : <span className="cspTreeTrackName">{track.label}</span>}
                     </div>
+                    {clipSource && paneSelection?.nodeId === trackSelection.nodeId && <div className="clipSourceInfo"><strong>CLIPの読み込み元</strong><span>{clipSource.fileName} / {clipSource.timelineName}</span><span>{clipSource.path.join(' / ')}</span></div>}
                     <div className="cspTreeCels">
                       {newCelDraft && newCelDraft.slotId === track.slotId && (
                         <form className="cspTreeNewCelForm" data-workspace-keyboard-scope="editor" onSubmit={submitNewCel}>

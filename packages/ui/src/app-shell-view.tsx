@@ -18,6 +18,7 @@ import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
 import { ClipExportDialog } from './ClipExportDialog'
+import { ClipImportDialog } from './ClipImportDialog'
 import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
@@ -43,7 +44,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
-    setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
+    setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, handleLoadClip, handleImportClip, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, timingExportIssues, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
@@ -269,6 +270,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSelect={switchPanel}
             onLoadProject={files => void handleLoadProject(files)}
             onLoadXdts={files => void handleLoadXdts(files)}
+            onLoadClip={handleLoadClip}
             onLoadTemplate={files => void handleImportTemplate(files)}
             onSaveProject={() => void handleSaveProjectFile()}
             onSaveProjectAs={() => void handleSaveProjectFile({ saveAs: true })}
@@ -572,6 +574,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
       )}
 
       {timingExportDialog?.kind === 'clip' && <ClipExportDialog document={projectDocumentSnapshot} initialRole={timingExportDialog.timingSourceRole} onClose={() => setTimingExportDialog(null)} onSaved={message => setExportOperationNotice({ message })} />}
+      {clipImportFile && <ClipImportDialog file={clipImportFile} document={projectDocumentSnapshot} onClose={() => setClipImportFile(null)} onImport={handleImportClip} />}
 
       {timingExportDialog && timingExportDialog.kind !== 'clip' && (timingExportPlan || timingExportDialog.kind === 'ae-jsx' || timingExportDialog.kind === 'ae-send') && (
         <TimingExportDialog

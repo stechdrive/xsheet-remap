@@ -53,6 +53,18 @@ export interface PaperTrack {
   label: string
   order: number
   source?: 'template' | 'overlay'
+  clipSource?: {
+    fileName: string
+    fileHash: string
+    timelineId: string
+    timelineName: string
+    layerId: string
+    path: string[]
+    fps: number
+    startFrame: number
+    endFrame: number
+    sheetRole: SheetTimingRole
+  }
   exportPlacement?: {
     insertAfterPaperTrack?: PaperTrackName
     orderInGap?: number

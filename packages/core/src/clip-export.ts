@@ -47,12 +47,15 @@ export function clipImagePlacement(canvas: { width: number; height: number }, im
 }
 
 export function validateClipCanvas(settings: ClipCanvasSettings): void {
+  if (!settings) throw new Error('作画サイズを指定してください。')
   for (const name of ['width', 'height', 'basisWidth', 'basisHeight'] as const) {
     if (!Number.isInteger(settings[name]) || settings[name] < 1 || settings[name] > 30000) throw new Error(`${name}: 1〜30000の整数を指定してください。`)
   }
   if (settings.width * settings.height > 100_000_000) throw new Error('キャンバスは1億ピクセル以内にしてください。')
   if (!Number.isFinite(settings.dpi) || settings.dpi < 1 || settings.dpi > 1200) throw new Error('DPIは1〜1200で指定してください。')
-  if (![settings.offsetX, settings.offsetY].every(value => Number.isInteger(value) && Math.abs(value) <= 30000)) throw new Error('基準フレームのオフセットが範囲外です。')
+  if (![settings.offsetX, settings.offsetY].every(value => Number.isInteger(value) && Math.abs(value) <= 30000)) throw new Error('基準サイズのオフセットは整数で指定してください。')
+  if (settings.basisWidth > settings.width || settings.basisHeight > settings.height) throw new Error('基準サイズは作画サイズ以内にしてください。')
+  if (Math.abs(settings.offsetX) * 2 + settings.basisWidth > settings.width || Math.abs(settings.offsetY) * 2 + settings.basisHeight > settings.height) throw new Error('撮影フレームが用紙からはみ出さない範囲でオフセットを指定してください。')
 }
 
 /** Complete events, not the legacy XCI first-use summary. Assets are optional. */

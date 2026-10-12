@@ -23,3 +23,21 @@
 .clipExportDialog [aria-pressed="true"] { background: var(--accent, #387b86); color: white; }
 .clipExportDialog footer { display: flex; justify-content: flex-end; gap: 10px; padding: 12px; }
 @media (max-width: 520px) { .clipCanvasFields { grid-template-columns: 1fr; } }
+.clipImportDialog { width: min(820px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); }
+.clipImportDialog header > div { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.clipImportDialog footer { display: flex; justify-content: flex-end; gap: 10px; padding: 12px; }
+.clipImportDialog [aria-pressed="true"] { background: var(--accent, #387b86); color: white; }
+.clipImportTree, .clipImportTree ul { list-style: none; padding: 0; margin: 6px 0; }
+.clipImportTree ul { margin-left: 16px; border-left: 1px solid var(--border, #777); padding-left: 8px; }
+.clipImportTree summary { padding: 6px 0; cursor: pointer; overflow-wrap: anywhere; }
+.clipImportTree summary > .clipImportTreeRow { display: inline-flex; width: calc(100% - 24px); }
+.clipImportTreeRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px; min-width: 0; }
+.clipImportNodeName { min-width: 0; overflow-wrap: anywhere; }
+.clipImportTreeRow small { color: #5e6962; }
+.clipImportColumnName { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.clipImportColumnName input { width: 72px; min-width: 48px; }
+.clipImportSelectionActions { display: flex; gap: 8px; }
+.clipImportTrackError { margin: 0 6px 8px; color: var(--danger, #d47777); overflow-wrap: anywhere; }
+.clipImportOrder, .clipSourceInfo { display: flex; flex-direction: column; gap: 5px; padding: 8px; overflow-wrap: anywhere; }
+.clipImportOrder { position: sticky; bottom: 0; color: #1f2421; background: #eef3ed; border: 1px solid #a7aca8; }
+.clipSourceInfo { font-size: 12px; border-left: 2px solid var(--accent, #387b86); }

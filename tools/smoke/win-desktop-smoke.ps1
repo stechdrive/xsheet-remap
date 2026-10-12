@@ -1,6 +1,6 @@
 param(
-  [string]$ExePath = "dev-local/xsheet-editor.exe",
-  [string]$ExpectedTitle = "xsheet-editor",
+  [string]$ExePath = "dev-local/xsheet-remap.exe",
+  [string]$ExpectedTitle = "xsheet-remap",
   [string[]]$ArgumentList = @(),
   [string]$WorkingDirectory = "",
   [int]$TimeoutSeconds = 30,

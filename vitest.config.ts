@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config'
 const nodeTests = [
   'packages/core/**/*.test.ts',
   'packages/xdts/**/*.test.ts',
+  'packages/adapters/src/clip/**/*.test.ts',
   'packages/ui/src/canvasKitPainter.test.ts',
   'tools/checks/**/*.test.ts',
   'tools/desktop/**/*.test.ts',

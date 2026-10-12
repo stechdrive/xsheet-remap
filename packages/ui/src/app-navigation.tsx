@@ -11,7 +11,6 @@ import { CalibrationPointKind, RegisteredCellSortDirection, type MainAppKind } f
 import { gridHeaderLabelForRole } from './templateEditorGeometry'
 import { DurationFrameControl } from './DurationFrameControl'
 import { EditorDetailedHelp } from './EditorDetailedHelp'
-import { RemapDetailedHelp } from './RemapDetailedHelp'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 import { type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
 import { type DialogueAudioTrackExportFormat } from './dialogueAudioExport'
@@ -480,13 +479,13 @@ export function AppHelpDialog({
         </div>
         <div className={`appHelpBody${isDetailedHelp ? ' appHelpBodyDetailed' : ''}`}>
           {isDetailedHelp
-            ? isEditor ? <EditorDetailedHelp /> : <RemapDetailedHelp />
+            ? <EditorDetailedHelp />
             : isEditor ? <EditorHelpContent /> : <RemapHelpContent />}
         </div>
         <footer>
           <p>{isEditor
             ? 'まずクイックガイドで1本作り、細かな編集や判断に迷ったときは「詳しい使い方」の該当章を開いてください。'
-            : 'CSP自動登録は同梱のxsheet-importerから実行します。csp-import.xciをクリスタへ直接読み込まないでください。'}</p>
+            : '「CLIPを作成」から、画像とタイムラインを登録したCLIPを直接保存できます。'}</p>
         </footer>
       </section>
     </div>
@@ -512,7 +511,7 @@ function EditorHelpContent() {
       <ol>
         <li><strong>セリフ音声からSOUNDを作る</strong><span>下部の「音声」を開き、録音または音声ファイルを追加します。発話候補を選んで「音響指示へ割付…」を押すと、波形の位置に合うSOUNDを作れます。</span></li>
         <li><strong>紙タイムシートを転記する</strong><span>シート作業レールの「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。文字認識は候補を確認してから採用し、読みにくい箇所は手入力します。</span></li>
-        <li><strong>CSPへ素材を組み込む</strong><span>左右ペインを開き、右の画像素材をキーへ割り付け、左で工程・セル名・重ね順を確認します。「CSP自動登録データを書き出す」で作成したcsp-import.xciを同梱のxsheet-importerで選び、対象の.clipと保存先を指定して実行します。</span></li>
+        <li><strong>CSPへ素材を組み込む</strong><span>左右ペインを開き、右の画像素材をキーへ割り付け、左で工程・セル名・重ね順を確認します。「CLIPを作成」で新規設定またはテンプレートを選び、画像とタイムラインを登録したCLIPを保存します。画像なしでも作成できます。</span></li>
         <li><strong>他ソフトへタイミングを渡す</strong><span>確認画像はJPG／PNG／PSD、交換用はXDTSを選びます。After Effectsは1列なら列見出しの「AE用データをコピー」、複数列ならJSXまたはWindows版の直接送信を使います。1列コピーでは、AE側で先にタイムリマップを有効にしてレイヤーをカット終端まで伸ばします。</span></li>
       </ol>
     </article>
@@ -527,11 +526,11 @@ function RemapHelpContent() {
       <ol>
         <li><strong>始め方を選ぶ</strong><span>続きの作業は「プロジェクト」→「プロジェクトを開く」で.xsrを開きます。既存タイミングは「読み込み」→「XDTSを読み込む」、何もない場合は「新規プロジェクト」から始めます。</span></li>
         <li><strong>カットと入力先を確認する</strong><span>上部の「カット情報」で作品名、カット番号、尺を確認します。原画側のタイミングはACTION、動画・セル番号はCELLを使い、読み込みや書き出しでも同じ側を選びます。</span></li>
-        <li><strong>カットフォルダと登録先工程を決める</strong><span>CSP自動登録を使う場合は、右の画像素材へ実際のカットフォルダを登録します。次に左のCSPレイヤー構成で工程名またはその配下を選び、下部の「登録先」が意図した工程か確認します。</span></li>
+        <li><strong>カットフォルダと登録先工程を決める</strong><span>画像を使う場合は、右の画像素材へ実際のカットフォルダを登録します。次に左のCSPレイヤー構成で工程名またはその配下を選び、下部の「登録先」が意図した工程か確認します。</span></li>
         <li><strong>必要な資料だけ追加する</strong><span>紙を転記するときは「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。作画画像がある場合は右のサムネイルで確認し、該当するACTION／CELLのキーまたは左の登録先へ置きます。</span></li>
         <li><strong>CSPへ渡す内容を見直す</strong><span>左でCSPセル名、工程、BG／BOOK、撮影指示、メモ、重ね順を確認します。素材がないキーは「キーのみ」のままで登録できます。実ファイルも改名する一括リネームは、変更予定を確認してから実行します。</span></li>
         <li><strong>.xsrを保存する</strong><span>「プロジェクト」→「保存」で、紙シート、タイミング、素材対応、CSP構成を作業ファイルへ保存します。外部ソフトへ渡す前に保存しておくと、同じ状態から修正を再開できます。</span></li>
-        <li><strong>書き出してImporterで開始する</strong><span>「書き出し」→「CSP自動登録データを書き出す」でACTION／CELL、出力先、画像付き／キーのみ件数を確認します。生成されたcsp-import.xciをxsheet-importerで開き、対象.clipと保存先を選んで開始します。</span></li>
+        <li><strong>CLIPを作成する</strong><span>「書き出し」→「CLIPを作成」でACTION／CELLと対象カットを選びます。新規設定またはテンプレートCLIPを選び、出力サイズと切り取り量を確認して保存します。</span></li>
       </ol>
     </article>
     <article className="appHelpWorkflow">
@@ -644,7 +643,7 @@ export function AppNavigationMenu({
   onSaveXdts,
   onSaveAeJsx,
   onSendAfterEffects,
-  onSaveCspImportPackage,
+  onCreateClip,
 }: {
   appName: string
   appVersion: string
@@ -667,7 +666,7 @@ export function AppNavigationMenu({
   onSaveXdts: () => void
   onSaveAeJsx: () => void
   onSendAfterEffects?: () => void
-  onSaveCspImportPackage: () => void
+  onCreateClip: () => void
 }) {
   const [activeSubmenu, setActiveSubmenu] = useState<AppNavigationSubmenu | null>(null)
 
@@ -819,7 +818,7 @@ export function AppNavigationMenu({
             </Tooltip>
           )}
           <Tooltip label={uiText.actions.cspImportPackageTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onSaveCspImportPackage}>CSP自動登録データを書き出す…</button>
+            <button type="button" className="appNavMenuItem" onClick={onCreateClip}>CLIPを作成…</button>
           </Tooltip>
           <Tooltip label={uiText.actions.templateJsonTitle}>
             <button type="button" className="appNavMenuItem" onClick={onSaveTemplate}>シートテンプレート（JSON）を書き出す…</button>

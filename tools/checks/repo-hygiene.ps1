@@ -42,7 +42,6 @@ function Get-BuildOutputTextFiles {
 
 function Get-BuildOutputBinaryFiles {
   $paths = @(
-    ".cache/cargo-target/release/xsheet-editor.exe",
     ".cache/cargo-target/release/xsheet-remap.exe",
     ".cache/cargo-target/release/xsheet-corrector.exe",
     ".cache/cargo-target/release/xsheet-template.exe"

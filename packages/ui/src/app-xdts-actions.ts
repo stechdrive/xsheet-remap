@@ -34,7 +34,6 @@ interface AppXdtsActionsOptions {
   setXdtsImportDialog: Dispatch<SetStateAction<XdtsImportDialogState | null>>
   commitProject: (project: CutProject) => void
   clearSelection: () => void
-  saveCspImportPackage: (role: SheetTimingRole) => void | Promise<void>
   saveAfterEffectsJsx: (role: SheetTimingRole) => void | Promise<void>
   sendAfterEffectsRemap: (role: SheetTimingRole) => void | Promise<void>
 }
@@ -60,11 +59,7 @@ export function createAppXdtsActions(options: AppXdtsActionsOptions) {
 
   function confirmTimingExport() {
     const current = options.timingExportDialog
-    if (!current) return
-    if (current.kind === 'csp-import') {
-      void options.saveCspImportPackage(current.timingSourceRole)
-      return
-    }
+    if (!current || current.kind === 'clip') return
     if (current.kind === 'ae-send') {
       void options.sendAfterEffectsRemap(current.timingSourceRole)
       return

@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$TagName = "latest",
   [string]$ReleaseTitle = "xsheet-remap",
   [string]$ZipPath = "",
@@ -20,15 +20,11 @@ $releaseZipPath = if ($ZipPath) { [System.IO.Path]::GetFullPath($ZipPath) } else
 $releaseChecksumPath = if ($ChecksumPath) { [System.IO.Path]::GetFullPath($ChecksumPath) } else { $defaultChecksumPath }
 $expectedAssetNames = @("xsheet-remap.zip", "xsheet-remap.zip.sha256")
 $expectedPackageRootNames = @(
-  "assets",
   "CHECKSUMS.sha256",
-  "csp-import-helper",
   "README.txt",
   "RELEASE.json",
   "THIRD_PARTY_NOTICES.md",
   "xsheet-corrector.exe",
-  "xsheet-editor.exe",
-  "xsheet-importer.exe",
   "xsheet-remap.exe",
   "xsheet-template.exe"
 )

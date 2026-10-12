@@ -59,3 +59,6 @@ data/private/
 *.clip
 *.psd
 *.psb
+
+# Synthetic blank CLIP schema with all drawing blocks removed.
+!packages/adapters/src/clip/blank.clip

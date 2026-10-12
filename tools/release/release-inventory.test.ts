@@ -51,7 +51,7 @@ describe.skipIf(process.platform !== 'win32')('release inventory', () => {
       const expectedVersion = '0.1.1', expectedCommit = 'a'.repeat(40)
       const zipPath = path.join(testRoot, 'xsheet-remap.zip')
       const buildStatePath = path.join(testRoot, 'build-state.json')
-      const applications = Object.fromEntries(['editor', 'remap', 'template', 'corrector'].map(app => {
+      const applications = Object.fromEntries(['remap', 'template', 'corrector'].map(app => {
         const executable = `xsheet-${app}.exe`
         writeFileSync(path.join(testRoot, executable), executable)
         return [app, { executable, version: expectedVersion, commit: expectedCommit, workingTreeDirty: false,
@@ -69,7 +69,7 @@ describe.skipIf(process.platform !== 'win32')('release inventory', () => {
         expect(stale.status).not.toBe(0)
         expect(compactPowerShellOutput(stale)).toContain('doesnotmatchthecurrentversionandcommit')
       }
-      writeFileSync(path.join(testRoot, 'xsheet-editor.exe'), 'another build of the same source')
+      writeFileSync(path.join(testRoot, 'xsheet-remap.exe'), 'another build of the same source')
       createZip(testRoot, zipPath, expectedRoots)
       const swapped = runInventory(options)
       expect(swapped.status).not.toBe(0)

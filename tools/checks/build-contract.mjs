@@ -10,7 +10,7 @@ const scripts = packageJson.scripts ?? {}
 const expectedScripts = {
   'build:dev': 'node tools/desktop/run-build.mjs --mode development',
   'build:release:desktop': 'node tools/desktop/run-build.mjs --mode release --target all',
-  'build:release:all': 'npm run build:release:desktop && npm run build:csp-helper && npm run package:local',
+  'build:release:all': 'npm run build:release:desktop && npm run package:local',
   'release:github': 'npm run check:ci-preflight && npm run verify:desktop && npm run release:github:update',
   'release:github:build': 'npm run check:ci-preflight && npm run build:release:all && npm run verify:desktop && npm run release:github:update',
   'verify:desktop': 'node tools/verification/run.mjs desktop',
@@ -43,16 +43,16 @@ for (const name of retiredScripts) {
   if (Object.hasOwn(scripts, name)) throw new Error(`retired ambiguous build command is still exposed: ${name}`)
 }
 
-const developmentPlan = parseDesktopBuildArgs(['--mode', 'development', '--target', 'editor'])
-if (developmentPlan.executables.join(',') !== 'xsheet-editor.exe') {
-  throw new Error('editor development build must resolve to exactly xsheet-editor.exe')
+const developmentPlan = parseDesktopBuildArgs(['--mode', 'development', '--target', 'remap'])
+if (developmentPlan.executables.join(',') !== 'xsheet-remap.exe') {
+  throw new Error('remap development build must resolve to exactly xsheet-remap.exe')
 }
 if (developmentPlan.outputRoots.join(',') !== 'dev-local') {
   throw new Error('development builds must only update dev-local')
 }
 const releasePlan = parseDesktopBuildArgs(['--mode', 'release', '--target', 'all'])
-if (releasePlan.executables.length !== 4 || releasePlan.outputRoots.join(',') !== 'dev-local,release-local') {
-  throw new Error('desktop release builds must update the coherent four-app dev-local and release-local set')
+if (releasePlan.executables.length !== 3 || releasePlan.outputRoots.join(',') !== 'dev-local,release-local') {
+  throw new Error('desktop release builds must update the coherent three-app dev-local and release-local set')
 }
 
 let missingTargetRejected = false

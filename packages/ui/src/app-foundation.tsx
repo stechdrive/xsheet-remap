@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { activeCutProjectFromDocument, assetAbsolutePath, buildCspImportPackage, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type LogicalTimelineSectionRole, type SheetHit, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
+import { activeCutProjectFromDocument, assetAbsolutePath, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type LogicalTimelineSectionRole, type SheetHit, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
 import { isTauriHost, saveBinaryFile, saveTextFile, statNativePaths, writeBinaryFile, writeTextFile, type SaveTextFileOptions } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel, type SheetRangeSelection } from './appTypes'
@@ -86,12 +86,12 @@ export function initialSheetPaneLayout(appKind: MainAppKind, collapseEditorPanes
 
 export const APP_PROFILES: Record<MainAppKind, { appName: string; panels: Panel[] }> = {
   editor: {
-    appName: 'xsheet-editor',
+    appName: 'xsheet-remap',
     panels: ['sheet', 'template'],
   },
   remap: {
     appName: 'xsheet-remap',
-    panels: ['sheet'],
+    panels: ['sheet', 'template'],
   },
 }
 
@@ -471,21 +471,6 @@ function outputDirectoryFromPath(path: string | undefined): string | null {
 function joinOutputPath(directory: string, fileName: string): string {
   const separator = directory.includes('\\') ? '\\' : '/'
   return `${directory.replace(/[\\/]+$/, '')}${separator}${fileName}`
-}
-
-export function cspImportPackageAssetPaths(packageBuild: ReturnType<typeof buildCspImportPackage>): string[] {
-  const assetRootPath = packageBuild.assetRootPath
-  if (!assetRootPath) return []
-  const paths = new Set<string>()
-  for (const cut of packageBuild.manifest.cuts) {
-    for (const track of cut.tracks) {
-      for (const cel of track.cels) {
-        if (!cel.material) continue
-        paths.add(cel.material.pathKind === 'absolute' ? cel.material.path : joinOutputPath(assetRootPath, cel.material.path))
-      }
-    }
-  }
-  return [...paths]
 }
 
 type ProjectNativePathChecks = {

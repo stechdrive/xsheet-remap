@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 function Get-NormalizedExpectedReleaseRoots {
@@ -179,7 +179,7 @@ function Assert-ReleaseZipBuildIdentity {
     if ($manifest.version -ne $ExpectedVersion -or $manifest.commit -ne $ExpectedCommit) {
       throw "release ZIP does not match the current version and commit"
     }
-    foreach ($app in @("editor", "remap", "template", "corrector")) {
+    foreach ($app in @("remap", "template", "corrector")) {
       $record = $buildState.applications.$app
       $name = "xsheet-$app.exe"
       if ($record.version -ne $ExpectedVersion -or $record.commit -ne $ExpectedCommit -or

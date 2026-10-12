@@ -70,9 +70,9 @@ function selectTemplateInspector(sectionId: string) {
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
     render(<App />)
-    expect(screen.getByText('xsheet-editor')).toBeTruthy()
+    expect(screen.getByText('xsheet-remap')).toBeTruthy()
     const appNavigationMenu = openAppNavigationMenu()
-    expect(within(appNavigationMenu).getByText(`xsheet-editor v${APP_VERSION}`)).toBeTruthy()
+    expect(within(appNavigationMenu).getByText(`xsheet-remap v${APP_VERSION}`)).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.actions.xdts })).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.actions.aeJsx })).toBeTruthy()
@@ -141,7 +141,7 @@ it('renders the main workspace shell', () => {
     render(<EditorApp />)
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'xsheet-editorの使い方' })
+    const dialog = screen.getByRole('dialog', { name: 'xsheet-remapの使い方' })
     expect(within(dialog).getByRole('tab', { name: 'クイックガイド' }).getAttribute('aria-selected')).toBe('true')
     expect(within(dialog).getByRole('tab', { name: '詳しい使い方' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'タイムシートを作って保存する' })).toBeTruthy()
@@ -150,7 +150,7 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('heading', { name: 'やりたいことに合わせて仕上げる' })).toBeTruthy()
     expect(within(dialog).getByText(/発話候補を選んで「音響指示へ割付…」/)).toBeTruthy()
     expect(within(dialog).getByText(/文字認識は候補を確認してから採用/)).toBeTruthy()
-    expect(within(dialog).getByText(/csp-import\.xciを同梱のxsheet-importerで選び/)).toBeTruthy()
+    expect(within(dialog).getByText(/画像とタイムラインを登録したCLIPを保存/)).toBeTruthy()
     expect(within(dialog).getByText(/After Effectsは1列なら列見出し/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
   })
@@ -168,7 +168,7 @@ it('renders the main workspace shell', () => {
     render(<EditorApp />)
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'xsheet-editorの使い方' })
+    const dialog = screen.getByRole('dialog', { name: 'xsheet-remapの使い方' })
     fireEvent.click(within(dialog).getByRole('tab', { name: '詳しい使い方' }))
 
     expect(within(dialog).getByRole('tab', { name: '詳しい使い方' }).getAttribute('aria-selected')).toBe('true')
@@ -199,7 +199,7 @@ it('renders the main workspace shell', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: /12\s*読み込みと書き出し/ }))
     expect(within(dialog).getByRole('heading', { name: '読み込みと書き出し' })).toBeTruthy()
-    expect(within(dialog).getByText('CSP自動登録データ')).toBeTruthy()
+    expect(within(dialog).getByText('CLIPを作成')).toBeTruthy()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /09\s*素材・登録セル・CSP構成/ }))
     expect(within(dialog).getByText('ペイン下部の操作')).toBeTruthy()
@@ -220,57 +220,20 @@ it('guides Remap users from their available source through CSP registration', ()
     expect(within(dialog).getByText(/実際のカットフォルダを登録/)).toBeTruthy()
     expect(within(dialog).getByText(/下部の「登録先」が意図した工程/)).toBeTruthy()
     expect(within(dialog).getByText(/紙シート、タイミング、素材対応、CSP構成を作業ファイルへ保存/)).toBeTruthy()
-    expect(within(dialog).getByText(/対象\.clipと保存先を選んで開始/)).toBeTruthy()
+    expect(within(dialog).getByText(/出力サイズと切り取り量を確認して保存/)).toBeTruthy()
     expect(within(dialog).getByText(/素材がないキーは「キーのみ」/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
   })
 
-  it('opens the complete Remap manual without Editor-only audio or template authoring', () => {
+  it('includes the complete editing manual in the unified Remap app', () => {
     render(<RemapApp />)
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
-
     const dialog = screen.getByRole('dialog', { name: 'xsheet-remapの使い方' })
     fireEvent.click(within(dialog).getByRole('tab', { name: '詳しい使い方' }))
-
-    expect(within(dialog).getByRole('tab', { name: '詳しい使い方' }).getAttribute('aria-selected')).toBe('true')
-    expect(within(dialog).getByRole('navigation', { name: 'Remapの詳しい使い方の目次' })).toBeTruthy()
-    expect(within(dialog).getByText('全13章')).toBeTruthy()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /05\s*SOUND指示/ }))
-    expect(within(dialog).getByRole('heading', { name: 'SOUND指示' })).toBeTruthy()
-    expect(within(dialog).getByText('SOUND列の管理')).toBeTruthy()
-    expect(within(dialog).queryByRole('heading', { name: '音声トラックを準備する' })).toBeNull()
-    expect(within(dialog).queryByText(/VAD/)).toBeNull()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /07\s*メモと注釈/ }))
-    expect(within(dialog).getByText('用紙のメモ欄')).toBeTruthy()
-    expect(within(dialog).getByText('タイムラインメモ')).toBeTruthy()
-    expect(within(dialog).getByText('ページ上の自由注釈')).toBeTruthy()
-    expect(within(dialog).getByText('CSPレイヤー構成の「メモ」')).toBeTruthy()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /08\s*紙シート画像と認識/ }))
-    expect(within(dialog).getByText(/ACTIONまたはCELLを選び、全ページを解析/)).toBeTruthy()
-    expect(within(dialog).getByText(/既存イベント.*採用されない/)).toBeTruthy()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /09\s*素材・登録セル・CSP構成/ }))
-    expect(within(dialog).getByText(/CSP自動登録は、このフォルダを素材の基準と出力先に使うため必須/)).toBeTruthy()
-    expect(within(dialog).getByText(/現在の登録先は工程見出しの印とペイン下部/)).toBeTruthy()
-    expect(within(dialog).getByText(/ディスク上の実ファイルが改名/)).toBeTruthy()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /11\s*表示テンプレート/ }))
-    expect(within(dialog).getByText('xsheet-templateで作る')).toBeTruthy()
-    expect(within(dialog).queryByRole('heading', { name: 'テンプレートを用意する' })).toBeNull()
-    expect(within(dialog).queryByRole('heading', { name: 'レイアウトを編集する' })).toBeNull()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /12\s*読み込みと書き出し/ }))
-    expect(within(dialog).getByText(/「上書き」、空欄だけ補うなら「空きだけ」/)).toBeTruthy()
-    expect(within(dialog).getByText('どのカットと修正シートが出るか')).toBeTruthy()
-    expect(within(dialog).getByText(/グループ内の全カットをまとめて対象/)).toBeTruthy()
-    expect(within(dialog).getByText(/現在画面に表示しているカットと初稿／修正シートだけ/)).toBeTruthy()
-    expect(within(dialog).getByText(/csp-import\.xciをxsheet-importerへ選択またはドロップ/)).toBeTruthy()
-    expect(within(dialog).getByText(/AE用データをコピー/)).toBeTruthy()
-    expect(within(dialog).getByText('JSXで複数列を割り当てる')).toBeTruthy()
-    expect(within(dialog).getByText('起動中のAEへ直接送る')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /05\s*SOUND/ }))
+    expect(within(dialog).getByRole('heading', { name: '音声トラックを準備する' })).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /11/ }))
+    expect(within(dialog).getByRole('heading', { name: 'テンプレートを用意する' })).toBeTruthy()
   })
 
 it('loads XDTS through the import menu with ACTION as the default destination', async () => {
@@ -309,7 +272,7 @@ it('validates and applies a sheet template loaded from the import menu', async (
     confirm.mockRestore()
   })
 
-it('provides a focused CSP remap shell without template authoring navigation', () => {
+it('provides CSP mapping and template authoring in the unified Remap shell', () => {
     render(<RemapApp />)
     expect(screen.getByText('xsheet-remap')).toBeTruthy()
     expect(document.querySelector('.cspLayerTree')).toBeTruthy()
@@ -322,7 +285,9 @@ it('provides a focused CSP remap shell without template authoring navigation', (
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル対応' })).toBeNull()
     expect(within(appNavigationMenu).queryByRole('button', { name: 'セル重ね順' })).toBeNull()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.actions.xdts })).toBeTruthy()
-    expect(within(appNavigationMenu).queryByRole('button', { name: uiText.nav.template })).toBeNull()
+    fireEvent.click(within(appNavigationMenu).getByRole('button', { name: uiText.nav.template }))
+    selectTemplateInspector('template')
+    expect(screen.getByLabelText(uiText.template.name)).toBeTruthy()
   })
 
 it('adds an empty paper track and a material-unassigned card from the CSP layer pane', async () => {
@@ -951,7 +916,7 @@ it('shows one corrected paper export group for every assigned page in the active
     }
   })
 
-it('keeps corrected paper image export out of Remap even when a paper source is loaded', async () => {
+it('offers corrected paper image export in Remap when a paper source is loaded', async () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
     const sourcePath = 'D:\\cuts\\C001\\sheet_001.png'
     const registered = registerSheetSource(createDefaultProject(), {
@@ -977,7 +942,8 @@ it('keeps corrected paper image export out of Remap even when a paper source is 
     expect(within(openPaperSheetMenu()).queryByLabelText(uiText.actions.correctedSheetImageExport)).toBeNull()
     const exportMenu = openAppNavigationMenu()
     fireEvent.click(within(exportMenu).getByRole('button', { name: uiText.actions.exportMenu }))
-    expect(within(exportMenu).queryByText(uiText.actions.correctedSheetImageExportLabel(1))).toBeNull()
+    const group = within(exportMenu).getByRole('group', { name: uiText.actions.correctedSheetImageExportLabel(1) })
+    expect(within(group).getAllByRole('button').length).toBe(3)
   })
 
 it('warns on project load when registered material files are missing on disk', async () => {

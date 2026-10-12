@@ -530,6 +530,7 @@ export {
   type CellStackOrderItem,
 } from './project-cell-stack-order'
 export { reorderCorrectionLayer, reorderProductionStage } from './project-csp-pane-order'
+export * from './clip-export'
 export {
   buildCspLayerTree,
   cspTopToBottomFromXdtsBottomToTop,

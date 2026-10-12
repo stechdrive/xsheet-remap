@@ -6,6 +6,8 @@ import {
   classifyPagesAsset,
   createPagesCachePlan,
   normalizePagesPath,
+  isBundledClipSeed,
+  CLIP_SEED_SHA256,
 } from './pages-cache-policy.mjs'
 import { createPagesServiceWorker } from './pages-service-worker.mjs'
 
@@ -23,6 +25,14 @@ describe('Pages cache policy', () => {
     expect(classifyPagesAsset('assets/opencv-a1.js')).toBe('runtime')
     expect(classifyPagesAsset('vad/models/silero_vad.onnx')).toBe('runtime')
     expect(classifyPagesAsset('sw.js')).toBe('metadata')
+    expect(classifyPagesAsset('assets/blank-a1.clip')).toBe('runtime')
+    expect(classifyPagesAsset('assets/sql-wasm-a1.wasm')).toBe('runtime')
+  })
+
+  it('allows only the exact public synthetic CLIP seed', () => {
+    expect(isBundledClipSeed('assets/blank-a1.clip', CLIP_SEED_SHA256)).toBe(true)
+    expect(isBundledClipSeed('assets/blank-a1.clip', APP_SHA)).toBe(false)
+    expect(isBundledClipSeed('assets/company.clip', CLIP_SEED_SHA256)).toBe(false)
   })
 
   it('creates a versioned app revision and content-revisioned runtime manifest', () => {

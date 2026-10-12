@@ -2,9 +2,8 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const TARGETS = new Set(['editor', 'remap', 'template', 'corrector', 'all'])
+const TARGETS = new Set(['remap', 'template', 'corrector', 'all'])
 const EXECUTABLES = {
-  editor: 'xsheet-editor.exe',
   remap: 'xsheet-remap.exe',
   template: 'xsheet-template.exe',
   corrector: 'xsheet-corrector.exe',

@@ -520,12 +520,12 @@ export function openTimingExportDialog(kind: TimingExportKind = 'xdts'): HTMLEle
   const menu = openAppNavigationMenu()
   const command: Record<TimingExportKind, string> = {
     xdts: uiText.actions.xdts,
-    'csp-import': uiText.actions.cspImportPackage,
+    clip: uiText.actions.cspImportPackage,
     'ae-jsx': uiText.actions.aeJsx,
     'ae-send': uiText.actions.aeSend,
   }
   fireEvent.click(within(menu).getByRole('button', { name: command[kind] }))
-  return screen.getByRole('dialog', { name: command[kind] })
+  return screen.getByRole('dialog', { name: kind === 'clip' ? 'CLIPを作成' : command[kind] })
 }
 
 export function getZoomSlider(): HTMLInputElement {

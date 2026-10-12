@@ -21,11 +21,12 @@ describe('App: dialogue audio export menu', () => {
     })).toBeTruthy()
   })
 
-  it('keeps audio-track export out of Remap', () => {
+  it('offers audio-track export in the unified Remap app', () => {
     render(<RemapApp />)
     const menu = openAppNavigationMenu()
     fireEvent.click(within(menu).getByRole('button', { name: uiText.actions.exportMenu }))
 
-    expect(within(menu).queryByRole('group', { name: uiText.actions.dialogueAudioExport })).toBeNull()
+    const group = within(menu).getByRole('group', { name: uiText.actions.dialogueAudioExport })
+    expect(within(group).getAllByRole('button').map(button => button.textContent)).toEqual(['WAV', 'MP3'])
   })
 })

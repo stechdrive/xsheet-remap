@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory = $true)]
   [ValidateSet("development", "release")]
   [string]$Mode,
@@ -16,12 +16,6 @@ $devRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "dev-local"))
 $releaseRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "release-local"))
 $buildLockPath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot ".cache\desktop-build.lock"))
 $desktopApps = @(
-  [pscustomobject]@{
-    Key = "editor"
-    Name = "xsheet-editor"
-    Workspace = "@xsheet-remap/editor"
-    RelativePath = ".cache/cargo-target/release/xsheet-editor.exe"
-  },
   [pscustomobject]@{
     Key = "remap"
     Name = "xsheet-remap"
@@ -42,7 +36,7 @@ $desktopApps = @(
   }
 )
 
-$allowedTargets = @("all", "editor", "remap", "template", "corrector")
+$allowedTargets = @("all", "remap", "template", "corrector")
 $targetKeys = @(
   $Target.Split(",", [System.StringSplitOptions]::RemoveEmptyEntries) |
     ForEach-Object { $_.Trim().ToLowerInvariant() } |
@@ -53,7 +47,7 @@ if ($targetKeys.Count -eq 0) {
 }
 $invalidTargets = @($targetKeys | Where-Object { $_ -notin $allowedTargets })
 if ($invalidTargets.Count -gt 0) {
-  throw "unknown desktop build target(s): $($invalidTargets -join ', '). Allowed: editor, remap, template, corrector, all."
+  throw "unknown desktop build target(s): $($invalidTargets -join ', '). Allowed: remap, template, corrector, all."
 }
 if ($targetKeys -contains "all" -and $targetKeys.Count -gt 1) {
   throw "target 'all' cannot be combined with individual desktop targets"
@@ -313,7 +307,7 @@ try {
   Update-DevelopmentLaunchpad -Apps $selectedApps -BuildSessionId $buildSessionId
 
   if (-not $isDevelopment) {
-    & (Join-Path $repoRoot "tools/release/local-package.ps1") -SkipHelper -SkipLeakCheck
+    & (Join-Path $repoRoot "tools/release/local-package.ps1") -SkipLeakCheck
     if ($LASTEXITCODE -ne 0) {
       throw "local release copy failed for desktop outputs"
     }

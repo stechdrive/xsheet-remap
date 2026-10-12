@@ -17,6 +17,7 @@ import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, Pape
 import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
+import { ClipExportDialog } from './ClipExportDialog'
 import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
@@ -42,7 +43,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
-    setTimingExportDialog, cspImportExportState, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
+    setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, timingExportIssues, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
@@ -57,7 +58,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     copySelectedCameraCueRange, pasteSelectedCameraCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, handleRemoveSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
-    handleAssetNativePaths, handleAssetRootCandidates, handleChooseAssetRoot, handleAssignAsset, handleAssignRegisteredCell,
+    handleAssetNativePaths, handleAssetRootCandidates, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
@@ -274,15 +275,15 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSaveTemplate={() => void handleSaveTemplateJson()}
             onResetApp={handleResetApp}
             onOpenSheetImageExport={handleOpenSheetImageExport}
-            correctedSheetImagePageCount={appKind === 'editor' ? correctedSheetImagePageCount : 0}
+            correctedSheetImagePageCount={correctedSheetImagePageCount}
             correctedSheetImageExportSaving={correctedSheetImageExportSaving}
-            onSaveCorrectedSheetImages={appKind === 'editor' ? saveCorrectedSheetImages : undefined}
+            onSaveCorrectedSheetImages={saveCorrectedSheetImages}
             dialogueAudioExportSaving={dialogueAudioExportSaving}
-            onSaveDialogueAudioTracks={appKind === 'editor' ? saveDialogueAudioTracks : undefined}
+            onSaveDialogueAudioTracks={saveDialogueAudioTracks}
             onSaveXdts={() => openTimingExportDialog('xdts')}
             onSaveAeJsx={() => openTimingExportDialog('ae-jsx')}
             onSendAfterEffects={canSendToAfterEffects ? () => openTimingExportDialog('ae-send') : undefined}
-            onSaveCspImportPackage={() => openTimingExportDialog('csp-import')}
+            onCreateClip={() => openTimingExportDialog('clip')}
           />
           <span className="topBrand">
             <strong>{appProfile.appName}</strong>
@@ -311,7 +312,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
 
       <main className={`mainPane ${panel === 'template' ? 'templateMainPane' : ''}`.trim()}>
         {panel === 'sheet' && (
-          <div className={appKind === 'editor' ? 'editorAudioWorkspace' : 'sheetPanelWorkspace'}>
+          <div className="editorAudioWorkspace">
             <SheetPanel
             appKind={appKind}
             collapseEditorPanes={collapseEditorSheetPanes}
@@ -350,7 +351,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             recognitionCandidates={recognitionCandidates}
             selectedKeyId={selection.keyId}
             selectedHit={selection.hit}
-            audioPlayheadFrame={appKind === 'editor' ? audioPlayheadFrame : null}
+            audioPlayheadFrame={audioPlayheadFrame}
             audioPlayheadStore={audioPlayheadStore}
             selectedSoundCueId={selectedSoundCueId}
             selectedCameraCueId={selectedCameraCueId}
@@ -508,7 +509,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onReorderCorrectionLayer={handleReorderCorrectionLayer}
             onDeleteCorrectionLayer={handleDeleteCorrectionLayer}
             />
-            {appKind === 'editor' && (
+            {(
               <DialogueAudioTimeline
                 key={projectDocumentSnapshot.activeCutId}
                 cutState={dialogueAudioCutState}
@@ -570,16 +571,16 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <AppHelpDialog appName={appProfile.appName} appKind={appKind} onClose={() => setAppHelpDialogOpen(false)} />
       )}
 
-      {timingExportDialog && (timingExportPlan || timingExportDialog.kind === 'ae-jsx' || timingExportDialog.kind === 'ae-send') && (
+      {timingExportDialog?.kind === 'clip' && <ClipExportDialog document={projectDocumentSnapshot} initialRole={timingExportDialog.timingSourceRole} onClose={() => setTimingExportDialog(null)} onSaved={message => setExportOperationNotice({ message })} />}
+
+      {timingExportDialog && timingExportDialog.kind !== 'clip' && (timingExportPlan || timingExportDialog.kind === 'ae-jsx' || timingExportDialog.kind === 'ae-send') && (
         <TimingExportDialog
           state={timingExportDialog}
           timelineSections={project.logicalSheet.timelineSections}
           issues={timingExportIssues}
-          cspImportState={cspImportExportState}
           afterEffectsSending={afterEffectsSending}
           onChangeRole={updateTimingExportRole}
           onChangeOptions={updateTimingExportOptions}
-          onReconnectAssetRoot={handleChooseAssetRoot}
           onCancel={() => setTimingExportDialog(null)}
           onConfirm={confirmTimingExport}
         />

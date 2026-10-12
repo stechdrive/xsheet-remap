@@ -4,6 +4,9 @@ import { decodeProjectFileBytes, encodeProjectArchive, isXsrProjectFileName, XSR
 import { browserAssetDataUrl } from './browserFiles'
 
 export { isTauriHost, isTauriLikeWindow } from './environment'
+export { generateClipFile, inspectClipFile } from './clip/runtime'
+export type { ClipWriteOptions, ClipWriteResult } from './clip/writer'
+export type { Pixels as ClipImagePixels } from './clip/raster'
 export { browserAssetBytes, browserAssetDataUrl, browserFileForObjectUrl, fileToFileRef, sha256File } from './browserFiles'
 export { createPortableArchive, type PortableArchiveFile } from './portableArchive'
 export {

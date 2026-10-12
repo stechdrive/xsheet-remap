@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Npm = "",
   [switch]$IncludeWorkingTree
 )
@@ -157,18 +157,14 @@ try {
   }
   $previousBrowserPath = $env:PLAYWRIGHT_BROWSERS_PATH
   $previousCargoTarget = $env:CARGO_TARGET_DIR
-  $previousTestDependencies = $env:XSHEET_TEST_DEPENDENCIES
   try {
     if (-not $env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $repoRoot ".cache\playwright" }
     $env:CARGO_TARGET_DIR = Join-Path $repoRoot ".cache\cargo-target"
     Invoke-CheckedCommand -FilePath "node" -ArgumentList @("node_modules/@playwright/test/cli.js", "install", "chromium", "webkit") -WorkingDirectory $cloneRoot
-    Invoke-CheckedCommand -FilePath "python" -ArgumentList @("-m", "pip", "install", "--target", (Join-Path $runRoot "python-tests"), "-r", "apps/csp-import-helper/requirements/test.txt") -WorkingDirectory $cloneRoot
-    $env:XSHEET_TEST_DEPENDENCIES = Join-Path $runRoot "python-tests"
     Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "verify:local", "--", "--reuse") -WorkingDirectory $cloneRoot
   } finally {
     $env:PLAYWRIGHT_BROWSERS_PATH = $previousBrowserPath
     $env:CARGO_TARGET_DIR = $previousCargoTarget
-    $env:XSHEET_TEST_DEPENDENCIES = $previousTestDependencies
     $evidenceDestination = Join-Path $repoRoot "reference-local\preflight\$([System.IO.Path]::GetFileName($runRoot))"
     New-Item -ItemType Directory -Path $evidenceDestination -Force | Out-Null
     foreach ($directory in @("verification", "canvaskit-browser")) {

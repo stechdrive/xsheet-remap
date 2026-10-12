@@ -1,30 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { buildCspImportPackage, createDefaultProject, createProjectDocumentFromCutProject, defaultTimelineSections, registerAssetRoot, standardA3SheetTemplate } from '@xsheet-remap/core'
+import { defaultTimelineSections, standardA3SheetTemplate } from '@xsheet-remap/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TimingExportDialog } from './TimingExportDialog'
-import type { CspImportExportState } from './useCspImportExportPlan'
 import { uiText } from './i18n'
 
-const idleCspImportState: CspImportExportState = { phase: 'idle', plan: null, error: null }
-
 afterEach(cleanup)
-
-function readyCspImportState(target: NonNullable<CspImportExportState['plan']>['target'], keyOnlyCount = 0): CspImportExportState {
-  const rooted = registerAssetRoot(createDefaultProject(), { label: 'C001', path: 'C:\\cuts\\C001' })
-  const packageBuild = buildCspImportPackage(createProjectDocumentFromCutProject(rooted.project))
-  return {
-    phase: 'ready',
-    error: null,
-    plan: {
-      target,
-      packageBuild,
-      files: [{ relativePath: 'csp-import.xci', contents: '{}' }, { relativePath: 'C001.xdts', contents: '' }],
-      materialSummary: { availableCount: 0, keyOnlyCount, unavailableAssignedCount: 0 },
-      blockingIssues: [],
-      advisories: [],
-    },
-  }
-}
 
 describe('TimingExportDialog', () => {
   it('uses the shared ACTION/CELL selector for After Effects JSX without XDTS options', () => {
@@ -34,10 +14,8 @@ describe('TimingExportDialog', () => {
         state={{ kind: 'ae-jsx', timingSourceRole: 'action', includeSound: false, includeCamera: false }}
         timelineSections={defaultTimelineSections(standardA3SheetTemplate)}
         issues={[]}
-        cspImportState={idleCspImportState}
         onChangeRole={() => undefined}
         onChangeOptions={() => undefined}
-        onReconnectAssetRoot={() => undefined}
         onCancel={() => undefined}
         onConfirm={onConfirm}
       />,
@@ -64,11 +42,9 @@ describe('TimingExportDialog', () => {
         state={{ kind: 'ae-send', timingSourceRole: 'cell', includeSound: false, includeCamera: false }}
         timelineSections={defaultTimelineSections(standardA3SheetTemplate)}
         issues={[]}
-        cspImportState={idleCspImportState}
         afterEffectsSending
         onChangeRole={() => undefined}
         onChangeOptions={() => undefined}
-        onReconnectAssetRoot={() => undefined}
         onCancel={onCancel}
         onConfirm={onConfirm}
       />,
@@ -84,28 +60,6 @@ describe('TimingExportDialog', () => {
     expect(onCancel).not.toHaveBeenCalled()
   })
 
-  it('allows a portable CSP ZIP export without a native asset-root path in the browser', () => {
-    const onConfirm = vi.fn()
-    render(
-      <TimingExportDialog
-        state={{ kind: 'csp-import', timingSourceRole: 'action', includeSound: false, includeCamera: false }}
-        timelineSections={defaultTimelineSections(standardA3SheetTemplate)}
-        issues={[]}
-        cspImportState={readyCspImportState({ mode: 'portable-zip', archiveFileName: 'xsheet-csp-import.zip' })}
-        onChangeRole={() => undefined}
-        onChangeOptions={() => undefined}
-        onReconnectAssetRoot={() => undefined}
-        onCancel={() => undefined}
-        onConfirm={onConfirm}
-      />,
-    )
-
-    expect(screen.getByText('xsheet-csp-import.zip')).toBeTruthy()
-    const exportButton = screen.getByRole('button', { name: '書き出す' })
-    expect((exportButton as HTMLButtonElement).disabled).toBe(false)
-    fireEvent.click(exportButton)
-    expect(onConfirm).toHaveBeenCalledOnce()
-  })
 
   it('uses template-derived timeline names and keeps SOUND/CAMERA opt-in', () => {
     const timelineSections = defaultTimelineSections(standardA3SheetTemplate).map(section => {
@@ -118,10 +72,8 @@ describe('TimingExportDialog', () => {
         state={{ kind: 'xdts', timingSourceRole: 'action', includeSound: false, includeCamera: false }}
         timelineSections={timelineSections}
         issues={[]}
-        cspImportState={idleCspImportState}
         onChangeRole={() => undefined}
         onChangeOptions={() => undefined}
-        onReconnectAssetRoot={() => undefined}
         onCancel={() => undefined}
         onConfirm={() => undefined}
       />,
@@ -140,10 +92,8 @@ describe('TimingExportDialog', () => {
         state={{ kind: 'xdts', timingSourceRole: 'action', includeSound: false, includeCamera: false }}
         timelineSections={timelineSections}
         issues={[]}
-        cspImportState={idleCspImportState}
         onChangeRole={() => undefined}
         onChangeOptions={() => undefined}
-        onReconnectAssetRoot={() => undefined}
         onCancel={() => undefined}
         onConfirm={() => undefined}
       />,
@@ -153,67 +103,5 @@ describe('TimingExportDialog', () => {
     expect(screen.getByLabelText('CAMERAを含める')).toBeTruthy()
   })
 
-  it('summarizes an unassigned CSP target as a normal key-only export', () => {
-    const onConfirm = vi.fn()
-    const view = render(
-      <TimingExportDialog
-        state={{ kind: 'csp-import', timingSourceRole: 'action', includeSound: false, includeCamera: false }}
-        timelineSections={defaultTimelineSections(standardA3SheetTemplate)}
-        issues={[]}
-        cspImportState={readyCspImportState({
-          mode: 'native-cut-folder',
-          rootPath: 'C:\\cuts\\C001',
-          outputDirectoryPath: 'C:\\cuts\\C001\\xsheet-csp-import',
-          manifestPath: 'C:\\cuts\\C001\\xsheet-csp-import\\csp-import.xci',
-        }, 1)}
-        onChangeRole={() => undefined}
-        onChangeOptions={() => undefined}
-        onReconnectAssetRoot={() => undefined}
-        onCancel={() => undefined}
-        onConfirm={onConfirm}
-      />,
-    )
 
-    expect(view.getByText('キーのみ 1件')).toBeTruthy()
-    expect(view.queryByText(/画像素材が未割当/)).toBeNull()
-    const exportButton = view.container.querySelector<HTMLButtonElement>('button.primary')
-    expect(exportButton).not.toBeNull()
-    expect(exportButton!.disabled).toBe(false)
-    fireEvent.click(exportButton!)
-    expect(onConfirm).toHaveBeenCalledOnce()
-  })
-
-  it('blocks desktop export and offers cut-folder reconnection when the stored root is unavailable', () => {
-    const onReconnectAssetRoot = vi.fn()
-    const ready = readyCspImportState({
-      mode: 'native-root-unavailable',
-      rootPath: 'D:\\offline\\C001',
-      reason: 'このPCでカットフォルダの場所を確認できません。',
-    })
-    if (ready.phase !== 'ready') throw new Error('expected ready state')
-    ready.plan.blockingIssues.push({
-      issueId: 'cspImport.assetRoot.unavailable',
-      severity: 'error',
-      code: 'cspImport.assetRoot.unavailable',
-      message: 'root unavailable',
-      target: { entity: 'export', id: 'root' },
-    })
-    const view = render(
-      <TimingExportDialog
-        state={{ kind: 'csp-import', timingSourceRole: 'action', includeSound: false, includeCamera: false }}
-        timelineSections={defaultTimelineSections(standardA3SheetTemplate)}
-        issues={[]}
-        cspImportState={ready}
-        onChangeRole={() => undefined}
-        onChangeOptions={() => undefined}
-        onReconnectAssetRoot={onReconnectAssetRoot}
-        onCancel={() => undefined}
-        onConfirm={() => undefined}
-      />,
-    )
-
-    fireEvent.click(view.getByRole('button', { name: 'カットフォルダを選び直す…' }))
-    expect(onReconnectAssetRoot).toHaveBeenCalledOnce()
-    expect(view.container.querySelector<HTMLButtonElement>('button.primary')?.disabled).toBe(true)
-  })
 })

@@ -3,9 +3,8 @@ import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
-import { APP_VERSION } from './appVersion';
 import { projectDocumentsEqual } from './projectDocumentEquality';
 import { updateCutMetadata } from './cutMetadata';
 import { uiText } from './i18n';
@@ -44,8 +43,7 @@ import { useAppAfterEffectsActions } from './app-after-effects-actions'
 import { confirmSheetTemplateImport, loadSheetTemplate } from './app-template-import'
 import { useAppSheetHistoryController } from './app-sheet-history-actions'
 import { createAppSharedCutActions } from './app-shared-cut-actions'
-import { openCspImportExportDirectory, saveCspImportExportPlan } from './app-csp-import-actions'
-import { useCspImportExportPlan } from './useCspImportExportPlan'
+import { openDirectoryInFileManager } from '@xsheet-remap/adapters'
 import { createPreferredProject, rememberSheetTemplatePreset } from './mainAppPreferences'
 import { createAppTimelineLaneActions } from './app-timeline-lane-actions'
 import { createAppDialogueAudioActions } from './app-dialogue-audio-actions'
@@ -124,13 +122,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   })
   const timingExportPlan = useMemo(() => timingExportDialog && timingExportDialog.kind !== 'ae-jsx' && timingExportDialog.kind !== 'ae-send' ? buildExportPlan(project, { profileId: exportProfileId, timingSourceRole: timingExportDialog.timingSourceRole, sheetTemplate: template }) : null, [exportProfileId, project, template, timingExportDialog])
   const timingExportIssues = useMemo(() => timingExportPlan?.validation ?? [], [timingExportPlan])
-  const cspImportExport = useCspImportExportPlan({
-    enabled: timingExportDialog?.kind === 'csp-import',
-    projectDocument: projectDocumentSnapshot,
-    exportProfileId,
-    timingSourceRole: timingExportDialog?.timingSourceRole ?? DEFAULT_EXPORT_TIMING_ROLE,
-    appVersion: APP_VERSION,
-  })
   const { canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData, handleSaveAeJsx, handleSendAfterEffects } = useAppAfterEffectsActions({
     project, resolveProject: () => commitTimingDraft(false), setExportOperationNotice,
     onSendAccepted: () => setTimingExportDialog(null),
@@ -149,7 +140,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setXdtsImportDialog,
     commitProject,
     clearSelection: clearSelectionState,
-    saveCspImportPackage: handleSaveCspImportPackage,
     saveAfterEffectsJsx: handleSaveAeJsx,
     sendAfterEffectsRemap: handleSendAfterEffects,
   })
@@ -1722,23 +1712,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     runProjectCommand(sourceProject => updateCutMetadata(sourceProject, field, value, customKey))
   }
 
-  async function handleSaveCspImportPackage() {
-    const plan = cspImportExport.state.plan
-    if (cspImportExport.state.phase !== 'ready' || !plan || plan.blockingIssues.length > 0) return
-    cspImportExport.markWriting(plan)
-    try {
-      const notice = await saveCspImportExportPlan(plan)
-      setTimingExportDialog(null)
-      setExportOperationNotice(notice)
-    } catch (error) {
-      cspImportExport.markError(errorMessage(error), plan)
-    }
-  }
-
   async function handleOpenExportDirectory() {
     if (!exportOperationNotice?.directoryPath) return
     try {
-      await openCspImportExportDirectory(exportOperationNotice.directoryPath)
+      await openDirectoryInFileManager(exportOperationNotice.directoryPath)
     } catch (error) {
       setStatusHint('sheet-drop', `書き出し先を開けませんでした: ${errorMessage(error)}`)
     }
@@ -2251,7 +2228,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
     cameraCueClipboard, cameraCueDialog, setCameraCueDialog, cameraInstructionHistory, cameraPointLabelHistory, exportProfileId, sheetImageExportDraft,
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
-    setTimingExportDialog, cspImportExportState: cspImportExport.state, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
+    setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, timingExportIssues, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
@@ -2273,7 +2250,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
-    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleSaveCspImportPackage, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handleSaveDialogueAudioTracks, handlePresetSelect,
+    openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handleSaveDialogueAudioTracks, handlePresetSelect,
     canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,

@@ -7,6 +7,7 @@ import {
   PAGES_ARTIFACT_SCHEMA_VERSION,
   classifyPagesAsset,
   createPagesCachePlan,
+  isBundledClipSeed,
 } from './pages-cache-policy.mjs'
 import { createPagesServiceWorker } from './pages-service-worker.mjs'
 
@@ -18,8 +19,8 @@ const MAX_FILES = 1000
 const MAX_TOTAL_BYTES = 56 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
 const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024
-const MAX_RUNTIME_WASM_BYTES = 24 * 1024 * 1024
-const MAX_RUNTIME_WASM_FILES = 2
+const MAX_RUNTIME_WASM_BYTES = 25 * 1024 * 1024
+const MAX_RUNTIME_WASM_FILES = 3
 const allowedExtensions = new Set([
   '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js', '.json', '.mjs', '.png',
   '.onnx', '.svg', '.ttf', '.wasm', '.webmanifest', '.webp', '.woff', '.woff2',
@@ -59,11 +60,12 @@ for (const relativePath of files) {
   const resolvedPath = await fs.realpath(absolutePath)
   if (!isInside(outputRoot, resolvedPath)) findings.push(`output entry escapes root: ${relativePath}`)
   const extension = path.extname(relativePath).toLowerCase()
-  if (!allowedExtensions.has(extension)) findings.push(`extension is not allowlisted: ${relativePath}`)
-  for (const rule of forbiddenPathPatterns) if (rule.pattern.test(relativePath)) findings.push(`${rule.name}: ${relativePath}`)
+  const bytes = await fs.readFile(absolutePath)
+  const clipSeed = isBundledClipSeed(relativePath, crypto.createHash('sha256').update(bytes).digest('hex'))
+  if (!allowedExtensions.has(extension) && !clipSeed) findings.push(`extension is not allowlisted: ${relativePath}`)
+  for (const rule of forbiddenPathPatterns) if (rule.pattern.test(relativePath) && !clipSeed) findings.push(`${rule.name}: ${relativePath}`)
   totalBytes += stats.size
   if (stats.size > MAX_SINGLE_FILE_BYTES) findings.push(`single file exceeds ${MAX_SINGLE_FILE_BYTES} bytes: ${relativePath}`)
-  const bytes = await fs.readFile(absolutePath)
   const decoded = [bytes.toString('utf8'), bytes.toString('utf16le')]
   for (const rule of contentPatterns) {
     if (decoded.some(content => rule.pattern.test(content))) findings.push(`${rule.name}: ${relativePath}`)
@@ -186,7 +188,8 @@ async function verifyInventory(allFiles, serviceWorker) {
   const wasmBytes = wasmFiles.reduce((sum, record) => sum + record.bytes, 0)
   for (const record of wasmFiles) {
     const limit = /\/canvaskit-[^/]+\.wasm$/.test(record.path) ? 8 * 1024 * 1024
-      : /\/ort-wasm-simd-threaded-[^/]+\.wasm$/.test(record.path) ? 16 * 1024 * 1024 : 0
+      : /\/ort-wasm-simd-threaded-[^/]+\.wasm$/.test(record.path) ? 16 * 1024 * 1024
+        : /\/sql-wasm-[^/]+\.wasm$/.test(record.path) ? 1024 * 1024 : 0
     if (!limit || record.bytes > limit) findings.push(`unexpected or excessive WASM runtime: ${record.path}`)
   }
   if (wasmFiles.length > MAX_RUNTIME_WASM_FILES) {

@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { editorHelpChapters } from './EditorDetailedHelp'
-import { remapHelpChapters } from './RemapDetailedHelp'
 
 describe.each([
-  ['Editor', editorHelpChapters],
-  ['Remap', remapHelpChapters],
+  ['Remap', editorHelpChapters],
 ] as const)('%s After Effects help', (_name, chapters) => {
   const chapter = chapters.find(item => item.id === 'io')
   const section = chapter?.sections.find(item => item.title.includes('After Effects'))

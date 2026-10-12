@@ -6,12 +6,18 @@ export const PAGES_ARTIFACT_SCHEMA_VERSION = 2
 export const PAGES_RUNTIME_CACHE_SCHEMA = 1
 
 const METADATA_FILES = new Set(['sw.js', 'pages-artifact.json'])
+// Only this synthetic, empty seed may be distributed. User CLIP files remain forbidden.
+export const CLIP_SEED_SHA256 = '6fb3efa8066af90b2d0e042ddc3d2aee7572691e5cc658f89cdb02467e377a82'
+export function isBundledClipSeed(relativePath, sha256) {
+  return /^assets\/blank-[A-Za-z0-9_-]+\.clip$/.test(relativePath) && sha256 === CLIP_SEED_SHA256
+}
 const RUNTIME_PATH_PATTERNS = [
   /\.(?:woff2?|ttf)$/i,
   /\.wasm$/i,
   /\.onnx$/i,
   /(?:^|\/)opencv-[^/]+\.js$/i,
   /^(?:ocr|vad)\//i,
+  /^assets\/blank-[A-Za-z0-9_-]+\.clip$/,
 ]
 
 export function classifyPagesAsset(relativePath) {

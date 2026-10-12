@@ -19,7 +19,7 @@ const applicationTitle = isInkDiagnostic
       ? 'xsheet-template'
       : appKind === 'sheet-corrector'
         ? 'シート画像補正'
-        : 'xsheet-editor'
+        : 'xsheet-remap'
 
 const isPagesBuild = import.meta.env.MODE === 'pages'
 document.title = applicationTitle

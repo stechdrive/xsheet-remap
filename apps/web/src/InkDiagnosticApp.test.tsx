@@ -121,7 +121,7 @@ describe('InkDiagnosticApp', () => {
     vi.useFakeTimers()
     const context = createCanvasContext()
     const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
-      .mockReturnValue(context)
+      .mockImplementation(((id: string) => id === '2d' ? context : null) as typeof HTMLCanvasElement.prototype.getContext)
 
     render(<InkDiagnosticApp />)
     fireEvent.click(screen.getAllByRole('button', { name: '開始' })[0]!)
@@ -167,7 +167,7 @@ describe('InkDiagnosticApp', () => {
       value: { requestPresenter },
     })
     const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
-      .mockReturnValue(createCanvasContext())
+      .mockImplementation(((id: string) => id === '2d' ? createCanvasContext() : null) as typeof HTMLCanvasElement.prototype.getContext)
 
     render(<InkDiagnosticApp />)
     fireEvent.click(screen.getAllByRole('button', { name: '開始' })[5]!)

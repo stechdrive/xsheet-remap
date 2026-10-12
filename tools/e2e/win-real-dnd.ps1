@@ -1,6 +1,6 @@
-param(
+﻿param(
   [ValidateSet("editor", "remap")]
-  [string]$AppMode = "editor",
+  [string]$AppMode = "remap",
   [ValidateSet("registered-cell", "explorer-import", "csp-pane", "full")]
   [string]$TestCase = "registered-cell",
   [string]$ExePath = "",
@@ -25,7 +25,7 @@ if (-not $ExePath) {
   $ExePath = if ($AppMode -eq "remap") {
     "dev-local/xsheet-remap.exe"
   } else {
-    "dev-local/xsheet-editor.exe"
+    "dev-local/xsheet-remap.exe"
   }
 }
 $scenario = if ($TestCase -eq "registered-cell") {

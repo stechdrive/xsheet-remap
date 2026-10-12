@@ -30,6 +30,7 @@ describe('verification evidence and change selection', () => {
     expect(selectChecks(['packages/ui/src/TemplateEditorApp.tsx'])).toMatchObject({ native: false, importer: false, browser: browserProjects, ciBrowser: ciBrowserTestFiles, desktop: true })
     expect(selectChecks(['native/desktop-runtime/src/lib.rs']).native).toBe(true)
     expect(selectChecks(['package-lock.json'])).toMatchObject({ native: true, importer: true })
+    expect(selectChecks(['packages/adapters/src/clip/writer.ts'])).toMatchObject({ native: false, importer: true, desktop: true })
     expect(selectChecks([], { release: true })).toMatchObject({ native: true, importer: true, desktop: true })
   })
   it('ignores only generated workspace versions, retaining actual dependency changes', () => {

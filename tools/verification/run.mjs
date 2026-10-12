@@ -27,7 +27,6 @@ function runtimeIdentity(phase) {
     return result.stdout.trim()
   }
   if (phase === 'native') return { rust: toolVersion('rustc', ['--version']), cargo: toolVersion('cargo', ['--version']) }
-  if (phase === 'importer') return { python: toolVersion(process.env.XSHEET_TEST_PYTHON || 'python', ['-c', 'import sys,PIL; print(sys.version); print(PIL.__version__)'], { ...process.env, PYTHONPATH: process.env.XSHEET_TEST_DEPENDENCIES || '' }) }
   return {}
 }
 if (phase === 'plan') {

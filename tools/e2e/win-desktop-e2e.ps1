@@ -1,9 +1,9 @@
-param(
-  [string]$ExePath = "dev-local/xsheet-editor.exe",
+﻿param(
+  [string]$ExePath = "dev-local/xsheet-remap.exe",
   [string]$Scenario = "launch",
   [string]$FixtureSource = "",
   [string]$ArtifactRoot = ".tmp/desktop-e2e",
-  [string]$ExpectedTitle = "xsheet-editor",
+  [string]$ExpectedTitle = "xsheet-remap",
   [int]$TimeoutSeconds = 30,
   [int]$StableSeconds = 3,
   [int]$MinWidth = 800,
@@ -50,7 +50,7 @@ if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }
 
-$buildTarget = "editor"
+$buildTarget = "remap"
 if ($Scenario -eq "template-authoring") {
   $buildTarget = "template"
   if (-not $PSBoundParameters.ContainsKey("ExePath")) { $ExePath = "dev-local/xsheet-template.exe" }

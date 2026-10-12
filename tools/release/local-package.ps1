@@ -1,8 +1,5 @@
-param(
+﻿param(
   [switch]$SkipDesktop,
-  [switch]$SkipHelper,
-  [switch]$RequireHelper,
-  [switch]$IncludeHelperCli,
   [switch]$SkipLeakCheck,
   [string]$OutputDir = ""
 )
@@ -166,178 +163,6 @@ function Add-PreservedFile {
   })
 }
 
-function Copy-HelperDirectory {
-  param(
-    [string]$SourceDirectory,
-    [string]$DestinationName,
-    [string]$ComponentName,
-    [System.Collections.Generic.List[object]]$Components
-  )
-
-  $destinationPath = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot $DestinationName))
-  Remove-DirectorySafely $destinationPath
-  Copy-Item -LiteralPath $SourceDirectory -Destination $destinationPath -Recurse -Force
-  $exeName = Split-Path -Leaf $SourceDirectory
-  $exePath = Join-Path $destinationPath "$exeName.exe"
-  $Components.Add([pscustomobject]@{
-    name = $ComponentName
-    type = "onedir"
-    status = "copied"
-    path = Get-ReleaseRelativePath $destinationPath
-    exe = if (Test-Path -LiteralPath $exePath) { Get-ReleaseRelativePath $exePath } else { "" }
-  })
-  Write-Host "[local-package] copied $ComponentName to $(Get-ReleaseRelativePath $destinationPath)"
-}
-
-function Get-HelperLauncherVersion {
-  param([string]$LauncherPath)
-
-  if (-not (Test-Path -LiteralPath $LauncherPath)) {
-    throw "missing helper launcher for version check: $LauncherPath"
-  }
-
-  $processInfo = [System.Diagnostics.ProcessStartInfo]::new()
-  $extension = [System.IO.Path]::GetExtension($LauncherPath).ToLowerInvariant()
-  if ($extension -in @(".bat", ".cmd")) {
-    $processInfo.FileName = if ($env:ComSpec) { $env:ComSpec } else { "cmd.exe" }
-    $processInfo.Arguments = "/d /s /c `"`"$LauncherPath`" --version`""
-  } else {
-    $processInfo.FileName = $LauncherPath
-    $processInfo.Arguments = "--version"
-  }
-  $processInfo.UseShellExecute = $false
-  $processInfo.RedirectStandardOutput = $true
-  $processInfo.RedirectStandardError = $true
-  $processInfo.CreateNoWindow = $true
-
-  $process = [System.Diagnostics.Process]::Start($processInfo)
-  if (-not $process.WaitForExit(15000)) {
-    try {
-      $process.Kill()
-    } catch {
-      # Ignore cleanup failures; the caller gets the timeout error below.
-    }
-    throw "timed out while reading helper version from ${LauncherPath}"
-  }
-
-  $output = @($process.StandardOutput.ReadToEnd(), $process.StandardError.ReadToEnd()) |
-    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-  $exitCode = $process.ExitCode
-  if ($exitCode -ne 0) {
-    throw "failed to read helper version from ${LauncherPath}: exit code $exitCode"
-  }
-
-  $text = (@($output) | ForEach-Object { [string]$_ }) -join "`n"
-  if ($text -match 'xsheet-importer\s+([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)') {
-    return $Matches[1]
-  }
-  if ($text -match '([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)') {
-    return $Matches[1]
-  }
-
-  throw "failed to parse helper version from ${LauncherPath}: $text"
-}
-
-function Assert-HelperLauncherVersion {
-  param(
-    [string]$LauncherPath,
-    [string]$ExpectedVersion
-  )
-
-  $actualVersion = Get-HelperLauncherVersion -LauncherPath $LauncherPath
-  if ($actualVersion -ne $ExpectedVersion) {
-    throw (
-      "CSP import helper version mismatch: expected $ExpectedVersion, got $actualVersion at $LauncherPath. " +
-      "Run npm run build:csp-helper or npm run build:release:all to refresh the helper."
-    )
-  }
-  return $actualVersion
-}
-
-function Remove-StaleHelperFromRelease {
-  param(
-    [string]$LauncherPath,
-    [string]$ExpectedVersion
-  )
-
-  $actualVersion = Get-HelperLauncherVersion -LauncherPath $LauncherPath
-  if ($actualVersion -eq $ExpectedVersion) {
-    return $actualVersion
-  }
-
-  Write-Host (
-    "[local-package] removing stale CSP import helper from local release: " +
-    "expected $ExpectedVersion, got $actualVersion. Run npm run build:csp-helper to include it."
-  ) -ForegroundColor Yellow
-  Remove-ReleasePathSafely $LauncherPath
-  Remove-ReleasePathSafely (Join-Path $releaseRoot "xsheet-csp-import-helper.exe")
-  Remove-ReleasePathSafely (Join-Path $releaseRoot "xsheet-csp-import-helper.bat")
-  Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
-  Remove-ReleasePathSafely (Join-Path $releaseRoot "csp-import-helper")
-  Remove-ReleasePathSafely (Join-Path $releaseRoot "assets")
-  return $null
-}
-
-function Copy-HelperDirectoryToReleaseRoot {
-  param(
-    [string]$SourceDirectory,
-    [string]$ComponentName,
-    [System.Collections.Generic.List[object]]$Components,
-    [string]$Status = "copied"
-  )
-
-  $sourcePath = [System.IO.Path]::GetFullPath($SourceDirectory)
-  if (-not (Test-Path -LiteralPath $sourcePath)) {
-    throw "missing helper portable source: $sourcePath"
-  }
-
-  $launcherName = "xsheet-importer.exe"
-  $sourceLauncherPath = Join-Path $sourcePath $launcherName
-  $sourceRuntimePath = Join-Path $sourcePath "csp-import-helper"
-  if (-not (Test-Path -LiteralPath $sourceLauncherPath)) {
-    throw "missing native helper launcher in portable source: $sourceLauncherPath"
-  }
-  if (-not (Test-Path -LiteralPath $sourceRuntimePath)) {
-    throw "missing helper runtime directory in portable source: $sourceRuntimePath"
-  }
-  Assert-ReleaseRootInventory `
-    -RootPath $sourcePath `
-    -ExpectedRootNames @("assets", "csp-import-helper", "xsheet-importer.exe")
-  Assert-ReleaseRootInventory `
-    -RootPath (Join-Path $sourcePath "assets") `
-    -ExpectedRootNames @("xsheet-remap.laf")
-  $helperVersion = Assert-HelperLauncherVersion -LauncherPath $sourceLauncherPath -ExpectedVersion $expectedReleaseVersion
-
-  $destinationLauncherPath = Join-Path $releaseRoot $launcherName
-  $destinationLegacyBatPath = Join-Path $releaseRoot "xsheet-csp-import-helper.bat"
-  $destinationLegacyExePath = Join-Path $releaseRoot "xsheet-csp-import-helper.exe"
-  $destinationInternalPath = Join-Path $releaseRoot "_internal"
-  $destinationRuntimePath = Join-Path $releaseRoot "csp-import-helper"
-  $destinationAssetsPath = Join-Path $releaseRoot "assets"
-  Remove-ReleasePathSafely $destinationLauncherPath
-  Remove-ReleasePathSafely $destinationLegacyBatPath
-  Remove-ReleasePathSafely $destinationLegacyExePath
-  Remove-ReleasePathSafely $destinationInternalPath
-  Remove-ReleasePathSafely $destinationRuntimePath
-  Remove-ReleasePathSafely $destinationAssetsPath
-
-  Get-ChildItem -LiteralPath $sourcePath -Force |
-    ForEach-Object {
-      Copy-Item -LiteralPath $_.FullName -Destination $releaseRoot -Recurse -Force
-    }
-
-  $Components.Add([pscustomobject]@{
-    name = $ComponentName
-    type = "portable-python-native-launcher"
-    status = $Status
-    path = "."
-    launcher = Get-ReleaseRelativePath $destinationLauncherPath
-    runtime = Get-ReleaseRelativePath $destinationRuntimePath
-    version = $helperVersion
-  })
-  Write-Host "[local-package] $Status $ComponentName to release root"
-}
-
 function Get-Sha256Hex {
   param([string]$Path)
 
@@ -420,12 +245,6 @@ Copy-Item -LiteralPath $thirdPartyNoticeSource -Destination $thirdPartyNoticePat
 
 $desktopComponents = @(
   [pscustomobject]@{
-    Key = "editor"
-    Name = "xsheet-editor"
-    Source = ".cache/cargo-target/release/xsheet-editor.exe"
-    Destination = "xsheet-editor.exe"
-  },
-  [pscustomobject]@{
     Key = "remap"
     Name = "xsheet-remap"
     Source = ".cache/cargo-target/release/xsheet-remap.exe"
@@ -463,7 +282,7 @@ function Assert-CoherentDesktopBuildState {
   }
 
   if ([string]$state.mode -ne "coherent") {
-    throw "desktop outputs are $($state.mode), not a coherent four-app build. Run npm run build:release:desktop before packaging."
+    throw "desktop outputs are $($state.mode), not a coherent three-app build. Run npm run build:release:desktop before packaging."
   }
   if (-not $state.applications) {
     throw "desktop build state has no application records. Run npm run build:release:desktop before packaging."
@@ -523,103 +342,9 @@ foreach ($desktopComponent in $desktopComponents) {
   }
 }
 
-$helperDistRoot = Join-Path $repoRoot ".tmp\csp-import-helper-dist"
-$helperSource = Join-Path $helperDistRoot "xsheet-importer"
-$helperCliSource = Join-Path $helperDistRoot "xsheet-csp-import-helper-cli"
-$helperLauncherName = "xsheet-importer.exe"
-$helperLegacyExeName = "xsheet-csp-import-helper.exe"
-$helperLegacyBatName = "xsheet-csp-import-helper.bat"
-$helperLauncherPath = Join-Path $releaseRoot $helperLauncherName
-$helperLegacyExePath = Join-Path $releaseRoot $helperLegacyExeName
-$helperLegacyBatPath = Join-Path $releaseRoot $helperLegacyBatName
-$helperRuntimePath = Join-Path $releaseRoot "csp-import-helper"
-$helperAssetsPath = Join-Path $releaseRoot "assets"
-$helperCliPath = Join-Path $releaseRoot "csp-import-helper-cli"
-
-if (-not $IncludeHelperCli) {
-  Remove-ReleasePathSafely $helperCliPath
-}
-
-if (-not $SkipHelper) {
-  if (Test-Path -LiteralPath $helperSource) {
-    Copy-HelperDirectoryToReleaseRoot `
-      -SourceDirectory $helperSource `
-      -ComponentName "xsheet-importer" `
-      -Components $components
-  } elseif ($RequireHelper) {
-    throw "missing required CSP import helper portable source: $helperSource"
-  } elseif (Test-Path -LiteralPath $helperLauncherPath) {
-    $helperVersion = Assert-HelperLauncherVersion -LauncherPath $helperLauncherPath -ExpectedVersion $expectedReleaseVersion
-    Remove-ReleasePathSafely $helperLegacyExePath
-    Remove-ReleasePathSafely $helperLegacyBatPath
-    Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
-    if (-not (Test-Path -LiteralPath $helperRuntimePath -PathType Container)) {
-      throw "preserved CSP import helper runtime is missing: $helperRuntimePath"
-    }
-    Assert-ReleaseRootInventory `
-      -RootPath $helperAssetsPath `
-      -ExpectedRootNames @("xsheet-remap.laf")
-    $components.Add([pscustomobject]@{
-      name = "xsheet-importer"
-      type = "portable-python-native-launcher"
-      status = "preserved"
-      path = "."
-      launcher = $helperLauncherName
-      runtime = Get-ReleaseRelativePath $helperRuntimePath
-      version = $helperVersion
-    })
-  } else {
-    Remove-ReleasePathSafely $helperLegacyExePath
-    Remove-ReleasePathSafely $helperLegacyBatPath
-    Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
-    Remove-ReleasePathSafely $helperRuntimePath
-    Remove-ReleasePathSafely $helperAssetsPath
-    Write-Host "[local-package] helper portable source not found; skipping: $helperSource" -ForegroundColor Yellow
-  }
-
-  if ($IncludeHelperCli) {
-    if (Test-Path -LiteralPath $helperCliSource) {
-      Copy-HelperDirectory `
-        -SourceDirectory $helperCliSource `
-        -DestinationName "csp-import-helper-cli" `
-        -ComponentName "xsheet-csp-import-helper-cli" `
-        -Components $components
-    } elseif ($RequireHelper) {
-      throw "missing required CSP import helper CLI onedir: $helperCliSource"
-    } else {
-      Write-Host "[local-package] helper CLI onedir not found; skipping: $helperCliSource" -ForegroundColor Yellow
-    }
-  }
-} else {
-  if (Test-Path -LiteralPath $helperLauncherPath) {
-    $helperVersion = Remove-StaleHelperFromRelease -LauncherPath $helperLauncherPath -ExpectedVersion $expectedReleaseVersion
-    if ($helperVersion) {
-      Remove-ReleasePathSafely $helperLegacyBatPath
-      Remove-ReleasePathSafely $helperLegacyExePath
-      Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
-      if (-not (Test-Path -LiteralPath $helperRuntimePath -PathType Container)) {
-        throw "preserved CSP import helper runtime is missing: $helperRuntimePath"
-      }
-      Assert-ReleaseRootInventory `
-        -RootPath $helperAssetsPath `
-        -ExpectedRootNames @("xsheet-remap.laf")
-      $components.Add([pscustomobject]@{
-        name = "xsheet-importer"
-        type = "portable-python-native-launcher"
-        status = "preserved"
-        path = "."
-        launcher = Get-ReleaseRelativePath $helperLauncherPath
-        runtime = Get-ReleaseRelativePath $helperRuntimePath
-        version = $helperVersion
-      })
-    }
-  } else {
-    Remove-ReleasePathSafely $helperLegacyExePath
-    Remove-ReleasePathSafely $helperLegacyBatPath
-    Remove-ReleasePathSafely (Join-Path $releaseRoot "_internal")
-    Remove-ReleasePathSafely $helperRuntimePath
-    Remove-ReleasePathSafely $helperAssetsPath
-  }
+# Remove only known retired product outputs inside the validated release root.
+foreach ($retired in @("xsheet-editor.exe", "xsheet-importer.exe", "xsheet-csp-import-helper.exe", "xsheet-csp-import-helper.bat", "csp-import-helper", "csp-import-helper-cli", "assets", "_internal")) {
+  Remove-ReleasePathSafely (Join-Path $releaseRoot $retired)
 }
 
 $commit = ""
@@ -641,15 +366,11 @@ $releaseManifestPath = Join-Path $releaseRoot "RELEASE.json"
 $releaseManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $releaseManifestPath -Encoding UTF8
 
 $checksumTargets = @(
-  "xsheet-editor.exe",
   "xsheet-remap.exe",
   "xsheet-corrector.exe",
   "xsheet-template.exe",
-  "xsheet-importer.exe",
   "README.txt",
   "THIRD_PARTY_NOTICES.md",
-  "assets/xsheet-remap.laf",
-  "csp-import-helper-cli/xsheet-csp-import-helper-cli.exe",
   "RELEASE.json"
 )
 $checksumLines = New-Object System.Collections.Generic.List[string]
@@ -669,21 +390,6 @@ foreach ($desktopComponent in $desktopComponents) {
     $expectedReleaseRootNames.Add($desktopComponent.Destination)
   }
 }
-if (Test-Path -LiteralPath $helperLauncherPath -PathType Leaf) {
-  if (-not (Test-Path -LiteralPath $helperRuntimePath -PathType Container)) {
-    throw "release helper launcher exists without its runtime: $helperRuntimePath"
-  }
-  if (-not (Test-Path -LiteralPath $helperAssetsPath -PathType Container)) {
-    throw "release helper launcher exists without its assets: $helperAssetsPath"
-  }
-  $expectedReleaseRootNames.Add($helperLauncherName)
-  $expectedReleaseRootNames.Add("csp-import-helper")
-  $expectedReleaseRootNames.Add("assets")
-}
-if ($IncludeHelperCli -and (Test-Path -LiteralPath $helperCliPath -PathType Container)) {
-  $expectedReleaseRootNames.Add("csp-import-helper-cli")
-}
-
 New-LocalReleaseZip `
   -PackageName $releasePackageName `
   -ExpectedRootNames @($expectedReleaseRootNames)

@@ -1,12 +1,12 @@
 import { expect, test } from './fixtures'
 
 for (const [query, title] of [
-  ['', 'xsheet-editor'],
+  ['', 'xsheet-remap'],
   ['?app=remap', 'xsheet-remap'],
   ['?app=template-editor', 'xsheet-template'],
   ['?app=sheet-corrector', 'シート画像補正'],
 ]) {
-  test(`Pages loads the ${title} entry point`, async ({ page }) => {
+  test(`Pages loads the ${title} entry point (${query || 'default'})`, async ({ page }) => {
     const failures: string[] = []
     page.on('response', response => {
       if (response.status() >= 400 && new URL(response.url()).origin === new URL(page.url()).origin) failures.push(`${response.status()} ${response.url()}`)

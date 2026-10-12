@@ -5,7 +5,7 @@ export const ciBrowserTestFiles = ['startup.spec.ts', 'pwa.spec.ts']
 export const checks = {
   check: ['check:ae-template', 'lint', 'typecheck', 'test', 'check:architecture', 'check:build-contract', 'check:pages-contract', 'check:embedded-dependencies', 'check:repo-hygiene'],
   native: ['check:after-effects-native'],
-  importer: ['test:csp-helper'],
+  importer: ['test:clip'],
   pages: ['build:pages', 'check:pages-artifact'],
   desktop: ['e2e:desktop:win:template-authoring', 'e2e:desktop:win:explorer-import', 'e2e:desktop:win:real-dnd'],
 }
@@ -16,7 +16,7 @@ export const testPurposes = {
   browser: 'Same Pages artifact: rendering, editing, layout, service-worker update and offline reuse',
   'browser-ci': 'Pages entry points, runtime loading and service-worker lifecycle in Chromium; no gesture or GPU performance acceptance',
   native: 'Windows After Effects export and native boundary behavior',
-  importer: 'CSP importer parsing, recovery and automation policy with mocked CSP',
+  importer: 'Direct CLIP container, pixel placement and timeline generation',
   desktop: 'Built EXE with verified source and SHA-256; scenario-specific native or protocol input',
   device: 'Manual device evidence: trusted composition/touch events and operator-observed result',
 }
@@ -42,7 +42,7 @@ export function selectChecks(files, { release = false } = {}) {
   return {
     check: true, pages: true, browser: browserProjects, ciBrowser: ciBrowserTestFiles,
     native: release || infrastructure || normalized.some(file => /^(?:native\/|apps\/[^/]+\/src-tauri\/.*\.(?:rs|toml|lock)$|tools\/(?:after-effects|desktop)\/)/.test(file)),
-    importer: release || infrastructure || normalized.some(file => /^(?:apps|tools)\/csp-import-helper\//.test(file)),
+    importer: release || infrastructure || normalized.some(file => /^(?:packages\/(?:adapters|core)\/src\/clip|tools\/clip\/)/.test(file)),
     desktop: release || normalized.some(file => /^(?:packages\/(?:ui|core|adapters)\/|native\/|apps\/[^/]+\/src-tauri\/|tools\/e2e\/win-)/.test(file)),
   }
 }

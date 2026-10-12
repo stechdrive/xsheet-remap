@@ -1,5 +1,5 @@
 param(
-  [string]$ExePath = "dev-local/xsheet-editor.exe",
+  [string]$ExePath = "dev-local/xsheet-remap.exe",
   [string]$ArtifactRoot = ".tmp/desktop-e2e",
   [int]$TimeoutSeconds = 90,
   [switch]$Build,
@@ -17,10 +17,10 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
 
 if ($Build) {
-  Write-Host "[dialogue-audio-suite] building the editor development executable once before isolated scenarios..."
-  npm run build:dev -- --target editor
+  Write-Host "[dialogue-audio-suite] building the remap development executable once before isolated scenarios..."
+  npm run build:dev -- --target remap
   if ($LASTEXITCODE -ne 0) {
-    throw "editor development build failed with exit code $LASTEXITCODE"
+    throw "remap development build failed with exit code $LASTEXITCODE"
   }
 }
 

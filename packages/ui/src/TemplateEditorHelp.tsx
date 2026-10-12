@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChapteredHelp, type HelpChapter } from './ChapteredHelp'
+import { LicenseNotices, licenseHelpDescription } from './LicenseNotices'
 
 const templateHelpChapters: HelpChapter[] = [
   {
@@ -319,7 +320,7 @@ const templateHelpChapters: HelpChapter[] = [
 ]
 
 export function TemplateEditorHelpDialog({ onClose }: { onClose: () => void }) {
-  const [helpView, setHelpView] = useState<'quick' | 'detailed'>('quick')
+  const [helpView, setHelpView] = useState<'quick' | 'detailed' | 'licenses'>('quick')
 
   return (
     <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label="xsheet-templateの使い方">
@@ -327,7 +328,7 @@ export function TemplateEditorHelpDialog({ onClose }: { onClose: () => void }) {
         <header>
           <div>
             <strong>xsheet-template ヘルプ</strong>
-            <span>{helpView === 'quick' ? '使えるテンプレートJSONを最短で作る順番です。' : '目的から探せるように、すべての設定と操作を章別に説明します。'}</span>
+            <span>{helpView === 'licenses' ? licenseHelpDescription : helpView === 'quick' ? '使えるテンプレートJSONを最短で作る順番です。' : '目的から探せるように、すべての設定と操作を章別に説明します。'}</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
         </header>
@@ -339,14 +340,17 @@ export function TemplateEditorHelpDialog({ onClose }: { onClose: () => void }) {
           <button type="button" role="tab" aria-selected={helpView === 'detailed'} className={helpView === 'detailed' ? 'active' : ''} onClick={() => setHelpView('detailed')}>
             詳しい使い方
           </button>
+          <button type="button" role="tab" aria-selected={helpView === 'licenses'} className={helpView === 'licenses' ? 'active' : ''} onClick={() => setHelpView('licenses')}>
+            ライセンス・謝辞
+          </button>
         </div>
 
         <div className={`appHelpBody ${helpView === 'detailed' ? 'appHelpBodyDetailed' : 'templateHelpQuickBody'}`}>
-          {helpView === 'quick' ? <TemplateEditorQuickGuide /> : <TemplateEditorDetailedHelp />}
+          {helpView === 'licenses' ? <LicenseNotices /> : helpView === 'quick' ? <TemplateEditorQuickGuide /> : <TemplateEditorDetailedHelp />}
         </div>
-        <footer>
+        {helpView !== 'licenses' && <footer>
           <p>{helpView === 'quick' ? '迷ったら、作りたいシートに最も近い標準形から始めてください。' : '保存後はEditorまたはRemapで、実際の入力と表示を一度確認してください。'}</p>
-        </footer>
+        </footer>}
       </section>
     </div>
   )

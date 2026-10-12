@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { ChapteredHelp, type HelpChapter } from './ChapteredHelp'
+import { LicenseNotices, licenseHelpDescription } from './LicenseNotices'
 import { Tooltip } from './Tooltip'
 import { LevelCorrectionFilterDefinition } from './LevelCorrectionFilter'
 import { levelCorrectionFilterUrl, useLevelCorrectionFilterId } from './levelCorrectionFilterModel'
@@ -257,7 +258,7 @@ const sheetCorrectorHelpChapters: HelpChapter[] = [
 ]
 
 export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
-  const [helpView, setHelpView] = useState<'quick' | 'detailed'>('quick')
+  const [helpView, setHelpView] = useState<'quick' | 'detailed' | 'licenses'>('quick')
 
   return (
     <div className="sheetCorrectorModalBackdrop" role="dialog" aria-modal="true" aria-label="シート画像補正の使い方">
@@ -265,7 +266,7 @@ export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
         <header>
           <div>
             <strong>シート画像補正の使い方</strong>
-            <span>{helpView === 'quick' ? '編集画面を開かず、画像から補正済みPSDを作る最短手順です。' : '画像の追加から補正・PSD出力まで、すべての操作を目的別に説明します。'}</span>
+            <span>{helpView === 'licenses' ? licenseHelpDescription : helpView === 'quick' ? '編集画面を開かず、画像から補正済みPSDを作る最短手順です。' : '画像の追加から補正・PSD出力まで、すべての操作を目的別に説明します。'}</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
         </header>
@@ -277,14 +278,17 @@ export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
           <button type="button" role="tab" aria-selected={helpView === 'detailed'} className={helpView === 'detailed' ? 'active' : ''} onClick={() => setHelpView('detailed')}>
             詳しい使い方
           </button>
+          <button type="button" role="tab" aria-selected={helpView === 'licenses'} className={helpView === 'licenses' ? 'active' : ''} onClick={() => setHelpView('licenses')}>
+            ライセンス・謝辞
+          </button>
         </div>
 
         <div className={`sheetCorrectorHelpBody ${helpView === 'detailed' ? 'sheetCorrectorHelpBodyDetailed' : ''}`}>
-          {helpView === 'quick' ? <SheetCorrectorQuickGuide /> : <SheetCorrectorDetailedHelp />}
+          {helpView === 'licenses' ? <LicenseNotices /> : helpView === 'quick' ? <SheetCorrectorQuickGuide /> : <SheetCorrectorDetailedHelp />}
         </div>
-        <footer>
+        {helpView !== 'licenses' && <footer>
           <p>{helpView === 'quick' ? 'PSDは元画像と同じフォルダへ作られ、同名ファイルは上書きしません。' : '迷ったときは「要確認」の画像だけを選び、テンプレートと四隅から確認してください。'}</p>
-        </footer>
+        </footer>}
       </section>
     </div>
   )

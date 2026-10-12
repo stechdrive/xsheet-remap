@@ -10,6 +10,7 @@ import {
   isBundledClipSeed,
 } from './pages-cache-policy.mjs'
 import { createPagesServiceWorker } from './pages-service-worker.mjs'
+import { containsUnexpectedOcrIdentifier } from './pages-content-policy.mjs'
 
 const repoRoot = process.cwd()
 const outputRoot = path.join(repoRoot, 'apps', 'web', 'dist-pages')
@@ -38,7 +39,6 @@ const contentPatterns = [
   { name: 'developer workspace path', pattern: /[A-Za-z]:\\(?:GitHub|gh|dev|src|work)\\[^\\\s'"`<>]+/i },
   { name: 'repository-local output name', pattern: /(?:reference-local|release-local|dev-local|csp-import-helper-(?:build-venv|pyinstaller|dist))/i },
   { name: 'likely inline secret', pattern: /\b(?:api[_-]?key|access[_-]?token|secret|password)\b\s*[:=]\s*['"][A-Za-z0-9_./+=-]{16,}/i },
-  { name: 'OCR model/runtime identifier', pattern: /(?:@paddleocr|PaddleOCR|PP-OCRv5)/i },
 ]
 
 const findings = []
@@ -49,6 +49,7 @@ const requiredFiles = ['index.html', 'manifest.webmanifest', 'pages-artifact.jso
 for (const required of requiredFiles) if (!files.includes(required)) findings.push(`required file is missing: ${required}`)
 
 const localValues = await localOnlyValues()
+const thirdPartyNotices = await fs.readFile(path.join(repoRoot, 'THIRD_PARTY_NOTICES.md'), 'utf8')
 let totalBytes = 0
 for (const relativePath of files) {
   const absolutePath = path.join(outputRoot, ...relativePath.split('/'))
@@ -69,6 +70,9 @@ for (const relativePath of files) {
   const decoded = [bytes.toString('utf8'), bytes.toString('utf16le')]
   for (const rule of contentPatterns) {
     if (decoded.some(content => rule.pattern.test(content))) findings.push(`${rule.name}: ${relativePath}`)
+  }
+  if (decoded.some(content => containsUnexpectedOcrIdentifier(relativePath, content, thirdPartyNotices))) {
+    findings.push(`OCR model/runtime identifier: ${relativePath}`)
   }
   for (const value of localValues) {
     if (decoded.some(content => content.includes(value))) findings.push(`local-only environment value: ${relativePath}`)

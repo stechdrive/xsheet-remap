@@ -1,5 +1,6 @@
 // CSP BINC and TrackValueMap, checked against CSP 5.0.4 files and
-// https://github.com/wamsoft/clipparse/blob/main/docs/CLIP_FORMAT.md
+// https://github.com/wamsoft/clipparse/blob/322a273c0e059d1dee9132af78289efa12a59522/docs/CLIP_FORMAT.md
+// Source acknowledgements and license texts: THIRD_PARTY_NOTICES.md.
 import { unzlibSync, zlibSync } from 'fflate'
 import type { ExportTrackFrame } from '@xsheet-remap/core'
 import { check, concat, crc32, named, text, u32, utf8, view } from './binary'

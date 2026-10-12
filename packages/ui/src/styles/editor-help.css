@@ -39,6 +39,18 @@
   overflow: hidden;
 }
 
+.licenseNotices {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.licenseNotices pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .editorHelpManual {
   display: grid;
   grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);

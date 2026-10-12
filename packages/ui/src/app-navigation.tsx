@@ -11,6 +11,7 @@ import { CalibrationPointKind, RegisteredCellSortDirection, type MainAppKind } f
 import { gridHeaderLabelForRole } from './templateEditorGeometry'
 import { DurationFrameControl } from './DurationFrameControl'
 import { EditorDetailedHelp } from './EditorDetailedHelp'
+import { LicenseNotices, licenseHelpDescription } from './LicenseNotices'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 import { type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
 import { type DialogueAudioTrackExportFormat } from './dialogueAudioExport'
@@ -441,7 +442,7 @@ export function AppHelpDialog({
   onClose: () => void
 }) {
   const isEditor = appKind === 'editor'
-  const [helpView, setHelpView] = useState<'quick' | 'detailed'>('quick')
+  const [helpView, setHelpView] = useState<'quick' | 'detailed' | 'licenses'>('quick')
   const isDetailedHelp = helpView === 'detailed'
   return (
     <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label={`${appName}の使い方`}>
@@ -449,7 +450,7 @@ export function AppHelpDialog({
         <header>
           <div>
             <strong>{appName} ヘルプ</strong>
-            <span>{isDetailedHelp
+            <span>{helpView === 'licenses' ? licenseHelpDescription : isDetailedHelp
               ? 'やりたいことから、必要な機能と画面操作を章ごとに確認できます。'
               : isEditor
                 ? 'タイムシートを作って保存・受け渡しするまでの最短手順です。'
@@ -476,17 +477,26 @@ export function AppHelpDialog({
           >
             詳しい使い方
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={helpView === 'licenses'}
+            className={helpView === 'licenses' ? 'active' : ''}
+            onClick={() => setHelpView('licenses')}
+          >
+            ライセンス・謝辞
+          </button>
         </div>
         <div className={`appHelpBody${isDetailedHelp ? ' appHelpBodyDetailed' : ''}`}>
-          {isDetailedHelp
+          {helpView === 'licenses' ? <LicenseNotices /> : isDetailedHelp
             ? <EditorDetailedHelp />
             : isEditor ? <EditorHelpContent /> : <RemapHelpContent />}
         </div>
-        <footer>
+        {helpView !== 'licenses' && <footer>
           <p>{isEditor
             ? 'まずクイックガイドで1本作り、細かな編集や判断に迷ったときは「詳しい使い方」の該当章を開いてください。'
             : '「CLIPを作成」から、画像とタイムラインを登録したCLIPを直接保存できます。'}</p>
-        </footer>
+        </footer>}
       </section>
     </div>
   )

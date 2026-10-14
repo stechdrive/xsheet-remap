@@ -4,6 +4,7 @@ import { reconcileCspTrackSlots, defaultCorrectionLayerId } from './project-shar
 import { updateLogicalSheetSettings } from './project-export'
 import { alphabeticTrackLabel } from './sheet-template'
 import { normalizeClipName } from './clip-export'
+import { logicalSheetWorkRange } from './logical-sheet'
 import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, updateActiveCutProjectInDocument } from './project-documents'
 
 /** Layer order is CSP's palette order (top to bottom), independent of SQL row IDs. */
@@ -21,6 +22,7 @@ export interface ClipImportTimeline {
   fps: number
   startFrame: number
   endFrame: number
+  /** Frames are relative to startFrame, including negative and post-playback keys. */
   tracks: { layerId: string; frames: ExportTrackFrame[]; error?: string }[]
 }
 export interface ClipImportData {
@@ -127,6 +129,7 @@ function applyClipFrames(project: CutProject, data: ClipImportData, timeline: Cl
   const duration = timeline.endFrame - timeline.startFrame
   if (!Number.isInteger(duration) || duration < 1 || duration > 1_000_000 || !Number.isFinite(timeline.fps) || timeline.fps < 1 || timeline.fps > 120) throw new Error('タイムラインのFPSまたは尺が範囲外です。')
   const nextKeys = [...project.logicalSheet.keys], events = [...project.logicalSheet.events], bindings = [...project.bindings]
+  let firstFrame = 0, lastFrame = duration - 1
   const keyIdFor = idSequence('key', nextKeys.map(key => key.keyId)), eventIdFor = idSequence('event', events.map(event => event.eventId)), bindingIdFor = idSequence('binding', bindings.map(binding => binding.bindingId))
   for (const column of options.columns) {
     const item = { name: column.name.trim(), frames: timeline.tracks.find(track => track.layerId === column.layerId)?.frames ?? [] }
@@ -134,11 +137,15 @@ function applyClipFrames(project: CutProject, data: ClipImportData, timeline: Cl
     if (source?.error) throw new Error(`${item.name}: ${source.error}`)
     const slot = project.cspTrackSlots.find(slot => slot.paperTrack === item.name && slot.correctionLayerId === defaultCorrectionLayerId(project))!
     const keys = new Map(bindings.filter(binding => binding.slotId === slot.slotId).map(binding => [binding.cspCellName, binding.keyId]))
-    let previousFrame = -1
+    let previousFrame = -Infinity
     for (const frame of item.frames) {
-      if (!Number.isInteger(frame.frame) || frame.frame <= previousFrame || frame.frame >= duration) throw new Error('セル指定の順序または読み込み範囲が不正です。')
+      if (!Number.isSafeInteger(frame.frame) || frame.frame <= previousFrame) throw new Error('セル指定の順序または読み込み範囲が不正です。')
       previousFrame = frame.frame
+      firstFrame = Math.min(firstFrame, frame.frame)
+      lastFrame = Math.max(lastFrame, frame.frame)
+      if (lastFrame - firstFrame + 1 > 1_000_000) throw new Error('ダミーコマを含むセル指定の範囲が広すぎます。')
       const targetFrame = project.logicalSheet.frameOrigin + frame.frame
+      if (!Number.isSafeInteger(targetFrame)) throw new Error('セル指定の読み込み位置が範囲外です。')
       let keyId = frame.value === null ? NULL_CELL_KEY_ID : keys.get(frame.value)
       if (!keyId) {
         keyId = keyIdFor()
@@ -149,7 +156,15 @@ function applyClipFrames(project: CutProject, data: ClipImportData, timeline: Cl
       events.push({ eventId: eventIdFor(), paperTrack: item.name, frame: targetFrame, keyId, sheetRole: options.role, source: 'import', valueKind: frame.value === null ? 'blank' : 'cell' })
     }
   }
-  return { ...project, bindings, logicalSheet: { ...project.logicalSheet, keys: nextKeys, events, paperTracks: project.logicalSheet.paperTracks.map(track => {
+  const workRange = logicalSheetWorkRange(project.logicalSheet)
+  const preRollFrames = Math.max(workRange.preRollFrames, -firstFrame)
+  const postRollFrames = Math.max(workRange.postRollFrames, lastFrame - project.logicalSheet.durationFrames + 1)
+  return { ...project, bindings, logicalSheet: { ...project.logicalSheet, keys: nextKeys, events,
+    allowNegativeFrames: project.logicalSheet.allowNegativeFrames || firstFrame < 0,
+    workRange: { ...workRange, preRollFrames, postRollFrames,
+      showPreRoll: workRange.showPreRoll || firstFrame < 0,
+      showPostRoll: workRange.showPostRoll || lastFrame >= project.logicalSheet.durationFrames },
+    paperTracks: project.logicalSheet.paperTracks.map(track => {
     if (!options.columns.some(column => column.name.trim() === track.paperTrack) || !track.clipSource) return track
     return { ...track, clipSource: { ...track.clipSource, fileHash: data.fileHash, timelineId: timeline.id, timelineName: timeline.name, fps: timeline.fps, startFrame: timeline.startFrame, endFrame: timeline.endFrame } }
   }) } }

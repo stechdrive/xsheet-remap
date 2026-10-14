@@ -76,6 +76,7 @@ export function ClipImportDialog({ file, document, onClose, onImport }: { file: 
           }}>{data.timelines.map(item => <option key={item.id} value={item.id}>{item.name}（{item.endFrame - item.startFrame}F / {item.fps}fps）</option>)}</select></label>
           <fieldset><legend>タイミングの読み込み先</legend><div className="segmented">{(['action', 'cell'] as const).map(value => <button type="button" key={value} aria-pressed={role === value} onClick={() => setRole(value)}>{value.toUpperCase()}</button>)}</div></fieldset>
           <p>CLIP再生範囲：{timeline.startFrame + 1}〜{timeline.endFrame}F（{timeline.fps}fps）</p>
+          <p>再生範囲外のセル指定は開始前・終了後のダミーコマに保持します。正式な尺には含めません。</p>
           {timelineIds.length === 1 && <p>読み込み後：{settings!.fps}fps・{settings!.durationFrames}フレーム</p>}
           {timelineIds.length === 1 && settings!.fps !== project.logicalSheet.fps && <p className="issue warning">カットのFPSを{project.logicalSheet.fps}から{settings!.fps}へ変更します。既存のキーのコマ番号は維持します。</p>}
           <fieldset><legend>読み込むフォルダー</legend>

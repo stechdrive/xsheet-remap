@@ -12,11 +12,11 @@ function number(node: Node, name: string): number {
 }
 function frameNumber(value: number): number {
   const rounded = Math.round(value)
-  check(Number.isFinite(value) && Math.abs(value - rounded) < 0.001, 'セル指定が整数フレームに一致しません。')
+  check(Number.isSafeInteger(rounded) && Math.abs(value - rounded) < 0.001, 'セル指定が整数フレームに一致しません。')
   return rounded
 }
 
-/** Evaluate each clip in timeline time, retaining explicit repeated exposures. */
+/** Retain active cel assignments outside playback, relative to the playback start. */
 export function readAnimation(bytes: Uint8Array, unpackedSize: number, fps: number, start: number, end: number): ExportTrackFrame[] {
   check(bytes.length >= 5 && view(bytes).getUint32(0, true) === bytes.length - 4, '圧縮BINCサイズが不正です。')
   check(Number.isInteger(unpackedSize) && unpackedSize >= 16 && unpackedSize < 16_000_000, '展開BINCサイズが範囲外です。')
@@ -62,16 +62,14 @@ export function readAnimation(bytes: Uint8Array, unpackedSize: number, fps: numb
   })
   clips.sort((a, b) => a.start - b.start)
   check(clips.every((clip, i) => i === 0 || clips[i - 1].end <= clip.start), '重なったセル指定クリップには対応していません。')
-  const events = new Map<number, string | null>([[start, null]])
+  const workStart = Math.min(start, clips[0]?.start ?? start)
+  const workEnd = clips.reduce((last, clip) => Math.max(last, clip.keys.at(-1)!.frame + 1), end)
+  check(workEnd - workStart <= 1_000_000, 'ダミーコマを含むセル指定の範囲が広すぎます。')
+  const events = new Map<number, string | null>([[workStart, null]])
   for (const clip of clips) {
-    if (clip.end <= start || clip.start >= end) continue
-    let carry: string | null = null
-    for (const key of clip.keys) {
-      if (key.frame <= start) carry = key.value
-      if (key.frame >= start && key.frame < end) events.set(key.frame, key.value)
-    }
-    if (clip.start <= start) events.set(start, carry)
-    if (clip.end < end) events.set(clip.end, null)
+    for (const key of clip.keys) events.set(key.frame, key.value)
+    // Preserve gaps, without expanding dummy frames to a long clip's empty tail.
+    if (clip.end < workEnd) events.set(clip.end, null)
   }
   return [...events].sort(([a], [b]) => a - b).map(([frame, value]) => ({ frame: frame - start, value }))
 }

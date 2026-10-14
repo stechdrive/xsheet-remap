@@ -9,11 +9,12 @@ export function SheetWorkRangeControls({ workRange, supportsPreRoll, supportsPos
   onChange: (workRange: LogicalSheetWorkRange) => void
 }) {
   return <>
-    <TooltipTarget label={`${uiText.sheet.preRollTitle}\n${uiText.sheet.preRollFixedTitle(DEFAULT_PRE_ROLL_FRAMES)}`}>
+    <TooltipTarget label={`${uiText.sheet.preRollTitle}\n${uiText.sheet.preRollMinimumTitle(DEFAULT_PRE_ROLL_FRAMES)}`}>
       {tooltipProps => (
         <label className="compactControl dummyKControl" {...tooltipProps}>
           <input type="checkbox" checked={workRange.showPreRoll} disabled={supportsPreRoll === false}
-            onChange={event => onChange({ ...workRange, preRollFrames: DEFAULT_PRE_ROLL_FRAMES, showPreRoll: event.currentTarget.checked })} />
+            onChange={event => onChange({ ...workRange, showPreRoll: event.currentTarget.checked,
+              preRollFrames: event.currentTarget.checked ? Math.max(DEFAULT_PRE_ROLL_FRAMES, workRange.preRollFrames) : workRange.preRollFrames })} />
           {uiText.sheet.preRoll}
         </label>
       )}

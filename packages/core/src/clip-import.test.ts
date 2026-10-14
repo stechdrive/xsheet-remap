@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeCutProjectFromDocument, buildClipRegistrationPlan, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, defaultCorrectionLayerId, updatePaperTrack, type ClipImportData } from './index'
+import { activeCutProjectFromDocument, buildClipRegistrationPlan, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, defaultCorrectionLayerId, updateLogicalSheetSettings, updatePaperTrack, validateProject, type ClipImportData } from './index'
 import { clipImportFolders, importClipTimeline, importClipTimelines, suggestClipImportColumns } from './clip-import'
 
 const data: ClipImportData = {
@@ -56,6 +56,58 @@ describe('CLIP timeline import', () => {
     expect(next.logicalSheet.durationFrames).toBe(existing.logicalSheet.durationFrames)
     expect(() => importClipTimeline(createDefaultProject(), data, { ...options, columns: [{ layerId: 'bottom', name: 'A' }, { layerId: 'long', name: ' Ａ\u200b ' }] })).toThrow('重複')
   })
+  it.each(['action', 'cell'] as const)('keeps %s dummy keys, blanks and repeats through hidden save/reload without extending official export', role => {
+    const source = structuredClone(data)
+    source.timelines[0].tracks[0].frames = [
+      { frame: -30, value: '001' }, { frame: -6, value: '001' }, { frame: 3, value: null },
+      { frame: 24, value: '002' }, { frame: 40, value: '002' },
+    ]
+    const initial = updateLogicalSheetSettings(createDefaultProject(), { frameOrigin: 5, allowNegativeFrames: false,
+      workRange: { preRollFrames: 0, postRollFrames: 0, showPreRoll: false, showPostRoll: false } })
+    const imported = importClipTimeline(initial, source, { ...options, role, columns: [options.columns[0]] })
+    expect(imported.logicalSheet).toMatchObject({ frameOrigin: 5, durationFrames: 24, allowNegativeFrames: true,
+      workRange: { preRollFrames: 30, postRollFrames: 17, showPreRoll: true, showPostRoll: true } })
+    expect(imported.logicalSheet.events.map(event => event.frame)).toEqual([-25, -1, 8, 29, 45])
+    expect(imported.logicalSheet.events[0].keyId).toBe(imported.logicalSheet.events[1].keyId)
+    expect(imported.logicalSheet.events[3].keyId).toBe(imported.logicalSheet.events[4].keyId)
+    const hidden = updateLogicalSheetSettings(imported, { workRange: { ...imported.logicalSheet.workRange!, showPreRoll: false, showPostRoll: false } })
+    const document = JSON.parse(JSON.stringify(createProjectDocumentFromCutProject(hidden)))
+    const reopened = activeCutProjectFromDocument(document)
+    expect(reopened.logicalSheet.events).toEqual(imported.logicalSheet.events)
+    expect(reopened.logicalSheet.workRange).toEqual(hidden.logicalSheet.workRange)
+    expect(validateProject(reopened).filter(issue => issue.severity === 'error')).toEqual([])
+    const exported = buildClipRegistrationPlan(document, role).timelines[0]
+    expect(exported.duration).toBe(24)
+    expect(exported.tracks[0].frames).toEqual([{ frame: 0, value: '001' }, { frame: 3, value: null }])
+    expect(initial.logicalSheet.events).toEqual([])
+  })
+  it('uses only selected tracks to expand dummy frames and preserves longer existing work ranges', () => {
+    const source = structuredClone(data)
+    source.timelines[0].tracks[0].frames.push({ frame: 24, value: '2' })
+    source.timelines[0].tracks[1].frames = [{ frame: -999_999, value: '3' }]
+    const initial = updateLogicalSheetSettings(createDefaultProject(), {
+      workRange: { preRollFrames: 60, postRollFrames: 72, showPreRoll: false, showPostRoll: false },
+    })
+    const imported = importClipTimeline(initial, source, { ...options, columns: [options.columns[0]] })
+    expect(imported.logicalSheet.workRange).toEqual({ preRollFrames: 60, postRollFrames: 72, showPreRoll: false, showPostRoll: true })
+    expect(imported.logicalSheet.durationFrames).toBe(24)
+    expect(imported.logicalSheet.events.at(-1)?.frame).toBe(25)
+  })
+  it.each([
+    [{ frame: -3, value: '1' }, { frame: -3, value: '2' }],
+    [{ frame: 0, value: '1' }, { frame: -3, value: '2' }],
+    [{ frame: -0.5, value: '1' }],
+    [{ frame: Number.NaN, value: '1' }],
+    [{ frame: Number.MAX_SAFE_INTEGER + 1, value: '1' }],
+    [{ frame: -1_000_000, value: '1' }],
+    [{ frame: 1_000_000, value: '1' }],
+  ])('rejects invalid or excessive dummy timing atomically: %j', (...frames) => {
+    const source = structuredClone(data)
+    source.timelines[0].tracks[0].frames = frames
+    const project = createDefaultProject()
+    expect(() => importClipTimeline(project, source, options)).toThrow()
+    expect(project.logicalSheet.events).toEqual([])
+  })
   it('creates shared cuts with a single shared catalog and distinct FPS/duration/exposures', () => {
     const before = createProjectDocumentFromCutProject(createDefaultProject())
     const imported = importClipTimelines(before, data, { ...options, timelineIds: ['first', 'second'] })
@@ -81,6 +133,18 @@ describe('CLIP timeline import', () => {
     const renamed = updatePaperTrack(active, columns[0].name, { label: '撮影A' })
     const reopened = activeCutProjectFromDocument(JSON.parse(JSON.stringify(createProjectDocumentFromCutProject(renamed))))
     expect(reopened.logicalSheet.paperTracks.find(track => track.label === '撮影A')?.clipSource).toMatchObject({ fileHash: 'abc123', layerId: 'bottom', path: ['A'], timelineId: 'first' })
+  })
+  it('retains separate dummy timing and official durations for shared timelines', () => {
+    const source = structuredClone(data)
+    source.timelines[0].tracks[0].frames.unshift({ frame: -30, value: '002' })
+    source.timelines[0].tracks[0].frames.push({ frame: 24, value: '003' })
+    source.timelines[1].tracks[0].frames.unshift({ frame: -48, value: '003' })
+    source.timelines[1].tracks[0].frames.push({ frame: 90, value: '002' })
+    const imported = importClipTimelines(createProjectDocumentFromCutProject(createDefaultProject()), source, { ...options, timelineIds: ['first', 'second'] })
+    const projects = imported.cuts.map(cut => activeCutProjectFromDocument({ ...imported, activeCutId: cut.cutId }))
+    expect(projects.map(project => [project.logicalSheet.durationFrames, project.logicalSheet.workRange?.preRollFrames, project.logicalSheet.workRange?.postRollFrames])).toEqual([[24, 30, 1], [60, 48, 31]])
+    expect(projects.map(project => project.logicalSheet.events.filter(event => event.paperTrack === 'A').map(event => event.frame))).toEqual([[-29, 1, 4, 8, 13, 25], [-47, 1, 7, 21, 91]])
+    for (const project of projects) expect(validateProject(project).filter(issue => issue.severity === 'error')).toEqual([])
   })
   it('fails atomically if a selected timeline or frame cannot be represented', () => {
     const document = createProjectDocumentFromCutProject(createDefaultProject())

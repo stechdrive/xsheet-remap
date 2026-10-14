@@ -8,7 +8,7 @@ import { readAnimation } from './read-animation'
 import { readClip } from './reader'
 import { ClipContainer } from './container'
 import { writeClip } from './writer'
-import { Mixer, packedMixer } from './animation'
+import { Mixer, animationMixer, packedMixer } from './animation'
 const native = JSON.parse(readFileSync(new URL('./fixtures/native-timelines.json', import.meta.url), 'utf8')) as {
   tracks: { fps: number; start: number; end: number; mixers: Record<'TrackActionMixer' | 'TrackActionMixer2', { size: number; hex: string }> }[]
 }
@@ -27,7 +27,7 @@ describe('CSP cell timing evaluation', () => {
       expect(frames).toEqual(index === 0 ? [{ frame: 0, value: '1' }] : [{ frame: 0, value: null }, { frame: 6, value: '1' }])
     }
   })
-  it('evaluates trimmed source motion and carries the exposed cel into a nonzero playback range', () => {
+  it('evaluates trimmed source motion and retains keys around a nonzero playback range', () => {
     const mixer = nativeMixer()
     mixer.walk((node, parent) => {
       if (parent?.name === 'MotionClip' && node.name === 'Start') node.values = [5]
@@ -39,7 +39,14 @@ describe('CSP cell timing evaluation', () => {
       }
     })
     expect(read(mixer)).toEqual([{ frame: 0, value: null }, { frame: 6, value: '001' }, { frame: 8, value: '001' }, { frame: 12, value: null }])
-    expect(read(mixer, 9, 30)).toEqual([{ frame: 0, value: '001' }, { frame: 3, value: null }])
+    expect(read(mixer, 9, 30)).toEqual([{ frame: -3, value: '001' }, { frame: -1, value: '001' }, { frame: 3, value: null }])
+  })
+  it('retains negative and end-boundary keys in both mixer formats without adding a key at playback start', () => {
+    const keys = [{ frame: -30, value: '001' }, { frame: 4, value: '001' }, { frame: 24, value: null }, { frame: 36, value: '002' }]
+    for (const chunk of Object.values(native.tracks[1].mixers)) {
+      const raw = animationMixer(Buffer.from(chunk.hex, 'hex'), keys, 1296, 24)
+      expect(readAnimation(packedMixer(raw), raw.length, 24, 0, 24)).toEqual(keys)
+    }
   })
   it('preserves disjoint clip gaps and rejects overlapping clips or unsupported interpolation', () => {
     const mixer = nativeMixer()
@@ -52,6 +59,7 @@ describe('CSP cell timing evaluation', () => {
     time.children.find(node => node.name === 'End')!.values = [60]
     parent!.children.push(second!)
     expect(read(mixer, 0, 36)).toEqual([{ frame: 0, value: null }, { frame: 6, value: '1' }, { frame: 12, value: null }, { frame: 18, value: '1' }, { frame: 24, value: null }])
+    expect(read(mixer, 13, 17)).toEqual([{ frame: -7, value: '1' }, { frame: -1, value: null }, { frame: 5, value: '1' }])
     time.children.find(node => node.name === 'Start')!.values = [25]
     expect(() => read(mixer)).toThrow('重なった')
     const unsupported = nativeMixer()
@@ -63,6 +71,11 @@ describe('CSP cell timing evaluation', () => {
     const bytes = Buffer.from(chunk.hex, 'hex')
     expect(() => readAnimation(bytes.subarray(0, bytes.length - 1), chunk.size, 24, 0, 120)).toThrow()
     expect(() => readAnimation(bytes, 20, 24, 0, 120)).toThrow()
+  })
+  it('rejects a dummy range too large to represent safely', () => {
+    const chunk = native.tracks[1].mixers.TrackActionMixer
+    const raw = animationMixer(Buffer.from(chunk.hex, 'hex'), [{ frame: -1_000_000, value: '1' }], 24, 24)
+    expect(() => readAnimation(packedMixer(raw), raw.length, 24, 0, 24)).toThrow('範囲が広すぎます')
   })
 })
 

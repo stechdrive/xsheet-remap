@@ -381,6 +381,7 @@ function renderTemplateDrawingLayer(
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
   const chrome = buildTemplateChromeRenderModel(context.template, context.paperTracks, context.displayDurationFrames, {
+    timelineLanes: context.timelineLanes,
     layoutOverrides: context.project.sheetView.layoutOverrides,
   })
   for (const page of context.pages) {
@@ -398,6 +399,7 @@ function renderTemplateDrawingLayer(
         : context.template.defaults.frameOrigin
       const model = buildTemplateGridOverlayRenderModel(context.template, region, {
         paperTracks: context.paperTracks,
+        timelineLanes: context.timelineLanes,
         durationFrames: page.frameEnd - page.frameStart + 1,
         frameOrigin,
         pageFrameStart: page.frameStart,
@@ -448,6 +450,7 @@ function renderSecondBandLayer(context: SheetExportLayerContext): ImageData {
         : context.template.defaults.frameOrigin
       const model = buildTemplateGridOverlayRenderModel(context.template, region, {
         paperTracks: context.paperTracks,
+        timelineLanes: context.timelineLanes,
         durationFrames: page.frameEnd - page.frameStart + 1,
         frameOrigin,
         pageFrameStart: page.frameStart,

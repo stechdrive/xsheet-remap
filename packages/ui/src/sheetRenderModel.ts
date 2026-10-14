@@ -442,7 +442,7 @@ export function metadataTextRenderItemsForPage(
     context.template,
     context.paperTracks,
     context.displayDurationFrames,
-    { layoutOverrides: context.project.sheetView.layoutOverrides },
+    { timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
   ).formFields.find(field => field.definition.builtinBinding?.field === 'cut')
   if (!cutRegion && !cutFormField) return items
   const cutRect = cutRegion
@@ -508,7 +508,7 @@ function formFieldTextRenderItems(
     context.template,
     context.paperTracks,
     context.displayDurationFrames,
-    { layoutOverrides: context.project.sheetView.layoutOverrides },
+    { timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
   )
   return chrome.formFields.flatMap(field => {
     const text = formFieldText(context, field, page)

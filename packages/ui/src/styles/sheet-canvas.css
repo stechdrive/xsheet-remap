@@ -1074,6 +1074,31 @@
   pointer-events: none;
 }
 
+.timingCellFullLabel {
+  position: sticky;
+  top: 4px;
+  left: 48px;
+  z-index: 5;
+  height: 0;
+  width: min(480px, calc(100% - 100px));
+  pointer-events: none;
+}
+
+.timingCellFullLabel span {
+  display: block;
+  padding: 6px 10px;
+  border: 1px solid #80998c;
+  border-radius: 4px;
+  background: #f5faf6;
+  color: #113c2d;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  .timingCellFullLabel { display: none; }
+}
+
 .eventSymbol {
   fill: none;
   stroke: #113c2d;

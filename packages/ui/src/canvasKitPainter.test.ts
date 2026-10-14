@@ -45,6 +45,23 @@ function render(scene: CanvasKitScene, cache?: CanvasKitPictureCache): Uint8Arra
 }
 
 describe('real CanvasKit paper paint', () => {
+  it('clips direct timing text to its column in actual pixels without leaking into neighboring columns', () => {
+    const style: PaperStyle = { paint: { ...node().paint, fill: '#113c2d', stroke: 'none' }, opacity: 1, visible: true,
+      family: 'test', weight: 400, italic: false, spacing: 0, baseline: 'central' }
+    const model: DirectPaperModel = { pageSize: { widthPx: 100, heightPx: 100 }, styles: {}, primitives: [
+      { style: 'text', text: { value: 'MMMMMMMM', x: .5, y: .5, size: 30, anchor: 'middle' }, clipRect: { x: .4, y: 0, w: .2, h: 1 } },
+    ] }
+    const nodes = compileDirectPaperModel(model, [100, 0, 0, 100, 0, 0], () => style)
+    const pixels = render({ width: 100, height: 100, nodes })
+    let painted = 0
+    for (let y = 0; y < 100; y++) for (let x = 0; x < 100; x++) {
+      const alpha = pixels[(y * 100 + x) * 4 + 3]
+      if (x < 40 || x >= 60) expect(alpha).toBe(0)
+      else if (alpha) painted++
+    }
+    expect(painted).toBeGreaterThan(80)
+    expect(render({ width: 100, height: 100, nodes: nodes.map(item => ({ ...item, clips: [] })) })).not.toEqual(pixels)
+  })
   it('reuses shaped paragraphs when text moves and invalidates on font revision', () => {
     const cache = new CanvasKitPictureCache()
     const scene = (x: number): CanvasKitScene => ({ width: 100, height: 100, nodes: [node({ children: [node({

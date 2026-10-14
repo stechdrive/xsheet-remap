@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import type { SheetLabelNormalizationPlan } from '@xsheet-remap/core'
 import { type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
 import { timelineMemoFontSizePx, timelineMemoFontSizeUnitsForPx } from './timelineMemoTextLayout'
@@ -315,7 +316,7 @@ export function SheetPanel(props: {
   onAddTimelineLane: (input: { role: TimedRangeRole; label: string; insertAfterLaneId?: string }) => void
   onUpdateTimelineLane: (role: TimedRangeRole, laneId: string, label: string) => void
   onDeleteTimelineLane: (role: TimedRangeRole, laneId: string) => void
-  onApplyNameNormalization: (plan: NameNormalizationPlan) => Promise<void>
+  onApplyNameNormalization: (plan: NameNormalizationPlan | SheetLabelNormalizationPlan) => Promise<void>
   onAssignAssetToKey: (assetId: string, keyId: string, target?: { position?: { x: number; y: number }; slotId?: string }) => void
   onReorderCspStackItem: (itemId: string, referenceItemId: string, edge: 'before' | 'after') => void
   onReorderProductionStage: (stageId: string, referenceStageId: string, edge: 'before' | 'after') => void

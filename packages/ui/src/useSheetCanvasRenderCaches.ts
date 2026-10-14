@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useSheetTextMetricsRevision } from './useSheetTextMetricsRevision'
 import {
   timelineMemos,
   type CutProject,
@@ -51,6 +52,7 @@ export function useSheetCanvasRenderCaches({
   referenceRenderContext?: SheetRenderModelContext | null
   renderWindow?: SheetRenderWindow
 }) {
+  const textMetricsRevision = useSheetTextMetricsRevision()
   const visiblePages = useMemo(
     () => viewMode === 'single-page'
       ? sheetPages.filter(page => page.pageIndex === activePageIndex)
@@ -59,7 +61,7 @@ export function useSheetCanvasRenderCaches({
   )
   // Coordinates and overlay suppression invalidate every retained event rectangle.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const eventGeometryCache = useMemo<SheetEventGeometryCache>(() => new WeakMap(), [renderContext.geometry, activeOverlayPaperTrack])
+  const eventGeometryCache = useMemo<SheetEventGeometryCache>(() => new WeakMap(), [renderContext.geometry, activeOverlayPaperTrack, textMetricsRevision])
   const frameRange = useMemo(() => sheetFrameRangeForWindow(renderContext, renderWindow), [renderContext, renderWindow])
   const eventRectsByPage = useMemo(
     () => eventRectsForPages(renderContext.project, template, visiblePages, { activeOverlayPaperTrack, cache: eventGeometryCache, frameRange }),
@@ -73,7 +75,9 @@ export function useSheetCanvasRenderCaches({
     () => referenceProject
       ? eventRectsForPages(referenceProject, template, visiblePages, { frameRange })
       : new Map(visiblePages.map(page => [page.pageId, []])),
-    [referenceProject, template, visiblePages, frameRange],
+    // Font loading changes fitted labels without changing the reference project.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [referenceProject, template, visiblePages, frameRange, textMetricsRevision],
   )
   const referenceContinuationItemsByPage = useMemo(
     () => referenceRenderContext

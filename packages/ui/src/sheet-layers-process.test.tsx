@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultProject, createKey, registerAsset, registerAssetsToCspTrack, setEvent, upsertBinding, type SheetHit } from '@xsheet-remap/core'
 import { assignRegisteredCellKeyToHit } from './sheet-layers-process'
+import { applySheetLabelNormalizationPlan, buildSheetLabelNormalizationPlan } from '@xsheet-remap/core'
+import { setTimingValueAt } from './sheet-timing-input'
 
 const actionAFrame = (frame: number): SheetHit => ({
   regionId: 'action',
@@ -25,6 +27,27 @@ const cellAFrame = (frame: number): SheetHit => ({
 })
 
 describe('CSP process card timing assignment', () => {
+  it('keeps image-card linking, repeated drops and typed reuse intact after sheet-only renaming', () => {
+    const key = createKey(createDefaultProject(), 'A', '0001', 'import', '0001', 'action')
+    let project = setEvent(key.project, 'A', 1, key.key.keyId, 'action')
+    project = upsertBinding(project, { slotId: 'slot_A', keyId: key.key.keyId, cspCellName: 'A0001', materialState: 'missing-ok' })
+    const asset = registerAsset(project, { name: 'correction_0042.png', size: 100 }, { role: 'cell-material' })
+    const registered = registerAssetsToCspTrack(asset.project, { slotId: 'slot_enshutsu_A', assetIds: [asset.asset.assetId] })
+    const renamed = applySheetLabelNormalizationPlan(registered.project, buildSheetLabelNormalizationPlan(registered.project, {
+      sheetRole: 'action', method: 'strip-leading-zeros',
+    }))
+    const linked = assignRegisteredCellKeyToHit(renamed, registered.addedKeyIds[0], actionAFrame(1))
+    expect(linked.keyId).toBe(key.key.keyId)
+    expect(linked.project.logicalSheet.keys.map(item => item.displayLabel)).toEqual(['1'])
+    expect(linked.project.bindings.map(item => [item.keyId, item.cspCellName])).toEqual([
+      [key.key.keyId, 'A0001'], [key.key.keyId, 'correction_0042'],
+    ])
+    const repeated = assignRegisteredCellKeyToHit(linked.project, key.key.keyId, actionAFrame(12))
+    const typed = setTimingValueAt(repeated.project, actionAFrame(20), '1', 18, 'layer_sakuga')
+    expect(typed.keyId).toBe(key.key.keyId)
+    expect(typed.project.bindings).toEqual(linked.project.bindings)
+    expect(typed.project.logicalSheet.events.filter(item => item.keyId === key.key.keyId).map(item => item.frame)).toEqual([1, 12, 20])
+  })
   it('links an unplaced process card to the logical cell already present at the drop frame', () => {
     const logicalA1 = createKey(createDefaultProject(), 'A', '1', 'manual', '1', 'action')
     let project = setEvent(logicalA1.project, 'A', 1, logicalA1.key.keyId, 'action')

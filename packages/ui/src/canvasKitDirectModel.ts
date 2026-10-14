@@ -9,6 +9,7 @@ export type PaperPrimitive = {
   text?: Pick<SceneText, 'value' | 'x' | 'y' | 'size' | 'anchor'> & { weight?: number; baseline?: string }
   opacity?: number
   paint?: Partial<ScenePaint>
+  clipRect?: { x: number; y: number; w: number; h: number }
 }
 export interface DirectPaperModel {
   pageSize: { widthPx: number; heightPx: number }
@@ -40,6 +41,10 @@ export function compileDirectPaperModel(model: DirectPaperModel, matrix: SceneMa
     if (!style.visible) continue
     const node: SceneNode = { matrix, paint: { ...style.paint, ...primitive.paint }, opacity: (primitive.opacity ?? 1) * style.opacity,
       blend: 'normal', clips: [], children: [], shape: primitive.shape }
+    if (primitive.clipRect) {
+      const { x, y, w: width, h: height } = primitive.clipRect
+      node.clips.push({ shape: { kind: 'rect', rect: { x, y, width, height }, rx: 0, ry: 0 }, matrix })
+    }
     if (primitive.text) {
       const { widthPx: w, heightPx: h } = model.pageSize
       const [a, b, c, d, e, f] = matrix

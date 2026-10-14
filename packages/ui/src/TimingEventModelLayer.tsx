@@ -5,7 +5,6 @@ import type { DirectPaperModel, PaperPrimitive } from './canvasKitDirectModel'
 import type { SheetEventRectRenderItem } from './sheet-layers-hit-geometry'
 import { assetAssignedMarkerPoints, type SheetSelectionSurface } from './sheet-selection-visuals'
 import { timingEventSymbolGeometry } from './TimingEventSymbol'
-import { clampTextFontSizePx } from './sheetTextLayout'
 import { createSheetRenderGroups } from './sheetRenderGroups'
 
 type Props = {
@@ -35,7 +34,7 @@ function TimingEventChunk({ items, pageSize, surface, dragging, pending, ready, 
     const styles: DirectPaperModel['styles'] = {}
     const primitives: PaperPrimitive[] = []
     for (const item of items) {
-      const { event, eventKind, displayLabel, rect, hasAssetBinding, fontSizePx } = item
+      const { event, eventKind, displayLabel, rect, hasAssetBinding, textLayout } = item
       const key = `${sheetTimingRoleForEvent(event)}:${event.paperTrack}:${event.frame}`
       const state = [key === draggingKey ? 'timelineEventDragSource' : 'timelineEventHandle',
         key === pendingKey ? 'timelineEventDragPending' : '', key === pendingKey && pendingReady ? 'timelineEventDragReady' : ''].filter(Boolean).join(' ')
@@ -49,8 +48,8 @@ function TimingEventChunk({ items, pageSize, surface, dragging, pending, ready, 
       if (hasAssetBinding) primitives.push({ style: style('assetAssignedEventMarker', 'path'), shape: { kind: 'polygon',
         points: assetAssignedMarkerPoints(rect, surface).split(/[\s,]+/).map(Number), close: true } })
       if (eventKind === 'cell') {
-        if (displayLabel.trim()) primitives.push({ style: style('eventText', 'text'), text: {
-          value: displayLabel, x: rect.x + rect.w / 2, y: rect.y + rect.h / 2, size: clampTextFontSizePx(fontSizePx), anchor: 'middle', baseline: 'central',
+        if (displayLabel.trim()) primitives.push({ style: style('eventText', 'text'), clipRect: textLayout.clipRect, text: {
+          value: textLayout.text, x: rect.x + rect.w / 2, y: rect.y + rect.h / 2, size: textLayout.fontSizePx, anchor: 'middle', baseline: 'central',
         } })
       } else {
         const geometry = timingEventSymbolGeometry(eventKind, rect)

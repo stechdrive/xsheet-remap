@@ -1,5 +1,7 @@
 import { cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timelineLanesForLayout, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
-import { resolveTimingTextFontSizePx } from './sheetTextLayout'
+import { defaultTimingTextMinFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout'
+import { resolveSheetTemplatePageSize } from '@xsheet-remap/core'
+import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
 import { timingEventsInRange, timingKeyIndex, type TimelineEvent, type TimingKey } from '@xsheet-remap/core'
 import type { SheetContentInput, SheetGeometryInput } from '@xsheet-remap/core'
 import { clampNumber } from './sheetInteraction'
@@ -12,6 +14,7 @@ export type SheetEventRectRenderItem = {
   fontSizePx: number
   rect: NormalizedRect
   hasAssetBinding: boolean
+  textLayout: TimingCellTextLayout
 }
 export type SheetEventGeometryCache = WeakMap<TimelineEvent, { item: SheetEventRectRenderItem; key: TimingKey | undefined; pageId: string }>
 
@@ -23,6 +26,7 @@ export function eventRectsForPages(
 ): Map<string, SheetEventRectRenderItem[]> {
   const result = new Map(pages.map(page => [page.pageId, [] as SheetEventRectRenderItem[]]))
   if (pages.length === 0 || project.logicalSheet.events.length === 0) return result
+  const pageSize = resolveSheetTemplatePageSize(template)
 
   const paperTracks = templatePaperTracks(project, template).map(track => track.paperTrack)
   const timelineLanes = timelineLanesForLayout(project)
@@ -83,6 +87,7 @@ export function eventRectsForPages(
       fontSizePx,
       rect,
       hasAssetBinding: assetBoundKeyIds.has(event.keyId),
+      textLayout: layoutTimingCellText(displayLabel, fontSizePx, defaultTimingTextMinFontSizePx(template, sheetRole), rect, pageSize),
     }
     result.get(page.pageId)?.push(item)
     options.cache?.set(event, { item, key, pageId: page.pageId })

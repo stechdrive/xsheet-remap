@@ -438,7 +438,7 @@ export const uiText = {
       cell: 'CELL',
     },
     viewMode: '登録セルの表示',
-    normalizeTitle: 'クリスタ用セル名と、必要なら素材ファイル名をまとめて整える',
+    normalizeTitle: 'シート記載、またはCSP登録名と素材ファイル名をまとめて整える',
     view: {
       detail: '詳細',
       detailTitle: '登録セルを編集しやすい詳細カードで表示',
@@ -513,6 +513,10 @@ export const uiText = {
     },
   },
   nameNormalization: {
+    nameKind: '変更する名前',
+    cspKind: 'CSP登録名',
+    sheetKind: 'シート記載',
+    sheetTitle: 'シート記載を一括変更',
     open: '一括リネーム',
     title: 'クリスタ用セル名を一括リネーム',
     description: 'クリスタのタイムラインへ登録するセル名を、列名と工程に合わせた連番へ整えます。ACTIONにはBG／BOOK、撮影指示、メモも含まれます。',

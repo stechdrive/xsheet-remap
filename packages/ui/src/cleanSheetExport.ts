@@ -50,7 +50,7 @@ import {
   cameraRangePathsForSegment,
   type CameraRangePathCommand,
 } from './cameraCueGeometry'
-import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, textFontDeclaration } from './textMetrics'
+import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, textFontDeclaration } from './textMetrics'
 import {
   timelineMemoAnchorCellForPage,
   timelineMemoAnchorMarkerRect,
@@ -701,9 +701,14 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
       ctx.fillStyle = 'rgba(238, 247, 242, 0.78)'
       ctx.fillRect(x + 1, y + 1, w - 2, h - 2)
       if (item.kind === 'cell') {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(x, offsetY, w, context.pageSize.heightPx)
+        ctx.clip()
         ctx.fillStyle = '#113c2d'
-        ctx.font = fontDeclaration(item.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_EVENT_FONT_WEIGHT)
-        ctx.fillText(item.text, x + w / 2, y + h / 2)
+        ctx.font = fontDeclaration(item.textLayout.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_EVENT_FONT_WEIGHT)
+        ctx.fillText(item.textLayout.text, x + w / 2, y + h / 2)
+        ctx.restore()
       } else {
         drawTimingEventSymbol(ctx, context, offsetY, item.kind, item.rect)
       }
@@ -1493,6 +1498,7 @@ async function waitForSheetExportFonts(): Promise<void> {
       fonts.load(`800 16px "LINE Seed JP"`, sampleText),
     ])
     await fonts.ready
+    sharedTextMeasurementProvider.clear()
   } catch {
     // Font fallback still produces an export; this only avoids racing self-hosted webfonts.
   }

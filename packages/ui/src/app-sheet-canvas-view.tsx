@@ -22,6 +22,8 @@ import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { TimingEventSymbol } from './TimingEventSymbol'
 import { TimingContinuationLayer } from './TimingContinuationLayer'
 import { TimingEventModelLayer } from './TimingEventModelLayer'
+import { TimingCellText } from './TimingCellText'
+import { sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
 import { TimelineLaneEditorPopover } from './TimelineLaneEditorPopover'
 import { PageAnnotationInputSurface } from './PageAnnotationInputSurface'
@@ -167,6 +169,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
   })
   const pageAnnotationCaptureActive = interactionOwner === 'page-annotation'
   const semanticHotspotsBlocked = isDirectAnnotationMode(props.editMode)
+  const selectedTextItem = props.selectedHit?.pageId
+    ? eventRectsByPage.get(props.selectedHit.pageId)?.find(item => item.event.frame === props.selectedHit?.frame
+      && item.event.paperTrack === props.selectedHit.paperTrack && sheetTimingRoleForEvent(item.event) === props.selectedHit.role)
+    : undefined
 
   return (
     <div
@@ -186,6 +192,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       onDragLeave={handleViewportDragLeave}
       onDrop={event => void handleViewportDrop(event)}
     >
+      {props.showInputContent && selectedTextItem?.textLayout.overflow && <div className="timingCellFullLabel" role="status">
+        <span>シート記載：{selectedTextItem.displayLabel}</span>
+      </div>}
       <div ref={pageStackRef} className={`sheetPageStack ${props.sheetView.viewMode}`}>
         {renderWindowState.displayPages.map(page => {
           if (!renderWindowState.mountedPageIds.has(page.pageId)) return <figure
@@ -446,7 +455,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                   {showInputContent && <TimingEventModelLayer items={eventRects} pageSize={sheetPageSize} surface={selectionSurface}
                     dragging={timelineEventDrag?.sourceHit} pending={pendingTimelineEventDrag?.sourceHit} ready={pendingTimelineEventDrag?.ready}>
-                  {eventRects.map(({ event, eventKind, displayLabel, rect, hasAssetBinding, fontSizePx }) => {
+                  {eventRects.map(({ event, eventKind, displayLabel, rect, hasAssetBinding, textLayout }) => {
                     const eventHit = timelineEventHitForPage(event, page)
                     const isDraggingEvent = Boolean(timelineEventDrag && sameSheetHitCell(timelineEventDrag.sourceHit, eventHit))
                     const pendingEventDrag = pendingTimelineEventDrag && sameSheetHitCell(pendingTimelineEventDrag.sourceHit, eventHit)
@@ -469,22 +478,12 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                         onPointerUp={handleTimelineEventPointerUp}
                         onPointerCancel={handleTimelineEventPointerCancel}
                       >
+                        {textLayout.overflow && <title>{displayLabel}</title>}
                         <rect className={hasAssetBinding ? 'eventRect assetAssignedEventRect' : 'eventRect'} x={rect.x} y={rect.y} width={rect.w} height={rect.h} rx="0.002" />
                         {hasAssetBinding && <AssetAssignedFrameCue rect={rect} surface={selectionSurface} />}
                         {eventKind === 'cell' && displayLabel.trim()
                           && (
-                            <SheetSvgText
-                              className="eventText"
-                              x={rect.x + rect.w / 2}
-                              y={rect.y + rect.h / 2}
-                              textAnchor="middle"
-                              dominantBaseline="central"
-                              alignmentBaseline="central"
-                              fontSizePx={clampTextFontSizePx(fontSizePx)}
-                              pageSize={sheetPageSize}
-                            >
-                              {displayLabel}
-                            </SheetSvgText>
+                            <TimingCellText layout={textLayout} rect={rect} pageSize={sheetPageSize} />
                         )}
                         {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} />}
                       </g>

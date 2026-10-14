@@ -880,6 +880,26 @@
   padding: 10px 12px;
 }
 
+.nameNormalizationKind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 0;
+  font-weight: 700;
+}
+
+.nameNormalizationTable.sheetLabelNormalizationTable {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.nameNormalizationTable.sheetLabelNormalizationTable th,
+.nameNormalizationTable.sheetLabelNormalizationTable td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .nameNormalizationControls label {
   display: inline-flex;
   gap: 6px;

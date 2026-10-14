@@ -41,7 +41,8 @@ import {
 } from '@xsheet-remap/core'
 import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } from './templateEditorGeometry'
 import { overlayBandSegments as buildOverlayBandSegments, overlayVisibleSnapIndex, type OverlayBandSegment } from './app-sheet-geometry'
-import { resolveTimingTextFontSizePx } from './sheetTextLayout'
+import { defaultTimingTextMinFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout'
+import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
 import { STACK_GUIDE_MAX_LANE, overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
@@ -85,6 +86,7 @@ export type SheetInputTextRenderItem = {
   text: string
   fontSizePx: number
   rect: NormalizedRect
+  textLayout: TimingCellTextLayout
 }
 
 export type SheetContinuationRenderItem = {
@@ -269,14 +271,17 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
       ? overlayCellRectForFrame(context, track, event.frame, page)
       : standardEventRectForPage(context, event, page)
     if (!rect) return []
+    const text = kind === 'cell' ? key?.displayLabel ?? '' : ''
+    const fontSizePx = resolveTimingTextFontSizePx(context.template, sheetRole, event.fontSizePx)
     return [{
       eventId: event.eventId,
       keyId: event.keyId,
       paperTrack: event.paperTrack,
       frame: event.frame,
       kind,
-      text: kind === 'cell' ? key?.displayLabel ?? '' : '',
-      fontSizePx: resolveTimingTextFontSizePx(context.template, sheetRole, event.fontSizePx),
+      text,
+      fontSizePx,
+      textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize),
       rect,
     }]
   })

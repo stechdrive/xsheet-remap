@@ -1,4 +1,5 @@
 import { isCompositionKey } from './compositionKeyboard'
+import { applySheetLabelNormalizationPlan, type SheetLabelNormalizationPlan } from '@xsheet-remap/core'
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
@@ -1333,7 +1334,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     else setSelectionFromHit(targetHit, moved.project)
   }
 
-  async function handleApplyNameNormalization(plan: NameNormalizationPlan) {
+  async function handleApplyNameNormalization(plan: NameNormalizationPlan | SheetLabelNormalizationPlan) {
+    if ('kind' in plan) {
+      commitProject(applySheetLabelNormalizationPlan(projectRef.current, plan))
+      return
+    }
     const renameResults = plan.options.includeAssetFiles
       ? await renameMaterialFiles(plan.assetRenames)
       : []

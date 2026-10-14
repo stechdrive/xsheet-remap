@@ -1,6 +1,7 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { buildNameNormalizationPlan, type CutProject, type NameNormalizationOptions, type NameNormalizationPlan, type SheetHit, type SheetTemplate } from '@xsheet-remap/core'
+import { buildNameNormalizationPlan, type CutProject, type NameNormalizationOptions, type NameNormalizationPlan, type SheetLabelNormalizationPlan, type SheetHit, type SheetTemplate } from '@xsheet-remap/core'
+import { SheetLabelNormalizationDialog } from './SheetLabelNormalizationDialog'
 import { uiText } from './i18n'
 import { type SheetRangeSelection } from './appTypes'
 import { hasPaperSheetImages, type SheetImageExportOptions } from './cleanSheetExport'
@@ -100,21 +101,38 @@ function frameOperationRoleLabel(role: FrameOperationDialogState['role']): strin
   return uiText.sheetRoles[role]
 }
 
-export function NameNormalizationDialog({
+export type NameNormalizationDialogProps = {
+  project: CutProject
+  selectedKeyId: string | null
+  selectedHit: SheetHit | null
+  rangeSelection: SheetRangeSelection | null
+  onClose: () => void
+  onApply: (plan: NameNormalizationPlan | SheetLabelNormalizationPlan) => Promise<void>
+}
+
+export function NameNormalizationDialog(props: NameNormalizationDialogProps) {
+  const [kind, setKind] = useState('csp')
+  const modeControl = <label className="nameNormalizationKind">
+    {uiText.nameNormalization.nameKind}
+    <select value={kind} onChange={event => setKind(event.currentTarget.value)}>
+      <option value="csp">{uiText.nameNormalization.cspKind}</option>
+      <option value="sheet">{uiText.nameNormalization.sheetKind}</option>
+    </select>
+  </label>
+  return kind === 'sheet'
+    ? <SheetLabelNormalizationDialog {...props} modeControl={modeControl} />
+    : <CspNameNormalizationDialog {...props} modeControl={modeControl} />
+}
+
+function CspNameNormalizationDialog({
   project,
   selectedKeyId,
   selectedHit,
   rangeSelection,
   onClose,
   onApply,
-}: {
-  project: CutProject
-  selectedKeyId: string | null
-  selectedHit: SheetHit | null
-  rangeSelection: SheetRangeSelection | null
-  onClose: () => void
-  onApply: (plan: NameNormalizationPlan) => Promise<void>
-}) {
+  modeControl,
+}: NameNormalizationDialogProps & { modeControl: ReactNode }) {
   const [target, setTarget] = useState<NameNormalizationTarget>(defaultNameNormalizationTarget)
   const [correctionLayerId, setCorrectionLayerId] = useState('')
   const [includeAssetFiles, setIncludeAssetFiles] = useState(true)
@@ -150,6 +168,7 @@ export function NameNormalizationDialog({
           <button onClick={onClose}>{uiText.nameNormalization.cancel}</button>
         </header>
         <div className="nameNormalizationBody">
+          {modeControl}
           <p className="nameNormalizationDescription">{uiText.nameNormalization.description}</p>
           <div className="nameNormalizationControls">
             <label>

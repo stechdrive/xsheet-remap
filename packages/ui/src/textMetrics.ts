@@ -43,9 +43,10 @@ export function splitTextGraphemes(value: string, locale = 'ja'): string[] {
 export function createCanvasTextMeasurementProvider(
   resolveContext: () => CanvasMeasurementContext | null,
   cacheLimit = DEFAULT_CACHE_LIMIT,
-): TextMeasurementProvider {
+): TextMeasurementProvider & { clear: () => void } {
   const cache = new Map<string, MeasuredTextMetrics>()
   return {
+    clear: () => cache.clear(),
     measure(text, font) {
       const normalizedFont = normalizeFont(font)
       const key = measurementCacheKey(text, normalizedFont)

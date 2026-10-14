@@ -542,3 +542,4 @@ export {
   type CspLayerTreeStage,
   type CspLayerTreeTrack,
 } from './csp-layer-tree'
+export { buildSheetLabelNormalizationPlan, applySheetLabelNormalizationPlan, type SheetLabelNormalizationOptions, type SheetLabelNormalizationPlan } from './sheet-label-normalization'

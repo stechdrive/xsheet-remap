@@ -2,8 +2,7 @@ import { timelineMemos, type CutProject, type SheetPage, type SheetTemplate } fr
 import { MetadataTextLayer } from './app-sheet-layers'
 import type { SheetEventRectRenderItem } from './sheet-layers-hit-geometry'
 import type { SheetContinuationRenderItem, SheetRenderModelContext } from './sheetRenderModel'
-import { SheetSvgText } from './SheetSvgText'
-import { clampTextFontSizePx } from './sheetTextLayout'
+import { TimingCellText } from './TimingCellText'
 import { SoundCueLayer } from './SoundCueLayer'
 import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
@@ -85,22 +84,11 @@ export function SheetRevisionReferenceLayer({
         onPointerEnter={noop}
         onPointerLeave={noop}
       />
-      {events.map(({ event, eventKind, displayLabel, rect, fontSizePx }) => (
+      {events.map(({ event, eventKind, displayLabel, rect, textLayout }) => (
         <g key={event.eventId}>
           <rect className="sheetRevisionReferenceEvent" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
           {displayLabel.trim() && (
-            <SheetSvgText
-              className="sheetRevisionReferenceText"
-              x={rect.x + rect.w / 2}
-              y={rect.y + rect.h / 2}
-              textAnchor="middle"
-              dominantBaseline="central"
-              alignmentBaseline="central"
-              fontSizePx={clampTextFontSizePx(fontSizePx)}
-              pageSize={pageSize}
-            >
-              {displayLabel}
-            </SheetSvgText>
+            <TimingCellText className="sheetRevisionReferenceText" layout={textLayout} rect={rect} pageSize={pageSize} />
           )}
           {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} />}
         </g>

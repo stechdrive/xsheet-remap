@@ -9,6 +9,7 @@ import { applySceneFilters, fontRangeIncludes, intersectSceneRects, scenePixelRa
 import type { CanvasKitFonts } from './canvasKitRuntime'
 import { CanvasKitPictureCache } from './canvasKitPictureCache'
 import { compileDirectPaperModel, type DirectPaperModel, type PaperStyle } from './canvasKitDirectModel'
+import { layoutCutHeaderText } from './cutHeaderTextLayout'
 
 const require = createRequire(import.meta.url)
 let kit: CanvasKit
@@ -45,6 +46,28 @@ function render(scene: CanvasKitScene, cache?: CanvasKitPictureCache): Uint8Arra
 }
 
 describe('real CanvasKit paper paint', () => {
+  it('paints enlarged main and shared cut numbers in distinct rows without clipping ink', () => {
+    const style = { fontSizePx: 48, minFontSizePx: 12, lineHeightPx: 64, paddingPx: 4, fontWeight: 400,
+      horizontalAlign: 'center', verticalAlign: 'middle', shrinkToFit: true, overflowX: 'clip', overflowY: 'clip' } as const
+    const texts = ['001', '[002・003]']
+    const items = layoutCutHeaderText([{ text: texts[0], style }, { text: texts[1], style: { ...style, fontSizePx: 12, minFontSizePx: 7, lineHeightPx: 14 } }],
+      { x: 0, y: 0, w: 1, h: 1 }, { widthPx: 160, heightPx: 60 }, { measure: (text, font) => ({
+        widthPx: text.length * font.sizePx * .7, ascentPx: font.sizePx * .95, descentPx: font.sizePx * .3, exact: false,
+      }) })
+    const bounds = items.map((item, index) => {
+      const textNode = node({ paint: { ...node().paint, fill: '#000', stroke: 'none' },
+        text: { value: texts[index].replace('・', ','), x: item.x * 160, y: item.y * 60, size: item.fontSizePx, weight: 400,
+          italic: false, anchor: 'middle', baseline: item.dominantBaseline, letterSpacing: 0 },
+        clips: [{ shape: { kind: 'rect', rect: { x: 0, y: item.rect.y * 60, width: 160, height: item.rect.h * 60 }, rx: 0, ry: 0 }, matrix: [1, 0, 0, 1, 0, 0] }],
+      })
+      const pixels = render({ width: 160, height: 60, nodes: [textNode] })
+      expect(pixels).toEqual(render({ width: 160, height: 60, nodes: [{ ...textNode, clips: [] }] }))
+      const ys = Array.from({ length: 160 * 60 }, (_, pixel) => pixels[pixel * 4 + 3] > 0 ? Math.floor(pixel / 160) : -1).filter(y => y >= 0)
+      expect(ys.length).toBeGreaterThan(20)
+      return { top: Math.min(...ys), bottom: Math.max(...ys) }
+    })
+    expect(bounds[1].top).toBeGreaterThan(bounds[0].bottom)
+  })
   it('clips direct timing text to its column in actual pixels without leaking into neighboring columns', () => {
     const style: PaperStyle = { paint: { ...node().paint, fill: '#113c2d', stroke: 'none' }, opacity: 1, visible: true,
       family: 'test', weight: 400, italic: false, spacing: 0, baseline: 'central' }

@@ -639,7 +639,7 @@ function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
       ctx.textAlign = item.textAnchor === 'start' ? 'left' : item.textAnchor === 'end' ? 'right' : 'center'
       ctx.textBaseline = item.dominantBaseline === 'hanging' || item.dominantBaseline === 'text-before-edge'
         ? 'top'
-        : item.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
+        : item.dominantBaseline === 'text-after-edge' ? 'bottom' : item.dominantBaseline === 'alphabetic' ? 'alphabetic' : 'middle'
       for (const line of positionMultilineTextLines(
         item.lines,
         item.x * context.pageSize.widthPx,

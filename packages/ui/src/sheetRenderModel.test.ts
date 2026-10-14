@@ -465,7 +465,7 @@ describe('sheet render model', () => {
       text: '[002・003]',
       lines: ['[002・003]'],
     })
-    expect(visibleCut?.dominantBaseline).toBe('hanging')
+    expect(visibleCut?.dominantBaseline).toBe('alphabetic')
 
     const hiddenProject = {
       ...project,
@@ -510,7 +510,7 @@ describe('sheet render model', () => {
     expect(shared?.lines.flatMap(line => line.match(/\d+/g) ?? [])).toEqual(['002', '003', '004', '005', '006', '007'])
   })
 
-  it('uses measured glyph widths for shared-cut wrapping and allows vertical overflow only to the page edge', () => {
+  it('uses measured glyph widths for shared-cut wrapping and bounds overflowing shared-cut lists to the allocated field', () => {
     const base = createDefaultProject()
     const project = {
       ...base,
@@ -553,11 +553,11 @@ describe('sheet render model', () => {
     }).widthPx <= fieldWidthPx)).toBe(true)
     expect(shared).toMatchObject({
       overflow: true,
-      clipRect: { x: shared!.rect.x, y: 0, w: shared!.rect.w, h: 1 },
+      clipRect: shared!.rect,
     })
   })
 
-  it('falls back to the lower half of the CUT field when no shared-cut region is defined', () => {
+  it('allocates shared-cut text inside the CUT field when no shared-cut region is defined', () => {
     const base = createDefaultProject()
     const project = {
       ...base,
@@ -586,7 +586,7 @@ describe('sheet render model', () => {
     expect(shared).toMatchObject({ text: '[002]', lines: ['[002]'] })
     expect(shared?.regionId).toBe('top_cut_field__shared_cut_numbers')
     expect(shared?.rect.y).toBeGreaterThan(cut?.rect.y ?? 0)
-    expect(cut?.dominantBaseline).toBe('hanging')
+    expect(cut?.dominantBaseline).toBe('alphabetic')
   })
 })
 

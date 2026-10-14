@@ -19,7 +19,6 @@ import {
   resolveSheetTemplateTextStyle,
   resolveSheetFormFieldValue,
   sheetGridCellRect,
-  sheetTemplateLengthForReferencePx,
   sheetFormFieldsForScope,
   sheetFormFieldValueText,
   sheetTimingRoleForEvent,
@@ -46,6 +45,7 @@ import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTex
 import { STACK_GUIDE_MAX_LANE, overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
+import { cutHeaderRenderItems } from './cutHeaderRenderItems'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
 import { sheetFrameRangeForWindow } from './sheetRenderWindowGeometry'
 
@@ -114,7 +114,7 @@ export type SheetMetadataTextRenderItem = {
   x: number
   y: number
   textAnchor: 'start' | 'middle' | 'end'
-  dominantBaseline: 'hanging' | 'central' | 'text-after-edge' | 'text-before-edge'
+  dominantBaseline: 'hanging' | 'central' | 'text-after-edge' | 'text-before-edge' | 'alphabetic'
   fontSizePx: number
   fontWeight: number
   overflow: boolean
@@ -416,116 +416,29 @@ export function metadataTextRenderItemsForPage(
   measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
 ): SheetMetadataTextRenderItem[] {
   const sharedLabels = sharedCutNumberLabels(context)
-  const sharedCutNumbersVisible = sharedLabels.length > 0
-  const explicitSharedCutRegion = context.template.regions.some(region =>
-    region.type === 'metadata-field'
-    && resolveSheetTemplateRegionCapabilities(region).rendered
-    && region.binding?.target === 'cut-group'
-    && region.binding.field === 'shared-cut-numbers',
-  )
-  const items = [
-    ...context.template.regions.flatMap(region => metadataTextRenderItemsForRegion(
-    context,
-    page,
-    region,
-    sharedLabels,
-    sharedCutNumbersVisible,
-    undefined,
-    measurement,
-    )),
-    ...formFieldTextRenderItems(context, page, sharedCutNumbersVisible, measurement),
-  ]
-  if (!sharedCutNumbersVisible || explicitSharedCutRegion) return items
-
-  const cutRegion = context.template.regions.find(region =>
-    region.type === 'metadata-field'
-    && resolveSheetTemplateRegionCapabilities(region).rendered
-    && region.binding?.target === 'cut-metadata'
-    && region.binding.field === 'cut',
-  )
-  const cutFormField = buildTemplateChromeRenderModel(
-    context.template,
-    context.paperTracks,
-    context.displayDurationFrames,
+  const formFields = buildTemplateChromeRenderModel(
+    context.template, context.paperTracks, context.displayDurationFrames,
     { timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
-  ).formFields.find(field => field.definition.builtinBinding?.field === 'cut')
-  if (!cutRegion && !cutFormField) return items
-  const cutRect = cutRegion
-    ? resolveSheetTemplateRegionRect(
-        context.template,
-        cutRegion,
-        context.displayDurationFrames,
-        { paperTracks: context.paperTracks, timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
-      )
-    : cutFormField!.rect
-  const fallbackRegion: SheetTemplate['regions'][number] = {
-    regionId: `${cutRegion?.regionId ?? cutFormField!.key}__shared_cut_numbers`,
-    type: 'metadata-field',
-    label: '兼用カット',
-    rect: {
-      x: cutRect.x,
-      y: cutRect.y + cutRect.h * 0.48,
-      w: cutRect.w,
-      h: cutRect.h * 0.52,
-    },
-    usage: 'render-only',
-    inputKind: 'text',
-    binding: {
-      target: 'cut-group',
-      field: 'shared-cut-numbers',
-      opening: '[',
-      closing: ']',
-      separator: '・',
-    },
-    textStyle: {
-      fontSize: sheetTemplateLengthForReferencePx(context.template, 12),
-      minFontSize: sheetTemplateLengthForReferencePx(context.template, 7),
-      lineHeight: sheetTemplateLengthForReferencePx(context.template, 14),
-      fontWeight: 700,
-      horizontalAlign: 'center',
-      verticalAlign: 'top',
-      padding: sheetTemplateLengthForReferencePx(context.template, 2, 'spacing'),
-      shrinkToFit: true,
-      overflowY: 'visible',
-    },
-  }
+  ).formFields
+  const hasShared = sharedLabels.length > 0
   return [
-    ...items,
-    ...metadataTextRenderItemsForRegion(
-      context,
-      page,
-      fallbackRegion,
-      sharedLabels,
-      sharedCutNumbersVisible,
-      fallbackRegion.rect,
-      measurement,
-    ),
+    ...context.template.regions.flatMap(region => hasShared && region.binding?.target === 'cut-metadata' && region.binding.field === 'cut'
+      ? [] : metadataTextRenderItemsForRegion(context, page, region, measurement)),
+    ...formFieldTextRenderItems(context, page, hasShared ? formFields.filter(field => field.definition.builtinBinding?.field !== 'cut') : formFields, measurement),
+    ...(hasShared ? cutHeaderRenderItems(context, sharedLabels, formFields, measurement) : []),
   ]
 }
 
 function formFieldTextRenderItems(
   context: SheetRenderModelContext,
   page: SheetPage,
-  sharedCutNumbersVisible: boolean,
+  fields: TemplateFormFieldRenderModel[],
   measurement: TextMeasurementProvider,
 ): SheetMetadataTextRenderItem[] {
-  const chrome = buildTemplateChromeRenderModel(
-    context.template,
-    context.paperTracks,
-    context.displayDurationFrames,
-    { timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
-  )
-  return chrome.formFields.flatMap(field => {
+  return fields.flatMap(field => {
     const text = formFieldText(context, field, page)
     if (!text) return []
-    const style = field.definition.builtinBinding?.field === 'cut' && sharedCutNumbersVisible
-      ? {
-          ...field.textStyle,
-          verticalAlign: 'top' as const,
-          padding: sheetTemplateLengthForReferencePx(context.template, 4, 'spacing'),
-        }
-      : field.textStyle
-    const resolvedStyle = resolveSheetTemplateTextStyle(context.template, context.pageSize, style, { fontWeight: 700 })
+    const resolvedStyle = resolveSheetTemplateTextStyle(context.template, context.pageSize, field.textStyle, { fontWeight: 700 })
     const paddingPx = resolvedStyle.paddingPx
     const horizontalAlign = resolvedStyle.horizontalAlign
     const verticalAlign = resolvedStyle.verticalAlign
@@ -595,82 +508,27 @@ function metadataTextRenderItemsForRegion(
   context: SheetRenderModelContext,
   page: SheetPage,
   region: SheetTemplate['regions'][number],
-  sharedLabels: string[],
-  sharedCutNumbersVisible: boolean,
-  resolvedRect?: NormalizedRect,
-  measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
+  measurement: TextMeasurementProvider,
 ): SheetMetadataTextRenderItem[] {
-    if (region.type !== 'metadata-field' || !region.binding || !resolveSheetTemplateRegionCapabilities(region).rendered) return []
-    const sharedCutBinding = region.binding.target === 'cut-group' && region.binding.field === 'shared-cut-numbers'
-      ? region.binding
-      : null
-    const isSharedCutNumbers = sharedCutBinding !== null
-    const opening = sharedCutBinding?.opening ?? '['
-    const closing = sharedCutBinding?.closing ?? ']'
-    const separator = sharedCutBinding?.separator ?? '・'
-    const text = region.binding.target === 'cut-metadata'
-      ? metadataFieldText(context, page, region.binding.field, region.binding.customKey)
-      : isSharedCutNumbers
-        ? sharedCutNumbersText(sharedLabels, opening, closing, separator)
-        : ''
+    if (region.type !== 'metadata-field' || region.binding?.target !== 'cut-metadata' || !resolveSheetTemplateRegionCapabilities(region).rendered) return []
+    const field = region.binding.field
+    const text = metadataFieldText(context, page, field, region.binding.customKey)
     if (!text) return []
-    const field = region.binding.target === 'cut-metadata' || region.binding.target === 'cut-group'
-      ? region.binding.field
-      : ''
-    const rect = resolvedRect ?? resolveSheetTemplateRegionRect(
-      context.template,
-      region,
-      context.displayDurationFrames,
+    const rect = resolveSheetTemplateRegionRect(
+      context.template, region, context.displayDurationFrames,
       { paperTracks: context.paperTracks, timelineLanes: context.timelineLanes, layoutOverrides: context.project.sheetView.layoutOverrides },
     )
-    const sharedCutNumberCutStyle = sharedCutNumbersVisible
-      && region.binding.target === 'cut-metadata'
-      && region.binding.field === 'cut'
-      ? region.textStyleVariants?.sharedCutNumbersVisible ?? {
-          verticalAlign: 'top' as const,
-          padding: sheetTemplateLengthForReferencePx(context.template, 5, 'spacing'),
-        }
-      : {}
-    const style = {
-      ...(region.textStyle ?? {}),
-      ...sharedCutNumberCutStyle,
-    }
-    const resolvedStyle = resolveSheetTemplateTextStyle(context.template, context.pageSize, style, {
-      fontSizePx: isSharedCutNumbers ? 12 : 22,
-      minFontSizePx: isSharedCutNumbers ? 7 : 10,
-      paddingPx: 8,
-      fontWeight: 700,
+    const resolvedStyle = resolveSheetTemplateTextStyle(context.template, context.pageSize, region.textStyle, {
+      fontSizePx: 22, minFontSizePx: 10, paddingPx: 8, fontWeight: 700,
     })
     const paddingPx = resolvedStyle.paddingPx
     const horizontalAlign = resolvedStyle.horizontalAlign
     const verticalAlign = resolvedStyle.verticalAlign
-    const fontSizePx = isSharedCutNumbers
-      ? sharedCutNumbersFontSizePx(sharedLabels, rect, context.pageSize, {
-          fontSizePx: resolvedStyle.fontSizePx,
-          minFontSizePx: resolvedStyle.minFontSizePx,
-          paddingPx,
-          shrinkToFit: resolvedStyle.shrinkToFit,
-          opening,
-          closing,
-          fontWeight: resolvedStyle.fontWeight,
-        }, measurement)
-      : metadataFontSizePx(text, rect, context.pageSize, {
-      fontSizePx: resolvedStyle.fontSizePx,
-      minFontSizePx: resolvedStyle.minFontSizePx,
-      paddingPx,
-      shrinkToFit: resolvedStyle.shrinkToFit,
-      fontWeight: resolvedStyle.fontWeight,
+    const fontSizePx = metadataFontSizePx(text, rect, context.pageSize, {
+      fontSizePx: resolvedStyle.fontSizePx, minFontSizePx: resolvedStyle.minFontSizePx, paddingPx,
+      shrinkToFit: resolvedStyle.shrinkToFit, fontWeight: resolvedStyle.fontWeight,
     }, measurement)
-    const lines = isSharedCutNumbers
-      ? wrapSharedCutNumberLines(sharedLabels, {
-          availableWidthPx: Math.max(1, rect.w * context.pageSize.widthPx - paddingPx * 2),
-          fontSizePx,
-          opening,
-          closing,
-          separator,
-          fontWeight: resolvedStyle.fontWeight,
-        }, measurement)
-      : [text]
+    const lines = [text]
     const paddingX = paddingPx / context.pageSize.widthPx
     const paddingY = paddingPx / context.pageSize.heightPx
     return [{
@@ -712,10 +570,6 @@ function sharedCutNumberLabels(context: SheetRenderModelContext): string[] {
     })
 }
 
-function sharedCutNumbersText(labels: string[], opening: string, closing: string, separator: string): string {
-  return labels.length > 0 ? `${opening}${labels.join(separator)}${closing}` : ''
-}
-
 function metadataFieldText(
   context: SheetRenderModelContext,
   page: SheetPage,
@@ -749,67 +603,6 @@ function metadataFontSizePx(
   const measuredWidth = measurement.measure(text, metadataFont(heightLimited, options.fontWeight)).widthPx
   const widthLimited = measuredWidth > 0 ? heightLimited * availableWidth / measuredWidth : heightLimited
   return Math.max(Math.min(options.minFontSizePx, heightLimited), Math.min(heightLimited, widthLimited))
-}
-
-function sharedCutNumbersFontSizePx(
-  labels: string[],
-  rect: NormalizedRect,
-  pageSize: { widthPx: number; heightPx: number },
-  options: {
-    fontSizePx: number
-    minFontSizePx: number
-    paddingPx: number
-    shrinkToFit: boolean
-    opening: string
-    closing: string
-    fontWeight: number
-  },
-  measurement: TextMeasurementProvider,
-): number {
-  const availableWidth = Math.max(1, rect.w * pageSize.widthPx - options.paddingPx * 2)
-  const availableHeight = Math.max(1, rect.h * pageSize.heightPx - options.paddingPx * 2)
-  const requested = Math.max(1, options.fontSizePx)
-  const heightLimited = Math.min(requested, availableHeight)
-  if (!options.shrinkToFit) return heightLimited
-  const font = metadataFont(heightLimited, options.fontWeight)
-  const widestAtomicWidth = labels.reduce(
-    (widest, label) => Math.max(widest, measurement.measure(`${options.opening}${label}${options.closing}`, font).widthPx),
-    0,
-  )
-  const widthLimited = widestAtomicWidth > 0 ? heightLimited * availableWidth / widestAtomicWidth : heightLimited
-  return Math.max(Math.min(options.minFontSizePx, heightLimited), Math.min(heightLimited, widthLimited))
-}
-
-function wrapSharedCutNumberLines(
-  labels: string[],
-  options: {
-    availableWidthPx: number
-    fontSizePx: number
-    opening: string
-    closing: string
-    separator: string
-    fontWeight: number
-  },
-  measurement: TextMeasurementProvider,
-): string[] {
-  if (labels.length === 0) return []
-  const groups: string[][] = []
-  let current: string[] = []
-  for (let index = 0; index < labels.length; index += 1) {
-    const candidate = [...current, labels[index]]
-    const candidateText = `${groups.length === 0 ? options.opening : ''}${candidate.join(options.separator)}${index === labels.length - 1 ? options.closing : ''}`
-    const candidateWidthPx = measurement.measure(candidateText, metadataFont(options.fontSizePx, options.fontWeight)).widthPx
-    if (current.length === 0 || candidateWidthPx <= options.availableWidthPx) {
-      current = candidate
-      continue
-    }
-    groups.push(current)
-    current = [labels[index]]
-  }
-  if (current.length > 0) groups.push(current)
-  return groups.map((group, index) =>
-    `${index === 0 ? options.opening : ''}${group.join(options.separator)}${index === groups.length - 1 ? options.closing : ''}`,
-  )
 }
 
 function metadataFont(fontSizePx: number, fontWeight: number) {

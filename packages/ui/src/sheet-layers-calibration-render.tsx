@@ -11,6 +11,7 @@ import { sheetSvgTextX, sheetSvgTextY } from './sheetSvgTextGeometry'
 import { GridOverlayLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { AutoCalibrationOverlayState, CalibrationGuideMetrics, CalibrationPointKind } from './app-foundation'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
+import { useSheetTextMetricsRevision } from './useSheetTextMetricsRevision'
 
 export function AutoCalibrationGuideOverlay({
   overlay,
@@ -166,6 +167,7 @@ export const GridOverlay = memo(function GridOverlay({
 })
 
 export const MetadataTextLayer = memo(function MetadataTextLayer({ context, page }: { context: SheetRenderModelContext; page: SheetPage }) {
+  useSheetTextMetricsRevision()
   const items = metadataTextRenderItemsForPage(context, page)
   const clipPrefix = useId().replace(/:/g, '')
   if (items.length === 0) return null
@@ -186,7 +188,7 @@ export const MetadataTextLayer = memo(function MetadataTextLayer({ context, page
           data-text-overflow={item.overflow ? 'true' : 'false'}
           clipPath={`url(#${clipPrefix}-${itemIndex})`}
         >
-          {item.overflow && <title>文字が欄内に収まりません。</title>}
+          {item.overflow && <title>{item.text}</title>}
           <SheetSvgText
             className="metadataFieldText"
             data-region-id={item.regionId}
@@ -197,6 +199,7 @@ export const MetadataTextLayer = memo(function MetadataTextLayer({ context, page
             fontSizePx={item.fontSizePx}
             pageSize={context.pageSize}
             fontWeight={item.fontWeight}
+            style={{ fontWeight: item.fontWeight }}
           >
             <SvgMultilineTspans
               lines={item.lines}

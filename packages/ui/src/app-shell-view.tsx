@@ -563,6 +563,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <SheetImageExportDialog
           project={project}
           template={template}
+          cutGroup={{ activeCutId: projectDocumentSnapshot.activeCutId, cuts: projectCuts }}
           initialOptions={sheetImageExportDraft}
           onClose={() => setSheetImageExportDraft(null)}
           onExport={handleSaveSheetImageExport}

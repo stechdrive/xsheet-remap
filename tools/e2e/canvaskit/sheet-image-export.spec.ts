@@ -9,16 +9,17 @@ import {
 } from '../../../packages/core/src/index'
 import { encodeProjectArchive } from '../../../packages/adapters/src/projectArchive'
 
-for (const source of ['digital', 'paper'] as const) {
+for (const source of ['digital', 'paper', 'extra-lanes'] as const) {
   test(`PSD grid and numbers stay aligned after adding digital columns (${source} project)`, async ({ page }, info) => {
     const template = digitalStandardSheetTemplate
-    let project = source === 'digital' ? createProjectFromTemplate(template) : reprojectProjectToTemplate(createDefaultProject(), template)
+    let project = source === 'paper' ? reprojectProjectToTemplate(createDefaultProject(), template) : createProjectFromTemplate(template)
+    const initialSize = resolveSheetTemplatePageSize(template, undefined, projectSheetLayoutOptions(project, template))
     project = updateLogicalSheetSettings(project, { durationFrames: 48 })
     while (project.logicalSheet.paperTracks.length < 12) {
       project = addOverlayPaperTrack(project, { insertAfterPaperTrack: project.logicalSheet.paperTracks.at(-1)!.paperTrack }).project
     }
     // SOUND/CAMERA also affect the sheet's total width and every normalized X coordinate.
-    if (source === 'digital') {
+    if (source === 'extra-lanes') {
       project = addTimelineLane(project, { role: 'sound' }).project
       project = addTimelineLane(project, { role: 'camera' }).project
     }
@@ -46,6 +47,7 @@ for (const source of ['digital', 'paper'] as const) {
     const options = projectSheetLayoutOptions(project, template)
     const size = resolveSheetTemplatePageSize(template, options.durationFrames, options)
     expect([image.width, image.height]).toEqual([size.widthPx, size.heightPx])
+    expect(image.width).toBeGreaterThan(initialSize.widthPx)
 
     for (const role of ['action', 'cell'] as const) {
       const region = template.regions.find(item => item.grid?.role === role)!

@@ -266,6 +266,7 @@ it('validates and applies a sheet template loaded from the import menu', async (
     fireEvent.change(input!, { target: { files: [new File([JSON.stringify(importedTemplate)], 'template.json', { type: 'application/json' })] } })
 
     await waitFor(() => expect(confirm).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByLabelText(uiText.nav.menu).closest('details')?.open).toBe(false))
     selectAppPanel(uiText.nav.template)
     selectTemplateInspector('template')
     await waitFor(() => expect((screen.getByLabelText(uiText.template.name) as HTMLInputElement).value).toBe('読込テストテンプレート'))

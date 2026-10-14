@@ -13,7 +13,7 @@ import { eventRectsForPages, type SheetEventGeometryCache } from './sheet-layers
 import type { SheetRenderWindow } from './useSheetRenderWindow'
 import { sheetFrameRangeForWindow } from './sheetRenderWindowGeometry'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
-import { continuationRenderItemsForPages, type SheetRenderModelContext } from './sheetRenderModel'
+import { continuationRenderItemsForPages, referenceOnlyRenderItemsForPage, type SheetRenderModelContext } from './sheetRenderModel'
 import {
   indexSheetPageMemosByPage,
   pageMemoCanvasRenderItemsForIndexedPage,
@@ -70,6 +70,10 @@ export function useSheetCanvasRenderCaches({
   const continuationItemsByPage = useMemo(
     () => continuationRenderItemsForPages(renderContext, visiblePages, renderWindow),
     [renderContext, visiblePages, renderWindow],
+  )
+  const referenceOnlyItemsByPage = useMemo(
+    () => new Map(visiblePages.map(page => [page.pageId, referenceOnlyRenderItemsForPage(renderContext, page, frameRange)])),
+    [renderContext, visiblePages, frameRange],
   )
   const referenceEventRectsByPage = useMemo(
     () => referenceProject
@@ -186,6 +190,7 @@ export function useSheetCanvasRenderCaches({
   return {
     visiblePages,
     eventRectsByPage,
+    referenceOnlyItemsByPage,
     continuationItemsByPage,
     referenceEventRectsByPage,
     referenceContinuationItemsByPage,

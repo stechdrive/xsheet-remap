@@ -2274,7 +2274,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera' || timelineMemoContext || soundContext || cameraContext)
   const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
   const timelineMemoItemCount = (contextMenu?.timelineMemoIds?.length ?? 0) * 2
-  const sheetContextMenuItemCount = (timedRangeContext ? 10 : 17) + timelineMemoItemCount + contextProcessMoveItemCount
+  const sheetContextMenuItemCount = (timedRangeContext ? 10 : 19) + timelineMemoItemCount + contextProcessMoveItemCount
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null

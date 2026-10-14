@@ -135,6 +135,13 @@ export interface TimelineEvent {
   source?: 'manual' | 'recognition' | 'import'
 }
 
+/** Sheet notation attached to one occurrence, independent of registered cels and holds. */
+export interface TimingReferenceMark {
+  paperTrack: PaperTrackName
+  sheetRole: SheetTimingRole
+  frame: FrameIndex
+}
+
 export interface LogicalSheet {
   fps: number
   frameOrigin: number
@@ -145,6 +152,7 @@ export interface LogicalSheet {
   timelineSections: LogicalTimelineSection[]
   keys: TimingKey[]
   events: TimelineEvent[]
+  referenceMarks?: TimingReferenceMark[]
 }
 
 export interface LogicalSheetWorkRange {

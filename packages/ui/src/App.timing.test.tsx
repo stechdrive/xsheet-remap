@@ -30,6 +30,44 @@ function dispatchBatchedPointerClick(target: Element, pointerId: number, clientX
 }
 
 describe('App: sheet timing interactions', () => {
+it('adds an empty reference, preserves it when typing, removes it independently and undoes range notation', () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    const menu = (frame: number, name: string) => {
+      const point = templateFramePoint('cell', 'A', frame)
+      fireEvent.contextMenu(sheet, { clientX: point.x, clientY: point.y })
+      fireEvent.click(screen.getByRole('menuitem', { name }))
+    }
+    menu(1, '参考記号を付加（△）')
+    expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(1)
+    expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(0)
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    enterTimingValue('123')
+    expect(document.querySelector('.eventText')?.textContent).toBe('123')
+    expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(1)
+    menu(1, '参考記号を解除')
+    expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(0)
+    expect(document.querySelector('.eventText')?.textContent).toBe('123')
+    clickTemplateFrame(sheet, 'cell', 'A', 2)
+    fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true })
+    menu(2, '参考記号を付加（△）')
+    expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.redo }))
+    expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(2)
+    fireEvent.keyDown(window, { key: 'Delete' })
+    expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(0)
+    menu(5, '参考記号を付加（△）')
+    const source = templateFramePoint('cell', 'A', 5), target = templateFramePoint('cell', 'A', 8)
+    const handle = document.querySelector('[data-reference-frame="5"]')!
+    fireEvent.pointerDown(handle, { pointerId: 81, pointerType: 'mouse', button: 0, buttons: 1, altKey: true, clientX: source.x, clientY: source.y })
+    fireEvent.pointerMove(handle, { pointerId: 81, pointerType: 'mouse', buttons: 1, altKey: true, clientX: target.x, clientY: target.y })
+    fireEvent.pointerUp(handle, { pointerId: 81, pointerType: 'mouse', button: 0, buttons: 0, altKey: true, clientX: target.x, clientY: target.y })
+    expect(document.querySelector('[data-reference-frame="5"]')).toBeNull()
+    expect(document.querySelector('[data-reference-frame="8"]')).toBeTruthy()
+  })
 it('uses the floating memo palette as the single ink/text entry and locks a selected frame target', async () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)

@@ -12,12 +12,15 @@ export type TimingEventSymbolGeometry = {
 export function timingEventSymbolGeometry(
   kind: Exclude<TimelineEventValueKind, 'cell'>,
   rect: NormalizedRect,
+  pageSize: { widthPx: number; heightPx: number },
 ): TimingEventSymbolGeometry {
-  const center = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 }
-  const scale = kind === 'blank' ? 0.31 : 0.28
-  const radiusX = rect.w * scale
-  const radiusY = rect.h * scale
-  const strokeWidth = Math.max(0.00055, Math.min(0.0018, Math.min(rect.w, rect.h) * 0.09))
+  const center = { x: (rect.x + rect.w / 2) * pageSize.widthPx, y: (rect.y + rect.h / 2) * pageSize.heightPx }
+  const w = rect.w * pageSize.widthPx, h = rect.h * pageSize.heightPx, short = Math.min(w, h)
+  const strokeWidth = Math.min(1.8, short * .055)
+  // Page pixels, including the pen width, must have the same scale on both axes.
+  const radius = Math.max(0, (short * .45 - strokeWidth) / 2)
+  const radiusX = kind === 'blank' ? w * .31 : radius
+  const radiusY = kind === 'blank' ? h * .31 : radius
   return {
     kind,
     center,
@@ -36,14 +39,17 @@ export function timingEventSymbolGeometry(
 export function TimingEventSymbol({
   kind,
   rect,
+  pageSize,
 }: {
   kind: Exclude<TimelineEventValueKind, 'cell'>
   rect: NormalizedRect
+  pageSize: { widthPx: number; heightPx: number }
 }) {
-  const geometry = timingEventSymbolGeometry(kind, rect)
+  const geometry = timingEventSymbolGeometry(kind, rect, pageSize)
+  const transform = `scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`
   if (kind === 'blank') {
     return (
-      <g className="eventSymbol eventBlankSymbol" aria-hidden="true">
+      <g className="eventSymbol eventBlankSymbol" transform={transform} aria-hidden="true">
         {geometry.lines.map((line, index) => (
           <line key={index} {...line} strokeWidth={geometry.strokeWidth} />
         ))}
@@ -53,6 +59,7 @@ export function TimingEventSymbol({
   return (
     <ellipse
       className={`eventSymbol ${kind === 'reverse' ? 'eventReverseSymbol' : 'eventInbetweenSymbol'}`}
+      transform={transform}
       cx={geometry.center.x}
       cy={geometry.center.y}
       rx={geometry.radiusX}

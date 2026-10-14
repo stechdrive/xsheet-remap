@@ -1111,6 +1111,10 @@
   fill: #113c2d;
 }
 
+.eventReferenceSymbol {
+  stroke-linejoin: round;
+}
+
 .timingContinuationLine {
   fill: none;
   stroke: #113c2d;

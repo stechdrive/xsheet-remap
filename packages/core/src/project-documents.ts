@@ -2,6 +2,7 @@ import type { Annotation, AnnotationStroke, AnnotationText, AssetRoot, CellBindi
 import { parseSheetTemplate, sheetTemplatePresets, standardA3SheetTemplate, type SheetTemplate } from './sheet-template'
 import { normalizeLogicalSheetWorkRange } from './logical-sheet'
 import { migrateAnnotation } from './annotations'
+import { normalizeTimingReferenceMarks } from './timing-reference'
 import { createDefaultSheetViewState, migrateSheetView } from './sheet-view'
 import { withoutUndefined } from './core-utils'
 import { DEFAULT_CSP_CELL_NAME_POLICY, LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION, PROJECT_DOCUMENT_KIND, PROJECT_DOCUMENT_SCHEMA_VERSION, ROOT_ASSET_BIN_ID } from './project-constants'
@@ -442,6 +443,7 @@ export function migrateProject(input: Partial<CutProject> & { annotations?: Anno
       workRange: normalizeLogicalSheetWorkRange(input.logicalSheet?.workRange ?? base.logicalSheet.workRange),
       paperTracks,
       timelineSections: input.logicalSheet?.timelineSections ?? base.logicalSheet.timelineSections,
+      referenceMarks: normalizeTimingReferenceMarks(input.logicalSheet?.referenceMarks, paperTracks),
       keys,
       events: (input.logicalSheet?.events ?? []).map(event => ({
         ...event,
@@ -608,6 +610,7 @@ function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMet
       ...baseProject.logicalSheet,
       durationFrames: baseProject.logicalSheet.durationFrames,
       events: [],
+      referenceMarks: [],
     },
     memos: [],
     timedRangeCues: [],
@@ -652,6 +655,7 @@ function sheetRevisionFromProject(
     paperTracks: project.logicalSheet.paperTracks,
     timelineSections: project.logicalSheet.timelineSections,
     events: project.logicalSheet.events,
+    referenceMarks: project.logicalSheet.referenceMarks,
   }
   return {
     revisionId,
@@ -901,7 +905,7 @@ function blankRevisionFromSource(source: SheetRevisionDocument, revisionId: stri
     ...duplicateRevisionFromSource(source, revisionId, order, name),
     sheetFields: {},
     pageFields: {},
-    logicalSheet: { ...cloneRevision(source).logicalSheet, events: [] },
+    logicalSheet: { ...cloneRevision(source).logicalSheet, events: [], referenceMarks: [] },
     memos: [],
     timedRangeCues: [],
   }

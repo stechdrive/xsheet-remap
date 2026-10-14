@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createDefaultProject,
   createOrSetEvent,
+  setTimingReferenceAt,
   registerAsset,
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
@@ -13,6 +14,7 @@ import {
 import type { SheetRangeSelection } from './appTypes'
 import {
   buildTimingClipboard,
+  clearTimingRange,
   deleteTimelineFrames,
   ensurePostRollCoversFrame,
   insertTimelineFrames,
@@ -22,6 +24,35 @@ import {
   sameSheetHitCell,
 } from './timingEditing'
 import { bindAssetToHit } from './sheetAssets'
+
+describe('reference notation editing', () => {
+  it('copies numbered and empty marks across roles, repeats and overwrites old marks', () => {
+    const source = setTimingReferenceAt(setTimingReferenceAt(createOrSetEvent(createDefaultProject(), 'A', 1, 'cell').project, 'A', 1, 'cell', true), 'A', 2, 'cell', true)
+    const clipboard = buildTimingClipboard(source, testRange('A', 1, 3, 'cell'), 'copy')
+    const pasted = pasteTimingClipboardToProject(source, clipboard, { role: 'action', paperTrack: 'B', frameStart: 5, frameEnd: 10 }, 'repeat-range')
+    expect(pasted.logicalSheet.referenceMarks?.filter(mark => mark.sheetRole === 'action').map(mark => mark.frame)).toEqual([5, 6, 8, 9])
+    expect(pasted.logicalSheet.events.filter(event => event.sheetRole === 'action' && event.paperTrack === 'B').map(event => event.frame)).toEqual([5, 8])
+    const empty = buildTimingClipboard(source, testRange('A', 3, 3, 'cell'), 'copy')
+    const overwritten = pasteTimingClipboardToProject(pasted, empty, { role: 'action', paperTrack: 'B', frameStart: 6, frameEnd: 6 }, 'overwrite')
+    expect(overwritten.logicalSheet.referenceMarks?.filter(mark => mark.sheetRole === 'action').map(mark => mark.frame)).toEqual([5, 8, 9])
+  })
+  it('moves empty marks, counts mark-only collisions and clears them with Delete', () => {
+    const source = setTimingReferenceAt(setTimingReferenceAt(createDefaultProject(), 'A', 2, 'cell', true), 'B', 5, 'cell', true)
+    const result = moveTimingEventsInRange(source, testRange('A', 2, 2, 'cell'), testHit('A', 2, 'cell'), testHit('B', 5, 'cell'), ['A', 'B'])
+    expect(result.status).toBe('moved')
+    expect(result.collisionCount).toBe(1)
+    expect(result.project.logicalSheet.referenceMarks).toEqual([{ sheetRole: 'cell', paperTrack: 'B', frame: 5 }])
+    expect(result.project.logicalSheet.events).toEqual([])
+    expect(clearTimingRange(result.project, testRange('B', 5, 5, 'cell')).logicalSheet.referenceMarks).toEqual([])
+  })
+  it('shifts only the selected track and role for insertion/deletion', () => {
+    const source = setTimingReferenceAt(setTimingReferenceAt(createDefaultProject(), 'A', 5, 'cell', true), 'A', 5, 'action', true)
+    const inserted = insertTimelineFrames(source, { scope: 'track', role: 'cell', paperTrack: 'A', atFrame: 4, frameCount: 3, durationPolicy: 'preserve' })
+    expect(inserted.logicalSheet.referenceMarks?.map(mark => mark.frame)).toEqual([8, 5])
+    const deleted = deleteTimelineFrames(inserted, { scope: 'track', role: 'cell', paperTrack: 'A', frameStart: 4, frameCount: 3, durationPolicy: 'preserve' })
+    expect(deleted.logicalSheet.referenceMarks).toEqual(source.logicalSheet.referenceMarks)
+  })
+})
 
 describe('post-roll work area', () => {
   it('repeats a cycle beyond the official end into the visible dummy frames', () => {

@@ -6,6 +6,7 @@ import type { SheetEventRectRenderItem } from './sheet-layers-hit-geometry'
 import { assetAssignedMarkerPoints, type SheetSelectionSurface } from './sheet-selection-visuals'
 import { timingEventSymbolGeometry } from './TimingEventSymbol'
 import { createSheetRenderGroups } from './sheetRenderGroups'
+import { timingReferencePrimitive } from './TimingReferenceSymbol'
 
 type Props = {
   items: SheetEventRectRenderItem[]; pageSize: DirectPaperModel['pageSize']; surface: SheetSelectionSurface
@@ -48,15 +49,17 @@ function TimingEventChunk({ items, pageSize, surface, dragging, pending, ready, 
       if (hasAssetBinding) primitives.push({ style: style('assetAssignedEventMarker', 'path'), shape: { kind: 'polygon',
         points: assetAssignedMarkerPoints(rect, surface).split(/[\s,]+/).map(Number), close: true } })
       if (eventKind === 'cell') {
-        if (displayLabel.trim()) primitives.push({ style: style('eventText', 'text'), clipRect: textLayout.clipRect, text: {
-          value: textLayout.text, x: rect.x + rect.w / 2, y: rect.y + rect.h / 2, size: textLayout.fontSizePx, anchor: 'middle', baseline: 'central',
+        if (textLayout.reference) primitives.push(timingReferencePrimitive(textLayout.reference, style('eventSymbol eventReferenceSymbol', 'path')))
+        if (displayLabel.trim()) primitives.push({ style: style('eventText', 'text'), clipRect: textLayout.clipRect,
+          paint: textLayout.outlineWidthPx ? { stroke: '#fff', strokeWidth: textLayout.outlineWidthPx, order: 'stroke fill', join: 'round' } : undefined, text: {
+          value: textLayout.text, x: textLayout.textPosition?.x ?? rect.x + rect.w / 2, y: textLayout.textPosition?.y ?? rect.y + rect.h / 2, size: textLayout.fontSizePx, anchor: 'middle', baseline: textLayout.baseline ?? 'central',
         } })
       } else {
-        const geometry = timingEventSymbolGeometry(eventKind, rect)
+        const geometry = timingEventSymbolGeometry(eventKind, rect, pageSize)
         const symbolStyle = style(`eventSymbol ${eventKind === 'blank' ? 'eventBlankSymbol' : eventKind === 'reverse' ? 'eventReverseSymbol' : 'eventInbetweenSymbol'}`, 'path')
-        if (eventKind === 'blank') for (const line of geometry.lines) primitives.push({ style: symbolStyle,
+        if (eventKind === 'blank') for (const line of geometry.lines) primitives.push({ style: symbolStyle, coordinateSpace: 'page-pixels',
           shape: { kind: 'path', d: `M ${line.x1} ${line.y1} L ${line.x2} ${line.y2}` }, paint: { strokeWidth: geometry.strokeWidth } })
-        else primitives.push({ style: symbolStyle, shape: { kind: 'ellipse', cx: geometry.center.x, cy: geometry.center.y, rx: geometry.radiusX, ry: geometry.radiusY },
+        else primitives.push({ style: symbolStyle, coordinateSpace: 'page-pixels', shape: { kind: 'ellipse', cx: geometry.center.x, cy: geometry.center.y, rx: geometry.radiusX, ry: geometry.radiusY },
           paint: { strokeWidth: geometry.strokeWidth } })
       }
     }

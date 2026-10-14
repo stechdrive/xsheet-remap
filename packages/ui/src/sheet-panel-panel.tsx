@@ -239,6 +239,7 @@ export function SheetPanel(props: {
   onCameraCueTransform: (cueId: string, updates: CameraCueTransformUpdates) => void
   onSetNullAtHit: (hit: SheetHit) => void
   onSetTimingSpecialAtHit: (hit: SheetHit, marker: TimingSpecialMarker) => void
+  onSetTimingReferenceAtHit: (hit: SheetHit, enabled: boolean) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
   onKeySelect: (keyId: string | null) => void
   onStackGuideSelect: (labelId: string) => void

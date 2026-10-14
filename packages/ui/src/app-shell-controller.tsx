@@ -3,6 +3,7 @@ import { applySheetLabelNormalizationPlan, type SheetLabelNormalizationPlan } fr
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
+import { setTimingReferenceAt, setTimingReferenceRange } from '@xsheet-remap/core'
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
@@ -757,11 +758,19 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     applyTimingValue(hit, marker === 'blank' ? 'x' : marker === 'inbetween' ? '/' : '.', false, sourceProject)
   }
   const handleSetNullAtHit = (hit: SheetHit) => handleSetTimingSpecialAtHit(hit, 'blank')
+  function handleSetTimingReferenceAtHit(hit: SheetHit, enabled: boolean) {
+    if (!hit.paperTrack || activeSheetRevision.protected || (hit.role !== 'action' && hit.role !== 'cell')) return
+    const sourceProject = commitTimingDraft(false)
+    const range = isPointEventRangeForUi(rangeSelection) && rangeContainsHit(rangeSelection, hit)
+      ? { ...rangeSelection, paperTracks: rangePaperTracks(rangeSelection) }
+      : { role: hit.role, paperTracks: [hit.paperTrack], frameStart: hit.frame, frameEnd: hit.frame }
+    commitProject(setTimingReferenceRange(sourceProject, range, enabled))
+  }
   function handleDeleteEventAtHit(hit: SheetHit) {
     if (!hit.paperTrack) return
     const sourceProject = commitTimingDraft(false)
     const sheetRole = sheetRoleForHit(hit)
-    const next = clearEvent(sourceProject, hit.paperTrack, hit.frame, sheetRole)
+    const next = setTimingReferenceAt(clearEvent(sourceProject, hit.paperTrack, hit.frame, sheetRole), hit.paperTrack, hit.frame, sheetRole, false)
     commitProject(next)
     if (typeof hit.pageIndex === 'number') setActivePageIndex(hit.pageIndex, next)
     setSelectionFromHit(hit, next, null)
@@ -840,7 +849,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       return
     }
     if (!selection.hit?.paperTrack) return
-    const next = clearEvent(sourceProject, selection.hit.paperTrack, selection.hit.frame, sheetRoleForHit(selection.hit))
+    const next = setTimingReferenceAt(clearEvent(sourceProject, selection.hit.paperTrack, selection.hit.frame, sheetRoleForHit(selection.hit)), selection.hit.paperTrack, selection.hit.frame, sheetRoleForHit(selection.hit), false)
     commitProject(next)
     setSelectionFromHit(selection.hit, next, null)
   }
@@ -2256,7 +2265,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
-    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
+    handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,

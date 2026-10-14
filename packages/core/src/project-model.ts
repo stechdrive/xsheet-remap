@@ -25,7 +25,7 @@ export type SheetGeometryInput = {
 }
 
 export type SheetContentInput = SheetGeometryInput & Pick<CutProject, 'cut' | 'sheetFormData' | 'stackGuideLabels' | 'bindings'> & {
-  logicalSheet: Pick<LogicalSheet, 'fps' | 'keys' | 'events'>
+  logicalSheet: Pick<LogicalSheet, 'fps' | 'keys' | 'events' | 'referenceMarks'>
   sheetView: Pick<CutProject['sheetView'], 'metadataDisplay' | 'continuationDisplay'>
 }
 
@@ -109,6 +109,7 @@ export function createProjectFromTrackLabels(
     timelineSections: defaultTimelineSections(template),
     keys: [],
     events: [],
+    referenceMarks: [],
   }
   const cspTrackSlots = createDefaultCspTrackSlots(paperTracks, productionStages, correctionLayers)
   const exportProfiles: ExportProfile[] = [
@@ -423,6 +424,7 @@ export function updatePaperTrack(
       ...project.logicalSheet,
       keys: project.logicalSheet.keys.map(key => key.paperTrack === existing.paperTrack ? { ...key, paperTrack: nextName } : key),
       events: project.logicalSheet.events.map(event => event.paperTrack === existing.paperTrack ? { ...event, paperTrack: nextName } : event),
+      referenceMarks: project.logicalSheet.referenceMarks?.map(mark => mark.paperTrack === existing.paperTrack ? { ...mark, paperTrack: nextName } : mark),
     },
     cspTrackSlots: project.cspTrackSlots.map(slot => slot.paperTrack === existing.paperTrack
       ? {
@@ -473,6 +475,9 @@ function rebuildProjectPaperTrackSlots(
       events: options.filterRemovedTracks
         ? project.logicalSheet.events.filter(event => allowedTracks.has(event.paperTrack) && (isSpecialTimingEvent(event) || allowedKeyIds.has(event.keyId)))
         : project.logicalSheet.events,
+      referenceMarks: options.filterRemovedTracks
+        ? project.logicalSheet.referenceMarks?.filter(mark => allowedTracks.has(mark.paperTrack))
+        : project.logicalSheet.referenceMarks,
     },
     cspTrackSlots,
     bindings: options.filterRemovedTracks

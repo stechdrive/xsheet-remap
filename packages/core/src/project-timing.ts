@@ -1,5 +1,6 @@
 import type { CellBinding, CutProject, PaperTrackName, SheetTimingRole, TimelineEvent, TimingKey, TimingSpecialMarker } from './types'
 import { nextId, withoutUndefined } from './core-utils'
+import { setTimingReferenceAt } from './timing-reference'
 import { registerTimingChange, replaceTimingEvent, timingKeyIndex } from './timing-index'
 import { DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
 import { assetFileBaseName, defaultCspCellName, ensurePaperTrack, isSpecialTimingKeyId, nextDisplayLabel, normalizeTimingKeyDisplayLabel, sameEventTarget, sequenceCspCellName, sheetTimingRoleForKey, timingEventValueKindForKeyId, timingSpecialMarkerKeyId, uniqueCspCellNameForSlot } from './project-shared'
@@ -93,7 +94,7 @@ export function setTimingSpecialEvent(
   sheetRole: SheetTimingRole = DEFAULT_SHEET_TIMING_ROLE,
   options: { fontSizePx?: number; source?: TimelineEvent['source'] } = {},
 ): CutProject {
-  return setEvent(project, paperTrack, frame, timingSpecialMarkerKeyId(marker), sheetRole, options)
+  return setEvent(setTimingReferenceAt(project, paperTrack, frame, sheetRole, false), paperTrack, frame, timingSpecialMarkerKeyId(marker), sheetRole, options)
 }
 
 export function clearEvent(

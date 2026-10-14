@@ -1,5 +1,6 @@
 import {
   timingEventIndex, timingGroupKey, timingFrameLowerBound, timingEventsInRange, timingKeyIndex,
+  timingReferenceAddress,
   cellRectForHit,
   createSheetPages,
   formatSheetTemplateCutNumber,
@@ -78,6 +79,7 @@ export type SheetRenderCutGroupContext = {
 }
 
 export type SheetInputTextRenderItem = {
+  sheetRole?: SheetTimingRole
   eventId: string
   keyId: string
   paperTrack: string
@@ -261,6 +263,7 @@ export function workRangeShadeRenderItemsForPage(
 
 export function inputTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetInputTextRenderItem[] {
   const keys = timingKeyIndex(context.project.logicalSheet.keys)
+  const references = new Set(context.project.logicalSheet.referenceMarks?.map(timingReferenceAddress))
   return timingEventsInRange(context.project.logicalSheet.events, page.frameStart, page.frameEnd).flatMap(event => {
     const key = keys.get(event.keyId)
     if (!key && !isSpecialTimingEvent(event)) return []
@@ -281,9 +284,24 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
       kind,
       text,
       fontSizePx,
-      textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize),
+      textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize, undefined, kind === 'cell' && references.has(timingReferenceAddress(event))),
       rect,
     }]
+  })
+}
+
+export function referenceOnlyRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage, frameRange?: { start: number; end: number }): SheetInputTextRenderItem[] {
+  const occupied = new Set(timingEventsInRange(context.project.logicalSheet.events, page.frameStart, page.frameEnd).map(timingReferenceAddress))
+  const start = Math.max(page.frameStart, frameRange?.start ?? page.frameStart)
+  const end = Math.min(page.frameEnd, frameRange?.end ?? page.frameEnd)
+  return (context.project.logicalSheet.referenceMarks ?? []).flatMap(mark => {
+    if (mark.frame < start || mark.frame > end || occupied.has(timingReferenceAddress(mark))) return []
+    const rect = eventRectForTrackFrame(context, mark.sheetRole, mark.paperTrack, mark.frame, page)
+    if (!rect) return []
+    const fontSizePx = resolveTimingTextFontSizePx(context.template, mark.sheetRole, undefined)
+    return [{ eventId: `reference:${timingReferenceAddress(mark)}`, keyId: '', paperTrack: mark.paperTrack, frame: mark.frame, sheetRole: mark.sheetRole,
+      kind: 'cell' as const, text: '', fontSizePx, rect,
+      textLayout: layoutTimingCellText('', fontSizePx, defaultTimingTextMinFontSizePx(context.template, mark.sheetRole), rect, context.pageSize, undefined, true) }]
   })
 }
 

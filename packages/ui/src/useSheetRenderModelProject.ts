@@ -38,7 +38,7 @@ export function useSheetRenderModelProject(project: CutProject): SheetRenderMode
   const geometryProject = useSheetRenderModelGeometryProject(project)
   const contentProject = useMemo<SheetContentInput>(
     () => ({ ...geometryProject,
-      logicalSheet: { ...geometryProject.logicalSheet, fps: project.logicalSheet.fps, keys: project.logicalSheet.keys, events: project.logicalSheet.events },
+      logicalSheet: { ...geometryProject.logicalSheet, fps: project.logicalSheet.fps, keys: project.logicalSheet.keys, events: project.logicalSheet.events, referenceMarks: project.logicalSheet.referenceMarks },
       sheetView: { ...geometryProject.sheetView, metadataDisplay: project.sheetView.metadataDisplay, continuationDisplay: project.sheetView.continuationDisplay },
       cut: project.cut, sheetFormData: project.sheetFormData, stackGuideLabels: project.stackGuideLabels, bindings: project.bindings,
     }),
@@ -50,6 +50,7 @@ export function useSheetRenderModelProject(project: CutProject): SheetRenderMode
       project.logicalSheet.fps,
       project.logicalSheet.keys,
       project.logicalSheet.events,
+      project.logicalSheet.referenceMarks,
       project.sheetFormData,
       project.sheetView.metadataDisplay,
       project.sheetView.continuationDisplay,

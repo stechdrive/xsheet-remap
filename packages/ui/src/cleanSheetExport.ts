@@ -17,6 +17,7 @@ import {
   continuationRenderItemsForPages,
   hasOverlayRenderContent,
   inputTextRenderItemsForPage,
+  referenceOnlyRenderItemsForPage,
   metadataTextRenderItemsForPage,
   overlayPaperTrackRenderItems,
   stackGuideFlagRenderItemsForPage,
@@ -695,19 +696,41 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
     }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    for (const item of inputTextRenderItemsForPage(context, page)) {
+    for (const item of [...inputTextRenderItemsForPage(context, page), ...referenceOnlyRenderItemsForPage(context, page)]) {
       const rect = item.rect
       const { x, y, w, h } = projectedPixelRect(context, rect, offsetY)
       ctx.fillStyle = 'rgba(238, 247, 242, 0.78)'
-      ctx.fillRect(x + 1, y + 1, w - 2, h - 2)
+      if (item.keyId || !item.textLayout.reference) ctx.fillRect(x + 1, y + 1, w - 2, h - 2)
       if (item.kind === 'cell') {
         ctx.save()
         ctx.beginPath()
-        ctx.rect(x, offsetY, w, context.pageSize.heightPx)
+        const layout = item.textLayout
+        const clip = layout.clipRect
+        ctx.rect(clip.x * context.pageSize.widthPx, offsetY + clip.y * context.pageSize.heightPx, clip.w * context.pageSize.widthPx, clip.h * context.pageSize.heightPx)
         ctx.clip()
+        if (layout.reference) {
+          const points = layout.reference.points
+          ctx.beginPath()
+          ctx.moveTo(points[0], offsetY + points[1])
+          for (let index = 2; index < points.length; index += 2) ctx.lineTo(points[index], offsetY + points[index + 1])
+          ctx.closePath()
+          ctx.strokeStyle = '#113c2d'
+          ctx.lineWidth = layout.reference.strokeWidthPx
+          ctx.lineJoin = 'round'
+          ctx.stroke()
+        }
         ctx.fillStyle = '#113c2d'
-        ctx.font = fontDeclaration(item.textLayout.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_EVENT_FONT_WEIGHT)
-        ctx.fillText(item.textLayout.text, x + w / 2, y + h / 2)
+        ctx.font = fontDeclaration(layout.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_EVENT_FONT_WEIGHT)
+        ctx.textBaseline = layout.baseline ?? 'middle'
+        const textX = layout.textPosition ? layout.textPosition.x * context.pageSize.widthPx : x + w / 2
+        const textY = layout.textPosition ? offsetY + layout.textPosition.y * context.pageSize.heightPx : y + h / 2
+        if (layout.outlineWidthPx) {
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = layout.outlineWidthPx
+          ctx.lineJoin = 'round'
+          ctx.strokeText(layout.text, textX, textY)
+        }
+        ctx.fillText(layout.text, textX, textY)
         ctx.restore()
       } else {
         drawTimingEventSymbol(ctx, context, offsetY, item.kind, item.rect)
@@ -724,14 +747,14 @@ function drawTimingEventSymbol(
   kind: 'blank' | 'inbetween' | 'reverse',
   rect: NormalizedRect,
 ) {
-  const geometry = timingEventSymbolGeometry(kind, rect)
+  const geometry = timingEventSymbolGeometry(kind, rect, context.pageSize)
   const point = (x: number, y: number) => ({
-    x: x * context.pageSize.widthPx,
-    y: offsetY + y * context.pageSize.heightPx,
+    x,
+    y: offsetY + y,
   })
   ctx.strokeStyle = '#113c2d'
   ctx.fillStyle = '#113c2d'
-  ctx.lineWidth = Math.max(1, geometry.strokeWidth * context.pageSize.widthPx)
+  ctx.lineWidth = geometry.strokeWidth
   ctx.lineCap = 'round'
   if (kind === 'blank') {
     for (const line of geometry.lines) {
@@ -745,8 +768,8 @@ function drawTimingEventSymbol(
     return
   }
   const center = point(geometry.center.x, geometry.center.y)
-  const radiusX = geometry.radiusX * context.pageSize.widthPx
-  const radiusY = geometry.radiusY * context.pageSize.heightPx
+  const radiusX = geometry.radiusX
+  const radiusY = geometry.radiusY
   ctx.beginPath()
   ctx.ellipse(center.x, center.y, radiusX, radiusY, 0, 0, Math.PI * 2)
   if (kind === 'reverse') ctx.fill()

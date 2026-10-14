@@ -1,4 +1,5 @@
 import { logicalSheetOfficialFrameEnd } from './logical-sheet'
+import { mapTimingReferenceFrames } from './timing-reference'
 import { compareTimelineEvents } from './project-shared'
 import { clampCameraOverlapPivotAnchorFrame, replaceTimedRangeCues, resolveCameraInstructionPoints, resolveCameraInstructionSegments } from './timed-range'
 import { deleteTimelineMemoAnchors, insertTimelineMemoAnchors } from './timeline-memo'
@@ -35,6 +36,7 @@ function insertCutTimelineFrames(project: CutProject, requestedFrame: number, re
       ...project.logicalSheet,
       durationFrames: Math.max(1, Math.round(project.logicalSheet.durationFrames) + frameCount),
       events,
+      referenceMarks: mapTimingReferenceFrames(project.logicalSheet.referenceMarks, mark => mark.frame >= atFrame ? mark.frame + frameCount : mark.frame),
     },
   }, insertTimelineMemoAnchors(timelineMemos(project), atFrame, frameCount))
   return replaceTimedRangeCues(resized, cues)
@@ -64,6 +66,7 @@ function deleteCutTimelineFrames(project: CutProject, requestedStart: number, re
       ...project.logicalSheet,
       durationFrames: Math.max(1, Math.round(project.logicalSheet.durationFrames) - frameCount),
       events,
+      referenceMarks: mapTimingReferenceFrames(project.logicalSheet.referenceMarks, mark => mark.frame < frameStart ? mark.frame : mark.frame <= frameEnd ? null : mark.frame - frameCount),
     },
   }, deleteTimelineMemoAnchors(timelineMemos(project), frameStart, frameEnd, frameCount))
   return replaceTimedRangeCues(resized, cues)

@@ -20,6 +20,8 @@ import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { TimingEventSymbol } from './TimingEventSymbol'
+import { TimingReferenceSymbol } from './TimingReferenceSymbol'
+import { TimingReferenceOnlyLayer } from './TimingReferenceOnlyLayer'
 import { TimingContinuationLayer } from './TimingContinuationLayer'
 import { TimingEventModelLayer } from './TimingEventModelLayer'
 import { TimingCellText } from './TimingCellText'
@@ -131,7 +133,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas, renderWindowState,
     displayDurationFrames, templateTrackNames, timelineLanes, sheetPageSize, sheetPageWidth, sheetPageHeight, frameOperationContext,
-    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, eventRectsByPage, continuationItemsByPage,
+    overlayTracks, sheetRenderModelContext, referenceRenderModelContext, eventRectsByPage, referenceOnlyItemsByPage, continuationItemsByPage,
     referenceEventRectsByPage, referenceContinuationItemsByPage, referenceAnnotationRenderItemsByPage,
     annotationStrokeRenderItemsByPage, annotationTextRenderItemsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,
@@ -453,6 +455,15 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onHandlePointerDown={(event, index, kind) => handleCalibrationHandlePointerDown(event, page, pageImage.settings, index, kind)}
                     />
                   )}
+                  {showInputContent && <TimingReferenceOnlyLayer items={referenceOnlyItemsByPage.get(page.pageId) ?? []} pageSize={sheetPageSize}>
+                    {(referenceOnlyItemsByPage.get(page.pageId) ?? []).map(item => <g key={item.eventId}
+                      data-reference-track={item.paperTrack} data-reference-frame={item.frame} data-reference-role={item.sheetRole}
+                      onPointerDown={event => handleTimelineEventPointerDown(event, item, page)}
+                      onPointerMove={handleTimelineEventPointerMove} onPointerUp={handleTimelineEventPointerUp} onPointerCancel={handleTimelineEventPointerCancel}>
+                      <rect className="eventReferenceHit" x={item.rect.x} y={item.rect.y} width={item.rect.w} height={item.rect.h} fill="transparent" stroke="none" pointerEvents="all" />
+                      {item.textLayout.reference && <TimingReferenceSymbol geometry={item.textLayout.reference} pageSize={sheetPageSize} />}
+                    </g>)}
+                  </TimingReferenceOnlyLayer>}
                   {showInputContent && <TimingEventModelLayer items={eventRects} pageSize={sheetPageSize} surface={selectionSurface}
                     dragging={timelineEventDrag?.sourceHit} pending={pendingTimelineEventDrag?.sourceHit} ready={pendingTimelineEventDrag?.ready}>
                   {eventRects.map(({ event, eventKind, displayLabel, rect, hasAssetBinding, textLayout }) => {
@@ -481,11 +492,12 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                         {textLayout.overflow && <title>{displayLabel}</title>}
                         <rect className={hasAssetBinding ? 'eventRect assetAssignedEventRect' : 'eventRect'} x={rect.x} y={rect.y} width={rect.w} height={rect.h} rx="0.002" />
                         {hasAssetBinding && <AssetAssignedFrameCue rect={rect} surface={selectionSurface} />}
+                        {textLayout.reference && <TimingReferenceSymbol geometry={textLayout.reference} pageSize={sheetPageSize} />}
                         {eventKind === 'cell' && displayLabel.trim()
                           && (
                             <TimingCellText layout={textLayout} rect={rect} pageSize={sheetPageSize} />
                         )}
-                        {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} />}
+                        {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} pageSize={sheetPageSize} />}
                       </g>
                     )
                   })}
@@ -747,6 +759,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetNullAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.setNullCell}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'inbetween'))}>{uiText.actions.setInbetween}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'reverse'))}>{uiText.actions.setReverseSheet}</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, true))}>参考記号を付加（△）</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, false))}>参考記号を解除</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
             </>
           )}

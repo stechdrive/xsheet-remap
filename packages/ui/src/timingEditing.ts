@@ -2,6 +2,9 @@ import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
 import {
   applyCutTimelineFrameEdit,
   clearEvent,
+  mapTimingReferenceFrames,
+  setTimingReferenceRange,
+  timingReferenceAddress,
   logicalSheetDisplayFrameEnd,
   logicalSheetDisplayFrameStart,
   logicalSheetOfficialFrameEnd,
@@ -140,13 +143,15 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
     .map(event => [`${event.paperTrack}\u0000${event.frame}`, event]))
   const keyById = new Map(project.logicalSheet.keys.map(key => [key.keyId, key]))
   const slotById = new Map(project.cspTrackSlots.map(slot => [slot.slotId, slot]))
+  const references = new Set(project.logicalSheet.referenceMarks?.map(timingReferenceAddress))
   const items: TimingClipboard['items'] = []
   for (let paperTrackOffset = 0; paperTrackOffset < sourcePaperTracks.length; paperTrackOffset += 1) {
     const paperTrack = sourcePaperTracks[paperTrackOffset]
     for (let frame = range.frameStart; frame <= range.frameEnd; frame += 1) {
       const event = eventByTrackAndFrame.get(`${paperTrack}\u0000${frame}`)
+      const reference = references.has(timingReferenceAddress({ paperTrack, frame, sheetRole: range.role })) || undefined
       if (!event) {
-        items.push({ paperTrackOffset, offsetFrames: frame - range.frameStart, kind: 'empty' })
+        items.push({ paperTrackOffset, offsetFrames: frame - range.frameStart, kind: 'empty', reference })
         continue
       }
       const eventKind = timingEventValueKind(event)
@@ -159,6 +164,7 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
         paperTrackOffset,
         offsetFrames: frame - range.frameStart,
         kind: key ? 'key' : 'empty',
+        reference,
         keyId: key?.keyId,
         displayLabel: key?.displayLabel,
         paperToken: key?.paperToken,
@@ -228,7 +234,7 @@ export function moveTimingEventsInRange(
   }
 
   const clipboard = buildTimingClipboard(project, range, 'cut')
-  const movedItems = clipboard.items.filter(item => item.kind !== 'empty')
+  const movedItems = clipboard.items.filter(item => item.kind !== 'empty' || item.reference)
   if (movedItems.length === 0) {
     return {
       project,
@@ -240,7 +246,7 @@ export function moveTimingEventsInRange(
     }
   }
 
-  const sourceCells = new Set(project.logicalSheet.events
+  const sourceCells = new Set([...project.logicalSheet.events, ...(project.logicalSheet.referenceMarks ?? [])]
     .filter(event => sourcePaperTracks.includes(event.paperTrack)
       && sheetTimingRoleForEvent(event) === range.role
       && event.frame >= range.frameStart
@@ -250,11 +256,11 @@ export function moveTimingEventsInRange(
     destinationPaperTracks[item.paperTrackOffset] as string,
     destinationFrameStart + item.offsetFrames,
   )))
-  const collisionCount = project.logicalSheet.events.filter(event =>
+  const collisionCount = new Set([...project.logicalSheet.events, ...(project.logicalSheet.referenceMarks ?? [])].filter(event =>
     sheetTimingRoleForEvent(event) === range.role
     && destinationCells.has(timingCellSignature(event.paperTrack, event.frame))
     && !sourceCells.has(timingCellSignature(event.paperTrack, event.frame)),
-  ).length
+  ).map(event => timingCellSignature(event.paperTrack, event.frame))).size
 
   let next = clearTimingRange(project, range)
   const writeItem = createTimingClipboardWriter(clipboard, range.role, 'auto')
@@ -290,7 +296,7 @@ export function timingRangeSelectionForMoveResult(
 }
 
 export function clearTimingRange(project: CutProject, range: SheetRangeSelection & { role: 'action' | 'cell'; paperTrack: string }): CutProject {
-  let next = project
+  let next = setTimingReferenceRange(project, { ...range, paperTracks: rangePaperTracks(range) }, false)
   for (const paperTrack of rangePaperTracks(range)) {
     for (let frame = range.frameStart; frame <= range.frameEnd; frame += 1) {
       next = clearEvent(next, paperTrack, frame, range.role)
@@ -339,6 +345,10 @@ export function deleteTimelineFrames(project: CutProject, input: TimelineDeleteF
           return [event]
         })
         .sort(compareTimelineEventsForUi),
+      referenceMarks: mapTimingReferenceFrames(project.logicalSheet.referenceMarks, mark => {
+        if (!timelineEventMatchesScope(mark, input.scope, input.role, input.paperTrack, input.paperTracks)) return mark.frame
+        return mark.frame < frameStart ? mark.frame : mark.frame <= frameEnd ? null : mark.frame - frameCount
+      }),
     },
   }
   const officialDeleteCount = input.durationPolicy === 'shrink'
@@ -421,7 +431,7 @@ export function ensurePostRollCoversFrame(project: CutProject, frame: number): C
 }
 
 function clearTimingFrames(project: CutProject, role: SheetTimingRole, paperTracks: string[], frameStart: number, frameEnd: number): CutProject {
-  let next = project
+  let next = setTimingReferenceRange(project, { role, paperTracks, frameStart, frameEnd }, false)
   for (const paperTrack of paperTracks) {
     for (let frame = frameStart; frame <= frameEnd; frame += 1) {
       next = clearEvent(next, paperTrack, frame, role)
@@ -446,7 +456,7 @@ function timingCellSignature(paperTrack: string, frame: number): string {
 
 function ensurePostRollCoversEvents(project: CutProject): CutProject {
   const officialEnd = logicalSheetOfficialFrameEnd(project.logicalSheet)
-  const maxFrame = Math.max(officialEnd, ...project.logicalSheet.events.map(event => event.frame))
+  const maxFrame = Math.max(officialEnd, ...project.logicalSheet.events.map(event => event.frame), ...(project.logicalSheet.referenceMarks ?? []).map(mark => mark.frame))
   return ensurePostRollCoversFrame(project, maxFrame)
 }
 
@@ -474,6 +484,8 @@ function shiftTimelineEvents(
         })
         .flat()
         .sort(compareTimelineEventsForUi),
+      referenceMarks: mapTimingReferenceFrames(project.logicalSheet.referenceMarks, mark =>
+        timelineEventMatchesScope(mark, scope, role, paperTrack, paperTracks) && mark.frame >= fromFrame ? mark.frame + deltaFrames : mark.frame),
     },
   }
 }

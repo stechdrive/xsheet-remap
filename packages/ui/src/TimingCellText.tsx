@@ -11,8 +11,9 @@ export function TimingCellText({ layout, rect, pageSize, className = 'eventText'
   return <g>
     <defs><clipPath id={clipId} clipPathUnits="userSpaceOnUse"><rect x={clip.x} y={clip.y} width={clip.w} height={clip.h} /></clipPath></defs>
     <g clipPath={`url(#${clipId})`}>
-      <SheetSvgText className={className} x={rect.x + rect.w / 2} y={rect.y + rect.h / 2}
-        textAnchor="middle" dominantBaseline="central" alignmentBaseline="central"
+      <SheetSvgText className={className} x={layout.textPosition?.x ?? rect.x + rect.w / 2} y={layout.textPosition?.y ?? rect.y + rect.h / 2}
+        textAnchor="middle" dominantBaseline={layout.baseline ?? 'central'} alignmentBaseline={layout.baseline ?? 'central'}
+        style={layout.outlineWidthPx ? { dominantBaseline: layout.baseline, stroke: '#fff', strokeWidth: layout.outlineWidthPx, paintOrder: 'stroke fill', strokeLinejoin: 'round' } : undefined}
         fontSizePx={layout.fontSizePx} pageSize={pageSize} aria-label={layout.fullText}
         data-full-text={layout.fullText} data-text-overflow={layout.overflow ? 'true' : undefined}>
         {layout.text}

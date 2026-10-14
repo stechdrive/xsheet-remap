@@ -103,7 +103,7 @@ describe('project archive codec', () => {
     const restored = await decodeProjectFileBytes(zipSync(entries))
 
     expect(restored.manifest.documentSchemaVersion).toBe(10)
-    expect(restored.document.schemaVersion).toBe(11)
+    expect(restored.document.schemaVersion).toBe(12)
   })
 
   it('externalizes and restores optional dialogue audio stored in project extensions', async () => {

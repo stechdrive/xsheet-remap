@@ -4,6 +4,7 @@ import {
   findTimingKeyByDisplayLabel,
   setEvent,
   setTimingSpecialEvent,
+  setTimingReferenceAt,
   sheetTimingRoleForKey,
   uniqueCspCellNameForSlot,
   updateKey,
@@ -27,7 +28,10 @@ export function createTimingClipboardWriter(clipboard: TimingClipboard, targetRo
     : content === 'notation' || clipboard.role !== targetRole ? 'omit' : 'preserve'
   const mappedKeys = new Map<string, Map<string | ClipboardItem, string>>()
   return (project: CutProject, paperTrack: string, frame: number, item: ClipboardItem): CutProject => {
-    if (item.kind === 'empty') return clearEvent(project, paperTrack, frame, targetRole)
+    project = setTimingReferenceAt(project, paperTrack, frame, targetRole, false)
+    // An empty marked cell carries notation without introducing a timing event.
+    const withReference = (next: CutProject) => item.reference ? setTimingReferenceAt(next, paperTrack, frame, targetRole, true) : next
+    if (item.kind === 'empty') return withReference(clearEvent(project, paperTrack, frame, targetRole))
     const eventOptions = { fontSizePx: item.fontSizePx, source: item.source }
     if (item.kind !== 'key') return setTimingSpecialEvent(project, paperTrack, frame, item.kind, targetRole, eventOptions)
 
@@ -35,7 +39,7 @@ export function createTimingClipboardWriter(clipboard: TimingClipboard, targetRo
     mappedKeys.set(paperTrack, trackKeys)
     const identity = item.keyId ?? item
     const mappedKey = trackKeys.get(identity)
-    if (mappedKey) return setEvent(project, paperTrack, frame, mappedKey, targetRole, eventOptions)
+    if (mappedKey) return withReference(setEvent(project, paperTrack, frame, mappedKey, targetRole, eventOptions))
 
     const sourceKey = item.keyId ? project.logicalSheet.keys.find(key => key.keyId === item.keyId) : undefined
     const reusableSourceKey = sourceKey
@@ -49,7 +53,7 @@ export function createTimingClipboardWriter(clipboard: TimingClipboard, targetRo
       ? created.project
       : applyClipboardBindings(created.project, created.key.keyId, paperTrack, item, bindingPolicy)
     trackKeys.set(identity, created.key.keyId)
-    return setEvent(next, paperTrack, frame, created.key.keyId, targetRole, eventOptions)
+    return withReference(setEvent(next, paperTrack, frame, created.key.keyId, targetRole, eventOptions))
   }
 }
 

@@ -8,7 +8,8 @@ import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { AnnotationSvgText } from './sheet-panel-annotation'
 import { TimingEventSymbol } from './TimingEventSymbol'
-import { sheetContinuationPathData } from './sheetRenderModel'
+import { TimingReferenceSymbol } from './TimingReferenceSymbol'
+import { sheetContinuationPathData, referenceOnlyRenderItemsForPage } from './sheetRenderModel'
 import type { PageMemoRenderItems } from './pageMemoProjection'
 
 const noop = () => undefined
@@ -84,13 +85,15 @@ export function SheetRevisionReferenceLayer({
         onPointerEnter={noop}
         onPointerLeave={noop}
       />
+      {referenceOnlyRenderItemsForPage(context, page).map(item => item.textLayout.reference && <TimingReferenceSymbol key={item.eventId} geometry={item.textLayout.reference} pageSize={pageSize} />)}
       {events.map(({ event, eventKind, displayLabel, rect, textLayout }) => (
         <g key={event.eventId}>
           <rect className="sheetRevisionReferenceEvent" x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
+          {textLayout.reference && <TimingReferenceSymbol geometry={textLayout.reference} pageSize={pageSize} />}
           {displayLabel.trim() && (
             <TimingCellText className="sheetRevisionReferenceText" layout={textLayout} rect={rect} pageSize={pageSize} />
           )}
-          {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} />}
+          {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} pageSize={pageSize} />}
         </g>
       ))}
       <TimelineMemoLayer

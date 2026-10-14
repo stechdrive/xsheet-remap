@@ -173,6 +173,7 @@ export interface TimingClipboard {
     paperTrackOffset: number
     offsetFrames: number
     kind: 'empty' | 'blank' | 'inbetween' | 'reverse' | 'key'
+    reference?: boolean
     keyId?: string
     displayLabel?: string
     paperToken?: string

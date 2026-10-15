@@ -42,4 +42,7 @@ it('reveals an editing memo once, keeps its page pinned, and respects subsequent
   expect(result.current).toBeUndefined()
   rerender(input)
   expect(viewport.scrollTop).toBeLessThan(1800)
+  rerender({ ...input, memoId: null })
+  rerender({ ...input, memos: [{ ...memo, placement: { ...memo.placement, frameOffset: -60 } }] })
+  expect(result.current).toBe('page_1')
 })

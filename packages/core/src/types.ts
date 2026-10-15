@@ -406,8 +406,10 @@ export interface TimelineMemoAnchor {
 }
 
 export interface TimelineMemoPlacement {
-  /** Timeline offset from the anchor to the memo canvas top edge, in frames. */
+  /** Timeline offset from the anchor to the memo canvas top edge before paper translation, in frames. */
   frameOffset: number
+  /** Vertical translation after paper wrapping, in frame-row-height units. */
+  pageOffsetYUnits?: number
   /** Horizontal offset from the anchor column edge, measured in frame-row-height units. */
   crossOffsetUnits: number
   /** Canvas width measured in frame-row-height units. */

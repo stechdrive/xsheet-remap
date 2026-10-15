@@ -2,7 +2,7 @@ import { createDefaultProject, createSheetPages, createTimedRangeCue, digitalSta
 import { describe, expect, it } from 'vitest'
 import { assetAssignedMarkerPoints, assetAssignedMarkerSize } from './sheet-selection-visuals'
 import { createTimelineMemoForCue, createTimelineMemoForHit } from './timelineMemoEditing'
-import { timelineMemoAnchorCellForPage, timelineMemoAnchorConnectorPoints, timelineMemoAnchorHitRect, timelineMemoAnchorMarkerRect, timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment } from './timelineMemoGeometry'
+import { timelineMemoAnchorCellForPage, timelineMemoAnchorConnectorPoints, timelineMemoAnchorHitRect, timelineMemoAnchorMarkerRect, timelineMemoSegmentsForPage, timelineMemoStrokePointsForSegment, timelineMemoPointFromPagePoint, timelineMemoPointToPagePoint } from './timelineMemoGeometry'
 
 function memo(frame: number, heightFrames: number): TimelineInkMemo {
   return {
@@ -16,6 +16,54 @@ function memo(frame: number, heightFrames: number): TimelineInkMemo {
 }
 
 describe('timeline memo geometry', () => {
+  it.each([standardA3SheetTemplate, digitalStandardSheetTemplate])('moves a complete memo into the header and lower margin without changing its anchor ($templateId)', template => {
+    const page = createSheetPages(template, 144, 1)[0]!
+    const source = memo(10, 4)
+    const options = { paperTracks: ['A'] }
+    const original = timelineMemoSegmentsForPage(template, page, source, options)[0]!
+    const anchor = timelineMemoAnchorCellForPage(template, page, source, options)
+    const gridTop = original.rect.y - 9 * original.rowHeightY
+    for (const targetY of [gridTop - original.rect.h - original.rowHeightY, 1 - original.rect.h - original.rowHeightY]) {
+      const moved = { ...source, placement: { ...source.placement, pageOffsetYUnits: (targetY - original.rect.y) / original.rowHeightY } }
+      const [segment] = timelineMemoSegmentsForPage(template, page, moved, options)
+      expect(segment!.rect.y).toBeCloseTo(targetY)
+      expect(segment!.rect.h).toBeCloseTo(original.rect.h)
+      expect([segment!.memoYStart, segment!.memoYEnd]).toEqual([0, 4])
+      expect(timelineMemoAnchorCellForPage(template, page, moved, options)).toEqual(anchor)
+      const point = { x: 2, y: 1.5 }
+      const roundTrip = timelineMemoPointFromPagePoint(segment!, timelineMemoPointToPagePoint(segment!, point))
+      expect(roundTrip.x).toBeCloseTo(point.x)
+      expect(roundTrip.y).toBeCloseTo(point.y)
+    }
+  })
+
+  it('keeps A3 wrap and page-spanning strokes continuous after moving into headers', () => {
+    const pages = createSheetPages(standardA3SheetTemplate, 288, 1)
+    for (const frame of [70, 142]) {
+      const source = memo(frame, 8)
+      const moved = { ...source, placement: { ...source.placement, pageOffsetYUnits: -3 } }
+      const before = pages.flatMap(page => timelineMemoSegmentsForPage(standardA3SheetTemplate, page, source, { paperTracks: ['A'] }))
+      const after = pages.flatMap(page => timelineMemoSegmentsForPage(standardA3SheetTemplate, page, moved, { paperTracks: ['A'] }))
+      expect(after.map(segment => [segment.pageId, segment.regionId, segment.memoYStart, segment.memoYEnd]))
+        .toEqual(before.map(segment => [segment.pageId, segment.regionId, segment.memoYStart, segment.memoYEnd]))
+      expect(after).toHaveLength(2)
+      after.forEach((segment, index) => expect(segment.rect.y).toBeCloseTo(before[index]!.rect.y - 3 * segment.rowHeightY))
+      const points = [{ x: 1, y: 1 }, { x: 2, y: 6 }]
+      expect(timelineMemoStrokePointsForSegment(after[0]!, points).at(-1))
+        .toEqual(timelineMemoStrokePointsForSegment(after[1]!, points)[0])
+    }
+  })
+
+  it('recovers legacy memos above the first frame without repeating them on other pages', () => {
+    const pages = createSheetPages(standardA3SheetTemplate, 288, 1)
+    const source = memo(10, 4)
+    const moved = { ...source, placement: { ...source.placement, frameOffset: -15 } }
+    const first = timelineMemoSegmentsForPage(standardA3SheetTemplate, pages[0]!, moved, { paperTracks: ['A'] })
+    expect(first).toHaveLength(1)
+    expect([first[0]!.memoYStart, first[0]!.memoYEnd]).toEqual([0, 4])
+    expect(timelineMemoSegmentsForPage(standardA3SheetTemplate, pages[1]!, moved, { paperTracks: ['A'] })).toEqual([])
+  })
+
   it('splits one memo at the A3 six-second paper wrap without changing its logical size', () => {
     const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
     const segments = timelineMemoSegmentsForPage(standardA3SheetTemplate, page, memo(70, 8), { paperTracks: ['A'] })

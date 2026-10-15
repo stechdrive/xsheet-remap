@@ -173,7 +173,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
       issues.push(issue('error', 'memo.frame.outsideDuration', `memo ${memo.memoId} anchor is outside the cut duration`, 'memo', memo.memoId))
     }
     const placement = memo.placement
-    if (![placement.frameOffset, placement.crossOffsetUnits, placement.widthUnits, placement.heightFrames].every(Number.isFinite)
+    if (![placement.frameOffset, placement.pageOffsetYUnits ?? 0, placement.crossOffsetUnits, placement.widthUnits, placement.heightFrames].every(Number.isFinite)
       || placement.widthUnits <= 0 || placement.heightFrames <= 0) {
       issues.push(issue('error', 'memo.placement.invalid', `memo ${memo.memoId} has invalid placement`, 'memo', memo.memoId))
     }

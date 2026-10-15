@@ -1268,6 +1268,14 @@ function renderSheetAnnotationInkLayer(context: SheetExportLayerContext): ImageD
   return ctx.getImageData(0, 0, context.width, context.height)
 }
 
+// A translated memo may reach the paper edge, but must never bleed into the
+// next page of a combined PNG/PSD. The app's page surface clips the same edge.
+function clipTimelineMemoPage(ctx: CanvasRenderingContext2D, context: SheetExportLayerContext, offsetY: number) {
+  ctx.beginPath()
+  ctx.rect(0, offsetY, context.pageSize.widthPx, context.pageSize.heightPx)
+  ctx.clip()
+}
+
 function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -1301,6 +1309,7 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
       }
       for (const segment of segments) {
         ctx.save()
+        clipTimelineMemoPage(ctx, context, offsetY)
         ctx.globalAlpha = appearance.inkOpacity
         ctx.beginPath()
         ctx.rect(
@@ -1349,6 +1358,7 @@ function renderTimelineMemoBackgroundLayer(context: SheetExportLayerContext): Im
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
       ctx.save()
+      clipTimelineMemoPage(ctx, context, offsetY)
       ctx.globalAlpha = appearance.background.opacity
       ctx.fillStyle = appearance.background.color
       for (const segment of segments) {
@@ -1403,6 +1413,7 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
         const texts = (memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd)
         if (texts.length === 0) continue
         ctx.save()
+        clipTimelineMemoPage(ctx, context, offsetY)
         ctx.globalAlpha = appearance.textOpacity
         ctx.beginPath()
         ctx.rect(

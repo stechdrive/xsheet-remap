@@ -50,6 +50,7 @@ export function useTimelineMemoViewport({
     if (!memo || memo.kind !== 'timeline') return null
     const start = memo.anchor.frame + memo.placement.frameOffset
     const page = pages.find(item => item.frameEnd >= start && item.frameStart < start + memo.placement.heightFrames)
+      ?? pages.find(item => item.frameStart <= memo.anchor.frame && item.frameEnd >= memo.anchor.frame)
     if (!page) return null
     const segment = timelineMemoSegmentsForPage(template, page, memo, { paperTracks, timelineLanes, layoutOverrides })[0]
     return segment ? { memoId: memo.memoId, page, rect: segment.rect } : null

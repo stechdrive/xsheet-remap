@@ -164,7 +164,8 @@ describe('TimelineMemoLayer anchor cues', () => {
     expect(onUpdatePlacement).toHaveBeenCalledTimes(1)
     const placement = onUpdatePlacement.mock.calls[0]?.[1]
     expect(placement.crossOffsetUnits).toBeGreaterThan(selected.placement.crossOffsetUnits)
-    expect(placement.frameOffset).toBeGreaterThan(selected.placement.frameOffset)
+    expect(placement.frameOffset).toBe(selected.placement.frameOffset)
+    expect(placement.pageOffsetYUnits).toBeGreaterThan(0)
     expect(container.querySelector('.timelineMemoAnchorCue')?.getAttribute('data-timeline-memo-anchor-frame')).toBe('10')
   })
 

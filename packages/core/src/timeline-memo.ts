@@ -135,6 +135,9 @@ export function deleteTimelineMemoAnchors(
 function normalizeTimelineMemoPlacement(placement: TimelineMemoPlacement): TimelineMemoPlacement {
   return {
     frameOffset: Number.isFinite(placement.frameOffset) ? placement.frameOffset : 0,
+    ...(placement.pageOffsetYUnits === undefined ? {} : {
+      pageOffsetYUnits: Number.isFinite(placement.pageOffsetYUnits) ? placement.pageOffsetYUnits : 0,
+    }),
     crossOffsetUnits: Number.isFinite(placement.crossOffsetUnits) ? placement.crossOffsetUnits : 0,
     widthUnits: Math.max(0.5, Number.isFinite(placement.widthUnits) ? placement.widthUnits : 1),
     heightFrames: Math.max(1, Number.isFinite(placement.heightFrames) ? placement.heightFrames : 1),

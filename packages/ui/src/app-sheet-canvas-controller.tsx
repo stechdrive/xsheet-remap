@@ -1827,15 +1827,17 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function openContextMenuAt(clientX: number, clientY: number, target: Element | null, page: SheetPage, svg: SVGSVGElement): boolean {
     props.setActivePageIndex(page.pageIndex)
     const point = pointFromClient(svg, clientX, clientY)
+    const hit = rangeHitFromPoint(point, page)
+    const { timelineMemoIds, soundCueId, cameraCueId } = resolveTimelineMemoContextTargets(target, props.project, props.template, hit)
     const stackGuideTarget = stackGuideHeaderInsertTargetFromPoint(point, page)
-    if (stackGuideTarget) {
+    if (stackGuideTarget && !timelineMemoIds?.length) {
       clearHover()
       closeContextMenus()
       setStackGuideHeaderMenu({ ...stackGuideTarget, x: clientX, y: clientY })
       return true
     }
     const headerHit = paperTrackHeaderHitFromPoint(point, page, svg.getBoundingClientRect().height)
-    if (headerHit?.paperTrack) {
+    if (headerHit?.paperTrack && !timelineMemoIds?.length) {
       clearHover()
       const sheetRole = sheetRoleForHit(headerHit)
       closeContextMenus()
@@ -1843,14 +1845,12 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       return true
     }
     const laneHeader = timedRangeLaneHeaderHitFromPoint(point, page, svg.getBoundingClientRect().height)
-    if (laneHeader) {
+    if (laneHeader && !timelineMemoIds?.length) {
       clearHover()
       closeContextMenus()
       setTimedRangeLaneHeaderMenu({ ...laneHeader, x: clientX, y: clientY })
       return true
     }
-    const hit = rangeHitFromPoint(point, page)
-    const { timelineMemoIds, soundCueId, cameraCueId } = resolveTimelineMemoContextTargets(target, props.project, props.template, hit)
     if (!hit && !timelineMemoIds?.length && !soundCueId && !cameraCueId) return false
     if (soundCueId && !(hit && frameOperationRangeContainsHit(props.rangeSelection, hit))) {
       props.onSoundCueSelect(soundCueId)

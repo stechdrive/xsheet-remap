@@ -148,7 +148,10 @@ export function timelineMemoSegmentsForPage(
     if (!column) continue
     const regionStart = page.frameStart + layout.frames.frameStart - frameOrigin
     const regionEnd = regionStart + layout.frames.rowCount
-    const segmentStart = Math.max(memoTop, regionStart)
+    // Recover legacy memos moved above the first frame. Internal wraps still
+    // partition the logical canvas exactly once; dragging translates it below.
+    const firstRegion = page.pageIndex === 0 && regionStart === page.frameStart
+    const segmentStart = firstRegion ? memoTop : Math.max(memoTop, regionStart)
     const segmentEnd = Math.min(memoBottom, regionEnd)
     if (segmentEnd <= segmentStart) continue
     const rowHeightX = layout.frames.rowHeightPx / layout.pageSize.widthPx
@@ -159,7 +162,7 @@ export function timelineMemoSegmentsForPage(
       pageId: page.pageId,
       rect: {
         x: column.x + memo.placement.crossOffsetUnits * rowHeightX,
-        y: layout.rect.y + (segmentStart - regionStart) * rowHeightY,
+        y: layout.rect.y + (segmentStart - regionStart + (memo.placement.pageOffsetYUnits ?? 0)) * rowHeightY,
         w: memo.placement.widthUnits * rowHeightX,
         h: (segmentEnd - segmentStart) * rowHeightY,
       },

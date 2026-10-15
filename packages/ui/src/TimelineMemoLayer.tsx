@@ -184,7 +184,7 @@ export function TimelineMemoLayer({
           ? {
               ...current.memo.placement,
               crossOffsetUnits: current.memo.placement.crossOffsetUnits + deltaUnits,
-              frameOffset: current.memo.placement.frameOffset + deltaFrames,
+              pageOffsetYUnits: (current.memo.placement.pageOffsetYUnits ?? 0) + deltaFrames,
             }
           : {
               ...current.memo.placement,

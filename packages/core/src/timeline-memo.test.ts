@@ -4,8 +4,35 @@ import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, de
 import { timelineMemos } from './sheet-memo'
 import { normalizeMemoAppearance } from './memo-appearance'
 import type { TimelineInkMemo } from './types'
+import { createProjectHistory, commitHistory, undoHistory, redoHistory } from './project-commands'
+import { createProjectDocumentFromCutProject, parseProjectDocument, activeCutProjectFromDocument } from './project-documents'
+import { validateProject } from './validation'
 
 describe('timeline memos', () => {
+  it('preserves free paper placement, the cell anchor and content through save and undo/redo', () => {
+    const memo: TimelineInkMemo = {
+      kind: 'timeline', memoId: 'header_memo', order: 1,
+      anchor: { role: 'action', frame: 142, paperTrack: 'A' },
+      placement: { frameOffset: 0, crossOffsetUnits: 0, widthUnits: 8, heightFrames: 8 },
+      strokes: [{ strokeId: 'ink', color: '#111', widthUnits: 0.2, points: [{ x: 1, y: 1 }, { x: 2, y: 7 }] }],
+      texts: [{ textId: 'label', text: '確認', x: 1, y: 1 }],
+    }
+    const initial = createProjectHistory(addTimelineMemo(createDefaultProject(), memo))
+    const moved = updateTimelineMemoPlacement(initial.present, memo.memoId, { ...memo.placement, pageOffsetYUnits: -4.5, crossOffsetUnits: -2 })
+    const committed = commitHistory(initial, moved)
+    expect(undoHistory(committed).present.memos).toEqual(initial.present.memos)
+    expect(redoHistory(undoHistory(committed)).present.memos).toEqual(moved.memos)
+    const restored = activeCutProjectFromDocument(parseProjectDocument(JSON.parse(JSON.stringify(createProjectDocumentFromCutProject(moved)))))
+    expect(restored.memos).toEqual(moved.memos)
+    expect(timelineMemos(restored)[0]).toMatchObject({ anchor: memo.anchor, strokes: memo.strokes, texts: memo.texts,
+      placement: { frameOffset: 0, pageOffsetYUnits: -4.5, crossOffsetUnits: -2 } })
+    const invalid = updateTimelineMemoPlacement(moved, memo.memoId, { ...memo.placement, pageOffsetYUnits: Infinity })
+    expect(timelineMemos(invalid)[0]!.placement.pageOffsetYUnits).toBe(0)
+    expect(validateProject(moved).filter(issue => issue.code === 'memo.placement.invalid')).toEqual([])
+    expect(validateProject({ ...moved, memos: [{ ...memo, placement: { ...memo.placement, pageOffsetYUnits: NaN } }] })
+      .some(issue => issue.code === 'memo.placement.invalid')).toBe(true)
+  })
+
   it('adds, resizes, draws, and deletes immutable memo state', () => {
     const source = createDefaultProject()
     const memo: TimelineInkMemo = {

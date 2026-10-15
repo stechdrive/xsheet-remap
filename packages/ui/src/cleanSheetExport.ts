@@ -53,8 +53,6 @@ import {
 } from './cameraCueGeometry'
 import { createCanvasTextMeasurementProvider, SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, textFontDeclaration } from './textMetrics'
 import {
-  timelineMemoAnchorCellForPage,
-  timelineMemoAnchorMarkerRect,
   timelineMemoPointToPagePoint,
   timelineMemoSegmentsForPage,
   timelineMemoStrokePointsForSegment,
@@ -699,8 +697,6 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
     for (const item of [...inputTextRenderItemsForPage(context, page), ...referenceOnlyRenderItemsForPage(context, page)]) {
       const rect = item.rect
       const { x, y, w, h } = projectedPixelRect(context, rect, offsetY)
-      ctx.fillStyle = 'rgba(238, 247, 242, 0.78)'
-      if (item.keyId || !item.textLayout.reference) ctx.fillRect(x + 1, y + 1, w - 2, h - 2)
       if (item.kind === 'cell') {
         ctx.save()
         ctx.beginPath()
@@ -1280,7 +1276,6 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return blankTransparentImageData(context.width, context.height)
-  const surface = { widthPx: context.pageSize.widthPx, heightPx: context.pageSize.heightPx }
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
     for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
@@ -1290,23 +1285,6 @@ function renderTimelineMemoLayer(context: SheetExportLayerContext): ImageData {
         timelineLanes: context.timelineLanes,
         layoutOverrides: context.project.sheetView.layoutOverrides,
       })
-      const anchorCell = timelineMemoAnchorCellForPage(context.template, page, memo, {
-        paperTracks: context.paperTracks,
-        timelineLanes: context.timelineLanes,
-        layoutOverrides: context.project.sheetView.layoutOverrides,
-      })
-      if (anchorCell) {
-        const marker = timelineMemoAnchorMarkerRect(anchorCell.rect, surface)
-        const markerX = marker.x * context.pageSize.widthPx
-        const markerY = offsetY + marker.y * context.pageSize.heightPx
-        const markerW = marker.w * context.pageSize.widthPx
-        const markerH = marker.h * context.pageSize.heightPx
-        ctx.fillStyle = '#2d6a57'
-        ctx.strokeStyle = '#2d6a57'
-        ctx.lineWidth = 1
-        roundedRectPath(ctx, markerX, markerY, markerW, markerH, Math.min(markerW, markerH) * 0.32)
-        ctx.fill()
-      }
       for (const segment of segments) {
         ctx.save()
         clipTimelineMemoPage(ctx, context, offsetY)

@@ -1,5 +1,37 @@
 import type { CutProject, SheetTimingRole } from './types'
-import { isSpecialTimingKeyId, normalizeTimingKeyDisplayLabel, sheetTimingRoleForEvent, sheetTimingRoleForKey } from './project-shared'
+import { isNullLabel, isSpecialTimingKeyId, normalizeTimingKeyDisplayLabel, sheetTimingRoleForEvent, sheetTimingRoleForKey } from './project-shared'
+
+/** Reserve all registered numbers in the target column, including unused cels. */
+export function nextAssetSheetLabel(project: CutProject, paperTrack: string, role: SheetTimingRole): string {
+  let maximum = 0n
+  for (const key of project.logicalSheet.keys) {
+    if (key.paperTrack !== paperTrack || sheetTimingRoleForKey(key) !== role) continue
+    const label = key.displayLabel.trim()
+    if (/^\d+$/.test(label)) maximum = BigInt(label) > maximum ? BigInt(label) : maximum
+  }
+  return String(maximum + 1n)
+}
+
+/** Edit one logical cel without renaming its CSP bindings or merging identities. */
+export function updateSheetKeyDisplayLabel(project: CutProject, keyId: string, value: string): CutProject {
+  const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
+  if (!key) throw new Error('編集するセルが見つかりません。')
+  const label = normalizeTimingKeyDisplayLabel(value)
+  if (!label || isNullLabel(label) || label === '/' || label === '.') throw new Error('シート表記にはセル番号や名前を入力してください。記号はシート上で入力できます。')
+  if (project.logicalSheet.keys.some(item => item.keyId !== keyId && item.paperTrack === key.paperTrack
+    && sheetTimingRoleForKey(item) === sheetTimingRoleForKey(key) && normalizeTimingKeyDisplayLabel(item.displayLabel) === label)) {
+    throw new Error('同じ列にそのシート表記のセルがすでにあります。別の表記を指定してください。')
+  }
+  if (key.displayLabel === label && key.paperToken === label) return project
+  return { ...project, logicalSheet: { ...project.logicalSheet, keys: project.logicalSheet.keys.map(item =>
+    item.keyId === keyId ? { ...item, displayLabel: label, paperToken: label } : item) } }
+}
+
+export function ensureAssetSheetLabel(project: CutProject, keyId: string): CutProject {
+  const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
+  return key && !key.displayLabel.trim()
+    ? updateSheetKeyDisplayLabel(project, keyId, nextAssetSheetLabel(project, key.paperTrack, sheetTimingRoleForKey(key))) : project
+}
 
 export interface SheetLabelNormalizationOptions {
   sheetRole: SheetTimingRole

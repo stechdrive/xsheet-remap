@@ -318,7 +318,7 @@ describe('timing editing model', () => {
     const key = pasted.logicalSheet.keys.find(item => item.keyId === event?.keyId)
     const binding = pasted.bindings.find(item => item.keyId === event?.keyId && item.slotId === 'slot_B')
 
-    expect(key).toMatchObject({ paperTrack: 'B', displayLabel: '' })
+    expect(key).toMatchObject({ paperTrack: 'B', displayLabel: '1' })
     expect(binding).toMatchObject({
       cspCellName: 'A3',
       assetId: registered.asset.assetId,

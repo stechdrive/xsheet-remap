@@ -1,5 +1,5 @@
 import { isCompositionKey } from './compositionKeyboard'
-import { applySheetLabelNormalizationPlan, type SheetLabelNormalizationPlan } from '@xsheet-remap/core'
+import { applySheetLabelNormalizationPlan, updateSheetKeyDisplayLabel, type SheetLabelNormalizationPlan } from '@xsheet-remap/core'
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
@@ -1414,6 +1414,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }))
   }
 
+  function handleUpdateKeySheetLabel(keyId: string, label: string) {
+    try {
+      commitProject(updateSheetKeyDisplayLabel(projectRef.current, keyId, label))
+    } catch (error) {
+      window.alert(errorMessage(error))
+    }
+  }
+
   function handleCreateUnplacedCspCard(slotId: string, cspCellName: string): string | null {
     try {
       const sourceProject = projectRef.current
@@ -2274,7 +2282,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleAssetSheetSources, handleAssignSheetSource, handleRemoveSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleChooseAssetRoot, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
-    handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
+    handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleUpdateKeySheetLabel, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,

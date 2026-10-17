@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   createDefaultProject,
+  createKey,
   NULL_CELL_KEY_ID,
   registerAsset,
   setEvent,
   sheetTimingRoleForEvent,
+  upsertBinding,
   validateProject,
   type SheetHit,
 } from '@xsheet-remap/core'
@@ -28,10 +30,12 @@ describe('sheet asset binding', () => {
     const registered = registerAsset(createDefaultProject(), { name: 'A3.jpg', size: 100, lastModified: 1 }, { role: 'cell-material' })
 
     const first = bindAssetToHit(registered.project, registered.asset, cellHit('A', 1), 'layer_sakuga')
-    const second = bindAssetToHit(first.project, registered.asset, cellHit('A', 12), 'layer_sakuga')
+    const renamed = upsertBinding(first.project, { ...first.project.bindings[0], cspCellName: 'A_003_custom' })
+    const second = bindAssetToHit(renamed, registered.asset, cellHit('A', 12), 'layer_sakuga')
 
     expect(second.project.logicalSheet.keys).toHaveLength(1)
     expect(second.project.bindings).toHaveLength(1)
+    expect(second.project.bindings[0].cspCellName).toBe('A_003_custom')
     expect(second.project.logicalSheet.events.map(event => [event.frame, event.keyId, sheetTimingRoleForEvent(event)])).toEqual([
       [1, first.keyId, 'cell'],
       [12, first.keyId, 'cell'],
@@ -39,15 +43,15 @@ describe('sheet asset binding', () => {
     expect(validateProject(second.project).some(issue => issue.code === 'binding.cspCellName.duplicateInSlot')).toBe(false)
   })
 
-  it('keeps sheet text blank while using the material file name for asset-drop bindings', () => {
+  it('assigns a sheet number while retaining the material file name for asset-drop bindings', () => {
     const registered = registerAsset(createDefaultProject(), { name: 'scan_007.jpg', size: 100, lastModified: 1 }, { role: 'cell-material' })
 
     const bound = bindAssetToHit(registered.project, registered.asset, cellHit('C', 1), 'layer_sakuga')
     const key = bound.project.logicalSheet.keys.find(item => item.keyId === bound.keyId)
 
     expect(key).toMatchObject({
-      displayLabel: '',
-      paperToken: '',
+      displayLabel: '1',
+      paperToken: '1',
       createdFrom: 'asset-drop',
     })
     expect(bound.project.bindings).toEqual([expect.objectContaining({
@@ -55,6 +59,23 @@ describe('sheet asset binding', () => {
       cspCellName: 'scan_007',
       assetId: registered.asset.assetId,
     })])
+  })
+
+  it('allocates above the maximum registered number, separately by column and role', () => {
+    let project = createDefaultProject()
+    for (const label of ['1', '2', '004', '3a']) project = createKey(project, 'A', label, 'manual', label, 'cell').project
+    project = createKey(project, 'A', '90', 'manual', '90', 'action').project
+    project = createKey(project, 'B', '80', 'manual', '80', 'cell').project
+    const registered = registerAsset(project, { name: 'scan_001.png' })
+    const placed = bindAssetToHit(registered.project, registered.asset, cellHit('A', 3), 'layer_sakuga')
+    expect(placed.project.logicalSheet.keys.find(key => key.keyId === placed.keyId)?.displayLabel).toBe('5')
+    const again = bindAssetToHit(placed.project, registered.asset, cellHit('A', 7), 'layer_sakuga')
+    expect(again.keyId).toBe(placed.keyId)
+    expect(again.project.logicalSheet.keys).toEqual(placed.project.logicalSheet.keys)
+    const existing = setEvent(registered.project, 'A', 1, project.logicalSheet.keys[2].keyId, 'cell')
+    const assigned = bindAssetToHit(existing, registered.asset, cellHit('A', 1), 'layer_sakuga')
+    expect(assigned.keyId).toBe(project.logicalSheet.keys[2].keyId)
+    expect(assigned.project.logicalSheet.keys[2].displayLabel).toBe('004')
   })
 
   it('allows the same material name to be registered on different paper tracks', () => {

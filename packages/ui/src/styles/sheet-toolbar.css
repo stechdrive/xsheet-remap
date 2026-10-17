@@ -1577,6 +1577,10 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .sheetSvg 
   white-space: nowrap;
 }
 
+.cspTreeSheetLabelInput {
+  max-width: 100px;
+}
+
 .cspTreeAssetState {
   grid-column: 3;
   color: #9ba39d;

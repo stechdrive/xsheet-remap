@@ -59,7 +59,13 @@ export function createLayer(clip: ClipContainer, seed: ClipContainer, options: {
   const layer = clip.insert('Layer', template, { CanvasId: clip.rows('Canvas')[0].MainId, LayerName: options.name, LayerUuid: options.uuid,
     LayerType: options.kind === 'raster' ? 1 : 0, LayerFolder: options.kind === 'raster' ? 0 : 1, AnimationFolder: options.kind === 'animation' ? 1 : 0,
     LayerFirstChildIndex: 0, LayerNextIndex: 0, LayerSelect: 0, LayerOffsetX: 0, LayerOffsetY: 0, LayerRenderOffscrOffsetX: 0, LayerRenderOffscrOffsetY: 0 })
-  const mip = writeMipmap(clip, layer, options.pixels ?? options, seed, template)
+  // Missing externals are valid refreshable folder caches, but CSP reports a
+  // damaged image when a new raster cel has no stored surface. Store transparent
+  // pixels for material-unassigned cels as well.
+  const pixels = options.pixels ?? (options.kind === 'raster'
+    ? { width: options.width, height: options.height, channels: 4 as const, data: new Uint8Array(options.width * options.height * 4) }
+    : options)
+  const mip = writeMipmap(clip, layer, pixels, seed, template)
   const thumbTemplate = seed.row('LayerThumbnail', template.LayerRenderThumbnail)
   const offTemplate = seed.row('Offscreen', thumbTemplate.ThumbnailOffscreen)
   const off = clip.insert('Offscreen', offTemplate, { CanvasId: clip.rows('Canvas')[0].MainId, LayerId: layer.MainId, BlockData: utf8.encode(externalId()) })

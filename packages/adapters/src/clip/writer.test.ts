@@ -7,7 +7,10 @@ import type { ClipRegistrationPlan } from '@xsheet-remap/core'
 import { ClipContainer } from './container'
 import { writeClip } from './writer'
 import { Mixer } from './animation'
-import { readLayerPixels } from './layers'
+import { mipmapChain, readLayerPixels } from './layers'
+const nativeLabels = JSON.parse(readFileSync(new URL('./fixtures/native-track-labels.json', import.meta.url), 'utf8')) as {
+  labels: { LabelName: string; LabelFrame: number; LabelType: number; LabelLength: null }[]
+}
 const require = createRequire(import.meta.url)
 const seed = new Uint8Array(readFileSync(new URL('./blank.clip', import.meta.url)))
 let SQL: SqlJsStatic
@@ -21,6 +24,46 @@ const plan: ClipRegistrationPlan = {
   ],
 }
 describe('direct CLIP writer', () => {
+  it.each([24, 30])('writes the native circle/filled-circle label chain at frame positions independent of %s fps', async fps => {
+    const labeled = { ...plan, timelines: [{ ...plan.timelines[0], fps, tracks: [{ ...plan.timelines[0].tracks[0], labels: [{ frame: 6, kind: 'reverse' as const }, { frame: 2, kind: 'inbetween' as const }] }] }] }
+    const result = await writeClip(SQL, seed, { plan: labeled, canvas, fit: 'crop', images: {} })
+    const clip = new ClipContainer(SQL, result.bytes)
+    try {
+      const track = clip.rows('Track').find(row => row.TrackKind === 2000)!
+      const labels = clip.rows('TimeLineLabel')
+      expect(labels).toHaveLength(2)
+      expect(track.TrackLabelFirstIndex).toBe(labels[0].MainId)
+      expect(labels.map(({ LabelName, LabelFrame, LabelType, LabelLength }) => ({ LabelName, LabelFrame, LabelType, LabelLength })))
+        .toEqual(nativeLabels.labels.map(({ LabelName, LabelFrame, LabelType, LabelLength }) => ({ LabelName, LabelFrame, LabelType, LabelLength })))
+      expect(labels.map(row => row.LabelNextIndex)).toEqual([labels[1].MainId, 0])
+      for (const label of labels) expect(label).toMatchObject({ TrackId: track.MainId, BankId: track.BankId, ItemId: track.ItemId })
+      const original = await writeClip(SQL, seed, { plan: { ...labeled, timelines: [{ ...labeled.timelines[0], tracks: plan.timelines[0].tracks }] }, canvas, fit: 'crop', images: {} })
+      const comparison = new ClipContainer(SQL, original.bytes)
+      try {
+        const originalTrack = comparison.rows('Track').find(row => row.TrackKind === 2000)!
+        for (const field of ['TrackActionMixer', 'TrackActionMixer2']) expect(clip.body(track[field])).toEqual(comparison.body(originalTrack[field]))
+      } finally { comparison.close() }
+      const preserved = await writeClip(SQL, seed, { plan: { ...plan, projectId: 'other' }, canvas, fit: 'crop', images: {}, template: result.bytes })
+      const other = new ClipContainer(SQL, preserved.bytes)
+      try { expect(other.rows('TimeLineLabel')).toEqual(labels) } finally { other.close() }
+      const removed = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: {}, template: result.bytes })
+      const updated = new ClipContainer(SQL, removed.bytes)
+      try {
+        expect(updated.rows('TimeLineLabel')).toEqual([])
+        expect(updated.rows('Track').every(row => !row.TrackLabelFirstIndex)).toBe(true)
+      } finally { updated.close() }
+    } finally { clip.close() }
+  })
+  it('stores valid transparent raster surfaces for unassigned cels', async () => {
+    const result = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: {} })
+    const clip = new ClipContainer(SQL, result.bytes)
+    try {
+      for (const layer of clip.rows('Layer').filter(row => row.LayerType === 1)) {
+        expect(readLayerPixels(clip, layer).data.every(byte => byte === 0)).toBe(true)
+        for (const { off } of mipmapChain(clip, layer.LayerRenderMipmap)) expect(clip.body(off.BlockData)?.length).toBeGreaterThan(0)
+      }
+    } finally { clip.close() }
+  })
   it('creates image-free shared cels and two complete timelines from the clean seed', async () => {
     const result = await writeClip(SQL, seed, { plan, canvas, fit: 'expand', images: {} })
     const clip = new ClipContainer(SQL, result.bytes)

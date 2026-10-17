@@ -27,6 +27,19 @@ const cellAFrame = (frame: number): SheetHit => ({
 })
 
 describe('CSP process card timing assignment', () => {
+  it('numbers a blank card above the destination maximum and reuses its clone on later drops', () => {
+    let project = createKey(createDefaultProject(), 'B', '9', 'manual', '9', 'cell').project
+    project = createKey(project, 'B', '50', 'manual', '50', 'action').project
+    const asset = registerAsset(project, { name: 'scan.png' }, { role: 'cell-material' })
+    const registered = registerAssetsToCspTrack(asset.project, { slotId: 'slot_A', assetIds: [asset.asset.assetId] })
+    const keyId = registered.addedKeyIds[0]!
+    const first = assignRegisteredCellKeyToHit(registered.project, keyId, { ...cellAFrame(1), paperTrack: 'B', label: 'B', columnId: 'cell_B' })
+    expect(first.project.logicalSheet.keys.find(key => key.keyId === first.keyId)?.displayLabel).toBe('10')
+    const second = assignRegisteredCellKeyToHit(first.project, keyId, { ...cellAFrame(12), paperTrack: 'B', label: 'B', columnId: 'cell_B' })
+    expect(second.keyId).toBe(first.keyId)
+    expect(second.project.logicalSheet.keys).toEqual(first.project.logicalSheet.keys)
+    expect(second.project.bindings).toEqual(first.project.bindings)
+  })
   it('keeps image-card linking, repeated drops and typed reuse intact after sheet-only renaming', () => {
     const key = createKey(createDefaultProject(), 'A', '0001', 'import', '0001', 'action')
     let project = setEvent(key.project, 'A', 1, key.key.keyId, 'action')
@@ -90,7 +103,7 @@ describe('CSP process card timing assignment', () => {
     ])
   })
 
-  it('keeps an unplaced card unnamed when it is first placed on an empty frame', () => {
+  it('numbers an unplaced card when it is first placed on an empty frame', () => {
     const asset = registerAsset(createDefaultProject(), { name: 'unorganized-scan.png', size: 100, lastModified: 1 }, { role: 'cell-material' })
     const registered = registerAssetsToCspTrack(asset.project, {
       slotId: 'slot_enshutsu_A',
@@ -102,7 +115,7 @@ describe('CSP process card timing assignment', () => {
     const placed = assignRegisteredCellKeyToHit(registered.project, keyId, actionAFrame(24))
 
     expect(placed.keyId).toBe(keyId)
-    expect(placed.project.logicalSheet.keys.find(key => key.keyId === keyId)?.displayLabel).toBe('')
+    expect(placed.project.logicalSheet.keys.find(key => key.keyId === keyId)?.displayLabel).toBe('1')
     expect(placed.project.logicalSheet.events).toEqual([
       expect.objectContaining({ frame: 24, keyId }),
     ])

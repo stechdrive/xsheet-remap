@@ -1,0 +1,8 @@
+{
+  "source": "CSP native timeline context-menu commands: create inbetween track label circle at frame 3 and filled circle at frame 7; saved CLIP at 24 fps",
+  "track": { "MainId": 3, "BankId": 2, "ItemId": 1, "TrackLabelFirstIndex": 1 },
+  "labels": [
+    { "MainId": 1, "BankId": 2, "ItemId": 1, "TrackId": 3, "LabelNextIndex": 2, "LabelName": "", "LabelFrame": 2, "LabelType": 1, "LabelLength": null },
+    { "MainId": 2, "BankId": 2, "ItemId": 1, "TrackId": 3, "LabelNextIndex": 0, "LabelName": "", "LabelFrame": 6, "LabelType": 2, "LabelLength": null }
+  ]
+}

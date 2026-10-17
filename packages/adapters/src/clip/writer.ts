@@ -6,6 +6,7 @@ import { inspectCanvas, resizeCanvas } from './canvas'
 import { ClipContainer, type Row } from './container'
 import { createLayer, refreshCaches, writeMipmap } from './layers'
 import { placePixels, png, type Pixels } from './raster'
+import { ensureTrackLabelStorage, writeTrackLabels } from './track-labels'
 export interface ClipWriteOptions {
   plan: ClipRegistrationPlan
   canvas: ClipCanvasSettings
@@ -22,6 +23,7 @@ export async function writeClip(SQL: SqlJsStatic, seedBytes: Uint8Array, options
     seed = new ClipContainer(SQL, seedBytes)
     const prototypes = seed
     const fresh = !options.template, { plan } = options
+    ensureTrackLabelStorage(clip)
     check(plan.timelines.length > 0 && plan.timelines.length <= 1000 && plan.folders.length <= 2000, 'タイムラインまたはフォルダー数が範囲外です。')
     let settings = fresh ? { ...options.canvas } : inspectCanvas(clip)
     validateClipCanvas(settings)
@@ -37,7 +39,7 @@ export async function writeClip(SQL: SqlJsStatic, seedBytes: Uint8Array, options
       const paper = clip.rows('Layer').find(layer => layer.LayerType === 1584)!
       clip.db.run('DELETE FROM Layer WHERE MainId NOT IN (?,?)', [root.MainId, paper.MainId])
       clip.update('Layer', paper.MainId, { LayerNextIndex: 0 })
-      clip.db.run('DELETE FROM Track'); clip.db.run('DELETE FROM TimeLine')
+      clip.db.run('DELETE FROM TimeLineLabel'); clip.db.run('DELETE FROM Track'); clip.db.run('DELETE FROM TimeLine')
       clip.update('AnimationCutBank', clip.rows('AnimationCutBank')[0].MainId, { FirstTimeLine: 0, CurrentIndex: 0 })
     }
     const old = inspectCanvas(clip)
@@ -121,6 +123,8 @@ export async function writeClip(SQL: SqlJsStatic, seedBytes: Uint8Array, options
       let row: Row
       if (original) row = clip.row('TimeLine', original.MainId)
       else if (oldTimeline) {
+        clip.db.run('DELETE FROM TimeLineLabel WHERE ItemId=? AND BankId=? AND TrackId IN (SELECT MainId FROM Track WHERE ItemId=? AND BankId=?)',
+          [oldTimeline.MainId, bank.MainId, oldTimeline.MainId, bank.MainId])
         clip.db.run('DELETE FROM Track WHERE ItemId=? AND BankId=?', [oldTimeline.MainId, bank.MainId])
         clip.update('TimeLine', oldTimeline.MainId, spec); row = clip.row('TimeLine', oldTimeline.MainId)
       } else {
@@ -136,14 +140,15 @@ export async function writeClip(SQL: SqlJsStatic, seedBytes: Uint8Array, options
       for (const layer of orderedLayers) {
         if (original && !newLayerIds.has(layer.MainId)) continue
         const folderId = [...folderLayers].find(([, item]) => item.MainId === layer.MainId)?.[0]
-        const input = timeline.tracks.find(track => track.folderId === folderId)?.frames ?? []
+        const definition = timeline.tracks.find(track => track.folderId === folderId)
+        const input = definition?.frames ?? []
         const frames = input.slice().sort((a, b) => a.frame - b.frame)
         check(frames.every((frame, i) => Number.isInteger(frame.frame) && frame.frame >= 0 && frame.frame < timeline.duration && (!i || frame.frame > frames[i - 1].frame)), 'セル指定のフレームが重複または範囲外です。')
         if (!frames.length || frames[0].frame > 0) frames.unshift({ frame: 0, value: null })
         const sourceTrack = layer.AnimationFolder ? trackTemplate : staticTrackTemplate
         const layerId = String(layer.LayerUuid).replaceAll('-', '')
         check(/^[a-fA-F0-9]{32}$/.test(layerId), 'レイヤーUUIDが不正です。')
-        const track: Row = { ...sourceTrack, BankId: bank.MainId, ItemId: row.MainId, TrackNextIndex: 0, TrackOpen: 1,
+        const track: Row = { ...sourceTrack, BankId: bank.MainId, ItemId: row.MainId, TrackNextIndex: 0, TrackOpen: 1, TrackLabelFirstIndex: 0,
           TrackKind: layer.AnimationFolder ? 2000 : layer.LayerFolder ? 1000 : 2003,
           TrackUuid: await identity(plan.projectId, `track:${timeline.id}:${layerId}`),
           LayerUuidWithTrack: Uint8Array.from(layerId.match(/../g)!, hex => parseInt(hex, 16)),
@@ -153,6 +158,7 @@ export async function writeClip(SQL: SqlJsStatic, seedBytes: Uint8Array, options
           track[field] = clip.addExternal(packedMixer(raw)); track[`${field}Size`] = raw.length
         }
         const inserted = clip.insert('Track', track)
+        if (layer.AnimationFolder) writeTrackLabels(clip, inserted, definition?.labels ?? [], timeline.duration)
         if (previous) clip.update('Track', previous.MainId, { TrackNextIndex: inserted.MainId })
         else clip.update('TimeLine', row.MainId, { FirstTrack: inserted.MainId })
         previous = inserted

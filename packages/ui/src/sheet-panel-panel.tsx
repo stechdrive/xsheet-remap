@@ -297,6 +297,7 @@ export function SheetPanel(props: {
   onSetViewMode: (viewMode: SheetViewMode) => void
   onDeleteKey: (keyId: string) => void | Promise<void>
   onUpdateKeyCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
+  onUpdateKeySheetLabel: (keyId: string, label: string) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
   onRenameProductionStage: (stageId: string, label: string) => void
   onRenameCorrectionLayer: (layerId: string, label: string) => void
@@ -976,6 +977,7 @@ export function SheetPanel(props: {
               activeCorrectionLayerId={props.activeCorrectionLayerId}
               onActiveCorrectionLayerChange={props.setActiveCorrectionLayerId}
               onUpdateCspCellName={props.onUpdateKeyCspCellName}
+              onUpdateSheetLabel={props.onUpdateKeySheetLabel}
               onMoveKeyBindingProcess={props.onMoveKeyBindingProcess}
               onRenameProductionStage={props.onRenameProductionStage}
               onRenameCorrectionLayer={props.onRenameCorrectionLayer}

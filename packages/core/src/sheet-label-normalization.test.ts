@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, buildClipRegistrationPlan, commitHistory, createDefaultProject, createKey, createProjectDocumentFromCutProject, createProjectHistory, redoHistory, registerAsset, registerAssetsToCspTrack, setEvent, setTimingSpecialEvent, undoHistory, updateActiveCutProjectInDocument, upsertBinding, type CutProject, type SheetTimingRole } from './index'
-import { applySheetLabelNormalizationPlan, buildSheetLabelNormalizationPlan } from './sheet-label-normalization'
+import { applySheetLabelNormalizationPlan, buildSheetLabelNormalizationPlan, nextAssetSheetLabel, updateSheetKeyDisplayLabel } from './sheet-label-normalization'
 
 function cell(project: CutProject, label: string, frame: number, track = 'A', role: SheetTimingRole = 'action') {
   const created = createKey(project, track, label, 'import', label, role)
@@ -11,6 +11,34 @@ function cell(project: CutProject, label: string, frame: number, track = 'A', ro
 const strip = { sheetRole: 'action' as const, method: 'strip-leading-zeros' as const }
 
 describe('sheet label normalization', () => {
+  it('edits one shared sheet label atomically without changing CSP names, assets or timing', () => {
+    const first = cell(createDefaultProject(), '1', 1)
+    const bound = upsertBinding(first.project, { slotId: 'slot_A', keyId: first.key.keyId, cspCellName: '1', materialState: 'unassigned' })
+    let document = createProjectDocumentFromCutProject(bound)
+    document = addBlankSharedCutToProjectDocument(document, bound, { cut: { cut: 'C002' } })
+    const second = setEvent(activeCutProjectFromDocument(document), 'A', 10, first.key.keyId, 'action')
+    document = updateActiveCutProjectInDocument(document, second)
+    const before = buildClipRegistrationPlan(document, 'action')
+    const next = updateSheetKeyDisplayLabel(second, first.key.keyId, '  仕上げ001  ')
+    expect(next.logicalSheet.keys[0]).toMatchObject({ displayLabel: '仕上げ001', paperToken: '仕上げ001' })
+    expect(next.logicalSheet.events).toBe(second.logicalSheet.events)
+    expect(next.bindings).toBe(second.bindings)
+    expect(next.assets).toBe(second.assets)
+    const saved = JSON.parse(JSON.stringify(updateActiveCutProjectInDocument(document, next)))
+    expect(saved.cuts.map((cut: { cutId: string }) => activeCutProjectFromDocument({ ...saved, activeCutId: cut.cutId }).logicalSheet.keys[0].displayLabel)).toEqual(['仕上げ001', '仕上げ001'])
+    expect(buildClipRegistrationPlan(saved, 'action')).toEqual(before)
+    const history = commitHistory(createProjectHistory(second), next)
+    expect(undoHistory(history).present).toEqual(second)
+    expect(redoHistory(undoHistory(history)).present).toEqual(next)
+  })
+  it('rejects reserved and duplicate labels without merging cells and reserves exact large numeric values', () => {
+    const first = cell(createDefaultProject(), '1', 1)
+    const second = cell(first.project, '000123456789012345678901234567890', 4)
+    expect(nextAssetSheetLabel(second.project, 'A', 'action')).toBe('123456789012345678901234567891')
+    for (const value of ['', ' ', 'X', '/', '.']) expect(() => updateSheetKeyDisplayLabel(second.project, first.key.keyId, value)).toThrow()
+    expect(() => updateSheetKeyDisplayLabel(second.project, first.key.keyId, second.key.displayLabel)).toThrow('すでに')
+    expect(updateSheetKeyDisplayLabel(second.project, first.key.keyId, '1')).toBe(second.project)
+  })
   it('changes repeated sheet labels atomically, preserving CSP/material/timing and CLIP export through save and undo', () => {
     const created = cell(createDefaultProject(), '0001', 1)
     const registered = registerAsset(created.project, { name: 'A0001.png', size: 7, lastModified: 1 }, { role: 'cell-material' })

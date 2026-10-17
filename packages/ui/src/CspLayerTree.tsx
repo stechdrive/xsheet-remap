@@ -31,6 +31,7 @@ export function CspLayerTree({
   activeCorrectionLayerId,
   onActiveCorrectionLayerChange,
   onUpdateCspCellName,
+  onUpdateSheetLabel,
   onMoveKeyBindingProcess,
   onUpdateStackGuideRegistration,
   onUpdateStackGuideLabel,
@@ -63,6 +64,7 @@ export function CspLayerTree({
   activeCorrectionLayerId: string
   onActiveCorrectionLayerChange: (layerId: string) => void
   onUpdateCspCellName: (keyId: string, slotId: string, cspCellName: string) => void
+  onUpdateSheetLabel?: (keyId: string, label: string) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void
   onUpdateStackGuideRegistration: (labelId: string, correctionLayerId: string, cspCellName: string) => void
   onUpdateStackGuideLabel: (labelId: string, updates: { label: string }) => void
@@ -578,7 +580,6 @@ export function CspLayerTree({
     const assignmentSlotId = track.slotId ?? activeSlotIdForTrack(track)
     const editableBinding = Boolean(track.slotId && cel.keyId)
     const editableGuide = Boolean(track.stackGuideLabelId && correctionLayerId)
-    const showSheetLabel = Boolean(cel.keyId && cel.displayLabel?.trim() && cel.displayLabel.trim() !== cel.cspCellName.trim())
     const asset = cel.assetId ? assetsById.get(cel.assetId) : undefined
     const celSelection: CspPaneSelection = cel.keyId
       ? cel.bindingId
@@ -632,7 +633,7 @@ export function CspLayerTree({
             return
           }
           const target = event.target
-          if (target instanceof Element && target.closest('.cspTreeCelName')) {
+          if (target instanceof Element && target.closest('.cspTreeCelName,.cspTreeSheetLabel')) {
             scheduleKeySelect(celSelection)
             return
           }
@@ -657,7 +658,16 @@ export function CspLayerTree({
             }}
           />
         ) : <span className="cspTreeCelName">{cel.cspCellName}</span>}
-        {showSheetLabel && <span className="cspTreeSheetLabel">シート: {cel.displayLabel}</span>}
+        {cel.keyId && (onUpdateSheetLabel ? <InlineTreeLabel
+          className="cspTreeSheetLabel"
+          inputClassName="cspTreeSheetLabelInput"
+          label={cel.displayLabel ?? ''}
+          displayText={`シート: ${cel.displayLabel?.trim() || '未設定'}`}
+          inputAriaLabel={`${track.label}のシート表記`}
+          editTitle="ダブルクリックでシート表記を編集（同じセルの全出現箇所に反映）"
+          onBeginEditing={cancelPendingKeySelect}
+          onCommit={name => onUpdateSheetLabel(cel.keyId!, name)}
+        /> : <span className="cspTreeSheetLabel">シート: {cel.displayLabel || '未設定'}</span>)}
         <TooltipTarget label={asset ? `素材: ${asset.displayName}` : '素材未割当'}>
           {tooltipProps => (
             <span
@@ -1331,6 +1341,7 @@ function SummaryRenameEditor({
 
 function InlineTreeLabel({
   label,
+  displayText,
   className,
   inputClassName,
   inputAriaLabel,
@@ -1339,6 +1350,7 @@ function InlineTreeLabel({
   onCommit,
 }: {
   label: string
+  displayText?: string
   className: string
   inputClassName: string
   inputAriaLabel: string
@@ -1369,6 +1381,7 @@ function InlineTreeLabel({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
     if (event.key === 'Enter') {
       event.preventDefault()
       event.currentTarget.blur()
@@ -1416,7 +1429,7 @@ function InlineTreeLabel({
             beginEditing()
           }}
         >
-          {label}
+          {displayText ?? label}
         </span>
       )}
     </TooltipTarget>

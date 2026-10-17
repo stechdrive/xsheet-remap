@@ -115,7 +115,9 @@ describe('timing clipboard across ACTION, CELL and additional columns', () => {
     const first = bindAssetToHit(a.project, a.asset, hit('action'), 'layer_sakuga')
     const b = registerAsset(first.project, { name: 'A2.png', size: 20, lastModified: 2 }, { role: 'cell-material' })
     const second = bindAssetToHit(b.project, b.asset, hit('action', 'A', 2), 'layer_sakuga')
-    const project = setEvent(second.project, 'A', 3, first.keyId!, 'action')
+    const repeated = setEvent(second.project, 'A', 3, first.keyId!, 'action')
+    // Older projects can contain image-only drawings without sheet labels.
+    const project = { ...repeated, logicalSheet: { ...repeated.logicalSheet, keys: repeated.logicalSheet.keys.map(key => ({ ...key, displayLabel: '', paperToken: '' })) } }
     const clipboard = buildTimingClipboard(project, range('action', ['A'], 1, 3), 'copy')
     const pasted = pasteTimingClipboardToProject(project, clipboard, { role: 'cell', paperTrack: 'A', frameStart: 1, frameEnd: 6 }, 'repeat-range')
     const keys = events(pasted, 'cell').map(event => event.keyId)

@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import initSqlJs from 'sql.js'
 import { expect, test, type Page } from './fixtures'
 import { activateControl } from './input'
-import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, registerAsset, setEvent, updateActiveCutProjectInDocument, upsertBinding } from '../../../packages/core/src/index'
+import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, registerAsset, setEvent, setTimingSpecialEvent, updateActiveCutProjectInDocument, upsertBinding } from '../../../packages/core/src/index'
 import { encodeProjectArchive } from '../../../packages/adapters/src/projectArchive'
 import { ClipContainer } from '../../../packages/adapters/src/clip/container'
 import { writeClip } from '../../../packages/adapters/src/clip/writer'
@@ -22,7 +22,9 @@ async function sourceProject() {
   const created = createOrSetEvent({ ...createDefaultProject(), cut: { cut: 'C001' } }, 'A', 1, 'action')
   const image = png(pixels)
   const registered = registerAsset(created.project, { name: 'A1.png', objectUrl: `data:image/png;base64,${Buffer.from(image).toString('base64')}` })
-  const bound = upsertBinding(registered.project, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: '1', materialState: 'assigned', assetId: registered.asset.assetId })
+  let bound = upsertBinding(registered.project, { slotId: 'slot_A', keyId: created.key.keyId, cspCellName: '1', materialState: 'assigned', assetId: registered.asset.assetId })
+  bound = setTimingSpecialEvent(bound, 'A', 3, 'inbetween', 'action')
+  bound = setTimingSpecialEvent(bound, 'A', 5, 'reverse', 'action')
   let document = addBlankSharedCutToProjectDocument(createProjectDocumentFromCutProject(bound), bound, { cut: { cut: 'C002' } })
   document = updateActiveCutProjectInDocument(document, setEvent(activeCutProjectFromDocument(document), 'A', 7, created.key.keyId, 'action'))
   return Buffer.from(await encodeProjectArchive(document, { includeAssetPreviews: true }))
@@ -70,6 +72,11 @@ for (const mode of ['empty', 'crop', 'expand'] as const) test(`CLIP worker saves
     expect(output.rows('TimeLine').map(row => row.TimeLineName)).toEqual(mode === 'empty' ? ['C001', 'C002'] : ['Original', 'C001', 'C002'])
     const cel = output.rows('Layer').filter(row => row.LayerType === 1)
     expect(cel).toHaveLength(1)
+    const labels = output.rows('TimeLineLabel')
+    expect(labels.map(row => [row.LabelFrame, row.LabelType, row.LabelName])).toEqual([[2, 1, ''], [4, 2, '']])
+    const labelTrack = output.row('Track', labels[0].TrackId)
+    expect(output.row('TimeLine', labelTrack.ItemId).TimeLineName).toBe('C001')
+    expect(labelTrack.TrackLabelFirstIndex).toBe(labels[0].MainId)
     const decoded = readLayerPixels(output, cel[0])
     const width = mode === 'expand' ? 35 : 32, height = mode === 'expand' ? 27 : 24
     expect([decoded.width, decoded.height]).toEqual([width, height])

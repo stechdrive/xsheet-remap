@@ -1,10 +1,11 @@
 import {
   createKey,
+  ensureAssetSheetLabel,
+  nextAssetSheetLabel,
   isSpecialTimingKeyId,
   setEvent,
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
-  updateKey,
   upsertBinding,
   type CellBinding,
   type CutAsset,
@@ -31,13 +32,13 @@ export function bindAssetToHit(project: CutProject, asset: CutAsset, hit: SheetH
     ? findReusableAssetBinding(project, slot.slotId, cspCellName, asset.assetId, hit.paperTrack, sheetRole)
     : null
   if (slot && reusableBinding) {
-    const withEvent = setEvent(project, hit.paperTrack, hit.frame, reusableBinding.keyId, sheetRole)
+    const withEvent = setEvent(ensureAssetSheetLabel(project, reusableBinding.keyId), hit.paperTrack, hit.frame, reusableBinding.keyId, sheetRole)
     return {
       project: upsertBinding(withEvent, {
         slotId: slot.slotId,
         keyId: reusableBinding.keyId,
         assetId: asset.assetId,
-        cspCellName,
+        cspCellName: reusableBinding.cspCellName,
         materialState: 'assigned',
       }),
       keyId: reusableBinding.keyId,
@@ -48,11 +49,13 @@ export function bindAssetToHit(project: CutProject, asset: CutAsset, hit: SheetH
   let next = project
   let keyId = existingEvent && !isSpecialTimingKeyId(existingEvent.keyId) ? existingEvent.keyId : null
   if (!keyId) {
-    const created = createKey(next, hit.paperTrack, undefined, 'asset-drop', undefined, sheetRole)
+    const label = nextAssetSheetLabel(next, hit.paperTrack, sheetRole)
+    const created = createKey(next, hit.paperTrack, label, 'asset-drop', label, sheetRole)
     const withEvent = setEvent(created.project, hit.paperTrack, hit.frame, created.key.keyId, sheetRole)
-    next = updateKey(withEvent, created.key.keyId, { displayLabel: '', paperToken: '' })
+    next = withEvent
     keyId = created.key.keyId
   }
+  next = ensureAssetSheetLabel(next, keyId)
   if (!slot) return { project: next, keyId }
   return {
     project: upsertBinding(next, {

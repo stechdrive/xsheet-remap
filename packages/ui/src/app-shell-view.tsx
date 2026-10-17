@@ -60,7 +60,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleAssetSheetSources, handleAssignSheetSource, handleRemoveSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
     handleAssetNativePaths, handleAssetRootCandidates, handleAssignAsset, handleAssignRegisteredCell,
-    handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
+    handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleUpdateKeySheetLabel, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
     handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
@@ -485,6 +485,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSetViewMode={viewMode => runProjectCommand(sourceProject => updateSheetViewState(sourceProject, { viewMode }))}
             onDeleteKey={handleDeleteCspCard}
             onUpdateKeyCspCellName={handleUpdateKeyCspCellName}
+            onUpdateKeySheetLabel={handleUpdateKeySheetLabel}
             onMoveKeyBindingProcess={handleMoveKeyBindingProcess}
             onRenameProductionStage={handleRenameProductionStage}
             onRenameCorrectionLayer={handleRenameCorrectionLayer}

@@ -1,5 +1,6 @@
 import { activeCutProjectFromDocument, buildExportPlan, stackGuideRegistrations } from './project'
 import { NULL_CELL_CSP_CELL_NAME, type CutGroupProjectDocument, type ExportTrackFrame, type SheetTimingRole } from './types'
+import { defaultCorrectionLayerId, sheetTimingRoleForEvent, timingEventValueKind } from './project-shared'
 
 export interface ClipCanvasSettings {
   width: number
@@ -12,6 +13,7 @@ export interface ClipCanvasSettings {
 }
 export type ClipImageFit = 'expand' | 'crop'
 export interface ClipCel { name: string; assetId?: string }
+export interface ClipTrackLabel { frame: number; kind: 'inbetween' | 'reverse' }
 export interface ClipFolder {
   id: string
   path: string[]
@@ -23,7 +25,7 @@ export interface ClipTimeline {
   name: string
   fps: number
   duration: number
-  tracks: { folderId: string; frames: ExportTrackFrame[] }[]
+  tracks: { folderId: string; frames: ExportTrackFrame[]; labels?: ClipTrackLabel[] }[]
 }
 export interface ClipRegistrationPlan {
   projectId: string
@@ -66,9 +68,24 @@ export function buildClipRegistrationPlan(document: CutGroupProjectDocument, rol
   for (const cut of [...document.cuts].sort((a, b) => a.order - b.order)) {
     if (cutIds && !cutIds.includes(cut.cutId)) continue
     const project = activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId })
-    const exported = buildExportPlan(project, { profileId: 'import-stack', timingSourceRole: role, sheetTemplate: document.sheetTemplate, fallbackCutId: cut.cutId })
+    const markerEvents = project.logicalSheet.events.filter(event => sheetTimingRoleForEvent(event) === role
+      && (timingEventValueKind(event) === 'inbetween' || timingEventValueKind(event) === 'reverse'))
+    // Remove markers before resolving process exposures: they must not blank a
+    // correction track or become placeholder raster cels in the CLIP document.
+    const celProject = { ...project, logicalSheet: { ...project.logicalSheet, events: project.logicalSheet.events.filter(event =>
+      timingEventValueKind(event) !== 'inbetween' && timingEventValueKind(event) !== 'reverse') } }
+    const exported = buildExportPlan(celProject, { profileId: 'import-stack', timingSourceRole: role, sheetTemplate: document.sheetTemplate, fallbackCutId: cut.cutId })
     const timeline: ClipTimeline = { id: cut.cutId, name: exported.metadata.timeTableName, fps: exported.fps, duration: exported.durationFrames, tracks: [] }
-    for (const track of exported.tracks.filter(item => !item.dummy)) {
+    const tracks = exported.tracks.filter(item => !item.dummy)
+    const profile = project.exportProfiles.find(item => item.profileId === 'import-stack') ?? project.exportProfiles[0]
+    for (const paperTrack of new Set(markerEvents.filter(event => event.frame >= project.logicalSheet.frameOrigin
+      && event.frame < project.logicalSheet.frameOrigin + timeline.duration).map(event => event.paperTrack))) {
+      if (tracks.some(track => project.cspTrackSlots.find(slot => slot.slotId === track.slotId)?.paperTrack === paperTrack)) continue
+      const slot = project.cspTrackSlots.find(slot => slot.paperTrack === paperTrack && slot.correctionLayerId === defaultCorrectionLayerId(project)
+        && (!profile?.slotIds || profile.slotIds.includes(slot.slotId)))
+      if (slot) tracks.push({ trackNo: slot.trackNo, name: slot.xdtsName, slotId: slot.slotId, frames: [] })
+    }
+    for (const track of tracks) {
       const slot = project.cspTrackSlots.find(item => item.slotId === track.slotId)
       const guide = project.stackGuideLabels.find(item => item.labelId === track.stackGuideLabelId)
       const registration = guide && stackGuideRegistrations(guide).find(item => item.registrationId === track.stackGuideRegistrationId)
@@ -96,7 +113,10 @@ export function buildClipRegistrationPlan(document: CutGroupProjectDocument, rol
         else folder.cels.push({ name: frame.value, ...(assetId ? { assetId } : {}) })
       }
       folders.set(id, folder)
-      timeline.tracks.push({ folderId: id, frames })
+      const labels: ClipTrackLabel[] = slot ? markerEvents.filter(event => event.paperTrack === slot.paperTrack)
+        .map(event => ({ frame: event.frame - project.logicalSheet.frameOrigin, kind: timingEventValueKind(event) as ClipTrackLabel['kind'] }))
+        .filter(label => label.frame >= 0 && label.frame < timeline.duration).sort((a, b) => a.frame - b.frame) : []
+      timeline.tracks.push({ folderId: id, frames, ...(labels.length ? { labels } : {}) })
     }
     timelines.push(timeline)
   }

@@ -173,6 +173,7 @@ describe('CspLayerTree', () => {
     const onRenameProductionStage = vi.fn()
     const onRenameCorrectionLayer = vi.fn()
     const onUpdateCspCellName = vi.fn()
+    const onUpdateSheetLabel = vi.fn()
     const onSelectKey = vi.fn()
     const onActiveCorrectionLayerChange = vi.fn()
 
@@ -186,6 +187,7 @@ describe('CspLayerTree', () => {
         activeCorrectionLayerId="layer_sakuga"
         onActiveCorrectionLayerChange={onActiveCorrectionLayerChange}
         onUpdateCspCellName={onUpdateCspCellName}
+        onUpdateSheetLabel={onUpdateSheetLabel}
         onMoveKeyBindingProcess={vi.fn()}
         onUpdateStackGuideRegistration={vi.fn()}
         onUpdateStackGuideLabel={vi.fn()}
@@ -265,6 +267,23 @@ describe('CspLayerTree', () => {
     fireEvent.change(cellInput, { target: { value: 'A1_custom' } })
     fireEvent.keyDown(cellInput, { key: 'Enter' })
     expect(onUpdateCspCellName).toHaveBeenCalledWith(created.key.keyId, 'slot_A', 'A1_custom')
+
+    const sheetLabel = screen.getByText('シート: 1', { selector: '.cspTreeSheetLabel' })
+    fireEvent.doubleClick(sheetLabel)
+    const sheetInput = screen.getByRole('textbox', { name: 'Aのシート表記' })
+    expect((sheetInput as HTMLInputElement).value).toBe('1')
+    fireEvent.change(sheetInput, { target: { value: '仮001' } })
+    fireEvent.keyDown(sheetInput, { key: 'Enter', isComposing: true, keyCode: 229 })
+    expect(onUpdateSheetLabel).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(sheetInput)
+    fireEvent.keyDown(sheetInput, { key: 'Escape' })
+    expect(onUpdateSheetLabel).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByText('シート: 1', { selector: '.cspTreeSheetLabel' }), { key: 'Enter' })
+    const editedSheetInput = screen.getByRole('textbox', { name: 'Aのシート表記' })
+    fireEvent.change(editedSheetInput, { target: { value: '12' } })
+    fireEvent.keyDown(editedSheetInput, { key: 'Enter' })
+    expect(onUpdateSheetLabel).toHaveBeenCalledExactlyOnceWith(created.key.keyId, '12')
+    expect(onUpdateCspCellName).toHaveBeenCalledTimes(1)
 
     const card = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
     if (!card) throw new Error('CSP cell card not found')

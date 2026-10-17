@@ -1,4 +1,5 @@
 import { createKey, type CellBinding, type CutProject, type CspTrackSlot, type SheetHit, type SheetTimingRole, mergeTimingKeys, setEvent, sheetTimingRoleForEvent, sheetTimingRoleForKey, updateKey, upsertBinding, type TimingKey } from '@xsheet-remap/core'
+import { ensureAssetSheetLabel, nextAssetSheetLabel } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { type CellAssetPreviewItem, sortedCorrectionLayers } from './sheetAssets'
 import { clampNumber, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction'
@@ -233,10 +234,9 @@ export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string,
   if (!sourceKey) return { project, keyId: null }
   const sheetRole = sheetRoleForHit(hit)
   const isUnplaced = !sourceProject.logicalSheet.events.some(event => event.keyId === keyId)
-    && !sourceKey.displayLabel.trim()
   if ((isUnplaced && sourceKey.sheetRole === undefined) || sheetTimingRoleForKey(sourceKey) !== sheetRole) {
     if (!isUnplaced && sheetTimingRoleForKey(sourceKey) !== sheetRole) return { project, keyId: null }
-    sourceProject = updateKey(sourceProject, keyId, { sheetRole })
+    sourceProject = updateKey(sourceProject, keyId, { sheetRole, displayLabel: sourceKey.displayLabel })
     sourceKey = sourceProject.logicalSheet.keys.find(key => key.keyId === keyId)!
   }
 
@@ -251,14 +251,14 @@ export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string,
   if (!sourceKey.displayLabel.trim() && targetKey && targetKey.keyId !== sourceKey.keyId) {
     const merged = mergeTimingKeys(sourceProject, sourceKey.keyId, targetKey.keyId)
     return {
-      project: setEvent(merged, hit.paperTrack, hit.frame, targetKey.keyId, sheetRole, { fontSizePx }),
+      project: setEvent(ensureAssetSheetLabel(merged, targetKey.keyId), hit.paperTrack, hit.frame, targetKey.keyId, sheetRole, { fontSizePx }),
       keyId: targetKey.keyId,
     }
   }
 
   if (sourceKey.paperTrack === hit.paperTrack) {
     return {
-      project: setEvent(sourceProject, hit.paperTrack, hit.frame, sourceKey.keyId, sheetRole, { fontSizePx }),
+      project: setEvent(ensureAssetSheetLabel(sourceProject, sourceKey.keyId), hit.paperTrack, hit.frame, sourceKey.keyId, sheetRole, { fontSizePx }),
       keyId: sourceKey.keyId,
     }
   }
@@ -266,13 +266,14 @@ export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string,
   const reusableKey = findReusableRegisteredCellClone(sourceProject, sourceKey, hit.paperTrack, sheetRole)
   if (reusableKey) {
     return {
-      project: setEvent(sourceProject, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx }),
+      project: setEvent(ensureAssetSheetLabel(sourceProject, reusableKey.keyId), hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx }),
       keyId: reusableKey.keyId,
     }
   }
 
-  const created = createKey(sourceProject, hit.paperTrack, sourceKey.displayLabel || undefined, sourceKey.createdFrom, sourceKey.paperToken, sheetRole)
-  let next = updateKey(created.project, created.key.keyId, { displayLabel: sourceKey.displayLabel, paperToken: sourceKey.paperToken })
+  const label = sourceKey.displayLabel || nextAssetSheetLabel(sourceProject, hit.paperTrack, sheetRole)
+  const created = createKey(sourceProject, hit.paperTrack, label, sourceKey.createdFrom, sourceKey.paperToken || label, sheetRole)
+  let next = created.project
   for (const spec of bindingCloneSpecsForTarget(sourceProject, sourceKey, hit.paperTrack)) {
     next = upsertBinding(next, {
       ...spec,
@@ -295,8 +296,8 @@ function findReusableRegisteredCellClone(
   return project.logicalSheet.keys.find(candidate => {
     if (candidate.paperTrack !== targetPaperTrack) return false
     if (sheetTimingRoleForKey(candidate) !== sheetRole) return false
-    if (candidate.displayLabel !== sourceKey.displayLabel) return false
-    if ((candidate.paperToken ?? '') !== (sourceKey.paperToken ?? '')) return false
+    if (sourceKey.displayLabel.trim() && candidate.displayLabel !== sourceKey.displayLabel) return false
+    if (sourceKey.displayLabel.trim() && (candidate.paperToken ?? '') !== (sourceKey.paperToken ?? '')) return false
     return bindingCloneSignature(bindingCloneSpecsForExistingKey(project, candidate.keyId, targetPaperTrack)) === expectedSignature
   }) ?? null
 }

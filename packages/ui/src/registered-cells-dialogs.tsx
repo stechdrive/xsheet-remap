@@ -342,7 +342,7 @@ export function SheetImageExportDialog({
         <div className="sheetImageExportControls">
           {options.format === 'psd' && (
             <p className="sheetImageExportFontNote">
-              文字は編集できるテキストレイヤーで保存します。編集するPCにはLINE Seed JPをインストールしてください。{' '}
+              PSDの文字を編集するには、フォントのインストールが必要です。{' '}
               <a href="https://seed.line.me/index_jp.html" target="_blank" rel="noopener noreferrer" onClick={event => {
                 if (!isTauriHost()) return
                 event.preventDefault()

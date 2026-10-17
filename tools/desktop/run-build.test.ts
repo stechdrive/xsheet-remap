@@ -22,6 +22,12 @@ describe('desktop build intent', () => {
     expect(() => parseDesktopBuildArgs(['--mode', 'development', '--target', 'template'])).toThrow(/unknown desktop build target/)
   })
 
+  it('rejects empty target sets and repeated options before they can widen a build', () => {
+    for (const target of [',', ' , , ']) expect(() => parseDesktopBuildArgs(['--mode', 'development', '--target', target])).toThrow(/at least one application/)
+    expect(() => parseDesktopBuildArgs(['--mode', 'development', '--target', 'remap', '--target', 'all'])).toThrow(/duplicate/)
+    expect(() => parseDesktopBuildArgs(['--mode', 'development', '--mode', 'release', '--target', 'all'])).toThrow(/duplicate/)
+  })
+
   it('only permits a coherent all-app release build', () => {
     expect(() => parseDesktopBuildArgs(['--mode', 'release', '--target', 'remap'])).toThrow(/--target all/)
     const plan = parseDesktopBuildArgs(['--mode', 'release', '--target', 'all'])

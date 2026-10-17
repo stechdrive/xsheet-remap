@@ -1,14 +1,15 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { expect, test, type Page } from './fixtures'
+import { expect, test } from './fixtures'
 import { activateControl } from './input'
 import { createProjectFromTemplate, createKey, setEvent, setTimingSpecialEvent, setTimingReferenceAt,
   registerAsset, upsertBinding, createProjectDocumentFromCutProject, standardA3SheetTemplate,
-  digitalStandardSheetTemplate, type TimelineInkMemo } from '../../../packages/core/src/index'
+  digitalStandardSheetTemplate, updateLogicalSheetSettings, type TimelineInkMemo } from '../../../packages/core/src/index'
 import { encodeProjectArchive } from '../../../packages/adapters/src/projectArchive'
 import { createSheetRenderModelContext, inputTextRenderItemsForPage } from '../../../packages/ui/src/sheetRenderModel'
 import { timelineMemoSegmentsForPage } from '../../../packages/ui/src/timelineMemoGeometry'
 import { readPsdComposite, readPsdLayerAlphas } from '../psd-composite'
 import { waitForPaperPaint } from '../paper-paint-contract'
+import { channel, readRaster } from '../raster'
 
 type Rect = { x: number; y: number; w: number; h: number }
 const paperRgb = [228, 210, 189]
@@ -17,6 +18,7 @@ for (const preset of [standardA3SheetTemplate, digitalStandardSheetTemplate]) {
   test(`image exports omit editing cues and cell tint while retaining paper and content (${preset.templateId})`, async ({ page }, info) => {
     const template = { ...preset, theme: { ...preset.theme, paper: { ...preset.theme.paper, color: '#e4d2bd' } } }
     let project = createProjectFromTemplate(template)
+    if (preset === digitalStandardSheetTemplate) project = updateLogicalSheetSettings(project, { durationFrames: 48 })
     for (const [track, label] of [['A', '1'], ['B', '2'], ['C', '3']]) {
       const created = createKey(project, track, label, 'manual', undefined, 'cell')
       project = setEvent(created.project, track, 10, created.key.keyId, 'cell')
@@ -68,7 +70,7 @@ for (const preset of [standardA3SheetTemplate, digitalStandardSheetTemplate]) {
     await expect(event.locator('.assetAssignedEventRect')).toHaveCSS('fill', 'rgba(255, 174, 43, 0.07)')
     const screen = await page.screenshot({ path: info.outputPath('app-cues-preserved.png') })
     const screenRect = await event.locator('.eventRect').evaluate(el => el.getBoundingClientRect().toJSON())
-    const screenColors = await inspectRaster(page, screen, 'png', [], [{ x: screenRect.x, y: screenRect.y, w: screenRect.width, h: screenRect.height }], await page.evaluate(() => devicePixelRatio))
+    const screenColors = await inspectRaster(screen, [], [{ x: screenRect.x, y: screenRect.y, w: screenRect.width, h: screenRect.height }], await page.evaluate(() => devicePixelRatio))
     expect(screenColors.areas[0].green, 'memo triangle remains visible in the app').toBeGreaterThan(1)
     expect(screenColors.areas[0].orange, 'asset triangle remains visible in the app').toBeGreaterThan(1)
 
@@ -104,7 +106,7 @@ for (const preset of [standardA3SheetTemplate, digitalStandardSheetTemplate]) {
         expect(alphaAt('メモ・背景', ...samples[5] as [number, number])).toBe(255)
         expect(alphaAt('用紙色', 3, 3)).toBe(255)
       } else {
-        const raster = await inspectRaster(page, bytes, format.toLowerCase(), samples, rects)
+        const raster = await inspectRaster(bytes, samples, rects)
         pixels = raster.samples.map(color => color.slice(0, 3)); ink = raster.areas.map(area => area.ink)
         expect(raster.samples.every(color => color[3] === 255), 'paper composite remains opaque').toBe(true)
       }
@@ -128,23 +130,18 @@ function countRect(rect: Rect, predicate: (x: number, y: number) => boolean) {
   for (let y = Math.ceil(rect.y); y < rect.y + rect.h; y++) for (let x = Math.ceil(rect.x); x < rect.x + rect.w; x++) if (predicate(x, y)) count++
   return count
 }
-async function inspectRaster(page: Page, bytes: Buffer, format: string, samples: number[][], rects: Rect[], scale = 1) {
-  return page.evaluate(async ({ base64, format, samples, rects, scale }) => {
-    const image = new Image(); image.src = `data:image/${format === 'jpg' ? 'jpeg' : format};base64,${base64}`; await image.decode()
-    const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height
-    const ctx = canvas.getContext('2d')!; ctx.drawImage(image, 0, 0)
-    const data = ctx.getImageData(0, 0, image.width, image.height).data
-    const rgb = (x: number, y: number) => Array.from(data.slice((Math.floor(y) * image.width + Math.floor(x)) * 4, (Math.floor(y) * image.width + Math.floor(x)) * 4 + 4))
-    const areas = rects.map(rect => {
-      let green = 0, orange = 0, ink = 0
-      for (let y = Math.ceil(rect.y * scale); y < (rect.y + rect.h) * scale; y++) for (let x = Math.ceil(rect.x * scale); x < (rect.x + rect.w) * scale; x++) {
-        const [r, g, b] = rgb(x, y)
-        if (g > r + 20 && g > b + 10 && g < 180) green++
-        if (r > 180 && g > 70 && g < 170 && b < 50) orange++
-        if (r < 120 && g < 160 && b < 140 || r > 120 && g < 100 && b > 100) ink++
-      }
-      return { green, orange, ink }
-    })
-    return { samples: samples.map(([x, y]) => rgb(x * scale, y * scale)), areas }
-  }, { base64: bytes.toString('base64'), format, samples, rects, scale })
+async function inspectRaster(bytes: Buffer, samples: number[][], rects: Rect[], scale = 1) {
+  const image = await readRaster(bytes)
+  const rgb = (x: number, y: number) => [0, 1, 2, 3].map(c => channel(image, x, y, c))
+  const areas = rects.map(rect => {
+    let green = 0, orange = 0, ink = 0
+    for (let y = Math.ceil(rect.y * scale); y < (rect.y + rect.h) * scale; y++) for (let x = Math.ceil(rect.x * scale); x < (rect.x + rect.w) * scale; x++) {
+      const [r, g, b] = rgb(x, y)
+      if (g > r + 20 && g > b + 10 && g < 180) green++
+      if (r > 180 && g > 70 && g < 170 && b < 50) orange++
+      if (isInk([r, g, b])) ink++
+    }
+    return { green, orange, ink }
+  })
+  return { samples: samples.map(([x, y]) => rgb(x * scale, y * scale)), areas }
 }

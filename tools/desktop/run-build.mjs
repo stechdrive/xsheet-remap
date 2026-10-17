@@ -22,6 +22,7 @@ export function parseDesktopBuildArgs(argv) {
     if (key !== '--mode' && key !== '--target') {
       throw new Error(`unknown desktop build argument: ${argument}`)
     }
+    if (values.has(key.slice(2))) throw new Error(`duplicate desktop build argument: ${key}`)
     const value = equalsIndex >= 0 ? argument.slice(equalsIndex + 1) : argv[index += 1]
     if (!value || value.startsWith('--')) throw new Error(`${key} requires a value`)
     values.set(key.slice(2), value)
@@ -36,6 +37,7 @@ export function parseDesktopBuildArgs(argv) {
     throw new Error('development builds require an explicit --target; never widen an ambiguous request to all applications')
   }
   const targets = [...new Set(targetValue.split(',').map(value => value.trim().toLowerCase()).filter(Boolean))]
+  if (!targets.length) throw new Error('--target must select at least one application')
   const invalidTargets = targets.filter(target => !TARGETS.has(target))
   if (invalidTargets.length > 0) {
     throw new Error(`unknown desktop build target(s): ${invalidTargets.join(', ')}`)

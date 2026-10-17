@@ -1,6 +1,7 @@
 import { browserProjects, checks } from './plan.mjs'
 
-export const defaultBrowserWorkers = 2
+// Selected from repeated 2/4-worker runs; timing-sensitive cases still use one.
+export const defaultBrowserWorkers = 4
 
 // Do not let a misspelled filter silently turn a focused run into full acceptance.
 export function parseOptions(argv) {

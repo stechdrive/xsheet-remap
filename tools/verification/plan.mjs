@@ -17,7 +17,7 @@ export const testPurposes = {
   'browser-ci': 'Pages entry points, runtime loading and service-worker lifecycle in Chromium; no gesture or GPU performance acceptance',
   native: 'Windows After Effects export and native boundary behavior',
   importer: 'Direct CLIP container, pixel placement and timeline generation',
-  desktop: 'Built EXE with verified source and SHA-256; scenario-specific native or protocol input',
+  desktop: 'Built EXE with verified source and SHA-256; sequential native mouse, keyboard and Explorer drops with protocol observation',
   device: 'Manual device evidence: trusted composition/touch events and operator-observed result',
 }
 export function withoutGeneratedVersion(file, source) {

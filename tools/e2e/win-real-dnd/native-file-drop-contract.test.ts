@@ -36,3 +36,21 @@ it('rejects partial multi-file delivery', async () => {
   await vi.advanceTimersByTimeAsync(8200)
   await pending
 })
+
+it('rejects extra files and duplicate delivery instead of accepting a subset', async () => {
+  for (const delivered of [['D:/fixture/A1.png', 'D:/fixture/A2.png'], ['D:/fixture/A1.png', 'D:/fixture/A1.png']]) {
+    const pending = expect(verifyNativeFileDrop(driver, ['D:/fixture/A1.png'], async () => {
+      events.push({ source: 'native:window', type: 'drop', paths: delivered })
+    })).rejects.toThrow('did not deliver the expected native file drop')
+    await vi.advanceTimersByTimeAsync(8200)
+    await pending
+  }
+})
+
+it('rejects empty or ambiguous expectations before performing OS input', async () => {
+  const perform = vi.fn()
+  for (const paths of [[], [''], ['D:/fixture/A1.png', 'd:\\fixture\\a1.png']]) {
+    await expect(verifyNativeFileDrop(driver, paths, perform)).rejects.toThrow('distinct expected files')
+  }
+  expect(perform).not.toHaveBeenCalled()
+})

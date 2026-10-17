@@ -8,7 +8,7 @@ export type GlyphTarget = { xPx: number; yPx: number; size: number; color: strin
 
 let kit: Promise<CanvasKit> | undefined
 // Decode test artifacts once in the test process, never through browser IPC.
-export async function readPng(bytes: Uint8Array): Promise<Raster> {
+export async function readRaster(bytes: Uint8Array): Promise<Raster> {
   const require = createRequire(import.meta.url)
   if (!kit) {
     const options = { locateFile: () => require.resolve('canvaskit-wasm/bin/canvaskit.wasm'),
@@ -17,15 +17,17 @@ export async function readPng(bytes: Uint8Array): Promise<Raster> {
   }
   const canvasKit = await kit
   const image = canvasKit.MakeImageFromEncoded(bytes)
-  if (!image) throw new Error('Cannot decode PNG artifact')
+  if (!image) throw new Error('Cannot decode image artifact')
   try {
     const width = image.width(), height = image.height()
     const data = image.readPixels(0, 0, { width, height, alphaType: canvasKit.AlphaType.Unpremul,
       colorType: canvasKit.ColorType.RGBA_8888, colorSpace: canvasKit.ColorSpace.SRGB })
-    if (!(data instanceof Uint8Array)) throw new Error('Cannot read PNG pixels')
+    if (!(data instanceof Uint8Array)) throw new Error('Cannot read image pixels')
     return { width, height, data, layout: 'rgba' }
   } finally { image.delete() }
 }
+
+export const readPng = readRaster
 
 export function psdRaster(image: { width: number; height: number; planes: Uint8Array }): Raster {
   return { width: image.width, height: image.height, data: image.planes, layout: 'rgb-planar' }

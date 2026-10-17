@@ -22,11 +22,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
 
 if (-not $ExePath) {
-  $ExePath = if ($AppMode -eq "remap") {
-    "dev-local/xsheet-remap.exe"
-  } else {
-    "dev-local/xsheet-remap.exe"
-  }
+  $ExePath = "dev-local/xsheet-remap.exe"
 }
 $scenario = if ($TestCase -eq "registered-cell") {
   "registered-cell-real-dnd"
@@ -37,8 +33,9 @@ $scenario = if ($TestCase -eq "registered-cell") {
 }
 
 if ($Build) {
-  Write-Host "[real-dnd] building the $AppMode development executable..."
-  npm run build:dev -- --target $AppMode
+  # Both scenario modes now run in Remap; Editor is no longer a build target.
+  Write-Host "[real-dnd] building the Remap development executable for $AppMode input scenarios..."
+  npm run build:dev -- --target remap
   if ($LASTEXITCODE -ne 0) {
     throw "$AppMode development build failed with exit code $LASTEXITCODE"
   }
@@ -186,7 +183,7 @@ $provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
   exeSha256 = Get-ReleaseFileSha256Hex -Path $resolvedExePath
   executableEvidence = $provenance
   inputMode = switch ($TestCase) {
-    "registered-cell" { "native-mouse-registered-cell-drag" }
+    "registered-cell" { "native-mouse-keyboard-card-and-range-drag" }
     "explorer-import" { "native-mouse-explorer-file-drop" }
     "csp-pane" { "native-mouse-csp-pane-drag" }
     default { "native-mouse-drag-and-drop" }

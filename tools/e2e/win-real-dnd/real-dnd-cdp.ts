@@ -16,6 +16,7 @@ import { waitForPaperPaint } from '../paper-paint-contract'
 import { assertSelectorsContributePaint } from '../visual-paint-contract'
 import { CdpClient } from '../cdp-client'
 import { verifyNativeFileDrop } from './native-file-drop-contract'
+import { parseNativeDropOptions } from './options'
 
 interface ClientPoint {
   x: number
@@ -55,7 +56,7 @@ interface WindowClientMetrics {
 }
 
 const execFileAsync = promisify(execFile)
-const args = parseArgs(process.argv.slice(2))
+const args = parseNativeDropOptions(process.argv.slice(2))
 const port = Number(args.port)
 if (!Number.isInteger(port) || port <= 0) throw new Error('--port is required')
 if (!args.result) throw new Error('--result is required')
@@ -70,7 +71,7 @@ if (args['test-case'] !== 'registered-cell') {
   if (!args.folder) throw new Error('--folder is required')
   if (!args['allowed-root']) throw new Error('--allowed-root is required')
 }
-if (args['test-case'] === 'full' && !args['multi-folder']) throw new Error('--multi-folder is required')
+if (['full', 'explorer-import'].includes(args['test-case']) && !args['multi-folder']) throw new Error('--multi-folder is required')
 
 const checks: string[] = []
 const diagnostics: Record<string, unknown> = {}
@@ -310,6 +311,62 @@ async function runRegisteredCellRealDndScenario(): Promise<void> {
   await waitForInternalPointerDragCleanup()
   await captureScreenshot('registered-cell-after')
   checks.push('dragged a fixture-backed CSP registered-cell card onto action A frame 1 at 50% zoom with the real mouse')
+  await realKeyPress('^z')
+  await waitForPageCondition(async () => !await timelineEventAt('action', 'A', 1), 'undo registered-cell drop')
+  await realKeyPress('^y')
+  await waitForTimelineEventAt('action', 'A', 1)
+  checks.push('one native Undo removes the registered-cell drop and Redo restores it')
+  await verifyNativeRangeDrag()
+}
+
+async function verifyNativeRangeDrag(): Promise<void> {
+  await realMouseClick(await clientToScreen(await framePoint('action', 'A', 3)))
+  await realKeyPress('2{ENTER}', true)
+  await waitForTimelineEventAt('action', 'A', 3)
+  const snapshot = () => evaluatePage<Array<string | null>>(`[1, 3, 9, 11].map(frame =>
+    document.querySelector('[data-timeline-event-role="action"][data-timeline-event-track="A"][data-timeline-event-frame="' + frame + '"] .eventText')?.textContent ?? null)`)
+  const before = await snapshot()
+  if (!before[0] || before[1] !== '2' || before[2] !== null || before[3] !== null) throw new Error(`unexpected native range fixture: ${JSON.stringify(before)}`)
+  const moved = [null, null, before[0], before[1]]
+  const expectState = (expected: Array<string | null>, label: string) => waitForPageCondition(
+    async () => JSON.stringify(await snapshot()) === JSON.stringify(expected), label)
+  for (const outcome of ['escape', 'outside', 'commit'] as const) {
+    await realKeyPress('{ESC}', true)
+    await dragSelectSheetRange('action', 'A', 4, 1, `native-range-${outcome}`)
+    const from = await clientToScreen(await framePoint('action', 'A', 3))
+    let to = await clientToScreen(await framePoint('action', 'A', 11))
+    let held = false
+    try {
+      await runMouseOp(['mouse-down-screen', '--x', String(from.x), '--y', String(from.y), '--app-pid', args['app-pid'] as string])
+      held = true
+      await runMouseOp(['mouse-move-screen', '--x', String(to.x), '--y', String(to.y), '--duration', '0.5'])
+      await waitForPageCondition(() => evaluatePage<boolean>(`(() => {
+        const status = document.querySelector('.timingDragStatus');
+        return status?.getAttribute('data-drag-validity') === 'valid'
+          && status.textContent.includes('A 001–004 → A 009–012')
+          && document.querySelectorAll('.timingDragGhostCell').length === 2;
+      })()`), 'native drag preview preserves the grabbed frame offset')
+      await expectState(before, 'native preview has not committed before mouse release')
+      await captureScreenshot(`native-range-${outcome}-preview`)
+      if (outcome === 'escape') await realKeyPress('{ESC}', true)
+      if (outcome === 'outside') {
+        to = await clientToScreen({ x: 3, y: 3 })
+        await runMouseOp(['mouse-move-screen', '--x', String(to.x), '--y', String(to.y), '--duration', '0.3'])
+        await waitForPageCondition(() => evaluatePage<boolean>(`document.querySelector('.timingDragStatus')?.getAttribute('data-drag-validity') === 'invalid'`), 'outside-paper native drag is invalid')
+      }
+    } finally {
+      if (held) await runMouseOp(['mouse-up-screen', '--x', String(to.x), '--y', String(to.y)])
+    }
+    await waitForPageCondition(() => evaluatePage<boolean>(`!document.querySelector('.timingDragPreview, .timingDragStatus') && !document.body.classList.contains('sheetInteractionActive')`), 'native range drag releases capture and removes its preview')
+    await expectState(outcome === 'commit' ? moved : before, `native range ${outcome} result`)
+    checks.push(`native range drag ${outcome}: grabbed offset, deferred commit and pointer cleanup`)
+  }
+  await realKeyPress('^z', true)
+  await expectState(before, 'one native Undo restores the complete moved range')
+  await realKeyPress('^y', true)
+  await expectState(moved, 'one native Redo reapplies the complete moved range')
+  await captureScreenshot('native-range-redo')
+  checks.push('native range movement remains a single Undo/Redo operation after both cancellation paths')
 }
 
 async function runExplorerImportScenario(): Promise<void> {
@@ -327,6 +384,14 @@ async function runExplorerImportScenario(): Promise<void> {
   )
   await captureScreenshot('explorer-import-after')
   checks.push('dragged a real Windows folder from Explorer onto the asset browser and verified A1.png independently of CSP card dragging')
+  for (const name of ['A1.png', 'A1_e.png', 'A2.png', 'sheet_001.png']) await waitForAssetBrowserFile(name)
+  await runExplorerMultiDrop([
+    join(args['multi-folder'] as string, 'Multi_A1.png'),
+    join(args['multi-folder'] as string, 'Multi_A2.png'),
+  ], await clientToScreen(await assetBrowserDropPoint()))
+  await waitForAssetBrowserFilesMaterialized(['Multi_A1.png', 'Multi_A2.png'])
+  await captureScreenshot('explorer-multiple-files-after')
+  checks.push('one native multi-file drop delivers exactly both selected files and materializes both images')
 }
 
 async function runRemapRealDndScenario(): Promise<void> {
@@ -1462,21 +1527,16 @@ async function runExplorerDropAndWait(
   target: ScreenPoint,
   verify: () => Promise<void>,
   label: string,
-  attempts = 2,
 ): Promise<void> {
-  let lastError: unknown = null
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    await runExplorerDrop(path, target)
-    try {
-      await verify()
-      if (attempt > 1) diagnostics[`${label}:attempts`] = attempt
-      return
-    } catch (error) {
-      lastError = error
-      diagnostics[`${label}:attempt:${attempt}:error`] = errorMessage(error)
-    }
+  // A second OS drop can hide a lost delivery or duplicate imported assets.
+  // Wait for this one operation and retain its failure; never retry acceptance.
+  await runExplorerDrop(path, target)
+  try {
+    await verify()
+  } catch (error) {
+    diagnostics[`${label}:error`] = errorMessage(error)
+    throw error
   }
-  throw lastError instanceof Error ? lastError : new Error(`${label} failed`)
 }
 
 async function waitForSheet(): Promise<void> {
@@ -2245,23 +2305,6 @@ async function captureScreenshot(label: string): Promise<string> {
 
 function screenshotArtifacts(): string[] {
   return [...screenshots]
-}
-
-function parseArgs(argv: string[]): Record<string, string> {
-  const values: Record<string, string> = {}
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index]
-    if (!token.startsWith('--')) continue
-    const key = token.slice(2)
-    const next = argv[index + 1]
-    if (!next || next.startsWith('--')) {
-      values[key] = 'true'
-    } else {
-      values[key] = next
-      index += 1
-    }
-  }
-  return values
 }
 
 function escapeForSingleQuotedError(value: string): string {

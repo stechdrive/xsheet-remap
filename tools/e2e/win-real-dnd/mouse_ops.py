@@ -371,8 +371,8 @@ def window_area(window) -> int:
 def explorer_item_center(path: Path, timeout: float, avoid_point: tuple[int, int]):
     parent = path.parent
     name = path.name
-    subprocess.Popen(["explorer.exe", str(parent)])
-    time.sleep(0.2)
+    # /select opens the parent folder too. A separate parent launch can create
+    # a second Explorer window that covers the drop target after placement.
     subprocess.Popen(["explorer.exe", f"/select,{str(path)}"])
     desktop = Desktop(backend="uia")
     deadline = time.monotonic() + timeout
@@ -407,8 +407,6 @@ def explorer_items_center(paths: list[Path], timeout: float, avoid_point: tuple[
     parent = paths[0].parent
     if any(path.parent != parent for path in paths):
         raise RuntimeError("all Explorer multi-drag paths must have the same parent")
-    subprocess.Popen(["explorer.exe", str(parent)])
-    time.sleep(0.2)
     subprocess.Popen(["explorer.exe", f"/select,{str(paths[0])}"])
     desktop = Desktop(backend="uia")
     deadline = time.monotonic() + timeout

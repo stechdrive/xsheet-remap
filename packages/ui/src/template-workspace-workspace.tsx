@@ -1863,7 +1863,7 @@ export function TemplateWorkspace({
       validation={authoringValidation}
       onOpenRegion={selectWorkspaceTarget}
       onSave={() => void saveTemplateDraft()}
-      saveLabel={mode === 'standalone' ? 'テンプレートを保存' : 'テンプレートJSONを保存'}
+      saveLabel="テンプレートJSONを保存"
     />
   )
   const navigationItems = templateWorkspaceNavigationItems(template, managedPaperTimelineStructure?.managedRegionIds)

@@ -45,13 +45,28 @@ function compactPowerShellOutput(result: ReturnType<typeof runInventory>) {
 }
 
 describe.skipIf(process.platform !== 'win32')('release inventory', () => {
+  it('accepts the two distributed EXEs and rejects a leftover Template EXE', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'xsheet-two-apps-'))
+    const zipPath = path.join(directory, 'release.zip')
+    const expectedRoots = ['xsheet-remap.exe', 'xsheet-corrector.exe']
+    try {
+      for (const name of [...expectedRoots, 'xsheet-template.exe']) writeFileSync(path.join(directory, name), name)
+      createZip(directory, zipPath, expectedRoots)
+      expect(runInventory({ zipPath, expectedRoots }).status).toBe(0)
+      createZip(directory, zipPath, [...expectedRoots, 'xsheet-template.exe'])
+      const stale = runInventory({ zipPath, expectedRoots })
+      expect(stale.status).not.toBe(0)
+      expect(compactPowerShellOutput(stale)).toContain('unexpected=[xsheet-template.exe]')
+    } finally { rmSync(directory, { recursive: true, force: true }) }
+  })
+
   it('rejects a valid ZIP from another version, commit or desktop build before publication', () => {
     const testRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-identity-'))
     try {
       const expectedVersion = '0.1.1', expectedCommit = 'a'.repeat(40)
       const zipPath = path.join(testRoot, 'xsheet-remap.zip')
       const buildStatePath = path.join(testRoot, 'build-state.json')
-      const applications = Object.fromEntries(['remap', 'template', 'corrector'].map(app => {
+      const applications = Object.fromEntries(['remap', 'corrector'].map(app => {
         const executable = `xsheet-${app}.exe`
         writeFileSync(path.join(testRoot, executable), executable)
         return [app, { executable, version: expectedVersion, commit: expectedCommit, workingTreeDirty: false,

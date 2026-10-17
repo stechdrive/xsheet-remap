@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"Permissions required by the xsheet-template desktop window.","local":true,"windows":["main"],"permissions":["core:event:default","core:webview:default","core:window:default"]}}

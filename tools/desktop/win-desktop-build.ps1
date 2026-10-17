@@ -23,12 +23,6 @@ $desktopApps = @(
     RelativePath = ".cache/cargo-target/release/xsheet-remap.exe"
   },
   [pscustomobject]@{
-    Key = "template"
-    Name = "xsheet-template"
-    Workspace = "@xsheet-remap/template-editor"
-    RelativePath = ".cache/cargo-target/release/xsheet-template.exe"
-  },
-  [pscustomobject]@{
     Key = "corrector"
     Name = "xsheet-corrector"
     Workspace = "@xsheet-remap/sheet-corrector"
@@ -36,7 +30,7 @@ $desktopApps = @(
   }
 )
 
-$allowedTargets = @("all", "remap", "template", "corrector")
+$allowedTargets = @("all", "remap", "corrector")
 $targetKeys = @(
   $Target.Split(",", [System.StringSplitOptions]::RemoveEmptyEntries) |
     ForEach-Object { $_.Trim().ToLowerInvariant() } |
@@ -47,7 +41,7 @@ if ($targetKeys.Count -eq 0) {
 }
 $invalidTargets = @($targetKeys | Where-Object { $_ -notin $allowedTargets })
 if ($invalidTargets.Count -gt 0) {
-  throw "unknown desktop build target(s): $($invalidTargets -join ', '). Allowed: remap, template, corrector, all."
+  throw "unknown desktop build target(s): $($invalidTargets -join ', '). Allowed: remap, corrector, all."
 }
 if ($targetKeys -contains "all" -and $targetKeys.Count -gt 1) {
   throw "target 'all' cannot be combined with individual desktop targets"
@@ -146,6 +140,11 @@ function Update-DevelopmentLaunchpad {
   )
 
   New-Item -ItemType Directory -Path $devRoot -Force | Out-Null
+  if ($Mode -eq "release") {
+    $retiredTemplate = [System.IO.Path]::GetFullPath((Join-Path $devRoot "xsheet-template.exe"))
+    if ([System.IO.Path]::GetDirectoryName($retiredTemplate) -ne $devRoot) { throw "retired output escaped dev-local" }
+    if (Test-Path -LiteralPath $retiredTemplate -PathType Leaf) { Remove-Item -LiteralPath $retiredTemplate -Force }
+  }
   $statePath = Join-Path $devRoot "build-state.json"
   $applicationStates = [ordered]@{}
   if (Test-Path -LiteralPath $statePath) {

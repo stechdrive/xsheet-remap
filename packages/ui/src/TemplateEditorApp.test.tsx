@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { createAlphabeticTrackLabels, digitalStandardSheetTemplate, resolveSheetTemplatePageSize } from '@xsheet-remap/core'
+import { createAlphabeticTrackLabels, digitalStandardSheetTemplate, resolveSheetTemplatePageSize, standardA3SheetTemplate } from '@xsheet-remap/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TemplateEditorApp } from './TemplateEditorApp'
 import { uiText } from './i18n'
@@ -11,6 +11,12 @@ const adapterMocks = vi.hoisted(() => ({
 const imageMetadataMocks = vi.hoisted(() => ({
   readTemplateImageMetadata: vi.fn(),
 }))
+const recoveryMocks = vi.hoisted(() => ({
+  loadTemplateDraftRecovery: vi.fn(),
+  saveTemplateDraftRecovery: vi.fn(),
+  clearTemplateDraftRecovery: vi.fn(),
+}))
+vi.mock('./templateDraftRecovery', () => recoveryMocks)
 
 vi.mock('@xsheet-remap/adapters', async () => {
   const actual = await vi.importActual<typeof import('@xsheet-remap/adapters')>('@xsheet-remap/adapters')
@@ -27,6 +33,9 @@ vi.mock('./templateImageMetadata', async () => {
 })
 
 beforeEach(() => {
+  recoveryMocks.loadTemplateDraftRecovery.mockReset().mockResolvedValue(null)
+  recoveryMocks.saveTemplateDraftRecovery.mockReset().mockResolvedValue(true)
+  recoveryMocks.clearTemplateDraftRecovery.mockReset().mockResolvedValue(undefined)
   adapterMocks.saveJsonFile.mockReset().mockResolvedValue({ saved: true, path: 'C:\\Templates\\sample.template.json' })
   adapterMocks.confirmUserAction.mockReset().mockResolvedValue(true)
   imageMetadataMocks.readTemplateImageMetadata.mockReset().mockResolvedValue(null)
@@ -38,10 +47,25 @@ afterEach(() => {
 })
 
 describe('TemplateEditorApp authoring workflow', () => {
+  it('restores the previous draft and flushes the latest edit before leaving', async () => {
+    const draft = structuredClone(standardA3SheetTemplate)
+    draft.name = '復元する用紙'
+    recoveryMocks.loadTemplateDraftRecovery.mockResolvedValue({ version: 1, savedAt: Date.now(), template: draft })
+    const view = render(<TemplateEditorApp />)
+    fireEvent.click(await screen.findByRole('button', { name: '下書きを復元' }))
+    expect(screen.getByText('未保存の変更')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'プロジェクトへ反映' })).toBeNull()
+    selectInspectorSection('template')
+    expect((screen.getByLabelText(uiText.template.name) as HTMLInputElement).value).toBe('復元する用紙')
+    fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: '閉じる直前の変更' } })
+    view.unmount()
+    expect(recoveryMocks.saveTemplateDraftRecovery).toHaveBeenLastCalledWith(expect.objectContaining({ name: '閉じる直前の変更' }))
+  })
+
   it('starts with four clear creation routes and no heavy editor canvas', () => {
     render(<TemplateEditorApp />)
 
-    expect(screen.getByText('xsheet-template')).toBeTruthy()
+    expect(screen.getByText('Remap テンプレート編集')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'テンプレート作成を始める' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '標準用紙を調整（おすすめ）' })).toBeTruthy()
     expect(screen.getByLabelText('用紙画像から作成')).toBeTruthy()
@@ -293,7 +317,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
-    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
     await waitFor(() => expect(adapterMocks.saveJsonFile).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByText('保存済み')).toBeTruthy())
 
@@ -322,7 +346,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
-    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
     await waitFor(() => expect(screen.getByText('保存済み')).toBeTruthy())
     selectInspectorSection('reference')
     const imageInput = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]')
@@ -330,7 +354,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     fireEvent.change(imageInput!, { target: { files: [new File(['image'], 'late-reference.png', { type: 'image/png' })] } })
 
     await waitFor(() => expect(screen.getAllByText('late-reference.png')).toHaveLength(2))
-    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
     await waitFor(() => expect(adapterMocks.saveJsonFile).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.getByText('保存済み')).toBeTruthy())
 
@@ -368,7 +392,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
-    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
     await waitFor(() => expect(adapterMocks.saveJsonFile).toHaveBeenCalledTimes(1))
     selectInspectorSection('template')
     fireEvent.change(screen.getByLabelText(uiText.template.name), { target: { value: '保存処理中の変更' } })
@@ -386,17 +410,17 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(tooltipTrigger).toBeTruthy()
     expect(helpButton.hasAttribute('title')).toBe(false)
     fireEvent.pointerEnter(tooltipTrigger!)
-    expect((await screen.findByRole('tooltip')).textContent).toContain('xsheet-templateの使い方を開く')
+    expect((await screen.findByRole('tooltip')).textContent).toContain('Remap テンプレート編集の使い方を開く')
     fireEvent.pointerLeave(tooltipTrigger!)
     await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
 
     fireEvent.click(helpButton)
-    expect(screen.getByRole('dialog', { name: 'xsheet-templateの使い方' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'Remap テンプレート編集の使い方' })).toBeTruthy()
     const quickTab = screen.getByRole('tab', { name: 'クイックガイド' })
     const detailedTab = screen.getByRole('tab', { name: '詳しい使い方' })
     expect(quickTab.getAttribute('aria-selected')).toBe('true')
     expect(screen.getByRole('heading', { name: '最短でテンプレートを完成させる' })).toBeTruthy()
-    expect(screen.getByText(/保存したJSONをEditorまたはRemapで読み込み/)).toBeTruthy()
+    expect(screen.getByText(/保存したJSONをRemapで読み込み/)).toBeTruthy()
     expect(screen.queryByRole('heading', { name: '作り方を選ぶ' })).toBeNull()
 
     fireEvent.click(detailedTab)
@@ -407,7 +431,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(screen.getByText(/奇数列と偶数列の背景、線、文字/)).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
-    expect(screen.queryByRole('dialog', { name: 'xsheet-templateの使い方' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Remap テンプレート編集の使い方' })).toBeNull()
 
     startA3Authoring()
     expect(document.querySelector('[title]')).toBeNull()

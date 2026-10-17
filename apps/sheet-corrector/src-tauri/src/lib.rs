@@ -1,5 +1,6 @@
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+mod template_editor;
 
 const SHEET_CORRECTOR_BATCH_WINDOW_WIDTH: f64 = 520.0;
 const SHEET_CORRECTOR_BATCH_WINDOW_HEIGHT: f64 = 390.0;
@@ -71,6 +72,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            template_editor::open_template_editor,
             open_sheet_corrector_inputs,
             open_sheet_corrector_template,
             read_sheet_corrector_template,

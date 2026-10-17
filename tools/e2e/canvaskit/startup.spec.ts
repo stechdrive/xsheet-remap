@@ -3,7 +3,7 @@ import { expect, test } from './fixtures'
 for (const [query, title] of [
   ['', 'xsheet-remap'],
   ['?app=remap', 'xsheet-remap'],
-  ['?app=template-editor', 'xsheet-template'],
+  ['?app=template-editor', 'xsheet-remap - Template'],
   ['?app=sheet-corrector', 'シート画像補正'],
 ]) {
   test(`Pages loads the ${title} entry point (${query || 'default'})`, async ({ page }) => {

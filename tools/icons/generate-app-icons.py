@@ -364,7 +364,6 @@ def main() -> None:
     save_ico(ROOT / "apps/desktop/src-tauri/icons/icon.ico", remap_images)
     save_ico(ROOT / "apps/sheet-corrector/src-tauri/icons/icon.ico", corrector_images)
     save_ico(ROOT / "apps/editor/src-tauri/icons/icon.ico", editor_images)
-    save_ico(ROOT / "apps/template-editor/src-tauri/icons/icon.ico", template_editor_images)
     save_ico(ROOT / "apps/csp-import-helper/launcher/icons/icon.ico", csp_import_helper_images)
     save_preview(
         ROOT / "design/icon-proposals/xsheet-icon-final-preview.png",

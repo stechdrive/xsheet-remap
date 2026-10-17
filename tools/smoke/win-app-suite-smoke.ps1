@@ -31,10 +31,10 @@ try {
       MinHeight = 720
     },
     [pscustomobject]@{
-      Name = "xsheet-template"
-      ExpectedTitle = "xsheet-template"
-      ExePath = "dev-local/xsheet-template.exe"
-      ArgumentList = @()
+      Name = "Remap template mode"
+      ExpectedTitle = "xsheet-remap - Template"
+      ExePath = "dev-local/xsheet-remap.exe"
+      ArgumentList = @("--template")
       WorkingDirectory = "."
       MinWidth = 1024
       MinHeight = 720

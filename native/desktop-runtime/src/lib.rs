@@ -5,6 +5,7 @@ mod e2e;
 mod file_utils;
 mod persistence;
 mod preview;
+mod template_editor;
 
 use file_utils::*;
 use tauri::{Emitter, Manager};
@@ -133,13 +134,25 @@ struct DesktopE2eConfig {
     exports: String,
 }
 
-pub fn run(context: tauri::Context<tauri::Wry>) {
+pub fn run(mut context: tauri::Context<tauri::Wry>) {
+    let template_only = template_editor::is_template_launch(std::env::args_os().skip(1));
+    if template_only {
+        for window in &mut context.config_mut().app.windows {
+            window.create = false;
+        }
+    }
     tauri::Builder::default()
         .manage(AssetPreviewState(Mutex::new(None)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .setup(move |app| {
+            if template_only {
+                template_editor::create_window(app.handle(), "main")?;
+            }
+            Ok(())
+        })
         .on_window_event(|window, event| {
-            if window.label() == ASSET_PREVIEW_WINDOW_LABEL {
+            if window.label() != "main" {
                 return;
             }
             if !matches!(
@@ -156,6 +169,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            template_editor::open_template_editor,
             open_image_files,
             image_file_refs_from_paths,
             open_asset_root_directory,

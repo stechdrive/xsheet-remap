@@ -51,8 +51,8 @@ if (developmentPlan.outputRoots.join(',') !== 'dev-local') {
   throw new Error('development builds must only update dev-local')
 }
 const releasePlan = parseDesktopBuildArgs(['--mode', 'release', '--target', 'all'])
-if (releasePlan.executables.length !== 3 || releasePlan.outputRoots.join(',') !== 'dev-local,release-local') {
-  throw new Error('desktop release builds must update the coherent three-app dev-local and release-local set')
+if (releasePlan.executables.length !== 2 || releasePlan.outputRoots.join(',') !== 'dev-local,release-local') {
+  throw new Error('desktop release builds must update the coherent two-app dev-local and release-local set')
 }
 
 let missingTargetRejected = false

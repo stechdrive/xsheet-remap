@@ -1,3 +1,4 @@
+import { requestTemplateEditor } from './template-editor-entry'
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { sheetTemplatePresetsForImageCorrection, standardA3SheetTemplate, type SheetCalibrationPointPair } from '@xsheet-remap/core'
 import { APP_VERSION } from './appVersion'
@@ -1359,6 +1360,9 @@ export function SheetCorrectorApp() {
                     <option value={SHEET_CORRECTOR_LOAD_TEMPLATE_VALUE}>テンプレJSONを読み込み...</option>
                   </select>
                 </label>
+              </Tooltip>
+              <Tooltip label="Remapでテンプレートだけを作成・編集します。保存したJSONは「テンプレJSONを読み込み」で選択してください。">
+                <button type="button" onClick={requestTemplateEditor}>テンプレートを作成・編集</button>
               </Tooltip>
               <Tooltip label={SHEET_TEMPLATE_OVERLAY_TOOLTIP}>
                 <label className="sheetCorrectorOverlayToggle">

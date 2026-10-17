@@ -45,16 +45,19 @@ $dialogueAudioScenarios = @(
   "dialogue-audio-playback",
   "dialogue-audio-linking"
 )
-$supportedScenarios = @("launch", "full-default-a3", "auto-calibration", "template-authoring") + $sheetOpsScenarios + $dialogueAudioScenarios
+$supportedScenarios = @("launch", "full-default-a3", "auto-calibration", "template-authoring", "template-entry") + $sheetOpsScenarios + $dialogueAudioScenarios
 if (-not ($supportedScenarios -contains $Scenario)) {
   throw "unsupported desktop e2e scenario: $Scenario"
 }
 
 $buildTarget = "remap"
 if ($Scenario -eq "template-authoring") {
-  $buildTarget = "template"
-  if (-not $PSBoundParameters.ContainsKey("ExePath")) { $ExePath = "dev-local/xsheet-template.exe" }
-  if (-not $PSBoundParameters.ContainsKey("ExpectedTitle")) { $ExpectedTitle = "xsheet-template" }
+  if (-not $PSBoundParameters.ContainsKey("ExpectedTitle")) { $ExpectedTitle = "xsheet-remap - Template" }
+}
+if ($Scenario -eq "template-entry") {
+  $buildTarget = "remap,corrector"
+  if (-not $PSBoundParameters.ContainsKey("ExePath")) { $ExePath = "dev-local/xsheet-corrector.exe" }
+  if (-not $PSBoundParameters.ContainsKey("ExpectedTitle")) { $ExpectedTitle = -join ([char[]]@(0x30b7, 0x30fc, 0x30c8, 0x753b, 0x50cf, 0x88dc, 0x6b63)) }
 }
 if ($Build) {
   Write-Host "[desktop-e2e] building the $buildTarget development executable..."
@@ -348,7 +351,7 @@ $manifestPath = Join-Path $runRoot "manifest.json"
 $summaryPath = Join-Path $runRoot "summary.json"
 $scenarioResultPath = Join-Path $runRoot "result.json"
 $screenshotPath = Join-Path $screenshotRoot "launch.png"
-$remoteDebugPort = if (($sheetOpsScenarios -contains $Scenario) -or ($dialogueAudioScenarios -contains $Scenario) -or $Scenario -in @("auto-calibration", "template-authoring")) { Get-FreeTcpPort } else { $null }
+$remoteDebugPort = if (($sheetOpsScenarios -contains $Scenario) -or ($dialogueAudioScenarios -contains $Scenario) -or $Scenario -in @("auto-calibration", "template-authoring", "template-entry")) { Get-FreeTcpPort } else { $null }
 $previousEnvironment = @{}
 $environmentOverrides = @{
   "XSHEET_REMAP_E2E" = "1"
@@ -372,6 +375,11 @@ foreach ($key in $environmentOverrides.Keys) {
 $provenancePath = Join-Path $runRoot "executable-evidence.json"
 & node (Join-Path $repoRoot "tools\verification\executable.mjs") $resolvedExePath $provenancePath
 if ($LASTEXITCODE -ne 0) { throw "EXE provenance check failed; input has not started" }
+$remapCompanionPath = Join-Path (Split-Path -Parent $resolvedExePath) "xsheet-remap.exe"
+if ($Scenario -eq "template-entry") {
+  & node (Join-Path $repoRoot "tools/verification/executable.mjs") $remapCompanionPath (Join-Path $runRoot "remap-executable-evidence.json")
+  if ($LASTEXITCODE -ne 0) { throw "Remap companion provenance check failed; input has not started" }
+}
 $provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
 $manifest = [pscustomobject]@{
   runId = $runId
@@ -381,6 +389,7 @@ $manifest = [pscustomobject]@{
   executableEvidence = $provenance
   inputMode = switch ($Scenario) {
     "template-authoring" { "native-mouse-keyboard" }
+    "template-entry" { "native-mouse-keyboard-with-process-recovery" }
     "launch" { "window-launch-observation" }
     "full-default-a3" { "application-test-hook" }
     default { "browser-protocol-and-dom" }
@@ -407,7 +416,9 @@ $screenshotCaptured = $false
 $scenarioResult = $null
 
 try {
-  $process = Start-Process -FilePath $resolvedExePath -PassThru -WindowStyle Normal -WorkingDirectory $runRoot
+  $launchOptions = @{ FilePath = $resolvedExePath; PassThru = $true; WindowStyle = "Normal"; WorkingDirectory = $runRoot }
+  if ($Scenario -eq "template-authoring") { $launchOptions.ArgumentList = @("--template") }
+  $process = Start-Process @launchOptions
   $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 
   while ((Get-Date) -lt $deadline) {
@@ -458,6 +469,17 @@ try {
       --screenshot-root "$screenshotRoot"
     if ($LASTEXITCODE -ne 0 -and -not (Test-Path -LiteralPath $scenarioResultPath)) {
       throw "template authoring scenario failed before writing result.json"
+    }
+  }
+
+  if ($Scenario -eq "template-entry") {
+    . (Join-Path $PSScriptRoot "win-real-dnd/runtime.ps1")
+    $templatePython = Ensure-RealDndVenv -BasePython (Resolve-Python -RequestedPython "python")
+    & (Join-Path $repoRoot "node_modules/.bin/tsx.cmd") "tools/e2e/template-entry-native.ts" --port "$remoteDebugPort" `
+      --result "$scenarioResultPath" --app-pid "$($process.Id)" --python "$templatePython" `
+      --screenshot-root "$screenshotRoot" --remap-exe "$remapCompanionPath"
+    if ($LASTEXITCODE -ne 0 -and -not (Test-Path -LiteralPath $scenarioResultPath)) {
+      throw "template entry scenario failed before writing result.json"
     }
   }
 

@@ -25,8 +25,7 @@ $expectedPackageRootNames = @(
   "RELEASE.json",
   "THIRD_PARTY_NOTICES.md",
   "xsheet-corrector.exe",
-  "xsheet-remap.exe",
-  "xsheet-template.exe"
+  "xsheet-remap.exe"
 )
 
 . (Join-Path $PSScriptRoot "release-inventory.ps1")

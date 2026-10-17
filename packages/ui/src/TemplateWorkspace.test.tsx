@@ -72,12 +72,13 @@ describe('TemplateWorkspace project integration', () => {
   it('keeps an imported JSON as a draft until the user applies it to the project', async () => {
     const imported = createTemplateDraft('paper-standard', standardA3SheetTemplate)
     const onApplyTemplate = vi.fn()
+    const onSaveTemplate = vi.fn(async () => ({ saved: true }))
     render(
       <TemplateWorkspace
         project={createDefaultProject()}
         template={standardA3SheetTemplate}
         onLoadTemplate={async () => imported}
-        onSaveTemplate={async () => ({ saved: true })}
+        onSaveTemplate={onSaveTemplate}
         onApplyTemplate={onApplyTemplate}
         onCreateTemplateDraft={(kind): SheetTemplate => createTemplateDraft(kind, standardA3SheetTemplate)}
         onUpdateCorrectionLayers={() => true}
@@ -90,6 +91,10 @@ describe('TemplateWorkspace project integration', () => {
     fireEvent.change(input!, { target: { files: asFileList(new File(['{}'], 'import.template.json')) } })
 
     await waitFor(() => expect(screen.getByText('未適用の変更')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
+    await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledWith(expect.objectContaining({ templateId: imported.templateId })))
+    expect(onApplyTemplate).not.toHaveBeenCalled()
+    expect(screen.getByText('未適用の変更')).toBeTruthy()
     const apply = screen.getByRole('button', { name: 'プロジェクトへ反映' }) as HTMLButtonElement
     expect(apply.disabled).toBe(false)
     fireEvent.click(apply)

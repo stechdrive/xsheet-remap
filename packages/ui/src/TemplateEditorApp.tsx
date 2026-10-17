@@ -73,8 +73,25 @@ export function TemplateEditorApp() {
     }, 500)
   }, [])
 
-  useEffect(() => () => {
-    if (recoverySaveTimerRef.current !== null) window.clearTimeout(recoverySaveTimerRef.current)
+  useEffect(() => {
+    const flushPendingRecovery = () => {
+      if (recoverySaveTimerRef.current === null) return
+      window.clearTimeout(recoverySaveTimerRef.current)
+      recoverySaveTimerRef.current = null
+      if (draftStateRef.current.dirty) void saveTemplateDraftRecovery(draftStateRef.current.template)
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flushPendingRecovery()
+    }
+    window.addEventListener('pagehide', flushPendingRecovery)
+    window.addEventListener('beforeunload', flushPendingRecovery)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('pagehide', flushPendingRecovery)
+      window.removeEventListener('beforeunload', flushPendingRecovery)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      flushPendingRecovery()
+    }
   }, [])
 
   async function loadTemplate(files: FileList | null): Promise<SheetTemplate | null> {
@@ -171,11 +188,11 @@ export function TemplateEditorApp() {
     <div className="templateEditorAppShell">
       <header className="templateEditorAppHeader">
         <span className="topBrand">
-          <strong>xsheet-template</strong>
+          <strong>Remap テンプレート編集</strong>
           <span className="appVersion">v{APP_VERSION}</span>
         </span>
         <div className="templateEditorAppActions">
-          <Tooltip label="xsheet-templateの使い方を開く">
+          <Tooltip label="Remap テンプレート編集の使い方を開く">
             <IconButton onClick={() => setHelpDialogOpen(true)} aria-label="ヘルプ"><HelpIcon /></IconButton>
           </Tooltip>
         </div>

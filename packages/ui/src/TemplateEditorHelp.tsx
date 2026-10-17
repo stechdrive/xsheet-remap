@@ -12,6 +12,7 @@ const templateHelpChapters: HelpChapter[] = [
       {
         title: '開始画面の選び方',
         items: [
+          { term: '専用編集を開く', description: 'Remapのメニュー「テンプレートを作成・編集…」、またはCorrectorの同名ボタンから開きます。編集中のシートとは別のウィンドウ（ブラウザ版では別タブ）で、テンプレートだけを作成できます。' },
           { term: '標準用紙を調整', description: 'A3標準の3秒×2を一つの6秒表として扱います。表全体の位置・大きさ、左右間隔、列幅・列数をまとめて調整できます。' },
           { term: '用紙画像から作成', description: '手元の紙タイムシート画像を下敷きにし、まず6秒表の外周と列境界を合わせてから、シート情報などの要素を追加します。' },
           { term: 'デジタルシートを作成', description: '印刷用紙の大きさに縛られず、必要な尺や列数に応じて横幅が広がるシートを作ります。最初にFPS、フレーム数、セル列数を決めます。' },
@@ -49,8 +50,9 @@ const templateHelpChapters: HelpChapter[] = [
       {
         title: 'このアプリで作れるもの',
         items: [
+          { term: 'JSON保存とシートへの反映', description: 'この画面の「テンプレートJSONを保存」はJSONファイルを書き出します。編集中のシートには自動反映されません。RemapでJSONを読み込むか、シート側の「テンプレ」画面で「プロジェクトへ反映」を押します。Correctorでは保存後に「テンプレJSONを読み込み」で選んでください。' },
           { term: '保存されるもの', description: '用紙、領域、固定文字、入力項目、表示するカット情報、罫線、配色など、繰り返し使えるシートのひな形をJSONへ保存します。' },
-          { term: 'プロジェクトごとに決めるもの', description: '実際のカット内容、素材、作画・演出・監督などの工程はここでは入力しません。保存したテンプレートをEditorまたはRemapで使い、プロジェクトごとに設定します。' },
+          { term: 'プロジェクトごとに決めるもの', description: '実際のカット内容、素材、作画・演出・監督などの工程はここでは入力しません。保存したテンプレートをRemapで使い、プロジェクトごとに設定します。' },
         ],
       },
       {
@@ -126,7 +128,7 @@ const templateHelpChapters: HelpChapter[] = [
         items: [
           { term: '編集画面での名前', description: '領域を探すための管理名です。左の一覧、右の領域カード、詳細の見出しに使われ、完成したシートには印刷されません。例:「カット情報見出し」。' },
           { term: 'シート上の表示文字', description: '完成したシートへそのまま印刷・表示する固定文字です。TITLE、NO.、CUTなどを変えたいときは、領域の詳細にある「シート上の表示」を編集します。' },
-          { term: '表示する情報', description: 'タイトル、話数、カット番号、尺など、Editor・Remapで扱う実データの割当です。シートごとに値が変わり、TITLEなどの固定文字とは別です。' },
+          { term: '表示する情報', description: 'タイトル、話数、カット番号、尺など、Remapで扱う実データの割当です。シートごとに値が変わり、TITLEなどの固定文字とは別です。' },
           { term: '入力画面での項目名', description: '利用者が値を入力するときに、入力欄やポップアップへ表示される案内名です。入力表の領域で設定し、紙に印刷する固定見出しとは別にできます。' },
         ],
       },
@@ -157,7 +159,7 @@ const templateHelpChapters: HelpChapter[] = [
           { term: '作品・カット情報', description: '作品名、話数、シーン、カット番号、尺、作業者名、ページ数など、シートごとに変わる値を表示したい領域へ割り当てます。標準項目にない情報は、同じ識別名を使う入力欄と結び付けられます。' },
           { term: '結合カットの表示', description: '複数カットを1枚で扱うときは、先頭・区切り・末尾のどの位置に表示する情報かを選びます。単独カット用なら通常の表示を選びます。' },
           { term: 'タイミング欄の役割', description: 'ACTION、SOUND、CELL、CAMERAのどの記入欄として使うかを選びます。同じ役割を複数箇所へ置く場合は、必要に応じて区別用のセクションIDをそろえます。' },
-          { term: '標準情報との連動', description: '入力した値をタイトルやカット番号などの標準情報としても使いたい場合に選びます。用途を変えると既存データの見え方も変わるため、EditorまたはRemapで入力済みのテストデータを確認してください。' },
+          { term: '標準情報との連動', description: '入力した値をタイトルやカット番号などの標準情報としても使いたい場合に選びます。用途を変えると既存データの見え方も変わるため、Remapで入力済みのテストデータを確認してください。' },
         ],
       },
     ],
@@ -278,20 +280,20 @@ const templateHelpChapters: HelpChapter[] = [
     id: 'save',
     number: '10',
     title: '保存・利用',
-    summary: '編集中の下書きを検査し、JSONとして保存し、Editor・Remapで使います。',
+    summary: '編集中の下書きを検査し、JSONとして保存し、Remapで使います。',
     sections: [
       {
         title: '検証と保存',
         items: [
           { term: '自動検証', description: '保存時に、保存できないエラーと実機で確認すべき注意を検査します。エラーがある場合は検証結果を開き、対象領域へ移動できます。' },
-          { term: 'テンプレートを保存', description: '検査を通った現在の下書きを、他のアプリで読み込めるJSONとして保存します。成功すると「保存済み」へ変わります。' },
+          { term: 'テンプレートJSONを保存', description: '検査を通った現在の下書きを、他のアプリで読み込めるJSONとして保存します。成功すると「保存済み」へ変わります。' },
           { term: '未保存保護', description: '別テンプレートへ移る操作と終了時に確認し、編集中の下書きは次回起動時に復元できます。' },
         ],
       },
       {
-        title: 'Editor・Remapでの確認',
+        title: 'Remapでの確認',
         items: [
-          { term: '読み込み', description: 'EditorまたはRemapのテンプレート操作から保存したJSONを読み込みます。新規プロジェクトで試すと安全です。' },
+          { term: '読み込み', description: 'Remapのテンプレート操作から保存したJSONを読み込みます。新規プロジェクトで試すと安全です。' },
           { term: '入力テスト', description: '情報欄と入力表のクリック範囲、ACTIONの原画番号と中割り指示、CELLの動画番号、SOUND・CAMERAの区間指示、メモ対象を確認します。' },
           { term: '見た目のテスト', description: '最初のフレーム、24フレームの秒境界、最終フレーム、トラック数を増やした状態、倍率を変えた状態をスクロールして確認します。' },
           { term: '紙の補正テスト', description: '紙テンプレートは、実際のスキャン画像で四隅補正を開き、補正基準枠が意図した罫線へ合うことを確認します。' },
@@ -310,7 +312,7 @@ const templateHelpChapters: HelpChapter[] = [
         items: [
           { term: '不要な領域を削除したい', description: '左の領域一覧で該当領域の「削除」を押します。必要なら先に「複製」し、重なり順も同じ場所で調整できます。' },
           { term: '元画像と罫線が合わない', description: '用紙サイズ、向き、ピクセル数、PPI、参照画像の元サイズと配置オフセットを確認します。100%と800%以上の両方で罫線境界を比較します。' },
-          { term: '文字が切れる', description: '文字サイズ、最小文字、行間、内余白、自動縮小、欄外表示を確認します。見た目だけでなくEditor・Remapで実文字を入力して確認します。' },
+          { term: '文字が切れる', description: '文字サイズ、最小文字、行間、内余白、自動縮小、欄外表示を確認します。見た目だけでなくRemapで実文字を入力して確認します。' },
           { term: 'デジタルの横幅が変わった', description: '必要なACTION・CELL列とSOUND・CAMERA列をすべて見せるため、列数に合わせてシートが横へ広がります。「全体表示」へ戻し、情報欄、メモ、タイミング欄の右端が揃っているかを確認します。' },
           { term: '未保存内容を戻したい', description: '次回起動時の開始画面に「下書きを復元」が表示されます。不要なら「破棄」を選びます。' },
         ],
@@ -323,11 +325,11 @@ export function TemplateEditorHelpDialog({ onClose }: { onClose: () => void }) {
   const [helpView, setHelpView] = useState<'quick' | 'detailed' | 'licenses'>('quick')
 
   return (
-    <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label="xsheet-templateの使い方">
+    <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label="Remap テンプレート編集の使い方">
       <section className="appHelpDialog appHelpDialogTabbed templateEditorHelpDialog">
         <header>
           <div>
-            <strong>xsheet-template ヘルプ</strong>
+            <strong>Remap テンプレート編集 ヘルプ</strong>
             <span>{helpView === 'licenses' ? licenseHelpDescription : helpView === 'quick' ? '使えるテンプレートJSONを最短で作る順番です。' : '目的から探せるように、すべての設定と操作を章別に説明します。'}</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
@@ -349,7 +351,7 @@ export function TemplateEditorHelpDialog({ onClose }: { onClose: () => void }) {
           {helpView === 'licenses' ? <LicenseNotices /> : helpView === 'quick' ? <TemplateEditorQuickGuide /> : <TemplateEditorDetailedHelp />}
         </div>
         {helpView !== 'licenses' && <footer>
-          <p>{helpView === 'quick' ? '迷ったら、作りたいシートに最も近い標準形から始めてください。' : '保存後はEditorまたはRemapで、実際の入力と表示を一度確認してください。'}</p>
+          <p>{helpView === 'quick' ? '迷ったら、作りたいシートに最も近い標準形から始めてください。' : '保存後はRemapで、実際の入力と表示を一度確認してください。'}</p>
         </footer>}
       </section>
     </div>
@@ -362,7 +364,7 @@ function TemplateEditorQuickGuide() {
     { title: '6秒表を合わせる', description: '紙では最初に「用紙レイアウト」を開きます。3秒×2の行を保ったまま、表全体の位置・大きさ、左右間隔、列幅・列数を合わせます。' },
     { title: '個別要素を整える', description: '「個別要素」でシート情報、固定文字、入力欄、メモなどを編集します。整列ボタンで用紙または6秒表へ揃えられます。' },
     { title: '見た目と紙の基準を合わせる', description: '「見た目」で色・罫線・列名を整えます。紙画像を使う場合は「参照画像」で元画像とアプリ描画の重なりを確認します。' },
-    { title: 'テンプレートを保存する', description: '「テンプレートを保存」を押します。問題があれば検証結果が自動的に開くので、指摘を直してもう一度保存します。保存したJSONをEditorまたはRemapで読み込み、入力範囲と最初・最後のフレームを確認すれば完成です。' },
+    { title: 'テンプレートJSONを保存する', description: '「テンプレートJSONを保存」を押します。問題があれば検証結果が自動的に開くので、指摘を直してもう一度保存します。保存したJSONをRemapで読み込み、入力範囲と最初・最後のフレームを確認すれば完成です。' },
   ]
 
   return (
@@ -370,7 +372,8 @@ function TemplateEditorQuickGuide() {
       <header>
         <span>QUICK GUIDE</span>
         <h2>最短でテンプレートを完成させる</h2>
-        <p>完成すると、同じレイアウトと入力方法をEditor・Remapで繰り返し使えるテンプレートJSONが得られます。</p>
+        <p>RemapまたはCorrectorの「テンプレートを作成・編集」から開く専用画面です。未保存の下書きは開始画面で復元できます。JSONを保存しても、編集中のシートへは自動反映されません。</p>
+        <p>完成すると、同じレイアウトと入力方法をRemapで繰り返し使えるテンプレートJSONが得られます。</p>
       </header>
       <section className="templateHelpSteps" aria-label="テンプレート完成までの手順">
         <ol>
@@ -398,7 +401,7 @@ export function TemplateEditorDetailedHelp() {
     <ChapteredHelp
       chapters={templateHelpChapters}
       tocTitle="テンプレートの全機能"
-      navigationLabel="xsheet-templateの詳しい使い方の目次"
+      navigationLabel="Remap テンプレート編集の詳しい使い方の目次"
       idPrefix="template-help"
       className="templateHelpManual"
     />

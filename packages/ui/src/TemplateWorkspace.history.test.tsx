@@ -83,7 +83,7 @@ describe('template history integration', () => {
   it('retains undo after saving and returns to saved status on redo', async () => {
     const s = setup()
     fireEvent.change(s.nameInput(), { target: { value: '保存する名前' } })
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' })) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' })) })
     expect(s.latest().dirty).toBe(false)
     fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
     expect(s.latest().template.name).toBe(s.initial.name)
@@ -99,7 +99,7 @@ describe('template history integration', () => {
     s.props.onSaveTemplate.mockImplementation(() => new Promise(resolve => { finish = resolve }))
     const field = s.nameInput()
     fireEvent.change(field, { target: { value: '保存中' } })
-    fireEvent.click(screen.getByRole('button', { name: 'テンプレートを保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'テンプレートJSONを保存' }))
     fireEvent.change(field, { target: { value: '新しい編集' } })
     await act(async () => finish({ saved: true }))
     expect(s.latest().template.name).toBe('新しい編集')

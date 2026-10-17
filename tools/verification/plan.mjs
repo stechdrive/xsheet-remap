@@ -4,10 +4,10 @@ export const browserProjects = ['chromium', 'webkit', 'chromium-touch', 'webkit-
 export const ciBrowserTestFiles = ['startup.spec.ts', 'pwa.spec.ts']
 export const checks = {
   check: ['check:ae-template', 'lint', 'typecheck', 'test', 'check:architecture', 'check:build-contract', 'check:pages-contract', 'check:embedded-dependencies', 'check:repo-hygiene'],
-  native: ['check:after-effects-native'],
+  native: ['check:after-effects-native', 'check:corrector-native'],
   importer: ['test:clip'],
   pages: ['build:pages', 'check:pages-artifact'],
-  desktop: ['e2e:desktop:win:template-authoring', 'e2e:desktop:win:explorer-import', 'e2e:desktop:win:real-dnd'],
+  desktop: ['e2e:desktop:win:template-entry', 'e2e:desktop:win:template-authoring', 'e2e:desktop:win:explorer-import', 'e2e:desktop:win:real-dnd'],
 }
 export const testPurposes = {
   check: 'Static, type and unit checks; simulated DOM is not real browser layout or IME',

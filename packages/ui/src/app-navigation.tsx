@@ -1,3 +1,4 @@
+import { requestTemplateEditor } from './template-editor-entry'
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, isInteractiveSheetTemplateGridRegion, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isTauriHost, XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters'
@@ -837,6 +838,7 @@ export function AppNavigationMenu({
             <button type="button" className="appNavMenuItem" onClick={onSaveTemplate}>シートテンプレート（JSON）を書き出す…</button>
           </Tooltip>
       </AppNavigationFlyout>
+      <button type="button" className="appNavMenuItem" onClick={requestTemplateEditor} onFocus={() => setActiveSubmenu(null)} onPointerEnter={() => setActiveSubmenu(null)}>テンプレートを作成・編集…</button>
       <div className="appNavSectionLabel" onPointerEnter={() => setActiveSubmenu(null)}>ワークスペース</div>
       {panels.map(item => (
         <Tooltip key={item} label={uiText.nav.workspaceItemTitle(panelLabel(item))}>

@@ -16,7 +16,7 @@ const applicationTitle = isInkDiagnostic
   : appKind === 'remap'
     ? 'xsheet-remap'
     : appKind === 'template-editor'
-      ? 'xsheet-template'
+      ? 'xsheet-remap - Template'
       : appKind === 'sheet-corrector'
         ? 'シート画像補正'
         : 'xsheet-remap'

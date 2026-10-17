@@ -27,7 +27,6 @@ function syncVersion() {
     'apps/desktop/package.json',
     'apps/editor/package.json',
     'apps/sheet-corrector/package.json',
-    'apps/template-editor/package.json',
     'apps/web/package.json',
     'packages/adapters/package.json',
     'packages/core/package.json',
@@ -43,7 +42,6 @@ function syncVersion() {
     'apps/desktop',
     'apps/editor',
     'apps/sheet-corrector',
-    'apps/template-editor',
     'apps/web',
     'packages/adapters',
     'packages/core',
@@ -81,10 +79,6 @@ function syncVersion() {
   sheetCorrectorTauriConfig.version = version
   writeJson('apps/sheet-corrector/src-tauri/tauri.conf.json', sheetCorrectorTauriConfig)
 
-  const templateEditorTauriConfig = readJson('apps/template-editor/src-tauri/tauri.conf.json')
-  templateEditorTauriConfig.version = version
-  writeJson('apps/template-editor/src-tauri/tauri.conf.json', templateEditorTauriConfig)
-
   const cargoTomlPath = 'apps/desktop/src-tauri/Cargo.toml'
   writeText(
     cargoTomlPath,
@@ -101,12 +95,6 @@ function syncVersion() {
   writeText(
     sheetCorrectorCargoTomlPath,
     updateTomlPackageVersion(readFileSync(join(repoRoot, sheetCorrectorCargoTomlPath), 'utf8'), version),
-  )
-
-  const templateEditorCargoTomlPath = 'apps/template-editor/src-tauri/Cargo.toml'
-  writeText(
-    templateEditorCargoTomlPath,
-    updateTomlPackageVersion(readFileSync(join(repoRoot, templateEditorCargoTomlPath), 'utf8'), version),
   )
 
   const cspHelperLauncherCargoTomlPath = 'apps/csp-import-helper/launcher/Cargo.toml'
@@ -134,12 +122,6 @@ function syncVersion() {
       updateCargoLockPackageVersion(readFileSync(join(repoRoot, sheetCorrectorCargoLockPath), 'utf8'), 'xsheet-corrector', version),
     )
   }
-
-  const templateEditorCargoLockPath = 'apps/template-editor/src-tauri/Cargo.lock'
-  writeText(
-    templateEditorCargoLockPath,
-    updateCargoLockPackageVersion(readFileSync(join(repoRoot, templateEditorCargoLockPath), 'utf8'), 'xsheet-template', version),
-  )
 
   const cspHelperLauncherCargoLockPath = 'apps/csp-import-helper/launcher/Cargo.lock'
   if (existsSync(join(repoRoot, cspHelperLauncherCargoLockPath))) {

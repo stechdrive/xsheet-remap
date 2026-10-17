@@ -255,12 +255,6 @@ $desktopComponents = @(
     Name = "xsheet-corrector"
     Source = ".cache/cargo-target/release/xsheet-corrector.exe"
     Destination = "xsheet-corrector.exe"
-  },
-  [pscustomobject]@{
-    Key = "template"
-    Name = "xsheet-template"
-    Source = ".cache/cargo-target/release/xsheet-template.exe"
-    Destination = "xsheet-template.exe"
   }
 )
 
@@ -282,7 +276,7 @@ function Assert-CoherentDesktopBuildState {
   }
 
   if ([string]$state.mode -ne "coherent") {
-    throw "desktop outputs are $($state.mode), not a coherent three-app build. Run npm run build:release:desktop before packaging."
+    throw "desktop outputs are $($state.mode), not a coherent two-app build. Run npm run build:release:desktop before packaging."
   }
   if (-not $state.applications) {
     throw "desktop build state has no application records. Run npm run build:release:desktop before packaging."
@@ -343,7 +337,7 @@ foreach ($desktopComponent in $desktopComponents) {
 }
 
 # Remove only known retired product outputs inside the validated release root.
-foreach ($retired in @("xsheet-editor.exe", "xsheet-importer.exe", "xsheet-csp-import-helper.exe", "xsheet-csp-import-helper.bat", "csp-import-helper", "csp-import-helper-cli", "assets", "_internal")) {
+foreach ($retired in @("xsheet-template.exe", "xsheet-editor.exe", "xsheet-importer.exe", "xsheet-csp-import-helper.exe", "xsheet-csp-import-helper.bat", "csp-import-helper", "csp-import-helper-cli", "assets", "_internal")) {
   Remove-ReleasePathSafely (Join-Path $releaseRoot $retired)
 }
 
@@ -368,7 +362,6 @@ $releaseManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $releaseMa
 $checksumTargets = @(
   "xsheet-remap.exe",
   "xsheet-corrector.exe",
-  "xsheet-template.exe",
   "README.txt",
   "THIRD_PARTY_NOTICES.md",
   "RELEASE.json"

@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import { unitReportForEnvironment } from './tools/verification/unit-evidence.mjs'
 
 const nodeTests = [
   'packages/core/**/*.test.ts',
@@ -16,7 +17,7 @@ export default defineConfig({
   test: {
     testTimeout: 20_000,
     reporters: ['default', 'json'],
-    outputFile: 'reference-local/verification/unit-results.json',
+    outputFile: unitReportForEnvironment(),
     projects: [
       { extends: true, test: { name: 'node', environment: 'node', include: nodeTests } },
       { extends: true, test: {

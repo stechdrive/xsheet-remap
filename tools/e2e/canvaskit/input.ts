@@ -24,7 +24,9 @@ export async function activateControl(page: Page, locator: Locator, input: 'mous
     consecutive = state.ready && signature === previous ? consecutive + 1 : 0
     previous = signature; point = state
     return consecutive
-  }, { timeout: 8_000, intervals: [50, 100, 100], message: `${locator}: control must be enabled, unobscured and stationary before actual pointer input` }).toBeGreaterThanOrEqual(2)
+  // Keep three stable observations, spaced across two display frames at 60 Hz.
+  // Poll ready controls promptly; back off while waiting for a transition.
+  }, { timeout: 8_000, intervals: [20, 20, 50], message: `${locator}: control must be enabled, unobscured and stationary before actual pointer input` }).toBeGreaterThanOrEqual(2)
     .catch(error => { throw new Error(`Control readiness failed; last observed state: ${previous}`, { cause: error }) })
   if (input === 'touch') await page.touchscreen.tap(point.x, point.y)
   else await page.mouse.click(point.x, point.y)

@@ -5,6 +5,7 @@ import { checks, selectChecks, testPurposes, withoutGeneratedVersion } from './p
 import { reusableEvidence, sha256, sourceIdentity } from './evidence.mjs'
 import { defaultBrowserWorkers, parseOptions } from './options.mjs'
 import { prepareBrowser, validateBrowserResults } from './browser.mjs'
+import { readUnitEvidence, reusableUnitEvidence, unitReportPath } from './unit-evidence.mjs'
 
 const options = parseOptions(process.argv.slice(2))
 const { phase } = options
@@ -16,10 +17,10 @@ function command(file, argv, env = process.env) {
   if (result.error) throw result.error
   if (result.status !== 0) throw new Error(`${path.basename(file)} ${argv.join(' ')} failed (${result.status})`)
 }
-function npm(script, argv = []) {
+function npm(script, argv = [], env = process.env) {
   const cli = process.env.npm_execpath
   if (!cli) throw new Error('Run verification through npm run verify:...')
-  command(process.execPath, [cli, 'run', script, ...argv])
+  command(process.execPath, [cli, 'run', script, ...argv], env)
 }
 function runtimeIdentity(phase) {
   const toolVersion = (tool, argv, env = process.env) => {
@@ -71,6 +72,7 @@ if (phase === 'plan') {
     const artifactSha256 = (browserPhase || selected === 'pages') && fs.existsSync(manifestPath) ? sha256(fs.readFileSync(manifestPath)) : null
     const previous = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, 'utf8')) : null
     const canReuse = reusableEvidence(previous, identity, name, artifactSha256, execution)
+      && (!['check', 'importer'].includes(selected) || reusableUnitEvidence(root, previous))
     if (artifactSha256 && (browserPhase || options.reuse && canReuse)) npm('check:pages-artifact')
     // Native input acceptance always reruns against the current EXEs. Source
     // equality alone cannot certify executables produced by a later build.
@@ -107,7 +109,15 @@ if (phase === 'plan') {
           const scenario = script.split(':').at(-1)
           npm(script, ['--', '-ArtifactRoot', `${record.diagnostics}/${scenario}`])
         }
-      } else for (const script of checks[selected]) npm(script)
+      } else for (const script of checks[selected]) {
+        if (script === 'test' || script === 'test:clip') {
+          const file = unitReportPath(selected, runId)
+          record.unitResults = { path: file }
+          fs.writeFileSync(reportPath, JSON.stringify(record, null, 2))
+          npm(script, [], { ...process.env, XSHEET_UNIT_PHASE: selected, XSHEET_UNIT_RUN_ID: runId })
+          record.unitResults = readUnitEvidence(root, file)
+        } else npm(script)
+      }
       if (sourceIdentity(root).sourceSha256 !== identity.sourceSha256) throw new Error('Source changed during verification; evidence cannot be accepted')
       record.status = 'passed'
       if (selected === 'pages') record.artifactSha256 = sha256(fs.readFileSync(manifestPath))

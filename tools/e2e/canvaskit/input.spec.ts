@@ -25,3 +25,23 @@ test('input exposes a control clipped by a nested scrolling navigator', async ({
   await expect(page.getByRole('button')).toHaveText('Selected')
   expect(await page.locator('nav').evaluate(nav => nav.scrollTop)).toBeGreaterThan(0)
 })
+
+test('input waits for moving geometry and inert ancestors before clicking the final position', async ({ page }) => {
+  await page.setContent('<main inert><button style="position:absolute;top:20px;left:20px">Move</button></main>')
+  await page.evaluate(() => {
+    window.requestAnimationFrame = () => 0
+    const button = document.querySelector('button')!
+    let steps = 0
+    const timer = setInterval(() => {
+      button.style.left = `${20 + ++steps * 10}px`
+      if (steps === 2) document.querySelector('main')!.inert = false
+      if (steps === 16) { clearInterval(timer); button.dataset.stopped = 'true' }
+    }, 20)
+    button.addEventListener('click', event => {
+      button.textContent = event.isTrusted && button.dataset.stopped === 'true' ? 'Final position' : 'Clicked too soon'
+    })
+  })
+  await activateControl(page, page.getByRole('button'))
+  await expect(page.getByRole('button')).toHaveText('Final position')
+  await expect(page.getByRole('button')).toHaveCSS('left', '180px')
+})

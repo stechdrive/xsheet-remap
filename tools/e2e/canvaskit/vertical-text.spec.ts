@@ -13,6 +13,7 @@ import { buildTimelineMemoTextLayout } from '../../../packages/ui/src/timelineMe
 import { annotationVerticalLayout } from '../../../packages/ui/src/annotationTextLayout'
 import { buildSoundCuePageTextLayouts } from '../../../packages/ui/src/soundCueGeometry'
 import { readPsdComposite } from '../psd-composite'
+import { glyphInkBounds, psdRaster, readPng } from '../raster'
 import { waitForPaperPaint } from '../paper-paint-contract'
 
 const paint = (page: Page) => waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
@@ -48,7 +49,7 @@ test('memo direction switches preserve drafts, Undo, new memo defaults and saved
   await page.mouse.click(box.x + box.width * .35, box.y + box.height * .10)
   const editor = page.locator('.annotationTextEditor')
   await editor.fill(sourceText)
-  await editor.evaluate(element => {
+  await editor.evaluate((element: HTMLTextAreaElement) => {
     element.setSelectionRange(3, 3)
     element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
   })
@@ -56,7 +57,7 @@ test('memo direction switches preserve drafts, Undo, new memo defaults and saved
     await activateControl(page, page.getByRole('button', { name: direction, exact: true }))
     await expect(editor).toBeFocused()
     await expect(editor).toHaveValue(sourceText)
-    expect(await editor.evaluate(element => element.selectionStart)).toBe(3)
+    expect(await editor.evaluate((element: HTMLTextAreaElement) => element.selectionStart)).toBe(3)
   }
   await editor.evaluate(element => element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })))
   await editor.press('Control+Enter')
@@ -129,7 +130,8 @@ for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
       yPx: (geometry.rect.y + target.yPx * scale) * geometry.ratio,
       size: target.size * scale * geometry.ratio,
     }))
-    const visible = await glyphInkBounds(page, direct, screenTargets, null, true)
+    const directRaster = await readPng(direct)
+    const visible = glyphInkBounds(directRaster, screenTargets, true)
     for (const [index, bound] of visible.entries()) {
       expect(bound.count, `GPU/glyph ${index}: visible ink`).toBeGreaterThan(0)
       expect(bound.height, `GPU/glyph ${index}: vertical long mark`).toBeGreaterThan(bound.width)
@@ -139,25 +141,29 @@ for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
     const compatibility = await page.screenshot({ path: info.outputPath('vertical-svg.png') })
     // The WebKit touch trace differed at one edge pixel by one channel level,
     // due to SVG matrix serialization. Require the same geometry and ink.
-    const difference = await page.evaluate(async ([a, b]) => {
-      const decode = async (base64: string) => {
-        const image = new Image(); image.src = `data:image/png;base64,${base64}`; await image.decode()
-        const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height
-        const ctx = canvas.getContext('2d')!; ctx.drawImage(image, 0, 0)
-        return ctx.getImageData(0, 0, image.width, image.height).data
-      }
-      const first = await decode(a), second = await decode(b)
-      if (first.length !== second.length) return Infinity
-      let maximum = 0
-      for (let i = 0; i < first.length; i++) maximum = Math.max(maximum, Math.abs(first[i] - second[i]))
-      return maximum
-    }, [direct.toString('base64'), compatibility.toString('base64')])
+    const compatibilityRaster = await readPng(compatibility)
+    expect([compatibilityRaster.width, compatibilityRaster.height]).toEqual([directRaster.width, directRaster.height])
+    let difference = 0
+    for (let i = 0; i < directRaster.data.length; i++) difference = Math.max(difference, Math.abs(directRaster.data[i] - compatibilityRaster.data[i]))
     expect(difference, 'GPU and SVG glyphs agree within one antialiasing level').toBeLessThanOrEqual(1)
     await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')))
     await expect(page.locator('.soundCueDialogue[data-vertical-glyph="ー"] path')).toHaveCount(1)
     await expect(page.locator('.annotationTextDisplay [data-vertical-glyph="ー"] path')).toHaveCount(1)
     await page.emulateMedia({ media: 'print' })
-    await page.screenshot({ path: info.outputPath('vertical-print.png') })
+    const printed = await page.screenshot({ path: info.outputPath('vertical-print.png') })
+    const printGeometry = await svg.evaluate(element => ({ rect: element.getBoundingClientRect().toJSON(), ratio: devicePixelRatio }))
+    const printScale = printGeometry.rect.width / context.pageSize.widthPx
+    const printTargets = targets.map(target => ({ ...target,
+      xPx: (printGeometry.rect.x + target.xPx * printScale) * printGeometry.ratio,
+      yPx: (printGeometry.rect.y + target.yPx * printScale) * printGeometry.ratio,
+      size: target.size * printScale * printGeometry.ratio,
+    }))
+    const printBounds = glyphInkBounds(await readPng(printed), printTargets, true)
+    expect(printBounds).toHaveLength(3)
+    for (const [index, bound] of printBounds.entries()) {
+      expect(bound.count, `print/glyph ${index}: visible ink`).toBeGreaterThan(0)
+      expect(bound.height, `print/glyph ${index}: vertical long mark`).toBeGreaterThan(bound.width)
+    }
     await page.emulateMedia({ media: 'screen' })
     await page.evaluate(() => window.dispatchEvent(new Event('afterprint')))
     await svg.evaluate(element => { delete element.dataset.paperModelMode })
@@ -173,7 +179,7 @@ for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
       await (await pending).saveAs(saved)
       const bytes = readFileSync(saved)
       const psd = format === 'PSD' ? readPsdComposite(bytes) : null
-      const bounds = await glyphInkBounds(page, bytes, targets, psd)
+      const bounds = glyphInkBounds(psd ? psdRaster(psd) : await readPng(bytes), targets)
       for (const [index, bound] of bounds.entries()) {
         expect(bound.count, `${format}/glyph ${index}: visible ink`).toBeGreaterThan(4)
         expect(bound.height, `${format}/glyph ${index}: vertical long mark`).toBeGreaterThan(bound.width * 2)
@@ -181,44 +187,4 @@ for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
       await expect(dialog).toHaveCount(0)
     }
   })
-}
-
-
-async function glyphInkBounds(page: Page, bytes: Buffer,
-  targets: Array<{ xPx: number; yPx: number; size: number; color: string }>,
-  psd: ReturnType<typeof readPsdComposite> | null = null, screenAntialias = false) {
-  return page.evaluate(async ({ targets, base64, psd, screenAntialias }) => {
-    let width: number, height: number, pixel: (index: number, channel: number) => number
-    if (psd) {
-      width = psd.width; height = psd.height
-      const planes = Uint8Array.from(atob(psd.planes), char => char.charCodeAt(0))
-      pixel = (index, channel) => planes[index + width * height * channel]
-    } else {
-      const image = new Image(); image.src = `data:image/png;base64,${base64}`; await image.decode()
-      width = image.width; height = image.height
-      const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height
-      const ctx = canvas.getContext('2d')!; ctx.drawImage(image, 0, 0)
-      const data = ctx.getImageData(0, 0, width, height).data
-      pixel = (index, channel) => data[index * 4 + channel]
-    }
-    return targets.map(target => {
-      const rgb = target.color.match(/[0-9a-f]{2}/gi)!.map(value => parseInt(value, 16))
-      let minX = width, maxX = -1, minY = height, maxY = -1, count = 0
-      for (let y = Math.max(0, Math.floor(target.yPx - target.size * .88)); y < Math.min(height, target.yPx + target.size * .12); y++) {
-        for (let x = Math.max(0, Math.floor(target.xPx - target.size / 2)); x < Math.min(width, target.xPx + target.size / 2); x++) {
-          const actual = rgb.map((_, channel) => pixel(y * width + x, channel))
-          // At 50% zoom a 12.6px SOUND stroke can cover only part of a pixel.
-          // Require its foreground hue and at least 60% coverage above the white halo.
-          const coverage = rgb.reduce((sum, value, channel) => sum + (255 - actual[channel]) / Math.max(1, 255 - value), 0) / 3
-          const antialiasedInk = screenAntialias && coverage >= .6 && coverage <= 1.05
-            && rgb.every((value, channel) => Math.abs(actual[channel] - (255 + (value - 255) * coverage)) < 12)
-          if (antialiasedInk || rgb.every((value, channel) => Math.abs(actual[channel] - value) < 25)) {
-            minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); count++
-          }
-        }
-      }
-      return { width: maxX - minX + 1, height: maxY - minY + 1, count }
-    })
-  }, { targets, screenAntialias, base64: psd ? '' : bytes.toString('base64'),
-    psd: psd ? { width: psd.width, height: psd.height, planes: Buffer.from(psd.planes).toString('base64') } : null })
 }

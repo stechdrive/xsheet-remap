@@ -13,18 +13,13 @@ import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { sheetContextMenuStyle } from './app-registered-cells';
 import type { SheetCanvasController } from './app-sheet-canvas-controller'
-import { AssetAssignedFrameCue, SelectedCellCue, SheetDropTargetCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
+import { SelectedCellCue, SheetDropTargetCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
 import { SheetMetadataEditor } from './SheetMetadataEditor'
 import { SoundCueLayer } from './SoundCueLayer'
 import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
-import { TimingEventSymbol } from './TimingEventSymbol'
-import { TimingReferenceSymbol } from './TimingReferenceSymbol'
-import { TimingReferenceOnlyLayer } from './TimingReferenceOnlyLayer'
 import { TimingContinuationLayer } from './TimingContinuationLayer'
-import { TimingEventModelLayer } from './TimingEventModelLayer'
-import { TimingCellText } from './TimingCellText'
 import { sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
 import { TimelineLaneEditorPopover } from './TimelineLaneEditorPopover'
@@ -32,6 +27,10 @@ import { PageAnnotationInputSurface } from './PageAnnotationInputSurface'
 import { CommittedAnnotationCanvas } from './CommittedAnnotationCanvas'
 import { SheetRenderWindowContext } from './useSheetRenderWindow'
 import { SheetPlayheadOverlay } from './SheetPlayheadOverlay'
+import { SheetTimingEventLayer } from './SheetTimingEventLayer'
+import type { SheetInputTextRenderItem } from './sheetRenderModel'
+
+const EMPTY_REFERENCE_ITEMS: SheetInputTextRenderItem[] = []
 
 function SheetPageSurface({
   pageId,
@@ -137,7 +136,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     referenceEventRectsByPage, referenceContinuationItemsByPage, referenceAnnotationRenderItemsByPage,
     annotationStrokeRenderItemsByPage, annotationTextRenderItemsByPage, timelineMemoItems, soundCues, soundCueLayoutsByPage, cameraCues, calibrationMetrics,
     isCalibratingSheet, updateStackGuideDropPreview, clearHover,
-    selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, timelineEventHitForPage, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
+    selectPaperTrackColumn, handlePointerDown, handleTimedRangeDoubleClick, handleTimelineEventPointerDown, handleTimelineEventPointerMove, handleTimelineEventPointerUp,
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCueDoubleClick, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
     handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCueDoubleClick, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
@@ -455,53 +454,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onHandlePointerDown={(event, index, kind) => handleCalibrationHandlePointerDown(event, page, pageImage.settings, index, kind)}
                     />
                   )}
-                  {showInputContent && <TimingReferenceOnlyLayer items={referenceOnlyItemsByPage.get(page.pageId) ?? []} pageSize={sheetPageSize}>
-                    {(referenceOnlyItemsByPage.get(page.pageId) ?? []).map(item => <g key={item.eventId}
-                      data-reference-track={item.paperTrack} data-reference-frame={item.frame} data-reference-role={item.sheetRole}
-                      onPointerDown={event => handleTimelineEventPointerDown(event, item, page)}
-                      onPointerMove={handleTimelineEventPointerMove} onPointerUp={handleTimelineEventPointerUp} onPointerCancel={handleTimelineEventPointerCancel}>
-                      <rect className="eventReferenceHit" x={item.rect.x} y={item.rect.y} width={item.rect.w} height={item.rect.h} fill="transparent" stroke="none" pointerEvents="all" />
-                      {item.textLayout.reference && <TimingReferenceSymbol geometry={item.textLayout.reference} pageSize={sheetPageSize} />}
-                    </g>)}
-                  </TimingReferenceOnlyLayer>}
-                  {showInputContent && <TimingEventModelLayer items={eventRects} pageSize={sheetPageSize} surface={selectionSurface}
-                    dragging={timelineEventDrag?.sourceHit} pending={pendingTimelineEventDrag?.sourceHit} ready={pendingTimelineEventDrag?.ready}>
-                  {eventRects.map(({ event, eventKind, displayLabel, rect, hasAssetBinding, textLayout }) => {
-                    const eventHit = timelineEventHitForPage(event, page)
-                    const isDraggingEvent = Boolean(timelineEventDrag && sameSheetHitCell(timelineEventDrag.sourceHit, eventHit))
-                    const pendingEventDrag = pendingTimelineEventDrag && sameSheetHitCell(pendingTimelineEventDrag.sourceHit, eventHit)
-                      ? pendingTimelineEventDrag
-                      : null
-                    const timelineEventClassName = [
-                      isDraggingEvent ? 'timelineEventDragSource' : 'timelineEventHandle',
-                      pendingEventDrag ? 'timelineEventDragPending' : '',
-                      pendingEventDrag?.ready ? 'timelineEventDragReady' : '',
-                    ].filter(Boolean).join(' ')
-                    return (
-                      <g
-                        key={event.eventId}
-                        className={timelineEventClassName}
-                        data-timeline-event-track={eventHit?.paperTrack}
-                        data-timeline-event-role={eventHit?.role}
-                        data-timeline-event-frame={eventHit?.frame}
-                        onPointerDown={eventHit ? pointerEvent => handleTimelineEventPointerDown(pointerEvent, event, page) : undefined}
-                        onPointerMove={handleTimelineEventPointerMove}
-                        onPointerUp={handleTimelineEventPointerUp}
-                        onPointerCancel={handleTimelineEventPointerCancel}
-                      >
-                        {textLayout.overflow && <title>{displayLabel}</title>}
-                        <rect className={hasAssetBinding ? 'eventRect assetAssignedEventRect' : 'eventRect'} x={rect.x} y={rect.y} width={rect.w} height={rect.h} rx="0.002" />
-                        {hasAssetBinding && <AssetAssignedFrameCue rect={rect} surface={selectionSurface} />}
-                        {textLayout.reference && <TimingReferenceSymbol geometry={textLayout.reference} pageSize={sheetPageSize} />}
-                        {eventKind === 'cell' && displayLabel.trim()
-                          && (
-                            <TimingCellText layout={textLayout} rect={rect} pageSize={sheetPageSize} />
-                        )}
-                        {eventKind !== 'cell' && <TimingEventSymbol kind={eventKind} rect={rect} pageSize={sheetPageSize} />}
-                      </g>
-                    )
-                  })}
-                  </TimingEventModelLayer>}
+                  {showInputContent && <SheetTimingEventLayer
+                    project={props.project} geometry={sheetRenderModelContext.geometry} page={page}
+                    items={eventRects} references={referenceOnlyItemsByPage.get(page.pageId) ?? EMPTY_REFERENCE_ITEMS}
+                    width={sheetPageWidth} height={sheetPageHeight}
+                    dragging={timelineEventDrag?.sourceHit} pending={pendingTimelineEventDrag?.sourceHit} ready={pendingTimelineEventDrag?.ready}
+                    onPointerDown={handleTimelineEventPointerDown} onPointerMove={handleTimelineEventPointerMove}
+                    onPointerUp={handleTimelineEventPointerUp} onPointerCancel={handleTimelineEventPointerCancel} />}
                   {!isCalibrating && (
                     <StackGuideSvgLayer
                       project={props.project}

@@ -162,6 +162,66 @@ test('ordinary regions use the same mouse movement and undo as the timeline', as
   await expect(page.locator('.templateEditorRectReadout')).toHaveText(initial)
 })
 
+test('timeline resizing retains its GPU target and paints current pixels through commit and undo', async ({ page }, info) => {
+  await openTemplate(page)
+  const readout = page.locator('.templateEditorRectReadout')
+  const initial = await readout.innerText()
+  const source = page.locator('.templateStaticPreviewSvg')
+  const staticPixels = () => source.evaluate(svg => (svg.nextElementSibling as HTMLCanvasElement).toDataURL())
+  // Compare at the fitted scale, after rebuilding the scene retained by zoom.
+  await source.evaluate(svg => svg.setAttribute('data-e2e-rebuild', 'initial-fitted'))
+  await paint(page)
+  const initialPixels = await staticPixels()
+  const rect = (await page.locator('.templateHandleSvg').boundingBox())!
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2)
+  await expect(page.locator('.templateEditAffordances')).toBeVisible()
+  const edge = (await page.locator('.templateHandleKnob.vertical').last().boundingBox())!
+  const x = edge.x + edge.width / 2, y = edge.y + edge.height / 2
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x - 2, y)
+  await paint(page)
+  const preview = page.locator('.templateRegionSnapshotSvg')
+  const before = await preview.evaluate(svg => {
+    const canvas = svg.nextElementSibling as HTMLCanvasElement
+    return { contexts: svg.getAttribute('data-canvaskit-contexts'), width: canvas.width, height: canvas.height, pixels: canvas.toDataURL() }
+  })
+  const canvas = await preview.evaluateHandle(svg => svg.nextElementSibling)
+  try {
+    for (const offset of [4, 8, 12, 16, 20, 24, 18, 12]) {
+      await page.mouse.move(x - offset, y)
+      await paint(page)
+      await expect(preview).toHaveAttribute('data-canvaskit-contexts', before.contexts!)
+      expect(await preview.evaluate((svg, previous) => svg.nextElementSibling === previous, canvas)).toBe(true)
+      expect(await preview.evaluate(svg => {
+        const target = svg.nextElementSibling as HTMLCanvasElement
+        return [target.width, target.height]
+      })).toEqual([before.width, before.height])
+    }
+    expect(await preview.evaluate(svg => (svg.nextElementSibling as HTMLCanvasElement).toDataURL())).not.toBe(before.pixels)
+    await page.screenshot({ path: info.outputPath('retained-resize-live.png') })
+  } finally {
+    await page.mouse.up()
+    await canvas.dispose()
+  }
+  await paint(page)
+  await expect(preview).toHaveCount(0)
+  expect(await readout.innerText()).not.toBe(initial)
+  await page.mouse.move(3, 3)
+  await paint(page)
+  const direct = await staticPixels()
+  await source.evaluate(svg => { (svg as SVGSVGElement).dataset.paperModelMode = 'svg' })
+  await paint(page)
+  await expect(source.locator('[data-paper-direct-model="active"]')).toHaveCount(0)
+  // The compatibility DOM can affect page compositing even for identical GPU
+  // buffers. Compare the rendered pixels before that browser compositing step.
+  expect(await staticPixels(), 'committed GPU pixels match a fresh SVG scene capture').toBe(direct)
+  await source.evaluate(svg => { delete (svg as SVGSVGElement).dataset.paperModelMode })
+  await paint(page)
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await expect(readout).toHaveText(initial)
+  await paint(page)
+  expect(await staticPixels(), 'undo restores the original GPU pixels').toBe(initialPixels)
+})
+
 test('touch selection reveals ordinary region controls without a mouse hover', { tag: '@touch' }, async ({ page }) => {
   await openTemplate(page, 'touch')
   await activateControl(page, page.getByRole('button', { name: 'MEMO', exact: true }), 'touch')

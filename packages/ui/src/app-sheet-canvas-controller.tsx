@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, sheetTimingRoleForEvent, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
+import { type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
 import { type SheetRangeSelection, type SheetImageSettings } from './appTypes';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
@@ -11,7 +11,7 @@ import { calibrationPointsForSettings } from './sheetImages';
 import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, nativeWheelUsesApplicationZoom, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel, nativeVerticalWheelDelta } from './sheetInteraction';
 import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TimedRangeLaneHeaderMenuState, TimelineLaneEditorState, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
-import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitForFrame, overlayHitFromPoint, processMoveOptionsForSlot } from './app-sheet-layers';
+import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitFromPoint, processMoveOptionsForSlot } from './app-sheet-layers';
 import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole } from './app-sheet-geometry';
 import { autoScrollViewportForDrag, scrollSheetHitIntoView } from './sheet-panel-viewport';
 import { defaultExportAfterTrackForInsertAfter, exportPreviousPaperTrackName, overlayExportPlacementAfterTrack, stackGuideInsertTargetFromPoint, stackGuidePlacementTargetFromPointer, stackGuidePlacementUpdateFromPointer } from './app-stack-guides';
@@ -23,6 +23,7 @@ import { resolveTimelineMemoContextTargets } from './timelineMemoEditing';
 import { frameOperationRangeContainsHit } from './frameOperations'
 import { releasePointerCaptureForElements, type DraftRangeInteraction, type PendingTimelineEventInteraction, type TimelineEventDragInteraction } from './sheet-pointer-session';
 import type { SheetCanvasProps, SheetDropTargetPreview } from './app-sheet-canvas-types';
+import { sheetTimelineEventHit } from './sheetTimelineEventHit'
 import { gridColumnHeaderHitFromPoint } from './sheetGridHeaderHit';
 import { createTimelineLaneEditorActions } from './timelineLaneEditorActions';
 import { useGlobalPointerDragLifecycle } from './useGlobalPointerDragLifecycle';
@@ -1599,11 +1600,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     timelineEvent: { paperTrack: string; frame: number; sheetRole?: SheetTimingRole },
     page: SheetPage,
   ): SheetHit | null {
-    const role = sheetTimingRoleForEvent(timelineEvent)
-    const track = props.project.logicalSheet.paperTracks.find(item => item.paperTrack === timelineEvent.paperTrack)
-    if (track && overlayPaperTracks(props.project, props.template).some(candidate => candidate.paperTrack === track.paperTrack)) return overlayHitForFrame(props.template, props.project, track, timelineEvent.frame, page, role)
-    const hit = timingHitForFrame(props.template, role, timelineEvent.paperTrack, timelineEvent.frame, displayDurationFrames, displayFrameStart, templateTrackNames)
-    return hit?.pageId === page.pageId ? hit : null
+    return sheetTimelineEventHit(props.project, sheetRenderModelContext.geometry, timelineEvent, page)
   }
 
   function handleTimelineEventPointerDown(

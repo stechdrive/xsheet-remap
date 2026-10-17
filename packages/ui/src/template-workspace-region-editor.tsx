@@ -23,6 +23,11 @@ type TemplateEditorDragPreview = {
   mode: 'geometry' | 'translate'
 }
 
+// Geometry changes inside the paper must not resize the GPU presentation target.
+// Keep real surface resizes (including WebKit's fresh-front-buffer workaround)
+// for viewport/zoom changes rather than every drag sample.
+const PAPER_PREVIEW_RECT: NormalizedRect = { x: 0, y: 0, w: 1, h: 1 }
+
 type PendingTemplateWheelZoom = {
   baseZoom: number
   targetZoom: number
@@ -500,10 +505,10 @@ export function TemplateRegionEditor({
             />
           )}
           {timelineGeometryRenderModel && dragPreview && (
-            <TemplateRegionTransformPreview renderModel={timelineGeometryRenderModel} sourceRect={dragPreview.rect} targetRect={dragPreview.rect} page={editorSurface.pageSize} />
+            <TemplateRegionTransformPreview renderModel={timelineGeometryRenderModel} sourceRect={PAPER_PREVIEW_RECT} targetRect={PAPER_PREVIEW_RECT} page={editorSurface.pageSize} />
           )}
           {activeRegionRenderModel && (
-            <TemplateActiveRegionPreview renderModel={activeRegionRenderModel} rect={dragPreview!.rect} />
+            <TemplateActiveRegionPreview renderModel={activeRegionRenderModel} />
           )}
           <div ref={hoveredOverlayRef} className="templateRegionHighlightOverlay" aria-hidden="true" />
           <svg
@@ -647,22 +652,20 @@ function editablePaperTimelineStructure(template: SheetTemplate) {
 
 function TemplateActiveRegionPreview({
   renderModel,
-  rect,
 }: {
   renderModel: TemplateEditorRegionRenderModel
-  rect: NormalizedRect
 }) {
   return (
     <svg
-      viewBox={`${rect.x} ${rect.y} ${rect.w} ${rect.h}`}
+      viewBox="0 0 1 1"
       preserveAspectRatio="none"
       className="templatePreviewSvg templateActiveRegionSvg"
       aria-hidden="true"
       style={{
-        left: `${rect.x * 100}%`,
-        top: `${rect.y * 100}%`,
-        width: `${rect.w * 100}%`,
-        height: `${rect.h * 100}%`,
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
       }}
     >
       <g className="templateActiveRegionLayer">

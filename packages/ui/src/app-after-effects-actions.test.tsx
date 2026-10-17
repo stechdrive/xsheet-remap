@@ -129,7 +129,7 @@ describe('After Effects UI actions', () => {
     const confirmation = vi.spyOn(window, 'confirm').mockReturnValue(false)
 
     expect(confirmAeRemapDiagnostics(plan)).toBe(false)
-    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('A 12F: 逆シート記号は直前の値をHOLDします。'))
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('A 12F: 中割記号●は直前の値をHOLDします。'))
     confirmation.mockRestore()
   })
 })

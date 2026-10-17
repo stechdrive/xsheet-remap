@@ -17,8 +17,8 @@ export const uiText = {
   },
   statusHints: {
     sheetIdle: '1本指ドラッグ: 表示移動 / 指タップ: 選択 / 2本指ピンチ: ズーム / ホイール: 縦スクロール / Shift+ホイール: 横スクロール / Ctrl+ホイール: ズーム',
-    timingSymbols: '記号入力： [x] カラセル　[/] 中割　[.] 逆シート',
-    timingSymbolsCompact: 'x カラ　/ 中割　. 逆シート',
+    timingSymbols: '記号入力： [x] カラセル　[/] 中割記号○　[.] 中割記号●',
+    timingSymbolsCompact: 'x カラ　/ ○　. ●',
     selectedCell: (hasEvent: boolean) => hasEvent
       ? '選択セル: 入力でキー変更 / Deleteで削除 / Alt+ドラッグでキー移動 / 右クリックでセル操作'
       : '選択セル: 入力でキー登録 / 画像素材ドロップで登録 / 右クリックでセル操作',
@@ -120,8 +120,8 @@ export const uiText = {
       `${label} の追加セル列を削除します。\n\nこの列の登録セル ${keyCount} 件、シート上のキー ${eventCount} 件、素材割り当て ${bindingCount} 件も削除されます。`,
     deleteOverlayPaperTrackConfirmOk: '削除',
     setNullCell: 'カラセルを入力 ([X])',
-    setInbetween: '中割記号を入力 ([/])',
-    setReverseSheet: '逆シート記号を入力 ([.])',
+    setInbetween: '中割記号○を入力 ([/])',
+    setReverseSheet: '中割記号●を入力 ([.])',
     deleteEvent: 'キーを削除 ([Del])',
     copyRange: 'コピー',
     cutRange: '切り取り',

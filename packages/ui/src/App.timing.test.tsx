@@ -749,8 +749,8 @@ it('opens the sheet context menu on right click and prevents the browser menu', 
     expect(screen.getByRole('menu')).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeNull()
     expect(screen.getByRole('menuitem', { name: 'カラセルを入力 ([X])' })).toBeTruthy()
-    expect(screen.getByRole('menuitem', { name: '中割記号を入力 ([/])' })).toBeTruthy()
-    expect(screen.getByRole('menuitem', { name: '逆シート記号を入力 ([.])' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: '中割記号○を入力 ([/])' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: '中割記号●を入力 ([.])' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'キーを削除 ([Del])' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.setNullCell }))

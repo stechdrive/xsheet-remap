@@ -19,7 +19,7 @@ const timingKeys = [
   ['7', '7'], ['8', '8'], ['9', '9'],
   ['4', '4'], ['5', '5'], ['6', '6'],
   ['1', '1'], ['2', '2'], ['3', '3'],
-  ['空', 'x'], ['0', '0'], ['中割', '/'], ['逆', '.'],
+  ['空', 'x'], ['0', '0'], ['○', '/', '中割記号○'], ['●', '.', '中割記号●'],
 ] as const
 
 export function SheetTouchControls({
@@ -72,11 +72,12 @@ export function SheetTouchControls({
         <div className="sheetTouchTimingPad" role="group" aria-label="タッチタイミング入力">
           <output className="sheetTouchTimingValue" aria-live="polite">{displayValue}</output>
           <div className="sheetTouchTimingKeys">
-            {timingKeys.map(([label, value]) => (
+            {timingKeys.map(([label, value, name = label]) => (
               <button
                 key={value}
                 type="button"
-                aria-label={`タイミング ${label}`}
+                aria-label={`タイミング ${name}`}
+                title={name}
                 disabled={timingInputDisabled}
                 onClick={() => onTimingCharacter(value)}
               >

@@ -107,7 +107,7 @@ function aeDiagnosticText(diagnostic: AeRemapDiagnostic): string {
     return `${position}: 表示名「${diagnostic.value ?? ''}」の代わりに、素材割り当て末尾のセル番号を使います。`
   }
   if (diagnostic.code === 'ae-remap.special-hold') {
-    const kind = diagnostic.value === 'reverse' ? '逆シート記号' : '中割記号'
+    const kind = diagnostic.value === 'reverse' ? '中割記号●' : '中割記号○'
     return `${position}: ${kind}は直前の値をHOLDします。`
   }
   if (diagnostic.code === 'ae-remap.ambiguous-binding-cell-number') {

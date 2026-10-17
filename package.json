@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.794",
+  "version": "0.1.795",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.18.0",
@@ -49,7 +49,7 @@
     "build:dev": "node tools/desktop/run-build.mjs --mode development",
     "build:release:desktop": "node tools/desktop/run-build.mjs --mode release --target all",
     "package:local": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/local-package.ps1",
-    "build:release:all": "npm run build:release:desktop && npm run package:local",
+    "build:release:all": "npm run build:release:desktop && npm run check:repo-hygiene:release",
     "publish:handoff": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/publish-handoff.ps1",
     "release:github": "npm run check:ci-preflight && npm run verify:desktop && npm run release:github:update",
     "release:github:update": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/github-latest-release.ps1",

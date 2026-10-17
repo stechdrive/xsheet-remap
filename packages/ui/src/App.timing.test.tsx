@@ -259,6 +259,10 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
 
     const target = templateFramePoint('cell', 'B', 1)
     fireEvent.pointerDown(registeredCellName, { pointerId: 71, pointerType: 'mouse', button: 0, buttons: 1, clientX: 120, clientY: 180 })
+    // A real pointer press focuses this keyboard-editable label. jsdom's
+    // synthetic pointer events do not perform that browser default action.
+    registeredCellName.focus()
+    expect(document.activeElement).toBe(registeredCellName)
     fireEvent.pointerMove(window, { pointerId: 71, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
     expect(document.querySelector('.internalDragPreviewShell.pointerDragGhost')).toBeTruthy()
     expect(document.querySelector('.internalDragPreview')?.textContent).toContain('A1')
@@ -271,6 +275,14 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
     expect(document.querySelector('.internalDragPreviewShell.pointerDragGhost')).toBeNull()
     expect(document.body.classList.contains('internalPointerDragActive')).toBe(false)
     expect(Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).map(registeredCellIdentityText)).toEqual(['CELL B', 'CELL A'])
+    expect(document.activeElement).toBe(document.querySelector('.sheetViewport'))
+    const targetEvent = () => document.querySelector('[data-timeline-event-role="cell"][data-timeline-event-track="B"][data-timeline-event-frame="1"]')
+    expect(targetEvent()).toBeTruthy()
+    fireEvent.keyDown(document.activeElement!, { key: 'z', ctrlKey: true })
+    await waitFor(() => expect(targetEvent()).toBeNull())
+    expect(document.querySelector('[data-timeline-event-role="cell"][data-timeline-event-track="A"][data-timeline-event-frame="1"]')).toBeTruthy()
+    fireEvent.keyDown(document.activeElement!, { key: 'y', ctrlKey: true })
+    await waitFor(() => expect(targetEvent()).toBeTruthy())
   })
 
 it('cancels BG/BOOK insertion mode before creating a label', async () => {

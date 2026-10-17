@@ -543,6 +543,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     return rangeStartHit(props.rangeSelection) ?? hit
   }
 
+  function assignRegisteredCellFromDrop(keyId: string, hit: SheetHit | null) {
+    if (!hit?.paperTrack) return
+    // The drag began on a focusable card label. Hand keyboard ownership to
+    // the sheet so immediate Undo/Redo and timing input reach the dropped cell.
+    viewportRef.current?.focus({ preventScroll: true })
+    props.onRegisteredCellAssign(keyId, hit)
+  }
+
   useEffect(() => subscribeInternalDrag(detail => {
     const { payload, clientX, clientY, phase } = detail
     if (phase === 'cancel') {
@@ -624,7 +632,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       })
       if (hit && payload.assetIds.length === 1) props.onAssetAssign(payload.assetIds[0]!, hit, { x: clientX, y: clientY })
     } else {
-      props.onRegisteredCellAssign(payload.keyId, hit)
+      assignRegisteredCellFromDrop(payload.keyId, hit)
     }
   }))
 
@@ -2070,7 +2078,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const keyId = keyIdFromDragData(dataTransfer)
     if (keyId) {
       clearHover()
-      props.onRegisteredCellAssign(keyId, hit)
+      assignRegisteredCellFromDrop(keyId, hit)
       return
     }
     const assetIds = assetIdsFromDragData(dataTransfer)
@@ -2190,7 +2198,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const keyId = keyIdFromDragData(dataTransfer)
     if (keyId) {
       clearHover()
-      props.onRegisteredCellAssign(keyId, hit)
+      assignRegisteredCellFromDrop(keyId, hit)
       return
     }
     const assetIds = assetIdsFromDragData(dataTransfer)

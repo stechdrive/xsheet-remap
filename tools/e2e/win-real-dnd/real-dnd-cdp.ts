@@ -311,9 +311,10 @@ async function runRegisteredCellRealDndScenario(): Promise<void> {
   await waitForInternalPointerDragCleanup()
   await captureScreenshot('registered-cell-after')
   checks.push('dragged a fixture-backed CSP registered-cell card onto action A frame 1 at 50% zoom with the real mouse')
-  await realKeyPress('^z')
+  await waitForPageCondition(() => evaluatePage<boolean>(`document.activeElement?.classList.contains('sheetViewport') === true`), 'registered-cell drop hands keyboard focus to the sheet')
+  await realKeyPress('^z', true)
   await waitForPageCondition(async () => !await timelineEventAt('action', 'A', 1), 'undo registered-cell drop')
-  await realKeyPress('^y')
+  await realKeyPress('^y', true)
   await waitForTimelineEventAt('action', 'A', 1)
   checks.push('one native Undo removes the registered-cell drop and Redo restores it')
   await verifyNativeRangeDrag()
@@ -2261,6 +2262,7 @@ async function pageDebug(): Promise<Record<string, unknown>> {
       assetCards: Array.from(document.querySelectorAll('.assetCard')).map(item => item.textContent?.trim()).slice(0, 20),
       assetLocation: document.querySelector('.assetLocationText')?.textContent?.trim() ?? '',
       assignedEvents: document.querySelectorAll('.assetAssignedEventRect').length,
+      focus: { tag: document.activeElement?.tagName, role: document.activeElement?.getAttribute('role'), className: document.activeElement?.getAttribute('class') },
       dropDiagnostics: window.__xsheetDropDiagnostics ?? [],
       viewport: { innerWidth, innerHeight, screenX, screenY, outerWidth, outerHeight, devicePixelRatio },
     }))()

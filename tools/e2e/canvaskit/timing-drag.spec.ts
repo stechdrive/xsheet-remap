@@ -16,6 +16,44 @@ function event(page: Page, track: string, frame: number) {
   return page.locator(`[data-timeline-event-role="cell"][data-timeline-event-track="${track}"][data-timeline-event-frame="${frame}"]`)
 }
 
+test('a registered-card drop transfers keyboard focus for immediate Undo and Redo', async ({ page }) => {
+  await page.goto('./?app=remap')
+  await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
+  // Keep both drag endpoints away from viewport autoscroll edges on the
+  // narrow emulated devices; this case exercises focus, not edge scrolling.
+  await activateControl(page, page.getByRole('button', { name: '画像素材', exact: true }))
+  await waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
+  const start = await cell(page, 'A', 1)
+  await page.mouse.click(start.x, start.y)
+  await page.keyboard.press('1')
+  await page.keyboard.press('Enter')
+  await expect(event(page, 'A', 1).locator('.eventText')).toHaveText('1')
+  const source = page.locator('.cspTreeCel[data-csp-paper-track="A"] .cspTreeCelName').filter({ hasText: /^A1$/ })
+  await source.scrollIntoViewIfNeeded()
+  const box = await source.boundingBox()
+  if (!box) throw new Error('Registered card has no visible drag surface')
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await expect(source).toBeFocused()
+  await page.mouse.move(box.x + box.width / 2 + 12, box.y + box.height / 2)
+  await expect(page.locator('.pointerDragGhost')).toBeVisible()
+  // Selecting a used card scrolls its first sheet occurrence into view.
+  // Read the destination after that real selection/paint has settled.
+  await waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
+  const target = await cell(page, 'B', 1)
+  await page.mouse.move(target.x, target.y, { steps: 5 })
+  await expect(page.locator('body')).toHaveAttribute('data-internal-drag-validity', 'valid')
+  await expect(page.locator('.statusBar')).toContainText('CELL B 001')
+  await page.mouse.up()
+  await expect(event(page, 'B', 1).locator('.eventText')).toHaveText('1')
+  await expect(page.locator('.sheetViewport')).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(event(page, 'B', 1)).toHaveCount(0)
+  await expect(event(page, 'A', 1).locator('.eventText')).toHaveText('1')
+  await page.keyboard.press('ControlOrMeta+y')
+  await expect(event(page, 'B', 1).locator('.eventText')).toHaveText('1')
+})
+
 test('range drag shows the grabbed offset, collision and cancellation without committing until release', async ({ page }, info) => {
   await page.goto('./?app=remap')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })

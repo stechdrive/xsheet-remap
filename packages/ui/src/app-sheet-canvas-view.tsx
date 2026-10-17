@@ -531,6 +531,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       penWidth={props.penWidth}
                       eraserWidth={props.eraserWidth}
                       textFontSizePx={props.textFontSizePx}
+                      writingMode={props.memoWritingMode}
                       zoom={props.zoom}
                       editorHost={editorHost}
                       onAppendStroke={props.onAppendTimelineMemoStroke}

@@ -21,6 +21,7 @@ export function normalizeMemoAppearance(value?: Partial<MemoAppearance> | null):
     inkOpacity: normalizeOpacity(value?.inkOpacity, DEFAULT_MEMO_APPEARANCE.inkOpacity),
     textOpacity: normalizeOpacity(value?.textOpacity, DEFAULT_MEMO_APPEARANCE.textOpacity),
     text: {
+      ...(text?.writingMode === 'vertical' ? { writingMode: 'vertical' as const } : {}),
       color: typeof text?.color === 'string' && text.color.trim()
         ? text.color
         : DEFAULT_MEMO_APPEARANCE.text.color,

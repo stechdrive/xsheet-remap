@@ -331,6 +331,8 @@ export interface AnnotationStroke {
   anchor?: AnnotationAnchor
 }
 
+export type TextWritingMode = 'horizontal' | 'vertical'
+
 export interface AnnotationText {
   annotationId: Id
   pageId: Id
@@ -340,6 +342,8 @@ export interface AnnotationText {
   y: number
   color: string
   fontSizePx: number
+  /** Missing in older documents means horizontal writing. */
+  writingMode?: TextWritingMode
   coordinateSpace?: AnnotationCoordinateSpace
   anchor?: AnnotationAnchor
 }
@@ -370,6 +374,7 @@ export interface MemoAppearance {
     color: string
     /** Font size in the memo target's local row-height units. */
     fontSizeUnits: number
+    writingMode?: TextWritingMode
   }
   background: {
     enabled: boolean

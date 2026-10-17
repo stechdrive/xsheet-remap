@@ -36,10 +36,13 @@ export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, imag
     if (!path) return
     try {
       if (node.paint.evenOdd) path.setFillType(kit.FillType.EvenOdd)
-      if (node.paint.fill !== 'none' && node.shape.kind !== 'polygon' || (node.shape.kind === 'polygon' && node.shape.close && node.paint.fill !== 'none')) {
+      const strokeFirst = node.paint.order?.trim().startsWith('stroke')
+      const fill = () => {
+        if (node.paint.fill === 'none' || node.shape!.kind === 'polygon' && !node.shape!.close) return
         paint.setStyle(kit.PaintStyle.Fill); paint.setColor(rgba(node.paint.fill, node.paint.fillOpacity))
         canvas.drawPath(path, paint)
       }
+      if (!strokeFirst) fill()
       if (node.paint.stroke !== 'none' && node.paint.strokeWidth > 0) {
         paint.setStyle(kit.PaintStyle.Stroke); paint.setColor(rgba(node.paint.stroke, node.paint.strokeOpacity))
         paint.setStrokeWidth(node.paint.strokeWidth)
@@ -57,7 +60,10 @@ export function recordCanvasKitScene(kit: CanvasKit, fonts: CanvasKitFonts, imag
             try { canvas.drawPath(transformed, paint) } finally { transformed.delete() }
           } else canvas.drawPath(path, paint)
         } finally { paint.setPathEffect(null); effect?.delete() }
+        // A non-scaling stroke temporarily paints in surface coordinates.
+        if (strokeFirst && node.paint.nonScaling) canvas.concat(skiaMatrix(node.matrix))
       }
+      if (strokeFirst) fill()
     } finally { path.delete() }
   }
   const drawNode = (node: SceneNode, depth = 0) => {

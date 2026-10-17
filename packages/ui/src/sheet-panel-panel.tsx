@@ -208,6 +208,7 @@ export function SheetPanel(props: {
   setPenWidth: (value: number) => void
   eraserWidth: number
   setEraserWidth: (value: number) => void
+  memoWritingMode?: import('@xsheet-remap/core').TextWritingMode
   textFontSizePx: number
   timingTextFontSizePx: number
   selectedTextAnnotationId: string | null
@@ -215,6 +216,7 @@ export function SheetPanel(props: {
   hasSelectedTextTarget: boolean
   textFontSizeDisabled: boolean
   onTextFontSizeChange: (value: number) => void
+  onMemoWritingModeChange?: (value: import('@xsheet-remap/core').TextWritingMode) => void
   onMemoTextFontSizeChange: (value: number) => void
   onMetadataChange: (field: CutMetadataFieldId, value: string, customKey?: string) => void
   onDurationChange: (frames: number) => void
@@ -876,6 +878,24 @@ export function SheetPanel(props: {
             tooltip={uiText.sheet.memoTextFontSizeTitle}
             compact
           />
+          {(props.editMode === 'text' || selectedTextAnnotation?.kind === 'text') && (
+            <div className="memoWritingModeControl" role="group" aria-label="メモの文字方向"
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation() }}>
+              {(['horizontal', 'vertical'] as const).map(mode => {
+                const current = activeTimelineMemo ? activeTimelineMemoAppearance.text.writingMode ?? 'horizontal'
+                  : selectedTextAnnotation?.kind === 'text' ? selectedTextAnnotation.writingMode ?? 'horizontal' : props.memoWritingMode ?? 'horizontal'
+                return <button type="button" key={mode} aria-pressed={current === mode}
+                  onClick={() => {
+                    props.onMemoWritingModeChange?.(mode)
+                    if (current === mode) return
+                    if (activeTimelineMemoId) props.onUpdateTimelineMemoAppearance(activeTimelineMemoId, {
+                      ...activeTimelineMemoAppearance, text: { ...activeTimelineMemoAppearance.text, writingMode: mode },
+                    })
+                    else if (selectedTextAnnotation?.kind === 'text') props.onUpdateTextAnnotation(selectedTextAnnotation.annotationId, { writingMode: mode })
+                  }}>{mode === 'vertical' ? '縦書き' : '横書き'}</button>
+              })}
+            </div>
+          )}
           {(props.editMode === 'pen' || props.editMode === 'eraser') && (
             <label className="annotationActiveWidthControl">
               <span>{props.editMode === 'pen' ? uiText.sheet.penWidth : uiText.sheet.eraserWidth}</span>

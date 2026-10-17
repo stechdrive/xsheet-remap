@@ -6,6 +6,8 @@ export type PaperStyleSample = { tag: 'rect' | 'path' | 'text'; className: strin
 export type PaperPrimitive = {
   style: string
   coordinateSpace?: 'page-pixels'
+  transform?: SceneMatrix
+  accessibleText?: string
   shape?: SceneShape
   text?: Pick<SceneText, 'value' | 'x' | 'y' | 'size' | 'anchor'> & { weight?: number; baseline?: string }
   opacity?: number
@@ -52,6 +54,11 @@ export function compileDirectPaperModel(model: DirectPaperModel, matrix: SceneMa
       node.matrix = [a / w, b / w, c / h, d / h, e, f]
       if (primitive.text) node.text = { ...primitive.text, x: primitive.text.x * w, y: primitive.text.y * h, baseline: primitive.text.baseline ?? style.baseline,
         family: style.family, weight: primitive.text.weight ?? style.weight, italic: style.italic, letterSpacing: style.spacing }
+    }
+    if (primitive.transform) {
+      const [a, b, c, d, e, f] = node.matrix
+      const [p, q, r, s, x, y] = primitive.transform
+      node.matrix = [a * p + c * q, b * p + d * q, a * r + c * s, b * r + d * s, a * x + c * y + e, b * x + d * y + f]
     }
     nodes.push(node)
   }

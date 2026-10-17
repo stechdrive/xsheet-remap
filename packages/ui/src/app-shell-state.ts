@@ -7,6 +7,7 @@ import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
 import { createAudioPlayheadStore } from './audioPlayheadStore'
 import type { CameraCueClipboard, CameraCueDialogState, EditMode, ExportOperationNotice, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingEditSession, TimingExportDialogState, XdtsImportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
+import type { TextWritingMode } from '@xsheet-remap/core'
 import { DEFAULT_TEXT_FONT_SIZE_PX } from './sheetTextLayout'
 import type { AssetDropMenuState, AutoCalibrationOverlayState, FrameOperationDialogState, SheetScrollRequest, StatusHints } from './app-foundation'
 import type { MainAppKind } from './app-foundation'
@@ -118,6 +119,7 @@ export function useAppShellState(appKind: MainAppKind) {
   const [eraserWidth, setEraserWidth] = useState(0.018)
   const [textFontSizePx, setTextFontSizePx] = useState(DEFAULT_TEXT_FONT_SIZE_PX)
   const [memoTextFontSizePx, setMemoTextFontSizePx] = useState(DEFAULT_TEXT_FONT_SIZE_PX)
+  const [memoWritingMode, setMemoWritingMode] = useState<TextWritingMode>('horizontal')
   const [selectedTextAnnotationId, setSelectedTextAnnotationId] = useState<string | null>(null)
   const [editingTextAnnotationId, setEditingTextAnnotationId] = useState<string | null>(null)
   const [textAnnotationClipboard, setTextAnnotationClipboard] = useState<AnnotationText | null>(null)
@@ -175,7 +177,7 @@ export function useAppShellState(appKind: MainAppKind) {
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
     showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
-    penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
+    penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, memoWritingMode, setMemoWritingMode, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     dialogueAudioSelection, setDialogueAudioSelection, workspaceFocusOwner, setWorkspaceFocusOwner,
     audioPlayheadStore, soundCueNavigationRequest, setSoundCueNavigationRequest,

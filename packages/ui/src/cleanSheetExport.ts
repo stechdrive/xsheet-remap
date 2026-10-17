@@ -37,7 +37,8 @@ import {
   type TemplateGridPathRenderModel,
 } from './templateEditorGeometry'
 import { sheetImageFileName } from './outputFileNames'
-import { annotationTextLines, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
+import { annotationTextLines, annotationVerticalLayout, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
+import { drawVerticalGlyph } from './verticalTextLayout'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import {
   buildCameraCuePageLayouts,
@@ -833,10 +834,10 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
       ctx.textAlign = 'center'
       ctx.textBaseline = 'alphabetic'
       for (const glyph of textLayout.labelGlyphs) {
-        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.labelFontSizePx, 850, paint.textColor)
+        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.labelFontSizePx, 850, paint.textColor, textLayout.labelOrientation === 'vertical')
       }
       for (const glyph of textLayout.textGlyphs) {
-        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650, paint.textColor)
+        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650, paint.textColor, true)
       }
       ctx.restore()
     }
@@ -1001,14 +1002,18 @@ function drawCueText(
   fontSizePx: number,
   fontWeight: number,
   color: string,
+  vertical = false,
 ) {
   ctx.font = fontDeclaration(fontSizePx, SHEET_CANVAS_FONT_FAMILY, fontWeight)
   ctx.lineJoin = 'round'
   ctx.lineWidth = 3
   ctx.strokeStyle = 'rgba(255, 255, 252, 0.94)'
-  ctx.strokeText(value, x, y)
   ctx.fillStyle = color
-  ctx.fillText(value, x, y)
+  if (vertical) drawVerticalGlyph(ctx, value, x, y, fontSizePx, fontWeight, true)
+  else {
+    ctx.strokeText(value, x, y)
+    ctx.fillText(value, x, y)
+  }
 }
 
 function drawCanvasLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
@@ -1373,6 +1378,12 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
       const x = item.x * context.pageSize.widthPx
       const y = offsetY + item.y * context.pageSize.heightPx
       ctx.fillStyle = annotation.color
+      if (annotation.writingMode === 'vertical') {
+        for (const glyph of annotationVerticalLayout(annotation, context.pageSize, item).glyphs) {
+          drawVerticalGlyph(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, fontSize)
+        }
+        continue
+      }
       ctx.font = fontDeclaration(fontSize, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.textBaseline = 'top'
       ctx.textAlign = 'left'
@@ -1402,9 +1413,13 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
         )
         ctx.clip()
         for (const text of texts) {
-          const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, context.pageSize)
+          const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, context.pageSize, undefined, appearance.text.writingMode)
           if (layout.lines.length === 0) continue
           ctx.fillStyle = appearance.text.color
+          if (layout.glyphs) {
+            for (const glyph of layout.glyphs) drawVerticalGlyph(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, layout.fontSizePx)
+            continue
+          }
           ctx.font = fontDeclaration(layout.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
           ctx.textBaseline = 'top'
           ctx.textAlign = 'left'

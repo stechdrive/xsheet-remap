@@ -1,5 +1,6 @@
 import type { AnnotationText } from '@xsheet-remap/core'
 import { clampTextFontSizePx } from './sheetTextLayout'
+import { layoutVerticalText } from './verticalTextLayout'
 
 export type AnnotationTextPageSize = {
   widthPx: number
@@ -53,7 +54,7 @@ export function annotationTextSheetLayout(
   const fontSizePx = resolveAnnotationTextFontSizePx(annotation, pageSize)
   const maxWidthPx = annotationTextBoxWidthPx(safeWidth)
   const editorWidthPx = maxWidthPx
-  const editorHeightPx = annotationTextEditorHeightPx(fontSizePx)
+  const editorHeightPx = annotation.writingMode === 'vertical' ? annotationVerticalHeight(annotation, pageSize, position) : annotationTextEditorHeightPx(fontSizePx)
   return {
     xPx: clampNumber(position.x * safeWidth, 0, safeWidth),
     yPx: clampNumber(position.y * safeHeight, 0, safeHeight),
@@ -62,6 +63,16 @@ export function annotationTextSheetLayout(
     editorWidthPx,
     editorHeightPx,
   }
+}
+
+export function annotationVerticalHeight(annotation: AnnotationText, pageSize: AnnotationTextPageSize, position: { x: number; y: number } = annotation): number {
+  return Math.max(resolveAnnotationTextFontSizePx(annotation, pageSize), Math.min(360, pageSize.heightPx * (1 - position.y)))
+}
+
+export function annotationVerticalLayout(annotation: AnnotationText, pageSize: AnnotationTextPageSize, position: { x: number; y: number } = annotation) {
+  const size = resolveAnnotationTextFontSizePx(annotation, pageSize)
+  return layoutVerticalText(annotation.text, size, position.x * pageSize.widthPx, position.y * pageSize.heightPx,
+    annotationVerticalHeight(annotation, pageSize, position), annotationTextBoxWidthPx(pageSize.widthPx))
 }
 
 export function annotationTextCssLayout(

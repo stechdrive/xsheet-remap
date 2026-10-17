@@ -1,4 +1,5 @@
-import type { TimelineMemoText } from '@xsheet-remap/core'
+import type { TimelineMemoText, TextWritingMode } from '@xsheet-remap/core'
+import { layoutVerticalText, type VerticalTextGlyph } from './verticalTextLayout'
 import { timelineMemoPointToPagePoint, type TimelineMemoSegment } from './timelineMemoGeometry'
 import {
   SHEET_TEXT_FONT_FAMILY,
@@ -17,6 +18,7 @@ export type TimelineMemoTextLayout = {
   lineHeightPx: number
   maxWidthPx: number
   lines: string[]
+  glyphs?: VerticalTextGlyph[]
 }
 
 export function timelineMemoFontSizePx(
@@ -41,6 +43,7 @@ export function buildTimelineMemoTextLayout(
   fontSizeUnits: number,
   pageSize: { widthPx: number; heightPx: number },
   measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
+  writingMode: TextWritingMode = 'horizontal',
 ): TimelineMemoTextLayout {
   const widthPx = Math.max(1, pageSize.widthPx)
   const heightPx = Math.max(1, pageSize.heightPx)
@@ -53,6 +56,8 @@ export function buildTimelineMemoTextLayout(
     weight: TIMELINE_MEMO_TEXT_FONT_WEIGHT,
   }, measurement)
   return {
+    ...(writingMode === 'vertical' ? { glyphs: layoutVerticalText(text.text, fontSizePx, point.x * widthPx, point.y * heightPx,
+      Math.max(fontSizePx, (segment.rect.y + segment.rect.h - point.y) * heightPx), maxWidthPx).glyphs } : {}),
     xPx: point.x * widthPx,
     yPx: point.y * heightPx,
     fontSizePx,

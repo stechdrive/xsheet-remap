@@ -2,7 +2,8 @@ import { type CSSProperties, type FocusEvent, type PointerEvent } from 'react'
 import { type AnnotationText } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { TEXT_FONT_SIZE_MAX_PX, TEXT_FONT_SIZE_MIN_PX, TEXT_FONT_SIZE_PRESETS, clampTextFontSizePx } from './sheetTextLayout'
-import { annotationTextCssLayout, annotationTextLines, resolveAnnotationTextFontSizePx, type AnnotationTextPageSize } from './annotationTextLayout'
+import { annotationTextCssLayout, annotationTextLines, annotationVerticalLayout, resolveAnnotationTextFontSizePx, type AnnotationTextPageSize } from './annotationTextLayout'
+import { VerticalSvgGlyph } from './VerticalSvgGlyph'
 import { clampNumber } from './sheetInteraction'
 import { TooltipTarget } from './Tooltip'
 import { SheetSvgText } from './SheetSvgText'
@@ -145,6 +146,7 @@ function AnnotationTextItem({
   const renderedX = renderX + ((drag.active?.x ?? annotation.x) - annotation.x)
   const renderedY = renderY + ((drag.active?.y ?? annotation.y) - annotation.y)
   const layout = annotationTextCssLayout(annotation, pageSize, zoom, { x: renderedX, y: renderedY })
+  const vertical = annotation.writingMode === 'vertical'
   const commonStyle = {
     left: `${layout.leftPx}px`,
     top: `${layout.topPx}px`,
@@ -215,7 +217,10 @@ function AnnotationTextItem({
           data-annotation-id={annotation.annotationId}
           defaultValue={annotation.text}
           placeholder={uiText.sheet.textPlaceholder}
-          style={{ ...commonStyle, width: `${layout.editorWidthPx}px`, minHeight: `${layout.editorHeightPx}px` }}
+          style={{ ...commonStyle, width: `${layout.editorWidthPx}px`, minHeight: `${layout.editorHeightPx}px`,
+            height: vertical ? `${layout.editorHeightPx}px` : undefined,
+            writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', textOrientation: 'upright',
+            boxSizing: vertical ? 'border-box' : undefined, padding: vertical ? 0 : undefined }}
           onBlur={handleEditorBlur}
           onPointerDown={event => {
             event.stopPropagation()
@@ -255,7 +260,8 @@ function AnnotationTextItem({
         annotation.text.trim() ? '' : 'empty',
         selected ? 'selected' : '',
       ].filter(Boolean).join(' ')}
-      style={commonStyle}
+      style={{ ...commonStyle, padding: vertical ? 0 : undefined }}
+      data-writing-mode={annotation.writingMode ?? 'horizontal'}
       aria-label={uiText.sheet.textTool}
       data-annotation-region-id={regionId ?? (annotation.anchor?.kind === 'view-surface' ? annotation.anchor.regionId : undefined)}
       data-annotation-target-id={targetId ?? (annotation.anchor?.kind === 'view-surface' ? annotation.anchor.targetId : undefined)}
@@ -268,7 +274,15 @@ function AnnotationTextItem({
         onEdit(annotation.annotationId)
       }}
     >
-      {annotation.text || uiText.sheet.textPlaceholder}
+      {vertical && annotation.text ? (() => {
+        const textLayout = annotationVerticalLayout(annotation, pageSize, { x: 0, y: renderedY })
+        return <svg width={textLayout.widthPx * zoom} height={textLayout.heightPx * zoom}
+          viewBox={`0 ${renderedY * pageSize.heightPx} ${textLayout.widthPx} ${textLayout.heightPx}`}
+          style={{ display: 'block', overflow: 'visible' }} aria-label={annotation.text}>
+          {textLayout.glyphs.map((glyph, index) => <VerticalSvgGlyph key={index} {...glyph}
+            size={resolveAnnotationTextFontSizePx(annotation, pageSize)} fill={annotation.color} />)}
+        </svg>
+      })() : annotation.text || uiText.sheet.textPlaceholder}
     </button>
   )
 }
@@ -285,6 +299,13 @@ export function AnnotationSvgText({
   const lines = annotationTextLines(annotation.text)
   if (lines.length === 0) return null
   const fontSizePx = resolveAnnotationTextFontSizePx(annotation, pageSize)
+  if (annotation.writingMode === 'vertical') {
+    const layout = annotationVerticalLayout(annotation, pageSize, position)
+    return <g className="annotationTextSvg" fill={annotation.color} aria-label={annotation.text}
+      transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}>
+      {layout.glyphs.map((glyph, index) => <VerticalSvgGlyph key={index} {...glyph} size={fontSizePx} />)}
+    </g>
+  }
   return (
     <SheetSvgText
       className="annotationTextSvg"

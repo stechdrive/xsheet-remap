@@ -17,7 +17,8 @@ import { useInlineEditorSession } from './useInlineEditorSession'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { buildTimelineMemoTextLayout } from './timelineMemoTextLayout'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
-import { CanvasKitTextRuns } from './CanvasKitTextRuns'
+import { CanvasKitTextRuns, type PaperTextRun } from './CanvasKitTextRuns'
+import { VerticalSvgGlyph } from './VerticalSvgGlyph'
 import { LowLatencyInkCanvas, useLowLatencyInkCanvas } from './LowLatencyInkCanvas'
 import { useInkStrokeSession } from './useInkStrokeSession'
 import { usePointerDragSession } from './usePointerDragSession'
@@ -87,6 +88,7 @@ export function TimelineMemoLayer({
   penWidth,
   eraserWidth,
   textFontSizePx,
+  writingMode = 'horizontal',
   zoom = 1,
   editorHost,
   onAppendStroke,
@@ -108,6 +110,7 @@ export function TimelineMemoLayer({
   penWidth: number
   eraserWidth: number
   textFontSizePx: number
+  writingMode?: import('@xsheet-remap/core').TextWritingMode
   zoom?: number
   editorHost?: HTMLElement | null
   onAppendStroke: (memoId: string, stroke: Omit<TimelineMemoStroke, 'strokeId'>) => void
@@ -116,6 +119,9 @@ export function TimelineMemoLayer({
   onUpdatePlacement: (memoId: string, placement: TimelineMemoPlacement) => void
 }) {
   const [textDraft, setTextDraft] = useState<TimelineTextDraft | null>(null)
+  const draftAppearance = textDraft
+    ? normalizeMemoAppearance(memos.find(memo => memo.memoId === textDraft.memoId)?.appearance ?? textDraft.appearance)
+    : null
   const { editorRef: textEditorRef, commit: commitTextEditor, cancel: cancelTextEditor } = useInlineEditorSession<HTMLTextAreaElement>({
     active: Boolean(textDraft),
     sessionKey: textDraft ? `${textDraft.memoId}:${textDraft.value.textId}` : null,
@@ -123,7 +129,7 @@ export function TimelineMemoLayer({
     onCommit: () => {
       const draft = textDraft
       setTextDraft(null)
-      if (draft) onUpsertText(draft.memoId, draft.value, draft.appearance)
+      if (draft) onUpsertText(draft.memoId, draft.value, draftAppearance ?? draft.appearance)
     },
     onCancel: () => setTextDraft(null),
   })
@@ -257,7 +263,7 @@ export function TimelineMemoLayer({
       ? normalizeMemoAppearance(memo.appearance)
       : {
           ...normalizeMemoAppearance(),
-          text: { color: penColor, fontSizeUnits },
+          text: { color: penColor, fontSizeUnits, writingMode },
         }
     const insetX = Math.min(Math.max(0.12, fontSizeUnits * 0.12), Math.max(0, memo.placement.widthUnits - 0.5))
     const insetY = Math.max(0.12, fontSizeUnits * 0.12)
@@ -356,7 +362,7 @@ export function TimelineMemoLayer({
     setTextDraft(newTextDraft(memo, segment, point))
   }
 
-  function editText(event: MouseEvent<SVGTextElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment, text: TimelineMemoText) {
+  function editText(event: MouseEvent<SVGElement>, memo: TimelineInkMemo, segment: TimelineMemoSegment, text: TimelineMemoText) {
     if (memo.memoId !== selectedMemoId) return
     event.preventDefault()
     event.stopPropagation()
@@ -458,14 +464,22 @@ export function TimelineMemoLayer({
             <g className="timelineMemoTextLayer" data-memo-text-opacity={appearance.textOpacity} opacity={appearance.textOpacity} clipPath={`url(#${clipId})`}>
               <CanvasKitTextRuns className="timelineMemoTextProjection" pageSize={pageSize} preserveNative textSpans runs={
                 (memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd
-                  && !(textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId)).flatMap(text => {
-                  const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, pageSize)
+                  && !(textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId)).flatMap<PaperTextRun>(text => {
+                  const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, pageSize, undefined, appearance.text.writingMode)
+                  if (layout.glyphs) return layout.glyphs.map(glyph => ({ ...glyph, size: layout.fontSizePx,
+                    className: 'timelineMemoText', fill: appearance.text.color, anchor: 'middle', vertical: true }))
                   return layout.lines.map((value, index) => ({ value, xPx: layout.xPx, yPx: layout.yPx + index * layout.lineHeightPx,
                     size: layout.fontSizePx, className: 'timelineMemoText', fill: appearance.text.color, baseline: 'hanging' }))
                 })}>
               {(memo.texts ?? []).filter(text => text.y >= segment.memoYStart && text.y < segment.memoYEnd).map(text => {
                 if (textDraft?.memoId === memo.memoId && textDraft.value.textId === text.textId) return null
-                const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, pageSize)
+                const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, pageSize, undefined, appearance.text.writingMode)
+                if (layout.glyphs) return <g key={text.textId} className="timelineMemoText"
+                  data-timeline-memo-text-id={text.textId} fill={appearance.text.color}
+                  transform={`scale(${1 / Math.max(1, pageSize.widthPx)} ${1 / Math.max(1, pageSize.heightPx)})`}
+                  onDoubleClick={event => editText(event, memo, segment, text)}>
+                  {layout.glyphs.map((glyph, index) => <VerticalSvgGlyph key={index} {...glyph} size={layout.fontSizePx} />)}
+                </g>
                 return <text
                   key={text.textId}
                   className="timelineMemoText"
@@ -503,9 +517,11 @@ export function TimelineMemoLayer({
                     top: `${editorRect.y * 100}%`,
                     width: `${editorRect.width * 100}%`,
                     height: `${editorRect.height * 100}%`,
-                    fontSize: `${textDraft.appearance.text.fontSizeUnits * segment.rowHeightY * pageSize.heightPx * zoom}px`,
-                    color: textDraft.appearance.text.color,
-                    opacity: textDraft.appearance.textOpacity,
+                    fontSize: `${draftAppearance!.text.fontSizeUnits * segment.rowHeightY * pageSize.heightPx * zoom}px`,
+                    color: draftAppearance!.text.color,
+                    opacity: draftAppearance!.textOpacity,
+                    writingMode: draftAppearance!.text.writingMode === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+                    textOrientation: 'upright',
                   }}
                   wrap="soft"
                   spellCheck={false}

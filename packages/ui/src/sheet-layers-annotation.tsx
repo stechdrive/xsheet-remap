@@ -40,6 +40,7 @@ export function updateTextAnnotation(
       if (
         nextAnnotation.text === annotation.text
         && nextAnnotation.fontSizePx === annotation.fontSizePx
+        && nextAnnotation.writingMode === annotation.writingMode
         && nextAnnotation.x === annotation.x
         && nextAnnotation.y === annotation.y
         && nextAnnotation.color === annotation.color

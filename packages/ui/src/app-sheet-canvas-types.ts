@@ -76,6 +76,7 @@ export type SheetCanvasProps = {
   penColor: string
   penWidth: number
   eraserWidth: number
+  memoWritingMode?: import('@xsheet-remap/core').TextWritingMode
   textFontSizePx: number
   selectedTextAnnotationId: string | null
   editingTextAnnotationId: string | null

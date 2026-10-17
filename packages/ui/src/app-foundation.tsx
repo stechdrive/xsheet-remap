@@ -24,7 +24,7 @@ export type ActiveTextTarget =
   | { kind: 'timingRange'; fontSizePx: number }
   | { kind: 'annotationText'; annotationId: string; fontSizePx: number }
 
-export type TextAnnotationUpdate = Partial<Pick<AnnotationText, 'text' | 'fontSizePx' | 'x' | 'y' | 'color' | 'coordinateSpace' | 'anchor'>>
+export type TextAnnotationUpdate = Partial<Pick<AnnotationText, 'text' | 'fontSizePx' | 'writingMode' | 'x' | 'y' | 'color' | 'coordinateSpace' | 'anchor'>>
 
 export const SHEET_INTERACTION_ACTIVE_CLASS = 'sheetInteractionActive'
 

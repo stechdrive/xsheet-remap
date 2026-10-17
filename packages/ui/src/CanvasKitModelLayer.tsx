@@ -18,7 +18,7 @@ export function CanvasKitModelLayer({ model, className, ariaHidden, fallback, pr
   const source = element?.ownerSVGElement ?? null
   const subscribe = useCallback((listener: () => void) => subscribePaperModel(source, listener), [source])
   const ready = useSyncExternalStore(subscribe, () => paperModelReady(source), () => false)
-  const accessibleText = useMemo(() => ariaHidden ? '' : model.primitives.flatMap(item => item.text?.value ?? []).join(' '), [ariaHidden, model])
+  const accessibleText = useMemo(() => ariaHidden ? '' : model.primitives.flatMap(item => item.accessibleText ?? item.text?.value ?? []).join(' '), [ariaHidden, model])
   const supported = typeof SVGGraphicsElement !== 'undefined' && typeof SVGGraphicsElement.prototype.getScreenCTM === 'function'
   useLayoutEffect(() => {
     if (!element || !supported) return

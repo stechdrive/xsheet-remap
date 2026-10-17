@@ -4,6 +4,7 @@ import { buildSoundCuePageTextLayouts, type SoundCuePageTextLayout } from './sou
 import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { timedRangeCueColumnStyle } from './timedRangeCueAppearance'
 import { CanvasKitTextRuns } from './CanvasKitTextRuns'
+import { VerticalSvgGlyph } from './VerticalSvgGlyph'
 import { useVisibleSheetItems } from './useVisibleSheetItems'
 
 const soundLayoutKey = (item: SoundCuePageTextLayout) => item.cue.cueId
@@ -130,10 +131,12 @@ export function SoundCueLayer({
                 <CanvasKitTextRuns className={`soundCueText ${textLayout.labelPlacement}${textLayout.overflowLabel ? ' overflow' : ''}`}
                   viewportHeightPx={pageSize.heightPx}
                   runs={[
-                    ...textLayout.labelGlyphs.map(glyph => ({ ...glyph, size: textLayout.labelFontSizePx, anchor: 'middle' as const, className: 'soundCueLabel' })),
-                    ...textLayout.textGlyphs.map(glyph => ({ ...glyph, size: textLayout.textFontSizePx, anchor: 'middle' as const, className: 'soundCueDialogue' })),
+                    ...textLayout.labelGlyphs.map(glyph => ({ ...glyph, size: textLayout.labelFontSizePx, anchor: 'middle' as const, className: 'soundCueLabel', vertical: textLayout.labelOrientation === 'vertical', weight: 850 })),
+                    ...textLayout.textGlyphs.map(glyph => ({ ...glyph, size: textLayout.textFontSizePx, anchor: 'middle' as const, className: 'soundCueDialogue', vertical: true, weight: 650 })),
                   ]}>
-                {textLayout.labelGlyphs.map((glyph, index) => (
+                {textLayout.labelGlyphs.map((glyph, index) => textLayout.labelOrientation === 'vertical' ? (
+                  <VerticalSvgGlyph key={`label-${index}`} {...glyph} size={textLayout.labelFontSizePx} weight={850} className="soundCueLabel" />
+                ) : (
                   <text
                     key={`label-${index}`}
                     className="soundCueLabel"
@@ -144,14 +147,13 @@ export function SoundCueLayer({
                   >{glyph.value}</text>
                 ))}
                 {textLayout.textGlyphs.map((glyph, index) => (
-                  <text
+                  <VerticalSvgGlyph
                     key={`text-${index}`}
                     className="soundCueDialogue"
-                    x={glyph.xPx}
-                    y={glyph.yPx}
-                    fontSize={textLayout.textFontSizePx}
-                    textAnchor="middle"
-                  >{glyph.value}</text>
+                    {...glyph}
+                    size={textLayout.textFontSizePx}
+                    weight={650}
+                  />
                 ))}
                 </CanvasKitTextRuns>
               </g>

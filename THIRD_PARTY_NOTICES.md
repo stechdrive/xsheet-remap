@@ -18,7 +18,7 @@ packages and assets under their own licenses.
 | Mediabunny / `@mediabunny/mp3-encoder` | MPL-2.0 | Browser media writer and MP3 encoder integration |
 | LAME 3.100 | LGPL | WebAssembly MP3 encoder bundled by `@mediabunny/mp3-encoder` |
 | fflate 0.8.3 | MIT | Project ZIP compression and CLIP raster compression; license reproduced below |
-| LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files |
+| LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files and extracted vertical glyph outlines (copyright LY Corporation) |
 | sql.js 1.14.2 / SQLite | MIT / Public domain | Direct CLIP database editing |
 
 ## Transitive Dependencies

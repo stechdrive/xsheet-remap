@@ -40,6 +40,9 @@ import { deleteRegisteredCellKey } from './stack-guides-paper-track'
 import { createAppTimedRangeControllers } from './app-timed-range-controllers'
 import { applyFrameOperationToProject, frameOperationDialogStateForHit, pointRoleForFrameOperation } from './frameOperations'
 import { buildSelectionPresentation, inputHitForRange } from './app-selection-presentation'
+import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
+import { timelineMemoFontSizeUnitsForPx } from './timelineMemoTextLayout'
+import { normalizeMemoAppearance, type TimelineInkMemo } from '@xsheet-remap/core'
 import { createTimelineMemoForCue, createTimelineMemoForHit } from './timelineMemoEditing'
 import { createAppXdtsActions } from './app-xdts-actions'
 import { useAppAfterEffectsActions } from './app-after-effects-actions'
@@ -72,7 +75,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
     showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,
     showInputContent, setShowInputContent, showAnnotations, setShowAnnotations, penColor, setPenColor,
-    penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, selectedTextAnnotationId, setSelectedTextAnnotationId,
+    penWidth, setPenWidth, eraserWidth, setEraserWidth, textFontSizePx, setTextFontSizePx, memoTextFontSizePx, setMemoTextFontSizePx, memoWritingMode, setMemoWritingMode, selectedTextAnnotationId, setSelectedTextAnnotationId,
     editingTextAnnotationId, setEditingTextAnnotationId, textAnnotationClipboard, setTextAnnotationClipboard, sheetSelection, setSheetSelection,
     dialogueAudioSelection, setDialogueAudioSelection, workspaceFocusOwner, setWorkspaceFocusOwner,
     audioPlayheadStore, soundCueNavigationRequest, setSoundCueNavigationRequest,
@@ -1841,11 +1844,21 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitProject(addAnnotation(project, stroke))
   }
 
+  function initializeMemoAppearance(memo: TimelineInkMemo, sourceProject: CutProject): TimelineInkMemo {
+    const page = sheetPages.find(item => memo.anchor.frame >= item.frameStart && memo.anchor.frame <= item.frameEnd) ?? activePage
+    const segment = page && timelineMemoSegmentsForPage(template, page, memo, projectSheetLayoutOptions(sourceProject, template))[0]
+    return { ...memo, appearance: { ...normalizeMemoAppearance(), text: {
+      color: penColor,
+      fontSizeUnits: segment ? Math.max(0.25, timelineMemoFontSizeUnitsForPx(segment, memoTextFontSizePx, activeSheetPageSize)) : 1,
+      writingMode: memoWritingMode,
+    } } }
+  }
+
   function handleCreateTimelineMemo(hit: SheetHit): string | null {
     const sourceProject = commitTimingDraft(false)
     const memo = createTimelineMemoForHit(sourceProject, template, hit, rangeSelection)
     if (!memo) return null
-    commitProject(addTimelineMemo(sourceProject, memo))
+    commitProject(addTimelineMemo(sourceProject, initializeMemoAppearance(memo, sourceProject)))
     return memo.memoId
   }
   function handleCreateTimelineMemoForCue(cueId: string): string | null {
@@ -1854,7 +1867,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (!cue) return null
     const memo = createTimelineMemoForCue(sourceProject, template, cue)
     if (!memo) return null
-    commitProject(addTimelineMemo(sourceProject, memo))
+    commitProject(addTimelineMemo(sourceProject, initializeMemoAppearance(memo, sourceProject)))
     return memo.memoId
   }
   function handleDeleteTimelineMemo(memoId: string) {
@@ -2260,7 +2273,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
     showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
-    setPenWidth, eraserWidth, setEraserWidth,
+    setPenWidth, eraserWidth, setEraserWidth, memoWritingMode, setMemoWritingMode,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
     audioPlayheadFrame, audioPlayheadStore, soundCueNavigationRequest, dialogueAudioSelection,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,

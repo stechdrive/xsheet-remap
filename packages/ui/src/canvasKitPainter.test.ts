@@ -10,6 +10,7 @@ import type { CanvasKitFonts } from './canvasKitRuntime'
 import { CanvasKitPictureCache } from './canvasKitPictureCache'
 import { compileDirectPaperModel, type DirectPaperModel, type PaperStyle } from './canvasKitDirectModel'
 import { layoutCutHeaderText } from './cutHeaderTextLayout'
+import { verticalGlyph } from './verticalTextLayout'
 
 const require = createRequire(import.meta.url)
 let kit: CanvasKit
@@ -46,6 +47,38 @@ function render(scene: CanvasKitScene, cache?: CanvasKitPictureCache): Uint8Arra
 }
 
 describe('real CanvasKit paper paint', () => {
+  it('paints the bundled vertical long mark inside its cell through the direct model transform', () => {
+    for (const weight of [700, 800]) {
+      const glyph = verticalGlyph('ー', weight)!
+      const style: PaperStyle = { paint: { ...node().paint, fill: '#000', stroke: 'none' }, opacity: 1, visible: true,
+        family: 'test', weight, italic: false, spacing: 0, baseline: 'alphabetic' }
+      const model: DirectPaperModel = { pageSize: { widthPx: 1000, heightPx: 1000 }, styles: {}, primitives: [{
+        style: 'glyph', coordinateSpace: 'page-pixels', transform: [640, 0, 0, 640, 100, 100 + 640 * .88],
+        shape: { kind: 'path', d: glyph.path },
+      }] }
+      const pixels = render({ width: 100, height: 100, nodes: compileDirectPaperModel(model, [100, 0, 0, 100, 0, 0], () => style) })
+      const xs: number[] = [], ys: number[] = []
+      for (let y = 0; y < 100; y++) for (let x = 0; x < 100; x++) {
+        if (pixels[(y * 100 + x) * 4 + 3] > 128) { xs.push(x); ys.push(y) }
+      }
+      expect(xs.length).toBeGreaterThan(100)
+      expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan((Math.max(...xs) - Math.min(...xs)) * 3)
+      expect(Math.min(...ys)).toBeGreaterThanOrEqual(10)
+      expect(Math.max(...ys)).toBeLessThan(74)
+    }
+  })
+  it('keeps narrow path glyph ink above its white halo, including non-scaling strokes', () => {
+    for (const nonScaling of [true, false]) {
+      const glyph = node({ matrix: [2, 0, 0, 2, 10, 10],
+        shape: { kind: 'path', d: 'M 10 0 H 12 V 30 H 10 Z' },
+        paint: { ...node().paint, fill: '#008000', stroke: '#fff', strokeWidth: 6, order: 'stroke fill', nonScaling } })
+      const pixels = render({ width: 100, height: 100, nodes: [glyph] })
+      const center = (40 * 100 + 32) * 4
+      expect(Array.from(pixels.slice(center, center + 4))).toEqual([0, 128, 0, 255])
+      const halo = (40 * 100 + 29) * 4
+      expect(Array.from(pixels.slice(halo, halo + 4))).toEqual([255, 255, 255, 255])
+    }
+  })
   it('paints enlarged main and shared cut numbers in distinct rows without clipping ink', () => {
     const style = { fontSizePx: 48, minFontSizePx: 12, lineHeightPx: 64, paddingPx: 4, fontWeight: 400,
       horizontalAlign: 'center', verticalAlign: 'middle', shrinkToFit: true, overflowX: 'clip', overflowY: 'clip' } as const

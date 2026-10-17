@@ -1534,6 +1534,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         y: annotationPoint.y,
         color: props.penColor,
         fontSizePx: props.textFontSizePx,
+        writingMode: props.memoWritingMode ?? 'horizontal',
         coordinateSpace: annotationCoordinateSpace,
         anchor: pageAnnotationAnchor(page),
       })

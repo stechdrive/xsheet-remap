@@ -38,7 +38,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
     showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
     showAnnotations, setShowAnnotations, penColor, setPenColor, penWidth,
-    setPenWidth, eraserWidth, setEraserWidth,
+    setPenWidth, eraserWidth, setEraserWidth, memoWritingMode, setMemoWritingMode,
     selection, rangeSelection, selectedSoundCueId, selectedSoundCue, selectedCameraCueId, selectedCameraCue, valueDraft, valueDraftActive, sheetScrollRequest, timingClipboard,
     audioPlayheadFrame, audioPlayheadStore, soundCueNavigationRequest, dialogueAudioSelection,
     soundCueClipboard, soundCueDialog, setSoundCueDialog, soundLabelHistory,
@@ -398,6 +398,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             eraserWidth={eraserWidth}
             setEraserWidth={setEraserWidth}
             textFontSizePx={activeMemoTextFontSizePx}
+            memoWritingMode={memoWritingMode}
+            onMemoWritingModeChange={setMemoWritingMode}
             timingTextFontSizePx={activeTextFontSizePx}
             selectedTextAnnotationId={selectedTextAnnotation?.annotationId ?? null}
             editingTextAnnotationId={editingTextAnnotation?.annotationId ?? null}

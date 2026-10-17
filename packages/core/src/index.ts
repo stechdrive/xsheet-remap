@@ -18,6 +18,7 @@ export type {
   AnnotationStroke,
   AnnotationSurfaceSize,
   AnnotationText,
+  TextWritingMode,
   AnnotationTool,
   AnnotationMetadataAnchor,
   AnnotationRegionAnchor,

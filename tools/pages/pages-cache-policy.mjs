@@ -16,6 +16,7 @@ const RUNTIME_PATH_PATTERNS = [
   /\.wasm$/i,
   /\.onnx$/i,
   /(?:^|\/)opencv-[^/]+\.js$/i,
+  /^assets\/psd-text-[A-Za-z0-9_-]+\.js$/,
   /^(?:ocr|vad)\//i,
   /^assets\/blank-[A-Za-z0-9_-]+\.clip$/,
 ]

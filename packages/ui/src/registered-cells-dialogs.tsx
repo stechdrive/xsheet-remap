@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { invokeDesktopCommand, isTauriHost } from '@xsheet-remap/adapters'
 import { buildNameNormalizationPlan, type CutProject, type NameNormalizationOptions, type NameNormalizationPlan, type SheetLabelNormalizationPlan, type SheetHit, type SheetTemplate } from '@xsheet-remap/core'
 import { SheetLabelNormalizationDialog } from './SheetLabelNormalizationDialog'
 import { uiText } from './i18n'
@@ -309,6 +310,7 @@ export function SheetImageExportDialog({
   }, [project, template, cutGroup])
   const [options, setOptions] = useState(() => normalizeSheetImageExportDialogOptions(initialOptions, hasPaper, hasTemplateImage))
   const [isSaving, setIsSaving] = useState(false)
+  const [fontLinkError, setFontLinkError] = useState('')
 
   function updateIncludePaperSheet(includePaperSheet: boolean) {
     setOptions(current => normalizeSheetImageExportDialogOptions({ ...current, includePaperSheet }, hasPaper, hasTemplateImage))
@@ -338,6 +340,17 @@ export function SheetImageExportDialog({
           </div>
         </header>
         <div className="sheetImageExportControls">
+          {options.format === 'psd' && (
+            <p className="sheetImageExportFontNote">
+              文字は編集できるテキストレイヤーで保存します。編集するPCにはLINE Seed JPをインストールしてください。{' '}
+              <a href="https://seed.line.me/index_jp.html" target="_blank" rel="noopener noreferrer" onClick={event => {
+                if (!isTauriHost()) return
+                event.preventDefault()
+                void invokeDesktopCommand('open_font_download_page').catch(() => setFontLinkError('ブラウザで https://seed.line.me/index_jp.html を開いてください。'))
+              }}>LINE Seed JP 公式ダウンロードページ</a>
+            </p>
+          )}
+          {fontLinkError && <p role="status">{fontLinkError}</p>}
           {overflowingFields.length > 0 && (
             <div className="sheetImageExportWarning" role="status">
               {overflowingFields.length}件の入力文字が欄内に収まっていません。書き出しにも、画面と同じ省略・切り取りが反映されます。

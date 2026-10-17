@@ -108,7 +108,14 @@ export function readPsdLayerAlphas(bytes: Buffer) {
       }
       offset = end
     }
-    expect(alpha, `alpha channel for ${record.name}`).toBeDefined()
-    return { ...record, alpha: alpha! }
+    // PSD may omit transparency for an opaque RGB layer. Group records have
+    // no pixel area; neither case requires an explicit alpha channel.
+    if (!alpha) {
+      if (record.width * record.height > 0) {
+        expect(channels.map(channel => channel.id), `RGB channels for ${record.name}`).toEqual(expect.arrayContaining([0, 1, 2]))
+      }
+      alpha = new Uint8Array(record.width * record.height).fill(255)
+    }
+    return { ...record, alpha }
   })
 }

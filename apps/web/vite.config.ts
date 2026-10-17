@@ -21,7 +21,9 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           entryFileNames: isPages ? 'assets/[name]-[hash].js' : 'assets/[name].js',
-          chunkFileNames: isPages ? 'assets/[name]-[hash].js' : 'assets/[name].js',
+          chunkFileNames: chunk => chunk.moduleIds.some(id => /[\\/]node_modules[\\/]ag-psd[\\/]/.test(id))
+            ? (isPages ? 'assets/psd-text-[hash].js' : 'assets/psd-text.js')
+            : (isPages ? 'assets/[name]-[hash].js' : 'assets/[name].js'),
           assetFileNames: isPages ? 'assets/[name]-[hash][extname]' : 'assets/[name][extname]',
         },
       },

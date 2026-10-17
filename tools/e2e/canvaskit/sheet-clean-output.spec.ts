@@ -99,7 +99,7 @@ for (const preset of [standardA3SheetTemplate, digitalStandardSheetTemplate]) {
           expect(layer, name).toBeDefined()
           return layer.alpha[(Math.floor(y) - layer.top) * layer.width + Math.floor(x) - layer.left]
         }
-        expect(alphaAt('ACTION/CELL入力', ...samples[3] as [number, number]), 'no cell tint in the editable input layer').toBe(0)
+        expect(alphaAt('ACTION/CELL記号', ...samples[3] as [number, number]), 'no cell tint in the editable input layer').toBe(0)
         expect(alphaAt('メモ・手描き', ...samples[1] as [number, number]), 'no notification in the editable memo layer').toBe(0)
         expect(alphaAt('メモ・背景', ...samples[5] as [number, number])).toBe(255)
         expect(alphaAt('用紙色', 3, 3)).toBe(255)

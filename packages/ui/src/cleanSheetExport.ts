@@ -8,7 +8,9 @@ import {
   type NormalizedRect,
   type SheetTemplate,
 } from '@xsheet-remap/core'
-import { alphaComposite, writeRgbPsd, type PsdLayer } from './psdWriter'
+import { alphaComposite } from './psdWriter'
+import type { Layer } from 'ag-psd'
+import { drawSheetExportText, SheetPsdTextCollector, writeSheetTextPsd, type SheetTextOutput } from './sheetPsdText'
 import type { SheetPageImage } from './appTypes'
 import { defaultSheetImageSettings, loadImage, resolveImageRefUrl, warpSheetImageDataAsync } from './sheetImages'
 import { defaultLevelCorrectionSettings } from './levelCorrection'
@@ -105,12 +107,15 @@ type SheetExportLayer = {
   imageData: ImageData
   opacity?: number
   opacityByPage?: Record<string, number>
+  psdBase?: ImageData
+  psdText?: SheetPsdTextCollector
 }
 
-export type SheetExportLayerDescriptor = Omit<SheetExportLayer, 'imageData'>
+export type SheetExportLayerDescriptor = Omit<SheetExportLayer, 'imageData' | 'psdBase' | 'psdText'>
 
 type SheetExportLayerContext = SheetRenderModelContext<CutProject> & {
   runtimeSourceImageUrls: Record<string, string>
+  textOutput?: SheetTextOutput
 }
 
 const SHEET_CANVAS_FONT_FAMILY = SHEET_TEXT_FONT_FAMILY
@@ -159,7 +164,7 @@ export async function renderSheetImageExports(
   options: SheetImageExportOptions,
   renderOptions: { cutGroup?: SheetRenderCutGroupContext } = {},
 ): Promise<SheetImageExportResult[]> {
-  await waitForSheetExportFonts()
+  await waitForSheetExportFonts(project, template, options.format === 'psd')
   const context = createLayerContext(project, template, runtimeSourceImageUrls, renderOptions)
   const layers = await renderSheetExportLayers(context, normalizeExportOptions(project, options))
   const extension = options.format
@@ -175,19 +180,18 @@ export async function renderSheetImageExports(
     const composite = compositeLayers(pageLayers)
     const fileName = sheetImageFileName(project, extension, page.pageIndex, totalPages)
     if (extension === 'psd') {
-      const psdLayers: PsdLayer[] = pageLayers.map(layer => ({
-        name: layer.name,
-        imageData: layer.imageData,
-        opacity: layer.opacity,
-      }))
+      const psdLayers: Layer[] = pageLayers.map(layer => {
+        const texts = layer.psdText?.forPage(page.pageIndex) ?? []
+        const base: Layer = { name: layer.name, imageData: layer.imageData, opacity: (layer.opacity ?? 255) / 255 }
+        if (!texts.length || !layer.psdBase) return base
+        return { name: layer.name, opened: false, children: [
+          { ...base, name: layer.id === 'timingInput' ? 'ACTION/CELL記号' : '線・図形', imageData: cropImageData(layer.psdBase, 0, page.pageIndex * context.pageSize.heightPx, context.pageSize.widthPx, context.pageSize.heightPx) },
+          ...texts,
+        ] }
+      })
       results.push({
-        bytes: writeRgbPsd({
-          width: context.pageSize.widthPx,
-          height: context.pageSize.heightPx,
-          dpi: context.pageSize.dpi ?? template.page.dpi ?? 72,
-          layers: psdLayers,
-          composite,
-        }),
+        bytes: await writeSheetTextPsd(context.pageSize.widthPx, context.pageSize.heightPx,
+          context.pageSize.dpi ?? template.page.dpi ?? 72, psdLayers, composite),
         fileName,
         mimeType: 'image/vnd.adobe.photoshop',
         extension,
@@ -230,10 +234,15 @@ async function renderSheetExportLayers(
   options: SheetImageExportOptions,
 ): Promise<SheetExportLayer[]> {
   const descriptors = sheetExportLayerDescriptorsForContext(context, options)
-  return Promise.all(descriptors.map(async descriptor => ({
-    ...descriptor,
-    imageData: await renderSheetExportLayer(context, options, descriptor.id),
-  })))
+  const layers: SheetExportLayer[] = []
+  for (const descriptor of descriptors) {
+    const psdText = options.format === 'psd' ? new SheetPsdTextCollector(context.pageSize.widthPx, context.pageSize.heightPx) : undefined
+    const imageData = await renderSheetExportLayer({ ...context, textOutput: psdText }, options, descriptor.id)
+    const hasText = psdText && context.pages.some(page => psdText.forPage(page.pageIndex).length > 0)
+    const psdBase = hasText ? await renderSheetExportLayer({ ...context, textOutput: 'omit' }, options, descriptor.id) : undefined
+    layers.push({ ...descriptor, imageData, psdText, psdBase })
+  }
+  return layers
 }
 
 export function sheetExportLayerDescriptors(
@@ -415,19 +424,19 @@ function renderTemplateDrawingLayer(
           for (const label of model.labels) {
             ctx.font = fontDeclaration(label.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
             ctx.textAlign = label.textAnchor === 'end' ? 'right' : 'left'
-            ctx.fillText(label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx)
+            drawExportLabel(context, ctx, label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx, label.fontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, ['欄名'])
           }
           ctx.textBaseline = 'bottom'
           for (const item of [...model.frameNumbers, ...model.secondCounters]) {
             ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
             ctx.textAlign = item.textAnchor === 'end' ? 'right' : 'left'
-            ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
+            drawExportLabel(context, ctx, item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx, item.fontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, ['フレーム・秒数'])
           }
           ctx.textAlign = 'center'
           for (const item of model.bottomTrackLabels) {
             ctx.globalAlpha = item.opacity
             ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-            ctx.fillText(item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx)
+            drawExportLabel(context, ctx, item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx, item.fontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, ['フレーム・秒数'])
           }
           ctx.globalAlpha = 1
         }
@@ -553,7 +562,7 @@ function drawTemplateGridHeaderLabels(
     ctx.font = fontDeclaration(label.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, label.fontWeight)
     ctx.textAlign = label.textAnchor === 'start' ? 'left' : label.textAnchor === 'end' ? 'right' : 'center'
     ctx.textBaseline = label.dominantBaseline === 'hanging' ? 'top' : label.dominantBaseline === 'text-after-edge' ? 'bottom' : 'middle'
-    ctx.fillText(label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx)
+    drawExportLabel(context, ctx, label.text, label.x * context.pageSize.widthPx, offsetY + label.y * context.pageSize.heightPx, label.fontSizePx, label.fontWeight, offsetY, ['欄名'])
   }
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
@@ -561,13 +570,13 @@ function drawTemplateGridHeaderLabels(
     if (header.label) {
       ctx.textBaseline = 'middle'
       ctx.font = fontDeclaration(header.labelFontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-      ctx.fillText(header.label, header.labelX * context.pageSize.widthPx, offsetY + header.labelY * context.pageSize.heightPx)
+      drawExportLabel(context, ctx, header.label, header.labelX * context.pageSize.widthPx, offsetY + header.labelY * context.pageSize.heightPx, header.labelFontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, ['欄名'])
     }
     for (const column of header.columns) {
       if (!column.label) continue
       ctx.textBaseline = column.dominantBaseline
       ctx.font = fontDeclaration(column.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-      ctx.fillText(column.label, column.x * context.pageSize.widthPx, offsetY + column.y * context.pageSize.heightPx)
+      drawExportLabel(context, ctx, column.label, column.x * context.pageSize.widthPx, offsetY + column.y * context.pageSize.heightPx, column.fontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, [header.label || '列名'])
     }
   }
 }
@@ -640,18 +649,17 @@ function renderMetadataTextLayer(context: SheetExportLayerContext): ImageData {
       ctx.textBaseline = item.dominantBaseline === 'hanging' || item.dominantBaseline === 'text-before-edge'
         ? 'top'
         : item.dominantBaseline === 'text-after-edge' ? 'bottom' : item.dominantBaseline === 'alphabetic' ? 'alphabetic' : 'middle'
-      for (const line of positionMultilineTextLines(
+      const lines = positionMultilineTextLines(
         item.lines,
         item.x * context.pageSize.widthPx,
         offsetY + item.y * context.pageSize.heightPx,
         item.lineHeightPx,
-      )) {
-        ctx.fillText(
-          line.text,
-          line.xPx,
-          line.yPx,
-        )
-      }
+      )
+      drawSheetExportText(context.textOutput, ctx, {
+        text: item.lines.join('\n'), x: item.x * context.pageSize.widthPx, y: offsetY + item.y * context.pageSize.heightPx,
+        size: item.fontSizePx, weight: item.fontWeight, leading: item.lineHeightPx, offsetY, name: item.field,
+        clips: [exportClipRect(context, item.clipRect, offsetY)],
+      }, target => { for (const line of lines) target.fillText(line.text, line.xPx, line.yPx) })
       ctx.restore()
     }
   }
@@ -725,9 +733,16 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
           ctx.strokeStyle = '#fff'
           ctx.lineWidth = layout.outlineWidthPx
           ctx.lineJoin = 'round'
-          ctx.strokeText(layout.text, textX, textY)
         }
-        ctx.fillText(layout.text, textX, textY)
+        drawSheetExportText(context.textOutput, ctx, {
+          text: layout.text, x: textX, y: textY, size: layout.fontSizePx, weight: SHEET_EVENT_FONT_WEIGHT, offsetY,
+          name: `${String(item.frame).padStart(3, '0')}f：${item.text}`,
+          groups: [(item.sheetRole ?? 'cell').toUpperCase(), item.paperTrack],
+          clips: [exportClipRect(context, clip, offsetY)], stroke: Boolean(layout.outlineWidthPx),
+        }, target => {
+          if (layout.outlineWidthPx) target.strokeText(layout.text, textX, textY)
+          target.fillText(layout.text, textX, textY)
+        })
         ctx.restore()
       } else {
         drawTimingEventSymbol(ctx, context, offsetY, item.kind, item.rect)
@@ -791,6 +806,11 @@ function projectedPixelRect(context: SheetExportLayerContext, rect: NormalizedRe
   }
 }
 
+function exportClipRect(context: SheetExportLayerContext, rect: NormalizedRect, offsetY: number) {
+  return { x: rect.x * context.pageSize.widthPx, y: offsetY + rect.y * context.pageSize.heightPx,
+    w: rect.w * context.pageSize.widthPx, h: rect.h * context.pageSize.heightPx }
+}
+
 function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
   const canvas = createCanvas(context.width, context.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -813,7 +833,7 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
   )
   for (const page of context.pages) {
     const offsetY = page.pageIndex * context.pageSize.heightPx
-    for (const { segment, textLayout } of pageTextLayouts.filter(item => item.pageId === page.pageId)) {
+    for (const { cue, segment, textLayout } of pageTextLayouts.filter(item => item.pageId === page.pageId)) {
       const rect = projectedPixelRect(context, segment.rect, offsetY)
       const paint = timedRangeCueColumnPaint(context.template.theme, 'sound', segment.columnIndex)
       ctx.fillStyle = colorWithOpacity(paint.fillColor, paint.fillOpacity)
@@ -833,11 +853,22 @@ function renderSoundCueLayer(context: SheetExportLayerContext): ImageData {
       ctx.clip()
       ctx.textAlign = 'center'
       ctx.textBaseline = 'alphabetic'
-      for (const glyph of textLayout.labelGlyphs) {
-        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.labelFontSizePx, 850, paint.textColor, textLayout.labelOrientation === 'vertical')
-      }
-      for (const glyph of textLayout.textGlyphs) {
-        drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, textLayout.textFontSizePx, 650, paint.textColor, true)
+      for (const part of [
+        { glyphs: textLayout.labelGlyphs, size: textLayout.labelFontSizePx, weight: 850, vertical: textLayout.labelOrientation === 'vertical', name: '話者' },
+        { glyphs: textLayout.textGlyphs, size: textLayout.textFontSizePx, weight: 650, vertical: true, name: 'セリフ' },
+      ]) {
+        const first = part.glyphs[0]
+        if (!first) continue
+        setCueTextStyle(ctx, part.size, part.weight, paint.textColor)
+        drawSheetExportText(context.textOutput, ctx, {
+          text: part.glyphs.map(g => g.value).join(''), x: first.xPx, y: offsetY + first.yPx,
+          size: part.size, weight: part.weight, offsetY, vertical: part.vertical,
+          ...(part.vertical ? { glyphs: part.glyphs.map(g => ({ ...g, yPx: offsetY + g.yPx })) } : {}),
+          name: part.name, groups: [`${String(cue.frameStart).padStart(3, '0')}f：${cue.label || 'SOUND'}`],
+          clips: [{ x: textClipLeft, y: offsetY, w: textClipWidth, h: context.pageSize.heightPx }], stroke: true,
+        }, target => {
+          for (const glyph of part.glyphs) drawCueText(target, glyph.value, glyph.xPx, offsetY + glyph.yPx, part.size, part.weight, paint.textColor, part.vertical)
+        })
       }
       ctx.restore()
     }
@@ -948,7 +979,12 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         if (point.point.label) {
           ctx.textAlign = 'center'
           ctx.textBaseline = 'alphabetic'
-          drawCueText(ctx, point.point.label, point.textXpx, offsetY + point.textYpx, point.fontSizePx, 850, cuePaint.textColor)
+          setCueTextStyle(ctx, point.fontSizePx, 850, cuePaint.textColor)
+          drawSheetExportText(context.textOutput, ctx, {
+            text: point.point.label, x: point.textXpx, y: offsetY + point.textYpx, size: point.fontSizePx,
+            weight: 850, offsetY, stroke: true, clips: [exportClipRect(context, point.regionRect, offsetY)],
+            groups: [`${cue.frameStart}f：${cue.label || 'CAMERA'}`],
+          }, target => drawCueText(target, point.point.label, point.textXpx, offsetY + point.textYpx, point.fontSizePx, 850, cuePaint.textColor))
         }
         ctx.restore()
       }
@@ -987,7 +1023,16 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
         label.regionRect.h * pageHeight,
       )
       ctx.clip()
-      for (const glyph of label.glyphs) drawCueText(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, label.fontSizePx, 850, paint.textColor)
+      const first = label.glyphs[0]
+      if (first) {
+        setCueTextStyle(ctx, label.fontSizePx, 850, paint.textColor)
+        drawSheetExportText(context.textOutput, ctx, {
+          text: label.glyphs.map(g => g.value).join('\n'), x: first.xPx, y: offsetY + first.yPx,
+          size: label.fontSizePx, weight: 850, offsetY, stroke: true,
+          leading: label.glyphs.length > 1 ? label.glyphs[1].yPx - first.yPx : label.fontSizePx * 1.25,
+          clips: [exportClipRect(context, label.regionRect, offsetY)],
+        }, target => { for (const glyph of label.glyphs) drawCueText(target, glyph.value, glyph.xPx, offsetY + glyph.yPx, label.fontSizePx, 850, paint.textColor) })
+      }
       ctx.restore()
     }
   }
@@ -1004,16 +1049,20 @@ function drawCueText(
   color: string,
   vertical = false,
 ) {
-  ctx.font = fontDeclaration(fontSizePx, SHEET_CANVAS_FONT_FAMILY, fontWeight)
-  ctx.lineJoin = 'round'
-  ctx.lineWidth = 3
-  ctx.strokeStyle = 'rgba(255, 255, 252, 0.94)'
-  ctx.fillStyle = color
+  setCueTextStyle(ctx, fontSizePx, fontWeight, color)
   if (vertical) drawVerticalGlyph(ctx, value, x, y, fontSizePx, fontWeight, true)
   else {
     ctx.strokeText(value, x, y)
     ctx.fillText(value, x, y)
   }
+}
+
+function setCueTextStyle(ctx: CanvasRenderingContext2D, fontSizePx: number, fontWeight: number, color: string) {
+  ctx.font = fontDeclaration(fontSizePx, SHEET_CANVAS_FONT_FAMILY, fontWeight)
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 3
+  ctx.strokeStyle = 'rgba(255, 255, 252, 0.94)'
+  ctx.fillStyle = color
 }
 
 function drawCanvasLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
@@ -1223,7 +1272,12 @@ function drawFlagBody(
   ctx.textBaseline = 'middle'
   ctx.textAlign = input.align === 'center' ? 'center' : 'left'
   const textX = input.align === 'center' ? labelX + labelW / 2 : geometry.labelTextX * pageWidth
-  ctx.fillText(geometry.displayText, textX, labelY + labelH / 2)
+  drawExportLabel(context, ctx, geometry.displayText, textX, labelY + labelH / 2, Math.max(8, geometry.fontSizePx), geometry.fontWeight, offsetY)
+}
+
+function drawExportLabel(context: SheetExportLayerContext, ctx: CanvasRenderingContext2D, text: string,
+  x: number, y: number, size: number, weight: number, offsetY: number, groups?: string[]) {
+  drawSheetExportText(context.textOutput, ctx, { text, x, y, size, weight, offsetY, groups }, target => target.fillText(text, x, y))
 }
 
 function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -1379,17 +1433,18 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
       const y = offsetY + item.y * context.pageSize.heightPx
       ctx.fillStyle = annotation.color
       if (annotation.writingMode === 'vertical') {
-        for (const glyph of annotationVerticalLayout(annotation, context.pageSize, item).glyphs) {
-          drawVerticalGlyph(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, fontSize)
-        }
+        const glyphs = annotationVerticalLayout(annotation, context.pageSize, item).glyphs.map(g => ({ ...g, yPx: offsetY + g.yPx }))
+        drawSheetExportText(context.textOutput, ctx, {
+          text: annotation.text, x, y, size: fontSize, weight: SHEET_LABEL_FONT_WEIGHT, offsetY, vertical: true, glyphs,
+        }, target => { for (const glyph of glyphs) drawVerticalGlyph(target, glyph.value, glyph.xPx, glyph.yPx, fontSize) })
         continue
       }
       ctx.font = fontDeclaration(fontSize, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
       ctx.textBaseline = 'top'
       ctx.textAlign = 'left'
-      for (const line of positionMultilineTextLines(lines, x, y, fontSize * 1.25)) {
-        ctx.fillText(line.text, line.xPx, line.yPx)
-      }
+      drawSheetExportText(context.textOutput, ctx, { text: lines.join('\n'), x, y, size: fontSize, weight: SHEET_LABEL_FONT_WEIGHT, offsetY }, target => {
+        for (const line of positionMultilineTextLines(lines, x, y, fontSize * 1.25)) target.fillText(line.text, line.xPx, line.yPx)
+      })
     }
     for (const memo of timelineMemos(context.project).slice().sort((left, right) => left.order - right.order)) {
       const appearance = normalizeMemoAppearance(memo.appearance)
@@ -1416,21 +1471,27 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
           const layout = buildTimelineMemoTextLayout(segment, text, appearance.text.fontSizeUnits, context.pageSize, undefined, appearance.text.writingMode)
           if (layout.lines.length === 0) continue
           ctx.fillStyle = appearance.text.color
+          const clips = [exportClipRect(context, segment.rect, offsetY),
+            { x: 0, y: offsetY, w: context.pageSize.widthPx, h: context.pageSize.heightPx }]
           if (layout.glyphs) {
-            for (const glyph of layout.glyphs) drawVerticalGlyph(ctx, glyph.value, glyph.xPx, offsetY + glyph.yPx, layout.fontSizePx)
+            const glyphs = layout.glyphs.map(g => ({ ...g, yPx: offsetY + g.yPx }))
+            drawSheetExportText(context.textOutput, ctx, {
+              text: text.text, x: layout.xPx, y: offsetY + layout.yPx, size: layout.fontSizePx,
+              weight: SHEET_LABEL_FONT_WEIGHT, offsetY, vertical: true, glyphs, clips,
+              groups: [`${memo.anchor.role.toUpperCase()} ${memo.anchor.paperTrack ?? ''} ${memo.anchor.frame}f`],
+            }, target => { for (const glyph of glyphs) drawVerticalGlyph(target, glyph.value, glyph.xPx, glyph.yPx, layout.fontSizePx) })
             continue
           }
           ctx.font = fontDeclaration(layout.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
           ctx.textBaseline = 'top'
           ctx.textAlign = 'left'
-          for (const line of positionMultilineTextLines(
-            layout.lines,
-            layout.xPx,
-            offsetY + layout.yPx,
-            layout.lineHeightPx,
-          )) {
-            ctx.fillText(line.text, line.xPx, line.yPx)
-          }
+          drawSheetExportText(context.textOutput, ctx, {
+            text: layout.lines.join('\n'), x: layout.xPx, y: offsetY + layout.yPx, size: layout.fontSizePx,
+            weight: SHEET_LABEL_FONT_WEIGHT, leading: layout.lineHeightPx, offsetY, clips,
+            groups: [`${memo.anchor.role.toUpperCase()} ${memo.anchor.paperTrack ?? ''} ${memo.anchor.frame}f`],
+          }, target => {
+            for (const line of positionMultilineTextLines(layout.lines, layout.xPx, offsetY + layout.yPx, layout.lineHeightPx)) target.fillText(line.text, line.xPx, line.yPx)
+          })
         }
         ctx.restore()
       }
@@ -1514,19 +1575,31 @@ function fontDeclaration(sizePx: number, family: string, weight: number): string
   return textFontDeclaration({ family, sizePx, weight })
 }
 
-async function waitForSheetExportFonts(): Promise<void> {
+async function waitForSheetExportFonts(project: CutProject, template: SheetTemplate, requireFont: boolean): Promise<void> {
   const fonts = typeof document === 'undefined' ? undefined : document.fonts
   if (!fonts) return
   try {
-    const sampleText = '日本語ABC123'
-    await Promise.all([
+    // Load the subsets actually used by this sheet before measuring or drawing.
+    // Waiting only for a fixed sample can leave rare Japanese characters in a fallback font.
+    const strings: string[] = []
+    const collect = (value: unknown) => {
+      if (typeof value === 'string' && value.length < 100_000 && !value.startsWith('data:')) strings.push(value)
+      else if (value && typeof value === 'object') Object.values(value).forEach(collect)
+    }
+    collect(project); collect(template)
+    const sampleText = [...new Set(strings.join(''))].join('')
+    const loaded = await Promise.all([
       fonts.load(`400 16px "LINE Seed JP"`, sampleText),
       fonts.load(`700 16px "LINE Seed JP"`, sampleText),
       fonts.load(`800 16px "LINE Seed JP"`, sampleText),
     ])
+    if (requireFont && loaded.some(faces => faces.length === 0 || faces.some(face => face.status !== 'loaded'))) {
+      throw new Error('LINE Seed JPを読み込めませんでした。接続を確認してからPSDを書き出してください。')
+    }
     await fonts.ready
     sharedTextMeasurementProvider.clear()
-  } catch {
+  } catch (error) {
+    if (requireFont) throw error
     // Font fallback still produces an export; this only avoids racing self-hosted webfonts.
   }
 }

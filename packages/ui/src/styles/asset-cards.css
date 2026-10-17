@@ -831,6 +831,17 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .internalD
   overflow: auto;
 }
 
+.sheetImageExportFontNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sheetImageExportFontNote a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .sheetImageExportWarning {
   padding: 9px 11px;
   border: 1px solid #b44b3d;

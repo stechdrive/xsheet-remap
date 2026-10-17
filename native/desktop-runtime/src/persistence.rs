@@ -468,6 +468,22 @@ pub(super) fn stat_native_paths(paths: Vec<String>) -> Vec<NativePathStatus> {
         .collect()
 }
 
+// This command accepts no caller-controlled URL or shell arguments.
+#[tauri::command]
+pub(super) fn open_font_download_page() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let launcher = "explorer.exe";
+    #[cfg(target_os = "macos")]
+    let launcher = "/usr/bin/open";
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let launcher = "xdg-open";
+    std::process::Command::new(launcher)
+        .arg("https://seed.line.me/index_jp.html")
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 #[tauri::command(rename_all = "camelCase")]
 pub(super) async fn confirm_user_action(
     window: tauri::WebviewWindow,

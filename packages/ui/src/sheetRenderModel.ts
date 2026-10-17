@@ -278,6 +278,7 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
     const fontSizePx = resolveTimingTextFontSizePx(context.template, sheetRole, event.fontSizePx)
     return [{
       eventId: event.eventId,
+      sheetRole,
       keyId: event.keyId,
       paperTrack: event.paperTrack,
       frame: event.frame,

@@ -23,6 +23,7 @@ describe('Pages cache policy', () => {
     expect(classifyPagesAsset('assets/ort-wasm-a1.wasm')).toBe('runtime')
     expect(classifyPagesAsset('assets/canvaskit-a1.wasm')).toBe('runtime')
     expect(classifyPagesAsset('assets/opencv-a1.js')).toBe('runtime')
+    expect(classifyPagesAsset('assets/psd-text-a1.js')).toBe('runtime')
     expect(classifyPagesAsset('vad/models/silero_vad.onnx')).toBe('runtime')
     expect(classifyPagesAsset('sw.js')).toBe('metadata')
     expect(classifyPagesAsset('assets/blank-a1.clip')).toBe('runtime')
@@ -33,6 +34,26 @@ describe('Pages cache policy', () => {
     expect(isBundledClipSeed('assets/blank-a1.clip', CLIP_SEED_SHA256)).toBe(true)
     expect(isBundledClipSeed('assets/blank-a1.clip', APP_SHA)).toBe(false)
     expect(isBundledClipSeed('assets/company.clip', CLIP_SEED_SHA256)).toBe(false)
+  })
+
+  it('loads the PSD writer on demand and changes its cache revision with its bytes', async () => {
+    const plan = (sha: string) => createPagesCachePlan('0.1.1', [
+      { path: 'index.html', bytes: 20, sha256: APP_SHA },
+      { path: 'assets/psd-text-a1.js', bytes: 200, sha256: sha },
+    ])
+    expect(plan(RUNTIME_SHA).appPrecacheUrls).not.toContain('./assets/psd-text-a1.js')
+    const caches = new FakeCacheStorage(SCOPE), network = { requests: [] }
+    const worker = evaluateWorker(plan(RUNTIME_SHA), caches, network)
+    await worker.dispatch('install'); await worker.dispatch('activate')
+    expect(network.requests).toHaveLength(0)
+    await worker.fetch(`${SCOPE}assets/psd-text-a1.js`)
+    expect(network.requests).toHaveLength(1)
+    await worker.fetch(`${SCOPE}assets/psd-text-a1.js`)
+    expect(network.requests).toHaveLength(1)
+    const updated = evaluateWorker(plan(UPDATED_RUNTIME_SHA), caches, network)
+    await updated.dispatch('install'); await updated.dispatch('activate')
+    await updated.fetch(`${SCOPE}assets/psd-text-a1.js`)
+    expect(network.requests).toHaveLength(2)
   })
 
   it('creates a versioned app revision and content-revisioned runtime manifest', () => {

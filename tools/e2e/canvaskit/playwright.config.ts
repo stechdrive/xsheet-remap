@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { browserProjects } from '../../verification/plan.mjs'
+import { browserFilters } from '../../verification/browser.mjs'
 
 const localBrowsers = path.resolve(import.meta.dirname, '../../../.cache/playwright')
 if (process.platform === 'win32' && !process.env.PLAYWRIGHT_BROWSERS_PATH && existsSync(localBrowsers)) process.env.PLAYWRIGHT_BROWSERS_PATH = localBrowsers
@@ -12,7 +13,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(runId)) throw new Error('Invalid browser evidence r
 
 export default defineConfig({
   testDir: '.', testMatch: '*.spec.ts', timeout: 60_000, fullyParallel: false, workers: 1,
-  retries: 0,
+  retries: 0, forbidOnly: true,
   outputDir: `../../../reference-local/canvaskit-browser/${runId}`,
   reporter: [['list'], ['json', { outputFile: path.resolve(import.meta.dirname, `../../../reference-local/verification/browser-${runId}.json`) }], ['junit', { outputFile: path.resolve(import.meta.dirname, `../../../reference-local/verification/browser-${runId}.xml`) }]],
   webServer: {
@@ -24,7 +25,7 @@ export default defineConfig({
     serviceWorkers: 'block', actionTimeout: 10_000, navigationTimeout: 30_000,
     screenshot: 'only-on-failure', trace: 'retain-on-failure' },
   projects: browserProjects.map(name => ({
-    name, grepInvert: name.endsWith('-touch') ? undefined : /@touch/,
+    name, ...browserFilters(name, process.env.XSHEET_BROWSER_SUITE ?? 'all', process.env.XSHEET_BROWSER_GREP || null),
     metadata: { device: 'browser emulation', input: 'scenario-specific mouse, touch tap or renderer protocol; not physical-device acceptance' },
     use: { browserName: name.startsWith('chromium') ? 'chromium' as const : 'webkit' as const,
       ...(name.endsWith('-touch') ? { viewport: { width: 1024, height: 768 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true } : {}) },

@@ -2,7 +2,7 @@ import { expect, test } from './fixtures'
 import { writeFile } from 'node:fs/promises'
 import { waitForPaperPaint } from '../paper-paint-contract'
 
-test('scrolling retains painted content without reallocating the GPU target', async ({ page }, info) => {
+test('scrolling retains painted content without reallocating the GPU target', { tag: '@isolated' }, async ({ page }, info) => {
   await page.goto('./')
   const paint = () => waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
   await paint()

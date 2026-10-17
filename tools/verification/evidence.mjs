@@ -20,9 +20,10 @@ export function sourceIdentity(root = process.cwd()) {
   const files = [...new Set(git(['ls-files', '-z', '--cached', '--others', '--exclude-standard']).split('\0').filter(Boolean))].sort()
   return { commit: git(['rev-parse', 'HEAD']), workingTreeDirty: !!git(['status', '--porcelain', '--untracked-files=normal']), sourceSha256: hashSourceFiles(root, files), node: process.version, platform: process.platform, arch: process.arch }
 }
-export function reusableEvidence(record, identity, phase, artifactSha256 = null) {
+export function reusableEvidence(record, identity, phase, artifactSha256 = null, execution = null) {
   return record?.schemaVersion === 1 && record.status === 'passed' && record.phase === phase
     && record.artifactSha256 === artifactSha256
+    && JSON.stringify(record.execution ?? null) === JSON.stringify(execution)
     && Object.keys(identity).every(key => record.identity?.[key] === identity[key])
 }
 export function verifyExecutable({ exePath, bytes, buildState, identity }) {

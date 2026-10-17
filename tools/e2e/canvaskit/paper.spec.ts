@@ -153,7 +153,7 @@ test('large image corrections reuse decoded bytes and the worker, then release r
   expect(Number(await source.getAttribute('data-canvaskit-image-bytes'))).toBe(0)
 })
 
-test('cell navigation updates its overlay without rebuilding paper and matches a complete redraw', async ({ page }, info) => {
+test('cell navigation updates its overlay without rebuilding paper and matches a complete redraw', { tag: '@isolated' }, async ({ page }, info) => {
   await page.goto('./')
   await active(page, '.sheetSvg')
   const p = await cell(page, 1)

@@ -1,12 +1,13 @@
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { browserProjects, checks, selectChecks, testPurposes, withoutGeneratedVersion } from './plan.mjs'
+import { checks, selectChecks, testPurposes, withoutGeneratedVersion } from './plan.mjs'
 import { reusableEvidence, sha256, sourceIdentity } from './evidence.mjs'
+import { defaultBrowserWorkers, parseOptions } from './options.mjs'
+import { prepareBrowser, validateBrowserResults } from './browser.mjs'
 
-const args = process.argv.slice(2)
-const phase = args[0] ?? 'local'
-const option = name => args.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3)
+const options = parseOptions(process.argv.slice(2))
+const { phase } = options
 const root = process.cwd()
 const output = path.join(root, 'reference-local/verification')
 fs.mkdirSync(output, { recursive: true })
@@ -27,10 +28,15 @@ function runtimeIdentity(phase) {
     return result.stdout.trim()
   }
   if (phase === 'native') return { rust: toolVersion('rustc', ['--version']), cargo: toolVersion('cargo', ['--version']) }
+  if (phase === 'browser' || phase === 'browser-ci') return {
+    playwright: JSON.parse(fs.readFileSync(path.join(root, 'node_modules/playwright/package.json'), 'utf8')).version,
+    browserRevisions: sha256(fs.readFileSync(path.join(root, 'node_modules/playwright-core/browsers.json'))),
+    browserPath: process.env.PLAYWRIGHT_BROWSERS_PATH ?? (process.platform === 'win32' && fs.existsSync(path.join(root, '.cache/playwright')) ? path.join(root, '.cache/playwright') : 'default'),
+  }
   return {}
 }
 if (phase === 'plan') {
-  const base = option('base')
+  const base = options.base
   const result = base && !/^0+$/.test(base) ? spawnSync('git', ['diff', '--name-only', base], { encoding: 'utf8' }) : null
   if (result && result.status !== 0) throw new Error(result.stderr)
   const untracked = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' })
@@ -41,7 +47,7 @@ if (phase === 'plan') {
     if (previous.status !== 0 || !fs.existsSync(file)) return true
     return withoutGeneratedVersion(file, previous.stdout) !== withoutGeneratedVersion(file, fs.readFileSync(file, 'utf8'))
   }) : ['tools/verification/plan.mjs']
-  const plan = selectChecks(files, { release: args.includes('--release') })
+  const plan = selectChecks(files, { release: options.release })
   console.log(JSON.stringify({ ...plan, testPurposes }, null, 2))
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `native=${plan.native}\nimporter=${plan.importer}\nbrowsers=${JSON.stringify(plan.browser)}\n`)
 } else {
@@ -50,34 +56,51 @@ if (phase === 'plan') {
     const browserPhase = selected === 'browser' || selected === 'browser-ci'
     if (!(selected in checks) && !browserPhase) throw new Error(`Unknown verification phase: ${selected}`)
     if (selected === 'desktop' && process.platform !== 'win32') throw new Error('Desktop acceptance requires the interactive Windows host')
-    const project = option('project')
-    if (project && !browserProjects.includes(project)) throw new Error(`Unknown browser project: ${project}`)
-    if (project && selected === 'browser-ci') throw new Error('CI smoke uses its fixed Chromium project')
-    const name = selected === 'browser' && project ? `browser-${project}` : selected
+    const runId = `${Date.now()}-${process.pid}`
+    const browser = browserPhase ? prepareBrowser(root, { ...options, phase: selected }, runId) : null
+    const execution = browser?.execution ?? null
+    if (options.list) {
+      console.log(JSON.stringify({ execution, inventory: browser.inventory }, null, 2))
+      continue
+    }
+    const defaultBrowser = !options.project && options.suite === 'all' && !options.grep && !options.files.length && options.workers === defaultBrowserWorkers
+    const name = selected === 'browser' && !defaultBrowser ? `browser-${sha256(JSON.stringify(execution)).slice(0, 16)}` : selected
     const reportPath = path.join(output, `${name}.json`)
     const identity = { ...sourceIdentity(root), ...runtimeIdentity(selected) }
     const manifestPath = path.join(root, 'apps/web/dist-pages/pages-artifact.json')
     const artifactSha256 = (browserPhase || selected === 'pages') && fs.existsSync(manifestPath) ? sha256(fs.readFileSync(manifestPath)) : null
     const previous = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, 'utf8')) : null
-    if (artifactSha256 && (browserPhase || args.includes('--reuse') && reusableEvidence(previous, identity, name, artifactSha256))) npm('check:pages-artifact')
+    const canReuse = reusableEvidence(previous, identity, name, artifactSha256, execution)
+    if (artifactSha256 && (browserPhase || options.reuse && canReuse)) npm('check:pages-artifact')
     // Native input acceptance always reruns against the current EXEs. Source
     // equality alone cannot certify executables produced by a later build.
-    if (selected !== 'desktop' && args.includes('--reuse') && reusableEvidence(previous, identity, name, artifactSha256)) {
+    if (selected !== 'desktop' && options.reuse && canReuse) {
       console.log(`[verification] ${name}: reusing matching passed evidence (${previous.finishedAt})`)
       continue
     }
-    const record = { schemaVersion: 1, phase: name, identity, artifactSha256, status: 'running', startedAt: new Date().toISOString(), purpose: testPurposes[selected] ?? testPurposes.browser }
+    const record = { schemaVersion: 1, phase: name, identity, artifactSha256, execution, status: 'running', startedAt: new Date().toISOString(), purpose: testPurposes[selected] ?? testPurposes.browser,
+      recordPath: `reference-local/verification/run-${runId}.json` }
     const start = performance.now()
     fs.writeFileSync(reportPath, JSON.stringify(record, null, 2))
     try {
       if (browserPhase) {
         if (!artifactSha256) throw new Error('Build the Pages candidate with npm run verify:pages first')
-        const runId = `${Date.now()}-${process.pid}`
-        record.results = `reference-local/verification/browser-${runId}.json`
-        record.diagnostics = `reference-local/canvaskit-browser/${runId}`
-        const config = selected === 'browser-ci' ? 'playwright.ci.config.ts' : 'playwright.config.ts'
-        command(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', '--config', `tools/e2e/canvaskit/${config}`, ...(project ? [`--project=${project}`] : [])], { ...process.env, XSHEET_BROWSER_RUN_ID: runId })
+        record.inventory = browser.inventory
+        record.groups = []
+        // Timing/resource-sensitive cases never overlap the functional workers.
+        for (const group of browser.groups) {
+          const result = { suite: group.suite, workers: group.workers, count: group.inventory.length, results: group.results, diagnostics: group.diagnostics }
+          record.groups.push(result)
+          fs.writeFileSync(reportPath, JSON.stringify(record, null, 2))
+          console.log(`[verification] ${group.suite}: ${group.inventory.length} cases, ${group.workers} worker(s)`)
+          const startGroup = performance.now()
+          try {
+            command(process.execPath, group.argv, group.env)
+            Object.assign(result, validateBrowserResults(JSON.parse(fs.readFileSync(path.join(root, group.results), 'utf8')), group.inventory, group.workers))
+          } finally { result.wallMs = Math.round(performance.now() - startGroup) }
+        }
         npm('check:pages-artifact')
+        if (sha256(fs.readFileSync(manifestPath)) !== artifactSha256) throw new Error('Pages candidate changed during browser verification')
       } else if (selected === 'desktop') {
         record.diagnostics = `reference-local/desktop-acceptance/${Date.now()}-${process.pid}`
         for (const script of checks.desktop) {
@@ -93,6 +116,8 @@ if (phase === 'plan') {
     } finally {
       record.finishedAt = new Date().toISOString(); record.durationMs = Math.round(performance.now() - start)
       fs.writeFileSync(reportPath, JSON.stringify(record, null, 2) + '\n')
+      fs.writeFileSync(path.join(root, record.recordPath), JSON.stringify(record, null, 2) + '\n')
+      console.log(`[verification] ${record.status}: ${record.recordPath}`)
     }
   }
 }

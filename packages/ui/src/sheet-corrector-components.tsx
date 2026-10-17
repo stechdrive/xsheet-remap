@@ -70,8 +70,15 @@ const sheetCorrectorHelpChapters: HelpChapter[] = [
     id: 'automatic-output',
     number: '01',
     title: '画像からすぐPSDを作る',
-    summary: 'エクスプローラーから画像やフォルダを渡すだけで、補正からPSD作成まで進められます。',
+    summary: '同じ様式のテンプレートを設定してから、エクスプローラーの画像やフォルダを渡して補正・PSD作成を行います。',
     sections: [
+      {
+        title: '先に同じ様式のテンプレートを準備する',
+        items: [
+          { term: '補正できる画像', description: 'Correctorは、設定済みのテンプレートと同じ様式のタイムシート画像を補正します。同じA3サイズでも、罫線の配置が異なれば、その様式に合うテンプレートが必要です。' },
+          { term: '各社独自の様式', description: '先にxsheet-templateで、その様式の参照画像と補正基準枠を設定したテンプレートを作成し、JSONとして保存します。CorrectorでそのJSONを読み込んで「テンプレ」に選択してから、画像を補正してください。' },
+        ],
+      },
       {
         title: '編集画面を開かずに使う',
         items: [
@@ -85,7 +92,7 @@ const sheetCorrectorHelpChapters: HelpChapter[] = [
         title: '編集画面を使う判断',
         items: [
           { term: '自動結果を確認したい', description: '四隅の位置や濃淡を見てから出力したいときは、画像をアプリ画面へドロップしてプレビューします。' },
-          { term: '独自の用紙を使う', description: 'A3標準以外の用紙では、その用紙に合わせて作ったテンプレートJSONを先に選びます。' },
+          { term: '独自の用紙を使う', description: '用紙サイズが同じでも、罫線の配置が異なる場合は、その様式に合わせて作ったテンプレートJSONを先に読み込んで選びます。' },
         ],
       },
     ],
@@ -141,13 +148,13 @@ const sheetCorrectorHelpChapters: HelpChapter[] = [
     id: 'template',
     number: '04',
     title: '用紙テンプレートを選ぶ',
-    summary: '元画像と同じ用紙のテンプレートを選ぶと、四隅補正と出力罫線が正しく合います。',
+    summary: '補正には、元画像と同じ様式のテンプレートが必要です。用紙サイズだけでなく、罫線の配置も合わせます。',
     sections: [
       {
         title: 'テンプレートの選び方',
         items: [
-          { term: '組み込みテンプレート', description: '標準のA3タイムシートなら、用紙に合う組み込みテンプレートを選びます。' },
-          { term: 'テンプレJSONを読み込み', description: '独自の紙タイムシートは、xsheet-templateで参照画像と補正基準枠を合わせて保存したJSONを読み込みます。一度読み込んだテンプレートは次回も選べます。' },
+          { term: '組み込みテンプレート', description: '組み込みのA3標準と同じ様式のタイムシートに使います。同じA3サイズでも、罫線の配置が異なる用紙には、その様式に合うテンプレートを用意してください。' },
+          { term: 'テンプレJSONを読み込み', description: '各社独自の紙タイムシートは、先にxsheet-templateでその様式の参照画像と補正基準枠を設定し、テンプレートをJSONとして保存します。CorrectorでそのJSONを読み込んで「テンプレ」に選択します。一度読み込んだテンプレートは次回も選べます。' },
           { term: '変更するタイミング', description: '画像を補正する前に選びます。別のテンプレートへ変えたときは、その用紙に合わせて自動補正または四隅調整をやり直します。' },
         ],
       },
@@ -266,7 +273,7 @@ export function SheetCorrectorHelpDialog({ onClose }: { onClose: () => void }) {
         <header>
           <div>
             <strong>シート画像補正の使い方</strong>
-            <span>{helpView === 'licenses' ? licenseHelpDescription : helpView === 'quick' ? '編集画面を開かず、画像から補正済みPSDを作る最短手順です。' : '画像の追加から補正・PSD出力まで、すべての操作を目的別に説明します。'}</span>
+            <span>{helpView === 'licenses' ? licenseHelpDescription : helpView === 'quick' ? '同じ様式のテンプレートを準備して、画像から補正済みPSDを作る手順です。' : '画像の追加から補正・PSD出力まで、すべての操作を目的別に説明します。'}</span>
           </div>
           <button type="button" onClick={onClose}>閉じる</button>
         </header>
@@ -307,7 +314,9 @@ function SheetCorrectorQuickGuide() {
       <article className="sheetCorrectorHelpWorkflow sheetCorrectorHelpWorkflowPrimary">
         <span className="sheetCorrectorHelpEyebrow">QUICK GUIDE</span>
         <h2>画像をドロップしてPSDを作る</h2>
-        <p>通常は編集画面を開く必要はありません。画像の傾きと遠近を整え、罫線とスキャン画像を分けたPSDまで自動で作成します。</p>
+        <p>Correctorは、設定済みのテンプレートと同じ様式のタイムシート画像を補正します。同じA3サイズでも、罫線の配置が異なれば、その様式に合うテンプレートが必要です。</p>
+        <p>各社独自のタイムシートを使う場合は、先にxsheet-templateでその様式の参照画像と補正基準枠を設定したテンプレートを作成し、JSONとして保存します。CorrectorでそのJSONを読み込んで「テンプレ」に選択してください。</p>
+        <p>テンプレートの設定が済めば、通常は編集画面を開く必要はありません。画像の傾きと遠近を整え、罫線とスキャン画像を分けたPSDまで自動で作成します。</p>
         <ol>
           {steps.map(step => (
             <li key={step.title}>
@@ -324,7 +333,7 @@ function SheetCorrectorQuickGuide() {
           <li>四隅や補正結果を見てからPSDを作りたい</li>
           <li>「要確認」になった画像の四隅を直したい</li>
           <li>鉛筆線が読みやすい濃淡にしたい</li>
-          <li>独自用紙のテンプレートJSONを使いたい</li>
+          <li>補正する様式に合うテンプレートJSONを読み込んで選択したい</li>
           <li>フォルダから拾うファイル名を変えたい</li>
         </ul>
         <h3>画面での最短手順</h3>

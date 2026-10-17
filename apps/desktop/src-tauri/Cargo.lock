@@ -4480,7 +4480,7 @@ dependencies = [
 
 [[package]]
 name = "xsheet-remap"
-version = "0.1.790"
+version = "0.1.791"
 dependencies = [
  "tauri",
  "tauri-build",

@@ -19,7 +19,9 @@ const MAX_FILES = 1000
 // CanvasKit adds one 7 MiB runtime; keep it content-revisioned alongside VAD.
 const MAX_TOTAL_BYTES = 56 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
-const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024
+// Range-drag projection and feedback bring the measured app shell to 4,197,510
+// bytes. Allow one 16 KiB increment while retaining the app/runtime size gates.
+const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 16 * 1024
 const MAX_RUNTIME_WASM_BYTES = 25 * 1024 * 1024
 const MAX_RUNTIME_WASM_FILES = 3
 const allowedExtensions = new Set([

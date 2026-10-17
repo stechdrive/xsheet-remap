@@ -41,6 +41,7 @@ import { beginSheetViewportPan } from './sheetViewportPan';
 import { advancePrimaryPointerActivation, isInteractiveKeyboardTarget, primaryPointerActivation, resolveSheetViewportPointerIntent, sheetViewportPointerTarget, type PrimaryPointerActivation } from './workspaceInteractionPolicy';
 import type { PageAnnotationStrokeStart } from './PageAnnotationInputSurface';
 import { pageMemoInputPosition } from './pageMemoInputCoordinates';
+import { useTimingRangeDragPreview } from './useTimingRangeDragPreview';
 
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftRange, setDraftRangeState] = useState<DraftRangeInteraction | null>(null)
@@ -976,13 +977,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     }
   }
 
-  function timelineMoveTargetFromClientPoint(clientX: number, clientY: number, sourceHit: SheetHit): { page: SheetPage; hit: SheetHit | null } | null {
-    const target = dropTargetFromClientPoint(clientX, clientY)
+  function timelineMoveTargetFromClientPoint(clientX: number, clientY: number): { page: SheetPage; hit: SheetHit | null } | null {
+    const target = pageHitUnderClientPoint(clientX, clientY)
     if (target) setActivePageIndexIfNeeded(target.page.pageIndex)
-    const targetHit = target?.hit?.paperTrack && sheetRoleForHit(target.hit) === sheetRoleForHit(sourceHit)
-      ? target.hit
-      : null
-    return target ? { page: target.page, hit: targetHit } : null
+    return target
   }
 
   function beginTimelineEventDrag(pointerId: number, sourceHit: SheetHit, startX: number, startY: number, sourceRange?: SheetRangeSelection) {
@@ -999,6 +997,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       currentHit: sourceHit,
       startX,
       startY,
+      clientX: startX,
+      clientY: startY,
       moved: false,
     })
     props.onStatusHint('sheet-drag', uiText.statusHints.eventDragging)
@@ -1008,14 +1008,16 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const currentTimelineEventDrag = timelineEventDragRef.current
     if (!currentTimelineEventDrag || currentTimelineEventDrag.pointerId !== pointerId) return false
     autoScrollViewportForDrag({ clientX, clientY }, viewport)
-    const target = timelineMoveTargetFromClientPoint(clientX, clientY, currentTimelineEventDrag.sourceHit)
+    const target = timelineMoveTargetFromClientPoint(clientX, clientY)
     const targetHit = target?.hit ?? null
-    updateHover(targetHit, targetHit ? { x: clientX, y: clientY } : undefined)
     const movedByPointer = Math.abs(clientX - currentTimelineEventDrag.startX) >= 3 || Math.abs(clientY - currentTimelineEventDrag.startY) >= 3
     setTimelineEventDrag(current => current && current.pointerId === pointerId
       ? {
           ...current,
-          currentHit: targetHit,
+          // Keep the snapped target stable while only the pointer/HUD moves.
+          currentHit: hoverHitSignature(current.currentHit) === hoverHitSignature(targetHit) ? current.currentHit : targetHit,
+          clientX,
+          clientY,
           moved: current.moved || movedByPointer || Boolean(targetHit && !sameSheetHitCell(targetHit, current.sourceHit)),
         }
       : current)
@@ -1031,13 +1033,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props.onStatusHint('sheet-drag', null)
     clearHover()
     if (cancelled) return
-    const target = typeof clientX === 'number' && typeof clientY === 'number'
-      ? dropTargetFromClientPoint(clientX, clientY)
+    const hasReleasePoint = typeof clientX === 'number' && typeof clientY === 'number'
+    const target = hasReleasePoint
+      ? pageHitUnderClientPoint(clientX, clientY)
       : null
-    const releaseHit = target?.hit?.paperTrack && sheetRoleForHit(target.hit) === sheetRoleForHit(current.sourceHit)
-      ? target.hit
-      : current.currentHit
-    if ((current.moved || Boolean(releaseHit && !sameSheetHitCell(releaseHit, current.sourceHit))) && releaseHit?.paperTrack) {
+    // A release outside the sheet must not reuse the last valid destination.
+    const releaseHit = hasReleasePoint ? target?.hit : current.currentHit
+    if ((current.moved || Boolean(releaseHit && !sameSheetHitCell(releaseHit, current.sourceHit)))
+      && releaseHit?.paperTrack && releaseHit.role === current.sourceHit.role) {
       props.onMoveTimelineEvent(current.sourceHit, releaseHit, current.sourceRange)
     }
   }
@@ -1678,9 +1681,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       }
       if (activePendingTimelineEventDrag.ready) {
         autoScrollViewportForDrag(event, viewport)
-        const target = timelineMoveTargetFromClientPoint(event.clientX, event.clientY, activePendingTimelineEventDrag.sourceHit)
+        const target = timelineMoveTargetFromClientPoint(event.clientX, event.clientY)
         const targetHit = target?.hit ?? null
-        updateHover(targetHit, targetHit ? { x: event.clientX, y: event.clientY } : undefined)
+        clearHover()
         const moved = movedByPointer || Boolean(targetHit && !sameSheetHitCell(targetHit, activePendingTimelineEventDrag.sourceHit))
         const nextDrag = {
           pointerId: event.pointerId,
@@ -1688,6 +1691,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
           currentHit: targetHit,
           startX: activePendingTimelineEventDrag.startX,
           startY: activePendingTimelineEventDrag.startY,
+          clientX: event.clientX,
+          clientY: event.clientY,
           moved,
         }
         clearPendingTimelineEventDrag()
@@ -1793,9 +1798,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       }
       if (activePendingTimelineEventDrag.ready) {
         autoScrollViewportForDrag(event, viewport)
-        const target = timelineMoveTargetFromClientPoint(event.clientX, event.clientY, activePendingTimelineEventDrag.sourceHit)
+        const target = timelineMoveTargetFromClientPoint(event.clientX, event.clientY)
         const targetHit = target?.hit ?? null
-        updateHover(targetHit, targetHit ? { x: event.clientX, y: event.clientY } : undefined)
+        clearHover()
         const moved = movedByPointer || Boolean(targetHit && !sameSheetHitCell(targetHit, activePendingTimelineEventDrag.sourceHit))
         setTimelineEventDrag({
           pointerId: event.pointerId,
@@ -1803,6 +1808,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
           currentHit: targetHit,
           startX: activePendingTimelineEventDrag.startX,
           startY: activePendingTimelineEventDrag.startY,
+          clientX: event.clientX,
+          clientY: event.clientY,
           moved,
         })
         clearPendingTimelineEventDrag()
@@ -2276,7 +2283,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null
-  const hoverPreviewItems = !isCalibratingSheet && !props.suppressAssetPreview && hoveredHit ? cellAssetPreviewItemsForHit(props.project, hoveredHit) : []
+  const { source: timingMoveSource, plan: timingMovePlan } = useTimingRangeDragPreview(props.project, props.template, timelineEventDrag)
+  const hoverPreviewItems = !timelineEventDrag && !isCalibratingSheet && !props.suppressAssetPreview && hoveredHit ? cellAssetPreviewItemsForHit(props.project, hoveredHit) : []
   const hoverPreviewPosition = hoverPreviewAnchor && hoverPreviewItems.length > 0
     ? cellAssetPreviewPosition(hoverPreviewAnchor, hoverPreviewItems.length)
     : null
@@ -2288,13 +2296,18 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     spacePanReady ? 'spacePanReady' : '',
     isPanning ? 'panning' : '',
     props.zoomMode ? 'zoomMode' : '',
+    !draftRange && isPointEventRangeForUi(props.rangeSelection)
+      && (props.rangeSelection.frameEnd > props.rangeSelection.frameStart || rangePaperTracks(props.rangeSelection).length > 1)
+      && rangeContainsHit(props.rangeSelection, hoveredHit) ? 'timingRangeMoveReady' : '',
+    timelineEventDrag ? 'timingRangeDragging' : '',
+    timingMovePlan?.reason ? 'timingRangeDragInvalid' : '',
   ].filter(Boolean).join(' ')
 
     return {
     props, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
-    setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
+    setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, timingMoveSource, timingMovePlan, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas, renderWindowState,

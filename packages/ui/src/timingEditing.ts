@@ -41,6 +41,29 @@ export type TimingRangeMoveResult = {
   destinationFrameEnd: number
 }
 
+export type TimingRangeMoveSource = {
+  range: SheetRangeSelection & { role: SheetTimingRole; paperTrack: string }
+  sourceHit: SheetHit
+  paperTrackOrder: string[]
+  clipboard: TimingClipboard
+  items: TimingClipboard['items']
+  occupiedDestinations: ReadonlySet<string>
+  displayFrameStart: number
+  displayFrameEnd: number
+}
+
+export type TimingRangeMovePlan = {
+  status: TimingRangeMoveResult['status']
+  reason?: 'outside-sheet' | 'different-role' | 'outside-tracks' | 'outside-frames' | 'empty-source'
+  // An empty track retains its offset when part of the proposed range is outside the sheet.
+  destinationPaperTracks: string[]
+  destinationFrameStart: number
+  destinationFrameEnd: number
+  frameDelta: number
+  trackDelta: number
+  collisionCells: Array<{ paperTrack: string; frame: number }>
+}
+
 export type TimelineFrameEditScope = 'track' | 'tracks' | 'cut'
 export type TimelineInsertDurationPolicy = 'preserve' | 'extend'
 export type TimelineDeleteDurationPolicy = 'preserve' | 'shrink'
@@ -187,6 +210,71 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
   }
 }
 
+// Snapshot the source and occupied cells once per drag. Pointer updates only plan
+// addresses; they never clear/write events or create a project/history entry.
+export function prepareTimingRangeMove(
+  project: CutProject,
+  range: SheetRangeSelection,
+  sourceHit: SheetHit,
+  paperTrackOrder: string[],
+): TimingRangeMoveSource | null {
+  if (!isPointEventRangeForUi(range) || !rangeContainsHit(range, sourceHit)) return null
+  const sourcePaperTracks = rangePaperTracks(range)
+  if (sourcePaperTracks.some(track => !paperTrackOrder.includes(track))) return null
+  const clipboard = buildTimingClipboard(project, range, 'cut')
+  const occupiedDestinations = new Set([...project.logicalSheet.events, ...(project.logicalSheet.referenceMarks ?? [])]
+    .filter(event => sheetTimingRoleForEvent(event) === range.role
+      && !(sourcePaperTracks.includes(event.paperTrack) && event.frame >= range.frameStart && event.frame <= range.frameEnd))
+    .map(event => timingCellSignature(event.paperTrack, event.frame)))
+  return {
+    range, sourceHit, paperTrackOrder, clipboard,
+    items: clipboard.items.filter(item => item.kind !== 'empty' || item.reference),
+    occupiedDestinations,
+    displayFrameStart: logicalSheetDisplayFrameStart(project.logicalSheet),
+    displayFrameEnd: logicalSheetDisplayFrameEnd(project.logicalSheet),
+  }
+}
+
+export function planTimingRangeMove(source: TimingRangeMoveSource, targetHit: SheetHit | null): TimingRangeMovePlan {
+  const { range, sourceHit, paperTrackOrder } = source
+  const plan: TimingRangeMovePlan = {
+    status: 'invalid-target',
+    destinationPaperTracks: [],
+    destinationFrameStart: range.frameStart,
+    destinationFrameEnd: range.frameEnd,
+    frameDelta: 0,
+    trackDelta: 0,
+    collisionCells: [],
+  }
+  if (!targetHit) return { ...plan, reason: 'outside-sheet' }
+  if (targetHit.role !== range.role) return { ...plan, reason: 'different-role' }
+  if (!targetHit.paperTrack) return { ...plan, reason: 'outside-tracks' }
+  const sourceTrackIndex = paperTrackOrder.indexOf(sourceHit.paperTrack!)
+  const targetTrackIndex = paperTrackOrder.indexOf(targetHit.paperTrack)
+  if (targetTrackIndex < 0) return { ...plan, reason: 'outside-tracks' }
+  const trackDelta = targetTrackIndex - sourceTrackIndex
+  const frameDelta = targetHit.frame - sourceHit.frame
+  plan.trackDelta = trackDelta
+  plan.frameDelta = frameDelta
+  plan.destinationPaperTracks = rangePaperTracks(range).map(track => paperTrackOrder[paperTrackOrder.indexOf(track) + trackDelta] ?? '')
+  plan.destinationFrameStart += frameDelta
+  plan.destinationFrameEnd += frameDelta
+  if (plan.destinationPaperTracks.some(track => !track)) return { ...plan, reason: 'outside-tracks' }
+  if (plan.destinationFrameStart < source.displayFrameStart || plan.destinationFrameEnd > source.displayFrameEnd) {
+    return { ...plan, reason: 'outside-frames' }
+  }
+  if (frameDelta === 0 && trackDelta === 0) {
+    return { ...plan, status: 'same-target' }
+  }
+  if (source.items.length === 0) return { ...plan, status: 'empty-source', reason: 'empty-source' }
+  for (const item of source.items) {
+    const paperTrack = plan.destinationPaperTracks[item.paperTrackOffset]
+    const frame = plan.destinationFrameStart + item.offsetFrames
+    if (source.occupiedDestinations.has(timingCellSignature(paperTrack, frame))) plan.collisionCells.push({ paperTrack, frame })
+  }
+  return { ...plan, status: 'moved' }
+}
+
 export function moveTimingEventsInRange(
   project: CutProject,
   range: SheetRangeSelection,
@@ -194,89 +282,24 @@ export function moveTimingEventsInRange(
   targetHit: SheetHit,
   paperTrackOrder: string[],
 ): TimingRangeMoveResult {
-  const invalidResult = (): TimingRangeMoveResult => ({
-    project,
-    status: 'invalid-target',
-    collisionCount: 0,
-    destinationPaperTracks: [],
-    destinationFrameStart: range.frameStart,
-    destinationFrameEnd: range.frameEnd,
-  })
-  if (!isPointEventRangeForUi(range) || !sourceHit.paperTrack || !targetHit.paperTrack) return invalidResult()
-  if (range.role !== sheetRoleForHit(sourceHit) || range.role !== sheetRoleForHit(targetHit) || !rangeContainsHit(range, sourceHit)) return invalidResult()
-
-  const sourcePaperTracks = rangePaperTracks(range)
-  const sourceTrackIndex = paperTrackOrder.indexOf(sourceHit.paperTrack)
-  const targetTrackIndex = paperTrackOrder.indexOf(targetHit.paperTrack)
-  if (sourceTrackIndex < 0 || targetTrackIndex < 0) return invalidResult()
-  const trackDelta = targetTrackIndex - sourceTrackIndex
-  const destinationPaperTracks = sourcePaperTracks.map(paperTrack => {
-    const index = paperTrackOrder.indexOf(paperTrack)
-    return index < 0 ? undefined : paperTrackOrder[index + trackDelta]
-  })
-  if (destinationPaperTracks.some((paperTrack): paperTrack is undefined => !paperTrack)) return invalidResult()
-
-  const frameDelta = targetHit.frame - sourceHit.frame
-  const destinationFrameStart = range.frameStart + frameDelta
-  const destinationFrameEnd = range.frameEnd + frameDelta
-  const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
-  const displayFrameEnd = logicalSheetDisplayFrameEnd(project.logicalSheet)
-  if (destinationFrameStart < displayFrameStart || destinationFrameEnd > displayFrameEnd) return invalidResult()
-  if (frameDelta === 0 && trackDelta === 0) {
-    return {
-      project,
-      status: 'same-target',
-      collisionCount: 0,
-      destinationPaperTracks: sourcePaperTracks,
-      destinationFrameStart,
-      destinationFrameEnd,
-    }
+  const source = prepareTimingRangeMove(project, range, sourceHit, paperTrackOrder)
+  const plan = source && planTimingRangeMove(source, targetHit)
+  if (!source || !plan || plan.status === 'invalid-target') return {
+    project, status: 'invalid-target', collisionCount: 0, destinationPaperTracks: [],
+    destinationFrameStart: range.frameStart, destinationFrameEnd: range.frameEnd,
   }
-
-  const clipboard = buildTimingClipboard(project, range, 'cut')
-  const movedItems = clipboard.items.filter(item => item.kind !== 'empty' || item.reference)
-  if (movedItems.length === 0) {
-    return {
-      project,
-      status: 'empty-source',
-      collisionCount: 0,
-      destinationPaperTracks: destinationPaperTracks as string[],
-      destinationFrameStart,
-      destinationFrameEnd,
-    }
+  const result: TimingRangeMoveResult = {
+    project, status: plan.status, collisionCount: plan.collisionCells.length,
+    destinationPaperTracks: plan.destinationPaperTracks,
+    destinationFrameStart: plan.destinationFrameStart, destinationFrameEnd: plan.destinationFrameEnd,
   }
-
-  const sourceCells = new Set([...project.logicalSheet.events, ...(project.logicalSheet.referenceMarks ?? [])]
-    .filter(event => sourcePaperTracks.includes(event.paperTrack)
-      && sheetTimingRoleForEvent(event) === range.role
-      && event.frame >= range.frameStart
-      && event.frame <= range.frameEnd)
-    .map(event => timingCellSignature(event.paperTrack, event.frame)))
-  const destinationCells = new Set(movedItems.map(item => timingCellSignature(
-    destinationPaperTracks[item.paperTrackOffset] as string,
-    destinationFrameStart + item.offsetFrames,
-  )))
-  const collisionCount = new Set([...project.logicalSheet.events, ...(project.logicalSheet.referenceMarks ?? [])].filter(event =>
-    sheetTimingRoleForEvent(event) === range.role
-    && destinationCells.has(timingCellSignature(event.paperTrack, event.frame))
-    && !sourceCells.has(timingCellSignature(event.paperTrack, event.frame)),
-  ).map(event => timingCellSignature(event.paperTrack, event.frame))).size
-
-  let next = clearTimingRange(project, range)
-  const writeItem = createTimingClipboardWriter(clipboard, range.role, 'auto')
-  for (const item of movedItems) {
-    const destinationPaperTrack = destinationPaperTracks[item.paperTrackOffset]
-    if (!destinationPaperTrack) return invalidResult()
-    next = writeItem(next, destinationPaperTrack, destinationFrameStart + item.offsetFrames, item)
+  if (plan.status !== 'moved') return result
+  let next = clearTimingRange(project, source.range)
+  const writeItem = createTimingClipboardWriter(source.clipboard, source.range.role, 'auto')
+  for (const item of source.items) {
+    next = writeItem(next, plan.destinationPaperTracks[item.paperTrackOffset], plan.destinationFrameStart + item.offsetFrames, item)
   }
-  return {
-    project: next,
-    status: 'moved',
-    collisionCount,
-    destinationPaperTracks: destinationPaperTracks as string[],
-    destinationFrameStart,
-    destinationFrameEnd,
-  }
+  return { ...result, project: next }
 }
 
 export function timingRangeSelectionForMoveResult(

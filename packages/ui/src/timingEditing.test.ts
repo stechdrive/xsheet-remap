@@ -3,6 +3,7 @@ import {
   createDefaultProject,
   createOrSetEvent,
   setTimingReferenceAt,
+  setTimingSpecialEvent,
   registerAsset,
   sheetTimingRoleForEvent,
   sheetTimingRoleForKey,
@@ -19,6 +20,8 @@ import {
   ensurePostRollCoversFrame,
   insertTimelineFrames,
   moveTimingEventsInRange,
+  planTimingRangeMove,
+  prepareTimingRangeMove,
   pasteTimingClipboardToProject,
   rangeContainsHit,
   sameSheetHitCell,
@@ -218,6 +221,49 @@ describe('timing editing model', () => {
       .filter(event => event.paperTrack === 'A' && sheetTimingRoleForEvent(event) === 'action')
       .map(event => event.frame)
       .sort((a, b) => a - b)).toEqual([5, 6, 7])
+  })
+
+  it('plans from the grabbed cell without changing the project and commits the same sparse destination', () => {
+    let project = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell').project
+    project = setTimingReferenceAt(project, 'A', 2, 'cell', true)
+    project = setTimingSpecialEvent(project, 'B', 3, 'reverse', 'cell')
+    project = createOrSetEvent(project, 'B', 11, 'cell').project
+    project = setTimingReferenceAt(project, 'B', 11, 'cell', true) // Same cell counts only once.
+    project = createOrSetEvent(project, 'B', 12, 'cell').project
+    project = createOrSetEvent(project, 'C', 11, 'cell').project // Source gap: preserve it.
+    project = createOrSetEvent(project, 'C', 13, 'action').project // Another role: no collision.
+    const before = structuredClone(project)
+    const range = testMultiTrackRange(['A', 'B'], 1, 3, 'cell')
+    const grab = testHit('B', 3, 'cell')
+    const target = testHit('C', 13, 'cell')
+    const source = prepareTimingRangeMove(project, range, grab, ['A', 'B', 'C'])!
+    const plan = planTimingRangeMove(source, target)
+    expect(plan).toMatchObject({ status: 'moved', destinationPaperTracks: ['B', 'C'], destinationFrameStart: 11,
+      destinationFrameEnd: 13, frameDelta: 10, trackDelta: 1, collisionCells: [{ paperTrack: 'B', frame: 11 }, { paperTrack: 'B', frame: 12 }] })
+    expect(source.items.map(item => item.kind)).toEqual(['key', 'empty', 'reverse'])
+    expect(project).toEqual(before)
+    const result = moveTimingEventsInRange(project, range, grab, target, ['A', 'B', 'C'])
+    expect(result).toMatchObject({ status: plan.status, collisionCount: plan.collisionCells.length,
+      destinationPaperTracks: plan.destinationPaperTracks, destinationFrameStart: plan.destinationFrameStart, destinationFrameEnd: plan.destinationFrameEnd })
+    expect(result.project.logicalSheet.events.filter(event => event.sheetRole === 'cell').map(event => `${event.paperTrack}:${event.frame}`).sort()).toEqual(['B:11', 'C:11', 'C:13'])
+    expect(result.project.logicalSheet.referenceMarks).toContainEqual(expect.objectContaining({ paperTrack: 'B', frame: 12, sheetRole: 'cell' }))
+  })
+
+  it('excludes overlapping source cells from collision feedback and retains invalid destination offsets', () => {
+    let project = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell').project
+    project = setTimingReferenceAt(project, 'A', 3, 'cell', true)
+    const range = testMultiTrackRange(['A', 'B'], 1, 3, 'cell')
+    const grab = testHit('B', 3, 'cell')
+    const source = prepareTimingRangeMove(project, range, grab, ['A', 'B', 'C'])!
+    expect(planTimingRangeMove(source, testHit('B', 5, 'cell'))).toMatchObject({ status: 'moved', collisionCells: [] })
+    expect(planTimingRangeMove(source, testHit('A', 5, 'cell'))).toMatchObject({ status: 'invalid-target', reason: 'outside-tracks',
+      destinationPaperTracks: ['', 'A'], destinationFrameStart: 3, destinationFrameEnd: 5 })
+    expect(planTimingRangeMove(source, testHit('B', 1, 'cell'))).toMatchObject({ status: 'invalid-target', reason: 'outside-frames',
+      destinationFrameStart: -1, destinationFrameEnd: 1 })
+    expect(planTimingRangeMove(source, testHit('B', 5, 'action'))).toMatchObject({ status: 'invalid-target', reason: 'different-role' })
+    expect(planTimingRangeMove(source, null)).toMatchObject({ status: 'invalid-target', reason: 'outside-sheet' })
+    expect(planTimingRangeMove(source, grab)).toMatchObject({ status: 'same-target', collisionCells: [] })
+    expect(moveTimingEventsInRange(project, range, grab, testHit('B', 1, 'cell'), ['A', 'B', 'C']).project).toBe(project)
   })
 
   it('moves an overlapping selected range atomically without losing events', () => {

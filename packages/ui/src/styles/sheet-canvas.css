@@ -1565,6 +1565,123 @@
   opacity: 0.62;
 }
 
+.sheetViewport.timingRangeMoveReady .timelineEventHandle .eventText,
+.sheetViewport.timingRangeMoveReady .timelineEventHandle .eventSymbol,
+.sheetViewport.timingRangeMoveReady .timelineEventHandle .assetAssignedEventRect,
+.sheetViewport.timingRangeMoveReady [data-reference-frame] {
+  cursor: grab;
+}
+
+.sheetViewport.timingRangeDragging,
+.sheetViewport.timingRangeDragging * {
+  cursor: grabbing !important;
+}
+
+.sheetViewport.timingRangeDragInvalid,
+.sheetViewport.timingRangeDragInvalid * {
+  cursor: not-allowed !important;
+}
+
+.timingDragPreview,
+.timingDragPreview *,
+.timingDragStatus,
+.timingDragStatus * {
+  pointer-events: none !important;
+}
+
+.timingDragPreview {
+  --timing-drag-color: #087450;
+}
+
+.timingDragPreview[data-drag-validity='invalid'] {
+  --timing-drag-color: #c02d3a;
+}
+
+.timingDragSourceVeil {
+  fill: #fffdf8;
+  fill-opacity: 0.48;
+  stroke: none;
+}
+
+.timingDragSourceOutline {
+  color: #78837e;
+  stroke-dasharray: 5px 4px;
+}
+
+.timingDragDestinationOutline {
+  color: var(--timing-drag-color);
+}
+
+.timingDragRangeFill {
+  fill: var(--timing-drag-color);
+  fill-opacity: 0.1;
+  stroke: none;
+}
+
+.timingDragCellFill {
+  fill: #fffdf8;
+  fill-opacity: 0.88;
+  stroke: none;
+}
+
+.timingDragGhostCell[data-drag-collision] .timingDragCellFill {
+  fill: #ffe0a6;
+  fill-opacity: 0.94;
+}
+
+.timingDragCollisionOutline {
+  color: #ac6000;
+}
+
+.timingDragGhostContent {
+  opacity: 0.78;
+}
+
+.timingDragGhostContent .eventText,
+.timingDragGhostContent .eventReverseSymbol {
+  fill: var(--timing-drag-color);
+}
+
+.timingDragGhostContent .eventSymbol {
+  stroke: var(--timing-drag-color);
+}
+
+.timingDragStatus {
+  position: fixed;
+  z-index: 80;
+  display: grid;
+  gap: 3px;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 8px 11px;
+  border: 1px solid #087450;
+  border-radius: 6px;
+  background: rgb(255 253 248 / 0.97);
+  color: #183e30;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 0.16);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  user-select: none;
+}
+
+.timingDragStatus[data-drag-validity='collision'] {
+  border-color: #ac6000;
+  color: #754100;
+}
+
+.timingDragStatus[data-drag-validity='invalid'] {
+  border-color: #c02d3a;
+  color: #9c1e29;
+}
+
+@media print {
+  .timingDragPreview,
+  .timingDragStatus {
+    display: none !important;
+  }
+}
+
 .hoverCellRect {
   box-sizing: border-box;
   position: absolute;

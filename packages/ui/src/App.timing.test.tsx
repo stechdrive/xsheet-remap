@@ -707,6 +707,11 @@ it.each(['action', 'cell'] as const)('moves every %s event in an existing multi-
 
     fireEvent.pointerDown(eventHandle, { pointerId: 34, pointerType: 'mouse', button: 0, buttons: 1, clientX: source.x, clientY: source.y })
     fireEvent.pointerMove(window, { pointerId: 34, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
+    const preview = document.querySelector('.sheetTransientOverlay .timingDragPreview')!
+    expect(preview).toBeTruthy()
+    expect(Array.from(preview.querySelectorAll('[data-drag-frame]')).map(cell => cell.getAttribute('data-drag-frame'))).toEqual(['5', '7'])
+    expect(Array.from(document.querySelectorAll('[data-timeline-event-frame]')).map(cell => cell.getAttribute('data-timeline-event-frame'))).toEqual(['1', '3'])
+    expect(document.querySelector('.timingDragStatus')?.textContent).toContain('A 001–003 → A 005–007')
     fireEvent.pointerUp(window, { pointerId: 34, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
 
     await waitFor(() => expectSelectedRange(role, 'A', 5, 7))
@@ -726,6 +731,63 @@ it.each(['action', 'cell'] as const)('moves every %s event in an existing multi-
     fireEvent.pointerUp(window, { pointerId: 34, pointerType: 'mouse', button: 0, buttons: 0, clientX: staleTarget.x, clientY: staleTarget.y })
     expect(eventFrames()).toEqual(targetFrames)
     expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
+    expect(document.querySelector('.timingDragPreview')).toBeNull()
+    expect(document.querySelector('.timingDragStatus')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    expect(Array.from(document.querySelectorAll('[data-timeline-event-frame]')).map(cell => cell.getAttribute('data-timeline-event-frame'))).toEqual(['1', '3'])
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.redo }))
+    expect(eventFrames()).toEqual(targetFrames)
+  })
+
+it.each(['escape', 'pointercancel', 'blur', 'outside'] as const)('clears the range ghost without moving input on %s', async cancellation => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    clickTemplateFrame(sheet, 'cell', 'A', 1)
+    enterTimingValue('1')
+    dragTemplateDisplayFrames(sheet, 'cell', 'A', 1, 3, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    await waitFor(() => expectSelectedRange('cell', 'A', 1, 3))
+    const source = templateFramePoint('cell', 'A', 1), target = templateFramePoint('cell', 'A', 5)
+    const handle = document.querySelector('[data-timeline-event-frame="1"]')!
+    fireEvent.pointerDown(handle, { pointerId: 134, pointerType: 'mouse', button: 0, buttons: 1, clientX: source.x, clientY: source.y })
+    fireEvent.pointerMove(window, { pointerId: 134, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
+    expect(document.querySelector('.timingDragPreview')).toBeTruthy()
+    if (cancellation === 'escape') fireEvent.keyDown(window, { key: 'Escape' })
+    else if (cancellation === 'pointercancel') fireEvent.pointerCancel(window, { pointerId: 134 })
+    else if (cancellation === 'blur') fireEvent.blur(window)
+    else fireEvent.pointerUp(window, { pointerId: 134, pointerType: 'mouse', button: 0, buttons: 0, clientX: -100, clientY: -100 })
+    fireEvent.pointerUp(window, { pointerId: 134, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
+    expect(document.querySelector('.timingDragPreview')).toBeNull()
+    expect(document.querySelector('.timingDragStatus')).toBeNull()
+    expect(document.body.classList.contains('sheetInteractionActive')).toBe(false)
+    expect(document.querySelector('[data-timeline-event-frame="1"]')).toBeTruthy()
+    expect(document.querySelector('[data-timeline-event-frame="5"]')).toBeNull()
+  })
+
+it('previews only overwritten input cells and preserves the project when overwrite is declined', async () => {
+    render(<App />)
+    const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+    setSheetRect(sheet, 0, 0)
+    for (const frame of [1, 3, 5, 6]) {
+      clickTemplateFrame(sheet, 'cell', 'A', frame)
+      enterTimingValue(String(frame))
+    }
+    dragTemplateDisplayFrames(sheet, 'cell', 'A', 1, 3, standardA3SheetTemplate.defaults.durationFrames, standardA3SheetTemplate.defaults.frameOrigin)
+    await waitFor(() => expectSelectedRange('cell', 'A', 1, 3))
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const source = templateFramePoint('cell', 'A', 1), target = templateFramePoint('cell', 'A', 5)
+    const handle = document.querySelector('[data-timeline-event-frame="1"]')!
+    fireEvent.pointerDown(handle, { pointerId: 135, pointerType: 'mouse', button: 0, buttons: 1, clientX: source.x, clientY: source.y })
+    fireEvent.pointerMove(window, { pointerId: 135, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
+    expect(document.querySelectorAll('[data-drag-collision]')).toHaveLength(1)
+    expect(document.querySelector('[data-drag-collision]')?.getAttribute('data-drag-frame')).toBe('5')
+    expect(document.querySelector('[data-drag-frame="6"]')).toBeNull()
+    expect(document.querySelector('.timingDragStatus')?.textContent).toContain('1セルに既存の入力あり')
+    expect(confirm).not.toHaveBeenCalled()
+    fireEvent.pointerUp(window, { pointerId: 135, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(document.querySelector('.timingDragPreview')).toBeNull()
+    expect(Array.from(document.querySelectorAll('[data-timeline-event-frame]')).map(cell => cell.getAttribute('data-timeline-event-frame'))).toEqual(['1', '3', '5', '6'])
   })
 
 it('opens the sheet context menu on right click and prevents the browser menu', () => {

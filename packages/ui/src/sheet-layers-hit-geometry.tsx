@@ -114,7 +114,7 @@ function normalizedRectsOverlap(a: NormalizedRect, b: NormalizedRect): boolean {
     && a.y + a.h > b.y
 }
 
-export function rectForHit(project: CutProject, template: SheetTemplate, hit: SheetHit): NormalizedRect | null {
+export function rectForHit(project: SheetGeometryInput, template: SheetTemplate, hit: SheetHit): NormalizedRect | null {
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const track = hit.paperTrack ? project.logicalSheet.paperTracks.find(item => item.paperTrack === hit.paperTrack) : undefined
@@ -159,7 +159,7 @@ export function nextOverlayTrackNameForUi(project: CutProject): string {
 }
 
 /** Resolve logical timing targets using the same columns as the paper renderer. */
-export function projectTimingHitForFrame(template: SheetTemplate, project: CutProject, role: SheetTimingRole, paperTrack: string, frame: number): SheetHit | null {
+export function projectTimingHitForFrame(template: SheetTemplate, project: SheetGeometryInput, role: SheetTimingRole, paperTrack: string, frame: number): SheetHit | null {
   const duration = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const origin = logicalSheetDisplayFrameStart(project.logicalSheet)
   const overlay = overlayPaperTracks(project, template).find(track =>
@@ -215,7 +215,7 @@ function overlayCellRectForFrame(template: SheetTemplate, project: SheetGeometry
   }
 }
 
-export function overlayRangeRectForPage(template: SheetTemplate, project: CutProject, track: PaperTrack, frameStart: number, frameEnd: number, page: SheetPage): NormalizedRect | null {
+export function overlayRangeRectForPage(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, frameStart: number, frameEnd: number, page: SheetPage): NormalizedRect | null {
   const start = Math.max(frameStart, page.frameStart)
   const end = Math.min(frameEnd, page.frameEnd)
   if (end < start) return null
@@ -230,7 +230,7 @@ export function overlayRangeRectForPage(template: SheetTemplate, project: CutPro
   }
 }
 
-export function overlayHitForFrame(template: SheetTemplate, project: CutProject, track: PaperTrack, frame: number, page: SheetPage, role: SheetTimingRole): SheetHit | null {
+export function overlayHitForFrame(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, frame: number, page: SheetPage, role: SheetTimingRole): SheetHit | null {
   const localized = localizeFrameToSheetPage(template, frame, logicalSheetDisplayDurationFrames(project.logicalSheet), logicalSheetDisplayFrameStart(project.logicalSheet))
   if (!localized || localized.page.pageId !== page.pageId) return null
   const column = overlayColumnRectForPage(template, project, track, page)

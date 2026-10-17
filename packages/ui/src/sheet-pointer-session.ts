@@ -24,6 +24,8 @@ export type TimelineEventDragInteraction = {
   currentHit: SheetHit | null
   startX: number
   startY: number
+  clientX: number
+  clientY: number
   moved: boolean
 }
 

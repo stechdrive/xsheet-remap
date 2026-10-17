@@ -28,6 +28,7 @@ import { CommittedAnnotationCanvas } from './CommittedAnnotationCanvas'
 import { SheetRenderWindowContext } from './useSheetRenderWindow'
 import { SheetPlayheadOverlay } from './SheetPlayheadOverlay'
 import { SheetTimingEventLayer } from './SheetTimingEventLayer'
+import { SheetTimingDragPreview, TimingDragStatus } from './SheetTimingDragPreview'
 import type { SheetInputTextRenderItem } from './sheetRenderModel'
 
 const EMPTY_REFERENCE_ITEMS: SheetInputTextRenderItem[] = []
@@ -127,7 +128,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     props, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
-    setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
+    setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, timingMoveSource, timingMovePlan, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
     cameraCueDrag, hoveredCameraCueId, cameraCueHoverAnchor,
     activeOverlayPaperTrack, setActiveOverlayPaperTrack,
     draftCalibration, viewportRef, pageStackRef, sheetSvgRefs, zoom, isContinuousCanvas, renderWindowState,
@@ -193,7 +194,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       onDragLeave={handleViewportDragLeave}
       onDrop={event => void handleViewportDrop(event)}
     >
-      {props.showInputContent && selectedTextItem?.textLayout.overflow && <div className="timingCellFullLabel" role="status">
+      {!timelineEventDrag && props.showInputContent && selectedTextItem?.textLayout.overflow && <div className="timingCellFullLabel" role="status">
         <span>シート記載：{selectedTextItem.displayLabel}</span>
       </div>}
       <div ref={pageStackRef} className={`sheetPageStack ${props.sheetView.viewMode}`}>
@@ -380,14 +381,14 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       drag={overlayTrackDrag?.pageId === page.pageId ? overlayTrackDrag : null}
                     />
                   )}
-                  {rangeRects.map((rect, index) => (
+                  {!timingMoveSource && rangeRects.map((rect, index) => (
                     <SheetRangeFillCue
                       key={`${index}-${rect.x}-${rect.y}`}
                       rect={rect}
                       draft={Boolean(draftRange)}
                     />
                   ))}
-                  {rangeBoundaryRects.map((rect, index) => (
+                  {!timingMoveSource && rangeBoundaryRects.map((rect, index) => (
                     <SheetRangeBoundaryCue
                       key={`boundary-${index}-${rect.x}-${rect.y}`}
                       rect={rect}
@@ -458,7 +459,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     project={props.project} geometry={sheetRenderModelContext.geometry} page={page}
                     items={eventRects} references={referenceOnlyItemsByPage.get(page.pageId) ?? EMPTY_REFERENCE_ITEMS}
                     width={sheetPageWidth} height={sheetPageHeight}
-                    dragging={timelineEventDrag?.sourceHit} pending={pendingTimelineEventDrag?.sourceHit} ready={pendingTimelineEventDrag?.ready}
+                    pending={pendingTimelineEventDrag?.sourceHit} ready={pendingTimelineEventDrag?.ready}
                     onPointerDown={handleTimelineEventPointerDown} onPointerMove={handleTimelineEventPointerMove}
                     onPointerUp={handleTimelineEventPointerUp} onPointerCancel={handleTimelineEventPointerCancel} />}
                   {!isCalibrating && (
@@ -520,10 +521,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       )}
                     </g>
                   )}
-                  {selectedRect && <SelectedCellCue rect={selectedRect} surface={selectionSurface} />}
+                  {selectedRect && !timingMoveSource && <SelectedCellCue rect={selectedRect} surface={selectionSurface} />}
                   {dropTargetRect && dropTargetPreview && (
                     <SheetDropTargetCue rect={dropTargetRect} surface={selectionSurface} validity={dropTargetPreview.validity} />
                   )}
+                  {showInputContent && timingMoveSource && timingMovePlan && <SheetTimingDragPreview
+                    context={sheetRenderModelContext} page={page} source={timingMoveSource} plan={timingMovePlan}
+                    activeOverlayPaperTrack={activeOverlayPaperTrack} width={sheetPageWidth} height={sheetPageHeight} />}
                 </svg>
                 <SheetPlayheadOverlay store={props.audioPlayheadStore} frame={props.audioPlayheadFrame} cutId={props.activeCutId}
                   layout={playheadLayout} page={page} continuous={isContinuousCanvas} />
@@ -640,7 +644,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     onUpdatePaperTrack={props.onUpdatePaperTrack}
                   />
                 )}
-                {hoverRect && <HoverCellOverlay rect={hoverRect} />}
+                {hoverRect && !timelineEventDrag && <HoverCellOverlay rect={hoverRect} />}
                 </SheetRenderWindowContext.Provider>}
               </SheetPageSurface>
             </figure>
@@ -662,6 +666,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
         </div>
       )}
       {hoverPreviewPosition && <CellAssetPreview position={hoverPreviewPosition} items={hoverPreviewItems} />}
+      {timelineEventDrag && timingMoveSource && timingMovePlan && <TimingDragStatus
+        source={timingMoveSource} plan={timingMovePlan} clientX={timelineEventDrag.clientX} clientY={timelineEventDrag.clientY} />}
       {contextMenu && hasSheetContextMenuItems && (
         <div
           className="sheetContextMenu"

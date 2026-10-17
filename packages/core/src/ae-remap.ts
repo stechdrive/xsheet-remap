@@ -178,8 +178,8 @@ export function buildAeRemapPlan(
 
 /**
  * Builds Adobe After Effects Keyframe Data for one logical sheet column.
- * A key is emitted for every composition frame so integer-frame playback keeps
- * HOLD timing even though the clipboard format cannot encode interpolation.
+ * Each property gets an initial key and keys only where its value changes.
+ * Users must set the pasted keys to HOLD in AE; text cannot encode interpolation.
  */
 export function buildAeKeyframeDataText(
   plan: AeRemapPlan,
@@ -190,7 +190,9 @@ export function buildAeKeyframeDataText(
   const column = plan.columns.find(item => item.columnId === columnId)
   if (!column) throw new Error(`AE remap column not found: ${columnId}`)
 
-  const frames = expandAeRemapColumn(plan, column)
+  const keys = column.keys.length > 0
+    ? column.keys
+    : [aeRemapKey(plan.frameOrigin, 0, EMPTY_STATE)]
   const blankEffectLabels = aeBlankEffectLabels(options.locale ?? 'ja')
   const lines = [
     `Adobe After Effects ${options.afterEffectsVersion ?? '9.0'} Keyframe Data`,
@@ -206,16 +208,26 @@ export function buildAeKeyframeDataText(
     '\tFrame\tseconds\t',
   ]
 
-  for (const frame of frames) {
-    lines.push(`\t${frame.compFrame}\t${formatAeNumber(frame.sourceSeconds)}\t`)
+  let lastSourceSeconds: number | undefined
+  for (const key of keys) {
+    const sourceSeconds = key.kind === 'cell' && key.cellNumber !== null
+      ? (key.cellNumber - 1) / plan.sourceFps
+      : lastSourceSeconds ?? 0
+    if (sourceSeconds === lastSourceSeconds) continue
+    lines.push(`\t${key.compFrame}\t${formatAeNumber(sourceSeconds)}\t`)
+    lastSourceSeconds = sourceSeconds
   }
   lines.push('')
 
-  if (frames.some(frame => frame.empty)) {
+  if (keys.some(key => key.kind === 'empty')) {
     lines.push(`Effects\t${blankEffectLabels.effect} #1\t${blankEffectLabels.completion} #2\t`)
     lines.push(`\tFrame\t${blankEffectLabels.unit}`)
-    for (const frame of frames) {
-      lines.push(`\t${frame.compFrame}\t${frame.empty ? 100 : 0}\t`)
+    let lastEmpty: boolean | undefined
+    for (const key of keys) {
+      const empty = key.kind === 'empty'
+      if (empty === lastEmpty) continue
+      lines.push(`\t${key.compFrame}\t${empty ? 100 : 0}\t`)
+      lastEmpty = empty
     }
     lines.push('')
   }
@@ -471,33 +483,6 @@ function positiveCellNumber(value: string): number | null {
   if (!/^[1-9]\d*$/.test(value)) return null
   const number = Number(value)
   return Number.isSafeInteger(number) ? number : null
-}
-
-function expandAeRemapColumn(
-  plan: AeRemapPlan,
-  column: AeRemapColumn,
-): Array<{ compFrame: number; sourceSeconds: number; empty: boolean }> {
-  const result: Array<{ compFrame: number; sourceSeconds: number; empty: boolean }> = []
-  let keyIndex = 0
-  let state = column.keys[0] ?? aeRemapKey(plan.frameOrigin, 0, EMPTY_STATE)
-  let lastSourceSeconds = 0
-  for (let compFrame = 0; compFrame < plan.durationFrames; compFrame += 1) {
-    while (keyIndex + 1 < column.keys.length && column.keys[keyIndex + 1].compFrame <= compFrame) {
-      keyIndex += 1
-      state = column.keys[keyIndex]
-    }
-    if (state.kind === 'cell' && state.cellNumber !== null) {
-      lastSourceSeconds = (state.cellNumber - 1) / plan.sourceFps
-    }
-    result.push({
-      compFrame,
-      sourceSeconds: state.kind === 'cell' && state.cellNumber !== null
-        ? (state.cellNumber - 1) / plan.sourceFps
-        : lastSourceSeconds,
-      empty: state.kind === 'empty',
-    })
-  }
-  return result
 }
 
 function aeRemapJsxConfigKey(

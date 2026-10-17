@@ -45,9 +45,7 @@ describe('After Effects remap export', () => {
     expect(text.startsWith('Adobe After Effects 9.0 Keyframe Data\r\n')).toBe(true)
     expect(propertyRows(text, 'Time Remap')).toEqual([
       ['0', '0'],
-      ['1', '0'],
       ['2', '0.0833333333'],
-      ['3', '0.0833333333'],
     ])
     expect(text).not.toContain('Venetian Blinds')
   })
@@ -77,15 +75,11 @@ describe('After Effects remap export', () => {
     expect(propertyRows(aText, 'Time Remap')).toEqual([
       ['0', '0'],
       ['1', '0.0666666667'],
-      ['2', '0.0666666667'],
-      ['3', '0.0666666667'],
       ['4', '0.1'],
-      ['5', '0.1'],
     ])
     expect(effectRows(aText)).toEqual([
       ['0', '100'],
       ['1', '0'],
-      ['2', '0'],
       ['3', '100'],
       ['4', '0'],
       ['5', '100'],
@@ -96,15 +90,36 @@ describe('After Effects remap export', () => {
     expect(englishText).toContain('\tFrame\tpercent\r\n')
 
     const emptyText = buildAeKeyframeDataText(plan, 'B')
-    expect(propertyRows(emptyText, 'Time Remap')).toHaveLength(6)
-    expect(effectRows(emptyText)).toEqual([
-      ['0', '100'],
-      ['1', '100'],
-      ['2', '100'],
-      ['3', '100'],
-      ['4', '100'],
-      ['5', '100'],
-    ])
+    expect(propertyRows(emptyText, 'Time Remap')).toEqual([['0', '0']])
+    expect(effectRows(emptyText)).toEqual([['0', '100']])
+  })
+
+  it('changes source and visibility independently while preserving held playback through the cut', () => {
+    let project = shortProject(24, 48)
+    project = addCell(project, 'A', 4, '1')
+    project = addCell(project, 'A', 10, '3')
+    project = setTimingSpecialEvent(project, 'A', 16, 'blank', 'action')
+    project = addCell(project, 'A', 19, '3')
+    project = addCell(project, 'A', 25, '2')
+    project = setTimingSpecialEvent(project, 'A', 37, 'blank', 'action')
+
+    const text = buildAeKeyframeDataText(buildAeRemapPlan(project, { paperTracks: ['A'] }), 'A')
+    const timeRows = propertyRows(text, 'Time Remap').map(row => row.map(Number))
+    const blankRows = effectRows(text).map(row => row.map(Number))
+    expect(timeRows).toEqual([[0, 0], [9, 0.0833333333], [24, 0.0416666667]])
+    expect(blankRows).toEqual([[0, 100], [3, 0], [15, 100], [18, 0], [36, 100]])
+
+    const heldValue = (rows: number[][], frame: number) => rows.filter(row => row[0] <= frame).at(-1)![1]
+    const expectedCells = [
+      ...Array(3).fill(null), ...Array(6).fill(1), ...Array(6).fill(3),
+      ...Array(3).fill(null), ...Array(6).fill(3), ...Array(12).fill(2), ...Array(12).fill(null),
+    ]
+    for (let frame = 0; frame < 48; frame += 0.5) {
+      const actual = heldValue(blankRows, frame) === 100
+        ? null
+        : Math.round(heldValue(timeRows, frame) * 24) + 1
+      expect(actual, `composition frame ${frame}`).toBe(expectedCells[Math.floor(frame)])
+    }
   })
 
   it('uses a binding trailing number only as a diagnosed fallback', () => {

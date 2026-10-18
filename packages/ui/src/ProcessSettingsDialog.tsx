@@ -1,10 +1,12 @@
 import { MAX_CORRECTION_LAYERS, type CorrectionLayer, type CutProject } from '@xsheet-remap/core'
-import { useRef, useState, type FormEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react'
 import { uiText } from './i18n'
 import { sortedCorrectionLayers } from './sheetAssets'
 import { clampNumber } from './sheetInteraction'
 import { DeleteIconButton } from './DeleteIconButton'
-import { Tooltip } from './Tooltip'
+import { TooltipSuppressionProvider, Tooltip } from './Tooltip'
+import { createInternalDragPreview } from './internalDrag'
+import { createPointerDragGhost, type PointerDragGhost } from './pointerDragGhost'
 
 type ProcessLayerDraft = CorrectionLayer & { draftId: string }
 
@@ -24,11 +26,30 @@ export function ProcessSettingsDialog({
   const [draggingDraftId, setDraggingDraftId] = useState<string | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const dragPointerRef = useRef<{ draftId: string; pointerId: number } | null>(null)
+  const dragGhostRef = useRef<PointerDragGhost | null>(null)
   const processSettingsTableRef = useRef<HTMLDivElement>(null)
   const defaultStageId = project.productionStages[0]?.stageId ?? 'stage_lo'
   const canAdd = draftLayers.length < MAX_CORRECTION_LAYERS
   const defaultRegistrationDraftId = draftLayers[draftLayers.length - 1]?.draftId ?? ''
   const independent = Boolean(project.logicalSheet.processTimings)
+
+  useEffect(() => {
+    const cancel = () => {
+      dragPointerRef.current = null
+      dragGhostRef.current?.dispose(); dragGhostRef.current = null
+      setDraggingDraftId(null); setDropIndex(null)
+    }
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && dragPointerRef.current) { event.preventDefault(); event.stopPropagation(); cancel() }
+    }
+    window.addEventListener('blur', cancel)
+    window.addEventListener('keydown', keyDown, true)
+    return () => {
+      window.removeEventListener('blur', cancel)
+      window.removeEventListener('keydown', keyDown, true)
+      dragGhostRef.current?.dispose()
+    }
+  }, [])
 
   function updateDraft(draftId: string, updates: Partial<Pick<CorrectionLayer, 'label' | 'fileNameSuffix'>>) {
     setDraftLayers(current => current.map(layer => layer.draftId === draftId ? { ...layer, ...updates } : layer))
@@ -82,6 +103,7 @@ export function ProcessSettingsDialog({
   }
 
   function clearProcessLayerDrag() {
+    dragGhostRef.current?.dispose(); dragGhostRef.current = null
     dragPointerRef.current = null
     setDraggingDraftId(null)
     setDropIndex(null)
@@ -92,6 +114,11 @@ export function ProcessSettingsDialog({
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
     dragPointerRef.current = { draftId, pointerId: event.pointerId }
+    dragGhostRef.current?.dispose()
+    dragGhostRef.current = createPointerDragGhost(createInternalDragPreview({
+      primaryText: draftLayers.find(layer => layer.draftId === draftId)?.label ?? '',
+      secondaryText: independent ? '表示グループの並び替え' : '工程の並び替え',
+    }, 'csp-pane-node'), event.clientX, event.clientY)
     setDraggingDraftId(draftId)
     setDropIndex(rowIndex)
   }
@@ -100,6 +127,7 @@ export function ProcessSettingsDialog({
     const drag = dragPointerRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
     event.preventDefault()
+    dragGhostRef.current?.move(event.clientX, event.clientY)
     setDropIndex(dropIndexFromPointer(event.clientY))
   }
 
@@ -152,7 +180,7 @@ export function ProcessSettingsDialog({
   }
 
   return (
-    <div className="assetQuickPreviewBackdrop processSettingsBackdrop" role="dialog" aria-modal="true" aria-label={uiText.processSettings.title}>
+    <TooltipSuppressionProvider suppressed={draggingDraftId !== null}><div className="assetQuickPreviewBackdrop processSettingsBackdrop" role="dialog" aria-modal="true" aria-label={uiText.processSettings.title}>
       <form className="processSettingsDialog" onSubmit={handleApply}>
         <header className="processSettingsHeader">
           <div>
@@ -190,6 +218,7 @@ export function ProcessSettingsDialog({
                   onPointerMove={handleDragHandlePointerMove}
                   onPointerUp={handleDragHandlePointerUp}
                   onPointerCancel={handleDragHandlePointerCancel}
+                  onLostPointerCapture={handleDragHandlePointerCancel}
                 >
                   ⋮⋮
                 </button>
@@ -216,6 +245,6 @@ export function ProcessSettingsDialog({
           <button type="submit">{uiText.processSettings.apply}</button>
         </footer>
       </form>
-    </div>
+    </div></TooltipSuppressionProvider>
   )
 }

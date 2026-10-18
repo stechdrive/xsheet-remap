@@ -101,6 +101,7 @@ function useTooltip(label: string, delayMs: number, disabled: boolean) {
   const isDisabled = disabled || contextSuppressed
   const tooltipId = useId()
   const showTimerRef = useRef<number | null>(null)
+  const pointerPressedRef = useRef(false)
   const [anchorRect, setAnchorRect] = useState<TooltipAnchorRect | null>(null)
 
   const clearShowTimer = useCallback(() => {
@@ -162,11 +163,15 @@ function useTooltip(label: string, delayMs: number, disabled: boolean) {
     tooltip,
     triggerProps: {
       'aria-describedby': anchorRect && !isDisabled ? tooltipId : undefined,
-      onPointerEnter: (event: PointerEvent<HTMLElement>) => showForElement(event.currentTarget),
+      onPointerEnter: (event: PointerEvent<HTMLElement>) => {
+        pointerPressedRef.current = Boolean(event.buttons)
+        if (event.buttons) hide()
+        else showForElement(event.currentTarget)
+      },
       onPointerLeave: hide,
-      onPointerDown: hide,
-      onFocus: (event: FocusEvent<HTMLElement>) => showForElement(event.currentTarget),
-      onBlur: hide,
+      onPointerDown: () => { pointerPressedRef.current = true; hide() },
+      onFocus: (event: FocusEvent<HTMLElement>) => { if (!pointerPressedRef.current) showForElement(event.currentTarget) },
+      onBlur: () => { pointerPressedRef.current = false; hide() },
     },
   }
 }

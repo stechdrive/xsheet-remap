@@ -680,7 +680,15 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       )}
       {hoverPreviewPosition && <CellAssetPreview position={hoverPreviewPosition} items={hoverPreviewItems} />}
       {timelineEventDrag && timingMoveSource && timingMovePlan && <TimingDragStatus
-        source={timingMoveSource} plan={timingMovePlan} clientX={timelineEventDrag.clientX} clientY={timelineEventDrag.clientY} />}
+        source={timingMoveSource} plan={timingMovePlan} clientX={timelineEventDrag.clientX} clientY={timelineEventDrag.clientY}
+        getTargetRect={() => {
+          const hit = timelineEventDrag.currentHit, svg = hit?.pageId && sheetSvgRefs.current[hit.pageId]
+          const rect = hit && rectForHit(props.project, props.template, hit)
+          if (!svg || !rect) return null
+          const box = svg.getBoundingClientRect()
+          return { left: box.left + rect.x * box.width, right: box.left + (rect.x + rect.w) * box.width,
+            top: box.top + rect.y * box.height, bottom: box.top + (rect.y + rect.h) * box.height }
+        }} />}
       {contextMenu && hasSheetContextMenuItems && (
         <div
           className="sheetContextMenu"

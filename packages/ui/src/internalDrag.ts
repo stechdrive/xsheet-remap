@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { createPointerDragGhost, type PointerDragGhost } from './pointerDragGhost'
+import { createPointerDragGhost, type DragPreviewRect, type PointerDragGhost } from './pointerDragGhost'
 
 export type InternalDragPayload =
   | { kind: 'clip-layer'; layerId: string }
@@ -42,6 +42,11 @@ export const INTERNAL_TOUCH_DRAG_LONG_PRESS_MS = 420
 let nextInternalDragSession = 1
 let activeDocumentDragSessionId: string | null = null
 let activeDocumentDragSource: { element: HTMLElement; previousInlineCursor: string } | null = null
+let activeDragGhost: PointerDragGhost | null = null
+
+export function avoidInternalDragPreview(rect: DragPreviewRect): void {
+  activeDragGhost?.avoid(rect)
+}
 
 export function subscribeInternalDrag(handler: InternalDragHandler): () => void {
   const listener = (event: Event) => handler((event as CustomEvent<InternalDragDetail>).detail)
@@ -102,6 +107,11 @@ export function startInternalPointerDrag(
 
   function emit(phase: InternalDragPhase, clientX: number, clientY: number) {
     if (!payload) return
+    // Each destination claims feedback afresh; leaving both panes must not retain a valid cursor.
+    if (phase === 'start' || phase === 'move') {
+      setInternalDragDropValidity(null)
+      dragGhost?.avoid(null)
+    }
     dispatchInternalDrag({
       sessionId,
       phase,
@@ -119,6 +129,8 @@ export function startInternalPointerDrag(
     window.removeEventListener('pointercancel', handleCancel)
     window.removeEventListener('blur', handleWindowBlur)
     window.removeEventListener('keydown', handleKeyDown, true)
+    source.removeEventListener('lostpointercapture', handleCancel)
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
     if (touchLongPressTimerId !== null) {
       window.clearTimeout(touchLongPressTimerId)
       touchLongPressTimerId = null
@@ -134,6 +146,7 @@ export function startInternalPointerDrag(
     source.classList.remove('internalPointerDragSource')
     delete source.dataset.internalDragSource
     if (activeDocumentDragSessionId === sessionId) {
+      activeDragGhost = null
       activeDocumentDragSessionId = null
       restoreInternalDragSourceCursor()
       document.body.classList.remove('internalPointerDragActive')
@@ -163,6 +176,7 @@ export function startInternalPointerDrag(
     }
     restoreSourceScroll()
     dragGhost = createPointerDragGhost(createInternalDragPreview(input.createPreview(payload), payload.kind), clientX, clientY)
+    activeDragGhost = dragGhost
     source.classList.add('internalPointerDragSource')
     source.dataset.internalDragSource = 'true'
     activeDocumentDragSessionId = sessionId
@@ -218,6 +232,10 @@ export function startInternalPointerDrag(
     finish('cancel', lastX, lastY)
   }
 
+  function handleVisibilityChange() {
+    if (document.hidden) handleWindowBlur()
+  }
+
   function handleKeyDown(keyEvent: globalThis.KeyboardEvent) {
     if (keyEvent.key !== 'Escape' || !payload) return
     keyEvent.preventDefault()
@@ -230,6 +248,8 @@ export function startInternalPointerDrag(
   window.addEventListener('pointercancel', handleCancel)
   window.addEventListener('blur', handleWindowBlur)
   window.addEventListener('keydown', handleKeyDown, true)
+  source.addEventListener('lostpointercapture', handleCancel)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   if (touchPointer) {
     touchLongPressTimerId = window.setTimeout(() => {
       touchLongPressTimerId = null

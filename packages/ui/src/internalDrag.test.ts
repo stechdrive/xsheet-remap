@@ -17,6 +17,30 @@ afterEach(() => {
 })
 
 describe('internal drag', () => {
+  it.each(['Escape', 'pointercancel', 'lostpointercapture', 'hidden'])('cleans up a layer ghost on %s and never commits a cancelled drag', cancellation => {
+    const source = document.createElement('div')
+    document.body.append(source)
+    const phases: string[] = [], unsubscribe = subscribeInternalDrag(detail => phases.push(detail.phase))
+    startInternalPointerDrag({ button: 0, pointerId: 31, clientX: 20, clientY: 20, target: source, currentTarget: source } as never, {
+      begin: () => ({ kind: 'clip-layer', layerId: 'cel' }), createPreview: () => ({ primaryText: '001' }),
+    })
+    window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 31, clientX: 40, clientY: 40 }))
+    expect(document.querySelector('.pointerDragGhost')?.textContent).toBe('001')
+    setInternalDragDropValidity('valid')
+    window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 31, clientX: 2, clientY: 2 }))
+    expect(document.body.dataset.internalDragValidity).toBeUndefined()
+    if (cancellation === 'Escape') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    else if (cancellation === 'hidden') {
+      const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+      document.dispatchEvent(new Event('visibilitychange')); hidden.mockRestore()
+    } else (cancellation === 'lostpointercapture' ? source : window).dispatchEvent(new PointerEvent(cancellation, { pointerId: 31 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 31, clientX: 40, clientY: 40 }))
+    unsubscribe()
+    expect(phases).toEqual(['start', 'move', 'move', 'cancel'])
+    expect(document.querySelector('.pointerDragGhost')).toBeNull()
+    expect(document.body.classList.contains('internalPointerDragActive')).toBe(false)
+  })
+
   it('publishes one normalized drag contract', () => {
     const received: InternalDragDetail[] = []
     const unsubscribe = subscribeInternalDrag(detail => received.push(detail))

@@ -17,11 +17,11 @@ function event(page: Page, track: string, frame: number) {
 }
 
 test('a registered-card drop transfers keyboard focus for immediate Undo and Redo', async ({ page }) => {
-  await page.goto('./?app=remap')
+  // Legacy registered cards remain an Editor surface; Remap's CLIP tree has its own drop case.
+  await page.goto('./?app=editor')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
-  // Keep both drag endpoints away from viewport autoscroll edges on the
-  // narrow emulated devices; this case exercises focus, not edge scrolling.
-  await activateControl(page, page.getByRole('button', { name: '画像素材', exact: true }))
+  // Editor starts with both work panes closed. Open the registered-cell pane explicitly.
+  await activateControl(page, page.getByRole('button', { name: 'CSPレイヤー構成', exact: true }))
   await waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
   const start = await cell(page, 'A', 1)
   await page.mouse.click(start.x, start.y)
@@ -57,8 +57,7 @@ test('a registered-card drop transfers keyboard focus for immediate Undo and Red
 test('range drag shows the grabbed offset, collision and cancellation without committing until release', async ({ page }, info) => {
   await page.goto('./?app=remap')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
-  await activateControl(page, page.getByRole('button', { name: 'CSPレイヤー構成', exact: true }))
-  await activateControl(page, page.getByRole('button', { name: '画像素材', exact: true }))
+  await expect(page.getByRole('button', { name: 'シート編集', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
   for (const [track, frame, label] of [['A', 1, '1'], ['A', 5, '2'], ['A', 9, '3'], ['B', 13, '4']] as const) {
     const p = await cell(page, track, frame)
@@ -91,6 +90,9 @@ test('range drag shows the grabbed offset, collision and cancellation without co
   for (const frame of [1, 5, 9]) await expect(event(page, 'A', frame)).toHaveCount(1)
   await expect(event(page, 'B', 17)).toHaveCount(0)
   expect(await preview.evaluate(el => getComputedStyle(el).pointerEvents)).toBe('none')
+  const targetCell = await cell(page, 'B', 17), status = (await page.locator('.timingDragStatus').boundingBox())!
+  expect(status.x <= targetCell.x && targetCell.x <= status.x + status.width
+    && status.y <= targetCell.y && targetCell.y <= status.y + status.height).toBe(false)
   const before = await page.locator('.timingDragGhostCell .timingDragCellFill').evaluateAll(cells => cells.map(c => c.getBoundingClientRect().toJSON()))
   await page.screenshot({ path: info.outputPath('range-ghost-before-drop.png') })
   await page.keyboard.press('Escape')

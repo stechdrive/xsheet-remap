@@ -6,7 +6,7 @@ import { ClipLayerPanel } from './ClipLayerPanel'
 import { dispatchInternalDrag } from './internalDrag'
 import { publishNativeLayerHover, clipLayerDropTarget } from './clipLayerDrop'
 
-afterEach(() => { cleanup(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers() })
 function setup(locked = false, extras: ClipLayerNode[] = []) {
   const folder = createClipNode('素材', 'folder', null, 'materials')
   const first = { ...createClipNode('first', 'raster', folder.id, 'first'), locked }
@@ -23,6 +23,20 @@ function setup(locked = false, extras: ClipLayerNode[] = []) {
 }
 
 describe('CSP-style layer palette controls', () => {
+  it('uses shared path tooltips and dismisses them for the entire layer drag', () => {
+    vi.useFakeTimers()
+    const { row } = setup()
+    const name = row('first').querySelector('.clipLayerName')!
+    fireEvent.pointerEnter(name); act(() => vi.runAllTimers())
+    expect(screen.getByRole('tooltip').textContent).toContain('素材 / first')
+    act(() => dispatchInternalDrag({ sessionId: 'tooltip', phase: 'start', payload: { kind: 'clip-layer', layerId: 'first' }, clientX: 0, clientY: 0 }))
+    fireEvent.pointerEnter(row('second').querySelector('.clipLayerName')!); act(() => vi.runAllTimers())
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    act(() => dispatchInternalDrag({ sessionId: 'tooltip', phase: 'cancel', payload: { kind: 'clip-layer', layerId: 'first' }, clientX: 0, clientY: 0 }))
+    fireEvent.pointerLeave(name); fireEvent.pointerEnter(name); act(() => vi.runAllTimers())
+    expect(screen.getByRole('tooltip').textContent).toContain('素材 / first')
+  })
+
   it('shows label colors independent of eye/selection, distinguishes media, and disables image appearance for audio', () => {
     const audio = { ...createClipNode('セリフ001', 'audio', null, 'audio'), labelColor: '#ffaa82', sourceLayerId: 10 }
     const video = { ...createClipNode('ムービー001', 'video', null, 'movie'), sourceLayerId: 11 }

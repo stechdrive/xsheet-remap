@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { activeCutProjectFromDocument, clipNodePath, remapClipTracks, type ClipTrackCorrespondence, type CutGroupProjectDocument } from '@xsheet-remap/core'
 import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
+import { TooltipTarget } from './Tooltip'
 
 export function ClipCorrespondenceDialog({ document, onClose, onApply }: { document: CutGroupProjectDocument; onClose: () => void; onApply: (assignments: ClipTrackCorrespondence[]) => void }) {
   const project = useMemo(() => activeCutProjectFromDocument(document), [document])
@@ -25,7 +26,7 @@ export function ClipCorrespondenceDialog({ document, onClose, onApply }: { docum
         <table><thead><tr><th>CLIPのフォルダー</th><th>表示グループ</th><th>セル列</th></tr></thead><tbody>{assignments.map(row => {
           const slot = project.cspTrackSlots.find(slot => slot.slotId === row.slotId)!
           const path = clipNodePath(document.clipDocument!, row.folderId)
-          return <tr key={row.folderId}><td title={path}>{path}</td><td><select aria-label={`${path}の表示グループ`} value={slot.correctionLayerId} onChange={event => update(row.folderId, event.target.value, slot.paperTrack)}>{project.correctionLayers.map(process => <option key={process.layerId} value={process.layerId}>{process.label}</option>)}</select></td><td><select aria-label={`${path}のセル列`} value={slot.paperTrack} onChange={event => update(row.folderId, slot.correctionLayerId!, event.target.value)}>{project.logicalSheet.paperTracks.map(track => <option key={track.paperTrack} value={track.paperTrack}>{track.label}</option>)}</select></td></tr>
+          return <tr key={row.folderId}><TooltipTarget label={path}>{tooltip => <td {...tooltip}>{path}</td>}</TooltipTarget><td><select aria-label={`${path}の表示グループ`} value={slot.correctionLayerId} onChange={event => update(row.folderId, event.target.value, slot.paperTrack)}>{project.correctionLayers.map(process => <option key={process.layerId} value={process.layerId}>{process.label}</option>)}</select></td><td><select aria-label={`${path}のセル列`} value={slot.paperTrack} onChange={event => update(row.folderId, slot.correctionLayerId!, event.target.value)}>{project.logicalSheet.paperTracks.map(track => <option key={track.paperTrack} value={track.paperTrack}>{track.label}</option>)}</select></td></tr>
         })}</tbody></table>
         {(error || preview.error) && <p className="issue error" role="alert">{error || preview.error}</p>}
       </div>

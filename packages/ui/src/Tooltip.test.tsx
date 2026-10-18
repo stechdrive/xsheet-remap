@@ -56,6 +56,20 @@ describe('calculateTooltipPosition', () => {
 })
 
 describe('TooltipTarget', () => {
+  it('does not cover a drag destination or reopen on pointer focus, but supports later keyboard focus', () => {
+    vi.useFakeTimers()
+    render(<TooltipTarget label="ドラッグ中は隠す">{tooltip => <button {...tooltip}>対象</button>}</TooltipTarget>)
+    const trigger = screen.getByRole('button')
+    fireEvent.pointerEnter(trigger, { buttons: 1 }); act(() => vi.runAllTimers())
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.pointerLeave(trigger); fireEvent.pointerEnter(trigger, { buttons: 0 }); act(() => vi.runAllTimers())
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    fireEvent.pointerDown(trigger); fireEvent.focus(trigger); act(() => vi.runAllTimers())
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.blur(trigger); fireEvent.focus(trigger); act(() => vi.runAllTimers())
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+  })
+
   it('portals a measured tooltip, associates it with the trigger, and dismisses it with Escape', () => {
     vi.useFakeTimers()
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(this: HTMLElement) {

@@ -5,7 +5,7 @@ import { type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, 
 import { uiText } from './i18n';
 import { type SheetRangeSelection, type SheetImageSettings } from './appTypes';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
-import { setInternalDragDropValidity, subscribeInternalDrag } from './internalDrag';
+import { avoidInternalDragPreview, setInternalDragDropValidity, subscribeInternalDrag } from './internalDrag';
 import { cellAssetPreviewItemsForHit, cellAssetPreviewPosition } from './sheetAssets';
 import { ASSET_MULTI_DRAG_MIME, ASSET_DRAG_MIME, REGISTERED_CELL_DRAG_MIME, STACK_GUIDE_DRAG_MIME, SHEET_ZOOM_WHEEL_FACTOR } from './sheetConstants';
 import { createSheetRenderModelContext } from './sheetRenderModel';
@@ -13,7 +13,7 @@ import { calibrationPointsForSettings } from './sheetImages';
 import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, nativeWheelUsesApplicationZoom, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel, nativeVerticalWheelDelta } from './sheetInteraction';
 import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TimedRangeLaneHeaderMenuState, TimelineLaneEditorState, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
-import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitFromPoint, processMoveOptionsForSlot } from './app-sheet-layers';
+import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitFromPoint, processMoveOptionsForSlot, rectForHit } from './app-sheet-layers';
 import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole } from './app-sheet-geometry';
 import { autoScrollViewportForDrag, scrollSheetHitIntoView } from './sheet-panel-viewport';
 import { defaultExportAfterTrackForInsertAfter, exportPreviousPaperTrackName, overlayExportPlacementAfterTrack, stackGuideInsertTargetFromPoint, stackGuidePlacementTargetFromPointer, stackGuidePlacementUpdateFromPointer } from './app-stack-guides';
@@ -521,6 +521,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function pageHitUnderClientPoint(clientX: number, clientY: number): { page: SheetPage; hit: SheetHit | null } | null {
+    const pointed = document.elementFromPoint?.(clientX, clientY)
+    if (pointed && !viewportRef.current?.contains(pointed)) return null
     for (const page of visiblePages) {
       const svg = svgForPage(page)
       if (!svg) continue
@@ -585,12 +587,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       } catch (reason) { error = reason instanceof Error ? reason.message : String(reason) }
       if (target) {
         setInternalDragDropValidity(error ? 'invalid' : 'valid')
-        if (hit) updateDropTargetPreview(hit, error ? 'invalid' : 'valid')
+        updateDropTargetPreview(hit, error ? 'invalid' : 'valid')
         props.onStatusHint('sheet-drop', error || destination)
       } else { clearDropTargetPreview(); props.onStatusHint('sheet-drop', null) }
       if (phase === 'drop') {
-        clearHover(); clearDropTargetPreview(); setInternalDragDropValidity(null)
-        if (target && !error) props.onClipLayerAssign?.(payload.layerId, hit)
+        clearHover(); clearDropTargetPreview(); setInternalDragDropValidity(null); props.onStatusHint('sheet-drop', null)
+        if (target && !error) {
+          viewportRef.current?.focus({ preventScroll: true })
+          props.onClipLayerAssign?.(payload.layerId, hit)
+        }
       }
       return
     }
@@ -981,6 +986,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
 
   function updateDropTargetPreview(hit: SheetHit | null, validity: SheetDropTargetPreview['validity']) {
     const next = hit?.paperTrack ? { hit, validity } : null
+    const page = next && visiblePages.find(page => page.pageId === next.hit.pageId)
+    const svg = page && svgForPage(page), rect = next && rectForHit(props.project, props.template, next.hit)
+    if (svg && rect) {
+      const box = svg.getBoundingClientRect()
+      avoidInternalDragPreview({ left: box.left + rect.x * box.width, right: box.left + (rect.x + rect.w) * box.width,
+        top: box.top + rect.y * box.height, bottom: box.top + (rect.y + rect.h) * box.height })
+    }
     const signature = next ? `${hoverHitSignature(next.hit)}|${next.validity}` : null
     if (dropTargetPreviewSignatureRef.current === signature) return
     dropTargetPreviewSignatureRef.current = signature

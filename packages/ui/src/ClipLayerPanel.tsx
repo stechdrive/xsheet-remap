@@ -3,7 +3,7 @@ import { addClipLayers, allProcessEvents, clipCelRoot, clipEffectiveCel, clipNod
 import { clipSourceBytes, previewClipLayer, isTauriHost } from '@xsheet-remap/adapters'
 import { collectAssetFilesFromDrop } from './assetFiles'
 import { createStackGuideLabel } from '@xsheet-remap/core'
-import { setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag } from './internalDrag'
+import { avoidInternalDragPreview, setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag } from './internalDrag'
 import { AssetFloatingPreview } from './assetPreview'
 import { initialAssetPreviewRect, type AssetPreviewPayload } from './assetPreviewModel'
 import { ClipLayerAppearance, clipBlendLabel } from './ClipLayerAppearance'
@@ -13,6 +13,7 @@ import { ClipCelAssignment } from './ClipCelAssignment'
 import { ProcessSettingsDialog } from './ProcessSettingsDialog'
 import { updateCorrectionLayers } from '@xsheet-remap/core'
 import { clipLayerDropAtElement, clipLayerFileDropAllowed, subscribeNativeLayerHover, type ClipLayerDropTarget } from './clipLayerDrop'
+import { TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
 import './styles/clip-layers.css'
 
 export interface ClipLayerPanelProps {
@@ -54,6 +55,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   const input = useRef<HTMLInputElement>(null)
   const panel = useRef<HTMLElement>(null)
   const dragged = useRef(false)
+  const [dragActive, setDragActive] = useState(false)
   const selected = document.nodes.find(node => node.id === selectedId)
   const parentId = selected && ['folder', 'animation'].includes(selected.kind) ? selected.id : selected?.parentId ?? null
   const selectedSlot = project.cspTrackSlots.find(slot => slot.paperTrack === paperTrack && slot.correctionLayerId === mappingProcessId)
@@ -87,10 +89,14 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   }
 
   useEffect(() => subscribeInternalDrag(detail => {
+    setDragActive(detail.phase === 'start' || detail.phase === 'move')
     if (detail.payload.kind !== 'clip-layer') return
     if (detail.phase === 'cancel') { setDropTarget(null); setInternalDragDropValidity(null); return }
-    const destination = clipLayerDropAtElement(document, window.document.elementFromPoint?.(detail.clientX, detail.clientY) ?? null, detail.clientY, detail.payload.layerId)
+    const pointed = window.document.elementFromPoint?.(detail.clientX, detail.clientY) ?? null
+    const destination = clipLayerDropAtElement(document, pointed, detail.clientY, detail.payload.layerId)
     if (!destination) { setDropTarget(null); return }
+    const row = pointed?.closest('[data-clip-layer-id]')
+    if (row) avoidInternalDragPreview(row.getBoundingClientRect())
     try {
       if (destination.id === detail.payload.layerId) throw new Error('移動先を選んでください。')
       const next = moveClipLayer(project, detail.payload.layerId, destination.parentId, destination.beforeId)
@@ -211,14 +217,14 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
               createPreview: () => ({ primaryText: node.name, secondaryText: clipNodePath(document, node.id), thumbnailUrl: thumbnail }),
             })
           }}>
-          <button className="clipLayerEye" type="button" role="checkbox" aria-label={`${node.name}の表示`} aria-checked={node.visible} title={node.visible ? 'レイヤーを非表示' : 'レイヤーを表示'} disabled={props.disabled || node.locked} onClick={event => { event.stopPropagation(); apply(() => updateClipLayer(project, node.id, { visible: !node.visible })) }}><span className={node.visible ? '' : 'clipEyeHidden'}><ClipLayerIcon kind="eye" /></span></button>
-          <span className="clipLayerLock" role={node.labelColor ? 'img' : undefined} aria-label={node.labelColor ? `${node.name}のラベルカラー ${node.labelColor}` : undefined} title={[node.locked ? '保護されたレイヤー' : '', node.labelColor ? `ラベルカラー ${node.labelColor}` : ''].filter(Boolean).join(' / ') || undefined}>{node.locked && <ClipLayerIcon kind="lock" />}</span>
+          <TooltipTarget label={node.visible ? 'レイヤーを非表示' : 'レイヤーを表示'}>{tooltip => <button {...tooltip} className="clipLayerEye" type="button" role="checkbox" aria-label={`${node.name}の表示`} aria-checked={node.visible} disabled={props.disabled || node.locked} onClick={event => { event.stopPropagation(); apply(() => updateClipLayer(project, node.id, { visible: !node.visible })) }}><span className={node.visible ? '' : 'clipEyeHidden'}><ClipLayerIcon kind="eye" /></span></button>}</TooltipTarget>
+          <TooltipTarget label={[node.locked ? '保護されたレイヤー' : '', node.labelColor ? `ラベルカラー ${node.labelColor}` : ''].filter(Boolean).join(' / ')}>{tooltip => <span {...tooltip} className="clipLayerLock" role={node.labelColor ? 'img' : undefined} aria-label={node.labelColor ? `${node.name}のラベルカラー ${node.labelColor}` : undefined}>{node.locked && <ClipLayerIcon kind="lock" />}</span>}</TooltipTarget>
           <span className="clipLayerIndent" />
           {isFolder ? <button className={`clipLayerDisclosure ${collapsed.has(node.id) ? '' : 'expanded'}`} type="button" aria-label={`${node.name}を${collapsed.has(node.id) ? '展開' : '折りたたむ'}`} onClick={event => { event.stopPropagation(); setCollapsed(current => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next }) }}><ClipLayerIcon kind="chevron" /></button> : <span className="clipDisclosureSpace" />}
-          <button className={`clipLayerThumbnail ${thumbnail ? 'hasImage' : ''}`} type="button" aria-label={node.kind === 'audio' ? `${node.name}の音声操作` : `${node.name}をクイックルック`} title={`${clipLayerKindLabel[node.kind]} · ${node.kind === 'audio' ? 'シートとの対応から音声を取り込み' : node.kind === 'video' ? 'CLIP保存時の画像をクイックルック' : 'クイックルック（Space）'}`} onClick={event => { event.stopPropagation(); select(node); setPreviewOpen(node.kind !== 'audio') }}>{thumbnail ? <img src={thumbnail} alt="" draggable={false} loading="lazy" /> : <ClipLayerIcon kind={node.kind} />}</button>
+          <TooltipTarget label={`${clipLayerKindLabel[node.kind]} · ${node.kind === 'audio' ? 'シートとの対応から音声を取り込み' : node.kind === 'video' ? 'CLIP保存時の画像をクイックルック' : 'クイックルック（Space）'}`}>{tooltip => <button {...tooltip} className={`clipLayerThumbnail ${thumbnail ? 'hasImage' : ''}`} type="button" aria-label={node.kind === 'audio' ? `${node.name}の音声操作` : `${node.name}をクイックルック`} onClick={event => { event.stopPropagation(); select(node); setPreviewOpen(node.kind !== 'audio') }}>{thumbnail ? <img src={thumbnail} alt="" draggable={false} loading="lazy" /> : <ClipLayerIcon kind={node.kind} />}</button>}</TooltipTarget>
           <div className="clipLayerCaption">
-            <span className="clipLayerInfo"><span>{node.kind === 'audio' ? '音声レイヤー' : `${Math.round(node.opacity * 100)}% ${clipBlendLabel(node.blendMode)}${node.kind === 'video' ? ' · 動画' : ''}`}</span>{project.stackGuideLabels.some(label => label.clipLayerId === node.id) && <small title="シート上の表示フラグに対応">旗</small>}{ambiguous ? <small title="同名の下段セルがタイムラインで採用されます">同名</small> : cel?.id === node.id && <small title={isUsed ? '現在のタイムラインで使用中' : '現在のタイムラインで未使用'}>{isUsed ? '使用中' : '未使用'}</small>}</span>
-            {renamingId === node.id ? <input aria-label="レイヤー名" autoFocus defaultValue={node.name} onFocus={event => event.target.select()} onClick={event => event.stopPropagation()} onBlur={event => { if (event.target.value !== node.name) apply(() => updateClipLayer(project, node.id, { name: event.target.value })); setRenamingId(null) }} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.value = node.name; setRenamingId(null) } }} /> : <span className="clipLayerName" title={`${clipNodePath(document, node.id)} · ${clipLayerKindLabel[node.kind]}`} onDoubleClick={event => { event.stopPropagation(); if (!props.disabled && !node.locked) setRenamingId(node.id) }}>{node.name}</span>}
+            <span className="clipLayerInfo"><span>{node.kind === 'audio' ? '音声レイヤー' : `${Math.round(node.opacity * 100)}% ${clipBlendLabel(node.blendMode)}${node.kind === 'video' ? ' · 動画' : ''}`}</span>{project.stackGuideLabels.some(label => label.clipLayerId === node.id) && <TooltipTarget label="シート上の表示フラグに対応">{tooltip => <small {...tooltip}>旗</small>}</TooltipTarget>}{ambiguous ? <TooltipTarget label="同名の下段セルがタイムラインで採用されます">{tooltip => <small {...tooltip}>同名</small>}</TooltipTarget> : cel?.id === node.id && <TooltipTarget label={isUsed ? '現在のタイムラインで使用中' : '現在のタイムラインで未使用'}>{tooltip => <small {...tooltip}>{isUsed ? '使用中' : '未使用'}</small>}</TooltipTarget>}</span>
+            {renamingId === node.id ? <input aria-label="レイヤー名" autoFocus defaultValue={node.name} onFocus={event => event.target.select()} onClick={event => event.stopPropagation()} onBlur={event => { if (event.target.value !== node.name) apply(() => updateClipLayer(project, node.id, { name: event.target.value })); setRenamingId(null) }} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.value = node.name; setRenamingId(null) } }} /> : <TooltipTarget label={`${clipNodePath(document, node.id)} · ${clipLayerKindLabel[node.kind]}`}>{tooltip => <span {...tooltip} className="clipLayerName" onDoubleClick={event => { event.stopPropagation(); if (!props.disabled && !node.locked) setRenamingId(node.id) }}>{node.name}</span>}</TooltipTarget>}
           </div>
         </div>
         {isFolder && !collapsed.has(node.id) && <div role="group">{renderNodes(node.id, depth + 1)}</div>}
@@ -227,7 +233,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   }
 
   const newLayersDisabled = props.disabled || Boolean(document.nodes.find(node => node.id === parentId)?.locked)
-  return <section ref={panel} className="clipLayerPanel" data-workspace-keyboard-scope="editor" data-clip-layer-parent="__root__"
+  return <TooltipSuppressionProvider suppressed={dragActive}><section ref={panel} className="clipLayerPanel" data-workspace-keyboard-scope="editor" data-clip-layer-parent="__root__"
     onDragOver={event => {
       if (!event.dataTransfer.types.includes('Files') || isTauriHost()) return
       event.preventDefault()
@@ -259,21 +265,21 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
         if (selected.kind === 'folder' || selected.kind === 'animation') setCollapsed(current => { const next = new Set(current); if (event.key === 'ArrowLeft') next.add(selected.id); else next.delete(selected.id); return next })
       }
     }} tabIndex={0}>
-    <header className="clipPaletteTitle"><strong>レイヤー</strong><span title={selected ? clipNodePath(document, selected.id) : 'レイヤーを選択'}>{selected?.name ?? ''}</span>{selected && <details className="clipLayerMenu"><summary aria-label="レイヤーメニュー" title="レイヤーメニュー">≡</summary><fieldset className="clipLayerProperties" disabled={props.disabled || selected.locked}>
+    <header className="clipPaletteTitle"><strong>レイヤー</strong><TooltipTarget label={selected ? clipNodePath(document, selected.id) : 'レイヤーを選択'}>{tooltip => <span {...tooltip}>{selected?.name ?? ''}</span>}</TooltipTarget>{selected && <details className="clipLayerMenu"><TooltipTarget label="レイヤーメニュー">{tooltip => <summary {...tooltip} aria-label="レイヤーメニュー">≡</summary>}</TooltipTarget><fieldset className="clipLayerProperties" disabled={props.disabled || selected.locked}>
         <label>名前<input aria-label="選択レイヤー名" key={selected.id + selected.name} defaultValue={selected.name} onBlur={event => { if (event.target.value !== selected.name) apply(() => updateClipLayer(project, selected.id, { name: event.target.value })) }} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur() }} /></label>
         <label>移動先<select aria-label="レイヤーの移動先" value={selected.parentId ?? ''} onChange={event => apply(() => moveClipLayer(project, selected.id, event.target.value || null))}><option value="">最上位</option>{document.nodes.filter(node => node.id !== selected.id && ['folder', 'animation'].includes(node.kind)).map(node => <option key={node.id} value={node.id}>{clipNodePath(document, node.id)}</option>)}</select></label>
       </fieldset></details>}</header>
     <ClipLayerAppearance key={`${selected?.id}:${selected?.opacity}`} node={selected} disabled={props.disabled} onChange={updates => { if (selected) apply(() => updateClipLayer(project, selected.id, updates)) }} />
     <div className="clipLayerCommandBar" role="toolbar" aria-label="レイヤー操作">
-      <button type="button" title="新規ラスターレイヤー" aria-label="新規ラスターレイヤー" disabled={newLayersDisabled} onClick={() => add('raster')}><ClipLayerIcon kind="raster" add /></button>
-      <button type="button" title="新規レイヤーフォルダー" aria-label="新規レイヤーフォルダー" disabled={newLayersDisabled} onClick={() => add('folder')}><ClipLayerIcon kind="folder" add /></button>
-      <button type="button" title="新規アニメーションフォルダー" aria-label="新規アニメーションフォルダー" disabled={newLayersDisabled} onClick={() => add('animation')}><ClipLayerIcon kind="animation" add /></button>
+      <TooltipTarget label="新規ラスターレイヤー">{tooltip => <button {...tooltip} type="button" aria-label="新規ラスターレイヤー" disabled={newLayersDisabled} onClick={() => add('raster')}><ClipLayerIcon kind="raster" add /></button>}</TooltipTarget>
+      <TooltipTarget label="新規レイヤーフォルダー">{tooltip => <button {...tooltip} type="button" aria-label="新規レイヤーフォルダー" disabled={newLayersDisabled} onClick={() => add('folder')}><ClipLayerIcon kind="folder" add /></button>}</TooltipTarget>
+      <TooltipTarget label="新規アニメーションフォルダー">{tooltip => <button {...tooltip} type="button" aria-label="新規アニメーションフォルダー" disabled={newLayersDisabled} onClick={() => add('animation')}><ClipLayerIcon kind="animation" add /></button>}</TooltipTarget>
       <span className="clipCommandDivider" />
-      <button type="button" className="clipImageImport" title={`画像を追加：${parentId ? clipNodePath(document, parentId) : '最上位'}`} disabled={newLayersDisabled} onClick={() => input.current?.click()}><ClipLayerIcon kind="image" />画像を追加…</button>
-      <button type="button" className="clipDeleteLayer" title="レイヤーを削除" aria-label="レイヤーを削除" disabled={props.disabled || !selected || selected.locked} onClick={removeSelected}><ClipLayerIcon kind="trash" /></button>
+      <TooltipTarget label={`画像を追加：${parentId ? clipNodePath(document, parentId) : '最上位'}`}>{tooltip => <button {...tooltip} type="button" className="clipImageImport" disabled={newLayersDisabled} onClick={() => input.current?.click()}><ClipLayerIcon kind="image" />画像を追加…</button>}</TooltipTarget>
+      <TooltipTarget label="レイヤーを削除">{tooltip => <button {...tooltip} type="button" className="clipDeleteLayer" aria-label="レイヤーを削除" disabled={props.disabled || !selected || selected.locked} onClick={removeSelected}><ClipLayerIcon kind="trash" /></button>}</TooltipTarget>
     </div>
     <input ref={input} type="file" accept="image/*" multiple hidden onChange={event => { const beforeId = selected?.id === parentId ? children.get(parentId)?.[0]?.id : selected?.id; props.onFiles(Array.from(event.target.files ?? []), parentId, beforeId); event.target.value = '' }} />
-    <div className="clipLayerSearch"><ClipLayerIcon kind="search" /><input aria-label="レイヤーを検索" placeholder="レイヤーを検索" value={search} onChange={event => setSearch(event.target.value)} /><label title="現在のタイムラインで未使用のセルだけを表示"><input type="checkbox" checked={unusedOnly} onChange={event => setUnusedOnly(event.target.checked)} />未使用</label></div>
+    <div className="clipLayerSearch"><ClipLayerIcon kind="search" /><input aria-label="レイヤーを検索" placeholder="レイヤーを検索" value={search} onChange={event => setSearch(event.target.value)} /><TooltipTarget label="現在のタイムラインで未使用のセルだけを表示">{tooltip => <label {...tooltip}><input type="checkbox" checked={unusedOnly} onChange={event => setUnusedOnly(event.target.checked)} />未使用</label>}</TooltipTarget></div>
     <div className={`clipLayerTree ${dropTarget?.id === null ? dropTarget.valid ? 'clipRootDrop' : 'clipRootDrop clipDropInvalid' : ''}`} role="tree" aria-label="CLIPレイヤーツリー">{renderNodes(null)}</div>
     <p className="clipDropStatus" aria-live="polite">{dropTarget ? `${dropTarget.valid ? '' : '移動・追加不可：'}${dropTarget.id ? document.nodes.find(node => node.id === dropTarget.id)?.name : '最上位'}${dropTarget.placement === 'before' ? ' の上に挿入' : dropTarget.placement === 'after' ? ' の下に挿入' : ' の中へ'}` : `画像の追加先：${parentId ? clipNodePath(document, parentId) : '最上位'}`}</p>
     <div className="clipSheetConnection">
@@ -289,7 +295,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
             <label>対応する工程<select aria-label="対応する工程" value={mappingProcessId} onChange={event => setMappingProcessId(event.target.value)}>{project.correctionLayers.map(process => <option key={process.layerId} value={process.layerId}>{process.label}</option>)}</select></label>
             <label>セル列<select aria-label="登録先セル列" value={paperTrack} onChange={event => setPaperTrack(event.target.value)}>{project.logicalSheet.paperTracks.map(track => <option key={track.paperTrack} value={track.paperTrack}>{track.label}</option>)}</select></label>
           </div>
-          <p className="clipTargetPath" title={targetLabel}>登録先：{targetLabel}</p>
+          <TooltipTarget label={targetLabel}>{tooltip => <p {...tooltip} className="clipTargetPath">登録先：{targetLabel}</p>}</TooltipTarget>
           <label>セル内フォルダー<input aria-label="セル内の画像登録先" placeholder="例：作監（空欄はセル直下）" value={cellPath} onChange={event => setPathDraft({ slotId: target?.slotId, value: event.target.value })} /></label>
           <button type="button" disabled={selected?.kind !== 'animation'} onClick={() => apply(() => {
             const slot = project.cspTrackSlots.find(item => item.paperTrack === paperTrack && item.correctionLayerId === mappingProcessId)
@@ -306,5 +312,5 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     {notice && <p role="status" className="clipLayerNotice">{notice}</p>}
     {processSettingsOpen && <ProcessSettingsDialog project={project} onClose={() => setProcessSettingsOpen(false)} onApply={layers => { if (apply(() => updateCorrectionLayers(project, layers))) setProcessSettingsOpen(false) }} />}
     {previewOpen && preview?.request === previewRequest && <AssetFloatingPreview isDragPassthrough={false} payload={preview.payload} rect={previewRect} onRectChange={setPreviewRect} onClose={() => setPreviewOpen(false)} />}
-  </section>
+  </section></TooltipSuppressionProvider>
 }

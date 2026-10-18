@@ -1,4 +1,4 @@
-import { memo, useContext, useMemo } from 'react'
+import { memo, useContext, useLayoutEffect, useMemo, useRef } from 'react'
 import type { NormalizedRect, SheetPage } from '@xsheet-remap/core'
 import type { SheetRenderModelContext } from './sheetRenderModel'
 import type { TimingRangeMovePlan, TimingRangeMoveSource } from './timingEditing'
@@ -11,6 +11,7 @@ import { sheetRoleLabel } from './sheetInteraction'
 import { SheetRenderWindowContext } from './useSheetRenderWindow'
 import { sheetFrameRangeForWindow } from './sheetRenderWindowGeometry'
 import { useSheetTextMetricsRevision } from './useSheetTextMetricsRevision'
+import { positionDragPreview, type DragPreviewRect } from './pointerDragGhost'
 
 function RangeFill({ rect, className }: { rect: NormalizedRect; className: string }) {
   return <rect className={className} x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
@@ -85,16 +86,25 @@ function rangeLabel(tracks: string[], start: number, end: number) {
   return `${columns} ${frame(start)}${end === start ? '' : `–${frame(end)}`}`
 }
 
-export function TimingDragStatus({ source, plan, clientX, clientY }: {
+export function TimingDragStatus({ source, plan, clientX, clientY, getTargetRect }: {
   source: TimingRangeMoveSource; plan: TimingRangeMovePlan; clientX: number; clientY: number
+  getTargetRect?: () => DragPreviewRect | null
 }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const position = positionDragPreview({ x: clientX, y: clientY }, element.getBoundingClientRect(),
+      { width: window.innerWidth, height: window.innerHeight }, getTargetRect?.())
+    element.style.visibility = position ? '' : 'hidden'
+    if (position) { element.style.left = `${position.x}px`; element.style.top = `${position.y}px` }
+  }, [clientX, clientY, getTargetRect, source, plan])
   const start = rangeLabel(source.clipboard.sourcePaperTracks, source.range.frameStart, source.range.frameEnd)
   const end = plan.destinationPaperTracks.length > 0
     ? rangeLabel(plan.destinationPaperTracks, plan.destinationFrameStart, plan.destinationFrameEnd) : '移動不可'
   const offset = `${plan.frameDelta > 0 ? '+' : ''}${plan.frameDelta}F・${plan.trackDelta === 0 ? '同じ列' : `${plan.trackDelta > 0 ? '右' : '左'}${Math.abs(plan.trackDelta)}列`}`
-  return <div className="timingDragStatus" data-drag-validity={plan.reason ? 'invalid' : plan.collisionCells.length ? 'collision' : 'valid'}
-    role="status" aria-live="polite" aria-atomic="true"
-    style={{ left: Math.max(8, Math.min(clientX + 18, window.innerWidth - 368)), top: Math.max(8, Math.min(clientY + 22, window.innerHeight - 116)) }}>
+  return <div ref={ref} className="timingDragStatus" data-drag-validity={plan.reason ? 'invalid' : plan.collisionCells.length ? 'collision' : 'valid'}
+    role="status" aria-live="polite" aria-atomic="true">
     <strong>{sheetRoleLabel(source.range.role)} {start} → {end}</strong>
     <span>{offset} / {source.items.length}入力</span>
     <span>{plan.reason ? INVALID_REASON[plan.reason] : plan.collisionCells.length > 0

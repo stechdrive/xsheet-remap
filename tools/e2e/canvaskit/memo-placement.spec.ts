@@ -30,8 +30,7 @@ for (const template of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
     const context = createSheetRenderModelContext(project, template)
     const movedOffsets = new Map<string, number>()
     await openProject(page, await encodeProjectArchive(createProjectDocumentFromCutProject(project, { sheetTemplate: template })))
-    await activateControl(page, page.getByRole('button', { name: 'CSPレイヤー構成', exact: true }))
-    await activateControl(page, page.getByRole('button', { name: '画像素材', exact: true }))
+    await activateControl(page, page.getByRole('button', { name: 'シート編集', exact: true }))
     for (const source of project.memos as TimelineInkMemo[]) {
       const pageModel = context.pages.find(p => p.frameStart <= source.anchor.frame && p.frameEnd >= source.anchor.frame)!
       const original = timelineMemoSegmentsForPage(template, pageModel, source, { paperTracks: ['A'] })[0]!

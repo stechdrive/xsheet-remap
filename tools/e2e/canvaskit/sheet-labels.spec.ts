@@ -16,7 +16,8 @@ test('fits long sheet labels, previews sheet-only rename, and preserves timing a
   project = upsertBinding(project, { slotId: 'slot_B', keyId: long.key.keyId, cspCellName: longName, materialState: 'unassigned' })
   const document = createProjectDocumentFromCutProject(project)
   const archive = Buffer.from(await encodeProjectArchive(document))
-  await page.goto('./?app=remap')
+  // Exercise the legacy binding cards in Editor; Remap uses the CLIP layer tree.
+  await page.goto('./?app=editor')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'long-labels.xsr', mimeType: 'application/octet-stream', buffer: archive })
   const svg = page.locator('.sheetSvg').first()

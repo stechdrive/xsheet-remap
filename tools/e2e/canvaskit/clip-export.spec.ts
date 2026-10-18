@@ -32,7 +32,9 @@ async function sourceProject() {
 
 for (const mode of ['empty', 'crop', 'expand'] as const) test(`CLIP worker saves shared timelines with ${mode} images through the export dialog`, async ({ page }, info) => {
   const SQL = await initSqlJs({ wasmBinary: new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer })
-  await page.goto('./?app=remap')
+  // The legacy binding exporter remains available in Editor. Remap migrates
+  // this archive into a CLIP document with its own import/export dialog.
+  await page.goto('./?app=editor')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'shared.xsr', mimeType: 'application/octet-stream', buffer: await sourceProject() })
   await expect(page.locator('[data-timeline-event-role="action"][data-timeline-event-track="A"][data-timeline-event-frame="7"] .eventText')).toHaveText('1')

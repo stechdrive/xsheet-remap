@@ -1,4 +1,5 @@
 import { expect, test, type Page } from './fixtures'
+import { activateControl } from './input'
 import { addOverlayPaperTrackAtCspTop, cellRectForHit, createDefaultProject, createSheetPages, standardA3SheetTemplate, timingHitForFrame, type SheetTimingRole } from '../../../packages/core/src/index'
 import { overlayColumnRectForPage } from '../../../packages/ui/src/sheet-layers-hit-geometry'
 import { waitForPaperPaint } from '../paper-paint-contract'
@@ -64,8 +65,10 @@ test('copies ACTION to CELL and back with independent numbering and undo', async
 })
 
 test('CSP plus adds an ACTION column with working keyboard entry', async ({ page }, info) => {
-  await page.goto('./?app=remap')
+  // The legacy CSP add menu belongs to Editor; Remap adds columns from its layer palette.
+  await page.goto('./?app=editor')
   await ready(page)
+  await activateControl(page, page.getByRole('button', { name: 'CSPレイヤー構成', exact: true }))
   await page.getByLabel('CSPレイヤー項目を追加', { exact: true }).click()
   await page.getByRole('button', { name: '追加セル列', exact: true }).click()
   await page.getByRole('button', { name: '追加セル列を作成', exact: true }).click()

@@ -28,8 +28,7 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   }
   await ready()
   // Expose the full cell group on narrow viewports before pointing at it.
-  await activateControl(page, page.getByRole('button', { name: 'CSPレイヤー構成', exact: true }))
-  await activateControl(page, page.getByRole('button', { name: '画像素材', exact: true }))
+  await activateControl(page, page.getByRole('button', { name: 'シート編集', exact: true }))
   await ready()
   const event = (track: string) => page.locator(`[data-timeline-event-role="cell"][data-timeline-event-track="${track}"][data-timeline-event-frame="1"]`)
   const contextMenu = async (track: string) => {

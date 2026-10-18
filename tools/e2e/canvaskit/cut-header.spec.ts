@@ -44,8 +44,7 @@ for (const kind of ['paper', 'digital', 'custom'] as const) {
     const document = documentFor(templateFor(kind), 6)
     await openProject(page, document)
     // Keep the header inside the sheet viewport on narrow touch emulations.
-    await activateControl(page, page.getByRole('button', { name: 'CSPレイヤー構成', exact: true }))
-    await activateControl(page, page.getByRole('button', { name: '画像素材', exact: true }))
+    await activateControl(page, page.getByRole('button', { name: 'シート編集', exact: true }))
     await activateControl(page, page.getByLabel('兼用カットを切り替える', { exact: true }))
     await activateControl(page, page.getByRole('button', { name: '兼用カットを追加', exact: true }))
     await page.getByLabel('追加する兼用カット名', { exact: true }).fill('007')

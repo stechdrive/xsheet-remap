@@ -13,6 +13,16 @@ import {
 } from './workspaceInteractionPolicy'
 
 describe('workspace interaction policy', () => {
+  it('allows layer history shortcuts without routing layer keys or text-field Undo to the sheet', () => {
+    const panel = document.createElement('section'), input = document.createElement('input')
+    panel.dataset.workspaceKeyboardScope = 'history'; panel.append(input)
+    expect(resolveWorkspaceKeyboardOwner(panel, 'sheet')).toBe('history')
+    expect(resolveWorkspaceKeyboardOwner(input, 'sheet')).toBe('ignore')
+    expect(isTimingEditInteractionBoundary(panel, 'focusin')).toBe(false)
+    const undo = vi.fn(), redo = vi.fn(), preventDefault = vi.fn()
+    for (const key of ['z', 'y', '7', 'Delete']) handleWorkspaceKeyboardBoundary({ key, ctrlKey: key === 'z' || key === 'y', metaKey: false, shiftKey: false, defaultPrevented: false, preventDefault }, 'history', { undo, redo })
+    expect(undo).toHaveBeenCalledTimes(1); expect(redo).toHaveBeenCalledTimes(1); expect(preventDefault).toHaveBeenCalledTimes(2)
+  })
   it('creates monotonic one-shot SOUND navigation requests even for the same cue', () => {
     const first = nextSoundCueNavigationRequest(null, 'cue-1')
     const second = nextSoundCueNavigationRequest(first, 'cue-1')

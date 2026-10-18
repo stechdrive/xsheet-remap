@@ -14,6 +14,7 @@ import { ProcessSettingsDialog } from './ProcessSettingsDialog'
 import { updateCorrectionLayers } from '@xsheet-remap/core'
 import { clipLayerDropAtElement, clipLayerFileDropAllowed, subscribeNativeLayerHover, type ClipLayerDropTarget } from './clipLayerDrop'
 import { TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
+import { subscribeNativeFileDragPreview } from './nativeFileDragPreview'
 import './styles/clip-layers.css'
 
 export interface ClipLayerPanelProps {
@@ -56,6 +57,8 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   const panel = useRef<HTMLElement>(null)
   const dragged = useRef(false)
   const [dragActive, setDragActive] = useState(false)
+  const [nativeDragActive, setNativeDragActive] = useState(false)
+  useEffect(() => subscribeNativeFileDragPreview(feedback => setNativeDragActive(feedback !== null)), [])
   const selected = document.nodes.find(node => node.id === selectedId)
   const parentId = selected && ['folder', 'animation'].includes(selected.kind) ? selected.id : selected?.parentId ?? null
   const selectedSlot = project.cspTrackSlots.find(slot => slot.paperTrack === paperTrack && slot.correctionLayerId === mappingProcessId)
@@ -213,7 +216,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
             dragged.current = false
             startInternalPointerDrag(event, {
               interactiveTargetSelector: 'button:not(.clipLayerThumbnail),input,select,textarea,a,[contenteditable="true"]',
-              begin: () => { if (props.disabled) return null; dragged.current = true; return { kind: 'clip-layer', layerId: node.id } },
+              begin: () => { if (props.disabled) return null; dragged.current = true; panel.current?.focus({ preventScroll: true }); return { kind: 'clip-layer', layerId: node.id } },
               createPreview: () => ({ primaryText: node.name, secondaryText: clipNodePath(document, node.id), thumbnailUrl: thumbnail }),
             })
           }}>
@@ -233,7 +236,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   }
 
   const newLayersDisabled = props.disabled || Boolean(document.nodes.find(node => node.id === parentId)?.locked)
-  return <TooltipSuppressionProvider suppressed={dragActive}><section ref={panel} className="clipLayerPanel" data-workspace-keyboard-scope="editor" data-clip-layer-parent="__root__"
+  return <TooltipSuppressionProvider suppressed={dragActive || nativeDragActive}><section ref={panel} className="clipLayerPanel" data-workspace-keyboard-scope="history" data-clip-layer-parent="__root__"
     onDragOver={event => {
       if (!event.dataTransfer.types.includes('Files') || isTauriHost()) return
       event.preventDefault()

@@ -5,8 +5,9 @@ import { addClipLayers, createClipNode, createDefaultProject, ensureClipDocument
 import { ClipLayerPanel } from './ClipLayerPanel'
 import { dispatchInternalDrag } from './internalDrag'
 import { publishNativeLayerHover, clipLayerDropTarget } from './clipLayerDrop'
+import { clearNativeFileDragPreview, updateNativeFileDragPreview } from './nativeFileDragPreview'
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers() })
+afterEach(() => { cleanup(); clearNativeFileDragPreview(); vi.restoreAllMocks(); vi.useRealTimers() })
 function setup(locked = false, extras: ClipLayerNode[] = []) {
   const folder = createClipNode('素材', 'folder', null, 'materials')
   const first = { ...createClipNode('first', 'raster', folder.id, 'first'), locked }
@@ -23,6 +24,24 @@ function setup(locked = false, extras: ClipLayerNode[] = []) {
 }
 
 describe('CSP-style layer palette controls', () => {
+  it('moves keyboard ownership off the thumbnail when dragging and suppresses native file hover tooltips', () => {
+    vi.useFakeTimers()
+    const { row } = setup()
+    const thumbnail = row('first').querySelector<HTMLButtonElement>('.clipLayerThumbnail')!
+    thumbnail.focus()
+    const down = createEvent.pointerDown(thumbnail, { bubbles: true })
+    Object.defineProperties(down, { button: { value: 0 }, pointerId: { value: 1 }, pointerType: { value: 'mouse' }, clientX: { value: 10 }, clientY: { value: 10 } })
+    fireEvent(thumbnail, down)
+    const move = createEvent.pointerMove(window)
+    Object.defineProperties(move, { pointerId: { value: 1 }, clientX: { value: 40 }, clientY: { value: 20 } })
+    fireEvent(window, move)
+    expect(document.activeElement).toBe(row('first').closest('.clipLayerPanel'))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    act(() => updateNativeFileDragPreview({ type: 'enter', paths: ['001.png'] }, { x: 40, y: 20 }, null, true))
+    fireEvent.pointerEnter(row('second').querySelector('.clipLayerName')!); act(() => vi.runAllTimers())
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    act(() => clearNativeFileDragPreview())
+  })
   it('uses shared path tooltips and dismisses them for the entire layer drag', () => {
     vi.useFakeTimers()
     const { row } = setup()

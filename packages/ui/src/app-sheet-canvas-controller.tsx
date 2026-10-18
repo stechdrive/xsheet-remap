@@ -6,6 +6,7 @@ import { uiText } from './i18n';
 import { type SheetRangeSelection, type SheetImageSettings } from './appTypes';
 import { assetIdFromAssetTextDragData, collectAssetFilesFromDrop, hasFileTransferPayload, parseAssetIdsFromDragData } from './assetFiles';
 import { avoidInternalDragPreview, setInternalDragDropValidity, subscribeInternalDrag } from './internalDrag';
+import { avoidNativeFileDragPreview, subscribeNativeFileDragPreview } from './nativeFileDragPreview'
 import { cellAssetPreviewItemsForHit, cellAssetPreviewPosition } from './sheetAssets';
 import { ASSET_MULTI_DRAG_MIME, ASSET_DRAG_MIME, REGISTERED_CELL_DRAG_MIME, STACK_GUIDE_DRAG_MIME, SHEET_ZOOM_WHEEL_FACTOR } from './sheetConstants';
 import { createSheetRenderModelContext } from './sheetRenderModel';
@@ -559,6 +560,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     props.onRegisteredCellAssign(keyId, hit)
   }
 
+  useEffect(() => subscribeNativeFileDragPreview(feedback => {
+    updateDropTargetPreview(feedback?.hit ?? null, feedback?.valid ? 'valid' : 'invalid')
+    if (!feedback) clearHover()
+  }))
+
   useEffect(() => subscribeInternalDrag(detail => {
     const { payload, clientX, clientY, phase } = detail
     if (phase === 'cancel') {
@@ -990,8 +996,10 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const svg = page && svgForPage(page), rect = next && rectForHit(props.project, props.template, next.hit)
     if (svg && rect) {
       const box = svg.getBoundingClientRect()
-      avoidInternalDragPreview({ left: box.left + rect.x * box.width, right: box.left + (rect.x + rect.w) * box.width,
-        top: box.top + rect.y * box.height, bottom: box.top + (rect.y + rect.h) * box.height })
+      const protectedRect = { left: box.left + rect.x * box.width, right: box.left + (rect.x + rect.w) * box.width,
+        top: box.top + rect.y * box.height, bottom: box.top + (rect.y + rect.h) * box.height }
+      avoidInternalDragPreview(protectedRect)
+      avoidNativeFileDragPreview(protectedRect)
     }
     const signature = next ? `${hoverHitSignature(next.hit)}|${next.validity}` : null
     if (dropTargetPreviewSignatureRef.current === signature) return

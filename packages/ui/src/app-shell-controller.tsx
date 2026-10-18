@@ -12,6 +12,7 @@ import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, de
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
+import { updateNativeFileDragPreview, avoidNativeFileDragPreview, clearNativeFileDragPreview } from './nativeFileDragPreview'
 import { projectDocumentsEqual } from './projectDocumentEquality';
 import { addClipImages, bindClipCel, clipCelSheetDestination, clipSheetKeyAtFrame, selectTimingProcess, ensureClipDocument, synchronizeClipBindings, updateClipLayer } from '@xsheet-remap/core'
 import { clipImageDataUrl } from './clipImageImport'
@@ -543,6 +544,15 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handleNativeDragDropPayload(payload: NativeDragDropPayload, source: string) {
     const position = payload.position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     const clipDocument = projectRef.current.clipDocument
+    const points = clientPointCandidatesFromNativeDropPosition(position)
+    if (clipDocument) {
+      const point = points.find(point => document.elementFromPoint(point.x, point.y)?.closest('.clipLayerPanel') || nativeSheetHitFromClientPoint(point.x, point.y)) ?? points[0] ?? position
+      const hit = nativeSheetHitFromClientPoint(point.x, point.y)
+      updateNativeFileDragPreview(payload, point, hit, workMode === 'clip' && !protectedRevisionRef.current)
+      const row = document.elementFromPoint(point.x, point.y)?.closest('[data-clip-layer-id]')
+      if (row) avoidNativeFileDragPreview(row.getBoundingClientRect())
+    }
+    if (payload.type === 'leave' || payload.type === 'drop') setStatusHint('sheet-drop', null)
     if (clipDocument) publishNativeLayerHover(payload.type === 'enter' || payload.type === 'over'
       ? clientPointCandidatesFromNativeDropPosition(position).map(point => clipLayerDropAtElement(clipDocument, document.elementFromPoint(point.x, point.y), point.y)).find(Boolean) ?? null
       : null)
@@ -598,6 +608,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     return () => {
       disposed = true
       unsubscribe?.()
+      clearNativeFileDragPreview()
     }
   }, [nativeDragDropPayloadHandlerRef])
 

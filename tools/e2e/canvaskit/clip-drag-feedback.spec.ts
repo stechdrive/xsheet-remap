@@ -107,6 +107,18 @@ test('layer tooltips match the app and layer ghosts leave enlarged cells and ins
   await expect(ghost).toHaveCount(0)
   await expect(row(page, '001').locator('..')).not.toHaveClass(/clipDropBefore/)
 
+  const names = () => page.locator('.clipLayerName').filter({ hasText: /^00[12]$/ }).allTextContents()
+  const originalOrder = await names()
+  await begin('002')
+  await page.mouse.move(first.x + first.width / 2, first.y + 2, { steps: 8 })
+  await page.mouse.up()
+  await expect(page.locator('.clipLayerPanel')).toBeFocused()
+  expect(await names()).toEqual(['002', '001'])
+  await page.keyboard.press('ControlOrMeta+z')
+  expect(await names()).toEqual(originalOrder)
+  await page.keyboard.press('ControlOrMeta+y')
+  expect(await names()).toEqual(['002', '001'])
+
   const root = page.locator('[data-clip-layer-id="process:layer_sakuga"]')
   await root.scrollIntoViewIfNeeded()
   const folder = (await root.locator('.clipLayerName').boundingBox())!

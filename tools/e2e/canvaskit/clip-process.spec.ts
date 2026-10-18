@@ -34,6 +34,12 @@ test('nested CLIP processes share columns, switch independent timing, show diffe
   await page.getByLabel('工程差を表示', { exact: true }).check()
   await activateControl(page, page.getByLabel('基準シートと比較', { exact: true }))
   await expect(page.getByRole('region', { name: '工程別タイミング差分' })).toContainText('5–8')
+  const comparison = page.getByRole('region', { name: '工程別タイミング差分' })
+  expect(await comparison.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(false)
+  for (const label of await comparison.locator('.clipComparisonControls label').all()) {
+    expect(await label.evaluate(element => element.getBoundingClientRect().height)).toBeLessThan(35)
+  }
+  await page.screenshot({ path: info.outputPath('process-comparison-layout.png') })
   await activateControl(page, page.getByLabel('基準シートと比較', { exact: true }))
   await expect(page.getByTestId('process-difference-overlay').first().locator('rect')).not.toHaveCount(0)
   await process.selectOption({ label: correction.path.slice(0, -1).join('／') })

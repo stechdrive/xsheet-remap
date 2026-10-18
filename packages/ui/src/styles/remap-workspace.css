@@ -7,10 +7,11 @@
 .remapWorkspaceBar select { max-width: 180px; min-width: 70px; font-size: 12px; }
 .remapBaseLabel { display: block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 .remapTopBar .topActions > .remapWorkspaceBar { flex: 0 1 auto; }
-.actionMenuContent.remapComparisonMenu { width: min(620px, calc(100vw - 24px)); }
+.actionMenuContent.remapComparisonMenu { width: 620px; max-width: calc(100vw - 24px); }
 .remapComparisonMenu .clipProcessComparison { max-height: 65vh; overflow: auto; padding: 8px; background: #fff; }
-.clipComparisonControls { display: flex; gap: 12px; margin-bottom: 8px; }
-.clipComparisonControls label { display: flex; align-items: center; gap: 5px; }
+.clipComparisonControls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+.clipComparisonControls label { display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
+.clipComparisonControls select { min-width: 0; }
 .clipProcessComparison table { width: 100%; border-collapse: collapse; white-space: normal; }
 .clipProcessComparison th, .clipProcessComparison td { border-bottom: 1px solid #d9dfda; padding: 6px 8px; text-align: left; overflow-wrap: anywhere; }
 .clipImageDropDialog { max-width: 620px; }

@@ -8,12 +8,14 @@ import { AssetFloatingPreview } from './assetPreview'
 import { initialAssetPreviewRect, type AssetPreviewPayload } from './assetPreviewModel'
 import { ClipLayerAppearance, clipBlendLabel } from './ClipLayerAppearance'
 import { ClipLayerIcon, clipLayerKindLabel } from './ClipLayerIcons'
+import { ClipAudioImport } from './ClipAudioImport'
 import { clipLayerDropAtElement, clipLayerFileDropAllowed, subscribeNativeLayerHover, type ClipLayerDropTarget } from './clipLayerDrop'
 import './styles/clip-layers.css'
 
 export interface ClipLayerPanelProps {
   project: CutProject
   activeCutId: string
+  activeSheetRevisionId?: string
   activeProcessId: string
   onProcessChange: (id: string) => void
   onChange: (project: CutProject) => void
@@ -94,7 +96,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   useEffect(() => subscribeNativeLayerHover(destination => setDropTarget(destination ? { ...destination, valid: !props.disabled && clipLayerFileDropAllowed(document, destination) } : null)), [document, props.disabled, setDropTarget])
 
   useEffect(() => {
-    if (!previewOpen || !selected) return
+    if (!previewOpen || !selected || selected.kind === 'audio') return
     const controller = new AbortController(); const urls: string[] = []
     void (async () => {
       try {
@@ -132,7 +134,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
           } catch { controller.signal.throwIfAborted() }
           const descendantIds = new Set([node.id])
           for (let size = -1; size !== descendantIds.size;) { size = descendantIds.size; for (const child of document.nodes) if (child.parentId && descendantIds.has(child.parentId)) descendantIds.add(child.id) }
-          const layers = document.nodes.filter(child => descendantIds.has(child.id) && !['folder', 'animation'].includes(child.kind)).slice(0, 24)
+          const layers = document.nodes.filter(child => descendantIds.has(child.id) && !['folder', 'animation', 'audio'].includes(child.kind)).slice(0, 24)
           const items = []
           for (const layer of layers) {
             try { items.push(await read(layer)) } catch (error) { controller.signal.throwIfAborted(); items.push({ label: layer.name, detailText: String(error) }) }
@@ -182,9 +184,11 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
       if (!isFolder && (search && !node.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) || unusedOnly && isUsed)) return null
       const ambiguous = cel?.id === node.id && clipEffectiveCel(document, node.parentId!, node.name)?.id !== node.id
       const thumbnail = node.imageDataUrl ?? project.assets.find(asset => asset.assetId === node.assetId)?.thumbnailUrl
+      const rgb = node.labelColor?.slice(1).match(/../g)?.map(value => parseInt(value, 16))
+      const labelInk = rgb && (rgb[0] * .299 + rgb[1] * .587 + rgb[2] * .114 < 140) ? '#fff' : '#303633'
       const drop = dropTarget?.id === node.id ? dropTarget : null
       const dropClass = drop ? `clipDrop${drop.placement === 'before' ? 'Before' : drop.placement === 'after' ? 'After' : 'Into'} ${drop.valid ? '' : 'clipDropInvalid'}` : ''
-      return <div key={node.id} role="treeitem" aria-label={node.name} aria-selected={node.id === selectedId} aria-expanded={isFolder ? !collapsed.has(node.id) : undefined} className={`clipLayerItem ${dropClass}`} style={{ '--clip-layer-indent': `${depth * 12}px` } as CSSProperties}>
+      return <div key={node.id} role="treeitem" aria-label={node.name} aria-selected={node.id === selectedId} aria-expanded={isFolder ? !collapsed.has(node.id) : undefined} className={`clipLayerItem ${dropClass}`} style={{ '--clip-layer-indent': `${depth * 12}px`, '--clip-label-color': node.labelColor ?? 'transparent', '--clip-label-ink': node.labelColor ? labelInk : '#303633' } as CSSProperties}>
         <div className={`clipLayerRow ${node.id === selectedId ? 'selected' : ''}`} data-clip-layer-id={node.id} data-clip-layer-parent={isFolder ? node.id : node.parentId ?? '__root__'}
           onClickCapture={event => { if (dragged.current) { event.preventDefault(); event.stopPropagation(); dragged.current = false } }}
           onClick={() => { select(node); panel.current?.focus({ preventScroll: true }) }}
@@ -197,12 +201,12 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
             })
           }}>
           <button className="clipLayerEye" type="button" role="checkbox" aria-label={`${node.name}の表示`} aria-checked={node.visible} title={node.visible ? 'レイヤーを非表示' : 'レイヤーを表示'} disabled={props.disabled || node.locked} onClick={event => { event.stopPropagation(); apply(() => updateClipLayer(project, node.id, { visible: !node.visible })) }}><span className={node.visible ? '' : 'clipEyeHidden'}><ClipLayerIcon kind="eye" /></span></button>
-          <span className="clipLayerLock" title={node.locked ? '保護されたレイヤー' : undefined}>{node.locked && <ClipLayerIcon kind="lock" />}</span>
+          <span className="clipLayerLock" role={node.labelColor ? 'img' : undefined} aria-label={node.labelColor ? `${node.name}のラベルカラー ${node.labelColor}` : undefined} title={[node.locked ? '保護されたレイヤー' : '', node.labelColor ? `ラベルカラー ${node.labelColor}` : ''].filter(Boolean).join(' / ') || undefined}>{node.locked && <ClipLayerIcon kind="lock" />}</span>
           <span className="clipLayerIndent" />
           {isFolder ? <button className={`clipLayerDisclosure ${collapsed.has(node.id) ? '' : 'expanded'}`} type="button" aria-label={`${node.name}を${collapsed.has(node.id) ? '展開' : '折りたたむ'}`} onClick={event => { event.stopPropagation(); setCollapsed(current => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next }) }}><ClipLayerIcon kind="chevron" /></button> : <span className="clipDisclosureSpace" />}
-          <button className={`clipLayerThumbnail ${thumbnail ? 'hasImage' : ''}`} type="button" aria-label={`${node.name}をクイックルック`} title={`${clipLayerKindLabel[node.kind]} · クイックルック（Space）`} onClick={event => { event.stopPropagation(); select(node); setPreviewOpen(true) }}>{thumbnail ? <img src={thumbnail} alt="" draggable={false} loading="lazy" /> : <ClipLayerIcon kind={node.kind} />}</button>
+          <button className={`clipLayerThumbnail ${thumbnail ? 'hasImage' : ''}`} type="button" aria-label={node.kind === 'audio' ? `${node.name}の音声操作` : `${node.name}をクイックルック`} title={`${clipLayerKindLabel[node.kind]} · ${node.kind === 'audio' ? 'シートとの対応から音声を取り込み' : node.kind === 'video' ? 'CLIP保存時の画像をクイックルック' : 'クイックルック（Space）'}`} onClick={event => { event.stopPropagation(); select(node); setPreviewOpen(node.kind !== 'audio') }}>{thumbnail ? <img src={thumbnail} alt="" draggable={false} loading="lazy" /> : <ClipLayerIcon kind={node.kind} />}</button>
           <div className="clipLayerCaption">
-            <span className="clipLayerInfo"><span>{Math.round(node.opacity * 100)}% {clipBlendLabel(node.blendMode)}</span>{project.stackGuideLabels.some(label => label.clipLayerId === node.id) && <small title="シート上の表示フラグに対応">旗</small>}{ambiguous ? <small title="同名の下段セルがタイムラインで採用されます">同名</small> : cel?.id === node.id && <small title={isUsed ? '現在のタイムラインで使用中' : '現在のタイムラインで未使用'}>{isUsed ? '使用中' : '未使用'}</small>}</span>
+            <span className="clipLayerInfo"><span>{node.kind === 'audio' ? '音声レイヤー' : `${Math.round(node.opacity * 100)}% ${clipBlendLabel(node.blendMode)}${node.kind === 'video' ? ' · 動画' : ''}`}</span>{project.stackGuideLabels.some(label => label.clipLayerId === node.id) && <small title="シート上の表示フラグに対応">旗</small>}{ambiguous ? <small title="同名の下段セルがタイムラインで採用されます">同名</small> : cel?.id === node.id && <small title={isUsed ? '現在のタイムラインで使用中' : '現在のタイムラインで未使用'}>{isUsed ? '使用中' : '未使用'}</small>}</span>
             {renamingId === node.id ? <input aria-label="レイヤー名" autoFocus defaultValue={node.name} onFocus={event => event.target.select()} onClick={event => event.stopPropagation()} onBlur={event => { if (event.target.value !== node.name) apply(() => updateClipLayer(project, node.id, { name: event.target.value })); setRenamingId(null) }} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.value = node.name; setRenamingId(null) } }} /> : <span className="clipLayerName" title={`${clipNodePath(document, node.id)} · ${clipLayerKindLabel[node.kind]}`} onDoubleClick={event => { event.stopPropagation(); if (!props.disabled && !node.locked) setRenamingId(node.id) }}>{node.name}</span>}
           </div>
         </div>
@@ -230,7 +234,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
       void collectAssetFilesFromDrop(event.dataTransfer).then(files => { if (latestProject.current === currentDocument) props.onFiles(files, destination.parentId, destination.beforeId) }).catch(error => setNotice(String(error)))
     }} onKeyDown={event => {
       if ((event.target as Element).closest('input,select,button,summary')) return
-      if (event.key === ' ' && selected) { event.preventDefault(); event.stopPropagation(); setPreviewOpen(current => !current) }
+      if (event.key === ' ' && selected) { event.preventDefault(); event.stopPropagation(); if (selected.kind !== 'audio') setPreviewOpen(current => !current) }
       if (event.key === 'F2' && selected && !props.disabled && !selected.locked) { event.preventDefault(); event.stopPropagation(); setRenamingId(selected.id) }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault(); event.stopPropagation()
@@ -262,6 +266,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     <div className={`clipLayerTree ${dropTarget?.id === null ? dropTarget.valid ? 'clipRootDrop' : 'clipRootDrop clipDropInvalid' : ''}`} role="tree" aria-label="CLIPレイヤーツリー">{renderNodes(null)}</div>
     <p className="clipDropStatus" aria-live="polite">{dropTarget ? `${dropTarget.valid ? '' : '移動・追加不可：'}${dropTarget.id ? document.nodes.find(node => node.id === dropTarget.id)?.name : '最上位'}${dropTarget.placement === 'before' ? ' の上に挿入' : dropTarget.placement === 'after' ? ' の下に挿入' : ' の中へ'}` : `画像の追加先：${parentId ? clipNodePath(document, parentId) : '最上位'}`}</p>
     <div className="clipSheetConnection">
+      {selected?.kind === 'audio' && <ClipAudioImport key={`${project.projectId}:${props.activeCutId}:${props.activeSheetRevisionId}:${selected.id}`} project={project} node={selected} activeCutId={props.activeCutId} revisionId={props.activeSheetRevisionId} disabled={props.disabled} onChange={props.onChange} />}
       <div className="clipSheetConnectionTitle"><strong>シートとの対応</strong><label><input type="checkbox" checked={props.filterProcess} onChange={event => props.onFilterProcess(event.target.checked)} />シートは選択工程だけ表示</label></div>
       <div className="clipSheetMapping">
         <label>工程<select aria-label="登録先工程" value={props.activeProcessId} onChange={event => props.onProcessChange(event.target.value)}>{project.correctionLayers.map(process => <option key={process.layerId} value={process.layerId}>{process.label}</option>)}</select></label>

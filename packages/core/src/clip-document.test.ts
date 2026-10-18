@@ -11,6 +11,18 @@ function setup() {
 }
 
 describe('CLIP document identity and operations', () => {
+  it('preserves media and label metadata through project persistence, and prevents media from becoming image cels', () => {
+    const { project, target, slot } = setup()
+    const folder = createClipNode('音声・動画', 'folder', null, 'media')
+    const media = { ...createClipNode('音声001', 'audio', folder.id, 'audio'), sourceLayerId: 10, labelColor: '#ffaa82' }
+    const next = addClipLayers(project, [folder, media, { ...createClipNode('動画001', 'video', folder.id, 'movie'), sourceLayerId: 11 }])
+    const restored = activeCutProjectFromDocument(parseProjectDocument(JSON.parse(JSON.stringify(createProjectDocumentFromCutProject(next)))))
+    expect(restored.clipDocument!.nodes.find(node => node.id === media.id)).toEqual(media)
+    expect(() => moveClipLayer(next, folder.id, target.folderId)).toThrow('音声・動画')
+    expect(() => moveClipLayer(next, media.id, target.folderId)).toThrow('音声・動画')
+    expect(() => bindClipCel(next, media.id, slot.paperTrack, 1, 'action', slot.correctionLayerId!)).toThrow('画像セル')
+    expect(moveClipLayer(next, media.id, null).clipDocument!.nodes.find(node => node.id === media.id)?.parentId).toBe(null)
+  })
   it('inserts several images at the shown sibling boundary in source order, atomically and without exposures', () => {
     const { project, node, target } = setup()
     const images = ['002', '003'].map(name => ({ name: `${name}.png`, assetId: name, imageDataUrl: `data:image/png;base64,${name}` }))

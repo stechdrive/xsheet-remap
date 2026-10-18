@@ -1,6 +1,6 @@
 import type { ClipLayerNode } from '@xsheet-remap/core'
 
-export const clipLayerKindLabel: Record<ClipLayerNode['kind'], string> = { folder: 'レイヤーフォルダー', animation: 'アニメーションフォルダー', raster: 'ラスターレイヤー', other: 'その他のレイヤー（元のCLIPを保持）' }
+export const clipLayerKindLabel: Record<ClipLayerNode['kind'], string> = { folder: 'レイヤーフォルダー', animation: 'アニメーションフォルダー', raster: 'ラスターレイヤー', audio: '音声レイヤー', video: '動画ファイルオブジェクト', other: 'その他のレイヤー（元のCLIPを保持）' }
 type Icon = ClipLayerNode['kind'] | 'eye' | 'trash' | 'image' | 'chevron' | 'lock' | 'search'
 
 /** Independently drawn palette symbols; no CSP image assets are shipped. */
@@ -9,6 +9,8 @@ export function ClipLayerIcon({ kind, add = false }: { kind: Icon; add?: boolean
     {(kind === 'folder' || kind === 'animation') && <><path d="M3 6V4h7l2 2h9v14H3Z" /><path d="M3 9h18" />{kind === 'animation' && <><rect x="6" y="11" width="12" height="6" /><path d="M9 11v6m6-6v6" /></>}</>}
     {kind === 'raster' && <><path d="M5 3h10l4 4v14H5Z" /><path d="M15 3v5h4" /></>}
     {kind === 'other' && <><rect x="4" y="4" width="16" height="16" rx="2" /><path d="m12 7 5 5-5 5-5-5Z" /></>}
+    {kind === 'audio' && <><path d="M3 9h4l5-4v14l-5-4H3Zm12-1a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" /></>}
+    {kind === 'video' && <><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M7 4v16m10-16v16M3 9h4m-4 6h4m10-6h4m-4 6h4m-11-6 5 3-5 3Z" /></>}
     {kind === 'eye' && <><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" /></>}
     {kind === 'trash' && <><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" /></>}
     {kind === 'image' && <><rect x="3" y="4" width="18" height="16" rx="1" /><circle cx="8" cy="9" r="1.5" /><path d="m4 18 6-6 4 4 3-3 4 5" /></>}

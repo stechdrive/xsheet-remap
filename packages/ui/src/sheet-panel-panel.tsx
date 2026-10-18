@@ -1401,6 +1401,7 @@ export function SheetPanel(props: {
         <aside id="sheet-right-pane" className="sheetDock sheetDockRight" aria-label={clipWorkspace ? 'レイヤー' : uiText.assets.title} hidden={!paneLayout.right}>
           <div className="dockBody">
             {clipWorkspace ? <ClipLayerPanel key={props.project.projectId} project={props.project} activeCutId={props.activeCutId}
+              activeSheetRevisionId={props.activeSheetRevisionId}
               activeProcessId={props.activeCorrectionLayerId} onProcessChange={props.setActiveCorrectionLayerId}
               onChange={props.onClipProjectChange!} onFiles={props.onClipFiles!} onSelectKey={props.onKeySelect}
               selectedHit={props.selectedHit} disabled={props.sheetRevisions.find(revision => revision.revisionId === props.activeSheetRevisionId)?.protected}

@@ -8,7 +8,7 @@ export interface ClipLayerNode {
   id: string
   parentId: string | null
   name: string
-  kind: 'folder' | 'animation' | 'raster' | 'other'
+  kind: 'folder' | 'animation' | 'raster' | 'audio' | 'video' | 'other'
   visible: boolean
   opacity: number
   blendMode: number
@@ -16,6 +16,8 @@ export interface ClipLayerNode {
   assetId?: string
   imageDataUrl?: string
   locked?: boolean
+  /** CSP palette label, independent of the image's layer-color effect. */
+  labelColor?: string
 }
 
 export interface ClipLayerTarget { slotId: string; folderId: string; cellPath?: string[] }
@@ -39,8 +41,9 @@ export function validateClipDocument(value: ClipDocumentState): ClipDocumentStat
   const nodes = new Map(value.nodes.map(node => [node.id, node]))
   if (nodes.size !== value.nodes.length) throw new Error('CLIPレイヤーIDが重複しています。')
   for (const node of value.nodes) {
-    if (!node.id || typeof node.name !== 'string' || !['folder', 'animation', 'raster', 'other'].includes(node.kind)
+    if (!node.id || typeof node.name !== 'string' || !['folder', 'animation', 'raster', 'audio', 'video', 'other'].includes(node.kind)
       || typeof node.visible !== 'boolean' || !Number.isFinite(node.opacity) || node.opacity < 0 || node.opacity > 1 || !Number.isInteger(node.blendMode)) throw new Error('CLIPレイヤー属性が不正です。')
+    if (node.labelColor !== undefined && !/^#[0-9a-f]{6}$/i.test(node.labelColor)) throw new Error('レイヤーのラベルカラーが不正です。')
     const seen = new Set([node.id]); let parentId = node.parentId
     while (parentId !== null) {
       const parent = nodes.get(parentId)
@@ -67,6 +70,7 @@ export function clipEffectiveCel(document: ClipDocumentState, folderId: string, 
 
 export function clipCelRoot(document: ClipDocumentState, nodeId: string): ClipLayerNode | undefined {
   let node = document.nodes.find(item => item.id === nodeId)
+  if (node?.kind === 'audio' || node?.kind === 'video') return undefined
   while (node?.parentId) {
     const parent = document.nodes.find(item => item.id === node!.parentId)
     if (parent?.kind === 'animation') return node
@@ -173,9 +177,21 @@ export function moveClipLayer(projectInput: CutProject, id: string, parentId: st
   const index = beforeId ? nodes.findIndex(item => item.id === beforeId && item.parentId === parentId) : nodes.length
   if (index < 0) throw new Error('移動先が見つかりません。')
   nodes.splice(index, 0, node)
+  // Moving a folder containing media into a cel would delete its native track.
+  // Preserve imported unusual hierarchies, but never create this situation.
+  const nextDocument = validateClipDocument({ ...document, nodes })
+  for (const media of nodes.filter(item => item.kind === 'audio' || item.kind === 'video')) {
+    const ancestors = (value: ClipDocumentState) => {
+      let parent = value.nodes.find(item => item.id === media.id)?.parentId
+      const result: string[] = []
+      while (parent) { const entry = value.nodes.find(item => item.id === parent)!; if (entry.kind === 'animation') result.push(entry.id); parent = entry.parentId }
+      return result.join('/')
+    }
+    if (ancestors(document) !== ancestors(nextDocument)) throw new Error('音声・動画はアニメーションフォルダーへ出し入れできません。通常のフォルダーを選んでください。')
+  }
   if (document.nodes.find(item => item.id === parentId)?.kind === 'animation' && original.parentId === parentId && document.nodes.some(item => item.id !== id && item.parentId === parentId && item.name === node.name)
     && clipEffectiveCel({ ...document, nodes }, parentId!, node.name)?.id !== clipEffectiveCel(document, parentId!, node.name)?.id) throw new Error('同名セルの採用対象が変わります。先にセル名を変更してください。')
-  return { ...project, clipDocument: validateClipDocument({ ...document, nodes }) }
+  return { ...project, clipDocument: nextDocument }
 }
 
 export function deleteClipLayer(projectInput: CutProject, id: string): CutProject {
@@ -222,6 +238,7 @@ export function bindClipCel(projectInput: CutProject, nodeId: string, paperTrack
 export function clipCelDropTarget(project: CutProject, nodeId: string, paperTrack: string, processId: string) {
   const document = project.clipDocument
   if (!document) throw new Error('CLIPレイヤー構造がありません。')
+  if (document.nodes.some(node => node.id === nodeId && (node.kind === 'audio' || node.kind === 'video'))) throw new Error('音声・動画は画像セルとして登録できません。音声は「セリフ音声へ取り込む」を使用してください。')
   const cel = clipCelRoot(document, nodeId)
   if (!cel) throw new Error('通常レイヤーをセルとして使うには、先にアニメーションフォルダーへ移動してください。')
   if (clipEffectiveCel(document, cel.parentId!, cel.name)?.id !== cel.id) throw new Error('同名セルが下段にあります。CSPで再生されるセルを選ぶか、別名にしてください。')

@@ -5,10 +5,53 @@ import { expect, test, type Page } from './fixtures'
 import { activateControl } from './input'
 import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '../../../packages/core/src/index'
 import { readClip } from '../../../packages/adapters/src/clip/reader'
+import { createMediaFixture } from '../../../packages/adapters/src/clip/fixtures/media-fixture'
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64')
 const image = (name: string) => ({ name, mimeType: 'image/png', buffer: png })
 const row = (page: Page, name: string) => page.locator('.clipLayerRow').filter({ has: page.locator('.clipLayerName', { hasText: new RegExp(`^${name}$`) }) })
+
+test('CLIP palette colors and media import retain timing and link SOUND with one undo', async ({ page, browserName }, info) => {
+  const require = createRequire(import.meta.url)
+  const SQL = await initSqlJs({ wasmBinary: new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer })
+  const { clip } = createMediaFixture(SQL), bytes = Buffer.from(clip.bytes()); clip.close()
+  await page.goto('./?app=remap')
+  await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
+  await activateControl(page, page.getByLabel('画面切替', { exact: true }))
+  await activateControl(page, page.getByRole('button', { name: '読み込み ›', exact: true }))
+  await page.locator('input[type=file][accept=".clip"]').setInputFiles({ name: 'media.clip', mimeType: 'application/octet-stream', buffer: bytes })
+  const dialog = page.getByRole('dialog', { name: 'CLIPを読み込む', exact: true })
+  await expect(dialog.getByRole('button', { name: 'すべて解除', exact: true })).toBeVisible()
+  await activateControl(page, dialog.getByRole('button', { name: 'すべて解除', exact: true }))
+  await activateControl(page, dialog.getByRole('button', { name: 'タイムシートに読み込む', exact: true }))
+  const movie = row(page, 'probe-video')
+  await expect(movie).toContainText('動画')
+  await expect(movie.locator('.clipLayerEye')).toHaveCSS('background-color', 'rgb(255, 170, 130)')
+  await activateControl(page, row(page, 'probe-audio'))
+  const opacity = page.getByRole('slider', { name: 'レイヤーの不透明度スライダー', exact: true })
+  await expect(opacity).toBeDisabled()
+  await expect(row(page, 'probe-audio').locator('.clipLayerEye')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await activateControl(page, page.getByRole('button', { name: 'セリフ音声へ取り込む', exact: true }))
+  if (process.platform === 'win32' && browserName === 'webkit') {
+    // The Windows Playwright WebKit build omits Web Audio. Verify the unavailable path without a mock decoder.
+    expect(await page.evaluate(() => typeof AudioContext)).toBe('undefined')
+    await expect(page.locator('.clipAudioImport')).toContainText('この環境では音声をデコードできません')
+    await expect(page.locator('.soundCue')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'セリフ音声へ取り込む', exact: true })).toBeEnabled()
+    return
+  }
+  await expect(page.locator('.clipAudioImport')).toContainText('1個の音声クリップを取り込みました。', { timeout: 15_000 })
+  await expect(page.locator('.soundCue').first()).toHaveAttribute('aria-label', 'probe-audio 1-72')
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await expect(page.locator('.soundCue')).toHaveCount(0)
+  await activateControl(page, page.getByRole('button', { name: 'やり直し', exact: true }))
+  await expect(page.locator('.soundCue').first()).toHaveAttribute('aria-label', 'probe-audio 1-72')
+  await activateControl(page, page.getByRole('button', { name: 'セリフ音声へ取り込む', exact: true }))
+  await expect(page.locator('.clipAudioImport')).toContainText('取り込み済み')
+  const geometry = await page.locator('.clipLayerPanel').evaluate(element => ({ overflow: element.scrollWidth > element.clientWidth, treeHeight: element.querySelector('.clipLayerTree')!.clientHeight }))
+  expect(geometry.overflow).toBe(false); expect(geometry.treeHeight).toBeGreaterThan(100)
+  await page.screenshot({ path: info.outputPath('clip-media-sound.png') })
+})
 async function cell(page: Page, frame: number) {
   const rect = cellRectForHit(standardA3SheetTemplate, timingHitForFrame(standardA3SheetTemplate, 'cell', 'A', frame)!)!
   return page.locator('.sheetSvg').first().evaluate((element, r) => {

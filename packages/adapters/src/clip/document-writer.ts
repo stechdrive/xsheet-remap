@@ -63,7 +63,7 @@ export async function writeClipDocument(SQL: SqlJsStatic, seedBytes: Uint8Array,
         const attrs = { LayerName: node.name, LayerVisibility: (Number(row.LayerVisibility) & ~1) | Number(node.visible), LayerOpacity: Math.round(node.opacity * 256), LayerComposite: node.blendMode }
         if (Object.entries(attrs).some(([key, value]) => row[key] !== value)) { clip.update('Layer', row.MainId, attrs); changed = true }
       } else {
-        check(node.kind !== 'other', '未対応種類のレイヤーは新規作成できません。')
+        check(node.kind === 'folder' || node.kind === 'animation' || node.kind === 'raster', 'この種類のレイヤーは新規作成できません。元のCLIPから読み込んでください。')
         const image = options.images[node.id] ?? (node.assetId ? options.images[node.assetId] : undefined)
         const pixels = image && placePixels(image, canvas.width, canvas.height, Math.ceil((canvas.width - image.width) / 2), Math.ceil((canvas.height - image.height) / 2))
         row = createLayer(clip, seed, { name: node.name, uuid: layerUuid(await identity(options.plan.projectId, node.id)), parentId: parent.MainId, kind: node.kind, width: canvas.width, height: canvas.height, pixels })

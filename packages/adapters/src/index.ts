@@ -9,7 +9,8 @@ export type { ClipWriteOptions, ClipWriteResult } from './clip/writer'
 export type { Pixels as ClipImagePixels } from './clip/raster'
 export { browserAssetBytes, browserAssetDataUrl, browserFileForObjectUrl, fileToFileRef, sha256File } from './browserFiles'
 export { clipSourceDataUrl, clipSourceBytes } from './clip/document-data'
-export { previewClipLayer } from './clip/runtime'
+export { previewClipLayer, readClipAudioFile } from './clip/runtime'
+export type { ClipAudioReadResult } from './clip/audio'
 export { createPortableArchive, type PortableArchiveFile } from './portableArchive'
 export {
   decodeProjectFileBytes,

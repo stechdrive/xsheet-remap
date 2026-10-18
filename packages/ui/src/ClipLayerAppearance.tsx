@@ -13,7 +13,7 @@ export function ClipLayerAppearance({ node, disabled, onChange }: { node?: ClipL
     change(null)
     if (node && value !== null && Number.isFinite(value) && value / 100 !== node.opacity) onChange({ opacity: Math.max(0, Math.min(100, value)) / 100 })
   }
-  return <fieldset className="clipLayerAppearance" aria-label="レイヤープロパティ" disabled={disabled || !node || node.locked}>
+  return <fieldset className="clipLayerAppearance" aria-label="レイヤープロパティ" disabled={disabled || !node || node.locked || node.kind === 'audio'}>
     <select aria-label="レイヤーの合成モード" title="合成モード" value={node?.blendMode ?? 0} onChange={event => onChange({ blendMode: Number(event.target.value) })}>
       {node && !clipBlendModes.some(([value]) => value === node.blendMode) && <option value={node.blendMode}>{clipBlendLabel(node.blendMode)}</option>}
       {clipBlendModes.filter(([value]) => value !== 30 || node?.kind === 'folder' || node?.kind === 'animation').map(([value, name]) => <option key={value} value={value}>{name}</option>)}

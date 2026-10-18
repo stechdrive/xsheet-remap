@@ -36,6 +36,7 @@
 .clipEyeHidden { visibility: hidden; }
 .clipLayerLock { display: flex; width: 14px; align-self: stretch; align-items: center; justify-content: center; flex-shrink: 0; border-right: 1px solid #c7cec8; }
 .clipLayerLock .clipLayerIcon { width: 12px; height: 14px; }
+.clipLayerRow .clipLayerEye, .clipLayerRow .clipLayerLock { background: var(--clip-label-color, transparent); color: var(--clip-label-ink, inherit); }
 .clipLayerIndent { width: var(--clip-layer-indent); flex-shrink: 0; }
 .clipLayerDisclosure, .clipDisclosureSpace { width: 14px; flex: 0 0 14px; }
 .clipLayerDisclosure .clipLayerIcon { width: 12px; height: 16px; }
@@ -74,6 +75,11 @@
 .clipLayerMenu > summary::-webkit-details-marker { display: none; }
 .clipLayerPanel .clipLayerMenu .clipLayerProperties { position: absolute; right: 0; top: 27px; width: min(280px, 100%); z-index: 10; padding: 10px; border: 1px solid #a8b5ac; background: #f6f8f5; box-shadow: 0 4px 12px #0003; }
 .clipLayerNotice { flex-shrink: 0; max-height: 60px; overflow: auto; padding: 5px 8px; margin: 0; background: #fff4dd; overflow-wrap: anywhere; }
+.clipLayerPanel .clipAudioImport { display: grid; gap: 6px; padding: 0 0 10px; margin: 0 0 8px; border-bottom: 1px solid #a8b5ac; }
+.clipAudioImport label { display: flex; align-items: center; gap: 4px; }
+.clipAudioImport select { flex: 1; width: 80px; }
+.clipAudioImport small { line-height: 1.5; color: #52675a; }
+.clipAudioImport p { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 720px) {
   .sheetWorkspace.clipWorkspace.leftDockClosed { grid-template-areas: 'viewport'; grid-template-rows: minmax(0, 1fr); gap: 0; }
   .sheetWorkspace.clipWorkspace > .sheetDockRight { position: absolute; z-index: 23; top: 0; right: 0; bottom: 0; width: min(var(--sheet-right-dock-width), calc(100% - 48px)); box-shadow: -4px 0 16px #0003; }

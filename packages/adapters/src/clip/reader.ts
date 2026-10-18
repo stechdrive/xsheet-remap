@@ -4,6 +4,7 @@ import { ClipContainer, type Row } from './container'
 import { check } from './binary'
 import { readAnimation } from './read-animation'
 import { inspectCanvas } from './canvas'
+import { clipLabelColor, clipLayerKind, normalizedUuid, optionalRows } from './layer-metadata'
 
 function uuid(value: Row[string]): string {
   const result = value instanceof Uint8Array ? Array.from(value, byte => byte.toString(16).padStart(2, '0')).join('') : String(value).replaceAll('-', '').toLowerCase()
@@ -25,6 +26,7 @@ export async function readClip(SQL: SqlJsStatic, bytes: Uint8Array, fileName: st
   const clip = new ClipContainer(SQL, bytes)
   try {
     const layers = clip.rows('Layer'), canvas = clip.rows('Canvas')[0]
+    const items = new Map(optionalRows(clip, 'CanvasItem').map(item => [normalizedUuid(item.ItemUuid), item]))
     const root = layers.find(layer => layer.MainId === canvas.CanvasRootFolder)
     check(root, 'ルートフォルダーがありません。')
     const seen = new Set<Row[string]>([root.MainId]), layerIds = new Set<string>(), fullLayers: ClipLayerNode[] = []
@@ -37,7 +39,7 @@ export async function readClip(SQL: SqlJsStatic, bytes: Uint8Array, fileName: st
         check(!layerIds.has(id), 'レイヤーIDが重複しています。'); layerIds.add(id)
         const visible = parentVisible && Boolean(Number(layer.LayerVisibility ?? 1) & 1)
         const fullPath = [...path, name]
-        fullLayers.push({ id, parentId, name, kind: animation ? 'animation' : layer.LayerFolder ? 'folder' : (Number(layer.LayerType) & ~2) === 1 ? 'raster' : 'other',
+        fullLayers.push({ id, parentId, name, kind: clipLayerKind(layer, items), labelColor: clipLabelColor(layer),
           sourceLayerId: Number(layer.MainId), visible: Boolean(Number(layer.LayerVisibility ?? 1) & 1), opacity: Number(layer.LayerOpacity ?? 256) / 256,
           blendMode: Number(layer.LayerComposite ?? 0), locked: layer.LayerType === 1584 || Boolean(layer.LayerLock) })
         const children = layer.LayerFolder ? tree(layer.LayerFirstChildIndex, fullPath, visible, id) : []

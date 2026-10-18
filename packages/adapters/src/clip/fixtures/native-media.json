@@ -1,0 +1,83 @@
+{
+  "provenance": "Captured from CLIP STUDIO PAINT on 2026-10-18. Generated 3-second 48kHz stereo WAV and 2-second blue MP4; orange palette label set through the native UI. No production material.",
+  "audioLayer": {
+    "MainId": 10,
+    "LayerName": "probe-audio",
+    "LayerType": 8720,
+    "LayerUsePaletteColor": 0,
+    "LayerNoticeablePaletteColor": 0,
+    "LayerPaletteRed": 0,
+    "LayerPaletteGreen": 0,
+    "LayerPaletteBlue": 0,
+    "LayerFolder": 0,
+    "LayerUuid": "8a5c3d72fd-cf47-38b5-7a06-ee931c985c",
+    "AnimationFolder": null,
+    "BankItemUuid": "b3b90daafa-f94a-86b4-361f-c00edb58e1",
+    "FirstLayerObject": 1,
+    "AudioLayer": 1,
+    "LinkLayerItemUUID": null
+  },
+  "videoLayer": {
+    "MainId": 11,
+    "LayerName": "probe-video",
+    "LayerType": 0,
+    "LayerUsePaletteColor": 1,
+    "LayerNoticeablePaletteColor": 0,
+    "LayerPaletteRed": 4294967295,
+    "LayerPaletteGreen": 2863311530,
+    "LayerPaletteBlue": 2189591170,
+    "LayerFolder": 0,
+    "LayerUuid": "081a0d55af-f94d-02b3-92b5-9fccbbe2a4",
+    "AnimationFolder": null,
+    "BankItemUuid": "7a5f1f11f1-3844-319d-aac6-84f9919dac",
+    "FirstLayerObject": null,
+    "AudioLayer": null,
+    "LinkLayerItemUUID": "7a5f1f11f1-3844-319d-aac6-84f9919dac"
+  },
+  "items": [
+    {
+      "MainId": 3,
+      "BankId": 1,
+      "ItemUuid": "7a5f1f11f1-3844-319d-aac6-84f9919dac",
+      "ItemType": "Movie",
+      "ItemCaption": "probe-video",
+      "ItemBinaryMainIndex": null
+    },
+    {
+      "MainId": 4,
+      "BankId": 1,
+      "ItemUuid": "b3b90daafa-f94a-86b4-361f-c00edb58e1",
+      "ItemType": "Audio",
+      "ItemCaption": "probe-audio",
+      "ItemBinaryMainIndex": 1
+    }
+  ],
+  "objects": [
+    {
+      "_PW_ID": 1,
+      "MainId": 1,
+      "CanvasId": 1,
+      "LayerId": 10,
+      "ObjectUuid": "6f5fe74aaf-e249-ca97-604b-078b660185",
+      "BankItemUuid": "b3b90daafa-f94a-86b4-361f-c00edb58e1",
+      "ObjectName": "probe-audio",
+      "ObjectLock": 0,
+      "ObjectNext": 0,
+      "ObjectVisibility": 1,
+      "ObjectSelect": 0,
+      "ObjectPickmask": 0,
+      "IsAudio": 1
+    }
+  ],
+  "mixer": {
+    "size": 1487,
+    "hex": "b80200007801ad52db4edb40103525764c22a5aa2af55e0a2dbdd7a99d84047a418170512448290e485594874d32064bf63a72d6943c15f53bfadacfe8c7f4bd2ffd83ced8d91010bc75a4e33d73cece7877ecae2fe64ccb343b2eef5adf7eff5c511425c523cf4bad0d05a8363db5fd3a1756598d9f71522c50522c68b6cb0f3dd0d683a8838b2d42ccb54d2f60a2902cc5d4e788097d87a175522ae94941abad51e3563b1db769b5f5a41449522c4911775283563b235bb4dab92e7883e1a01774231fb8481f43387003ae5a79336fde3c4832a3ce9d20f4994047b703477c6521646bdbf5dd39bbb9bf5eff941e6d540b792c4c6f01879079986193dc6a97ea1a410f6a9edb4f35980fd97e1874c06051cf0df4a6ebc78e6a0b168ae90dde4bed3101999d80eaa8269bd0350f782f631fb98e88e94c034e12968df30dce7072713f3ab0beca5d9f88bacb42e66757e96dbb1e1b4238dd64870b6567d1814a8931c7804269d9e8b2e58a51364b1dc3ac2c75ca65d35a5ad4366b51780ca9e6b00fea267601f5807911cc6c83236c2fe84366cf3d3c4aa8861f00c2be5e0bf840302e727b70ec0e40a6c9010e020f27add339e8e2dab6cb8185b7f057a19842dc46dc415c43dc45c8a0fc1e6206715f8ab83e18690f27b4d911a77ee43f42109f4350109f473c46a888270819d3481610ba1426d6a793faa95395d6b3495d698cf5e77203aeffb3ef8b0b7d5f623e71de5369bf3aaf4b59798d8c66308e37639618575dc898d84783cb2334047d1c020df52dc24458088a42b2c42f2c22273f8d282172887307c17cf1bc5ec5348e323e2fdb5fb9425f42fd0682fa2f2364bc43721d41faf8dd262672b3855c065df06cb25faa54308f783fda20fdd9efbf7efc19fe5d91fe87917ff1f2a4d3c0e4e5696849946a92c9019c79d5aaf4e410ce3ce9288a1cc4659e1c06791f4790957220e44dd105e2f8078319d3c2"
+  },
+  "expected": {
+    "fps": 24,
+    "startFrame": 0,
+    "sourceOffsetFrames": 0,
+    "durationFrames": 72,
+    "labelColor": "#ffaa82"
+  }
+}

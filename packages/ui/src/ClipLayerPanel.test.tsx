@@ -1,17 +1,17 @@
 import { useState } from 'react'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { addClipLayers, createClipNode, createDefaultProject, ensureClipDocument, type CutProject } from '@xsheet-remap/core'
+import { addClipLayers, createClipNode, createDefaultProject, ensureClipDocument, type ClipLayerNode, type CutProject } from '@xsheet-remap/core'
 import { ClipLayerPanel } from './ClipLayerPanel'
 import { dispatchInternalDrag } from './internalDrag'
 import { publishNativeLayerHover, clipLayerDropTarget } from './clipLayerDrop'
 
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
-function setup(locked = false) {
+function setup(locked = false, extras: ClipLayerNode[] = []) {
   const folder = createClipNode('素材', 'folder', null, 'materials')
   const first = { ...createClipNode('first', 'raster', folder.id, 'first'), locked }
   const second = createClipNode('second', 'raster', folder.id, 'second')
-  let current = addClipLayers(ensureClipDocument(createDefaultProject()), [folder, first, second])
+  let current = addClipLayers(ensureClipDocument(createDefaultProject()), [folder, first, second, ...extras])
   const changes = vi.fn(), files = vi.fn()
   function Harness() {
     const [project, setProject] = useState(current)
@@ -23,6 +23,22 @@ function setup(locked = false) {
 }
 
 describe('CSP-style layer palette controls', () => {
+  it('shows label colors independent of eye/selection, distinguishes media, and disables image appearance for audio', () => {
+    const audio = { ...createClipNode('セリフ001', 'audio', null, 'audio'), labelColor: '#ffaa82', sourceLayerId: 10 }
+    const video = { ...createClipNode('ムービー001', 'video', null, 'movie'), sourceLayerId: 11 }
+    const { row, project } = setup(false, [audio, video])
+    expect(screen.getByRole('img', { name: 'セリフ001のラベルカラー #ffaa82' })).toBeTruthy()
+    expect(row('audio').parentElement?.style.getPropertyValue('--clip-label-color')).toBe('#ffaa82')
+    fireEvent.click(screen.getByRole('button', { name: 'セリフ001の音声操作' }))
+    expect(screen.getByRole('slider').closest('fieldset')?.disabled).toBe(true)
+    expect(row('audio').textContent).toContain('音声レイヤー')
+    expect(row('audio').textContent).not.toContain('100%')
+    expect(row('movie').textContent).toContain('動画')
+    expect(screen.getByRole('button', { name: 'セリフ音声へ取り込む' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'セリフ001の表示' }))
+    expect(project().clipDocument!.nodes.find(node => node.id === audio.id)).toMatchObject({ labelColor: '#ffaa82', visible: false })
+    expect(row('audio').parentElement?.style.getPropertyValue('--clip-label-color')).toBe('#ffaa82')
+  })
   it('keeps visibility, appearance, creation and deletion in the layer palette; opacity drag commits once', () => {
     const { row, changes, project } = setup()
     fireEvent.click(row('first'))

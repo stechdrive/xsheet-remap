@@ -54,9 +54,18 @@ async function screenshot(name: string) {
   const path = join(args['screenshot-root']!, name + '.png')
   await page!.screenshot({ path }); artifacts.push(path)
 }
-async function beginMove(dx: number, dy: number) {
+async function revealHandles() {
   const handle = page!.locator('.templateHandleSvg')
-  await move(await center(handle))
+  await handle.scrollIntoViewIfNeeded()
+  const bounds = await handle.boundingBox()
+  if (!bounds) throw new Error('Selected template bounds are not visible')
+  // The center of a paper timeline falls in the gap between its two blocks.
+  // Hover inside the selected region before aiming at its transient controls.
+  await move(await screenPoint(bounds.x + bounds.width / 4, bounds.y + bounds.height / 4))
+  await expect(page!.locator('.templateEditAffordances')).toBeVisible()
+}
+async function beginMove(dx: number, dy: number) {
+  await revealHandles()
   const from = await center(page!.getByRole('button', { name: '選択要素を移動' }))
   await native('mouse-down-screen', '--x', String(from.x), '--y', String(from.y), '--app-pid', args['app-pid']!)
   pointer = { x: from.x + dx, y: from.y + dy }
@@ -96,7 +105,7 @@ try {
   await key('^y'); expect(await readout()).toBe(moved)
   checks.push('real mouse timeline drag shows live content without rebuilding static paths; native undo/redo restores one complete gesture')
 
-  await move(await center(page.locator('.templateHandleSvg')))
+  await revealHandles()
   const edge = await center(page.locator('.templateHandleKnob.vertical').last())
   await native('mouse-down-screen', '--x', String(edge.x), '--y', String(edge.y), '--app-pid', args['app-pid']!)
   pointer = { x: edge.x - 8, y: edge.y }; await move(pointer); await paint()

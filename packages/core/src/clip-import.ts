@@ -14,6 +14,7 @@ export interface ClipImportNode {
   path: string[]
   animation: boolean
   visible: boolean
+  expanded?: boolean
   children: ClipImportNode[]
 }
 export interface ClipImportTimeline {

@@ -18,6 +18,8 @@ export interface ClipLayerNode {
   assetId?: string
   imageDataUrl?: string
   locked?: boolean
+  /** Folder disclosure saved in CLIP; absent on legacy/new documents. */
+  expanded?: boolean
   /** CSP palette label, independent of the image's layer-color effect. */
   labelColor?: string
 }
@@ -48,6 +50,7 @@ export function validateClipDocument(value: ClipDocumentState): ClipDocumentStat
     if (!node.id || typeof node.name !== 'string' || !['folder', 'animation', 'raster', 'audio', 'video', 'other'].includes(node.kind)
       || typeof node.visible !== 'boolean' || !Number.isFinite(node.opacity) || node.opacity < 0 || node.opacity > 1 || !Number.isInteger(node.blendMode)) throw new Error('CLIPレイヤー属性が不正です。')
     if (node.labelColor !== undefined && !/^#[0-9a-f]{6}$/i.test(node.labelColor)) throw new Error('レイヤーのラベルカラーが不正です。')
+    if (node.expanded !== undefined && typeof node.expanded !== 'boolean') throw new Error('レイヤーの開閉状態が不正です。')
     const seen = new Set([node.id]); let parentId = node.parentId
     while (parentId !== null) {
       const parent = nodes.get(parentId)

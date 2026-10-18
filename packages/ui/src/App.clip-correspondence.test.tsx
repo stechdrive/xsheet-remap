@@ -20,9 +20,9 @@ it('imports independent tracks, previews correspondence collisions, commits and 
   const file = new File(['clip'], 'test.clip')
   Object.defineProperty(file, 'arrayBuffer', { value: async () => new ArrayBuffer(4) })
   fireEvent.change(document.querySelector('input[accept=".clip"]')!, { target: { files: [file] } })
-  await screen.findByLabelText('group0 / Aのセル列名')
+  fireEvent.click(await screen.findByRole('button', { name: 'group0 / Aの読み込み設定' }))
   fireEvent.click(screen.getByRole('button', { name: 'CELL' }))
-  fireEvent.change(screen.getByLabelText('読み込み後の基準工程'), { target: { value: 'group0' } })
+  fireEvent.change(screen.getByLabelText('シートの基準にする工程を選択'), { target: { value: 'group0' } })
   fireEvent.click(screen.getByRole('button', { name: 'タイムシートに読み込む' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'CLIPを読み込む' })).toBeNull())
   const process = screen.getByLabelText('編集先の工程') as HTMLSelectElement

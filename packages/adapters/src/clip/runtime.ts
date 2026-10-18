@@ -1,8 +1,10 @@
 import type { ClipCanvasSettings, ClipImportData } from '@xsheet-remap/core'
 import type { ClipWriteOptions, ClipWriteResult } from './writer'
-function request<T>(message: object, progress?: (message: string) => void, signal?: AbortSignal): Promise<T> {
+function request<T>(message: object, progress?: (message: string) => void, signal?: AbortSignal, preview = false): Promise<T> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+    const worker = preview
+      ? new Worker(new URL('./clip-preview.worker.ts', import.meta.url), { type: 'module' })
+      : new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
     const dispose = () => { worker.terminate(); signal?.removeEventListener('abort', abort) }
     const abort = () => { dispose(); reject(new DOMException('キャンセルしました。', 'AbortError')) }
     if (signal?.aborted) { abort(); return }
@@ -18,6 +20,6 @@ function request<T>(message: object, progress?: (message: string) => void, signa
 }
 export function inspectClipFile(bytes: Uint8Array, signal?: AbortSignal): Promise<ClipCanvasSettings> { return request({ type: 'inspect', bytes }, undefined, signal) }
 export function readClipFile(bytes: Uint8Array, fileName: string, signal?: AbortSignal): Promise<ClipImportData> { return request({ type: 'read', bytes, fileName }, undefined, signal) }
-export function previewClipLayer(bytes: Uint8Array, layerId: number, signal?: AbortSignal): Promise<import('./preview').ClipLayerPreview> { return request({ type: 'preview', bytes, layerId }, undefined, signal) }
+export function previewClipLayer(bytes: Uint8Array, layerId: number, signal?: AbortSignal): Promise<import('./preview').ClipLayerPreview> { return request({ type: 'preview', bytes, layerId }, undefined, signal, true) }
 export function readClipAudioFile(bytes: Uint8Array, layerId: number, timelineId: string, signal?: AbortSignal): Promise<import('./audio').ClipAudioReadResult> { return request({ type: 'audio', bytes, layerId, timelineId }, undefined, signal) }
 export function generateClipFile(options: ClipWriteOptions, progress?: (message: string) => void, signal?: AbortSignal): Promise<ClipWriteResult> { return request({ type: 'write', options }, progress, signal) }

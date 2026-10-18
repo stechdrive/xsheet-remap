@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addClipLayers, allProcessEvents, clipCelRoot, clipEffectiveCel, clipNodePath, createClipNode, deleteClipLayer, moveClipLayer, setClipTarget, unsetClipTarget, updateClipLayer, timingForProcess, type ClipLayerNode, type CutProject, type SheetHit } from '@xsheet-remap/core'
 import { clipSourceBytes, previewClipLayer, isTauriHost } from '@xsheet-remap/adapters'
 import { collectAssetFilesFromDrop } from './assetFiles'
@@ -6,7 +6,8 @@ import { createStackGuideLabel } from '@xsheet-remap/core'
 import { avoidInternalDragPreview, setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag } from './internalDrag'
 import { AssetFloatingPreview } from './assetPreview'
 import { initialAssetPreviewRect, type AssetPreviewPayload } from './assetPreviewModel'
-import { ClipLayerAppearance, clipBlendLabel } from './ClipLayerAppearance'
+import { ClipLayerAppearance } from './ClipLayerAppearance'
+import { ClipLayerTreeItem } from './ClipLayerTreeItem'
 import { ClipLayerIcon, clipLayerKindLabel } from './ClipLayerIcons'
 import { ClipAudioImport } from './ClipAudioImport'
 import { ClipCelAssignment } from './ClipCelAssignment'
@@ -48,7 +49,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     setDropState(current => current?.project === project && JSON.stringify(current.target) === JSON.stringify(target) ? current : target ? { project, target } : null)
   }, [project])
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(document.nodes.filter(node => node.id.startsWith('process:') && node.id !== `process:${props.activeProcessId}`).map(node => node.id))), [search, setSearch] = useState(''), [unusedOnly, setUnusedOnly] = useState(false)
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(document.nodes.filter(node => node.expanded === false || node.expanded === undefined && node.id.startsWith('process:') && node.id !== `process:${props.activeProcessId}`).map(node => node.id))), [search, setSearch] = useState(''), [unusedOnly, setUnusedOnly] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false), [preview, setPreview] = useState<{ request: object; payload: AssetPreviewPayload } | null>(null), [previewRect, setPreviewRect] = useState(initialAssetPreviewRect)
   const [paperTrack, setPaperTrack] = useState(project.logicalSheet.paperTracks[0]?.paperTrack ?? '')
   const [mappingProcessId, setMappingProcessId] = useState(props.activeProcessId)
@@ -142,6 +143,8 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
             controller.signal.throwIfAborted()
             imageUrl = URL.createObjectURL(new Blob([Uint8Array.from(result.bytes)], { type: 'image/png' })); urls.push(imageUrl)
             detailText += ` / ${result.width} × ${result.height}px${result.storedComposite ? ' / CLIP保存時の合成画像（編集は未反映）' : ''}`
+            if (result.reconstructed) detailText += ' / CLIPの素材情報から描画'
+            if (result.warnings?.length) detailText += ` / ${result.warnings.join(' / ')}`
           }
           return { label: layer.name, imageUrl, detailText }
         }
@@ -204,34 +207,28 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
       if (!isFolder && (search && !node.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) || unusedOnly && isUsed)) return null
       const ambiguous = cel?.id === node.id && clipEffectiveCel(document, node.parentId!, node.name)?.id !== node.id
       const thumbnail = node.imageDataUrl ?? project.assets.find(asset => asset.assetId === node.assetId)?.thumbnailUrl
-      const rgb = node.labelColor?.slice(1).match(/../g)?.map(value => parseInt(value, 16))
-      const labelInk = rgb && (rgb[0] * .299 + rgb[1] * .587 + rgb[2] * .114 < 140) ? '#fff' : '#303633'
       const drop = dropTarget?.id === node.id ? dropTarget : null
       const dropClass = drop ? `clipDrop${drop.placement === 'before' ? 'Before' : drop.placement === 'after' ? 'After' : 'Into'} ${drop.valid ? '' : 'clipDropInvalid'}` : ''
-      return <div key={node.id} role="treeitem" aria-label={node.name} aria-selected={node.id === selectedId} aria-expanded={isFolder ? !collapsed.has(node.id) : undefined} className={`clipLayerItem ${dropClass}`} style={{ '--clip-layer-indent': `${depth * 12}px`, '--clip-label-color': node.labelColor ?? 'transparent', '--clip-label-ink': node.labelColor ? labelInk : '#303633' } as CSSProperties}>
-        <div className={`clipLayerRow ${node.id === selectedId ? 'selected' : ''}`} data-clip-layer-id={node.id} data-clip-layer-parent={isFolder ? node.id : node.parentId ?? '__root__'}
-          onClickCapture={event => { if (dragged.current) { event.preventDefault(); event.stopPropagation(); dragged.current = false } }}
-          onClick={() => { select(node); panel.current?.focus({ preventScroll: true }) }}
-          onPointerDown={event => {
+      return <ClipLayerTreeItem key={node.id} node={node} depth={depth} selected={node.id === selectedId} expanded={!collapsed.has(node.id)} className={dropClass} path={clipNodePath(document, node.id)}
+        onToggle={() => setCollapsed(current => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}
+        rowProps={{
+          onClickCapture: event => { if (dragged.current) { event.preventDefault(); event.stopPropagation(); dragged.current = false } },
+          onClick: () => { select(node); panel.current?.focus({ preventScroll: true }) },
+          onPointerDown: event => {
             dragged.current = false
             startInternalPointerDrag(event, {
               interactiveTargetSelector: 'button:not(.clipLayerThumbnail),input,select,textarea,a,[contenteditable="true"]',
               begin: () => { if (props.disabled) return null; dragged.current = true; panel.current?.focus({ preventScroll: true }); return { kind: 'clip-layer', layerId: node.id } },
               createPreview: () => ({ primaryText: node.name, secondaryText: clipNodePath(document, node.id), thumbnailUrl: thumbnail }),
             })
-          }}>
-          <TooltipTarget label={node.visible ? 'レイヤーを非表示' : 'レイヤーを表示'}>{tooltip => <button {...tooltip} className="clipLayerEye" type="button" role="checkbox" aria-label={`${node.name}の表示`} aria-checked={node.visible} disabled={props.disabled || node.locked} onClick={event => { event.stopPropagation(); apply(() => updateClipLayer(project, node.id, { visible: !node.visible })) }}><span className={node.visible ? '' : 'clipEyeHidden'}><ClipLayerIcon kind="eye" /></span></button>}</TooltipTarget>
-          <TooltipTarget label={[node.locked ? '保護されたレイヤー' : '', node.labelColor ? `ラベルカラー ${node.labelColor}` : ''].filter(Boolean).join(' / ')}>{tooltip => <span {...tooltip} className="clipLayerLock" role={node.labelColor ? 'img' : undefined} aria-label={node.labelColor ? `${node.name}のラベルカラー ${node.labelColor}` : undefined}>{node.locked && <ClipLayerIcon kind="lock" />}</span>}</TooltipTarget>
-          <span className="clipLayerIndent" />
-          {isFolder ? <button className={`clipLayerDisclosure ${collapsed.has(node.id) ? '' : 'expanded'}`} type="button" aria-label={`${node.name}を${collapsed.has(node.id) ? '展開' : '折りたたむ'}`} onClick={event => { event.stopPropagation(); setCollapsed(current => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next }) }}><ClipLayerIcon kind="chevron" /></button> : <span className="clipDisclosureSpace" />}
-          <TooltipTarget label={`${clipLayerKindLabel[node.kind]} · ${node.kind === 'audio' ? 'シートとの対応から音声を取り込み' : node.kind === 'video' ? 'CLIP保存時の画像をクイックルック' : 'クイックルック（Space）'}`}>{tooltip => <button {...tooltip} className={`clipLayerThumbnail ${thumbnail ? 'hasImage' : ''}`} type="button" aria-label={node.kind === 'audio' ? `${node.name}の音声操作` : `${node.name}をクイックルック`} onClick={event => { event.stopPropagation(); select(node); setPreviewOpen(node.kind !== 'audio') }}>{thumbnail ? <img src={thumbnail} alt="" draggable={false} loading="lazy" /> : <ClipLayerIcon kind={node.kind} />}</button>}</TooltipTarget>
-          <div className="clipLayerCaption">
-            <span className="clipLayerInfo"><span>{node.kind === 'audio' ? '音声レイヤー' : `${Math.round(node.opacity * 100)}% ${clipBlendLabel(node.blendMode)}${node.kind === 'video' ? ' · 動画' : ''}`}</span>{project.stackGuideLabels.some(label => label.clipLayerId === node.id) && <TooltipTarget label="シート上の表示フラグに対応">{tooltip => <small {...tooltip}>旗</small>}</TooltipTarget>}{ambiguous ? <TooltipTarget label="同名の下段セルがタイムラインで採用されます">{tooltip => <small {...tooltip}>同名</small>}</TooltipTarget> : cel?.id === node.id && <TooltipTarget label={isUsed ? '現在のタイムラインで使用中' : '現在のタイムラインで未使用'}>{tooltip => <small {...tooltip}>{isUsed ? '使用中' : '未使用'}</small>}</TooltipTarget>}</span>
-            {renamingId === node.id ? <input aria-label="レイヤー名" autoFocus defaultValue={node.name} onFocus={event => event.target.select()} onClick={event => event.stopPropagation()} onBlur={event => { if (event.target.value !== node.name) apply(() => updateClipLayer(project, node.id, { name: event.target.value })); setRenamingId(null) }} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.value = node.name; setRenamingId(null) } }} /> : <TooltipTarget label={`${clipNodePath(document, node.id)} · ${clipLayerKindLabel[node.kind]}`}>{tooltip => <span {...tooltip} className="clipLayerName" onDoubleClick={event => { event.stopPropagation(); if (!props.disabled && !node.locked) setRenamingId(node.id) }}>{node.name}</span>}</TooltipTarget>}
-          </div>
-        </div>
-        {isFolder && !collapsed.has(node.id) && <div role="group">{renderNodes(node.id, depth + 1)}</div>}
-      </div>
+          },
+        }}
+        leading={<TooltipTarget label={node.visible ? 'レイヤーを非表示' : 'レイヤーを表示'}>{tooltip => <button {...tooltip} className="clipLayerEye" type="button" role="checkbox" aria-label={`${node.name}の表示`} aria-checked={node.visible} disabled={props.disabled || node.locked} onClick={event => { event.stopPropagation(); apply(() => updateClipLayer(project, node.id, { visible: !node.visible })) }}><span className={node.visible ? '' : 'clipEyeHidden'}><ClipLayerIcon kind="eye" /></span></button>}</TooltipTarget>}
+        thumbnail={thumbnail} thumbnailLabel={node.kind === 'audio' ? `${node.name}の音声操作` : `${node.name}をクイックルック`} onThumbnail={() => { select(node); setPreviewOpen(node.kind !== 'audio') }}
+        badges={<>{project.stackGuideLabels.some(label => label.clipLayerId === node.id) && <TooltipTarget label="シート上の表示フラグに対応">{tooltip => <small {...tooltip}>旗</small>}</TooltipTarget>}{ambiguous ? <TooltipTarget label="同名の下段セルがタイムラインで採用されます">{tooltip => <small {...tooltip}>同名</small>}</TooltipTarget> : cel?.id === node.id && <TooltipTarget label={isUsed ? '現在のタイムラインで使用中' : '現在のタイムラインで未使用'}>{tooltip => <small {...tooltip}>{isUsed ? '使用中' : '未使用'}</small>}</TooltipTarget>}</>}
+        name={renamingId === node.id ? <input aria-label="レイヤー名" autoFocus defaultValue={node.name} onFocus={event => event.target.select()} onClick={event => event.stopPropagation()} onBlur={event => { if (event.target.value !== node.name) apply(() => updateClipLayer(project, node.id, { name: event.target.value })); setRenamingId(null) }} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.value = node.name; setRenamingId(null) } }} /> : <TooltipTarget label={`${clipNodePath(document, node.id)} · ${clipLayerKindLabel[node.kind]}`}>{tooltip => <span {...tooltip} className="clipLayerName" onDoubleClick={event => { event.stopPropagation(); if (!props.disabled && !node.locked) setRenamingId(node.id) }}>{node.name}</span>}</TooltipTarget>}>
+        {isFolder && !collapsed.has(node.id) && renderNodes(node.id, depth + 1)}
+      </ClipLayerTreeItem>
     })
   }
 

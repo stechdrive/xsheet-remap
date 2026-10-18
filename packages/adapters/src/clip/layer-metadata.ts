@@ -12,7 +12,7 @@ export function optionalRows(clip: ClipContainer, table: 'CanvasItem' | 'CanvasI
 
 export function clipLayerKind(layer: Row, items: Map<string, Row>): ClipLayerNode['kind'] {
   if (layer.AnimationFolder) return 'animation'
-  if (layer.LayerFolder) return 'folder'
+  if (Number(layer.LayerFolder) & 1) return 'folder'
   if (Number(layer.AudioLayer) === 1) return 'audio'
   // Static file objects also use LayerType=0. A playback track alone is not proof of a movie.
   const item = items.get(normalizedUuid(layer.LinkLayerItemUUID)) ?? items.get(normalizedUuid(layer.BankItemUuid))

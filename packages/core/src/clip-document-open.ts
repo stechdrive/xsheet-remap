@@ -12,7 +12,7 @@ export function openClipDocument(data: ClipImportData, dataUrl: string, options:
   document = { ...document, projectId: `clip_${crypto.randomUUID()}` }
   if (options.columns.length) document = importClipProcessTimelines(document, data, options)
   if (options.baseProcess !== undefined) {
-    const base = document.correctionLayers.find(process => process.label === options.baseProcess)
+    const base = document.correctionLayers.find(process => process.label === options.baseProcess!.trim())
     if (!base) throw new Error('基準にする工程が見つかりません。')
     document = { ...document, cuts: document.cuts.map(cut => ({ ...cut, revisions: cut.revisions.map(revision => ({ ...revision, logicalSheet: { ...revision.logicalSheet, baseProcessId: base.layerId } })) })) }
     for (const cut of document.cuts) {

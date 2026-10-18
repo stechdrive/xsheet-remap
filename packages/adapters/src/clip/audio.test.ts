@@ -25,15 +25,15 @@ const read = (mixer: Mixer, start = 0) => { const raw = mixer.encode(); return r
 
 
 describe('CLIP native media metadata and audio timing', () => {
-  it('does not invent a blank movie preview when the source has no saved pixels', () => {
+  it('does not invent a blank movie preview when the source has no saved pixels', async () => {
     const { clip, videoId } = createMediaFixture(SQL)
     try {
       const surface = mipmapChain(clip, clip.row('Layer', videoId).LayerRenderMipmap)[0].off
       clip.update('Offscreen', surface.MainId, { BlockData: new TextEncoder().encode('missing-movie-preview') })
-      expect(() => readClipLayerPreview(SQL, clip.bytes(), videoId)).toThrow('この動画レイヤーには保存済み画像がありません')
+      await expect(readClipLayerPreview(SQL, clip.bytes(), videoId)).rejects.toThrow('この動画レイヤーには保存済み画像がありません')
       const encoded = encodeRaster({ width: 2, height: 1, channels: 4, data: new Uint8Array([0, 0, 255, 255, 0, 0, 255, 255]) }, blob(surface.Attribute))
       clip.update('Offscreen', surface.MainId, { Attribute: encoded.attribute, BlockData: clip.addExternal(encoded.body) })
-      expect(readClipLayerPreview(SQL, clip.bytes(), videoId)).toMatchObject({ width: 2, height: 1, storedComposite: true })
+      expect(await readClipLayerPreview(SQL, clip.bytes(), videoId)).toMatchObject({ width: 2, height: 1, storedComposite: true })
     } finally { clip.close() }
   })
   it('reads native full-length placement and evaluates a trimmed, moved clip relative to a nonzero playback start', () => {

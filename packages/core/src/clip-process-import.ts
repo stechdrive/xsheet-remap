@@ -18,7 +18,7 @@ export function suggestClipProcessColumns(data: ClipImportData, selectedIds: str
   const aliases = new Map<string, string>(), used = new Map<string, string>(), occupied = new Set<string>()
   const normalize = (name: string) => name.normalize('NFKC').toUpperCase().replace(/[\s\u200b]/g, '')
   return folders.map(folder => {
-    const process = folder.path.slice(0, -1).join('／') || '最上位'
+    const process = folder.path.slice(0, -1).join('／').trim() || '最上位（ルート）'
     const base = aliases.get(folder.name) ?? (normalize(folder.name) ? folder.name.trim() : 'セル')
     let name = base
     for (let suffix = 2; occupied.has(JSON.stringify([process, normalize(name)])) || used.has(normalize(name)) && used.get(normalize(name)) !== folder.name; suffix++) name = `${base} (${suffix})`
@@ -26,6 +26,23 @@ export function suggestClipProcessColumns(data: ClipImportData, selectedIds: str
     occupied.add(JSON.stringify([process, normalize(name)])); used.set(normalize(name), folder.name)
     return { layerId: folder.id, name, process }
   })
+}
+
+/** Prefer the bottom-most selected track whose parent/ancestors are visible.
+ * Disclosure and the animation folder's own eye do not define a process's visibility. */
+export function suggestClipBaseProcess(data: ClipImportData, columns: ClipImportColumn[]): string {
+  const parentVisible = new Map<string, boolean>()
+  function visit(nodes: ClipImportData['nodes'], visible: boolean) {
+    for (const node of nodes) {
+      if (node.animation) parentVisible.set(node.id, visible)
+      else visit(node.children, visible && node.visible)
+    }
+  }
+  visit(data.nodes, true)
+  const byId = new Map(columns.map(column => [column.layerId, column]))
+  const ordered = clipImportFolders(data.nodes).flatMap(node => byId.get(node.id) ?? [])
+  const candidate = ordered.find(column => parentVisible.get(column.layerId)) ?? ordered[0]
+  return candidate ? clipProcessName(candidate) : ''
 }
 
 export function importClipProcessTimelines(document: CutGroupProjectDocument, data: ClipImportData, options: Omit<ClipImportOptions, 'timelineId'> & { timelineIds: string[] }): CutGroupProjectDocument {

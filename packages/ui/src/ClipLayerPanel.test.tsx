@@ -24,6 +24,21 @@ function setup(locked = false, extras: ClipLayerNode[] = []) {
 }
 
 describe('CSP-style layer palette controls', () => {
+  it('respects imported folder disclosure independently of visibility and keeps user disclosure across edits', () => {
+    const folder = { ...createClipNode('閉じたフォルダー', 'folder', null, 'closed'), expanded: false }
+    const child = createClipNode('内側', 'raster', folder.id, 'child')
+    const { row, changes } = setup(false, [folder, child])
+    expect(screen.getByRole('treeitem', { name: folder.name }).getAttribute('aria-expanded')).toBe('false')
+    expect(row('child')).toBeNull()
+    fireEvent.click(row('closed'))
+    fireEvent.keyDown(row('closed'), { key: 'ArrowRight' })
+    expect(row('child')).not.toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: '閉じたフォルダーの表示' }))
+    expect(row('child')).not.toBeNull()
+    expect(changes.mock.calls[0][0].clipDocument.nodes.find((node: ClipLayerNode) => node.id === folder.id)).toMatchObject({ expanded: false, visible: false })
+    fireEvent.keyDown(row('closed'), { key: 'ArrowLeft' })
+    expect(row('child')).toBeNull()
+  })
   it('moves keyboard ownership off the thumbnail when dragging and suppresses native file hover tooltips', () => {
     vi.useFakeTimers()
     const { row } = setup()

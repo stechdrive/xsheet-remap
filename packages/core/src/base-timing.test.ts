@@ -3,6 +3,14 @@ import { activeCutProjectFromDocument, baseTimingProcessId, baseTimingProject, b
 import { independentClipFixture } from './clip-workflows.fixture'
 
 describe('base sheet process', () => {
+  it('normalizes the selected base with the same whitespace rules as imported process names', () => {
+    const { data, columns } = independentClipFixture()
+    const chosen = openClipDocument(data, 'data:,', { timelineIds: ['t1'], role: 'cell',
+      columns: columns.map(column => ({ ...column, process: ` ${column.process} ` })), baseProcess: ' あ／テスト ' })
+    const project = activeCutProjectFromDocument(chosen)
+    expect(project.correctionLayers.find(process => process.layerId === baseTimingProcessId(project))?.label).toBe('あ／テスト')
+    expect(project.clipDocument!.nodes).toEqual(data.layers)
+  })
   it('persists an explicit imported base through cuts, renaming and round trips without changing native timing', () => {
     const { data, columns, document } = independentClipFixture()
     const chosen = openClipDocument(data, 'data:,', { timelineIds: ['t1', 't2'], role: 'cell', columns, baseProcess: 'あ／テスト' })

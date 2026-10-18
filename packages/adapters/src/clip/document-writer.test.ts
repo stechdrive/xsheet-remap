@@ -193,7 +193,7 @@ describe('editable CLIP document preservation', () => {
       expect(layer.AnimationFolder).toBe(0)
       const actual = readLayerPixels(clip, layer)
       expect(Array.from(actual.data.subarray((11 * 32 + 15) * 4, (11 * 32 + 15) * 4 + 8))).toEqual(Array.from(pixels.data.subarray(0, 8)))
-      const preview = readClipLayerPreview(SQL, result.bytes, Number(layer.MainId))
+      const preview = await readClipLayerPreview(SQL, result.bytes, Number(layer.MainId))
       expect(preview.bytes.subarray(0, 8)).toEqual(new Uint8Array([137,80,78,71,13,10,26,10]))
     } finally { clip.close() }
   })

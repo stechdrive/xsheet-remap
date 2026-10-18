@@ -39,11 +39,14 @@ export async function readClip(SQL: SqlJsStatic, bytes: Uint8Array, fileName: st
         check(!layerIds.has(id), 'レイヤーIDが重複しています。'); layerIds.add(id)
         const visible = parentVisible && Boolean(Number(layer.LayerVisibility ?? 1) & 1)
         const fullPath = [...path, name]
+        const folder = Boolean(Number(layer.LayerFolder) & 1)
+        const disclosure = folder ? { expanded: !(Number(layer.LayerFolder) & 16) } : {}
         fullLayers.push({ id, parentId, name, kind: clipLayerKind(layer, items), labelColor: clipLabelColor(layer),
+          ...disclosure,
           sourceLayerId: Number(layer.MainId), visible: Boolean(Number(layer.LayerVisibility ?? 1) & 1), opacity: Number(layer.LayerOpacity ?? 256) / 256,
           blendMode: Number(layer.LayerComposite ?? 0), locked: layer.LayerType === 1584 || Boolean(layer.LayerLock) })
-        const children = layer.LayerFolder ? tree(layer.LayerFirstChildIndex, fullPath, visible, id) : []
-        return [{ id, name, path: fullPath, animation, visible, children }]
+        const children = folder ? tree(layer.LayerFirstChildIndex, fullPath, visible, id) : []
+        return [{ id, name, path: fullPath, animation, visible, children, ...disclosure }]
       })
     }
     const nodes = tree(root.LayerFirstChildIndex, [], true)

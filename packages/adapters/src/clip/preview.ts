@@ -3,6 +3,7 @@ import { ClipContainer } from './container'
 import { mipmapChain, readLayerPixels } from './layers'
 import { png } from './raster'
 import { check } from './binary'
+import { clipLayerKind, normalizedUuid, optionalRows } from './layer-metadata'
 
 export interface ClipLayerPreview { bytes: Uint8Array; width: number; height: number; storedComposite: boolean }
 
@@ -12,6 +13,8 @@ export function readClipLayerPreview(SQL: SqlJsStatic, bytes: Uint8Array, layerI
     const layer = clip.row('Layer', layerId)
     const surface = mipmapChain(clip, layer.LayerRenderMipmap)[0].off
     check(!layer.LayerFolder || clip.body(surface.BlockData), 'フォルダーの保存済み合成画像がありません。')
+    const kind = clipLayerKind(layer, new Map(optionalRows(clip, 'CanvasItem').map(item => [normalizedUuid(item.ItemUuid), item])))
+    check(kind !== 'video' || clip.body(surface.BlockData), 'この動画レイヤーには保存済み画像がありません。元のCLIPで動画を確認してください。')
     const pixels = readLayerPixels(clip, layer)
     check(pixels.channels === 4 && pixels.width * pixels.height <= 100_000_000, 'このレイヤーの保存済みプレビューは表示できません。')
     if ((Number(layer.LayerType) & 2) && (Number(layer.LayerVisibility) & 2) && layer.LayerLayerMaskMipmap) {

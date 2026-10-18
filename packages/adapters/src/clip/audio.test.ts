@@ -5,13 +5,16 @@ import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { unzlibSync } from 'fflate'
 import { activeCutProjectFromDocument, buildClipRegistrationPlan, openClipDocument, updateActiveCutProjectInDocument, updateClipLayer } from '@xsheet-remap/core'
 import { readAudioTiming, readClipAudio } from './audio'
-import { ClipContainer, type Row } from './container'
+import { blob, ClipContainer, type Row } from './container'
 import { Mixer, packedMixer } from './animation'
 import { readClip } from './reader'
 import { createMediaFixture } from './fixtures/media-fixture'
 import { normalizedUuid } from './layer-metadata'
 import { clipSourceDataUrl } from './document-data'
 import { writeClip } from './writer'
+import { readClipLayerPreview } from './preview'
+import { mipmapChain } from './layers'
+import { encodeRaster } from './raster'
 
 const require = createRequire(import.meta.url), seed = new Uint8Array(readFileSync(new URL('./blank.clip', import.meta.url)))
 const native = JSON.parse(readFileSync(new URL('./fixtures/native-media.json', import.meta.url), 'utf8')) as { audioLayer: Row; videoLayer: Row; items: Row[]; objects: Row[]; mixer: { size: number; hex: string } }
@@ -22,6 +25,17 @@ const read = (mixer: Mixer, start = 0) => { const raw = mixer.encode(); return r
 
 
 describe('CLIP native media metadata and audio timing', () => {
+  it('does not invent a blank movie preview when the source has no saved pixels', () => {
+    const { clip, videoId } = createMediaFixture(SQL)
+    try {
+      const surface = mipmapChain(clip, clip.row('Layer', videoId).LayerRenderMipmap)[0].off
+      clip.update('Offscreen', surface.MainId, { BlockData: new TextEncoder().encode('missing-movie-preview') })
+      expect(() => readClipLayerPreview(SQL, clip.bytes(), videoId)).toThrow('この動画レイヤーには保存済み画像がありません')
+      const encoded = encodeRaster({ width: 2, height: 1, channels: 4, data: new Uint8Array([0, 0, 255, 255, 0, 0, 255, 255]) }, blob(surface.Attribute))
+      clip.update('Offscreen', surface.MainId, { Attribute: encoded.attribute, BlockData: clip.addExternal(encoded.body) })
+      expect(readClipLayerPreview(SQL, clip.bytes(), videoId)).toMatchObject({ width: 2, height: 1, storedComposite: true })
+    } finally { clip.close() }
+  })
   it('reads native full-length placement and evaluates a trimmed, moved clip relative to a nonzero playback start', () => {
     const expected = { objectId: normalizedUuid(native.objects[0].ObjectUuid), startFrame: 0, sourceOffsetFrames: 0, durationFrames: 72 }
     expect(readAudioTiming(Buffer.from(native.mixer.hex, 'hex'), native.mixer.size, 24, 0)).toEqual([expected])

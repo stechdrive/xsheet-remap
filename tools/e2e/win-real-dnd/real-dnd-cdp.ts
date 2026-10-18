@@ -16,7 +16,7 @@ import { waitForPaperPaint } from '../paper-paint-contract'
 import { assertSelectorsContributePaint } from '../visual-paint-contract'
 import { CdpClient } from '../cdp-client'
 import { verifyNativeFileDrop } from './native-file-drop-contract'
-import { nativeDropAppUrl, parseNativeDropOptions } from './options'
+import { assertGeneratedFixtureReload, nativeDropAppUrl, parseNativeDropOptions } from './options'
 
 interface ClientPoint {
   x: number
@@ -85,7 +85,20 @@ try {
   const appUrl = nativeDropAppUrl(target.url, args.mode ?? 'remap')
   diagnostics.appEntry = { launchedUrl: target.url, scenarioUrl: appUrl, setup: 'entry navigation before native input' }
   if (appUrl !== target.url) {
-    const navigation = await client.send<{ errorText?: string }>('Page.navigate', { url: appUrl })
+    await client.send('Page.enable')
+    // This isolated scenario creates its fixture on mount. Opening the requested
+    // entry reloads that fixture and can therefore prompt before navigation.
+    let failDialog: (reason: Error) => void = () => {}
+    const dialogFailure = new Promise<never>((_, reject) => { failDialog = reject })
+    const stopDialog = client.on('Page.javascriptDialogOpening', dialog => {
+      try { assertGeneratedFixtureReload(args['scenario-id'], target.url, dialog) }
+      catch (error) { failDialog(error as Error); return }
+      diagnostics.recreatedGeneratedFixture = { scenario: args['scenario-id'], dialogType: dialog.type, url: dialog.url }
+      void client!.send('Page.handleJavaScriptDialog', { accept: true }).catch(failDialog)
+    })
+    let navigation: { errorText?: string }
+    try { navigation = await Promise.race([client.send<{ errorText?: string }>('Page.navigate', { url: appUrl }), dialogFailure]) }
+    finally { stopDialog() }
     if (navigation.errorText) throw new Error(`Cannot open the scenario UI: ${navigation.errorText}`)
     client.close()
     const selected = await waitForCdpTarget(port, item => item.id === target.id && item.url === appUrl, 'requested app entry')

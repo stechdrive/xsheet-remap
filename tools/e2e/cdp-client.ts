@@ -1,5 +1,7 @@
 interface CdpResponse<T = unknown> {
   id?: number
+  method?: string
+  params?: Record<string, unknown>
   result?: T
   error?: { message: string; data?: string }
 }
@@ -7,11 +9,15 @@ interface CdpResponse<T = unknown> {
 export class CdpClient {
   private nextId = 1
   private pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
+  private listeners = new Map<string, Set<(params: Record<string, unknown>) => void>>()
 
   private constructor(private readonly socket: WebSocket) {
     socket.addEventListener('message', event => {
       const message = JSON.parse(String(event.data)) as CdpResponse
-      if (typeof message.id !== 'number') return
+      if (typeof message.id !== 'number') {
+        for (const listener of this.listeners.get(message.method ?? '') ?? []) listener(message.params ?? {})
+        return
+      }
       const pending = this.pending.get(message.id)
       if (!pending) return
       this.pending.delete(message.id)
@@ -34,6 +40,13 @@ export class CdpClient {
       this.pending.set(id, { resolve: value => resolve(value as T), reject })
       this.socket.send(JSON.stringify({ id, method, params }))
     })
+  }
+
+  on(method: string, listener: (params: Record<string, unknown>) => void): () => void {
+    const listeners = this.listeners.get(method) ?? new Set()
+    this.listeners.set(method, listeners)
+    listeners.add(listener)
+    return () => { listeners.delete(listener); if (!listeners.size) this.listeners.delete(method) }
   }
 
   close(): void {

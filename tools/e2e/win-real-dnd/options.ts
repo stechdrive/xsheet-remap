@@ -22,3 +22,9 @@ export function nativeDropAppUrl(currentUrl: string, mode: string): string {
   url.searchParams.set('app', mode)
   return url.href
 }
+
+export function assertGeneratedFixtureReload(scenario: string | undefined, currentUrl: string, dialog: Record<string, unknown>): void {
+  if (scenario !== 'registered-cell-real-dnd' || dialog.type !== 'beforeunload' || dialog.url !== currentUrl) {
+    throw new Error(`Unexpected dialog during scenario setup: ${JSON.stringify(dialog)}`)
+  }
+}

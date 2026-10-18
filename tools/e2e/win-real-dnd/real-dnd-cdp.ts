@@ -16,7 +16,7 @@ import { waitForPaperPaint } from '../paper-paint-contract'
 import { assertSelectorsContributePaint } from '../visual-paint-contract'
 import { CdpClient } from '../cdp-client'
 import { verifyNativeFileDrop } from './native-file-drop-contract'
-import { parseNativeDropOptions } from './options'
+import { nativeDropAppUrl, parseNativeDropOptions } from './options'
 
 interface ClientPoint {
   x: number
@@ -82,6 +82,16 @@ try {
   const target = await waitForCdpTarget(port, target => !target.url.includes('window=asset-preview'), 'main CDP target')
   if (!target.webSocketDebuggerUrl) throw new Error('CDP target did not expose a websocket URL')
   client = await CdpClient.connect(target.webSocketDebuggerUrl)
+  const appUrl = nativeDropAppUrl(target.url, args.mode ?? 'remap')
+  diagnostics.appEntry = { launchedUrl: target.url, scenarioUrl: appUrl, setup: 'entry navigation before native input' }
+  if (appUrl !== target.url) {
+    const navigation = await client.send<{ errorText?: string }>('Page.navigate', { url: appUrl })
+    if (navigation.errorText) throw new Error(`Cannot open the scenario UI: ${navigation.errorText}`)
+    client.close()
+    const selected = await waitForCdpTarget(port, item => item.id === target.id && item.url === appUrl, 'requested app entry')
+    if (!selected.webSocketDebuggerUrl) throw new Error('Selected app entry has no CDP websocket')
+    client = await CdpClient.connect(selected.webSocketDebuggerUrl)
+  }
   await client.send('Runtime.enable')
   await client.send('Page.enable')
   await waitForSheet()

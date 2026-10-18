@@ -14,3 +14,11 @@ export function parseNativeDropOptions(argv: string[]): Record<string, string> {
   if (values.mode && !['remap', 'editor'].includes(values.mode)) throw new Error(`Unsupported native drop mode: ${values.mode}`)
   return values
 }
+
+/** Remap's EXE contains both entries; selecting a scenario must also select its UI. */
+export function nativeDropAppUrl(currentUrl: string, mode: string): string {
+  if (!['remap', 'editor'].includes(mode)) throw new Error(`Unsupported native drop mode: ${mode}`)
+  const url = new URL(currentUrl)
+  url.searchParams.set('app', mode)
+  return url.href
+}

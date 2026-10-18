@@ -103,7 +103,7 @@ test('two-pane layer workspace imports, previews, reuses cels, filters without c
   await expect(event(7)).toHaveCount(0)
   await expect(row(page, '001')).toHaveCount(1)
   await activateControl(page, page.getByRole('button', { name: 'やり直し', exact: true }))
-  await page.getByLabel('シートは選択工程だけ表示', { exact: true }).check()
+  await page.getByLabel('工程差を表示', { exact: true }).check()
   const other = await page.getByLabel('登録先工程', { exact: true }).locator('option').evaluateAll((options, current) => (options as HTMLOptionElement[]).find(option => option.value !== current)!.value, process)
   await page.getByLabel('登録先工程', { exact: true }).selectOption(other)
   await expect(event(1)).toHaveCount(0)

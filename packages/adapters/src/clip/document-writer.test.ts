@@ -11,6 +11,7 @@ import { readLayerPixels } from './layers'
 import { readClipLayerPreview } from './preview'
 import { ensureTrackLabelStorage } from './track-labels'
 import { addClipImages, createDefaultProject, createProjectDocumentFromCutProject, ensureClipDocument } from '@xsheet-remap/core'
+import { selectTimingProcess, suggestClipProcessColumns } from '@xsheet-remap/core'
 
 const require = createRequire(import.meta.url)
 const seed = new Uint8Array(readFileSync(new URL('./blank.clip', import.meta.url)))
@@ -31,6 +32,26 @@ function save(document: CutGroupProjectDocument, images = {}) { return writeClip
 function change(document: CutGroupProjectDocument, fn: (project: ReturnType<typeof activeCutProjectFromDocument>) => ReturnType<typeof activeCutProjectFromDocument>) { return updateActiveCutProjectInDocument(document, fn(activeCutProjectFromDocument(document))) }
 
 describe('editable CLIP document preservation', () => {
+  it('round trips nested process folders on one paper column with independent timing and untouched tracks', async () => {
+    const plan: ClipRegistrationPlan = { ...legacy, folders: ['作画', '修正'].map((name, index) => ({ ...legacy.folders[0], id: `a${index}`, path: ['LO', name] })), timelines: legacy.timelines.map(timeline => ({ ...timeline, tracks: [0, 1].map(index => ({ folderId: `a${index}`, frames: [{ frame: 0, value: '001' }, { frame: index ? 8 : 4, value: '002' }] })) })) }
+    const original = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: { red: pixels } })
+    const data = await readClip(SQL, original.bytes, 'nested.clip'), folders = clipImportFolders(data.nodes)
+    const columns = suggestClipProcessColumns(data, folders.map(folder => folder.id))
+    const document = openClipDocument(data, clipSourceDataUrl(original.bytes), { timelineIds: [data.timelines[0].id], role: 'action', columns })
+    expect((await save(document)).bytes).toEqual(original.bytes)
+    const project = activeCutProjectFromDocument(document), process = project.correctionLayers.find(layer => layer.label === 'xsheet-remap／LO／作画')!
+    const selected = selectTimingProcess(project, process.layerId)
+    const changed = updateActiveCutProjectInDocument(document, setEvent(selected, 'A', 13, selected.logicalSheet.events[0].keyId, 'action'))
+    const edited = await save(changed), parsed = await readClip(SQL, edited.bytes, 'edited.clip')
+    const folder = folders.find(folder => folder.path.join('／') === 'xsheet-remap／LO／作画／A')!
+    const other = folders.find(item => item.id !== folder.id)!
+    expect(parsed.timelines[0].tracks.find(track => track.layerId === folder.id)!.frames).toEqual([{ frame: 0, value: '001' }, { frame: 4, value: '002' }, { frame: 12, value: '001' }])
+    expect(parsed.timelines[0].tracks.find(track => track.layerId === other.id)).toEqual(data.timelines[0].tracks.find(track => track.layerId === other.id))
+    expect(parsed.timelines[1]).toEqual(data.timelines[1])
+    expect(parsed.layers).toEqual(data.layers)
+    const reopened = openClipDocument(parsed, clipSourceDataUrl(edited.bytes), { timelineIds: [parsed.timelines[0].id], role: 'action', columns })
+    expect((await save(reopened)).bytes).toEqual(edited.bytes)
+  })
   it('creates a complete new document from the bundled seed, including pixels, static layers and timing', async () => {
     const project = ensureClipDocument(createDefaultProject())
     const slot = project.cspTrackSlots.find(slot => slot.slotId === project.clipDocument!.targets[0].slotId)!

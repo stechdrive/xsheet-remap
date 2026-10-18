@@ -21,6 +21,35 @@ const file = (name: string) => new File(['pixels'], name, { type: 'image/png' })
 const layer = (name: string) => Array.from(document.querySelectorAll<HTMLElement>('.clipLayerRow')).find(row => row.querySelector('.clipLayerName')?.textContent === name)
 
 describe('Remap CLIP layer workspace', () => {
+  it('switches independent timing without adding Undo entries and keeps sheet drops in their selected group', async () => {
+    const { sheet } = setup()
+    const process = screen.getByLabelText('登録先工程') as HTMLSelectElement
+    const base = process.value, other = Array.from(process.options).find(option => option.value !== base)!.value
+    const dropAt = (frame: number, name: string) => {
+      const target = templateFramePoint('cell', 'A', frame)
+      const drop = createEvent.drop(sheet, { dataTransfer: { files: [file(name)], types: ['Files'], getData: () => '' } })
+      Object.defineProperties(drop, { clientX: { value: target.x }, clientY: { value: target.y } }); fireEvent(sheet, drop)
+    }
+    const frames = () => Array.from(document.querySelectorAll('[data-timeline-event-frame]')).map(element => element.getAttribute('data-timeline-event-frame'))
+    dropAt(1, 'base.png')
+    await waitFor(() => expect(frames()).toContain('1'))
+    fireEvent.change(process, { target: { value: other } })
+    expect(document.querySelector('.eventText')).toBeNull()
+    dropAt(5, 'correction.png')
+    await waitFor(() => expect(frames()).toContain('5'))
+    expect(frames()).not.toContain('1')
+    fireEvent.click(screen.getByRole('checkbox', { name: '工程差を表示' }))
+    expect(screen.getByRole('region', { name: '工程別タイミング差分' }).textContent).toContain('区間')
+    expect(document.querySelector('[data-testid="process-difference-overlay"]')).toBeTruthy()
+    fireEvent.change(process, { target: { value: base } })
+    expect(frames()).toContain('1'); expect(frames()).not.toContain('5')
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    expect(frames()).toContain('1')
+    fireEvent.change(process, { target: { value: other } })
+    expect(document.querySelector('.eventText')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.redo }))
+    expect(frames()).toContain('5'); expect(frames()).not.toContain('1')
+  })
   it('records an opacity slider gesture as one Undo operation and keeps blending and visibility independent', () => {
     const { folder } = setup()
     const slider = screen.getByRole('slider', { name: 'レイヤーの不透明度スライダー' })

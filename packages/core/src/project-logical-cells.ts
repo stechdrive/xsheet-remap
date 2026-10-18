@@ -1,6 +1,7 @@
 import type { CutProject, TimelineEvent } from './types'
 import { compareTimelineEvents, sheetTimingRoleForKey } from './project-shared'
 import { findTimingKeyByDisplayLabel, updateKey } from './project-timing'
+import { allProcessEvents, keyInActiveProcess } from './process-timing'
 
 export interface UpdateOrMergeTimingKeyResult {
   project: CutProject
@@ -36,7 +37,7 @@ export function mergeTimingKeys(project: CutProject, sourceKeyId: string, target
   const targetKey = project.logicalSheet.keys.find(key => key.keyId === targetKeyId)
   if (!sourceKey) throw new Error(`source key not found: ${sourceKeyId}`)
   if (!targetKey) throw new Error(`target key not found: ${targetKeyId}`)
-  if (sourceKey.paperTrack !== targetKey.paperTrack || sheetTimingRoleForKey(sourceKey) !== sheetTimingRoleForKey(targetKey)) {
+  if (!keyInActiveProcess(project, sourceKey) || sourceKey.processId !== targetKey.processId || sourceKey.paperTrack !== targetKey.paperTrack || sheetTimingRoleForKey(sourceKey) !== sheetTimingRoleForKey(targetKey)) {
     throw new Error('timing keys can only be merged within the same sheet column and role')
   }
 
@@ -74,7 +75,7 @@ export function removeCellBinding(project: CutProject, bindingId: string): CutPr
   if (!binding) return project
   const bindings = project.bindings.filter(item => item.bindingId !== bindingId)
   const keyStillUsed = bindings.some(item => item.keyId === binding.keyId)
-    || project.logicalSheet.events.some(event => event.keyId === binding.keyId)
+    || allProcessEvents(project.logicalSheet).some(event => event.keyId === binding.keyId)
   return {
     ...project,
     logicalSheet: keyStillUsed

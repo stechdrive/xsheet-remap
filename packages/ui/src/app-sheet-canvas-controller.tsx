@@ -1,5 +1,5 @@
 import { isTauriHost } from '@xsheet-remap/adapters'
-import { clipCelDropTarget } from '@xsheet-remap/core'
+import { clipCelDropTarget, selectTimingProcess } from '@xsheet-remap/core'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
 import { type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
@@ -258,11 +258,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const overlayTracks = sheetRenderModelContext.overlayTracks
   const referenceRenderModelContext = useMemo(
     () => props.referenceProject
-      ? createSheetRenderModelContext(props.referenceProject, props.template, {
+      ? createSheetRenderModelContext(selectTimingProcess(props.referenceProject, props.project.logicalSheet.processTimings?.activeProcessId ?? ''), props.template, {
           cutGroup: sheetRenderCutGroup,
         })
       : null,
-    [props.referenceProject, props.template, sheetRenderCutGroup],
+    [props.referenceProject, props.project.logicalSheet.processTimings?.activeProcessId, props.template, sheetRenderCutGroup],
   )
   const rangeTrackOrder = (role: SheetTimingRole) => paperTrackOrderForRole(props.project, role, props.template)
   const rangeFromHits = (anchorHit: SheetHit, focusHit: SheetHit): SheetRangeSelection | null => {
@@ -2295,7 +2295,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     })
   }
 
-  const contextProcessMove = contextMenu?.hit ? singleMovableBindingForHit(props.project, contextMenu.hit) : null
+  const contextProcessMove = contextMenu?.hit && !props.project.logicalSheet.processTimings ? singleMovableBindingForHit(props.project, contextMenu.hit) : null
   const contextProcessMoveOptions = contextProcessMove ? processMoveOptionsForSlot(props.project, contextProcessMove.slot, contextProcessMove.binding.keyId) : []
   const soundContext = contextMenu?.hit?.role === 'sound' || Boolean(props.selectedSoundCueId)
   const cameraContext = contextMenu?.hit?.role === 'camera' || Boolean(props.selectedCameraCueId)

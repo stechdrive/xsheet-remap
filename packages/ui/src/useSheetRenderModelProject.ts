@@ -100,10 +100,10 @@ export function useSheetRenderModelContext(
   )
 
   const visibleKeyIds = useMemo(() => {
-    if (!clipFilterProcessId) return undefined
+    if (!clipFilterProcessId || project.logicalSheet.processTimings) return undefined
     const slots = new Set(project.cspTrackSlots.filter(slot => slot.correctionLayerId === clipFilterProcessId).map(slot => slot.slotId))
     return new Set(project.bindings.filter(binding => slots.has(binding.slotId) && binding.clipLayerId).map(binding => binding.keyId))
-  }, [clipFilterProcessId, project.cspTrackSlots, project.bindings])
+  }, [clipFilterProcessId, project.cspTrackSlots, project.bindings, project.logicalSheet.processTimings])
   return useMemo(
     () => createSheetRenderModelContext(contentProject, template, { geometry, cutGroup, visibleKeyIds }),
     [contentProject, cutGroup, geometry, template, visibleKeyIds],

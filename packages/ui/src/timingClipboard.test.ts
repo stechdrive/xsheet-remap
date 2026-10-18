@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ensureClipDocument, selectTimingProcess, timingForProcess } from '@xsheet-remap/core'
 import {
   addOverlayPaperTrack, createDefaultProject, createOrSetEvent, digitalStandardSheetTemplate,
   registerAsset, setEvent, setTimingSpecialEvent, sheetTimingRoleForEvent, standardA3SheetTemplate,
@@ -32,6 +33,17 @@ function boundDrawing(project: CutProject, role: SheetTimingRole, track: string,
 }
 
 describe('timing clipboard across ACTION, CELL and additional columns', () => {
+  it('copies notation into another process with separate keys and never changes the source timing', () => {
+    const initial = ensureClipDocument(createDefaultProject()), base = initial.logicalSheet.processTimings!.activeProcessId, other = initial.correctionLayers.find(layer => layer.layerId !== base)!.layerId
+    const source = createOrSetEvent(initial, 'A', 1, 'cell').project
+    const clipboard = buildTimingClipboard(source, range('cell', ['A'], 1, 1), 'copy')
+    const target = selectTimingProcess(source, other)
+    const pasted = pasteTimingClipboardToProject(target, clipboard, { role: 'cell', paperTrack: 'A', frameStart: 5, frameEnd: 5 }, 'overwrite')
+    expect(pasted.logicalSheet.events[0].keyId).not.toBe(source.logicalSheet.events[0].keyId)
+    expect(pasted.logicalSheet.keys.find(key => key.keyId === pasted.logicalSheet.events[0].keyId)?.processId).toBe(other)
+    expect(timingForProcess(pasted.logicalSheet, base).events).toEqual(source.logicalSheet.events)
+    expect(validateProject(pasted).filter(issue => issue.severity === 'error')).toEqual([])
+  })
   it.each(['action', 'cell'] as const)('copies %s notation with independent drawing numbers, gaps and special marks', sourceRole => {
     const targetRole = sourceRole === 'action' ? 'cell' : 'action'
     const first = createOrSetEvent(createDefaultProject(), 'A', 1, sourceRole)

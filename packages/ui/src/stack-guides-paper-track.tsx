@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { type CutProject, type PaperTrack } from '@xsheet-remap/core'
+import { mapInactiveProcessTimings, type CutProject, type PaperTrack } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { compareNaturalFileNameText } from './naturalSort'
 import { Tooltip } from './Tooltip'
@@ -117,6 +117,7 @@ export function deleteRegisteredCellKey(project: CutProject, keyId: string): Cut
       ...project.logicalSheet,
       keys: project.logicalSheet.keys.filter(key => key.keyId !== keyId),
       events: project.logicalSheet.events.filter(event => event.keyId !== keyId),
+      processTimings: mapInactiveProcessTimings(project.logicalSheet, timing => ({ ...timing, events: timing.events.filter(event => event.keyId !== keyId) })),
     },
     bindings: project.bindings.filter(binding => binding.keyId !== keyId),
   }

@@ -33,6 +33,19 @@ function show() {
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(readClipFile).mockResolvedValue(structuredClone(data)) })
 afterEach(cleanup)
 describe('CLIP import selection', () => {
+  it('accepts arbitrary display groups for the same cell column without changing native folder names', async () => {
+    const { onImport } = show()
+    await screen.findByLabelText('原画を読み込む')
+    fireEvent.change(screen.getByLabelText('原画 / 長い名前の表示グループ'), { target: { value: 'LO／自由な確認用' } })
+    fireEvent.change(screen.getByLabelText('原画 / 長い名前のセル列名'), { target: { value: 'A' } })
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'タイムシートに読み込む' }))
+    const project = activeCutProjectFromDocument(onImport.mock.calls[0][0])
+    expect(project.correctionLayers.map(layer => layer.label)).toContain('LO／自由な確認用')
+    expect(project.clipDocument!.nodes.find(node => node.id === 'lower')?.name).toBe('長い名前')
+    expect(project.clipDocument!.targets).toHaveLength(2)
+    expect(project.cspTrackSlots.filter(slot => project.clipDocument!.targets.some(target => target.slotId === slot.slotId)).map(slot => slot.paperTrack)).toEqual(['A', 'A'])
+  })
   it('toggles a subtree and partial selection, keeps short editable names, and cancels without importing', async () => {
     const callbacks = show()
     const parent = await screen.findByLabelText('原画を読み込む') as HTMLInputElement

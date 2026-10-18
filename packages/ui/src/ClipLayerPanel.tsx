@@ -9,6 +9,9 @@ import { initialAssetPreviewRect, type AssetPreviewPayload } from './assetPrevie
 import { ClipLayerAppearance, clipBlendLabel } from './ClipLayerAppearance'
 import { ClipLayerIcon, clipLayerKindLabel } from './ClipLayerIcons'
 import { ClipAudioImport } from './ClipAudioImport'
+import { ClipProcessComparison } from './ClipProcessComparison'
+import { ProcessSettingsDialog } from './ProcessSettingsDialog'
+import { updateCorrectionLayers } from '@xsheet-remap/core'
 import { clipLayerDropAtElement, clipLayerFileDropAllowed, subscribeNativeLayerHover, type ClipLayerDropTarget } from './clipLayerDrop'
 import './styles/clip-layers.css'
 
@@ -35,6 +38,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   const latestProject = useRef(project)
   useEffect(() => { latestProject.current = project }, [project])
   const [selectedId, setSelectedId] = useState<string | null>(null), [notice, setNotice] = useState('')
+  const [processSettingsOpen, setProcessSettingsOpen] = useState(false)
   const [dropState, setDropState] = useState<{ project: CutProject; target: ClipLayerDropTarget & { valid: boolean } } | null>(null)
   const dropTarget = dropState?.project === project ? dropState.target : null
   const setDropTarget = useCallback((target: (ClipLayerDropTarget & { valid: boolean }) | null) => {
@@ -50,7 +54,9 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   const dragged = useRef(false)
   const selected = document.nodes.find(node => node.id === selectedId)
   const parentId = selected && ['folder', 'animation'].includes(selected.kind) ? selected.id : selected?.parentId ?? null
-  const target = document.targets.find(item => item.slotId === project.cspTrackSlots.find(slot => slot.paperTrack === paperTrack && slot.correctionLayerId === props.activeProcessId)?.slotId)
+  const selectedSlot = project.cspTrackSlots.find(slot => slot.paperTrack === paperTrack && slot.correctionLayerId === props.activeProcessId)
+  const target = document.targets.find(item => item.slotId === selectedSlot?.slotId)
+  const targetLabel = target ? clipNodePath(document, target.folderId) : selectedSlot && document.deletedTargetSlotIds?.includes(selectedSlot.slotId) ? 'フォルダー削除済み（CLIP出力から除外）' : '未設定'
   const cellPath = pathDraft && pathDraft.slotId === target?.slotId ? pathDraft.value : target?.cellPath?.join('/') ?? ''
   const previewRequest = useMemo(() => ({ selected, document, sheet: project.logicalSheet, cutId: props.activeCutId, hit: props.selectedHit }), [selected, document, project.logicalSheet, props.activeCutId, props.selectedHit])
   const used = useMemo(() => new Set(project.bindings.filter(binding => project.logicalSheet.events.some(event => event.keyId === binding.keyId)).flatMap(binding => binding.clipLayerId ? [binding.clipLayerId] : [])), [project.bindings, project.logicalSheet.events])
@@ -267,12 +273,15 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     <p className="clipDropStatus" aria-live="polite">{dropTarget ? `${dropTarget.valid ? '' : '移動・追加不可：'}${dropTarget.id ? document.nodes.find(node => node.id === dropTarget.id)?.name : '最上位'}${dropTarget.placement === 'before' ? ' の上に挿入' : dropTarget.placement === 'after' ? ' の下に挿入' : ' の中へ'}` : `画像の追加先：${parentId ? clipNodePath(document, parentId) : '最上位'}`}</p>
     <div className="clipSheetConnection">
       {selected?.kind === 'audio' && <ClipAudioImport key={`${project.projectId}:${props.activeCutId}:${props.activeSheetRevisionId}:${selected.id}`} project={project} node={selected} activeCutId={props.activeCutId} revisionId={props.activeSheetRevisionId} disabled={props.disabled} onChange={props.onChange} />}
-      <div className="clipSheetConnectionTitle"><strong>シートとの対応</strong><label><input type="checkbox" checked={props.filterProcess} onChange={event => props.onFilterProcess(event.target.checked)} />シートは選択工程だけ表示</label></div>
+      <div className="clipSheetConnectionTitle"><strong>シートとの対応</strong><label><input type="checkbox" checked={props.filterProcess} onChange={event => props.onFilterProcess(event.target.checked)} />{project.logicalSheet.processTimings ? '工程差を表示' : 'シートは選択工程だけ表示'}</label></div>
       <div className="clipSheetMapping">
-        <label>工程<select aria-label="登録先工程" value={props.activeProcessId} onChange={event => props.onProcessChange(event.target.value)}>{project.correctionLayers.map(process => <option key={process.layerId} value={process.layerId}>{process.label}</option>)}</select></label>
+        <label>グループ<select aria-label="登録先工程" value={props.activeProcessId} onChange={event => props.onProcessChange(event.target.value)}>{project.correctionLayers.map(process => <option key={process.layerId} value={process.layerId}>{process.label}</option>)}</select></label>
         <label>セル列<select aria-label="登録先セル列" value={paperTrack} onChange={event => setPaperTrack(event.target.value)}>{project.logicalSheet.paperTracks.map(track => <option key={track.paperTrack} value={track.paperTrack}>{track.label}</option>)}</select></label>
       </div>
-      <p className="clipTargetPath" title={target ? clipNodePath(document, target.folderId) : '未設定'}>登録先：{target ? clipNodePath(document, target.folderId) : '未設定'}</p>
+      <p className="clipTargetPath" title={targetLabel}>登録先：{targetLabel}</p>
+      {project.logicalSheet.processTimings && <p className="clipProcessEditing">表示・編集：{project.correctionLayers.find(process => process.layerId === props.activeProcessId)?.label}（独立したタイミング）</p>}
+      {project.logicalSheet.processTimings && <button type="button" disabled={props.disabled} onClick={() => setProcessSettingsOpen(true)}>グループ設定…</button>}
+      {project.logicalSheet.processTimings && props.filterProcess && <ClipProcessComparison project={project} onProcessChange={props.onProcessChange} />}
       <details className="clipMappingDetails"><summary>登録先・シート表示を設定</summary>
         <fieldset className="clipLayerTargets" disabled={props.disabled}>
           <label>セル内フォルダー<input aria-label="セル内の画像登録先" placeholder="例：作監（空欄はセル直下）" value={cellPath} onChange={event => setPathDraft({ slotId: target?.slotId, value: event.target.value })} /></label>
@@ -289,6 +298,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
 
     </div>
     {notice && <p role="status" className="clipLayerNotice">{notice}</p>}
+    {processSettingsOpen && <ProcessSettingsDialog project={project} onClose={() => setProcessSettingsOpen(false)} onApply={layers => { if (apply(() => updateCorrectionLayers(project, layers))) setProcessSettingsOpen(false) }} />}
     {previewOpen && preview?.request === previewRequest && <AssetFloatingPreview isDragPassthrough={false} payload={preview.payload} rect={previewRect} onRectChange={setPreviewRect} onClose={() => setPreviewOpen(false)} />}
   </section>
 }

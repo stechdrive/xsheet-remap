@@ -1,5 +1,6 @@
 import type { CellBinding, CutProject, PaperTrackName, SheetTimingRole, TimelineEvent, TimingKey, TimingSpecialMarker } from './types'
 import { nextId, withoutUndefined } from './core-utils'
+import { keyInActiveProcess, selectTimingProcess } from './process-timing'
 import { setTimingReferenceAt } from './timing-reference'
 import { registerTimingChange, replaceTimingEvent, timingKeyIndex } from './timing-index'
 import { DEFAULT_EXPORT_TIMING_ROLE, DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
@@ -20,6 +21,7 @@ export function createKey(
   if (existing) return { project, key: existing }
   const key: TimingKey = {
     keyId: nextId('key', project.logicalSheet.keys.map(item => item.keyId)),
+    ...(project.logicalSheet.processTimings ? { processId: project.logicalSheet.processTimings.activeProcessId } : {}),
     paperTrack,
     ...(sheetRole ? { sheetRole } : {}),
     displayLabel: label,
@@ -47,7 +49,7 @@ export function findTimingKeyByDisplayLabel(
   const label = normalizeTimingKeyDisplayLabel(displayLabel)
   if (!label) return null
   return project.logicalSheet.keys.find(key =>
-    key.paperTrack === paperTrack
+    keyInActiveProcess(project, key) && key.paperTrack === paperTrack
     && sheetTimingRoleForKey(key) === sheetRole
     && normalizeTimingKeyDisplayLabel(key.displayLabel) === label
   ) ?? null
@@ -65,6 +67,7 @@ export function setEvent(
   if (!isSpecialTimingKeyId(keyId)) {
     const key = timingKeyIndex(project.logicalSheet.keys).get(keyId)
     if (!key) throw new Error(`key not found: ${keyId}`)
+    if (!keyInActiveProcess(project, key)) throw new Error('別工程のセル指定は編集できません。工程を切り替えてください。')
     if (key.paperTrack !== paperTrack) throw new Error(`key ${keyId} does not belong to paperTrack ${paperTrack}`)
     if (sheetTimingRoleForKey(key) !== sheetRole) throw new Error(`key ${keyId} does not belong to ${sheetRole}`)
   }
@@ -176,6 +179,7 @@ export function upsertBinding(
   if (!slot) throw new Error(`slot not found: ${input.slotId}`)
   const key = project.logicalSheet.keys.find(item => item.keyId === input.keyId)
   if (!key) throw new Error(`key not found: ${input.keyId}`)
+  if (project.logicalSheet.processTimings && key.processId !== slot.correctionLayerId) throw new Error('別グループのセルを同じキーに登録できません。')
   const existing = project.bindings.find(item => item.slotId === input.slotId && item.keyId === input.keyId)
   const cspCellName = input.cspCellName ?? existing?.cspCellName ?? defaultCspCellName(key.displayLabel, slot.paperTrack)
   const materialState = input.materialState ?? (input.assetId || existing?.assetId ? 'assigned' : existing?.materialState ?? 'unassigned')
@@ -185,6 +189,7 @@ export function upsertBinding(
     keyId: input.keyId,
     cspCellName,
     assetId: input.assetId ?? existing?.assetId,
+    ...(existing?.clipLayerId ? { clipLayerId: existing.clipLayerId } : {}),
     materialState,
   }
   return {
@@ -243,7 +248,7 @@ export function createUnplacedCspCard(
   )
   if (duplicate) throw new Error(`CSP cell name already exists in slot ${slot.slotId}: ${cspCellName}`)
 
-  const created = createKey(project, slot.paperTrack, undefined, 'manual', undefined, input.sheetRole ?? null)
+  const created = createKey(selectTimingProcess(project, slot.correctionLayerId ?? ''), slot.paperTrack, undefined, 'manual', undefined, input.sheetRole ?? null)
   const withoutSheetLabel = updateKey(created.project, created.key.keyId, { displayLabel: '', paperToken: '' })
   const withBinding = upsertBinding(withoutSheetLabel, {
     slotId: slot.slotId,
@@ -269,7 +274,7 @@ export function registerAssetsToCspTrack(
   const addedKeyIds: string[] = []
   const duplicateKeyIds: string[] = []
   const missingAssetIds: string[] = []
-  let next = project
+  let next = selectTimingProcess(project, slot.correctionLayerId ?? '')
 
   for (const assetId of requestedAssetIds) {
     const asset = next.assets.find(item => item.assetId === assetId)
@@ -311,6 +316,7 @@ export function moveBindingToCorrectionLayer(
     overwrite?: boolean
   },
 ): CutProject {
+  if (project.logicalSheet.processTimings) throw new Error('工程別タイミングでは、移動先グループへ切り替えてセルを登録してください。')
   const sourceBinding = project.bindings.find(binding => binding.keyId === input.keyId && binding.slotId === input.sourceSlotId)
   if (!sourceBinding) throw new Error(`binding not found: ${input.sourceSlotId} / ${input.keyId}`)
   const sourceSlot = project.cspTrackSlots.find(slot => slot.slotId === input.sourceSlotId)
@@ -353,7 +359,7 @@ export function updateKey(project: CutProject, keyId: string, updates: { display
   const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
   if (!key) throw new Error(`key not found: ${keyId}`)
   if (updates.displayLabel !== undefined) {
-    const duplicate = findTimingKeyByDisplayLabel(project, key.paperTrack, updates.displayLabel, updates.sheetRole ?? sheetTimingRoleForKey(key))
+    const duplicate = findTimingKeyByDisplayLabel(selectTimingProcess(project, key.processId ?? ''), key.paperTrack, updates.displayLabel, updates.sheetRole ?? sheetTimingRoleForKey(key))
     if (duplicate && duplicate.keyId !== keyId) {
       throw new Error(`displayLabel already exists in ${key.paperTrack}: ${updates.displayLabel}`)
     }

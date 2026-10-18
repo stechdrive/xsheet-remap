@@ -1,5 +1,6 @@
 import {
   clearEvent,
+  keyInActiveProcess,
   createKey,
   findTimingKeyByDisplayLabel,
   setEvent,
@@ -43,6 +44,7 @@ export function createTimingClipboardWriter(clipboard: TimingClipboard, targetRo
 
     const sourceKey = item.keyId ? project.logicalSheet.keys.find(key => key.keyId === item.keyId) : undefined
     const reusableSourceKey = sourceKey
+      && keyInActiveProcess(project, sourceKey)
       && sourceKey.paperTrack === paperTrack
       && sheetTimingRoleForKey(sourceKey) === targetRole
       && sourceKey.displayLabel === (item.displayLabel ?? '')
@@ -83,7 +85,7 @@ function reusableClipboardKey(project: CutProject, role: SheetTimingRole, paperT
   if (bindingPolicy === 'omit') return null
   const signature = bindingSignature(clipboardBindingsForTrack(project, item, paperTrack))
   return project.logicalSheet.keys.find(key =>
-    key.paperTrack === paperTrack
+    keyInActiveProcess(project, key) && key.paperTrack === paperTrack
     && sheetTimingRoleForKey(key) === role
     && key.displayLabel === label
     && (key.paperToken ?? '') === (item.paperToken ?? '')
@@ -126,7 +128,7 @@ function clipboardBindingsForTrack(project: CutProject, item: ClipboardItem, pap
 }
 
 function correspondingSlot(project: CutProject, binding: NonNullable<ClipboardItem['bindings']>[number], paperTrack: string): CspTrackSlot | null {
-  const candidates = project.cspTrackSlots.filter(slot => slot.paperTrack === paperTrack)
+  const candidates = project.cspTrackSlots.filter(slot => slot.paperTrack === paperTrack && (!project.logicalSheet.processTimings || slot.correctionLayerId === project.logicalSheet.processTimings.activeProcessId))
   return candidates.find(slot => slot.correctionLayerId === binding.sourceSlotCorrectionLayerId && slot.occurrenceIndex === binding.sourceSlotOccurrenceIndex)
     ?? candidates.find(slot => slot.correctionLayerId === binding.sourceSlotCorrectionLayerId && slot.stageId === binding.sourceSlotStageId)
     ?? candidates.find(slot => slot.correctionLayerId === binding.sourceSlotCorrectionLayerId)

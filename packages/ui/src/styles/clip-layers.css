@@ -66,6 +66,15 @@
 .clipSheetMapping label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .clipSheetMapping select { flex: 1; width: 40px; padding: 2px; }
 .clipTargetPath { margin: 5px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #52675a; font-size: 11px; }
+.clipProcessEditing { margin: 5px 0; font-size: 11px; overflow-wrap: anywhere; }
+.clipProcessComparison { padding: 6px; border: 1px solid #bd964e; background: #fff5dc; font-size: 11px; }
+.clipProcessComparison > label { display: flex; align-items: center; gap: 4px; }
+.clipProcessComparison p { margin: 5px 0; }
+.clipProcessComparison small { display: block; line-height: 1.5; }
+.clipProcessComparison details { margin-top: 5px; }
+.clipProcessComparison summary { cursor: pointer; }
+.clipProcessComparison details button { display: flex; width: 100%; justify-content: space-between; gap: 6px; text-align: left; overflow-wrap: anywhere; margin-top: 3px; }
+.clipProcessComparison details button[aria-pressed="true"] { outline: 1px solid #8a611b; }
 .clipMappingDetails > summary { cursor: pointer; padding: 2px 0; font-size: 11px; }
 .clipLayerPanel .clipLayerTargets, .clipLayerPanel .clipLayerProperties { display: grid; gap: 6px; padding: 8px 0 2px; }
 .clipLayerTargets label, .clipLayerProperties label { display: flex; align-items: center; gap: 5px; }

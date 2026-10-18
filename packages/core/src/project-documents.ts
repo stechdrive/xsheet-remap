@@ -10,6 +10,7 @@ import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations, timingEventValueKind } from './project-shared'
 import { parseProjectExtensions } from './project-archive'
 import { validateClipDocument } from './clip-document'
+import { canonicalTimingProject, emptyProcessTimings, pruneEmptyProcessTimings, validateProcessTimings } from './process-timing'
 import { normalizeSheetFormData, normalizeSheetFormFieldValues, normalizeSheetFormPageFieldValues } from './sheet-form-data'
 import { migrateLegacyMemos } from './sheet-memo'
 import { normalizeAssetSourceNativePaths } from './assets'
@@ -96,6 +97,9 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     .map((cut, order) => ({ ...cut, order }))
   const activeCutId = cuts.some(cut => cut.cutId === document.activeCutId) ? document.activeCutId : cuts[0]!.cutId
   const extensions = parseProjectExtensions(document.extensions)
+  for (const cut of cuts) for (const revision of cut.revisions) {
+    validateProcessTimings({ correctionLayers: document.correctionLayers, logicalSheet: { ...revision.logicalSheet, keys: registeredCells.keys } })
+  }
   return {
     documentKind: PROJECT_DOCUMENT_KIND,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
@@ -226,9 +230,11 @@ export function updateActiveCutProjectInDocument(
   const activeCut = currentCut
     ? updateCutActiveRevisionFromProject(currentCut, activeProject)
     : cutSheetFromProject(activeProject, activeCutId, document.cuts.length)
-  const cuts = document.cuts.some(cut => cut.cutId === activeCutId)
+  let cuts = document.cuts.some(cut => cut.cutId === activeCutId)
     ? document.cuts.map(cut => cut.cutId === activeCutId ? activeCut : cut)
     : [...document.cuts, activeCut]
+  const removedGroups = new Set(document.correctionLayers.filter(layer => !activeProject.correctionLayers.some(next => next.layerId === layer.layerId)).map(layer => layer.layerId))
+  if (removedGroups.size) cuts = cuts.map(cut => ({ ...cut, revisions: cut.revisions.map(revision => ({ ...revision, logicalSheet: pruneEmptyProcessTimings(revision.logicalSheet, removedGroups, activeProject.correctionLayers[0]!.layerId) })) }))
   return {
     ...document,
     projectId: activeProject.projectId,
@@ -488,6 +494,7 @@ export function migrateProject(input: Partial<CutProject> & { annotations?: Anno
       cspCellNamePolicy: profile.cspCellNamePolicy ?? DEFAULT_CSP_CELL_NAME_POLICY,
     })),
   }
+  validateProcessTimings(project)
   return { ...project, schemaVersion: 3 }
 }
 
@@ -615,6 +622,7 @@ function blankSharedCutProject(baseProject: CutProject, cutInput: Partial<CutMet
       durationFrames: baseProject.logicalSheet.durationFrames,
       events: [],
       referenceMarks: [],
+      processTimings: emptyProcessTimings(baseProject.logicalSheet),
     },
     memos: [],
     timedRangeCues: [],
@@ -650,6 +658,7 @@ function sheetRevisionFromProject(
   order: number,
   previous: Partial<Pick<SheetRevisionDocument, 'name' | 'sourceRevisionId' | 'protected' | 'reference'>> = {},
 ): SheetRevisionDocument {
+  project = canonicalTimingProject(project)
   const logicalSheet: SheetRevisionDocument['logicalSheet'] = {
     fps: project.logicalSheet.fps,
     frameOrigin: project.logicalSheet.frameOrigin,
@@ -660,6 +669,7 @@ function sheetRevisionFromProject(
     timelineSections: project.logicalSheet.timelineSections,
     events: project.logicalSheet.events,
     referenceMarks: project.logicalSheet.referenceMarks,
+    processTimings: project.logicalSheet.processTimings,
   }
   return {
     revisionId,
@@ -910,7 +920,7 @@ function blankRevisionFromSource(source: SheetRevisionDocument, revisionId: stri
     ...duplicateRevisionFromSource(source, revisionId, order, name),
     sheetFields: {},
     pageFields: {},
-    logicalSheet: { ...cloneRevision(source).logicalSheet, events: [], referenceMarks: [] },
+    logicalSheet: { ...cloneRevision(source).logicalSheet, events: [], referenceMarks: [], processTimings: emptyProcessTimings(source.logicalSheet) },
     memos: [],
     timedRangeCues: [],
   }

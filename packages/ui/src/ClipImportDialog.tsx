@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { activeCutProjectFromDocument, createDefaultProjectDocument, clipImportFolders, clipImportSettings, openClipDocument, suggestClipImportColumns, type ClipImportColumn, type ClipImportData, type ClipImportNode, type CutGroupProjectDocument, type SheetTimingRole } from '@xsheet-remap/core'
+import { activeCutProjectFromDocument, createDefaultProjectDocument, clipImportFolders, clipImportSettings, openClipDocument, suggestClipProcessColumns, type ClipImportColumn, type ClipImportData, type ClipImportNode, type CutGroupProjectDocument, type SheetTimingRole } from '@xsheet-remap/core'
 import { readClipFile, clipSourceDataUrl } from '@xsheet-remap/adapters'
 import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
 
@@ -16,6 +16,7 @@ export function ClipImportDialog({ file, onClose, onImport }: { file: File; docu
   const [timelineId, setTimelineId] = useState(''), [role, setRole] = useState<SheetTimingRole>('action')
   const [timelineIds, setTimelineIds] = useState<string[]>([])
   const [selected, setSelected] = useState<string[]>([]), [names, setNames] = useState<Record<string, string>>({})
+  const [processes, setProcesses] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
   const dialog = useModalDialogKeyboardBoundary<HTMLDivElement>(onClose)
   useEffect(() => {
@@ -37,7 +38,7 @@ export function ClipImportDialog({ file, onClose, onImport }: { file: File; docu
   }, [file])
   const timeline = data?.timelines.find(item => item.id === timelineId)
   const folders = useMemo(() => data ? clipImportFolders(data.nodes) : [], [data])
-  const columns = useMemo<ClipImportColumn[]>(() => data ? suggestClipImportColumns(project, data.nodes, selected).map(column => ({ ...column, name: names[column.layerId] ?? column.name })) : [], [data, project, selected, names])
+  const columns = useMemo<ClipImportColumn[]>(() => data ? suggestClipProcessColumns(data, selected).map(column => ({ ...column, name: names[column.layerId] ?? column.name, process: processes[column.layerId] ?? column.process })) : [], [data, selected, names, processes])
   const preview = useMemo(() => {
     if (!data || !sourceDataUrl) return { project: null, error: '' }
     try { return { project: openClipDocument(data, sourceDataUrl, { timelineIds, role, columns }), error: '' } }
@@ -60,6 +61,7 @@ export function ClipImportDialog({ file, onClose, onImport }: { file: File; docu
       {node.animation && <>
         <small>{source?.error ? '読み込み不可' : source?.frames.some(frame => frame.value !== null) ? 'アニメーション' : 'セル指定なし'}</small>
         {column && <label className="clipImportColumnName"><span>セル列名</span><input aria-label={`${node.path.join(' / ')}のセル列名`} value={column.name} onChange={event => { const name = event.currentTarget.value; setNames(current => ({ ...current, [node.id]: name })) }} /></label>}
+        {column && <label className="clipImportColumnName"><span>表示グループ（工程）</span><input list="clip-import-processes" aria-label={`${node.path.join(' / ')}の表示グループ`} value={column.process} onChange={event => { const name = event.currentTarget.value; setProcesses(current => ({ ...current, [node.id]: name })) }} /></label>}
       </>}
     </span>
     return <li key={node.id}>
@@ -84,10 +86,13 @@ export function ClipImportDialog({ file, onClose, onImport }: { file: File; docu
           {timelineIds.length === 1 && <p>読み込み後：{settings!.fps}fps・{settings!.durationFrames}フレーム</p>}
           {timelineIds.length === 1 && settings!.fps !== project.logicalSheet.fps && <p>新しいシートは{settings!.fps}fpsで作成します。</p>}
           <fieldset><legend>読み込むフォルダー</legend>
+            <p>同じセル列に、異なる表示グループのフォルダーを対応づけられます。グループ名は自由に変更できます。CLIPの階層・名前と各フォルダーのタイミングは保持します。</p>
+            <datalist id="clip-import-processes">{[...new Set(columns.map(column => column.process))].map(name => <option key={name} value={name} />)}</datalist>
             <div className="clipImportSelectionActions"><button type="button" onClick={() => setSelected(folders.filter(node => !timeline.tracks.find(track => track.layerId === node.id)?.error).map(node => node.id))}>すべて選択</button><button type="button" onClick={() => setSelected([])}>すべて解除</button></div>
             {folders.length ? <ul className="clipImportTree">{data.nodes.map(renderNode)}</ul> : <p>アニメーションフォルダーがありません。</p>}
           </fieldset>
-          <div className="clipImportOrder"><strong>シートの列順（作画工程）</strong><span>{columns.map(column => column.name || '未入力').join(' → ') || '未選択'}</span></div>
+          <div className="clipImportOrder"><strong>シートの列順（全グループ共通）</strong><span>{[...new Set(columns.map(column => column.name || '未入力'))].join(' → ') || '未選択'}</span></div>
+          <div className="clipImportOrder"><strong>表示グループ</strong><span>{[...new Set(columns.map(column => column.process))].join(' ／ ')}</span></div>
         </>}
         {(error || preview.error) && <p className="issue error" role="alert">{error || preview.error}</p>}
       </div>

@@ -5,6 +5,7 @@ import { createDefaultSheetViewState } from './sheet-view'
 import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, isSpecialTimingEvent, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
 import { DEFAULT_CSP_CELL_NAME_POLICY, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createEmptySheetFormData } from './sheet-form-data'
+import { mapInactiveProcessTimings, selectTimingProcess, timingForProcess } from './process-timing'
 import { replaceTimedRangeCues, timelineLanesForLayout } from './timed-range'
 
 export interface CreateProjectOptions {
@@ -313,11 +314,15 @@ export function updateCorrectionLayers(project: CutProject, layers: CorrectionLa
         && (registration.assetIds.length > 0 || Boolean(registration.cspCellName?.trim())),
       ),
     )
-    if (hasBindings || hasStackGuideRegistrations) {
+    if (hasBindings || hasStackGuideRegistrations || project.logicalSheet.processTimings && [...removedLayerIds].some(id => timingForProcess(project.logicalSheet, id).events.length || project.clipDocument?.targets.some(target => removedSlotIds.has(target.slotId)))) {
       throw new Error('使用中の工程は削除できません。登録セルまたは補助トラックの登録を先に外してください。')
     }
   }
 
+  if (project.logicalSheet.processTimings) {
+    if (removedLayerIds.has(project.logicalSheet.processTimings.activeProcessId)) project = selectTimingProcess({ ...project, correctionLayers: [...project.correctionLayers, ...correctionLayers.filter(layer => !project.correctionLayers.some(old => old.layerId === layer.layerId))] }, correctionLayers[0]!.layerId)
+    project = { ...project, logicalSheet: { ...project.logicalSheet, processTimings: { ...project.logicalSheet.processTimings!, inactive: Object.fromEntries(Object.entries(project.logicalSheet.processTimings!.inactive).filter(([id]) => !removedLayerIds.has(id))) } } }
+  }
   const projectWithLayers: CutProject = {
     ...project,
     productionStages,
@@ -425,6 +430,7 @@ export function updatePaperTrack(
       keys: project.logicalSheet.keys.map(key => key.paperTrack === existing.paperTrack ? { ...key, paperTrack: nextName } : key),
       events: project.logicalSheet.events.map(event => event.paperTrack === existing.paperTrack ? { ...event, paperTrack: nextName } : event),
       referenceMarks: project.logicalSheet.referenceMarks?.map(mark => mark.paperTrack === existing.paperTrack ? { ...mark, paperTrack: nextName } : mark),
+      processTimings: mapInactiveProcessTimings(project.logicalSheet, timing => ({ events: timing.events.map(event => event.paperTrack === existing.paperTrack ? { ...event, paperTrack: nextName } : event), referenceMarks: timing.referenceMarks?.map(mark => mark.paperTrack === existing.paperTrack ? { ...mark, paperTrack: nextName } : mark) })),
     },
     cspTrackSlots: project.cspTrackSlots.map(slot => slot.paperTrack === existing.paperTrack
       ? {
@@ -472,6 +478,7 @@ function rebuildProjectPaperTrackSlots(
       ...project.logicalSheet,
       paperTracks,
       keys: options.filterRemovedTracks ? project.logicalSheet.keys.filter(key => allowedTracks.has(key.paperTrack)) : project.logicalSheet.keys,
+      processTimings: options.filterRemovedTracks ? mapInactiveProcessTimings(project.logicalSheet, timing => ({ events: timing.events.filter(event => allowedTracks.has(event.paperTrack)), referenceMarks: timing.referenceMarks?.filter(mark => allowedTracks.has(mark.paperTrack)) })) : project.logicalSheet.processTimings,
       events: options.filterRemovedTracks
         ? project.logicalSheet.events.filter(event => allowedTracks.has(event.paperTrack) && (isSpecialTimingEvent(event) || allowedKeyIds.has(event.keyId)))
         : project.logicalSheet.events,

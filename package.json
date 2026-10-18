@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.800",
+  "version": "0.1.801",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.18.0",
@@ -121,7 +121,7 @@
     "verify:browser:ci": "node tools/verification/run.mjs browser-ci",
     "verify:desktop": "node tools/verification/run.mjs desktop",
     "verify:plan": "node tools/verification/run.mjs plan",
-    "test:clip": "vitest run packages/core/src/clip-export.test.ts packages/core/src/clip-import.test.ts packages/core/src/clip-document.test.ts packages/adapters/src/clip",
+    "test:clip": "vitest run packages/core/src/clip-export.test.ts packages/core/src/clip-import.test.ts packages/core/src/clip-document.test.ts packages/core/src/process-timing.test.ts packages/adapters/src/clip",
     "check:corrector-native": "cargo test --manifest-path apps/sheet-corrector/src-tauri/Cargo.toml",
     "e2e:desktop:win:template-entry": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/win-desktop-e2e.ps1 -Scenario template-entry -RequireScreenshot"
   },

@@ -36,6 +36,7 @@
 .clipImportTreeRow small { color: #5e6962; }
 .clipImportColumnName { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .clipImportColumnName input { width: 72px; min-width: 48px; }
+.clipImportColumnName input[list] { width: 180px; max-width: 100%; }
 .clipImportSelectionActions { display: flex; gap: 8px; }
 .clipImportTrackError { margin: 0 6px 8px; color: var(--danger, #d47777); overflow-wrap: anywhere; }
 .clipImportOrder, .clipSourceInfo { display: flex; flex-direction: column; gap: 5px; padding: 8px; overflow-wrap: anywhere; }

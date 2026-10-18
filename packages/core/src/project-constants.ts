@@ -5,8 +5,8 @@ export const DEFAULT_EXPORT_TIMING_ROLE: SheetTimingRole = 'action'
 export const DEFAULT_CSP_CELL_NAME_POLICY: CspCellNamePolicy = { mode: 'binding-or-paper-track-label' }
 export const CSP_IMPORT_STACK_START_SEPARATOR_NAME = '===== XSHEET IMPORT START ====='
 export const CSP_IMPORT_STACK_END_SEPARATOR_NAME = '===== XSHEET IMPORT END ====='
-export const MAX_CORRECTION_LAYERS = 10
+export const MAX_CORRECTION_LAYERS = 256
 export const PROJECT_DOCUMENT_KIND = 'xsheet-remap-cut-group-project'
-export const PROJECT_DOCUMENT_SCHEMA_VERSION = 13
+export const PROJECT_DOCUMENT_SCHEMA_VERSION = 14
 export const LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION = 6
 export const ROOT_ASSET_BIN_ID = 'asset_bin_root'

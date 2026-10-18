@@ -1,11 +1,12 @@
 import type { CutProject, SheetTimingRole } from './types'
+import { keyInActiveProcess } from './process-timing'
 import { isNullLabel, isSpecialTimingKeyId, normalizeTimingKeyDisplayLabel, sheetTimingRoleForEvent, sheetTimingRoleForKey } from './project-shared'
 
 /** Reserve all registered numbers in the target column, including unused cels. */
 export function nextAssetSheetLabel(project: CutProject, paperTrack: string, role: SheetTimingRole): string {
   let maximum = 0n
   for (const key of project.logicalSheet.keys) {
-    if (key.paperTrack !== paperTrack || sheetTimingRoleForKey(key) !== role) continue
+    if (!keyInActiveProcess(project, key) || key.paperTrack !== paperTrack || sheetTimingRoleForKey(key) !== role) continue
     const label = key.displayLabel.trim()
     if (/^\d+$/.test(label)) maximum = BigInt(label) > maximum ? BigInt(label) : maximum
   }
@@ -19,6 +20,7 @@ export function updateSheetKeyDisplayLabel(project: CutProject, keyId: string, v
   const label = normalizeTimingKeyDisplayLabel(value)
   if (!label || isNullLabel(label) || label === '/' || label === '.') throw new Error('シート表記にはセル番号や名前を入力してください。記号はシート上で入力できます。')
   if (project.logicalSheet.keys.some(item => item.keyId !== keyId && item.paperTrack === key.paperTrack
+    && item.processId === key.processId
     && sheetTimingRoleForKey(item) === sheetTimingRoleForKey(key) && normalizeTimingKeyDisplayLabel(item.displayLabel) === label)) {
     throw new Error('同じ列にそのシート表記のセルがすでにあります。別の表記を指定してください。')
   }
@@ -60,7 +62,7 @@ export function buildSheetLabelNormalizationPlan(project: CutProject, options: S
   }
   const trackOrder = new Map(project.logicalSheet.paperTracks.map(track => [track.paperTrack, track.order]))
   const keys = project.logicalSheet.keys.filter(key =>
-    sheetTimingRoleForKey(key) === options.sheetRole && !isSpecialTimingKeyId(key.keyId)
+    keyInActiveProcess(project, key) && sheetTimingRoleForKey(key) === options.sheetRole && !isSpecialTimingKeyId(key.keyId)
     // Blank cards carry the image-drop linking contract. Never assign them a label here.
     && key.displayLabel.trim() && (!tracks || tracks.has(key.paperTrack)) && (!ids || ids.has(key.keyId)),
   ).sort((a, b) => (trackOrder.get(a.paperTrack) ?? Infinity) - (trackOrder.get(b.paperTrack) ?? Infinity)
@@ -84,7 +86,7 @@ export function buildSheetLabelNormalizationPlan(project: CutProject, options: S
     if (sheetTimingRoleForKey(key) !== options.sheetRole || isSpecialTimingKeyId(key.keyId)) continue
     const label = normalizeTimingKeyDisplayLabel(byId.get(key.keyId)?.nextLabel ?? key.displayLabel)
     if (!label) continue
-    const identity = JSON.stringify([key.paperTrack, label])
+    const identity = JSON.stringify([key.processId, key.paperTrack, label])
     const owner = owners.get(identity) ?? { paperTrack: key.paperTrack, label, keyIds: [] }
     owner.keyIds.push(key.keyId)
     owners.set(identity, owner)

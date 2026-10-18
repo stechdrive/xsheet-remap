@@ -308,7 +308,7 @@ export function rangeSelectionFromHits(template: SheetTemplate, anchorHit: Sheet
 
 export function rangeRectsForPage(
   template: SheetTemplate,
-  range: SheetRangeSelection,
+  range: Pick<SheetRangeSelection, 'role' | 'frameStart' | 'frameEnd' | 'paperTracks' | 'paperTrack' | 'columnId' | 'flowGroupId'>,
   page: SheetPage,
   options: SheetGridLayoutOptions = {},
 ): NormalizedRect[] {

@@ -11,6 +11,7 @@ export const PROJECT_ARCHIVE_FEATURE_VERSIONS = {
   'timed-range-cues': 1,
   'embedded-blobs': 1,
   'clip-document': 1,
+  'process-timing': 1,
 } as const
 
 export interface ProjectArchiveBlobDescriptor {
@@ -51,6 +52,10 @@ export function buildProjectArchiveManifest(
     'sheet-revisions': PROJECT_ARCHIVE_FEATURE_VERSIONS['sheet-revisions'],
   }
   const requiredFeatures = ['project-core', 'sheet-revisions']
+  if (document.cuts.some(cut => cut.revisions.some(revision => revision.logicalSheet.processTimings))) {
+    features['process-timing'] = 1
+    requiredFeatures.push('process-timing')
+  }
   if (document.clipDocument) {
     features['clip-document'] = 1
     requiredFeatures.push('clip-document')

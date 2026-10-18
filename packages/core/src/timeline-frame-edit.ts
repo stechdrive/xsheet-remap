@@ -1,4 +1,5 @@
 import { logicalSheetOfficialFrameEnd } from './logical-sheet'
+import { mapInactiveProcessTimings } from './process-timing'
 import { mapTimingReferenceFrames } from './timing-reference'
 import { compareTimelineEvents } from './project-shared'
 import { clampCameraOverlapPivotAnchorFrame, replaceTimedRangeCues, resolveCameraInstructionPoints, resolveCameraInstructionSegments } from './timed-range'
@@ -37,6 +38,7 @@ function insertCutTimelineFrames(project: CutProject, requestedFrame: number, re
       durationFrames: Math.max(1, Math.round(project.logicalSheet.durationFrames) + frameCount),
       events,
       referenceMarks: mapTimingReferenceFrames(project.logicalSheet.referenceMarks, mark => mark.frame >= atFrame ? mark.frame + frameCount : mark.frame),
+      processTimings: mapInactiveProcessTimings(project.logicalSheet, timing => ({ events: timing.events.map(event => event.frame >= atFrame ? { ...event, frame: event.frame + frameCount } : event), referenceMarks: mapTimingReferenceFrames(timing.referenceMarks, mark => mark.frame >= atFrame ? mark.frame + frameCount : mark.frame) })),
     },
   }, insertTimelineMemoAnchors(timelineMemos(project), atFrame, frameCount))
   return replaceTimedRangeCues(resized, cues)
@@ -67,6 +69,7 @@ function deleteCutTimelineFrames(project: CutProject, requestedStart: number, re
       durationFrames: Math.max(1, Math.round(project.logicalSheet.durationFrames) - frameCount),
       events,
       referenceMarks: mapTimingReferenceFrames(project.logicalSheet.referenceMarks, mark => mark.frame < frameStart ? mark.frame : mark.frame <= frameEnd ? null : mark.frame - frameCount),
+      processTimings: mapInactiveProcessTimings(project.logicalSheet, timing => ({ events: timing.events.flatMap(event => event.frame < frameStart ? [event] : event.frame <= frameEnd ? [] : [{ ...event, frame: event.frame - frameCount }]), referenceMarks: mapTimingReferenceFrames(timing.referenceMarks, mark => mark.frame < frameStart ? mark.frame : mark.frame <= frameEnd ? null : mark.frame - frameCount) })),
     },
   }, deleteTimelineMemoAnchors(timelineMemos(project), frameStart, frameEnd, frameCount))
   return replaceTimedRangeCues(resized, cues)

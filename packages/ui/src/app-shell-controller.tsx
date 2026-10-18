@@ -71,7 +71,7 @@ type PaperSheetEditContext = { document: object; cutId: string; revisionId: stri
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
-    history, setHistory, commitWorkspace, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, selectWorkspaceProcess, commitWorkspace, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole: storedRecognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -248,9 +248,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   })
   const selectedKey = selection.keyId ? project.logicalSheet.keys.find(key => key.keyId === selection.keyId) ?? null : null
   const fallbackCorrectionLayerId = defaultCorrectionLayerId(project) ?? ''
-  const activeCorrectionLayerId = project.correctionLayers.some(layer => layer.layerId === activeCorrectionLayerIdState)
+  const activeCorrectionLayerId = project.logicalSheet.processTimings?.activeProcessId ?? (project.correctionLayers.some(layer => layer.layerId === activeCorrectionLayerIdState)
     ? activeCorrectionLayerIdState
-    : fallbackCorrectionLayerId
+    : fallbackCorrectionLayerId)
   const activeCorrectionLayer = project.correctionLayers.find(layer => layer.layerId === activeCorrectionLayerId) ?? null
   const materialAssets = useMemo(() => project.assets.filter(isCellMaterialAsset), [project.assets])
   const issueErrorCount = issues.filter(issue => issue.severity === 'error').length
@@ -386,6 +386,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       return false
     }
     nextProject = synchronizeClipBindings(nextProject)
+    if (nextProject.logicalSheet.processTimings && nextProject.correctionLayers !== projectRef.current.correctionLayers) updateActiveCutProjectInDocument(projectDocument, nextProject)
     projectRef.current = nextProject
     setHistory(current => commitHistory(current, nextProject))
     if (selectionIsOutsideProjectDisplay(nextProject)) clearSelectionState()
@@ -843,6 +844,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleActiveCorrectionLayerChange(layerId: string) {
     commitTimingDraft(false)
+    selectWorkspaceProcess(layerId)
+    if (project.logicalSheet.processTimings) clearSelectionState()
     setActiveCorrectionLayerIdState(layerId)
   }
 

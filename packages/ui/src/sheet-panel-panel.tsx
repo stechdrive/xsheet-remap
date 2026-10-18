@@ -1302,6 +1302,7 @@ export function SheetPanel(props: {
             {...props}
             clipProcessId={props.activeCorrectionLayerId}
             clipFilterProcessId={filterClipProcess ? props.activeCorrectionLayerId : undefined}
+            clipShowProcessDifferences={filterClipProcess && Boolean(props.project.logicalSheet.processTimings)}
             editMode={sheetCanvasEditMode}
             touchInputActive={touchControlsVisible}
             touchRangeSelectionMode={touchRangeSelectionMode}

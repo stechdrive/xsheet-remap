@@ -3,6 +3,7 @@ import type { ClipImportTimeline } from './clip-import'
 import type { CutProject, SheetTimingRole } from './types'
 import { createKey, setEvent } from './project-timing'
 import { nextAssetSheetLabel } from './sheet-label-normalization'
+import { selectTimingProcess } from './process-timing'
 
 export interface ClipLayerNode {
   id: string
@@ -32,6 +33,8 @@ export interface ClipDocumentState {
   sourceTimelines?: ClipImportTimeline[]
   timelineIds?: Record<string, string>
   baselineTracks?: Record<string, string>
+  /** Explicitly deleted animation folders retain their paper notation but no longer export a track. */
+  deletedTargetSlotIds?: string[]
 }
 
 export const DEFAULT_CLIP_CANVAS: ClipCanvasSettings = { width: 1754, height: 1240, dpi: 150, basisWidth: 1536, basisHeight: 864, offsetX: 0, offsetY: 0 }
@@ -53,6 +56,7 @@ export function validateClipDocument(value: ClipDocumentState): ClipDocumentStat
     }
   }
   if (new Set(value.targets.map(target => target.slotId)).size !== value.targets.length) throw new Error('CLIP登録先が重複しています。')
+  if (value.deletedTargetSlotIds && (!Array.isArray(value.deletedTargetSlotIds) || value.deletedTargetSlotIds.some(id => typeof id !== 'string' || value.targets.some(target => target.slotId === id)))) throw new Error('削除済みCLIP登録先が不正です。')
   if (new Set(value.targets.map(target => target.folderId)).size !== value.targets.length) throw new Error('同じCLIPフォルダーを複数の工程・列へ対応づけることはできません。')
   for (const target of value.targets) {
     if (nodes.get(target.folderId)?.kind !== 'animation' || target.cellPath?.some(name => !name.trim())) throw new Error('CLIP登録先が不正です。')
@@ -126,7 +130,7 @@ export function ensureClipDocument(project: CutProject): CutProject {
     const folder = createClipNode('未配置の素材', 'folder', null, 'legacy:unplaced')
     nodes.push(folder, ...unplaced.map(asset => ({ ...createClipNode(asset.displayName.replace(/\.[^.]+$/, ''), 'raster', folder.id, `asset:${asset.assetId}`), assetId: asset.assetId })))
   }
-  return { ...project, clipDocument: { version: 1, nodes, targets, canvas: { ...DEFAULT_CLIP_CANVAS } } }
+  return { ...project, logicalSheet: !project.logicalSheet.keys.length && !project.logicalSheet.events.length ? { ...project.logicalSheet, processTimings: { activeProcessId: project.correctionLayers.find(layer => layer.role === 'base')?.layerId ?? project.correctionLayers[0]!.layerId, inactive: {} } } : project.logicalSheet, clipDocument: { version: 1, nodes, targets, canvas: { ...DEFAULT_CLIP_CANVAS } } }
 }
 
 function requireEditableParent(document: ClipDocumentState, parentId: string | null): void {
@@ -205,7 +209,8 @@ export function deleteClipLayer(projectInput: CutProject, id: string): CutProjec
       && document.nodes.some(other => !removed.has(other.id) && other.parentId === node.parentId && other.name === node.name)) throw new Error('同名セルの採用対象が変わります。先にセル名を変更してください。')
   }
   const bindings = project.bindings.filter(binding => !binding.clipLayerId || !removed.has(binding.clipLayerId))
-  return { ...project, bindings, clipDocument: { ...document, nodes: document.nodes.filter(node => !removed.has(node.id)), targets: document.targets.filter(target => !removed.has(target.folderId)) } }
+  const deletedTargetSlotIds = [...new Set([...document.deletedTargetSlotIds ?? [], ...document.targets.filter(target => removed.has(target.folderId)).map(target => target.slotId)])]
+  return { ...project, bindings, clipDocument: { ...document, deletedTargetSlotIds, nodes: document.nodes.filter(node => !removed.has(node.id)), targets: document.targets.filter(target => !removed.has(target.folderId)) } }
 }
 
 export function setClipTarget(projectInput: CutProject, slotId: string, folderId: string, cellPath?: string[]): CutProject {
@@ -214,7 +219,7 @@ export function setClipTarget(projectInput: CutProject, slotId: string, folderId
   if (document.targets.some(target => target.folderId === folderId && target.slotId !== slotId)) throw new Error('このフォルダーは別のセル列・工程に対応しています。先に対応を解除してください。')
   const old = document.targets.find(target => target.slotId === slotId)
   if (old && old.folderId !== folderId && project.bindings.some(binding => binding.slotId === slotId)) throw new Error('素材が登録されているセル列の対応は変更できません。空の工程・セル列を選択してください。')
-  return { ...project, clipDocument: validateClipDocument({ ...document, targets: [...document.targets.filter(target => target.slotId !== slotId), { slotId, folderId, ...(cellPath?.length ? { cellPath } : {}) }] }) }
+  return { ...project, clipDocument: validateClipDocument({ ...document, deletedTargetSlotIds: document.deletedTargetSlotIds?.filter(id => id !== slotId), targets: [...document.targets.filter(target => target.slotId !== slotId), { slotId, folderId, ...(cellPath?.length ? { cellPath } : {}) }] }) }
 }
 
 export function unsetClipTarget(project: CutProject, slotId: string): CutProject {
@@ -223,7 +228,7 @@ export function unsetClipTarget(project: CutProject, slotId: string): CutProject
 }
 
 export function bindClipCel(projectInput: CutProject, nodeId: string, paperTrack: string, frame: number, role: SheetTimingRole, processId: string): CutProject {
-  let project = ensureClipDocument(projectInput)
+  let project = selectTimingProcess(ensureClipDocument(projectInput), processId)
   const { cel, slot } = clipCelDropTarget(project, nodeId, paperTrack, processId)
   let binding = project.bindings.find(item => item.slotId === slot.slotId && item.clipLayerId === cel.id && project.logicalSheet.keys.some(key => key.keyId === item.keyId && (key.sheetRole ?? 'action') === role))
   if (!binding) {

@@ -1,11 +1,13 @@
 import { isSpecialTimingKeyId } from './project-shared'
 import type { CutProject, ExportProfile, TimelineMemoStroke, ValidationIssue } from './types'
 import { timelineMemos } from './sheet-memo'
+import { allProcessEvents, validateProcessTimings } from './process-timing'
 
 const timelineMemoStrokeInvalidCache = new WeakMap<TimelineMemoStroke, boolean>()
 
 export function validateProject(project: CutProject, profile?: ExportProfile): ValidationIssue[] {
   const issues: ValidationIssue[] = []
+  try { validateProcessTimings(project) } catch (error) { issues.push(issue('error', 'process.timing.invalid', String(error), 'sheet', 'process-timing')) }
   const keyIds = new Set(project.logicalSheet.keys.map(key => key.keyId))
   const assetIds = new Set(project.assets.map(asset => asset.assetId))
   const slotIds = new Set(project.cspTrackSlots.map(slot => slot.slotId))
@@ -45,7 +47,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     }
   }
 
-  for (const event of project.logicalSheet.events) {
+  for (const event of allProcessEvents(project.logicalSheet)) {
     if (!isSpecialTimingKeyId(event.keyId) && !keyIds.has(event.keyId)) {
       issues.push(issue('error', 'event.key.missing', `event ${event.eventId} references missing key ${event.keyId}`, 'event', event.eventId))
     }
@@ -192,7 +194,7 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
     if (!binding.cspCellName.trim()) {
       issues.push(issue('error', 'binding.cspCellName.empty', 'CSP cell name is empty', 'binding', binding.bindingId))
     }
-    if (binding.materialState === 'assigned' && !binding.assetId) {
+    if (binding.materialState === 'assigned' && !binding.assetId && !project.clipDocument?.nodes.some(node => node.id === binding.clipLayerId)) {
       issues.push(issue('error', 'binding.asset.required', 'assigned binding must have assetId', 'binding', binding.bindingId))
     }
     if (binding.assetId && !assetIds.has(binding.assetId)) {

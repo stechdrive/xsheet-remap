@@ -117,6 +117,8 @@ export interface CorrectionLayer {
 
 export interface TimingKey {
   keyId: Id
+  /** Present for independent CLIP process timing; labels are local to this process. */
+  processId?: Id
   paperTrack: PaperTrackName
   sheetRole?: SheetTimingRole
   displayLabel: string
@@ -151,6 +153,13 @@ export interface LogicalSheet {
   paperTracks: PaperTrack[]
   timelineSections: LogicalTimelineSection[]
   keys: TimingKey[]
+  events: TimelineEvent[]
+  referenceMarks?: TimingReferenceMark[]
+  /** Active timing lives in events/referenceMarks; only inactive processes live here. */
+  processTimings?: { activeProcessId: Id; inactive: Record<Id, ProcessTiming> }
+}
+
+export interface ProcessTiming {
   events: TimelineEvent[]
   referenceMarks?: TimingReferenceMark[]
 }

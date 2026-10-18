@@ -34,7 +34,7 @@ export interface ClipImportData {
   timelines: ClipImportTimeline[]
   currentTimelineId: string
 }
-export interface ClipImportColumn { layerId: string; name: string }
+export interface ClipImportColumn { layerId: string; name: string; process?: string }
 export interface ClipImportOptions { timelineId: string; role: SheetTimingRole; columns: ClipImportColumn[] }
 
 export function clipImportFolders(nodes: ClipImportNode[]): ClipImportNode[] {

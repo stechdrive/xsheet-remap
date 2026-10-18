@@ -1,0 +1,63 @@
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import initSqlJs from 'sql.js'
+import { expect, test } from './fixtures'
+import { activateControl } from './input'
+import { createProcessClipFixture } from './clip-process-fixture'
+import { readClip } from '../../../packages/adapters/src/clip/reader'
+import { cellRectForHit, clipImportFolders, standardA3SheetTemplate, timingHitForFrame } from '../../../packages/core/src/index'
+
+test('nested CLIP processes share columns, switch independent timing, show differences and export edits to only one folder', async ({ page }, info) => {
+  const require = createRequire(import.meta.url)
+  const SQL = await initSqlJs({ wasmBinary: new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer })
+  const bytes = await createProcessClipFixture(SQL), source = await readClip(SQL, bytes, 'process.clip')
+  const folders = clipImportFolders(source.nodes), original = folders.find(folder => folder.path.includes('作画'))!, correction = folders.find(folder => folder.path.includes('確認'))!
+  await page.goto('./?app=remap')
+  await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
+  await activateControl(page, page.getByLabel('画面切替', { exact: true }))
+  await activateControl(page, page.getByRole('button', { name: '読み込み ›', exact: true }))
+  await page.locator('input[type=file][accept=".clip"]').setInputFiles({ name: 'process.clip', mimeType: 'application/octet-stream', buffer: Buffer.from(bytes) })
+  const dialog = page.getByRole('dialog', { name: 'CLIPを読み込む', exact: true })
+  await dialog.getByLabel(`${original.path.join(' / ')}の表示グループ`, { exact: true }).fill('LO確認用')
+  await activateControl(page, dialog.getByRole('button', { name: 'CELL', exact: true }))
+  await expect(dialog.getByLabel(`${original.path.join(' / ')}のセル列名`, { exact: true })).toHaveValue('A')
+  await expect(dialog.getByLabel(`${correction.path.join(' / ')}のセル列名`, { exact: true })).toHaveValue('A')
+  const overflow = await dialog.locator('.clipImportTree').evaluate(element => element.scrollWidth > element.clientWidth)
+  expect(overflow).toBe(false)
+  await activateControl(page, dialog.getByRole('button', { name: 'タイムシートに読み込む', exact: true }))
+  const process = page.getByLabel('登録先工程', { exact: true })
+  await process.selectOption({ label: 'LO確認用' })
+  const event = (frame: number) => page.locator(`[data-timeline-event-role="cell"][data-timeline-event-track="A"][data-timeline-event-frame="${frame}"] .eventText`)
+  await expect(event(5)).toHaveText('002'); await expect(event(9)).toHaveCount(0)
+  await page.getByLabel('工程差を表示', { exact: true }).check()
+  await expect(page.getByRole('region', { name: '工程別タイミング差分' })).toContainText('5〜8コマ')
+  await expect(page.getByTestId('process-difference-overlay').first().locator('rect')).not.toHaveCount(0)
+  await process.selectOption({ label: correction.path.slice(0, -1).join('／') })
+  await expect(event(9)).toHaveText('002'); await expect(event(5)).toHaveCount(0)
+  await process.selectOption({ label: 'LO確認用' })
+  const cel = source.layers!.find(node => node.parentId === original.id && node.name === '001')!
+  const row = page.locator(`[data-clip-layer-id="${cel.id}"]`)
+  await row.scrollIntoViewIfNeeded()
+  const from = await row.boundingBox(), rect = cellRectForHit(standardA3SheetTemplate, timingHitForFrame(standardA3SheetTemplate, 'cell', 'A', 13)!)!
+  const to = await page.locator('.sheetSvg').first().evaluate((element, rect) => { const box = element.getBoundingClientRect(); return { x: box.x + (rect.x + rect.w / 2) * box.width, y: box.y + (rect.y + rect.h / 2) * box.height } }, rect)
+  await page.mouse.move(from!.x + from!.width * .65, from!.y + from!.height / 2); await page.mouse.down(); await page.mouse.move(to.x, to.y, { steps: 14 }); await page.mouse.up()
+  await expect(event(13)).toHaveText('001')
+  await process.selectOption({ label: correction.path.slice(0, -1).join('／') })
+  await expect(event(13)).toHaveCount(0)
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await process.selectOption({ label: 'LO確認用' }); await expect(event(13)).toHaveCount(0)
+  await activateControl(page, page.getByRole('button', { name: 'やり直し', exact: true })); await expect(event(13)).toHaveText('001')
+  await page.screenshot({ path: info.outputPath('independent-process-timing.png') })
+  await activateControl(page, page.getByLabel('画面切替', { exact: true }))
+  await activateControl(page, page.getByRole('button', { name: '書き出し ›', exact: true }))
+  await activateControl(page, page.getByRole('button', { name: 'CLIPを作成…', exact: true }))
+  const exportDialog = page.getByRole('dialog', { name: 'CLIPを作成', exact: true })
+  await activateControl(page, exportDialog.getByRole('button', { name: 'CELL', exact: true }))
+  const download = page.waitForEvent('download')
+  await activateControl(page, exportDialog.getByRole('button', { name: 'CLIPを作成して保存…', exact: true }))
+  const saved = info.outputPath('independent-process.clip'); await (await download).saveAs(saved)
+  const parsed = await readClip(SQL, new Uint8Array(readFileSync(saved)), 'result.clip')
+  expect(parsed.layers).toEqual(source.layers)
+  expect(parsed.timelines[0].tracks.find(track => track.layerId === original.id)!.frames).toEqual([{ frame: 0, value: '001' }, { frame: 4, value: '002' }, { frame: 12, value: '001' }])
+  expect(parsed.timelines[0].tracks.find(track => track.layerId === correction.id)).toEqual(source.timelines[0].tracks.find(track => track.layerId === correction.id))
+})

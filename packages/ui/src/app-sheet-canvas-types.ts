@@ -127,6 +127,7 @@ export type SheetCanvasProps = {
   onClipLayerAssign?: (layerId: string, hit: SheetHit | null) => void
   clipProcessId?: string
   clipFilterProcessId?: string
+  clipShowProcessDifferences?: boolean
   onDropDiagnostic: (report: DropDiagnosticReport) => void
   onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit, sourceRange?: SheetRangeSelection) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void

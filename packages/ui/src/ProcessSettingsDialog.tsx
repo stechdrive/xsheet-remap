@@ -28,6 +28,7 @@ export function ProcessSettingsDialog({
   const defaultStageId = project.productionStages[0]?.stageId ?? 'stage_lo'
   const canAdd = draftLayers.length < MAX_CORRECTION_LAYERS
   const defaultRegistrationDraftId = draftLayers[draftLayers.length - 1]?.draftId ?? ''
+  const independent = Boolean(project.logicalSheet.processTimings)
 
   function updateDraft(draftId: string, updates: Partial<Pick<CorrectionLayer, 'label' | 'fileNameSuffix'>>) {
     setDraftLayers(current => current.map(layer => layer.draftId === draftId ? { ...layer, ...updates } : layer))
@@ -155,15 +156,15 @@ export function ProcessSettingsDialog({
       <form className="processSettingsDialog" onSubmit={handleApply}>
         <header className="processSettingsHeader">
           <div>
-            <strong>{uiText.processSettings.title}</strong>
-            <span>{uiText.processSettings.orderHint}</span>
+            <strong>{independent ? '表示グループの設定' : uiText.processSettings.title}</strong>
+            <span>{independent ? '任意の名前でタイミングを分類します。CLIPのフォルダー名・階層・重ね順は変わりません。並び替えは選択リストの順序に反映します。' : uiText.processSettings.orderHint}</span>
           </div>
         </header>
         <div ref={processSettingsTableRef} className="processSettingsTable" role="table" aria-label={uiText.processSettings.title}>
-          <div className="processSettingsStackMarker top">{uiText.processSettings.cspTop}</div>
+          <div className="processSettingsStackMarker top">{independent ? '選択リストの後' : uiText.processSettings.cspTop}</div>
           <div className="processSettingsRow processSettingsHead" role="row">
             <span>{uiText.processSettings.dragHandle}</span>
-            <span>{uiText.processSettings.name}</span>
+            <span>{independent ? 'グループ名' : uiText.processSettings.name}</span>
             <span>{uiText.processSettings.suffix}</span>
             <span>{uiText.processSettings.directRegistration}</span>
             <span>{uiText.processSettings.delete}</span>
@@ -205,7 +206,7 @@ export function ProcessSettingsDialog({
               />
             </div>
           ))}
-          <div className="processSettingsStackMarker bottom">{uiText.processSettings.cspBottom}</div>
+          <div className="processSettingsStackMarker bottom">{independent ? '選択リストの先頭' : uiText.processSettings.cspBottom}</div>
         </div>
         <footer className="processSettingsFooter">
           <button type="button" disabled={!canAdd} onClick={addDraft}>{uiText.processSettings.add}</button>

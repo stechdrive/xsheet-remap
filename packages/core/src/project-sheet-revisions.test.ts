@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   activeCutProjectFromDocument,
+  PROJECT_DOCUMENT_SCHEMA_VERSION,
   activeSheetRevisionFromDocument,
   addSheetRevisionToProjectDocument,
   assignSheetSourceToPage,
@@ -90,7 +91,7 @@ describe('project sheet history', () => {
         })), timedRangeCues: revision.timedRangeCues }],
     }
     const migrated = parseProjectDocument(legacy)
-    expect(migrated).toMatchObject({ schemaVersion: 13, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined, pageFields: {} }] }] })
+    expect(migrated).toMatchObject({ schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION, cuts: [{ activeRevisionId: 'sheet_revision_1', revisions: [{ name: undefined, pageFields: {} }] }] })
     expect(activeCutProjectFromDocument(migrated).logicalSheet.events).toEqual(source.logicalSheet.events)
   })
 

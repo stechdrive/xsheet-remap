@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { createDefaultProjectDocument, DEFAULT_CLIP_CANVAS, createClipNode } from '@xsheet-remap/core'
+import { createDefaultProjectDocument, DEFAULT_CLIP_CANVAS, createClipNode, PROJECT_DOCUMENT_SCHEMA_VERSION } from '@xsheet-remap/core'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import {
   decodeProjectFileBytes,
@@ -116,7 +116,7 @@ describe('project archive codec', () => {
     const restored = await decodeProjectFileBytes(zipSync(entries))
 
     expect(restored.manifest.documentSchemaVersion).toBe(10)
-    expect(restored.document.schemaVersion).toBe(13)
+    expect(restored.document.schemaVersion).toBe(PROJECT_DOCUMENT_SCHEMA_VERSION)
   })
 
   it('externalizes and restores optional dialogue audio stored in project extensions', async () => {

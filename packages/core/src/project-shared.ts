@@ -3,6 +3,7 @@ import { INBETWEEN_CSP_CELL_NAME, INBETWEEN_KEY_ID, NULL_CELL_CSP_CELL_NAME, NUL
 import { alphabeticTrackLabel } from './sheet-template'
 import { logicalSheetOfficialFrameEnd } from './logical-sheet'
 import { clampNumberForCore } from './core-utils'
+import { keyInActiveProcess, timingForProcess } from './process-timing'
 import { DEFAULT_CSP_CELL_NAME_POLICY, DEFAULT_SHEET_TIMING_ROLE, MAX_CORRECTION_LAYERS } from './project-constants'
 
 export function nextDisplayLabel(
@@ -12,7 +13,7 @@ export function nextDisplayLabel(
 ): string {
   const used = new Set(
     project.logicalSheet.keys
-      .filter(key => key.paperTrack === paperTrack && sheetTimingRoleForKey(key) === sheetRole)
+      .filter(key => keyInActiveProcess(project, key) && key.paperTrack === paperTrack && sheetTimingRoleForKey(key) === sheetRole)
       .map(key => Number(key.displayLabel))
       .filter(Number.isInteger),
   )
@@ -626,7 +627,7 @@ export function compareTimelineEvents(a: TimelineEvent, b: TimelineEvent): numbe
 }
 
 export function eventsForSlot(project: CutProject, slot: CspTrackSlot, sheetRole: SheetTimingRole): TimelineEvent[] {
-  return project.logicalSheet.events
+  return timingForProcess(project.logicalSheet, slot.correctionLayerId ?? '').events
     .filter(event => event.paperTrack === slot.paperTrack && sheetTimingRoleForEvent(event) === sheetRole)
     .sort((a, b) => a.frame - b.frame)
 }

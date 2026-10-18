@@ -22,9 +22,10 @@ it('imports independent tracks, previews correspondence collisions, commits and 
   fireEvent.change(document.querySelector('input[accept=".clip"]')!, { target: { files: [file] } })
   await screen.findByLabelText('group0 / Aのセル列名')
   fireEvent.click(screen.getByRole('button', { name: 'CELL' }))
+  fireEvent.change(screen.getByLabelText('読み込み後の基準工程'), { target: { value: 'group0' } })
   fireEvent.click(screen.getByRole('button', { name: 'タイムシートに読み込む' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'CLIPを読み込む' })).toBeNull())
-  const process = screen.getByLabelText('編集しているタイミング') as HTMLSelectElement
+  const process = screen.getByLabelText('編集先の工程') as HTMLSelectElement
   const group0 = Array.from(process.options).find(option => option.text === 'group0')!.value
   const group1 = Array.from(process.options).find(option => option.text === 'group1')!.value
   fireEvent.change(process, { target: { value: group0 } })
@@ -41,7 +42,9 @@ it('imports independent tracks, previews correspondence collisions, commits and 
   expect(events('B', 1)?.textContent).toBe('001')
   expect(document.querySelector('[data-clip-layer-id="a0"] .clipLayerName')?.textContent).toBe('A')
   fireEvent.click(screen.getByRole('checkbox', { name: '工程差を表示' }))
-  expect(screen.getByRole('region', { name: '工程別タイミング差分' }).textContent).toContain('1〜4コマ')
+  fireEvent.click(screen.getByLabelText('基準シートと比較'))
+  expect(screen.getByRole('region', { name: '工程別タイミング差分' }).textContent).toContain('1–4')
+  fireEvent.click(screen.getByLabelText('基準シートと比較'))
   fireEvent.change(process, { target: { value: group1 } })
   expect(events('B', 5)?.textContent).toBe('001')
   expect(events('B', 1)).toBeNull()

@@ -19,6 +19,7 @@ import { SoundCueLayer } from './SoundCueLayer'
 import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
+import { SheetProcessReferenceLayer } from './SheetProcessReferenceLayer'
 import { TimingContinuationLayer } from './TimingContinuationLayer'
 import { processTimingDifferences, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
@@ -210,7 +211,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const strokeRenderItems = !isCalibrating && props.showAnnotations ? annotationStrokeRenderItemsByPage.get(page.pageId) ?? [] : []
           const textAnnotations = !isCalibrating && props.showAnnotations ? annotationTextRenderItemsByPage.get(page.pageId) ?? [] : []
           const activeOverlayTrack = !isCalibrating && activeOverlayPaperTrack
-            ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === activeOverlayPaperTrack && track.source === 'overlay')
+            ? overlayTracks.find(track => track.paperTrack === activeOverlayPaperTrack)
             : undefined
           const activeOverlayColumn = activeOverlayTrack ? overlayColumnRectForPage(props.template, props.project, activeOverlayTrack, page) : null
           const eventRects = isCalibrating ? [] : eventRectsByPage.get(page.pageId) ?? []
@@ -258,8 +259,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             : []
           const overlayRangeRects = !isCalibrating && activeRange
             ? rangePaperTracks(activeRange).flatMap(paperTrack => {
-                const track = props.project.logicalSheet.paperTracks.find(item => item.paperTrack === paperTrack)
-                return track?.source === 'overlay'
+                const track = overlayTracks.find(item => item.paperTrack === paperTrack)
+                return track
                   ? overlayRangeRectForPage(props.template, props.project, track, activeRange.frameStart, activeRange.frameEnd, page) ?? []
                   : []
               })
@@ -458,14 +459,15 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                   {showInputContent && processDifferences.length > 0 && <svg className="sheetTransientOverlay" data-testid="process-difference-overlay" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true" style={{ pointerEvents: 'none' }}>
                     {processDifferences.filter(item => item.frameEnd >= page.frameStart && item.frameStart <= page.frameEnd).flatMap(item => {
-                      const track = props.project.logicalSheet.paperTracks.find(track => track.paperTrack === item.paperTrack)
+                      const track = overlayTracks.find(track => track.paperTrack === item.paperTrack)
                       const flows = [...new Set(props.template.regions.filter(region => isTimelineProjectingSheetTemplateGridRegion(region) && region.grid.role === item.role).map(region => region.flowGroupId ?? region.regionId))]
-                      const rects = track?.source === 'overlay'
+                      const rects = track
                         ? [overlayRangeRectForPage(props.template, props.project, track, item.frameStart, item.frameEnd, page)].filter(rect => rect !== null)
                         : flows.flatMap(flowGroupId => rangeRectsForPage(props.template, { ...item, paperTracks: [item.paperTrack], columnId: item.paperTrack, flowGroupId }, page, { paperTracks: templateTrackNames, timelineLanes, durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin: isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin, layoutOverrides: props.project.sheetView.layoutOverrides }))
                       return rects.map((rect, index) => rect && <rect key={`${item.role}:${item.paperTrack}:${item.frameStart}:${index}`} x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill="#e8ae3030" stroke="#b7781e" strokeWidth="1" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />)
                     })}
                   </svg>}
+                  {showInputContent && props.showBaseProcessReference && props.project.logicalSheet.processTimings && <SheetProcessReferenceLayer project={props.project} template={props.template} page={page} />}
                   {showInputContent && <SheetTimingEventLayer
                     project={props.project} geometry={sheetRenderModelContext.geometry} page={page}
                     items={eventRects} references={referenceOnlyItemsByPage.get(page.pageId) ?? EMPTY_REFERENCE_ITEMS}

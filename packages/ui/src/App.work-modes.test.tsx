@@ -32,7 +32,7 @@ it('commits an input draft once, preserves the complete document through mode sw
   expect(result.current.project.logicalSheet.events).toHaveLength(1)
   expect(result.current.valueDraftActive).toBe(false)
   act(() => result.current.handleNewImageProcessChange(result.current.project.correctionLayers[1].layerId))
-  expect(result.current.activeCorrectionLayerId).toBe(result.current.project.correctionLayers[0].layerId)
+  expect(result.current.activeCorrectionLayerId).toBe(result.current.project.correctionLayers[1].layerId)
   switchMode('sheet'); switchMode('clip'); switchMode('sheet')
   expect(result.current.projectDocumentSnapshot).toEqual(saved)
   expect(result.current.history.past).toHaveLength(depth)
@@ -44,6 +44,33 @@ it('commits an input draft once, preserves the complete document through mode sw
   expect(result.current.projectDocumentSnapshot).toEqual(saved)
 })
 
+it('returns to the fixed base, retains the assembly destination, and undoes a base change without rewriting timings', async () => {
+  const { result, switchMode } = setup(), { document } = independentClipFixture()
+  await act(async () => result.current.handleImportClip(document))
+  const base = result.current.baseProcessId, other = result.current.project.correctionLayers.find(process => process.layerId !== base)!.layerId
+  const original = result.current.projectDocumentSnapshot
+  act(() => result.current.handleNewImageProcessChange(other))
+  expect(result.current.activeCorrectionLayerId).toBe(other)
+  expect(result.current.newImageProcessId).toBe(other)
+  switchMode('sheet')
+  expect(result.current.activeCorrectionLayerId).toBe(base)
+  expect(result.current.projectDocumentSnapshot).toEqual(original)
+  switchMode('clip')
+  expect(result.current.activeCorrectionLayerId).toBe(other)
+  const before = buildClipRegistrationPlan(original, 'cell').timelines
+  switchMode('sheet')
+  act(() => result.current.handleBaseProcessChange(other))
+  expect(result.current.baseProcessId).toBe(other)
+  expect(result.current.activeCorrectionLayerId).toBe(other)
+  expect(buildClipRegistrationPlan(result.current.projectDocumentSnapshot, 'cell').timelines).toEqual(before)
+  act(() => result.current.handleUndo())
+  expect(result.current.baseProcessId).toBe(base)
+  expect(result.current.activeCorrectionLayerId).toBe(base)
+  act(() => result.current.handleRedo())
+  expect(result.current.baseProcessId).toBe(other)
+  expect(result.current.activeCorrectionLayerId).toBe(other)
+})
+
 it('registers tree material in its own process even when the OS destination differs', () => {
   const { result, hit, switchMode } = setup()
   switchMode('clip')
@@ -53,11 +80,31 @@ it('registers tree material in its own process even when the OS destination diff
   act(() => result.current.commitProject(addClipLayers(source, [createClipNode('fix', 'raster', folder, 'fix') ])))
   act(() => result.current.handleAssignClipLayer('fix', hit()))
   expect(result.current.project.bindings.find(binding => binding.clipLayerId === 'fix')?.slotId).toBe(slot.slotId)
-  expect(result.current.newImageProcessId).toBe(source.correctionLayers[0].layerId)
+  expect(result.current.newImageProcessId).toBe(process)
   switchMode('sheet')
   act(() => result.current.handleUndo())
   expect(result.current.project.logicalSheet.events).toHaveLength(0)
   expect(result.current.project.clipDocument!.nodes.some(node => node.id === 'fix')).toBe(true)
+})
+
+it('restores each cut and revision with its own base instead of the first process', async () => {
+  const { result, switchMode } = setup(), { document } = independentClipFixture()
+  await act(async () => result.current.handleImportClip(document))
+  const firstCut = result.current.projectDocumentSnapshot.activeCutId
+  const firstRevision = result.current.activeSheetRevision.revisionId
+  const other = result.current.project.correctionLayers.find(process => process.layerId !== result.current.baseProcessId)!.layerId
+  switchMode('sheet')
+  act(() => result.current.handleBaseProcessChange(other))
+  act(() => result.current.handleAddSheetRevision({ name: '確認版', mode: 'duplicate', showSourceReference: false }))
+  expect(result.current.activeCorrectionLayerId).toBe(other)
+  expect(result.current.newImageProcessId).toBe(other)
+  act(() => result.current.handleSwitchSheetRevision(firstRevision))
+  act(() => result.current.handleSwitchProjectCut(result.current.projectDocumentSnapshot.cuts.find(cut => cut.cutId !== firstCut)!.cutId))
+  expect(result.current.activeCorrectionLayerId).toBe(result.current.baseProcessId)
+  act(() => result.current.handleSwitchProjectCut(firstCut))
+  expect(result.current.activeCorrectionLayerId).toBe(other)
+  switchMode('clip')
+  expect(result.current.newImageProcessId).toBe(other)
 })
 
 it('chooses an OS destination for existing numbers, cancels without orphan assets and replaces in one Undo step', async () => {
@@ -75,7 +122,7 @@ it('chooses an OS destination for existing numbers, cancels without orphan asset
   const corrected = result.current.project
   expect(corrected.logicalSheet).toBe(base.logicalSheet)
   expect(corrected.bindings).toHaveLength(2)
-  expect(result.current.newImageProcessId).toBe(baseProcess)
+  expect(result.current.newImageProcessId).toBe(other)
   await drop('replacement.png')
   act(() => result.current.applyClipImageDrop(other, false))
   const replacement = result.current.project
@@ -88,6 +135,7 @@ it('chooses an OS destination for existing numbers, cancels without orphan asset
   act(() => result.current.handleRedo())
   expect(result.current.project).toEqual(replacement)
   switchMode('clip')
+  act(() => result.current.handleNewImageProcessChange(baseProcess))
   await drop('next.png', 5)
   act(() => result.current.applyClipImageDrop(baseProcess, true))
   expect(result.current.project.logicalSheet.keys.map(key => key.displayLabel)).toEqual(['1', '2'])
@@ -130,14 +178,14 @@ it('keeps imported independent timings and native hierarchy in both modes, after
   const hit = { ...timingHitForFrame(result.current.template, 'cell', 'A', 13)!, paperTrack: '01', frame: 13, role: 'cell' as const }
   act(() => result.current.handleAssignClipLayer('cel0', hit))
   expect(result.current.activeCorrectionLayerId).toBe(first)
-  expect(result.current.newImageProcessId).toBe(other)
+  expect(result.current.newImageProcessId).toBe(first)
   expect(timingForProcess(result.current.project.logicalSheet, other).events).toEqual(timingForProcess(imported.logicalSheet, other).events)
   expect(result.current.project.clipDocument).toEqual(imported.clipDocument)
   const saved = result.current.projectDocumentSnapshot
   expect(buildClipRegistrationPlan(parseProjectDocument(JSON.parse(JSON.stringify(saved))), 'cell').timelines).toEqual(buildClipRegistrationPlan(saved, 'cell').timelines)
   switchMode('sheet')
   act(() => result.current.handleUndo())
-  expect(result.current.activeCorrectionLayerId).toBe(first)
+  expect(result.current.activeCorrectionLayerId).toBe(result.current.baseProcessId)
   expect(timingForProcess(result.current.project.logicalSheet, first).events).toEqual(timingForProcess(imported.logicalSheet, first).events)
   act(() => result.current.handleRedo())
   expect(result.current.projectDocumentSnapshot).toEqual(saved)

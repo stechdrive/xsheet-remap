@@ -48,7 +48,7 @@ describe('Remap CLIP layer workspace', () => {
 
   it('keeps common timing while registering a sparse correction, filtering materials and undoing only the drop', async () => {
     const { sheet } = setup()
-    const process = screen.getByLabelText('新規画像の登録先') as HTMLSelectElement
+    const process = screen.getByLabelText('編集先の工程') as HTMLSelectElement
     const base = process.value, other = Array.from(process.options).find(option => option.value !== base)!.value
     const dropAt = (frame: number, name: string) => {
       const target = templateFramePoint('cell', 'A', frame)
@@ -65,7 +65,7 @@ describe('Remap CLIP layer workspace', () => {
     const originalFrames = frames()
     fireEvent.change(process, { target: { value: other } })
     expect(frames()).toEqual(originalFrames)
-    expect(screen.getByText('共通シート')).toBeTruthy()
+    expect(screen.getByLabelText('基準シートの設定').textContent).toContain('作画')
     fireEvent.click(screen.getByRole('button', { name: '演出を展開' }))
     dropAt(5, 'correction.png')
     await screen.findByRole('dialog', { name: '画像の登録先を選択' })

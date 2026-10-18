@@ -28,6 +28,13 @@ function fixture() {
 }
 
 describe('independent process timing', () => {
+  it('reports a missing column correspondence when explicitly comparing against the base sheet', () => {
+    const { project, correction } = fixture()
+    const slot = project.cspTrackSlots.find(item => item.paperTrack === 'A' && item.correctionLayerId === correction)!
+    const unmapped = unsetClipTarget(project, slot.slotId)
+    expect(processTimingDifferences(unmapped)).toEqual([])
+    expect(processTimingDifferences(unmapped, { includeUnmapped: true })[0].values.find(value => value.processId === correction)?.state).toBe('unmapped')
+  })
   it('does not dirty an empty document by switching groups, and compares point markers for one frame only', () => {
     const empty = ensureClipDocument(createDefaultProject())
     expect(createProjectDocumentFromCutProject(selectTimingProcess(empty, empty.correctionLayers[1].layerId)).cuts).toEqual(createProjectDocumentFromCutProject(empty).cuts)

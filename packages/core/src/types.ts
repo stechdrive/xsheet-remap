@@ -145,6 +145,8 @@ export interface TimingReferenceMark {
 }
 
 export interface LogicalSheet {
+  /** Stable process used by the sheet editor and sheet exports, independent of the working process. */
+  baseProcessId?: Id
   fps: number
   frameOrigin: number
   durationFrames: number

@@ -49,7 +49,7 @@ export function importClipProcessTimelines(document: CutGroupProjectDocument, da
   const trackNames = [...new Set(columns.map(column => column.name))]
   const paperTracks = trackNames.map((paperTrack, order) => ({ paperTrack, label: paperTrack, order, source: 'template' as const }))
   project = { ...project, productionStages: [{ stageId: 'clip_groups', label: 'CLIP', order: 0 }], correctionLayers,
-    logicalSheet: { ...project.logicalSheet, paperTracks, keys: [], events: [], processTimings: timelines.length ? { activeProcessId: correctionLayers[0]!.layerId, inactive: {} } : undefined } }
+    logicalSheet: { ...project.logicalSheet, baseProcessId: correctionLayers[0]!.layerId, paperTracks, keys: [], events: [], processTimings: timelines.length ? { activeProcessId: correctionLayers[0]!.layerId, inactive: {} } : undefined } }
   project = { ...project, cspTrackSlots: createDefaultCspTrackSlots(paperTracks, project.productionStages, correctionLayers) }
   project = { ...project, exportProfiles: project.exportProfiles.map(profile => ({ ...profile, slotIds: project.cspTrackSlots.map(slot => slot.slotId) })) }
   let next = updateActiveCutProjectInDocument(document, project)

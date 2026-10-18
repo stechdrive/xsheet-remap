@@ -9,7 +9,6 @@ import { initialAssetPreviewRect, type AssetPreviewPayload } from './assetPrevie
 import { ClipLayerAppearance, clipBlendLabel } from './ClipLayerAppearance'
 import { ClipLayerIcon, clipLayerKindLabel } from './ClipLayerIcons'
 import { ClipAudioImport } from './ClipAudioImport'
-import { ClipProcessComparison } from './ClipProcessComparison'
 import { ClipCelAssignment } from './ClipCelAssignment'
 import { ProcessSettingsDialog } from './ProcessSettingsDialog'
 import { updateCorrectionLayers } from '@xsheet-remap/core'
@@ -280,10 +279,8 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     <div className="clipSheetConnection">
       {selected?.kind === 'audio' && <ClipAudioImport key={`${project.projectId}:${props.activeCutId}:${props.activeSheetRevisionId}:${selected.id}`} project={project} node={selected} activeCutId={props.activeCutId} revisionId={props.activeSheetRevisionId} disabled={props.disabled} onChange={props.onChange} />}
       <div className="clipSheetConnectionTitle"><strong>シートとの対応</strong><label><input type="checkbox" checked={props.filterProcess} onChange={event => props.onFilterProcess(event.target.checked)} />{project.logicalSheet.processTimings ? '工程差を表示' : '登録先工程の素材だけ表示'}</label></div>
-      <p className="clipProcessEditing">素材をシートへドラッグすると、所属するアニメーションフォルダーの工程へ登録します。</p>
       {project.logicalSheet.processTimings && <button type="button" disabled={props.disabled} onClick={() => setProcessSettingsOpen(true)}>グループ設定…</button>}
       {project.logicalSheet.processTimings && props.onOpenCorrespondence && <button type="button" disabled={props.disabled} onClick={props.onOpenCorrespondence}>CLIPとシートの対応…</button>}
-      {project.logicalSheet.processTimings && props.filterProcess && <ClipProcessComparison project={project} onProcessChange={props.onProcessChange} />}
       <ClipCelAssignment key={`${selectedId}:${props.selectedHit?.paperTrack}:${props.selectedHit?.frame}:${props.selectedHit?.role}`} project={project} layerId={selectedId ?? undefined} hit={props.selectedHit} onChange={props.onChange} disabled={props.disabled} />
       <details className="clipMappingDetails"><summary>シートとの対応を設定</summary>
         <fieldset className="clipLayerTargets" disabled={props.disabled}>

@@ -5,7 +5,6 @@ import {
   createSheetPages,
   formatSheetTemplateCutNumber,
   getSheetViewLayout,
-  getSheetTemplateHiddenPaperTracks,
   localizeFrameToSheetPage,
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
@@ -40,7 +39,7 @@ import {
   type TimelineEvent,
 } from '@xsheet-remap/core'
 import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } from './templateEditorGeometry'
-import { overlayBandSegments as buildOverlayBandSegments, overlayVisibleSnapIndex, type OverlayBandSegment } from './app-sheet-geometry'
+import { overlayBandSegments as buildOverlayBandSegments, overlayPaperTracks, overlayVisibleSnapIndex, type OverlayBandSegment } from './app-sheet-geometry'
 import { defaultTimingTextMinFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
 import { STACK_GUIDE_MAX_LANE, overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
@@ -206,7 +205,7 @@ export function createSheetRenderModelGeometry(
     officialFrameEnd,
     paperTracks,
     timelineLanes,
-    overlayTracks: overlayPaperTracks(project, template),
+    overlayTracks: overlayPaperTracks(project, template).filter(track => track.viewPlacement?.expanded !== false),
   }
 }
 
@@ -761,25 +760,6 @@ export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContex
         align: 'start' as const,
       })),
     )
-  })
-}
-
-function overlayPaperTracks(project: SheetGeometryInput, template: SheetTemplate): PaperTrack[] {
-  if (getSheetViewLayout(template).trackAxis?.type === 'logical-width') return []
-  const ordered = [...project.logicalSheet.paperTracks].sort((a, b) => a.order - b.order)
-  const hidden = new Set(getSheetTemplateHiddenPaperTracks(template, 'cell', ordered.filter(track => track.source !== 'overlay').map(track => track.paperTrack)))
-  return ordered.flatMap(track => {
-    if (track.source === 'overlay') return track.viewPlacement?.expanded === false ? [] : [track]
-    if (!hidden.has(track.paperTrack)) return []
-    return [{
-      ...track,
-      viewPlacement: {
-        ...track.viewPlacement,
-        templateId: template.templateId,
-        sheetRole: 'cell' as const,
-        snapIndex: Number.MAX_SAFE_INTEGER,
-      },
-    }]
   })
 }
 

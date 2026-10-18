@@ -1,15 +1,24 @@
-.sheetLayout.remapSheetLayout { grid-template-rows: auto minmax(0, 1fr); }
-.remapWorkspaceBar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 7px 12px; border-bottom: 1px solid #bdc7c0; background: #f1f4f2; font-size: 12px; }
-.remapWorkModes { display: flex; gap: 0; }
-.remapWorkModes button { border-radius: 0; padding: 5px 12px; }
+.sheetLayout.remapSheetLayout { grid-template-rows: minmax(0, 1fr); }
+.remapWorkspaceBar { display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; min-width: 0; font-size: 12px; white-space: nowrap; }
+.remapWorkModes { display: flex; flex-shrink: 0; }
+.remapWorkModes button { border-radius: 0; padding: 5px 10px; white-space: nowrap; }
 .remapWorkModes button[aria-pressed=true] { background: #395c4c; color: white; border-color: #395c4c; }
-.remapTimingContext, .remapImageDestination { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.remapWorkspaceBar select { max-width: 240px; min-width: 80px; font-size: 12px; }
-.remapWorkspaceBar small { color: #536359; }
-.remapImageDestination { margin-left: auto; }
+.remapEditingProcess { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.remapWorkspaceBar select { max-width: 180px; min-width: 70px; font-size: 12px; }
+.remapBaseLabel { display: block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.remapTopBar .topActions > .remapWorkspaceBar { flex: 0 1 auto; }
+.actionMenuContent.remapComparisonMenu { width: min(620px, calc(100vw - 24px)); }
+.remapComparisonMenu .clipProcessComparison { max-height: 65vh; overflow: auto; padding: 8px; background: #fff; }
+.clipComparisonControls { display: flex; gap: 12px; margin-bottom: 8px; }
+.clipComparisonControls label { display: flex; align-items: center; gap: 5px; }
+.clipProcessComparison table { width: 100%; border-collapse: collapse; white-space: normal; }
+.clipProcessComparison th, .clipProcessComparison td { border-bottom: 1px solid #d9dfda; padding: 6px 8px; text-align: left; overflow-wrap: anywhere; }
 .clipImageDropDialog { max-width: 620px; }
+.baseProcessText { fill: #617b7d; }
+.baseProcessInk { opacity: .7; }
 .clipImageDropDialog select { display: block; max-width: 100%; width: 100%; margin-top: 6px; }
 .clipImageDropDialog footer { flex-wrap: wrap; }
 .sheetWorkspace.remapSheetOnly { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'viewport'; grid-template-rows: minmax(0, 1fr); }
 .sheetWorkspace.remapSheetOnly > .sheetViewportFrame { grid-area: viewport; }
-@media (max-width: 900px) { .remapWorkspaceBar small { display: none; } .remapImageDestination { margin-left: 0; } }
+@media (max-width: 1000px) { .remapTopBar .topBrand { display: none; } .remapBaseLabel { max-width: 95px; } .remapWorkspaceBar select { max-width: 120px; } }
+@media (max-width: 700px) { .remapTopBar .topActions { overflow-x: auto; } .remapTopBar .topActions > .remapWorkspaceBar { flex-shrink: 0; } .remapWorkModes button { padding-inline: 5px; } }

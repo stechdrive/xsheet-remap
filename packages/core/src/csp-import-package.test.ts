@@ -11,6 +11,7 @@ import {
   registerAsset,
   registerAssetRoot,
   setEvent,
+  setBaseTimingProcess,
   updateActiveCutProjectInDocument,
   updateCorrectionLayers,
   updateProjectPaperTracks,
@@ -301,7 +302,7 @@ describe('CSP import package builder', () => {
     const initial = createDefaultProject()
     const enshutsuLayer = initial.correctionLayers.find(layer => layer.layerId === 'layer_enshutsu')
     if (!enshutsuLayer) throw new Error('fixture layer not found')
-    const withOnlyEnshutsuLayer = updateCorrectionLayers(initial, [{
+    const withOnlyEnshutsuLayer = updateCorrectionLayers(setBaseTimingProcess(initial, enshutsuLayer.layerId), [{
       ...enshutsuLayer,
       order: 0,
       role: 'correction',

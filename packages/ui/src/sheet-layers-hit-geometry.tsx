@@ -43,7 +43,7 @@ export function eventRectsForPages(
     : undefined
   const activeOverlayColumnByPage = new Map(pages.map(page => [
     page.pageId,
-    activeOverlayTrack?.source === 'overlay' ? overlayColumnRectForPage(template, project, activeOverlayTrack, page) : null,
+    activeOverlayTrack && presentedOverlayTracks.has(activeOverlayTrack.paperTrack) ? overlayColumnRectForPage(template, project, activeOverlayTrack, page) : null,
   ]))
 
   const candidates = pages.flatMap(page => timingEventsInRange(project.logicalSheet.events,
@@ -81,7 +81,7 @@ export function eventRectsForPages(
         : null
     }
 
-    if (!page || !rect || shouldSuppressRectUnderActiveOverlay(track, rect, activeOverlayColumnByPage.get(page.pageId) ?? null)) continue
+    if (!page || !rect || (!presentedOverlayTracks.has(event.paperTrack) && shouldSuppressRectUnderActiveOverlay(track, rect, activeOverlayColumnByPage.get(page.pageId) ?? null))) continue
     const item = {
       event,
       eventKind,
@@ -102,8 +102,8 @@ export function eventRectsForPage(project: CutProject, template: SheetTemplate, 
   return eventRectsForPages(project, template, [page], options).get(page.pageId) ?? []
 }
 
-export function shouldSuppressRectUnderActiveOverlay(track: PaperTrack | undefined, rect: NormalizedRect, activeOverlayColumn: (OverlayBandSegment & { rect: NormalizedRect }) | null): boolean {
-  if (!activeOverlayColumn || track?.source === 'overlay') return false
+export function shouldSuppressRectUnderActiveOverlay(track: PaperTrack | undefined, rect: NormalizedRect, activeOverlayColumn: (OverlayBandSegment & { rect: NormalizedRect; paperTrack?: string }) | null): boolean {
+  if (!activeOverlayColumn || track?.source === 'overlay' || track && track.paperTrack === activeOverlayColumn.paperTrack) return false
   return normalizedRectsOverlap(rect, activeOverlayColumn.rect)
 }
 
@@ -252,7 +252,7 @@ export function overlayHitForFrame(template: SheetTemplate, project: SheetGeomet
   }
 }
 
-export function overlayColumnRectForPage(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, page: SheetPage): (OverlayBandSegment & { rect: NormalizedRect }) | null {
+export function overlayColumnRectForPage(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, page: SheetPage): (OverlayBandSegment & { rect: NormalizedRect; paperTrack: string }) | null {
   const role = track.viewPlacement?.sheetRole ?? 'cell'
   const segments = overlayBandSegments(template, project, role)
   const frameOrigin = frameOriginForPageHit(template, page)
@@ -267,6 +267,7 @@ export function overlayColumnRectForPage(template: SheetTemplate, project: Sheet
   if (!slot) return null
   return {
     ...segment,
+    paperTrack: track.paperTrack,
     rect: {
       x: slot.x,
       y: segment.rect.y,

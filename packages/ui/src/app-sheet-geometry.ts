@@ -34,15 +34,7 @@ export function overlayPaperTracks(project: Pick<SheetGeometryInput, 'logicalShe
   return ordered.flatMap(track => {
     if (track.source === 'overlay') return [track]
     if (!template || !hidden.has(track.paperTrack)) return []
-    return [{
-      ...track,
-      viewPlacement: {
-        ...track.viewPlacement,
-        templateId: template.templateId,
-        sheetRole: 'cell' as const,
-        snapIndex: Number.MAX_SAFE_INTEGER,
-      },
-    }]
+    return [track]
   })
 }
 
@@ -53,8 +45,7 @@ export function stampAuxiliaryPlacementTemplate(project: CutProject, templateId:
     logicalSheet: {
       ...project.logicalSheet,
       paperTracks: project.logicalSheet.paperTracks.map(track =>
-        track.source === 'overlay'
-        && track.viewPlacement
+        track.viewPlacement
         && !track.viewPlacement.templateId
         && Number.isFinite(track.viewPlacement.snapIndex)
           ? { ...track, viewPlacement: { ...track.viewPlacement, templateId } }
@@ -226,6 +217,8 @@ export function overlaySnapIndexFromSegment(x: number, segment: OverlayBandSegme
 
 export function overlayVisibleSnapIndex(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, segment: OverlayBandSegment): number {
   const placement = track.viewPlacement
+  // Imported logical columns overflow paper templates too. Only their unset placement defaults to the end.
+  if (track.source !== 'overlay' && (!Number.isFinite(placement?.snapIndex) || placement?.templateId && placement.templateId !== template.templateId)) return segment.snapCount
   if (!placement?.templateId || placement.templateId === template.templateId) {
     return clampNumber(Math.round(placement?.snapIndex ?? 0), 0, segment.snapCount)
   }

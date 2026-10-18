@@ -13,3 +13,15 @@ export async function createProcessClipFixture(SQL: SqlJsStatic) {
     plan, canvas: { width: 64, height: 48, dpi: 150, basisWidth: 64, basisHeight: 48, offsetX: 0, offsetY: 0 }, fit: 'crop', images: {},
   })).bytes
 }
+
+export async function createOverflowClipFixture(SQL: SqlJsStatic) {
+  const names = Array.from({ length: 12 }, (_, index) => String.fromCharCode(65 + index))
+  const plan: ClipRegistrationPlan = {
+    projectId: 'overflow-fixture',
+    folders: names.map(name => ({ id: name, name, path: ['作画'], cels: [{ name: '001' }] })),
+    timelines: [{ id: 'cut', name: 'C001', fps: 24, duration: 24, tracks: names.map(name => ({ folderId: name, frames: [{ frame: 0, value: '001' }] })) }],
+  }
+  return (await writeClip(SQL, new Uint8Array(readFileSync(new URL('../../../packages/adapters/src/clip/blank.clip', import.meta.url))), {
+    plan, canvas: { width: 64, height: 48, dpi: 150, basisWidth: 64, basisHeight: 48, offsetX: 0, offsetY: 0 }, fit: 'crop', images: {},
+  })).bytes
+}

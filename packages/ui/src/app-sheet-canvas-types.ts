@@ -33,6 +33,7 @@ import type { CameraCueTransformUpdates } from './app-camera-cue-controller'
 import type { DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 
 export type SheetCanvasProps = {
+  showBaseProcessReference?: boolean
   project: CutProject
   referenceProject: CutProject | null
   referenceOpacity: number

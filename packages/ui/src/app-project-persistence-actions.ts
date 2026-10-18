@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import {
   updateActiveCutProjectInDocument,
+  baseTimingProject,
   type CutGroupProjectDocument,
   type CutProject,
   type SheetTemplate,
@@ -75,7 +76,7 @@ export function createAppProjectPersistenceActions(options: {
 
   function handleOpenSheetImageExport(format: SheetImageExportFormat) {
     const sourceProject = options.resolveProject()
-    options.setSheetImageExportDraft(defaultSheetImageExportOptions(sourceProject, options.template, format))
+    options.setSheetImageExportDraft(defaultSheetImageExportOptions(baseTimingProject(sourceProject), options.template, format))
   }
 
   async function handleSaveSheetImageExport(exportOptions: SheetImageExportOptions) {
@@ -85,7 +86,7 @@ export function createAppProjectPersistenceActions(options: {
       const cutProjects = exportCutProjectsFromDocument(exportDocument)
       for (const [index, cutProject] of cutProjects.entries()) {
         outputs.push(...await renderSheetImageExports(
-          cutProject,
+          baseTimingProject(cutProject),
           options.template,
           options.runtimeSourceImageUrls,
           exportOptions,

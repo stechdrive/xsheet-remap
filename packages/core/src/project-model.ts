@@ -5,7 +5,7 @@ import { createDefaultSheetViewState } from './sheet-view'
 import { createDefaultCspTrackSlots, defaultCorrectionLayers, defaultProductionStages, isSpecialTimingEvent, nearestTemplatePaperTrackBeforeOverlay, nextOverlayOrderInGap, nextOverlayPaperTrackName, normalizeCorrectionLayers, normalizeOverlayPaperTrackOrderInGaps, normalizePaperTrackLabels, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, stackGuideRegistrations, uniquePaperTrackName } from './project-shared'
 import { DEFAULT_CSP_CELL_NAME_POLICY, ROOT_ASSET_BIN_ID } from './project-constants'
 import { createEmptySheetFormData } from './sheet-form-data'
-import { mapInactiveProcessTimings, selectTimingProcess, timingForProcess } from './process-timing'
+import { baseTimingProcessId, mapInactiveProcessTimings, selectTimingProcess, timingForProcess } from './process-timing'
 import { replaceTimedRangeCues, timelineLanesForLayout } from './timed-range'
 import { addClipPaperTrackFolders, reorderClipPaperTrackFolders } from './clip-document'
 
@@ -102,6 +102,7 @@ export function createProjectFromTrackLabels(
   const productionStages: ProductionStage[] = defaultProductionStages()
   const correctionLayers: CorrectionLayer[] = defaultCorrectionLayers(productionStages[0]?.stageId ?? 'stage_lo')
   const logicalSheet: LogicalSheet = {
+    baseProcessId: correctionLayers[0]?.layerId,
     fps: Math.max(1, Math.round(template.defaults.fps)),
     frameOrigin: template.defaults.frameOrigin,
     durationFrames: Math.max(1, Math.round(template.defaults.durationFrames)),
@@ -306,6 +307,7 @@ export function updateCorrectionLayers(project: CutProject, layers: CorrectionLa
   const productionStages = project.productionStages.length > 0 ? project.productionStages : defaultProductionStages()
   const correctionLayers = normalizeCorrectionLayers(layers, productionStages, project.correctionLayers)
   const removedLayerIds = new Set(project.correctionLayers.map(layer => layer.layerId).filter(layerId => !correctionLayers.some(layer => layer.layerId === layerId)))
+  if (removedLayerIds.has(baseTimingProcessId(project))) throw new Error('基準シートの工程は削除できません。先に基準を別の工程へ変更してください。')
   if (removedLayerIds.size > 0) {
     const removedSlotIds = new Set(project.cspTrackSlots.filter(slot => slot.correctionLayerId && removedLayerIds.has(slot.correctionLayerId)).map(slot => slot.slotId))
     const hasBindings = project.bindings.some(binding => removedSlotIds.has(binding.slotId))

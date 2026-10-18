@@ -1,5 +1,5 @@
 import { ClipLayerPanel } from './ClipLayerPanel'
-import { RemapWorkspaceBar, type RemapWorkMode } from './RemapWorkspaceBar'
+import type { RemapWorkMode } from './RemapWorkspaceBar'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { SheetLabelNormalizationPlan } from '@xsheet-remap/core'
 import { type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
@@ -187,9 +187,7 @@ export function SheetPanel(props: {
   activeCorrectionLayerId: string
   workMode?: RemapWorkMode
   clipDropContext?: object
-  onWorkModeChange?: (mode: RemapWorkMode) => void
   newImageProcessId?: string
-  onNewImageProcessChange?: (id: string) => void
   setActiveCorrectionLayerId: (value: string) => void
   editMode: EditMode
   setEditMode: (mode: EditMode) => void
@@ -714,9 +712,6 @@ export function SheetPanel(props: {
   return (
     <TooltipSuppressionProvider suppressed={suppressSheetTooltips(editMode)}>
     <section className={`panel sheetLayout ${props.workMode ? 'remapSheetLayout' : ''}`}>
-      {props.workMode && <RemapWorkspaceBar project={props.project} mode={props.workMode} onModeChange={props.onWorkModeChange!}
-        timingProcessId={props.activeCorrectionLayerId} onTimingProcessChange={props.setActiveCorrectionLayerId}
-        imageProcessId={imageProcessId} onImageProcessChange={props.onNewImageProcessChange!} />}
       <div
         className={[
           'sheetWorkspace', clipWorkspace ? 'clipWorkspace' : '', props.workMode === 'sheet' ? 'remapSheetOnly' : '',
@@ -1313,6 +1308,7 @@ export function SheetPanel(props: {
             ref={sheetCanvasRef}
             {...props}
             clipProcessId={props.workMode === 'sheet' ? undefined : imageProcessId}
+            showBaseProcessReference={props.workMode === 'clip'}
             onClipLayerAssign={props.workMode === 'sheet' ? undefined : props.onClipLayerAssign}
             clipFilterProcessId={filterClipProcess ? (props.project.logicalSheet.processTimings ? props.activeCorrectionLayerId : imageProcessId) : undefined}
             clipShowProcessDifferences={filterClipProcess && Boolean(props.project.logicalSheet.processTimings)}

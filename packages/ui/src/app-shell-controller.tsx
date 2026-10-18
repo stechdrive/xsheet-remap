@@ -1,5 +1,5 @@
 import { isCompositionKey } from './compositionKeyboard'
-import { remapClipTracks, type ClipTrackCorrespondence } from '@xsheet-remap/core'
+import { baseTimingProcessId, baseTimingProject, setBaseTimingProcess, remapClipTracks, type ClipTrackCorrespondence } from '@xsheet-remap/core'
 import { applySheetLabelNormalizationPlan, updateSheetKeyDisplayLabel, type SheetLabelNormalizationPlan } from '@xsheet-remap/core'
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import type { PendingClipImageDrop } from './ClipImageDropDialog'
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
 import { projectDocumentsEqual } from './projectDocumentEquality';
@@ -178,7 +178,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setAutoCalibrationOverlay(null)
     setAssetDropMenu(null)
     setProjectFilePath(null)
-    setActiveCorrectionLayerIdState(defaultCorrectionLayerId(next) ?? '')
+    setActiveCorrectionLayerIdState(baseTimingProcessId(next))
     resetClipWorkspaceView('clip')
     setClipImportFile(null)
     setExportOperationNotice({ message: 'CLIPのレイヤー構造とタイムラインを開きました。' })
@@ -257,11 +257,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     return Boolean(pageImage.sourceId && pageImage.imageUrl)
   })
   const selectedKey = selection.keyId ? project.logicalSheet.keys.find(key => key.keyId === selection.keyId) ?? null : null
-  const fallbackCorrectionLayerId = defaultCorrectionLayerId(project) ?? ''
-  const newImageProcessId = project.correctionLayers.some(layer => layer.layerId === activeCorrectionLayerIdState)
+  const baseProcessId = baseTimingProcessId(project)
+  const fallbackCorrectionLayerId = baseProcessId
+  const newImageProcessId = workMode === 'clip' && project.logicalSheet.processTimings ? project.logicalSheet.processTimings.activeProcessId : project.correctionLayers.some(layer => layer.layerId === activeCorrectionLayerIdState)
     ? activeCorrectionLayerIdState
     : fallbackCorrectionLayerId
-  const activeCorrectionLayerId = project.logicalSheet.processTimings?.activeProcessId ?? (appKind === 'remap' ? fallbackCorrectionLayerId : newImageProcessId)
+  const activeCorrectionLayerId = project.logicalSheet.processTimings?.activeProcessId ?? (appKind === 'remap' && workMode === 'sheet' ? baseProcessId : newImageProcessId)
   const activeCorrectionLayer = project.correctionLayers.find(layer => layer.layerId === activeCorrectionLayerId) ?? null
   const materialAssets = useMemo(() => project.assets.filter(isCellMaterialAsset), [project.assets])
   const issueErrorCount = issues.filter(issue => issue.severity === 'error').length
@@ -345,7 +346,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         setProjectFilePath(null)
         setHistory(createProjectHistory(nextProject))
         setPanelView(initialPanel)
-        setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
+        setActiveCorrectionLayerIdState(baseTimingProcessId(nextProject))
       },
     })
   }, [setActiveCorrectionLayerIdState, setHistory, setPanelView, setProjectDocument, setProjectFilePath, setTemplate, setTextFontSizePx])
@@ -876,14 +877,28 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleActiveCorrectionLayerChange(layerId: string) {
     commitTimingDraft(false)
+    clipImportContext.current = {}
+    setPendingClipImageDrop(null)
     selectWorkspaceProcess(layerId)
     if (project.logicalSheet.processTimings) clearSelectionState()
-    if (appKind !== 'remap') setActiveCorrectionLayerIdState(layerId)
+    setActiveCorrectionLayerIdState(layerId)
   }
 
   function handleWorkModeChange(mode: RemapWorkMode) {
     commitTimingDraft(false)
+    selectWorkspaceProcess(mode === 'sheet' ? undefined : newImageProcessId)
+    clearSelectionState()
     resetClipWorkspaceView(mode)
+  }
+
+  function handleBaseProcessChange(processId: string) {
+    const source = commitTimingDraft(false)
+    const next = setBaseTimingProcess(source, processId)
+    if (!commitProject(workMode === 'sheet' ? baseTimingProject(next) : next)) return
+    if (workMode === 'sheet') selectWorkspaceProcess()
+    clipImportContext.current = {}
+    setPendingClipImageDrop(null)
+    clearSelectionState()
   }
 
   function resetClipWorkspaceView(mode: RemapWorkMode) {
@@ -896,9 +911,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleNewImageProcessChange(id: string) {
-    clipImportContext.current = {}
-    setPendingClipImageDrop(null)
-    setActiveCorrectionLayerIdState(id)
+    handleActiveCorrectionLayerChange(id)
   }
 
   function allowClipImageImport() {
@@ -1452,7 +1465,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       const { hit } = pending, role = hit.role === 'cell' ? 'cell' : 'action'
       const key = !newKey && clipSheetKeyAtFrame(selectTimingProcess(pending.source, processId), hit.paperTrack!, hit.frame, role)
       const next = addClipImages(pending.prepared, null, pending.images, { paperTrack: hit.paperTrack!, frame: hit.frame, role, processId, newKey, ...(key ? { keyId: key.keyId } : {}) })
-      if (commitProject(next)) { setPendingClipImageDrop(null); setStatusHint('sheet-drop', `${project.correctionLayers.find(process => process.layerId === processId)?.label} / ${hit.paperTrack}へ登録しました。`) }
+      if (commitProject(next)) { setActiveCorrectionLayerIdState(processId); setPendingClipImageDrop(null); setStatusHint('sheet-drop', `${project.correctionLayers.find(process => process.layerId === processId)?.label} / ${hit.paperTrack}へ登録しました。`) }
     } catch (error) { setPendingClipImageDrop(null); setStatusHint('sheet-drop', errorMessage(error)) }
   }
 
@@ -1465,7 +1478,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       const source = commitTimingDraft(false)
       const { slot } = clipCelSheetDestination(source, layerId, hit.paperTrack, { frame: hit.frame, role })
       const next = bindClipCel(source, layerId, hit.paperTrack, hit.frame, role, slot.correctionLayerId!)
-      if (commitProject(next)) setSelectionFromHit(hit, next, timingKeyAtSheetHit(next, hit)?.keyId)
+      if (commitProject(next)) { setActiveCorrectionLayerIdState(slot.correctionLayerId!); setSelectionFromHit(hit, next, timingKeyAtSheetHit(next, hit)?.keyId) }
     } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
   }
 
@@ -1823,7 +1836,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       setActiveCorrectionLayerIdState(current =>
         nextProject.correctionLayers.some(layer => layer.layerId === current)
           ? current
-          : defaultCorrectionLayerId(nextProject) ?? '',
+          : baseTimingProcessId(nextProject),
       )
       return true
     } catch (error) {
@@ -1872,7 +1885,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       setSavedProjectDocumentSnapshot(loadedDocument)
       setProjectFilePath(loadedFile.projectFilePath)
       setHistory(createProjectHistory(loaded))
-      setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
+      setActiveCorrectionLayerIdState(baseTimingProcessId(loaded))
       resetClipWorkspaceView(loaded.clipDocument?.source ? 'clip' : 'sheet')
       setRuntimeSourceImageUrls(projectRuntimeSourceImageUrls(loadedDocument))
       clearSelectionState()
@@ -1961,11 +1974,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       cancelTimingDraft()
       return
     }
-    if (!activeSheetRevision.protected) setHistory(current => undoHistory(current))
+    if (!activeSheetRevision.protected) { setHistory(current => undoHistory(current)); if (appKind === 'remap' && workMode === 'sheet') selectWorkspaceProcess() }
   }
   function handleRedo() {
     if (timingEditSessionRef.current) return
-    if (!activeSheetRevision.protected) setHistory(current => redoHistory(current))
+    if (!activeSheetRevision.protected) { setHistory(current => redoHistory(current)); if (appKind === 'remap' && workMode === 'sheet') selectWorkspaceProcess() }
   }
 
   async function handleResetApp() {
@@ -1984,7 +1997,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSavedProjectDocumentSnapshot(nextDocument)
     setProjectFilePath(null)
     setHistory(createProjectHistory(nextProject))
-    setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
+    setActiveCorrectionLayerIdState(baseTimingProcessId(nextProject))
     resetClipWorkspaceView('sheet')
     setRuntimeSourceImageUrls({})
     setRecognitionCandidates([])
@@ -2431,7 +2444,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
     return {
     clipDropContext: clipImportContext.current,
-    workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange,
+    workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, baseProcessId, handleBaseProcessChange,
     pendingClipImageDrop: pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null, setPendingClipImageDrop, applyClipImageDrop,
     appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
     template, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,

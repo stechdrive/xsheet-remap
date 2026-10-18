@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { RemapWorkspaceBar } from './RemapWorkspaceBar'
+import { baseTimingProject } from '@xsheet-remap/core'
 import { clearAnnotations, clearAnnotationsForPage, getSheetViewLayout, sheetTemplatePresets, timelineLanesForLayout, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters';
 import { APP_VERSION } from './appVersion';
@@ -33,7 +35,7 @@ import type { DialogueAudioTrackExportFormat } from './dialogueAudioExport'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
-    workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, pendingClipImageDrop, setPendingClipImageDrop, applyClipImageDrop, clipDropContext,
+    workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, baseProcessId, handleBaseProcessChange, pendingClipImageDrop, setPendingClipImageDrop, applyClipImageDrop, clipDropContext,
     appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
     template, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
     setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,
@@ -264,7 +266,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
 
   return (
     <div className="appShell" onContextMenu={event => event.preventDefault()}>
-      <header className="topBar">
+      <header className={`topBar ${appKind === 'remap' && panel === 'sheet' ? 'remapTopBar' : ''}`}>
         <div className="topIdentity">
           <AppNavigationMenu
             appName={appProfile.appName}
@@ -296,6 +298,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
           </span>
         </div>
         <div className="topActions">
+          {appKind === 'remap' && panel === 'sheet' && <RemapWorkspaceBar project={project} mode={workMode} onModeChange={handleWorkModeChange}
+            baseProcessId={baseProcessId} onBaseProcessChange={handleBaseProcessChange} protected={activeSheetRevision.protected}
+            processId={newImageProcessId} onProcessChange={handleNewImageProcessChange} />}
           <CutMetadataActionMenu
             project={project}
             template={template}
@@ -375,10 +380,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             cameraCueClipboard={cameraCueClipboard}
             activeCorrectionLayerId={activeCorrectionLayerId}
             workMode={appKind === 'remap' ? workMode : undefined}
-            onWorkModeChange={handleWorkModeChange}
             newImageProcessId={newImageProcessId}
             clipDropContext={clipDropContext}
-            onNewImageProcessChange={handleNewImageProcessChange}
             setActiveCorrectionLayerId={handleActiveCorrectionLayerChange}
             editMode={editMode}
             setEditMode={setEditMode}
@@ -578,7 +581,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
 
       {sheetImageExportDraft && (
         <SheetImageExportDialog
-          project={project}
+          project={baseTimingProject(project)}
           template={template}
           cutGroup={{ activeCutId: projectDocumentSnapshot.activeCutId, cuts: projectCuts }}
           initialOptions={sheetImageExportDraft}

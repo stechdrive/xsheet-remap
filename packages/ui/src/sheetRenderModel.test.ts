@@ -3,6 +3,9 @@ import {
   NULL_CELL_KEY_ID,
   addOverlayPaperTrack,
   createDefaultProject,
+  createAlphabeticTrackLabels,
+  updateProjectPaperTracks,
+  updatePaperTrack,
   createOrSetEvent,
   createStackGuideLabel,
   digitalStandardSheetTemplate,
@@ -27,8 +30,32 @@ import {
 } from './sheetRenderModel'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import type { TextMeasurementProvider } from './textMetrics'
+import { eventRectsForPages, overlayColumnRectForPage } from './sheet-layers-hit-geometry'
 
 describe('sheet render model', () => {
+  it('keeps imported overflow flags, expanded content and hit geometry together after moving and restoring a paper template', () => {
+    const original = createOrSetEvent(updateProjectPaperTracks(createDefaultProject(), createAlphabeticTrackLabels(12)), 'J', 1, 'cell').project
+    const positions: number[] = []
+    for (const snapIndex of [2, 7]) {
+      const moved = updatePaperTrack(original, 'J', { viewPlacement: { templateId: standardA3SheetTemplate.templateId, sheetRole: 'cell', snapIndex, expanded: true } })
+      const project = JSON.parse(JSON.stringify(moved)) as typeof moved
+      const digital = createSheetRenderModelContext(project, digitalStandardSheetTemplate)
+      expect(digital.overlayTracks).toEqual([])
+      const context = createSheetRenderModelContext(project, standardA3SheetTemplate), page = context.pages[0]
+      const flag = overlayPaperTrackRenderItems(context, page).find(item => item.track.paperTrack === 'J')!
+      const track = project.logicalSheet.paperTracks.find(track => track.paperTrack === 'J')!
+      const expanded = overlayColumnRectForPage(standardA3SheetTemplate, project, track, page)!
+      const content = inputTextRenderItemsForPage(context, page).find(item => item.paperTrack === 'J')!
+      const hits = eventRectsForPages(project, standardA3SheetTemplate, [page], { activeOverlayPaperTrack: 'J' }).get(page.pageId)!
+      expect(flag.column.rect.x).toBe(expanded.rect.x)
+      expect(content.rect.x).toBe(expanded.rect.x)
+      expect(hits.find(item => item.event.paperTrack === 'J')?.rect.x).toBe(expanded.rect.x)
+      positions.push(flag.column.rect.x)
+    }
+    expect(positions[0]).not.toBe(positions[1])
+    const context = createSheetRenderModelContext(original, standardA3SheetTemplate)
+    expect(overlayPaperTrackRenderItems(context, context.pages[0])[0].column.rect.x).not.toBe(positions[0])
+  })
   it('filters process text and holds without changing the next exposure boundary or source events', () => {
     const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const second = createOrSetEvent(first.project, 'A', 8, 'action')

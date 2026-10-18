@@ -3,7 +3,8 @@ import {
   activeCutProjectFromDocument,
   addBlankSharedCutToProjectDocument,
   createProjectHistory,
-  defaultCorrectionLayerId,
+  baseTimingProcessId,
+  baseTimingProject,
   deleteSharedCutFromProjectDocument,
   switchActiveCutInProjectDocument,
   type CutGroupProjectDocument,
@@ -28,11 +29,11 @@ export function createAppSharedCutActions(input: {
   alertError: (error: unknown) => void
 }) {
   const activateDocument = (nextDocument: CutGroupProjectDocument) => {
-    const nextProject = activeCutProjectFromDocument(nextDocument)
+    const nextProject = baseTimingProject(activeCutProjectFromDocument(nextDocument))
     input.setProjectDocument(nextDocument)
     input.projectRef.current = nextProject
     input.setHistory(createProjectHistory(nextProject))
-    input.setActiveCorrectionLayerId(defaultCorrectionLayerId(nextProject) ?? '')
+    input.setActiveCorrectionLayerId(baseTimingProcessId(nextProject))
     input.setRuntimeSourceImageUrls(projectRuntimeSourceImageUrls(nextDocument))
     input.clearSelection()
   }

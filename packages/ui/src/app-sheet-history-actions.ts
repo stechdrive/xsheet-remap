@@ -4,7 +4,8 @@ import {
   activeSheetRevisionFromDocument,
   addSheetRevisionToProjectDocument,
   createProjectHistory,
-  defaultCorrectionLayerId,
+  baseTimingProcessId,
+  baseTimingProject,
   deleteSheetRevisionInProjectDocument,
   renameSheetRevisionInProjectDocument,
   setSheetRevisionProtectedInProjectDocument,
@@ -32,11 +33,11 @@ export function createAppSheetHistoryActions(input: {
   alertError: (error: unknown) => void
 }) {
   const activateDocument = (nextDocument: CutGroupProjectDocument) => {
-    const nextProject = activeCutProjectFromDocument(nextDocument)
+    const nextProject = baseTimingProject(activeCutProjectFromDocument(nextDocument))
     input.setProjectDocument(nextDocument)
     input.projectRef.current = nextProject
     input.setHistory(createProjectHistory(nextProject))
-    input.setActiveCorrectionLayerId(defaultCorrectionLayerId(nextProject) ?? '')
+    input.setActiveCorrectionLayerId(baseTimingProcessId(nextProject))
     input.setRuntimeSourceImageUrls({})
     input.clearSelection()
   }

@@ -10,7 +10,7 @@ import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations, timingEventValueKind } from './project-shared'
 import { parseProjectExtensions } from './project-archive'
 import { validateClipDocument } from './clip-document'
-import { canonicalTimingProject, emptyProcessTimings, pruneEmptyProcessTimings, validateProcessTimings } from './process-timing'
+import { baseTimingProcessId, canonicalTimingProject, emptyProcessTimings, pruneEmptyProcessTimings, validateProcessTimings } from './process-timing'
 import { normalizeSheetFormData, normalizeSheetFormFieldValues, normalizeSheetFormPageFieldValues } from './sheet-form-data'
 import { migrateLegacyMemos } from './sheet-memo'
 import { normalizeAssetSourceNativePaths } from './assets'
@@ -234,7 +234,7 @@ export function updateActiveCutProjectInDocument(
     ? document.cuts.map(cut => cut.cutId === activeCutId ? activeCut : cut)
     : [...document.cuts, activeCut]
   const removedGroups = new Set(document.correctionLayers.filter(layer => !activeProject.correctionLayers.some(next => next.layerId === layer.layerId)).map(layer => layer.layerId))
-  if (removedGroups.size) cuts = cuts.map(cut => ({ ...cut, revisions: cut.revisions.map(revision => ({ ...revision, logicalSheet: pruneEmptyProcessTimings(revision.logicalSheet, removedGroups, activeProject.correctionLayers[0]!.layerId) })) }))
+  if (removedGroups.size) cuts = cuts.map(cut => ({ ...cut, revisions: cut.revisions.map(revision => ({ ...revision, logicalSheet: pruneEmptyProcessTimings({ ...revision.logicalSheet, baseProcessId: baseTimingProcessId({ logicalSheet: { ...revision.logicalSheet, keys: document.registeredCells.keys }, correctionLayers: document.correctionLayers }) }, removedGroups, activeProject.correctionLayers[0]!.layerId) })) }))
   return {
     ...document,
     projectId: activeProject.projectId,
@@ -450,6 +450,7 @@ export function migrateProject(input: Partial<CutProject> & { annotations?: Anno
     logicalSheet: {
       ...base.logicalSheet,
       ...input.logicalSheet,
+      baseProcessId: input.logicalSheet?.baseProcessId ?? correctionLayers.find(layer => layer.role === 'base')?.layerId ?? correctionLayers[0]?.layerId,
       workRange: normalizeLogicalSheetWorkRange(input.logicalSheet?.workRange ?? base.logicalSheet.workRange),
       paperTracks,
       timelineSections: input.logicalSheet?.timelineSections ?? base.logicalSheet.timelineSections,
@@ -660,6 +661,7 @@ function sheetRevisionFromProject(
 ): SheetRevisionDocument {
   project = canonicalTimingProject(project)
   const logicalSheet: SheetRevisionDocument['logicalSheet'] = {
+    baseProcessId: project.logicalSheet.baseProcessId,
     fps: project.logicalSheet.fps,
     frameOrigin: project.logicalSheet.frameOrigin,
     durationFrames: project.logicalSheet.durationFrames,

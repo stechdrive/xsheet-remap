@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
-  activeCutProjectFromDocument, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId, ensureClipDocument, synchronizeClipBindings, selectTimingProcess,
+  activeCutProjectFromDocument, baseTimingProject, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId, ensureClipDocument, synchronizeClipBindings, selectTimingProcess,
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
@@ -53,9 +53,9 @@ export function useAppShellState(appKind: MainAppKind) {
     }
   })
   const history = useMemo<ProjectHistory>(() => projectHistoryFromWorkspaceHistory(workspaceHistory), [workspaceHistory])
-  const selectWorkspaceProcess = useCallback((processId: string) => {
+  const selectWorkspaceProcess = useCallback((processId?: string) => {
     setWorkspaceHistory(current => {
-      const select = (snapshot: WorkspaceHistorySnapshot) => ({ ...snapshot, project: selectTimingProcess(snapshot.project, processId) })
+      const select = (snapshot: WorkspaceHistorySnapshot) => ({ ...snapshot, project: processId === undefined ? baseTimingProject(snapshot.project) : selectTimingProcess(snapshot.project, processId) })
       return { past: current.past.map(select), present: select(current.present), future: current.future.map(select) }
     })
   }, [])

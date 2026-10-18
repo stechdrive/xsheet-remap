@@ -1,6 +1,22 @@
 import type { CutProject, LogicalSheet, ProcessTiming, SheetTimingRole, TimingKey } from './types'
 import { isSpecialTimingKeyId, sheetTimingRoleForEvent } from './project-shared'
 
+export function baseTimingProcessId(project: Pick<CutProject, 'logicalSheet' | 'correctionLayers'>): string {
+  return project.logicalSheet.baseProcessId
+    ?? project.correctionLayers.find(process => process.role === 'base')?.layerId
+    ?? project.correctionLayers[0]?.layerId ?? ''
+}
+
+export function setBaseTimingProcess(project: CutProject, processId: string): CutProject {
+  if (!project.correctionLayers.some(process => process.layerId === processId)) throw new Error('基準にする工程が見つかりません。')
+  if (project.logicalSheet.baseProcessId === processId) return project
+  return { ...project, logicalSheet: { ...project.logicalSheet, baseProcessId: processId } }
+}
+
+export function baseTimingProject(project: CutProject): CutProject {
+  return selectTimingProcess(project, baseTimingProcessId(project))
+}
+
 export function timingForProcess(sheet: LogicalSheet, processId: string): ProcessTiming {
   if (!sheet.processTimings || sheet.processTimings.activeProcessId === processId) return sheet
   return sheet.processTimings.inactive[processId] ?? { events: [], referenceMarks: [] }
@@ -36,10 +52,11 @@ export function mapInactiveProcessTimings(sheet: Pick<LogicalSheet, 'processTimi
 
 /** Saved ordering is independent of which process happens to be on screen. */
 export function canonicalTimingProject(project: CutProject): CutProject {
-  return project.logicalSheet.processTimings ? selectTimingProcess(project, project.correctionLayers[0]?.layerId ?? '') : project
+  return baseTimingProject(project)
 }
 
 export function validateProcessTimings(project: Pick<CutProject, 'logicalSheet' | 'correctionLayers'>): void {
+  if (project.logicalSheet.baseProcessId !== undefined && !project.correctionLayers.some(process => process.layerId === project.logicalSheet.baseProcessId)) throw new Error('基準シートの工程が見つかりません。')
   const bank = project.logicalSheet.processTimings
   if (!bank) return
   const processes = new Set(project.correctionLayers.map(layer => layer.layerId))
@@ -64,7 +81,8 @@ export function validateProcessTimings(project: Pick<CutProject, 'logicalSheet' 
   }
 }
 
-export function pruneEmptyProcessTimings<T extends Pick<LogicalSheet, 'events' | 'referenceMarks' | 'processTimings'>>(sheet: T, removed: Set<string>, fallback: string): T {
+export function pruneEmptyProcessTimings<T extends Pick<LogicalSheet, 'events' | 'referenceMarks' | 'processTimings' | 'baseProcessId'>>(sheet: T, removed: Set<string>, fallback: string): T {
+  if (sheet.baseProcessId && removed.has(sheet.baseProcessId)) throw new Error('別のカット・シートの基準工程は削除できません。先に基準を変更してください。')
   const bank = sheet.processTimings
   if (!bank) return sheet
   const timing = (id: string) => bank.activeProcessId === id ? sheet : bank.inactive[id]
@@ -86,7 +104,7 @@ export interface ProcessTimingDifference {
 }
 
 /** Compare exposure intervals (not just key positions), without expanding every frame. */
-export function processTimingDifferences(project: CutProject): ProcessTimingDifference[] {
+export function processTimingDifferences(project: CutProject, options: { includeUnmapped?: boolean } = {}): ProcessTimingDifference[] {
   if (!project.logicalSheet.processTimings) return []
   const result: ProcessTimingDifference[] = [], sheet = project.logicalSheet
   const keys = new Map(sheet.keys.map(key => [key.keyId, key]))
@@ -102,7 +120,7 @@ export function processTimingDifferences(project: CutProject): ProcessTimingDiff
       for (const mark of timing.referenceMarks ?? []) if (mark.paperTrack === track.paperTrack && mark.sheetRole === role) marks.set(mark.frame, `${marks.get(mark.frame) ?? ''}参考`)
       return { processId: process.layerId, slot, target, marks, events: events.filter(event => ['cell', 'blank'].includes(event.valueKind)).sort((a, b) => a.frame - b.frame) }
     })
-    if (!streams.some(stream => stream.events.length || stream.marks.size) || streams.filter(stream => stream.target).length < 2) continue
+    if (!streams.some(stream => stream.events.length || stream.marks.size) || streams.length < 2 || streams.filter(stream => stream.target).length < (options.includeUnmapped ? 1 : 2)) continue
     const boundaries = [...new Set([start, end, ...streams.flatMap(stream => [...stream.events.map(event => event.frame), ...[...stream.marks.keys()].flatMap(frame => [frame, frame + 1])].filter(frame => frame >= start && frame < end))])].sort((a, b) => a - b)
     const cursors = streams.map(() => -1)
     for (let index = 0; index < boundaries.length - 1; index++) {
@@ -117,7 +135,7 @@ export function processTimingDifferences(project: CutProject): ProcessTimingDiff
         const key = keys.get(event.keyId), binding = bindings.get(JSON.stringify([stream.slot?.slotId, event.keyId]))
         return { processId: stream.processId, label: `${key?.displayLabel ?? '未登録'}${suffix}`, state: binding?.clipLayerId ? 'cell' : 'unregistered' }
       })
-      const mapped = values.filter(value => value.state !== 'unmapped')
+      const mapped = options.includeUnmapped ? values : values.filter(value => value.state !== 'unmapped')
       if (new Set(mapped.map(value => `${value.state}:${value.label}`)).size < 2) continue
       const previous = result.at(-1)
       if (previous?.paperTrack === track.paperTrack && previous.role === role && previous.frameEnd + 1 === frameStart && JSON.stringify(previous.values) === JSON.stringify(values)) previous.frameEnd = frameEnd

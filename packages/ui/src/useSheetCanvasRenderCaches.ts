@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useSheetTextMetricsRevision } from './useSheetTextMetricsRevision'
 import {
+  isSpecialTimingEvent,
   timelineMemos,
   type CutProject,
   type SheetPage,
@@ -64,7 +65,11 @@ export function useSheetCanvasRenderCaches({
   const eventGeometryCache = useMemo<SheetEventGeometryCache>(() => new WeakMap(), [renderContext.geometry, activeOverlayPaperTrack, textMetricsRevision])
   const frameRange = useMemo(() => sheetFrameRangeForWindow(renderContext, renderWindow), [renderContext, renderWindow])
   const eventRectsByPage = useMemo(
-    () => eventRectsForPages(renderContext.project, template, visiblePages, { activeOverlayPaperTrack, cache: eventGeometryCache, frameRange }),
+    () => {
+      const pages = eventRectsForPages(renderContext.project, template, visiblePages, { activeOverlayPaperTrack, cache: eventGeometryCache, frameRange })
+      const visible = renderContext.visibleKeyIds
+      return visible ? new Map([...pages].map(([id, items]) => [id, items.filter(item => isSpecialTimingEvent(item.event) || visible.has(item.event.keyId))])) : pages
+    },
     [activeOverlayPaperTrack, renderContext, template, visiblePages, eventGeometryCache, frameRange],
   )
   const continuationItemsByPage = useMemo(

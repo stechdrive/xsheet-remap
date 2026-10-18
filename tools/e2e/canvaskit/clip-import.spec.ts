@@ -25,7 +25,7 @@ const plan: ClipRegistrationPlan = {
   ],
 }
 
-test('CLIP worker imports chosen folders as shared cuts, supports undo, and preserves timing/source through XSR', async ({ page }, info) => {
+test('CLIP worker imports chosen folders as shared cuts, resets history, and preserves layers/timing/source through XSR', async ({ page }, info) => {
   const SQL = await initSqlJs({ wasmBinary: new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer })
   const clip = await writeClip(SQL, new Uint8Array(readFileSync('packages/adapters/src/clip/blank.clip')), {
     plan, canvas: { width: 32, height: 24, dpi: 150, basisWidth: 24, basisHeight: 16, offsetX: 0, offsetY: 0 }, fit: 'expand', images: {},
@@ -58,13 +58,14 @@ test('CLIP worker imports chosen folders as shared cuts, supports undo, and pres
   await expect(timing(-29)).toHaveText('001')
   await expect(timing(25)).toHaveText('2')
   await expect(timing(37)).toHaveText('2')
+  await expect(page.getByRole('button', { name: '元に戻す', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'やり直し', exact: true })).toBeDisabled()
+  await expect(page.locator('#sheet-right-pane')).toHaveCount(0)
+  const animation = page.locator('.clipLayerRow').filter({ has: page.locator('.clipLayerName', { hasText: '長いフォルダー名' }) })
+  await activateControl(page, animation)
+  await page.getByLabel('レイヤーの不透明度', { exact: true }).fill('50')
   await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
-  await expect(timing(1)).toHaveCount(0)
-  await activateControl(page, page.getByLabel('兼用カットを切り替える', { exact: true }))
-  await expect(page.getByLabel('兼用カット', { exact: true }).locator('option')).toHaveCount(1)
-  await page.keyboard.press('Escape')
-  await activateControl(page, page.getByRole('button', { name: 'やり直し', exact: true }))
-  await expect(timing(1)).toHaveText('001')
+  await expect(page.getByLabel('レイヤーの不透明度', { exact: true })).toHaveValue('100')
   async function setDummyVisible(visible: boolean) {
     const trigger = page.getByLabel('表示設定', { exact: true })
     if (!await trigger.evaluate(element => element.closest('details')!.open)) await activateControl(page, trigger)
@@ -90,6 +91,8 @@ test('CLIP worker imports chosen folders as shared cuts, supports undo, and pres
   const saved = info.outputPath('imported.xsr')
   await (await pending).saveAs(saved)
   const { document } = await decodeProjectFileBytes(new Uint8Array(readFileSync(saved)))
+  expect(document.clipDocument?.source?.fileName).toBe('shared.clip')
+  expect(document.clipDocument?.nodes.some(node => node.name === '不要')).toBe(true)
   expect(document.cuts.map(cut => cut.metadata.cut)).toEqual(['C001', 'C002'])
   const projects = document.cuts.map(cut => activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId }))
   expect(projects.map(project => [project.logicalSheet.fps, project.logicalSheet.durationFrames])).toEqual([[24, 24], [30, 30]])

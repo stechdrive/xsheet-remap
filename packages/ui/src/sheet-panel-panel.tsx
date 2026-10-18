@@ -1,3 +1,4 @@
+import { ClipLayerPanel } from './ClipLayerPanel'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { SheetLabelNormalizationPlan } from '@xsheet-remap/core'
 import { type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
@@ -277,6 +278,9 @@ export function SheetPanel(props: {
   onDropDiagnostic: (report: DropDiagnosticReport) => void
   onAssetAssign: (assetId: string, hit: SheetHit | null, position?: { x: number; y: number }) => void
   onRegisteredCellAssign: (keyId: string, hit: SheetHit | null) => void
+  onClipLayerAssign?: (layerId: string, hit: SheetHit | null) => void
+  onClipProjectChange?: (project: CutProject) => void
+  onClipFiles?: (files: File[], parentId: string | null) => void
   onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit, sourceRange?: SheetRangeSelection) => void
   onAnnotation: (stroke: AnnotationStroke) => void
   onTextAnnotation: (annotation: AnnotationText) => void
@@ -695,20 +699,23 @@ export function SheetPanel(props: {
     }
   }, [autoFitZoomEnabled, displayDurationFrames, props.template, sheetLayoutOptions, sheetPageSize, updateSheetZoom])
 
+  const [filteredClipProjectId, setFilteredClipProjectId] = useState<string | null>(null)
+  const filterClipProcess = filteredClipProjectId === props.project.projectId
+  const clipWorkspace = Boolean(props.project.clipDocument && props.onClipProjectChange && props.onClipFiles)
   return (
     <TooltipSuppressionProvider suppressed={suppressSheetTooltips(editMode)}>
     <section className="panel sheetLayout">
       <div
         className={[
-          'sheetWorkspace',
+          'sheetWorkspace', clipWorkspace ? 'clipWorkspace' : '',
           paneLayout.left ? '' : 'leftDockClosed',
-          paneLayout.right ? '' : 'rightDockClosed',
+          !clipWorkspace && paneLayout.right ? '' : 'rightDockClosed',
         ].filter(Boolean).join(' ')}
         style={{
           '--sheet-left-dock-width': paneLayout.left ? `${paneLayout.leftWidth}px` : '0px',
-          '--sheet-right-dock-width': paneLayout.right ? `${paneLayout.rightWidth}px` : '0px',
+          '--sheet-right-dock-width': !clipWorkspace && paneLayout.right ? `${paneLayout.rightWidth}px` : '0px',
           '--sheet-left-resizer-width': '16px',
-          '--sheet-right-resizer-width': '16px',
+          '--sheet-right-resizer-width': clipWorkspace ? '0px' : '16px',
           '--sheet-history-rail-width': '42px',
         } as WorkspaceStyle}
       >
@@ -987,7 +994,15 @@ export function SheetPanel(props: {
         </div>
         <aside id="sheet-left-pane" className="sheetDock sheetDockLeft" aria-label="CSPレイヤー構成" hidden={!paneLayout.left}>
           <div className="dockBody">
-            <CspLayerTree
+            {clipWorkspace ? <ClipLayerPanel key={props.project.projectId} project={props.project} activeCutId={props.activeCutId}
+              activeProcessId={props.activeCorrectionLayerId} onProcessChange={props.setActiveCorrectionLayerId}
+              onChange={props.onClipProjectChange!} onFiles={props.onClipFiles!} onSelectKey={props.onKeySelect}
+              selectedHit={props.selectedHit} disabled={props.sheetRevisions.find(revision => revision.revisionId === props.activeSheetRevisionId)?.protected}
+              filterProcess={filterClipProcess} onFilterProcess={enabled => setFilteredClipProjectId(enabled ? props.project.projectId : null)}
+              onAddColumn={() => props.onAddOverlayPaperTrack({ cspPlacement: 'cell-top' })}
+              onNormalizeNames={() => setNormalizationOpen(true)}
+              onAddGuide={kind => props.onCreateStackGuideLabel({ label: kind === 'background' ? 'BG' : kind === 'book' ? 'BOOK' : 'メモ', kind, gapIndex: 0 })}
+            /> : <CspLayerTree
               project={props.project}
               exportProfileId={props.exportProfileId}
               selectedKeyId={props.selectedKeyId}
@@ -1020,7 +1035,7 @@ export function SheetPanel(props: {
               onCreateDefaultOverlayPaperTrack={input => props.onAddOverlayPaperTrack({ ...input, cspPlacement: 'cell-top' })}
               onCreateDefaultStackGuideLabel={input => props.onCreateStackGuideLabel({ ...input, gapIndex: 0, cspPlacement: 'cell-bottom' })}
               onCreateStackGuideLabel={props.onCreateStackGuideLabel}
-            />
+            />}
           </div>
         </aside>
         <PanelResizeHandle
@@ -1292,6 +1307,8 @@ export function SheetPanel(props: {
           <SheetCanvas
             ref={sheetCanvasRef}
             {...props}
+            clipProcessId={props.activeCorrectionLayerId}
+            clipFilterProcessId={filterClipProcess ? props.activeCorrectionLayerId : undefined}
             editMode={sheetCanvasEditMode}
             touchInputActive={touchControlsVisible}
             touchRangeSelectionMode={touchRangeSelectionMode}
@@ -1371,7 +1388,7 @@ export function SheetPanel(props: {
             onClose={closeTouchControls}
           />
         </div>
-        <PanelResizeHandle
+        {!clipWorkspace && <><PanelResizeHandle
           label={uiText.layout.resizeImageAssetPane}
           min={SHEET_RIGHT_PANE_MIN_WIDTH}
           max={SHEET_RIGHT_PANE_MAX_WIDTH}
@@ -1401,7 +1418,7 @@ export function SheetPanel(props: {
               onDropDiagnostic={props.onDropDiagnostic}
             />
           </div>
-        </aside>
+        </aside></>}
       </div>
       {normalizationOpen && (
         <NameNormalizationDialog

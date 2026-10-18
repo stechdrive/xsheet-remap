@@ -132,7 +132,15 @@ async function filesFromDataTransferItem(item: DataTransferItem): Promise<File[]
     const file = item.getAsFile()
     return file ? [file] : []
   }
-  if (entry.isFile) return [await fileFromEntry(entry as BrowserFileSystemFileEntry)]
+  if (entry.isFile) {
+    try { return [await fileFromEntry(entry as BrowserFileSystemFileEntry)] } catch (error) {
+      // WebKit can expose a File snapshot with an entry whose backing path no
+      // longer exists (including browser-generated drops). Keep that snapshot.
+      const file = item.getAsFile()
+      if (error instanceof DOMException && error.name === 'NotFoundError' && file) return [file]
+      throw error
+    }
+  }
   if (entry.isDirectory) return filesFromDirectoryEntry(entry as BrowserFileSystemDirectoryEntry)
   return []
 }

@@ -9,6 +9,7 @@ import { DEFAULT_CSP_CELL_NAME_POLICY, LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION, P
 import { createDefaultProject } from './project-model'
 import { assetFileBaseName, compareStackGuideLabelsForProject, defaultCorrectionLayerFileNameSuffix, normalizePaperTrackOrder, normalizeStackGuideLabelForProject, reconcileCspTrackSlots, sheetTimingRoleForEvent, sheetTimingRoleForKey, stackGuideRegistrations, timingEventValueKind } from './project-shared'
 import { parseProjectExtensions } from './project-archive'
+import { validateClipDocument } from './clip-document'
 import { normalizeSheetFormData, normalizeSheetFormFieldValues, normalizeSheetFormPageFieldValues } from './sheet-form-data'
 import { migrateLegacyMemos } from './sheet-memo'
 import { normalizeAssetSourceNativePaths } from './assets'
@@ -31,6 +32,7 @@ export function createProjectDocumentFromCutProject(
     documentKind: PROJECT_DOCUMENT_KIND,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     projectId: project.projectId,
+    clipDocument: project.clipDocument,
     activeCutId: cutId,
     production: productionMetadataFromProject(project),
     studioPresetId: project.studioPresetId,
@@ -98,6 +100,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     documentKind: PROJECT_DOCUMENT_KIND,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     projectId: document.projectId,
+    clipDocument: document.clipDocument ? validateClipDocument(document.clipDocument) : undefined,
     activeCutId,
     production,
     studioPresetId: document.studioPresetId,
@@ -229,6 +232,7 @@ export function updateActiveCutProjectInDocument(
   return {
     ...document,
     projectId: activeProject.projectId,
+    clipDocument: activeProject.clipDocument,
     activeCutId,
     production: productionMetadataFromProject(activeProject, document.production),
     studioPresetId: activeProject.studioPresetId,
@@ -688,6 +692,7 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
   const base = migrateProject({
     projectId: document.projectId,
     extensions: cut.extensions,
+    clipDocument: document.clipDocument,
     cut: cutMetadataWithProduction(cut.metadata, revision.metadata, document.production),
     sheetFormData: {
       production: normalizeSheetFormFieldValues(document.production.sheetFields),

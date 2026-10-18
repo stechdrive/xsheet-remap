@@ -60,13 +60,11 @@ it('enables cross-role paste and explicit content choices in the context menu', 
   expectSelectedRange('cell', 'A', 8, 10)
 })
 
-it('creates an ACTION column from the CSP plus menu and keeps input and arrow navigation on it', async () => {
+it('creates an ACTION column from the layer pane and keeps input and arrow navigation on it', async () => {
   render(<RemapApp />)
   const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
   setSheetRect(sheet, 0, 0)
-  fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
-  fireEvent.click(screen.getByRole('button', { name: '追加セル列' }))
-  fireEvent.click(screen.getByRole('button', { name: '追加セル列を作成' }))
+  fireEvent.click(screen.getByRole('button', { name: 'セル列＋' }))
   await waitFor(() => expect(screen.getByRole('button', { name: uiText.actions.overlayPaperTrackInputActive('J') })).toBeTruthy())
   const added = addOverlayPaperTrackAtCspTop(createDefaultProject(), { paperTrack: 'J' })
   const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]

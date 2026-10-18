@@ -1,3 +1,5 @@
+import { isTauriHost } from '@xsheet-remap/adapters'
+import { clipCelDropTarget } from '@xsheet-remap/core'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
 import { type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
@@ -241,7 +243,9 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const displayDurationFrames = logicalSheetDisplayDurationFrames(props.project.logicalSheet)
   const displayFrameEnd = logicalSheetDisplayFrameEnd(props.project.logicalSheet)
   const sheetRenderCutGroup = useSheetRenderCutGroupContext(props.activeCutId, props.projectCuts)
-  const sheetRenderModelContext = useSheetRenderModelContext(props.project, props.template, sheetRenderCutGroup)
+  const dropProjectRef = useRef(props.project)
+  useLayoutEffect(() => { dropProjectRef.current = props.project }, [props.project])
+  const sheetRenderModelContext = useSheetRenderModelContext(props.project, props.template, sheetRenderCutGroup, props.clipFilterProcessId)
   const templateTrackNames = sheetRenderModelContext.paperTracks
   const timelineLanes = sheetRenderModelContext.timelineLanes
   const timelineLaneEditorActions = createTimelineLaneEditorActions({
@@ -566,6 +570,25 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       clearDropTargetPreview()
       if (phase === 'start' || phase === 'move') updateStackGuideDropPreview(draggedStackGuideLabelId, clientX, clientY, payload.kind === 'csp-pane-node')
       if (phase === 'drop') { moveStackGuideLabelFromPoint(draggedStackGuideLabelId, clientX, clientY, payload.kind === 'csp-pane-node'); setInternalDragDropValidity(null) }
+      return
+    }
+    if (payload.kind === 'clip-layer') {
+      const target = pageHitUnderClientPoint(clientX, clientY)
+      const hit = dropHitForActiveRange(target?.hit ?? null)
+      let error = ''
+      try {
+        if (!hit?.paperTrack || !props.onClipLayerAssign || !props.clipProcessId || !['action', 'cell'].includes(sheetRoleForHit(hit))) throw new Error('セル列へドロップしてください。')
+        clipCelDropTarget(props.project, payload.layerId, hit.paperTrack, props.clipProcessId)
+      } catch (reason) { error = reason instanceof Error ? reason.message : String(reason) }
+      if (target) {
+        setInternalDragDropValidity(error ? 'invalid' : 'valid')
+        if (hit) updateDropTargetPreview(hit, error ? 'invalid' : 'valid')
+        props.onStatusHint('sheet-drop', error || 'このセルをシートに配置')
+      } else { clearDropTargetPreview(); props.onStatusHint('sheet-drop', null) }
+      if (phase === 'drop') {
+        clearHover(); clearDropTargetPreview(); setInternalDragDropValidity(null)
+        if (target && !error) props.onClipLayerAssign?.(payload.layerId, hit)
+      }
       return
     }
     if (payload.kind === 'stack-guide' || payload.kind === 'csp-pane-node') return
@@ -2089,7 +2112,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       }
       return
     }
-    props.onAssetDrop(await collectAssetFilesFromDrop(dataTransfer), hit, { x: event.clientX, y: event.clientY })
+    if (props.project.clipDocument && isTauriHost()) return
+    const sourceProject = props.project
+    const files = await collectAssetFilesFromDrop(dataTransfer)
+    if (sourceProject !== dropProjectRef.current) { props.onStatusHint('sheet-drop', '読み込み中にシートが変わりました。もう一度ドロップしてください。'); return }
+    props.onAssetDrop(files, hit, { x: event.clientX, y: event.clientY })
   }
 
   function handleDragOver(event: DragEvent<SVGSVGElement>, page: SheetPage) {
@@ -2209,7 +2236,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       }
       return
     }
-    props.onAssetDrop(await collectAssetFilesFromDrop(dataTransfer), hit, { x: event.clientX, y: event.clientY })
+    if (props.project.clipDocument && isTauriHost()) return
+    const sourceProject = props.project
+    const files = await collectAssetFilesFromDrop(dataTransfer)
+    if (sourceProject !== dropProjectRef.current) { props.onStatusHint('sheet-drop', '読み込み中にシートが変わりました。もう一度ドロップしてください。'); return }
+    props.onAssetDrop(files, hit, { x: event.clientX, y: event.clientY })
   }
 
   function handleViewportPointerDownCapture(event: PointerEvent<HTMLDivElement>) {

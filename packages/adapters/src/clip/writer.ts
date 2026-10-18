@@ -7,6 +7,7 @@ import { ClipContainer, type Row } from './container'
 import { createLayer, refreshCaches, writeMipmap } from './layers'
 import { placePixels, png, type Pixels } from './raster'
 import { ensureTrackLabelStorage, writeTrackLabels } from './track-labels'
+import { writeClipDocument } from './document-writer'
 export interface ClipWriteOptions {
   plan: ClipRegistrationPlan
   canvas: ClipCanvasSettings
@@ -17,6 +18,7 @@ export interface ClipWriteOptions {
 export interface ClipWriteResult { bytes: Uint8Array; canvas: ClipCanvasSettings; layers: number; timelines: number }
 
 export async function writeClip(SQL: SqlJsStatic, seedBytes: Uint8Array, options: ClipWriteOptions, progress: (message: string) => void = () => {}): Promise<ClipWriteResult> {
+  if (options.plan.document) return writeClipDocument(SQL, seedBytes, options, progress)
   const clip = new ClipContainer(SQL, options.template ?? seedBytes)
   let seed: ClipContainer | undefined
   try {

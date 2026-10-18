@@ -9,6 +9,8 @@ import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, de
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { projectDocumentsEqual } from './projectDocumentEquality';
+import { addClipImages, bindClipCel, ensureClipDocument, synchronizeClipBindings, createClipNode, addClipLayers, setClipTarget, updateClipLayer } from '@xsheet-remap/core'
+import { clipImageDataUrl } from './clipImageImport'
 import { updateCutMetadata } from './cutMetadata';
 import { uiText } from './i18n';
 import { type Panel, type SheetRangeSelection, type TimingClipboard, type TimingPasteContent, type TimingPasteMode } from './appTypes';
@@ -68,7 +70,7 @@ type PaperSheetEditContext = { document: object; cutId: string; revisionId: stri
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
-    history, setHistory, commitWorkspace, commitProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, commitWorkspace, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole: storedRecognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -156,14 +158,19 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitTimingDraft(false)
     setClipImportFile(file)
   }
-  function handleImportClip(document: CutGroupProjectDocument) {
-    if (activeSheetRevision.protected) { window.alert('保護中のシートには読み込めません。'); return }
-    const next = commitProjectDocument(document)
+  async function handleImportClip(document: CutGroupProjectDocument) {
+    if (hasUnsavedProjectChanges && !await confirmUserAction('保存していない変更があります。現在のプロジェクトを閉じて、このCLIPを開きますか？', { title: 'CLIPを開く', okLabel: '開く' })) return
+    const next = replaceProjectDocument(document)
     projectRef.current = next
     clearSelectionState()
+    setRuntimeSourceImageUrls({})
+    setRecognitionCandidates([])
+    setAutoCalibrationOverlay(null)
+    setAssetDropMenu(null)
+    setProjectFilePath(null)
     setActiveCorrectionLayerIdState(defaultCorrectionLayerId(next) ?? '')
     setClipImportFile(null)
-    setExportOperationNotice({ message: 'CLIPのタイムラインを読み込みました。' })
+    setExportOperationNotice({ message: 'CLIPのレイヤー構造とタイムラインを開きました。' })
   }
   const sheetDisplayFrameEnd = logicalSheetDisplayFrameEnd(project.logicalSheet)
   const sheetDisplayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
@@ -377,6 +384,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       window.alert('このシートは編集保護中です。シート履歴のメニューから保護を解除してください。')
       return false
     }
+    nextProject = synchronizeClipBindings(nextProject)
     projectRef.current = nextProject
     setHistory(current => commitHistory(current, nextProject))
     if (selectionIsOutsideProjectDisplay(nextProject)) clearSelectionState()
@@ -387,6 +395,18 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   async function handleNativeFileDrop(paths: string[], position: { x: number; y: number }) {
     const clientPoints = clientPointCandidatesFromNativeDropPosition(position)
+    if (projectRef.current.clipDocument) {
+      const source = commitTimingDraft(false), processId = activeCorrectionLayerId
+      const layerTarget = clientPoints.map(point => document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>('[data-clip-layer-parent]')).find(Boolean)
+      const hit = clientPoints.map(point => nativeSheetHitFromClientPoint(point.x, point.y)).find(Boolean) ?? null
+      if (!layerTarget && !hit) return
+      const parentId = layerTarget?.dataset.clipLayerParent
+      try {
+        const collection = await collectAssetPathDrop(paths, { recursive: true })
+        await importClipImageRefs(source, collection.files, parentId && parentId !== '__root__' ? parentId : null, layerTarget ? null : hit, processId)
+      } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
+      return
+    }
     const pathStatuses = await statNativePaths(paths)
     const directoryPaths = pathStatuses.filter(status => status.isDirectory).map(status => status.path)
     const filePaths = pathStatuses.filter(status => status.isFile).map(status => status.path)
@@ -1189,6 +1209,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   async function handleAssetFiles(files: FileList | File[] | null, targetHit: SheetHit | null = null, position?: { x: number; y: number }) {
     if (!files) return
+    if (projectRef.current.clipDocument) { await handleClipImageFiles(Array.from(files), null, targetHit); return }
     const imageFiles = Array.from(files).filter(isImageAssetFile)
     if (imageFiles.length === 0) return
     const refs = await Promise.all(imageFiles.map(fileToFileRef))
@@ -1197,7 +1218,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   async function handleAssetNativePaths(paths: string[], targetHit: SheetHit | null = null, position?: { x: number; y: number }, options: { recursive?: boolean } = {}) {
     if (paths.length === 0) return
+    const source = projectRef.current, processId = activeCorrectionLayerId
     const collection = await collectAssetPathDrop(paths, { recursive: options.recursive ?? true })
+    if (source.clipDocument) { await importClipImageRefs(source, collection.files, null, targetHit, processId); return }
     if (targetHit && collection.files.length > 1) {
       handleAssetFileRefs(collection.files, null, position)
       setStatusHint('sheet-drop', '複数素材は1つのフレームへ直接登録できません。素材ブラウザへ全件登録しました。CSP列へドロップしてカードを作成してください。')
@@ -1316,6 +1339,48 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitProject(bound.project)
   }
 
+  async function handleClipImageFiles(files: File[], parentId: string | null, hit: SheetHit | null = null) {
+    const source = commitTimingDraft(false), processId = activeCorrectionLayerId
+    try {
+      const refs = await Promise.all(files.filter(isImageAssetFile).map(fileToFileRef))
+      await importClipImageRefs(source, refs, parentId, hit, processId)
+    } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
+  }
+
+  async function importClipImageRefs(source: CutProject, refs: FileRef[], parentId: string | null, hit: SheetHit | null, processId: string) {
+    const images = refs.filter(isImageFileRef)
+    if (!images.length) return
+    if (images.reduce((sum, ref) => sum + (ref.size ?? 0), 0) > 384 * 1024 * 1024) throw new Error('一度に追加する画像は合計384MB以内にしてください。')
+    const dataUrls: string[] = []
+    let totalLength = 0
+    for (const ref of images) {
+      const dataUrl = await clipImageDataUrl(ref); totalLength += dataUrl.length
+      if (totalLength > 512 * 1024 * 1024) throw new Error('画像の保存データが大きすぎます。画像を分けて追加してください。')
+      dataUrls.push(dataUrl)
+    }
+    // A cut switch, edit, Undo or document replacement invalidates the captured destination.
+    if (projectRef.current !== source) throw new Error('読み込み中にプロジェクトが変わりました。画像をもう一度ドロップしてください。')
+    const role = hit && sheetRoleForHit(hit)
+    if (hit && (!hit.paperTrack || role !== 'action' && role !== 'cell')) throw new Error('セル列へドロップしてください。')
+    let next = source
+    const prepared = images.map((ref, index) => {
+      const registered = registerMaterialAssetRef(next, ref); next = registered.project
+      return { name: ref.name, assetId: registered.asset.assetId, imageDataUrl: dataUrls[index]! }
+    })
+    next = addClipImages(next, parentId, prepared, hit?.paperTrack && role ? { paperTrack: hit.paperTrack, frame: hit.frame, role, processId } : undefined)
+    if (commitProject(next)) setStatusHint('sheet-drop', `${prepared.length}枚をレイヤーに追加しました。`)
+  }
+
+  function handleAssignClipLayer(layerId: string, hit: SheetHit | null) {
+    if (!hit?.paperTrack) return
+    const role = sheetRoleForHit(hit)
+    if (role !== 'action' && role !== 'cell') return
+    try {
+      const next = bindClipCel(commitTimingDraft(false), layerId, hit.paperTrack, hit.frame, role, activeCorrectionLayerId)
+      if (commitProject(next)) setSelectionFromHit(hit, next, timingKeyAtSheetHit(next, hit)?.keyId)
+    } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
+  }
+
   function handleAssignRegisteredCell(keyId: string, targetHit: SheetHit | null) {
     if (!targetHit?.paperTrack) return
     const sourceProject = commitTimingDraft(false)
@@ -1351,11 +1416,19 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       commitProject(applySheetLabelNormalizationPlan(projectRef.current, plan))
       return
     }
+    const source = projectRef.current
+    let next = applyNameNormalizationPlan(source, plan, [])
+    if (next.clipDocument) for (const item of plan.items) {
+      if (!item.cspCellNameChanged || item.targetType !== 'binding') continue
+      const layerId = source.bindings.find(binding => binding.bindingId === item.bindingId)?.clipLayerId
+      if (layerId) next = updateClipLayer(next, layerId, { name: item.nextCspCellName })
+    }
     const renameResults = plan.options.includeAssetFiles
       ? await renameMaterialFiles(plan.assetRenames)
       : []
     const failedRenames = renameResults.filter(result => !result.renamed)
-    commitProject(applyNameNormalizationPlan(project, plan, renameResults))
+    if (projectRef.current !== source) throw new Error('処理中にプロジェクトが変わりました。変更後の素材ファイル名を確認してください。')
+    commitProject({ ...next, assets: applyNameNormalizationPlan(source, plan, renameResults).assets })
     if (failedRenames.length > 0) {
       window.alert(uiText.nameNormalization.renameFailed(failedRenames.length))
     }
@@ -1621,7 +1694,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         templateId: template.templateId,
         sheetRole: createInput.sheetRole ?? (cspPlacement === 'cell-top' ? 'action' : 'cell'),
       })
-      commitProject(created.project)
+      let next = created.project
+      if (next.clipDocument) for (const slot of next.cspTrackSlots.filter(item => !project.cspTrackSlots.some(old => old.slotId === item.slotId))) {
+        const process = next.correctionLayers.find(item => item.layerId === slot.correctionLayerId)
+        const parent = next.clipDocument!.nodes.find(item => item.id === 'process:' + process?.layerId)
+        const folder = createClipNode(slot.paperTrack, 'animation', parent?.id ?? null)
+        next = setClipTarget(addClipLayers(next, [folder]), slot.slotId, folder.id)
+      }
+      commitProject(next)
     } catch (error) {
       window.alert(errorMessage(error))
     }
@@ -1704,7 +1784,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       }
       const loadedFile = await loadProjectDocumentFile(file)
       const loadedDocument = loadedFile.document
-      const loaded = activeCutProjectFromDocument(loadedDocument)
+      const loaded = appKind === 'remap' ? synchronizeClipBindings(ensureClipDocument(activeCutProjectFromDocument(loadedDocument))) : activeCutProjectFromDocument(loadedDocument)
       rememberSheetTemplatePreset(appKind, loaded.studioPresetId)
       setTemplate(loadedDocument.sheetTemplate)
       setProjectDocument(loadedDocument)
@@ -1814,7 +1894,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       })
       if (!confirmed) return
     }
-    const { project: nextProject, preset } = createPreferredProject(appKind)
+    const { project: preferredProject, preset } = createPreferredProject(appKind)
+    const nextProject = appKind === 'remap' ? synchronizeClipBindings(ensureClipDocument(preferredProject)) : preferredProject
     const nextDocument = createProjectDocumentFromCutProject(nextProject, { sheetTemplate: preset.sheetTemplate })
     setTemplate(preset.sheetTemplate)
     setProjectDocument(nextDocument)
@@ -2294,7 +2375,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     copySelectedCameraCueRange, pasteSelectedCameraCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, handleRemoveSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
-    handleAssetNativePaths, handleAssetRootCandidates, handleChooseAssetRoot, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
+    handleClipImageFiles, handleAssignClipLayer, handleAssetNativePaths, handleAssetRootCandidates, handleChooseAssetRoot, handleAssetFileRefs, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleUpdateKeySheetLabel, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,

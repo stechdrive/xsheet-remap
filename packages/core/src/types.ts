@@ -215,6 +215,7 @@ export interface CspTrackSlot {
 }
 
 export interface CellBinding {
+  clipLayerId?: Id
   bindingId: Id
   slotId: Id
   keyId: Id
@@ -231,6 +232,8 @@ export interface StackGuideRegistration {
 }
 
 export interface StackGuideLabel {
+  /** Optional document-layer association; sheet position remains independent. */
+  clipLayerId?: Id
   labelId: Id
   label: string
   kind: StackGuideLabelKind
@@ -742,6 +745,7 @@ export interface NameNormalizationAssetRenameResult {
 }
 
 export interface CutProject {
+  clipDocument?: import('./clip-document').ClipDocumentState
   schemaVersion: number
   projectId: Id
   extensions?: Record<string, ProjectExtensionPayload>
@@ -829,6 +833,7 @@ export interface ProjectExtensionPayload {
 }
 
 export interface CutGroupProjectDocument {
+  clipDocument?: import('./clip-document').ClipDocumentState
   documentKind: 'xsheet-remap-cut-group-project'
   schemaVersion: number
   projectId: Id

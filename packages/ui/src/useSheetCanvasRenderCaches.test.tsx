@@ -13,6 +13,21 @@ import { createSheetRenderModelContext } from './sheetRenderModel'
 import { useSheetCanvasRenderCaches } from './useSheetCanvasRenderCaches'
 
 describe('useSheetCanvasRenderCaches', () => {
+  it('filters both event handles and GPU input without changing the stored events or hold boundaries', () => {
+    const project = createOrSetEvent(createOrSetEvent(createDefaultProject(), 'A', 1).project, 'A', 7).project
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate)
+    const common = { project, template: standardA3SheetTemplate, sheetPages: context.pages, activePageIndex: 0, viewMode: project.sheetView.viewMode, activeOverlayPaperTrack: null, pageSize: context.pageSize, paperTracks: context.paperTracks }
+    const { result, rerender } = renderHook(({ renderContext }) => useSheetCanvasRenderCaches({ ...common, renderContext }), { initialProps: { renderContext: context } })
+    expect([...result.current.eventRectsByPage.values()].flat()).toHaveLength(2)
+    const before = [...result.current.continuationItemsByPage.values()].flat()
+    rerender({ renderContext: { ...context, visibleKeyIds: new Set<string>() } })
+    expect([...result.current.eventRectsByPage.values()].flat()).toHaveLength(0)
+    expect([...result.current.continuationItemsByPage.values()].flat()).toHaveLength(0)
+    expect(project.logicalSheet.events).toHaveLength(2)
+    rerender({ renderContext: context })
+    expect([...result.current.eventRectsByPage.values()].flat()).toHaveLength(2)
+    expect([...result.current.continuationItemsByPage.values()].flat()).toEqual(before)
+  })
   it('reuses sheet geometry while rebuilding only annotation caches for an ink commit', () => {
     const project = createDefaultProject()
     const pages = createSheetPages(

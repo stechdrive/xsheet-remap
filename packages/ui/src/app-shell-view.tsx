@@ -59,7 +59,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     copySelectedCameraCueRange, pasteSelectedCameraCueRange, openFrameOperationDialog, applyFrameOperation, handleSheetSourceFiles, openPaperSheetFilePicker,
     handleAssetSheetSources, handleAssignSheetSource, handleRemoveSheetSource, updateActivePageAlignment, activePageLevelCorrectionSettings, updateActivePageLevelCorrection, toggleActivePageLevelCorrection,
     updatePageCalibrationPoints, startSheetImageWarp, disableSheetImageWarp, applySheetImageWarp, autoDetectSheetImageWarp, handleAssetFiles,
-    handleAssetNativePaths, handleAssetRootCandidates, handleAssignAsset, handleAssignRegisteredCell,
+    handleClipImageFiles, handleAssignClipLayer, handleAssetNativePaths, handleAssetRootCandidates, handleAssignAsset, handleAssignRegisteredCell,
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleUpdateKeySheetLabel, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
@@ -462,6 +462,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onDropDiagnostic={recordDropDiagnostic}
             onAssetAssign={handleAssignAsset}
             onRegisteredCellAssign={handleAssignRegisteredCell}
+            onClipLayerAssign={handleAssignClipLayer}
+            onClipProjectChange={next => runProjectCommand(() => next)}
+            onClipFiles={(files, parentId) => void handleClipImageFiles(files, parentId)}
             onMoveTimelineEvent={handleMoveTimelineEvent}
             onAnnotation={handleAnnotation}
             onTextAnnotation={handleTextAnnotation}
@@ -578,7 +581,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <AppHelpDialog appName={appProfile.appName} appKind={appKind} onClose={() => setAppHelpDialogOpen(false)} />
       )}
 
-      {timingExportDialog?.kind === 'clip' && <ClipExportDialog document={projectDocumentSnapshot} initialRole={timingExportDialog.timingSourceRole} onClose={() => setTimingExportDialog(null)} onSaved={message => setExportOperationNotice({ message })} />}
+      {timingExportDialog?.kind === 'clip' && <ClipExportDialog document={projectDocumentSnapshot} initialRole={timingExportDialog.timingSourceRole} onClose={() => setTimingExportDialog(null)} onSaved={message => setExportOperationNotice({ message })} onCanvasSaved={canvas => {
+        if (project.clipDocument && !project.clipDocument.source && JSON.stringify(project.clipDocument.canvas) !== JSON.stringify(canvas)) runProjectCommand(current => ({ ...current, clipDocument: { ...current.clipDocument!, canvas } }))
+      }} />}
       {clipImportFile && <ClipImportDialog file={clipImportFile} document={projectDocumentSnapshot} onClose={() => setClipImportFile(null)} onImport={handleImportClip} />}
 
       {timingExportDialog && timingExportDialog.kind !== 'clip' && (timingExportPlan || timingExportDialog.kind === 'ae-jsx' || timingExportDialog.kind === 'ae-send') && (

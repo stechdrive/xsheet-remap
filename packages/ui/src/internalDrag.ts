@@ -2,6 +2,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { createPointerDragGhost, type PointerDragGhost } from './pointerDragGhost'
 
 export type InternalDragPayload =
+  | { kind: 'clip-layer'; layerId: string }
   | { kind: 'asset'; assetIds: string[] }
   | { kind: 'registered-cell'; keyId: string; sourceSlotId?: string }
   | { kind: 'stack-guide'; labelId: string }
@@ -285,6 +286,7 @@ function restoreInternalDragSourceCursor() {
 
 function normalizeInternalDragPayload(payload: InternalDragPayload | null): InternalDragPayload | null {
   if (!payload) return null
+  if (payload.kind === 'clip-layer') return payload.layerId ? payload : null
   if (payload.kind === 'asset') {
     const assetIds = [...new Set(payload.assetIds.filter(Boolean))]
     return assetIds.length > 0 ? { kind: 'asset', assetIds } : null

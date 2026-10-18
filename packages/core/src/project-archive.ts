@@ -10,6 +10,7 @@ export const PROJECT_ARCHIVE_FEATURE_VERSIONS = {
   'timeline-annotations': 2,
   'timed-range-cues': 1,
   'embedded-blobs': 1,
+  'clip-document': 1,
 } as const
 
 export interface ProjectArchiveBlobDescriptor {
@@ -50,6 +51,10 @@ export function buildProjectArchiveManifest(
     'sheet-revisions': PROJECT_ARCHIVE_FEATURE_VERSIONS['sheet-revisions'],
   }
   const requiredFeatures = ['project-core', 'sheet-revisions']
+  if (document.clipDocument) {
+    features['clip-document'] = 1
+    requiredFeatures.push('clip-document')
+  }
 
   if (document.assets.length > 0 || document.assetRoot) {
     features['asset-references'] = PROJECT_ARCHIVE_FEATURE_VERSIONS['asset-references']

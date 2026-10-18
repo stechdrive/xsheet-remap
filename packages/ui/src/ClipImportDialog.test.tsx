@@ -4,9 +4,15 @@ import { activeCutProjectFromDocument, createDefaultProject, createProjectDocume
 import { readClipFile } from '@xsheet-remap/adapters'
 import { ClipImportDialog } from './ClipImportDialog'
 
-vi.mock('@xsheet-remap/adapters', () => ({ readClipFile: vi.fn() }))
+vi.mock('@xsheet-remap/adapters', async importOriginal => ({ ...await importOriginal<typeof import('@xsheet-remap/adapters')>(), readClipFile: vi.fn() }))
 const data: ClipImportData = {
   fileName: 'test.clip', fileHash: 'hash', currentTimelineId: 't1',
+  layers: [
+    { id: 'folder', parentId: null, name: '原画', kind: 'folder', visible: true, opacity: 1, blendMode: 0 },
+    { id: 'upper', parentId: 'folder', name: 'A', kind: 'animation', visible: true, opacity: 1, blendMode: 0 },
+    { id: 'lower', parentId: 'folder', name: '長い名前', kind: 'animation', visible: false, opacity: 1, blendMode: 0 },
+    { id: 'cel', parentId: 'lower', name: '1', kind: 'raster', visible: true, opacity: 1, blendMode: 0 },
+  ],
   nodes: [{ id: 'folder', name: '原画', path: ['原画'], visible: true, animation: false, children: [
     { id: 'upper', name: 'A', path: ['原画', 'A'], visible: true, animation: true, children: [] },
     { id: 'lower', name: '長い名前', path: ['原画', '長い名前'], visible: false, animation: true, children: [] },

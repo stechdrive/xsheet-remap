@@ -26,6 +26,8 @@ export interface ClipImportTimeline {
   tracks: { layerId: string; frames: ExportTrackFrame[]; error?: string }[]
 }
 export interface ClipImportData {
+  layers?: import('./clip-document').ClipLayerNode[]
+  canvas?: import('./clip-export').ClipCanvasSettings
   fileName: string
   fileHash: string
   nodes: ClipImportNode[]

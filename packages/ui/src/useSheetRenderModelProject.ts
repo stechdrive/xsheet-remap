@@ -91,6 +91,7 @@ export function useSheetRenderModelContext(
   project: CutProject,
   template: SheetTemplate,
   cutGroup?: SheetRenderCutGroupContext,
+  clipFilterProcessId?: string,
 ): SheetRenderModelContext {
   const { geometryProject, contentProject } = useSheetRenderModelProject(project)
   const geometry = useMemo(
@@ -98,8 +99,13 @@ export function useSheetRenderModelContext(
     [geometryProject, template],
   )
 
+  const visibleKeyIds = useMemo(() => {
+    if (!clipFilterProcessId) return undefined
+    const slots = new Set(project.cspTrackSlots.filter(slot => slot.correctionLayerId === clipFilterProcessId).map(slot => slot.slotId))
+    return new Set(project.bindings.filter(binding => slots.has(binding.slotId) && binding.clipLayerId).map(binding => binding.keyId))
+  }, [clipFilterProcessId, project.cspTrackSlots, project.bindings])
   return useMemo(
-    () => createSheetRenderModelContext(contentProject, template, { geometry, cutGroup }),
-    [contentProject, cutGroup, geometry, template],
+    () => createSheetRenderModelContext(contentProject, template, { geometry, cutGroup, visibleKeyIds }),
+    [contentProject, cutGroup, geometry, template, visibleKeyIds],
   )
 }

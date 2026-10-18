@@ -1,6 +1,7 @@
 import { activeCutProjectFromDocument, buildExportPlan, stackGuideRegistrations } from './project'
 import { NULL_CELL_CSP_CELL_NAME, type CutGroupProjectDocument, type ExportTrackFrame, type SheetTimingRole } from './types'
 import { defaultCorrectionLayerId, sheetTimingRoleForEvent, timingEventValueKind } from './project-shared'
+import { buildClipDocumentPlan } from './clip-document-plan'
 
 export interface ClipCanvasSettings {
   width: number
@@ -21,13 +22,15 @@ export interface ClipFolder {
   cels: ClipCel[]
 }
 export interface ClipTimeline {
+  sourceTimelineId?: string
   id: string
   name: string
   fps: number
   duration: number
-  tracks: { folderId: string; frames: ExportTrackFrame[]; labels?: ClipTrackLabel[] }[]
+  tracks: { folderId: string; frames: ExportTrackFrame[]; labels?: ClipTrackLabel[]; preserve?: boolean }[]
 }
 export interface ClipRegistrationPlan {
+  document?: import('./clip-document').ClipDocumentState
   projectId: string
   folders: ClipFolder[]
   timelines: ClipTimeline[]
@@ -62,6 +65,7 @@ export function validateClipCanvas(settings: ClipCanvasSettings): void {
 
 /** Complete events, not the legacy XCI first-use summary. Assets are optional. */
 export function buildClipRegistrationPlan(document: CutGroupProjectDocument, role: SheetTimingRole, cutIds?: string[]): ClipRegistrationPlan {
+  if (document.clipDocument) return buildClipDocumentPlan(document, role, cutIds)
   const folders = new Map<string, ClipFolder>()
   const pathOwners = new Map<string, string>()
   const timelines: ClipTimeline[] = []

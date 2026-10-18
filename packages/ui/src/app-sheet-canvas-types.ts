@@ -124,6 +124,9 @@ export type SheetCanvasProps = {
   onAssetDrop: (files: File[], hit: SheetHit | null, position?: { x: number; y: number }) => void
   onAssetAssign: (assetId: string, hit: SheetHit | null, position?: { x: number; y: number }) => void
   onRegisteredCellAssign: (keyId: string, hit: SheetHit | null) => void
+  onClipLayerAssign?: (layerId: string, hit: SheetHit | null) => void
+  clipProcessId?: string
+  clipFilterProcessId?: string
   onDropDiagnostic: (report: DropDiagnosticReport) => void
   onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit, sourceRange?: SheetRangeSelection) => void
   onMoveKeyBindingProcess: (keyId: string, sourceSlotId: string, targetCorrectionLayerId: string) => void

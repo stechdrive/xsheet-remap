@@ -1,8 +1,9 @@
 import type { SqlJsStatic } from 'sql.js'
-import type { ClipImportData, ClipImportNode, ClipImportTimeline } from '@xsheet-remap/core'
+import type { ClipImportData, ClipImportNode, ClipImportTimeline, ClipLayerNode } from '@xsheet-remap/core'
 import { ClipContainer, type Row } from './container'
 import { check } from './binary'
 import { readAnimation } from './read-animation'
+import { inspectCanvas } from './canvas'
 
 function uuid(value: Row[string]): string {
   const result = value instanceof Uint8Array ? Array.from(value, byte => byte.toString(16).padStart(2, '0')).join('') : String(value).replaceAll('-', '').toLowerCase()
@@ -26,25 +27,26 @@ export async function readClip(SQL: SqlJsStatic, bytes: Uint8Array, fileName: st
     const layers = clip.rows('Layer'), canvas = clip.rows('Canvas')[0]
     const root = layers.find(layer => layer.MainId === canvas.CanvasRootFolder)
     check(root, 'ルートフォルダーがありません。')
-    const seen = new Set<Row[string]>([root.MainId]), layerIds = new Set<string>()
-    function tree(first: Row[string], path: string[], parentVisible: boolean): ClipImportNode[] {
+    const seen = new Set<Row[string]>([root.MainId]), layerIds = new Set<string>(), fullLayers: ClipLayerNode[] = []
+    function tree(first: Row[string], path: string[], parentVisible: boolean, parentId: string | null = null): ClipImportNode[] {
       check(path.length < 100, 'フォルダー階層が深すぎます。')
       // CSP links siblings from the bottom (paper) upwards; display palette order.
       return chain(layers, first, 'LayerNextIndex').reverse().flatMap(layer => {
         check(!seen.has(layer.MainId), 'レイヤーの親子関係が循環しています。'); seen.add(layer.MainId)
-        if (!layer.LayerFolder) return []
         const id = uuid(layer.LayerUuid), name = String(layer.LayerName), animation = Boolean(layer.AnimationFolder)
         check(!layerIds.has(id), 'レイヤーIDが重複しています。'); layerIds.add(id)
-        const visible = parentVisible && (layer.LayerVisibility === undefined || Boolean(layer.LayerVisibility))
+        const visible = parentVisible && Boolean(Number(layer.LayerVisibility ?? 1) & 1)
         const fullPath = [...path, name]
-        const children = animation ? [] : tree(layer.LayerFirstChildIndex, fullPath, visible)
-        return animation || children.length ? [{ id, name, path: fullPath, animation, visible, children }] : []
+        fullLayers.push({ id, parentId, name, kind: animation ? 'animation' : layer.LayerFolder ? 'folder' : (Number(layer.LayerType) & ~2) === 1 ? 'raster' : 'other',
+          sourceLayerId: Number(layer.MainId), visible: Boolean(Number(layer.LayerVisibility ?? 1) & 1), opacity: Number(layer.LayerOpacity ?? 256) / 256,
+          blendMode: Number(layer.LayerComposite ?? 0), locked: layer.LayerType === 1584 || Boolean(layer.LayerLock) })
+        const children = layer.LayerFolder ? tree(layer.LayerFirstChildIndex, fullPath, visible, id) : []
+        return [{ id, name, path: fullPath, animation, visible, children }]
       })
     }
     const nodes = tree(root.LayerFirstChildIndex, [], true)
     const bank = clip.rows('AnimationCutBank').find(row => row.MainId === clip.rows('Project')[0]?.ProjectCutBank) ?? clip.rows('AnimationCutBank')[0]
-    check(bank, 'アニメーションのタイムラインがありません。')
-    const timelineRows = chain(clip.rows('TimeLine').filter(row => row.BankId === bank.MainId), bank.FirstTimeLine, 'NextTimeLine')
+    const timelineRows = bank ? chain(clip.rows('TimeLine').filter(row => row.BankId === bank.MainId), bank.FirstTimeLine, 'NextTimeLine') : []
     const tracks = clip.rows('Track')
     const timelines: ClipImportTimeline[] = timelineRows.map(row => {
       const fps = Number(row.FrameRate), startFrame = Number(row.StartFrame), endFrame = Number(row.EndFrame)
@@ -62,8 +64,7 @@ export async function readClip(SQL: SqlJsStatic, bytes: Uint8Array, fileName: st
         } catch (error) { return { layerId, frames: [], error: error instanceof Error ? error.message : String(error) } }
       }) }
     })
-    check(timelines.length, 'アニメーションのタイムラインがありません。')
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(bytes)))
-    return { fileName, fileHash: Array.from(digest, value => value.toString(16).padStart(2, '0')).join(''), nodes, timelines, currentTimelineId: timelines[Number(bank.CurrentIndex)]?.id ?? timelines[0].id }
+    return { fileName, fileHash: Array.from(digest, value => value.toString(16).padStart(2, '0')).join(''), nodes, layers: fullLayers, canvas: inspectCanvas(clip), timelines, currentTimelineId: timelines[Number(bank?.CurrentIndex)]?.id ?? timelines[0]?.id ?? '' }
   } finally { clip.close() }
 }

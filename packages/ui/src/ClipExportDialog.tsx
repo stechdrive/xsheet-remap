@@ -8,10 +8,10 @@ const presetKey = 'xsheet:clip-canvas-preset:v1'
 function rememberedCanvas(): ClipCanvasSettings {
   try { const value = JSON.parse(localStorage.getItem(presetKey) ?? 'null'); validateClipCanvas(value); return value } catch { return defaults }
 }
-export function ClipExportDialog({ document, initialRole, onClose, onSaved }: {
-  document: CutGroupProjectDocument; initialRole: 'action' | 'cell'; onClose: () => void; onSaved: (message: string) => void
+export function ClipExportDialog({ document, initialRole, onClose, onSaved, onCanvasSaved }: {
+  document: CutGroupProjectDocument; initialRole: 'action' | 'cell'; onClose: () => void; onSaved: (message: string) => void; onCanvasSaved?: (canvas: ClipCanvasSettings) => void
 }) {
-  const [role, setRole] = useState(initialRole), [canvas, setCanvas] = useState(rememberedCanvas)
+  const [role, setRole] = useState(initialRole), [canvas, setCanvas] = useState(() => document.clipDocument?.canvas ?? rememberedCanvas())
   const [template, setTemplate] = useState<{ name: string; bytes: Uint8Array; canvas: ClipCanvasSettings } | null>(null)
   const [source, setSource] = useState<'new' | 'template'>('new'), [fit, setFit] = useState<ClipImageFit>('expand')
   const [withImages, setWithImages] = useState(true), [cutIds, setCutIds] = useState(() => document.cuts.map(cut => cut.cutId))
@@ -24,7 +24,8 @@ export function ClipExportDialog({ document, initialRole, onClose, onSaved }: {
   const planned = useMemo(() => {
     try { return { plan: buildClipRegistrationPlan(document, role, cutIds), error: '' } } catch (error) { return { plan: null, error: error instanceof Error ? error.message : String(error) } }
   }, [document, role, cutIds])
-  const hasAssignedImages = Boolean(planned.plan?.folders.some(folder => folder.cels.some(cel => cel.assetId)))
+  const layerWorkspace = Boolean(document.clipDocument)
+  const hasAssignedImages = layerWorkspace ? Boolean(document.clipDocument?.nodes.some(node => node.sourceLayerId === undefined && (node.assetId || node.imageDataUrl))) : Boolean(planned.plan?.folders.some(folder => folder.cels.some(cel => cel.assetId)))
   const registerImages = withImages && hasAssignedImages
   useEffect(() => {
     const controller = new AbortController()
@@ -32,16 +33,16 @@ export function ClipExportDialog({ document, initialRole, onClose, onSaved }: {
     if (!registerImages || !plan) return
     void loadClipImages(document, plan, controller.signal).then(images => {
       if (controller.signal.aborted) return
-      if (new Set(Object.values(images).map(image => `${image.width}x${image.height}`)).size > 1) throw new Error('登録画像のピクセル寸法を揃えてください。')
+      if (!layerWorkspace && new Set(Object.values(images).map(image => `${image.width}x${image.height}`)).size > 1) throw new Error('登録画像のピクセル寸法を揃えてください。')
       setLoaded({ plan, images, error: '' })
     }).catch(error => { if (!controller.signal.aborted) setLoaded({ plan, images: {}, error: String(error) }) })
     return () => controller.abort()
-  }, [document, planned.plan, registerImages])
+  }, [document, planned.plan, registerImages, layerWorkspace])
   const images = registerImages && loaded.plan === planned.plan ? loaded.images : {}
   const imageState = { loading: registerImages && loaded.plan !== planned.plan, error: registerImages && loaded.plan === planned.plan ? loaded.error : '' }
   const imageSize = Object.values(images)[0]
-  const chosen = source === 'template' ? template?.canvas : canvas
-  const placement = chosen && imageSize ? clipImagePlacement(chosen, imageSize, fit) : null
+  const chosen = document.clipDocument?.source ? document.clipDocument.canvas : source === 'template' ? template?.canvas : canvas
+  const placement = !layerWorkspace && chosen && imageSize ? clipImagePlacement(chosen, imageSize, fit) : null
   let canvasError = ''
   try { if (chosen) { validateClipCanvas(chosen); if (placement) validateClipCanvas({ ...chosen, width: placement.width, height: placement.height }) } } catch (error) { canvasError = error instanceof Error ? error.message : String(error) }
   async function chooseTemplate(file?: File) {
@@ -61,11 +62,11 @@ export function ClipExportDialog({ document, initialRole, onClose, onSaved }: {
     setBusy(true); setError(''); setMessage('登録画像を確認しています…')
     try {
       validateClipCanvas(chosen)
-      const result = await generateClipFile({ plan: planned.plan, canvas: chosen, fit, images: withImages ? images : {}, ...(source === 'template' && template ? { template: template.bytes } : {}) }, setMessage, controller.signal)
+      const result = await generateClipFile({ plan: planned.plan, canvas: chosen, fit: layerWorkspace ? 'crop' : fit, images: withImages ? images : {}, ...(source === 'template' && template ? { template: template.bytes } : {}) }, setMessage, controller.signal)
       controller.signal.throwIfAborted(); setMessage('CLIPを保存しています…')
       const base = Array.from(planned.plan.timelines[0]?.name || 'xsheet-remap').map(character => (character.codePointAt(0) ?? 0) < 32 || /[<>:"/\\|?*]/.test(character) ? '_' : character).join('')
       const saved = await saveBinaryFile(result.bytes, `${base}_remap.clip`, 'application/octet-stream', { filterName: 'CLIP STUDIO FORMAT', extensions: ['clip'], defaultExtension: 'clip' })
-      if (saved.saved) { onSaved(`CLIPを保存しました。${planned.plan.timelines.length}タイムライン / ${result.canvas.width} × ${result.canvas.height}px`); onClose() }
+      if (saved.saved) { onCanvasSaved?.(result.canvas); onSaved(`CLIPを保存しました。${result.timelines}タイムライン / ${result.canvas.width} × ${result.canvas.height}px`); onClose() }
       else setMessage('保存をキャンセルしました。')
     } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : String(error)) }
     finally { if (!controller.signal.aborted) setBusy(false) }
@@ -74,10 +75,10 @@ export function ClipExportDialog({ document, initialRole, onClose, onSaved }: {
     <section className="timingExportDialog clipExportDialog">
       <header><strong>CLIPを作成</strong><button type="button" aria-label="閉じる" onClick={close}>×</button></header>
       <div className="timingExportDialogBody">
-        <fieldset disabled={busy}><legend>作成元</legend><div className="segmented">
+        <fieldset disabled={busy || Boolean(document.clipDocument?.source)}><legend>キャンバス</legend>{document.clipDocument?.source && <p>{document.clipDocument.source.fileName} のレイヤー構造・画像・未編集のタイムラインを保持します。</p>}{!layerWorkspace && <div className="segmented">
           <button type="button" aria-pressed={source === 'new'} onClick={() => setSource('new')}>設定から新規作成</button>
           <button type="button" aria-pressed={source === 'template'} onClick={() => setSource('template')}>テンプレートCLIPを使用</button>
-        </div>
+        </div>}
         {source === 'template' ? <label className="clipTemplatePicker">テンプレートCLIP<input type="file" accept=".clip" onChange={event => void chooseTemplate(event.target.files?.[0])} />{template && <span>{template.name} — {template.canvas.width} × {template.canvas.height}px / {template.canvas.dpi}dpi</span>}</label>
           : <>{([
             ['作画サイズ（用紙サイズ）', [['width', '幅（px）'], ['height', '高さ（px）']]],
@@ -97,7 +98,7 @@ export function ClipExportDialog({ document, initialRole, onClose, onSaved }: {
           {document.cuts.map(cut => { const timeline = planned.plan?.timelines.find(item => item.id === cut.cutId); return <label className="clipCutChoice" key={cut.cutId}><input type="checkbox" checked={cutIds.includes(cut.cutId)} onChange={event => setCutIds(event.target.checked ? [...cutIds, cut.cutId] : cutIds.filter(id => id !== cut.cutId))} />{timeline?.name || cut.metadata.cut || cut.cutId}{timeline && <span>{timeline.fps}fps / {timeline.duration}フレーム</span>}</label> })}
           <p>FPS・デュレーションは各カットのシート設定を使用します。</p>
         </fieldset>
-        {hasAssignedImages && <fieldset disabled={busy}><legend>登録画像</legend>
+        {hasAssignedImages && !layerWorkspace && <fieldset disabled={busy}><legend>登録画像</legend>
           <label><input type="checkbox" checked={withImages} onChange={event => setWithImages(event.target.checked)} />画像も登録する</label>
           {withImages && <><label><input type="checkbox" checked={fit === 'expand'} onChange={event => setFit(event.target.checked ? 'expand' : 'crop')} />キャンバスサイズを自動拡張</label>
             <p>{fit === 'expand' ? '大きい画像に合わせて、中央を基準にキャンバスを広げます。' : 'キャンバスサイズを固定し、中央配置した画像のはみ出した部分を切り捨てます。'}</p></>}
@@ -105,7 +106,8 @@ export function ClipExportDialog({ document, initialRole, onClose, onSaved }: {
           {placement && (placement.cropLeft + placement.cropRight + placement.cropTop + placement.cropBottom > 0) && <p>切り捨て：左{placement.cropLeft}・右{placement.cropRight}・上{placement.cropTop}・下{placement.cropBottom}px</p>}
         </fieldset>}
         {source === 'template' && canvasError && <p role="alert" className="issue error">{canvasError}</p>}
-        {planned.plan && <details><summary>生成するレイヤー構造（{planned.plan.folders.length}フォルダー）</summary><ul>{planned.plan.folders.map(folder => <li key={folder.id}>xsheet-remap / {[...folder.path, folder.name].join(' / ')} — {folder.cels.length}セル</li>)}</ul></details>}
+        {layerWorkspace && <p>画像はキャンバスの中央へ配置します。範囲外は切り捨てるため、必要な用紙サイズを指定してください。</p>}
+        {planned.plan && !layerWorkspace && <details><summary>生成するレイヤー構造（{planned.plan.folders.length}フォルダー）</summary><ul>{planned.plan.folders.map(folder => <li key={folder.id}>xsheet-remap / {[...folder.path, folder.name].join(' / ')} — {folder.cels.length}セル</li>)}</ul></details>}
         {imageState.loading && <p role="status">登録画像の寸法を確認しています…</p>}
         {(error || planned.error || imageState.error) && <p role="alert" className="issue error">{error || planned.error || imageState.error}</p>}
         {message && <p role="status">{message}</p>}

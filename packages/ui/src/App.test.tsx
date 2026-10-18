@@ -217,11 +217,11 @@ it('guides Remap users from their available source through CSP registration', ()
     expect(within(dialog).getByRole('tab', { name: '詳しい使い方' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: '照合結果をCSPへ登録する' })).toBeTruthy()
     expect(within(dialog).getByText(/\.xsrを開きます。既存タイミングは.*XDTSを読み込む.*何もない場合/)).toBeTruthy()
-    expect(within(dialog).getByText(/実際のカットフォルダを登録/)).toBeTruthy()
-    expect(within(dialog).getByText(/下部の「登録先」が意図した工程/)).toBeTruthy()
+    expect(within(dialog).getByText(/工程・セル列とアニメーションフォルダーの対応/)).toBeTruthy()
+    expect(within(dialog).getByText(/OSからシートへ画像を直接ドロップ/)).toBeTruthy()
     expect(within(dialog).getByText(/紙シート、タイミング、素材対応、CSP構成を作業ファイルへ保存/)).toBeTruthy()
-    expect(within(dialog).getByText(/出力サイズと切り取り量を確認して保存/)).toBeTruthy()
-    expect(within(dialog).getByText(/素材がないキーは「キーのみ」/)).toBeTruthy()
+    expect(within(dialog).getByText(/左のレイヤー構造をそのまま保存/)).toBeTruthy()
+    expect(within(dialog).getByText(/シート上の表示フラグとCLIPの保存先は別々/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
   })
 
@@ -276,8 +276,8 @@ it('validates and applies a sheet template loaded from the import menu', async (
 it('provides CSP mapping and template authoring in the unified Remap shell', () => {
     render(<RemapApp />)
     expect(screen.getByText('xsheet-remap')).toBeTruthy()
-    expect(document.querySelector('.cspLayerTree')).toBeTruthy()
-    expect(screen.getByText('CSPレイヤー構成')).toBeTruthy()
+    expect(screen.getByRole('tree', { name: 'CLIPレイヤーツリー' })).toBeTruthy()
+    expect(document.querySelector('#sheet-right-pane')).toBeNull()
     expect(screen.queryByText('パレット表示順')).toBeNull()
     expect(screen.queryByText('CSPパレット上端')).toBeNull()
     expect(screen.queryByText('CSPパレット下端')).toBeNull()
@@ -291,8 +291,8 @@ it('provides CSP mapping and template authoring in the unified Remap shell', () 
     expect(screen.getByLabelText(uiText.template.name)).toBeTruthy()
   })
 
-it('adds an empty paper track and a material-unassigned card from the CSP layer pane', async () => {
-    render(<RemapApp />)
+it('legacy Editor: adds an empty paper track and a material-unassigned card from the CSP layer pane', async () => {
+    render(<App />)
 
     fireEvent.click(screen.getByLabelText('CSPレイヤー項目を追加'))
     fireEvent.click(screen.getByRole('button', { name: '追加セル列' }))
@@ -324,9 +324,9 @@ it('adds an empty paper track and a material-unassigned card from the CSP layer 
     })
   })
 
-it('keeps the selected correction layer when placing a BG or BOOK track from the CSP pane', async () => {
+it('legacy Editor: keeps the selected correction layer when placing a BG or BOOK track from the CSP pane', async () => {
     URL.createObjectURL = () => 'blob:csp-stack-guide-asset'
-    render(<RemapApp />)
+    render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
@@ -357,9 +357,9 @@ it('keeps the selected correction layer when placing a BG or BOOK track from the
     })
   })
 
-it('creates unplaced CSP cards by dropping multiple selected assets into a correction layer and avoids duplicates', async () => {
+it('legacy Editor: creates unplaced CSP cards by dropping multiple selected assets into a correction layer and avoids duplicates', async () => {
     URL.createObjectURL = file => `blob:csp-multi-${(file as File).name}`
-    render(<RemapApp />)
+    render(<App />)
 
     const firstFile = new File(['a1'], 'A1.png', { type: 'image/png', lastModified: 1 })
     const secondFile = new File(['a2'], 'A2.png', { type: 'image/png', lastModified: 2 })
@@ -403,9 +403,9 @@ it('creates unplaced CSP cards by dropping multiple selected assets into a corre
 
   })
 
-it('registers a sheet-first key at the active CSP destination and assigns a material there', async () => {
+it('legacy Editor: registers a sheet-first key at the active CSP destination and assigns a material there', async () => {
     URL.createObjectURL = file => `blob:csp-unregistered-${(file as File).name}`
-    render(<RemapApp />)
+    render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
@@ -446,8 +446,8 @@ it('registers a sheet-first key at the active CSP destination and assigns a mate
     fireEvent.click(screen.getAllByRole('button', { name: uiText.nameNormalization.cancel })[0])
   })
 
-it('keeps CSP track order and names synchronized with the paper sheet', async () => {
-    render(<RemapApp />)
+it('legacy Editor: keeps CSP track order and names synchronized with the paper sheet', async () => {
+    render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
 
@@ -534,7 +534,7 @@ it('persists side-pane widths and resets a resized pane to its default width', a
 
     expect(document.querySelector<HTMLElement>('.sheetDockLeft')?.hidden).toBe(true)
     expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('0px')
-    expect(workspace.style.getPropertyValue('--sheet-right-dock-width')).toBe('444px')
+    expect(workspace.style.getPropertyValue('--sheet-right-dock-width')).toBe('0px')
 
     fireEvent.click(screen.getByRole('button', { name: 'CSPレイヤー構成' }))
     expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('318px')
@@ -551,7 +551,7 @@ it('persists side-pane widths and resets a resized pane to its default width', a
     render(<RemapApp />)
     const restoredWorkspace = document.querySelector<HTMLElement>('.sheetWorkspace')
     expect(restoredWorkspace?.style.getPropertyValue('--sheet-left-dock-width')).toBe('240px')
-    expect(restoredWorkspace?.style.getPropertyValue('--sheet-right-dock-width')).toBe('444px')
+    expect(restoredWorkspace?.style.getPropertyValue('--sheet-right-dock-width')).toBe('0px')
   })
 
 it('opens remap XDTS export options from the export menu without adding a workspace tab', () => {

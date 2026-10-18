@@ -29,6 +29,18 @@ import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import type { TextMeasurementProvider } from './textMetrics'
 
 describe('sheet render model', () => {
+  it('filters process text and holds without changing the next exposure boundary or source events', () => {
+    const first = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
+    const second = createOrSetEvent(first.project, 'A', 8, 'action')
+    const project = updateSheetViewState(second.project, { continuationDisplay: { action: true, cell: true } })
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate)
+    const full = continuationRenderItemsForPages(context, context.pages).get('page_1')!
+    const filtered = { ...context, visibleKeyIds: new Set([first.key.keyId]) }
+    expect(inputTextRenderItemsForPage(filtered, filtered.pages[0]).map(item => item.keyId)).toEqual([first.key.keyId])
+    expect(continuationRenderItemsForPages(filtered, filtered.pages).get('page_1')).toEqual(full.filter(item => item.eventId === project.logicalSheet.events[0].eventId))
+    expect(project.logicalSheet.events).toHaveLength(2)
+    expect(continuationRenderItemsForPages(context, context.pages).get('page_1')).toEqual(full)
+  })
   it('reprojects a changed hold while retaining unrelated column geometry across edits and undo', () => {
     let project = createOrSetEvent(createDefaultProject(), 'A', 1).project
     project = createOrSetEvent(project, 'B', 1).project

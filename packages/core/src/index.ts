@@ -535,6 +535,8 @@ export {
 export { reorderCorrectionLayer, reorderProductionStage } from './project-csp-pane-order'
 export * from './clip-export'
 export * from './clip-import'
+export * from './clip-document'
+export * from './clip-document-open'
 export {
   buildCspLayerTree,
   cspTopToBottomFromXdtsBottomToTop,

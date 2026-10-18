@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
-  activeCutProjectFromDocument, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId,
+  activeCutProjectFromDocument, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId, ensureClipDocument, synchronizeClipBindings,
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
@@ -90,6 +90,11 @@ export function useAppShellState(appKind: MainAppKind) {
     return project
   }, [])
   const [savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot] = useState(() => initialWorkspace.document)
+  const replaceProjectDocument = useCallback((document: CutGroupProjectDocument) => {
+    const project = activeCutProjectFromDocument(document)
+    setWorkspaceHistory({ past: [], present: { project, template: document.sheetTemplate, document }, future: [] })
+    return project
+  }, [])
   const [projectFilePath, setProjectFilePath] = useState<string | null>(null)
   const paperSheetInputRef = useRef<HTMLInputElement | null>(null)
   const project = workspaceHistory.present.project
@@ -170,7 +175,7 @@ export function useAppShellState(appKind: MainAppKind) {
   useEffect(() => saveCameraPointLabelHistory(cameraPointLabelHistory), [cameraPointLabelHistory])
 
   return {
-    history, setHistory, commitWorkspace, commitProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -198,7 +203,8 @@ function createInitialWorkspace(appKind: MainAppKind): {
   template: SheetTemplate
   document: CutGroupProjectDocument
 } {
-  const { project, preset } = createPreferredProject(appKind)
+  const preferred = createPreferredProject(appKind), preset = preferred.preset
+  const project = appKind === 'remap' ? synchronizeClipBindings(ensureClipDocument(preferred.project)) : preferred.project
   return {
     project,
     template: preset.sheetTemplate,

@@ -4,6 +4,18 @@ import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, commi
 import { useAppShellState } from './app-shell-state'
 
 afterEach(cleanup)
+it('replaces a CLIP workspace with an empty Undo/Redo history and the new shared layer document', () => {
+  const { result } = renderHook(() => useAppShellState('remap'))
+  act(() => result.current.setHistory(history => commitHistory(history, createOrSetEvent(history.present, 'A', 1, 'action').project)))
+  const replacement = { ...result.current.projectDocument, projectId: 'another-clip' }
+  act(() => { result.current.replaceProjectDocument(replacement) })
+  expect(result.current.history.past).toEqual([])
+  expect(result.current.history.future).toEqual([])
+  expect(result.current.projectDocument).toBe(replacement)
+  expect(result.current.project.clipDocument).toBe(replacement.clipDocument)
+  act(() => result.current.setHistory(undoHistory))
+  expect(result.current.project.projectId).toBe('another-clip')
+})
 it('undoes and redoes a complete multi-cut import with adjacent edits and template history intact', () => {
   const { result } = renderHook(() => useAppShellState('remap'))
   const before = result.current.projectDocument

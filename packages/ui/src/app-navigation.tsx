@@ -490,7 +490,7 @@ export function AppHelpDialog({
         </div>
         <div className={`appHelpBody${isDetailedHelp ? ' appHelpBodyDetailed' : ''}`}>
           {helpView === 'licenses' ? <LicenseNotices /> : isDetailedHelp
-            ? <EditorDetailedHelp />
+            ? <EditorDetailedHelp remap={!isEditor} />
             : isEditor ? <EditorHelpContent /> : <RemapHelpContent />}
         </div>
         {helpView !== 'licenses' && <footer>
@@ -537,11 +537,11 @@ function RemapHelpContent() {
       <ol>
         <li><strong>始め方を選ぶ</strong><span>続きの作業は「プロジェクト」→「プロジェクトを開く」で.xsrを開きます。既存タイミングは「読み込み」→「XDTSを読み込む」、何もない場合は「新規プロジェクト」から始めます。</span></li>
         <li><strong>カットと入力先を確認する</strong><span>上部の「カット情報」で作品名、カット番号、尺を確認します。原画側のタイミングはACTION、動画・セル番号はCELLを使い、読み込みや書き出しでも同じ側を選びます。記号はマスを選び、半角の x でカラセル、/ で中割記号○、. で中割記号●を入力し、Enterで確定します。</span></li>
-        <li><strong>カットフォルダと登録先工程を決める</strong><span>画像を使う場合は、右の画像素材へ実際のカットフォルダを登録します。次に左のCSPレイヤー構成で工程名またはその配下を選び、下部の「登録先」が意図した工程か確認します。</span></li>
-        <li><strong>必要な資料だけ追加する</strong><span>紙を転記するときは「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。作画画像がある場合は右のサムネイルで確認し、該当するACTION／CELLのキーまたは左の登録先へ置きます。</span></li>
-        <li><strong>CSPへ渡す内容を見直す</strong><span>左でCSPセル名、工程、BG／BOOK、撮影指示、メモ、重ね順を確認します。素材がないキーは「キーのみ」のままで登録できます。実ファイルも改名する一括リネームは、変更予定を確認してから実行します。</span></li>
+        <li><strong>CLIPと登録先を決める</strong><span>既存のCLIPを開くか、既定のレイヤー構造から始めます。CLIPを開くと現在のシートとUndo履歴はリセットされます。左のレイヤーで工程・セル列とアニメーションフォルダーの対応を指定します。</span></li>
+        <li><strong>必要な資料だけ追加する</strong><span>紙を転記するときは「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。作画画像は左のレイヤーツリーへ一括追加できます。クイックルックで確認し、該当するACTION／CELLのコマへドラッグします。OSからシートへ画像を直接ドロップすると、選択工程・列の登録先にも追加されます。</span></li>
+        <li><strong>CSPへ渡す内容を見直す</strong><span>左でセル名、フォルダー、重ね順、不透明度、合成モードを確認します。BG／BOOK・メモ用の素材は通常フォルダーにも保管できます。シート上の表示フラグとCLIPの保存先は別々に指定します。</span></li>
         <li><strong>.xsrを保存する</strong><span>「プロジェクト」→「保存」で、紙シート、タイミング、素材対応、CSP構成を作業ファイルへ保存します。外部ソフトへ渡す前に保存しておくと、同じ状態から修正を再開できます。</span></li>
-        <li><strong>CLIPを作成する</strong><span>「書き出し」→「CLIPを作成」でACTION／CELLと対象カットを選びます。新規設定またはテンプレートCLIPを選び、出力サイズと切り取り量を確認して保存します。</span></li>
+        <li><strong>CLIPを作成する</strong><span>「書き出し」→「CLIPを作成」でACTION／CELLと対象カットを選びます。左のレイヤー構造をそのまま保存します。既存CLIPの用紙サイズは維持し、新規CLIPでは用紙サイズを指定できます。画像は中央に配置し、用紙の外側は切り取ります。</span></li>
       </ol>
     </article>
     <article className="appHelpWorkflow">

@@ -71,6 +71,7 @@ export type SheetRenderModelContext<Project extends SheetContentInput = SheetCon
   project: Project
   geometry: SheetRenderModelGeometry
   cutGroup?: SheetRenderCutGroupContext
+  visibleKeyIds?: ReadonlySet<string>
 }
 
 export type SheetRenderCutGroupContext = {
@@ -170,7 +171,7 @@ type LabelLaneOccupancy = {
 export function createSheetRenderModelContext<Project extends SheetContentInput>(
   project: Project,
   template: SheetTemplate,
-  options: { geometry?: SheetRenderModelGeometry; cutGroup?: SheetRenderCutGroupContext } = {},
+  options: { geometry?: SheetRenderModelGeometry; cutGroup?: SheetRenderCutGroupContext; visibleKeyIds?: ReadonlySet<string> } = {},
 ): SheetRenderModelContext<Project> {
   const geometry = options.geometry ?? createSheetRenderModelGeometry(project, template)
   return {
@@ -178,6 +179,7 @@ export function createSheetRenderModelContext<Project extends SheetContentInput>
     project,
     geometry,
     cutGroup: options.cutGroup,
+    visibleKeyIds: options.visibleKeyIds,
   }
 }
 
@@ -265,6 +267,7 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
   const keys = timingKeyIndex(context.project.logicalSheet.keys)
   const references = new Set(context.project.logicalSheet.referenceMarks?.map(timingReferenceAddress))
   return timingEventsInRange(context.project.logicalSheet.events, page.frameStart, page.frameEnd).flatMap(event => {
+    if (context.visibleKeyIds && !isSpecialTimingEvent(event) && !context.visibleKeyIds.has(event.keyId)) return []
     const key = keys.get(event.keyId)
     if (!key && !isSpecialTimingEvent(event)) return []
     const sheetRole = sheetTimingRoleForEvent(event)
@@ -317,6 +320,7 @@ export function continuationRenderItemsForPage(context: SheetRenderModelContext,
         .sort((left, right) => left.frame - right.frame)
       for (let index = 0; index < events.length; index += 1) {
         const event = events[index]!
+        if (context.visibleKeyIds && !isSpecialTimingEvent(event) && !context.visibleKeyIds.has(event.keyId)) continue
         const valueKind = timingEventValueKind(event)
         if (valueKind === 'inbetween' || valueKind === 'reverse') continue
         const nextFrame = events[index + 1]?.frame ?? displayFrameEnd + 1
@@ -372,6 +376,7 @@ export function continuationRenderItemsForPages(
       }
       for (const index of [...candidates].sort((a, b) => a - b)) {
         const event = events[index]!
+        if (context.visibleKeyIds && !isSpecialTimingEvent(event) && !context.visibleKeyIds.has(event.keyId)) continue
         const valueKind = timingEventValueKind(event)
         if (valueKind === 'inbetween' || valueKind === 'reverse') continue
         const nextFrame = events[index + 1]?.frame ?? displayFrameEnd + 1

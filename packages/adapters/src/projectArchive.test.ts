@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { createDefaultProjectDocument } from '@xsheet-remap/core'
+import { createDefaultProjectDocument, DEFAULT_CLIP_CANVAS, createClipNode } from '@xsheet-remap/core'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import {
   decodeProjectFileBytes,
@@ -14,6 +14,19 @@ const embeddedImage = 'data:image/png;base64,aGVsbG8='
 const embeddedAudio = 'data:audio/wav;base64,UklGRg=='
 
 describe('project archive codec', () => {
+  it('embeds original CLIP bytes and new layer images and restores stable layer targets', async () => {
+    const source = createDefaultProjectDocument()
+    source.clipDocument = { version: 1, canvas: { ...DEFAULT_CLIP_CANVAS }, targets: [],
+      nodes: [{ ...createClipNode('BG', 'raster', null, 'layer_BG'), imageDataUrl: embeddedImage }],
+      source: { fileName: 'original.clip', fileHash: 'source-hash', dataUrl: 'data:application/octet-stream;base64,Q1NGQ0hVTks=' } }
+    const bytes = await encodeProjectArchive(source)
+    const entries = unzipSync(bytes)
+    expect(Object.keys(entries).filter(path => path.startsWith('blobs/'))).toHaveLength(2)
+    expect(strFromU8(entries['project.json']!)).not.toContain('base64,')
+    const restored = await decodeProjectFileBytes(bytes)
+    expect(restored.document.clipDocument).toEqual(source.clipDocument)
+    expect(restored.manifest?.requiredFeatures).toContain('clip-document')
+  })
   it('deduplicates embedded data, compresses it as a blob, and restores it', async () => {
     const source = createDefaultProjectDocument()
     source.sheetTemplate = {

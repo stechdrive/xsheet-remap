@@ -444,6 +444,32 @@ export const editorHelpChapters: HelpChapter[] = [
   },
 ]
 
-export function EditorDetailedHelp() {
-  return <ChapteredHelp chapters={editorHelpChapters} idPrefix="editor-help" />
+const remapDescriptions: Record<string, string> = {
+  '左：CSPレイヤー構成': 'CLIPのレイヤー、通常フォルダー、アニメーションフォルダーを直接編集します。行を選び、名前・移動先・不透明度・合成モードを変更できます。',
+  '左右ペインの開閉': '左端の開閉ボタンでレイヤーツリーを開閉します。Remapではレイヤーツリーが画像の登録先とブラウザーを兼ねます。',
+  '左右ペイン': '左のレイヤーツリーを閉じるとシートを広く使えます。画像はツリーへ一括追加し、セルをシートへドラッグします。',
+  'プロジェクトを開く': '.xsrで作業を再開します。既存CLIPは「読み込み」から開きます。現在のシートとUndo履歴がリセットされるため、必要な作業は先に保存してください。',
+  '外部ファイルとの関係': '追加画像と読み込んだ元CLIPは.xsrに保持します。旧形式から移行した素材は、元画像への参照が必要な場合があります。',
+  '追加セル列': '「セル列＋」でシート列と対応するアニメーションフォルダーを追加します。紙では欄外ラベルと支柱、デジタルでは通常の列として表示します。',
+  'CSPレイヤー構成の撮影指示': '撮影指示やメモの表示フラグはシート上の情報です。CLIPに入れる素材は通常フォルダーなど任意の場所へ追加してください。',
+  '素材画像を紙シートに使う': '下敷き画像はシート作業レールの「紙シート」→「読込」で追加します。',
+  'CLIPを作成': '左のレイヤー構造と選んだACTION／CELLのタイミングを保存します。既存CLIPの未編集部分と用紙サイズは保持し、新規CLIPでは用紙サイズを指定します。画像は中央に配置し、用紙の外側は切り取ります。',
+  '素材が見つからない': '読み込めない素材があるとCLIP保存を止めて案内します。旧形式の外部参照が失われた場合は、ツリーへ元画像を追加し直して対応を設定してください。',
+}
+const remapLayerSections: HelpChapter['sections'] = [{ title: 'CLIPのレイヤーとシート', items: [
+  { term: '画像を追加', description: 'ツリーのフォルダーを選び「画像を追加…」を使うか、その行へ画像をまとめてドロップします。OSからシートへの直接ドロップは1枚ずつ使います。' },
+  { term: '登録先', description: '工程とセル列を選び、アニメーションフォルダーを対応づけます。「セル内フォルダー」には各セル内の画像配置先を指定できます。未設定の列へは画像を配置できません。' },
+  { term: 'クイックルック', description: '行の右端のボタン、ダブルクリック、またはツリーでSpaceを使います。既存CLIPの保存時の合成画像と、個別画像の一覧は区別して表示します。' },
+  { term: 'タイミング', description: 'ツリーのセルを該当コマへドラッグします。同じセルを再使用してもレイヤーは増えません。初回のシート番号はその列の最大番号＋1です。CLIP上の名前とは独立しています。' },
+  { term: '通常素材と表示フラグ', description: 'BG・BOOK・メモ素材は通常フォルダーにも配置できます。シート上の表示フラグの位置と、CLIP内の保存先は別々です。' },
+  { term: '同名セル', description: '既存CLIPの同名セルは保持し、下段のセルを採用します。新しい重複や、並び替え・削除で採用対象が変わる操作は止めます。先に別名を付けてください。' },
+  { term: '工程を絞って見る', description: '「シートは選択工程だけ表示」で一時的に表示を絞ります。レイヤーの目玉、タイミング、保存内容は変わりません。' },
+  { term: '元に戻す', description: '追加・移動・属性変更とセル配置はUndoできます。画像を直接シートへ追加した操作は、画像追加とセル配置をまとめて戻します。' },
+] }]
+
+export function EditorDetailedHelp({ remap = false }: { remap?: boolean }) {
+  const chapters = remap ? editorHelpChapters.map(chapter => chapter.id === 'assets'
+    ? { ...chapter, title: 'CLIPレイヤーと素材', summary: 'レイヤー構造を整え、シートからタイミングを指定します。', sections: remapLayerSections }
+    : { ...chapter, sections: chapter.sections.map(section => ({ ...section, items: section.items.filter(item => item.term !== '右：画像素材').map(item => ({ ...item, description: remapDescriptions[item.term] ?? item.description })) })) }) : editorHelpChapters
+  return <ChapteredHelp chapters={chapters} idPrefix="editor-help" />
 }

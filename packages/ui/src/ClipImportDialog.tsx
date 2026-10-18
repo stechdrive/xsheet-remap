@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { activeCutProjectFromDocument, clipImportFolders, clipImportSettings, importClipTimelines, suggestClipImportColumns, type ClipImportColumn, type ClipImportData, type ClipImportNode, type CutGroupProjectDocument, type SheetTimingRole } from '@xsheet-remap/core'
-import { readClipFile } from '@xsheet-remap/adapters'
+import { activeCutProjectFromDocument, createDefaultProjectDocument, clipImportFolders, clipImportSettings, openClipDocument, suggestClipImportColumns, type ClipImportColumn, type ClipImportData, type ClipImportNode, type CutGroupProjectDocument, type SheetTimingRole } from '@xsheet-remap/core'
+import { readClipFile, clipSourceDataUrl } from '@xsheet-remap/adapters'
 import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
 
 function SelectionCheckbox({ label, checked, mixed, disabled, onChange }: { label: string; checked: boolean; mixed: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
@@ -9,8 +9,9 @@ function SelectionCheckbox({ label, checked, mixed, disabled, onChange }: { labe
   return <input ref={ref} type="checkbox" aria-label={label} checked={checked} disabled={disabled} onChange={event => onChange(event.currentTarget.checked)} />
 }
 
-export function ClipImportDialog({ file, document, onClose, onImport }: { file: File; document: CutGroupProjectDocument; onClose: () => void; onImport: (document: CutGroupProjectDocument) => void }) {
-  const project = useMemo(() => activeCutProjectFromDocument(document), [document])
+export function ClipImportDialog({ file, onClose, onImport }: { file: File; document: CutGroupProjectDocument; onClose: () => void; onImport: (document: CutGroupProjectDocument) => void }) {
+  const project = useMemo(() => activeCutProjectFromDocument(createDefaultProjectDocument()), [])
+  const [sourceDataUrl, setSourceDataUrl] = useState('')
   const [data, setData] = useState<ClipImportData | null>(null)
   const [timelineId, setTimelineId] = useState(''), [role, setRole] = useState<SheetTimingRole>('action')
   const [timelineIds, setTimelineIds] = useState<string[]>([])
@@ -26,9 +27,10 @@ export function ClipImportDialog({ file, document, onClose, onImport }: { file: 
         controller.signal.throwIfAborted()
         const result = await readClipFile(bytes, file.name, controller.signal)
         controller.signal.throwIfAborted()
-        setData(result); setTimelineId(result.currentTimelineId); setTimelineIds([result.currentTimelineId])
+        setSourceDataUrl(clipSourceDataUrl(bytes))
+        setData(result); setTimelineId(result.currentTimelineId); setTimelineIds(result.currentTimelineId ? [result.currentTimelineId] : [])
         const timeline = result.timelines.find(item => item.id === result.currentTimelineId)!
-        setSelected(clipImportFolders(result.nodes).filter(node => !timeline.tracks.find(track => track.layerId === node.id)?.error).map(node => node.id))
+        setSelected(clipImportFolders(result.nodes).filter(node => !timeline?.tracks.find(track => track.layerId === node.id)?.error).map(node => node.id))
       } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : String(error)) }
     })()
     return () => controller.abort()
@@ -37,10 +39,10 @@ export function ClipImportDialog({ file, document, onClose, onImport }: { file: 
   const folders = useMemo(() => data ? clipImportFolders(data.nodes) : [], [data])
   const columns = useMemo<ClipImportColumn[]>(() => data ? suggestClipImportColumns(project, data.nodes, selected).map(column => ({ ...column, name: names[column.layerId] ?? column.name })) : [], [data, project, selected, names])
   const preview = useMemo(() => {
-    if (!data || !timeline) return { project: null, error: '' }
-    try { return { project: importClipTimelines(document, data, { timelineIds, role, columns }), error: '' } }
+    if (!data || !sourceDataUrl) return { project: null, error: '' }
+    try { return { project: openClipDocument(data, sourceDataUrl, { timelineIds, role, columns }), error: '' } }
     catch (error) { return { project: null, error: error instanceof Error ? error.message : String(error) } }
-  }, [data, timeline, document, timelineIds, role, columns])
+  }, [data, sourceDataUrl, timelineIds, role, columns])
   const settings = timeline && clipImportSettings(project, timeline)
   const selectedSet = new Set(selected)
   function toggle(ids: string[], checked: boolean) {
@@ -69,6 +71,8 @@ export function ClipImportDialog({ file, document, onClose, onImport }: { file: 
       <header><div><strong>CLIPを読み込む</strong><span>{file.name}</span></div><button type="button" aria-label="閉じる" onClick={onClose}>×</button></header>
       <div className="timingExportDialogBody">
         {!data && !error && <p role="status">CLIPのフォルダーとタイムラインを確認しています…</p>}
+        <p>現在の作業を閉じて、このCLIPを開きます。レイヤー構造と画像を保持し、シートの下敷き・入力・Undo履歴はリセットします。</p>
+        {data && !data.timelines.length && <p>タイムラインのないCLIPです。レイヤーを保持して開き、必要なセル列を後から対応づけられます。</p>}
         {data && timeline && <>
           <fieldset><legend>読み込むタイムライン</legend>{data.timelines.map(item => <label className="clipCutChoice" key={item.id}><input type="checkbox" checked={timelineIds.includes(item.id)} onChange={event => { const checked = event.currentTarget.checked; setTimelineIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); setTimelineId(item.id) }} />{item.name}<span>{item.fps}fps / {item.endFrame - item.startFrame}F</span></label>)}{timelineIds.length > 1 && <p>各タイムラインを兼用カットとして読み込み、セルを共有します。フォルダーと列名の選択は共通です。</p>}</fieldset>
           <label className="timingExportPathField"><span>確認するタイムライン</span><select value={timelineId} onChange={event => {
@@ -78,7 +82,7 @@ export function ClipImportDialog({ file, document, onClose, onImport }: { file: 
           <p>CLIP再生範囲：{timeline.startFrame + 1}〜{timeline.endFrame}F（{timeline.fps}fps）</p>
           <p>再生範囲外のセル指定は開始前・終了後のダミーコマに保持します。正式な尺には含めません。</p>
           {timelineIds.length === 1 && <p>読み込み後：{settings!.fps}fps・{settings!.durationFrames}フレーム</p>}
-          {timelineIds.length === 1 && settings!.fps !== project.logicalSheet.fps && <p className="issue warning">カットのFPSを{project.logicalSheet.fps}から{settings!.fps}へ変更します。既存のキーのコマ番号は維持します。</p>}
+          {timelineIds.length === 1 && settings!.fps !== project.logicalSheet.fps && <p>新しいシートは{settings!.fps}fpsで作成します。</p>}
           <fieldset><legend>読み込むフォルダー</legend>
             <div className="clipImportSelectionActions"><button type="button" onClick={() => setSelected(folders.filter(node => !timeline.tracks.find(track => track.layerId === node.id)?.error).map(node => node.id))}>すべて選択</button><button type="button" onClick={() => setSelected([])}>すべて解除</button></div>
             {folders.length ? <ul className="clipImportTree">{data.nodes.map(renderNode)}</ul> : <p>アニメーションフォルダーがありません。</p>}

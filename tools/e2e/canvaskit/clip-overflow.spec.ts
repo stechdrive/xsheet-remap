@@ -28,6 +28,8 @@ test('imported overflow flag moves together with its column, survives undo and s
   const handle = page.getByRole('button', { name: new RegExp(`^${track.label}追加セル列:`) }).first()
   await handle.scrollIntoViewIfNeeded()
   const before = (await handle.boundingBox())!, paper = (await page.locator('.sheetSvg').first().boundingBox())!
+  const initialColumn = await page.locator('.overlayPaperTrack.inputActive .overlayPaperTrackColumn').first().evaluate(element => element.getBoundingClientRect().toJSON())
+  expect(Math.abs(initialColumn.x - (paper.x + (segment.rect.x + segment.rect.w) * paper.width))).toBeLessThan(1)
   await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2)
   await page.mouse.down()
   expect(Math.abs((await handle.boundingBox())!.x - before.x)).toBeLessThan(1)

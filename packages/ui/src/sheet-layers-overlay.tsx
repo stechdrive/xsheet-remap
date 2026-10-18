@@ -7,7 +7,7 @@ import { SheetSvgText } from './SheetSvgText'
 import { StatusHintSource } from './app-foundation'
 import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuidePlacements, stackGuideSvgGeometry } from './app-stack-guides'
 import { overlayBandSegmentForRegion } from './stack-guides-geometry'
-import { overlaySnapIndexFromPoint, overlayVisibleSnapIndex, type OverlayBandSegment } from './app-sheet-geometry'
+import { overlaySnapIndexFromPoint, overlaySnapIndexFromSegment, type OverlayBandSegment } from './app-sheet-geometry'
 import { overlayColumnRectForPage } from './sheet-layers-hit-geometry'
 import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 
@@ -210,7 +210,7 @@ export function OverlayPaperTrackInteractionLayer({
                   const column = overlayColumnRectForPage(template, project, renderedTrack, page)
                   const nextDrag = {
                     paperTrack: track.paperTrack,
-                    snapIndex: column ? overlayVisibleSnapIndex(template, project, renderedTrack, column) : 0,
+                    snapIndex: column ? overlaySnapIndexFromSegment(column.rect.x, column) : 0,
                     sheetRole,
                     pageId: page.pageId,
                     startClientX: event.clientX,

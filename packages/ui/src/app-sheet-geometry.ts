@@ -217,8 +217,10 @@ export function overlaySnapIndexFromSegment(x: number, segment: OverlayBandSegme
 
 export function overlayVisibleSnapIndex(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, segment: OverlayBandSegment): number {
   const placement = track.viewPlacement
-  // Imported logical columns overflow paper templates too. Only their unset placement defaults to the end.
-  if (track.source !== 'overlay' && (!Number.isFinite(placement?.snapIndex) || placement?.templateId && placement.templateId !== template.templateId)) return segment.snapCount
+  // Imported overflow starts immediately after the cell grid, not at the end of the CAMERA slots.
+  if (track.source !== 'overlay' && (!Number.isFinite(placement?.snapIndex) || placement?.templateId && placement.templateId !== template.templateId)) {
+    return overlaySnapIndexFromSegment(segment.rect.x + segment.rect.w, segment)
+  }
   if (!placement?.templateId || placement.templateId === template.templateId) {
     return clampNumber(Math.round(placement?.snapIndex ?? 0), 0, segment.snapCount)
   }

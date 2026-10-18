@@ -83,6 +83,24 @@ describe('auxiliary sheet geometry', () => {
     expect(overlayVisibleSnapIndex(standardA3SheetTemplate, created.project, track, a3Segment)).toBe(2)
   })
 
+  it('places unpositioned imported overflow after the cell grid and preserves saved positions', () => {
+    const project = updateProjectPaperTracks(createDefaultProject(), ['01', '02', '03', '04', '05', '06', '07', '08', '09', 'AA', 'BB', 'CC'])
+    const tracks = overlayPaperTracks(project, standardA3SheetTemplate)
+    expect(tracks.map(track => track.paperTrack)).toEqual(['AA', 'BB', 'CC'])
+    for (const segment of overlayBandSegments(standardA3SheetTemplate, project, 'cell')) {
+      const lastCell = gridLayout(standardA3SheetTemplate, project, segment.regionId).layout.columns.at(-1)!
+      for (const track of tracks) {
+        const index = overlayVisibleSnapIndex(standardA3SheetTemplate, project, track, segment)
+        expect(segment.slots[index].x).toBeCloseTo(lastCell.x + lastCell.w)
+        expect(index).toBeLessThan(segment.snapCount)
+        const saved = { ...track, viewPlacement: { templateId: standardA3SheetTemplate.templateId, snapIndex: 3 } }
+        expect(overlayVisibleSnapIndex(standardA3SheetTemplate, project, saved, segment)).toBe(3)
+        const otherTemplate = { ...track, viewPlacement: { templateId: 'another-paper', snapIndex: 3 } }
+        expect(overlayVisibleSnapIndex(standardA3SheetTemplate, project, otherTemplate, segment)).toBe(index)
+      }
+    }
+  })
+
   it('stamps legacy numeric overrides with their source template before switching', () => {
     const overlay = addOverlayPaperTrack(createDefaultProject(), {
       paperTrack: 'J',

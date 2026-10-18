@@ -277,10 +277,10 @@ export function unsetClipTarget(project: CutProject, slotId: string): CutProject
   return { ...project, bindings: project.bindings.filter(binding => binding.slotId !== slotId), clipDocument: { ...project.clipDocument, targets: project.clipDocument.targets.filter(target => target.slotId !== slotId) } }
 }
 
-export function bindClipCel(projectInput: CutProject, nodeId: string, paperTrack: string, frame: number, role: SheetTimingRole, processId: string): CutProject {
+export function bindClipCel(projectInput: CutProject, nodeId: string, paperTrack: string, frame: number, role: SheetTimingRole, processId: string, newKey = false): CutProject {
   let project = selectTimingProcess(ensureClipDocument(projectInput), processId)
-  const { cel, slot } = clipCelDropTarget(project, nodeId, paperTrack, processId, { frame, role })
-  if (!project.logicalSheet.processTimings) {
+  const { cel, slot } = clipCelDropTarget(project, nodeId, paperTrack, processId, newKey ? undefined : { frame, role })
+  if (!newKey && !project.logicalSheet.processTimings) {
     const key = clipSheetKeyAtFrame(project, paperTrack, frame, role)
     const assigned = key && project.bindings.find(item => item.slotId === slot.slotId && item.keyId === key.keyId)
     if (key && (!assigned || !assigned.clipLayerId && !assigned.assetId && assigned.materialState === 'unassigned')) {
@@ -332,8 +332,18 @@ export function clipCelDropTarget(project: CutProject, nodeId: string, paperTrac
   return { cel, slot }
 }
 
-export function addClipImages(project: CutProject, parentId: string | null, images: { name: string; assetId: string; imageDataUrl: string }[], sheet?: { paperTrack: string; frame: number; role: SheetTimingRole; processId: string }, beforeId?: string): CutProject {
-  let next = ensureClipDocument(project)
+/** Resolve ownership from the actual animation folder, independently of UI selection. */
+export function clipCelSheetDestination(project: CutProject, nodeId: string, paperTrack: string, sheet?: { frame: number; role: SheetTimingRole }) {
+  const cel = project.clipDocument && clipCelRoot(project.clipDocument, nodeId)
+  const target = cel && project.clipDocument!.targets.find(target => target.folderId === cel.parentId)
+  const slot = project.cspTrackSlots.find(slot => slot.slotId === target?.slotId)
+  if (!slot?.correctionLayerId) throw new Error('この素材のアニメーションフォルダーとシートの対応が未設定です。「シートとの対応を設定」で指定してください。')
+  if (slot.paperTrack !== paperTrack) throw new Error(`この素材の対応先はセル列「${slot.paperTrack}」です。対応先の列へドロップしてください。`)
+  return clipCelDropTarget(selectTimingProcess(project, slot.correctionLayerId), nodeId, paperTrack, slot.correctionLayerId, sheet)
+}
+
+export function addClipImages(project: CutProject, parentId: string | null, images: { name: string; assetId: string; imageDataUrl: string }[], sheet?: { paperTrack: string; frame: number; role: SheetTimingRole; processId: string; keyId?: string; newKey?: boolean }, beforeId?: string): CutProject {
+  let next = sheet ? selectTimingProcess(ensureClipDocument(project), sheet.processId) : ensureClipDocument(project)
   const target = next.clipDocument!.targets.find(item => sheet ? item.slotId === next.cspTrackSlots.find(slot => slot.paperTrack === sheet.paperTrack && slot.correctionLayerId === sheet.processId)?.slotId : item.folderId === parentId)
   if (sheet && !target) throw new Error('この工程・セル列の登録先アニメーションフォルダーを指定してください。')
   if (sheet && images.length !== 1) throw new Error('シートには画像を1枚ずつ配置してください。複数画像はレイヤーツリーへ追加できます。')
@@ -347,7 +357,9 @@ export function addClipImages(project: CutProject, parentId: string | null, imag
       for (const path of target.cellPath) { const folder = createClipNode(path, 'folder', parent); next = addClipLayers(next, [folder]); parent = folder.id }
       next = addClipLayers(next, [{ ...createClipNode(name, 'raster', parent), assetId: image.assetId, imageDataUrl: image.imageDataUrl }])
     } else { cel = { ...cel, assetId: image.assetId, imageDataUrl: image.imageDataUrl }; next = addClipLayers(next, [cel], beforeId) }
-    if (sheet) next = bindClipCel(next, cel.id, sheet.paperTrack, sheet.frame, sheet.role, sheet.processId)
+    if (sheet) next = sheet.keyId
+      ? assignClipCelToKey(next, cel.id, sheet.keyId, sheet.processId)
+      : bindClipCel(next, cel.id, sheet.paperTrack, sheet.frame, sheet.role, sheet.processId, sheet.newKey)
   }
   return next
 }

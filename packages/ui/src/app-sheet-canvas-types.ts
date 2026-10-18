@@ -126,6 +126,7 @@ export type SheetCanvasProps = {
   onRegisteredCellAssign: (keyId: string, hit: SheetHit | null) => void
   onClipLayerAssign?: (layerId: string, hit: SheetHit | null) => void
   clipProcessId?: string
+  clipDropContext?: object
   clipFilterProcessId?: string
   clipShowProcessDifferences?: boolean
   onDropDiagnostic: (report: DropDiagnosticReport) => void

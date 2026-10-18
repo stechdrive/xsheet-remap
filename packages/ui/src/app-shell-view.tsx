@@ -20,6 +20,7 @@ import { TimingExportDialog } from './TimingExportDialog'
 import { ClipExportDialog } from './ClipExportDialog'
 import { ClipImportDialog } from './ClipImportDialog'
 import { ClipCorrespondenceDialog } from './ClipCorrespondenceDialog'
+import { ClipImageDropDialog } from './ClipImageDropDialog'
 import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
@@ -32,6 +33,7 @@ import type { DialogueAudioTrackExportFormat } from './dialogueAudioExport'
 
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
+    workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, pendingClipImageDrop, setPendingClipImageDrop, applyClipImageDrop, clipDropContext,
     appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
     template, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
     setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,
@@ -372,6 +374,11 @@ export function AppShellView({ controller }: { controller: AppController }) {
             soundCueClipboard={soundCueClipboard}
             cameraCueClipboard={cameraCueClipboard}
             activeCorrectionLayerId={activeCorrectionLayerId}
+            workMode={appKind === 'remap' ? workMode : undefined}
+            onWorkModeChange={handleWorkModeChange}
+            newImageProcessId={newImageProcessId}
+            clipDropContext={clipDropContext}
+            onNewImageProcessChange={handleNewImageProcessChange}
             setActiveCorrectionLayerId={handleActiveCorrectionLayerChange}
             editMode={editMode}
             setEditMode={setEditMode}
@@ -692,6 +699,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
           onCancel={() => setAssetDropMenu(null)}
         />
       )}
+      {pendingClipImageDrop && <ClipImageDropDialog pending={pendingClipImageDrop} onClose={() => setPendingClipImageDrop(null)} onApply={applyClipImageDrop} />}
 
       <aside className="inspector">
         <h2>{uiText.inspector.title}</h2>

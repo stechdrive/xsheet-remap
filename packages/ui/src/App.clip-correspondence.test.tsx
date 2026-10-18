@@ -24,7 +24,7 @@ it('imports independent tracks, previews correspondence collisions, commits and 
   fireEvent.click(screen.getByRole('button', { name: 'CELL' }))
   fireEvent.click(screen.getByRole('button', { name: 'タイムシートに読み込む' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'CLIPを読み込む' })).toBeNull())
-  const process = screen.getByLabelText('登録先工程') as HTMLSelectElement
+  const process = screen.getByLabelText('編集しているタイミング') as HTMLSelectElement
   const group0 = Array.from(process.options).find(option => option.text === 'group0')!.value
   const group1 = Array.from(process.options).find(option => option.text === 'group1')!.value
   fireEvent.change(process, { target: { value: group0 } })

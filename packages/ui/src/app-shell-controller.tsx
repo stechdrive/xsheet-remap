@@ -5,13 +5,15 @@ import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
 import { setTimingReferenceAt, setTimingReferenceRange } from '@xsheet-remap/core'
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { RemapWorkMode } from './RemapWorkspaceBar'
+import type { PendingClipImageDrop } from './ClipImageDropDialog'
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
 import { projectDocumentsEqual } from './projectDocumentEquality';
-import { addClipImages, bindClipCel, ensureClipDocument, synchronizeClipBindings, updateClipLayer } from '@xsheet-remap/core'
+import { addClipImages, bindClipCel, clipCelSheetDestination, clipSheetKeyAtFrame, selectTimingProcess, ensureClipDocument, synchronizeClipBindings, updateClipLayer } from '@xsheet-remap/core'
 import { clipImageDataUrl } from './clipImageImport'
 import { updateCutMetadata } from './cutMetadata';
 import { uiText } from './i18n';
@@ -91,8 +93,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     timingEditSession, timingEditSessionRef, setTimingEditSession, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
-    activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
+    workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
   } = useAppShellState(appKind)
+  const [pendingClipImageDrop, setPendingClipImageDrop] = useState<PendingClipImageDrop | null>(null)
+  const clipImportContext = useRef<object>({})
+  const workModeRef = useRef(workMode)
+  workModeRef.current = workMode
   const valueDraft = timingEditSession?.value ?? ''
   const valueDraftActive = timingEditSession !== null
   const exportProfileId = 'import-stack'
@@ -124,6 +130,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setRuntimeSourceImageUrls, clearSelection: clearSelectionState, alertError: error => window.alert(errorMessage(error)),
   })
   const paperSheetEditContextRef = useRef<PaperSheetEditContext>({ document: projectDocument, cutId: projectDocumentSnapshot.activeCutId, revisionId: activeSheetRevision.revisionId, template })
+  const protectedRevisionRef = useRef(activeSheetRevision.protected)
+  protectedRevisionRef.current = activeSheetRevision.protected
   paperSheetEditContextRef.current = { document: projectDocument, cutId: projectDocumentSnapshot.activeCutId, revisionId: activeSheetRevision.revisionId, template }
   const { handleSwitchProjectCut, handleAddSharedCut, handleDeleteSharedCut } = createAppSharedCutActions({
     projectDocument: projectDocumentSnapshot, resolveProject: () => commitTimingDraft(false), template, setProjectDocument, setHistory, projectRef,
@@ -171,6 +179,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setAssetDropMenu(null)
     setProjectFilePath(null)
     setActiveCorrectionLayerIdState(defaultCorrectionLayerId(next) ?? '')
+    resetClipWorkspaceView('clip')
     setClipImportFile(null)
     setExportOperationNotice({ message: 'CLIPのレイヤー構造とタイムラインを開きました。' })
   }
@@ -249,9 +258,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   })
   const selectedKey = selection.keyId ? project.logicalSheet.keys.find(key => key.keyId === selection.keyId) ?? null : null
   const fallbackCorrectionLayerId = defaultCorrectionLayerId(project) ?? ''
-  const activeCorrectionLayerId = project.logicalSheet.processTimings?.activeProcessId ?? (project.correctionLayers.some(layer => layer.layerId === activeCorrectionLayerIdState)
+  const newImageProcessId = project.correctionLayers.some(layer => layer.layerId === activeCorrectionLayerIdState)
     ? activeCorrectionLayerIdState
-    : fallbackCorrectionLayerId)
+    : fallbackCorrectionLayerId
+  const activeCorrectionLayerId = project.logicalSheet.processTimings?.activeProcessId ?? (appKind === 'remap' ? fallbackCorrectionLayerId : newImageProcessId)
   const activeCorrectionLayer = project.correctionLayers.find(layer => layer.layerId === activeCorrectionLayerId) ?? null
   const materialAssets = useMemo(() => project.assets.filter(isCellMaterialAsset), [project.assets])
   const issueErrorCount = issues.filter(issue => issue.severity === 'error').length
@@ -382,14 +392,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }, [setRuntimeSourceImageUrls, sheetSourceRuntimePathEntries])
 
   function commitProject(nextProject: CutProject) {
-    if (activeSheetRevision.protected) {
+    if (protectedRevisionRef.current) {
       window.alert('このシートは編集保護中です。シート履歴のメニューから保護を解除してください。')
       return false
     }
     nextProject = synchronizeClipBindings(nextProject)
     if (nextProject.logicalSheet.processTimings && nextProject.correctionLayers !== projectRef.current.correctionLayers) updateActiveCutProjectInDocument(projectDocument, nextProject)
+    const previousProcess = projectRef.current.logicalSheet.processTimings?.activeProcessId
     projectRef.current = nextProject
     setHistory(current => commitHistory(current, nextProject))
+    const nextProcess = nextProject.logicalSheet.processTimings?.activeProcessId
+    if (nextProcess && nextProcess !== previousProcess) selectWorkspaceProcess(nextProcess)
     if (selectionIsOutsideProjectDisplay(nextProject)) clearSelectionState()
     return true
   }
@@ -399,13 +412,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   async function handleNativeFileDrop(paths: string[], position: { x: number; y: number }) {
     const clientPoints = clientPointCandidatesFromNativeDropPosition(position)
     if (projectRef.current.clipDocument) {
-      const source = commitTimingDraft(false), processId = activeCorrectionLayerId
+      if (!allowClipImageImport()) return
+      const source = commitTimingDraft(false), processId = newImageProcessId, context = clipImportContext.current
       const layerTarget = clientPoints.map(point => clipLayerDropAtElement(source.clipDocument!, document.elementFromPoint(point.x, point.y), point.y)).find(Boolean)
       const hit = clientPoints.map(point => nativeSheetHitFromClientPoint(point.x, point.y)).find(Boolean) ?? null
       if (!layerTarget && !hit) return
       try {
         const collection = await collectAssetPathDrop(paths, { recursive: true })
-        await importClipImageRefs(source, collection.files, layerTarget?.parentId ?? null, layerTarget ? null : hit, processId, layerTarget?.beforeId)
+        await importClipImageRefs(source, collection.files, layerTarget?.parentId ?? null, layerTarget ? null : hit, processId, layerTarget?.beforeId, context)
       } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
       return
     }
@@ -531,6 +545,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (clipDocument) publishNativeLayerHover(payload.type === 'enter' || payload.type === 'over'
       ? clientPointCandidatesFromNativeDropPosition(position).map(point => clipLayerDropAtElement(clipDocument, document.elementFromPoint(point.x, point.y), point.y)).find(Boolean) ?? null
       : null)
+    if (clipDocument && (payload.type === 'enter' || payload.type === 'over')) {
+      const hit = clientPointCandidatesFromNativeDropPosition(position).map(point => nativeSheetHitFromClientPoint(point.x, point.y)).find(Boolean)
+      if (hit?.paperTrack) {
+        const process = project.correctionLayers.find(process => process.layerId === newImageProcessId)
+        const key = clipSheetKeyAtFrame(selectTimingProcess(project, newImageProcessId), hit.paperTrack, hit.frame, hit.role === 'cell' ? 'cell' : 'action')
+        setStatusHint('sheet-drop', workMode === 'clip' ? `${process?.label} / ${hit.paperTrack}${key ? ` / ${key.displayLabel}（登録先・差し替えを選択）` : 'へ新規登録'}` : '画像を登録するには「CLIP組み立て」に切り替えてください。')
+      }
+    }
     if (payload.type === 'drop' && Array.isArray(payload.paths) && payload.paths.length > 0) {
       const signature = `${payload.paths.join('\u001f')}@${Math.round(position.x)},${Math.round(position.y)}`
       const timestamp = performance.now()
@@ -856,7 +878,33 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitTimingDraft(false)
     selectWorkspaceProcess(layerId)
     if (project.logicalSheet.processTimings) clearSelectionState()
-    setActiveCorrectionLayerIdState(layerId)
+    if (appKind !== 'remap') setActiveCorrectionLayerIdState(layerId)
+  }
+
+  function handleWorkModeChange(mode: RemapWorkMode) {
+    commitTimingDraft(false)
+    resetClipWorkspaceView(mode)
+  }
+
+  function resetClipWorkspaceView(mode: RemapWorkMode) {
+    clipImportContext.current = {}
+    setPendingClipImageDrop(null)
+    setAssetDropMenu(null)
+    workModeRef.current = mode
+    setWorkMode(mode)
+    setStatusHint('sheet-drop', null)
+  }
+
+  function handleNewImageProcessChange(id: string) {
+    clipImportContext.current = {}
+    setPendingClipImageDrop(null)
+    setActiveCorrectionLayerIdState(id)
+  }
+
+  function allowClipImageImport() {
+    if (appKind !== 'remap' || workModeRef.current === 'clip') return true
+    setStatusHint('sheet-drop', '画像を登録するには、上部で「CLIP組み立て」に切り替えてください。')
+    return false
   }
 
   function handleClearSelection() {
@@ -1235,9 +1283,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   async function handleAssetNativePaths(paths: string[], targetHit: SheetHit | null = null, position?: { x: number; y: number }, options: { recursive?: boolean } = {}) {
     if (paths.length === 0) return
-    const source = projectRef.current, processId = activeCorrectionLayerId
+    if (projectRef.current.clipDocument && !allowClipImageImport()) return
+    const source = commitTimingDraft(false), processId = newImageProcessId, context = clipImportContext.current
     const collection = await collectAssetPathDrop(paths, { recursive: options.recursive ?? true })
-    if (source.clipDocument) { await importClipImageRefs(source, collection.files, null, targetHit, processId); return }
+    if (source.clipDocument) { await importClipImageRefs(source, collection.files, null, targetHit, processId, undefined, context); return }
     if (targetHit && collection.files.length > 1) {
       handleAssetFileRefs(collection.files, null, position)
       setStatusHint('sheet-drop', '複数素材は1つのフレームへ直接登録できません。素材ブラウザへ全件登録しました。CSP列へドロップしてカードを作成してください。')
@@ -1357,16 +1406,19 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   async function handleClipImageFiles(files: File[], parentId: string | null, hit: SheetHit | null = null, beforeId?: string) {
-    const source = commitTimingDraft(false), processId = activeCorrectionLayerId
+    if (!allowClipImageImport()) return
+    const source = commitTimingDraft(false), processId = newImageProcessId, context = clipImportContext.current
     try {
       const refs = await Promise.all(files.filter(isImageAssetFile).map(fileToFileRef))
-      await importClipImageRefs(source, refs, parentId, hit, processId, beforeId)
+      await importClipImageRefs(source, refs, parentId, hit, processId, beforeId, context)
     } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
   }
 
-  async function importClipImageRefs(source: CutProject, refs: FileRef[], parentId: string | null, hit: SheetHit | null, processId: string, beforeId?: string) {
+  async function importClipImageRefs(source: CutProject, refs: FileRef[], parentId: string | null, hit: SheetHit | null, processId: string, beforeId?: string, context = clipImportContext.current) {
+    if (!allowClipImageImport()) return
     const images = refs.filter(isImageFileRef)
     if (!images.length) return
+    if (hit && images.length !== 1) throw new Error('シートには画像を1枚ずつ配置してください。複数画像はレイヤーツリーへ追加できます。')
     if (images.reduce((sum, ref) => sum + (ref.size ?? 0), 0) > 384 * 1024 * 1024) throw new Error('一度に追加する画像は合計384MB以内にしてください。')
     const dataUrls: string[] = []
     let totalLength = 0
@@ -1376,7 +1428,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       dataUrls.push(dataUrl)
     }
     // A cut switch, edit, Undo or document replacement invalidates the captured destination.
-    if (projectRef.current !== source) throw new Error('読み込み中にプロジェクトが変わりました。画像をもう一度ドロップしてください。')
+    if (projectRef.current !== source || context !== clipImportContext.current || !allowClipImageImport()) throw new Error('読み込み中に作業内容・登録先が変わりました。画像をもう一度ドロップしてください。')
     const role = hit && sheetRoleForHit(hit)
     if (hit && (!hit.paperTrack || role !== 'action' && role !== 'cell')) throw new Error('セル列へドロップしてください。')
     let next = source
@@ -1384,16 +1436,35 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       const registered = registerMaterialAssetRef(next, ref); next = registered.project
       return { name: ref.name, assetId: registered.asset.assetId, imageDataUrl: dataUrls[index]! }
     })
+    if (hit?.paperTrack && role && (clipSheetKeyAtFrame(selectTimingProcess(source, processId), hit.paperTrack, hit.frame, role)
+      || !source.clipDocument!.targets.some(target => target.slotId === source.cspTrackSlots.find(slot => slot.paperTrack === hit.paperTrack && slot.correctionLayerId === processId)?.slotId))) {
+      setPendingClipImageDrop({ source, prepared: next, images: prepared, hit, processId })
+      return
+    }
     next = addClipImages(next, parentId, prepared, hit?.paperTrack && role ? { paperTrack: hit.paperTrack, frame: hit.frame, role, processId } : undefined, beforeId)
     if (commitProject(next)) setStatusHint('sheet-drop', `${prepared.length}枚をレイヤーに追加しました。`)
   }
 
+  function applyClipImageDrop(processId: string, newKey: boolean) {
+    const pending = pendingClipImageDrop
+    if (!pending || pending.source !== projectRef.current || !allowClipImageImport()) { setPendingClipImageDrop(null); return }
+    try {
+      const { hit } = pending, role = hit.role === 'cell' ? 'cell' : 'action'
+      const key = !newKey && clipSheetKeyAtFrame(selectTimingProcess(pending.source, processId), hit.paperTrack!, hit.frame, role)
+      const next = addClipImages(pending.prepared, null, pending.images, { paperTrack: hit.paperTrack!, frame: hit.frame, role, processId, newKey, ...(key ? { keyId: key.keyId } : {}) })
+      if (commitProject(next)) { setPendingClipImageDrop(null); setStatusHint('sheet-drop', `${project.correctionLayers.find(process => process.layerId === processId)?.label} / ${hit.paperTrack}へ登録しました。`) }
+    } catch (error) { setPendingClipImageDrop(null); setStatusHint('sheet-drop', errorMessage(error)) }
+  }
+
   function handleAssignClipLayer(layerId: string, hit: SheetHit | null) {
+    if (!allowClipImageImport()) return
     if (!hit?.paperTrack) return
     const role = sheetRoleForHit(hit)
     if (role !== 'action' && role !== 'cell') return
     try {
-      const next = bindClipCel(commitTimingDraft(false), layerId, hit.paperTrack, hit.frame, role, activeCorrectionLayerId)
+      const source = commitTimingDraft(false)
+      const { slot } = clipCelSheetDestination(source, layerId, hit.paperTrack, { frame: hit.frame, role })
+      const next = bindClipCel(source, layerId, hit.paperTrack, hit.frame, role, slot.correctionLayerId!)
       if (commitProject(next)) setSelectionFromHit(hit, next, timingKeyAtSheetHit(next, hit)?.keyId)
     } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
   }
@@ -1802,6 +1873,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       setProjectFilePath(loadedFile.projectFilePath)
       setHistory(createProjectHistory(loaded))
       setActiveCorrectionLayerIdState(defaultCorrectionLayerId(loaded) ?? '')
+      resetClipWorkspaceView(loaded.clipDocument?.source ? 'clip' : 'sheet')
       setRuntimeSourceImageUrls(projectRuntimeSourceImageUrls(loadedDocument))
       clearSelectionState()
       void alertMissingProjectNativePaths(loadedDocument)
@@ -1913,6 +1985,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setProjectFilePath(null)
     setHistory(createProjectHistory(nextProject))
     setActiveCorrectionLayerIdState(defaultCorrectionLayerId(nextProject) ?? '')
+    resetClipWorkspaceView('sheet')
     setRuntimeSourceImageUrls({})
     setRecognitionCandidates([])
     setPanelView('sheet')
@@ -2357,6 +2430,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }, [assetDropMenu, setAssetDropMenu])
 
     return {
+    clipDropContext: clipImportContext.current,
+    workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange,
+    pendingClipImageDrop: pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null, setPendingClipImageDrop, applyClipImageDrop,
     appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
     template, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
     setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,

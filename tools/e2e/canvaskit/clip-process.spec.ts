@@ -25,7 +25,7 @@ test('nested CLIP processes share columns, switch independent timing, show diffe
   const overflow = await dialog.locator('.clipImportTree').evaluate(element => element.scrollWidth > element.clientWidth)
   expect(overflow).toBe(false)
   await activateControl(page, dialog.getByRole('button', { name: 'タイムシートに読み込む', exact: true }))
-  const process = page.getByLabel('登録先工程', { exact: true })
+  const process = page.getByLabel('編集しているタイミング', { exact: true })
   await process.selectOption({ label: 'LO確認用' })
   const event = (frame: number) => page.locator(`[data-timeline-event-role="cell"][data-timeline-event-track="A"][data-timeline-event-frame="${frame}"] .eventText`)
   await expect(event(5)).toHaveText('002'); await expect(event(9)).toHaveCount(0)

@@ -1,0 +1,15 @@
+.sheetLayout.remapSheetLayout { grid-template-rows: auto minmax(0, 1fr); }
+.remapWorkspaceBar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 7px 12px; border-bottom: 1px solid #bdc7c0; background: #f1f4f2; font-size: 12px; }
+.remapWorkModes { display: flex; gap: 0; }
+.remapWorkModes button { border-radius: 0; padding: 5px 12px; }
+.remapWorkModes button[aria-pressed=true] { background: #395c4c; color: white; border-color: #395c4c; }
+.remapTimingContext, .remapImageDestination { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.remapWorkspaceBar select { max-width: 240px; min-width: 80px; font-size: 12px; }
+.remapWorkspaceBar small { color: #536359; }
+.remapImageDestination { margin-left: auto; }
+.clipImageDropDialog { max-width: 620px; }
+.clipImageDropDialog select { display: block; max-width: 100%; width: 100%; margin-top: 6px; }
+.clipImageDropDialog footer { flex-wrap: wrap; }
+.sheetWorkspace.remapSheetOnly { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'viewport'; grid-template-rows: minmax(0, 1fr); }
+.sheetWorkspace.remapSheetOnly > .sheetViewportFrame { grid-area: viewport; }
+@media (max-width: 900px) { .remapWorkspaceBar small { display: none; } .remapImageDestination { margin-left: 0; } }

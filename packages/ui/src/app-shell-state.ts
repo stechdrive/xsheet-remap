@@ -4,6 +4,7 @@ import {
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
+import type { RemapWorkMode } from './RemapWorkspaceBar'
 import { createAudioPlayheadStore } from './audioPlayheadStore'
 import type { CameraCueClipboard, CameraCueDialogState, EditMode, ExportOperationNotice, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingEditSession, TimingExportDialogState, XdtsImportDialogState } from './appTypes'
 import type { SheetImageExportOptions } from './cleanSheetExport'
@@ -171,6 +172,8 @@ export function useAppShellState(appKind: MainAppKind) {
   const [clipImportFile, setClipImportFile] = useState<File | null>(null)
   const [frameOperationDialog, setFrameOperationDialog] = useState<FrameOperationDialogState | null>(null)
   const [assetDropMenu, setAssetDropMenu] = useState<AssetDropMenuState | null>(null)
+  // Work mode is a view choice: it never replaces project data or consumes Undo.
+  const [workMode, setWorkMode] = useState<RemapWorkMode>('sheet')
   const [activeCorrectionLayerIdState, setActiveCorrectionLayerIdState] = useState(() => defaultCorrectionLayerId(initialWorkspace.project) ?? '')
   const nativeFileDropHandlerRef = useRef<(paths: string[], position: { x: number; y: number }) => void>(() => undefined)
   const nativeDragDropPayloadHandlerRef = useRef<(payload: NativeDragDropPayload, source: string) => void>(() => undefined)
@@ -200,7 +203,7 @@ export function useAppShellState(appKind: MainAppKind) {
     timingEditSession, timingEditSessionRef, setTimingEditSession, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
-    activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
+    workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
   }
 }
 

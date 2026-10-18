@@ -3,6 +3,7 @@ import { activateControl } from './input'
 
 test('default process colors, A targets and added column order survive Undo and Redo', async ({ page }, info) => {
   await page.goto('./?app=remap')
+  await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   const processes = [
     ['layer_sakuga', '作画', 'rgba(0, 0, 0, 0)'],
@@ -12,7 +13,8 @@ test('default process colors, A targets and added column order survive Undo and 
     ['layer_sousakkan', '総作監', 'rgb(234, 246, 213)'],
     ['layer_other', 'その他修正', 'rgb(255, 221, 170)'],
   ]
-  const processSelect = page.getByLabel('登録先工程', { exact: true })
+  await activateControl(page, page.getByText('シートとの対応を設定', { exact: true }))
+  const processSelect = page.getByLabel('対応する工程', { exact: true })
   await expect(processSelect.locator('option')).toHaveText(processes.map(process => process[1]))
   const group = (id: string) => page.locator(`[data-clip-layer-id="process:${id}"]`).locator('..')
   const names = (id: string) => group(id).locator(':scope > [role=group] > .clipLayerItem > .clipLayerRow .clipLayerName')
@@ -25,7 +27,6 @@ test('default process colors, A targets and added column order survive Undo and 
     await expect(names(id)).toHaveText('IHGFEDCBA'.split(''))
     await activateControl(page, page.getByRole('button', { name: `${name}を折りたたむ`, exact: true }))
   }
-  await activateControl(page, page.getByText('登録先・シート表示を設定', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: 'セル列＋', exact: true }))
   for (const [id, name] of processes) {
     await activateControl(page, page.getByRole('button', { name: `${name}を展開`, exact: true }))
@@ -41,7 +42,7 @@ test('default process colors, A targets and added column order survive Undo and 
   await activateControl(page, page.getByRole('button', { name: 'やり直し', exact: true }))
   await expect(names('layer_sakuga')).toHaveText('JIHGFEDCBA'.split(''))
   await processSelect.selectOption('layer_sakuga')
-  await activateControl(page, page.getByText('登録先・シート表示を設定', { exact: true }))
+  await activateControl(page, page.getByText('シートとの対応を設定', { exact: true }))
   await group('layer_other').scrollIntoViewIfNeeded()
   await page.screenshot({ path: info.outputPath('default-process-colors-and-j.png') })
 })

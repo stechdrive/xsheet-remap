@@ -62,6 +62,8 @@ it('enables cross-role paste and explicit content choices in the context menu', 
 
 it('creates an ACTION column from the layer pane and keeps input and arrow navigation on it', async () => {
   render(<RemapApp />)
+  fireEvent.click(screen.getByRole('button', { name: 'CLIP組み立て' }))
+  fireEvent.click(screen.getByText('シートとの対応を設定'))
   const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
   setSheetRect(sheet, 0, 0)
   fireEvent.click(screen.getByRole('button', { name: 'セル列＋' }))

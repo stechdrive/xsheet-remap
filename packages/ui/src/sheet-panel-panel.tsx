@@ -1,4 +1,5 @@
 import { ClipLayerPanel } from './ClipLayerPanel'
+import { RemapWorkspaceBar, type RemapWorkMode } from './RemapWorkspaceBar'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { SheetLabelNormalizationPlan } from '@xsheet-remap/core'
 import { type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type RecognitionCandidate, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
@@ -184,6 +185,11 @@ export function SheetPanel(props: {
   soundCueClipboard: SoundCueClipboard | null
   cameraCueClipboard: CameraCueClipboard | null
   activeCorrectionLayerId: string
+  workMode?: RemapWorkMode
+  clipDropContext?: object
+  onWorkModeChange?: (mode: RemapWorkMode) => void
+  newImageProcessId?: string
+  onNewImageProcessChange?: (id: string) => void
   setActiveCorrectionLayerId: (value: string) => void
   editMode: EditMode
   setEditMode: (mode: EditMode) => void
@@ -701,22 +707,27 @@ export function SheetPanel(props: {
   }, [autoFitZoomEnabled, displayDurationFrames, props.template, sheetLayoutOptions, sheetPageSize, updateSheetZoom])
 
   const [filteredClipProjectId, setFilteredClipProjectId] = useState<string | null>(null)
-  const filterClipProcess = filteredClipProjectId === props.project.projectId
+  const filterClipProcess = props.workMode !== 'sheet' && filteredClipProjectId === props.project.projectId
   const clipWorkspace = Boolean(props.project.clipDocument && props.onClipProjectChange && props.onClipFiles)
+  const showRightDock = props.workMode !== 'sheet'
+  const imageProcessId = props.newImageProcessId ?? props.activeCorrectionLayerId
   return (
     <TooltipSuppressionProvider suppressed={suppressSheetTooltips(editMode)}>
-    <section className="panel sheetLayout">
+    <section className={`panel sheetLayout ${props.workMode ? 'remapSheetLayout' : ''}`}>
+      {props.workMode && <RemapWorkspaceBar project={props.project} mode={props.workMode} onModeChange={props.onWorkModeChange!}
+        timingProcessId={props.activeCorrectionLayerId} onTimingProcessChange={props.setActiveCorrectionLayerId}
+        imageProcessId={imageProcessId} onImageProcessChange={props.onNewImageProcessChange!} />}
       <div
         className={[
-          'sheetWorkspace', clipWorkspace ? 'clipWorkspace' : '',
+          'sheetWorkspace', clipWorkspace ? 'clipWorkspace' : '', props.workMode === 'sheet' ? 'remapSheetOnly' : '',
           !clipWorkspace && paneLayout.left ? '' : 'leftDockClosed',
-          paneLayout.right ? '' : 'rightDockClosed',
+          showRightDock && paneLayout.right ? '' : 'rightDockClosed',
         ].filter(Boolean).join(' ')}
         style={{
           '--sheet-left-dock-width': !clipWorkspace && paneLayout.left ? `${paneLayout.leftWidth}px` : '0px',
-          '--sheet-right-dock-width': paneLayout.right ? `${clipWorkspace ? Math.max(280, paneLayout.rightWidth) : paneLayout.rightWidth}px` : '0px',
+          '--sheet-right-dock-width': showRightDock && paneLayout.right ? `${clipWorkspace ? Math.max(280, paneLayout.rightWidth) : paneLayout.rightWidth}px` : '0px',
           '--sheet-left-resizer-width': clipWorkspace ? '0px' : '16px',
-          '--sheet-right-resizer-width': '16px',
+          '--sheet-right-resizer-width': showRightDock ? '16px' : '0px',
           '--sheet-history-rail-width': '42px',
         } as WorkspaceStyle}
       >
@@ -1301,8 +1312,9 @@ export function SheetPanel(props: {
           <SheetCanvas
             ref={sheetCanvasRef}
             {...props}
-            clipProcessId={props.activeCorrectionLayerId}
-            clipFilterProcessId={filterClipProcess ? props.activeCorrectionLayerId : undefined}
+            clipProcessId={props.workMode === 'sheet' ? undefined : imageProcessId}
+            onClipLayerAssign={props.workMode === 'sheet' ? undefined : props.onClipLayerAssign}
+            clipFilterProcessId={filterClipProcess ? (props.project.logicalSheet.processTimings ? props.activeCorrectionLayerId : imageProcessId) : undefined}
             clipShowProcessDifferences={filterClipProcess && Boolean(props.project.logicalSheet.processTimings)}
             editMode={sheetCanvasEditMode}
             touchInputActive={touchControlsVisible}
@@ -1383,7 +1395,7 @@ export function SheetPanel(props: {
             onClose={closeTouchControls}
           />
         </div>
-        <PanelResizeHandle
+        {showRightDock && <><PanelResizeHandle
           label={clipWorkspace ? 'レイヤーパレットの幅を変更' : uiText.layout.resizeImageAssetPane}
           min={clipWorkspace ? 280 : SHEET_RIGHT_PANE_MIN_WIDTH}
           max={SHEET_RIGHT_PANE_MAX_WIDTH}
@@ -1424,6 +1436,7 @@ export function SheetPanel(props: {
             />}
           </div>
         </aside>
+        </>}
       </div>
       {normalizationOpen && (
         <NameNormalizationDialog

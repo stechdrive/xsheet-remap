@@ -1,5 +1,5 @@
 import { isTauriHost } from '@xsheet-remap/adapters'
-import { clipCelDropTarget, selectTimingProcess } from '@xsheet-remap/core'
+import { clipCelSheetDestination, clipSheetKeyAtFrame, selectTimingProcess } from '@xsheet-remap/core'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
 import { type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
@@ -245,6 +245,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const sheetRenderCutGroup = useSheetRenderCutGroupContext(props.activeCutId, props.projectCuts)
   const dropProjectRef = useRef(props.project)
   useLayoutEffect(() => { dropProjectRef.current = props.project }, [props.project])
+  const dropContextRef = useRef(props.clipDropContext)
+  useLayoutEffect(() => { dropContextRef.current = props.clipDropContext }, [props.clipDropContext])
   const sheetRenderModelContext = useSheetRenderModelContext(props.project, props.template, sheetRenderCutGroup, props.clipFilterProcessId)
   const templateTrackNames = sheetRenderModelContext.paperTracks
   const timelineLanes = sheetRenderModelContext.timelineLanes
@@ -575,15 +577,16 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (payload.kind === 'clip-layer') {
       const target = pageHitUnderClientPoint(clientX, clientY)
       const hit = dropHitForActiveRange(target?.hit ?? null)
-      let error = ''
+      let error = '', destination = ''
       try {
         if (!hit?.paperTrack || !props.onClipLayerAssign || !props.clipProcessId || !['action', 'cell'].includes(sheetRoleForHit(hit))) throw new Error('セル列へドロップしてください。')
-        clipCelDropTarget(props.project, payload.layerId, hit.paperTrack, props.clipProcessId, { frame: hit.frame, role: hit.role === 'cell' ? 'cell' : 'action' })
+        const { slot, cel } = clipCelSheetDestination(props.project, payload.layerId, hit.paperTrack, { frame: hit.frame, role: hit.role === 'cell' ? 'cell' : 'action' })
+        destination = `${props.project.correctionLayers.find(process => process.layerId === slot.correctionLayerId)?.label} / ${slot.paperTrack}：${cel.name}を配置`
       } catch (reason) { error = reason instanceof Error ? reason.message : String(reason) }
       if (target) {
         setInternalDragDropValidity(error ? 'invalid' : 'valid')
         if (hit) updateDropTargetPreview(hit, error ? 'invalid' : 'valid')
-        props.onStatusHint('sheet-drop', error || 'このセルをシートに配置')
+        props.onStatusHint('sheet-drop', error || destination)
       } else { clearDropTargetPreview(); props.onStatusHint('sheet-drop', null) }
       if (phase === 'drop') {
         clearHover(); clearDropTargetPreview(); setInternalDragDropValidity(null)
@@ -800,7 +803,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     } else if (assetIds.length === 1) {
       props.onStatusHint('sheet-drop', uiText.statusHints.dropAsset(target))
     } else {
-      props.onStatusHint('sheet-drop', uiText.statusHints.dropFiles(target))
+      if (props.project.clipDocument) {
+        const process = props.project.correctionLayers.find(process => process.layerId === props.clipProcessId)
+        const key = process && clipSheetKeyAtFrame(selectTimingProcess(props.project, process.layerId), hit.paperTrack, hit.frame, hit.role === 'cell' ? 'cell' : 'action')
+        props.onStatusHint('sheet-drop', process ? `${process.label} / ${hit.paperTrack}${key ? ` / ${key.displayLabel}（登録先・差し替えを選択）` : 'へ新規登録'}` : '画像を登録するには「CLIP組み立て」に切り替えてください。')
+      } else props.onStatusHint('sheet-drop', uiText.statusHints.dropFiles(target))
     }
   }
 
@@ -2115,7 +2122,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (props.project.clipDocument && isTauriHost()) return
     const sourceProject = props.project
     const files = await collectAssetFilesFromDrop(dataTransfer)
-    if (sourceProject !== dropProjectRef.current) { props.onStatusHint('sheet-drop', '読み込み中にシートが変わりました。もう一度ドロップしてください。'); return }
+    if (sourceProject !== dropProjectRef.current || props.clipDropContext !== dropContextRef.current) { props.onStatusHint('sheet-drop', '読み込み中に作業内容・登録先が変わりました。もう一度ドロップしてください。'); return }
     props.onAssetDrop(files, hit, { x: event.clientX, y: event.clientY })
   }
 
@@ -2239,7 +2246,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     if (props.project.clipDocument && isTauriHost()) return
     const sourceProject = props.project
     const files = await collectAssetFilesFromDrop(dataTransfer)
-    if (sourceProject !== dropProjectRef.current) { props.onStatusHint('sheet-drop', '読み込み中にシートが変わりました。もう一度ドロップしてください。'); return }
+    if (sourceProject !== dropProjectRef.current || props.clipDropContext !== dropContextRef.current) { props.onStatusHint('sheet-drop', '読み込み中に作業内容・登録先が変わりました。もう一度ドロップしてください。'); return }
     props.onAssetDrop(files, hit, { x: event.clientX, y: event.clientY })
   }
 

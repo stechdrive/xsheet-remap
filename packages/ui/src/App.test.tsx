@@ -276,6 +276,8 @@ it('validates and applies a sheet template loaded from the import menu', async (
 it('provides CSP mapping and template authoring in the unified Remap shell', () => {
     render(<RemapApp />)
     expect(screen.getByText('xsheet-remap')).toBeTruthy()
+    expect(screen.queryByRole('tree', { name: 'CLIPレイヤーツリー' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'CLIP組み立て' }))
     expect(screen.getByRole('tree', { name: 'CLIPレイヤーツリー' })).toBeTruthy()
     expect(document.querySelector('#sheet-left-pane')).toBeNull()
     expect(document.querySelector('#sheet-right-pane .clipLayerPanel')).toBeTruthy()
@@ -530,6 +532,7 @@ it('migrates the former left layer pane to the right and persists its width and 
       rightWidth: 444,
     }))
     const firstRender = render(<RemapApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'CLIP組み立て' }))
     const workspace = document.querySelector<HTMLElement>('.sheetWorkspace')
     if (!workspace) throw new Error('sheet workspace not found')
 
@@ -550,6 +553,7 @@ it('migrates the former left layer pane to the right and persists its width and 
 
     firstRender.unmount()
     render(<RemapApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'CLIP組み立て' }))
     const restoredWorkspace = document.querySelector<HTMLElement>('.sheetWorkspace')
     expect(restoredWorkspace?.style.getPropertyValue('--sheet-left-dock-width')).toBe('0px')
     expect(restoredWorkspace?.style.getPropertyValue('--sheet-right-dock-width')).toBe('300px')

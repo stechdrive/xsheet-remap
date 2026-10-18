@@ -4,6 +4,7 @@ import type { CutProject, SheetTimingRole } from './types'
 import { createKey, setEvent } from './project-timing'
 import { nextAssetSheetLabel } from './sheet-label-normalization'
 import { selectTimingProcess } from './process-timing'
+import { sheetTimingRoleForEvent, timingEventValueKind } from './project-shared'
 
 export interface ClipLayerNode {
   id: string
@@ -135,7 +136,7 @@ export function ensureClipDocument(project: CutProject): CutProject {
     const folder = createClipNode('未配置の素材', 'folder', null, 'legacy:unplaced')
     nodes.push(folder, ...unplaced.map(asset => ({ ...createClipNode(asset.displayName.replace(/\.[^.]+$/, ''), 'raster', folder.id, `asset:${asset.assetId}`), assetId: asset.assetId })))
   }
-  return { ...project, logicalSheet: !project.logicalSheet.keys.length && !project.logicalSheet.events.length ? { ...project.logicalSheet, processTimings: { activeProcessId: project.correctionLayers.find(layer => layer.role === 'base')?.layerId ?? project.correctionLayers[0]!.layerId, inactive: {} } } : project.logicalSheet, clipDocument: { version: 1, nodes, targets, canvas: { ...DEFAULT_CLIP_CANVAS } } }
+  return { ...project, clipDocument: { version: 1, nodes, targets, canvas: { ...DEFAULT_CLIP_CANVAS } } }
 }
 
 /** Insert only the new column. Existing CLIP hierarchy and sibling order remain authoritative. */
@@ -278,7 +279,15 @@ export function unsetClipTarget(project: CutProject, slotId: string): CutProject
 
 export function bindClipCel(projectInput: CutProject, nodeId: string, paperTrack: string, frame: number, role: SheetTimingRole, processId: string): CutProject {
   let project = selectTimingProcess(ensureClipDocument(projectInput), processId)
-  const { cel, slot } = clipCelDropTarget(project, nodeId, paperTrack, processId)
+  const { cel, slot } = clipCelDropTarget(project, nodeId, paperTrack, processId, { frame, role })
+  if (!project.logicalSheet.processTimings) {
+    const key = clipSheetKeyAtFrame(project, paperTrack, frame, role)
+    const assigned = key && project.bindings.find(item => item.slotId === slot.slotId && item.keyId === key.keyId)
+    if (key && (!assigned || !assigned.clipLayerId && !assigned.assetId && assigned.materialState === 'unassigned')) {
+      // A correction fills the existing exposure, including holds. It creates no new timing.
+      return assignClipCelToKey(project, cel.id, key.keyId, processId)
+    }
+  }
   let binding = project.bindings.find(item => item.slotId === slot.slotId && item.clipLayerId === cel.id && project.logicalSheet.keys.some(key => key.keyId === item.keyId && (key.sheetRole ?? 'action') === role))
   if (!binding) {
     const label = nextAssetSheetLabel(project, paperTrack, role)
@@ -289,7 +298,23 @@ export function bindClipCel(projectInput: CutProject, nodeId: string, paperTrack
   return setEvent(project, paperTrack, frame, binding.keyId, role)
 }
 
-export function clipCelDropTarget(project: CutProject, nodeId: string, paperTrack: string, processId: string) {
+export function clipSheetKeyAtFrame(project: CutProject, paperTrack: string, frame: number, role: SheetTimingRole) {
+  const event = project.logicalSheet.events.filter(event => event.paperTrack === paperTrack && sheetTimingRoleForEvent(event) === role && event.frame <= frame && ['cell', 'blank'].includes(timingEventValueKind(event))).sort((a, b) => b.frame - a.frame)[0]
+  return event && timingEventValueKind(event) === 'cell' ? project.logicalSheet.keys.find(key => key.keyId === event.keyId) : undefined
+}
+
+/** Explicit material replacement; sheet notation and every exposure stay unchanged. */
+export function assignClipCelToKey(project: CutProject, nodeId: string, keyId: string, processId: string): CutProject {
+  const key = project.logicalSheet.keys.find(key => key.keyId === keyId)
+  if (!key || project.logicalSheet.processTimings && key.processId !== processId) throw new Error('登録する工程・セル番号を選択してください。')
+  const { cel, slot } = clipCelDropTarget(project, nodeId, key.paperTrack, processId)
+  const old = project.bindings.find(binding => binding.slotId === slot.slotId && binding.keyId === keyId)
+  if (old?.clipLayerId === cel.id) return project
+  const binding = { bindingId: old?.bindingId ?? `binding_${crypto.randomUUID()}`, slotId: slot.slotId, keyId, cspCellName: cel.name, clipLayerId: cel.id, assetId: cel.assetId, materialState: 'assigned' as const }
+  return { ...project, bindings: [...project.bindings.filter(item => item.bindingId !== binding.bindingId), binding] }
+}
+
+export function clipCelDropTarget(project: CutProject, nodeId: string, paperTrack: string, processId: string, sheet?: { frame: number; role: SheetTimingRole }) {
   const document = project.clipDocument
   if (!document) throw new Error('CLIPレイヤー構造がありません。')
   if (document.nodes.some(node => node.id === nodeId && (node.kind === 'audio' || node.kind === 'video'))) throw new Error('音声・動画は画像セルとして登録できません。音声は「セリフ音声へ取り込む」を使用してください。')
@@ -299,6 +324,11 @@ export function clipCelDropTarget(project: CutProject, nodeId: string, paperTrac
   const slot = project.cspTrackSlots.find(item => item.paperTrack === paperTrack && item.correctionLayerId === processId)
   const target = document.targets.find(item => item.slotId === slot?.slotId)
   if (!slot || target?.folderId !== cel.parentId) throw new Error('このセルとシート列の登録先が一致しません。登録先の対応を確認してください。')
+  if (sheet && !project.logicalSheet.processTimings) {
+    const event = project.logicalSheet.events.find(event => event.paperTrack === paperTrack && event.frame === sheet.frame && sheetTimingRoleForEvent(event) === sheet.role && timingEventValueKind(event) === 'cell')
+    const assigned = event && project.bindings.find(binding => binding.slotId === slot.slotId && binding.keyId === event.keyId)
+    if (assigned && assigned.clipLayerId !== cel.id && (assigned.clipLayerId || assigned.assetId || assigned.materialState === 'assigned')) throw new Error('この番号には素材が登録済みです。シートの番号とレイヤーを選び「素材を差し替える」を使用してください。')
+  }
   return { cel, slot }
 }
 

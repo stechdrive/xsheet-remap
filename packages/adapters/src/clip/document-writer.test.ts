@@ -11,7 +11,7 @@ import { readLayerPixels } from './layers'
 import { readClipLayerPreview } from './preview'
 import { ensureTrackLabelStorage } from './track-labels'
 import { addClipImages, addOverlayPaperTrack, createDefaultProject, createProjectDocumentFromCutProject, ensureClipDocument } from '@xsheet-remap/core'
-import { selectTimingProcess, suggestClipProcessColumns } from '@xsheet-remap/core'
+import { remapClipTracks, selectTimingProcess, suggestClipProcessColumns } from '@xsheet-remap/core'
 
 const require = createRequire(import.meta.url)
 const seed = new Uint8Array(readFileSync(new URL('./blank.clip', import.meta.url)))
@@ -32,6 +32,21 @@ function save(document: CutGroupProjectDocument, images = {}) { return writeClip
 function change(document: CutGroupProjectDocument, fn: (project: ReturnType<typeof activeCutProjectFromDocument>) => ReturnType<typeof activeCutProjectFromDocument>) { return updateActiveCutProjectInDocument(document, fn(activeCutProjectFromDocument(document))) }
 
 describe('editable CLIP document preservation', () => {
+  it('writes only assigned correction images on the common sheet and reopens their sparse exposures', async () => {
+    let project = ensureClipDocument(createDefaultProject())
+    const base = project.correctionLayers[0].layerId, correction = project.correctionLayers[1].layerId
+    for (let i = 1; i <= 3; i++) project = addClipImages(project, null, [{ name: `scan-${i}.png`, assetId: 'red', imageDataUrl: 'data:image/png;base64,AA==' }], { paperTrack: 'A', frame: 1 + (i - 1) * 4, role: 'action', processId: base })
+    project = addClipImages(project, null, [{ name: 'fix.png', assetId: 'red', imageDataUrl: 'data:image/png;base64,AA==' }], { paperTrack: 'A', frame: 5, role: 'action', processId: correction })
+    project = { ...project, clipDocument: { ...project.clipDocument!, canvas } }
+    const result = await save(createProjectDocumentFromCutProject(project), { red: pixels })
+    const data = await readClip(SQL, result.bytes, 'sparse.clip')
+    const folder = clipImportFolders(data.nodes).find(folder => folder.name === 'A' && folder.path.includes('演出'))!
+    expect(data.layers!.filter(node => node.parentId === folder.id).map(node => node.name)).toEqual(['fix'])
+    expect(data.timelines[0].tracks.find(track => track.layerId === folder.id)!.frames).toEqual([{ frame: 0, value: null }, { frame: 4, value: 'fix' }, { frame: 8, value: null }])
+    const reopened = openClipDocument(data, clipSourceDataUrl(result.bytes), { role: 'action', timelineIds: [data.timelines[0].id], columns: suggestClipProcessColumns(data, clipImportFolders(data.nodes).map(folder => folder.id)) })
+    expect((await save(reopened)).bytes).toEqual(result.bytes)
+  })
+
   it('exports the default process palette and inserts new columns in native stacking order', async () => {
     const project = addOverlayPaperTrack(ensureClipDocument(createDefaultProject()), { paperTrack: 'J', insertAfterPaperTrack: 'I' }).project
     const result = await save(createProjectDocumentFromCutProject({ ...project, clipDocument: { ...project.clipDocument!, canvas } }))
@@ -53,7 +68,7 @@ describe('editable CLIP document preservation', () => {
     const original = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: { red: pixels } })
     const data = await readClip(SQL, original.bytes, 'nested.clip'), folders = clipImportFolders(data.nodes)
     const document = openClipDocument(data, clipSourceDataUrl(original.bytes), { timelineIds: [data.timelines[0].id], role: 'action', columns: suggestClipProcessColumns(data, folders.map(folder => folder.id)) })
-    const added = change(document, project => addOverlayPaperTrack(project, { paperTrack: 'J', insertAfterPaperTrack: 'I' }).project)
+    const added = change(document, project => addOverlayPaperTrack(project, { paperTrack: 'J', insertAfterPaperTrack: 'A' }).project)
     const parsed = await readClip(SQL, (await save(added)).bytes, 'added.clip')
     expect(parsed.layers!.filter(node => data.layers!.some(original => original.id === node.id))).toEqual(data.layers)
     for (const folder of folders) {
@@ -71,6 +86,9 @@ describe('editable CLIP document preservation', () => {
     const columns = suggestClipProcessColumns(data, folders.map(folder => folder.id))
     const document = openClipDocument(data, clipSourceDataUrl(original.bytes), { timelineIds: [data.timelines[0].id], role: 'action', columns })
     expect((await save(document)).bytes).toEqual(original.bytes)
+    const [first, second] = document.clipDocument!.targets
+    const remapped = remapClipTracks(document, [{ folderId: first.folderId, slotId: second.slotId }, { folderId: second.folderId, slotId: first.slotId }])
+    expect((await save(remapped)).bytes).toEqual(original.bytes)
     const project = activeCutProjectFromDocument(document), process = project.correctionLayers.find(layer => layer.label === 'xsheet-remap／LO／作画')!
     const selected = selectTimingProcess(project, process.layerId)
     const changed = updateActiveCutProjectInDocument(document, setEvent(selected, 'A', 13, selected.logicalSheet.events[0].keyId, 'action'))

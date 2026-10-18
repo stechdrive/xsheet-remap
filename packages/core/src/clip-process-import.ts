@@ -1,7 +1,6 @@
 import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, updateActiveCutProjectInDocument } from './project-documents'
 import { clipImportFolders, type ClipImportColumn, type ClipImportData, type ClipImportOptions } from './clip-import'
 import { createDefaultCspTrackSlots } from './project-shared'
-import { alphabeticTrackLabel } from './sheet-template'
 import { selectTimingProcess } from './process-timing'
 import { MAX_CORRECTION_LAYERS } from './project-constants'
 import { NULL_CELL_KEY_ID, type CorrectionLayer, type CutGroupProjectDocument } from './types'
@@ -16,16 +15,16 @@ export function clipImportProcesses(columns: ClipImportColumn[]): CorrectionLaye
 /** Full ancestry is only a suggested display group, never a fixed production taxonomy. */
 export function suggestClipProcessColumns(data: ClipImportData, selectedIds: string[]): ClipImportColumn[] {
   const selected = new Set(selectedIds), folders = clipImportFolders(data.nodes).filter(node => selected.has(node.id))
-  const aliases = new Map<string, string>(), used = new Set<string>()
-  const preferred = new Set(folders.filter(node => /^[A-Za-z]{1,2}$/.test(node.name)).map(node => node.name.toUpperCase()))
+  const aliases = new Map<string, string>(), used = new Map<string, string>(), occupied = new Set<string>()
+  const normalize = (name: string) => name.normalize('NFKC').toUpperCase().replace(/[\s\u200b]/g, '')
   return folders.map(folder => {
-    let name = aliases.get(folder.name)
-    if (!name) {
-      name = /^[A-Za-z]{1,2}$/.test(folder.name) ? folder.name.toUpperCase() : ''
-      for (let i = 0; !name; i++) { const candidate = alphabeticTrackLabel(i); if (!used.has(candidate) && !preferred.has(candidate)) name = candidate }
-      aliases.set(folder.name, name); used.add(name)
-    }
-    return { layerId: folder.id, name, process: folder.path.slice(0, -1).join('／') || '最上位' }
+    const process = folder.path.slice(0, -1).join('／') || '最上位'
+    const base = aliases.get(folder.name) ?? (normalize(folder.name) ? folder.name.trim() : 'セル')
+    let name = base
+    for (let suffix = 2; occupied.has(JSON.stringify([process, normalize(name)])) || used.has(normalize(name)) && used.get(normalize(name)) !== folder.name; suffix++) name = `${base} (${suffix})`
+    if (!aliases.has(folder.name)) aliases.set(folder.name, name)
+    occupied.add(JSON.stringify([process, normalize(name)])); used.set(normalize(name), folder.name)
+    return { layerId: folder.id, name, process }
   })
 }
 
@@ -48,9 +47,9 @@ export function importClipProcessTimelines(document: CutGroupProjectDocument, da
   const correctionLayers = clipImportProcesses(columns)
   if (!correctionLayers.length) return document
   const trackNames = [...new Set(columns.map(column => column.name))]
-  const paperTracks = [...trackNames, ...project.logicalSheet.paperTracks.map(track => track.paperTrack).filter(name => !trackNames.includes(name))].map((paperTrack, order) => ({ paperTrack, label: paperTrack, order, source: 'template' as const }))
+  const paperTracks = trackNames.map((paperTrack, order) => ({ paperTrack, label: paperTrack, order, source: 'template' as const }))
   project = { ...project, productionStages: [{ stageId: 'clip_groups', label: 'CLIP', order: 0 }], correctionLayers,
-    logicalSheet: { ...project.logicalSheet, paperTracks, keys: [], events: [], processTimings: { activeProcessId: correctionLayers[0]!.layerId, inactive: {} } } }
+    logicalSheet: { ...project.logicalSheet, paperTracks, keys: [], events: [], processTimings: timelines.length ? { activeProcessId: correctionLayers[0]!.layerId, inactive: {} } : undefined } }
   project = { ...project, cspTrackSlots: createDefaultCspTrackSlots(paperTracks, project.productionStages, correctionLayers) }
   project = { ...project, exportProfiles: project.exportProfiles.map(profile => ({ ...profile, slotIds: project.cspTrackSlots.map(slot => slot.slotId) })) }
   let next = updateActiveCutProjectInDocument(document, project)

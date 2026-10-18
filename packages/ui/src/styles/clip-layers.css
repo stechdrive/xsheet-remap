@@ -67,6 +67,14 @@
 .clipSheetMapping select { flex: 1; width: 40px; padding: 2px; }
 .clipTargetPath { margin: 5px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #52675a; font-size: 11px; }
 .clipProcessEditing { margin: 5px 0; font-size: 11px; overflow-wrap: anywhere; }
+.clipCelAssignment { display: grid; gap: 5px; margin: 6px 0; padding: 6px; min-width: 0; }
+.clipCelAssignment label { display: flex; gap: 4px; }
+.clipCelAssignment select { min-width: 0; flex: 1; }
+.clipCelAssignment small { overflow-wrap: anywhere; line-height: 1.5; }
+.clipCorrespondenceDialog table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.clipCorrespondenceDialog td, .clipCorrespondenceDialog th { padding: 6px; text-align: left; overflow-wrap: anywhere; border-bottom: 1px solid #bcc8bf; }
+.clipCorrespondenceDialog th:first-child { width: 40%; }
+.clipCorrespondenceDialog select { width: 100%; min-width: 0; }
 .clipProcessComparison { padding: 6px; border: 1px solid #bd964e; background: #fff5dc; font-size: 11px; }
 .clipProcessComparison > label { display: flex; align-items: center; gap: 4px; }
 .clipProcessComparison p { margin: 5px 0; }

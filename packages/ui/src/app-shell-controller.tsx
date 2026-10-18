@@ -1,4 +1,5 @@
 import { isCompositionKey } from './compositionKeyboard'
+import { remapClipTracks, type ClipTrackCorrespondence } from '@xsheet-remap/core'
 import { applySheetLabelNormalizationPlan, updateSheetKeyDisplayLabel, type SheetLabelNormalizationPlan } from '@xsheet-remap/core'
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
@@ -71,7 +72,7 @@ type PaperSheetEditContext = { document: object; cutId: string; revisionId: stri
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
-    history, setHistory, selectWorkspaceProcess, commitWorkspace, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole: storedRecognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
@@ -731,6 +732,15 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const nextProject = reconcileDialogueAudioAfterSheetRangeChange(sourceProject, transformedProject)
     if (nextProject !== sourceProject) commitProject(nextProject)
     return nextProject
+  }
+
+  function handleClipCorrespondence(assignments: ClipTrackCorrespondence[]) {
+    const source = updateActiveCutProjectInDocument(projectDocument, commitTimingDraft(false), { sheetTemplate: template })
+    const next = remapClipTracks(source, assignments)
+    if (next === source) return
+    projectRef.current = commitProjectDocument(next, activeCorrectionLayerId)
+    handleClearSelection()
+    setTimingClipboard(null)
   }
 
   function switchPanel(nextPanel: Panel) { commitTimingDraft(false); setPanelView(nextPanel) }
@@ -2365,7 +2375,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
-    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand,
+    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand, handleClipCorrespondence,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,

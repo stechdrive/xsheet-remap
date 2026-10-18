@@ -75,6 +75,7 @@ export function ClipImportDialog({ file, onClose, onImport }: { file: File; docu
         {!data && !error && <p role="status">CLIPのフォルダーとタイムラインを確認しています…</p>}
         <p>現在の作業を閉じて、このCLIPを開きます。レイヤー構造と画像を保持し、シートの下敷き・入力・Undo履歴はリセットします。</p>
         {data && !data.timelines.length && <p>タイムラインのないCLIPです。レイヤーを保持して開き、必要なセル列を後から対応づけられます。</p>}
+        {data && !timelineIds.length && <p>タイミングを取り込まず共通シートを作ります。素材は工程別に登録できます。元のCLIPタイムラインは保持します。</p>}
         {data && timeline && <>
           <fieldset><legend>読み込むタイムライン</legend>{data.timelines.map(item => <label className="clipCutChoice" key={item.id}><input type="checkbox" checked={timelineIds.includes(item.id)} onChange={event => { const checked = event.currentTarget.checked; setTimelineIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); setTimelineId(item.id) }} />{item.name}<span>{item.fps}fps / {item.endFrame - item.startFrame}F</span></label>)}{timelineIds.length > 1 && <p>各タイムラインを兼用カットとして読み込み、セルを共有します。フォルダーと列名の選択は共通です。</p>}</fieldset>
           <label className="timingExportPathField"><span>確認するタイムライン</span><select value={timelineId} onChange={event => {
@@ -86,7 +87,7 @@ export function ClipImportDialog({ file, onClose, onImport }: { file: File; docu
           {timelineIds.length === 1 && <p>読み込み後：{settings!.fps}fps・{settings!.durationFrames}フレーム</p>}
           {timelineIds.length === 1 && settings!.fps !== project.logicalSheet.fps && <p>新しいシートは{settings!.fps}fpsで作成します。</p>}
           <fieldset><legend>読み込むフォルダー</legend>
-            <p>同じセル列に、異なる表示グループのフォルダーを対応づけられます。グループ名は自由に変更できます。CLIPの階層・名前と各フォルダーのタイミングは保持します。</p>
+            <p>同名フォルダーには同じセル列を候補にします。タイミングは各フォルダーのまま保持し、自動同期しません。重複する候補は列名に枝番を付けます。列名・表示グループはここでも、読み込み後の「CLIPとシートの対応」でも変更できます。</p>
             <datalist id="clip-import-processes">{[...new Set(columns.map(column => column.process))].map(name => <option key={name} value={name} />)}</datalist>
             <div className="clipImportSelectionActions"><button type="button" onClick={() => setSelected(folders.filter(node => !timeline.tracks.find(track => track.layerId === node.id)?.error).map(node => node.id))}>すべて選択</button><button type="button" onClick={() => setSelected([])}>すべて解除</button></div>
             {folders.length ? <ul className="clipImportTree">{data.nodes.map(renderNode)}</ul> : <p>アニメーションフォルダーがありません。</p>}

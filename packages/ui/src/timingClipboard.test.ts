@@ -34,7 +34,8 @@ function boundDrawing(project: CutProject, role: SheetTimingRole, track: string,
 
 describe('timing clipboard across ACTION, CELL and additional columns', () => {
   it('copies notation into another process with separate keys and never changes the source timing', () => {
-    const initial = ensureClipDocument(createDefaultProject()), base = initial.logicalSheet.processTimings!.activeProcessId, other = initial.correctionLayers.find(layer => layer.layerId !== base)!.layerId
+    const initial = ensureClipDocument(createDefaultProject()), base = initial.correctionLayers[0].layerId, other = initial.correctionLayers.find(layer => layer.layerId !== base)!.layerId
+    initial.logicalSheet.processTimings = { activeProcessId: base, inactive: {} }
     const source = createOrSetEvent(initial, 'A', 1, 'cell').project
     const clipboard = buildTimingClipboard(source, range('cell', ['A'], 1, 1), 'copy')
     const target = selectTimingProcess(source, other)

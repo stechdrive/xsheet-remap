@@ -50,12 +50,12 @@ describe('CLIP import selection', () => {
     const callbacks = show()
     const parent = await screen.findByLabelText('原画を読み込む') as HTMLInputElement
     expect(parent.checked).toBe(true)
-    expect((screen.getByLabelText('原画 / 長い名前のセル列名') as HTMLInputElement).value).toBe('B')
+    expect((screen.getByLabelText('原画 / 長い名前のセル列名') as HTMLInputElement).value).toBe('長い名前')
     fireEvent.click(screen.getByLabelText('原画 / Aを読み込む'))
     expect(parent.indeterminate).toBe(true)
     fireEvent.click(parent)
     expect(parent.checked).toBe(true)
-    fireEvent.change(screen.getByLabelText('原画 / Aのセル列名'), { target: { value: 'B' } })
+    fireEvent.change(screen.getByLabelText('原画 / Aのセル列名'), { target: { value: '長い名前' } })
     expect(screen.getByRole('alert').textContent).toContain('重複')
     expect((screen.getByRole('button', { name: 'タイムシートに読み込む' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
@@ -73,7 +73,7 @@ describe('CLIP import selection', () => {
     expect(doc.cuts).toHaveLength(2)
     const first = activeCutProjectFromDocument(doc)
     const second = activeCutProjectFromDocument({ ...doc, activeCutId: doc.cuts[1].cutId })
-    expect(first.logicalSheet.events[0]).toMatchObject({ paperTrack: 'B', frame: 1, sheetRole: 'cell' })
+    expect(first.logicalSheet.events[0]).toMatchObject({ paperTrack: '長い名前', frame: 1, sheetRole: 'cell' })
     expect(second.logicalSheet.events[0]).toMatchObject({ keyId: first.logicalSheet.events[0].keyId, frame: 7, sheetRole: 'cell' })
   })
   it('lets the user exclude an unreadable selected folder without clearing valid selections', async () => {

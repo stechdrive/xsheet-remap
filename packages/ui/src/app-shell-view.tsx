@@ -19,6 +19,7 @@ import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
 import { ClipExportDialog } from './ClipExportDialog'
 import { ClipImportDialog } from './ClipImportDialog'
+import { ClipCorrespondenceDialog } from './ClipCorrespondenceDialog'
 import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
@@ -49,7 +50,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
-    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand,
+    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand, handleClipCorrespondence,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
@@ -82,6 +83,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
   const [templateDraftForMount, setTemplateDraftForMount] = useState<TemplateWorkspaceDraftState | null>(null)
   const [templateHistoryControls, setTemplateHistoryControls] = useState<TemplateHistoryControls | null>(null)
   const correctedSheetImageExportInFlight = useRef(false)
+  const [clipCorrespondenceOpen, setClipCorrespondenceOpen] = useState(false)
   const [correctedSheetImageExportSaving, setCorrectedSheetImageExportSaving] = useState<CorrectedSheetImageExportFormat | null>(null)
   const dialogueAudioExportInFlight = useRef(false)
   const [dialogueAudioExportSaving, setDialogueAudioExportSaving] = useState<DialogueAudioTrackExportFormat | null>(null)
@@ -464,6 +466,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onRegisteredCellAssign={handleAssignRegisteredCell}
             onClipLayerAssign={handleAssignClipLayer}
             onClipProjectChange={next => runProjectCommand(() => next)}
+            onClipCorrespondence={() => setClipCorrespondenceOpen(true)}
             onClipFiles={(files, parentId, beforeId) => void handleClipImageFiles(files, parentId, null, beforeId)}
             onMoveTimelineEvent={handleMoveTimelineEvent}
             onAnnotation={handleAnnotation}
@@ -585,6 +588,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
         if (project.clipDocument && !project.clipDocument.source && JSON.stringify(project.clipDocument.canvas) !== JSON.stringify(canvas)) runProjectCommand(current => ({ ...current, clipDocument: { ...current.clipDocument!, canvas } }))
       }} />}
       {clipImportFile && <ClipImportDialog file={clipImportFile} document={projectDocumentSnapshot} onClose={() => setClipImportFile(null)} onImport={handleImportClip} />}
+      {clipCorrespondenceOpen && project.logicalSheet.processTimings && <ClipCorrespondenceDialog key={project.projectId} document={projectDocumentSnapshot} onClose={() => setClipCorrespondenceOpen(false)} onApply={handleClipCorrespondence} />}
 
       {timingExportDialog && timingExportDialog.kind !== 'clip' && (timingExportPlan || timingExportDialog.kind === 'ae-jsx' || timingExportDialog.kind === 'ae-send') && (
         <TimingExportDialog

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { addClipLayers, clipCelRoot, clipEffectiveCel, clipNodePath, createClipNode, deleteClipLayer, moveClipLayer, setClipTarget, unsetClipTarget, updateClipLayer, type ClipLayerNode, type CutProject, type SheetHit } from '@xsheet-remap/core'
+import { addClipLayers, allProcessEvents, clipCelRoot, clipEffectiveCel, clipNodePath, createClipNode, deleteClipLayer, moveClipLayer, setClipTarget, unsetClipTarget, updateClipLayer, timingForProcess, type ClipLayerNode, type CutProject, type SheetHit } from '@xsheet-remap/core'
 import { clipSourceBytes, previewClipLayer, isTauriHost } from '@xsheet-remap/adapters'
 import { collectAssetFilesFromDrop } from './assetFiles'
 import { createStackGuideLabel } from '@xsheet-remap/core'
@@ -10,6 +10,7 @@ import { ClipLayerAppearance, clipBlendLabel } from './ClipLayerAppearance'
 import { ClipLayerIcon, clipLayerKindLabel } from './ClipLayerIcons'
 import { ClipAudioImport } from './ClipAudioImport'
 import { ClipProcessComparison } from './ClipProcessComparison'
+import { ClipCelAssignment } from './ClipCelAssignment'
 import { ProcessSettingsDialog } from './ProcessSettingsDialog'
 import { updateCorrectionLayers } from '@xsheet-remap/core'
 import { clipLayerDropAtElement, clipLayerFileDropAllowed, subscribeNativeLayerHover, type ClipLayerDropTarget } from './clipLayerDrop'
@@ -30,6 +31,7 @@ export interface ClipLayerPanelProps {
   onFilterProcess: (enabled: boolean) => void
   onAddColumn: () => void
   onNormalizeNames: () => void
+  onOpenCorrespondence?: () => void
   onAddGuide: (kind: 'background' | 'book' | 'memo') => void
 }
 
@@ -59,7 +61,10 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   const targetLabel = target ? clipNodePath(document, target.folderId) : selectedSlot && document.deletedTargetSlotIds?.includes(selectedSlot.slotId) ? 'フォルダー削除済み（CLIP出力から除外）' : '未設定'
   const cellPath = pathDraft && pathDraft.slotId === target?.slotId ? pathDraft.value : target?.cellPath?.join('/') ?? ''
   const previewRequest = useMemo(() => ({ selected, document, sheet: project.logicalSheet, cutId: props.activeCutId, hit: props.selectedHit }), [selected, document, project.logicalSheet, props.activeCutId, props.selectedHit])
-  const used = useMemo(() => new Set(project.bindings.filter(binding => project.logicalSheet.events.some(event => event.keyId === binding.keyId)).flatMap(binding => binding.clipLayerId ? [binding.clipLayerId] : [])), [project.bindings, project.logicalSheet.events])
+  const used = useMemo(() => {
+    const keys = new Set(allProcessEvents(project.logicalSheet).map(event => event.keyId))
+    return new Set(project.bindings.filter(binding => keys.has(binding.keyId)).flatMap(binding => binding.clipLayerId ? [binding.clipLayerId] : []))
+  }, [project.bindings, project.logicalSheet])
   const children = useMemo(() => {
     const result = new Map<string | null, ClipLayerNode[]>()
     for (const node of document.nodes) result.set(node.parentId, [...result.get(node.parentId) ?? [], node])
@@ -111,12 +116,12 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
           const mapped = document.targets.find(item => item.folderId === node.id)
           const slot = project.cspTrackSlots.find(item => item.slotId === mapped?.slotId)
           const frame = props.selectedHit?.frame ?? project.logicalSheet.frameOrigin
-          const event = project.logicalSheet.events.filter(item => item.paperTrack === slot?.paperTrack && item.frame <= frame && item.sheetRole === (props.selectedHit?.role === 'cell' ? 'cell' : 'action')).sort((a, b) => b.frame - a.frame)[0]
+          const event = timingForProcess(project.logicalSheet, slot?.correctionLayerId ?? '').events.filter(item => item.paperTrack === slot?.paperTrack && item.frame <= frame && item.sheetRole === (props.selectedHit?.role === 'cell' ? 'cell' : 'action') && ['cell', 'blank'].includes(item.valueKind)).sort((a, b) => b.frame - a.frame)[0]
           const binding = event && project.bindings.find(item => item.keyId === event.keyId && item.slotId === slot?.slotId)
           const sourceId = document.timelineIds?.[props.activeCutId]
           const nativeFrames = document.sourceTimelines?.find(item => item.id === sourceId)?.tracks.find(item => item.layerId === node.id)?.frames
           const nativeValue = nativeFrames?.filter(item => item.frame <= frame - project.logicalSheet.frameOrigin).at(-1)?.value
-          const cel = clipEffectiveCel(document, node.id, event ? binding?.cspCellName ?? '' : nativeValue ?? '')
+          const cel = clipEffectiveCel(document, node.id, mapped ? binding?.cspCellName ?? '' : nativeValue ?? '')
           if (!cel) throw new Error('このフレームにセル指定はありません。')
           node = cel
         }
@@ -279,9 +284,11 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
         <label>セル列<select aria-label="登録先セル列" value={paperTrack} onChange={event => setPaperTrack(event.target.value)}>{project.logicalSheet.paperTracks.map(track => <option key={track.paperTrack} value={track.paperTrack}>{track.label}</option>)}</select></label>
       </div>
       <p className="clipTargetPath" title={targetLabel}>登録先：{targetLabel}</p>
-      {project.logicalSheet.processTimings && <p className="clipProcessEditing">表示・編集：{project.correctionLayers.find(process => process.layerId === props.activeProcessId)?.label}（独立したタイミング）</p>}
+      <p className="clipProcessEditing">{project.logicalSheet.processTimings ? `CLIPからのシート：${project.correctionLayers.find(process => process.layerId === props.activeProcessId)?.label}のタイミングを編集。同じ列名でも自動同期しません。` : '共通シート：番号とタイミングは全工程共通。素材は選択工程へ登録します。'}</p>
       {project.logicalSheet.processTimings && <button type="button" disabled={props.disabled} onClick={() => setProcessSettingsOpen(true)}>グループ設定…</button>}
+      {project.logicalSheet.processTimings && props.onOpenCorrespondence && <button type="button" disabled={props.disabled} onClick={props.onOpenCorrespondence}>CLIPとシートの対応…</button>}
       {project.logicalSheet.processTimings && props.filterProcess && <ClipProcessComparison project={project} onProcessChange={props.onProcessChange} />}
+      <ClipCelAssignment key={`${selectedId}:${props.activeProcessId}:${props.selectedHit?.paperTrack}:${props.selectedHit?.frame}:${props.selectedHit?.role}`} project={project} layerId={selectedId ?? undefined} processId={props.activeProcessId} hit={props.selectedHit} onChange={props.onChange} disabled={props.disabled} />
       <details className="clipMappingDetails"><summary>登録先・シート表示を設定</summary>
         <fieldset className="clipLayerTargets" disabled={props.disabled}>
           <label>セル内フォルダー<input aria-label="セル内の画像登録先" placeholder="例：作監（空欄はセル直下）" value={cellPath} onChange={event => setPathDraft({ slotId: target?.slotId, value: event.target.value })} /></label>

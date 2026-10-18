@@ -30,6 +30,7 @@ import {
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import type { SheetSvgPageSize } from './sheetSvgTextGeometry'
 import { gridRoleLabel } from './templateEditing'
+import { columnLabelLayout } from './columnLabelLayout'
 import { resolveTemplateFormCellMemoTarget, type TemplateMemoTargetRef } from './templateMemoTargets'
 
 export type TemplateGridHeaderColumnRenderModel = {
@@ -1064,14 +1065,10 @@ function buildTemplateGridHeaderRenderModel(
     labelX: rect.x + rect.w / 2,
     labelY: y + headerHeight / 2,
     labelFontSizePx: templateGridHeaderFontSizePx(template),
-    columns: layout.columns.map(column => ({
-      columnId: column.columnId,
-      label: region.grid?.header?.showColumnLabels === false ? '' : column.label,
-      x: column.x + column.w / 2,
-      y: rect.y - columnBaselineOffset,
-      fontSizePx: templateGridColumnFontSizePx(template),
-      dominantBaseline: 'alphabetic',
-    })),
+    columns: layout.columns.map(column => {
+      const label = columnLabelLayout(region.grid?.header?.showColumnLabels === false ? '' : column.label, column.w * pageSize.widthPx, templateGridColumnFontSizePx(template))
+      return { columnId: column.columnId, label: label.text, x: column.x + column.w / 2, y: rect.y - columnBaselineOffset, fontSizePx: label.fontSizePx, dominantBaseline: 'alphabetic' }
+    }),
     columnHeaderRect: { x: rect.x, y: rect.y - columnHeight, w: rect.w, h: columnHeight },
     columnBoundaries: [
       ...layout.columns.map(column => column.x),
@@ -1184,13 +1181,14 @@ function buildBottomTrackLabelRenderModels(
   )
   return layout.columns.flatMap(column => {
     const text = (column.paperTrack ?? column.label).trim()
+    const fitted = columnLabelLayout(text, column.w * pageSize.widthPx, fontSizePx)
     return text
       ? [{
           key: `bottom-track-${column.columnId}`,
-          text,
+          text: fitted.text,
           x: column.x + column.w / 2,
           y: labelY,
-          fontSizePx,
+          fontSizePx: fitted.fontSizePx,
           opacity: 0.55,
         }]
       : []

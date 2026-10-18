@@ -280,6 +280,7 @@ export function SheetPanel(props: {
   onRegisteredCellAssign: (keyId: string, hit: SheetHit | null) => void
   onClipLayerAssign?: (layerId: string, hit: SheetHit | null) => void
   onClipProjectChange?: (project: CutProject) => void
+  onClipCorrespondence?: () => void
   onClipFiles?: (files: File[], parentId: string | null, beforeId?: string) => void
   onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit, sourceRange?: SheetRangeSelection) => void
   onAnnotation: (stroke: AnnotationStroke) => void
@@ -1405,6 +1406,7 @@ export function SheetPanel(props: {
               activeSheetRevisionId={props.activeSheetRevisionId}
               activeProcessId={props.activeCorrectionLayerId} onProcessChange={props.setActiveCorrectionLayerId}
               onChange={props.onClipProjectChange!} onFiles={props.onClipFiles!} onSelectKey={props.onKeySelect}
+              onOpenCorrespondence={props.onClipCorrespondence}
               selectedHit={props.selectedHit} disabled={props.sheetRevisions.find(revision => revision.revisionId === props.activeSheetRevisionId)?.protected}
               filterProcess={filterClipProcess} onFilterProcess={enabled => setFilteredClipProjectId(enabled ? props.project.projectId : null)}
               onAddColumn={() => props.onAddOverlayPaperTrack({ cspPlacement: 'cell-top' })}

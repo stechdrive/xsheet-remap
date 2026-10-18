@@ -578,7 +578,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       let error = ''
       try {
         if (!hit?.paperTrack || !props.onClipLayerAssign || !props.clipProcessId || !['action', 'cell'].includes(sheetRoleForHit(hit))) throw new Error('セル列へドロップしてください。')
-        clipCelDropTarget(props.project, payload.layerId, hit.paperTrack, props.clipProcessId)
+        clipCelDropTarget(props.project, payload.layerId, hit.paperTrack, props.clipProcessId, { frame: hit.frame, role: hit.role === 'cell' ? 'cell' : 'action' })
       } catch (reason) { error = reason instanceof Error ? reason.message : String(reason) }
       if (target) {
         setInternalDragDropValidity(error ? 'invalid' : 'valid')

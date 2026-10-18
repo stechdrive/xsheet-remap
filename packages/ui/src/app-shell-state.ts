@@ -90,8 +90,8 @@ export function useAppShellState(appKind: MainAppKind) {
   const setProjectDocument = useCallback<Dispatch<SetStateAction<CutGroupProjectDocument>>>(update => {
     setWorkspaceHistory(current => ({ ...current, present: { ...current.present, document: typeof update === 'function' ? update(current.present.document) : update } }))
   }, [])
-  const commitProjectDocument = useCallback((document: CutGroupProjectDocument) => {
-    const project = activeCutProjectFromDocument(document)
+  const commitProjectDocument = useCallback((document: CutGroupProjectDocument, processId?: string) => {
+    const project = selectTimingProcess(activeCutProjectFromDocument(document), processId ?? '')
     setWorkspaceHistory(current => ({ past: [...current.past, current.present], present: { project, template: document.sheetTemplate, document }, future: [] }))
     return project
   }, [])

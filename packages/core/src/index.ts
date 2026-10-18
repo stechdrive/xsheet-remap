@@ -538,6 +538,7 @@ export * from './clip-import'
 export * from './clip-document'
 export * from './clip-document-open'
 export * from './process-timing'
+export * from './clip-correspondence'
 export * from './clip-process-import'
 export {
   buildCspLayerTree,

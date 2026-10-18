@@ -19,9 +19,9 @@ const MAX_FILES = 1000
 // CanvasKit adds one 7 MiB runtime; keep it content-revisioned alongside VAD.
 const MAX_TOTAL_BYTES = 56 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
-// Independent CLIP process timing, import mapping and comparison UI bring the
-// measured app shell to 4,297,253 bytes (4.10 MiB). Reserve 11.5 KiB of headroom.
-const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 112 * 1024
+// Common-sheet material assignment, reversible CLIP correspondence and bounded
+// column labels bring the measured shell to 4,311,175 bytes. Keep ~14 KiB headroom.
+const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 128 * 1024
 const MAX_RUNTIME_WASM_BYTES = 25 * 1024 * 1024
 const MAX_RUNTIME_WASM_FILES = 3
 const allowedExtensions = new Set([

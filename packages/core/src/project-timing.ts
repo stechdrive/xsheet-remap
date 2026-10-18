@@ -370,7 +370,7 @@ export function updateKey(project: CutProject, keyId: string, updates: { display
   if (updates.displayLabel) {
     for (const slot of next.cspTrackSlots.filter(item => item.paperTrack === key.paperTrack)) {
       const binding = next.bindings.find(item => item.slotId === slot.slotId && item.keyId === keyId)
-      if (binding && binding.cspCellName === defaultCspCellName(key.displayLabel, slot.paperTrack)) {
+      if (binding && !binding.clipLayerId && binding.cspCellName === defaultCspCellName(key.displayLabel, slot.paperTrack)) {
         next = upsertBinding(next, {
           slotId: slot.slotId,
           keyId,

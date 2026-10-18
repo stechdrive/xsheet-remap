@@ -10,7 +10,7 @@ import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assi
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
 import { projectDocumentsEqual } from './projectDocumentEquality';
-import { addClipImages, bindClipCel, ensureClipDocument, synchronizeClipBindings, createClipNode, addClipLayers, setClipTarget, updateClipLayer } from '@xsheet-remap/core'
+import { addClipImages, bindClipCel, ensureClipDocument, synchronizeClipBindings, updateClipLayer } from '@xsheet-remap/core'
 import { clipImageDataUrl } from './clipImageImport'
 import { updateCutMetadata } from './cutMetadata';
 import { uiText } from './i18n';
@@ -1701,14 +1701,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         templateId: template.templateId,
         sheetRole: createInput.sheetRole ?? (cspPlacement === 'cell-top' ? 'action' : 'cell'),
       })
-      let next = created.project
-      if (next.clipDocument) for (const slot of next.cspTrackSlots.filter(item => !project.cspTrackSlots.some(old => old.slotId === item.slotId))) {
-        const process = next.correctionLayers.find(item => item.layerId === slot.correctionLayerId)
-        const parent = next.clipDocument!.nodes.find(item => item.id === 'process:' + process?.layerId)
-        const folder = createClipNode(slot.paperTrack, 'animation', parent?.id ?? null)
-        next = setClipTarget(addClipLayers(next, [folder]), slot.slotId, folder.id)
-      }
-      commitProject(next)
+      commitProject(created.project)
     } catch (error) {
       window.alert(errorMessage(error))
     }

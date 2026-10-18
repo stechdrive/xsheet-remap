@@ -7,6 +7,7 @@ import { DEFAULT_CSP_CELL_NAME_POLICY, ROOT_ASSET_BIN_ID } from './project-const
 import { createEmptySheetFormData } from './sheet-form-data'
 import { mapInactiveProcessTimings, selectTimingProcess, timingForProcess } from './process-timing'
 import { replaceTimedRangeCues, timelineLanesForLayout } from './timed-range'
+import { addClipPaperTrackFolders, reorderClipPaperTrackFolders } from './clip-document'
 
 export interface CreateProjectOptions {
   projectId?: string
@@ -359,10 +360,15 @@ export function addOverlayPaperTrack(
   } = {},
 ): { project: CutProject; paperTrack: PaperTrack } {
   const name = uniquePaperTrackName(project, input.paperTrack ?? nextOverlayPaperTrackName(project))
-  const insertAfterPaperTrack = input.insertAfterPaperTrack && project.logicalSheet.paperTracks.some(track => track.paperTrack === input.insertAfterPaperTrack)
-    ? input.insertAfterPaperTrack
+  const reference = project.logicalSheet.paperTracks.find(track => track.paperTrack === input.insertAfterPaperTrack)
+  const insertAfterPaperTrack = reference
+    ? reference.source === 'overlay' ? reference.exportPlacement?.insertAfterPaperTrack : reference.paperTrack
     : nearestTemplatePaperTrackBeforeOverlay(project, input.snapIndex ?? 0)
-  const orderInGap = input.orderInGap ?? nextOverlayOrderInGap(project, insertAfterPaperTrack)
+  const referenceOrder = reference?.exportPlacement?.orderInGap ?? 0
+  const followingOrder = Math.min(referenceOrder + 1, ...project.logicalSheet.paperTracks
+    .filter(track => track.source === 'overlay' && track.exportPlacement?.insertAfterPaperTrack === insertAfterPaperTrack && (track.exportPlacement?.orderInGap ?? 0) > referenceOrder)
+    .map(track => track.exportPlacement!.orderInGap!))
+  const orderInGap = input.orderInGap ?? (reference?.source === 'overlay' ? (referenceOrder + followingOrder) / 2 : nextOverlayOrderInGap(project, insertAfterPaperTrack))
   const paperTrack: PaperTrack = {
     paperTrack: name,
     label: input.label?.trim() || name,
@@ -384,7 +390,7 @@ export function addOverlayPaperTrack(
     normalizeStackGuides: true,
   })
   const createdTrack = projectWithTrack.logicalSheet.paperTracks.find(track => track.paperTrack === paperTrack.paperTrack) ?? paperTrack
-  return { project: projectWithTrack, paperTrack: createdTrack }
+  return { project: addClipPaperTrackFolders(projectWithTrack, createdTrack.paperTrack), paperTrack: createdTrack }
 }
 
 export function updatePaperTrack(
@@ -449,7 +455,10 @@ export function updatePaperTrack(
     filterRemovedTracks: false,
     normalizeStackGuides: true,
   })
-  return next
+  const placement = next.logicalSheet.paperTracks.find(track => track.paperTrack === nextName)?.exportPlacement
+  const stackChanged = placement?.insertAfterPaperTrack !== existing.exportPlacement?.insertAfterPaperTrack
+    || placement?.orderInGap !== existing.exportPlacement?.orderInGap
+  return updates.exportPlacement && stackChanged ? reorderClipPaperTrackFolders(next, nextName) : next
 }
 
 export function deleteOverlayPaperTrack(project: CutProject, paperTrackName: PaperTrackName): CutProject {
@@ -474,6 +483,11 @@ function rebuildProjectPaperTrackSlots(
   const allowedSlotIds = new Set(cspTrackSlots.map(slot => slot.slotId))
   return {
     ...project,
+    clipDocument: project.clipDocument ? {
+      ...project.clipDocument,
+      targets: project.clipDocument.targets.filter(target => allowedSlotIds.has(target.slotId)),
+      deletedTargetSlotIds: project.clipDocument.deletedTargetSlotIds?.filter(id => allowedSlotIds.has(id)),
+    } : undefined,
     logicalSheet: {
       ...project.logicalSheet,
       paperTracks,

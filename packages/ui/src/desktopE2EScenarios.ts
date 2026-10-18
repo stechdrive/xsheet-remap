@@ -106,7 +106,7 @@ export function buildFullDefaultA3Scenario(fileRefs: FileRef[], renameResults: N
     ['layer_enshutsu', 'A1_e.png'],
     ['layer_kantoku', 'A1_k.png'],
     ['layer_sakkan', 'A1_s.png'],
-    ['layer_ryouri', 'A1_y.png'],
+    ['layer_other', 'A1_y.png'],
     ['layer_sousakkan', 'A1_ss.png'],
   ] as const) {
     project = bindScenarioAsset(project, a1.key, layerId, requireAsset(assets, assetName), assetBaseName(assetName))
@@ -287,7 +287,7 @@ function validateFullDefaultA3Plan(project: CutProject, xdtsText: string): strin
   assertSlotFrame(project, 'A', 'layer_enshutsu', 0, 'A1_e')
   assertSlotFrame(project, 'A', 'layer_kantoku', 0, 'A1_k')
   assertSlotFrame(project, 'A', 'layer_sakkan', 0, 'A1_s')
-  assertSlotFrame(project, 'A', 'layer_ryouri', 0, 'A1_y')
+  assertSlotFrame(project, 'A', 'layer_other', 0, 'A1_y')
   assertSlotFrame(project, 'A', 'layer_sousakkan', 0, 'A1_ss')
   assertSlotFrame(project, 'I', 'layer_sakuga', 30, 'I1')
   assertSlotFrame(project, 'J', 'layer_sakuga', 47, 'J1')
@@ -309,7 +309,7 @@ function validateFullDefaultA3NormalizedPlan(project: CutProject, xdtsText: stri
   assertSlotFrame(project, 'A', 'layer_enshutsu', 0, 'A_01_e')
   assertSlotFrame(project, 'A', 'layer_kantoku', 0, 'A_01_k')
   assertSlotFrame(project, 'A', 'layer_sakkan', 0, 'A_01_s')
-  assertSlotFrame(project, 'A', 'layer_ryouri', 0, 'A_01_y')
+  assertSlotFrame(project, 'A', 'layer_other', 0, 'A_01_o')
   assertSlotFrame(project, 'A', 'layer_sousakkan', 0, 'A_01_ss')
   assertSlotFrame(project, 'J', 'layer_sakuga', 47, 'J_01')
   assertSlotFrame(project, 'K', 'layer_sakkan', 55, 'K_01_s')

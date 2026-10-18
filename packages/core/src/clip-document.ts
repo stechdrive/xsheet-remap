@@ -93,6 +93,11 @@ export function createClipNode(name: string, kind: ClipLayerNode['kind'], parent
   return { id, parentId, name, kind, visible: true, opacity: 1, blendMode: 0 }
 }
 
+const defaultProcessLabelColors: Record<string, string> = {
+  layer_enshutsu: '#fbece6', layer_kantoku: '#dce4f1', layer_sakkan: '#fcf9cf',
+  layer_sousakkan: '#eaf6d5', layer_other: '#ffddaa',
+}
+
 /** Upgrade legacy registration without discarding unused cels or static material. */
 export function ensureClipDocument(project: CutProject): CutProject {
   if (project.clipDocument) return project
@@ -101,7 +106,7 @@ export function ensureClipDocument(project: CutProject): CutProject {
     nodes.push(createClipNode(stage.label, 'folder', null, `stage:${stage.stageId}`))
     for (const process of project.correctionLayers.filter(item => item.stageId === stage.stageId).sort((a, b) => b.order - a.order)) {
       const parentId = `process:${process.layerId}`
-      nodes.push({ ...createClipNode(process.label, 'folder', `stage:${stage.stageId}`, parentId), visible: process.defaultVisible })
+      nodes.push({ ...createClipNode(process.label, 'folder', `stage:${stage.stageId}`, parentId), visible: process.defaultVisible, labelColor: defaultProcessLabelColors[process.layerId] })
       for (const slot of project.cspTrackSlots.filter(item => item.correctionLayerId === process.layerId).sort((a, b) => b.trackNo - a.trackNo)) {
         const folderId = `slot:${slot.slotId}`
         const track = project.logicalSheet.paperTracks.find(item => item.paperTrack === slot.paperTrack)
@@ -131,6 +136,50 @@ export function ensureClipDocument(project: CutProject): CutProject {
     nodes.push(folder, ...unplaced.map(asset => ({ ...createClipNode(asset.displayName.replace(/\.[^.]+$/, ''), 'raster', folder.id, `asset:${asset.assetId}`), assetId: asset.assetId })))
   }
   return { ...project, logicalSheet: !project.logicalSheet.keys.length && !project.logicalSheet.events.length ? { ...project.logicalSheet, processTimings: { activeProcessId: project.correctionLayers.find(layer => layer.role === 'base')?.layerId ?? project.correctionLayers[0]!.layerId, inactive: {} } } : project.logicalSheet, clipDocument: { version: 1, nodes, targets, canvas: { ...DEFAULT_CLIP_CANVAS } } }
+}
+
+/** Insert only the new column. Existing CLIP hierarchy and sibling order remain authoritative. */
+export function addClipPaperTrackFolders(project: CutProject, paperTrack: string): CutProject {
+  return placeClipPaperTrackFolders(project, paperTrack, true)
+}
+
+export function reorderClipPaperTrackFolders(project: CutProject, paperTrack: string): CutProject {
+  return placeClipPaperTrackFolders(project, paperTrack, false)
+}
+
+function placeClipPaperTrackFolders(project: CutProject, paperTrack: string, create: boolean): CutProject {
+  if (!project.clipDocument) return project
+  let next = project
+  for (const slot of project.cspTrackSlots.filter(item => item.paperTrack === paperTrack)) {
+    const document = next.clipDocument!
+    const target = document.targets.find(target => target.slotId === slot.slotId)
+    const current = document.nodes.find(node => node.id === target?.folderId)
+    if (create ? current : !current) continue
+    const neighbors = project.cspTrackSlots.filter(item => item.correctionLayerId === slot.correctionLayerId && item.slotId !== slot.slotId)
+      .sort((a, b) => a.trackNo - b.trackNo)
+      .flatMap(item => {
+        const target = document.targets.find(target => target.slotId === item.slotId)
+        const node = document.nodes.find(node => node.id === target?.folderId)
+        return node && (!current || node.parentId === current.parentId) ? [{ slot: item, node }] : []
+      })
+    const below = neighbors.filter(item => item.slot.trackNo < slot.trackNo).at(-1)?.node
+    const above = neighbors.find(item => item.slot.trackNo > slot.trackNo)?.node
+    const anchor = below ?? above
+    if (current && !anchor) continue
+    const presetParent = document.nodes.find(node => node.id === `process:${slot.correctionLayerId}` && node.kind === 'folder')
+    // An unmapped imported group has no known insertion parent. Leave it explicitly unmapped.
+    if (!anchor && !presetParent) continue
+    const parentId = anchor ? anchor.parentId : presetParent!.id
+    const siblings = clipChildren(document, parentId).filter(node => node.id !== current?.id)
+    const beforeId = below?.id ?? (above ? siblings[siblings.findIndex(node => node.id === above.id) + 1]?.id : siblings[0]?.id)
+    if (current) next = moveClipLayer(next, current.id, current.parentId, beforeId)
+    else {
+      const name = project.logicalSheet.paperTracks.find(track => track.paperTrack === paperTrack)?.label || paperTrack
+      const folder = createClipNode(name, 'animation', parentId)
+      next = setClipTarget(addClipLayers(next, [folder], beforeId), slot.slotId, folder.id)
+    }
+  }
+  return next
 }
 
 function requireEditableParent(document: ClipDocumentState, parentId: string | null): void {

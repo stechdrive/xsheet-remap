@@ -285,6 +285,8 @@ export function defaultCorrectionLayerFileNameSuffix(layer: Pick<CorrectionLayer
       return '_y'
     case 'layer_sousakkan':
       return '_ss'
+    case 'layer_other':
+      return '_o'
     case 'layer_sakuga':
       return ''
   }
@@ -299,6 +301,8 @@ export function defaultCorrectionLayerFileNameSuffix(layer: Pick<CorrectionLayer
       return '_y'
     case '総作監':
       return '_ss'
+    case 'その他修正':
+      return '_o'
     case '作画':
       return ''
     default:
@@ -487,8 +491,8 @@ export function defaultCorrectionLayers(stageId: string): CorrectionLayer[] {
     { layerId: 'layer_enshutsu', stageId, label: '演出', order: 1, role: 'correction', defaultVisible: true, fileNameSuffix: '_e' },
     { layerId: 'layer_kantoku', stageId, label: '監督', order: 2, role: 'review', defaultVisible: true, fileNameSuffix: '_k' },
     { layerId: 'layer_sakkan', stageId, label: '作監', order: 3, role: 'correction', defaultVisible: true, fileNameSuffix: '_s' },
-    { layerId: 'layer_ryouri', stageId, label: '料理', order: 4, role: 'other', defaultVisible: true, fileNameSuffix: '_y' },
-    { layerId: 'layer_sousakkan', stageId, label: '総作監', order: 5, role: 'review', defaultVisible: true, fileNameSuffix: '_ss' },
+    { layerId: 'layer_sousakkan', stageId, label: '総作監', order: 4, role: 'review', defaultVisible: true, fileNameSuffix: '_ss' },
+    { layerId: 'layer_other', stageId, label: 'その他修正', order: 5, role: 'other', defaultVisible: true, fileNameSuffix: '_o' },
   ]
 }
 

@@ -67,7 +67,9 @@ export async function writeClipDocument(SQL: SqlJsStatic, seedBytes: Uint8Array,
         const image = options.images[node.id] ?? (node.assetId ? options.images[node.assetId] : undefined)
         const pixels = image && placePixels(image, canvas.width, canvas.height, Math.ceil((canvas.width - image.width) / 2), Math.ceil((canvas.height - image.height) / 2))
         row = createLayer(clip, seed, { name: node.name, uuid: layerUuid(await identity(options.plan.projectId, node.id)), parentId: parent.MainId, kind: node.kind, width: canvas.width, height: canvas.height, pixels })
-        clip.update('Layer', row.MainId, { LayerVisibility: Number(node.visible), LayerOpacity: Math.round(node.opacity * 256), LayerComposite: node.blendMode })
+        const [red, green, blue] = (node.labelColor?.slice(1).match(/../g) ?? ['00', '00', '00']).map(channel => parseInt(channel, 16) * 0x01010101)
+        clip.update('Layer', row.MainId, { LayerVisibility: Number(node.visible), LayerOpacity: Math.round(node.opacity * 256), LayerComposite: node.blendMode,
+          LayerUsePaletteColor: Number(Boolean(node.labelColor)), LayerPaletteRed: red, LayerPaletteGreen: green, LayerPaletteBlue: blue })
         changed = true
       }
       rows.set(node.id, row)

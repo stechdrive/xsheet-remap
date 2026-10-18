@@ -334,7 +334,7 @@ describe('core project commands', () => {
     const project = createDefaultProject()
     const aSlots = project.cspTrackSlots.filter(slot => slot.paperTrack === 'A')
     expect(aSlots.map(slot => slot.xdtsName)).toEqual(['A', 'A', 'A', 'A', 'A', 'A'])
-    expect(aSlots.map(slot => slot.displayPath)).toEqual(['作画/A', '演出/A', '監督/A', '作監/A', '料理/A', '総作監/A'])
+    expect(aSlots.map(slot => slot.displayPath)).toEqual(['作画/A', '演出/A', '監督/A', '作監/A', '総作監/A', 'その他修正/A'])
   })
 
   it('updates editable correction layers while preserving matching slots and suffix normalization', () => {
@@ -414,7 +414,7 @@ describe('core project commands', () => {
     const renamed = updateProjectPaperTracks(updateProjectPaperTracks(createDefaultProject(), ['A', 'B', 'C', 'D', 'E']), ['A', 'B', 'C', 'D', 'E', 'AA'])
     expect(renamed.logicalSheet.paperTracks.map(track => track.paperTrack)).toEqual(['A', 'B', 'C', 'D', 'E', 'AA'])
     expect(renamed.cspTrackSlots.find(slot => slot.paperTrack === 'A')?.slotId).toBe('slot_A')
-    expect(renamed.cspTrackSlots.filter(slot => slot.paperTrack === 'AA').map(slot => slot.slotId)).toEqual(['slot_AA', 'slot_enshutsu_AA', 'slot_kantoku_AA', 'slot_sakkan_AA', 'slot_ryouri_AA', 'slot_sousakkan_AA'])
+    expect(renamed.cspTrackSlots.filter(slot => slot.paperTrack === 'AA').map(slot => slot.slotId)).toEqual(['slot_AA', 'slot_enshutsu_AA', 'slot_kantoku_AA', 'slot_sakkan_AA', 'slot_sousakkan_AA', 'slot_other_AA'])
     expect(renamed.exportProfiles.every(profile => profile.slotIds.length === renamed.cspTrackSlots.length)).toBe(true)
   })
 

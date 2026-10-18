@@ -21,6 +21,28 @@ const file = (name: string) => new File(['pixels'], name, { type: 'image/png' })
 const layer = (name: string) => Array.from(document.querySelectorAll<HTMLElement>('.clipLayerRow')).find(row => row.querySelector('.clipLayerName')?.textContent === name)
 
 describe('Remap CLIP layer workspace', () => {
+  it('starts each process at A and adds J above I in every group in one Undo step', () => {
+    render(<RemapApp />)
+    const process = screen.getByLabelText('登録先工程') as HTMLSelectElement
+    expect(Array.from(process.options, option => option.text)).toEqual(['作画', '演出', '監督', '作監', '総作監', 'その他修正'])
+    for (const option of Array.from(process.options)) {
+      fireEvent.change(process, { target: { value: option.value } })
+      expect((screen.getByLabelText('登録先セル列') as HTMLSelectElement).value).toBe('A')
+      expect(document.querySelector('.clipTargetPath')?.textContent).toBe(`登録先：LO / ${option.text} / A`)
+      const expand = screen.queryByRole('button', { name: `${option.text}を展開` })
+      if (expand) fireEvent.click(expand)
+    }
+    const names = (id: string) => Array.from(document.querySelector<HTMLElement>(`[data-clip-layer-id="process:${id}"]`)!.parentElement!.querySelectorAll('.clipLayerName')).slice(1).map(element => element.textContent)
+    for (const option of Array.from(process.options)) expect(names(option.value)).toEqual('IHGFEDCBA'.split(''))
+    fireEvent.click(screen.getByText('登録先・シート表示を設定'))
+    fireEvent.click(screen.getByRole('button', { name: 'セル列＋' }))
+    for (const option of Array.from(process.options)) expect(names(option.value)).toEqual('JIHGFEDCBA'.split(''))
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    for (const option of Array.from(process.options)) expect(names(option.value)).toEqual('IHGFEDCBA'.split(''))
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.redo }))
+    for (const option of Array.from(process.options)) expect(names(option.value)).toEqual('JIHGFEDCBA'.split(''))
+  })
+
   it('switches independent timing without adding Undo entries and keeps sheet drops in their selected group', async () => {
     const { sheet } = setup()
     const process = screen.getByLabelText('登録先工程') as HTMLSelectElement

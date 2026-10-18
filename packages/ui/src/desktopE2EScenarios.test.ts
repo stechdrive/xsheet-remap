@@ -25,7 +25,7 @@ describe('desktop e2e scenarios', () => {
     }))
     const scenario = buildFullDefaultA3Scenario(createFullDefaultA3FixtureRefs('C:\\e2e\\assets'), renameResults)
 
-    expect(scenario.project.correctionLayers.map(layer => layer.label)).toEqual(['作画', '演出', '監督', '作監', '料理', '総作監'])
+    expect(scenario.project.correctionLayers.map(layer => layer.label)).toEqual(['作画', '演出', '監督', '作監', '総作監', 'その他修正'])
     expect(scenario.project.logicalSheet.paperTracks.map(track => track.paperTrack)).toEqual(['A', 'B', 'C', 'J', 'K', 'L', 'D', 'E', 'F', 'G', 'H', 'I'])
     expect(scenario.project.stackGuideLabels.map(label => label.label)).toEqual(['BG', 'BOOK1', 'BOOK2,3', 'SL1', 'PAN1', 'MEMO1'])
     expect(scenario.project.assetRoot?.path).toBe('C:\\e2e\\assets')

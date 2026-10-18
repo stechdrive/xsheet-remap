@@ -678,6 +678,7 @@ function correctionLayerOrderText(layerId: string | undefined): number {
     'layer_sakkan',
     'layer_ryouri',
     'layer_sousakkan',
+    'layer_other',
   ].indexOf(layerId ?? '')
   return order === -1 ? Number.MAX_SAFE_INTEGER : order
 }

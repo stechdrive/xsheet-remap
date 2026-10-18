@@ -10,7 +10,7 @@ import { clipSourceDataUrl } from './document-data'
 import { readLayerPixels } from './layers'
 import { readClipLayerPreview } from './preview'
 import { ensureTrackLabelStorage } from './track-labels'
-import { addClipImages, createDefaultProject, createProjectDocumentFromCutProject, ensureClipDocument } from '@xsheet-remap/core'
+import { addClipImages, addOverlayPaperTrack, createDefaultProject, createProjectDocumentFromCutProject, ensureClipDocument } from '@xsheet-remap/core'
 import { selectTimingProcess, suggestClipProcessColumns } from '@xsheet-remap/core'
 
 const require = createRequire(import.meta.url)
@@ -32,6 +32,38 @@ function save(document: CutGroupProjectDocument, images = {}) { return writeClip
 function change(document: CutGroupProjectDocument, fn: (project: ReturnType<typeof activeCutProjectFromDocument>) => ReturnType<typeof activeCutProjectFromDocument>) { return updateActiveCutProjectInDocument(document, fn(activeCutProjectFromDocument(document))) }
 
 describe('editable CLIP document preservation', () => {
+  it('exports the default process palette and inserts new columns in native stacking order', async () => {
+    const project = addOverlayPaperTrack(ensureClipDocument(createDefaultProject()), { paperTrack: 'J', insertAfterPaperTrack: 'I' }).project
+    const result = await save(createProjectDocumentFromCutProject({ ...project, clipDocument: { ...project.clipDocument!, canvas } }))
+    const data = await readClip(SQL, result.bytes, 'defaults.clip')
+    const expected = [undefined, '#fbece6', '#dce4f1', '#fcf9cf', '#eaf6d5', '#ffddaa']
+    for (const [index, process] of project.correctionLayers.entries()) {
+      const folder = data.layers!.find(node => node.name === process.label)!
+      expect(folder.labelColor).toBe(expected[index])
+      const children = data.layers!.filter(node => node.parentId === folder.id)
+      expect(children.map(node => node.name)).toEqual('JIHGFEDCBA'.split(''))
+      expect(children.every(node => node.kind === 'animation' && node.labelColor === undefined)).toBe(true)
+    }
+    const reopened = openClipDocument(data, clipSourceDataUrl(result.bytes), { role: 'action', timelineIds: [], columns: [] })
+    expect((await save(reopened)).bytes).toEqual(result.bytes)
+  })
+
+  it('adds a column inside imported process parents without moving source folders or changing their timing', async () => {
+    const plan: ClipRegistrationPlan = { ...legacy, folders: ['作画', '修正'].map((name, index) => ({ ...legacy.folders[0], id: `a${index}`, path: ['LO', name] })), timelines: legacy.timelines.map(timeline => ({ ...timeline, tracks: [0, 1].map(index => ({ ...timeline.tracks[0], folderId: `a${index}` })) })) }
+    const original = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: { red: pixels } })
+    const data = await readClip(SQL, original.bytes, 'nested.clip'), folders = clipImportFolders(data.nodes)
+    const document = openClipDocument(data, clipSourceDataUrl(original.bytes), { timelineIds: [data.timelines[0].id], role: 'action', columns: suggestClipProcessColumns(data, folders.map(folder => folder.id)) })
+    const added = change(document, project => addOverlayPaperTrack(project, { paperTrack: 'J', insertAfterPaperTrack: 'I' }).project)
+    const parsed = await readClip(SQL, (await save(added)).bytes, 'added.clip')
+    expect(parsed.layers!.filter(node => data.layers!.some(original => original.id === node.id))).toEqual(data.layers)
+    for (const folder of folders) {
+      const originalFolder = data.layers!.find(node => node.id === folder.id)!
+      expect(parsed.layers!.filter(node => node.parentId === originalFolder.parentId).map(node => node.name)).toEqual(['J', 'A'])
+      expect(parsed.timelines.map(timeline => timeline.tracks.find(track => track.layerId === folder.id)))
+        .toEqual(data.timelines.map(timeline => timeline.tracks.find(track => track.layerId === folder.id)))
+    }
+  })
+
   it('round trips nested process folders on one paper column with independent timing and untouched tracks', async () => {
     const plan: ClipRegistrationPlan = { ...legacy, folders: ['作画', '修正'].map((name, index) => ({ ...legacy.folders[0], id: `a${index}`, path: ['LO', name] })), timelines: legacy.timelines.map(timeline => ({ ...timeline, tracks: [0, 1].map(index => ({ folderId: `a${index}`, frames: [{ frame: 0, value: '001' }, { frame: index ? 8 : 4, value: '002' }] })) })) }
     const original = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: { red: pixels } })

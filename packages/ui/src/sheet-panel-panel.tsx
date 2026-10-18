@@ -280,7 +280,7 @@ export function SheetPanel(props: {
   onRegisteredCellAssign: (keyId: string, hit: SheetHit | null) => void
   onClipLayerAssign?: (layerId: string, hit: SheetHit | null) => void
   onClipProjectChange?: (project: CutProject) => void
-  onClipFiles?: (files: File[], parentId: string | null) => void
+  onClipFiles?: (files: File[], parentId: string | null, beforeId?: string) => void
   onMoveTimelineEvent: (sourceHit: SheetHit, targetHit: SheetHit, sourceRange?: SheetRangeSelection) => void
   onAnnotation: (stroke: AnnotationStroke) => void
   onTextAnnotation: (annotation: AnnotationText) => void
@@ -708,14 +708,14 @@ export function SheetPanel(props: {
       <div
         className={[
           'sheetWorkspace', clipWorkspace ? 'clipWorkspace' : '',
-          paneLayout.left ? '' : 'leftDockClosed',
-          !clipWorkspace && paneLayout.right ? '' : 'rightDockClosed',
+          !clipWorkspace && paneLayout.left ? '' : 'leftDockClosed',
+          paneLayout.right ? '' : 'rightDockClosed',
         ].filter(Boolean).join(' ')}
         style={{
-          '--sheet-left-dock-width': paneLayout.left ? `${paneLayout.leftWidth}px` : '0px',
-          '--sheet-right-dock-width': !clipWorkspace && paneLayout.right ? `${paneLayout.rightWidth}px` : '0px',
-          '--sheet-left-resizer-width': '16px',
-          '--sheet-right-resizer-width': clipWorkspace ? '0px' : '16px',
+          '--sheet-left-dock-width': !clipWorkspace && paneLayout.left ? `${paneLayout.leftWidth}px` : '0px',
+          '--sheet-right-dock-width': paneLayout.right ? `${clipWorkspace ? Math.max(280, paneLayout.rightWidth) : paneLayout.rightWidth}px` : '0px',
+          '--sheet-left-resizer-width': clipWorkspace ? '0px' : '16px',
+          '--sheet-right-resizer-width': '16px',
           '--sheet-history-rail-width': '42px',
         } as WorkspaceStyle}
       >
@@ -992,17 +992,9 @@ export function SheetPanel(props: {
             </button>
           )}
         </div>
-        <aside id="sheet-left-pane" className="sheetDock sheetDockLeft" aria-label="CSPレイヤー構成" hidden={!paneLayout.left}>
+        {!clipWorkspace && <><aside id="sheet-left-pane" className="sheetDock sheetDockLeft" aria-label="CSPレイヤー構成" hidden={!paneLayout.left}>
           <div className="dockBody">
-            {clipWorkspace ? <ClipLayerPanel key={props.project.projectId} project={props.project} activeCutId={props.activeCutId}
-              activeProcessId={props.activeCorrectionLayerId} onProcessChange={props.setActiveCorrectionLayerId}
-              onChange={props.onClipProjectChange!} onFiles={props.onClipFiles!} onSelectKey={props.onKeySelect}
-              selectedHit={props.selectedHit} disabled={props.sheetRevisions.find(revision => revision.revisionId === props.activeSheetRevisionId)?.protected}
-              filterProcess={filterClipProcess} onFilterProcess={enabled => setFilteredClipProjectId(enabled ? props.project.projectId : null)}
-              onAddColumn={() => props.onAddOverlayPaperTrack({ cspPlacement: 'cell-top' })}
-              onNormalizeNames={() => setNormalizationOpen(true)}
-              onAddGuide={kind => props.onCreateStackGuideLabel({ label: kind === 'background' ? 'BG' : kind === 'book' ? 'BOOK' : 'メモ', kind, gapIndex: 0 })}
-            /> : <CspLayerTree
+            {<CspLayerTree
               project={props.project}
               exportProfileId={props.exportProfileId}
               selectedKeyId={props.selectedKeyId}
@@ -1056,6 +1048,7 @@ export function SheetPanel(props: {
           }}
           onChange={leftWidth => setPaneLayout(current => ({ ...current, leftWidth }))}
         />
+        </>}
         <div className="sheetViewportFrame">
           <SheetHistoryRail
             topActions={(
@@ -1388,16 +1381,16 @@ export function SheetPanel(props: {
             onClose={closeTouchControls}
           />
         </div>
-        {!clipWorkspace && <><PanelResizeHandle
-          label={uiText.layout.resizeImageAssetPane}
-          min={SHEET_RIGHT_PANE_MIN_WIDTH}
+        <PanelResizeHandle
+          label={clipWorkspace ? 'レイヤーパレットの幅を変更' : uiText.layout.resizeImageAssetPane}
+          min={clipWorkspace ? 280 : SHEET_RIGHT_PANE_MIN_WIDTH}
           max={SHEET_RIGHT_PANE_MAX_WIDTH}
           value={paneLayout.rightWidth}
           defaultValue={SHEET_RIGHT_PANE_DEFAULT_WIDTH}
           resizeEnabled={paneLayout.right}
           dockToggle={{
-            label: '画像素材',
-            tooltipLabel: `画像素材を${paneLayout.right ? '閉じる' : '開く'}`,
+            label: clipWorkspace ? 'レイヤー' : '画像素材',
+            tooltipLabel: `${clipWorkspace ? 'レイヤー' : '画像素材'}を${paneLayout.right ? '閉じる' : '開く'}`,
             controls: 'sheet-right-pane',
             expanded: paneLayout.right,
             icon: <PaneChevronIcon direction={paneLayout.right ? 'right' : 'left'} />,
@@ -1405,9 +1398,17 @@ export function SheetPanel(props: {
           }}
           onChange={rightWidth => setPaneLayout(current => ({ ...current, rightWidth }))}
         />
-        <aside id="sheet-right-pane" className="sheetDock sheetDockRight" aria-label={uiText.assets.title} hidden={!paneLayout.right}>
+        <aside id="sheet-right-pane" className="sheetDock sheetDockRight" aria-label={clipWorkspace ? 'レイヤー' : uiText.assets.title} hidden={!paneLayout.right}>
           <div className="dockBody">
-            <AssetTray
+            {clipWorkspace ? <ClipLayerPanel key={props.project.projectId} project={props.project} activeCutId={props.activeCutId}
+              activeProcessId={props.activeCorrectionLayerId} onProcessChange={props.setActiveCorrectionLayerId}
+              onChange={props.onClipProjectChange!} onFiles={props.onClipFiles!} onSelectKey={props.onKeySelect}
+              selectedHit={props.selectedHit} disabled={props.sheetRevisions.find(revision => revision.revisionId === props.activeSheetRevisionId)?.protected}
+              filterProcess={filterClipProcess} onFilterProcess={enabled => setFilteredClipProjectId(enabled ? props.project.projectId : null)}
+              onAddColumn={() => props.onAddOverlayPaperTrack({ cspPlacement: 'cell-top' })}
+              onNormalizeNames={() => setNormalizationOpen(true)}
+              onAddGuide={kind => props.onCreateStackGuideLabel({ label: kind === 'background' ? 'BG' : kind === 'book' ? 'BOOK' : 'メモ', kind, gapIndex: 0 })}
+            /> : <AssetTray
               assetRoot={props.project.assetRoot}
               assets={props.assets}
               registrationSummaries={assetRegistrationSummaryMap}
@@ -1416,9 +1417,9 @@ export function SheetPanel(props: {
               onAssetSheetSources={props.onAssetSheetSources}
               canUseAssetsAsSheetSources={sheetScanSources.length === 0}
               onDropDiagnostic={props.onDropDiagnostic}
-            />
+            />}
           </div>
-        </aside></>}
+        </aside>
       </div>
       {normalizationOpen && (
         <NameNormalizationDialog

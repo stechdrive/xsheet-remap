@@ -464,7 +464,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onRegisteredCellAssign={handleAssignRegisteredCell}
             onClipLayerAssign={handleAssignClipLayer}
             onClipProjectChange={next => runProjectCommand(() => next)}
-            onClipFiles={(files, parentId) => void handleClipImageFiles(files, parentId)}
+            onClipFiles={(files, parentId, beforeId) => void handleClipImageFiles(files, parentId, null, beforeId)}
             onMoveTimelineEvent={handleMoveTimelineEvent}
             onAnnotation={handleAnnotation}
             onTextAnnotation={handleTextAnnotation}

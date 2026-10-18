@@ -137,11 +137,14 @@ function checkCelName(document: ClipDocumentState, node: ClipLayerNode): void {
   if (parent?.kind === 'animation' && document.nodes.some(item => item.id !== node.id && item.parentId === node.parentId && item.name === node.name)) throw new Error(`同じアニメーションフォルダーに「${node.name}」が存在します。別名を指定してください。`)
 }
 
-export function addClipLayers(projectInput: CutProject, layers: ClipLayerNode[]): CutProject {
+export function addClipLayers(projectInput: CutProject, layers: ClipLayerNode[], beforeId?: string): CutProject {
   const project = ensureClipDocument(projectInput); let document = project.clipDocument!
   for (const node of layers) {
     requireEditableParent(document, node.parentId); checkCelName(document, node)
-    document = { ...document, nodes: [...document.nodes, node] }
+    const index = beforeId ? document.nodes.findIndex(item => item.id === beforeId && item.parentId === node.parentId) : document.nodes.length
+    if (index < 0) throw new Error('挿入先が見つかりません。')
+    const nodes = [...document.nodes]; nodes.splice(index, 0, node)
+    document = { ...document, nodes }
   }
   validateClipDocument(document)
   return { ...project, clipDocument: document }
@@ -228,7 +231,7 @@ export function clipCelDropTarget(project: CutProject, nodeId: string, paperTrac
   return { cel, slot }
 }
 
-export function addClipImages(project: CutProject, parentId: string | null, images: { name: string; assetId: string; imageDataUrl: string }[], sheet?: { paperTrack: string; frame: number; role: SheetTimingRole; processId: string }): CutProject {
+export function addClipImages(project: CutProject, parentId: string | null, images: { name: string; assetId: string; imageDataUrl: string }[], sheet?: { paperTrack: string; frame: number; role: SheetTimingRole; processId: string }, beforeId?: string): CutProject {
   let next = ensureClipDocument(project)
   const target = next.clipDocument!.targets.find(item => sheet ? item.slotId === next.cspTrackSlots.find(slot => slot.paperTrack === sheet.paperTrack && slot.correctionLayerId === sheet.processId)?.slotId : item.folderId === parentId)
   if (sheet && !target) throw new Error('この工程・セル列の登録先アニメーションフォルダーを指定してください。')
@@ -238,11 +241,11 @@ export function addClipImages(project: CutProject, parentId: string | null, imag
     const name = image.name.replace(/\.[^.]+$/, '') || '画像'
     let cel = createClipNode(name, target?.cellPath?.length ? 'folder' : 'raster', destination)
     if (target?.cellPath?.length) {
-      next = addClipLayers(next, [cel])
+      next = addClipLayers(next, [cel], beforeId)
       let parent = cel.id
       for (const path of target.cellPath) { const folder = createClipNode(path, 'folder', parent); next = addClipLayers(next, [folder]); parent = folder.id }
       next = addClipLayers(next, [{ ...createClipNode(name, 'raster', parent), assetId: image.assetId, imageDataUrl: image.imageDataUrl }])
-    } else { cel = { ...cel, assetId: image.assetId, imageDataUrl: image.imageDataUrl }; next = addClipLayers(next, [cel]) }
+    } else { cel = { ...cel, assetId: image.assetId, imageDataUrl: image.imageDataUrl }; next = addClipLayers(next, [cel], beforeId) }
     if (sheet) next = bindClipCel(next, cel.id, sheet.paperTrack, sheet.frame, sheet.role, sheet.processId)
   }
   return next

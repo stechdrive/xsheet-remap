@@ -1,24 +1,81 @@
-.clipLayerPanel { display: flex; flex-direction: column; gap: 8px; min-height: 100%; padding: 8px; font-size: 12px; }
-.clipLayerPanel header, .clipLayerTools { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
-.clipLayerPanel header { justify-content: space-between; }
-.clipLayerPanel input, .clipLayerPanel select { min-width: 0; max-width: 100%; }
-.clipLayerPanel button { padding: 4px 6px; }
-.clipLayerTree { flex: 1; min-height: 140px; }
-.clipWorkspace .sheetDockLeft .dockBody { overflow: auto; }
-.clipLayerTree { max-height: 46vh; overflow: auto; flex-shrink: 0; }
-.clipLayerRow { display: flex; gap: 4px; align-items: center; min-height: 30px; border-radius: 3px; cursor: default; }
-.clipLayerRow.selected { background: color-mix(in srgb, #528ae5 25%, transparent); }
-.clipLayerRow:hover { outline: 1px solid #9998; }
-.clipLayerName { flex: 1; min-width: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.clipLayerKind { color: #8996ac; font-size: 10px; flex: 0 0 22px; }
-.clipLayerRow small { font-size: 9px; opacity: .75; }
-.clipLayerRow input[type=checkbox] { width: 13px; height: 13px; margin: 0; }
-.clipLayerRow button { padding: 2px 4px; flex: 0 0 21px; }
-.clipDisclosureSpace { width: 21px; flex-shrink: 0; }
-.clipLayerProperties, .clipLayerTargets { display: grid; gap: 6px; min-width: 0; }
-.clipLayerProperties label, .clipLayerTargets label { display: flex; gap: 5px; align-items: center; }
-.clipLayerProperties label input, .clipLayerProperties label select, .clipLayerTargets select { flex: 1; width: 80px; }
-.clipTargetPath, .clipLayerNotice { margin: 2px 0; overflow-wrap: anywhere; }
-.clipLayerRow.clipDropBefore { box-shadow: inset 0 3px #528ae5; }
-.clipLayerRow.clipDropInto { outline: 2px solid #528ae5; }
-.clipLayerRow.clipDropInvalid { outline: 2px solid #d95555; }
+.clipLayerPanel { --clip-palette-bg: #eceeed; --clip-drop-color: #c44343; display: flex; flex-direction: column; height: 100%; min-height: 0; color: #303633; background: var(--clip-palette-bg); font-size: 12px; border: 1px solid #bcc1be; }
+.clipWorkspace .sheetDockRight .dockBody { height: 100%; min-height: 0; padding: 0; overflow: hidden; }
+.clipLayerPanel input, .clipLayerPanel select { min-width: 0; max-width: 100%; font-size: 12px; }
+.clipLayerPanel button { border-radius: 2px; padding: 3px 6px; }
+.clipLayerPanel button:focus-visible, .clipLayerPanel summary:focus-visible { outline: 2px solid #5676a3; outline-offset: -2px; }
+.clipLayerPanel fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.clipPaletteTitle { position: relative; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 3px 8px; background: #d9ddda; border-bottom: 1px solid #b5bcb7; flex-shrink: 0; }
+.clipPaletteTitle > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #59645d; }
+.clipLayerIcon { width: 20px; height: 20px; flex-shrink: 0; vertical-align: middle; }
+.clipLayerPanel .clipLayerAppearance { display: grid; grid-template-columns: minmax(68px, 1fr) minmax(135px, 1.4fr); gap: 7px; padding: 5px 6px; flex-shrink: 0; }
+.clipLayerAppearance select { width: 100%; padding: 2px; border: 1px solid #aeb6b0; border-radius: 2px; }
+.clipOpacityControl { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.clipOpacityControl input[type=range] { flex: 1; width: 40px; margin: 0; accent-color: #647b98; }
+.clipOpacityControl input[type=number] { width: 44px; padding: 2px 0 2px 3px; border: 1px solid #aeb6b0; border-radius: 2px; text-align: right; }
+.clipLayerCommandBar { display: flex; align-items: center; gap: 2px; padding: 2px 5px 5px; border-bottom: 1px solid #bfc5c0; flex-shrink: 0; }
+.clipLayerCommandBar button { display: inline-flex; align-items: center; justify-content: center; min-width: 27px; min-height: 27px; padding: 3px; background: transparent; border-color: transparent; }
+.clipLayerCommandBar button:hover:enabled { border-color: #a5b2a9; background: #f8faf8; }
+.clipCommandDivider { align-self: stretch; border-left: 1px solid #c0c7c2; margin: 3px; }
+.clipLayerCommandBar .clipImageImport { gap: 3px; font-size: 11px; white-space: nowrap; }
+.clipLayerCommandBar .clipDeleteLayer { margin-left: auto; }
+.clipLayerSearch { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-bottom: 1px solid #bfc5c0; flex-shrink: 0; }
+.clipLayerSearch > .clipLayerIcon { width: 15px; height: 15px; color: #68756c; }
+.clipLayerSearch > input { flex: 1; width: 60px; padding: 2px 4px; border: 1px solid #c3cac5; border-radius: 2px; background: #fff; }
+.clipLayerSearch label { display: flex; align-items: center; white-space: nowrap; font-size: 11px; }
+.clipLayerSearch input[type=checkbox], .clipSheetConnection input[type=checkbox] { margin: 0 4px 0 0; width: 13px; height: 13px; }
+.clipLayerTree { flex: 1; min-height: 120px; overflow: auto; overscroll-behavior: contain; background: #f3f4f2; }
+.clipLayerItem { position: relative; min-width: 0; }
+.clipLayerRow { position: relative; display: flex; align-items: center; min-height: 41px; border-bottom: 1px solid #d5d9d5; cursor: default; user-select: none; }
+.clipLayerRow.selected { background: #c3cfdf; }
+.clipLayerRow:hover { background: #dfe5e4; }
+.clipLayerRow.selected:hover { background: #bbcadd; }
+.clipLayerRow.internalPointerDragSource { box-shadow: inset 0 0 0 1px #647b98; opacity: .65; }
+.clipLayerRow button { background: transparent; border: 0; border-radius: 0; padding: 0; color: inherit; }
+.clipLayerEye { width: 25px; align-self: stretch; flex-shrink: 0; border-right: 1px solid #c7cec8 !important; }
+.clipLayerEye .clipLayerIcon { width: 17px; height: 17px; }
+.clipEyeHidden { visibility: hidden; }
+.clipLayerLock { display: flex; width: 14px; align-self: stretch; align-items: center; justify-content: center; flex-shrink: 0; border-right: 1px solid #c7cec8; }
+.clipLayerLock .clipLayerIcon { width: 12px; height: 14px; }
+.clipLayerIndent { width: var(--clip-layer-indent); flex-shrink: 0; }
+.clipLayerDisclosure, .clipDisclosureSpace { width: 14px; flex: 0 0 14px; }
+.clipLayerDisclosure .clipLayerIcon { width: 12px; height: 16px; }
+.clipLayerDisclosure.expanded .clipLayerIcon { transform: rotate(90deg); }
+.clipLayerRow .clipLayerThumbnail { width: 30px; height: 30px; flex: 0 0 30px; margin: 3px 5px 3px 1px; border: 1px solid transparent; }
+.clipLayerThumbnail .clipLayerIcon { width: 25px; height: 25px; }
+.clipLayerRow .clipLayerThumbnail.hasImage { border-color: #9eaaa1; background: repeating-conic-gradient(#cbd1cc 0% 25%, #fff 0% 50%) 0 / 8px 8px; }
+.clipLayerThumbnail img { width: 100%; height: 100%; object-fit: contain; }
+.clipLayerCaption { display: flex; flex-direction: column; justify-content: center; flex: 1; min-width: 0; padding: 2px 5px 2px 0; }
+.clipLayerName { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 18px; }
+.clipLayerInfo { display: flex; align-items: center; gap: 4px; color: #58625b; font-size: 10px; line-height: 14px; min-width: 0; white-space: nowrap; }
+.clipLayerInfo > span { overflow: hidden; text-overflow: ellipsis; }
+.clipLayerInfo small { flex-shrink: 0; font-size: 9px; border: 1px solid #b4bfb7; border-radius: 2px; padding: 0 2px; line-height: 12px; }
+.clipLayerCaption input { width: 100%; height: 20px; padding: 0 3px; }
+.clipLayerItem.clipDropBefore::before, .clipLayerItem.clipDropAfter::after { content: ''; position: absolute; left: calc(40px + var(--clip-layer-indent)); right: 0; height: 5px; border: solid var(--clip-drop-color); border-width: 0 2px 2px; z-index: 2; pointer-events: none; }
+.clipLayerItem.clipDropBefore::before { top: -3px; }
+.clipLayerItem.clipDropAfter::after { bottom: -1px; }
+.clipLayerItem.clipDropInto > .clipLayerRow { outline: 2px solid var(--clip-drop-color); outline-offset: -2px; background: #f3dddd; }
+.clipDropInvalid { --clip-drop-color: #8c6483; }
+.clipLayerItem.clipDropInvalid > .clipLayerRow { background: repeating-linear-gradient(135deg, #e1d8df 0 5px, #ece6ea 5px 10px); }
+.clipRootDrop { outline: 2px solid var(--clip-drop-color); outline-offset: -2px; }
+.clipDropStatus { flex-shrink: 0; margin: 0; padding: 4px 7px; min-height: 24px; border-top: 1px solid #c3cac4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #536159; font-size: 10px; }
+.clipSheetConnection { flex-shrink: 0; max-height: 43%; overflow: auto; padding: 8px; background: #e4ebe6; border-top: 2px solid #94a69a; }
+.clipSheetConnectionTitle { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 7px; }
+.clipSheetConnectionTitle label { display: flex; align-items: center; font-size: 10px; white-space: nowrap; }
+.clipSheetMapping { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 6px; }
+.clipSheetMapping label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.clipSheetMapping select { flex: 1; width: 40px; padding: 2px; }
+.clipTargetPath { margin: 5px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #52675a; font-size: 11px; }
+.clipMappingDetails > summary { cursor: pointer; padding: 2px 0; font-size: 11px; }
+.clipLayerPanel .clipLayerTargets, .clipLayerPanel .clipLayerProperties { display: grid; gap: 6px; padding: 8px 0 2px; }
+.clipLayerTargets label, .clipLayerProperties label { display: flex; align-items: center; gap: 5px; }
+.clipLayerTargets input, .clipLayerProperties input, .clipLayerProperties select { flex: 1; width: 80px; }
+.clipLayerTools { display: flex; flex-wrap: wrap; gap: 4px; }
+.clipLayerMenu > summary { list-style: none; cursor: pointer; font-size: 20px; line-height: 20px; }
+.clipLayerMenu > summary::-webkit-details-marker { display: none; }
+.clipLayerPanel .clipLayerMenu .clipLayerProperties { position: absolute; right: 0; top: 27px; width: min(280px, 100%); z-index: 10; padding: 10px; border: 1px solid #a8b5ac; background: #f6f8f5; box-shadow: 0 4px 12px #0003; }
+.clipLayerNotice { flex-shrink: 0; max-height: 60px; overflow: auto; padding: 5px 8px; margin: 0; background: #fff4dd; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .sheetWorkspace.clipWorkspace.leftDockClosed { grid-template-areas: 'viewport'; grid-template-rows: minmax(0, 1fr); gap: 0; }
+  .sheetWorkspace.clipWorkspace > .sheetDockRight { position: absolute; z-index: 23; top: 0; right: 0; bottom: 0; width: min(var(--sheet-right-dock-width), calc(100% - 48px)); box-shadow: -4px 0 16px #0003; }
+  .sheetWorkspace.clipWorkspace > .sheetViewportFrame + .panelResizeRail { right: min(var(--sheet-right-dock-width), calc(100% - 48px)); z-index: 24; }
+}

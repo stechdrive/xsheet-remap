@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, defaultCorrectionLayerId, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
+import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
 import { projectDocumentsEqual } from './projectDocumentEquality';
 import { addClipImages, bindClipCel, ensureClipDocument, synchronizeClipBindings, createClipNode, addClipLayers, setClipTarget, updateClipLayer } from '@xsheet-remap/core'
 import { clipImageDataUrl } from './clipImageImport'
@@ -397,13 +398,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const clientPoints = clientPointCandidatesFromNativeDropPosition(position)
     if (projectRef.current.clipDocument) {
       const source = commitTimingDraft(false), processId = activeCorrectionLayerId
-      const layerTarget = clientPoints.map(point => document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>('[data-clip-layer-parent]')).find(Boolean)
+      const layerTarget = clientPoints.map(point => clipLayerDropAtElement(source.clipDocument!, document.elementFromPoint(point.x, point.y), point.y)).find(Boolean)
       const hit = clientPoints.map(point => nativeSheetHitFromClientPoint(point.x, point.y)).find(Boolean) ?? null
       if (!layerTarget && !hit) return
-      const parentId = layerTarget?.dataset.clipLayerParent
       try {
         const collection = await collectAssetPathDrop(paths, { recursive: true })
-        await importClipImageRefs(source, collection.files, parentId && parentId !== '__root__' ? parentId : null, layerTarget ? null : hit, processId)
+        await importClipImageRefs(source, collection.files, layerTarget?.parentId ?? null, layerTarget ? null : hit, processId, layerTarget?.beforeId)
       } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
       return
     }
@@ -525,6 +525,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleNativeDragDropPayload(payload: NativeDragDropPayload, source: string) {
     const position = payload.position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+    const clipDocument = projectRef.current.clipDocument
+    if (clipDocument) publishNativeLayerHover(payload.type === 'enter' || payload.type === 'over'
+      ? clientPointCandidatesFromNativeDropPosition(position).map(point => clipLayerDropAtElement(clipDocument, document.elementFromPoint(point.x, point.y), point.y)).find(Boolean) ?? null
+      : null)
     if (payload.type === 'drop' && Array.isArray(payload.paths) && payload.paths.length > 0) {
       const signature = `${payload.paths.join('\u001f')}@${Math.round(position.x)},${Math.round(position.y)}`
       const timestamp = performance.now()
@@ -1339,15 +1343,15 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     commitProject(bound.project)
   }
 
-  async function handleClipImageFiles(files: File[], parentId: string | null, hit: SheetHit | null = null) {
+  async function handleClipImageFiles(files: File[], parentId: string | null, hit: SheetHit | null = null, beforeId?: string) {
     const source = commitTimingDraft(false), processId = activeCorrectionLayerId
     try {
       const refs = await Promise.all(files.filter(isImageAssetFile).map(fileToFileRef))
-      await importClipImageRefs(source, refs, parentId, hit, processId)
+      await importClipImageRefs(source, refs, parentId, hit, processId, beforeId)
     } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
   }
 
-  async function importClipImageRefs(source: CutProject, refs: FileRef[], parentId: string | null, hit: SheetHit | null, processId: string) {
+  async function importClipImageRefs(source: CutProject, refs: FileRef[], parentId: string | null, hit: SheetHit | null, processId: string, beforeId?: string) {
     const images = refs.filter(isImageFileRef)
     if (!images.length) return
     if (images.reduce((sum, ref) => sum + (ref.size ?? 0), 0) > 384 * 1024 * 1024) throw new Error('一度に追加する画像は合計384MB以内にしてください。')
@@ -1367,7 +1371,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       const registered = registerMaterialAssetRef(next, ref); next = registered.project
       return { name: ref.name, assetId: registered.asset.assetId, imageDataUrl: dataUrls[index]! }
     })
-    next = addClipImages(next, parentId, prepared, hit?.paperTrack && role ? { paperTrack: hit.paperTrack, frame: hit.frame, role, processId } : undefined)
+    next = addClipImages(next, parentId, prepared, hit?.paperTrack && role ? { paperTrack: hit.paperTrack, frame: hit.frame, role, processId } : undefined, beforeId)
     if (commitProject(next)) setStatusHint('sheet-drop', `${prepared.length}枚をレイヤーに追加しました。`)
   }
 

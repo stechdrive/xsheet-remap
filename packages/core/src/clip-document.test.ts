@@ -11,6 +11,17 @@ function setup() {
 }
 
 describe('CLIP document identity and operations', () => {
+  it('inserts several images at the shown sibling boundary in source order, atomically and without exposures', () => {
+    const { project, node, target } = setup()
+    const images = ['002', '003'].map(name => ({ name: `${name}.png`, assetId: name, imageDataUrl: `data:image/png;base64,${name}` }))
+    const next = addClipImages(project, target.folderId, images, undefined, node.id)
+    expect(next.clipDocument!.nodes.filter(item => item.parentId === target.folderId).map(item => item.name)).toEqual(['002', '003', '001'])
+    expect(next.logicalSheet.events).toEqual(project.logicalSheet.events)
+    expect(undoHistory(commitHistory(createProjectHistory(project), next)).present).toEqual(project)
+    expect(() => addClipImages(project, null, images, undefined, node.id)).toThrow('挿入先')
+    expect(() => addClipImages(project, target.folderId, [...images, images[0]], undefined, node.id)).toThrow('存在')
+    expect(project.clipDocument!.nodes.filter(item => item.parentId === target.folderId)).toEqual([node])
+  })
   it('migrates process visibility and keeps unused tray images in a normal folder', () => {
     const original = createDefaultProject()
     original.correctionLayers[0].defaultVisible = false

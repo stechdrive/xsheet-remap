@@ -209,16 +209,15 @@
 }
 
 @media (min-width: 721px) and (max-width: 1000px) {
-  .sheetWorkspace.clipWorkspace.rightDockClosed {
-    grid-template-columns: var(--sheet-left-dock-width) var(--sheet-left-resizer-width) minmax(0, 1fr);
+  .sheetWorkspace.clipWorkspace.leftDockClosed {
+    grid-template-columns: minmax(0, 1fr) var(--sheet-right-resizer-width) var(--sheet-right-dock-width);
     grid-template-areas: none;
     grid-template-rows: minmax(0, 1fr);
     gap: 0;
   }
-
-  .sheetWorkspace.clipWorkspace > .sheetDockLeft { grid-area: 1 / 1; }
-  .sheetWorkspace.clipWorkspace > .sheetViewportFrame { grid-area: 1 / 3; }
-  .sheetWorkspace.clipWorkspace > .sheetDockLeft + .panelResizeRail {
+  .sheetWorkspace.clipWorkspace > .sheetViewportFrame { grid-area: 1 / 1; }
+  .sheetWorkspace.clipWorkspace > .sheetDockRight { grid-area: 1 / 3; }
+  .sheetWorkspace.clipWorkspace > .sheetViewportFrame + .panelResizeRail {
     grid-area: 1 / 2;
     position: relative;
     pointer-events: auto;

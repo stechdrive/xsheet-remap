@@ -51,6 +51,7 @@ export const SHEET_RIGHT_PANE_MIN_WIDTH = 200
 export const SHEET_RIGHT_PANE_MAX_WIDTH = 560
 
 export type SheetPaneLayout = {
+  clipLayerDock?: 'right'
   left: boolean
   right: boolean
   leftWidth: number
@@ -60,6 +61,7 @@ export type SheetPaneLayout = {
 export function initialSheetPaneLayout(appKind: MainAppKind, collapseEditorPanes: boolean): SheetPaneLayout {
   const visibleByDefault = appKind === 'remap' || !collapseEditorPanes
   const fallback: SheetPaneLayout = {
+    ...(appKind === 'remap' ? { clipLayerDock: 'right' as const } : {}),
     left: visibleByDefault,
     right: visibleByDefault,
     leftWidth: SHEET_LEFT_PANE_DEFAULT_WIDTH,
@@ -69,7 +71,11 @@ export function initialSheetPaneLayout(appKind: MainAppKind, collapseEditorPanes
     const stored = window.localStorage.getItem(`xsheet:${appKind}:sheet-pane-layout`)
     if (!stored) return fallback
     const parsed = JSON.parse(stored) as Partial<SheetPaneLayout>
+    if (appKind === 'remap' && parsed.clipLayerDock !== 'right') {
+      return { ...fallback, right: typeof parsed.left === 'boolean' ? parsed.left : fallback.right, rightWidth: typeof parsed.leftWidth === 'number' && Number.isFinite(parsed.leftWidth) ? clampNumber(parsed.leftWidth, 280, SHEET_RIGHT_PANE_MAX_WIDTH) : fallback.rightWidth }
+    }
     return {
+      ...fallback,
       left: typeof parsed.left === 'boolean' ? parsed.left : fallback.left,
       right: typeof parsed.right === 'boolean' ? parsed.right : fallback.right,
       leftWidth: typeof parsed.leftWidth === 'number'

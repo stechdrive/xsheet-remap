@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-remap"
-version = "0.1.797"
+version = "0.1.798"
 description = "CSP timesheet remapping workflow"
 authors = ["xsheet-remap contributors"]
 license = "MIT"

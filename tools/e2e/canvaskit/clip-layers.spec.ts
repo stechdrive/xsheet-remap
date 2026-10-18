@@ -20,7 +20,8 @@ async function cell(page: Page, frame: number) {
 test('two-pane layer workspace imports, previews, reuses cels, filters without changing exposure and exports static materials', async ({ page }, info) => {
   await page.goto('./?app=remap')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
-  await expect(page.locator('#sheet-right-pane')).toHaveCount(0)
+  await expect(page.locator('#sheet-left-pane')).toHaveCount(0)
+  await expect(page.locator('#sheet-right-pane .clipLayerPanel')).toBeVisible()
   const tree = page.getByRole('tree', { name: 'CLIPレイヤーツリー' })
   const pane = page.locator('.clipLayerPanel')
   await activateControl(page, page.locator('[data-clip-layer-id="slot:slot_A"]'))
@@ -65,7 +66,8 @@ test('two-pane layer workspace imports, previews, reuses cels, filters without c
   await expect(event(7)).toHaveText('1')
   const box = await tree.boundingBox()
   expect(box!.width).toBeGreaterThan(170)
-  expect(box!.x + box!.width).toBeLessThan(page.viewportSize()!.width / 2)
+  expect(box!.x).toBeGreaterThan(page.viewportSize()!.width / 2)
+  expect(box!.height).toBeGreaterThan(150)
   await page.screenshot({ path: info.outputPath('clip-layer-workspace.png') })
 
   // The tree background denotes the document root, independently of the selected cel.
@@ -78,7 +80,10 @@ test('two-pane layer workspace imports, previews, reuses cels, filters without c
   await transfer.dispose()
   await expect(row(page, 'BOOK')).toBeAttached()
   await activateControl(page, row(page, 'BOOK'))
+  await activateControl(page, page.getByLabel('レイヤーメニュー', { exact: true }))
   await expect(page.getByLabel('レイヤーの移動先', { exact: true })).toHaveValue('')
+  await activateControl(page, page.getByLabel('レイヤーメニュー', { exact: true }))
+  await activateControl(page, page.getByText('登録先・シート表示を設定', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: 'BOOK表示＋', exact: true }))
   await expect(row(page, 'BOOK')).toContainText('旗')
 
@@ -102,4 +107,81 @@ test('two-pane layer workspace imports, previews, reuses cels, filters without c
   const cel = data.layers!.find(node => node.name === '001')!
   expect(data.timelines[0].tracks.find(track => track.layerId === cel.parentId)?.frames).toEqual([{ frame: 0, value: '001' }, { frame: 6, value: '001' }])
   expect(data.layers!.filter(node => node.name === 'BOOK')).toHaveLength(1)
+})
+
+test('right layer palette properties, insertion feedback and history agree', async ({ page }, info) => {
+  await page.goto('./?app=remap')
+  await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
+  const pane = page.locator('.clipLayerPanel')
+  await activateControl(page, page.locator('[data-clip-layer-id="slot:slot_A"]'))
+  await pane.locator('input[type=file]').setInputFiles([image('001.png'), image('002.png'), image('003.png')])
+  await expect(row(page, '003')).toBeAttached()
+  await activateControl(page, row(page, '001').locator('.clipLayerName'))
+  await page.getByLabel('レイヤーの不透明度', { exact: true }).fill('35')
+  await page.getByLabel('レイヤーの不透明度', { exact: true }).press('Enter')
+  await expect(row(page, '001')).toContainText('35%')
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await expect(row(page, '001')).toContainText('100%')
+  await activateControl(page, page.getByRole('button', { name: 'やり直し', exact: true }))
+  await page.getByLabel('レイヤーの合成モード', { exact: true }).selectOption('2')
+  await expect(row(page, '001')).toContainText('35% 乗算')
+  await activateControl(page, row(page, '001').getByRole('checkbox', { name: '001の表示' }))
+  await expect(row(page, '001').getByRole('checkbox')).not.toBeChecked()
+  await expect(row(page, '001')).toContainText('35% 乗算')
+
+  const order = () => page.locator('[data-clip-layer-id="slot:slot_A"]').locator('..').locator(':scope > [role=group] > [role=treeitem] > .clipLayerRow .clipLayerName')
+  await row(page, '003').evaluate(element => element.scrollIntoView({ block: 'nearest' }))
+  async function move(cancel: boolean) {
+    const from = (await row(page, '003').locator('.clipLayerThumbnail').boundingBox())!, to = (await row(page, '001').boundingBox())!
+    await page.mouse.move(from.x + from.width * .8, from.y + from.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(to.x + to.width * .8, to.y + 3, { steps: 8 })
+    await expect(row(page, '001').locator('..')).toHaveClass(/clipDropBefore/)
+    await expect(pane.locator('.clipDropStatus')).toHaveText('001 の上に挿入')
+    if (cancel) {
+      await page.screenshot({ path: info.outputPath('insertion-preview.png') })
+      await page.keyboard.press('Escape')
+    }
+    await page.mouse.up()
+  }
+  await move(true)
+  await expect(order()).toHaveText(['001', '002', '003'])
+  await expect(pane.locator('.clipDropBefore')).toHaveCount(0)
+  await move(false)
+  await expect(order()).toHaveText(['003', '001', '002'])
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await expect(order()).toHaveText(['001', '002', '003'])
+
+  const transfer = await page.evaluateHandle(base64 => {
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([Uint8Array.from(atob(base64), char => char.charCodeAt(0))], 'insert.png', { type: 'image/png' }))
+    return transfer
+  }, png.toString('base64'))
+  const destination = (await row(page, '002').boundingBox())!
+  await row(page, '002').dispatchEvent('dragover', { dataTransfer: transfer, clientX: destination.x + 120, clientY: destination.y + 3 })
+  await expect(row(page, '002').locator('..')).toHaveClass(/clipDropBefore/)
+  await row(page, '002').dispatchEvent('drop', { dataTransfer: transfer, clientX: destination.x + 120, clientY: destination.y + 3 })
+  await transfer.dispose()
+  await expect(row(page, 'insert')).toBeAttached()
+  await expect(order()).toHaveText(['001', 'insert', '002', '003'])
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await expect(order()).toHaveText(['001', '002', '003'])
+
+  await activateControl(page, row(page, '001').locator('.clipLayerName'))
+  await activateControl(page, page.getByRole('button', { name: '新規ラスターレイヤー', exact: true }))
+  await expect(row(page, 'レイヤー')).toBeAttached()
+  page.once('dialog', dialog => dialog.accept())
+  await activateControl(page, page.getByRole('button', { name: 'レイヤーを削除', exact: true }))
+  await expect(row(page, 'レイヤー')).toHaveCount(0)
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await expect(row(page, 'レイヤー')).toBeAttached()
+  await row(page, '001').locator('.clipLayerName').dblclick()
+  await page.getByLabel('レイヤー名', { exact: true }).fill('001_原画')
+  await page.getByLabel('レイヤー名', { exact: true }).press('Enter')
+  await expect(row(page, '001_原画')).toContainText('35% 乗算')
+  const geometry = await pane.evaluate(element => ({ width: element.clientWidth, overflow: element.scrollWidth > element.clientWidth, treeHeight: element.querySelector('.clipLayerTree')!.clientHeight }))
+  expect(geometry.overflow).toBe(false)
+  expect(geometry.treeHeight).toBeGreaterThan(150)
+  await page.screenshot({ path: info.outputPath('palette-properties.png') })
 })

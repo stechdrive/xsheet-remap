@@ -277,7 +277,8 @@ it('provides CSP mapping and template authoring in the unified Remap shell', () 
     render(<RemapApp />)
     expect(screen.getByText('xsheet-remap')).toBeTruthy()
     expect(screen.getByRole('tree', { name: 'CLIPレイヤーツリー' })).toBeTruthy()
-    expect(document.querySelector('#sheet-right-pane')).toBeNull()
+    expect(document.querySelector('#sheet-left-pane')).toBeNull()
+    expect(document.querySelector('#sheet-right-pane .clipLayerPanel')).toBeTruthy()
     expect(screen.queryByText('パレット表示順')).toBeNull()
     expect(screen.queryByText('CSPパレット上端')).toBeNull()
     expect(screen.queryByText('CSPパレット下端')).toBeNull()
@@ -521,7 +522,7 @@ it('starts from the remembered template preset for each application', () => {
     expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
   })
 
-it('persists side-pane widths and resets a resized pane to its default width', async () => {
+it('migrates the former left layer pane to the right and persists its width and visibility', async () => {
     window.localStorage.setItem('xsheet:remap:sheet-pane-layout', JSON.stringify({
       left: false,
       right: true,
@@ -532,26 +533,26 @@ it('persists side-pane widths and resets a resized pane to its default width', a
     const workspace = document.querySelector<HTMLElement>('.sheetWorkspace')
     if (!workspace) throw new Error('sheet workspace not found')
 
-    expect(document.querySelector<HTMLElement>('.sheetDockLeft')?.hidden).toBe(true)
+    expect(document.querySelector('.sheetDockLeft')).toBeNull()
     expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('0px')
     expect(workspace.style.getPropertyValue('--sheet-right-dock-width')).toBe('0px')
 
-    fireEvent.click(screen.getByRole('button', { name: 'CSPレイヤー構成' }))
-    expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('318px')
-    const leftResizeHandle = screen.getByRole('separator', { name: uiText.layout.resizeCspLayerTreePane })
+    fireEvent.click(screen.getByRole('button', { name: 'レイヤー' }))
+    expect(workspace.style.getPropertyValue('--sheet-right-dock-width')).toBe('318px')
+    const leftResizeHandle = screen.getByRole('separator', { name: 'レイヤーパレットの幅を変更' })
     fireEvent.doubleClick(leftResizeHandle)
-    expect(workspace.style.getPropertyValue('--sheet-left-dock-width')).toBe('240px')
+    expect(workspace.style.getPropertyValue('--sheet-right-dock-width')).toBe('300px')
 
     await waitFor(() => {
       const stored = JSON.parse(window.localStorage.getItem('xsheet:remap:sheet-pane-layout') ?? '{}') as Record<string, unknown>
-      expect(stored).toMatchObject({ left: true, right: true, leftWidth: 240, rightWidth: 444 })
+      expect(stored).toMatchObject({ clipLayerDock: 'right', right: true, rightWidth: 300 })
     })
 
     firstRender.unmount()
     render(<RemapApp />)
     const restoredWorkspace = document.querySelector<HTMLElement>('.sheetWorkspace')
-    expect(restoredWorkspace?.style.getPropertyValue('--sheet-left-dock-width')).toBe('240px')
-    expect(restoredWorkspace?.style.getPropertyValue('--sheet-right-dock-width')).toBe('0px')
+    expect(restoredWorkspace?.style.getPropertyValue('--sheet-left-dock-width')).toBe('0px')
+    expect(restoredWorkspace?.style.getPropertyValue('--sheet-right-dock-width')).toBe('300px')
   })
 
 it('opens remap XDTS export options from the export menu without adding a workspace tab', () => {

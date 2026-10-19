@@ -1,3 +1,4 @@
+import { retainBrowserFiles } from '@xsheet-remap/adapters'
 import { useEffect, useMemo, useState } from 'react'
 import {
   defaultSheetImageAlignment,
@@ -594,11 +595,12 @@ export function roundForInput(value: number): number {
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
+  const release = retainBrowserFiles(src)
+  return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image()
     image.crossOrigin = 'anonymous'
     image.onload = () => resolve(image)
     image.onerror = () => reject(new Error(`failed to load image: ${src}`))
     image.src = src
-  })
+  }).finally(release)
 }

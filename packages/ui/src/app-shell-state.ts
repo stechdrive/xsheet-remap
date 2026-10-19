@@ -1,3 +1,4 @@
+import { useBrowserFileOwnership } from './useBrowserFileOwnership'
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
   activeCutProjectFromDocument, baseTimingProject, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId, ensureClipDocument, synchronizeClipBindings, selectTimingProcess,
@@ -183,7 +184,12 @@ export function useAppShellState(appKind: MainAppKind) {
   useEffect(() => saveCameraInstructionHistory(cameraInstructionHistory), [cameraInstructionHistory])
   useEffect(() => saveCameraPointLabelHistory(cameraPointLabelHistory), [cameraPointLabelHistory])
 
+  const releaseBrowserFilesAfterCommit = useBrowserFileOwnership(useMemo(() => [workspaceHistory, savedProjectDocumentSnapshot,
+    runtimeSourceImageUrls, timingClipboard, textAnnotationClipboard, soundCueClipboard, cameraCueClipboard, assetDropMenu],
+  [workspaceHistory, savedProjectDocumentSnapshot, runtimeSourceImageUrls, timingClipboard, textAnnotationClipboard, soundCueClipboard, cameraCueClipboard, assetDropMenu]))
+
   return {
+    releaseBrowserFilesAfterCommit,
     history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
     recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,

@@ -1,15 +1,15 @@
 import type { CutGroupProjectDocument, FileRef, NameNormalizationAssetRename, NameNormalizationAssetRenameResult } from '@xsheet-remap/core'
 import { isTauriHost } from './environment'
 import { decodeProjectFileBytes, encodeProjectArchive, isXsrProjectFileName, XSR_PROJECT_MIME_TYPE, type DecodedProjectFile } from './projectArchive'
-import { browserAssetDataUrl } from './browserFiles'
+import { browserAssetDataUrl, retainBrowserFiles } from './browserFiles'
 
 export { isTauriHost, isTauriLikeWindow } from './environment'
 export { generateClipFile, inspectClipFile, readClipFile } from './clip/runtime'
 export type { ClipWriteOptions, ClipWriteResult } from './clip/writer'
 export type { Pixels as ClipImagePixels } from './clip/raster'
-export { browserAssetBytes, browserAssetDataUrl, browserFileForObjectUrl, fileToFileRef, sha256File } from './browserFiles'
+export { browserAssetBytes, browserAssetDataUrl, browserFileForObjectUrl, fileToFileRef, filesToFileRefs, sha256File, createBrowserFileOwner, retainBrowserFiles, releaseBrowserFileRefs } from './browserFiles'
 export { clipSourceDataUrl, clipSourceBytes } from './clip/document-data'
-export { previewClipLayer, readClipAudioFile } from './clip/runtime'
+export { previewClipLayer, createClipPreviewSession, readClipAudioFile } from './clip/runtime'
 export type { ClipAudioReadResult } from './clip/audio'
 export { createPortableArchive, type PortableArchiveFile } from './portableArchive'
 export {
@@ -246,38 +246,40 @@ export async function saveProjectFile(
   fileName: string,
   options: Pick<SaveTextFileOptions, 'initialDirectory'> & { createdWith?: string } = {},
 ): Promise<SaveFileResult> {
-  if (!isXsrProjectFileName(fileName)) throw new Error('XSRプロジェクトのファイル名は.xsrで終わる必要があります。')
-  const tauriHost = isTauriHost()
-  const archiveDocument = tauriHost ? document : await documentWithBrowserAssetPreviews(document)
-  const bytes = await encodeProjectArchive(archiveDocument, {
-    createdWith: options.createdWith,
-    includeAssetPreviews: !tauriHost,
-  })
-  if (tauriHost) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const path = await invoke<string | null>('save_project_file', {
-      fileName,
-      contentsBase64: bytesToBase64(bytes),
-      initialDirectory: options.initialDirectory,
+  const release = retainBrowserFiles(document)
+  try {
+    if (!isXsrProjectFileName(fileName)) throw new Error('XSRプロジェクトのファイル名は.xsrで終わる必要があります。')
+    const tauriHost = isTauriHost()
+    const archiveDocument = tauriHost ? document : await documentWithBrowserAssetPreviews(document)
+    const bytes = await encodeProjectArchive(archiveDocument, {
+      createdWith: options.createdWith,
+      includeAssetPreviews: !tauriHost,
     })
-    return path ? { saved: true, path } : { saved: false }
-  }
-  const copy = new Uint8Array(bytes)
-  downloadBlob(new Blob([copy.buffer as ArrayBuffer], { type: XSR_PROJECT_MIME_TYPE }), fileName)
-  return { saved: true }
+    if (tauriHost) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const path = await invoke<string | null>('save_project_file', {
+        fileName,
+        contentsBase64: bytesToBase64(bytes),
+        initialDirectory: options.initialDirectory,
+      })
+      return path ? { saved: true, path } : { saved: false }
+    }
+    const copy = new Uint8Array(bytes)
+    downloadBlob(new Blob([copy.buffer as ArrayBuffer], { type: XSR_PROJECT_MIME_TYPE }), fileName)
+    return { saved: true }
+  } finally { release() }
 }
 
 async function documentWithBrowserAssetPreviews(document: CutGroupProjectDocument): Promise<CutGroupProjectDocument> {
-  return {
-    ...document,
-    assets: await Promise.all(document.assets.map(async asset => {
-      const dataUrl = await browserAssetDataUrl(asset.thumbnailUrl)
-      if (dataUrl) return { ...asset, thumbnailUrl: dataUrl }
-      const persistedAsset = { ...asset }
-      delete persistedAsset.thumbnailUrl
-      return persistedAsset
-    })),
+  const assets = []
+  for (const asset of document.assets) {
+    const dataUrl = await browserAssetDataUrl(asset.thumbnailUrl)
+    const persistedAsset = { ...asset }
+    if (dataUrl) persistedAsset.thumbnailUrl = dataUrl
+    else delete persistedAsset.thumbnailUrl
+    assets.push(persistedAsset)
   }
+  return { ...document, assets }
 }
 
 export async function writeProjectFile(

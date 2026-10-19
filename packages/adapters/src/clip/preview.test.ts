@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { unzlibSync } from 'fflate'
 import { createCachedPreviewFixture, createPreviewFixture } from './fixtures/preview-fixture'
-import { readClipLayerPreview } from './preview'
+import { readClipLayerPreview, createClipLayerPreviewReader } from './preview'
 import { maskPreview } from './material/preview-image'
 import { clipImportFolders, openClipDocument, suggestClipProcessColumns, buildClipRegistrationPlan, activeCutProjectFromDocument, updateActiveCutProjectInDocument, updateClipLayer } from '@xsheet-remap/core'
 import { readClip } from './reader'
@@ -16,6 +16,19 @@ const require = createRequire(import.meta.url)
 beforeAll(async () => { SQL = await initSqlJs({ wasmBinary: new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer }) })
 
 describe('CLIP Quick Look material decoding', () => {
+  it('reuses an open source without changing pixels, including recovery after a missing layer', async () => {
+    const { clip, vectorId } = await createCachedPreviewFixture(SQL, 'vector')
+    const bytes = clip.bytes(); clip.close()
+    const original = bytes.slice(), expected = await readClipLayerPreview(SQL, bytes, vectorId)
+    const reader = createClipLayerPreviewReader(SQL, bytes)
+    try {
+      expect(await reader.read(vectorId)).toEqual(expected)
+      await expect(reader.read(-1)).rejects.toThrow()
+      expect(await reader.read(vectorId)).toEqual(expected)
+      expect(bytes).toEqual(original)
+    } finally { reader.close() }
+  })
+
   it.each(['vector', '3d'] as const)('uses saved %s pixels without reconstructing, and preserves them through editing/export', async kind => {
     const { clip, vectorId } = await createCachedPreviewFixture(SQL, kind)
     const bytes = clip.bytes(); clip.close()

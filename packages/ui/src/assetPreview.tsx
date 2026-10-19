@@ -12,6 +12,7 @@ import {
   type AssetPreviewRect,
 } from './assetPreviewModel'
 import { Tooltip, TooltipTarget } from './Tooltip'
+import { useBrowserFileOwnership } from './useBrowserFileOwnership'
 
 type AssetPreviewInteraction = {
   mode: 'move' | 'resize'
@@ -227,6 +228,7 @@ function AssetPreviewContent({
   payload: AssetPreviewPayload | null
   frameClassName: string
 }) {
+  useBrowserFileOwnership(payload)
   const items = assetPreviewItems(payload)
   const isMultiple = items.length > 1
   const className = [frameClassName, isMultiple ? 'multi' : ''].filter(Boolean).join(' ')

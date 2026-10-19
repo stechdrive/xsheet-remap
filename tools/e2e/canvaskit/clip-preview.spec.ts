@@ -100,6 +100,41 @@ for (const kind of ['vector', '3d'] as const) test(`saved ${kind} previews use C
   })).toEqual({ width: 2, height: 1, pixel: [24, 80, 160, 255] })
 })
 
+test('repeated Quick Look closes release every preview worker and generated image URL', async ({ page }) => {
+  await page.addInitScript(() => {
+    const counts = { workers: 0, terminated: 0, urls: 0, revoked: 0 }
+    Object.assign(window, { clipPreviewResources: counts })
+    const NativeWorker = window.Worker
+    window.Worker = class extends NativeWorker {
+      private preview: boolean
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options)
+        this.preview = String(url).includes('clip-preview.worker')
+        if (this.preview) counts.workers++
+      }
+      terminate() { if (this.preview) counts.terminated++; super.terminate() }
+    }
+    const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL), owned = new Set<string>()
+    URL.createObjectURL = blob => {
+      const url = create(blob)
+      if (blob instanceof Blob && blob.type === 'image/png') { owned.add(url); counts.urls++ }
+      return url
+    }
+    URL.revokeObjectURL = url => { if (owned.delete(url)) counts.revoked++; revoke(url) }
+  })
+  const preview = await openSavedPreview(page, 'vector')
+  const resources = () => page.evaluate(() => (window as unknown as { clipPreviewResources: { workers: number; terminated: number; urls: number; revoked: number } }).clipPreviewResources)
+  for (let cycle = 1; cycle <= 3; cycle++) {
+    if (cycle > 1) await activateControl(page, page.getByRole('button', { name: 'vector-celをクイックルック', exact: true }))
+    await expect(preview.locator('img')).toBeVisible()
+    expect(await preview.locator('img').evaluate(async node => { await (node as HTMLImageElement).decode(); return [(node as HTMLImageElement).naturalWidth, (node as HTMLImageElement).naturalHeight] })).toEqual([2, 1])
+    await expect.poll(resources).toEqual({ workers: cycle, terminated: cycle, urls: cycle, revoked: cycle - 1 })
+    await activateControl(page, preview.getByRole('button', { name: 'プレビューを閉じる', exact: true }))
+    await expect(preview).toHaveCount(0)
+    await expect.poll(resources).toEqual({ workers: cycle, terminated: cycle, urls: cycle, revoked: cycle })
+  }
+})
+
 test('illustration CLIP without animation tables imports its preserved layers and saved 3D image', async ({ page }) => {
   const preview = await openSavedPreview(page, '3d', 'illustration')
   await expect(preview.locator('img')).toBeVisible()

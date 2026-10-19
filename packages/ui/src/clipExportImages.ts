@@ -1,7 +1,12 @@
 import { assetAbsolutePath, type CutGroupProjectDocument, type ClipRegistrationPlan } from '@xsheet-remap/core'
-import { isTauriHost, nativeFileSource, type ClipImagePixels } from '@xsheet-remap/adapters'
+import { isTauriHost, nativeFileSource, retainBrowserFiles, type ClipImagePixels } from '@xsheet-remap/adapters'
 import { loadImage } from './sheetImages'
 export async function loadClipImages(document: CutGroupProjectDocument, plan: ClipRegistrationPlan, signal: AbortSignal): Promise<Record<string, ClipImagePixels>> {
+  const release = retainBrowserFiles([document, plan])
+  try { return await loadRetainedClipImages(document, plan, signal) } finally { release() }
+}
+
+async function loadRetainedClipImages(document: CutGroupProjectDocument, plan: ClipRegistrationPlan, signal: AbortSignal): Promise<Record<string, ClipImagePixels>> {
   const result: Record<string, ClipImagePixels> = {}
   const requests = plan.document ? plan.document.nodes.filter(node => node.sourceLayerId === undefined && node.kind === 'raster' && (node.assetId || node.imageDataUrl)).map(node => ({ id: node.id, assetId: node.assetId, imageDataUrl: node.imageDataUrl }))
     : [...new Set(plan.folders.flatMap(folder => folder.cels.flatMap(cel => cel.assetId ? [cel.assetId] : [])))].map(id => ({ id, assetId: id, imageDataUrl: undefined }))

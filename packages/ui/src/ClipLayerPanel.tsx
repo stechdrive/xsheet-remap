@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { addClipLayers, allProcessEvents, clipCelRoot, clipEffectiveCel, clipNodePath, createClipNode, deleteClipLayer, moveClipLayer, setClipTarget, unsetClipTarget, updateClipLayer, timingForProcess, type ClipLayerNode, type CutProject, type SheetHit } from '@xsheet-remap/core'
-import { clipSourceBytes, previewClipLayer, isTauriHost } from '@xsheet-remap/adapters'
+import { addClipLayers, allProcessEvents, clipCelRoot, clipEffectiveCel, clipNodePath, createClipNode, deleteClipLayer, moveClipLayer, setClipTarget, unsetClipTarget, updateClipLayer, type ClipLayerNode, type CutProject, type SheetHit } from '@xsheet-remap/core'
+import { isTauriHost } from '@xsheet-remap/adapters'
 import { collectAssetFilesFromDrop } from './assetFiles'
 import { createStackGuideLabel } from '@xsheet-remap/core'
 import { avoidInternalDragPreview, setInternalDragDropValidity, startInternalPointerDrag, subscribeInternalDrag } from './internalDrag'
 import { AssetFloatingPreview } from './assetPreview'
-import { initialAssetPreviewRect, type AssetPreviewPayload } from './assetPreviewModel'
+import { initialAssetPreviewRect } from './assetPreviewModel'
 import { ClipLayerAppearance } from './ClipLayerAppearance'
 import { ClipLayerTreeItem } from './ClipLayerTreeItem'
 import { ClipLayerIcon, clipLayerKindLabel } from './ClipLayerIcons'
@@ -16,6 +16,7 @@ import { updateCorrectionLayers } from '@xsheet-remap/core'
 import { clipLayerDropAtElement, clipLayerFileDropAllowed, subscribeNativeLayerHover, type ClipLayerDropTarget } from './clipLayerDrop'
 import { TooltipSuppressionProvider, TooltipTarget } from './Tooltip'
 import { subscribeNativeFileDragPreview } from './nativeFileDragPreview'
+import { useClipLayerPreview } from './useClipLayerPreview'
 import './styles/clip-layers.css'
 
 export interface ClipLayerPanelProps {
@@ -50,7 +51,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   }, [project])
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(document.nodes.filter(node => node.expanded === false || node.expanded === undefined && node.id.startsWith('process:') && node.id !== `process:${props.activeProcessId}`).map(node => node.id))), [search, setSearch] = useState(''), [unusedOnly, setUnusedOnly] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false), [preview, setPreview] = useState<{ request: object; payload: AssetPreviewPayload; notices?: string[] } | null>(null), [previewRect, setPreviewRect] = useState(initialAssetPreviewRect)
+  const [previewOpen, setPreviewOpen] = useState(false), [previewRect, setPreviewRect] = useState(initialAssetPreviewRect)
   const [paperTrack, setPaperTrack] = useState(project.logicalSheet.paperTracks[0]?.paperTrack ?? '')
   const [mappingProcessId, setMappingProcessId] = useState(props.activeProcessId)
   const [pathDraft, setPathDraft] = useState<{ slotId?: string; value: string } | null>(null)
@@ -66,14 +67,14 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   const target = document.targets.find(item => item.slotId === selectedSlot?.slotId)
   const targetLabel = target ? clipNodePath(document, target.folderId) : selectedSlot && document.deletedTargetSlotIds?.includes(selectedSlot.slotId) ? 'フォルダー削除済み（CLIP出力から除外）' : '未設定'
   const cellPath = pathDraft && pathDraft.slotId === target?.slotId ? pathDraft.value : target?.cellPath?.join('/') ?? ''
-  const previewRequest = useMemo(() => ({ selected, document, sheet: project.logicalSheet, cutId: props.activeCutId, hit: props.selectedHit }), [selected, document, project.logicalSheet, props.activeCutId, props.selectedHit])
+  const preview = useClipLayerPreview(project, selected, props.activeCutId, props.selectedHit, previewOpen)
   const used = useMemo(() => {
     const keys = new Set(allProcessEvents(project.logicalSheet).map(event => event.keyId))
     return new Set(project.bindings.filter(binding => keys.has(binding.keyId)).flatMap(binding => binding.clipLayerId ? [binding.clipLayerId] : []))
   }, [project.bindings, project.logicalSheet])
   const children = useMemo(() => {
     const result = new Map<string | null, ClipLayerNode[]>()
-    for (const node of document.nodes) result.set(node.parentId, [...result.get(node.parentId) ?? [], node])
+    for (const node of document.nodes) { const siblings = result.get(node.parentId) ?? []; siblings.push(node); result.set(node.parentId, siblings) }
     return result
   }, [document.nodes])
 
@@ -116,70 +117,6 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
 
   useEffect(() => subscribeNativeLayerHover(destination => setDropTarget(destination ? { ...destination, valid: !props.disabled && clipLayerFileDropAllowed(document, destination) } : null)), [document, props.disabled, setDropTarget])
 
-  useEffect(() => {
-    if (!previewOpen || !selected || selected.kind === 'audio') return
-    const controller = new AbortController(); const urls: string[] = []
-    void (async () => {
-      try {
-        let node = selected
-        if (node.kind === 'animation') {
-          const mapped = document.targets.find(item => item.folderId === node.id)
-          const slot = project.cspTrackSlots.find(item => item.slotId === mapped?.slotId)
-          const frame = props.selectedHit?.frame ?? project.logicalSheet.frameOrigin
-          const event = timingForProcess(project.logicalSheet, slot?.correctionLayerId ?? '').events.filter(item => item.paperTrack === slot?.paperTrack && item.frame <= frame && item.sheetRole === (props.selectedHit?.role === 'cell' ? 'cell' : 'action') && ['cell', 'blank'].includes(item.valueKind)).sort((a, b) => b.frame - a.frame)[0]
-          const binding = event && project.bindings.find(item => item.keyId === event.keyId && item.slotId === slot?.slotId)
-          const sourceId = document.timelineIds?.[props.activeCutId]
-          const nativeFrames = document.sourceTimelines?.find(item => item.id === sourceId)?.tracks.find(item => item.layerId === node.id)?.frames
-          const nativeValue = nativeFrames?.filter(item => item.frame <= frame - project.logicalSheet.frameOrigin).at(-1)?.value
-          const cel = clipEffectiveCel(document, node.id, mapped ? binding?.cspCellName ?? '' : nativeValue ?? '')
-          if (!cel) throw new Error('このフレームにセル指定はありません。')
-          node = cel
-        }
-        const read = async (layer: ClipLayerNode) => {
-          let imageUrl = layer.imageDataUrl ?? project.assets.find(asset => asset.assetId === layer.assetId)?.thumbnailUrl
-          let detailText = clipNodePath(document, layer.id)
-          let notices: string[] | undefined
-          if (!imageUrl && layer.sourceLayerId !== undefined && document.source) {
-            const result = await previewClipLayer(clipSourceBytes(document.source.dataUrl), layer.sourceLayerId, controller.signal)
-            controller.signal.throwIfAborted()
-            imageUrl = URL.createObjectURL(new Blob([Uint8Array.from(result.bytes)], { type: 'image/png' })); urls.push(imageUrl)
-            detailText += ` / ${result.width} × ${result.height}px${result.storedComposite ? ' / CLIP保存時の合成画像（編集は未反映）' : ''}`
-            if (result.reconstructed) detailText += ' / CLIPの素材情報から描画'
-            else if (!result.storedComposite) detailText += ' / CLIP内のレイヤー画像'
-            notices = result.warnings
-          }
-          return { label: layer.name, imageUrl, detailText, notices }
-        }
-        if (node.kind === 'folder') {
-          // Show the saved composite when available, and the actual current children
-          // otherwise. A gallery does not pretend to reproduce unsupported CSP effects.
-          try {
-            const saved = await read(node)
-            if (saved.imageUrl) { setPreview({ request: previewRequest, payload: { displayName: node.name, ...saved }, notices: saved.notices }); return }
-          } catch { controller.signal.throwIfAborted() }
-          const descendantIds = new Set([node.id])
-          for (let size = -1; size !== descendantIds.size;) { size = descendantIds.size; for (const child of document.nodes) if (child.parentId && descendantIds.has(child.parentId)) descendantIds.add(child.id) }
-          const layers = document.nodes.filter(child => descendantIds.has(child.id) && !['folder', 'animation', 'audio'].includes(child.kind)).slice(0, 24)
-          const items = []
-          const notices: string[] = []
-          for (const layer of layers) {
-            try { const item = await read(layer); items.push(item); notices.push(...item.notices ?? []) }
-            catch (error) { controller.signal.throwIfAborted(); const message = error instanceof Error ? error.message : String(error); items.push({ label: layer.name, detailText: message }); notices.push(`「${layer.name}」: ${message}`) }
-          }
-          controller.signal.throwIfAborted()
-          setPreview({ request: previewRequest, payload: { displayName: node.name, detailText: 'フォルダー内の画像（最大24枚・個別表示）', items }, notices })
-          return
-        }
-        const item = await read(node)
-        if (!item.imageUrl) throw new Error('画像のないレイヤーです。')
-        controller.signal.throwIfAborted()
-        setPreview({ request: previewRequest, payload: { displayName: node.name, ...item }, notices: item.notices })
-      } catch (error) { if (!controller.signal.aborted) setPreview({ request: previewRequest,
-        payload: { displayName: selected.name, detailText: clipNodePath(document, selected.id) },
-        notices: [error instanceof Error ? error.message : String(error)] }) }
-    })()
-    return () => { controller.abort(); urls.forEach(url => URL.revokeObjectURL(url)) }
-  }, [previewOpen, selected, document, project.assets, project.bindings, project.cspTrackSlots, project.logicalSheet, props.selectedHit, props.activeCutId, previewRequest])
 
   function add(kind: 'folder' | 'animation' | 'raster') {
     const base = kind === 'folder' ? 'フォルダー' : kind === 'animation' ? 'A' : 'レイヤー'
@@ -317,6 +254,6 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     </div>
     {notice && <p role="status" className="clipLayerNotice">{notice}</p>}
     {processSettingsOpen && <ProcessSettingsDialog project={project} onClose={() => setProcessSettingsOpen(false)} onApply={layers => { if (apply(() => updateCorrectionLayers(project, layers))) setProcessSettingsOpen(false) }} />}
-    {previewOpen && preview?.request === previewRequest && <AssetFloatingPreview isDragPassthrough={false} payload={preview.payload} notices={preview.notices} rect={previewRect} onRectChange={setPreviewRect} onClose={() => setPreviewOpen(false)} />}
+    {previewOpen && preview && <AssetFloatingPreview isDragPassthrough={false} payload={preview.payload} notices={preview.notices} rect={previewRect} onRectChange={setPreviewRect} onClose={() => setPreviewOpen(false)} />}
   </section></TooltipSuppressionProvider>
 }

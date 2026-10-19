@@ -8,6 +8,7 @@ import {
 } from '@xsheet-remap/core'
 import {
   isXsrProjectFileName,
+  retainBrowserFiles,
   saveProjectFile,
   writeProjectFile,
 } from '@xsheet-remap/adapters'
@@ -36,6 +37,7 @@ import { correctedSheetImageFileName, projectFileName } from './outputFileNames'
 import { getSheetPageImage, loadImage } from './sheetImages'
 
 export function createAppProjectPersistenceActions(options: {
+  releaseAfterCommit?: (release: () => void) => void
   projectDocument: CutGroupProjectDocument
   template: SheetTemplate
   resolveProject: () => CutProject
@@ -52,8 +54,10 @@ export function createAppProjectPersistenceActions(options: {
   }
 
   async function handleSaveProjectFile(input: { saveAs?: boolean } = {}) {
+    let release = () => {}
     try {
       const nextDocument = resolvedProjectDocument()
+      release = retainBrowserFiles(nextDocument)
       if (!input.saveAs && options.projectFilePath && isXsrProjectFileName(options.projectFilePath)) {
         await writeProjectFile(options.projectFilePath, nextDocument, { createdWith: APP_VERSION })
         options.setProjectDocument(nextDocument)
@@ -71,6 +75,9 @@ export function createAppProjectPersistenceActions(options: {
       options.setSavedProjectDocumentSnapshot(nextDocument)
     } catch (error) {
       window.alert(uiText.project.saveFailed(errorMessage(error)))
+    } finally {
+      if (options.releaseAfterCommit) options.releaseAfterCommit(release)
+      else release()
     }
   }
 
@@ -80,9 +87,11 @@ export function createAppProjectPersistenceActions(options: {
   }
 
   async function handleSaveSheetImageExport(exportOptions: SheetImageExportOptions) {
+    let release = () => {}
     try {
       const outputs = []
       const exportDocument = resolvedProjectDocument()
+      release = retainBrowserFiles([exportDocument, options.template, options.runtimeSourceImageUrls])
       const cutProjects = exportCutProjectsFromDocument(exportDocument)
       for (const [index, cutProject] of cutProjects.entries()) {
         outputs.push(...await renderSheetImageExports(
@@ -107,12 +116,17 @@ export function createAppProjectPersistenceActions(options: {
       if (saved) options.setSheetImageExportDraft(null)
     } catch (error) {
       window.alert(uiText.export.saveFailed(errorMessage(error)))
+    } finally {
+      if (options.releaseAfterCommit) options.releaseAfterCommit(release)
+      else release()
     }
   }
 
   async function handleSaveCorrectedSheetImages(format: CorrectedSheetImageExportFormat) {
+    let release = () => {}
     try {
       const sourceProject = options.resolveProject()
+      release = retainBrowserFiles([sourceProject, options.template, options.runtimeSourceImageUrls])
       const { pages, totalPages } = correctedSheetImageExportPlan(sourceProject, options.template)
       if (pages.length === 0) return
       const resolvedPages = pages.map(page => ({
@@ -155,6 +169,9 @@ export function createAppProjectPersistenceActions(options: {
       })
     } catch (error) {
       window.alert(uiText.export.saveFailed(errorMessage(error)))
+    } finally {
+      if (options.releaseAfterCommit) options.releaseAfterCommit(release)
+      else release()
     }
   }
 

@@ -1,3 +1,4 @@
+import { useBrowserFileOwnership } from './useBrowserFileOwnership'
 import { isCompositionKey } from './compositionKeyboard'
 import { baseTimingProcessId, baseTimingProject, setBaseTimingProcess, remapClipTracks, type ClipTrackCorrespondence } from '@xsheet-remap/core'
 import { applySheetLabelNormalizationPlan, updateSheetKeyDisplayLabel, type SheetLabelNormalizationPlan } from '@xsheet-remap/core'
@@ -10,7 +11,7 @@ import type { RemapWorkMode } from './RemapWorkspaceBar'
 import type { PendingClipImageDrop } from './ClipImageDropDialog'
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
-import { collectAssetPathDrop, confirmUserAction, fileToFileRef, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
+import { collectAssetPathDrop, confirmUserAction, filesToFileRefs, releaseBrowserFileRefs, retainBrowserFiles, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
 import { updateNativeFileDragPreview, avoidNativeFileDragPreview, clearNativeFileDragPreview } from './nativeFileDragPreview'
 import { projectDocumentsEqual } from './projectDocumentEquality';
@@ -94,9 +95,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     timingEditSession, timingEditSessionRef, setTimingEditSession, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
-    workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
+    releaseBrowserFilesAfterCommit, workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
   } = useAppShellState(appKind)
   const [pendingClipImageDrop, setPendingClipImageDrop] = useState<PendingClipImageDrop | null>(null)
+  if (pendingClipImageDrop && (pendingClipImageDrop.source !== project || workMode !== 'clip')) setPendingClipImageDrop(null)
+  useBrowserFileOwnership(pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null)
   const clipImportContext = useRef<object>({})
   const workModeRef = useRef(workMode)
   workModeRef.current = workMode
@@ -112,7 +115,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const issues = useMemo(() => validateProject(project, project.exportProfiles.find(profile => profile.profileId === exportProfileId)), [project, exportProfileId])
   const projectDocumentSnapshot = useMemo(() => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }), [projectDocument, project, template])
   const { resolvedProjectDocument, handleSaveProjectFile, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages } = createAppProjectPersistenceActions({
-    projectDocument, template, resolveProject: () => commitTimingDraft(false), projectFilePath,
+    releaseAfterCommit: releaseBrowserFilesAfterCommit, projectDocument, template, resolveProject: () => commitTimingDraft(false), projectFilePath,
     setProjectFilePath, setProjectDocument, setSavedProjectDocumentSnapshot, runtimeSourceImageUrls, setSheetImageExportDraft,
   })
   const handleSaveDialogueAudioTracks = createAppDialogueAudioExportAction(project, setExportOperationNotice)
@@ -1056,9 +1059,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       .filter(file => file.type.startsWith('image/'))
       .sort(compareFileNames)
     if (imageFiles.length === 0) return
-    const refs = await Promise.all(imageFiles.map(fileToFileRef))
-    const currentContext = paperSheetEditContextRef.current
-    if (samePaperSheetEditContext(currentContext, targetContext)) handleSheetSourceFileRefs(refs, startPageId, currentContext)
+    const refs = await filesToFileRefs(imageFiles)
+    try {
+      const currentContext = paperSheetEditContextRef.current
+      if (samePaperSheetEditContext(currentContext, targetContext)) handleSheetSourceFileRefs(refs, startPageId, currentContext)
+    } finally { releaseBrowserFilesAfterCommit(() => releaseBrowserFileRefs(refs)) }
   }
 
   function handleSheetSourceFileRefs(refs: FileRef[], startPageId: string | undefined, context: PaperSheetEditContext) {
@@ -1095,6 +1100,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setAutoCalibrationMessage(uiText.sheet.autoCalibrationImportRunning(targets.length))
     setAutoCalibrationOverlay(null)
     const results: ImportedSheetSourceCalibrationResult[] = []
+    const release = retainBrowserFiles(targets)
     try {
       for (const target of targets) {
         try {
@@ -1123,6 +1129,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         ? uiText.sheet.autoCalibrationImportSucceeded(results.length, targets.length)
         : uiText.sheet.autoCalibrationImportFailed)
     } finally {
+      release()
       setAutoCalibrationRunning(false)
     }
   }
@@ -1301,8 +1308,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (projectRef.current.clipDocument) { await handleClipImageFiles(Array.from(files), null, targetHit); return }
     const imageFiles = Array.from(files).filter(isImageAssetFile)
     if (imageFiles.length === 0) return
-    const refs = await Promise.all(imageFiles.map(fileToFileRef))
-    handleAssetFileRefs(refs, targetHit, position)
+    const refs = await filesToFileRefs(imageFiles)
+    try { handleAssetFileRefs(refs, targetHit, position) }
+    finally { releaseBrowserFilesAfterCommit(() => releaseBrowserFileRefs(refs)) }
   }
 
   async function handleAssetNativePaths(paths: string[], targetHit: SheetHit | null = null, position?: { x: number; y: number }, options: { recursive?: boolean } = {}) {
@@ -1433,8 +1441,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (!allowClipImageImport()) return
     const source = commitTimingDraft(false), processId = newImageProcessId, context = clipImportContext.current
     try {
-      const refs = await Promise.all(files.filter(isImageAssetFile).map(fileToFileRef))
-      await importClipImageRefs(source, refs, parentId, hit, processId, beforeId, context)
+      const images = files.filter(isImageAssetFile)
+      if (hit && images.length > 1) throw new Error('シートには画像を1枚ずつ配置してください。複数画像はレイヤーツリーへ追加できます。')
+      if (images.reduce((sum, file) => sum + file.size, 0) > 384 * 1024 * 1024) throw new Error('一度に追加する画像は合計384MB以内にしてください。')
+      const refs = await filesToFileRefs(images)
+      try { await importClipImageRefs(source, refs, parentId, hit, processId, beforeId, context) }
+      finally { releaseBrowserFilesAfterCommit(() => releaseBrowserFileRefs(refs)) }
     } catch (error) { setStatusHint('sheet-drop', errorMessage(error)) }
   }
 
@@ -2237,6 +2249,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setRecognitionRunning(true)
     setRecognitionProgress({ completed: 0, total: 0 })
     setRecognitionMessage(null)
+    const release = retainBrowserFiles(pages)
     try {
       const candidates = await recognizeSheetPagesIfAvailable({
         template,
@@ -2254,6 +2267,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     } catch (error) {
       setRecognitionMessage(uiText.recognition.failed(errorMessage(error)))
     } finally {
+      release()
       setRecognitionRunning(false)
     }
   }

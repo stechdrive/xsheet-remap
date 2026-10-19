@@ -7,5 +7,7 @@ export function clipSourceDataUrl(bytes: Uint8Array): string {
 export function clipSourceBytes(dataUrl: string): Uint8Array {
   if (!/^data:[^,]*;base64,/.test(dataUrl)) throw new Error('CLIPの元データが不正です。')
   const binary = atob(dataUrl.slice(dataUrl.indexOf(',') + 1))
-  return Uint8Array.from(binary, character => character.charCodeAt(0))
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return bytes
 }

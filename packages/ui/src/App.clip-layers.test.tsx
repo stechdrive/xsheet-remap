@@ -5,6 +5,7 @@ import { clipImageDataUrl } from './clipImageImport'
 import { dragInternalPointer, openAppNavigationMenu, setSheetRect, templateFramePoint } from './App.test-support'
 import { uiText } from './i18n'
 import { dispatchInternalDrag } from './internalDrag'
+import { browserFileForObjectUrl } from '@xsheet-remap/adapters'
 
 vi.mock('./clipImageImport', () => ({ clipImageDataUrl: vi.fn() }))
 const imageUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='
@@ -22,6 +23,18 @@ const file = (name: string) => new File(['pixels'], name, { type: 'image/png' })
 const layer = (name: string) => Array.from(document.querySelectorAll<HTMLElement>('.clipLayerRow')).find(row => row.querySelector('.clipLayerName')?.textContent === name)
 
 describe('Remap CLIP layer workspace', () => {
+  it('rejects oversized image batches before reading or registering any file', async () => {
+    const { input } = setup()
+    const oversized = file('oversized.png')
+    Object.defineProperty(oversized, 'size', { value: 385 * 1024 * 1024 })
+    const read = vi.spyOn(oversized, 'arrayBuffer'), createUrl = vi.spyOn(URL, 'createObjectURL')
+    fireEvent.change(input, { target: { files: [oversized] } })
+    await waitFor(() => expect(screen.getAllByText('一度に追加する画像は合計384MB以内にしてください。').length).toBeGreaterThan(0))
+    expect(read).not.toHaveBeenCalled()
+    expect(createUrl).not.toHaveBeenCalled()
+    expect(layer('oversized')).toBeUndefined()
+  })
+
   it('starts each process at A and adds J above I in every group in one Undo step', () => {
     render(<RemapApp />)
     expect(screen.queryByRole('tree')).toBeNull()
@@ -147,6 +160,7 @@ describe('Remap CLIP layer workspace', () => {
     openAppNavigationMenu()
     fireEvent.click(screen.getByRole('button', { name: uiText.actions.resetApp }))
     await act(async () => { complete(imageUrl); await Promise.resolve() })
+    expect(browserFileForObjectUrl('blob:stale.png')).toBeUndefined()
     expect(layer('stale')).toBeUndefined()
     expect(screen.getByRole('button', { name: 'シート編集' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.queryByRole('tree', { name: 'CLIPレイヤーツリー' })).toBeNull()

@@ -1,3 +1,4 @@
+import { DialogueAudioCache } from './dialogueAudioCache'
 import {
   useCallback,
   useEffect,
@@ -264,7 +265,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   const animationRef = useRef<number | null>(null)
   const playSessionRef = useRef<{ contextStart: number; frameStart: number; frameEnd: number } | null>(null)
   const recorderRef = useRef<{ recorder: MediaRecorder; stream: MediaStream; chunks: Blob[]; startFrame: number; trackId: string } | null>(null)
-  const decodedRef = useRef(new Map<string, { dataUrl: string; audio: PcmAudio }>())
+  const decodedRef = useRef(new DialogueAudioCache())
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const pendingImportRef = useRef<{ trackId: string; frame: number } | null>(null)
@@ -488,7 +489,11 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     return () => { cancelled = true }
   }, [activeRevisionId, cutState, setPlayhead, soundCueNavigationRequest, soundCues])
 
+  useEffect(() => { decodedRef.current.retain(cutState.assets) }, [cutState.assets])
+
   useEffect(() => () => {
+    decodedRef.current.clear()
+    playbackRequestRef.current += 1
     stopSources(sourcesRef.current)
     stopSources(scrubSourcesRef.current)
     scrubRequestRef.current += 1
@@ -506,11 +511,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   async function decodedAsset(asset: DialogueAudioAsset, context: AudioContext): Promise<PcmAudio> {
-    const cached = decodedRef.current.get(asset.assetId)
-    if (cached?.dataUrl === asset.audioDataUrl) return cached.audio
-    const audio = await decodeAudioDataUrl(asset.audioDataUrl, context)
-    decodedRef.current.set(asset.assetId, { dataUrl: asset.audioDataUrl, audio })
-    return audio
+    return decodedRef.current.getOrDecode(asset, () => decodeAudioDataUrl(asset.audioDataUrl, context))
   }
 
   function stopPlayback(updateFrame = true) {
@@ -569,6 +570,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     if (requestId !== playbackRequestRef.current || cutStateRef.current !== state) return
     const startAt = context.currentTime + 0.05
     let failedClipCount = decoded.filter(request => request === null).length
+    const buffers = new Map<PcmAudio, AudioBuffer>()
     for (const request of decoded) {
       if (!request) continue
       const segment = planDialogueAudioClipPlayback(request.clip, playbackStart, playbackEnd, fps, {
@@ -581,7 +583,9 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       }
       try {
         const source = context.createBufferSource()
-        source.buffer = audioBufferFromPcm(context, request.audio)
+        let buffer = buffers.get(request.audio)
+        if (!buffer) { buffer = audioBufferFromPcm(context, request.audio); buffers.set(request.audio, buffer) }
+        source.buffer = buffer
         source.connect(context.destination)
         source.start(startAt + segment.delaySeconds, segment.sourceOffsetSeconds, segment.durationSeconds)
         sources.push(source)

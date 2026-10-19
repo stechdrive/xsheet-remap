@@ -439,7 +439,7 @@ describe('template editor geometry', () => {
     expect(memo.rect.w * chrome.pageSize.widthPx).toBeCloseTo(chrome.pageSize.widthPx - 64)
   })
 
-  it('labels timed-range lanes that remain outside a fixed paper template', () => {
+  it('keeps exported paper headers unchanged when timed-range lanes exceed its capacity', () => {
     const soundLanes = Array.from({ length: 6 }, (_, index) => ({
       laneId: `sound_lane_${index + 1}`,
       label: `S${index + 1}`,
@@ -453,10 +453,9 @@ describe('template editor geometry', () => {
     const paper = buildTemplateChromeRenderModel(standardA3SheetTemplate, [], undefined, {
       timelineLanes: { sound: soundLanes, camera: cameraLanes },
     })
-    expect(paper.headers.filter(header => header.label.includes('欄外')).map(header => header.label)).toEqual([
-      'SOUND（欄外 +2）',
-      'CAMERA（欄外 +2）',
-    ])
+    expect(paper.headers.map(header => header.label)).toEqual(
+      buildTemplateChromeRenderModel(standardA3SheetTemplate).headers.map(header => header.label),
+    )
 
     const digital = buildTemplateChromeRenderModel(digitalStandardSheetTemplate, [], undefined, {
       timelineLanes: { sound: soundLanes, camera: cameraLanes },

@@ -224,10 +224,16 @@ export function openStackGuideInsertMenu(sheet: HTMLElement, role: SheetTimingRo
 }
 
 export async function clickActiveStackGuideInsertHandle(point: { x: number; y: number }) {
-  await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
-  const activeHandle = document.querySelector<HTMLButtonElement>('.stackGuideGap.insertToolActive .stackGuideInsertHandle')
-  if (!activeHandle) throw new Error('active stack guide insert handle not found')
-  fireEvent.click(activeHandle, { clientX: point.x, clientY: point.y })
+  await waitFor(() => expect(document.querySelectorAll('.columnInsertionSurface')).toHaveLength(1))
+  const surface = setColumnInsertionRect()
+  fireEvent.click(surface, { clientX: point.x, clientY: point.y })
+}
+
+export function setColumnInsertionRect(left = 0, top = 0, width = 1000, height = 1000): HTMLElement {
+  const surface = document.querySelector<HTMLElement>('.columnInsertionSurface')
+  if (!surface) throw new Error('column insertion surface not found')
+  setSheetRect(surface, left, top, width, height)
+  return surface
 }
 
 export function dragStackGuideSvgLabel(

@@ -31,6 +31,8 @@ it('copies Japanese and English AE Keyframe Data from the cell column header men
     uiText.actions.selectPaperTrackColumn,
     uiText.actions.renamePaperTrack,
     `${uiText.actions.copyAeKeyframeDataMenu}›`,
+    uiText.stackGuides.add,
+    uiText.stackGuides.addOverlayTrack,
   ])
 
   const copySubmenuTrigger = within(menu).getByRole('menuitem', { name: uiText.actions.copyAeKeyframeDataMenu })

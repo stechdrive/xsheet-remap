@@ -11,7 +11,10 @@ import { SheetImageLayer } from './SheetTemplateLayers';
 import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay } from './app-sheet-layers';
 import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
-import { sheetContextMenuStyle } from './app-registered-cells';
+import { SheetContextMenu } from './SheetContextMenu'
+import { SheetColumnAddMenuItems } from './SheetColumnAddMenuItems'
+import { sheetColumnRoleLabel, type SheetColumnRole } from './sheetColumnModel'
+import { TimelineLaneInsertionOverlay } from './TimelineLaneInsertionOverlay'
 import type { SheetCanvasController } from './app-sheet-canvas-controller'
 import { SelectedCellCue, SheetDropTargetCue, SheetRangeBoundaryCue, SheetRangeFillCue, mergeAdjacentRangeRects } from './sheet-selection-visuals'
 import { SheetMetadataEditor } from './SheetMetadataEditor'
@@ -126,7 +129,7 @@ function AeKeyframeDataCopySubmenu({
 
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
-    props, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
+    props, columnMenuContext, startColumnInsert, timelineLaneInsertRequest, setTimelineLaneInsertRequest, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, timingMoveSource, timingMovePlan, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
@@ -142,13 +145,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     handleTimelineEventPointerCancel, calibrationPointsForPage, handleCalibrationHandlePointerDown, handlePointerMove, handleContextMenu, runContextMenuAction,
     handleSoundCuePointerDown, handleSoundCuePointerMove, finishSoundCuePointer, handleSoundCueDoubleClick, handleSoundCuePointerEnter, handleSoundCuePointerLeave,
     handleCameraCuePointerDown, handleCameraCuePointerMove, finishCameraCuePointer, handleCameraCueDoubleClick, handleCameraCuePointerEnter, handleCameraCuePointerLeave,
-    runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runStackGuideHeaderMenuAction, runTimedRangeLaneHeaderMenuAction, requestStackGuideInsert, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
+    runPaperTrackHeaderMenuAction, runOverlayPaperTrackMenuAction, runTimedRangeLaneHeaderMenuAction, openPaperTrackRenameEditor, openAddOverlayPaperTrackEditor,
     openTimelineLaneEditor, submitTimelineLaneEditor,
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown,
     handlePointerDownCapture, handlePointerMoveCapture, handlePointerUpCapture, handlePointerCancelCapture, handleLostPointerCapture,
     contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
-    canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
+    canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   } = controller
   const processDifferences = useMemo(() => props.clipShowProcessDifferences ? processTimingDifferences(props.project) : [], [props.clipShowProcessDifferences, props.project])
@@ -166,6 +169,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     top: `${Math.max(8, Math.min(cameraCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
   } : undefined
   const contextTimelineMemoIds = contextMenu?.timelineMemoIds ?? []
+  const columnAddRole = columnMenuContext?.role
+  const columnAddItems = columnAddRole && ['action', 'cell', 'sound', 'camera'].includes(columnAddRole)
+    ? <SheetColumnAddMenuItems template={props.template} role={columnAddRole as SheetColumnRole} regionId={columnMenuContext?.regionId}
+      onAdd={kind => startColumnInsert(kind, columnMenuContext)} /> : null
   const interactionOwner = resolveSheetInteractionOwner({
     editMode: props.editMode,
     selectedTimelineMemoId: props.selectedTimelineMemoId,
@@ -620,6 +627,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       onClearPreview={() => setStackGuideDropPreview(null)}
                     />
                 )}
+                {!isCalibrating && timelineLaneInsertRequest?.pageId === page.pageId && (
+                  <TimelineLaneInsertionOverlay project={props.project} template={props.template} request={timelineLaneInsertRequest}
+                    onAdd={props.onAddTimelineLane} onCancel={() => {
+                      setTimelineLaneInsertRequest(null)
+                      viewportRef.current?.focus({ preventScroll: true })
+                    }} />
+                )}
                 {!isCalibrating && overlayTracks.length > 0 && (
                   <OverlayPaperTrackInteractionLayer
                     project={props.project}
@@ -673,13 +687,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             top: box.top + rect.y * box.height, bottom: box.top + (rect.y + rect.h) * box.height }
         }} />}
       {contextMenu && hasSheetContextMenuItems && (
-        <div
-          className="sheetContextMenu"
-          style={sheetContextMenuStyle(contextMenu.x, contextMenu.y, sheetContextMenuItemCount)}
-          role="menu"
-          onPointerDown={event => event.stopPropagation()}
-          onContextMenu={event => event.preventDefault()}
-        >
+        <SheetContextMenu x={contextMenu.x} y={contextMenu.y}>
           {timelineMemoContext && (
             <>
               <div className="sheetContextMenuTitle">メモ</div>
@@ -761,16 +769,11 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               ))}
             </>
           )}
-        </div>
+          {columnAddItems}
+        </SheetContextMenu>
       )}
       {paperTrackHeaderMenu && (
-        <div
-          className="sheetContextMenu paperTrackHeaderContextMenu"
-          style={sheetContextMenuStyle(paperTrackHeaderMenu.x, paperTrackHeaderMenu.y, 3)}
-          role="menu"
-          onPointerDown={event => event.stopPropagation()}
-          onContextMenu={event => event.preventDefault()}
-        >
+        <SheetContextMenu x={paperTrackHeaderMenu.x} y={paperTrackHeaderMenu.y} className="paperTrackHeaderContextMenu">
           <button
             role="menuitem"
             onClick={() => runPaperTrackHeaderMenuAction(() => selectPaperTrackColumn(paperTrackHeaderMenu.hit))}
@@ -794,16 +797,11 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             onCopyJapanese={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}
             onCopyEnglish={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}
           />
-        </div>
+          {columnAddItems}
+        </SheetContextMenu>
       )}
       {overlayPaperTrackMenu && overlayPaperTrackMenuTrack && (
-        <div
-          className="sheetContextMenu"
-          style={sheetContextMenuStyle(overlayPaperTrackMenu.x, overlayPaperTrackMenu.y, 2)}
-          role="menu"
-          onPointerDown={event => event.stopPropagation()}
-          onContextMenu={event => event.preventDefault()}
-        >
+        <SheetContextMenu x={overlayPaperTrackMenu.x} y={overlayPaperTrackMenu.y}>
           <button
             role="menuitem"
             onClick={() => runOverlayPaperTrackMenuAction(() => openOverlayPaperTrackEditor(overlayPaperTrackMenuTrack, {
@@ -819,61 +817,25 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           >
             {uiText.actions.deleteOverlayPaperTrack}
           </button>
-        </div>
+          {columnAddItems}
+        </SheetContextMenu>
       )}
       {stackGuideHeaderMenu && (
-        <div
-          className="sheetContextMenu"
-          style={sheetContextMenuStyle(stackGuideHeaderMenu.x, stackGuideHeaderMenu.y, 2)}
-          role="menu"
-          aria-label={uiText.stackGuides.insertMenuLabel}
-          onPointerDown={event => event.stopPropagation()}
-          onContextMenu={event => event.preventDefault()}
-        >
-          <button
-            role="menuitem"
-            onClick={() => runStackGuideHeaderMenuAction(() => requestStackGuideInsert(stackGuideHeaderMenu, 'label-editor'))}
-          >
-            {uiText.stackGuides.add}
-          </button>
-          <button
-            role="menuitem"
-            onClick={() => runStackGuideHeaderMenuAction(() => requestStackGuideInsert(stackGuideHeaderMenu, 'overlay-track'))}
-          >
-            {uiText.stackGuides.addOverlayTrack}
-          </button>
-        </div>
+        <SheetContextMenu x={stackGuideHeaderMenu.x} y={stackGuideHeaderMenu.y} label={uiText.stackGuides.insertMenuLabel}>
+          {columnAddItems}
+        </SheetContextMenu>
       )}
       {timedRangeLaneHeaderMenu && (
-        <div
-          className="sheetContextMenu"
-          style={sheetContextMenuStyle(timedRangeLaneHeaderMenu.x, timedRangeLaneHeaderMenu.y, 3)}
-          role="menu"
-          aria-label={`${timedRangeLaneHeaderMenu.role === 'sound' ? 'SOUND' : 'CAMERA'}列の操作`}
-          onPointerDown={event => event.stopPropagation()}
-          onContextMenu={event => event.preventDefault()}
-        >
-          <div className="sheetContextMenuTitle">{timedRangeLaneHeaderMenu.label}</div>
-          <button
-            role="menuitem"
-            onClick={() => runTimedRangeLaneHeaderMenuAction(() => openTimelineLaneEditor(timedRangeLaneHeaderMenu, 'add'))}
-          >
-            {timedRangeLaneHeaderMenu.role === 'sound' ? 'SOUND列を追加' : 'CAMERA列を追加'}
-          </button>
-          <button
-            role="menuitem"
-            onClick={() => runTimedRangeLaneHeaderMenuAction(() => openTimelineLaneEditor(timedRangeLaneHeaderMenu, 'rename'))}
-          >
-            列名を変更
-          </button>
-          <button
-            role="menuitem"
-            disabled={(timelineLanes[timedRangeLaneHeaderMenu.role]?.length ?? 0) <= 1}
-            onClick={() => runTimedRangeLaneHeaderMenuAction(() => props.onDeleteTimelineLane(timedRangeLaneHeaderMenu.role, timedRangeLaneHeaderMenu.laneId))}
-          >
-            列を削除
-          </button>
-        </div>
+        <SheetContextMenu x={timedRangeLaneHeaderMenu.x} y={timedRangeLaneHeaderMenu.y}
+          label={`${sheetColumnRoleLabel(props.template, timedRangeLaneHeaderMenu.role, columnMenuContext?.regionId)}列の操作`}>
+          {!timedRangeLaneHeaderMenu.sectionHeader && <>
+            <div className="sheetContextMenuTitle">{timedRangeLaneHeaderMenu.label}</div>
+            <button role="menuitem" onClick={() => runTimedRangeLaneHeaderMenuAction(() => openTimelineLaneEditor(timedRangeLaneHeaderMenu, 'rename'))}>列名を変更</button>
+            <button role="menuitem" disabled={(timelineLanes[timedRangeLaneHeaderMenu.role]?.length ?? 0) <= 1}
+              onClick={() => runTimedRangeLaneHeaderMenuAction(() => props.onDeleteTimelineLane(timedRangeLaneHeaderMenu.role, timedRangeLaneHeaderMenu.laneId))}>列を削除</button>
+          </>}
+          {columnAddItems}
+        </SheetContextMenu>
       )}
       {paperTrackEditor && (
         <PaperTrackEditorPopover
@@ -886,6 +848,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       {timelineLaneEditor && (
         <TimelineLaneEditorPopover
           state={timelineLaneEditor}
+          roleLabel={sheetColumnRoleLabel(props.template, timelineLaneEditor.role)}
           onSubmit={submitTimelineLaneEditor}
           onCancel={() => setTimelineLaneEditor(null)}
         />

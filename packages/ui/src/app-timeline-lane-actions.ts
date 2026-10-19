@@ -1,3 +1,4 @@
+import type { TimelineLaneAddition } from './sheetColumnModel'
 import {
   addTimelineLane,
   deleteTimelineLane,
@@ -12,7 +13,7 @@ export function createAppTimelineLaneActions(options: {
   commitProject: (project: CutProject) => void
   clearSelection: () => void
 }) {
-  function handleAddTimelineLane(input: { role: TimedRangeRole; label: string; insertAfterLaneId?: string }) {
+  function handleAddTimelineLane(input: TimelineLaneAddition) {
     try {
       options.commitProject(addTimelineLane(options.getProject(), input).project)
     } catch (error) {

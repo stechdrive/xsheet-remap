@@ -7,21 +7,22 @@ export function TimelineLaneEditorPopover({
   state,
   onSubmit,
   onCancel,
+  roleLabel = state.role === 'sound' ? 'SOUND' : 'CAMERA',
 }: {
   state: TimelineLaneEditorState
   onSubmit: (label: string) => void
   onCancel: () => void
+  roleLabel?: string
 }) {
   const [label, setLabel] = useState(state.initialName)
   const { rootRef, handleKeyDown, completeWithSheetFocus } = useFloatingEditorBoundary<HTMLFormElement>(onCancel)
-  const roleLabel = state.role === 'sound' ? 'SOUND' : 'CAMERA'
   return (
     <form
       ref={rootRef}
       className="paperTrackEditorPopover timelineLaneEditorPopover"
       data-workspace-keyboard-scope="editor"
       style={floatingEditorStyle(state.x, state.y)}
-      aria-label={`${roleLabel}列${state.mode === 'add' ? '追加' : '名前変更'}`}
+      aria-label={`${roleLabel}列名前変更`}
       onSubmit={event => {
         event.preventDefault()
         const normalized = label.trim()

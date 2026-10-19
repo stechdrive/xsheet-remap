@@ -1,3 +1,4 @@
+import type { TimelineLaneAddition } from './sheetColumnModel'
 import type { TimingPasteContent, TimingPasteMode } from './appTypes'
 import type { AudioPlayheadStore } from './audioPlayheadStore'
 import type {
@@ -139,7 +140,7 @@ export type SheetCanvasProps = {
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   onCopyAeKeyframeData: (paperTrack: string, sheetRole: SheetTimingRole, locale?: 'ja' | 'en') => void
-  onAddTimelineLane: (input: { role: TimedRangeRole; label: string; insertAfterLaneId?: string }) => void
+  onAddTimelineLane: (input: TimelineLaneAddition) => void
   onUpdateTimelineLane: (role: TimedRangeRole, laneId: string, label: string) => void
   onDeleteTimelineLane: (role: TimedRangeRole, laneId: string) => void
   stackGuideInsertTool: StackGuideInsertContext | null

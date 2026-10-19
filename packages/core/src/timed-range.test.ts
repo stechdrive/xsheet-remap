@@ -16,6 +16,27 @@ import {
 import { addTimelineMemo } from './timeline-memo'
 
 describe('timed range cues', () => {
+  it.each(['sound', 'camera'] as const)('inserts %s lanes at the first, middle and last boundary without moving cue identities', role => {
+    const initial = createTimedRangeCue(createDefaultProject(), {
+      role, laneId: `${role}_lane_1`, frameStart: 3, frameEnd: 10, label: 'existing',
+    }).project
+    const original = initial.logicalSheet.timelineSections.find(section => section.role === role)!.lanes!
+    const first = addTimelineLane(initial, { role, insertBeforeLaneId: original[0]!.laneId })
+    const middle = addTimelineLane(first.project, { role, insertBeforeLaneId: original[1]!.laneId })
+    const last = addTimelineLane(middle.project, { role, insertAfterLaneId: original.at(-1)!.laneId })
+    const lanes = last.project.logicalSheet.timelineSections.find(section => section.role === role)!.lanes!
+    expect(lanes.map(lane => lane.laneId)).toEqual([
+      first.lane.laneId, original[0]!.laneId, middle.lane.laneId, ...original.slice(1).map(lane => lane.laneId), last.lane.laneId,
+    ])
+    expect(lanes.map(lane => lane.order)).toEqual(lanes.map((_, index) => index))
+    expect(new Set(lanes.map(lane => lane.label)).size).toBe(lanes.length)
+    expect(last.project.timedRangeCues).toEqual(initial.timedRangeCues)
+    expect(initial.logicalSheet.timelineSections.find(section => section.role === role)!.lanes).toEqual(original)
+    expect(() => addTimelineLane(initial, { role, insertBeforeLaneId: 'missing' })).toThrow('timeline lane not found')
+    expect(() => addTimelineLane(initial, { role, insertAfterLaneId: 'missing' })).toThrow('timeline lane not found')
+    expect(() => addTimelineLane(initial, { role, insertBeforeLaneId: original[0]!.laneId, insertAfterLaneId: original[0]!.laneId })).toThrow('only one')
+  })
+
   it('adds, renames, and deletes logical SOUND/CAMERA lanes without template mutation', () => {
     const initial = createDefaultProject()
     const addedSound = addTimelineLane(initial, { role: 'sound', insertAfterLaneId: 'sound_lane_1' })

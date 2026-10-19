@@ -8,7 +8,7 @@ import {
   type SheetTemplateGridRole,
   type SheetTemplateLayoutResolveOptions,
 } from '@xsheet-remap/core'
-import { STANDARD_A3_GRID_HEADER_HEIGHT, STANDARD_A3_GRID_HEADER_TOP_OFFSET } from './sheetConstants'
+import { sheetGridHeaderGeometry } from './sheetGridHeaderGeometry'
 
 export function gridColumnHeaderHitFromPoint(options: {
   template: SheetTemplate
@@ -20,18 +20,9 @@ export function gridColumnHeaderHitFromPoint(options: {
   frameOrigin: number
   layoutOverrides: SheetTemplateLayoutResolveOptions['layoutOverrides']
   viewportHeightPx?: number
-}): { hit: SheetHit; timelineLaneId?: string } | null {
+  includeTitle?: boolean
+}): { hit: SheetHit; timelineLaneId?: string; part: 'title' | 'column' } | null {
   const pageSize = resolveSheetTemplatePageSize(options.template, options.durationFrames, options)
-  const headerTopOffset = (STANDARD_A3_GRID_HEADER_TOP_OFFSET * options.template.page.heightPx) / pageSize.heightPx
-  const headerHeight = (STANDARD_A3_GRID_HEADER_HEIGHT * options.template.page.heightPx) / pageSize.heightPx
-  const columnHeaderHeight = Math.max(0.001, headerTopOffset - headerHeight)
-  const minHitHeight = options.viewportHeightPx && options.viewportHeightPx > 0
-    ? 28 / options.viewportHeightPx
-    : columnHeaderHeight
-  const hitHeight = Math.min(headerTopOffset, Math.max(columnHeaderHeight, minHitHeight))
-  const hitBottomPadding = options.viewportHeightPx && options.viewportHeightPx > 0
-    ? Math.min(0.0025, 4 / options.viewportHeightPx)
-    : 0
 
   for (const region of options.template.regions) {
     if (!isInteractiveSheetTemplateGridRegion(region) || !options.roles.includes(region.grid.role)) continue
@@ -39,13 +30,17 @@ export function gridColumnHeaderHitFromPoint(options: {
     if (!layout) continue
     const rect = layout.rect
     if (options.point.x < rect.x || options.point.x > rect.x + rect.w) continue
-    if (options.point.y < rect.y - hitHeight || options.point.y > rect.y + hitBottomPadding) continue
+    const header = sheetGridHeaderGeometry(options.template, region, rect, pageSize.heightPx)
+    const inTitle = header.title.h > 0 && options.point.y >= header.title.y && options.point.y < header.title.y + header.title.h
+    const inColumns = header.columns.h > 0 && options.point.y >= header.columns.y && options.point.y <= rect.y
+    if (!inColumns && !(options.includeTitle && inTitle)) continue
     const columnIndex = layout.columns.findIndex(column =>
       options.point.x >= column.x && options.point.x <= column.x + column.w,
     )
     const column = layout.columns[columnIndex]
     if (!column) continue
     return {
+      part: inColumns ? 'column' : 'title',
       hit: {
         regionId: region.regionId,
         role: region.grid.role,

@@ -186,6 +186,7 @@ export interface StackGuideHeaderMenuState extends StackGuideInsertTarget {
 export type TimedRangeLaneRole = Extract<LogicalTimelineSectionRole, 'sound' | 'camera'>
 
 export interface TimedRangeLaneHeaderMenuState {
+  sectionHeader?: boolean
   x: number
   y: number
   role: TimedRangeLaneRole
@@ -194,9 +195,8 @@ export interface TimedRangeLaneHeaderMenuState {
 }
 
 export interface TimelineLaneEditorState extends TimedRangeLaneHeaderMenuState {
-  mode: 'add' | 'rename'
+  mode: 'rename'
   initialName: string
-  insertAfterLaneId?: string
 }
 
 export interface StackGuideInsertContext {

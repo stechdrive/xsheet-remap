@@ -43,7 +43,7 @@
   overflow: hidden;
 }
 
-.sheetViewport[data-touch-range-selection="true"] [data-sheet-touch-interaction="direct"] {
+.sheetViewport[data-touch-range-selection="true"] [data-sheet-touch-interaction="direct"]:not(.columnInsertionSurface) {
   pointer-events: none !important;
 }
 
@@ -634,6 +634,75 @@
   transform: translateX(-50%);
   pointer-events: none;
 }
+
+.columnInsertionSurface {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: auto;
+  cursor: copy;
+  outline: none;
+  touch-action: none;
+}
+
+.columnInsertionMarker {
+  position: absolute;
+  width: 0;
+  border-left: 3px solid #1f54c8;
+  box-shadow: 0 0 0 1px rgb(31 84 200 / 0.18);
+  pointer-events: none;
+}
+
+.columnInsertionMarker::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: -5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #1f54c8;
+}
+
+.columnInsertionCaption {
+  position: absolute;
+  display: grid;
+  gap: 5px;
+  max-width: 250px;
+  padding: 8px 10px;
+  border: 1px solid #7b9ad4;
+  border-radius: 5px;
+  background: #fffffb;
+  color: #172943;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 3px 12px rgb(20 27 31 / 0.16);
+  pointer-events: none;
+}
+
+.stackGuideOverlay:has(.columnInsertionSurface) .stackGuideGap.insertToolActive .stackGuideInsertHandle {
+  visibility: hidden;
+}
+
+.stackGuideOverlay:has(.columnInsertionSurface) { z-index: 60; }
+
+.sheetHiddenColumnsNotice {
+  position: absolute;
+  top: 10px;
+  left: 96px;
+  z-index: 30;
+}
+
+.sheetHiddenColumnsNotice summary {
+  border-color: #ad8a39;
+  background: #fff8e1;
+  white-space: nowrap;
+}
+
+.sheetHiddenColumnsMenu p { max-width: 250px; margin: 4px 0; }
+.sheetHiddenColumnsMenu ul { padding-left: 20px; max-height: 200px; overflow: auto; }
+
+.sheetColumnAddMenu.actionMenuContent { width: 230px; min-width: 200px; }
 
 .stackGuideGap.editing {
   pointer-events: auto;

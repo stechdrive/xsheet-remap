@@ -6,7 +6,7 @@ import { App } from './App';
 import { uiText } from './i18n';
 import { dispatchInternalDrag } from './internalDrag';
 import { SHEET_TOUCH_CONTEXT_MENU_LONG_PRESS_MS } from './sheetTouchNavigation'
-import { clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openDisplaySettingsMenu, openStackGuideInsertMenu, openTimingExportDialog, openTimingTextSettingsMenu, registeredCellIdentityText, selectCspCorrectionLayer, setSheetRect, setStackGuideOverlayRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateTimelineLaneHeaderPoint } from './App.test-support'
+import { clickActiveStackGuideInsertHandle, clickSheet, clickTemplateDisplayFrame, clickTemplateFrame, dragInternalPointer, dragSheet, dragTemplateDisplayFrames, enterTimingValue, expectCurrentFrame, expectSelectedHit, expectSelectedRange, expectSelectionStatus, expectStatusHint, formatTestFramePosition, getAssetCardByName, openCutMetadataMenu, openDisplaySettingsMenu, openStackGuideInsertMenu, openTimingExportDialog, openTimingTextSettingsMenu, registeredCellIdentityText, selectCspCorrectionLayer, setColumnInsertionRect, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateColumnHeaderPoint, templateFramePoint, templateStackGuideBodySnapPoint, templateStackGuideHeaderPoint, templateTimelineLaneHeaderPoint } from './App.test-support'
 
 beforeEach(() => {
   vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null)
@@ -308,10 +308,7 @@ it('creates an overlay paper track from the insertion handle menu', async () => 
     setSheetRect(sheet, 0, 0)
     openStackGuideInsertMenu(sheet, 'action', 3)
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.addOverlayTrack }))
-    await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
-    const activeHandle = document.querySelector<HTMLButtonElement>('.stackGuideGap.insertToolActive .stackGuideInsertHandle')
-    if (!activeHandle) throw new Error('active stack guide insert handle not found')
-    fireEvent.click(activeHandle, templateStackGuideHeaderPoint('action', 3))
+    await clickActiveStackGuideInsertHandle(templateStackGuideHeaderPoint('action', 3))
     fireEvent.change(screen.getByLabelText(uiText.sheet.addOverlayTrackName), { target: { value: 'J' } })
     fireEvent.click(screen.getByRole('button', { name: uiText.stackGuides.confirm }))
 
@@ -369,7 +366,7 @@ it('moves the BG/BOOK insertion preview from the sheet body after starting from 
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.stackGuides.add }))
     await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
 
-    const overlay = setStackGuideOverlayRect()
+    const overlay = setColumnInsertionRect()
     const reservePoint = templateStackGuideBodySnapPoint('action', 0)
     fireEvent.pointerMove(overlay, { pointerId: 1, pointerType: 'mouse', clientX: reservePoint.x, clientY: reservePoint.y })
     fireEvent.click(overlay, { clientX: reservePoint.x, clientY: reservePoint.y })
@@ -1300,6 +1297,7 @@ it('adds and renames a logical SOUND lane from paper, then expands it as a digit
   const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
   setSheetRect(sheet, 0, 0)
   const lanePoint = templateTimelineLaneHeaderPoint('sound', 'sound_lane_1')
+  const originalHeaders = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
 
   fireEvent.contextMenu(sheet, { clientX: lanePoint.x, clientY: lanePoint.y })
   const laneMenu = screen.getByRole('menu', { name: 'SOUND列の操作' })
@@ -1308,27 +1306,32 @@ it('adds and renames a logical SOUND lane from paper, then expands it as a digit
   expect(within(laneMenu).getByRole('menuitem', { name: '列を削除' })).toBeTruthy()
   fireEvent.click(within(laneMenu).getByRole('menuitem', { name: 'SOUND列を追加' }))
 
-  const addEditor = screen.getByRole('form', { name: 'SOUND列追加' })
-  const addName = within(addEditor).getByLabelText('SOUND列名')
-  expect((addName as HTMLInputElement).value).toBe('S5')
-  fireEvent.change(addName, { target: { value: 'SE' } })
-  fireEvent.click(within(addEditor).getByRole('button', { name: '確定' }))
-  await waitFor(() => expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toContain('SOUND（欄外 +1）'))
+  const insertion = setColumnInsertionRect()
+  expect(screen.queryByRole('form', { name: 'SOUND列追加' })).toBeNull()
+  const markerX = Number.parseFloat(document.querySelector<HTMLElement>('.columnInsertionMarker')!.style.left) * 10
+  fireEvent.click(insertion, { clientX: markerX, clientY: lanePoint.y + 100 })
+  await waitFor(() => expect(screen.getByLabelText('このテンプレートでは1列が非表示')).toBeTruthy())
+  expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(originalHeaders)
+  fireEvent.click(screen.getByLabelText('このテンプレートでは1列が非表示'))
+  expect(document.querySelector('.sheetHiddenColumnsMenu li')?.textContent).toBe('SOUND：S4')
+  fireEvent.click(screen.getByLabelText('このテンプレートでは1列が非表示'))
 
   const insertedLanePoint = templateTimelineLaneHeaderPoint('sound', 'sound_lane_2')
   fireEvent.contextMenu(sheet, { clientX: insertedLanePoint.x, clientY: insertedLanePoint.y })
   fireEvent.click(screen.getByRole('menuitem', { name: '列名を変更' }))
   const renameEditor = screen.getByRole('form', { name: 'SOUND列名前変更' })
   const renameName = within(renameEditor).getByLabelText('SOUND列名')
+  expect((renameName as HTMLInputElement).value).toBe('S5')
   fireEvent.change(renameName, { target: { value: 'FOLEY' } })
   fireEvent.click(within(renameEditor).getByRole('button', { name: '確定' }))
 
-  const digitalMenu = openDisplaySettingsMenu()
-  fireEvent.click(within(digitalMenu).getByRole('button', { name: 'デジタル標準' }))
+  fireEvent.click(screen.getByLabelText('このテンプレートでは1列が非表示'))
+  fireEvent.click(screen.getByRole('button', { name: 'デジタル標準で表示' }))
   await waitFor(() => {
     const labels = Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)
     expect(labels).not.toContain('FOLEY')
     expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
+    expect(screen.queryByLabelText('このテンプレートでは1列が非表示')).toBeNull()
   })
 
   const paperMenu = openDisplaySettingsMenu()

@@ -23,14 +23,11 @@ import {
   type SheetTemplateTextStyle,
   type SheetTemplateTheme,
 } from '@xsheet-remap/core'
-import {
-  STANDARD_A3_GRID_HEADER_HEIGHT,
-  STANDARD_A3_GRID_HEADER_TOP_OFFSET,
-} from './sheetConstants'
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import type { SheetSvgPageSize } from './sheetSvgTextGeometry'
 import { gridRoleLabel } from './templateEditing'
 import { columnLabelLayout } from './columnLabelLayout'
+import { sheetGridHeaderGeometry } from './sheetGridHeaderGeometry'
 import { resolveTemplateFormCellMemoTarget, type TemplateMemoTargetRef } from './templateMemoTargets'
 
 export type TemplateGridHeaderColumnRenderModel = {
@@ -1037,39 +1034,23 @@ function buildTemplateGridHeaderRenderModel(
   if (!layout) return null
   const rect = layout.rect
   const pageSize = layout.pageSize
-  const headerTopOffsetPx = region.grid.header?.topOffsetPx ?? STANDARD_A3_GRID_HEADER_TOP_OFFSET * template.page.heightPx
-  const headerHeightPx = region.grid.header?.heightPx ?? STANDARD_A3_GRID_HEADER_HEIGHT * template.page.heightPx
-  const columnHeightPx = region.grid.header?.columnHeightPx ?? Math.max(0, headerTopOffsetPx - headerHeightPx)
-  const headerTopOffset = headerTopOffsetPx / pageSize.heightPx
-  const headerHeight = headerHeightPx / pageSize.heightPx
-  const columnHeight = columnHeightPx / pageSize.heightPx
-  const y = rect.y - headerTopOffset
+  const header = sheetGridHeaderGeometry(template, region, rect, pageSize.heightPx)
   const columnBaselineOffset = (0.0025 * template.page.heightPx) / pageSize.heightPx
   const baseLabel = gridHeaderLabelForRegion(template, region)
-  const projectedLaneIds = new Set(layout.columns.flatMap(column => column.timelineLaneId ? [column.timelineLaneId] : []))
-  const hiddenLaneCount = region.grid.role === 'sound' || region.grid.role === 'camera'
-    ? (options.timelineLanes?.[region.grid.role] ?? []).filter(lane => !projectedLaneIds.has(lane.laneId)).length
-    : 0
-  const isFirstRegionForRole = template.regions.find(candidate =>
-    isRenderableSheetTemplateGridRegion(candidate) && candidate.grid.role === region.grid?.role,
-  )?.regionId === region.regionId
-  const overflowLabel = hiddenLaneCount > 0 && isFirstRegionForRole
-    ? `${baseLabel || gridRoleLabel(region.grid.role)}（欄外 +${hiddenLaneCount}）`
-    : baseLabel
   return {
     regionId: region.regionId,
-    rect: { x: rect.x, y, w: rect.w, h: headerHeight },
+    rect: header.title,
     label: region.grid.header?.showLabel === false
       ? ''
-      : overflowLabel,
+      : baseLabel,
     labelX: rect.x + rect.w / 2,
-    labelY: y + headerHeight / 2,
+    labelY: header.title.y + header.title.h / 2,
     labelFontSizePx: templateGridHeaderFontSizePx(template),
     columns: layout.columns.map(column => {
       const label = columnLabelLayout(region.grid?.header?.showColumnLabels === false ? '' : column.label, column.w * pageSize.widthPx, templateGridColumnFontSizePx(template))
       return { columnId: column.columnId, label: label.text, x: column.x + column.w / 2, y: rect.y - columnBaselineOffset, fontSizePx: label.fontSizePx, dominantBaseline: 'alphabetic' }
     }),
-    columnHeaderRect: { x: rect.x, y: rect.y - columnHeight, w: rect.w, h: columnHeight },
+    columnHeaderRect: header.columns,
     columnBoundaries: [
       ...layout.columns.map(column => column.x),
       layout.columns.at(-1) ? layout.columns.at(-1)!.x + layout.columns.at(-1)!.w : rect.x + rect.w,

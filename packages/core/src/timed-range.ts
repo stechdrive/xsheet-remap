@@ -26,6 +26,7 @@ export interface AddTimelineLaneInput {
   role: TimedRangeRole
   label?: string
   insertAfterLaneId?: string
+  insertBeforeLaneId?: string
 }
 
 export interface TimelineLaneUpdates {
@@ -41,11 +42,16 @@ export function addTimelineLane(project: CutProject, input: AddTimelineLaneInput
     label: input.label?.trim() || (input.role === 'sound' ? `S${sequence}` : String(sequence)),
     order: lanes.length,
   }
-  const insertIndex = input.insertAfterLaneId === undefined
+  if (input.insertBeforeLaneId !== undefined && input.insertAfterLaneId !== undefined) {
+    throw new Error('Specify only one timeline lane insertion boundary.')
+  }
+  const insertIndex = input.insertBeforeLaneId !== undefined
+    ? lanes.findIndex(candidate => candidate.laneId === input.insertBeforeLaneId)
+    : input.insertAfterLaneId === undefined
     ? lanes.length
     : lanes.findIndex(candidate => candidate.laneId === input.insertAfterLaneId) + 1
-  if (insertIndex <= 0 && input.insertAfterLaneId !== undefined) {
-    throw new Error(`timeline lane not found: ${input.role}/${input.insertAfterLaneId}`)
+  if (insertIndex < 0 || (insertIndex === 0 && input.insertAfterLaneId !== undefined)) {
+    throw new Error(`timeline lane not found: ${input.role}/${input.insertBeforeLaneId ?? input.insertAfterLaneId}`)
   }
   const nextLanes = [...lanes]
   nextLanes.splice(insertIndex, 0, lane)

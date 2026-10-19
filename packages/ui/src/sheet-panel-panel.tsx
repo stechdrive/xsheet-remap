@@ -1,3 +1,6 @@
+import { SheetHiddenColumnsNotice } from './SheetHiddenColumnsNotice'
+import { SheetColumnAddMenuItems } from './SheetColumnAddMenuItems'
+import type { TimelineLaneAddition } from './sheetColumnModel'
 import { ClipLayerPanel } from './ClipLayerPanel'
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
@@ -325,7 +328,7 @@ export function SheetPanel(props: {
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
   onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
   onCopyAeKeyframeData: (paperTrack: string, sheetRole: SheetTimingRole, locale?: 'ja' | 'en') => void
-  onAddTimelineLane: (input: { role: TimedRangeRole; label: string; insertAfterLaneId?: string }) => void
+  onAddTimelineLane: (input: TimelineLaneAddition) => void
   onUpdateTimelineLane: (role: TimedRangeRole, laneId: string, label: string) => void
   onDeleteTimelineLane: (role: TimedRangeRole, laneId: string) => void
   onApplyNameNormalization: (plan: NameNormalizationPlan | SheetLabelNormalizationPlan) => Promise<void>
@@ -1056,6 +1059,10 @@ export function SheetPanel(props: {
         />
         </>}
         <div className="sheetViewportFrame">
+          <SheetHiddenColumnsNotice project={props.project} template={props.template}
+            onShowDigital={props.templatePresets.some(preset => preset.sheetTemplate.templateKind === 'digital-native')
+              ? () => props.onPresetSelect(props.templatePresets.find(preset => preset.sheetTemplate.templateKind === 'digital-native')!.presetId)
+              : undefined} />
           <SheetHistoryRail
             topActions={(
               <ActionMenu
@@ -1179,6 +1186,10 @@ export function SheetPanel(props: {
             )}
             bottomActions={(
               <>
+                <ActionMenu label={<span aria-hidden="true">＋列</span>} ariaLabel="列を追加" tooltipLabel="BG/BOOK・セル・SOUND・CAMERA列を追加"
+                  className="workspaceRailAction sheetColumnAddMenu" placement="right-start" closeOnMenuItemClick>
+                  <SheetColumnAddMenuItems template={props.template} onAdd={kind => sheetCanvasRef.current?.startColumnInsert(kind)} />
+                </ActionMenu>
                 {props.railExternalActions}
                 <ActionMenu
                   label={<DisplaySettingsIcon />}

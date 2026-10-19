@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent, type PointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { type CutProject, type SheetPage, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, projectSheetLayoutOptions, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, resolveSheetTemplateRegionRect, stackGuideStackBand } from '@xsheet-remap/core'
+import { ColumnInsertionSurface } from './ColumnInsertionSurface'
+import { type ColumnInsertionTarget } from './sheetColumnModel'
 import { uiText } from './i18n'
-import { clampNumber } from './sheetInteraction'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { StackGuideDropPreviewState, StackGuideInsertContext, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideLabelUpdates } from './app-foundation'
 import { overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuideClampedEditorBottomPx, stackGuideColumnHeaderHitPx, stackGuideEditorBottomPx, stackGuideEditorShiftPx, stackGuideGuideHeightPx, stackGuideHeaderReachPx, stackGuideInsertionTargets, stackGuideLabelsForPreview, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
-import { defaultStackGuideInsertTarget, stackGuideInsertTargetFromPoint, stackGuidePlacementUpdateFromPointer } from './stack-guides-interaction'
+import { defaultStackGuideInsertTarget, stackGuidePlacementUpdateFromPointer } from './stack-guides-interaction'
 
 export function HoverCellOverlay({ rect }: { rect: { x: number; y: number; w: number; h: number } }) {
   return (
@@ -208,72 +209,24 @@ export function StackGuideOverlay({
     return () => window.removeEventListener('pointerdown', cancelFloatingUi)
   }, [commitEditor, editor, insertMenu])
 
-  useLayoutEffect(() => {
-    if (!activeInsertTool) return undefined
-    function handleOutsidePointer(event: globalThis.PointerEvent) {
-      const target = event.target as Element | null
-      if (target?.closest('.stackGuideOverlay, .stackGuideInsertHandle, .stackGuideEditor, .stackGuideInsertMenu, .actionMenu')) return
-      setRequestInsertTool(null)
-      onInsertToolConsumed?.()
-    }
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return
-      setRequestInsertTool(null)
-      onInsertToolConsumed?.()
-    }
-    window.addEventListener('pointerdown', handleOutsidePointer)
-    window.addEventListener('keydown', handleEscape)
-    return () => {
-      window.removeEventListener('pointerdown', handleOutsidePointer)
-      window.removeEventListener('keydown', handleEscape)
-    }
-  }, [activeInsertTool, onInsertToolConsumed])
-
-  if (anchorRegions.length === 0) return null
-
-  function stackGuideInsertTargetFromClientPoint(clientX: number, clientY: number): StackGuideInsertTarget | null {
-    const box = overlayRef.current?.getBoundingClientRect()
-    if (!box || box.width <= 0 || box.height <= 0) return null
-    return stackGuideInsertTargetFromPoint(template, project, page, {
-      x: clampNumber((clientX - box.left) / box.width, 0, 1),
-      y: clampNumber((clientY - box.top) / box.height, 0, 1),
-    }, 'page')
-  }
-
-  function updateInsertToolTargetFromEvent(event: PointerEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>): StackGuideInsertTarget | null {
-    if (!activeInsertTool) return null
-    const target = stackGuideInsertTargetFromClientPoint(event.clientX, event.clientY)
-    if (target) setInsertToolTarget(target)
-    return target
-  }
-
   function clearActiveInsertTool() {
     setRequestInsertTool(null)
     setInsertToolTarget(null)
     onInsertToolConsumed?.()
   }
 
-  function confirmInsertTool(event: MouseEvent<HTMLDivElement>, fallbackTarget?: StackGuideInsertTarget | null) {
-    if (!activeInsertTool) return
-    const target = stackGuideInsertTargetFromClientPoint(event.clientX, event.clientY) ?? fallbackTarget ?? currentInsertToolTarget
-    if (!target) return
-    event.preventDefault()
-    event.stopPropagation()
-    setInsertToolTarget(target)
-    if (activeInsertTool === 'label-editor') {
-      openEditor(target.regionId, target.gapIndex, target.insertAfterPaperTrack, target.displayRole, target.snapIndex, activeInsertContext?.correctionLayerId)
-      clearActiveInsertTool()
-      return
-    }
-    onCreateOverlayPaperTrack({
-      x: event.clientX,
-      y: event.clientY,
-      insertAfterPaperTrack: target.insertAfterPaperTrack,
-      snapIndex: target.snapIndex,
-      sheetRole: target.displayRole,
-    })
-    clearActiveInsertTool()
-  }
+  const insertionTargets: ColumnInsertionTarget<StackGuideInsertTarget>[] = activeInsertTool ? anchorRegions.flatMap(region => {
+    const layout = resolveSheetTemplateGridLayout(template, region, layoutOptions)
+    if (!layout || !region.grid) return []
+    const displayRole = region.grid.role as SheetTimingRole
+    const top = layout.rect.y - stackGuideHeaderReachPx(template, layout.rect, pageHeight) / pageHeight
+    return stackGuideInsertionTargets(template, project, displayRole, region.regionId, layout.rect, layout.columns).map(target => ({
+      id: `${region.regionId}:${target.snapIndex}`, x: target.x, top, bottom: layout.rect.y + layout.rect.h,
+      area: { ...layout.rect, y: top, h: layout.rect.y + layout.rect.h - top },
+      label: `${activeInsertTool === 'label-editor' ? 'BG/BOOK' : 'セル列'}：${target.insertAfterPaperTrack ? `${target.insertAfterPaperTrack} の後` : '先頭'}`,
+      value: { ...target, pageId: page.pageId, regionId: region.regionId, displayRole },
+    }))
+  }) : []
 
   function openEditor(
     regionId: string,
@@ -302,13 +255,23 @@ export function StackGuideOverlay({
       ref={overlayRef}
       className={editor || insertMenu || activeInsertTool ? 'stackGuideOverlay editing' : 'stackGuideOverlay'}
       aria-label={uiText.stackGuides.overlayLabel}
-      onPointerMove={event => {
-        updateInsertToolTargetFromEvent(event)
-      }}
-      onClick={event => {
-        confirmInsertTool(event)
-      }}
     >
+      {activeInsertTool && <ColumnInsertionSurface
+        targets={insertionTargets}
+        initialId={currentInsertToolTarget ? `${currentInsertToolTarget.regionId}:${currentInsertToolTarget.snapIndex}` : undefined}
+        label={activeInsertTool === 'label-editor' ? 'BG/BOOK' : 'セル列'}
+        allowOutsideColumns
+        onTargetChange={target => setInsertToolTarget(target.value)}
+        onCancel={clearActiveInsertTool}
+        onConfirm={({ value: target }, client) => {
+          if (activeInsertTool === 'label-editor') {
+            openEditor(target.regionId, target.gapIndex, target.insertAfterPaperTrack, target.displayRole, target.snapIndex, activeInsertContext?.correctionLayerId)
+          } else {
+            onCreateOverlayPaperTrack({ ...client, insertAfterPaperTrack: target.insertAfterPaperTrack, snapIndex: target.snapIndex, sheetRole: target.displayRole })
+          }
+          clearActiveInsertTool()
+        }}
+      />}
       {anchorRegions.map(region => {
         const layout = resolveSheetTemplateGridLayout(template, region, {
           ...layoutOptions,

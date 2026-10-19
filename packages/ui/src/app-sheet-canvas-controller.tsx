@@ -1,3 +1,6 @@
+import type { SheetColumnAddContext, SheetColumnAddKind } from './sheetColumnModel'
+import type { TimelineLaneInsertRequest } from './TimelineLaneInsertionOverlay'
+import { stackGuideInsertionTargets } from './stack-guides-geometry'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { clipCelSheetDestination, clipSheetKeyAtFrame, selectTimingProcess } from '@xsheet-remap/core'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
@@ -60,6 +63,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const [stackGuideInsertRequest, setStackGuideInsertRequest] = useState<StackGuideInsertRequest | null>(null)
   const [stackGuideDropPreview, setStackGuideDropPreview] = useState<StackGuideDropPreviewState | null>(null)
   const [paperTrackEditor, setPaperTrackEditor] = useState<PaperTrackEditorState | null>(null)
+  const [timelineLaneInsertRequest, setTimelineLaneInsertRequest] = useState<TimelineLaneInsertRequest | null>(null)
+  const [columnMenuContext, setColumnMenuContext] = useState<SheetColumnAddContext | null>(null)
   const [timelineLaneEditor, setTimelineLaneEditor] = useState<TimelineLaneEditorState | null>(null)
   const [overlayTrackDrag, setOverlayTrackDrag] = useState<OverlayPaperTrackDrag | null>(null)
   const [timelineEventDrag, setTimelineEventDragState] = useState<TimelineEventDragInteraction | null>(null)
@@ -252,8 +257,8 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const templateTrackNames = sheetRenderModelContext.paperTracks
   const timelineLanes = sheetRenderModelContext.timelineLanes
   const timelineLaneEditorActions = createTimelineLaneEditorActions({
-    timelineLanes, editor: timelineLaneEditor, setEditor: setTimelineLaneEditor,
-    setHeaderMenu: setTimedRangeLaneHeaderMenu, onAdd: props.onAddTimelineLane, onUpdate: props.onUpdateTimelineLane,
+    editor: timelineLaneEditor, setEditor: setTimelineLaneEditor,
+    setHeaderMenu: setTimedRangeLaneHeaderMenu, onUpdate: props.onUpdateTimelineLane,
   })
   const sheetPageSize = sheetRenderModelContext.pageSize
   const sheetPageWidth = Math.round(sheetPageSize.widthPx * zoom)
@@ -872,20 +877,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       layoutOverrides: props.project.sheetView.layoutOverrides, viewportHeightPx,
     })
     return result?.hit.paperTrack ? materializePageHit(props.template, result.hit, page) : null
-  }
-
-  function timedRangeLaneHeaderHitFromPoint(
-    point: NormalizedPoint,
-    page: SheetPage,
-    viewportHeightPx?: number,
-  ): Pick<TimedRangeLaneHeaderMenuState, 'role' | 'laneId' | 'label'> | null {
-    const result = gridColumnHeaderHitFromPoint({
-      template: props.template, point, roles: ['sound', 'camera'], paperTracks: templateTrackNames,
-      timelineLanes, durationFrames: displayDurationFrames, frameOrigin: frameOriginForPageHit(props.template, page),
-      layoutOverrides: props.project.sheetView.layoutOverrides, viewportHeightPx,
-    })
-    if (!result?.timelineLaneId || (result.hit.role !== 'sound' && result.hit.role !== 'camera')) return null
-    return { role: result.hit.role, laneId: result.timelineLaneId, label: result.hit.label }
   }
 
   function stackGuideHeaderInsertTargetFromPoint(point: NormalizedPoint, page: SheetPage): StackGuideInsertTarget | null {
@@ -1892,26 +1883,38 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const point = pointFromClient(svg, clientX, clientY)
     const hit = rangeHitFromPoint(point, page)
     const { timelineMemoIds, soundCueId, cameraCueId } = resolveTimelineMemoContextTargets(target, props.project, props.template, hit)
+    const header = gridColumnHeaderHitFromPoint({
+      template: props.template, point, roles: ['action', 'cell', 'sound', 'camera'],
+      paperTracks: templateTrackNames, timelineLanes, durationFrames: displayDurationFrames,
+      frameOrigin: frameOriginForPageHit(props.template, page), layoutOverrides: props.project.sheetView.layoutOverrides,
+      includeTitle: true,
+    })
+    const columnContext = header ? { ...header.hit, pageId: page.pageId } : hit
+    setColumnMenuContext(columnContext)
+    if (header && !timelineMemoIds?.length) {
+      clearHover()
+      closeContextMenus()
+      const headerHit = materializePageHit(props.template, header.hit, page)
+      if (headerHit.role === 'sound' || headerHit.role === 'camera') {
+        if (!headerHit.timelineLaneId) return false
+        setTimedRangeLaneHeaderMenu({ role: headerHit.role, laneId: headerHit.timelineLaneId, label: headerHit.label,
+          sectionHeader: header.part === 'title', x: clientX, y: clientY })
+      } else if (header.part === 'title') {
+        const target = stackGuideTargetForContext(columnContext)
+        if (target) setStackGuideHeaderMenu({ ...target, x: clientX, y: clientY })
+      } else if (headerHit.paperTrack) {
+        const sheetRole = sheetRoleForHit(headerHit)
+        setPaperTrackHeaderMenu({ x: clientX, y: clientY, hit: headerHit, sheetRole,
+          snapIndex: overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole) })
+      }
+      return true
+    }
+    // Auxiliary labels above the actual headers still retain their own placement menu.
     const stackGuideTarget = stackGuideHeaderInsertTargetFromPoint(point, page)
-    if (stackGuideTarget && !timelineMemoIds?.length) {
-      clearHover()
-      closeContextMenus()
+    if (stackGuideTarget && !hit && !timelineMemoIds?.length) {
+      clearHover(); closeContextMenus()
+      setColumnMenuContext({ role: stackGuideTarget.displayRole, regionId: stackGuideTarget.regionId, pageId: page.pageId })
       setStackGuideHeaderMenu({ ...stackGuideTarget, x: clientX, y: clientY })
-      return true
-    }
-    const headerHit = paperTrackHeaderHitFromPoint(point, page, svg.getBoundingClientRect().height)
-    if (headerHit?.paperTrack && !timelineMemoIds?.length) {
-      clearHover()
-      const sheetRole = sheetRoleForHit(headerHit)
-      closeContextMenus()
-      setPaperTrackHeaderMenu({ x: clientX, y: clientY, hit: headerHit, sheetRole, snapIndex: overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole) })
-      return true
-    }
-    const laneHeader = timedRangeLaneHeaderHitFromPoint(point, page, svg.getBoundingClientRect().height)
-    if (laneHeader && !timelineMemoIds?.length) {
-      clearHover()
-      closeContextMenus()
-      setTimedRangeLaneHeaderMenu({ ...laneHeader, x: clientX, y: clientY })
       return true
     }
     if (!hit && !timelineMemoIds?.length && !soundCueId && !cameraCueId) return false
@@ -1947,6 +1950,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const sheetRole = hit?.role === 'action' || hit?.role === 'cell' ? sheetRoleForHit(hit) : undefined
     clearHover()
     closeContextMenus()
+    setColumnMenuContext(hit)
     setContextMenu({ x: clientX, y: clientY, hit, timelineMemoIds, sheetRole, insertAfterPaperTrack: hit?.paperTrack })
     return true
   }
@@ -1969,6 +1973,45 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   function runStackGuideHeaderMenuAction(action: () => void) {
     action()
     setStackGuideHeaderMenu(null)
+  }
+
+  function stackGuideTargetForContext(context?: SheetColumnAddContext | null): StackGuideInsertTarget | null {
+    const page = props.sheetPages.find(item => item.pageId === context?.pageId) ?? props.sheetPages[props.activePageIndex] ?? props.sheetPages[0]
+    if (!page) return null
+    const role = context?.role === 'action' ? 'action' : 'cell'
+    const region = props.template.regions.find(item => item.regionId === context?.regionId && item.grid?.role === role)
+      ?? props.template.regions.find(item => isInteractiveSheetTemplateGridRegion(item) && item.grid.role === role)
+    if (!region) return null
+    const layout = resolveSheetTemplateGridLayout(props.template, region, {
+      paperTracks: templateTrackNames, timelineLanes, durationFrames: displayDurationFrames,
+      layoutOverrides: props.project.sheetView.layoutOverrides,
+    })
+    if (!layout) return null
+    const targets = stackGuideInsertionTargets(props.template, props.project, role, region.regionId, layout.rect, layout.columns)
+    const column = layout.columns.find(item => item.paperTrack === context?.paperTrack)
+    const x = column ? column.x + column.w : layout.rect.x
+    const target = targets.reduce<(typeof targets)[number] | undefined>((best, candidate) =>
+      !best || Math.abs(candidate.x - x) < Math.abs(best.x - x) ? candidate : best, undefined)
+    return target ? { ...target, pageId: page.pageId, regionId: region.regionId, displayRole: role } : null
+  }
+
+  function startColumnInsert(kind: SheetColumnAddKind, context?: SheetColumnAddContext | null) {
+    closeContextMenus()
+    setTimelineLaneEditor(null)
+    setPaperTrackEditor(null)
+    if (kind === 'sound' || kind === 'camera') {
+      const page = props.sheetPages.find(item => item.pageId === context?.pageId) ?? props.sheetPages[props.activePageIndex] ?? props.sheetPages[0]
+      if (!page) return
+      setStackGuideInsertRequest(null)
+      props.onStackGuideInsertToolConsumed()
+      setTimelineLaneInsertRequest({ role: kind, pageId: page.pageId,
+        regionId: context?.role === kind ? context.regionId : undefined,
+        afterLaneId: context?.role === kind ? context.timelineLaneId : undefined })
+    } else {
+      setTimelineLaneInsertRequest(null)
+      const target = stackGuideTargetForContext(context)
+      if (target) requestStackGuideInsert(target, kind)
+    }
   }
 
   function requestStackGuideInsert(target: StackGuideInsertTarget, mode: StackGuideInsertTool) {
@@ -2045,6 +2088,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function openOverlayPaperTrackMenu(track: PaperTrack, position: { x: number; y: number }) {
+    setColumnMenuContext({ role: track.viewPlacement?.sheetRole ?? 'cell', regionId: '', paperTrack: track.paperTrack })
     setOverlayPaperTrackMenu({
       x: position.x,
       y: position.y,
@@ -2326,7 +2370,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const contextProcessMoveOptions = contextProcessMove ? processMoveOptionsForSlot(props.project, contextProcessMove.slot, contextProcessMove.binding.keyId) : []
   const soundContext = contextMenu?.hit?.role === 'sound' || Boolean(props.selectedSoundCueId)
   const cameraContext = contextMenu?.hit?.role === 'camera' || Boolean(props.selectedCameraCueId)
-  const timedRangeContext = soundContext || cameraContext
   const timelineMemoContext = Boolean(contextMenu?.timelineMemoIds?.length)
   const frameOperationContext = contextMenu?.hit?.role === 'action' || contextMenu?.hit?.role === 'cell' || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera'
   const canCopyContextRange = soundContext
@@ -2343,9 +2386,6 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const canPasteContextRepeatRange = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-range', contextPaperTrackOrder)
   const canPasteContextRepeatToEnd = canPasteTimingClipboardMode(props.timingClipboard, props.selectedHit, props.rangeSelection, 'repeat-to-end', contextPaperTrackOrder)
   const hasSheetContextMenuItems = Boolean(contextMenu?.hit?.paperTrack || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera' || timelineMemoContext || soundContext || cameraContext)
-  const contextProcessMoveItemCount = contextProcessMove && contextProcessMoveOptions.length > 0 ? 1 + contextProcessMoveOptions.length : 0
-  const timelineMemoItemCount = (contextMenu?.timelineMemoIds?.length ?? 0) * 2
-  const sheetContextMenuItemCount = (timedRangeContext ? 10 : 19) + timelineMemoItemCount + contextProcessMoveItemCount
   const overlayPaperTrackMenuTrack = overlayPaperTrackMenu
     ? overlayTracks.find(track => track.paperTrack === overlayPaperTrackMenu.paperTrack) ?? null
     : null
@@ -2370,7 +2410,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   ].filter(Boolean).join(' ')
 
     return {
-    props, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
+    props, columnMenuContext, startColumnInsert, timelineLaneInsertRequest, setTimelineLaneInsertRequest, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
     textCursorBadge, contextMenu, paperTrackHeaderMenu, overlayPaperTrackMenu, stackGuideHeaderMenu, timedRangeLaneHeaderMenu, stackGuideInsertRequest,
     setStackGuideInsertRequest, stackGuideDropPreview, setStackGuideDropPreview, paperTrackEditor, setPaperTrackEditor, timelineLaneEditor, setTimelineLaneEditor, overlayTrackDrag,
     setOverlayTrackDrag, timelineEventDrag, setTimelineEventDrag, timingMoveSource, timingMovePlan, pendingTimelineEventDrag, soundCueDrag, hoveredSoundCueId, soundCueHoverAnchor,
@@ -2389,7 +2429,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, ...touchNavigation, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     handlePointerDownCapture: handleViewportPointerDownCapture,
-    canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems, sheetContextMenuItemCount,
+    canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   }
 }

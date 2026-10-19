@@ -41,4 +41,11 @@ export interface ClipDiagnostic {
   scope: 'raster' | 'timeline'
   message: string
   layerId?: string
+  rendering?: boolean
+  part?: 'material' | 'effect' | 'mask' | 'placement' | 'blend'
+  outcome?: 'approximate' | 'missing-content' | 'missing-effect'
+  materialKind?: 'vector' | 'text' | '3d'
 }
+
+/** A save preference does not prove that every layer has a saved image. */
+export type ClipCompatibility = 'saved' | 'not-saved' | 'unknown'

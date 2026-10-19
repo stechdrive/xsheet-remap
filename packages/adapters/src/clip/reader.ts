@@ -50,9 +50,10 @@ export async function readClip(SQL: SqlJsStatic, bytes: Uint8Array, fileName: st
       })
     }
     const nodes = tree(root.LayerFirstChildIndex, [], true)
-    const bank = clip.rows('AnimationCutBank').find(row => row.MainId === clip.rows('Project')[0]?.ProjectCutBank) ?? clip.rows('AnimationCutBank')[0]
-    const timelineRows = bank ? chain(clip.rows('TimeLine').filter(row => row.BankId === bank.MainId), bank.FirstTimeLine, 'NextTimeLine') : []
-    const tracks = clip.rows('Track')
+    const banks = optionalRows(clip, 'AnimationCutBank')
+    const bank = banks.find(row => row.MainId === optionalRows(clip, 'Project')[0]?.ProjectCutBank) ?? banks[0]
+    const timelineRows = bank ? chain(optionalRows(clip, 'TimeLine').filter(row => row.BankId === bank.MainId), bank.FirstTimeLine, 'NextTimeLine') : []
+    const tracks = optionalRows(clip, 'Track')
     const timelines: ClipImportTimeline[] = timelineRows.map(row => {
       const fps = Number(row.FrameRate), startFrame = Number(row.StartFrame), endFrame = Number(row.EndFrame)
       check(Number.isFinite(fps) && fps >= 1 && fps <= 120 && Number.isInteger(startFrame) && Number.isInteger(endFrame) && endFrame > startFrame && endFrame - startFrame <= 1_000_000, 'FPSまたは再生範囲が範囲外です。')

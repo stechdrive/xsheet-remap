@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import initSqlJs from 'sql.js'
-import { expect, test } from './fixtures'
+import { expect, test, type Page } from './fixtures'
 import { activateControl } from './input'
-import { createPreviewFixture } from '../../../packages/adapters/src/clip/fixtures/preview-fixture'
+import { createCachedPreviewFixture, createPreviewFixture } from '../../../packages/adapters/src/clip/fixtures/preview-fixture'
 import { normalizedUuid } from '../../../packages/adapters/src/clip/layer-metadata'
 import { writeClip } from '../../../packages/adapters/src/clip/writer'
 
@@ -45,6 +45,8 @@ test('CLIP base choice stays beside Import and saved folder disclosure leads to 
   const preview = page.getByRole('dialog', { name: 'vector-celのプレビュー', exact: true })
   await expect(preview).toBeVisible()
   await expect(preview).toContainText('近似描画')
+  await activateControl(page, preview.locator('summary'))
+  await expect(preview.getByText(/ベクターレイヤーを近似描画/)).toBeVisible()
   const image = preview.locator('img').first()
   await expect(image).toBeVisible()
   expect(await image.evaluate(async node => {
@@ -54,6 +56,83 @@ test('CLIP base choice stays beside Import and saved folder disclosure leads to 
     return { width: image.naturalWidth, height: image.naturalHeight, pixel: Array.from(context.getImageData(2, 2, 1, 1).data) }
   })).toEqual({ width: 6, height: 6, pixel: [0, 0, 0, 255] })
   await page.screenshot({ path: info.outputPath('vector-quick-look.png') })
+})
+
+async function openSavedPreview(page: Page, kind: 'vector' | '3d', option?: 'missing' | 'watercolor' | 'illustration') {
+  const require = createRequire(import.meta.url)
+  const SQL = await initSqlJs({ wasmBinary: new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer })
+  const { clip, vectorId } = await createCachedPreviewFixture(SQL, kind, option !== 'missing')
+  if (option === 'watercolor') {
+    const native = JSON.parse(readFileSync('packages/adapters/src/clip/fixtures/native-effects.json', 'utf8'))
+    clip.update('Layer', vectorId, { LayerEffectAttached: 1, LayerEffectInfo: new Uint8Array(Buffer.from(native.effects.watercolor, 'base64')) })
+  }
+  if (option === 'missing') clip.db.run('UPDATE Canvas SET CanvasRenderMipmapForceSaved=0')
+  if (option === 'illustration') {
+    clip.db.run('DROP TABLE TimeLine'); clip.db.run('DROP TABLE Track')
+    clip.db.run('UPDATE AnimationCutBank SET FirstTimeLine=0')
+    clip.db.run('UPDATE Layer SET AnimationFolder=0')
+  }
+  const folder = clip.rows('Layer').find(row => row.LayerFirstChildIndex === vectorId)!
+  const folderId = normalizedUuid(folder.LayerUuid), bytes = Buffer.from(clip.bytes()); clip.close()
+  await page.goto('./?app=remap')
+  await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
+  await activateControl(page, page.getByLabel('画面切替', { exact: true }))
+  await activateControl(page, page.getByRole('button', { name: '読み込み ›', exact: true }))
+  await page.getByLabel('CLIPを読み込む…', { exact: true }).setInputFiles({ name: 'saved-preview.clip', mimeType: 'application/octet-stream', buffer: bytes })
+  await activateControl(page, page.getByRole('dialog', { name: 'CLIPを読み込む', exact: true }).getByRole('button', { name: 'タイムシートに読み込む' }))
+  await activateControl(page, page.locator(`[data-clip-layer-id="${folderId}"]`).getByRole('button', { name: 'Aを展開', exact: true }))
+  const name = kind === '3d' ? '3D-cel' : 'vector-cel'
+  await activateControl(page, page.getByRole('button', { name: `${name}をクイックルック`, exact: true }))
+  return page.getByRole('dialog', { name: `${name}のプレビュー`, exact: true })
+}
+
+for (const kind of ['vector', '3d'] as const) test(`saved ${kind} previews use CLIP pixels without approximation warnings`, async ({ page }) => {
+  const preview = await openSavedPreview(page, kind)
+  const image = preview.locator('img').first()
+  await expect(image).toBeVisible()
+  await expect(preview).toContainText('CLIP内のレイヤー画像')
+  await expect(preview.locator('details')).toHaveCount(0)
+  expect(await image.evaluate(async node => {
+    const image = node as HTMLImageElement; await image.decode()
+    const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 1
+    const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0)
+    return { width: image.naturalWidth, height: image.naturalHeight, pixel: Array.from(context.getImageData(0, 0, 1, 1).data) }
+  })).toEqual({ width: 2, height: 1, pixel: [24, 80, 160, 255] })
+})
+
+test('illustration CLIP without animation tables imports its preserved layers and saved 3D image', async ({ page }) => {
+  const preview = await openSavedPreview(page, '3d', 'illustration')
+  await expect(preview.locator('img')).toBeVisible()
+  await expect(preview).toContainText('CLIP内のレイヤー画像')
+  await expect(preview.locator('details')).toHaveCount(0)
+})
+
+test('saved CLIP pixels still receive watercolor and readable approximation guidance', async ({ page }, info) => {
+  const preview = await openSavedPreview(page, '3d', 'watercolor'), image = preview.locator('img').first()
+  await expect(image).toBeVisible()
+  expect(await image.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(2)
+  await activateControl(page, preview.locator('summary'))
+  await expect(preview.getByText(/水彩境界を近似描画/)).toBeVisible()
+  const box = await preview.boundingBox(), notice = await preview.locator('details').boundingBox()
+  expect(notice!.y + notice!.height).toBeLessThanOrEqual(box!.y + box!.height)
+  expect(await preview.locator('details').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
+  await page.screenshot({ path: info.outputPath('watercolor-preview.png') })
+})
+
+test('missing 3D image opens guidance in Quick Look and Escape closes it without sheet edits', async ({ page }, info) => {
+  const preview = await openSavedPreview(page, '3d', 'missing')
+  await expect(preview).toBeVisible()
+  await expect(preview.locator('img')).toHaveCount(0)
+  await expect(preview.locator('details')).toHaveAttribute('open', '')
+  await expect(preview.getByText(/別名で保存/)).toBeVisible()
+  const detail = preview.locator('details'), box = await preview.boundingBox(), bounds = await detail.boundingBox()
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(box!.y + box!.height)
+  expect(await detail.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
+  await page.screenshot({ path: info.outputPath('missing-3d-guidance.png') })
+  const undo = page.getByRole('button', { name: '元に戻す', exact: true }).first(), wasDisabled = await undo.isDisabled()
+  await page.keyboard.press('Escape')
+  await expect(preview).toHaveCount(0)
+  expect(await undo.isDisabled()).toBe(wasDisabled)
 })
 
 test('large CLIP trees scroll independently while base selection and import stay visible', async ({ page }, info) => {

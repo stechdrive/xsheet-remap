@@ -334,7 +334,8 @@ freely, subject to the following restrictions:
 The material/raster/vector decoder, single-material renderer and vector tests under
 `packages/adapters/src/clip/material/` were adapted from
 https://github.com/stechdrive/csp-paperback at commit
-`2809271ba06b6ed03322abbc45f8a4e7a81c44ff`. Native vector goldens are controlled
+`2809271ba06b6ed03322abbc45f8a4e7a81c44ff`, with material diagnostics and layer
+effects updated from `a4547482bcad1a65ca1515072bb7a14269c502f2`. Native effect and vector goldens are controlled
 synthetic stroke captures, not production artwork. Format research credits
 (clip-tools, clipfile-rs and clipparse) are retained in the sources and notices.
 

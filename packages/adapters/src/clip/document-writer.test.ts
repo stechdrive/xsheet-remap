@@ -226,13 +226,31 @@ describe('editable CLIP document preservation', () => {
     expect(parsed.timelines.every(timeline => timeline.tracks.length === 0)).toBe(true)
     for (const layer of data.layers!.filter(layer => layer.locked)) expect(parsed.layers).toContainEqual(layer)
   })
-  it('opens an illustration without timelines and retains its bytes', async () => {
+  it.each(['empty', 'absent'] as const)('opens an illustration with %s timeline tables, retains bytes, and can add animation', async mode => {
     const clip = new ClipContainer(SQL, seed)
     let bytes: Uint8Array
-    try { clip.db.run('DELETE FROM Track'); clip.db.run('DELETE FROM TimeLine'); clip.db.run('DELETE FROM AnimationCutBank'); bytes = clip.bytes() } finally { clip.close() }
+    try {
+      clip.db.run('DELETE FROM Track'); clip.db.run('DELETE FROM TimeLine')
+      clip.db.run('UPDATE AnimationCutBank SET FirstTimeLine=0')
+      if (mode === 'absent') {
+        clip.db.run('DROP TABLE Track'); clip.db.run('DROP TABLE TimeLine'); clip.db.run('DROP TABLE AnimationCutBank')
+        clip.db.run('ALTER TABLE Layer DROP COLUMN AnimationFolder')
+      }
+      bytes = clip.bytes()
+    } finally { clip.close() }
     const data = await readClip(SQL, bytes!, 'illustration.clip')
     expect(data.timelines).toEqual([])
     const document = openClipDocument(data, clipSourceDataUrl(bytes!), { timelineIds: [], role: 'action', columns: [] })
     expect((await save(document)).bytes).toEqual(bytes!)
+    const newFolder = createClipNode('A', 'animation', null, 'new-animation')
+    const cel = createClipNode('001', 'raster', newFolder.id, 'new-cel')
+    const edited = change(document, project => addClipLayers(project, [newFolder, cel]))
+    const plan = buildClipRegistrationPlan(edited, 'action')
+    plan.timelines[0].tracks = [{ folderId: newFolder.id, frames: [{ frame: 0, value: '001' }] }]
+    const result = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: {} })
+    const reopened = await readClip(SQL, result.bytes, 'animated.clip')
+    const folder = reopened.layers!.find(layer => layer.name === 'A' && layer.kind === 'animation')!
+    expect(folder).toBeTruthy()
+    expect(reopened.timelines[0].tracks.find(track => track.layerId === folder.id)?.frames).toEqual([{ frame: 0, value: '001' }])
   })
 })

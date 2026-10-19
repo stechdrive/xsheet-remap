@@ -3,6 +3,7 @@ import type { SqlJsStatic } from 'sql.js'
 import { ClipContainer } from '../container'
 import { writeClip } from '../writer'
 import { vectorBytes } from './clip-vector'
+import { writeMipmap } from '../layers'
 
 /** Small generated CLIP with nested saved disclosure and a cache-free vector cel. */
 export async function createPreviewFixture(SQL: SqlJsStatic) {
@@ -25,4 +26,27 @@ export async function createPreviewFixture(SQL: SqlJsStatic) {
   clip.db.run('CREATE TABLE BrushStyle (MainId, AntiAlias, Hardness, CompositeMode, ThicknessBase)')
   clip.db.run('INSERT INTO BrushStyle VALUES (7,1,1,0,1)')
   return { clip, vectorId: Number(vector.MainId) }
+}
+
+/** Synthetic saved material; deliberately broken vector data must never be decoded. */
+export async function createCachedPreviewFixture(SQL: SqlJsStatic, kind: 'vector' | '3d', saved = true) {
+  const fixture = await createPreviewFixture(SQL), { clip, vectorId } = fixture
+  const row = clip.row('Layer', vectorId)
+  for (const [name, type] of [['TimeLineOriginalMipmap', 'INTEGER DEFAULT 0'], ['LayerEffectAttached', 'INTEGER DEFAULT 0'], ['LayerEffectInfo', 'BLOB']]) {
+    if (!(name in row)) clip.db.run(`ALTER TABLE Layer ADD COLUMN ${name} ${type}`)
+  }
+  if (!('CanvasRenderMipmapForceSaved' in clip.rows('Canvas')[0])) clip.db.run('ALTER TABLE Canvas ADD COLUMN CanvasRenderMipmapForceSaved INTEGER DEFAULT 0')
+  clip.db.run('UPDATE Canvas SET CanvasRenderMipmapForceSaved=1')
+  clip.db.run('UPDATE VectorObjectList SET VectorData=?', [clip.addExternal(new Uint8Array([1, 2, 3]))])
+  if (kind === '3d') {
+    if (!('Manager3DOd' in row)) clip.db.run('ALTER TABLE Layer ADD COLUMN Manager3DOd INTEGER DEFAULT 0')
+    clip.update('Layer', vectorId, { Manager3DOd: 1, LayerName: '3D-cel' })
+    clip.db.run('DELETE FROM VectorObjectList')
+  }
+  if (saved) {
+    const template = clip.rows('Layer').find(r => r.LayerName === '1' && r.LayerRenderMipmap)!
+    const mip = writeMipmap(clip, row, { width: 2, height: 1, channels: 4, data: new Uint8Array([24, 80, 160, 255, 160, 80, 24, 128]) }, clip, template)
+    clip.update('Layer', vectorId, { LayerRenderMipmap: mip })
+  }
+  return fixture
 }

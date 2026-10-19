@@ -1,9 +1,18 @@
-// Adapted from csp-paperback 2809271 (MIT, Copyright (c) 2025 stechdrive).
+// Adapted from csp-paperback a454748 (MIT, Copyright (c) 2025 stechdrive).
 // See THIRD_PARTY_NOTICES.md. Preview decoding only; export policies are not imported.
-export interface EdgeEffect { radius: number; color: [number, number, number] }
+export interface EdgeEffect {
+  radius: number
+  color: [number, number, number]
+  reflectOpacity?: boolean
+  antialias?: boolean
+}
+export interface WatercolorEffect { range: number; opacity: number; darkness: number; blur: number; style?: number }
 export interface MaterialEffects {
   layerColor?: { main: [number, number, number]; sub: [number, number, number] }
   edge?: EdgeEffect
+  watercolor?: WatercolorEffect
+  /** Detected for guidance only; tone rasterization is intentionally unsupported. */
+  tone?: boolean
 }
 
 export type MaterialAdjustment = { kind: 'invert' } | { kind: 'threshold'; threshold: number }

@@ -10,6 +10,8 @@ import { readAnimation } from './read-animation'
 import { ensureTrackLabelStorage } from './track-labels'
 import { clipSourceBytes } from './document-data'
 import type { ClipWriteOptions, ClipWriteResult } from './writer'
+import { optionalRows } from './layer-metadata'
+import { ensureAnimationFolderStorage, ensureAnimationStorage } from './animation-storage'
 
 const uuidText = (value: Row[string]) => value instanceof Uint8Array ? Array.from(value, byte => byte.toString(16).padStart(2, '0')).join('') : String(value).replaceAll('-', '').toLowerCase()
 const uuidBytes = (value: Row[string]) => Uint8Array.from(uuidText(value).match(/../g)!, hex => parseInt(hex, 16))
@@ -51,6 +53,7 @@ export async function writeClipDocument(SQL: SqlJsStatic, seedBytes: Uint8Array,
       resizeCanvas(clip, options.canvas, true)
     }
     const canvas = inspectCanvas(clip), rows = new Map<string, Row>()
+    if (state.nodes.some(node => node.sourceLayerId === undefined && node.kind === 'animation')) ensureAnimationFolderStorage(clip)
     const pending = [...state.nodes]
     while (pending.length) {
       const index = pending.findIndex(node => node.parentId === null || rows.has(node.parentId))
@@ -93,10 +96,11 @@ export async function writeClipDocument(SQL: SqlJsStatic, seedBytes: Uint8Array,
     }
     const originalCel = (folder: ClipLayerNode, name: string) => originals.filter(row => originalParents.get(Number(row.MainId)) === folder.sourceLayerId && row.LayerName === name)
       .sort((a, b) => (originalOrder.get(Number(a.MainId)) ?? 0) - (originalOrder.get(Number(b.MainId)) ?? 0))[0]
-    let bank = clip.rows('AnimationCutBank')[0]
-    const timelines: { row: Row; definition?: ClipTimeline }[] = clip.rows('TimeLine').map(row => ({ row, definition: options.plan.timelines.find(timeline => timeline.sourceTimelineId === uuidText(row.TimeLineUuid)) }))
+    let bank = optionalRows(clip, 'AnimationCutBank')[0]
+    const timelines: { row: Row; definition?: ClipTimeline }[] = optionalRows(clip, 'TimeLine').map(row => ({ row, definition: options.plan.timelines.find(timeline => timeline.sourceTimelineId === uuidText(row.TimeLineUuid)) }))
     for (const definition of options.plan.timelines.filter(timeline => !timeline.sourceTimelineId)) {
       if (originalBytes && !definition.tracks.some(track => track.frames.length)) continue
+      ensureAnimationStorage(clip, seed)
       if (!bank) {
         bank = clip.insert('AnimationCutBank', seed.rows('AnimationCutBank')[0], { FirstTimeLine: 0, CurrentIndex: 0, Enable: 1 })
         clip.db.run('UPDATE Project SET ProjectCutBank=?', [bank.MainId])

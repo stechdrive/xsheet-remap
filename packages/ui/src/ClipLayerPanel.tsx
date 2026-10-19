@@ -50,7 +50,7 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
   }, [project])
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(document.nodes.filter(node => node.expanded === false || node.expanded === undefined && node.id.startsWith('process:') && node.id !== `process:${props.activeProcessId}`).map(node => node.id))), [search, setSearch] = useState(''), [unusedOnly, setUnusedOnly] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false), [preview, setPreview] = useState<{ request: object; payload: AssetPreviewPayload } | null>(null), [previewRect, setPreviewRect] = useState(initialAssetPreviewRect)
+  const [previewOpen, setPreviewOpen] = useState(false), [preview, setPreview] = useState<{ request: object; payload: AssetPreviewPayload; notices?: string[] } | null>(null), [previewRect, setPreviewRect] = useState(initialAssetPreviewRect)
   const [paperTrack, setPaperTrack] = useState(project.logicalSheet.paperTracks[0]?.paperTrack ?? '')
   const [mappingProcessId, setMappingProcessId] = useState(props.activeProcessId)
   const [pathDraft, setPathDraft] = useState<{ slotId?: string; value: string } | null>(null)
@@ -138,39 +138,45 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
         const read = async (layer: ClipLayerNode) => {
           let imageUrl = layer.imageDataUrl ?? project.assets.find(asset => asset.assetId === layer.assetId)?.thumbnailUrl
           let detailText = clipNodePath(document, layer.id)
+          let notices: string[] | undefined
           if (!imageUrl && layer.sourceLayerId !== undefined && document.source) {
             const result = await previewClipLayer(clipSourceBytes(document.source.dataUrl), layer.sourceLayerId, controller.signal)
             controller.signal.throwIfAborted()
             imageUrl = URL.createObjectURL(new Blob([Uint8Array.from(result.bytes)], { type: 'image/png' })); urls.push(imageUrl)
             detailText += ` / ${result.width} × ${result.height}px${result.storedComposite ? ' / CLIP保存時の合成画像（編集は未反映）' : ''}`
             if (result.reconstructed) detailText += ' / CLIPの素材情報から描画'
-            if (result.warnings?.length) detailText += ` / ${result.warnings.join(' / ')}`
+            else if (!result.storedComposite) detailText += ' / CLIP内のレイヤー画像'
+            notices = result.warnings
           }
-          return { label: layer.name, imageUrl, detailText }
+          return { label: layer.name, imageUrl, detailText, notices }
         }
         if (node.kind === 'folder') {
           // Show the saved composite when available, and the actual current children
           // otherwise. A gallery does not pretend to reproduce unsupported CSP effects.
           try {
             const saved = await read(node)
-            if (saved.imageUrl) { setPreview({ request: previewRequest, payload: { displayName: node.name, ...saved } }); return }
+            if (saved.imageUrl) { setPreview({ request: previewRequest, payload: { displayName: node.name, ...saved }, notices: saved.notices }); return }
           } catch { controller.signal.throwIfAborted() }
           const descendantIds = new Set([node.id])
           for (let size = -1; size !== descendantIds.size;) { size = descendantIds.size; for (const child of document.nodes) if (child.parentId && descendantIds.has(child.parentId)) descendantIds.add(child.id) }
           const layers = document.nodes.filter(child => descendantIds.has(child.id) && !['folder', 'animation', 'audio'].includes(child.kind)).slice(0, 24)
           const items = []
+          const notices: string[] = []
           for (const layer of layers) {
-            try { items.push(await read(layer)) } catch (error) { controller.signal.throwIfAborted(); items.push({ label: layer.name, detailText: String(error) }) }
+            try { const item = await read(layer); items.push(item); notices.push(...item.notices ?? []) }
+            catch (error) { controller.signal.throwIfAborted(); const message = error instanceof Error ? error.message : String(error); items.push({ label: layer.name, detailText: message }); notices.push(`「${layer.name}」: ${message}`) }
           }
           controller.signal.throwIfAborted()
-          setPreview({ request: previewRequest, payload: { displayName: node.name, detailText: 'フォルダー内の画像（最大24枚・個別表示）', items } })
+          setPreview({ request: previewRequest, payload: { displayName: node.name, detailText: 'フォルダー内の画像（最大24枚・個別表示）', items }, notices })
           return
         }
         const item = await read(node)
         if (!item.imageUrl) throw new Error('画像のないレイヤーです。')
         controller.signal.throwIfAborted()
-        setPreview({ request: previewRequest, payload: { displayName: node.name, ...item } })
-      } catch (error) { if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : String(error)) }
+        setPreview({ request: previewRequest, payload: { displayName: node.name, ...item }, notices: item.notices })
+      } catch (error) { if (!controller.signal.aborted) setPreview({ request: previewRequest,
+        payload: { displayName: selected.name, detailText: clipNodePath(document, selected.id) },
+        notices: [error instanceof Error ? error.message : String(error)] }) }
     })()
     return () => { controller.abort(); urls.forEach(url => URL.revokeObjectURL(url)) }
   }, [previewOpen, selected, document, project.assets, project.bindings, project.cspTrackSlots, project.logicalSheet, props.selectedHit, props.activeCutId, previewRequest])
@@ -311,6 +317,6 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     </div>
     {notice && <p role="status" className="clipLayerNotice">{notice}</p>}
     {processSettingsOpen && <ProcessSettingsDialog project={project} onClose={() => setProcessSettingsOpen(false)} onApply={layers => { if (apply(() => updateCorrectionLayers(project, layers))) setProcessSettingsOpen(false) }} />}
-    {previewOpen && preview?.request === previewRequest && <AssetFloatingPreview isDragPassthrough={false} payload={preview.payload} rect={previewRect} onRectChange={setPreviewRect} onClose={() => setPreviewOpen(false)} />}
+    {previewOpen && preview?.request === previewRequest && <AssetFloatingPreview isDragPassthrough={false} payload={preview.payload} notices={preview.notices} rect={previewRect} onRectChange={setPreviewRect} onClose={() => setPreviewOpen(false)} />}
   </section></TooltipSuppressionProvider>
 }

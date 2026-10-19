@@ -87,12 +87,14 @@ export function AssetPreviewWindow() {
 
 export function AssetFloatingPreview({
   payload,
+  notices,
   rect,
   isDragPassthrough,
   onRectChange,
   onClose,
 }: {
   payload: AssetPreviewPayload
+  notices?: string[]
   rect: AssetPreviewRect
   isDragPassthrough: boolean
   onRectChange: (rect: AssetPreviewRect) => void
@@ -186,6 +188,10 @@ export function AssetFloatingPreview({
         </Tooltip>
       </div>
       <AssetPreviewContent payload={payload} frameClassName="assetFloatingPreviewImageFrame" />
+      {Boolean(notices?.length) && <details className="assetFloatingPreviewNotices" open={!payload.imageUrl && !payload.items?.some(item => item.imageUrl) ? true : undefined}>
+        <summary>プレビューの再現状況（{notices!.length}）</summary>
+        <ul>{notices!.map((notice, index) => <li key={index}>{notice}</li>)}</ul>
+      </details>}
       {shouldShowDetail && detailText && (
         <div className="assetFloatingPreviewMeta">
           <Tooltip label={detailText}>

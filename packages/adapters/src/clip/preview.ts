@@ -7,11 +7,12 @@ import { createMaterialDecoder, materialOffscreen, type MaterialTables } from '.
 import { readAttribute, readRaster } from './material/raster'
 import { num } from './material/records'
 import { previewMaterialImage } from './material/preview-image'
-import type { ClipDiagnostic, ClipLayer } from './material/types'
+import type { ClipCompatibility, ClipDiagnostic, ClipLayer } from './material/types'
 
 export interface ClipLayerPreview {
   bytes: Uint8Array; width: number; height: number; storedComposite: boolean
   reconstructed?: boolean
+  source?: ClipLayer['materialSource']
   warnings?: string[]
 }
 
@@ -38,16 +39,19 @@ export async function readClipLayerPreview(SQL: SqlJsStatic, bytes: Uint8Array, 
       kind: folder ? 'folder' : row.FilterLayerInfo ? 'adjustment' : num(row, 'Manager3D') || num(row, 'Manager3DOd') ? '3d'
         : row.TextLayerString != null || row.TextLayerStringArray != null ? 'text' : row.ResizableImageInfo ? 'image-material' : vector ? 'vector' : 'raster' }
     const diagnostics: ClipDiagnostic[] = []
-    const decode = createMaterialDecoder(tables, width, height, num(canvas, 'CanvasResolution', 72), diagnostics)
+    const compatibility: ClipCompatibility = canvas.CanvasRenderMipmapForceSaved === 1 ? 'saved'
+      : canvas.CanvasRenderMipmapForceSaved === 0 ? 'not-saved' : 'unknown'
+    const decode = createMaterialDecoder(tables, width, height, num(canvas, 'CanvasResolution', 72), diagnostics, compatibility)
     if (savedOnly) {
       const surface = materialOffscreen(tables, row, 'LayerRenderMipmap'), body = surface && clip.body(surface.BlockData)
-      check(body && surface?.Attribute instanceof Uint8Array, kind === 'video'
+      check(surface?.Attribute instanceof Uint8Array, kind === 'video'
         ? 'この動画レイヤーには保存済み画像がありません。元のCLIPで動画を確認してください。' : 'フォルダーの保存済み合成画像がありません。')
       // A saved folder/movie composite already contains its drawing effects.
       material.isFolder = true
-      await decode(material, row)
-      material.effects = undefined
+      // Decode its mask, but do not diagnose/reapply effects on the saved composite.
+      await decode(material, { ...row, LayerEffectAttached: 0, DrawColorEnable: 0 })
       material.pixels = await readRaster(readAttribute(surface.Attribute), body, false)
+      check(material.pixels, kind === 'video' ? 'この動画レイヤーには保存済み画像がありません。元のCLIPで動画を確認してください。' : 'フォルダーの保存済み合成画像がありません。')
       if (material.pixels) { material.pixels.left += num(row, 'LayerOffsetX') + num(row, 'LayerRenderOffscrOffsetX'); material.pixels.top += num(row, 'LayerOffsetY') + num(row, 'LayerRenderOffscrOffsetY') }
       material.materialSource = 'render'
     } else await decode(material, row)
@@ -55,7 +59,7 @@ export async function readClipLayerPreview(SQL: SqlJsStatic, bytes: Uint8Array, 
     const pixels = previewMaterialImage(material, width, height)
     const reconstructed = ['vector', 'text', 'gradient', 'fill'].includes(material.materialSource ?? '')
     return { bytes: png({ width: pixels.width, height: pixels.height, channels: 4, data: new Uint8Array(pixels.rgba.buffer, pixels.rgba.byteOffset, pixels.rgba.byteLength) }),
-      width: pixels.width, height: pixels.height, storedComposite: savedOnly || !reconstructed && (num(row, 'LayerType') & ~2) !== 1,
-      reconstructed, warnings: diagnostics.map(issue => issue.message) }
+      width: pixels.width, height: pixels.height, storedComposite: savedOnly,
+      source: material.materialSource, reconstructed, warnings: [...new Set(diagnostics.map(issue => issue.message))] }
   } finally { clip.close() }
 }

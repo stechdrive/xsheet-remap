@@ -5,8 +5,8 @@ export const normalizedUuid = (value: Row[string]) => value instanceof Uint8Arra
   ? Array.from(value, byte => byte.toString(16).padStart(2, '0')).join('')
   : String(value ?? '').replaceAll('-', '').toLowerCase()
 
-/** Media tables are absent from older/plain raster documents. */
-export function optionalRows(clip: ClipContainer, table: 'CanvasItem' | 'CanvasItemBinary' | 'LayerObject'): Row[] {
+/** Media/animation tables can be absent from illustration documents. */
+export function optionalRows(clip: ClipContainer, table: 'CanvasItem' | 'CanvasItemBinary' | 'LayerObject' | 'Project' | 'AnimationCutBank' | 'TimeLine' | 'Track'): Row[] {
   return clip.db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`)[0] ? clip.rows(table) : []
 }
 

@@ -402,6 +402,17 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .internalD
   background: #ecebe6;
 }
 
+.assetFloatingPreviewImageFrame:not(.multi) {
+  position: relative;
+}
+
+.assetFloatingPreviewImageFrame:not(.multi) > img {
+  position: absolute;
+  inset: 10px;
+  width: calc(100% - 20px);
+  height: calc(100% - 20px);
+}
+
 .assetFloatingPreviewImageFrame .assetPreviewPlaceholder {
   width: min(360px, 80%);
   height: min(240px, 70%);
@@ -414,6 +425,21 @@ body.internalPointerDragActive[data-internal-drag-validity='invalid'] .internalD
   color: #4e5a52;
   font-size: 12px;
 }
+
+.assetFloatingPreviewNotices {
+  min-width: 0;
+  max-height: 160px;
+  padding: 7px 10px;
+  overflow: auto;
+  border-top: 1px solid #d4d8d0;
+  color: #4e5a52;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.assetFloatingPreviewNotices summary { cursor: pointer; }
+.assetFloatingPreviewNotices ul { margin: 6px 0 0; padding-left: 18px; }
+.assetFloatingPreviewNotices li { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .assetFloatingPreviewMeta span {
   display: block;

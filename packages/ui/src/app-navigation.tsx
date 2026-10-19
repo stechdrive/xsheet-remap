@@ -1,6 +1,6 @@
 import { requestTemplateEditor } from './template-editor-entry'
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, getSheetViewLayout, isInteractiveSheetTemplateGridRegion, sheetTimingRoleForEvent } from '@xsheet-remap/core'
+import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, getSheetViewLayout } from '@xsheet-remap/core'
 import { isTauriHost, XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
 import { type Panel } from './appTypes'
@@ -9,141 +9,12 @@ import { calibrationTargetRectForTemplate } from './sheetImages'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { ActionMenu } from './AppControls'
 import { CalibrationPointKind, RegisteredCellSortDirection, type MainAppKind } from './app-foundation'
-import { gridHeaderLabelForRole } from './templateEditorGeometry'
 import { DurationFrameControl } from './DurationFrameControl'
 import { EditorDetailedHelp } from './EditorDetailedHelp'
 import { LicenseNotices, licenseHelpDescription } from './LicenseNotices'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 import { type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
 import { type DialogueAudioTrackExportFormat } from './dialogueAudioExport'
-
-export function RecognitionActionMenu({
-  label = <span>OCR</span>,
-  className = '',
-  placement = 'bottom-start',
-  candidates,
-  sheetRole,
-  running,
-  progress,
-  message,
-  project,
-  template,
-  disabled,
-  onSheetRoleChange,
-  onDetect,
-  onAccept,
-  onAcceptAll,
-  onUpdateLabel,
-  onRemove,
-  onClear,
-}: {
-  label?: ReactNode
-  className?: string
-  placement?: 'bottom-start' | 'right-start'
-  candidates: RecognitionCandidate[]
-  sheetRole: SheetTimingRole
-  running: boolean
-  progress: { completed: number; total: number } | null
-  message: string | null
-  project: CutProject
-  template: SheetTemplate
-  disabled: boolean
-  onSheetRoleChange: (sheetRole: SheetTimingRole) => void
-  onDetect: () => void
-  onAccept: (candidate: RecognitionCandidate) => void
-  onAcceptAll: () => void
-  onUpdateLabel: (candidateId: string, value: string) => void
-  onRemove: (candidateId: string) => void
-  onClear: () => void
-}) {
-  const readyCount = candidates.filter(candidate => !recognitionCandidateHasConflict(project, candidate)).length
-  const availableRoles = (['action', 'cell'] as const).filter(role => template.regions.some(region =>
-    isInteractiveSheetTemplateGridRegion(region) && region.grid.role === role,
-  ))
-  return (
-    <ActionMenu
-      label={label}
-      ariaLabel={uiText.recognition.menu}
-      tooltipLabel={uiText.recognition.menuTitle}
-      className={`sheetRecognitionMenu ${className}`.trim()}
-      placement={placement}
-    >
-      <div className="recognitionMenuBody">
-        <div className="recognitionRoleControl" role="group" aria-label={uiText.recognition.targetField}>
-          {availableRoles.map(role => (
-            <button
-              key={role}
-              type="button"
-              className={sheetRole === role ? 'active' : ''}
-              aria-pressed={sheetRole === role}
-              disabled={running}
-              onClick={() => onSheetRoleChange(role)}
-            >
-              {gridHeaderLabelForRole(template, role)}
-            </button>
-          ))}
-        </div>
-        <button type="button" className="recognitionRunButton" disabled={disabled || running} onClick={onDetect}>
-          {running ? uiText.recognition.running : uiText.actions.runOcrAllPages}
-        </button>
-        {running && progress && (
-          <progress
-            className="recognitionProgress"
-            max={Math.max(1, progress.total)}
-            value={progress.completed}
-            aria-label={uiText.recognition.running}
-          />
-        )}
-        <div className="recognitionMenuActions">
-          <button type="button" disabled={readyCount === 0 || running} onClick={onAcceptAll}>{uiText.actions.acceptAll}</button>
-          <button type="button" disabled={candidates.length === 0 || running} onClick={onClear}>{uiText.recognition.clearCandidates}</button>
-        </div>
-        {disabled && <p className="muted">{uiText.recognition.disabled}</p>}
-        {message && <p className="recognitionMessage" role="status">{message}</p>}
-        <div className="recognitionMenuCandidateHeader">
-          <strong>{uiText.recognition.candidates}</strong>
-          <span>{uiText.recognition.candidateCount(candidates.length)}</span>
-        </div>
-        {candidates.length > 0 && (
-          <div className="candidateList recognitionMenuCandidateList">
-            {candidates.map(candidate => {
-              const conflict = recognitionCandidateHasConflict(project, candidate)
-              return (
-                <div key={candidate.candidateId} className={conflict ? 'candidateItem conflict' : 'candidateItem'}>
-                  <div className="candidateItemMeta">
-                    <strong>{candidate.paperTrack} {candidate.frame}F</strong>
-                    <span>{Math.round(candidate.confidence * 100)}%</span>
-                  </div>
-                  <input
-                    value={candidate.normalizedLabel}
-                    aria-label={uiText.recognition.candidateLabel(candidate.paperTrack, candidate.frame)}
-                    onChange={event => onUpdateLabel(candidate.candidateId, event.currentTarget.value)}
-                  />
-                  {conflict && <span className="candidateConflictLabel">{uiText.recognition.existingEvent}</span>}
-                  <div className="candidateItemActions">
-                    <button type="button" disabled={conflict || !candidate.normalizedLabel.trim()} onClick={() => onAccept(candidate)}>{uiText.recognition.accept}</button>
-                    <button type="button" onClick={() => onRemove(candidate.candidateId)}>{uiText.actions.remove}</button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </ActionMenu>
-  )
-}
-
-function recognitionCandidateHasConflict(project: CutProject, candidate: RecognitionCandidate): boolean {
-  const event = project.logicalSheet.events.find(item =>
-    item.paperTrack === candidate.paperTrack
-    && item.frame === candidate.frame
-    && sheetTimingRoleForEvent(item) === candidate.sheetRole,
-  )
-  if (!event) return false
-  const key = project.logicalSheet.keys.find(item => item.keyId === event.keyId)
-  return key?.displayLabel.trim().normalize('NFKC') !== candidate.normalizedLabel.trim().normalize('NFKC')
-}
 
 export function CutMetadataActionMenu({
   project,

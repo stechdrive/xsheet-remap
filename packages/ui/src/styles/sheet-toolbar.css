@@ -476,8 +476,7 @@
 }
 
 .workspaceRailAction.cutSwitchMenu > summary,
-.workspaceRailAction.pageJumpMenu > summary,
-.workspaceRailAction.sheetRecognitionMenu > summary {
+.workspaceRailAction.pageJumpMenu > summary {
   display: grid;
   place-items: center;
   width: 34px;

@@ -7,7 +7,6 @@ import type {
   CutGroupProjectDocument,
   CutMetadataFieldId,
   CutProject,
-  RecognitionCandidate,
   SheetCalibrationPointPair,
   SheetHit,
   SheetPage,
@@ -45,7 +44,6 @@ export type SheetCanvasProps = {
   setActivePageIndex: (pageIndex: number) => void
   sheetView: SheetViewState
   runtimeSourceImageUrls: Record<string, string>
-  recognitionCandidates: RecognitionCandidate[]
   selectedHit: SheetHit | null
   audioPlayheadFrame: number | null
   audioPlayheadStore?: AudioPlayheadStore

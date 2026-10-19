@@ -11,8 +11,6 @@ packages and assets under their own licenses.
 | CanvasKit / Skia (`canvaskit-wasm` 0.42.0) | BSD-3-Clause | GPU paper rendering; license reproduced below |
 | Tauri API and Tauri Rust crates | Apache-2.0 OR MIT | Desktop runtime |
 | OpenCV.js package | Apache-2.0 | Image processing in the UI |
-| PaddleOCR.js | Apache-2.0 | Browser OCR pipeline |
-| PP-OCRv5 mobile detection and recognition models | Apache-2.0 | Bundled ONNX OCR models |
 | ONNX Runtime Web | MIT | Bundled WebAssembly inference runtime |
 | Silero VAD 16k OP15 model | MIT | Bundled dialogue voice-activity detection model from Silero VAD 6.2.0 |
 | Mediabunny / `@mediabunny/mp3-encoder` | MPL-2.0 | Browser media writer and MP3 encoder integration |
@@ -21,7 +19,7 @@ packages and assets under their own licenses.
 | ag-psd 31.0.3 / base64-js 1.5.1 | MIT | Editable PSD text export; licenses reproduced below |
 | pako 2.1.0 | MIT AND Zlib | Compression used by ag-psd; licenses reproduced below |
 | LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files and extracted vertical glyph outlines (copyright LY Corporation) |
-| sql.js 1.14.2 / SQLite | MIT / Public domain | Direct CLIP database editing |
+| sql.js 1.15.1 / SQLite | MIT / Public domain | Direct CLIP database editing |
 
 ## Transitive Dependencies
 

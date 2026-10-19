@@ -15,13 +15,13 @@ import { containsUnexpectedOcrIdentifier } from './pages-content-policy.mjs'
 const repoRoot = process.cwd()
 const outputRoot = path.join(repoRoot, 'apps', 'web', 'dist-pages')
 const MAX_FILES = 1000
-// Silero VADはモデルとWASMを初回音声解析時にだけ取得する。OCRは引き続きPages対象外。
+// Silero VADはモデルとWASMを初回音声解析時にだけ取得する。
 // CanvasKit adds one 7 MiB runtime; keep it content-revisioned alongside VAD.
 const MAX_TOTAL_BYTES = 56 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
-// Base-sheet selection/reference, comparison and import controls bring the measured
-// shell to ~4,328,000 bytes after removing obsolete UI/styles. Keep ~29 KiB headroom.
-const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 160 * 1024
+// React 19.3 and Mediabunny 1.61 add ~84 KiB; OCR UI removal offsets part of it.
+// The inspected shell is ~4,424,000 bytes. Keep ~32 KiB headroom and all offline tools.
+const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 256 * 1024
 const MAX_RUNTIME_WASM_BYTES = 25 * 1024 * 1024
 const MAX_RUNTIME_WASM_FILES = 3
 const allowedExtensions = new Set([

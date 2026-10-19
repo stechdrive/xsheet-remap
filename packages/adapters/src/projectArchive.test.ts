@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { createDefaultProjectDocument, DEFAULT_CLIP_CANVAS, createClipNode, PROJECT_DOCUMENT_SCHEMA_VERSION } from '@xsheet-remap/core'
+import { activeCutProjectFromDocument, commitHistory, createDefaultProjectDocument, createProjectHistory,
+  createRecognizedEvent, DEFAULT_CLIP_CANVAS, createClipNode, PROJECT_DOCUMENT_SCHEMA_VERSION,
+  redoHistory, undoHistory, updateActiveCutProjectInDocument, updateKey } from '@xsheet-remap/core'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import {
   decodeProjectFileBytes,
@@ -14,6 +16,23 @@ const embeddedImage = 'data:image/png;base64,aGVsbG8='
 const embeddedAudio = 'data:audio/wav;base64,UklGRg=='
 
 describe('project archive codec', () => {
+  it('preserves legacy recognized timing through archive reload, edits and undo/redo', async () => {
+    const source = createDefaultProjectDocument()
+    const recognized = createRecognizedEvent(activeCutProjectFromDocument(source), 'A', 3, 'cell', '○1')
+    const document = updateActiveCutProjectInDocument(source, recognized.project)
+    const restored = await decodeProjectFileBytes(await encodeProjectArchive(document))
+    const loaded = activeCutProjectFromDocument(restored.document)
+    expect(loaded.logicalSheet.events).toEqual(recognized.project.logicalSheet.events)
+    expect(loaded.logicalSheet.keys).toEqual(recognized.project.logicalSheet.keys)
+    const edited = commitHistory(createProjectHistory(loaded), updateKey(loaded, recognized.key!.keyId, { displayLabel: '2' }))
+    const undone = undoHistory(edited)
+    expect(undone.present.logicalSheet.keys[0]).toMatchObject({ displayLabel: '○1', createdFrom: 'recognition' })
+    expect(undone.present.logicalSheet.events[0]).toMatchObject({ frame: 3, source: 'recognition' })
+    const redone = redoHistory(undone)
+    expect(redone.present.logicalSheet.keys[0]).toMatchObject({ displayLabel: '2', createdFrom: 'recognition' })
+    const savedAgain = await decodeProjectFileBytes(await encodeProjectArchive(updateActiveCutProjectInDocument(restored.document, redone.present)))
+    expect(activeCutProjectFromDocument(savedAgain.document).logicalSheet).toEqual(redone.present.logicalSheet)
+  })
   it('embeds original CLIP bytes and new layer images and restores stable layer targets', async () => {
     const source = createDefaultProjectDocument()
     source.clipDocument = { version: 1, canvas: { ...DEFAULT_CLIP_CANVAS }, targets: [],

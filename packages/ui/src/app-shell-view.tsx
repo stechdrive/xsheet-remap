@@ -15,7 +15,7 @@ import { TemplateWorkspace, type TemplateWorkspaceDraftState } from './TemplateW
 import type { TemplateHistoryControls } from './useTemplateDraftHistory'
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
-import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, PaperSheetIcon, RecognitionActionMenu, RedoIcon, UndoIcon } from './app-navigation';
+import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, PaperSheetIcon, RedoIcon, UndoIcon } from './app-navigation';
 import { SheetPanel } from './app-sheet-panel';
 import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
@@ -26,7 +26,6 @@ import { ClipImageDropDialog } from './ClipImageDropDialog'
 import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
-import { SHEET_OCR_AVAILABLE } from './runtimeFeatures'
 import { DialogueAudioTimeline } from './DialogueAudioTimeline'
 import { dialogueAudioCutStateFromProject } from './dialogueAudioProject'
 import { correctedSheetImageExportPlan, type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
@@ -37,8 +36,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
   const {
     workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, baseProcessId, handleBaseProcessChange, pendingClipImageDrop, setPendingClipImageDrop, applyClipImageDrop, clipDropContext,
     appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
-    template, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
-    setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,
+    template, runtimeSourceImageUrls, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
     showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
@@ -51,7 +49,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, handleLoadClip, handleImportClip, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, timingExportIssues, sheetPages, clampedActivePageIndex,
-    activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
+    activePage, activePageImage, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand, handleClipCorrespondence,
@@ -75,7 +73,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
-    handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
+    handleEraseAnnotation,
   } = controller
 
   const dialogueAudioCutState = useMemo(() => dialogueAudioCutStateFromProject(
@@ -232,35 +230,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
           />
         </div>
       </ActionMenu>
-      {SHEET_OCR_AVAILABLE && (
-        <RecognitionActionMenu
-          label={<span className="workspaceRailTextIcon">OCR</span>}
-          className="workspaceRailAction"
-          placement="right-start"
-          candidates={recognitionCandidates}
-          sheetRole={recognitionRole}
-          running={recognitionRunning}
-          progress={recognitionProgress}
-          message={recognitionMessage}
-          project={project}
-          template={template}
-          disabled={!hasRecognitionSheetImages}
-          onSheetRoleChange={role => {
-            setRecognitionRole(role)
-            setRecognitionCandidates([])
-            setRecognitionMessage(null)
-          }}
-          onDetect={() => void handleRecognizeSheet()}
-          onAccept={acceptRecognitionCandidate}
-          onAcceptAll={acceptAllRecognitionCandidates}
-          onUpdateLabel={updateRecognitionCandidateLabel}
-          onRemove={candidateId => setRecognitionCandidates(current => current.filter(candidate => candidate.candidateId !== candidateId))}
-          onClear={() => {
-            setRecognitionCandidates([])
-            setRecognitionMessage(null)
-          }}
-        />
-      )}
     </>
   ) : null
 
@@ -359,7 +328,6 @@ export function AppShellView({ controller }: { controller: AppController }) {
             assets={materialAssets}
             runtimeSourceImageUrls={runtimeSourceImageUrls}
             activePageImage={activePageImage}
-            recognitionCandidates={recognitionCandidates}
             selectedKeyId={selection.keyId}
             selectedHit={selection.hit}
             audioPlayheadFrame={audioPlayheadFrame}

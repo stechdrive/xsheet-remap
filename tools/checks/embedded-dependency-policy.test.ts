@@ -1,69 +1,47 @@
-import { describe, expect, it } from 'vitest'
-import {
-  checkEmbeddedDependencies,
-  compareVersions,
-  evaluatePaddleWorkerPolicy,
-  readEmbeddedJsYamlVersion,
-} from './embedded-dependency-policy.mjs'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { checkEmbeddedDependencies } from './embedded-dependency-policy.mjs'
 
-const worker = (version: string) => `/*! js-yaml ${version} https://github.com/nodeca/js-yaml @license MIT */`
+let root: string
+function lock(packages: Record<string, { version: string }> = { 'node_modules/js-yaml': { version: '4.3.2' } }) {
+  fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({ packages }))
+}
+function asset(file: string, contents = '') {
+  const target = path.join(root, file)
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  fs.writeFileSync(target, contents)
+}
+beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), 'xsheet-dependencies-')); lock() })
+afterEach(() => fs.rmSync(root, { recursive: true, force: true }))
 
-describe('embedded dependency policy', () => {
-  it('parses and compares dependency versions', () => {
-    expect(readEmbeddedJsYamlVersion(worker('4.1.1'))).toBe('4.1.1')
-    expect(compareVersions('4.3.1', '4.3.1')).toBe(0)
-    expect(compareVersions('4.3.2', '4.3.1')).toBeGreaterThan(0)
-    expect(compareVersions('4.2.9', '4.3.1')).toBeLessThan(0)
+describe('removed OCR and embedded runtime policy', () => {
+  it('accepts the remaining audio inference runtime without OCR', () => {
+    asset('build/vad/models/silero_vad.onnx')
+    asset('build/assets/ort.wasm')
+    expect(checkEmbeddedDependencies(root, 'build')).toEqual({ status: 'ocr-removed', externalVersion: '4.3.2' })
   })
-
-  it('accepts a fully patched dependency and worker', () => {
-    expect(evaluatePaddleWorkerPolicy({
-      externalVersion: '4.3.1',
-      workerSource: worker('4.3.1'),
-    })).toMatchObject({ status: 'patched', embeddedVersion: '4.3.1' })
+  it('rejects an OCR package even when it is only a transitive dependency', () => {
+    lock({ 'node_modules/js-yaml': { version: '4.3.2' }, 'node_modules/nested/node_modules/@paddleocr/paddleocr-js': { version: '0.4.2' } })
+    expect(() => checkEmbeddedDependencies(root)).toThrow(/OCR dependency/)
   })
-
-  it('accepts only the reviewed PaddleOCR worker exception', () => {
-    expect(evaluatePaddleWorkerPolicy({
-      externalVersion: '4.3.1',
-      workerSource: worker('4.1.1'),
-    })).toMatchObject({ status: 'fixed-model-exception', embeddedVersion: '4.1.1' })
-
-    expect(() => evaluatePaddleWorkerPolicy({
-      externalVersion: '4.3.1',
-      workerSource: worker('4.2.0'),
-    })).toThrow(/unreviewed vulnerable js-yaml 4\.2\.0/)
+  it('rejects leftover models and emitted workers without a fixed-model exception', () => {
+    asset('apps/web/public/ocr/models/model.tar')
+    expect(() => checkEmbeddedDependencies(root)).toThrow(/OCR model/)
+    fs.unlinkSync(path.join(root, 'apps/web/public/ocr/models/model.tar'))
+    asset('build/assets/worker.js', 'const engine = "PaddleOCR";')
+    expect(() => checkEmbeddedDependencies(root, 'build')).toThrow(/OCR runtime content/)
   })
-
-  it('rejects a vulnerable resolved dependency or an unidentifiable worker', () => {
-    expect(() => evaluatePaddleWorkerPolicy({
-      externalVersion: '4.3.0',
-      workerSource: worker('4.1.1'),
-    })).toThrow(/resolved js-yaml 4\.3\.0 is vulnerable/)
-    expect(() => readEmbeddedJsYamlVersion('no dependency banner')).toThrow(/does not expose/)
+  it('rejects runtime directories and missing artifact inventories', () => {
+    expect(() => checkEmbeddedDependencies(root, 'build')).toThrow(/Artifact is missing/)
+    asset('build/ocr/ort/runtime.wasm')
+    expect(() => checkEmbeddedDependencies(root, 'build')).toThrow(/OCR asset/)
   })
-
-  it('checks the emitted worker when an artifact root is supplied', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xsheet-embedded-dependency-'))
-    try {
-      fs.mkdirSync(path.join(root, 'node_modules', 'js-yaml'), { recursive: true })
-      fs.writeFileSync(
-        path.join(root, 'node_modules', 'js-yaml', 'package.json'),
-        JSON.stringify({ version: '4.3.1' }),
-      )
-      fs.mkdirSync(path.join(root, 'build', 'assets'), { recursive: true })
-      fs.writeFileSync(path.join(root, 'build', 'assets', 'worker-entry-test.js'), worker('4.1.1'))
-
-      expect(checkEmbeddedDependencies(root, 'build')).toMatchObject({
-        status: 'fixed-model-exception',
-        source: path.join('build', 'assets'),
-        workerFile: 'worker-entry-test.js',
-      })
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true })
+  it('rejects js-yaml releases before the latest 4.x security fix', () => {
+    for (const version of ['3.15.2', '4.1.1', '4.3.1', 'unknown']) {
+      lock({ 'node_modules/js-yaml': { version } })
+      expect(() => checkEmbeddedDependencies(root)).toThrow(/4.3.2/)
     }
   })
 })

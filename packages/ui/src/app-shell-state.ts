@@ -2,7 +2,7 @@ import { useBrowserFileOwnership } from './useBrowserFileOwnership'
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
   activeCutProjectFromDocument, baseTimingProject, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId, ensureClipDocument, synchronizeClipBindings, selectTimingProcess,
-  type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type RecognitionCandidate, type SheetTemplate, type SheetTimingRole,
+  type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type SheetTemplate,
 } from '@xsheet-remap/core'
 import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
 import type { RemapWorkMode } from './RemapWorkspaceBar'
@@ -109,11 +109,6 @@ export function useAppShellState(appKind: MainAppKind) {
   const projectRef = useRef(project)
   const template = workspaceHistory.present.template
   const [runtimeSourceImageUrls, setRuntimeSourceImageUrls] = useState<Record<string, string>>({})
-  const [recognitionCandidates, setRecognitionCandidates] = useState<RecognitionCandidate[]>([])
-  const [recognitionRole, setRecognitionRole] = useState<SheetTimingRole>('action')
-  const [recognitionRunning, setRecognitionRunning] = useState(false)
-  const [recognitionProgress, setRecognitionProgress] = useState<{ completed: number; total: number } | null>(null)
-  const [recognitionMessage, setRecognitionMessage] = useState<string | null>(null)
   const [autoCalibrationRunning, setAutoCalibrationRunning] = useState(false)
   const [autoCalibrationMessage, setAutoCalibrationMessage] = useState<string | null>(null)
   const [autoCalibrationOverlay, setAutoCalibrationOverlay] = useState<AutoCalibrationOverlayState | null>(null)
@@ -191,8 +186,7 @@ export function useAppShellState(appKind: MainAppKind) {
   return {
     releaseBrowserFilesAfterCommit,
     history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
-    runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole, setRecognitionRole,
-    recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
+    runtimeSourceImageUrls, setRuntimeSourceImageUrls,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
     showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,

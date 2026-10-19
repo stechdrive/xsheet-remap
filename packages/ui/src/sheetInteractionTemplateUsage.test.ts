@@ -10,7 +10,7 @@ import {
   timingHitForFrame,
 } from '@xsheet-remap/core'
 import { describe, expect, it } from 'vitest'
-import { candidateToHit, enumerateTemplateTimingHits, rangeRectsForPage, rangeSelectionFromHits } from './sheetInteraction'
+import { enumerateTemplateTimingHits, rangeRectsForPage, rangeSelectionFromHits } from './sheetInteraction'
 
 describe('template timing hit usage', () => {
   it('does not create interactive cells for ignored grid regions', () => {
@@ -79,15 +79,4 @@ describe('template timing hit usage', () => {
     expect(rangeRect?.h).toBeCloseTo((expectedAnchorRect?.h ?? 0) * 30)
   })
 
-  it('maps an OCR candidate on a project track beyond the template defaults', () => {
-    const paperTracks = Array.from({ length: 12 }, (_, index) => String.fromCharCode(65 + index))
-    const candidate = { paperTrack: 'L', frame: 10, sheetRole: 'cell' as const }
-
-    expect(candidateToHit(digitalStandardSheetTemplate, 144, 1, candidate)).toBeNull()
-    expect(candidateToHit(digitalStandardSheetTemplate, 144, 1, candidate, paperTracks)).toMatchObject({
-      paperTrack: 'L',
-      frame: 10,
-      role: 'cell',
-    })
-  })
 })

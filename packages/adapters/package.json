@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/adapters",
-  "version": "0.1.816",
+  "version": "0.1.817",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -9,10 +9,10 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/api": "^2.12.4",
     "@xsheet-remap/core": "*",
     "fflate": "^0.8.3",
-    "sql.js": "1.14.2"
+    "sql.js": "1.15.1"
   },
   "license": "MIT"
 }

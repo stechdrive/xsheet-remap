@@ -1,0 +1,24 @@
+{
+  "cargoAuditVersion": "0.22.2",
+  "target": "x86_64-pc-windows-msvc",
+  "exceptions": [
+    {
+      "id": "RUSTSEC-2024-0370",
+      "kind": "unmaintained",
+      "package": "proc-macro-error",
+      "version": "1.0.4",
+      "absentFromTarget": true,
+      "reviewBy": "2027-01-19",
+      "reason": "GTK3 procedural macros are not in the distributed Windows dependency graph; reassess when Tauri moves away from GTK3."
+    },
+    {
+      "id": "RUSTSEC-2024-0429",
+      "kind": "unsound",
+      "package": "glib",
+      "version": "0.18.5",
+      "absentFromTarget": true,
+      "reviewBy": "2027-01-19",
+      "reason": "Tauri's Linux/BSD GTK3 backend is not distributed. Fail if glib enters the Windows graph; Linux native distribution needs a separate resolution."
+    }
+  ]
+}

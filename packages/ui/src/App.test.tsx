@@ -87,7 +87,7 @@ it('renders the main workspace shell', () => {
     fireEvent.click(within(appNavigationMenu).getByRole('button', { name: uiText.actions.exportMenu }))
     expect(within(appNavigationMenu).queryByText(/補正済み紙シート（全\d+ページ）/)).toBeNull()
     expect(screen.getByLabelText('紙シート')).toBeTruthy()
-    expect(screen.getByLabelText(uiText.recognition.menu)).toBeTruthy()
+    expect(screen.queryByLabelText('OCR')).toBeNull()
     expect(screen.getByLabelText(uiText.sheet.displaySettingsMenu)).toBeTruthy()
     const paperMenu = openPaperSheetMenu()
     expect(within(paperMenu).getByRole('button', { name: uiText.sheet.imageCorrection })).toBeTruthy()
@@ -597,20 +597,6 @@ it('keeps only one top action menu open at a time', () => {
     expect(projectMenu.open).toBe(false)
   })
 
-it('defaults OCR to the template-defined ACTION target', () => {
-    render(<App />)
-    const menu = screen.getByLabelText(uiText.recognition.menu)
-    expect(menu.textContent).toContain('OCR')
-    fireEvent.click(menu)
-
-    const roleGroup = screen.getByRole('group', { name: uiText.recognition.targetField })
-    expect(within(roleGroup).getByRole('button', { name: uiText.sheetRoles.action }).getAttribute('aria-pressed')).toBe('true')
-    expect(within(roleGroup).getByRole('button', { name: uiText.sheetRoles.cell }).getAttribute('aria-pressed')).toBe('false')
-    expect((screen.getByRole('button', { name: uiText.actions.runOcrAllPages }) as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.queryByText('濃さ')).toBeNull()
-    expect(screen.queryByText('記入率')).toBeNull()
-  })
-
 it('separates template lines and labels in the display menu', () => {
     render(<App />)
     expect(document.querySelectorAll('.gridLine').length).toBeGreaterThan(0)
@@ -1052,19 +1038,6 @@ it('edits template grid header labels from the display tab', () => {
 
     fireEvent.change(soundInput, { target: { value: '' } })
     expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).not.toContain('SOUND')
-  })
-
-it('uses the template header label for the OCR target name', () => {
-    render(<App />)
-    selectAppPanel(uiText.nav.template)
-    selectTemplateInspector('display')
-    fireEvent.change(screen.getByLabelText(uiText.template.gridHeaderLabelInput('ACTION')), { target: { value: '演技指示' } })
-    fireEvent.click(screen.getByRole('button', { name: 'プロジェクトへ反映' }))
-
-    selectAppPanel(uiText.nav.sheet)
-    fireEvent.click(screen.getByLabelText(uiText.recognition.menu))
-    const roleGroup = screen.getByRole('group', { name: uiText.recognition.targetField })
-    expect(within(roleGroup).getByRole('button', { name: '演技指示' }).getAttribute('aria-pressed')).toBe('true')
   })
 
 it('edits the cut duration as seconds and frames with stepper buttons', () => {

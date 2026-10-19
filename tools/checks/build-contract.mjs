@@ -14,7 +14,9 @@ const expectedScripts = {
   'release:github': 'npm run check:ci-preflight && npm run verify:desktop && npm run release:github:update',
   'release:github:build': 'npm run check:ci-preflight && npm run build:release:all && npm run verify:desktop && npm run release:github:update',
   'verify:desktop': 'node tools/verification/run.mjs desktop',
-  'check:dependency-audit': 'npm audit --audit-level=high',
+  'check:dependency-audit': 'npm audit --audit-level=high && npm run check:rust-audit',
+  'check:rust-audit': 'node tools/checks/rust-audit.mjs',
+  'setup:rust-audit': 'node tools/checks/install-rust-audit.mjs',
   'check:embedded-dependencies': 'node tools/checks/embedded-dependency-policy.mjs',
 }
 for (const [name, command] of Object.entries(expectedScripts)) {
@@ -72,7 +74,7 @@ if (
   !desktopScriptSource.includes('tools/checks/embedded-dependency-policy.mjs')
   || !desktopScriptSource.includes('--artifact-root "apps/web/dist"')
 ) {
-  throw new Error('desktop builds must inspect the emitted PaddleOCR worker dependency')
+  throw new Error('desktop builds must reject retired OCR runtime assets')
 }
 
 const inventoryScript = path.join(repoRoot, 'tools', 'release', 'release-inventory.ps1')

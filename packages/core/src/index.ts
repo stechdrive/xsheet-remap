@@ -90,7 +90,6 @@ export type {
   ProjectFile,
   ProjectExtensionPayload,
   ProjectHistory,
-  RecognitionCandidate,
   SheetImageAlignment,
   SheetCalibrationPointPair,
   SheetImageCalibration,

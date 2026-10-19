@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      ...(isPages ? [pagesDisableOcrPlugin(), pagesPublicAssetsPlugin(), pagesHtmlSecurityPlugin()] : []),
+      ...(isPages ? [pagesPublicAssetsPlugin(), pagesHtmlSecurityPlugin()] : []),
     ],
     base: './',
     publicDir: isPages ? false : 'public',
@@ -51,20 +51,6 @@ function pagesPublicAssetsPlugin() {
       for (const [fileName, sourcePath] of assets) {
         this.emitFile({ type: 'asset', fileName, source: fs.readFileSync(sourcePath) })
       }
-    },
-  }
-}
-
-function pagesDisableOcrPlugin() {
-  const disabledModule = path.resolve(webRoot, '../../packages/ui/src/sheetRecognition.pages.ts')
-  return {
-    name: 'xsheet-pages-disable-ocr',
-    enforce: 'pre' as const,
-    resolveId(source: string, importer: string | undefined) {
-      if (source === './sheetRecognition' && importer?.replace(/\\/g, '/').endsWith('/packages/ui/src/runtimeFeatures.ts')) {
-        return disabledModule
-      }
-      return null
     },
   }
 }

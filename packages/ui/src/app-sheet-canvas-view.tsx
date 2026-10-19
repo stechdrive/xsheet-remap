@@ -216,13 +216,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const activeOverlayColumn = activeOverlayTrack ? overlayColumnRectForPage(props.template, props.project, activeOverlayTrack, page) : null
           const eventRects = isCalibrating ? [] : eventRectsByPage.get(page.pageId) ?? []
           const continuationItems = isCalibrating ? [] : continuationItemsByPage.get(page.pageId) ?? []
-          const candidateRects = isCalibrating
-            ? []
-            : props.recognitionCandidates.filter(candidate => {
-                if (candidate.pageId !== page.pageId) return false
-                const candidateTrack = props.project.logicalSheet.paperTracks.find(track => track.paperTrack === candidate.paperTrack)
-                return !shouldSuppressRectUnderActiveOverlay(candidateTrack, candidate.bbox, activeOverlayColumn)
-              })
           const calibrationPoints = calibrationPointsForPage(page, pageImage.settings)
           const calibrationDebugOverlay = isCalibrating && props.autoCalibrationOverlay?.pageId === page.pageId
             ? props.autoCalibrationOverlay
@@ -357,16 +350,6 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                   {showInputContent && <MetadataTextLayer context={sheetRenderModelContext} page={page} />}
                   {showInputContent && <TimingContinuationLayer items={continuationItems} pageSize={sheetPageSize} />}
-                  {candidateRects.map(candidate => (
-                    <rect
-                      key={candidate.candidateId}
-                      className="candidateRect"
-                      x={candidate.bbox.x}
-                      y={candidate.bbox.y}
-                      width={candidate.bbox.w}
-                      height={candidate.bbox.h}
-                    />
-                  ))}
                   {showTemplateLines && (
                     <WorkRangeOverlay
                       context={sheetRenderModelContext}

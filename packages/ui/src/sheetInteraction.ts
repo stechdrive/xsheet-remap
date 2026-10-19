@@ -257,17 +257,6 @@ export function fitZoomForViewport(
   )
 }
 
-export function candidateToHit(
-  template: SheetTemplate,
-  durationFrames: number,
-  frameOrigin: number,
-  candidate: { paperTrack: string; frame: number; sheetRole: SheetTimingRole },
-  paperTracks: string[] = template.defaults.paperTracks,
-): SheetHit | null {
-  return enumerateTimingHits(template, durationFrames, frameOrigin, candidate.sheetRole, paperTracks)
-    .find(hit => hit.paperTrack === candidate.paperTrack && hit.frame === candidate.frame) ?? null
-}
-
 export function rangeSelectionFromHits(template: SheetTemplate, anchorHit: SheetHit, focusHit: SheetHit, paperTracks = template.defaults.paperTracks): SheetRangeSelection | null {
   if (anchorHit.role !== focusHit.role) return null
   const anchorRegion = template.regions.find(region => region.regionId === anchorHit.regionId)

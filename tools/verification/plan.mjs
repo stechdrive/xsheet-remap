@@ -38,7 +38,7 @@ export function withoutGeneratedVersion(file, source) {
 }
 export function selectChecks(files, { release = false } = {}) {
   const normalized = files.map(file => file.replaceAll('\\', '/'))
-  const infrastructure = normalized.some(file => /^(?:package(?:-lock)?\.json|\.node-version|\.github\/|tools\/(?:checks|verification|release)\/)/.test(file))
+  const infrastructure = normalized.some(file => /^(?:package(?:-lock)?\.json|\.node-version|rust-toolchain\.toml|\.github\/|tools\/(?:checks|verification|release)\/)/.test(file))
   return {
     check: true, pages: true, browser: browserProjects, ciBrowser: ciBrowserTestFiles,
     native: release || infrastructure || normalized.some(file => /^(?:native\/|apps\/[^/]+\/src-tauri\/.*\.(?:rs|toml|lock)$|tools\/(?:after-effects|desktop)\/)/.test(file)),

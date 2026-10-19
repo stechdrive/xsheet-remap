@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import type { PendingClipImageDrop } from './ClipImageDropDialog'
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createRecognizedEvent, createProjectHistory, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type RecognitionCandidate, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createProjectHistory, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, filesToFileRefs, releaseBrowserFileRefs, retainBrowserFiles, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
 import { updateNativeFileDragPreview, avoidNativeFileDragPreview, clearNativeFileDragPreview } from './nativeFileDragPreview'
@@ -29,9 +29,8 @@ import { runDesktopE2EIfRequested } from './desktopE2E';
 import { clampTextFontSizePx, defaultTimingTextFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout';
 import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
 import { calibrationPointsForSettings, getSheetPageImage } from './sheetImages';
-import { candidateToHit, clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
+import { clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
 import { canPasteTimingClipboardMode, buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, moveTimingEventsInRange, pasteResultRange, pasteTimingClipboardToProject, rangeContainsHit, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget, timingRangeSelectionForMoveResult } from './timingEditing';
-import { normalizeRecognitionLabel, recognizeSheetPagesIfAvailable } from './runtimeFeatures';
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
@@ -77,8 +76,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const appProfile = APP_PROFILES[appKind]
   const {
     history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
-    runtimeSourceImageUrls, setRuntimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole: storedRecognitionRole, setRecognitionRole,
-    recognitionRunning, setRecognitionRunning, recognitionProgress, setRecognitionProgress, recognitionMessage, setRecognitionMessage,
+    runtimeSourceImageUrls, setRuntimeSourceImageUrls,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
     showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides, showTemplateLabels, setShowTemplateLabels,
@@ -106,12 +104,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const valueDraft = timingEditSession?.value ?? ''
   const valueDraftActive = timingEditSession !== null
   const exportProfileId = 'import-stack'
-  const recognitionRoles = (['action', 'cell'] as const).filter(role => template.regions.some(region =>
-    isInteractiveSheetTemplateGridRegion(region) && region.grid.role === role,
-  ))
-  const recognitionRole: SheetTimingRole = recognitionRoles.includes(storedRecognitionRole as 'action' | 'cell')
-    ? storedRecognitionRole
-    : recognitionRoles[0] ?? 'action'
   const issues = useMemo(() => validateProject(project, project.exportProfiles.find(profile => profile.profileId === exportProfileId)), [project, exportProfileId])
   const projectDocumentSnapshot = useMemo(() => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }), [projectDocument, project, template])
   const { resolvedProjectDocument, handleSaveProjectFile, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages } = createAppProjectPersistenceActions({
@@ -178,7 +170,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     projectRef.current = next
     clearSelectionState()
     setRuntimeSourceImageUrls({})
-    setRecognitionCandidates([])
     setAutoCalibrationOverlay(null)
     setAssetDropMenu(null)
     setProjectFilePath(null)
@@ -256,10 +247,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const clampedActivePageIndex = Math.min(activePageIndexFromState, Math.max(0, sheetPages.length - 1))
   const activePage = sheetPages[clampedActivePageIndex] ?? sheetPages[0]
   const activePageImage = getSheetPageImage(project.sheetView, runtimeSourceImageUrls, activePage?.pageId ?? 'page_1', template)
-  const hasRecognitionSheetImages = sheetPages.some(page => {
-    const pageImage = getSheetPageImage(project.sheetView, runtimeSourceImageUrls, page.pageId, template)
-    return Boolean(pageImage.sourceId && pageImage.imageUrl)
-  })
   const selectedKey = selection.keyId ? project.logicalSheet.keys.find(key => key.keyId === selection.keyId) ?? null : null
   const baseProcessId = baseTimingProcessId(project)
   const fallbackCorrectionLayerId = baseProcessId
@@ -1071,7 +1058,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (!imported) return
     if (!commitProject(imported.project)) return
     setRuntimeSourceImageUrls(current => ({ ...current, ...imported.runtimeUpdates }))
-    setRecognitionCandidates([])
     setAutoCalibrationOverlay(null)
     void autoCalibrateImportedSheetSources(imported.calibrationTargets, context)
   }
@@ -1170,18 +1156,16 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
     if (!commitProject(next)) return
     setRuntimeSourceImageUrls(current => ({ ...current, ...runtimeUpdates }))
-    setRecognitionCandidates([])
     setAutoCalibrationOverlay(null)
     void autoCalibrateImportedSheetSources(calibrationTargets, context)
   }
 
   function handleAssignSheetSource(pageId: string, sourceId: string | null) {
     commitProject(assignSheetSourceToPage(project, pageId, sourceId))
-    setRecognitionCandidates([])
     setAutoCalibrationOverlay(null)
   }
 
-  function handleRemoveSheetSource(sourceId: string) { commitProject(removeSheetSource(project, sourceId)); setRecognitionCandidates([]); setAutoCalibrationOverlay(null) }
+  function handleRemoveSheetSource(sourceId: string) { commitProject(removeSheetSource(project, sourceId)); setAutoCalibrationOverlay(null) }
 
   function updateActivePageAlignment(alignment: Partial<SheetImageAlignment>) {
     if (!activePage) return
@@ -1988,7 +1972,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       commitProject(nextProjectWithTemplate)
     }
     clearSelectionState()
-    setRecognitionCandidates([])
     setTextFontSizePx(defaultTimingTextFontSizePx(nextTemplate, 'cell'))
   }
 
@@ -2023,7 +2006,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setActiveCorrectionLayerIdState(baseTimingProcessId(nextProject))
     resetClipWorkspaceView('sheet')
     setRuntimeSourceImageUrls({})
-    setRecognitionCandidates([])
     setPanelView('sheet')
     setEditMode('new')
     setZoom(1)
@@ -2238,78 +2220,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (nextProject !== project) commitProject(nextProject)
   }
 
-  async function handleRecognizeSheet() {
-    const pages = sheetPages.flatMap(page => {
-      const pageImage = getSheetPageImage(project.sheetView, runtimeSourceImageUrls, page.pageId, template)
-      return pageImage.sourceId && pageImage.imageUrl
-        ? [{ page, imageUrl: pageImage.imageUrl, imageSettings: pageImage.settings }]
-        : []
-    })
-    if (pages.length === 0 || recognitionRunning) return
-    setRecognitionRunning(true)
-    setRecognitionProgress({ completed: 0, total: 0 })
-    setRecognitionMessage(null)
-    const release = retainBrowserFiles(pages)
-    try {
-      const candidates = await recognizeSheetPagesIfAvailable({
-        template,
-        pages,
-        sheetRole: recognitionRole,
-        durationFrames: sheetDisplayDurationFrames,
-        frameOrigin: sheetDisplayFrameStart,
-        paperTracks: templatePaperTracks(project, template).map(track => track.paperTrack),
-        timelineLanes: timelineLanesForLayout(project),
-        layoutOverrides: project.sheetView.layoutOverrides,
-        onProgress: (completed, total) => setRecognitionProgress({ completed, total }),
-      })
-      setRecognitionCandidates(candidates)
-      setRecognitionMessage(uiText.recognition.completed(candidates.length, pages.length))
-    } catch (error) {
-      setRecognitionMessage(uiText.recognition.failed(errorMessage(error)))
-    } finally {
-      release()
-      setRecognitionRunning(false)
-    }
-  }
-
-  function acceptRecognitionCandidate(candidate: RecognitionCandidate) {
-    const result = createRecognizedEvent(project, candidate.paperTrack, candidate.frame, candidate.sheetRole, candidate.normalizedLabel)
-    if (result.status === 'conflict') {
-      setRecognitionMessage(uiText.recognition.conflict(candidate.paperTrack, candidate.frame))
-      return
-    }
-    if (result.project !== project) commitProject(result.project)
-    const hit = candidateToHit(template, sheetDisplayDurationFrames, sheetDisplayFrameStart, candidate, templatePaperTracks(project, template).map(track => track.paperTrack))
-    if (hit) setSelectionFromHit(hit, result.project, result.key?.keyId ?? null)
-    setRecognitionCandidates(current => current.filter(item => item.candidateId !== candidate.candidateId))
-  }
-
-  function acceptAllRecognitionCandidates() {
-    let next = project
-    let last: RecognitionCandidate | undefined
-    const conflicts: RecognitionCandidate[] = []
-    for (const candidate of recognitionCandidates) {
-      const result = createRecognizedEvent(next, candidate.paperTrack, candidate.frame, candidate.sheetRole, candidate.normalizedLabel)
-      if (result.status === 'conflict') {
-        conflicts.push(candidate)
-        continue
-      }
-      next = result.project
-      last = candidate
-    }
-    if (next !== project) commitProject(next)
-    if (last) {
-      const hit = candidateToHit(template, logicalSheetDisplayDurationFrames(next.logicalSheet), logicalSheetDisplayFrameStart(next.logicalSheet), last, templatePaperTracks(next, template).map(track => track.paperTrack))
-      if (hit) setSelectionFromHit(hit, next)
-    }
-    setRecognitionCandidates(conflicts)
-    setRecognitionMessage(conflicts.length > 0 ? uiText.recognition.conflictsRemain(conflicts.length) : null)
-  }
-  function updateRecognitionCandidateLabel(candidateId: string, value: string) {
-    setRecognitionCandidates(current => current.map(candidate => candidate.candidateId === candidateId
-      ? { ...candidate, normalizedLabel: normalizeRecognitionLabel(value) ?? value.trim() }
-      : candidate))
-  }
   function moveSelection(trackDelta: number, frameDelta: number, extendRange: boolean) {
     const sourceProject = commitTimingDraft(false)
     const role = rangeSelection?.role === 'action' || rangeSelection?.role === 'cell' ? rangeSelection.role : selection.hit ? sheetRoleForHit(selection.hit) : 'cell'
@@ -2472,8 +2382,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, baseProcessId, handleBaseProcessChange,
     pendingClipImageDrop: pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null, setPendingClipImageDrop, applyClipImageDrop,
     appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
-    template, runtimeSourceImageUrls, recognitionCandidates, setRecognitionCandidates, recognitionRole,
-    setRecognitionRole, recognitionRunning, recognitionProgress, recognitionMessage, setRecognitionMessage, autoCalibrationRunning,
+    template, runtimeSourceImageUrls, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
     showTemplateLabels, setShowTemplateLabels, showInputContent, setShowInputContent,
@@ -2486,7 +2395,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setSheetImageExportDraft, sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen, timingExportDialog,
     setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, handleLoadClip, handleImportClip, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu, issues,
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, timingExportIssues, sheetPages, clampedActivePageIndex,
-    activePage, activePageImage, hasRecognitionSheetImages, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
+    activePage, activePageImage, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand, handleClipCorrespondence,
@@ -2510,7 +2419,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData,
     handleUndo, handleRedo, handleResetApp, handleAnnotation, handleCreateTimelineMemo, handleCreateTimelineMemoForCue, handleDeleteTimelineMemo, handleUpdateTimelineMemoPlacement, handleAppendTimelineMemoStroke, handleEraseTimelineMemoStroke, handleUpsertTimelineMemoText, handleUpdateTimelineMemoAppearance, handleClearTimelineMemoStrokes, handleTextAnnotation, handleSelectTextAnnotation,
     handleEditTextAnnotation, handleUpdateTextAnnotation, handleCommitTextAnnotation, handleCancelTextAnnotation, handleCommitFocusedTextAnnotationDraft, handleTextFontSizeChange, handleMemoTextFontSizeChange,
-    handleEraseAnnotation, handleRecognizeSheet, acceptRecognitionCandidate, acceptAllRecognitionCandidates, updateRecognitionCandidateLabel,
+    handleEraseAnnotation,
   }
 }
 

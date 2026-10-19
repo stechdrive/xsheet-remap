@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-importer-launcher"
-version = "0.1.816"
+version = "0.1.817"
 description = "Native launcher for xsheet-importer"
 authors = ["xsheet-remap contributors"]
 license = "MIT"
@@ -11,7 +11,7 @@ name = "xsheet-importer"
 path = "src/main.rs"
 
 [build-dependencies]
-embed-resource = "3.0.11"
+embed-resource = "3.0.12"
 
 [profile.release]
 codegen-units = 1

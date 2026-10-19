@@ -148,7 +148,6 @@ try {
     Add-WorkingTreeChangesToClone
   }
   Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("ci") -WorkingDirectory $cloneRoot
-  Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "check:dependency-audit") -WorkingDirectory $cloneRoot
   $previousReports = Join-Path $repoRoot "reference-local\verification"
   $cloneReports = Join-Path $cloneRoot "reference-local\verification"
   if (Test-Path -LiteralPath $previousReports) {
@@ -160,6 +159,8 @@ try {
   try {
     if (-not $env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $repoRoot ".cache\playwright" }
     $env:CARGO_TARGET_DIR = Join-Path $repoRoot ".cache\cargo-target"
+    Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "setup:rust-audit") -WorkingDirectory $cloneRoot
+    Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "check:dependency-audit") -WorkingDirectory $cloneRoot
     Invoke-CheckedCommand -FilePath "node" -ArgumentList @("node_modules/@playwright/test/cli.js", "install", "chromium", "webkit") -WorkingDirectory $cloneRoot
     Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "verify:local", "--", "--reuse") -WorkingDirectory $cloneRoot
   } finally {
@@ -167,7 +168,7 @@ try {
     $env:CARGO_TARGET_DIR = $previousCargoTarget
     $evidenceDestination = Join-Path $repoRoot "reference-local\preflight\$([System.IO.Path]::GetFileName($runRoot))"
     New-Item -ItemType Directory -Path $evidenceDestination -Force | Out-Null
-    foreach ($directory in @("verification", "canvaskit-browser")) {
+    foreach ($directory in @("verification", "canvaskit-browser", "dependency-audit")) {
       $source = Join-Path $cloneRoot "reference-local\$directory"
       if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination $evidenceDestination -Recurse }
     }

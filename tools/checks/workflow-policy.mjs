@@ -13,6 +13,11 @@ export function inspectPagesWorkflow(workflow) {
   const checks = Object.entries(jobs).filter(([, job]) => phase(job, 'check'))
   require(checks.length > 0, 'A repository check must gate publication')
   require(checks.some(([, job]) => runs(job).includes('npm run check:dependency-audit')), 'Dependency audit must gate publication')
+  for (const [, job] of checks) {
+    const setup = job.steps.findIndex(step => step.run === 'npm run setup:rust-audit' && !step.if)
+    const audit = job.steps.findIndex(step => step.run === 'npm run check:dependency-audit')
+    require(setup >= 0 && audit > setup, 'Install the pinned Rust auditor before the dependency gate')
+  }
   const smokes = Object.entries(jobs).filter(([, job]) => phase(job, 'browser:ci'))
   require(smokes.length === 1 && smokes[0]?.[0] === buildId, 'Pages smoke must inspect the candidate in its build job')
   const buildSteps = build?.steps ?? []

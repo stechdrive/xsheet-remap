@@ -47,4 +47,9 @@ describe('Pages publication gates', () => {
     expect(inspectPagesWorkflow(workflow)).toContain('Pin action revision: actions/checkout@main')
     expect(inspectPagesWorkflow(workflow)).toContain('Checkout must use full history without persisted credentials')
   })
+  it('rejects skipping the fixed Rust audit tool installation', () => {
+    const workflow = candidate()
+    workflow.jobs.check.steps.find(step => step.run === 'npm run setup:rust-audit')!.if = 'false'
+    expect(inspectPagesWorkflow(workflow)).toContain('Install the pinned Rust auditor before the dependency gate')
+  })
 })

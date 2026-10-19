@@ -17,7 +17,7 @@ export const testPurposes = {
   'browser-ci': 'Pages entry points, runtime loading and service-worker lifecycle in Chromium; no gesture or GPU performance acceptance',
   native: 'Windows After Effects export and native boundary behavior',
   importer: 'Direct CLIP container, pixel placement and timeline generation',
-  desktop: 'Built EXE with verified source and SHA-256; sequential native mouse, keyboard and Explorer drops with protocol observation',
+  desktop: 'Current shipped UI and verified EXE SHA-256; native template editing, right CLIP tree Explorer imports, layer/range drag cancellation and Undo/Redo; legacy UI evidence rejected',
   device: 'Manual device evidence: trusted composition/touch events and operator-observed result',
 }
 export function withoutGeneratedVersion(file, source) {
@@ -43,6 +43,6 @@ export function selectChecks(files, { release = false } = {}) {
     check: true, pages: true, browser: browserProjects, ciBrowser: ciBrowserTestFiles,
     native: release || infrastructure || normalized.some(file => /^(?:native\/|apps\/[^/]+\/src-tauri\/.*\.(?:rs|toml|lock)$|tools\/(?:after-effects|desktop)\/)/.test(file)),
     importer: release || infrastructure || normalized.some(file => /^(?:packages\/(?:adapters|core)\/src\/clip|tools\/clip\/)/.test(file)),
-    desktop: release || normalized.some(file => /^(?:packages\/(?:ui|core|adapters)\/|native\/|apps\/[^/]+\/src-tauri\/|tools\/e2e\/win-)/.test(file)),
+    desktop: release || normalized.some(file => /^(?:packages\/(?:ui|core|adapters)\/|native\/|apps\/[^/]+\/src-tauri\/|tools\/e2e\/(?:win-|remap-workspace-native)|tools\/verification\/desktop-evidence)/.test(file)),
   }
 }

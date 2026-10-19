@@ -6,6 +6,7 @@ import { reusableEvidence, sha256, sourceIdentity } from './evidence.mjs'
 import { defaultBrowserWorkers, parseOptions } from './options.mjs'
 import { prepareBrowser, validateBrowserResults } from './browser.mjs'
 import { readUnitEvidence, reusableUnitEvidence, unitReportPath } from './unit-evidence.mjs'
+import { readDesktopScenarioEvidence } from './desktop-evidence.mjs'
 
 const options = parseOptions(process.argv.slice(2))
 const { phase } = options
@@ -105,9 +106,11 @@ if (phase === 'plan') {
         if (sha256(fs.readFileSync(manifestPath)) !== artifactSha256) throw new Error('Pages candidate changed during browser verification')
       } else if (selected === 'desktop') {
         record.diagnostics = `reference-local/desktop-acceptance/${Date.now()}-${process.pid}`
+        record.scenarios = []
         for (const script of checks.desktop) {
           const scenario = script.split(':').at(-1)
           npm(script, ['--', '-ArtifactRoot', `${record.diagnostics}/${scenario}`])
+          record.scenarios.push(readDesktopScenarioEvidence(root, `${record.diagnostics}/${scenario}`, scenario))
         }
       } else for (const script of checks[selected]) {
         if (script === 'test' || script === 'test:clip') {

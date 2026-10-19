@@ -24,7 +24,11 @@ Set-Location $repoRoot
 if (-not $ExePath) {
   $ExePath = "dev-local/xsheet-remap.exe"
 }
-$scenario = if ($TestCase -eq "registered-cell") {
+$currentWorkspaceScenario = $AppMode -eq "remap" -and $TestCase -in @("registered-cell", "explorer-import")
+$scenario = if ($currentWorkspaceScenario) {
+  # No application test hook matches this ID: keep normal Remap initialization.
+  "current-remap-$TestCase"
+} elseif ($TestCase -eq "registered-cell") {
   "registered-cell-real-dnd"
 } elseif ($AppMode -eq "remap" -and $TestCase -in @("csp-pane", "full")) {
   "remap-real-dnd"
@@ -179,11 +183,12 @@ $provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
   scenario = $scenario
   testCase = $TestCase
   appMode = $AppMode
+  uiSurface = if ($currentWorkspaceScenario) { "current-remap-workspace" } else { "legacy-workspace-diagnostic" }
   exePath = $resolvedExePath
   exeSha256 = Get-ReleaseFileSha256Hex -Path $resolvedExePath
   executableEvidence = $provenance
   inputMode = switch ($TestCase) {
-    "registered-cell" { "native-mouse-keyboard-card-and-range-drag" }
+    "registered-cell" { if ($currentWorkspaceScenario) { "native-mouse-keyboard-clip-layer-and-range-drag" } else { "native-mouse-keyboard-card-and-range-drag" } }
     "explorer-import" { "native-mouse-explorer-file-drop" }
     "csp-pane" { "native-mouse-csp-pane-drag" }
     default { "native-mouse-drag-and-drop" }
@@ -223,7 +228,8 @@ try {
   }
 
   $tsxPath = Join-Path $repoRoot "node_modules\.bin\tsx.cmd"
-  & $tsxPath "tools/e2e/win-real-dnd/real-dnd-cdp.ts" `
+  $scenarioRunner = if ($currentWorkspaceScenario) { "tools/e2e/remap-workspace-native.ts" } else { "tools/e2e/win-real-dnd/real-dnd-cdp.ts" }
+  & $tsxPath $scenarioRunner `
     "--mode" "$AppMode" `
     "--test-case" "$TestCase" `
     "--scenario-id" "$scenario" `
